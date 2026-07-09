@@ -860,9 +860,12 @@ const pointers = {}; // id -> { side, lastA }
 const isLandscape = () => W > H;
 function dialCenter(side) {
   if (isLandscape()) {
-    // corner dials, proportioned like the mock, nudged inside the safe area
+    // corner dials, proportioned like the mock. the SAME inset on both sides
+    // (whichever notch is bigger) keeps the pads symmetric to the centered rim —
+    // per-side insets made one pad sit farther from the rim than the other.
     const r = H * 0.21, mx = H * 0.25, my = H * 0.75 - SAFE.b * 0.5;
-    return side === 'L' ? { x: mx + SAFE.l, y: my, r } : { x: W - mx - SAFE.r, y: my, r };
+    const inset = Math.max(SAFE.l, SAFE.r);
+    return side === 'L' ? { x: mx + inset, y: my, r } : { x: W - mx - inset, y: my, r };
   }
   const m = Math.min(W, H) * 0.17;
   return side === 'L' ? { x: m * 0.95, y: H - m * 0.95, r: m * 0.72 } : { x: W - m * 0.95, y: H - m * 0.95, r: m * 0.72 };
@@ -1625,27 +1628,9 @@ function drawBodyGlitch(en, size, pulse, PAL, fade) {
     for (let i = 0; i < 4; i++) {
       slab(tear ? i : 99, (i - 2) * bh * 1.12, bw, bh, i % 2 ? main : hi);
     }
-  } else if (en.crawler) {
-    // sliding rip: horizontal-hold glitch — afterimages smear opposite its drift,
-    // same slab orientation as every other artifact
-    const dir = en.drift >= 0 ? 1 : -1;
-    ctx.fillStyle = `rgba(${PAL.glow},1)`;
-    for (let i = 3; i >= 1; i--) {
-      ctx.globalAlpha = fade * (0.36 - i * 0.09);
-      ctx.fillRect(-dir * size * i * 0.5 - size * 1.05, -size * 0.31, size * 2.1, size * 0.24);
-      ctx.fillRect(-dir * size * i * 0.5 - size * 0.85, size * 0.06, size * 1.7, size * 0.2);
-    }
-    ctx.globalAlpha = fade;
-    slab(0, -size * 0.31, size * 2.1, size * 0.24);
-    slab(1, size * 0.06, size * 1.7, size * 0.2, hi);
-  } else if (en.type === 'line') {
-    // barrier post: crisp uniform slats — solid wall, not torn data; the tether
-    // and the matching twin mark it as one end of a pair
-    for (let i = 0; i < 3; i++) {
-      slab(99, (i - 1.5) * size * 0.42, size * 1.6, size * 0.3, i === 1 ? hi : main);
-    }
   } else {
-    // regular trap: a stack of torn scanline slabs
+    // regular trap: a stack of torn scanline slabs. crawlers and barrier posts
+    // are the exact same body, told apart by palette (orange / red) + tether
     for (let i = 0; i < 4; i++) {
       const w = size * (1.35 + 0.55 * Math.sin(seed + i * 1.9));
       slab(i, (i - 2) * size * 0.4, w, size * 0.3, i === 1 ? hi : main);
