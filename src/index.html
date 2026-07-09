@@ -17,9 +17,16 @@
     --sal: env(safe-area-inset-left, 0px);
     --sar: env(safe-area-inset-right, 0px);
   }
+  @font-face {
+    font-family: 'Audiowide';
+    src: url('fonts/audiowide.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html, body { width:100%; height:100%; overflow:hidden; background:#03060e; touch-action:none;
-    font-family:'Segoe UI', system-ui, -apple-system, sans-serif; user-select:none; -webkit-user-select:none; }
+    font-family:'Audiowide', 'Segoe UI', system-ui, -apple-system, sans-serif; user-select:none; -webkit-user-select:none; }
   canvas { display:block; position:fixed; inset:0; }
 </style>
 </head>
@@ -33,6 +40,8 @@
 // ============================================================
 
 const canvas = document.getElementById('game');
+// canvas text falls back to system-ui until the display font arrives — force it early
+if (document.fonts && document.fonts.load) document.fonts.load('16px Audiowide').catch(() => {});
 let ctx = canvas.getContext('2d'); // rebindable so offscreen layers can reuse the painters
 let W = 0, H = 0, DPR = 1;
 let SAFE = { t: 0, b: 0, l: 0, r: 0 }; // safe-area insets mapped into game space
@@ -78,8 +87,10 @@ const rand = (a, b) => a + Math.random() * (b - a);
 let AC = null, sfxGain = null;
 const settings = {
   sound: true, soundVol: 0.8, music: true, musicVol: 0.5, haptics: true,
-  aimAssist: false // soft magnet toward arriving traps (accessibility; raw skill by default)
+  aimAssist: false, // soft magnet toward arriving traps (accessibility; raw skill by default)
+  theme: 0 // enemy visual language: 0 packets · 1 organisms · 2 glitch
 };
+const THEME_NAMES = ['PACKETS', 'ORGANISMS', 'GLITCH'];
 // score-chase modifiers — unlocked with the campaign, toggled on the menu
 const mutators = { oneLife: false, fast: false, noPickups: false };
 const mutMul = () => (mutators.oneLife ? 2 : 1) * (mutators.fast ? 1.5 : 1) * (mutators.noPickups ? 1.3 : 1);
@@ -1594,6 +1605,185 @@ function drawStreaks(g, dt) {
   }
 }
 
+// ---------- enemy bodies · theme 0: WIREFRAME PACKETS ----------
+// every hostile is literally a data packet: a neon wireframe container around
+// a glowing payload core, with hex fragments leaking out. silhouette + color
+// carry the type: spiked diamond / sealed hex / double-hulled octagon /
+// link-node / legged skitterer. round & black stays "safe".
+function polyPath(n, r, rot) {
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const a = rot + i / n * TAU;
+    const x = Math.cos(a) * r, y = Math.sin(a) * r;
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  }
+  ctx.closePath();
+}
+function drawBodyPacket(en, size, pulse, PAL) {
+  const main = PAL.shades[0], hi = PAL.lights[0];
+  const lw = Math.max(1, size * 0.09);
+  const rot = en.spin * (en.type === 'heavy' ? 0.35 : 0.55);
+  ctx.lineJoin = 'round';
+  // payload core — the hot data inside the container
+  const core = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 0.52);
+  core.addColorStop(0, '#ffffff');
+  core.addColorStop(0.35, hi);
+  core.addColorStop(1, `rgba(${PAL.glow},0)`);
+  ctx.fillStyle = core;
+  ctx.beginPath(); ctx.arc(0, 0, size * 0.52 * pulse, 0, TAU); ctx.fill();
+
+  if (en.type === 'heavy') {
+    // double-hulled armored container — plating bridges the hulls
+    polyPath(8, size * 1.0, rot);
+    ctx.strokeStyle = main; ctx.lineWidth = lw; ctx.stroke();
+    polyPath(8, size * 0.68, rot);
+    ctx.strokeStyle = hi; ctx.lineWidth = Math.max(0.8, lw * 0.6); ctx.stroke();
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = main; ctx.lineWidth = lw * 1.9;
+    for (let i = 0; i < 8; i += 2) {
+      const a = rot + (i + 0.5) / 8 * TAU;
+      ctx.beginPath(); ctx.arc(0, 0, size * 0.84, a - 0.17, a + 0.17); ctx.stroke();
+    }
+    ctx.lineCap = 'round';
+  } else if (en.lock !== undefined) {
+    // sealed packet: hexagonal container behind an encryption ring (gap = keyhole)
+    polyPath(6, size * 0.8, rot * 0.6);
+    ctx.fillStyle = `rgba(${PAL.glow},0.14)`; ctx.fill();
+    ctx.strokeStyle = main; ctx.lineWidth = lw; ctx.stroke();
+    polyPath(6, size * 0.48, rot * 0.6);
+    ctx.strokeStyle = hi; ctx.lineWidth = Math.max(0.8, lw * 0.55); ctx.stroke();
+    ctx.save();
+    ctx.rotate(en.spin * 0.8);
+    ctx.strokeStyle = hi; ctx.lineWidth = Math.max(1, size * 0.11);
+    ctx.beginPath(); ctx.arc(0, 0, size * 1.12, 0.5, TAU - 0.5); ctx.stroke();
+    ctx.restore();
+  } else if (en.crawler) {
+    // skitterer: compact diamond riding articulated cursor-legs along the wall
+    const stride = time * 10 * (en.drift >= 0 ? 1 : -1);
+    ctx.strokeStyle = main; ctx.lineCap = 'round';
+    for (let i = 0; i < 6; i++) {
+      const side = i < 3 ? 1 : -1;                    // legs on both tangent sides
+      const k = (i % 3) - 1;
+      const ph = Math.sin(stride + i * 2.4);
+      const rootA = side * Math.PI / 2 + k * 0.6;
+      const kr = size * (0.72 + 0.08 * ph);
+      const kx = Math.cos(rootA) * kr, ky = Math.sin(rootA) * kr;
+      const tipA = rootA + ph * 0.28;
+      const tx2 = Math.cos(tipA) * size * 1.3, ty2 = Math.sin(tipA) * size * 1.3;
+      ctx.lineWidth = Math.max(0.8, size * 0.07);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(kx, ky); ctx.lineTo(tx2, ty2); ctx.stroke();
+    }
+    polyPath(4, size * 0.62, rot);
+    ctx.fillStyle = `rgba(${PAL.glow},0.18)`; ctx.fill();
+    ctx.strokeStyle = main; ctx.lineWidth = lw; ctx.stroke();
+    polyPath(4, size * 0.36, rot);
+    ctx.strokeStyle = hi; ctx.lineWidth = Math.max(0.8, lw * 0.55); ctx.stroke();
+  } else if (en.type === 'line') {
+    // link node: ringed diamond with chain stubs on the tangent — one end of a pair
+    ctx.strokeStyle = main; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.arc(0, 0, size * 0.78, 0, TAU); ctx.stroke();
+    polyPath(4, size * 0.46, rot);
+    ctx.strokeStyle = hi; ctx.lineWidth = Math.max(0.8, lw * 0.7); ctx.stroke();
+    ctx.strokeStyle = hi; ctx.lineWidth = Math.max(1, lw * 0.9);
+    ctx.beginPath(); ctx.moveTo(0, size * 0.78); ctx.lineTo(0, size * 1.18); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -size * 0.78); ctx.lineTo(0, -size * 1.18); ctx.stroke();
+  } else {
+    // regular trap: spiked diamond — corner shards say "do not touch"
+    polyPath(4, size * 0.9, rot);
+    ctx.fillStyle = `rgba(${PAL.glow},0.13)`; ctx.fill();
+    ctx.strokeStyle = main; ctx.lineWidth = lw; ctx.stroke();
+    polyPath(4, size * 0.52, rot);
+    ctx.strokeStyle = hi; ctx.lineWidth = Math.max(0.8, lw * 0.6); ctx.stroke();
+    ctx.lineWidth = Math.max(0.8, lw * 0.7); ctx.strokeStyle = main;
+    for (let i = 0; i < 4; i++) {
+      const a = rot + i / 4 * TAU;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * size * 0.9, Math.sin(a) * size * 0.9);
+      ctx.lineTo(Math.cos(a) * size * 1.32, Math.sin(a) * size * 1.32);
+      ctx.stroke();
+    }
+  }
+  // hex fragment leaking off the payload (counter-orbits the container spin)
+  if (!lowFX && size > 9) {
+    const hex = (((en.spin * 977) | 0) % 255).toString(16).toUpperCase().padStart(2, '0');
+    const oa = -en.spin * 1.1;
+    ctx.font = Math.max(6, size * 0.3 | 0) + 'px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = `rgba(${PAL.glow},0.75)`;
+    ctx.fillText(hex, Math.cos(oa) * size * 1.5, Math.sin(oa) * size * 1.5 + size * 0.11);
+    ctx.textAlign = 'left';
+  }
+}
+
+// ---------- enemy bodies · theme 2: GLITCH ARTIFACTS ----------
+// corruption made visible: torn scanline slabs with chromatic ghosts. bars run
+// along the tunnel wall (tangent), so hostiles read as interference on the
+// stream itself. locks are crisp banded blocks (encrypted = intact), heavies a
+// dense mosaic, crawlers a sliding rip with a pixel-sort trail.
+function drawBodyGlitch(en, size, pulse, PAL, fade) {
+  const main = PAL.shades[0], hi = PAL.lights[0];
+  const seed = en.spin * 13.7;
+  const tear = Math.sin(time * 1.9 + seed) > 0.94 ? 1 : 0;   // occasional hard jump
+  const split = size * (0.07 + tear * 0.16);
+  const jx = i => Math.sin(time * 11 + seed + i * 3.1) * size * (0.05 + tear * 0.22);
+  const slab = (i, y, w, h, col) => {
+    // chromatic ghosts first (additive), then the solid slab
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = `rgba(${PAL.glow},0.4)`;
+    ctx.fillRect(jx(i) - w / 2 - split, y, w, h);
+    ctx.fillRect(jx(i) - w / 2 + split, y, w, h);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = col || main;
+    ctx.fillRect(jx(i) - w / 2, y, w, h);
+  };
+  ctx.save();
+  ctx.rotate(Math.PI / 2); // bar axis onto the tangent — interference on the ring
+
+  if (en.type === 'heavy') {
+    // dense mosaic — a mass of corrupted blocks, each cell flickering
+    const cs = size * 0.56;
+    for (let r = -1; r <= 1; r++) for (let c = -1; c <= 1; c++) {
+      const fl = 0.55 + 0.45 * Math.sin(time * 7 + seed + r * 2.7 + c * 1.3);
+      ctx.fillStyle = (r + c) % 2 ? main : PAL.shades[2];
+      ctx.globalAlpha = fade * (0.5 + 0.5 * fl);
+      ctx.fillRect(c * cs - cs * 0.46 + jx(r + 2) * 0.4, r * cs - cs * 0.46, cs * 0.92, cs * 0.92);
+    }
+    ctx.globalAlpha = fade;
+    slab(5, -size * 0.1, size * 2.1, size * 0.2, hi);
+  } else if (en.lock !== undefined) {
+    // encrypted block: crisp banded slab — intact data, wrong hands
+    const bw = size * 1.5, bh = size * 0.34;
+    for (let i = 0; i < 4; i++) {
+      slab(tear ? i : 99, (i - 2) * bh * 1.12, bw, bh, i % 2 ? main : hi);
+    }
+  } else if (en.crawler) {
+    // sliding rip: thin wide tear + pixel-sort streaks trailing its drift
+    const dir = en.drift >= 0 ? 1 : -1;
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = `rgba(${PAL.glow},${(0.5 - i * 0.11).toFixed(2)})`;
+      ctx.fillRect(-dir * size * (0.9 + i * 0.5) - size * 0.35, -size * 0.09, size * 0.7, size * 0.18);
+    }
+    slab(0, -size * 0.28, size * 2.2, size * 0.26);
+    slab(1, size * 0.05, size * 1.7, size * 0.22, hi);
+  } else if (en.type === 'line') {
+    // wall tear: a tall rip standing on the rim — one post of the barrier pair
+    ctx.rotate(-Math.PI / 2);
+    slab(0, -size * 0.95, size * 0.44, size * 1.9);
+    slab(1, -size * 0.6, size * 0.2, size * 1.2, hi);
+    ctx.rotate(Math.PI / 2);
+  } else {
+    // regular trap: a stack of torn scanline slabs
+    for (let i = 0; i < 4; i++) {
+      const w = size * (1.35 + 0.55 * Math.sin(seed + i * 1.9));
+      slab(i, (i - 2) * size * 0.4, w, size * 0.3, i === 1 ? hi : main);
+    }
+    // white flicker sliver — the corruption arcing
+    ctx.fillStyle = `rgba(255,255,255,${(0.25 + 0.5 * (Math.sin(time * 17 + seed) * 0.5 + 0.5)).toFixed(2)})`;
+    ctx.fillRect(jx(7) - size * 0.5, -size * 0.06, size, size * 0.12);
+  }
+  ctx.restore();
+}
+
 function drawEnemy(en, g) {
   const rg = ring(Math.max(en.z, 0.02), g);
   const x = rg.x + Math.cos(en.angle) * rg.r;
@@ -1637,7 +1827,8 @@ function drawEnemy(en, g) {
   const spr = SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.crawler ? 'crawler' : en.type];
 
   // dense branching filaments radiating in all directions (fade in as it approaches)
-  if (!spr && near > 0.2) {
+  // — organisms theme only; packets and glitch keep clean silhouettes
+  if (settings.theme === 1 && !spr && near > 0.2) {
     const ta = clamp((near - 0.2) / 0.45, 0, 1) * fade;
     ctx.lineCap = 'round';
     const tStep = lowFX ? 2 : 1;
@@ -1726,6 +1917,10 @@ function drawEnemy(en, g) {
     ctx.fillStyle = gg;
     ctx.beginPath(); ctx.arc(gx, gy, pr * 0.3, 0, TAU); ctx.fill();
     ctx.restore();
+  } else if (settings.theme === 0) {
+    drawBodyPacket(en, size, pulse, PAL);
+  } else if (settings.theme === 2) {
+    drawBodyGlitch(en, size, pulse, PAL, fade);
   } else if (en.lock !== undefined) {
     // color-locked: a smooth keyed orb with a rotating key-ring (gap = keyhole)
     const col0 = en.lock === 0;
@@ -2205,7 +2400,7 @@ function drawDials() {
         ctx.beginPath(); ctx.arc(d.x, d.y, d.r + 7, -Math.PI / 2, -Math.PI / 2 + heat * TAU); ctx.stroke();
       }
       if (overheat) {
-        ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,80,80,0.9)'; ctx.font = '700 11px system-ui';
+        ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,80,80,0.9)'; ctx.font = '700 11px Audiowide, system-ui';
         ctx.fillText('OVERHEAT', d.x, d.y - d.r - 14);
         ctx.textAlign = 'left';
       }
@@ -2338,7 +2533,7 @@ function techPanel(x, y, w, h, title) {
   ctx.restore();
   ctx.fillStyle = '#cfeeff';
   try { ctx.letterSpacing = '3px'; } catch (e) {}
-  ctx.font = '700 13px system-ui'; ctx.textAlign = 'left';
+  ctx.font = '700 13px Audiowide, system-ui'; ctx.textAlign = 'left';
   ctx.fillText(title, x + 20, y + 21);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   cornerBrackets(x - 7, y - 7, w + 14, h + 14, 14, 'rgba(120,220,255,0.55)');
@@ -2362,15 +2557,15 @@ function drawHUD(g) {
       ctx.scale(scale, scale);
       ctx.globalAlpha = Math.min(inA, outA);
       try { ctx.letterSpacing = '6px'; } catch (e) {}
-      ctx.fillStyle = 'rgba(200,235,255,0.85)'; ctx.font = '600 13px system-ui';
+      ctx.fillStyle = 'rgba(200,235,255,0.85)'; ctx.font = '600 13px Audiowide, system-ui';
       ctx.fillText(endless ? 'SURVIVE' : qual ? 'TRAINING' : 'LEVEL ' + (levelIdx + 1), 0, -34);
-      ctx.fillStyle = '#eafaff'; ctx.font = '800 ' + Math.min(W * 0.055, 32) + 'px system-ui';
+      ctx.fillStyle = '#eafaff'; ctx.font = '800 ' + Math.min(W * 0.055, 32) + 'px Audiowide, system-ui';
       ctx.shadowColor = '#5fd7ff'; ctx.shadowBlur = 24;
       ctx.fillText(L.name, 0, 0);
       ctx.shadowBlur = 0;
       try { ctx.letterSpacing = '0px'; } catch (e) {}
       if (L.hint) {
-        ctx.fillStyle = '#ffb8c8'; ctx.font = '600 12px system-ui';
+        ctx.fillStyle = '#ffb8c8'; ctx.font = '600 12px Audiowide, system-ui';
         ctx.fillText(L.hint, 0, 26);
       }
       ctx.restore();
@@ -2385,7 +2580,7 @@ function drawHUD(g) {
         ctx.scale(pop, pop);
         ctx.globalAlpha = ca;
         ctx.fillStyle = '#ffd24a';
-        ctx.font = '800 ' + Math.min(W * 0.09, 54) + 'px system-ui';
+        ctx.font = '800 ' + Math.min(W * 0.09, 54) + 'px Audiowide, system-ui';
         ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 26;
         ctx.fillText(3 - idx, 0, 18);
         ctx.shadowBlur = 0;
@@ -2398,7 +2593,7 @@ function drawHUD(g) {
       ctx.scale(1 + gt * 0.6, 1 + gt * 0.6);
       ctx.globalAlpha = 1 - gt;
       ctx.fillStyle = '#7ee262';
-      ctx.font = '800 ' + Math.min(W * 0.09, 54) + 'px system-ui';
+      ctx.font = '800 ' + Math.min(W * 0.09, 54) + 'px Audiowide, system-ui';
       ctx.shadowColor = '#7ee262'; ctx.shadowBlur = 26;
       try { ctx.letterSpacing = '4px'; } catch (e) {}
       ctx.fillText('GO!', 0, 18);
@@ -2456,17 +2651,17 @@ function drawHUD(g) {
 
   // score (right)
   ctx.textAlign = 'right';
-  ctx.fillStyle = '#ffd24a'; ctx.font = '700 20px system-ui';
+  ctx.fillStyle = '#ffd24a'; ctx.font = '700 20px Audiowide, system-ui';
   ctx.fillText(score.toLocaleString(), W - pad - SAFE.r, H * 0.12 + 8);
-  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '600 10px system-ui';
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '600 10px Audiowide, system-ui';
   ctx.fillText('SCORE', W - pad - SAFE.r, H * 0.12 + 24);
   if (combo >= 3) {
-    ctx.fillStyle = '#ffd24a'; ctx.font = '700 14px system-ui';
+    ctx.fillStyle = '#ffd24a'; ctx.font = '700 14px Audiowide, system-ui';
     ctx.fillText('COMBO x' + Math.min(combo, 5), W - pad - SAFE.r, H * 0.12 + 48);
   }
   const mm = mutMul();
   if (mm > 1) {
-    ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 11px system-ui';
+    ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 11px Audiowide, system-ui';
     ctx.fillText('MODIFIERS ×' + (Math.round(mm * 100) / 100), W - pad - SAFE.r, H * 0.12 + 66);
   }
   ctx.textAlign = 'left';
@@ -2487,7 +2682,7 @@ function drawHUD(g) {
     ctx.textAlign = 'center';
     ctx.globalAlpha = 0.92;
     ctx.fillStyle = '#ffd24a';
-    ctx.font = '800 ' + Math.min(W * 0.08, 46) + 'px system-ui';
+    ctx.font = '800 ' + Math.min(W * 0.08, 46) + 'px Audiowide, system-ui';
     ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 20;
     ctx.fillText(d2, W / 2, H * 0.45);
     ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.textAlign = 'left';
@@ -2503,7 +2698,7 @@ function drawHUD(g) {
     ctx.fillStyle = 'rgba(60,40,5,0.65)'; ctx.fill();
     ctx.strokeStyle = 'rgba(255,210,74,0.8)'; ctx.lineWidth = 1;
     techRect(x0, y0, cw, chh, 6); ctx.stroke();
-    ctx.fillStyle = '#ffe9b0'; ctx.font = '700 10px system-ui'; ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffe9b0'; ctx.font = '700 10px Audiowide, system-ui'; ctx.textAlign = 'left';
     ctx.fillText(PICKUPS[k].label, x0 + 9, y0 + 14);
     ctx.fillStyle = 'rgba(255,210,74,0.9)';
     ctx.fillRect(x0, y0 + chh + 3, cw * clamp(fx[k] / PICKUPS[k].dur, 0, 1), 2);
@@ -2525,7 +2720,7 @@ function drawHUD(g) {
     if (msg) {
       const a = 0.75 + Math.sin(time * 4) * 0.25;
       ctx.textAlign = 'center';
-      ctx.font = '700 ' + Math.min(W * 0.026, 17) + 'px system-ui';
+      ctx.font = '700 ' + Math.min(W * 0.026, 17) + 'px Audiowide, system-ui';
       const tw = ctx.measureText(msg).width;
       ctx.fillStyle = 'rgba(9,20,40,0.72)';
       roundRect(W / 2 - tw / 2 - 16, H * 0.70 - 20, tw + 32, 30, 8); ctx.fill();
@@ -2685,15 +2880,15 @@ function drawInfoCard() {
   techPanel(px, py, pw, ph, 'FIELD BRIEFING');
   drawInfoGlyph(infoCard, px + 78, py + ph / 2 + 12, Math.min(ph * 0.16, 36));
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#eafaff'; ctx.font = '800 20px system-ui';
+  ctx.fillStyle = '#eafaff'; ctx.font = '800 20px Audiowide, system-ui';
   try { ctx.letterSpacing = '2px'; } catch (e) {}
   ctx.fillText(c.title, px + 152, py + 76);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
-  ctx.fillStyle = 'rgba(190,225,255,0.85)'; ctx.font = '500 13px system-ui';
+  ctx.fillStyle = 'rgba(190,225,255,0.85)'; ctx.font = '500 13px Audiowide, system-ui';
   c.lines.forEach((ln, i) => ctx.fillText(ln, px + 152, py + 102 + i * 19));
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(140,230,255,' + (0.5 + Math.sin(time * 4) * 0.3).toFixed(2) + ')';
-  ctx.font = '700 12px system-ui';
+  ctx.font = '700 12px Audiowide, system-ui';
   try { ctx.letterSpacing = '3px'; } catch (e) {}
   ctx.fillText('TAP TO CONTINUE', W / 2, py + ph - 20);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
@@ -2726,7 +2921,7 @@ function drawGuideArc(n, targetA) {
 function settingRow(label, key, volKey, y, px, pw, tox) {
   ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(160,225,255,0.95)';
   try { ctx.letterSpacing = '2px'; } catch (e) {}
-  ctx.font = '700 12px system-ui';
+  ctx.font = '700 12px Audiowide, system-ui';
   ctx.fillText(label, px + 24, y + 4);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   // angular toggle slab
@@ -2763,11 +2958,39 @@ function settingRow(label, key, volKey, y, px, pw, tox) {
   ctx.lineCap = 'round';
   pauseSlidersList.push({ x: sx, y, w: sw2, key: volKey });
 }
+// enemy visual language cycler — label · wide slab showing the active theme
+function themeRow(y, px, pw) {
+  ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(160,225,255,0.95)';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.font = '700 12px Audiowide, system-ui';
+  ctx.fillText('ENEMY FX', px + 24, y + 4);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  const tx = px + 96, tw = pw - 96 - 36, th = 26;
+  techRect(tx, y - th / 2, tw, th, 6);
+  ctx.fillStyle = 'rgba(40,140,210,0.35)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(140,230,255,0.7)'; ctx.lineWidth = 1.5;
+  techRect(tx, y - th / 2, tw, th, 6); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.fillStyle = '#dff6ff';
+  ctx.font = '700 12px Audiowide, system-ui';
+  ctx.fillText(THEME_NAMES[settings.theme], tx + tw / 2, y + 4);
+  ctx.fillStyle = 'rgba(140,230,255,0.75)';
+  ctx.fillText('◂', tx + 14, y + 4);
+  ctx.fillText('▸', tx + tw - 14, y + 4);
+  ctx.textAlign = 'left';
+  pauseTogglesList.push({ x: tx, y: y - th / 2, w: tw, h: th, key: '__theme' });
+}
 // shared toggle/slider hit test — returns true if the tap landed on a control
 function settingsTap(x, y, pid) {
   for (const t of pauseTogglesList) {
     if (x > t.x - 8 && x < t.x + t.w + 8 && y > t.y - 8 && y < t.y + t.h + 8) {
-      settings[t.key] = !settings[t.key]; applySettings(); sfx.tick(); return true;
+      if (t.key === '__theme') {
+        // tap left third cycles back, anywhere else forward
+        const dir = x < t.x + t.w / 3 ? -1 : 1;
+        settings.theme = (settings.theme + dir + THEME_NAMES.length) % THEME_NAMES.length;
+      } else {
+        settings[t.key] = !settings[t.key];
+      }
+      applySettings(); sfx.tick(); return true;
     }
   }
   for (const s of pauseSlidersList) {
@@ -2782,16 +3005,17 @@ function settingsTap(x, y, pid) {
 function drawPause() {
   pauseButtonsList = []; pauseSlidersList = []; pauseTogglesList = [];
   ctx.fillStyle = 'rgba(3,6,14,0.78)'; ctx.fillRect(0, 0, W, H);
-  const pw = Math.min(W * 0.74, 540), ph = Math.min(H * 0.86, 330);
+  const pw = Math.min(W * 0.74, 540), ph = Math.min(H * 0.86, 368);
   const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
   techPanel(px, py, pw, ph, 'SYSTEM PAUSED');
   settingRow('SFX',        'sound',     'soundVol', py + 70,  px, pw);
   settingRow('MUSIC',      'music',     'musicVol', py + 108, px, pw);
   settingRow('HAPTICS',    'haptics',   null,       py + 146, px, pw);
   settingRow('AIM ASSIST', 'aimAssist', null,       py + 184, px, pw);
+  themeRow(py + 222, px, pw);
   // live console readout, pure garnish
   ctx.fillStyle = 'rgba(120,210,255,0.35)'; ctx.font = '9px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('m_fSfxVol = ' + settings.soundVol.toFixed(2) + 'f;   m_fMusicVol = ' + settings.musicVol.toFixed(2) + 'f;', px + 24, py + 216);
+  ctx.fillText('m_fSfxVol = ' + settings.soundVol.toFixed(2) + 'f;   m_eTheme = ' + THEME_NAMES[settings.theme] + ';', px + 24, py + 252);
 
   const bh = 44, gap = 12, bw = (pw - 48 - gap * 2) / 3;
   let bx = px + 24; const by = py + ph - bh - 20;
@@ -2871,7 +3095,7 @@ function button(x, y, w, h, label, primary, locked) {
   }
   ctx.fillStyle = locked ? 'rgba(160,200,255,0.3)' : primary ? '#eefaff' : '#bfeaff';
   try { ctx.letterSpacing = '2px'; } catch (e) {}
-  ctx.font = '600 14px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '600 14px Audiowide, system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(label, x + w / 2, y + h / 2 + 1);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
@@ -2934,10 +3158,10 @@ function levelKey(x, y, w, h, num, name, stars, locked, primary) {
   // number + name
   ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
   ctx.fillStyle = locked ? 'rgba(220,240,255,0.35)' : '#f2faff';
-  ctx.font = '800 15px system-ui';
+  ctx.font = '800 15px Audiowide, system-ui';
   ctx.fillText(num, x + 20, y + h / 2 + 1);
   ctx.fillStyle = locked ? 'rgba(220,240,255,0.35)' : '#ffffff';
-  ctx.font = '700 14px system-ui';
+  ctx.font = '700 14px Audiowide, system-ui';
   try { ctx.letterSpacing = '1px'; } catch (e) {}
   ctx.fillText(name, x + 42, y + h / 2 + 1);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
@@ -2978,14 +3202,14 @@ function paintMenuStatic() {
   const lx = 26 + SAFE.l, llh = fs * 1.04;
   let ly = 24 + fs;
   ctx.textAlign = 'left';
-  ctx.font = '900 ' + fs.toFixed(0) + 'px system-ui';
+  ctx.font = '900 ' + fs.toFixed(0) + 'px Audiowide, system-ui';
   try { ctx.letterSpacing = (fs * 0.08).toFixed(1) + 'px'; } catch (e) {}
   ctx.shadowColor = 'rgba(0,10,30,0.85)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
   ctx.fillStyle = '#c6d6ea';
   for (const t of ['DATA', 'DEFE', 'NDER']) { ctx.fillText(t, lx, ly); ly += llh; }
   ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
   try { ctx.letterSpacing = '0px'; } catch (e) {}
-  ctx.fillStyle = 'rgba(180,215,255,0.6)'; ctx.font = '500 11px system-ui';
+  ctx.fillStyle = 'rgba(180,215,255,0.6)'; ctx.font = '500 11px Audiowide, system-ui';
   ctx.fillText('Guard the payload.', lx + 2, ly - llh + 20);
   ctx.fillText('Zap the data traps.', lx + 2, ly - llh + 35);
   // tunnel disc — a dark mouth in the center that makes the level keys pop
@@ -3002,7 +3226,7 @@ function paintMenuStatic() {
   ctx.beginPath(); ctx.arc(ccx, ccy, R + 9, -0.42 * Math.PI, 0.42 * Math.PI); ctx.stroke();
   // header
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#f2faff'; ctx.font = '700 17px system-ui';
+  ctx.fillStyle = '#f2faff'; ctx.font = '700 17px Audiowide, system-ui';
   try { ctx.letterSpacing = '1px'; } catch (e) {}
   ctx.fillText('Select a level', ccx, ccy - R + 34);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
@@ -3124,7 +3348,7 @@ function drawMenu(g) {
       const locked = li + 1 > progress.unlocked;
       levelKey(bx, by, bw, bh, li + 1, LEVELS[li].name, progress.stars[li], locked, li + 1 === progress.unlocked && progress.tutorialDone);
       if (!locked && (progress.bests[li] || 0) > 0) {
-        ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,210,74,0.75)'; ctx.font = '700 9px system-ui';
+        ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,210,74,0.75)'; ctx.font = '700 9px Audiowide, system-ui';
         ctx.fillText('BEST ' + progress.bests[li].toLocaleString(), bx + bw - 14, by + bh - 5);
         ctx.textAlign = 'left';
       }
@@ -3135,7 +3359,7 @@ function drawMenu(g) {
     } else {
       levelKey(bx, by, bw, bh, '∞', 'ENDLESS STREAM', -1, !endlessOpen, endlessOpen);
       if (endlessOpen && progress.best > 0) {
-        ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 10px system-ui';
+        ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 10px Audiowide, system-ui';
         ctx.fillText('BEST ' + progress.best.toLocaleString(), bx + bw - 14, by + bh - 8);
         ctx.textAlign = 'left';
       }
@@ -3150,7 +3374,7 @@ function drawMenu(g) {
   if (progress.stars[LEVELS.length - 1] > 0) {
     const MUTS = [['oneLife', '1 LIFE', '×2'], ['fast', 'FAST STREAM', '×1.5'], ['noPickups', 'NO PICKUPS', '×1.3']];
     let my2 = H * 0.56;
-    ctx.font = '700 10px system-ui';
+    ctx.font = '700 10px Audiowide, system-ui';
     ctx.fillStyle = 'rgba(120,210,255,0.75)';
     try { ctx.letterSpacing = '2px'; } catch (e) {}
     ctx.fillText('MODIFIERS', 26 + SAFE.l, my2 - 10);
@@ -3165,7 +3389,7 @@ function drawMenu(g) {
       ctx.lineWidth = 1.5;
       techRect(r2.x, r2.y, r2.w, r2.h, 6); ctx.stroke();
       ctx.fillStyle = on ? '#ffe9b0' : 'rgba(160,200,240,0.7)';
-      ctx.font = '700 10px system-ui';
+      ctx.font = '700 10px Audiowide, system-ui';
       ctx.fillText(label, r2.x + 10, r2.y + 16);
       ctx.textAlign = 'right';
       ctx.fillStyle = on ? '#ffd24a' : 'rgba(160,200,240,0.5)';
@@ -3176,7 +3400,7 @@ function drawMenu(g) {
     }
     const mm2 = mutMul();
     if (mm2 > 1) {
-      ctx.fillStyle = '#ffd24a'; ctx.font = '700 11px system-ui';
+      ctx.fillStyle = '#ffd24a'; ctx.font = '700 11px Audiowide, system-ui';
       ctx.fillText('SCORE ×' + (Math.round(mm2 * 100) / 100), 26 + SAFE.l, my2 + 12);
     }
   }
@@ -3188,13 +3412,14 @@ function drawMenu(g) {
 function drawMenuSettings() {
   pauseSlidersList = []; pauseTogglesList = []; menuSetButtons = [];
   ctx.fillStyle = 'rgba(3,6,14,0.62)'; ctx.fillRect(0, 0, W, H);
-  const pw = Math.min(W * 0.72, 520), ph = Math.min(H * 0.84, 296);
+  const pw = Math.min(W * 0.72, 520), ph = Math.min(H * 0.84, 344);
   const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
   menuSetPanel = { x: px, y: py, w: pw, h: ph };
-  techPanel(px, py, pw, ph, 'AUDIO CONFIG');
+  techPanel(px, py, pw, ph, 'SYSTEM CONFIG');
   settingRow('SFX',     'sound',   'soundVol', py + 76,  px, pw);
   settingRow('MUSIC',   'music',   'musicVol', py + 120, px, pw);
   settingRow('HAPTICS', 'haptics', null,       py + 164, px, pw);
+  themeRow(py + 208, px, pw);
   const bw = 160, bh = 42;
   button(W / 2 - bw / 2, py + ph - bh - 20, bw, bh, 'CLOSE', true);
   menuSetButtons.push({ x: W / 2 - bw / 2, y: py + ph - bh - 20, w: bw, h: bh, action: 'close' });
@@ -3244,7 +3469,7 @@ function drawEnd(g) {
   ctx.scale(tPop, tPop);
   ctx.fillStyle = endCol;
   try { ctx.letterSpacing = '4px'; } catch (e) {}
-  ctx.font = '800 ' + Math.min(W * 0.08, 38) + 'px system-ui';
+  ctx.font = '800 ' + Math.min(W * 0.08, 38) + 'px Audiowide, system-ui';
   ctx.shadowColor = endCol; ctx.shadowBlur = 22;
   ctx.fillText(endless ? 'STREAM SEVERED' : qual ? (endWin ? 'QUALIFIED' : 'TRAINING ABORTED') : endWin ? 'PAYLOAD DELIVERED' : 'PAYLOAD CORRUPTED', 0, 0);
   ctx.shadowBlur = 0;
@@ -3265,9 +3490,9 @@ function drawEnd(g) {
   const counting = cntP > 0 && cntP < 1 && score > 0;
   if (counting && time - endTickT > 0.07) { endTickT = time; tone(1500, 0.025, 'square', 0.035); }
   ctx.fillStyle = '#eaf4ff';
-  ctx.font = '700 ' + (26 + (counting ? 2 : 0)) + 'px system-ui';
+  ctx.font = '700 ' + (26 + (counting ? 2 : 0)) + 'px Audiowide, system-ui';
   ctx.fillText(shown.toLocaleString(), W / 2, H * 0.47);
-  ctx.fillStyle = 'rgba(160,215,255,0.7)'; ctx.font = '600 11px system-ui';
+  ctx.fillStyle = 'rgba(160,215,255,0.7)'; ctx.font = '600 11px Audiowide, system-ui';
   try { ctx.letterSpacing = '3px'; } catch (e) {}
   ctx.fillText('SCORE', W / 2, H * 0.47 + 20);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
@@ -3278,11 +3503,11 @@ function drawEnd(g) {
   ctx.fillText('zapped: ' + zaps + '   //   perfect: ' + perfects + '   //   missed: ' + misses + '   //   integrity: ' + Math.round(integrity) + '%', W / 2, H * 0.47 + 44);
   if (endless) {
     ctx.fillStyle = score >= (progress.best || 0) && score > 0 ? '#ffd24a' : 'rgba(255,210,74,0.7)';
-    ctx.font = '700 13px system-ui';
+    ctx.font = '700 13px Audiowide, system-ui';
     ctx.fillText((score >= (progress.best || 0) && score > 0 ? 'NEW BEST  ' : 'BEST  ') + (progress.best || 0).toLocaleString(), W / 2, H * 0.47 + 68);
   } else if (!qual && (endWin || (progress.bests[levelIdx] || 0) > 0)) {
     ctx.fillStyle = endNewBest ? '#ffd24a' : 'rgba(255,210,74,0.7)';
-    ctx.font = '700 13px system-ui';
+    ctx.font = '700 13px Audiowide, system-ui';
     ctx.fillText((endNewBest ? 'NEW BEST  ' : 'BEST  ') + (progress.bests[levelIdx] || 0).toLocaleString(), W / 2, H * 0.47 + 68);
   }
 
@@ -3453,7 +3678,7 @@ function frame(now) {
   ctx.textAlign = 'center';
   for (const p of popups) {
     ctx.globalAlpha = clamp(p.life, 0, 1);
-    ctx.fillStyle = p.color; ctx.font = '700 15px system-ui';
+    ctx.fillStyle = p.color; ctx.font = '700 15px Audiowide, system-ui';
     ctx.fillText(p.text, p.x, p.y);
   }
   ctx.globalAlpha = 1; ctx.textAlign = 'left';
