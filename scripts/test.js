@@ -184,7 +184,7 @@ drawOk('menu audio-config overlay', () => { G.setMenuSettings(true); });
 
 // ================= menu settings interaction =================
 G.frame(16);
-check('overlay populated toggle controls', G.toggles().length === 3); // SFX, MUSIC, HAPTICS
+check('overlay populated toggle controls', G.toggles().length === 4); // SFX, MUSIC, HAPTICS, ENEMY FX
 const t0 = G.toggles()[0];
 G.menuTap(t0.x + 5, t0.y + 5, 1);
 check('toggle tap flips a setting from the menu overlay', true);
