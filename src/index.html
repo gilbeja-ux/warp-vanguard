@@ -1626,30 +1626,24 @@ function drawBodyGlitch(en, size, pulse, PAL, fade) {
       slab(tear ? i : 99, (i - 2) * bh * 1.12, bw, bh, i % 2 ? main : hi);
     }
   } else if (en.crawler) {
-    // sliding rip: afterimages ghost back along its path around the ring
+    // sliding rip: horizontal-hold glitch — afterimages smear opposite its drift,
+    // same slab orientation as every other artifact
     const dir = en.drift >= 0 ? 1 : -1;
-    const tx2 = -Math.sin(en.angle) * dir, ty2 = Math.cos(en.angle) * dir; // travel tangent
     ctx.fillStyle = `rgba(${PAL.glow},1)`;
     for (let i = 3; i >= 1; i--) {
-      ctx.globalAlpha = fade * (0.38 - i * 0.1);
-      ctx.fillRect(-tx2 * size * i * 0.55 - size * 1.05, -ty2 * size * i * 0.55 - size * 0.13,
-                   size * 2.1, size * 0.26);
+      ctx.globalAlpha = fade * (0.36 - i * 0.09);
+      ctx.fillRect(-dir * size * i * 0.5 - size * 1.05, -size * 0.31, size * 2.1, size * 0.24);
+      ctx.fillRect(-dir * size * i * 0.5 - size * 0.85, size * 0.06, size * 1.7, size * 0.2);
     }
     ctx.globalAlpha = fade;
-    slab(0, -size * 0.28, size * 2.2, size * 0.26);
-    slab(1, size * 0.05, size * 1.7, size * 0.22, hi);
+    slab(0, -size * 0.31, size * 2.1, size * 0.24);
+    slab(1, size * 0.06, size * 1.7, size * 0.2, hi);
   } else if (en.type === 'line') {
-    // vertical sync-tear — one post of the barrier pair
-    const jy = jx(3);
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = `rgba(${PAL.glow},0.4)`;
-    ctx.fillRect(-size * 0.22 - split, jy - size * 0.95, size * 0.44, size * 1.9);
-    ctx.fillRect(-size * 0.22 + split, jy - size * 0.95, size * 0.44, size * 1.9);
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = main;
-    ctx.fillRect(-size * 0.22, jy - size * 0.95, size * 0.44, size * 1.9);
-    ctx.fillStyle = hi;
-    ctx.fillRect(-size * 0.1, jy - size * 0.6, size * 0.2, size * 1.2);
+    // barrier post: crisp uniform slats — solid wall, not torn data; the tether
+    // and the matching twin mark it as one end of a pair
+    for (let i = 0; i < 3; i++) {
+      slab(99, (i - 1.5) * size * 0.42, size * 1.6, size * 0.3, i === 1 ? hi : main);
+    }
   } else {
     // regular trap: a stack of torn scanline slabs
     for (let i = 0; i < 4; i++) {
@@ -2720,8 +2714,8 @@ function settingRow(label, key, volKey, y, px, pw, tox) {
   ctx.font = '700 12px Audiowide, system-ui';
   ctx.fillText(label, px + 24, y + 4);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
-  // angular toggle slab
-  const tx = px + (tox || 96), tw = 52, th = 24, on = settings[key];
+  // angular toggle slab — column sits clear of the widest Audiowide label
+  const tx = px + (tox || 162), tw = 52, th = 24, on = settings[key];
   techRect(tx, y - th / 2, tw, th, 6);
   ctx.fillStyle = on ? 'rgba(40,140,210,0.55)' : 'rgba(255,255,255,0.06)'; ctx.fill();
   ctx.strokeStyle = on ? 'rgba(140,230,255,0.8)' : 'rgba(120,180,255,0.3)'; ctx.lineWidth = 1.5;
