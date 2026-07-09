@@ -925,21 +925,26 @@ function pointerAngle(side, px, py) {
 // the node's default berth (side midpoint); sliding to either end throws the
 // node 180° over the top/bottom to the far side. Leverage = PI / ARC_SPAN, so
 // a thumb-sized swipe covers the whole rim — full reach, no looping.
-const ARC_SPAN = 1.0; // strip half-length in radians
 const arcBase = i => i === 0 ? Math.PI : 0; // blue rides the left strip, white the right
+const arcDir = i => i === 0 ? 1 : -1;       // 'up' throws each node over the TOP of the rim
+// strips live in the side margins, midway between the rim and the screen edge
+function arcGeom(g) {
+  const bz = Math.min(W, H) * 0.055;
+  const rA = (g.nodeR + bz + W / 2) / 2;
+  const span = Math.min(1.0, Math.asin(clamp((H / 2 - bz * 0.8) / rA, 0, 1)));
+  return { rA, span, bz };
+}
+// input is PURE vertical: thumb height -> throw. angle-based mapping made the
+// top of the throw unreachable (a vertical drag stops changing its angle to
+// the tunnel center near the screen's top edge)
 function setArcNode(i, P, g) {
-  const a = Math.atan2(P.y - g.cy, P.x - g.cx);
-  const t = clamp(angDiff(a, arcBase(i)) / ARC_SPAN, -1, 1);
-  nodes[i].angle = arcBase(i) + t * Math.PI;
+  const t = clamp((g.cy - P.y) / (H * 0.42), -1, 1); // full throw well inside the screen
+  nodes[i].angle = arcBase(i) + t * Math.PI * arcDir(i);
 }
 function arcHit(P, g) {
-  const rd = Math.hypot(P.x - g.cx, P.y - g.cy);
-  if (rd < g.nodeR - Math.min(W, H) * 0.055) return -1; // inside the playfield
-  const a = Math.atan2(P.y - g.cy, P.x - g.cx);
-  for (let i = 0; i < 2; i++) {
-    if (Math.abs(angDiff(a, arcBase(i))) <= ARC_SPAN * 1.2) return i;
-  }
-  return -1;
+  const bz = Math.min(W, H) * 0.055;
+  if (Math.hypot(P.x - g.cx, P.y - g.cy) < g.nodeR + bz * 0.5) return -1; // inside the playfield
+  return P.x < g.cx ? 0 : 1; // whole side margin is the touch target
 }
 canvas.addEventListener('pointerdown', e => {
   audio();
@@ -2236,8 +2241,7 @@ function drawNodes(g) {
 // the ARCS scheme's side strips: track + rails, a center-berth notch, and a
 // thumb showing where the node sits on its ±180° range
 function drawControlArcs(g) {
-  const bz = Math.min(W, H) * 0.055;
-  const rA = g.nodeR + bz * 0.5; // rails built into the matte ring shell — clear of the HUD bars
+  const { rA, span, bz } = arcGeom(g);
   for (let i = 0; i < 2; i++) {
     const base = arcBase(i);
     const col = i === 0 ? '111,227,255' : '255,255,255';
@@ -2245,11 +2249,11 @@ function drawControlArcs(g) {
     ctx.lineCap = 'round';
     ctx.strokeStyle = `rgba(${col},${n.held ? 0.3 : 0.16})`;
     ctx.lineWidth = bz * 0.85;
-    ctx.beginPath(); ctx.arc(g.cx, g.cy, rA, base - ARC_SPAN, base + ARC_SPAN); ctx.stroke();
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, rA, base - span, base + span); ctx.stroke();
     ctx.strokeStyle = `rgba(${col},0.4)`;
     ctx.lineWidth = 1.5;
     for (const rr of [rA - bz * 0.42, rA + bz * 0.42]) {
-      ctx.beginPath(); ctx.arc(g.cx, g.cy, rr, base - ARC_SPAN, base + ARC_SPAN); ctx.stroke();
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, rr, base - span, base + span); ctx.stroke();
     }
     // center notch — the default berth
     ctx.strokeStyle = `rgba(${col},0.7)`;
@@ -2259,8 +2263,8 @@ function drawControlArcs(g) {
     ctx.lineTo(g.cx + Math.cos(base) * (rA + bz * 0.42), g.cy + Math.sin(base) * (rA + bz * 0.42));
     ctx.stroke();
     // thumb at the node's mapped position on the strip
-    const t = clamp(angDiff(n.angle, base) / Math.PI, -1, 1);
-    const ta = base + t * ARC_SPAN;
+    const t = clamp(angDiff(n.angle, base) / Math.PI, -1, 1) * arcDir(i);
+    const ta = base + t * span * arcDir(i);
     const tx = g.cx + Math.cos(ta) * rA, ty = g.cy + Math.sin(ta) * rA;
     const ts = bz * (n.held ? 0.4 : 0.3);
     const tg = ctx.createRadialGradient(tx, ty, 0, tx, ty, ts * 2.2);
