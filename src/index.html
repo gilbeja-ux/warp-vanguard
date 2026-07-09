@@ -87,8 +87,10 @@ const rand = (a, b) => a + Math.random() * (b - a);
 let AC = null, sfxGain = null;
 const settings = {
   sound: true, soundVol: 0.8, music: true, musicVol: 0.5, haptics: true,
-  aimAssist: false // soft magnet toward arriving traps (accessibility; raw skill by default)
+  aimAssist: false, // soft magnet toward arriving traps (accessibility; raw skill by default)
+  controls: 0 // 0 = corner dials · 1 = immersive (drag the lenses on the rim)
 };
+const CONTROL_NAMES = ['DIALS', 'IMMERSIVE'];
 // score-chase modifiers — unlocked with the campaign, toggled on the menu
 const mutators = { oneLife: false, fast: false, noPickups: false };
 const mutMul = () => (mutators.oneLife ? 2 : 1) * (mutators.fast ? 1.5 : 1) * (mutators.noPickups ? 1.3 : 1);
@@ -944,6 +946,25 @@ canvas.addEventListener('pointerdown', e => {
       P.y > pauseBtnRect.y - 8 && P.y < pauseBtnRect.y + pauseBtnRect.h + 8) {
     state = S.PAUSE; sfx.tick(); return;
   }
+  // immersive scheme: grab a lens with your finger and drag it along the rim.
+  // the duel keeps the dial layout — the fused cannon needs the fire stick.
+  if (settings.controls === 1 && !(boss && boss.mergeT >= 1)) {
+    const g = geo();
+    const aT = Math.atan2(P.y - g.cy, P.x - g.cx);
+    let best = -1, bd = 0.65; // grab reach along the rim (radians)
+    for (let i = 0; i < 2; i++) {
+      if (Object.values(pointers).some(q => q.node === i)) continue; // already held
+      const d = Math.abs(angDiff(aT, nodes[i].angle));
+      if (d < bd) { bd = d; best = i; }
+    }
+    if (best >= 0) {
+      // keep the grab offset so the lens drags from where you touched it
+      pointers[e.pointerId] = { node: best, off: angDiff(nodes[best].angle, aT) };
+      nodes[best].held = true;
+      canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+    }
+    return;
+  }
   const side = P.x < W / 2 ? 'L' : 'R';
   const a0 = pointerAngle(side, P.x, P.y);
   if (boss && boss.mergeT >= 1 && side === 'R') { // fire stick: aim + hold to fire
@@ -973,12 +994,21 @@ canvas.addEventListener('pointermove', e => {
   const p = pointers[e.pointerId];
   if (!p || state !== S.PLAY) return;
   if (p.beam) { setStick(P); return; }
+  if (p.node !== undefined) { // immersive: the lens rides under the finger
+    const g = geo();
+    nodes[p.node].angle = Math.atan2(P.y - g.cy, P.x - g.cx) + p.off;
+    return;
+  }
   const a = pointerAngle(p.side, P.x, P.y);
   const delta = angDiff(a, p.lastA);
   p.lastA = a;
   nodes[p.side === 'L' ? 0 : 1].angle += delta; // 1:1, zero-lag: node mirrors the thumb exactly
 });
-function releasePointer(e) { delete pointers[e.pointerId]; delete pauseDrag[e.pointerId]; }
+function releasePointer(e) {
+  const p = pointers[e.pointerId];
+  if (p && p.node !== undefined && nodes[p.node]) nodes[p.node].held = false;
+  delete pointers[e.pointerId]; delete pauseDrag[e.pointerId];
+}
 canvas.addEventListener('pointerup', e => {
   if (menuPtr && menuPtr.id === e.pointerId) {
     const P = evPos(e);
@@ -2127,6 +2157,12 @@ function drawNodes(g) {
     ctx.rotate(n.angle); // +x = radially outward, +y = along the rail
     ctx.scale(fscale, fscale); // pop-in overshoot during the intro
     const kick = clamp(n.recoil || 0, 0, 1); // zap: the iris clamps, the core flares
+    // fingertip halo while the lens is being dragged (immersive scheme)
+    if (n.held) {
+      ctx.strokeStyle = `rgba(${cCol},${(0.3 + Math.sin(time * 5) * 0.1).toFixed(2)})`;
+      ctx.lineWidth = Math.max(2, size * 0.18);
+      ctx.beginPath(); ctx.arc(0, 0, size * 1.65, 0, TAU); ctx.stroke();
+    }
     // outer aperture ring + a faint second ring for optic depth
     ctx.strokeStyle = `rgba(${cCol},0.95)`;
     ctx.lineWidth = Math.max(1.5, size * 0.14);
@@ -2163,6 +2199,9 @@ function drawNodes(g) {
 }
 
 function drawDials() {
+  // immersive scheme drives the lenses directly — no dials unless the duel's
+  // fused cannon needs its fire stick back
+  if (settings.controls === 1 && !(boss && boss.mergeT >= 1)) return;
   for (let i = 0; i < 2; i++) {
     const side = i === 0 ? 'L' : 'R';
     const d = dialCenter(side);
@@ -2766,11 +2805,34 @@ function settingRow(label, key, volKey, y, px, pw, tox) {
   ctx.lineCap = 'round';
   pauseSlidersList.push({ x: sx, y, w: sw2, key: volKey });
 }
+// control scheme cycler — label · wide slab showing the active scheme
+function controlsRow(y, px, pw) {
+  ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(160,225,255,0.95)';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.font = '700 12px Audiowide, system-ui';
+  ctx.fillText('CONTROLS', px + 24, y + 4);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  const tx = px + 162, tw = pw - 162 - 36, th = 26;
+  techRect(tx, y - th / 2, tw, th, 6);
+  ctx.fillStyle = 'rgba(40,140,210,0.35)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(140,230,255,0.7)'; ctx.lineWidth = 1.5;
+  techRect(tx, y - th / 2, tw, th, 6); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.fillStyle = '#dff6ff';
+  ctx.font = '700 12px Audiowide, system-ui';
+  ctx.fillText(CONTROL_NAMES[settings.controls], tx + tw / 2, y + 4);
+  ctx.fillStyle = 'rgba(140,230,255,0.75)';
+  ctx.fillText('◂', tx + 14, y + 4);
+  ctx.fillText('▸', tx + tw - 14, y + 4);
+  ctx.textAlign = 'left';
+  pauseTogglesList.push({ x: tx, y: y - th / 2, w: tw, h: th, key: '__controls' });
+}
 // shared toggle/slider hit test — returns true if the tap landed on a control
 function settingsTap(x, y, pid) {
   for (const t of pauseTogglesList) {
     if (x > t.x - 8 && x < t.x + t.w + 8 && y > t.y - 8 && y < t.y + t.h + 8) {
-      settings[t.key] = !settings[t.key]; applySettings(); sfx.tick(); return true;
+      if (t.key === '__controls') settings.controls = (settings.controls + 1) % CONTROL_NAMES.length;
+      else settings[t.key] = !settings[t.key];
+      applySettings(); sfx.tick(); return true;
     }
   }
   for (const s of pauseSlidersList) {
@@ -2785,16 +2847,17 @@ function settingsTap(x, y, pid) {
 function drawPause() {
   pauseButtonsList = []; pauseSlidersList = []; pauseTogglesList = [];
   ctx.fillStyle = 'rgba(3,6,14,0.78)'; ctx.fillRect(0, 0, W, H);
-  const pw = Math.min(W * 0.74, 540), ph = Math.min(H * 0.86, 330);
+  const pw = Math.min(W * 0.74, 540), ph = Math.min(H * 0.86, 368);
   const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
   techPanel(px, py, pw, ph, 'SYSTEM PAUSED');
   settingRow('SFX',        'sound',     'soundVol', py + 70,  px, pw);
   settingRow('MUSIC',      'music',     'musicVol', py + 108, px, pw);
   settingRow('HAPTICS',    'haptics',   null,       py + 146, px, pw);
   settingRow('AIM ASSIST', 'aimAssist', null,       py + 184, px, pw);
+  controlsRow(py + 222, px, pw);
   // live console readout, pure garnish
   ctx.fillStyle = 'rgba(120,210,255,0.35)'; ctx.font = '9px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('m_fSfxVol = ' + settings.soundVol.toFixed(2) + 'f;   m_fMusicVol = ' + settings.musicVol.toFixed(2) + 'f;', px + 24, py + 216);
+  ctx.fillText('m_fSfxVol = ' + settings.soundVol.toFixed(2) + 'f;   m_eInput = ' + CONTROL_NAMES[settings.controls] + ';', px + 24, py + 252);
 
   const bh = 44, gap = 12, bw = (pw - 48 - gap * 2) / 3;
   let bx = px + 24; const by = py + ph - bh - 20;
@@ -3191,13 +3254,14 @@ function drawMenu(g) {
 function drawMenuSettings() {
   pauseSlidersList = []; pauseTogglesList = []; menuSetButtons = [];
   ctx.fillStyle = 'rgba(3,6,14,0.62)'; ctx.fillRect(0, 0, W, H);
-  const pw = Math.min(W * 0.72, 520), ph = Math.min(H * 0.84, 296);
+  const pw = Math.min(W * 0.72, 520), ph = Math.min(H * 0.84, 340);
   const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
   menuSetPanel = { x: px, y: py, w: pw, h: ph };
-  techPanel(px, py, pw, ph, 'AUDIO CONFIG');
+  techPanel(px, py, pw, ph, 'SYSTEM CONFIG');
   settingRow('SFX',     'sound',   'soundVol', py + 76,  px, pw);
   settingRow('MUSIC',   'music',   'musicVol', py + 120, px, pw);
   settingRow('HAPTICS', 'haptics', null,       py + 164, px, pw);
+  controlsRow(py + 208, px, pw);
   const bw = 160, bh = 42;
   button(W / 2 - bw / 2, py + ph - bh - 20, bw, bh, 'CLOSE', true);
   menuSetButtons.push({ x: W / 2 - bw / 2, y: py + ph - bh - 20, w: bw, h: bh, action: 'close' });
