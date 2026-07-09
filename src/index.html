@@ -1670,12 +1670,18 @@ function drawEnemy(en, g) {
     ctx.globalAlpha = fade;
   }
 
-  // hot glow
+  // hot glow — except payload packets, which swallow light instead of shedding it
   const pulse = 1 + Math.sin(en.spin * 2) * 0.08;
   const gl = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 2.4 * pulse);
-  gl.addColorStop(0, `rgba(${PAL.glow},0.5)`);
-  gl.addColorStop(0.5, `rgba(${PAL.glow},0.16)`);
-  gl.addColorStop(1, `rgba(${PAL.glow},0)`);
+  if (en.type === 'frag') {
+    gl.addColorStop(0, 'rgba(1,2,8,0.75)');
+    gl.addColorStop(0.55, 'rgba(2,4,12,0.35)');
+    gl.addColorStop(1, 'rgba(4,6,16,0)');
+  } else {
+    gl.addColorStop(0, `rgba(${PAL.glow},0.5)`);
+    gl.addColorStop(0.5, `rgba(${PAL.glow},0.16)`);
+    gl.addColorStop(1, `rgba(${PAL.glow},0)`);
+  }
   ctx.fillStyle = gl;
   ctx.beginPath(); ctx.arc(0, 0, size * 2.4 * pulse, 0, TAU); ctx.fill();
 
@@ -1683,25 +1689,42 @@ function drawEnemy(en, g) {
     // sprite skin replaces the procedural body (glow + sigils stay live)
     ctx.drawImage(spr, -size * 1.7, -size * 1.7, size * 3.4, size * 3.4);
   } else if (en.type === 'frag') {
-    // friendly packet: a soft rounded diamond — round reads as safe
+    // payload packet: a void-black rounded diamond — a hole punched in the stream
     const pr = size * (1 + Math.sin(en.spin * 2) * 0.06);
     ctx.save();
     ctx.rotate(en.spin * 0.3);
-    ctx.beginPath();
-    ctx.moveTo(0, -pr);
-    ctx.quadraticCurveTo(pr * 0.55, -pr * 0.55, pr, 0);
-    ctx.quadraticCurveTo(pr * 0.55, pr * 0.55, 0, pr);
-    ctx.quadraticCurveTo(-pr * 0.55, pr * 0.55, -pr, 0);
-    ctx.quadraticCurveTo(-pr * 0.55, -pr * 0.55, 0, -pr);
-    ctx.closePath();
-    const fg = ctx.createRadialGradient(-pr * 0.2, -pr * 0.25, 0, 0, 0, pr);
-    fg.addColorStop(0, '#2b3242');
-    fg.addColorStop(0.45, '#0d1119');
-    fg.addColorStop(1, '#02040a');
+    const diamond = r => {
+      ctx.beginPath();
+      ctx.moveTo(0, -r);
+      ctx.quadraticCurveTo(r * 0.55, -r * 0.55, r, 0);
+      ctx.quadraticCurveTo(r * 0.55, r * 0.55, 0, r);
+      ctx.quadraticCurveTo(-r * 0.55, r * 0.55, -r, 0);
+      ctx.quadraticCurveTo(-r * 0.55, -r * 0.55, 0, -r);
+      ctx.closePath();
+    };
+    // near-featureless black core, the faintest nebular sheen deep inside
+    diamond(pr);
+    const fg = ctx.createRadialGradient(0, 0, 0, 0, 0, pr);
+    fg.addColorStop(0, '#0a0c1a');
+    fg.addColorStop(0.55, '#04050d');
+    fg.addColorStop(1, '#010104');
     ctx.fillStyle = fg; ctx.fill();
-    ctx.strokeStyle = 'rgba(140,150,170,0.55)'; ctx.lineWidth = Math.max(1, pr * 0.08); ctx.stroke();
-    ctx.fillStyle = 'rgba(200,210,230,0.35)';
-    ctx.beginPath(); ctx.ellipse(-pr * 0.22, -pr * 0.28, pr * 0.16, pr * 0.09, -0.6, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(90,70,160,0.12)';
+    ctx.beginPath(); ctx.ellipse(-pr * 0.25, -pr * 0.2, pr * 0.5, pr * 0.35, 0.6, 0, TAU); ctx.fill();
+    // event-horizon rim: dim inner band under a hairline pale edge
+    diamond(pr * 0.94);
+    ctx.strokeStyle = 'rgba(70,85,120,0.5)'; ctx.lineWidth = Math.max(1.5, pr * 0.12); ctx.stroke();
+    diamond(pr);
+    ctx.strokeStyle = 'rgba(185,200,230,0.8)'; ctx.lineWidth = Math.max(0.8, pr * 0.045); ctx.stroke();
+    // a slow glint crawling the rim — light caught on the edge, not a highlight blob
+    const ga = en.spin * 0.9;
+    const gr = pr * (1 - 0.22 * Math.pow(Math.sin(2 * ga), 2)); // rounded-diamond radius at ga
+    const gx = Math.cos(ga) * gr, gy = Math.sin(ga) * gr;
+    const gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, pr * 0.3);
+    gg.addColorStop(0, 'rgba(220,235,255,0.7)');
+    gg.addColorStop(1, 'rgba(220,235,255,0)');
+    ctx.fillStyle = gg;
+    ctx.beginPath(); ctx.arc(gx, gy, pr * 0.3, 0, TAU); ctx.fill();
     ctx.restore();
   } else if (en.lock !== undefined) {
     // color-locked: a smooth keyed orb with a rotating key-ring (gap = keyhole)
