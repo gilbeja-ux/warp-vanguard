@@ -2120,47 +2120,44 @@ function drawNodes(g) {
     gl.addColorStop(1, `rgba(${cCol},0)`);
     ctx.fillStyle = gl;
     ctx.beginPath(); ctx.arc(x, y, size * 2.6, 0, TAU); ctx.fill();
-    // maglev carriage — a techy sled locked onto the rails, gripping the ring
+    // aperture lens — pure focused signal, no hull: the clean counterpoint to
+    // the torn glitch artifacts it erases
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(n.angle); // +x = radially outward, +y = along the rail
     ctx.scale(fscale, fscale); // pop-in overshoot during the intro
-    const rh = size * 2.5, rw = size * 1.05;
-    // grip struts reaching out onto the ring, with glowing contact pads
-    ctx.fillStyle = '#0a1220';
-    roundRect(rw * 0.2, -rh * 0.44, bzn * 0.95, rh * 0.16, 3); ctx.fill();
-    roundRect(rw * 0.2, rh * 0.28, bzn * 0.95, rh * 0.16, 3); ctx.fill();
-    ctx.fillStyle = `rgba(${cCol},0.85)`;
-    ctx.fillRect(rw * 0.2 + bzn * 0.78, -rh * 0.42, 2.5, rh * 0.12);
-    ctx.fillRect(rw * 0.2 + bzn * 0.78, rh * 0.30, 2.5, rh * 0.12);
-    // drop shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
-    roundRect(-rw / 2 + 2, -rh / 2 + 3, rw, rh, rw * 0.35); ctx.fill();
-    // metallic hull
-    const hull = ctx.createLinearGradient(-rw / 2, 0, rw / 2, 0);
-    hull.addColorStop(0, '#31435f'); hull.addColorStop(0.5, '#141c2c'); hull.addColorStop(1, '#0a0f18');
-    ctx.fillStyle = hull;
-    roundRect(-rw / 2, -rh / 2, rw, rh, rw * 0.35); ctx.fill();
-    ctx.strokeStyle = '#03060c'; ctx.lineWidth = 2;
-    roundRect(-rw / 2, -rh / 2, rw, rh, rw * 0.35); ctx.stroke();
-    // luminous strip along the inner edge (facing the tunnel)
-    ctx.strokeStyle = `rgba(${cCol},0.95)`; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(-rw * 0.36, -rh * 0.38); ctx.lineTo(-rw * 0.36, rh * 0.38); ctx.stroke();
-    ctx.strokeStyle = `rgba(${cCol},0.35)`; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(rw * 0.3, -rh * 0.34); ctx.lineTo(rw * 0.3, rh * 0.34); ctx.stroke();
-    // energy core window
-    const cg2 = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 0.42);
+    const kick = clamp(n.recoil || 0, 0, 1); // zap: the iris clamps, the core flares
+    // outer aperture ring + a faint second ring for optic depth
+    ctx.strokeStyle = `rgba(${cCol},0.95)`;
+    ctx.lineWidth = Math.max(1.5, size * 0.14);
+    ctx.beginPath(); ctx.arc(0, 0, size * 1.12, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = `rgba(${cCol},0.28)`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(0, 0, size * 1.35, 0, TAU); ctx.stroke();
+    // iris blades: segmented arcs spinning slowly, snapping tight on a zap
+    const bladeR = size * (0.74 - kick * 0.18);
+    const irisA = time * 0.6 + kick * 1.2;
+    ctx.strokeStyle = `rgba(${cCol},0.8)`;
+    ctx.lineWidth = Math.max(2, size * 0.3);
+    ctx.lineCap = 'butt';
+    for (let k = 0; k < 6; k++) {
+      const a0 = irisA + k / 6 * TAU;
+      ctx.beginPath(); ctx.arc(0, 0, bladeR, a0, a0 + TAU / 6 * 0.62); ctx.stroke();
+    }
+    ctx.lineCap = 'round';
+    // lens core — flares white while the zap discharges
+    const coreR = size * (0.4 + kick * 0.22) * (1 + Math.sin(time * 3 + i) * 0.05);
+    const cg2 = ctx.createRadialGradient(0, 0, 0, 0, 0, coreR);
     cg2.addColorStop(0, '#ffffff');
-    cg2.addColorStop(0.5, `rgba(${cCol},0.95)`);
-    cg2.addColorStop(1, `rgba(${cCol},0.15)`);
+    cg2.addColorStop(0.55, kick > 0.25 ? '#ffffff' : `rgba(${cCol},0.95)`);
+    cg2.addColorStop(1, `rgba(${cCol},0)`);
     ctx.fillStyle = cg2;
-    ctx.beginPath(); ctx.arc(0, 0, size * 0.42, 0, TAU); ctx.fill();
-    ctx.strokeStyle = 'rgba(240,252,255,0.8)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(0, 0, size * 0.3, 0, TAU); ctx.stroke();
-    // running lights at both ends
-    ctx.fillStyle = `rgba(${cCol},0.95)`;
-    ctx.beginPath(); ctx.arc(0, -rh * 0.42, 2.5, 0, TAU); ctx.fill();
-    ctx.beginPath(); ctx.arc(0, rh * 0.42, 2.5, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, coreR, 0, TAU); ctx.fill();
+    // focus ticks along the rail axis — the optic's grip on its track
+    ctx.strokeStyle = `rgba(${cCol},0.55)`;
+    ctx.lineWidth = Math.max(1.5, size * 0.12);
+    ctx.beginPath(); ctx.moveTo(0, -size * 1.35); ctx.lineTo(0, -size * 1.7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, size * 1.35); ctx.lineTo(0, size * 1.7); ctx.stroke();
     ctx.restore();
   }
 }
