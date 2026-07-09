@@ -927,18 +927,21 @@ function pointerAngle(side, px, py) {
 // a thumb-sized swipe covers the whole rim — full reach, no looping.
 const arcBase = i => i === 0 ? Math.PI : 0; // blue rides the left strip, white the right
 const arcDir = i => i === 0 ? 1 : -1;       // 'up' throws each node over the TOP of the rim
-// strips live in the side margins, midway between the rim and the screen edge
+// strips live in the side margins, midway between the rim and the screen edge.
+// ARC_THROW is the strip's half-height: the visible arc spans EXACTLY the
+// input range, so the thumb dot rides at the fingertip's height 1:1
+const ARC_THROW = () => H * 0.26;
 function arcGeom(g) {
   const bz = Math.min(W, H) * 0.055;
   const rA = (g.nodeR + bz + W / 2) / 2;
-  const span = Math.min(1.0, Math.asin(clamp((H / 2 - bz * 0.8) / rA, 0, 1)));
+  const span = Math.asin(clamp(ARC_THROW() / rA, 0, 1));
   return { rA, span, bz };
 }
 // input is PURE vertical: thumb height -> throw. angle-based mapping made the
 // top of the throw unreachable (a vertical drag stops changing its angle to
 // the tunnel center near the screen's top edge)
 function setArcNode(i, P, g) {
-  const t = clamp((g.cy - P.y) / (H * 0.42), -1, 1); // full throw well inside the screen
+  const t = clamp((g.cy - P.y) / ARC_THROW(), -1, 1); // thumb-sized full throw
   nodes[i].angle = arcBase(i) + t * Math.PI * arcDir(i);
 }
 function arcHit(P, g) {
@@ -2255,16 +2258,25 @@ function drawControlArcs(g) {
     for (const rr of [rA - bz * 0.42, rA + bz * 0.42]) {
       ctx.beginPath(); ctx.arc(g.cx, g.cy, rr, base - span, base + span); ctx.stroke();
     }
-    // center notch — the default berth
-    ctx.strokeStyle = `rgba(${col},0.7)`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(g.cx + Math.cos(base) * (rA - bz * 0.42), g.cy + Math.sin(base) * (rA - bz * 0.42));
-    ctx.lineTo(g.cx + Math.cos(base) * (rA + bz * 0.42), g.cy + Math.sin(base) * (rA + bz * 0.42));
-    ctx.stroke();
-    // thumb at the node's mapped position on the strip
+    // position scale: center notch = near side, half ticks = top/bottom of the
+    // rim, end ticks = the far side (full 180° throw)
+    const tickAt = (t, wMul, al) => {
+      const a = base + arcDir(i) * Math.asin(clamp(t * ARC_THROW() / rA, -1, 1));
+      ctx.strokeStyle = `rgba(${col},${al})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(g.cx + Math.cos(a) * (rA - bz * 0.42 * wMul), g.cy + Math.sin(a) * (rA - bz * 0.42 * wMul));
+      ctx.lineTo(g.cx + Math.cos(a) * (rA + bz * 0.42 * wMul), g.cy + Math.sin(a) * (rA + bz * 0.42 * wMul));
+      ctx.stroke();
+    };
+    tickAt(0, 1, 0.7);       // default berth
+    tickAt(0.5, 0.6, 0.45);  // top of the rim
+    tickAt(-0.5, 0.6, 0.45); // bottom of the rim
+    tickAt(1, 1, 0.55);      // far side, over the top
+    tickAt(-1, 1, 0.55);     // far side, under the bottom
+    // thumb rides at the fingertip's height, exactly matching the input
     const t = clamp(angDiff(n.angle, base) / Math.PI, -1, 1) * arcDir(i);
-    const ta = base + t * span * arcDir(i);
+    const ta = base + arcDir(i) * Math.asin(clamp(t * ARC_THROW() / rA, -1, 1));
     const tx = g.cx + Math.cos(ta) * rA, ty = g.cy + Math.sin(ta) * rA;
     const ts = bz * (n.held ? 0.4 : 0.3);
     const tg = ctx.createRadialGradient(tx, ty, 0, tx, ty, ts * 2.2);
