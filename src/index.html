@@ -865,7 +865,8 @@ function dialCenter(side) {
     // corner dials, proportioned like the mock. the SAME inset on both sides
     // (whichever notch is bigger) keeps the pads symmetric to the centered rim —
     // per-side insets made one pad sit farther from the rim than the other.
-    const r = H * 0.21, mx = H * 0.25, my = H * 0.75 - SAFE.b * 0.5;
+    // raised from 0.75 H to where thumbs naturally rest when gripping the device
+    const r = H * 0.21, mx = H * 0.25, my = H * 0.64 - SAFE.b * 0.5;
     const inset = Math.max(SAFE.l, SAFE.r);
     return side === 'L' ? { x: mx + inset, y: my, r } : { x: W - mx - inset, y: my, r };
   }
@@ -1043,7 +1044,12 @@ canvas.addEventListener('pointermove', e => {
   const a = pointerAngle(p.side, P.x, P.y);
   const delta = angDiff(a, p.lastA);
   p.lastA = a;
-  nodes[p.side === 'L' ? 0 : 1].angle += delta; // 1:1, zero-lag: node mirrors the thumb exactly
+  // distance-compensated gain: a drifted thumb subtends less angle per cm, so
+  // scale by how far it sits from the dial ring — the wheel feels identical
+  // whether the finger is on the dial or has wandered halfway across the screen
+  const d = dialCenter(p.side);
+  const gain = clamp(Math.hypot(P.x - d.x, P.y - d.y) / d.r, 0.35, 2.5);
+  nodes[p.side === 'L' ? 0 : 1].angle += delta * gain; // zero-lag: node mirrors the thumb
 });
 function releasePointer(e) {
   const p = pointers[e.pointerId];
