@@ -1014,7 +1014,11 @@ canvas.addEventListener('pointerdown', e => {
     canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
     return;
   }
-  // relative control: touching does NOT snap the node — record the start angle
+  // magnetic replant: landing near the knob snaps it under the thumb, so every
+  // natural lift-and-replant realigns finger and pad. landing far away stays
+  // relative (no accidental teleports) — record the start angle either way.
+  const ni = side === 'L' ? 0 : 1;
+  if (Math.abs(angDiff(a0, nodes[ni].angle)) < 0.6) nodes[ni].angle = a0;
   pointers[e.pointerId] = { side, lastA: a0 };
   canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
 });
@@ -1044,12 +1048,10 @@ canvas.addEventListener('pointermove', e => {
   const a = pointerAngle(p.side, P.x, P.y);
   const delta = angDiff(a, p.lastA);
   p.lastA = a;
-  // distance-compensated gain: a drifted thumb subtends less angle per cm, so
-  // scale by how far it sits from the dial ring — the wheel feels identical
-  // whether the finger is on the dial or has wandered halfway across the screen
-  const d = dialCenter(p.side);
-  const gain = clamp(Math.hypot(P.x - d.x, P.y - d.y) / d.r, 0.35, 2.5);
-  nodes[p.side === 'L' ? 0 : 1].angle += delta * gain; // zero-lag: node mirrors the thumb
+  // pure 1:1 angular deltas: the knob keeps a constant offset from the thumb
+  // for the whole hold, and a drifted (farther) thumb naturally gets finer
+  // per-cm aiming — both properties die if the gain is scaled, so don't
+  nodes[p.side === 'L' ? 0 : 1].angle += delta; // zero-lag: node mirrors the thumb
 });
 function releasePointer(e) {
   const p = pointers[e.pointerId];
