@@ -467,20 +467,20 @@ function drawWallCode(g, dt) {
 
 // ---------- levels ----------
 const LEVELS = [
-  { name: 'LOCAL NETWORK',  duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, crawlers: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0 },
-  { name: 'CITY GRID',      duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, crawlers: 0.00, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
+  { name: 'LOCAL NETWORK',  duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0 },
+  { name: 'CITY GRID',      duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
     hint: 'NEW THREAT: heavy traps — pin them with BOTH nodes' },
-  { name: 'METRO EXCHANGE', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, crawlers: 0.00, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
+  { name: 'METRO EXCHANGE', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
     hint: 'NEW THREAT: burst transmissions — traps arrive in volleys' },
-  { name: 'GLOBAL BACKBONE',duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
+  { name: 'GLOBAL BACKBONE',duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
     hint: 'NEW THREAT: barrier lines — one node on each end' },
-  { name: 'DEEP FIBER',     duration: 60, spawnMin: 0.80, spawnMax: 1.50, speed: 0.46, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, strips: 0.12, track: 1, waves: true,
+  { name: 'DEEP FIBER',     duration: 60, spawnMin: 0.80, spawnMax: 1.50, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, strips: 0.12, track: 1, waves: true,
     hint: 'NEW THREAT: data streams — RIDE the ribbon, keep a node on it' },
-  { name: 'QUANTUM RELAY',  duration: 65, spawnMin: 0.80, spawnMax: 1.45, speed: 0.48, doubles: 0.35, crawlers: 0.30, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, strips: 0.12, track: 2,
+  { name: 'QUANTUM RELAY',  duration: 65, spawnMin: 0.80, spawnMax: 1.45, speed: 0.48, doubles: 0.35, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, strips: 0.12, track: 2,
     hint: 'NEW THREAT: color-locked traps — match the node color' },
-  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.68, spawnMax: 1.30, speed: 0.54, doubles: 0.40, crawlers: 0.35, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, strips: 0.15, track: 0, bursts: true, waves: true,
+  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.68, spawnMax: 1.30, speed: 0.54, doubles: 0.40, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, strips: 0.15, track: 0, bursts: true, waves: true,
     hint: 'ALL THREATS ACTIVE — maximum traffic' },
-  { name: 'CORE FIREWALL',  duration: 45, spawnMin: 0.90, spawnMax: 1.60, speed: 0.50, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, strips: 0.12, track: 2, boss: true,
+  { name: 'CORE FIREWALL',  duration: 45, spawnMin: 0.90, spawnMax: 1.60, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, strips: 0.12, track: 2, boss: true,
     hint: 'THE FIREWALL CORE AWAITS — drain it with your nodes' }
 ];
 const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
@@ -492,7 +492,6 @@ function endlessCfg(t) {
     spawnMin: ramp(1.4, 0.55, k), spawnMax: ramp(2.2, 1.1, k),
     speed: ramp(0.36, 0.60, k),
     doubles: ramp(0, 0.40, k),
-    crawlers: ramp(0, 0.35, (k - 0.2) / 0.8),
     heavies: ramp(0, 0.22, (k - 0.15) / 0.85),
     lines: ramp(0, 0.22, (k - 0.3) / 0.7),
     colors: ramp(0, 0.30, (k - 0.45) / 0.55),
@@ -535,7 +534,7 @@ let comboHeal = 0; // zaps banked at max combo — every 5 knit back one integri
 const PULSE_MAX = 45;
 let pulseCharge = [0, 0], pulseWaves = [];
 let enemies = [], particles = [], popups = [];
-let shake = 0, redFlash = 0, tunnelScroll = 0, time = 0;
+let shake = 0, redFlash = 0, tunnelScroll = 0, wallDist = 0, time = 0;
 let lowFX = false, perfAcc = 0, perfN = 0, perfWin = 0; // perf watchdog state
 let hitStop = 0;              // brief slow-mo after a zap
 let rimFX = [];               // reactive rim lighting: {a, t, col}
@@ -598,7 +597,7 @@ function ring(z, g) {
 // and they replace the procedural bodies automatically; missing files fall back.
 const SPRITES = {};
 if (typeof Image !== 'undefined') {
-  for (const k of ['normal', 'heavy', 'lock0', 'lock1', 'frag', 'crawler', 'boss']) {
+  for (const k of ['normal', 'heavy', 'lock0', 'lock1', 'frag', 'boss']) {
     const img = new Image();
     img.onload = () => { SPRITES[k] = img; };
     img.onerror = () => {};
@@ -608,7 +607,7 @@ if (typeof Image !== 'undefined') {
 
 // ---------- enemies ----------
 // enemy types:
-//   'normal' — any node zaps it (crawlers are drifting normals)
+//   'normal' — any node zaps it
 //   'heavy'  — must be covered by BOTH nodes at the same time
 //   'line'   — spawned as a linked pair at the same depth; each end needs its own node
 function spawnEnemy(forcedAngle, type) {
@@ -623,8 +622,7 @@ function spawnEnemy(forcedAngle, type) {
   if (lock !== undefined && !lockAllowed(lock)) lock = lockAllowed(1 - lock) ? 1 - lock : undefined;
   const en = {
     type, lock, z: SPAWN_Z, angle: forcedAngle !== undefined ? forcedAngle : Math.random() * TAU,
-    drift: crawler ? (Math.random() < 0.5 ? 1 : -1) * rand(0.25, 0.5) : 0,
-    crawler, sizeMul: type === 'frag' ? 0.8 : heavy ? 1.6 : 1, speedMul: heavy ? 0.82 : 1,
+    sizeMul: type === 'frag' ? 0.8 : heavy ? 1.6 : 1, speedMul: heavy ? 0.82 : 1,
     spin: Math.random() * TAU, spinMul: heavy ? 0.45 : 1, age: 0, dead: false, partner: null
   };
   enemies.push(en);
@@ -1265,7 +1263,7 @@ function startLevel(i) {
 function startQualification() {
   levelIdx = -1; endless = false; qual = true;
   LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.30,
-         doubles: 0, crawlers: 0, heavies: 0, lines: 0, colors: 0, frags: 0 };
+         doubles: 0, heavies: 0, lines: 0, colors: 0, frags: 0 };
   tut = { stage: -1, t: 0, queue: [], moved: [0, 0], lastA: [0, 0], retry: null, spawned: null };
   resetRun();
   tut.lastA = [nodes[0].angle, nodes[1].angle];
@@ -1401,7 +1399,10 @@ function update(dt) {
   updateMusic(dt);
   warpT = Math.max(0, warpT - dt);
   const warp2 = warpT / 0.9;
-  tunnelScroll = (tunnelScroll + dt * (state === S.PLAY ? 1.4 : 0.5) * (1 + warp2 * 4)) % 10;
+  // the wall streams at EXACTLY the traffic speed — leaks stay glued to it
+  const wallSpeed = state === S.PLAY ? (LV || LEVELS[levelIdx]).speed * 10 : 0.5;
+  tunnelScroll = (tunnelScroll + dt * wallSpeed * (1 + warp2 * 4)) % 10;
+  wallDist += dt * (state === S.PLAY ? (LV || LEVELS[levelIdx]).speed : 0.05) * (1 + warp2 * 4);
   shake = Math.max(0, shake - dt * 3);
   redFlash = Math.max(0, redFlash - dt * 2);
 
@@ -1687,7 +1688,7 @@ function update(dt) {
         const px2 = rg2.x + Math.cos(en.angle) * rg2.r, py2 = rg2.y + Math.sin(en.angle) * rg2.r;
         // to molecules: a dense three-layer disintegration
         const eCol = en.type === 'heavy' ? '#d465ff' : en.lock === 0 ? '#4d9bff'
-          : en.lock === 1 ? '#eef6ff' : en.crawler ? '#ffb361' : '#ff8ba0';
+          : en.lock === 1 ? '#eef6ff' : '#ff8ba0';
         burst(px2, py2, eCol, 26, 5.5);
         burst(px2, py2, `rgb(${wv.col})`, 20, 4);
         burst(px2, py2, '#ffffff', 14, 6.5);
@@ -1740,6 +1741,40 @@ function update(dt) {
 }
 
 // ---------- drawing ----------
+
+// the wall lattice: longitudinal seams + depth hoops that stream at EXACTLY
+// the traffic speed. leaks sit in its cells and ride its hoops — structural
+// proof that they are holes in a surface, not sprites in the bore
+const SEAMS = 14, SEAM_OFF = 0.12, HOOP_SPACING = 0.28;
+function drawLattice(g) {
+  if (state === S.MENU) return;
+  ctx.save();
+  ctx.lineCap = 'butt';
+  const rFar = ring(SPAWN_Z, g).r, rNear = ring(Math.max(0.02, g.hitZ * 0.4), g).r;
+  for (let i = 0; i < SEAMS; i++) {
+    const a = i / SEAMS * TAU + SEAM_OFF;
+    const fx2 = g.cx + Math.cos(a) * rFar, fy2 = g.cy + Math.sin(a) * rFar;
+    const nx2 = g.cx + Math.cos(a) * rNear, ny2 = g.cy + Math.sin(a) * rNear;
+    const grd = ctx.createLinearGradient(fx2, fy2, nx2, ny2);
+    grd.addColorStop(0, 'rgba(90,170,235,0)');
+    grd.addColorStop(0.3, 'rgba(90,170,235,0.26)');
+    grd.addColorStop(1, 'rgba(90,170,235,0.08)');
+    ctx.strokeStyle = grd;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(fx2, fy2); ctx.lineTo(nx2, ny2); ctx.stroke();
+  }
+  // hoops riding toward the viewer in lockstep with the traffic
+  const off = ((wallDist % HOOP_SPACING) + HOOP_SPACING) % HOOP_SPACING;
+  for (let z = SPAWN_Z - off; z > g.hitZ * 0.4; z -= HOOP_SPACING) {
+    const rr = ring(z, g);
+    const a = clamp((SPAWN_Z - 0.05 - z) / 0.4, 0, 1) * 0.26;
+    ctx.strokeStyle = `rgba(120,200,255,${a.toFixed(2)})`;
+    ctx.lineWidth = Math.max(0.8, rr.r / g.nodeR * 1.5);
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, rr.r, 0, TAU); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawTunnel(g) {
   // the wall is one dense annulus of data, stamped at receding depths —
   // the inside of a fiber optic line packed with traffic, not clean geometry
@@ -1752,7 +1787,7 @@ function drawTunnel(g) {
     const a = (1 - z) * 0.85 + 0.08;
     ctx.save();
     ctx.translate(rg.x, rg.y);
-    ctx.rotate(i * 0.55 + time * 0.015); // each depth band has its own twist, drifting slowly
+    ctx.rotate(i * 0.55); // each depth band has its own FIXED twist — a spinning wall would shear under the leaks
     ctx.globalAlpha = a;
     if (wallTex) ctx.drawImage(wallTex, -hs, -hs, hs * 2, hs * 2);
     ctx.restore();
@@ -1765,7 +1800,7 @@ function drawTunnel(g) {
       if (a2 > 0.01) {
         ctx.save();
         ctx.translate(rg2.x, rg2.y);
-        ctx.rotate(i * 0.55 + time * 0.015);
+        ctx.rotate(i * 0.55);
         ctx.globalAlpha = a2;
         ctx.drawImage(wallTex, -hs2, -hs2, hs2 * 2, hs2 * 2);
         ctx.restore();
@@ -1855,17 +1890,6 @@ function drawWallLeak(en, g, fade, PAL) {
   const jagAmp = lockKind ? 0.05 : heavy ? 0.28 : 0.38;   // locks are machined, tears are torn
   const wallW = clamp(ring(Math.max(zc, 0.02), g).r / g.nodeR, 0.06, 2); // stroke scale at this depth
 
-  // scorched smear trailing a crawler's slide
-  if (en.crawler) {
-    const dir = en.drift >= 0 ? 1 : -1;
-    for (let i = 3; i >= 1; i--) {
-      wallPatch(g, en.angle - dir * i * 0.055, holeA * (1 - i * 0.18), zc - holeZ * 0.5, zc + holeZ * 0.5,
-        'rgba(10,6,4,1)', fade * (0.5 - i * 0.13));
-      wallPatch(g, en.angle - dir * i * 0.055, holeA * (1 - i * 0.18) + 0.008, zc - holeZ * 0.55, zc + holeZ * 0.55,
-        `rgba(${PAL.glow},1)`, fade * (0.2 - i * 0.055));
-    }
-  }
-
   // cracks spidering out of the rupture along the wall (deterministic per enemy)
   const nCracks = lockKind ? 0 : heavy ? 5 : 3;
   if (nCracks && wallW > 0.12) {
@@ -1917,6 +1941,44 @@ function drawWallLeak(en, g, fade, PAL) {
       wallPatch(g, en.angle - (holeA * w + 0.02 * mul), 0.006, zc + t0 * holeZ, zc + t1 * holeZ, PAL.lights[0], fade * ringPulse * 0.8);
       wallPatch(g, en.angle + (holeA * w + 0.02 * mul), 0.006, zc + t0 * holeZ, zc + t1 * holeZ, PAL.lights[0], fade * ringPulse * 0.8);
     }
+  }
+  // the lattice tears: the nearest seam visibly bends around the rupture —
+  // wall structure deforming is what sells "this is a hole in the surface"
+  const seamStep = TAU / SEAMS;
+  const sA = Math.round((en.angle - SEAM_OFF) / seamStep) * seamStep + SEAM_OFF;
+  const dA = angDiff(sA, en.angle);
+  if (Math.abs(dA) < holeA * 2.6 && wallW > 0.12) {
+    ctx.strokeStyle = `rgba(${PAL.glow},${(fade * 0.75).toFixed(2)})`;
+    ctx.lineWidth = Math.max(1, wallW * 2);
+    ctx.lineCap = 'round';
+    const bendDir = Math.sign(dA || 1);
+    for (const side of [-1, 1]) { // approach the hole from the far and near depths
+      ctx.beginPath();
+      let started = false;
+      for (let sN = 0; sN <= 3; sN++) {
+        const z = zc + side * holeZ * (2.6 - sN * 0.62);
+        const bend = bendDir * (holeA * 1.2 - Math.abs(dA)) * Math.pow(sN / 3, 1.6);
+        const a = sA + bend;
+        const rr = ring(Math.max(z, 0.02), g).r;
+        const px2 = g.cx + Math.cos(a) * rr, py2 = g.cy + Math.sin(a) * rr;
+        started ? ctx.lineTo(px2, py2) : ctx.moveTo(px2, py2);
+        started = true;
+      }
+      ctx.stroke();
+    }
+  }
+  // cold static inside the void — the outside of the tunnel showing through
+  if (!lowFX && wallW > 0.15) {
+    for (let i2 = 0; i2 < 2; i2++) {
+      const fa = en.angle + Math.sin(time * 13 + seed + i2 * 7) * holeA * 0.5;
+      const fz = zc + Math.sin(time * 17 + seed * 2 + i2 * 3) * holeZ * 0.45;
+      const rr = ring(Math.max(fz, 0.02), g).r;
+      const fs = Math.max(0.8, wallW * 2.4);
+      ctx.globalAlpha = fade * (0.22 + 0.18 * (Math.sin(time * 23 + i2 * 5 + seed) * 0.5 + 0.5));
+      ctx.fillStyle = '#a0beff';
+      ctx.fillRect(g.cx + Math.cos(fa) * rr - fs / 2, g.cy + Math.sin(fa) * rr - fs / 2, fs, fs);
+    }
+    ctx.globalAlpha = fade;
   }
   // the leak itself: gold payload specks being sucked out through the hole
   if (!lowFX && en.z < 1.5 && Math.random() < 0.4 * fade) {
@@ -1994,10 +2056,6 @@ function drawEnemy(en, g) {
     ? { glow: '225,240,255',
         shades: ['#c8d6e6', '#9fb2c8', '#e8f2fc', '#8194ab', '#d5e2f0'],
         lights: ['#ffffff', '#eef6ff', '#dbe8f6'] }
-    : en.crawler
-    ? { glow: '255,150,40',
-        shades: ['#ff8c2a', '#e05e14', '#ffb340', '#c24a08', '#ff7a50'],
-        lights: ['#ffd98f', '#ffe9c0', '#ffb361'] }
     : { glow: '255,60,90',
         shades: ['#e8274b', '#ff5a3c', '#d81f6e', '#b3123a', '#ff8c5a'],
         lights: ['#ff9db0', '#ffc9d4', '#ff8ba0'] };
@@ -2011,7 +2069,7 @@ function drawEnemy(en, g) {
     return;
   }
 
-  const spr = SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.crawler ? 'crawler' : en.type];
+  const spr = SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.type];
 
   // hot glow at the wall point — except payload packets, which swallow light
   const pulse = 1 + Math.sin(en.spin * 2) * 0.08;
@@ -2132,7 +2190,7 @@ function drawArrivalPings(g) {
       : en.type === 'heavy' ? '200,70,255'
       : en.lock === 0 ? '80,170,255'
       : en.lock === 1 ? '240,248,255'
-      : en.crawler ? '255,150,40' : '255,60,90';
+      : '255,60,90';
     mark(en.angle, col, en.z);
   }
   for (const p of pickups) if (!p.done) mark(p.angle, '255,210,74', p.z);
@@ -2722,8 +2780,6 @@ function drawDials() {
         ? `rgba(80,170,255,${al})`
         : en.lock === 1
         ? `rgba(240,248,255,${al})`
-        : en.crawler
-        ? `rgba(255,140,40,${al})`
         : `rgba(220,50,50,${al})`;
       ctx.fillRect(bx - bs / 2, by - bs / 2, bs, bs);
     }
@@ -3875,6 +3931,7 @@ function frame(now) {
 
   // the tunnel fills the whole screen — no clipping, we're inside it
   drawTunnel(g);
+  drawLattice(g);
   drawWallCode(g, dt);
   drawStreaks(g, dt);
   // warm glow rising off the golden river
