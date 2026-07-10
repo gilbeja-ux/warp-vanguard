@@ -515,24 +515,13 @@ pmove(9, dial.x, dial.y + dial.r);
 check('raw drag: rim quarter-turn turns the node ~90° instantly', Math.abs(n0.angle - Math.PI / 2) < 1e-6);
 pup(9, dial.x, dial.y + dial.r);
 
-// aim assist off: no drift toward traps
-G.settings.aimAssist = false;
+// aim assist was removed (it fought the thumb): nodes must NEVER move on their own
 G.enemies().length = 0;
 aim(0, 0);
 en = G.spawnEnemy(0.3, 'normal');
 en.z = G.geo().hitZ + 0.2;
 G.update(0.05);
-check('no assist drift when aim assist is off', Math.abs(n0.angle) < 1e-6);
-
-// aim assist on: node drifts toward the arriving trap
-G.settings.aimAssist = true;
-G.enemies().length = 0;
-aim(0, 0);
-en = G.spawnEnemy(0.3, 'normal');
-en.z = G.geo().hitZ + 0.2;
-G.update(0.05);
-check('aim assist pulls toward an arriving trap', n0.angle > 0.01);
-G.settings.aimAssist = false;
+check('nodes never drift toward traps on their own', Math.abs(n0.angle) < 1e-6);
 
 // ================= precision scoring =================
 G.startLevel(1);
@@ -561,15 +550,6 @@ en = G.spawnEnemy(1.2, 'frag');
 aim(1, 1.2); // zap the friendly — the mistake
 cross(en);
 check('zapping a friendly packet costs integrity', en.dead && G.stats().integrity === int0 - 25 && G.stats().combo === 0);
-// assist must never pull toward friendlies
-G.settings.aimAssist = true;
-G.enemies().length = 0;
-aim(0, 0);
-en = G.spawnEnemy(0.3, 'frag');
-en.z = G.geo().hitZ + 0.2;
-G.update(0.05);
-check('aim assist ignores friendly packets', Math.abs(G.nodes[0].angle) < 1e-6);
-G.settings.aimAssist = false;
 
 // ================= beat sync =================
 const bt = {

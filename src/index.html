@@ -87,7 +87,6 @@ const rand = (a, b) => a + Math.random() * (b - a);
 let AC = null, sfxGain = null;
 const settings = {
   sound: true, soundVol: 0.8, music: true, musicVol: 0.5, haptics: true,
-  aimAssist: false, // soft magnet toward arriving traps (accessibility; raw skill by default)
   controls: 0 // 0 = corner dials · 1 = immersive (drag lenses on the rim) · 2 = side arcs
 };
 const CONTROL_NAMES = ['DIALS', 'IMMERSIVE', 'ARCS'];
@@ -473,15 +472,15 @@ const LEVELS = [
     hint: 'NEW THREAT: heavy traps — pin them with BOTH nodes' },
   { name: 'METRO EXCHANGE', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, crawlers: 0.00, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
     hint: 'NEW THREAT: burst transmissions — traps arrive in volleys' },
-  { name: 'GLOBAL BACKBONE',duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
+  { name: 'GLOBAL BACKBONE',duration: 60, spawnMin: 0.50, spawnMax: 0.90, speed: 0.46, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
     hint: 'NEW THREAT: barrier lines — one node on each end' },
-  { name: 'DEEP FIBER',     duration: 60, spawnMin: 0.80, spawnMax: 1.50, speed: 0.46, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, track: 1, waves: true,
+  { name: 'DEEP FIBER',     duration: 60, spawnMin: 0.48, spawnMax: 0.85, speed: 0.46, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, track: 1, waves: true,
     hint: 'NEW THREAT: speed waves — the stream surges and slows' },
-  { name: 'QUANTUM RELAY',  duration: 65, spawnMin: 0.80, spawnMax: 1.45, speed: 0.48, doubles: 0.35, crawlers: 0.30, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, track: 2,
+  { name: 'QUANTUM RELAY',  duration: 65, spawnMin: 0.48, spawnMax: 0.82, speed: 0.48, doubles: 0.35, crawlers: 0.30, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, track: 2,
     hint: 'NEW THREAT: color-locked traps — match the node color' },
-  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.68, spawnMax: 1.30, speed: 0.54, doubles: 0.40, crawlers: 0.35, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, track: 0, bursts: true, waves: true,
+  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.42, spawnMax: 0.75, speed: 0.54, doubles: 0.40, crawlers: 0.35, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, track: 0, bursts: true, waves: true,
     hint: 'ALL THREATS ACTIVE — maximum traffic' },
-  { name: 'CORE FIREWALL',  duration: 45, spawnMin: 0.90, spawnMax: 1.60, speed: 0.50, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, track: 2, boss: true,
+  { name: 'CORE FIREWALL',  duration: 45, spawnMin: 0.55, spawnMax: 0.95, speed: 0.50, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, track: 2, boss: true,
     hint: 'THE FIREWALL CORE AWAITS — drain it with your nodes' }
 ];
 const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
@@ -620,7 +619,7 @@ function spawnEnemy(forcedAngle, type) {
   const lock = type === 'normal' && !crawler && Math.random() < (L.colors || 0)
     ? (Math.random() < 0.5 ? 0 : 1) : undefined;
   const en = {
-    type, lock, z: 1.12, angle: forcedAngle !== undefined ? forcedAngle : Math.random() * TAU,
+    type, lock, z: SPAWN_Z, angle: forcedAngle !== undefined ? forcedAngle : Math.random() * TAU,
     drift: crawler ? (Math.random() < 0.5 ? 1 : -1) * rand(0.25, 0.5) : 0,
     crawler, sizeMul: type === 'frag' ? 0.8 : heavy ? 1.6 : 1, speedMul: heavy ? 0.82 : 1,
     spin: Math.random() * TAU, spinMul: heavy ? 0.45 : 1, age: 0, dead: false, partner: null
@@ -644,7 +643,15 @@ const PATTERNS = [
   { steps: [{ b: 0, da: 0 }, { b: 0, da: Math.PI }, { b: 2, da: 0.5 }, { b: 2, da: Math.PI + 0.5 }] },   // pincer
   { steps: [{ b: 0, da: 0 }, { b: 1, da: -0.4 }, { b: 2, da: -0.8 }, { b: 3, da: -1.2 }] }               // stairs
 ];
-const travelTime = () => (1.12 - geo().hitZ) / ((LV || LEVELS[levelIdx]).speed * (mutators.fast ? 1.35 : 1));
+// traps drop in at the visual horizon and cross the deep leg fast — pacing at
+// the ring is unchanged, but they're visible (as distant specks) far earlier
+const SPAWN_Z = 2.1;
+const DEEP_K = 2.2; // extra speed per unit of depth beyond z = 1
+const deepMul = z => 1 + Math.max(0, z - 1) * DEEP_K;
+// exact flight time from SPAWN_Z to the ring under the deep-leg boost
+const travelTime = () =>
+  ((1 - geo().hitZ) + Math.log(1 + DEEP_K * (SPAWN_Z - 1)) / DEEP_K) /
+  ((LV || LEVELS[levelIdx]).speed * (mutators.fast ? 1.35 : 1));
 function trySpawn(dt) {
   spawnT -= dt;
   if (spawnT <= 0) {
@@ -688,7 +695,7 @@ const PICKUPS = {
 };
 function spawnPickup() {
   const kinds = Object.keys(PICKUPS);
-  pickups.push({ kind: kinds[(Math.random() * kinds.length) | 0], z: 1.12, angle: Math.random() * TAU, spin: 0, done: false });
+  pickups.push({ kind: kinds[(Math.random() * kinds.length) | 0], z: SPAWN_Z, angle: Math.random() * TAU, spin: 0, done: false });
 }
 // the firewall core duel: it hunts the fused node from inside the tunnel while
 // the ray cannon (left thumb = move, right thumb = aim, hold = fire) drains it
@@ -1269,7 +1276,7 @@ function showCard(key) {
 function qualSpawn(kind) {
   tut.spawned = kind;
   if (kind === 'pickup') {
-    pickups.push({ kind: 'wide', z: 1.12, angle: Math.random() * TAU, spin: 0, done: false, tut: true });
+    pickups.push({ kind: 'wide', z: SPAWN_Z, angle: Math.random() * TAU, spin: 0, done: false, tut: true });
     return;
   }
   if (kind === 'line') {
@@ -1402,24 +1409,6 @@ function update(dt) {
 
   const g = geo();
 
-  // aim assist (optional): soft magnet toward whatever is about to arrive
-  if (settings.aimAssist) {
-    for (let i = 0; i < 2; i++) {
-      let best = null, bestScore = 1e9;
-      const consider = (a, z, lock) => {
-        if (lock !== undefined && lock !== i) return; // color locks only attract their node
-        if (z > g.hitZ + 0.45 || z < g.hitZ * 0.5) return;
-        const da = Math.abs(angDiff(a, nodes[i].angle));
-        if (da > 0.5) return;
-        const sc = da + Math.abs(z - g.hitZ) * 1.5;
-        if (sc < bestScore) { bestScore = sc; best = a; }
-      };
-      for (const en of enemies) if (!en.dead && !en.resolved && en.type !== 'frag') consider(en.angle, en.z, en.lock);
-      for (const p of pickups) if (!p.done) consider(p.angle, p.z);
-      if (best !== null) nodes[i].angle += clamp(angDiff(best, nodes[i].angle), -0.6, 0.6) * 2.2 * dt;
-    }
-  }
-
   const waveMul = (L.waves ? 1 + 0.3 * Math.sin(levelT * 0.55) : 1) * (mutators.fast ? 1.35 : 1);
   const TOL = 0.314 * tolVis; // angular tolerance ~18°, eased wider by the wide-arc power-up
   const covers = (n, a) => Math.abs(angDiff(n.angle, a)) < TOL;
@@ -1429,7 +1418,7 @@ function update(dt) {
   const nearest = a => Math.abs(angDiff(nodes[0].angle, a)) < Math.abs(angDiff(nodes[1].angle, a)) ? nodes[0] : nodes[1];
 
   for (const en of enemies) {
-    en.z -= L.speed * waveMul * (en.speedMul || 1) * sdt;
+    en.z -= L.speed * waveMul * (en.speedMul || 1) * deepMul(en.z) * sdt;
     en.spin += sdt * 4 * (en.spinMul || 1);
     en.age += sdt;
     if (en.drift) en.angle += en.drift * sdt;
@@ -1574,7 +1563,7 @@ function update(dt) {
   }
   // pulse waves sweep down the tunnel, molecularizing every trap they pass
   for (const wv of pulseWaves) {
-    wv.z += dt * 1.4;
+    wv.z += dt * 1.6 * deepMul(wv.z); // rides the same deep-leg boost to the horizon
     for (const en of enemies) {
       if (en.dead || en.resolved || en.type === 'frag' || en.tut) continue;
       if (en.z <= wv.z) {
@@ -1593,9 +1582,9 @@ function update(dt) {
         score += Math.round(60 * mutMul()); // flat bounty — no combo, no zap credit
       }
     }
-    if (wv.z > 1.1 && wv.kills) popup(W / 2, H * 0.4, 'PULSE PURGE ×' + wv.kills, '#8fe0ff');
+    if (wv.z > SPAWN_Z && wv.kills) popup(W / 2, H * 0.4, 'PULSE PURGE ×' + wv.kills, '#8fe0ff');
   }
-  pulseWaves = pulseWaves.filter(wv => wv.z <= 1.1);
+  pulseWaves = pulseWaves.filter(wv => wv.z <= SPAWN_Z);
   enemies = enemies.filter(e => !e.dead && e.z > 0.03);
   for (const fx2 of rimFX) fx2.t -= dt;
   rimFX = rimFX.filter(fx2 => fx2.t > 0);
@@ -1603,7 +1592,7 @@ function update(dt) {
 
   // power-up orbs ride the stream; catching one at the ring arms its effect
   for (const p of pickups) {
-    p.z -= L.speed * 0.9 * sdt;
+    p.z -= L.speed * 0.9 * deepMul(p.z) * sdt;
     p.spin += dt * 2;
     if (!p.done && p.z <= g.hitZ) {
       p.done = true;
@@ -1782,11 +1771,11 @@ function drawEnemy(en, g) {
   const rg = ring(Math.max(en.z, 0.02), g);
   const x = rg.x + Math.cos(en.angle) * rg.r;
   const y = rg.y + Math.sin(en.angle) * rg.r;
-  let size = lerp(4, Math.min(W, H) * 0.06, 1 - en.z) * (en.sizeMul || 1);
+  let size = lerp(3.5, Math.min(W, H) * 0.06, clamp(1 - en.z, 0, 1)) * (en.sizeMul || 1);
   const near = 1 - en.z;
   // missed traps balloon past the ring and dissolve; fresh ones fade in from the deep
   let fade = en.resolved ? clamp(en.z / g.hitZ, 0, 1) : 1;
-  fade *= clamp((1.08 - en.z) / 0.18, 0, 1); // smooth entrance — no popping
+  fade *= clamp((SPAWN_Z - 0.05 - en.z) / 0.3, 0, 1); // smooth entrance at the horizon
   if (fade <= 0.005) return;
   if (en.resolved) size *= 1 + (1 - clamp(en.z / g.hitZ, 0, 1)) * 1.6;
   // per-type palettes — the color IS the gameplay language: red = any node,
@@ -1972,8 +1961,8 @@ function drawBolts() {
 function drawPickup(p, g) {
   const rg = ring(Math.max(p.z, 0.02), g);
   const x = rg.x + Math.cos(p.angle) * rg.r, y = rg.y + Math.sin(p.angle) * rg.r;
-  const size = lerp(3, Math.min(W, H) * 0.042, 1 - p.z);
-  let fade = clamp((1.08 - p.z) / 0.18, 0, 1);
+  const size = lerp(3, Math.min(W, H) * 0.042, clamp(1 - p.z, 0, 1));
+  let fade = clamp((SPAWN_Z - 0.05 - p.z) / 0.3, 0, 1);
   if (p.done) fade *= clamp(p.z / g.hitZ, 0, 1);
   if (fade <= 0.005) return;
   ctx.save();
@@ -2024,9 +2013,9 @@ function drawLineBeam(en, g) {
   const x1 = rg.x + Math.cos(en.angle) * rg.r, y1 = rg.y + Math.sin(en.angle) * rg.r;
   const x2 = rg.x + Math.cos(p.angle) * rg.r, y2 = rg.y + Math.sin(p.angle) * rg.r;
   let fade = en.resolved ? clamp(en.z / g.hitZ, 0, 1) : 1;
-  fade *= clamp((1.08 - en.z) / 0.18, 0, 1);
+  fade *= clamp((SPAWN_Z - 0.05 - en.z) / 0.3, 0, 1);
   if (fade <= 0.005) return;
-  const size = lerp(4, Math.min(W, H) * 0.06, 1 - en.z);
+  const size = lerp(3.5, Math.min(W, H) * 0.06, clamp(1 - en.z, 0, 1));
   // crackling midpoint gives the wall a live, electric bow
   const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
   const dx = x2 - x1, dy = y2 - y1;
@@ -3107,17 +3096,16 @@ function settingsTap(x, y, pid) {
 function drawPause() {
   pauseButtonsList = []; pauseSlidersList = []; pauseTogglesList = [];
   ctx.fillStyle = 'rgba(3,6,14,0.78)'; ctx.fillRect(0, 0, W, H);
-  const pw = Math.min(W * 0.74, 540), ph = Math.min(H * 0.86, 368);
+  const pw = Math.min(W * 0.74, 540), ph = Math.min(H * 0.86, 330);
   const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
   techPanel(px, py, pw, ph, 'SYSTEM PAUSED');
   settingRow('SFX',        'sound',     'soundVol', py + 70,  px, pw);
   settingRow('MUSIC',      'music',     'musicVol', py + 108, px, pw);
   settingRow('HAPTICS',    'haptics',   null,       py + 146, px, pw);
-  settingRow('AIM ASSIST', 'aimAssist', null,       py + 184, px, pw);
-  controlsRow(py + 222, px, pw);
+  controlsRow(py + 184, px, pw);
   // live console readout, pure garnish
   ctx.fillStyle = 'rgba(120,210,255,0.35)'; ctx.font = '9px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('m_fSfxVol = ' + settings.soundVol.toFixed(2) + 'f;   m_eInput = ' + CONTROL_NAMES[settings.controls] + ';', px + 24, py + 252);
+  ctx.fillText('m_fSfxVol = ' + settings.soundVol.toFixed(2) + 'f;   m_eInput = ' + CONTROL_NAMES[settings.controls] + ';', px + 24, py + 214);
 
   const bh = 44, gap = 12, bw = (pw - 48 - gap * 2) / 3;
   let bx = px + 24; const by = py + ph - bh - 20;
