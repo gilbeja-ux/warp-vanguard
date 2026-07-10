@@ -617,8 +617,10 @@ function spawnEnemy(forcedAngle, type) {
   const L = LV || LEVELS[levelIdx];
   const crawler = type === 'normal' && Math.random() < L.crawlers;
   // color-locked traps only answer to one node: 0 = blue (left), 1 = white (right)
-  const lock = type === 'normal' && !crawler && Math.random() < (L.colors || 0)
+  let lock = type === 'normal' && !crawler && Math.random() < (L.colors || 0)
     ? (Math.random() < 0.5 ? 0 : 1) : undefined;
+  // fairness: a color whose node is already booked flips, or unlocks entirely
+  if (lock !== undefined && !lockAllowed(lock)) lock = lockAllowed(1 - lock) ? 1 - lock : undefined;
   const en = {
     type, lock, z: SPAWN_Z, angle: forcedAngle !== undefined ? forcedAngle : Math.random() * TAU,
     drift: crawler ? (Math.random() < 0.5 ? 1 : -1) * rand(0.25, 0.5) : 0,
@@ -648,6 +650,57 @@ const PATTERNS = [
 // perspective alone supplies the acceleration feel, so arrival is extrapolable
 const SPAWN_Z = 2.1;
 const travelTime = () => (SPAWN_Z - geo().hitZ) / ((LV || LEVELS[levelIdx]).speed * (mutators.fast ? 1.35 : 1));
+// ---------- spawn fairness ----------
+// never schedule an arrival pattern two nodes can't physically cover:
+//  · heavies/lines demand BOTH nodes at once — their window must be empty
+//  · a strip owns one node for its whole crossing — nothing dual-node or
+//    color-bound may share it, and at most one plain trap can
+//  · same-color locks can't double-book their node in one window
+//  · never more than two hostile arrivals in one window (there are two nodes)
+//  · friendlies need a clean window, so covering a trap can't clip them
+function arrivalAt(z, speedMul) {
+  return (z - geo().hitZ) / ((LV || LEVELS[levelIdx]).speed * (speedMul || 1));
+}
+function windowMates(tNew, gap) {
+  const list = [];
+  for (const en of enemies) {
+    if (en.dead || en.resolved || en.tut || en.type === 'frag') continue;
+    if (en.type === 'strip') {
+      if (tNew > arrivalAt(en.z, 1) - gap && tNew < arrivalAt(en.z + en.len, 1) + gap) list.push(en);
+    } else if (Math.abs(arrivalAt(en.z, en.speedMul) - tNew) < gap) {
+      list.push(en);
+    }
+  }
+  return list;
+}
+function spawnAllowed(type) {
+  const GAP = 0.55; // seconds of arrival separation that reads as "same moment"
+  const tNew = arrivalAt(SPAWN_Z, type === 'heavy' ? 0.82 : 1);
+  if (type === 'heavy' || type === 'line') return windowMates(tNew, GAP * 1.5).length === 0;
+  if (type === 'strip') {
+    const tEnd = tNew + 0.9 / (LV || LEVELS[levelIdx]).speed;
+    for (const en of enemies) {
+      if (en.dead || en.resolved || en.tut || en.type === 'frag') continue;
+      const needsNode = en.type !== 'normal' || en.lock !== undefined;
+      const t0 = arrivalAt(en.z, en.speedMul);
+      const t1 = en.type === 'strip' ? arrivalAt(en.z + en.len, 1) : t0;
+      if (needsNode && t1 > tNew - GAP && t0 < tEnd + GAP) return false;
+    }
+    return windowMates(tNew, GAP).length <= 1;
+  }
+  if (type === 'frag') return windowMates(tNew, 0.4).length === 0;
+  // plain trap (may become a lock — see lockAllowed)
+  const mates = windowMates(tNew, GAP);
+  if (mates.some(en => en.type === 'heavy' || en.type === 'line')) return false;
+  const strips = mates.filter(en => en.type === 'strip').length;
+  return mates.length - strips < (strips ? 1 : 2); // a strip leaves only one free node
+}
+// a color lock may only spawn if its node isn't already booked in the window
+function lockAllowed(lock) {
+  const mates = windowMates(arrivalAt(SPAWN_Z, 1), 0.55);
+  if (mates.some(en => en.type === 'strip')) return false; // the tracing node is unknowable
+  return !mates.some(en => en.lock === lock);
+}
 function trySpawn(dt) {
   spawnT -= dt;
   if (spawnT <= 0) {
@@ -667,22 +720,23 @@ function trySpawn(dt) {
       return;
     }
     // friendly payload packet — the one thing you must NOT zap
-    if (Math.random() < (L.frags || 0)) { spawnEnemy(undefined, 'frag'); return; }
+    if (Math.random() < (L.frags || 0) && spawnAllowed('frag')) { spawnEnemy(undefined, 'frag'); return; }
     // burst transmissions: occasionally a volley of three in rapid succession
-    if (L.bursts && !burstQ && Math.random() < 0.3) {
+    if (L.bursts && !burstQ && Math.random() < 0.3 && spawnAllowed('line')) { // volleys start from a clean window
       burstQ = { left: 2, t: 0.35 };
       spawnEnemy();
       spawnT += 0.9; // breathe after a volley
       return;
     }
-    // data stream: a curved ribbon to trace end-to-end
-    if (Math.random() < (L.strips || 0)) { spawnStrip(); return; }
+    // fairness gate: an impossible pick falls through to something coverable
+    if (Math.random() < (L.strips || 0) && spawnAllowed('strip')) { spawnStrip(); return; }
     const roll = Math.random();
-    if (roll < L.lines) { spawnLine(); return; }
-    if (roll < L.lines + L.heavies) { spawnEnemy(undefined, 'heavy'); return; }
+    if (roll < L.lines && spawnAllowed('line')) { spawnLine(); return; }
+    if (roll < L.lines + L.heavies && spawnAllowed('heavy')) { spawnEnemy(undefined, 'heavy'); return; }
+    if (!spawnAllowed('normal')) { spawnT = Math.min(spawnT, 0.35); return; } // wait out the jam
     const a = Math.random() * TAU;
     spawnEnemy(a);
-    if (Math.random() < L.doubles) spawnEnemy(a + Math.PI + rand(-0.6, 0.6));
+    if (Math.random() < L.doubles && spawnAllowed('normal')) spawnEnemy(a + Math.PI + rand(-0.6, 0.6));
   }
 }
 // data stream: a curved ribbon riding the wall — keep a node ON its crossing
@@ -1789,56 +1843,91 @@ function wallPatch(g, a, halfA, z0, z1, col, alpha) {
   ctx.lineWidth = Math.max(0.7, r0 - r1);
   ctx.beginPath(); ctx.arc(g.cx, g.cy, rm, a - halfA, a + halfA); ctx.stroke();
 }
-function drawWallGlitch(en, g, fade, PAL) {
-  const main = PAL.shades[0], hi = PAL.lights[0];
+function drawWallLeak(en, g, fade, PAL) {
   const seed = en.spin * 13.7;
-  const tear = Math.sin(time * 1.9 + seed) > 0.94 ? 1 : 0;   // occasional hard jump
-  const split = 0.018 + tear * 0.05;                          // chromatic offset (radians)
-  const jA = i => Math.sin(time * 11 + seed + i * 3.1) * (0.012 + tear * 0.05);
   const mul = en.sizeMul || 1;
   const zc = en.z;
-  const slab = (i, o, h, halfA, col) => {
-    const a = en.angle + jA(i);
-    ctx.globalCompositeOperation = 'lighter';
-    wallPatch(g, a - split, halfA, zc + o, zc + o + h, `rgba(${PAL.glow},0.4)`, fade * 0.6);
-    wallPatch(g, a + split, halfA, zc + o, zc + o + h, `rgba(${PAL.glow},0.4)`, fade * 0.6);
-    ctx.globalCompositeOperation = 'source-over';
-    wallPatch(g, a, halfA, zc + o, zc + o + h, col || main, fade);
-  };
+  const lockKind = en.lock !== undefined;
+  const heavy = en.type === 'heavy';
+  // rupture proportions per threat class
+  const holeA = (lockKind ? 0.062 : heavy ? 0.10 : en.type === 'line' ? 0.068 : 0.078) * mul;
+  const holeZ = (lockKind ? 0.042 : heavy ? 0.062 : 0.052) * mul;
+  const jagAmp = lockKind ? 0.05 : heavy ? 0.28 : 0.38;   // locks are machined, tears are torn
+  const wallW = clamp(ring(Math.max(zc, 0.02), g).r / g.nodeR, 0.06, 2); // stroke scale at this depth
 
-  if (en.type === 'heavy') {
-    // dense mosaic: 3 angular x 3 depth corrupted cells + a bright cross-band
-    for (let r2 = 0; r2 < 3; r2++) for (let c = 0; c < 3; c++) {
-      const fl = 0.55 + 0.45 * Math.sin(time * 7 + seed + r2 * 2.7 + c * 1.3);
-      const aOff = (c - 1) * 0.105 * mul + jA(r2 + 2) * 0.5;
-      wallPatch(g, en.angle + aOff, 0.048 * mul, zc + (r2 - 1.5) * 0.05, zc + (r2 - 1.5) * 0.05 + 0.045,
-        (r2 + c) % 2 ? main : PAL.shades[2], fade * (0.5 + 0.5 * fl));
-    }
-    wallPatch(g, en.angle, 0.15 * mul, zc - 0.008, zc + 0.008, hi, fade * 0.9);
-  } else if (en.lock !== undefined) {
-    // encrypted barcode: crisp bands receding along the wall
-    for (let i = 0; i < 4; i++) {
-      slab(tear ? i : 99, (i - 2) * 0.032, 0.026, 0.085, i % 2 ? main : hi);
-    }
-  } else if (en.crawler) {
-    // sliding rip: afterimages smear back along its drift around the wall
+  // scorched smear trailing a crawler's slide
+  if (en.crawler) {
     const dir = en.drift >= 0 ? 1 : -1;
-    ctx.lineCap = 'butt';
     for (let i = 3; i >= 1; i--) {
-      wallPatch(g, en.angle - dir * i * 0.07, 0.075, zc - 0.02, zc + 0.02,
-        `rgba(${PAL.glow},1)`, fade * (0.36 - i * 0.09));
+      wallPatch(g, en.angle - dir * i * 0.055, holeA * (1 - i * 0.18), zc - holeZ * 0.5, zc + holeZ * 0.5,
+        'rgba(10,6,4,1)', fade * (0.5 - i * 0.13));
+      wallPatch(g, en.angle - dir * i * 0.055, holeA * (1 - i * 0.18) + 0.008, zc - holeZ * 0.55, zc + holeZ * 0.55,
+        `rgba(${PAL.glow},1)`, fade * (0.2 - i * 0.055));
     }
-    slab(0, -0.035, 0.028, 0.10, main);
-    slab(1, 0.006, 0.022, 0.08, hi);
-  } else {
-    // torn scanline stack receding along the wall (regular + barrier posts)
-    for (let i = 0; i < 4; i++) {
-      const halfA = 0.10 * (0.75 + 0.3 * Math.sin(seed + i * 1.9));
-      slab(i, (i - 2) * 0.032, 0.026, halfA, i === 1 ? hi : main);
+  }
+
+  // cracks spidering out of the rupture along the wall (deterministic per enemy)
+  const nCracks = lockKind ? 0 : heavy ? 5 : 3;
+  if (nCracks && wallW > 0.12) {
+    ctx.lineCap = 'round';
+    for (let c = 0; c < nCracks; c++) {
+      const h1 = Math.sin(seed * 7 + c * 5.13), h2 = Math.sin(seed * 11 + c * 3.7);
+      const dirA = h1 > 0 ? 1 : -1;
+      const flick = 0.55 + 0.45 * Math.sin(time * (5 + c) + seed + c * 2.1);
+      ctx.strokeStyle = `rgba(${PAL.glow},${(fade * 0.55 * flick).toFixed(2)})`;
+      ctx.lineWidth = Math.max(0.8, wallW * 2.4);
+      ctx.beginPath();
+      let a = en.angle + dirA * holeA * 0.8, z = zc + h2 * holeZ * 0.6;
+      let px2 = g.cx + Math.cos(a) * ring(Math.max(z, 0.02), g).r;
+      let py2 = g.cy + Math.sin(a) * ring(Math.max(z, 0.02), g).r;
+      ctx.moveTo(px2, py2);
+      for (let sN = 1; sN <= 3; sN++) {
+        a += dirA * (0.035 + 0.02 * Math.sin(seed * 3 + c * 7 + sN * 4.2));
+        z += h2 * 0.02 + 0.014 * Math.sin(seed * 5 + c * 9 + sN * 2.6);
+        const rr = ring(Math.max(z, 0.02), g).r;
+        ctx.lineTo(g.cx + Math.cos(a) * rr, g.cy + Math.sin(a) * rr);
+      }
+      ctx.stroke();
     }
-    // white flicker sliver — the corruption arcing
-    wallPatch(g, en.angle + jA(7), 0.115, zc - 0.006, zc + 0.006, '#ffffff',
-      fade * (0.25 + 0.5 * (Math.sin(time * 17 + seed) * 0.5 + 0.5)));
+  }
+
+  // the rupture: hot torn rim beneath, void on top — a hole burned in the wall
+  const N = 7;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < N; i++) {
+      const t0 = i / N * 2 - 1, t1 = (i + 1) / N * 2 - 1;
+      const tm = (t0 + t1) / 2;
+      const w = Math.sqrt(Math.max(0.02, 1 - tm * tm));
+      const jag = 1 + jagAmp * (Math.sin(seed * 3 + i * 2.6) * 0.6 + Math.sin(time * 9 + seed + i * 1.7) * 0.4);
+      const z0 = zc + t0 * holeZ, z1 = zc + t1 * holeZ;
+      if (pass === 0) {
+        const rimPulse = 0.6 + 0.3 * Math.sin(time * 6 + seed + i * 0.9);
+        wallPatch(g, en.angle, holeA * w * jag + 0.014 * mul, z0 - 0.006, z1 + 0.006, `rgba(${PAL.glow},1)`, fade * rimPulse);
+      } else {
+        wallPatch(g, en.angle, holeA * w * jag, z0, z1, '#03040c', fade * 0.94);
+      }
+    }
+  }
+  // machined double ring on locks / heavies — a sealed valve vs a raw tear
+  if (lockKind || heavy) {
+    const ringPulse = 0.55 + 0.35 * Math.sin(time * 4 + seed);
+    for (let i = 0; i < N; i++) {
+      const t0 = i / N * 2 - 1, t1 = (i + 1) / N * 2 - 1;
+      const w = Math.sqrt(Math.max(0.02, 1 - Math.pow((t0 + t1) / 2, 2)));
+      wallPatch(g, en.angle - (holeA * w + 0.02 * mul), 0.006, zc + t0 * holeZ, zc + t1 * holeZ, PAL.lights[0], fade * ringPulse * 0.8);
+      wallPatch(g, en.angle + (holeA * w + 0.02 * mul), 0.006, zc + t0 * holeZ, zc + t1 * holeZ, PAL.lights[0], fade * ringPulse * 0.8);
+    }
+  }
+  // the leak itself: gold payload specks being sucked out through the hole
+  if (!lowFX && en.z < 1.5 && Math.random() < 0.4 * fade) {
+    const rr = ring(Math.max(zc, 0.02), g).r;
+    const hx = g.cx + Math.cos(en.angle) * rr, hy = g.cy + Math.sin(en.angle) * rr;
+    const sa = en.angle + rand(-1, 1) * holeA * 5;
+    const sz = zc + rand(-0.1, 0.1);
+    const rr2 = ring(Math.max(sz, 0.02), g).r;
+    const sx = g.cx + Math.cos(sa) * rr2, sy = g.cy + Math.sin(sa) * rr2;
+    particles.push({ x: sx, y: sy, vx: (hx - sx) * 0.09, vy: (hy - sy) * 0.09,
+      life: 0.4, decay: 2.6, color: '#ffd24a', size: rand(1, 2) * wallW * 2 });
   }
   ctx.globalAlpha = fade;
 }
@@ -1983,7 +2072,7 @@ function drawEnemy(en, g) {
     ctx.beginPath(); ctx.arc(gx, gy, pr * 0.3, 0, TAU); ctx.fill();
     ctx.restore();
   } else {
-    drawWallGlitch(en, g, fade, PAL);
+    drawWallLeak(en, g, fade, PAL);
   }
   // warp-in flash as it drops out of the deep
   if (en.age < 0.3) {
@@ -2127,28 +2216,31 @@ function drawLineBeam(en, g) {
   const p = en.partner;
   if (!p || (en.dead && p.dead)) return;
   const rg = ring(Math.max(en.z, 0.02), g);
-  const x1 = rg.x + Math.cos(en.angle) * rg.r, y1 = rg.y + Math.sin(en.angle) * rg.r;
-  const x2 = rg.x + Math.cos(p.angle) * rg.r, y2 = rg.y + Math.sin(p.angle) * rg.r;
   let fade = en.resolved ? clamp(en.z / g.hitZ, 0, 1) : 1;
   fade *= clamp((SPAWN_Z - 0.05 - en.z) / 0.3, 0, 1);
   if (fade <= 0.005) return;
-  const size = Math.min(W, H) * 0.06 * clamp(rg.r / g.nodeR, 0.1, 2);
-  // crackling midpoint gives the wall a live, electric bow
-  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-  const dx = x2 - x1, dy = y2 - y1;
-  const dl = Math.hypot(dx, dy) || 1;
-  const wob = Math.sin(time * 13 + en.spin) * size * 0.45;
-  const cx2 = mx - dy / dl * wob, cy2 = my + dx / dl * wob;
+  // a live crack RUNNING ALONG THE WALL between the two ruptures — take the
+  // short way around, marching dashes sell the energy
+  const d = angDiff(p.angle, en.angle);
+  const lw = Math.max(1.5, clamp(rg.r / g.nodeR, 0.08, 2) * 6);
   ctx.save();
   ctx.lineCap = 'round';
-  ctx.globalAlpha = fade * 0.55;
+  ctx.globalAlpha = fade * 0.5;
   ctx.strokeStyle = 'rgba(255,60,90,0.75)';
-  ctx.lineWidth = Math.max(2, size * 0.5);
-  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(cx2, cy2, x2, y2); ctx.stroke();
+  ctx.lineWidth = lw * 2.2;
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, rg.r, en.angle, en.angle + d, d < 0); ctx.stroke();
   ctx.globalAlpha = fade * 0.9;
-  ctx.strokeStyle = 'rgba(255,180,195,0.9)';
-  ctx.lineWidth = Math.max(0.8, size * 0.12);
-  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(cx2, cy2, x2, y2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,180,195,0.95)';
+  ctx.lineWidth = Math.max(1, lw * 0.55);
+  ctx.setLineDash([lw * 2.2, lw * 1.4]);
+  ctx.lineDashOffset = -time * 90 * Math.sign(d || 1);
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, rg.r, en.angle, en.angle + d, d < 0); ctx.stroke();
+  ctx.setLineDash([]);
+  // stray sparks arcing off the fissure
+  if (!lowFX && Math.random() < 0.3 * fade) {
+    const sa = en.angle + d * Math.random();
+    burst(g.cx + Math.cos(sa) * rg.r, g.cy + Math.sin(sa) * rg.r, '#ff8ba0', 2, 2);
+  }
   ctx.restore();
 }
 
