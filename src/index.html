@@ -472,15 +472,15 @@ const LEVELS = [
     hint: 'NEW THREAT: heavy traps — pin them with BOTH nodes' },
   { name: 'METRO EXCHANGE', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, crawlers: 0.00, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
     hint: 'NEW THREAT: burst transmissions — traps arrive in volleys' },
-  { name: 'GLOBAL BACKBONE',duration: 60, spawnMin: 0.50, spawnMax: 0.90, speed: 0.46, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
+  { name: 'GLOBAL BACKBONE',duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
     hint: 'NEW THREAT: barrier lines — one node on each end' },
-  { name: 'DEEP FIBER',     duration: 60, spawnMin: 0.48, spawnMax: 0.85, speed: 0.46, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, track: 1, waves: true,
-    hint: 'NEW THREAT: speed waves — the stream surges and slows' },
-  { name: 'QUANTUM RELAY',  duration: 65, spawnMin: 0.48, spawnMax: 0.82, speed: 0.48, doubles: 0.35, crawlers: 0.30, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, track: 2,
+  { name: 'DEEP FIBER',     duration: 60, spawnMin: 0.80, spawnMax: 1.50, speed: 0.46, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, strips: 0.12, track: 1, waves: true,
+    hint: 'NEW THREAT: data streams — RIDE the ribbon, keep a node on it' },
+  { name: 'QUANTUM RELAY',  duration: 65, spawnMin: 0.80, spawnMax: 1.45, speed: 0.48, doubles: 0.35, crawlers: 0.30, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, strips: 0.12, track: 2,
     hint: 'NEW THREAT: color-locked traps — match the node color' },
-  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.42, spawnMax: 0.75, speed: 0.54, doubles: 0.40, crawlers: 0.35, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, track: 0, bursts: true, waves: true,
+  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.68, spawnMax: 1.30, speed: 0.54, doubles: 0.40, crawlers: 0.35, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, strips: 0.15, track: 0, bursts: true, waves: true,
     hint: 'ALL THREATS ACTIVE — maximum traffic' },
-  { name: 'CORE FIREWALL',  duration: 45, spawnMin: 0.55, spawnMax: 0.95, speed: 0.50, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, track: 2, boss: true,
+  { name: 'CORE FIREWALL',  duration: 45, spawnMin: 0.90, spawnMax: 1.60, speed: 0.50, doubles: 0.35, crawlers: 0.30, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, strips: 0.12, track: 2, boss: true,
     hint: 'THE FIREWALL CORE AWAITS — drain it with your nodes' }
 ];
 const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
@@ -497,6 +497,7 @@ function endlessCfg(t) {
     lines: ramp(0, 0.22, (k - 0.3) / 0.7),
     colors: ramp(0, 0.30, (k - 0.45) / 0.55),
     frags: ramp(0, 0.18, (k - 0.25) / 0.75),
+    strips: ramp(0, 0.14, (k - 0.5) / 0.5),
     bursts: t > 70, waves: t > 100
   };
 }
@@ -577,9 +578,9 @@ function geo() {
   const nodeR = Math.min(W, H) * 0.44;            // the fixed node holder ring — nearly touches top/bottom
   const R0 = Math.hypot(W, H) / 2 * 1.08;         // nearest ring covers the whole screen
   const hitZ = (R0 / nodeR - 1) / 6;              // depth where the tunnel wall crosses the node ring
-  // layered sines -> fluid meander like a fiber optic strand
-  const sw  = Math.sin(time * 0.50) * 0.34 + Math.sin(time * 0.23) * 0.28 + Math.sin(time * 0.11) * 0.22;
-  const swy = Math.sin(time * 0.34) * 0.42 + Math.sin(time * 0.15) * 0.4;
+  // meander disabled: a straight bore keeps every depth ring concentric, so
+  // wall decals project as clean annular arcs (a REAL tunnel, not an effect)
+  const sw = 0, swy = 0;
   return { cx, cy, R0, nodeR, hitZ, sw, swy };
 }
 // depth z: 0 = past the player, 1 = far end. Swerve is anchored at the node ring
@@ -674,6 +675,8 @@ function trySpawn(dt) {
       spawnT += 0.9; // breathe after a volley
       return;
     }
+    // data stream: a curved ribbon to trace end-to-end
+    if (Math.random() < (L.strips || 0)) { spawnStrip(); return; }
     const roll = Math.random();
     if (roll < L.lines) { spawnLine(); return; }
     if (roll < L.lines + L.heavies) { spawnEnemy(undefined, 'heavy'); return; }
@@ -682,6 +685,18 @@ function trySpawn(dt) {
     if (Math.random() < L.doubles) spawnEnemy(a + Math.PI + rand(-0.6, 0.6));
   }
 }
+// data stream: a curved ribbon riding the wall — keep a node ON its crossing
+// point from head to tail (breaking off loses the stream)
+function spawnStrip() {
+  const en = spawnEnemy(undefined, 'strip');
+  en.len = rand(0.5, 0.85);                              // depth extent of the ribbon
+  en.amp = rand(0.22, 0.5) * (Math.random() < 0.5 ? -1 : 1);
+  en.frq = rand(2.2, 4.2);
+  en.ph = rand(0, TAU);
+  en.failed = false; en.tracing = false;
+  return en;
+}
+const stripAngle = (en, k) => en.angle + en.amp * Math.sin(k * en.frq + en.ph);
 // golden power-up orbs riding the stream; catch one with either node
 const PICKUPS = {
   slow: { dur: 6,  label: 'SLOW-MO' },
@@ -1418,6 +1433,56 @@ function update(dt) {
     en.age += sdt;
     if (en.drift) en.angle += en.drift * sdt;
 
+    if (en.type === 'strip') {
+      // data stream: keep a node ON the ring-crossing point from head to tail
+      en.tracing = false;
+      if (!en.dead && !en.failed && en.z <= g.hitZ && en.z + en.len >= g.hitZ) {
+        const aReq = stripAngle(en, g.hitZ - en.z);
+        if (covers(nodes[0], aReq) || covers(nodes[1], aReq) || fx.auto > 0) {
+          en.tracing = true;
+          en.traceT = (en.traceT || 0) + sdt;
+          if (en.traceT > 0.14) { // score ticks while riding the line
+            en.traceT -= 0.14;
+            score += Math.round(20 * mutMul());
+            const hp = ringXY(aReq);
+            burst(hp.x, hp.y, '#ff9db0', 2, 2.5);
+          }
+        } else if (!en.tut) {
+          en.failed = true;
+          misses++; combo = 0; comboHeal = 0;
+          integrity = Math.max(0, integrity - 25);
+          const hp = ringXY(aReq);
+          burst(hp.x, hp.y, '#ff4a5e', 20, 3);
+          popup(hp.x, hp.y, 'STREAM LOST', '#ff4a5e');
+          redFlash = 1; shake = Math.min(shake + 0.6, 1);
+          rimFX.push({ a: aReq, t: 0.55, col: '255,74,94' });
+          sfx.miss();
+          buzz([40, 40, 60]);
+        }
+      }
+      if (!en.dead && en.z + en.len < g.hitZ) { // tail cleared the ring
+        en.dead = true;
+        if (!en.failed) {
+          combo++;
+          const pts = Math.round(400 * mutMul()) * Math.min(combo, 5);
+          score += pts; zaps++;
+          const aEnd = stripAngle(en, en.len);
+          const hp = ringXY(aEnd);
+          burst(hp.x, hp.y, '#ff9db0', 26, 4);
+          burst(hp.x, hp.y, '#ffffff', 14, 5);
+          popup(hp.x, hp.y, 'TRACED +' + pts, '#ffe9b0');
+          rimFX.push({ a: aEnd, t: 0.5, col: '255,170,188' });
+          // the nearest node banks the trace into its pulse orb
+          const ni = Math.abs(angDiff(nodes[0].angle, aEnd)) < Math.abs(angDiff(nodes[1].angle, aEnd)) ? 0 : 1;
+          if (!en.tut) pulseCharge[ni] = Math.min(PULSE_MAX, pulseCharge[ni] + Math.min(combo, 5));
+          hitStop = Math.min(hitStop + 0.09, 0.12);
+          sfx.zap(combo); sfx.perfect();
+          buzz(30);
+        }
+      }
+      continue; // ribbons never enter the zap/miss resolution below
+    }
+
     if (!en.dead && !en.resolved && en.z <= g.hitZ) {
       // friendly payload packet: touching it IS the mistake — discrimination target
       if (en.type === 'frag') {
@@ -1580,7 +1645,7 @@ function update(dt) {
     if (wv.z > SPAWN_Z && wv.kills) popup(W / 2, H * 0.4, 'PULSE PURGE ×' + wv.kills, '#8fe0ff');
   }
   pulseWaves = pulseWaves.filter(wv => wv.z <= SPAWN_Z);
-  enemies = enemies.filter(e => !e.dead && e.z > 0.03);
+  enemies = enemies.filter(e => !e.dead && (e.type === 'strip' || e.z > 0.03)); // strip heads outlive z=0 while the tail crosses
   for (const fx2 of rimFX) fx2.t -= dt;
   rimFX = rimFX.filter(fx2 => fx2.t > 0);
   for (const n of nodes) n.recoil = Math.max(0, (n.recoil || 0) - dt * 4);
@@ -1709,57 +1774,104 @@ function drawStreaks(g, dt) {
   }
 }
 
-// ---------- enemy bodies: GLITCH ----------
-// corruption made visible: torn scanline slabs with chromatic ghosts, always
-// screen-aligned — glitches are artifacts of the display, not objects in the
-// world. locks are crisp banded blocks (encrypted = intact), heavies a dense
-// flickering mosaic, crawlers a rip trailing afterimages down its drift,
-// line posts stand as vertical sync-tears.
-function drawBodyGlitch(en, size, pulse, PAL, fade) {
+// ---------- enemy bodies: GLITCH, painted ON the wall ----------
+// decals live in (angle x depth) space and project as annular arcs around the
+// tunnel axis, so they foreshorten with the bore — genuinely attached to the
+// wall, not billboards hovering in it.
+function wallPatch(g, a, halfA, z0, z1, col, alpha) {
+  const r0 = ring(Math.max(Math.min(z0, z1), 0.02), g).r; // nearer edge (bigger radius)
+  const r1 = ring(Math.max(Math.max(z0, z1), 0.02), g).r;
+  const rm = (r0 + r1) / 2;
+  if (rm < 3) return;
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = col;
+  ctx.lineCap = 'butt';
+  ctx.lineWidth = Math.max(0.7, r0 - r1);
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, rm, a - halfA, a + halfA); ctx.stroke();
+}
+function drawWallGlitch(en, g, fade, PAL) {
   const main = PAL.shades[0], hi = PAL.lights[0];
   const seed = en.spin * 13.7;
   const tear = Math.sin(time * 1.9 + seed) > 0.94 ? 1 : 0;   // occasional hard jump
-  const split = size * (0.07 + tear * 0.16);
-  const jx = i => Math.sin(time * 11 + seed + i * 3.1) * size * (0.05 + tear * 0.22);
-  const slab = (i, y, w, h, col) => {
-    // chromatic ghosts first (additive), then the solid slab
+  const split = 0.018 + tear * 0.05;                          // chromatic offset (radians)
+  const jA = i => Math.sin(time * 11 + seed + i * 3.1) * (0.012 + tear * 0.05);
+  const mul = en.sizeMul || 1;
+  const zc = en.z;
+  const slab = (i, o, h, halfA, col) => {
+    const a = en.angle + jA(i);
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = `rgba(${PAL.glow},0.4)`;
-    ctx.fillRect(jx(i) - w / 2 - split, y, w, h);
-    ctx.fillRect(jx(i) - w / 2 + split, y, w, h);
+    wallPatch(g, a - split, halfA, zc + o, zc + o + h, `rgba(${PAL.glow},0.4)`, fade * 0.6);
+    wallPatch(g, a + split, halfA, zc + o, zc + o + h, `rgba(${PAL.glow},0.4)`, fade * 0.6);
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = col || main;
-    ctx.fillRect(jx(i) - w / 2, y, w, h);
+    wallPatch(g, a, halfA, zc + o, zc + o + h, col || main, fade);
   };
 
   if (en.type === 'heavy') {
-    // dense mosaic — a mass of corrupted blocks, each cell flickering
-    const cs = size * 0.56;
-    for (let r = -1; r <= 1; r++) for (let c = -1; c <= 1; c++) {
-      const fl = 0.55 + 0.45 * Math.sin(time * 7 + seed + r * 2.7 + c * 1.3);
-      ctx.fillStyle = (r + c) % 2 ? main : PAL.shades[2];
-      ctx.globalAlpha = fade * (0.5 + 0.5 * fl);
-      ctx.fillRect(c * cs - cs * 0.46 + jx(r + 2) * 0.4, r * cs - cs * 0.46, cs * 0.92, cs * 0.92);
+    // dense mosaic: 3 angular x 3 depth corrupted cells + a bright cross-band
+    for (let r2 = 0; r2 < 3; r2++) for (let c = 0; c < 3; c++) {
+      const fl = 0.55 + 0.45 * Math.sin(time * 7 + seed + r2 * 2.7 + c * 1.3);
+      const aOff = (c - 1) * 0.105 * mul + jA(r2 + 2) * 0.5;
+      wallPatch(g, en.angle + aOff, 0.048 * mul, zc + (r2 - 1.5) * 0.05, zc + (r2 - 1.5) * 0.05 + 0.045,
+        (r2 + c) % 2 ? main : PAL.shades[2], fade * (0.5 + 0.5 * fl));
     }
-    ctx.globalAlpha = fade;
-    slab(5, -size * 0.1, size * 2.1, size * 0.2, hi);
+    wallPatch(g, en.angle, 0.15 * mul, zc - 0.008, zc + 0.008, hi, fade * 0.9);
   } else if (en.lock !== undefined) {
-    // encrypted block: crisp banded slab — intact data, wrong hands
-    const bw = size * 1.5, bh = size * 0.34;
+    // encrypted barcode: crisp bands receding along the wall
     for (let i = 0; i < 4; i++) {
-      slab(tear ? i : 99, (i - 2) * bh * 1.12, bw, bh, i % 2 ? main : hi);
+      slab(tear ? i : 99, (i - 2) * 0.032, 0.026, 0.085, i % 2 ? main : hi);
     }
+  } else if (en.crawler) {
+    // sliding rip: afterimages smear back along its drift around the wall
+    const dir = en.drift >= 0 ? 1 : -1;
+    ctx.lineCap = 'butt';
+    for (let i = 3; i >= 1; i--) {
+      wallPatch(g, en.angle - dir * i * 0.07, 0.075, zc - 0.02, zc + 0.02,
+        `rgba(${PAL.glow},1)`, fade * (0.36 - i * 0.09));
+    }
+    slab(0, -0.035, 0.028, 0.10, main);
+    slab(1, 0.006, 0.022, 0.08, hi);
   } else {
-    // regular trap: a stack of torn scanline slabs. crawlers and barrier posts
-    // are the exact same body, told apart by palette (orange / red) + tether
+    // torn scanline stack receding along the wall (regular + barrier posts)
     for (let i = 0; i < 4; i++) {
-      const w = size * (1.35 + 0.55 * Math.sin(seed + i * 1.9));
-      slab(i, (i - 2) * size * 0.4, w, size * 0.3, i === 1 ? hi : main);
+      const halfA = 0.10 * (0.75 + 0.3 * Math.sin(seed + i * 1.9));
+      slab(i, (i - 2) * 0.032, 0.026, halfA, i === 1 ? hi : main);
     }
     // white flicker sliver — the corruption arcing
-    ctx.fillStyle = `rgba(255,255,255,${(0.25 + 0.5 * (Math.sin(time * 17 + seed) * 0.5 + 0.5)).toFixed(2)})`;
-    ctx.fillRect(jx(7) - size * 0.5, -size * 0.06, size, size * 0.12);
+    wallPatch(g, en.angle + jA(7), 0.115, zc - 0.006, zc + 0.006, '#ffffff',
+      fade * (0.25 + 0.5 * (Math.sin(time * 17 + seed) * 0.5 + 0.5)));
   }
+  ctx.globalAlpha = fade;
+}
+// the data stream ribbon: a luminous curved band on the wall. the hot marker is
+// where it crosses the ring — that point must stay covered head to tail
+function drawStrip(en, g, fade) {
+  const segs = 16;
+  const dim = en.failed ? 0.28 : 1;
+  for (let s2 = 0; s2 < segs; s2++) {
+    const k0 = s2 / segs * en.len, k1 = (s2 + 1) / segs * en.len;
+    const z0 = en.z + k0, z1 = en.z + k1;
+    if (z1 <= g.hitZ * 0.55 || z0 >= SPAWN_Z - 0.03) continue;
+    const aMid = stripAngle(en, (k0 + k1) / 2);
+    const flow = 0.5 + 0.4 * Math.sin(time * 9 - s2 * 0.9);
+    wallPatch(g, aMid, 0.055, z0, z1 + 0.005, 'rgba(255,60,90,1)', fade * 0.7 * dim);
+    wallPatch(g, aMid, 0.021, z0, z1 + 0.005, 'rgba(255,170,188,1)', fade * flow * dim);
+  }
+  // trace marker at the ring crossing
+  if (!en.failed && en.z <= g.hitZ && en.z + en.len >= g.hitZ) {
+    const aReq = stripAngle(en, g.hitZ - en.z);
+    const px2 = g.cx + Math.cos(aReq) * g.nodeR, py2 = g.cy + Math.sin(aReq) * g.nodeR;
+    const mr = Math.min(W, H) * 0.032;
+    ctx.globalAlpha = 1;
+    const tg = ctx.createRadialGradient(px2, py2, 0, px2, py2, mr);
+    tg.addColorStop(0, en.tracing ? 'rgba(255,255,255,0.95)' : 'rgba(255,130,150,0.85)');
+    tg.addColorStop(1, 'rgba(255,60,90,0)');
+    ctx.fillStyle = tg;
+    ctx.beginPath(); ctx.arc(px2, py2, mr, 0, TAU); ctx.fill();
+    ctx.strokeStyle = en.tracing ? 'rgba(255,255,255,0.9)' : 'rgba(255,120,140,0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(px2, py2, mr * 0.45 * (1 + Math.sin(time * 8) * 0.15), 0, TAU); ctx.stroke();
+  }
+  ctx.globalAlpha = fade;
 }
 
 function drawEnemy(en, g) {
@@ -1803,22 +1915,18 @@ function drawEnemy(en, g) {
 
   ctx.save();
   ctx.globalAlpha = fade;
-  // contact arc: a lit wall segment under the body — the artifact clings to
-  // the tunnel surface instead of floating in the bore
-  if (!en.resolved) {
-    const half = clamp(size * 1.6 / Math.max(rg.r, 1), 0.04, 0.5);
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = `rgba(${PAL.glow},${(fade * 0.4).toFixed(2)})`;
-    ctx.lineWidth = Math.max(1.5, size * 0.22);
-    ctx.beginPath(); ctx.arc(rg.x, rg.y, rg.r, en.angle - half, en.angle + half); ctx.stroke();
+
+  if (en.type === 'strip') { // ribbons draw themselves entirely on the wall
+    drawStrip(en, g, fade);
+    ctx.restore();
+    return;
   }
-  ctx.translate(x, y);
-  ctx.rotate(en.angle + Math.PI / 2); // slabs lie tangent — ON the wall, in perspective
+
   const spr = SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.crawler ? 'crawler' : en.type];
 
-  // hot glow — except payload packets, which swallow light instead of shedding it
+  // hot glow at the wall point — except payload packets, which swallow light
   const pulse = 1 + Math.sin(en.spin * 2) * 0.08;
-  const gl = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 2.4 * pulse);
+  const gl = ctx.createRadialGradient(x, y, 0, x, y, size * 2.4 * pulse);
   if (en.type === 'frag') {
     gl.addColorStop(0, 'rgba(1,2,8,0.75)');
     gl.addColorStop(0.55, 'rgba(2,4,12,0.35)');
@@ -1829,15 +1937,17 @@ function drawEnemy(en, g) {
     gl.addColorStop(1, `rgba(${PAL.glow},0)`);
   }
   ctx.fillStyle = gl;
-  ctx.beginPath(); ctx.arc(0, 0, size * 2.4 * pulse, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, size * 2.4 * pulse, 0, TAU); ctx.fill();
 
   if (spr) {
     // sprite skin replaces the procedural body (glow + sigils stay live)
-    ctx.drawImage(spr, -size * 1.7, -size * 1.7, size * 3.4, size * 3.4);
+    ctx.drawImage(spr, x - size * 1.7, y - size * 1.7, size * 3.4, size * 3.4);
   } else if (en.type === 'frag') {
-    // payload packet: a void-black rounded diamond — a hole punched in the stream
-    const pr = size * (1 + Math.sin(en.spin * 2) * 0.06);
+    // payload packet: a void-black rounded diamond FLOATING in the bore — the
+    // payload rides the stream; only corruption clings to the walls
     ctx.save();
+    ctx.translate(x, y);
+    const pr = size * (1 + Math.sin(en.spin * 2) * 0.06);
     ctx.rotate(en.spin * 0.3);
     const diamond = r => {
       ctx.beginPath();
@@ -1862,9 +1972,9 @@ function drawEnemy(en, g) {
     ctx.strokeStyle = 'rgba(70,85,120,0.5)'; ctx.lineWidth = Math.max(1.5, pr * 0.12); ctx.stroke();
     diamond(pr);
     ctx.strokeStyle = 'rgba(185,200,230,0.8)'; ctx.lineWidth = Math.max(0.8, pr * 0.045); ctx.stroke();
-    // a slow glint crawling the rim — light caught on the edge, not a highlight blob
+    // a slow glint crawling the rim — light caught on the edge
     const ga = en.spin * 0.9;
-    const gr = pr * (1 - 0.22 * Math.pow(Math.sin(2 * ga), 2)); // rounded-diamond radius at ga
+    const gr = pr * (1 - 0.22 * Math.pow(Math.sin(2 * ga), 2));
     const gx = Math.cos(ga) * gr, gy = Math.sin(ga) * gr;
     const gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, pr * 0.3);
     gg.addColorStop(0, 'rgba(220,235,255,0.7)');
@@ -1873,14 +1983,14 @@ function drawEnemy(en, g) {
     ctx.beginPath(); ctx.arc(gx, gy, pr * 0.3, 0, TAU); ctx.fill();
     ctx.restore();
   } else {
-    drawBodyGlitch(en, size, pulse, PAL, fade);
+    drawWallGlitch(en, g, fade, PAL);
   }
   // warp-in flash as it drops out of the deep
   if (en.age < 0.3) {
     const wa = 1 - en.age / 0.3;
     ctx.strokeStyle = 'rgba(255,255,255,' + (wa * 0.8).toFixed(2) + ')';
     ctx.lineWidth = Math.max(1, size * 0.15 * wa);
-    ctx.beginPath(); ctx.arc(0, 0, size * (1.2 + (1 - wa) * 1.6), 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, size * (1.2 + (1 - wa) * 1.6), 0, TAU); ctx.stroke();
   }
   // heavy: dual-lock sigil — orbiting dots in the two node colors, telegraphing "both nodes"
   if (en.type === 'heavy' && near > 0.15) {
@@ -1888,13 +1998,13 @@ function drawEnemy(en, g) {
     const oa = en.spin * 1.4, or2 = size * 1.08;
     ctx.globalAlpha = sa * 0.55;
     ctx.strokeStyle = 'rgba(230,245,255,0.9)'; ctx.lineWidth = Math.max(0.8, size * 0.05);
-    ctx.beginPath(); ctx.arc(0, 0, or2, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, or2, 0, TAU); ctx.stroke();
     ctx.globalAlpha = sa;
     const ds = Math.max(1.5, size * 0.13);
     ctx.fillStyle = 'rgb(111,227,255)';
-    ctx.beginPath(); ctx.arc(Math.cos(oa) * or2, Math.sin(oa) * or2, ds, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + Math.cos(oa) * or2, y + Math.sin(oa) * or2, ds, 0, TAU); ctx.fill();
     ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(Math.cos(oa + Math.PI) * or2, Math.sin(oa + Math.PI) * or2, ds, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + Math.cos(oa + Math.PI) * or2, y + Math.sin(oa + Math.PI) * or2, ds, 0, TAU); ctx.fill();
     ctx.globalAlpha = fade;
   }
   // color lock sigil — a single orbiting dot in the required node's color
@@ -1903,11 +2013,11 @@ function drawEnemy(en, g) {
     const col = en.lock === 0 ? 'rgb(111,227,255)' : '#ffffff';
     ctx.globalAlpha = sa * 0.55;
     ctx.strokeStyle = col; ctx.lineWidth = Math.max(0.8, size * 0.055);
-    ctx.beginPath(); ctx.arc(0, 0, size * 1.05, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, size * 1.05, 0, TAU); ctx.stroke();
     ctx.globalAlpha = sa;
     const oa2 = en.spin * 1.4, ds2 = Math.max(1.5, size * 0.13);
     ctx.fillStyle = col;
-    ctx.beginPath(); ctx.arc(Math.cos(oa2) * size * 1.05, Math.sin(oa2) * size * 1.05, ds2, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + Math.cos(oa2) * size * 1.05, y + Math.sin(oa2) * size * 1.05, ds2, 0, TAU); ctx.fill();
     ctx.globalAlpha = fade;
   }
   ctx.restore();
