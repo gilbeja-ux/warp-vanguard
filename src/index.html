@@ -528,11 +528,12 @@ let state = S.MENU;
 let levelIdx = 0, levelT = 0, spawnT = 0;
 let integrity = 100, score = 0, zaps = 0, misses = 0, combo = 0, perfects = 0, fragsHit = 0;
 let comboHeal = 0; // zaps banked at max combo — every 5 knit back one integrity block
-// pulse charge: combo zaps feed twin orbs in the pad cores; tapping BOTH fires
-// a rim-wide wave down the tunnel that purges every trap it passes. Firing
-// demands both thumbs off the wheels — the lift also realigns finger and pad.
-const PULSE_MAX = 60;
-let pulseCharge = 0, pulsePrimed = [-9, -9], pulseWave = null;
+// pulse charge: each node feeds its OWN orb with the zaps it lands (pick your
+// shooter — pick which pulse you bank). A ready orb fires solo on tap: a
+// rim-wide wave races down the tunnel with a glowing wake, molecularizing
+// every hostile it passes.
+const PULSE_MAX = 45;
+let pulseCharge = [0, 0], pulseWaves = [];
 let enemies = [], particles = [], popups = [];
 let shake = 0, redFlash = 0, tunnelScroll = 0, time = 0;
 let lowFX = false, perfAcc = 0, perfN = 0, perfWin = 0; // perf watchdog state
@@ -980,14 +981,13 @@ canvas.addEventListener('pointerdown', e => {
       P.y > pauseBtnRect.y - 8 && P.y < pauseBtnRect.y + pauseBtnRect.h + 8) {
     state = S.PAUSE; sfx.tick(); return;
   }
-  // charged pulse orbs: tapping BOTH pad cores (within a second) fires the wave
-  if (!boss && pulseCharge >= PULSE_MAX) {
+  // charged pulse orbs: tapping a ready core fires that node's wave, solo
+  if (!boss) {
     for (let i = 0; i < 2; i++) {
+      if (pulseCharge[i] < PULSE_MAX) continue;
       const d = dialCenter(i === 0 ? 'L' : 'R');
       if (Math.hypot(P.x - d.x, P.y - d.y) < d.r * 0.5) {
-        pulsePrimed[i] = time;
-        sfx.tick(); buzz(12);
-        if (time - pulsePrimed[1 - i] < 1.0) firePulse();
+        firePulse(i);
         return; // the orb owns this tap — no drag starts from it
       }
     }
@@ -1171,7 +1171,7 @@ function resetRun() {
   levelT = 0; spawnT = 1.2;
   integrity = mutators.oneLife ? 25 : 100;
   score = 0; zaps = 0; misses = 0; combo = 0; perfects = 0; fragsHit = 0; comboHeal = 0;
-  pulseCharge = 0; pulsePrimed = [-9, -9]; pulseWave = null;
+  pulseCharge = [0, 0]; pulseWaves = [];
   enemies = []; particles = []; popups = []; bolts = []; pickups = [];
   boss = null; burstQ = null; patternQ = []; hitStop = 0;
   heat = 0; overheat = false; beamActive = false; beamSound(false, 0);
@@ -1498,13 +1498,19 @@ function update(dt) {
         const base = en.type === 'heavy' ? 250 : en.type === 'line' ? 300 : en.lock !== undefined ? 150 : 100;
         const pts = Math.round(base * (perfect ? 2 : 1) * mutMul()) * Math.min(combo, 5);
         score += pts; zaps++;
-        // combo zaps feed the pulse orbs — higher combo charges faster
-        if (!en.tut && pulseCharge < PULSE_MAX) {
-          pulseCharge = Math.min(PULSE_MAX, pulseCharge + Math.min(combo, 5));
-          if (pulseCharge >= PULSE_MAX) {
-            popup(W / 2, H * 0.35, 'PULSE CHARGED — TAP BOTH CORES', '#8fe0ff');
-            sfx.heal();
-            buzz(15);
+        // each shooter banks the zap into ITS orb (both, on a shared kill) —
+        // choosing which node fires is choosing which pulse you charge
+        if (!en.tut) {
+          const fed = new Set();
+          for (const [n2] of boltPairs) fed.add(n2 === nodes[0] ? 0 : 1);
+          for (const fi of fed) {
+            if (pulseCharge[fi] >= PULSE_MAX) continue;
+            pulseCharge[fi] = Math.min(PULSE_MAX, pulseCharge[fi] + Math.min(combo, 5));
+            if (pulseCharge[fi] >= PULSE_MAX) {
+              popup(W / 2, H * 0.35, (fi === 0 ? 'BLUE' : 'WHITE') + ' PULSE CHARGED — TAP ITS CORE', '#8fe0ff');
+              sfx.heal();
+              buzz(15);
+            }
           }
         }
         // max-combo streaks knit the payload back together
@@ -1566,27 +1572,30 @@ function update(dt) {
       }
     }
   }
-  // the pulse wave sweeps down the tunnel, purging every trap it passes
-  if (pulseWave) {
-    pulseWave.z += dt * 1.4;
+  // pulse waves sweep down the tunnel, molecularizing every trap they pass
+  for (const wv of pulseWaves) {
+    wv.z += dt * 1.4;
     for (const en of enemies) {
       if (en.dead || en.resolved || en.type === 'frag' || en.tut) continue;
-      if (en.z <= pulseWave.z) {
+      if (en.z <= wv.z) {
         en.dead = true;
         if (en.partner) en.partner.dead = true;
         const rg2 = ring(Math.max(en.z, 0.02), g);
         const px2 = rg2.x + Math.cos(en.angle) * rg2.r, py2 = rg2.y + Math.sin(en.angle) * rg2.r;
-        burst(px2, py2, '#8fe0ff', 16, 4);
-        burst(px2, py2, '#ffffff', 8, 5);
-        pulseWave.kills++;
+        // to molecules: a dense three-layer disintegration
+        const eCol = en.type === 'heavy' ? '#d465ff' : en.lock === 0 ? '#4d9bff'
+          : en.lock === 1 ? '#eef6ff' : en.crawler ? '#ffb361' : '#ff8ba0';
+        burst(px2, py2, eCol, 26, 5.5);
+        burst(px2, py2, `rgb(${wv.col})`, 20, 4);
+        burst(px2, py2, '#ffffff', 14, 6.5);
+        rimFX.push({ a: en.angle, t: 0.4, col: wv.col });
+        wv.kills++;
         score += Math.round(60 * mutMul()); // flat bounty — no combo, no zap credit
       }
     }
-    if (pulseWave.z > 1.1) {
-      if (pulseWave.kills) popup(W / 2, H * 0.4, 'PULSE PURGE ×' + pulseWave.kills, '#8fe0ff');
-      pulseWave = null;
-    }
+    if (wv.z > 1.1 && wv.kills) popup(W / 2, H * 0.4, 'PULSE PURGE ×' + wv.kills, '#8fe0ff');
   }
+  pulseWaves = pulseWaves.filter(wv => wv.z <= 1.1);
   enemies = enemies.filter(e => !e.dead && e.z > 0.03);
   for (const fx2 of rimFX) fx2.t -= dt;
   rimFX = rimFX.filter(fx2 => fx2.t > 0);
@@ -2298,60 +2307,103 @@ function drawNodes(g) {
   drawPulseOrbs(g);
 }
 
-// both orbs tapped: unleash the wave from the ring into the deep
-function firePulse() {
-  pulseCharge = 0; pulsePrimed = [-9, -9];
-  pulseWave = { z: geo().hitZ, kills: 0 };
+// a ready orb tapped: unleash that node's wave from the ring into the deep
+function firePulse(i) {
+  pulseCharge[i] = 0;
+  pulseWaves.push({ z: geo().hitZ, kills: 0, i, col: i === 0 ? '111,227,255' : '240,248,255' });
   shake = Math.min(shake + 0.7, 1);
-  redFlash = 0;
   tone(880, 0.7, 'sawtooth', 0.12, 60); // long falling surge
   sfx.perfect();
   buzz([30, 30, 90]);
 }
-// the wave: a bright ring racing away down the tunnel wall
+// the wave: a white-hot front racing down the tunnel, dragging a glowing wake
+// that fills the whole cave behind it
 function drawPulseWave(g) {
-  if (!pulseWave) return;
-  const rg = ring(pulseWave.z, g);
-  const a = clamp(1.25 - pulseWave.z, 0.15, 1);
-  ctx.lineCap = 'round';
-  for (const [w2, col] of [
-    [18, `rgba(111,227,255,${(a * 0.22).toFixed(2)})`],
-    [8, `rgba(111,227,255,${(a * 0.55).toFixed(2)})`],
-    [3, `rgba(240,252,255,${(a * 0.95).toFixed(2)})`]
-  ]) {
-    ctx.lineWidth = Math.max(1, w2 * rg.s * 3);
-    ctx.strokeStyle = col;
-    ctx.beginPath(); ctx.arc(rg.x, rg.y, rg.r, 0, TAU); ctx.stroke();
+  for (const wv of pulseWaves) {
+    const a = clamp(1.25 - wv.z, 0.15, 1);
+    ctx.lineCap = 'round';
+    // wake: rings trailing from the front back toward the player, melting away
+    for (let k = 5; k >= 1; k--) {
+      const zT = wv.z - k * 0.055;
+      if (zT <= g.hitZ * 0.8) continue;
+      const rt = ring(zT, g);
+      const ka = a * (1 - k / 6) * 0.3;
+      ctx.lineWidth = Math.max(2, (14 + k * 7) * rt.s * 3);
+      ctx.strokeStyle = `rgba(${wv.col},${ka.toFixed(2)})`;
+      ctx.beginPath(); ctx.arc(rt.x, rt.y, rt.r, 0, TAU); ctx.stroke();
+    }
+    // front: layered hot ring + a forward glow washing the cave ahead
+    const rg = ring(wv.z, g);
+    const fg = ctx.createRadialGradient(rg.x, rg.y, rg.r * 0.35, rg.x, rg.y, rg.r * 1.15);
+    fg.addColorStop(0, 'rgba(0,0,0,0)');
+    fg.addColorStop(0.85, `rgba(${wv.col},${(a * 0.16).toFixed(2)})`);
+    fg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = fg;
+    ctx.beginPath(); ctx.arc(rg.x, rg.y, rg.r * 1.2, 0, TAU); ctx.fill();
+    for (const [w2, col] of [
+      [22, `rgba(${wv.col},${(a * 0.3).toFixed(2)})`],
+      [9, `rgba(${wv.col},${(a * 0.7).toFixed(2)})`],
+      [3, `rgba(255,255,255,${(a * 0.95).toFixed(2)})`]
+    ]) {
+      ctx.lineWidth = Math.max(1, w2 * rg.s * 3);
+      ctx.strokeStyle = col;
+      ctx.beginPath(); ctx.arc(rg.x, rg.y, rg.r, 0, TAU); ctx.stroke();
+    }
   }
 }
-// twin charge orbs in the pad cores — build with the combo, pulse when ready
+// per-node charge orbs in the pad cores — a progress ring while banking,
+// full bloom + breathing + pings when ready to fire
 function drawPulseOrbs(g) {
   if (boss) return; // the duel owns the pads
-  const frac = clamp(pulseCharge / PULSE_MAX, 0, 1);
-  if (frac <= 0.02) return;
-  const ready = frac >= 1;
   for (let i = 0; i < 2; i++) {
+    const frac = clamp(pulseCharge[i] / PULSE_MAX, 0, 1);
+    if (frac <= 0.02) continue;
     const d = dialCenter(i === 0 ? 'L' : 'R');
     const col = i === 0 ? '111,227,255' : '255,255,255';
-    const pu = ready ? 1 + Math.sin(time * 5 + i) * 0.1 : 1;
-    const r = d.r * (0.08 + frac * 0.2) * pu;
-    const og = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, r * 2.2);
-    og.addColorStop(0, `rgba(255,255,255,${ready ? 0.95 : 0.35 + frac * 0.3})`);
-    og.addColorStop(0.45, `rgba(${col},${ready ? 0.7 : 0.25 + frac * 0.25})`);
+    const ready = frac >= 1;
+    const pu = ready ? 1 + Math.sin(time * 6 + i) * 0.14 : 1;
+    const r = d.r * (0.12 + frac * 0.24) * pu;
+    // charge progress ring — reads at a glance how full the bank is
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = `rgba(${col},0.25)`;
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.44, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = `rgba(${col},${ready ? 0.95 : 0.7})`;
+    ctx.lineWidth = ready ? 5 : 4;
+    ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.44, -Math.PI / 2, -Math.PI / 2 + frac * TAU); ctx.stroke();
+    // the orb itself
+    const og = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, r * 2.4);
+    og.addColorStop(0, `rgba(255,255,255,${ready ? 1 : 0.45 + frac * 0.35})`);
+    og.addColorStop(0.4, `rgba(${col},${ready ? 0.85 : 0.3 + frac * 0.35})`);
     og.addColorStop(1, `rgba(${col},0)`);
     ctx.fillStyle = og;
-    ctx.beginPath(); ctx.arc(d.x, d.y, r * 2.2, 0, TAU); ctx.fill();
-    if (ready) {
-      // attention ping: an expanding ring breathing off the orb
-      const k = (time * 0.9 + i * 0.5) % 1;
-      ctx.strokeStyle = `rgba(${col},${(0.6 * (1 - k)).toFixed(2)})`;
+    ctx.beginPath(); ctx.arc(d.x, d.y, r * 2.4, 0, TAU); ctx.fill();
+    ctx.fillStyle = ready ? '#ffffff' : `rgba(${col},0.9)`;
+    ctx.beginPath(); ctx.arc(d.x, d.y, r * 0.5, 0, TAU); ctx.fill();
+    // orbiting charge motes while banking; radiant spikes when ready
+    if (!ready) {
+      for (let k = 0; k < 3; k++) {
+        const ma = time * 2.2 + i * 2 + k / 3 * TAU;
+        ctx.fillStyle = `rgba(${col},0.8)`;
+        ctx.beginPath();
+        ctx.arc(d.x + Math.cos(ma) * r * 1.5, d.y + Math.sin(ma) * r * 1.5, Math.max(1.5, r * 0.14), 0, TAU);
+        ctx.fill();
+      }
+    } else {
+      ctx.strokeStyle = `rgba(255,255,255,${(0.5 + Math.sin(time * 6) * 0.3).toFixed(2)})`;
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(d.x, d.y, r * (1.2 + k * 1.6), 0, TAU); ctx.stroke();
-    }
-    if (time - pulsePrimed[i] < 1.0) { // this side is primed — one to go
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(d.x, d.y, r * 1.15, 0, TAU); ctx.stroke();
+      for (let k = 0; k < 6; k++) {
+        const sa = time * 0.7 + k / 6 * TAU;
+        ctx.beginPath();
+        ctx.moveTo(d.x + Math.cos(sa) * r * 1.15, d.y + Math.sin(sa) * r * 1.15);
+        ctx.lineTo(d.x + Math.cos(sa) * r * 1.7, d.y + Math.sin(sa) * r * 1.7);
+        ctx.stroke();
+      }
+      // attention pings: expanding rings breathing off the orb
+      const k2 = (time * 0.9 + i * 0.5) % 1;
+      ctx.strokeStyle = `rgba(${col},${(0.7 * (1 - k2)).toFixed(2)})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(d.x, d.y, r * (1.3 + k2 * 2.2), 0, TAU); ctx.stroke();
     }
   }
 }
