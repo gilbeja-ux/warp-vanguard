@@ -927,7 +927,7 @@ function updateBossFight(dt, g) {
 function burst(x, y, color, n, spd) {
   for (let i = 0; i < n; i++) {
     const a = Math.random() * TAU, v = rand(0.3, 1) * spd;
-    particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, decay: rand(1.2, 2.6), color, size: rand(1.5, 4) });
+    particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, decay: rand(1.2, 2.6), color, size: rand(0.7, 1.8) });
   }
 }
 function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
@@ -1493,8 +1493,10 @@ function update(dt) {
       en.tracing = false;
       if (!en.dead && !en.failed && en.z <= g.hitZ && en.z + en.len >= g.hitZ) {
         const aReq = stripAngle(en, g.hitZ - en.z);
-        if (covers(nodes[0], aReq) || covers(nodes[1], aReq) || fx.auto > 0) {
+        const on0 = covers(nodes[0], aReq), on1 = covers(nodes[1], aReq);
+        if (on0 || on1 || fx.auto > 0) {
           en.tracing = true;
+          en.traceNode = on0 ? 0 : on1 ? 1 : en.traceNode || 0;
           en.traceT = (en.traceT || 0) + sdt;
           if (en.traceT > 0.14) { // score ticks while riding the line
             en.traceT -= 0.14;
@@ -1535,6 +1537,8 @@ function update(dt) {
           buzz(30);
         }
       }
+      // the ribbon lights up in the tracing node's color, fading in and out
+      en.traceGlow = clamp((en.traceGlow || 0) + (en.tracing ? sdt * 5 : -sdt * 3), 0, 1);
       continue; // ribbons never enter the zap/miss resolution below
     }
 
@@ -1927,50 +1931,90 @@ function drawNailBreach(en, g, fade, PAL) {
   ctx.ellipse(x, y, S * (0.7 + rip * 1.8), S * (0.7 + rip * 1.8) * 0.36, tanA, 0, TAU);
   ctx.stroke();
 
-  // base collar: the latch plate seated on the wall
-  ctx.beginPath(); ctx.ellipse(x, y, S * 0.62, S * 0.62 * 0.36, tanA, 0, TAU);
-  ctx.fillStyle = '#0a0d18'; ctx.fill();
-  ctx.strokeStyle = `rgba(${PAL.glow},0.95)`;
-  ctx.lineWidth = Math.max(1, S * 0.14);
+  // hex port plate — machined tap hardware bolted flush to the wall
+  const hexR = S * 0.72;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(tanA);
+  ctx.scale(1, 0.36); // squash to the wall's local foreshortening
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const ha = i / 6 * TAU + Math.PI / 6;
+    i ? ctx.lineTo(Math.cos(ha) * hexR, Math.sin(ha) * hexR) : ctx.moveTo(Math.cos(ha) * hexR, Math.sin(ha) * hexR);
+  }
+  ctx.closePath();
+  const plate = ctx.createLinearGradient(-hexR, 0, hexR, 0);
+  plate.addColorStop(0, '#1a2334');
+  plate.addColorStop(0.5, '#0a0e1a');
+  plate.addColorStop(1, '#141b2b');
+  ctx.fillStyle = plate; ctx.fill();
+  ctx.strokeStyle = `rgba(${PAL.glow},0.9)`;
+  ctx.lineWidth = Math.max(1, S * 0.09);
   ctx.stroke();
-  if (lockKind || heavy) { // machined second collar on the tough ones
-    ctx.beginPath(); ctx.ellipse(x, y, S * 0.88, S * 0.88 * 0.36, tanA, 0, TAU);
+  // fastener points on alternating corners
+  ctx.fillStyle = 'rgba(190,215,240,0.75)';
+  for (let i = 0; i < 3; i++) {
+    const ha = i / 3 * TAU + Math.PI / 6;
+    ctx.beginPath(); ctx.arc(Math.cos(ha) * hexR * 0.72, Math.sin(ha) * hexR * 0.72, Math.max(0.7, S * 0.07), 0, TAU); ctx.fill();
+  }
+  if (lockKind || heavy) { // outer machined ring on keyed/armored taps
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const ha = i / 6 * TAU + Math.PI / 6;
+      i ? ctx.lineTo(Math.cos(ha) * hexR * 1.32, Math.sin(ha) * hexR * 1.32) : ctx.moveTo(Math.cos(ha) * hexR * 1.32, Math.sin(ha) * hexR * 1.32);
+    }
+    ctx.closePath();
     ctx.strokeStyle = PAL.lights[0];
-    ctx.lineWidth = Math.max(0.8, S * 0.06);
-    ctx.globalAlpha = fade * (0.55 + 0.3 * Math.sin(time * 4 + seed));
+    ctx.lineWidth = Math.max(0.7, S * 0.05);
+    ctx.globalAlpha = fade * (0.5 + 0.3 * Math.sin(time * 4 + seed));
     ctx.stroke();
     ctx.globalAlpha = fade;
   }
+  ctx.restore();
 
-  // the nail head: a faceted spike punched through, tip toward the axis
-  const L2 = S * (heavy ? 1.6 : 1.25) * (1 + Math.sin(en.spin * 2) * 0.05);
-  const hw = S * 0.44;
+  // probe needle: a slim tap driven through toward the payload stream
+  const L2 = S * (heavy ? 1.7 : 1.35);
+  const nw = S * 0.14;
   const tipX = x + ux * L2, tipY = y + uy * L2;
-  ctx.beginPath(); // lit facet
-  ctx.moveTo(x + tx2 * hw, y + ty2 * hw); ctx.lineTo(tipX, tipY); ctx.lineTo(x, y); ctx.closePath();
-  ctx.fillStyle = PAL.lights[0]; ctx.fill();
-  ctx.beginPath(); // shadow facet
-  ctx.moveTo(x - tx2 * hw, y - ty2 * hw); ctx.lineTo(tipX, tipY); ctx.lineTo(x, y); ctx.closePath();
-  ctx.fillStyle = PAL.shades[3]; ctx.fill();
-  ctx.strokeStyle = `rgba(${PAL.glow},0.8)`;
-  ctx.lineWidth = Math.max(0.7, S * 0.06);
-  ctx.beginPath();
-  ctx.moveTo(x + tx2 * hw, y + ty2 * hw); ctx.lineTo(tipX, tipY); ctx.lineTo(x - tx2 * hw, y - ty2 * hw);
+  ctx.beginPath(); // dark shaft
+  ctx.moveTo(x + tx2 * nw, y + ty2 * nw);
+  ctx.lineTo(tipX, tipY);
+  ctx.lineTo(x - tx2 * nw, y - ty2 * nw);
+  ctx.closePath();
+  ctx.fillStyle = '#141b2b'; ctx.fill();
+  ctx.strokeStyle = 'rgba(170,195,225,0.55)';
+  ctx.lineWidth = Math.max(0.6, S * 0.045);
   ctx.stroke();
-  // hot tip glint — the payload it's tapping
-  const tg = ctx.createRadialGradient(tipX, tipY, 0, tipX, tipY, S * 0.5);
-  tg.addColorStop(0, 'rgba(255,255,255,0.95)');
-  tg.addColorStop(0.4, `rgba(${PAL.glow},0.55)`);
-  tg.addColorStop(1, `rgba(${PAL.glow},0)`);
-  ctx.fillStyle = tg;
-  ctx.beginPath(); ctx.arc(tipX, tipY, S * 0.5, 0, TAU); ctx.fill();
+  // specular edge on one flank
+  ctx.strokeStyle = 'rgba(220,238,255,0.65)';
+  ctx.lineWidth = Math.max(0.5, S * 0.04);
+  ctx.beginPath(); ctx.moveTo(x + tx2 * nw * 0.7, y + ty2 * nw * 0.7); ctx.lineTo(tipX, tipY); ctx.stroke();
+  // light guide up the shaft: the siphon, running base-ward (data flowing OUT)
+  ctx.strokeStyle = `rgba(${PAL.glow},0.95)`;
+  ctx.lineWidth = Math.max(0.8, S * 0.07);
+  ctx.setLineDash([S * 0.22, S * 0.16]);
+  ctx.lineDashOffset = time * S * 2.2; // flow from tip toward the plate
+  ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.lineTo(x, y); ctx.stroke();
+  ctx.setLineDash([]);
+  // status LED on the plate — comm blink, unique per tap
+  const blink = Math.sin(time * 7 + seed) > (lockKind ? 0.2 : 0.55);
+  if (blink) {
+    ctx.fillStyle = PAL.lights[0];
+    ctx.beginPath(); ctx.arc(x - ux * S * 0.34, y - uy * S * 0.34, Math.max(0.8, S * 0.09), 0, TAU); ctx.fill();
+  }
+  // tip: a fine hot point, not a bloom
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(tipX, tipY, Math.max(0.7, S * 0.09), 0, TAU); ctx.fill();
+  ctx.strokeStyle = `rgba(${PAL.glow},0.55)`;
+  ctx.lineWidth = Math.max(0.5, S * 0.05);
+  ctx.beginPath(); ctx.arc(tipX, tipY, Math.max(1.2, S * 0.17), 0, TAU); ctx.stroke();
 
   // breach particles: type-colored sparks spraying off the impact
   if (!lowFX && en.z < 1.6 && Math.random() < 0.3 * fade) {
     particles.push({
       x: x + tx2 * rand(-1, 1) * S * 0.7, y: y + ty2 * rand(-1, 1) * S * 0.7,
       vx: ux * rand(0.3, 1) + tx2 * rand(-0.6, 0.6), vy: uy * rand(0.3, 1) + ty2 * rand(-0.6, 0.6),
-      life: 0.35, decay: 2.8, color: `rgb(${PAL.glow})`, size: rand(1, 2) * Math.max(0.5, wallW)
+      life: 0.35, decay: 2.8, color: `rgb(${PAL.glow})`, size: rand(0.6, 1.2) * Math.max(0.5, wallW)
     });
   }
   // gold payload specks being siphoned into the puncture
@@ -1980,7 +2024,7 @@ function drawNailBreach(en, g, fade, PAL) {
     const rr2 = ring(Math.max(sz, 0.02), g).r;
     const sx = g.cx + Math.cos(sa) * rr2, sy = g.cy + Math.sin(sa) * rr2;
     particles.push({ x: sx, y: sy, vx: (x - sx) * 0.09, vy: (y - sy) * 0.09,
-      life: 0.4, decay: 2.6, color: '#ffd24a', size: rand(1, 2) * wallW * 2 });
+      life: 0.4, decay: 2.6, color: '#ffd24a', size: rand(0.6, 1.3) * wallW * 1.6 });
   }
   ctx.globalAlpha = fade;
 }
@@ -1989,14 +2033,20 @@ function drawNailBreach(en, g, fade, PAL) {
 function drawStrip(en, g, fade) {
   const segs = 16;
   const dim = en.failed ? 0.28 : 1;
+  // while a node rides the ribbon it takes that node's color — live feedback
+  const gN = en.failed ? 0 : (en.traceGlow || 0) * 0.85;
+  const nc = en.traceNode === 1 ? [255, 255, 255] : [111, 227, 255];
+  const mix = (r0, g0, b0) =>
+    `rgba(${Math.round(lerp(r0, nc[0], gN))},${Math.round(lerp(g0, nc[1], gN))},${Math.round(lerp(b0, nc[2], gN))},1)`;
+  const cBase = mix(255, 60, 90), cHi = mix(255, 170, 188);
   for (let s2 = 0; s2 < segs; s2++) {
     const k0 = s2 / segs * en.len, k1 = (s2 + 1) / segs * en.len;
     const z0 = en.z + k0, z1 = en.z + k1;
     if (z1 <= g.hitZ * 0.55 || z0 >= SPAWN_Z - 0.03) continue;
     const aMid = stripAngle(en, (k0 + k1) / 2);
     const flow = 0.5 + 0.4 * Math.sin(time * 9 - s2 * 0.9);
-    wallPatch(g, aMid, 0.055, z0, z1 + 0.005, 'rgba(255,60,90,1)', fade * 0.7 * dim);
-    wallPatch(g, aMid, 0.021, z0, z1 + 0.005, 'rgba(255,170,188,1)', fade * flow * dim);
+    wallPatch(g, aMid, 0.055, z0, z1 + 0.005, cBase, fade * 0.7 * dim);
+    wallPatch(g, aMid, 0.021, z0, z1 + 0.005, cHi, fade * flow * dim);
   }
   // trace marker at the ring crossing
   if (!en.failed && en.z <= g.hitZ && en.z + en.len >= g.hitZ) {
@@ -2288,7 +2338,7 @@ function drawLineBeam(en, g) {
   // stray sparks arcing off the fissure
   if (!lowFX && Math.random() < 0.3 * fade) {
     const sa = en.angle + d * Math.random();
-    burst(g.cx + Math.cos(sa) * rg.r, g.cy + Math.sin(sa) * rg.r, '#ff8ba0', 2, 2);
+    burst(g.cx + Math.cos(sa) * rg.r, g.cy + Math.sin(sa) * rg.r, '#ff8ba0', 1, 1.4);
   }
   ctx.restore();
 }
@@ -4016,10 +4066,16 @@ function frame(now) {
   if (state !== S.MENU && boss) drawBeam(g);
 
   // particles + popups (over everything)
+  ctx.lineCap = 'round';
   for (const p of particles) {
+    // data bits: fine streaks along their motion, not blobs — light in fiber
     ctx.globalAlpha = clamp(p.life, 0, 1);
-    ctx.fillStyle = p.color;
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, TAU); ctx.fill();
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = Math.max(0.5, p.size * 0.6);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(p.x - p.vx * 2.4 - 0.5, p.y - p.vy * 2.4 - 0.5);
+    ctx.stroke();
   }
   ctx.globalAlpha = 1;
   drawBolts();
