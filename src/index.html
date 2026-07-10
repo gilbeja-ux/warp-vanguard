@@ -437,7 +437,7 @@ function drawLiveBg(dt) {
 // binary / hex snippets racing along the tunnel axis — glyph by glyph, in true perspective,
 // flowing both toward and away from the player like live traffic on the line
 function drawWallCode(g, dt) {
-  const spd = state === S.PLAY ? 0.55 : 0.2;
+  const spd = state === S.PLAY ? trafficSpeed : 0.2; // glyph traffic rides the shared clock
   const dz = 0.045; // depth spacing between glyphs — converges with perspective
   ctx.textAlign = 'center';
   for (const c of wallSnips) {
@@ -535,6 +535,7 @@ const PULSE_MAX = 45;
 let pulseCharge = [0, 0], pulseWaves = [];
 let enemies = [], particles = [], popups = [];
 let shake = 0, redFlash = 0, tunnelScroll = 0, wallDist = 0, time = 0;
+let trafficSpeed = 0.4; // THE shared motion clock: everything on/in the wall moves at this z-speed
 let lowFX = false, perfAcc = 0, perfN = 0, perfWin = 0; // perf watchdog state
 let hitStop = 0;              // brief slow-mo after a zap
 let rimFX = [];               // reactive rim lighting: {a, t, col}
@@ -1400,9 +1401,8 @@ function update(dt) {
   warpT = Math.max(0, warpT - dt);
   const warp2 = warpT / 0.9;
   // the wall streams at EXACTLY the traffic speed — leaks stay glued to it
-  const wallSpeed = state === S.PLAY ? (LV || LEVELS[levelIdx]).speed * 10 : 0.5;
-  tunnelScroll = (tunnelScroll + dt * wallSpeed * (1 + warp2 * 4)) % 10;
-  wallDist += dt * (state === S.PLAY ? (LV || LEVELS[levelIdx]).speed : 0.05) * (1 + warp2 * 4);
+  tunnelScroll = (tunnelScroll + dt * (state === S.PLAY ? trafficSpeed * 10 : 0.5) * (1 + warp2 * 4)) % 10;
+  wallDist += dt * (state === S.PLAY ? trafficSpeed : 0.05) * (1 + warp2 * 4);
   shake = Math.max(0, shake - dt * 3);
   redFlash = Math.max(0, redFlash - dt * 2);
 
@@ -1475,6 +1475,7 @@ function update(dt) {
   const g = geo();
 
   const waveMul = (L.waves ? 1 + 0.3 * Math.sin(levelT * 0.55) : 1) * (mutators.fast ? 1.35 : 1);
+  trafficSpeed = L.speed * waveMul; // tunnel bands, hoops, river and glyphs all ride this
   const TOL = 0.314 * tolVis; // angular tolerance ~18°, eased wider by the wide-arc power-up
   const covers = (n, a) => Math.abs(angDiff(n.angle, a)) < TOL;
   const ringXY = a => ({ x: g.cx + Math.cos(a) * g.nodeR, y: g.cy + Math.sin(a) * g.nodeR });
@@ -1833,11 +1834,11 @@ function initStreaks() {
     streaks.push({
       z: Math.random(),
       a: Math.PI / 2 + rand(-0.55, 0.55),          // biased to bottom
-      gold: true, sp: rand(0.5, 1), ord: i / nGold // draw order — the river thins with integrity
+      gold: true, sp: rand(0.92, 1.12), ord: i / nGold // draw order — the river thins with integrity
     });
   }
   for (let i = 0; i < nAmbient; i++) {
-    streaks.push({ z: Math.random(), a: Math.random() * TAU, gold: false, amber: Math.random() < 0.22, sp: rand(0.4, 0.9) });
+    streaks.push({ z: Math.random(), a: Math.random() * TAU, gold: false, amber: Math.random() < 0.22, sp: rand(0.88, 1.08) });
   }
 }
 initStreaks();
@@ -1846,7 +1847,7 @@ function drawStreaks(g, dt) {
   const riverK = state === S.PLAY ? 0.35 + 0.65 * clamp(integrity / 100, 0, 1) : 1;
   for (const st of streaks) {
     const wsp = 1 + (warpT / 0.9) * 5; // warp-dive stretch
-    st.z -= dt * (state === S.PLAY ? 0.9 : 0.4) * st.sp * wsp;
+    st.z -= dt * (state === S.PLAY ? trafficSpeed : 0.4) * st.sp * wsp; // the river flows WITH the traffic
     if (st.z <= -0.08) { st.z = 1; if (st.gold) st.a = Math.PI / 2 + rand(-0.55, 0.55); }
     if (st.gold && st.ord > riverK) continue;
     const r1 = ring(st.z, g), r2 = ring(Math.min(st.z + (st.gold ? 0.05 : 0.09) * (1 + (warpT / 0.9) * 3), 1), g);
@@ -1931,6 +1932,13 @@ function drawNailBreach(en, g, fade, PAL) {
   ctx.ellipse(x, y, S * (0.7 + rip * 1.8), S * (0.7 + rip * 1.8) * 0.36, tanA, 0, TAU);
   ctx.stroke();
 
+  // grounding pass: contact shadow + the tap's light bleeding into the wall —
+  // the transition between hardware and surface goes soft and organic
+  wallPatch(g, en.angle, 0.06 * mul, en.z - 0.045 * mul, en.z + 0.045 * mul, '#000208', fade * 0.35);
+  ctx.globalCompositeOperation = 'lighter';
+  wallPatch(g, en.angle, 0.10 * mul, en.z - 0.075 * mul, en.z + 0.075 * mul, `rgba(${PAL.glow},0.5)`, fade * 0.13);
+  ctx.globalCompositeOperation = 'source-over';
+
   // hex port plate — machined tap hardware bolted flush to the wall
   const hexR = S * 0.72;
   ctx.save();
@@ -1947,7 +1955,9 @@ function drawNailBreach(en, g, fade, PAL) {
   plate.addColorStop(0, '#1a2334');
   plate.addColorStop(0.5, '#0a0e1a');
   plate.addColorStop(1, '#141b2b');
+  ctx.globalAlpha = fade * 0.88; // a ghost of the wall texture stays visible through the plate
   ctx.fillStyle = plate; ctx.fill();
+  ctx.globalAlpha = fade;
   ctx.strokeStyle = `rgba(${PAL.glow},0.9)`;
   ctx.lineWidth = Math.max(1, S * 0.09);
   ctx.stroke();
@@ -1971,6 +1981,17 @@ function drawNailBreach(en, g, fade, PAL) {
     ctx.globalAlpha = fade;
   }
   ctx.restore();
+
+  // the wall's own hoops run OVER the plate's edges — the hardware sits IN the
+  // surface, and the surface keeps going
+  ctx.globalAlpha = fade * 0.3;
+  ctx.strokeStyle = 'rgba(120,200,255,0.9)';
+  ctx.lineWidth = Math.max(0.6, wallW * 1.2);
+  for (const dz2 of [-0.028, 0.028]) {
+    const rr3 = ring(Math.max(en.z + dz2 * mul, 0.02), g).r;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, rr3, en.angle - 0.045 * mul, en.angle + 0.045 * mul); ctx.stroke();
+  }
+  ctx.globalAlpha = fade;
 
   // probe needle: a slim tap driven through toward the payload stream
   const L2 = S * (heavy ? 1.7 : 1.35);
