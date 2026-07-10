@@ -1878,117 +1878,108 @@ function wallPatch(g, a, halfA, z0, z1, col, alpha) {
   ctx.lineWidth = Math.max(0.7, r0 - r1);
   ctx.beginPath(); ctx.arc(g.cx, g.cy, rm, a - halfA, a + halfA); ctx.stroke();
 }
-function drawWallLeak(en, g, fade, PAL) {
-  const seed = en.spin * 13.7;
+function drawNailBreach(en, g, fade, PAL) {
+  const rg = ring(Math.max(en.z, 0.02), g);
+  const x = rg.x + Math.cos(en.angle) * rg.r, y = rg.y + Math.sin(en.angle) * rg.r;
+  const wallW = clamp(rg.r / g.nodeR, 0.06, 2);
   const mul = en.sizeMul || 1;
-  const zc = en.z;
-  const lockKind = en.lock !== undefined;
-  const heavy = en.type === 'heavy';
-  // rupture proportions per threat class
-  const holeA = (lockKind ? 0.062 : heavy ? 0.10 : en.type === 'line' ? 0.068 : 0.078) * mul;
-  const holeZ = (lockKind ? 0.042 : heavy ? 0.062 : 0.052) * mul;
-  const jagAmp = lockKind ? 0.05 : heavy ? 0.28 : 0.38;   // locks are machined, tears are torn
-  const wallW = clamp(ring(Math.max(zc, 0.02), g).r / g.nodeR, 0.06, 2); // stroke scale at this depth
+  const S = Math.min(W, H) * 0.05 * wallW * mul;      // nail scale, wall-foreshortened
+  const seed = en.spin * 13.7;
+  const lockKind = en.lock !== undefined, heavy = en.type === 'heavy';
+  // into-the-bore direction (toward the axis) and the wall tangent
+  const ux = (g.cx - x) / (rg.r || 1), uy = (g.cy - y) / (rg.r || 1);
+  const tx2 = -uy, ty2 = ux;
+  const tanA = Math.atan2(ty2, tx2);
 
-  // cracks spidering out of the rupture along the wall (deterministic per enemy)
-  const nCracks = lockKind ? 0 : heavy ? 5 : 3;
-  if (nCracks && wallW > 0.12) {
+  // impact cracks in the wall around the puncture (locks are clean punches)
+  if (!lockKind && wallW > 0.12) {
     ctx.lineCap = 'round';
-    for (let c = 0; c < nCracks; c++) {
-      const h1 = Math.sin(seed * 7 + c * 5.13), h2 = Math.sin(seed * 11 + c * 3.7);
+    for (let c = 0; c < (heavy ? 4 : 2); c++) {
+      const h1 = Math.sin(seed * 7 + c * 5.13);
       const dirA = h1 > 0 ? 1 : -1;
-      const flick = 0.55 + 0.45 * Math.sin(time * (5 + c) + seed + c * 2.1);
-      ctx.strokeStyle = `rgba(${PAL.glow},${(fade * 0.55 * flick).toFixed(2)})`;
-      ctx.lineWidth = Math.max(0.8, wallW * 2.4);
+      const flick = 0.5 + 0.4 * Math.sin(time * (4 + c) + seed + c * 2.1);
+      ctx.strokeStyle = `rgba(${PAL.glow},${(fade * 0.45 * flick).toFixed(2)})`;
+      ctx.lineWidth = Math.max(0.8, wallW * 1.8);
       ctx.beginPath();
-      let a = en.angle + dirA * holeA * 0.8, z = zc + h2 * holeZ * 0.6;
-      let px2 = g.cx + Math.cos(a) * ring(Math.max(z, 0.02), g).r;
-      let py2 = g.cy + Math.sin(a) * ring(Math.max(z, 0.02), g).r;
-      ctx.moveTo(px2, py2);
-      for (let sN = 1; sN <= 3; sN++) {
-        a += dirA * (0.035 + 0.02 * Math.sin(seed * 3 + c * 7 + sN * 4.2));
-        z += h2 * 0.02 + 0.014 * Math.sin(seed * 5 + c * 9 + sN * 2.6);
-        const rr = ring(Math.max(z, 0.02), g).r;
-        ctx.lineTo(g.cx + Math.cos(a) * rr, g.cy + Math.sin(a) * rr);
-      }
-      ctx.stroke();
-    }
-  }
-
-  // the rupture: hot torn rim beneath, void on top — a hole burned in the wall
-  const N = 7;
-  for (let pass = 0; pass < 2; pass++) {
-    for (let i = 0; i < N; i++) {
-      const t0 = i / N * 2 - 1, t1 = (i + 1) / N * 2 - 1;
-      const tm = (t0 + t1) / 2;
-      const w = Math.sqrt(Math.max(0.02, 1 - tm * tm));
-      const jag = 1 + jagAmp * (Math.sin(seed * 3 + i * 2.6) * 0.6 + Math.sin(time * 9 + seed + i * 1.7) * 0.4);
-      const z0 = zc + t0 * holeZ, z1 = zc + t1 * holeZ;
-      if (pass === 0) {
-        const rimPulse = 0.6 + 0.3 * Math.sin(time * 6 + seed + i * 0.9);
-        wallPatch(g, en.angle, holeA * w * jag + 0.014 * mul, z0 - 0.006, z1 + 0.006, `rgba(${PAL.glow},1)`, fade * rimPulse);
-      } else {
-        wallPatch(g, en.angle, holeA * w * jag, z0, z1, '#03040c', fade * 0.94);
-      }
-    }
-  }
-  // machined double ring on locks / heavies — a sealed valve vs a raw tear
-  if (lockKind || heavy) {
-    const ringPulse = 0.55 + 0.35 * Math.sin(time * 4 + seed);
-    for (let i = 0; i < N; i++) {
-      const t0 = i / N * 2 - 1, t1 = (i + 1) / N * 2 - 1;
-      const w = Math.sqrt(Math.max(0.02, 1 - Math.pow((t0 + t1) / 2, 2)));
-      wallPatch(g, en.angle - (holeA * w + 0.02 * mul), 0.006, zc + t0 * holeZ, zc + t1 * holeZ, PAL.lights[0], fade * ringPulse * 0.8);
-      wallPatch(g, en.angle + (holeA * w + 0.02 * mul), 0.006, zc + t0 * holeZ, zc + t1 * holeZ, PAL.lights[0], fade * ringPulse * 0.8);
-    }
-  }
-  // the lattice tears: the nearest seam visibly bends around the rupture —
-  // wall structure deforming is what sells "this is a hole in the surface"
-  const seamStep = TAU / SEAMS;
-  const sA = Math.round((en.angle - SEAM_OFF) / seamStep) * seamStep + SEAM_OFF;
-  const dA = angDiff(sA, en.angle);
-  if (Math.abs(dA) < holeA * 2.6 && wallW > 0.12) {
-    ctx.strokeStyle = `rgba(${PAL.glow},${(fade * 0.75).toFixed(2)})`;
-    ctx.lineWidth = Math.max(1, wallW * 2);
-    ctx.lineCap = 'round';
-    const bendDir = Math.sign(dA || 1);
-    for (const side of [-1, 1]) { // approach the hole from the far and near depths
-      ctx.beginPath();
+      let a = en.angle + dirA * 0.02, z = en.z + Math.sin(seed * 11 + c * 3.7) * 0.02;
       let started = false;
-      for (let sN = 0; sN <= 3; sN++) {
-        const z = zc + side * holeZ * (2.6 - sN * 0.62);
-        const bend = bendDir * (holeA * 1.2 - Math.abs(dA)) * Math.pow(sN / 3, 1.6);
-        const a = sA + bend;
+      for (let sN = 0; sN <= 2; sN++) {
         const rr = ring(Math.max(z, 0.02), g).r;
         const px2 = g.cx + Math.cos(a) * rr, py2 = g.cy + Math.sin(a) * rr;
         started ? ctx.lineTo(px2, py2) : ctx.moveTo(px2, py2);
         started = true;
+        a += dirA * (0.028 + 0.015 * Math.sin(seed * 3 + c * 7 + sN * 4.2));
+        z += 0.016 * Math.sin(seed * 5 + c * 9 + sN * 2.6);
       }
       ctx.stroke();
     }
   }
-  // cold static inside the void — the outside of the tunnel showing through
-  if (!lowFX && wallW > 0.15) {
-    for (let i2 = 0; i2 < 2; i2++) {
-      const fa = en.angle + Math.sin(time * 13 + seed + i2 * 7) * holeA * 0.5;
-      const fz = zc + Math.sin(time * 17 + seed * 2 + i2 * 3) * holeZ * 0.45;
-      const rr = ring(Math.max(fz, 0.02), g).r;
-      const fs = Math.max(0.8, wallW * 2.4);
-      ctx.globalAlpha = fade * (0.22 + 0.18 * (Math.sin(time * 23 + i2 * 5 + seed) * 0.5 + 0.5));
-      ctx.fillStyle = '#a0beff';
-      ctx.fillRect(g.cx + Math.cos(fa) * rr - fs / 2, g.cy + Math.sin(fa) * rr - fs / 2, fs, fs);
-    }
+
+  // scorched puncture where it punched through
+  wallPatch(g, en.angle, 0.030 * mul, en.z - 0.02 * mul, en.z + 0.02 * mul, '#05060f', fade * 0.8);
+
+  // breach ripple: an impact ring expanding across the wall surface —
+  // squashed to the wall's local foreshortening so it lies ON the surface
+  const rip = (time * 0.8 + seed) % 1;
+  ctx.strokeStyle = `rgba(${PAL.glow},${(fade * 0.5 * (1 - rip)).toFixed(2)})`;
+  ctx.lineWidth = Math.max(1, S * 0.1);
+  ctx.beginPath();
+  ctx.ellipse(x, y, S * (0.7 + rip * 1.8), S * (0.7 + rip * 1.8) * 0.36, tanA, 0, TAU);
+  ctx.stroke();
+
+  // base collar: the latch plate seated on the wall
+  ctx.beginPath(); ctx.ellipse(x, y, S * 0.62, S * 0.62 * 0.36, tanA, 0, TAU);
+  ctx.fillStyle = '#0a0d18'; ctx.fill();
+  ctx.strokeStyle = `rgba(${PAL.glow},0.95)`;
+  ctx.lineWidth = Math.max(1, S * 0.14);
+  ctx.stroke();
+  if (lockKind || heavy) { // machined second collar on the tough ones
+    ctx.beginPath(); ctx.ellipse(x, y, S * 0.88, S * 0.88 * 0.36, tanA, 0, TAU);
+    ctx.strokeStyle = PAL.lights[0];
+    ctx.lineWidth = Math.max(0.8, S * 0.06);
+    ctx.globalAlpha = fade * (0.55 + 0.3 * Math.sin(time * 4 + seed));
+    ctx.stroke();
     ctx.globalAlpha = fade;
   }
-  // the leak itself: gold payload specks being sucked out through the hole
-  if (!lowFX && en.z < 1.5 && Math.random() < 0.4 * fade) {
-    const rr = ring(Math.max(zc, 0.02), g).r;
-    const hx = g.cx + Math.cos(en.angle) * rr, hy = g.cy + Math.sin(en.angle) * rr;
-    const sa = en.angle + rand(-1, 1) * holeA * 5;
-    const sz = zc + rand(-0.1, 0.1);
+
+  // the nail head: a faceted spike punched through, tip toward the axis
+  const L2 = S * (heavy ? 1.6 : 1.25) * (1 + Math.sin(en.spin * 2) * 0.05);
+  const hw = S * 0.44;
+  const tipX = x + ux * L2, tipY = y + uy * L2;
+  ctx.beginPath(); // lit facet
+  ctx.moveTo(x + tx2 * hw, y + ty2 * hw); ctx.lineTo(tipX, tipY); ctx.lineTo(x, y); ctx.closePath();
+  ctx.fillStyle = PAL.lights[0]; ctx.fill();
+  ctx.beginPath(); // shadow facet
+  ctx.moveTo(x - tx2 * hw, y - ty2 * hw); ctx.lineTo(tipX, tipY); ctx.lineTo(x, y); ctx.closePath();
+  ctx.fillStyle = PAL.shades[3]; ctx.fill();
+  ctx.strokeStyle = `rgba(${PAL.glow},0.8)`;
+  ctx.lineWidth = Math.max(0.7, S * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(x + tx2 * hw, y + ty2 * hw); ctx.lineTo(tipX, tipY); ctx.lineTo(x - tx2 * hw, y - ty2 * hw);
+  ctx.stroke();
+  // hot tip glint — the payload it's tapping
+  const tg = ctx.createRadialGradient(tipX, tipY, 0, tipX, tipY, S * 0.5);
+  tg.addColorStop(0, 'rgba(255,255,255,0.95)');
+  tg.addColorStop(0.4, `rgba(${PAL.glow},0.55)`);
+  tg.addColorStop(1, `rgba(${PAL.glow},0)`);
+  ctx.fillStyle = tg;
+  ctx.beginPath(); ctx.arc(tipX, tipY, S * 0.5, 0, TAU); ctx.fill();
+
+  // breach particles: type-colored sparks spraying off the impact
+  if (!lowFX && en.z < 1.6 && Math.random() < 0.3 * fade) {
+    particles.push({
+      x: x + tx2 * rand(-1, 1) * S * 0.7, y: y + ty2 * rand(-1, 1) * S * 0.7,
+      vx: ux * rand(0.3, 1) + tx2 * rand(-0.6, 0.6), vy: uy * rand(0.3, 1) + ty2 * rand(-0.6, 0.6),
+      life: 0.35, decay: 2.8, color: `rgb(${PAL.glow})`, size: rand(1, 2) * Math.max(0.5, wallW)
+    });
+  }
+  // gold payload specks being siphoned into the puncture
+  if (!lowFX && en.z < 1.5 && Math.random() < 0.35 * fade) {
+    const sa = en.angle + rand(-1, 1) * 0.14;
+    const sz = en.z + rand(-0.08, 0.08);
     const rr2 = ring(Math.max(sz, 0.02), g).r;
     const sx = g.cx + Math.cos(sa) * rr2, sy = g.cy + Math.sin(sa) * rr2;
-    particles.push({ x: sx, y: sy, vx: (hx - sx) * 0.09, vy: (hy - sy) * 0.09,
+    particles.push({ x: sx, y: sy, vx: (x - sx) * 0.09, vy: (y - sy) * 0.09,
       life: 0.4, decay: 2.6, color: '#ffd24a', size: rand(1, 2) * wallW * 2 });
   }
   ctx.globalAlpha = fade;
@@ -2130,7 +2121,7 @@ function drawEnemy(en, g) {
     ctx.beginPath(); ctx.arc(gx, gy, pr * 0.3, 0, TAU); ctx.fill();
     ctx.restore();
   } else {
-    drawWallLeak(en, g, fade, PAL);
+    drawNailBreach(en, g, fade, PAL);
   }
   // warp-in flash as it drops out of the deep
   if (en.age < 0.3) {
