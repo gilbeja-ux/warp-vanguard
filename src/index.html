@@ -1937,34 +1937,44 @@ function drawRangeRings(g) {
   ctx.restore();
 }
 
-function drawRangeTimers(g) {
-  // seconds-to-arrival tags, seated on each enemy's depth ring beside the body
+function drawRangeTethers(g) {
+  // analysis tether: a dashed line in true perspective from each antenna tip
+  // down the bore to the rim — the system has a lock, its length IS the distance
   if (state !== S.PLAY && state !== S.PAUSE && state !== S.INFO) return;
   if (boss && boss.mergeT >= 1) return;
   ctx.save();
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineCap = 'round';
   for (const en of enemies) {
     const ri = rangeInfo(en, g);
     if (!ri) continue;
-    const fs = clamp(ri.rr.r * 0.062, 7, 12);
     const mul = en.sizeMul || 1;
     const a0 = en.type === 'strip' ? stripAngle(en, 0) : en.angle;
-    const x = g.cx + Math.cos(a0) * ri.rr.r, y = g.cy + Math.sin(a0) * ri.rr.r;
-    let lx, ly;
-    if (en.type === 'strip') { // ribbons have no needle — tag floats just off the head
-      lx = x + (g.cx - x) / (ri.rr.r || 1) * fs * 2.2;
-      ly = y + (g.cy - y) / (ri.rr.r || 1) * fs * 2.2;
-    } else { // cap the probe needle's tip
+    // the tether floats at antenna-top height above the wall, all the way in
+    let L2 = 0; // strips ride the wall itself
+    if (en.type !== 'strip') {
       const S2 = Math.min(W, H) * 0.05 * clamp(ri.rr.r / g.nodeR, 0.06, 2) * mul;
-      const L2 = S2 * (en.type === 'heavy' ? 1.7 : 1.35) + fs * 1.35;
-      lx = x + (g.cx - x) / (ri.rr.r || 1) * L2;
-      ly = y + (g.cy - y) / (ri.rr.r || 1) * L2;
+      L2 = S2 * (en.type === 'heavy' ? 1.7 : 1.35);
     }
-    ctx.font = `700 ${fs.toFixed(1)}px Audiowide, system-ui`;
-    ctx.fillStyle = `rgba(4,8,18,${(ri.al * 0.6).toFixed(2)})`;
-    ctx.beginPath(); ctx.arc(lx, ly, fs * 1.1, 0, TAU); ctx.fill();
-    ctx.fillStyle = `rgba(${ri.glow},${Math.min(1, ri.al * 1.1).toFixed(2)})`;
-    ctx.fillText(ri.t.toFixed(1), lx, ly + fs * 0.06);
+    const hf = 1 - L2 / Math.max(ri.rr.r, 1); // antenna height as a fraction of the bore
+    const ca = Math.cos(a0), sa = Math.sin(a0);
+    const spanZ = en.z - g.hitZ;
+    const steps = 11, duty = 0.55; // dash covers just over half of each cell
+    const flow = (time * 1.6) % 1; // dashes stream toward the player
+    ctx.beginPath();
+    for (let k = -1; k < steps; k++) {
+      const q0 = clamp((k + flow) / steps, 0, 1), q1 = clamp((k + flow + duty) / steps, 0, 1);
+      if (q1 - q0 <= 0.001) continue;
+      const r0 = ring(en.z - spanZ * q0, g).r * hf, r1 = ring(en.z - spanZ * q1, g).r * hf;
+      ctx.moveTo(g.cx + ca * r0, g.cy + sa * r0);
+      ctx.lineTo(g.cx + ca * r1, g.cy + sa * r1);
+    }
+    // glow pass under a bright core — the scan reads as light, not wire
+    ctx.strokeStyle = `rgba(${ri.glow},${(ri.al * 0.28).toFixed(2)})`;
+    ctx.lineWidth = Math.max(3, ri.rr.r / g.nodeR * 5);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(${ri.glow},${Math.min(1, ri.al * 0.95).toFixed(2)})`;
+    ctx.lineWidth = Math.max(1, ri.rr.r / g.nodeR * 1.6);
+    ctx.stroke();
   }
   ctx.restore();
 }
@@ -4456,7 +4466,7 @@ function frame(now) {
   const sorted = enemies.slice().sort((a, b) => b.z - a.z);
   for (const en of sorted) if (en.lineLead) drawLineBeam(en, g); // beams sit under the traps
   for (const en of sorted) drawEnemy(en, g);
-  drawRangeTimers(g);
+  drawRangeTethers(g);
   for (const p of pickups) drawPickup(p, g);
   drawPulseWave(g);
   drawClearSweep(g);
