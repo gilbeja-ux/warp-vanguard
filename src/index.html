@@ -4564,7 +4564,7 @@ const HARBOR_H = 64;
 // infrastructure reads as underground — ghosting through translucent faces.
 function buildCity() {
   const rng = mulberry32(0xC17C0DE);
-  const HW = 26, HH = 13;
+  const HW = 16, HH = 8; // small tiles = a zoomed-out survey
   // street bands in the two iso families (slope ±0.5). value v: line y = ±0.5x + 13v
   const mkBands = (lo, hi) => {
     const out = [];
@@ -4572,10 +4572,10 @@ function buildCity() {
     while (v < hi) { out.push({ v: Math.round(v), major: rng() < 0.35 }); v += 5 + rng() * 6; }
     return out;
   };
-  const bands1 = mkBands(-60, 74);  // v1 = r - 2c family (slope +0.5)
-  const bands2 = mkBands(2, 138);   // v2 = r + 2c family (slope -0.5)
+  const bands1 = mkBands(-95, 118); // v1 = r - 2c family (slope +0.5)
+  const bands2 = mkBands(4, 218);   // v2 = r + 2c family (slope -0.5)
   const trunks1 = bands1.filter(b => b.major), trunks2 = bands2.filter(b => b.major);
-  const jxy = (a, b) => ({ x: 13 * (b - a), y: 6.5 * (a + b) }); // trunk junction -> px
+  const jxy = (a, b) => ({ x: HH * (b - a), y: HH * 0.5 * (a + b) }); // trunk junction -> px
   // pick 10 route anchors (A, relays 1-8, B) on trunk junctions, west -> east,
   // serpentining north/south and staying out of the water
   const junc = [];
@@ -4606,10 +4606,13 @@ function buildCity() {
   for (let k = 0; k < 9; k++) {
     const A2 = anchors[k], B2 = anchors[k + 1];
     const pts2 = [{ x: A2.x, y: A2.y }];
-    if (rng() < 0.45 && trunks1.length > 2) { // Z: detour via an intermediate trunk
-      const mid = trunks1[Math.floor(rng() * trunks1.length)].v;
-      pts2.push(jxy(mid, A2.b), jxy(mid, B2.b));
-    } else {
+    // legs alternate street families, corners land on real junctions, and any
+    // detour trunk lies BETWEEN the endpoints — the cable never backtracks
+    const between = trunks2.filter(t => (t.v - A2.b) * (t.v - B2.b) < 0);
+    if (between.length && rng() < 0.6) { // Z: cross to a mid street, ride it, cross again
+      const bm = between[Math.floor(rng() * between.length)].v;
+      pts2.push(jxy(A2.a, bm), jxy(B2.a, bm));
+    } else { // plain L along the endpoints' own streets
       pts2.push(rng() < 0.5 ? jxy(A2.a, B2.b) : jxy(B2.a, A2.b));
     }
     pts2.push({ x: B2.x, y: B2.y });
@@ -4633,10 +4636,10 @@ function buildCity() {
     }
     // streets: minor thin, major avenues doubled
     const street = (v, slope, major) => {
-      ctx.strokeStyle = major ? 'rgba(100,185,255,0.22)' : 'rgba(85,160,235,0.10)';
+      ctx.strokeStyle = major ? 'rgba(100,185,255,0.30)' : 'rgba(85,160,235,0.16)';
       ctx.lineWidth = 1;
-      for (const off of major ? [-2, 2] : [0]) {
-        ctx.beginPath(); ctx.moveTo(0, 13 * v + off); ctx.lineTo(CITY_W, 13 * v + off + slope * CITY_W); ctx.stroke();
+      for (const off of major ? [-2.5, 2.5] : [0]) {
+        ctx.beginPath(); ctx.moveTo(0, HH * v + off); ctx.lineTo(CITY_W, HH * v + off + slope * CITY_W); ctx.stroke();
       }
     };
     for (const b of bands1) street(b.v, 0.5, b.major);
@@ -4664,15 +4667,15 @@ function buildCity() {
     // the data grid: optic cable trunks buried under the avenues — teal, with
     // junction vaults where trunks cross
     const cable = (v, slope) => {
-      ctx.strokeStyle = 'rgba(80,230,200,0.17)';
+      ctx.strokeStyle = 'rgba(80,230,200,0.30)';
       ctx.lineWidth = 1.5;
-      ctx.setLineDash([10, 5]);
-      ctx.beginPath(); ctx.moveTo(0, 13 * v); ctx.lineTo(CITY_W, 13 * v + slope * CITY_W); ctx.stroke();
+      ctx.setLineDash([9, 5]);
+      ctx.beginPath(); ctx.moveTo(0, HH * v); ctx.lineTo(CITY_W, HH * v + slope * CITY_W); ctx.stroke();
       ctx.setLineDash([]);
     };
     for (const t of trunks1) cable(t.v, 0.5);
     for (const t of trunks2) cable(t.v, -0.5);
-    ctx.strokeStyle = 'rgba(80,230,200,0.4)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(80,230,200,0.55)'; ctx.lineWidth = 1;
     for (const j of junc) {
       ctx.beginPath();
       ctx.moveTo(j.x, j.y - 4); ctx.lineTo(j.x + 4, j.y); ctx.lineTo(j.x, j.y + 4); ctx.lineTo(j.x - 4, j.y);
@@ -4693,11 +4696,8 @@ function buildCity() {
       const y0 = y - lift;
       const N = { x, y: y0 - hh }, E = { x: x + hw, y: y0 }, S2 = { x, y: y0 + hh }, W2 = { x: x - hw, y: y0 };
       const T = { N: { x: N.x, y: N.y - h }, E: { x: E.x, y: E.y - h }, S: { x: S2.x, y: S2.y - h }, W: { x: W2.x, y: W2.y - h } };
-      ctx.fillStyle = 'rgba(5,13,28,0.82)';
-      ctx.beginPath(); ctx.moveTo(W2.x, W2.y); ctx.lineTo(S2.x, S2.y); ctx.lineTo(T.S.x, T.S.y); ctx.lineTo(T.W.x, T.W.y); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = 'rgba(8,20,42,0.82)';
-      ctx.beginPath(); ctx.moveTo(S2.x, S2.y); ctx.lineTo(E.x, E.y); ctx.lineTo(T.E.x, T.E.y); ctx.lineTo(T.S.x, T.S.y); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = 'rgba(10,26,52,0.88)';
+      // pure blueprint: no opaque faces — just a whisper of tint on the roof
+      ctx.fillStyle = 'rgba(70,140,230,0.07)';
       ctx.beginPath(); ctx.moveTo(T.N.x, T.N.y); ctx.lineTo(T.E.x, T.E.y); ctx.lineTo(T.S.x, T.S.y); ctx.lineTo(T.W.x, T.W.y); ctx.closePath(); ctx.fill();
       ctx.strokeStyle = `rgba(110,195,255,${a.toFixed(2)})`;
       ctx.lineWidth = 1;
@@ -4733,40 +4733,40 @@ function buildCity() {
         else if (zone < -0.5) prof = 'park';
         else prof = zone > -0.1 ? 'mid' : 'low';
         if (prof === 'cbd') {
-          if (rng() < 0.3) continue;
+          if (rng() < 0.48) continue;
           const spire = rng() < 0.22;
-          const h = spire ? 78 + rng() * 55 : 38 + rng() * rng() * 60;
+          const h = spire ? 48 + rng() * 34 : 24 + rng() * rng() * 38;
           if (rng() < 0.3) { // podium + tower
-            box(bx2, by2, 14, 0.3, 1.4);
-            box(bx2, by2, h, spire ? 0.6 : 0.38, 0.7, 14 + HH * 0.4);
+            box(bx2, by2, 9, 0.3, 1.4);
+            box(bx2, by2, h, spire ? 0.6 : 0.38, 0.7, 9 + HH * 0.4);
           } else box(bx2, by2, h, spire ? 0.6 : 0.3 + rng() * 0.2);
-          if (h > 78) { // antenna + beacon
+          if (h > 48) { // antenna + beacon
             ctx.strokeStyle = 'rgba(150,225,255,0.7)'; ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(bx2, by2 - HH - h); ctx.lineTo(bx2, by2 - HH - h - 12); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(bx2, by2 - HH - h); ctx.lineTo(bx2, by2 - HH - h - 8); ctx.stroke();
             ctx.fillStyle = 'rgba(255,120,140,0.9)';
-            ctx.fillRect(bx2 - 1, by2 - HH - h - 14, 2, 2);
+            ctx.fillRect(bx2 - 1, by2 - HH - h - 10, 2, 2);
           }
         } else if (prof === 'dense') {
-          if (rng() < 0.28) continue;
+          if (rng() < 0.46) continue;
           if (rng() < 0.35 && c2 + 1 < cols2) { // HK residential slab, two tiles wide
             skip.add(r2 * 1000 + c2 + 1);
-            box(bx2 + HW, by2, 22 + rng() * 26, 0.3, 1.7);
-          } else box(bx2, by2, 18 + rng() * 24, 0.2 + rng() * 0.15);
+            box(bx2 + HW, by2, 14 + rng() * 16, 0.3, 1.7);
+          } else box(bx2, by2, 11 + rng() * 15, 0.2 + rng() * 0.15);
         } else if (prof === 'mid') {
-          if (rng() < 0.42) continue;
-          box(bx2, by2, 10 + rng() * 22, 0.16 + rng() * 0.16);
+          if (rng() < 0.58) continue;
+          box(bx2, by2, 6 + rng() * 14, 0.16 + rng() * 0.16);
         } else if (prof === 'low') {
-          if (rng() < 0.55) continue;
-          box(bx2, by2, 4 + rng() * 10, 0.12 + rng() * 0.12);
+          if (rng() < 0.7) continue;
+          box(bx2, by2, 3 + rng() * 7, 0.12 + rng() * 0.12);
         } else { // park: open ground, a few groves
-          if (rng() < 0.88) continue;
+          if (rng() < 0.9) continue;
           ctx.strokeStyle = 'rgba(90,200,170,0.25)'; ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.arc(bx2, by2, 3 + rng() * 3, 0, TAU); ctx.stroke();
+          ctx.beginPath(); ctx.arc(bx2, by2, 2 + rng() * 2.5, 0, TAU); ctx.stroke();
         }
         // lit windows on anything with height
-        if (rng() < 0.35) {
+        if (rng() < 0.3) {
           ctx.fillStyle = 'rgba(150,225,255,0.45)';
-          for (let w3 = 0; w3 < 2; w3++) ctx.fillRect(bx2 + (rng() - 0.5) * HW, by2 - rng() * 30, 1.5, 1.5);
+          for (let w3 = 0; w3 < 2; w3++) ctx.fillRect(bx2 + (rng() - 0.5) * HW, by2 - rng() * 18, 1.5, 1.5);
         }
       }
     }
@@ -4854,21 +4854,9 @@ function drawMenuMap() {
       ctx.beginPath(); ctx.arc(wx(mp), wy(mp), 2, 0, TAU); ctx.fill();
     }
   }
-  // LAYER 3: the city wireframe above — the cables read as underground
+  // LAYER 3: the blueprint wireframe above — transparent, so the buried
+  // cables stay readable through the whole city
   ctx.drawImage(cityTop, ccx - mapCamX, ccy - mapCamY);
-  // x-ray trace: the selected and frontier runs stay faintly readable through
-  // the blocks above them
-  for (let k = 0; k < ROUTE_SEGS.length; k++) {
-    if (k !== mapSel && k !== frontier) continue;
-    const done = k < LEVELS.length ? progress.stars[Math.min(k, LEVELS.length - 1)] > 0 : progress.stars[LEVELS.length - 1] > 0;
-    ctx.strokeStyle = done ? 'rgba(111,227,255,0.22)' : k === frontier ? 'rgba(255,210,74,0.22)' : 'rgba(120,255,225,0.2)';
-    ctx.lineWidth = 1.2;
-    ctx.setLineDash([4, 6]);
-    ctx.beginPath();
-    ROUTE_SEGS[k].forEach((p2, pi) => pi ? ctx.lineTo(wx(p2), wy(p2)) : ctx.moveTo(wx(p2), wy(p2)));
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
   // endpoints
   for (const [pt, lbl, sub] of [[relayW(-1), 'A', 'SOURCE'], [relayW(LEVELS.length), 'B', 'DESTINATION']]) {
     const ex2 = wx(pt), ey2 = wy(pt);
