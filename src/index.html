@@ -768,7 +768,6 @@ function spawnPickup() {
 // the ray cannon (left thumb = move, right thumb = aim, hold = fire) drains it
 function spawnBoss() {
   enemies = []; pickups = []; burstQ = null; patternQ = []; // the lane clears for the duel
-  flowLinks = new Map(); flowBurns = [];
   boss = {
     hp: 100, maxHp: 100,
     // it FLIES inside the tunnel: cross-section polar (ang, rad) + depth z
@@ -1289,7 +1288,6 @@ function resetRun() {
   score = 0; zaps = 0; misses = 0; combo = 0; perfects = 0; fragsHit = 0; comboHeal = 0;
   pulseCharge = [0, 0]; pulseWaves = [];
   enemies = []; particles = []; popups = []; bolts = []; pickups = [];
-  flowLinks = new Map(); flowBurns = [];
   boss = null; burstQ = null; patternQ = []; hitStop = 0;
   heat = 0; overheat = false; beamActive = false; beamSound(false, 0);
   introT = 0; introCd = -1;
@@ -1939,85 +1937,62 @@ function drawRangeRings(g) {
   ctx.restore();
 }
 
-let flowLinks = new Map(), flowBurns = [], flowIdC = 0;
-function drawRangeTethers(g) {
-  // flow line: a floating dashed chain linking every antenna tip in arrival
-  // order — follow it hop by hop and you zap the wave in the right sequence
+function drawRangeRanks(g) {
+  // priority tags: every hostile's antenna tip carries its place in the
+  // arrival queue — 1 is next to reach the rim. Kills re-deal the numbers,
+  // and a promoted tag pops with a shockwave so the shift reads instantly.
   if (state !== S.PLAY && state !== S.PAUSE && state !== S.INFO) return;
   if (boss && boss.mergeT >= 1) return;
   const pts = [];
   for (const en of enemies) {
     const ri = rangeInfo(en, g);
-    if (!ri) continue;
+    if (!ri) { en.rank = 0; continue; }
     const mul = en.sizeMul || 1;
     const a0 = en.type === 'strip' ? stripAngle(en, 0) : en.angle;
-    let L2 = 0; // strips have no needle — their head anchors the chain at the wall
+    let L2 = 0; // strips have no needle — their tag floats at the ribbon head
     if (en.type !== 'strip') {
       const S2 = Math.min(W, H) * 0.05 * clamp(ri.rr.r / g.nodeR, 0.06, 2) * mul;
       L2 = S2 * (en.type === 'heavy' ? 1.7 : 1.35);
     }
     const r2 = ri.rr.r - L2;
-    pts.push({ t: ri.t, al: ri.al, glow: ri.glow,
-               id: en._flowId || (en._flowId = ++flowIdC),
+    pts.push({ en, t: ri.t, al: ri.al, glow: ri.glow, rr: ri.rr,
                x: g.cx + Math.cos(a0) * r2, y: g.cy + Math.sin(a0) * r2 });
   }
-  pts.sort((a, b) => a.t - b.t); // first in line leads the chain
+  pts.sort((a, b) => a.t - b.t);
   ctx.save();
-  ctx.lineCap = 'round';
-  const dash = Math.min(W, H) * 0.014;
-  const links = new Map();
-  for (let i = 0; i < pts.length - 1; i++) {
-    const A = pts[i], B = pts[i + 1];
-    // each hop dims a step — the brightest link always points at the next kill
-    let al = Math.min(A.al, B.al) * Math.pow(0.8, i);
-    const key = A.id + '>' + B.id;
-    const born = flowLinks.has(key) ? flowLinks.get(key).born : time;
-    links.set(key, { born, A, B });
-    al *= clamp((time - born) / 0.3 + 0.15, 0, 1); // fresh links fade in, not pop
-    if (al <= 0.02) continue;
-    const seg = ctx.createLinearGradient(A.x, A.y, B.x, B.y);
-    seg.addColorStop(0, `rgba(${A.glow},1)`);
-    seg.addColorStop(1, `rgba(${B.glow},1)`);
-    ctx.strokeStyle = seg;
-    ctx.setLineDash([dash, dash * 0.85]);
-    ctx.lineDashOffset = time * dash * 3.2; // dashes drift toward the head of the line
-    ctx.globalAlpha = al * 0.16; // halo pass
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
-    ctx.globalAlpha = Math.min(1, al * 0.55); // core
-    ctx.lineWidth = 1.3;
-    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
-  }
-  // links that just left the chain burn out instead of popping
-  for (const [key, ln] of flowLinks) {
-    if (!links.has(key)) flowBurns.push({ A: ln.A, B: ln.B, t0: time });
-  }
-  flowLinks = links;
-  ctx.setLineDash([]);
-  for (let i = flowBurns.length - 1; i >= 0; i--) {
-    const b = flowBurns[i];
-    const p = (time - b.t0) / 0.4;
-    if (p >= 1) { flowBurns.splice(i, 1); continue; }
-    // the link flashes hot and contracts to its middle, shedding embers
-    const q = p * 0.5;
-    const x0 = b.A.x + (b.B.x - b.A.x) * q, y0 = b.A.y + (b.B.y - b.A.y) * q;
-    const x1 = b.B.x + (b.A.x - b.B.x) * q, y1 = b.B.y + (b.A.y - b.B.y) * q;
-    ctx.globalAlpha = (1 - p) * 0.7;
-    ctx.strokeStyle = p < 0.3 ? '#ffffff' : `rgba(${b.A.glow},1)`;
-    ctx.lineWidth = 1.6 + (1 - p) * 1.2;
-    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-    if (Math.random() < 0.5) { // sparse embers off the receding tips
-      burst(x0, y0, `rgb(${b.A.glow})`, 1, 1.2);
-      burst(x1, y1, `rgb(${b.B.glow})`, 1, 1.2);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], en = p.en, rank = i + 1;
+    if (en.rank !== rank) {
+      if (en.rank && rank < en.rank) en.rankFx = time; // moved up the queue — pop
+      en.rank = rank;
     }
-  }
-  if (pts.length) { // crown the first in line — a pulsing reticle on its antenna tip
-    const h = pts[0];
-    ctx.globalAlpha = Math.min(1, h.al * 0.75);
-    ctx.strokeStyle = `rgba(${h.glow},0.85)`;
-    ctx.lineWidth = 1.3;
-    const cr = dash * (0.85 + 0.2 * Math.sin(time * 8));
-    ctx.beginPath(); ctx.arc(h.x, h.y, cr, 0, TAU); ctx.stroke();
+    const fs0 = clamp(p.rr.r * 0.07, 8, 13);
+    const k = en.rankFx !== undefined ? (time - en.rankFx) / 0.35 : 2;
+    let scale = 1, flash = 0;
+    if (k < 1) {
+      scale = 1 + (1 - k) * (1 - k) * 0.9; // eased pop, settling back to rest
+      flash = 1 - k;
+      ctx.globalAlpha = p.al * (1 - k) * 0.7; // promotion shockwave off the tag
+      ctx.strokeStyle = `rgba(${p.glow},1)`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(p.x, p.y, fs0 * (1.2 + k * 2.6), 0, TAU); ctx.stroke();
+    }
+    const fs = fs0 * scale;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = `rgba(4,8,18,${(p.al * 0.55).toFixed(2)})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, fs * 1.05, 0, TAU); ctx.fill();
+    if (rank === 1) { // the one to take now wears a pulsing halo
+      ctx.globalAlpha = Math.min(1, p.al * 0.75);
+      ctx.strokeStyle = `rgba(${p.glow},0.85)`;
+      ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.arc(p.x, p.y, fs * 1.45 + Math.sin(time * 8) * 1.2, 0, TAU); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    const col = flash > 0.45 ? '255,255,255' : p.glow; // white-hot right after a promotion
+    ctx.fillStyle = `rgba(${col},${Math.min(1, p.al * (0.9 + flash * 0.4)).toFixed(2)})`;
+    ctx.font = `700 ${fs.toFixed(1)}px Audiowide, system-ui`;
+    ctx.fillText(String(rank), p.x, p.y + fs * 0.06);
   }
   ctx.restore();
 }
@@ -4509,7 +4484,7 @@ function frame(now) {
   const sorted = enemies.slice().sort((a, b) => b.z - a.z);
   for (const en of sorted) if (en.lineLead) drawLineBeam(en, g); // beams sit under the traps
   for (const en of sorted) drawEnemy(en, g);
-  drawRangeTethers(g);
+  drawRangeRanks(g);
   for (const p of pickups) drawPickup(p, g);
   drawPulseWave(g);
   drawClearSweep(g);
