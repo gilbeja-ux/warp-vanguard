@@ -233,7 +233,7 @@ function playTrack(key) {
 // runs every frame: drives the fade-in, volume, and the slow-mo tape-warp
 function updateMusic(dt) {
   musicFade = Math.min(1, musicFade + (dt || 0) / MUSIC_FADEIN);
-  const rateTarget = (state === S.PLAY && fx.slow > 0) ? 0.72 : 1;
+  const rateTarget = 1; // slow-mo retired; the ease stays for future tape-warp moments
   musicRate += (rateTarget - musicRate) * Math.min(1, (dt || 0) * 5);
   if (musicSrc && musicSrc.playbackRate) musicSrc.playbackRate.value = musicRate;
   if (musicFilter) { // the payload's health bleeds into the mix
@@ -290,7 +290,8 @@ const sfx = {
     tone(3136 * m, 0.09, 'sine', 0.05);               // sparkle overtone
   },
   pick() { tone(660, 0.09, 'triangle', 0.12, 880); tone(1320, 0.14, 'triangle', 0.10, 1760); },
-  slowDown() { tone(880, 0.50, 'sawtooth', 0.12, 180); tone(440, 0.65, 'triangle', 0.10, 110); },
+  shieldUp() { tone(392, 0.18, 'triangle', 0.11, 523); tone(784, 0.3, 'sine', 0.09, 1047); },
+  shieldHit() { tone(1047, 0.22, 'triangle', 0.13, 523); tone(196, 0.28, 'square', 0.09, 98); },
   perfect() { tone(2093, 0.14, 'triangle', 0.13, 2637); tone(3136, 0.10, 'sine', 0.08, 3520); },
   count() { tone(600, 0.12, 'square', 0.12, 560); },
   overheatWarn() { tone(220, 0.5, 'sawtooth', 0.13, 90); tone(110, 0.6, 'square', 0.1, 60); },
@@ -565,7 +566,8 @@ const INTRO_DUR = 3.7;        // ring formation + 3-2-1 countdown
 let introT = 999, introCd = -1;
 let tolVis = 1;               // eased hit-arc multiplier (wide-arc grows/shrinks smoothly)
 let bolts = [];               // lightning arcs (node → trap)
-const fx = { slow: 0, wide: 0, auto: 0 }; // power-up effect timers (seconds)
+const fx = { wide: 0, auto: 0, chain: 0 }; // power-up effect timers (seconds)
+let shieldCharge = 0; // firewall shield: 1 = the next breach is absorbed
 let pickups = [], pickupT = 20;
 let tut = null;               // tutorial controller (level 1, first run)
 let boss = null;              // firewall core (levels with boss: true)
@@ -772,9 +774,11 @@ function spawnStrip() {
 const stripAngle = (en, k) => en.angle + en.amp * Math.sin(k * en.frq + en.ph);
 // golden power-up orbs riding the stream; catch one with either node
 const PICKUPS = {
-  slow: { dur: 6,  label: 'SLOW-MO' },
-  wide: { dur: 10, label: 'WIDE ARC' },
-  auto: { dur: 5,  label: 'AUTO-ZAP' }
+  shield: { dur: 0,  label: 'FIREWALL SHIELD' }, // absorbs the next breach (one charge)
+  wide:   { dur: 10, label: 'WIDE ARC' },
+  auto:   { dur: 5,  label: 'AUTO-ZAP' },
+  inject: { dur: 0,  label: 'PULSE INJECTED' },  // both purge orbs snap to ready
+  chain:  { dur: 6,  label: 'CHAIN OVERDRIVE' }  // zaps arc to the nearest hostile
 };
 function spawnPickup() {
   const kinds = Object.keys(PICKUPS);
@@ -972,11 +976,13 @@ function updateBossFight(dt, g) {
       sh.done = true;
       const hx = g.cx + Math.cos(sh.th) * railR, hy = g.cy + Math.sin(sh.th) * railR;
       if (Math.abs(angDiff(nodes[0].angle, sh.th)) < 0.24) { // clipped the cannon
-        integrity = Math.max(0, integrity - 9);
-        redFlash = 1; shake = Math.min(shake + 0.5, 1);
-        burst(nx, ny, '#ff4a5e', 20, 4);
-        sfx.miss();
-        buzz([40, 25, 55]);
+        if (!shieldAbsorb(nx, ny)) {
+          integrity = Math.max(0, integrity - 9);
+          redFlash = 1; shake = Math.min(shake + 0.5, 1);
+          burst(nx, ny, '#ff4a5e', 20, 4);
+          sfx.miss();
+          buzz([40, 25, 55]);
+        }
       } else {
         burst(hx, hy, '#d465ff', 6, 2.2); // splash on the ring
       }
@@ -993,6 +999,19 @@ function burst(x, y, color, n, spd) {
   }
 }
 function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
+// firewall shield: eats one breach that would cost integrity. Returns true if
+// it fired — the caller skips the damage AND its red-alert dressing.
+function shieldAbsorb(x, y, ang) {
+  if (shieldCharge <= 0) return false;
+  shieldCharge = 0;
+  popup(x, y, 'SHIELD ABSORBED THE BREACH', '#8fe0ff');
+  if (ang !== undefined) rimFX.push({ a: ang, t: 0.7, col: '143,224,255' });
+  burst(x, y, '#8fe0ff', 22, 4);
+  shake = Math.min(shake + 0.3, 0.8);
+  sfx.shieldHit();
+  buzz(20);
+  return true;
+}
 
 // ---------- input ----------
 const pointers = {}; // id -> { side, lastA }
@@ -1162,11 +1181,13 @@ canvas.addEventListener('pointerdown', e => {
     canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
     return;
   }
-  // magnetic replant: landing near the knob snaps it under the thumb, so every
-  // natural lift-and-replant realigns finger and pad. landing far away stays
-  // relative (no accidental teleports) — record the start angle either way.
+  // replant rules: a touch ON the pad is absolute — knob and node jump under
+  // the finger, so a lift-and-replant can never desync thumb from knob. Off-pad
+  // touches (drifted grip) stay relative, with the old magnetic snap when close.
   const ni = side === 'L' ? 0 : 1;
-  if (Math.abs(angDiff(a0, nodes[ni].angle)) < 0.6) nodes[ni].angle = a0;
+  const dc = dialCenter(side);
+  const onPad = Math.hypot(P.x - dc.x, P.y - dc.y) <= dc.r * 1.15;
+  if (onPad || Math.abs(angDiff(a0, nodes[ni].angle)) < 0.6) nodes[ni].angle = a0;
   pointers[e.pointerId] = { side, lastA: a0 };
   canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
 });
@@ -1309,7 +1330,7 @@ function resetRun() {
   introT = 0; introCd = -1;
   rimFX = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; }
-  fx.slow = fx.wide = fx.auto = 0; pickupT = rand(16, 24);
+  fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = rand(16, 24);
   nodes[0].angle = Math.PI * 0.75;
   nodes[1].angle = Math.PI * 0.25;
   state = S.PLAY;
@@ -1422,7 +1443,7 @@ const INFO_CARDS = {
   line:   { title: 'BARRIER TAPS', lines: ['Two taps tearing the wall open', 'between them. Cover BOTH ends —', 'one node on each.'] },
   lock:   { title: 'KEYED TAP', lines: ['Sealed to a single node. Only the', 'MATCHING color can break it —', 'watch the orbiting key.'] },
   frag:   { title: 'VOID PACKET', lines: ['The black packet is your PAYLOAD.', 'Zapping it is DEVASTATING to the', 'stream — let it pass, bank the bonus.'] },
-  pickup: { title: 'POWER-UP', lines: ['Golden relays ride the stream.', 'Catch one with any node:', 'SLOW-MO · WIDE ARC · AUTO-ZAP.'] },
+  pickup: { title: 'POWER-UP', lines: ['Golden relays ride the stream.', 'Catch one with any node:', 'SHIELD · WIDE ARC · AUTO-ZAP', 'PULSE FILL · CHAIN LIGHTNING.'] },
   strip:  { title: 'DATA STREAM', lines: ['A live stream rides the wall.', 'Keep a node ON its crossing point', 'from head to tail — do not let go.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Combo zaps bank charge in your pads.', 'When an orb GLOWS, tap it to fire', 'a purge wave down the tunnel.'] },
   boss:   { title: 'FIREWALL CORE', lines: ['Your nodes fuse into a RAY CANNON.', 'LEFT thumb moves it. RIGHT stick aims', 'the beam INTO the tunnel — hold to fire.', 'Dodge the orbs. Watch the heat.'] }
@@ -1551,16 +1572,13 @@ function update(dt) {
     else if (cdNow === 0 && introT < INTRO_DUR + 1) sfx.go();
   }
 
-  // effect timers run on real time; hit-stop and slow-mo scale the game clock
-  const wasSlow = fx.slow > 0;
-  fx.slow = Math.max(0, fx.slow - dt);
+  // effect timers run on real time; hit-stop scales the game clock
   fx.wide = Math.max(0, fx.wide - dt);
   fx.auto = Math.max(0, fx.auto - dt);
-  if (wasSlow && fx.slow === 0) sfx.speedUp(); // time snaps back to real speed
-  tolVis += ((fx.wide > 0 ? 1.7 : 1) - tolVis) * Math.min(1, dt * 6);
+  fx.chain = Math.max(0, fx.chain - dt);
+  tolVis += ((fx.wide > 0 ? 1.36 : 1) - tolVis) * Math.min(1, dt * 6);
   let sdt = dt;
   if (hitStop > 0) { hitStop = Math.max(0, hitStop - dt); sdt *= 0.12; }
-  if (fx.slow > 0) sdt *= 0.55;
   if (!tut && !inIntro) levelT += sdt;
 
   // keyboard control (desktop testing) — controls always run at full speed
@@ -1644,14 +1662,16 @@ function update(dt) {
         } else {
           en.failed = true;
           misses++; combo = 0; comboHeal = 0;
-          integrity = Math.max(0, integrity - 25);
           const hp = ringXY(aReq);
-          burst(hp.x, hp.y, '#ff4a5e', 20, 3);
-          popup(hp.x, hp.y, 'STREAM LOST', '#ff4a5e');
-          redFlash = 1; shake = Math.min(shake + 0.6, 1);
-          rimFX.push({ a: aReq, t: 0.55, col: '255,74,94' });
-          sfx.miss();
-          buzz([40, 40, 60]);
+          if (!shieldAbsorb(hp.x, hp.y, aReq)) {
+            integrity = Math.max(0, integrity - 25);
+            burst(hp.x, hp.y, '#ff4a5e', 20, 3);
+            popup(hp.x, hp.y, 'STREAM LOST', '#ff4a5e');
+            redFlash = 1; shake = Math.min(shake + 0.6, 1);
+            rimFX.push({ a: aReq, t: 0.55, col: '255,74,94' });
+            sfx.miss();
+            buzz([40, 40, 60]);
+          }
         }
       }
       if (!en.dead && en.z + en.len < g.hitZ) { // tail cleared the ring
@@ -1693,11 +1713,13 @@ function update(dt) {
             sfx.miss();
           } else {
             combo = 0; comboHeal = 0; fragsHit++;
-            integrity = Math.max(0, integrity - 25);
-            popup(fx2, fy, 'FRIENDLY PACKET DESTROYED', '#ff4a5e');
-            redFlash = 1; shake = Math.min(shake + 0.6, 1);
-            sfx.miss();
-            buzz([40, 40, 60]);
+            if (!shieldAbsorb(fx2, fy)) {
+              integrity = Math.max(0, integrity - 25);
+              popup(fx2, fy, 'FRIENDLY PACKET DESTROYED', '#ff4a5e');
+              redFlash = 1; shake = Math.min(shake + 0.6, 1);
+              sfx.miss();
+              buzz([40, 40, 60]);
+            }
           }
         } else {
           en.resolved = true;
@@ -1785,6 +1807,31 @@ function update(dt) {
           n.recoil = 1; // the carriage kicks back
           rimFX.push({ a, t: 0.45, col: '140,225,255' });
         }
+        // chain overdrive: the kill arcs to the nearest other hostile and
+        // takes it too — locks and armor don't stop raw lightning
+        if (!en.tut && fx.chain > 0) {
+          let cBest = null, cd = 9;
+          for (const c of enemies) {
+            if (c === en || c === en.partner || c.dead || c.resolved || c.failed) continue;
+            if (c.type === 'frag' || c.type === 'strip') continue; // never into payloads or ribbons
+            const dA = Math.abs(angDiff(c.angle, en.angle));
+            if (dA < cd) { cd = dA; cBest = c; }
+          }
+          if (cBest) {
+            cBest.dead = true;
+            if (cBest.partner) cBest.partner.dead = true;
+            const rg2 = ring(Math.max(cBest.z, 0.02), g);
+            const bx = g.cx + Math.cos(cBest.angle) * rg2.r, by = g.cy + Math.sin(cBest.angle) * rg2.r;
+            spawnBolt(ex, ey, bx, by);
+            burst(bx, by, '#d8b4ff', 18, 3.5);
+            burst(bx, by, '#ffffff', 10, 4);
+            const cb = cBest.type === 'heavy' ? 250 : cBest.type === 'line' ? 300 : cBest.lock !== undefined ? 150 : 100;
+            const cpts = Math.round(cb * 0.5 * mutMul());
+            score += cpts; zaps++;
+            popup(bx, by, 'CHAIN +' + cpts, '#d8b4ff');
+            tone(1976, 0.1, 'triangle', 0.08, 2960);
+          }
+        }
         if (en.type === 'heavy') burst(ex, ey, '#d465ff', 16, 5.5); // armor plates fly
         if (en.type === 'line' && en.partner) { // the wall snaps
           const p3 = ringXY(en.partner.angle);
@@ -1806,13 +1853,15 @@ function update(dt) {
           if (tut) { tut.retry = en.tut; tut.t = 0; } // practice trap: no penalty, try again
         } else {
           misses++; combo = 0; comboHeal = 0;
-          integrity = Math.max(0, integrity - 25); // 4 mistakes = corrupted payload
-          burst(ex, ey, '#ff4a5e', 20, 3);
-          popup(ex, ey, 'DATA STOLEN', '#ff4a5e');
-          redFlash = 1; shake = Math.min(shake + 0.6, 1);
-          rimFX.push({ a: en.angle, t: 0.55, col: '255,74,94' });
-          sfx.miss();
-          buzz([40, 40, 60]);
+          if (!shieldAbsorb(ex, ey, en.angle)) {
+            integrity = Math.max(0, integrity - 25); // 4 mistakes = corrupted payload
+            burst(ex, ey, '#ff4a5e', 20, 3);
+            popup(ex, ey, 'DATA STOLEN', '#ff4a5e');
+            redFlash = 1; shake = Math.min(shake + 0.6, 1);
+            rimFX.push({ a: en.angle, t: 0.55, col: '255,74,94' });
+            sfx.miss();
+            buzz([40, 40, 60]);
+          }
         }
       }
     }
@@ -1857,11 +1906,19 @@ function update(dt) {
       }
       if (covers(nodes[0], p.angle) || covers(nodes[1], p.angle)) {
         p.dead = true;
-        fx[p.kind] = PICKUPS[p.kind].dur;
         const { x, y } = ringXY(p.angle);
+        if (p.kind === 'shield') {
+          shieldCharge = 1;
+          sfx.shieldUp();
+        } else if (p.kind === 'inject') { // both purge orbs snap to ready
+          pulseCharge = [PULSE_MAX, PULSE_MAX];
+          sfx.heal();
+        } else {
+          fx[p.kind] = PICKUPS[p.kind].dur;
+          sfx.pick();
+        }
         burst(x, y, '#ffd24a', 24, 4);
         popup(x, y, PICKUPS[p.kind].label, '#ffd24a');
-        if (p.kind === 'slow') sfx.slowDown(); else sfx.pick();
         buzz(15);
       }
     }
@@ -2512,10 +2569,24 @@ function drawPickup(p, g) {
   ctx.strokeStyle = '#ffe9b0'; ctx.fillStyle = '#ffe9b0';
   ctx.lineWidth = Math.max(1, size * 0.12); ctx.lineCap = 'round';
   const s2 = size * 0.52;
-  if (p.kind === 'slow') { // hourglass
+  if (p.kind === 'shield') { // heater shield
     ctx.beginPath();
-    ctx.moveTo(-s2 * 0.7, -s2); ctx.lineTo(s2 * 0.7, -s2); ctx.lineTo(-s2 * 0.7, s2); ctx.lineTo(s2 * 0.7, s2);
+    ctx.moveTo(0, -s2);
+    ctx.lineTo(s2 * 0.8, -s2 * 0.5); ctx.lineTo(s2 * 0.8, s2 * 0.15);
+    ctx.quadraticCurveTo(s2 * 0.8, s2 * 0.7, 0, s2);
+    ctx.quadraticCurveTo(-s2 * 0.8, s2 * 0.7, -s2 * 0.8, s2 * 0.15);
+    ctx.lineTo(-s2 * 0.8, -s2 * 0.5);
     ctx.closePath(); ctx.stroke();
+  } else if (p.kind === 'inject') { // charged orb, ready core
+    ctx.beginPath(); ctx.arc(0, 0, s2 * 0.95, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, s2 * 0.38, 0, TAU); ctx.fill();
+  } else if (p.kind === 'chain') { // twin bolts — the arc jumps
+    for (const ox of [-s2 * 0.42, s2 * 0.42]) {
+      ctx.beginPath();
+      ctx.moveTo(ox + s2 * 0.2, -s2 * 0.75); ctx.lineTo(ox - s2 * 0.3, s2 * 0.1); ctx.lineTo(ox, s2 * 0.1);
+      ctx.lineTo(ox - s2 * 0.2, s2 * 0.75); ctx.lineTo(ox + s2 * 0.3, -0.1 * s2); ctx.lineTo(ox, -0.1 * s2);
+      ctx.closePath(); ctx.fill();
+    }
   } else if (p.kind === 'wide') { // widening arcs
     ctx.beginPath(); ctx.arc(0, 0, s2 * 0.55, -0.9, 0.9); ctx.stroke();
     ctx.beginPath(); ctx.arc(0, 0, s2 * 1.05, -0.7, 0.7); ctx.stroke();
@@ -4461,6 +4532,18 @@ function frame(now) {
     burst(g.cx + Math.cos(ra) * (g.nodeR + bz / 2), g.cy + Math.sin(ra) * (g.nodeR + bz / 2), '#8fc7ff', 2, 2);
   }
   if (state !== S.MENU) drawArrivalPings(g);
+  if (shieldCharge > 0 && state !== S.MENU) { // firewall film breathing on the rim
+    const sr = g.nodeR + Math.min(W, H) * 0.018;
+    ctx.save();
+    ctx.globalAlpha = 0.22 + 0.09 * Math.sin(time * 3);
+    ctx.strokeStyle = 'rgba(143,224,255,0.9)';
+    ctx.lineWidth = Math.min(W, H) * 0.006;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, sr, 0, TAU); ctx.stroke();
+    ctx.globalAlpha *= 0.45;
+    ctx.lineWidth *= 3;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, sr, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
 
   // traps render over the ring — missed ones fly past the player and fade
   const sorted = enemies.slice().sort((a, b) => b.z - a.z);

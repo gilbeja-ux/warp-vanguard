@@ -100,6 +100,7 @@ code = code.replace("'use strict';", '') + `
   keys, setBeamAim: (x, y) => { beamAim.x = x; beamAim.y = y; }, getHeat: () => heat, isOverheat: () => overheat, startBossTest,
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
   stripAngle, startDaily, isDaily: () => daily, getPulse: () => pulseCharge,
+  getShield: () => shieldCharge, setShield: v => { shieldCharge = v; },
   setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length
 };`;
 eval(code);
@@ -254,8 +255,8 @@ function idle(n) { for (let i = 0; i < n; i++) { G.setIntegrity(100); G.update(0
 G.startLevel(1);
 G.fx.wide = 10;
 idle(30); // let the coverage arc ease out
-check('coverage arc eases out to the widened size', G.tolVis() > 1.6);
-en = G.spawnEnemy(0.45, 'normal'); // outside normal TOL (0.314), inside widened (~0.534)
+check('coverage arc eases out to the widened size', G.tolVis() > 1.3);
+en = G.spawnEnemy(0.40, 'normal'); // outside normal TOL (0.314), inside widened (~0.427)
 aim(0, Math.PI); aim(1, 0);
 cross(en);
 check('wide-arc widens the hit window', en.dead === true);
@@ -269,19 +270,35 @@ cross(en);
 check('auto-zap clears traps without coverage', en.dead === true);
 G.fx.auto = 0;
 idle(40); // drain hit-stop
-G.enemies().length = 0; // no background zaps skewing the speed measurement
-en = G.spawnEnemy(3.0, 'normal'); en.z = 0.9;
-G.update(0.05);
-const dzNormal = 0.9 - en.z;
-en.z = 0.9; G.fx.slow = 6;
-G.update(0.05);
-const dzSlow = 0.9 - en.z;
-check('slow-mo halves the stream speed', dzSlow < dzNormal * 0.7 && dzSlow > 0);
-idle(30);
-check('slow-mo drags the music playback rate down', G.musicRate() < 0.8);
-G.fx.slow = 0;
-idle(40);
-check('music rate returns to real time when slow-mo ends', G.musicRate() > 0.97);
+G.enemies().length = 0;
+// firewall shield: eats one breach, then integrity takes the next
+G.setIntegrity(100); G.setShield(1);
+en = G.spawnEnemy(2.0, 'normal');
+aim(0, 0.5); aim(1, 0.5 + Math.PI); // nowhere near it
+cross(en);
+check('shield absorbs the breach for free', G.stats().integrity === 100 && G.getShield() === 0);
+en = G.spawnEnemy(2.0, 'normal');
+cross(en);
+check('next breach costs integrity once the shield is spent', G.stats().integrity === 75);
+// pulse injector: both orbs snap to ready
+G.setIntegrity(100); G.setPulse([0, 0]);
+G.spawnPickup();
+const pkI = G.pickups()[G.pickups().length - 1];
+pkI.kind = 'inject'; pkI.z = G.geo().hitZ; pkI.angle = 1.2;
+aim(0, 1.2); aim(1, 1.2 + Math.PI);
+G.update(0.01);
+check('pulse injector readies both orbs', G.getPulse()[0] >= 45 && G.getPulse()[1] >= 45);
+G.setPulse([0, 0]);
+// chain overdrive: a zap arcs to the nearest other hostile
+idle(40); // drain hit-stop BEFORE clearing — idling respawns background traps
+G.enemies().length = 0;
+G.fx.chain = 6;
+en = G.spawnEnemy(1.0, 'normal');
+const enFar = G.spawnEnemy(1.6, 'normal'); enFar.z = 1.0; // deep and uncovered
+aim(0, 1.0); aim(1, 1.0 + Math.PI);
+cross(en);
+check('chain overdrive arcs the kill to the nearest hostile', en.dead === true && enFar.dead === true);
+G.fx.chain = 0;
 G.setIntegrity(100);
 G.spawnPickup();
 const pk = G.pickups()[G.pickups().length - 1];
