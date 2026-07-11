@@ -1310,7 +1310,7 @@ function startLevel(i) {
 function startQualification() {
   daily = false; Math.random = sysRandom;
   levelIdx = -1; endless = false; qual = true;
-  LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.30,
+  LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.40,
          doubles: 0, heavies: 0, lines: 0, colors: 0, frags: 0 };
   tut = { stage: -1, t: 0, queue: [], moved: [0, 0], lastA: [0, 0], retry: null, spawned: null };
   resetRun();
@@ -1427,7 +1427,6 @@ function qualSpawn(kind) {
     const en2 = spawnStrip();
     en2.tut = 'strip';
     en2.len = 0.5; en2.amp = 0.22; en2.frq = 2.2; en2.ph = 0;
-    en2.speedMul = 0.55;
     return;
   }
   if (kind === 'pulse') {
@@ -1435,7 +1434,7 @@ function qualSpawn(kind) {
     pulseCharge = [PULSE_MAX, PULSE_MAX];
     for (let k = 0; k < 3; k++) {
       const e3 = spawnEnemy(Math.random() * TAU, 'normal');
-      e3.lock = undefined; e3.tut = 'pulse'; e3.speedMul = 0.4;
+      e3.lock = undefined; e3.tut = 'pulse';
       e3.z = SPAWN_Z - 0.05 - k * 0.24; // staggered inside the purge wave's reach
     }
     return;
@@ -1445,7 +1444,6 @@ function qualSpawn(kind) {
     const e1 = spawnEnemy(a, 'line'), e2 = spawnEnemy(a + gap, 'line');
     e1.partner = e2; e2.partner = e1; e1.lineLead = true;
     e1.tut = e2.tut = 'line';
-    e1.speedMul = e2.speedMul = 0.5;
     return;
   }
   let en;
@@ -1454,7 +1452,6 @@ function qualSpawn(kind) {
     en.lock = kind === 'lock0' ? 0 : 1;
   } else en = spawnEnemy(undefined, kind); // normal | heavy | frag
   en.tut = kind;
-  en.speedMul = kind === 'heavy' ? 0.45 : 0.5;
   en.drift = 0;
 }
 function advanceQual() {
@@ -3231,15 +3228,34 @@ function drawHUD(g) {
     else if (tut.spawned === 'lock1') msg = 'Only the WHITE node can break this one';
     else if (tut.spawned === 'frag') msg = "It's friendly — DON'T zap it";
     else if (tut.spawned === 'pickup') msg = 'Catch the power-up with any node';
+    else if (tut.spawned === 'strip') msg = 'Keep a node ON the stream marker until it ends';
+    else if (tut.spawned === 'pulse') msg = 'Tap a GLOWING pad core to fire the purge';
     if (msg) {
+      // dead-center of the ring, word-wrapped to 60% of its width — never
+      // parked over the rim where the action lands
+      const g2 = geo();
+      const maxW2 = g2.nodeR * 2 * 0.6;
       const a = 0.75 + Math.sin(time * 4) * 0.25;
+      const fs = Math.min(W * 0.026, 17);
       ctx.textAlign = 'center';
-      ctx.font = '700 ' + Math.min(W * 0.026, 17) + 'px Audiowide, system-ui';
-      const tw = ctx.measureText(msg).width;
+      ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
+      const lines = [];
+      let cur = '';
+      for (const w2 of msg.split(' ')) {
+        const t2 = cur ? cur + ' ' + w2 : w2;
+        if (cur && ctx.measureText(t2).width > maxW2) { lines.push(cur); cur = w2; }
+        else cur = t2;
+      }
+      if (cur) lines.push(cur);
+      const lh = fs + 9;
+      const boxW = Math.max(...lines.map(l => ctx.measureText(l).width)) + 36;
+      const boxH = lines.length * lh + 18;
       ctx.fillStyle = 'rgba(9,20,40,0.72)';
-      roundRect(W / 2 - tw / 2 - 16, H * 0.70 - 20, tw + 32, 30, 8); ctx.fill();
+      roundRect(g2.cx - boxW / 2, g2.cy - boxH / 2, boxW, boxH, 10); ctx.fill();
+      ctx.strokeStyle = 'rgba(120,200,255,0.35)'; ctx.lineWidth = 1;
+      roundRect(g2.cx - boxW / 2, g2.cy - boxH / 2, boxW, boxH, 10); ctx.stroke();
       ctx.fillStyle = 'rgba(190,240,255,' + a.toFixed(2) + ')';
-      ctx.fillText(msg, W / 2, H * 0.70);
+      lines.forEach((l, i) => ctx.fillText(l, g2.cx, g2.cy - boxH / 2 + 9 + (i + 0.8) * lh));
       ctx.textAlign = 'left';
     }
     const ten = enemies.find(e => e.tut && !e.dead && !e.resolved);
