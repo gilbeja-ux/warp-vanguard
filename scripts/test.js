@@ -101,6 +101,7 @@ code = code.replace("'use strict';", '') + `
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
   stripAngle, startDaily, isDaily: () => daily, getPulse: () => pulseCharge,
   getShield: () => shieldCharge, setShield: v => { shieldCharge = v; },
+  setMenuScreen: v => { menuScreen = v; }, getMenuScreen: () => menuScreen, commCur: () => commCur,
   setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length
 };`;
 eval(code);
@@ -451,9 +452,34 @@ check('cornered core enters phase 2 below 40%', G.boss().phase2 === true);
   check('phase 2 deploys wall taps mid-duel', G.enemies().length > 0);
 }
 
+// ================= mode select & campaign map =================
+G.setState(G.S.MENU);
+G.setMenuScreen('home');
+G.frame(16);
+const cTile = G.menuBtns().find(b => b.mode === 'campaign');
+G.menuTap(cTile.x + 5, cTile.y + 5, 1);
+check('campaign tile opens the route map', G.getMenuScreen() === 'map');
+G.frame(16);
+const n2 = G.menuBtns().find(b => b.node === 2);
+G.menuTap(n2.x + 22, n2.y + 22, 1);
+G.frame(16);
+const dep = G.menuBtns().find(b => b.deploy !== undefined);
+check('selecting a relay arms its deploy key', dep && dep.deploy === 2);
+G.menuTap(dep.x + 5, dep.y + 5, 1);
+check('deploying opens the story log', G.getState() === G.S.INFO && G.getInfoCard() === 'story2');
+G.update(0.5);
+canvasHandlers.pointerdown({ pointerId: 9, clientX: 5, clientY: 5, pointerType: 'touch' });
+check('dismissing the log enters the relay', G.getState() === G.S.PLAY && G.getLV().name === 'METRO EXCHANGE');
+G.setIntro(999);
+{
+  let cGuard = 300;
+  while (cGuard-- > 0 && !G.commCur()) { G.setIntegrity(100); G.update(0.05); }
+  check('story comms tick over the campaign line', !!G.commCur());
+}
+
 // ================= endless mode =================
 G.setState(G.S.MENU);
-G.setMenuScroll(1e9); // scroll to the bottom of the list (drawMenu clamps)
+G.setMenuScreen('flow');
 G.frame(16);
 const eBtn = G.menuBtns().find(b => b.endless);
 check('endless key appears unlocked after clearing the campaign', !!eBtn && !eBtn.locked);
@@ -466,7 +492,7 @@ check('endless defeat records the best score', G.getState() === G.S.END && G.pro
 
 // ================= daily stream =================
 G.setState(G.S.MENU);
-G.setMenuScroll(1e9);
+G.setMenuScreen('flow');
 G.frame(16);
 const dBtn = G.menuBtns().find(b => b.daily);
 check('daily key appears unlocked', !!dBtn && !dBtn.locked);

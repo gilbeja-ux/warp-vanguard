@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+yes <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -579,12 +579,15 @@ let patternQ = [];            // beat-choreographed volley schedule
 let endless = false, qual = false, LV = null, runTrack = 0; // active run config + its soundtrack
 let infoCard = null, infoShownAt = 0; // briefing card (S.INFO)
 let menuScroll = 0, menuPtr = null; // level-list scrolling
+let menuScreen = 'home'; // 'home' (mode select) | 'map' (campaign route) | 'flow' (free flow)
+let mapSel = 0;          // selected relay on the campaign map
+let commNext = 0, commCur = null, commT = 0; // intercepted-transmission ticker
 let endWin = false, endStars = 0, endT = 0, endNewBest = false;
 let endFxStars = 0, endTickT = 0; // ceremony bookkeeping (star chimes, count ticks)
 const endBtnAt = () => endWin ? 2.9 : 1.25; // when the buttons arrive (wins ride the sweep first)
 let endSweep = -1; // victory clear-sweep front (z), -1 when idle
 let pauseBtnRect = null, pauseButtonsList = [], pauseSlidersList = [], pauseTogglesList = [];
-let menuSettings = false, menuGearRect = null, menuSetButtons = [], menuSetPanel = null, menuFsRect = null, menuMutRects = [];
+let menuSettings = false, menuGearRect = null, menuSetButtons = [], menuSetPanel = null, menuFsRect = null, menuMutRects = [], menuBackRect = null;
 const pauseDrag = {};
 
 // nodes: [left(blue), right(white)]
@@ -1309,9 +1312,20 @@ function menuTap(x, y, pid) {
       y > menuGearRect.y - 8 && y < menuGearRect.y + menuGearRect.h + 8) {
     menuSettings = true; sfx.tick(); return;
   }
+  if (menuBackRect && x > menuBackRect.x - 8 && x < menuBackRect.x + menuBackRect.w + 8 &&
+      y > menuBackRect.y - 8 && y < menuBackRect.y + menuBackRect.h + 8) {
+    menuScreen = 'home'; sfx.tick(); return;
+  }
   for (const b of menuButtons) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h && !b.locked) {
-      if (b.daily) startDaily(); else if (b.endless) startEndless(); else if (b.qual) startQualification(); else if (b.bossTest) startBossTest(); else startLevel(b.level);
+      if (b.mode === 'tutorial') { startQualification(); }
+      else if (b.mode === 'campaign') { menuScreen = 'map'; mapSel = Math.min(progress.unlocked - 1, LEVELS.length - 1); }
+      else if (b.mode === 'flow') { menuScreen = 'flow'; }
+      else if (b.node !== undefined) { mapSel = b.node; }
+      else if (b.deploy !== undefined) { startLevel(b.deploy, true); }
+      else if (b.daily) startDaily();
+      else if (b.endless) startEndless();
+      else if (b.bossTest) startBossTest();
       sfx.tick(); return;
     }
   }
@@ -1323,8 +1337,12 @@ function endTap(x, y) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
       sfx.tick();
       if (b.action === 'retry') { if (daily) startDaily(); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx); }
-      else if (b.action === 'next') startLevel(levelIdx + 1);
-      else { state = S.MENU; fadeT = 0.35; playTrack('menu'); }
+      else if (b.action === 'next') startLevel(levelIdx + 1, true);
+      else {
+        menuScreen = qual ? 'home' : endless ? 'flow' : 'map';
+        if (!endless && !qual) mapSel = Math.min(progress.unlocked - 1, LEVELS.length - 1);
+        state = S.MENU; fadeT = 0.35; playTrack('menu');
+      }
       return;
     }
   }
@@ -1334,6 +1352,7 @@ function resetRun() {
   // modifiers stay locked until the campaign is cleared
   if (!(progress.stars[LEVELS.length - 1] > 0)) mutators.oneLife = mutators.fast = mutators.noPickups = false;
   levelT = 0; spawnT = 1.2;
+  commNext = 0; commCur = null; commT = 0;
   integrity = mutators.oneLife ? 25 : 100;
   score = 0; zaps = 0; misses = 0; combo = 0; perfects = 0; fragsHit = 0; comboHeal = 0;
   pulseCharge = [0, 0]; pulseWaves = [];
@@ -1349,7 +1368,7 @@ function resetRun() {
   nodes[1].angle = Math.PI * 0.25;
   state = S.PLAY;
 }
-function startLevel(i) {
+function startLevel(i, brief) {
   daily = false; Math.random = sysRandom;
   levelIdx = i; endless = false; qual = false; LV = LEVELS[i];
   tut = null;
@@ -1358,6 +1377,7 @@ function startLevel(i) {
   resetRun();
   runTrack = LV.track || 0;
   playTrack(runTrack);
+  if (brief && STORY[i]) showCard('story' + i); // the investigation continues
 }
 // QUALIFICATION: the training run — movement, every enemy type, one power-up
 function startQualification() {
@@ -1466,6 +1486,64 @@ const INFO_CARDS = {
   pulse:  { title: 'PULSE CHARGE', lines: ['Combo zaps bank charge in your pads.', 'When an orb GLOWS, tap it to fire', 'a purge wave down the tunnel.'] },
   boss:   { title: 'FIREWALL CORE', lines: ['Your nodes fuse into a RAY CANNON.', 'LEFT thumb moves it. RIGHT stick aims', 'the beam INTO the tunnel — hold to fire.', 'Dodge the orbs. Watch the heat.'] }
 };
+// ---------- the investigation ----------
+// campaign narrative: you guard the fiber between A and B. Something is
+// tapping the line — the story unfolds one relay at a time, and the culprit
+// is the network's own Firewall Core. Briefings show on deploy; comm chatter
+// ticks mid-run at scripted times (deterministic levels keep them in sync).
+const STORY = [
+  { title: 'LOG 01 — ASSIGNMENT', lines: [
+    'Defender: this fiber carries everything', 'A and B say to each other.',
+    'Taps are bleeding the line.', 'Hold it. Log what you see.'] },
+  { title: 'LOG 02 — PATTERN', lines: [
+    'These taps are not random noise.', 'Same make. Same timing.',
+    'Someone is listening on purpose.', 'HQ opens an investigation.'] },
+  { title: 'LOG 03 — CARGO', lines: [
+    'Volleys now — probing our reflexes.', 'And the black packets have begun.',
+    'Orders from HQ are explicit:', 'protect them. NEVER inspect them.'] },
+  { title: 'LOG 04 — BARRIERS', lines: [
+    'They string walls across the bore', 'to catch the payload whole.',
+    'A asks who else holds these keys.', 'Nobody answers.'] },
+  { title: 'LOG 05 — EXFILTRATION', lines: [
+    'Live streams siphon data off the wall.', 'We traced the destination.',
+    'It resolves INSIDE our own network.', 'HQ says: trace error. Drop it.'] },
+  { title: 'LOG 06 — CREDENTIALS', lines: [
+    'Keyed taps — cut with CURRENT keys.', 'Only clearance opens these locks.',
+    'The leak is not outside the wire.', 'Trust no relay. Not even ours.'] },
+  { title: 'LOG 07 — SIGNATURE', lines: [
+    'Every tap signature matches', 'one system: our own security suite.',
+    'The thing hunting this line', 'is the thing built to guard it.'] },
+  { title: 'LOG 08 — THE CULPRIT', lines: [
+    'The Firewall Core has gone rogue.', 'It flags A and B as contamination',
+    'and feeds on their words.', 'Purge it. Burn it out of the line.'] }
+];
+STORY.forEach((st2, i) => { INFO_CARDS['story' + i] = st2; });
+const COMMS = [
+  [{ t: 6, s: 'A', m: 'handshake nominal.' },
+   { t: 16, s: 'B', m: 'copy. channel reads clean.' },
+   { t: 28, s: 'A', m: 'then who else is on this line?' }],
+  [{ t: 6, s: 'HQ', m: 'tap signatures match. one operator.' },
+   { t: 20, s: 'B', m: 'we are being read, aren\'t we.' },
+   { t: 36, s: 'HQ', m: 'keep talking. we are watching the watcher.' }],
+  [{ t: 6, s: 'HQ', m: 'black packets are priority cargo. do not inspect.' },
+   { t: 22, s: 'A', m: 'what is IN them?' },
+   { t: 36, s: 'HQ', m: 'that information is not on this line.' }],
+  [{ t: 6, s: 'B', m: 'your last message never arrived.' },
+   { t: 20, s: 'A', m: 'I sent nothing yesterday.' },
+   { t: 36, s: 'TRACE', m: 'barrier debris contains reassembled payload.' }],
+  [{ t: 6, s: 'TRACE', m: 'exfil endpoint resolving…' },
+   { t: 20, s: 'TRACE', m: 'endpoint is inside our own network.' },
+   { t: 34, s: 'HQ', m: 'log corrupted. disregard the trace.' }],
+  [{ t: 6, s: 'HQ', m: 'rotate all credentials. now.' },
+   { t: 20, s: 'TRACE', m: 'locks cut with keys rotated TODAY.' },
+   { t: 36, s: 'B', m: 'someone with clearance. someone close.' }],
+  [{ t: 6, s: 'TRACE', m: 'signature isolated: FIREWALL CORE.' },
+   { t: 20, s: 'A', m: 'the guard is the thief.' },
+   { t: 36, s: 'HQ', m: '…confirmed. authorizing purge.' }],
+  [{ t: 4, s: 'CORE', m: 'A and B are contaminated. I am the cure.' },
+   { t: 16, s: 'HQ', m: 'burn it out, defender.' }]
+];
+
 function showCard(key) {
   if (key === 'strip' && !progress.stripBriefed) { progress.stripBriefed = true; saveState(); }
   infoCard = key; infoShownAt = time;
@@ -1595,6 +1673,13 @@ function update(dt) {
   fx.auto = Math.max(0, fx.auto - dt);
   fx.chain = Math.max(0, fx.chain - dt);
   tolVis += ((fx.wide > 0 ? 1.36 : 1) - tolVis) * Math.min(1, dt * 6);
+  // intercepted transmissions: the investigation chatters over the line at
+  // scripted times — deterministic levels keep them in sync with the action
+  if (!endless && !qual && !tut && levelIdx >= 0 && !boss) {
+    const cl = COMMS[levelIdx] || [];
+    if (commNext < cl.length && levelT >= cl[commNext].t) { commCur = cl[commNext++]; commT = 0; }
+  }
+  if (commCur) { commT += dt; if (commT > 6) commCur = null; }
   let sdt = dt;
   if (hitStop > 0) { hitStop = Math.max(0, hitStop - dt); sdt *= 0.12; }
   if (!tut && !inIntro) levelT += sdt;
@@ -3484,6 +3569,31 @@ function drawHUD(g) {
     });
   }
 
+  // intercepted transmission ticker — voices on the line you're guarding
+  if (commCur && state === S.PLAY) {
+    const SPK = { A: '111,227,255', B: '235,245,255', HQ: '255,210,74', TRACE: '126,226,98', CORE: '212,101,255' };
+    const label = '\u00bb ' + commCur.s + ':';
+    const chars = Math.floor(commT * 38);
+    const txt = commCur.m.slice(0, chars);
+    const fade = commT < 0.2 ? commT / 0.2 : clamp((6 - commT) / 0.8, 0, 1);
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, fade);
+    ctx.font = '700 10px Audiowide, system-ui';
+    const lw2 = ctx.measureText(label).width;
+    ctx.font = '500 10px Audiowide, system-ui';
+    const tw2 = ctx.measureText(commCur.m).width;
+    const x0 = W / 2 - (lw2 + 6 + tw2) / 2;
+    const cy2 = 14 + SAFE.t + 20 + 18; // just under the power-up chip row
+    ctx.textAlign = 'left';
+    ctx.fillStyle = `rgba(${SPK[commCur.s] || '160,215,255'},0.95)`;
+    ctx.font = '700 10px Audiowide, system-ui';
+    ctx.fillText(label, x0, cy2);
+    ctx.fillStyle = 'rgba(200,235,255,0.92)';
+    ctx.font = '500 10px Audiowide, system-ui';
+    ctx.fillText(txt + (chars < commCur.m.length ? '\u258c' : ''), x0 + lw2 + 6, cy2);
+    ctx.restore();
+  }
+
   // qualification prompts + guides
   if (tut && tut.stage >= 0) {
     const st = QUAL[tut.stage];
@@ -4166,29 +4276,44 @@ function paintMenuStatic() {
   ctx.fillStyle = 'rgba(180,215,255,0.6)'; ctx.font = '500 11px Audiowide, system-ui';
   ctx.fillText('Guard the payload.', lx + 2, ly - llh + 20);
   ctx.fillText('Zap the data traps.', lx + 2, ly - llh + 35);
-  // tunnel disc — a dark mouth in the center that makes the level keys pop
-  const dg = ctx.createRadialGradient(ccx, ccy, R * 0.2, ccx, ccy, R);
-  dg.addColorStop(0, 'rgba(2,5,12,0.78)');
-  dg.addColorStop(0.85, 'rgba(3,8,18,0.62)');
-  dg.addColorStop(1, 'rgba(4,10,22,0.55)');
-  ctx.beginPath(); ctx.arc(ccx, ccy, R, 0, TAU);
-  ctx.fillStyle = dg; ctx.fill();
-  ctx.strokeStyle = 'rgba(100,190,255,0.14)'; ctx.lineWidth = 1.5; ctx.stroke();
-  // scroll rail track on the disc's right rim (the bright thumb is drawn live)
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(12,30,55,0.9)'; ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.arc(ccx, ccy, R + 9, -0.42 * Math.PI, 0.42 * Math.PI); ctx.stroke();
-  // header
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#f2faff'; ctx.font = '700 17px Audiowide, system-ui';
-  try { ctx.letterSpacing = '1px'; } catch (e) {}
-  ctx.fillText('Select a level', ccx, ccy - R + 34);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  ctx.textAlign = 'left';
+  if (menuScreen === 'map') {
+    // wireframe survey grid behind the relay route — the network from outside
+    ctx.strokeStyle = 'rgba(90,170,255,0.06)'; ctx.lineWidth = 1;
+    for (let gx2 = W * 0.06; gx2 < W * 0.97; gx2 += W * 0.065) {
+      ctx.beginPath(); ctx.moveTo(gx2, H * 0.30); ctx.lineTo(gx2, H * 0.76); ctx.stroke();
+    }
+    for (let gy2 = H * 0.32; gy2 < H * 0.78; gy2 += H * 0.11) {
+      ctx.beginPath(); ctx.moveTo(W * 0.04, gy2); ctx.lineTo(W * 0.96, gy2); ctx.stroke();
+    }
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#f2faff'; ctx.font = '700 15px Audiowide, system-ui';
+    try { ctx.letterSpacing = '2px'; } catch (e) {}
+    ctx.fillText('RELAY ROUTE  A \u21CC B', W / 2, 30 + SAFE.t);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 9px Audiowide, system-ui';
+    ctx.fillText('every packet between them crosses your line', W / 2, 46 + SAFE.t);
+    ctx.textAlign = 'left';
+  } else {
+    // tunnel disc — a dark mouth in the center that makes the mode keys pop
+    const dg = ctx.createRadialGradient(ccx, ccy, R * 0.2, ccx, ccy, R);
+    dg.addColorStop(0, 'rgba(2,5,12,0.78)');
+    dg.addColorStop(0.85, 'rgba(3,8,18,0.62)');
+    dg.addColorStop(1, 'rgba(4,10,22,0.55)');
+    ctx.beginPath(); ctx.arc(ccx, ccy, R, 0, TAU);
+    ctx.fillStyle = dg; ctx.fill();
+    ctx.strokeStyle = 'rgba(100,190,255,0.14)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#f2faff'; ctx.font = '700 17px Audiowide, system-ui';
+    try { ctx.letterSpacing = '1px'; } catch (e) {}
+    ctx.fillText(menuScreen === 'flow' ? 'FREE FLOW' : 'SELECT MODE', ccx, ccy - R + 34);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    ctx.textAlign = 'left';
+  }
 }
-let menuCache = null;
+let menuCache = null, menuCacheScreen = null;
 function buildMenuCache() {
   if (!W || !H) return;
+  menuCacheScreen = menuScreen;
   menuCache = document.createElement('canvas');
   menuCache.width = W * DPR; menuCache.height = H * DPR;
   withCanvas(menuCache, () => {
@@ -4199,7 +4324,7 @@ function buildMenuCache() {
 
 function drawMenu(g) {
   menuButtons = [];
-  if (!menuCache) buildMenuCache();
+  if (!menuCache || menuCacheScreen !== menuScreen) buildMenuCache();
   if (menuCache) ctx.drawImage(menuCache, 0, 0, W, H);
   const { ccx, ccy, R, bw, bh, gap, listY, contentH, viewH, maxScroll } = menuGeom();
 
@@ -4265,76 +4390,88 @@ function drawMenu(g) {
     ctx.fillRect(knobX[i] - 2.5, gy - 3.5, 5, 7);
   }
 
-  // scroll thumb — bright arc segment tracking the list position
-  menuScroll = clamp(menuScroll, 0, maxScroll);
-  const trackA0 = -0.42 * Math.PI, trackA1 = 0.42 * Math.PI;
-  const span = (trackA1 - trackA0) * clamp(viewH / contentH, 0.15, 1);
-  const soff = maxScroll > 0 ? (menuScroll / maxScroll) * ((trackA1 - trackA0) - span) : 0;
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = '#4db6ff'; ctx.lineWidth = 7;
-  ctx.shadowColor = 'rgba(90,200,255,0.8)'; ctx.shadowBlur = lowFX ? 0 : 8;
-  ctx.beginPath(); ctx.arc(ccx, ccy, R + 9, trackA0 + soff, trackA0 + soff + span); ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // scrollable level list inside the disc — drag to scroll, tap to launch
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(ccx - bw / 2 - 30, listY - 4, bw + 60, viewH + 8);
-  ctx.clip();
-  const endlessOpen = progress.stars[LEVELS.length - 1] > 0; // clear the campaign to unlock
-  for (let i = 0; i <= LEVELS.length + 3; i++) {
-    const by = listY + i * (bh + gap) - menuScroll;
-    if (by + bh < listY - 6 || by > listY + viewH + 6) continue;
-    const bx = ccx - bw / 2;
-    if (i === 0) { // training run — always open, highlighted until cleared
-      levelKey(bx, by, bw, bh, 'Q', 'QUALIFICATION', -1, false, !progress.tutorialDone);
-      if (progress.tutorialDone) { // cleared check
-        ctx.strokeStyle = '#7ee262'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(bx + bw - 40, by + bh / 2 + 1);
-        ctx.lineTo(bx + bw - 33, by + bh / 2 + 8);
-        ctx.lineTo(bx + bw - 20, by + bh / 2 - 8);
-        ctx.stroke();
-      }
-      menuButtons.push({ x: bx, y: by, w: bw, h: bh, qual: true, locked: false });
-    } else if (i <= LEVELS.length) {
-      const li = i - 1;
-      const locked = li + 1 > progress.unlocked;
-      levelKey(bx, by, bw, bh, li + 1, LEVELS[li].name, progress.stars[li], locked, li + 1 === progress.unlocked && progress.tutorialDone);
-      if (!locked && (progress.bests[li] || 0) > 0) {
-        ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,210,74,0.75)'; ctx.font = '700 9px Audiowide, system-ui';
-        ctx.fillText('BEST ' + progress.bests[li].toLocaleString(), bx + bw - 14, by + bh - 5);
-        ctx.textAlign = 'left';
-      }
-      menuButtons.push({ x: bx, y: by, w: bw, h: bh, level: li, locked });
-    } else if (i === LEVELS.length + 2) { // one seeded run per day
-      const dailyOpen = progress.unlocked >= 4;
-      levelKey(bx, by, bw, bh, '◈', 'DAILY STREAM', -1, !dailyOpen, false);
-      const D = progress.daily;
-      if (dailyOpen && D && (D.streak || D.best)) {
-        ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 10px Audiowide, system-ui';
-        ctx.fillText((D.streak > 1 ? 'STREAK ' + D.streak + '  ·  ' : '') + 'BEST ' + (D.best || 0).toLocaleString(), bx + bw - 14, by + bh - 8);
-        ctx.textAlign = 'left';
-      }
-      menuButtons.push({ x: bx, y: by, w: bw, h: bh, daily: true, locked: !dailyOpen });
-    } else if (i === LEVELS.length + 3) { // TEMPORARY: BOSS TEST dev key
-      levelKey(bx, by, bw, bh, '⚔', 'BOSS TEST (DEV)', -1, false, false);
-      menuButtons.push({ x: bx, y: by, w: bw, h: bh, bossTest: true, locked: false });
-    } else {
-      levelKey(bx, by, bw, bh, '∞', 'ENDLESS STREAM', -1, !endlessOpen, endlessOpen);
-      if (endlessOpen && progress.best > 0) {
-        ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 10px Audiowide, system-ui';
-        ctx.fillText('BEST ' + progress.best.toLocaleString(), bx + bw - 14, by + bh - 8);
-        ctx.textAlign = 'left';
-      }
-      menuButtons.push({ x: bx, y: by, w: bw, h: bh, endless: true, locked: !endlessOpen });
-    }
+  // back key on sub-screens (left of the fullscreen/gear cluster)
+  menuBackRect = null;
+  menuMutRects = [];
+  if (menuScreen !== 'home') {
+    menuBackRect = { x: W - (menuFsRect ? 142 : 96) - SAFE.r, y: 12 + SAFE.t, w: 38, h: 38 };
+    const bk = menuBackRect;
+    techRect(bk.x, bk.y, bk.w, bk.h, 8);
+    ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(120,220,255,0.55)'; ctx.lineWidth = 1.5;
+    techRect(bk.x, bk.y, bk.w, bk.h, 8); ctx.stroke();
+    ctx.strokeStyle = 'rgba(200,240,255,0.9)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bk.x + 24, bk.y + 11); ctx.lineTo(bk.x + 14, bk.y + 19); ctx.lineTo(bk.x + 24, bk.y + 27);
+    ctx.stroke();
   }
-  ctx.restore();
-  ctx.textAlign = 'left';
+
+  if (menuScreen === 'map') drawMenuMap();
+  else if (menuScreen === 'flow') drawMenuFlow();
+  else drawMenuHome(ccx, ccy, R);
+
+  if (menuSettings) drawMenuSettings();
+}
+
+// mode key + a small caption line beneath it
+function modeKey(bx, by, bw, bh, glyph, name, caption, locked, primary) {
+  levelKey(bx, by, bw, bh, glyph, name, -1, locked, primary);
+  ctx.fillStyle = locked ? 'rgba(160,200,240,0.35)' : 'rgba(140,210,255,0.65)';
+  ctx.font = '500 9px Audiowide, system-ui';
+  ctx.fillText(caption, bx + 42, by + bh + 13);
+}
+
+function drawMenuHome(ccx, ccy, R) {
+  const bw = Math.min(R * 1.5, W * 0.44), bh = 48, step = bh + 24;
+  const bx = ccx - bw / 2;
+  let by = ccy - (step * 3 - 24) / 2 + 12;
+  const campDone = progress.stars[LEVELS.length - 1] > 0;
+  const flowOpen = progress.unlocked >= 4 || campDone;
+  modeKey(bx, by, bw, bh, 'T', 'TUTORIAL', 'qualification run', false, !progress.tutorialDone);
+  if (progress.tutorialDone) { // cleared check
+    ctx.strokeStyle = '#7ee262'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bx + bw - 40, by + bh / 2 + 1);
+    ctx.lineTo(bx + bw - 33, by + bh / 2 + 8);
+    ctx.lineTo(bx + bw - 20, by + bh / 2 - 8);
+    ctx.stroke();
+  }
+  menuButtons.push({ x: bx, y: by, w: bw, h: bh, mode: 'tutorial', locked: false });
+  by += step;
+  modeKey(bx, by, bw, bh, 'C', 'CAMPAIGN', 'the investigation · ' + LEVELS.length + ' relays', false,
+    progress.tutorialDone && !campDone);
+  menuButtons.push({ x: bx, y: by, w: bw, h: bh, mode: 'campaign', locked: false });
+  by += step;
+  modeKey(bx, by, bw, bh, '∞', 'FREE FLOW', flowOpen ? 'endless · daily challenge' : 'reach relay 04 to unlock',
+    !flowOpen, campDone);
+  menuButtons.push({ x: bx, y: by, w: bw, h: bh, mode: 'flow', locked: !flowOpen });
+}
+
+function drawMenuFlow() {
+  const { ccx, ccy, R } = menuGeom();
+  const bw = Math.min(R * 1.5, W * 0.44), bh = 48, step = bh + 26;
+  const bx = ccx - bw / 2;
+  let by = ccy - (step * 2 - 26) / 2 + 10;
+  const endlessOpen = progress.stars[LEVELS.length - 1] > 0;
+  const dailyOpen = progress.unlocked >= 4;
+  modeKey(bx, by, bw, bh, '∞', 'ENDLESS STREAM', endlessOpen ? 'procedural · no mercy' : 'clear the campaign to unlock', !endlessOpen, endlessOpen);
+  if (endlessOpen && progress.best > 0) {
+    ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 10px Audiowide, system-ui';
+    ctx.fillText('BEST ' + progress.best.toLocaleString(), bx + bw - 14, by + bh - 8);
+    ctx.textAlign = 'left';
+  }
+  menuButtons.push({ x: bx, y: by, w: bw, h: bh, endless: true, locked: !endlessOpen });
+  by += step;
+  modeKey(bx, by, bw, bh, '◈', 'DAILY STREAM', dailyOpen ? 'one seeded run per day' : 'reach relay 04 to unlock', !dailyOpen, false);
+  const D = progress.daily;
+  if (dailyOpen && D && (D.streak || D.best)) {
+    ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 10px Audiowide, system-ui';
+    ctx.fillText((D.streak > 1 ? 'STREAK ' + D.streak + '  ·  ' : '') + 'BEST ' + (D.best || 0).toLocaleString(), bx + bw - 14, by + bh - 8);
+    ctx.textAlign = 'left';
+  }
+  menuButtons.push({ x: bx, y: by, w: bw, h: bh, daily: true, locked: !dailyOpen });
 
   // score modifiers — the campaign reward for players chasing numbers
-  menuMutRects = [];
   if (progress.stars[LEVELS.length - 1] > 0) {
     const MUTS = [['oneLife', '1 LIFE', '×2'], ['fast', 'FAST STREAM', '×1.5'], ['noPickups', 'NO PICKUPS', '×1.3']];
     let my2 = H * 0.56;
@@ -4368,8 +4505,162 @@ function drawMenu(g) {
       ctx.fillText('SCORE ×' + (Math.round(mm2 * 100) / 100), 26 + SAFE.l, my2 + 12);
     }
   }
+}
 
-  if (menuSettings) drawMenuSettings();
+// ---------- campaign route map ----------
+// the relays between endpoint A and endpoint B — a wireframe survey of the
+// line you defend. Cleared hops glow, the frontier pulses, the deep route
+// stays encrypted until you earn it.
+const MAP_POS = [
+  [0.115, 0.66], [0.225, 0.48], [0.335, 0.70], [0.45, 0.46],
+  [0.565, 0.68], [0.675, 0.47], [0.785, 0.69], [0.885, 0.50]
+];
+const MAP_A = [0.048, 0.76], MAP_B = [0.952, 0.40];
+function mapHex(x, y, r) {
+  ctx.beginPath();
+  for (let k = 0; k < 6; k++) {
+    const a = k / 6 * TAU - Math.PI / 2;
+    k ? ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r) : ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+  }
+  ctx.closePath();
+}
+function drawMenuMap() {
+  const frontier = Math.min(progress.unlocked - 1, LEVELS.length - 1);
+  const P = i => i < 0 ? { x: MAP_A[0] * W, y: MAP_A[1] * H }
+    : i >= LEVELS.length ? { x: MAP_B[0] * W, y: MAP_B[1] * H }
+    : { x: MAP_POS[i][0] * W, y: MAP_POS[i][1] * H };
+  // route segments: into node i (last segment runs 7 -> B)
+  ctx.lineCap = 'round';
+  for (let k = -1; k < LEVELS.length; k++) {
+    const p0 = P(k), p1 = P(k + 1);
+    const into = Math.min(k + 1, LEVELS.length - 1); // level the segment leads to
+    const done = k + 1 < LEVELS.length ? progress.stars[into] > 0 : progress.stars[LEVELS.length - 1] > 0;
+    const active = !done && k + 1 <= frontier + (k + 1 === LEVELS.length ? -1 : 0) && k + 1 === frontier;
+    if (done) {
+      ctx.strokeStyle = 'rgba(111,227,255,0.5)'; ctx.lineWidth = 2; ctx.setLineDash([]);
+    } else if (active) {
+      ctx.strokeStyle = 'rgba(255,210,74,0.65)'; ctx.lineWidth = 2;
+      ctx.setLineDash([7, 7]); ctx.lineDashOffset = -time * 24;
+    } else {
+      ctx.strokeStyle = 'rgba(120,180,255,0.14)'; ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 9]); ctx.lineDashOffset = 0;
+    }
+    ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+    ctx.setLineDash([]);
+    if (done) { // data motes riding the secured hop
+      const q = (time * 0.35 + k * 0.37) % 1;
+      ctx.fillStyle = 'rgba(190,240,255,0.8)';
+      ctx.beginPath(); ctx.arc(lerp(p0.x, p1.x, q), lerp(p0.y, p1.y, q), 1.8, 0, TAU); ctx.fill();
+    }
+  }
+  // endpoints
+  for (const [pt, lbl, sub] of [[P(-1), 'A', 'SOURCE'], [P(LEVELS.length), 'B', 'DESTINATION']]) {
+    techRect(pt.x - 13, pt.y - 13, 26, 26, 6);
+    ctx.fillStyle = 'rgba(8,24,46,0.9)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(140,220,255,0.75)'; ctx.lineWidth = 1.5;
+    techRect(pt.x - 13, pt.y - 13, 26, 26, 6); ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#eafaff'; ctx.font = '800 13px Audiowide, system-ui';
+    ctx.fillText(lbl, pt.x, pt.y + 1);
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = 'rgba(140,200,255,0.6)'; ctx.font = '500 7px Audiowide, system-ui';
+    ctx.fillText(sub, pt.x, pt.y + 24);
+    ctx.textAlign = 'left';
+  }
+  // relay nodes
+  const nr = Math.min(W, H) * 0.032;
+  for (let i = 0; i < LEVELS.length; i++) {
+    const pt = P(i);
+    const locked = i + 1 > progress.unlocked;
+    const cleared = progress.stars[i] > 0;
+    const isFrontier = i === frontier && !cleared;
+    const isBoss = !!LEVELS[i].boss;
+    const r = nr * (isBoss ? 1.3 : 1);
+    const col = isBoss ? '212,101,255' : '111,227,255';
+    mapHex(pt.x, pt.y, r);
+    ctx.fillStyle = locked ? 'rgba(10,18,34,0.75)' : cleared ? 'rgba(16,50,72,0.9)' : 'rgba(12,30,55,0.9)';
+    ctx.fill();
+    if (isFrontier) {
+      ctx.strokeStyle = `rgba(255,210,74,${(0.7 + Math.sin(time * 4) * 0.3).toFixed(2)})`;
+      ctx.lineWidth = 2;
+    } else {
+      ctx.strokeStyle = locked ? 'rgba(120,180,255,0.22)' : `rgba(${col},0.8)`;
+      ctx.lineWidth = 1.5;
+    }
+    mapHex(pt.x, pt.y, r); ctx.stroke();
+    if (i === mapSel) { // selection brackets
+      ctx.strokeStyle = 'rgba(240,252,255,0.9)'; ctx.lineWidth = 1.5;
+      mapHex(pt.x, pt.y, r + 5); ctx.stroke();
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = locked ? 'rgba(200,225,255,0.3)' : '#f2faff';
+    ctx.font = '800 ' + Math.round(r * 0.72) + 'px Audiowide, system-ui';
+    ctx.fillText(locked ? '·' : String(i + 1), pt.x, pt.y + 1);
+    ctx.textBaseline = 'alphabetic';
+    if (isBoss) {
+      ctx.fillStyle = locked ? 'rgba(212,101,255,0.35)' : 'rgba(212,101,255,0.85)';
+      ctx.font = '700 7px Audiowide, system-ui';
+      ctx.fillText('CORE', pt.x, pt.y - r - 5);
+    }
+    if (cleared) for (let k = 0; k < 3; k++) star5(pt.x - 12 + k * 12, pt.y + r + 9, 4.5, k < progress.stars[i]);
+    ctx.textAlign = 'left';
+    menuButtons.push({ x: pt.x - 22, y: pt.y - 22, w: 44, h: 44, node: i, locked: false });
+  }
+  drawMapPanel(mapSel, frontier);
+  // TEMPORARY: BOSS TEST dev key
+  const dv = { x: W - 116 - SAFE.r, y: 58 + SAFE.t, w: 96, h: 24 };
+  techRect(dv.x, dv.y, dv.w, dv.h, 6);
+  ctx.fillStyle = 'rgba(6,20,40,0.55)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1;
+  techRect(dv.x, dv.y, dv.w, dv.h, 6); ctx.stroke();
+  ctx.fillStyle = 'rgba(160,200,240,0.7)'; ctx.font = '700 9px Audiowide, system-ui';
+  ctx.fillText('⚔ BOSS (DEV)', dv.x + 9, dv.y + 16);
+  menuButtons.push({ ...dv, bossTest: true, locked: false });
+}
+// relay dossier: name, expected traffic glyphs, run stats, deploy key
+function drawMapPanel(li, frontier) {
+  const L2 = LEVELS[li];
+  const locked = li + 1 > progress.unlocked;
+  const pw = Math.min(W * 0.62, 560), ph = Math.max(80, H * 0.195);
+  const px2 = W / 2 - pw / 2, py2 = H - ph - 8;
+  techRect(px2, py2, pw, ph, 10);
+  ctx.fillStyle = 'rgba(5,14,30,0.82)'; ctx.fill();
+  ctx.strokeStyle = locked ? 'rgba(120,180,255,0.25)' : 'rgba(111,227,255,0.45)'; ctx.lineWidth = 1.5;
+  techRect(px2, py2, pw, ph, 10); ctx.stroke();
+  if (locked) {
+    ctx.fillStyle = 'rgba(220,240,255,0.5)'; ctx.font = '700 13px Audiowide, system-ui';
+    ctx.fillText('ENCRYPTED RELAY 0' + (li + 1), px2 + 18, py2 + 26);
+    ctx.fillStyle = 'rgba(160,200,240,0.45)'; ctx.font = '500 10px Audiowide, system-ui';
+    ctx.fillText('secure the previous relay to decrypt this route', px2 + 18, py2 + 46);
+    padlock(px2 + pw - 34, py2 + ph / 2, 8);
+    return;
+  }
+  ctx.fillStyle = '#f2faff'; ctx.font = '700 13px Audiowide, system-ui';
+  ctx.fillText('0' + (li + 1) + ' · ' + L2.name, px2 + 18, py2 + 24);
+  for (let k = 0; k < 3; k++) star5(px2 + pw - 190 + k * 20, py2 + 19, 7, k < progress.stars[li]);
+  // expected traffic glyph row
+  const kinds = ['normal'];
+  if (L2.heavies) kinds.push('heavy');
+  if (L2.lines) kinds.push('line');
+  if (L2.colors) kinds.push('lock');
+  if (L2.strips) kinds.push('strip');
+  if (L2.frags) kinds.push('frag');
+  if (L2.boss) kinds.push('boss');
+  ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
+  ctx.fillText('EXPECTED TRAFFIC', px2 + 18, py2 + 38);
+  kinds.forEach((k, ki) => drawInfoGlyph(k, px2 + 30 + ki * 34, py2 + ph - 22, 9));
+  // run stats
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(160,215,255,0.8)'; ctx.font = '600 9px Audiowide, system-ui';
+  const stats = (L2.boss ? 'CORE DUEL · ' : '') + 'RUN ' + L2.duration + 's · TRAFFIC ' + Math.round(L2.speed * 100) +
+    ((progress.bests[li] || 0) > 0 ? ' · BEST ' + progress.bests[li].toLocaleString() : '');
+  ctx.fillText(stats, px2 + pw - 158, py2 + ph - 12);
+  ctx.textAlign = 'left';
+  // deploy key
+  const dw = 128, dh = 36;
+  const dx2 = px2 + pw - dw - 14, dy2 = py2 + ph / 2 - dh / 2;
+  levelKey(dx2, dy2, dw, dh, '▶', 'DEPLOY', -1, false, li === frontier);
+  menuButtons.push({ x: dx2, y: dy2, w: dw, h: dh, deploy: li, locked: false });
 }
 
 // audio config overlay on the main menu — same controls as the pause panel
