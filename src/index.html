@@ -4551,49 +4551,154 @@ function drawMenuFlow() {
 // the ring becomes a LENS over an isometric wireframe city — the network's
 // physical geography. The relay list rides the left column, the dossier the
 // right, and selecting a relay glides the lens along the route.
-let cityCanvas = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true;
+let cityBase = null, cityTop = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true;
 const mapR = () => Math.min(H * 0.42, W * 0.24); // the lens: smaller than the mode disc
 const CITY_W = 1600, CITY_H = 980;
-// relay positions in CITY coordinates, serpentine west -> east
-const RELAY_W = [
-  [250, 640], [390, 460], [540, 660], [700, 440],
-  [860, 640], [1020, 430], [1180, 620], [1330, 450]
-];
-const CITY_A = [140, 720], CITY_B = [1460, 360];
+let RELAY_W = [], ROUTE_SEGS = []; // filled by buildCity — relays sit ON cable junctions
+const CITY_A = [], CITY_B = [];
+// harbor: a wavy water band across the sheet — the skyline crowds its north bank
+const harborY = x => CITY_H * 0.60 + Math.sin(x * 0.004) * 34;
+const HARBOR_H = 64;
+// two offscreen layers: BASE (streets, harbor, the buried cable grid) and TOP
+// (the building wireframe). The live route draws between them, so the data
+// infrastructure reads as underground — ghosting through translucent faces.
 function buildCity() {
-  cityCanvas = document.createElement('canvas');
-  cityCanvas.width = CITY_W; cityCanvas.height = CITY_H;
   const rng = mulberry32(0xC17C0DE);
-  withCanvas(cityCanvas, () => {
+  const HW = 26, HH = 13;
+  // street bands in the two iso families (slope ±0.5). value v: line y = ±0.5x + 13v
+  const mkBands = (lo, hi) => {
+    const out = [];
+    let v = lo + 2 + rng() * 4;
+    while (v < hi) { out.push({ v: Math.round(v), major: rng() < 0.35 }); v += 5 + rng() * 6; }
+    return out;
+  };
+  const bands1 = mkBands(-60, 74);  // v1 = r - 2c family (slope +0.5)
+  const bands2 = mkBands(2, 138);   // v2 = r + 2c family (slope -0.5)
+  const trunks1 = bands1.filter(b => b.major), trunks2 = bands2.filter(b => b.major);
+  const jxy = (a, b) => ({ x: 13 * (b - a), y: 6.5 * (a + b) }); // trunk junction -> px
+  // pick 10 route anchors (A, relays 1-8, B) on trunk junctions, west -> east,
+  // serpentining north/south and staying out of the water
+  const junc = [];
+  for (const t1 of trunks1) for (const t2 of trunks2) {
+    const p2 = jxy(t1.v, t2.v);
+    if (p2.x < 70 || p2.x > CITY_W - 70 || p2.y < 90 || p2.y > CITY_H - 70) continue;
+    const hy = harborY(p2.x);
+    if (p2.y > hy - 26 && p2.y < hy + HARBOR_H + 26) continue;
+    junc.push({ a: t1.v, b: t2.v, x: p2.x, y: p2.y });
+  }
+  junc.sort((j1, j2) => j1.x - j2.x);
+  const anchors = [];
+  for (let i = 0; i < 10; i++) {
+    const g0 = Math.floor(i / 10 * junc.length), g1 = Math.floor((i + 1) / 10 * junc.length);
+    const slice = junc.slice(g0, Math.max(g0 + 1, g1));
+    slice.sort((j1, j2) => j1.y - j2.y);
+    // serpentine: alternate between the north and south of each column
+    const pick = i % 2 === 0 ? slice[Math.floor(rng() * Math.min(3, slice.length))]
+      : slice[slice.length - 1 - Math.floor(rng() * Math.min(3, slice.length))];
+    anchors.push(pick);
+  }
+  CITY_A.length = 0; CITY_A.push(anchors[0].x, anchors[0].y);
+  CITY_B.length = 0; CITY_B.push(anchors[9].x, anchors[9].y);
+  RELAY_W = anchors.slice(1, 9).map(j => [j.x, j.y]);
+  // route legs ride the trunks: constant-a legs follow family 1, constant-b
+  // family 2 — an L (or Z, via a neighbour trunk) between every pair of anchors
+  ROUTE_SEGS = [];
+  for (let k = 0; k < 9; k++) {
+    const A2 = anchors[k], B2 = anchors[k + 1];
+    const pts2 = [{ x: A2.x, y: A2.y }];
+    if (rng() < 0.45 && trunks1.length > 2) { // Z: detour via an intermediate trunk
+      const mid = trunks1[Math.floor(rng() * trunks1.length)].v;
+      pts2.push(jxy(mid, A2.b), jxy(mid, B2.b));
+    } else {
+      pts2.push(rng() < 0.5 ? jxy(A2.a, B2.b) : jxy(B2.a, A2.b));
+    }
+    pts2.push({ x: B2.x, y: B2.y });
+    ROUTE_SEGS.push(pts2);
+  }
+
+  // ---------- BASE: ground, streets, harbor, cable grid ----------
+  cityBase = document.createElement('canvas');
+  cityBase.width = CITY_W; cityBase.height = CITY_H;
+  withCanvas(cityBase, () => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, CITY_W, CITY_H);
-    const HW = 26, HH = 13; // iso half-tile
-    // ground lattice: two families of diagonals covering the WHOLE sheet, so
-    // the lens never pans onto void
-    ctx.lineWidth = 1;
-    let li2 = 0;
+    ctx.lineCap = 'butt';
+    // whisper-faint tile lattice for texture
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(70,140,220,0.035)';
     for (let k = -CITY_W * 0.5; k < CITY_H; k += HH * 2) {
-      ctx.strokeStyle = (li2++ % 6 === 0) ? 'rgba(90,180,255,0.16)' : 'rgba(70,140,220,0.07)';
       ctx.beginPath(); ctx.moveTo(0, k); ctx.lineTo(CITY_W, k + CITY_W * 0.5); ctx.stroke();
     }
-    li2 = 0;
     for (let k = 0; k < CITY_H + CITY_W * 0.5; k += HH * 2) {
-      ctx.strokeStyle = (li2++ % 6 === 0) ? 'rgba(90,180,255,0.16)' : 'rgba(70,140,220,0.07)';
       ctx.beginPath(); ctx.moveTo(0, k); ctx.lineTo(CITY_W, k - CITY_W * 0.5); ctx.stroke();
     }
-    // wireframe blocks, painter-ordered back to front (by gx+gy)
-    const box = (x, y, h, a) => {
-      const N = { x, y: y - HH }, E = { x: x + HW, y }, S2 = { x, y: y + HH }, W2 = { x: x - HW, y };
-      const t = dy => ({ N: { x: N.x, y: N.y - dy }, E: { x: E.x, y: E.y - dy }, S: { x: S2.x, y: S2.y - dy }, W: { x: W2.x, y: W2.y - dy } });
-      const T = t(h);
-      // faces first (dark translucent, occludes wireframes behind)
-      ctx.fillStyle = 'rgba(5,13,28,0.85)';
+    // streets: minor thin, major avenues doubled
+    const street = (v, slope, major) => {
+      ctx.strokeStyle = major ? 'rgba(100,185,255,0.22)' : 'rgba(85,160,235,0.10)';
+      ctx.lineWidth = 1;
+      for (const off of major ? [-2, 2] : [0]) {
+        ctx.beginPath(); ctx.moveTo(0, 13 * v + off); ctx.lineTo(CITY_W, 13 * v + off + slope * CITY_W); ctx.stroke();
+      }
+    };
+    for (const b of bands1) street(b.v, 0.5, b.major);
+    for (const b of bands2) street(b.v, -0.5, b.major);
+    // harbor: dark water band + ripple lines
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(0, harborY(0));
+    for (let x2 = 0; x2 <= CITY_W; x2 += 32) ctx.lineTo(x2, harborY(x2));
+    for (let x2 = CITY_W; x2 >= 0; x2 -= 32) ctx.lineTo(x2, harborY(x2) + HARBOR_H);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(4,16,36,0.85)'; ctx.fill();
+    ctx.clip();
+    for (let r2 = 0; r2 < 4; r2++) {
+      ctx.strokeStyle = `rgba(90,180,255,${(0.10 + r2 * 0.02).toFixed(2)})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x2 = 0; x2 <= CITY_W; x2 += 26) {
+        const yy = harborY(x2) + 12 + r2 * 14 + Math.sin(x2 * 0.02 + r2 * 2.2) * 3;
+        x2 ? ctx.lineTo(x2, yy) : ctx.moveTo(x2, yy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    // the data grid: optic cable trunks buried under the avenues — teal, with
+    // junction vaults where trunks cross
+    const cable = (v, slope) => {
+      ctx.strokeStyle = 'rgba(80,230,200,0.17)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([10, 5]);
+      ctx.beginPath(); ctx.moveTo(0, 13 * v); ctx.lineTo(CITY_W, 13 * v + slope * CITY_W); ctx.stroke();
+      ctx.setLineDash([]);
+    };
+    for (const t of trunks1) cable(t.v, 0.5);
+    for (const t of trunks2) cable(t.v, -0.5);
+    ctx.strokeStyle = 'rgba(80,230,200,0.4)'; ctx.lineWidth = 1;
+    for (const j of junc) {
+      ctx.beginPath();
+      ctx.moveTo(j.x, j.y - 4); ctx.lineTo(j.x + 4, j.y); ctx.lineTo(j.x, j.y + 4); ctx.lineTo(j.x - 4, j.y);
+      ctx.closePath(); ctx.stroke();
+    }
+  });
+
+  // ---------- TOP: the building wireframe ----------
+  cityTop = document.createElement('canvas');
+  cityTop.width = CITY_W; cityTop.height = CITY_H;
+  withCanvas(cityTop, () => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, CITY_W, CITY_H);
+    // wMul widens the footprint (slab blocks), lift stacks a tower on a podium
+    const box = (x, y, h, a, wMul, lift) => {
+      wMul = wMul || 1; lift = lift || 0;
+      const hw = HW * wMul, hh = HH * wMul;
+      const y0 = y - lift;
+      const N = { x, y: y0 - hh }, E = { x: x + hw, y: y0 }, S2 = { x, y: y0 + hh }, W2 = { x: x - hw, y: y0 };
+      const T = { N: { x: N.x, y: N.y - h }, E: { x: E.x, y: E.y - h }, S: { x: S2.x, y: S2.y - h }, W: { x: W2.x, y: W2.y - h } };
+      ctx.fillStyle = 'rgba(5,13,28,0.82)';
       ctx.beginPath(); ctx.moveTo(W2.x, W2.y); ctx.lineTo(S2.x, S2.y); ctx.lineTo(T.S.x, T.S.y); ctx.lineTo(T.W.x, T.W.y); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = 'rgba(8,20,42,0.85)';
+      ctx.fillStyle = 'rgba(8,20,42,0.82)';
       ctx.beginPath(); ctx.moveTo(S2.x, S2.y); ctx.lineTo(E.x, E.y); ctx.lineTo(T.E.x, T.E.y); ctx.lineTo(T.S.x, T.S.y); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = 'rgba(10,26,52,0.9)';
+      ctx.fillStyle = 'rgba(10,26,52,0.88)';
       ctx.beginPath(); ctx.moveTo(T.N.x, T.N.y); ctx.lineTo(T.E.x, T.E.y); ctx.lineTo(T.S.x, T.S.y); ctx.lineTo(T.W.x, T.W.y); ctx.closePath(); ctx.fill();
-      // edges
       ctx.strokeStyle = `rgba(110,195,255,${a.toFixed(2)})`;
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -4602,27 +4707,96 @@ function buildCity() {
       ctx.moveTo(S2.x, S2.y); ctx.lineTo(T.S.x, T.S.y);
       ctx.moveTo(E.x, E.y); ctx.lineTo(T.E.x, T.E.y);
       ctx.stroke();
-      // a couple of lit windows on the tall ones
-      if (h > 30 && rng() < 0.7) {
-        ctx.fillStyle = 'rgba(150,225,255,0.5)';
-        for (let w3 = 0; w3 < 3; w3++) {
-          ctx.fillRect(x + (rng() - 0.5) * HW, y - rng() * h, 1.6, 1.6);
-        }
-      }
     };
-    // staggered block rows fill the rectangle, painter-ordered top to bottom
+    const streetAt = (r2, c2) => {
+      const v1 = r2 - 2 * c2, v2 = r2 + 2 * c2;
+      return bands1.some(b => Math.abs(v1 - b.v) < (b.major ? 2 : 1)) ||
+             bands2.some(b => Math.abs(v2 - b.v) < (b.major ? 2 : 1));
+    };
     const rows2 = Math.ceil(CITY_H / HH) + 2, cols2 = Math.ceil(CITY_W / (HW * 2)) + 2;
+    const skip = new Set();
     for (let r2 = 0; r2 < rows2; r2++) {
       for (let c2 = 0; c2 < cols2; c2++) {
+        if (skip.has(r2 * 1000 + c2)) continue;
         const bx2 = c2 * HW * 2 + (r2 % 2) * HW, by2 = r2 * HH;
-        if ((r2 + c2 * 2) % 9 < 2) continue;  // avenue bands stay open
-        if (rng() < 0.55) continue;           // plazas / empty lots
-        const spire = rng() < 0.035;
-        const h = spire ? 60 + rng() * 55 : 6 + rng() * rng() * 42;
-        box(bx2, by2, h, spire ? 0.55 : 0.16 + rng() * 0.22);
+        const hy = harborY(bx2);
+        if (by2 > hy - 10 && by2 < hy + HARBOR_H + 14) continue; // water
+        if (streetAt(r2, c2)) continue;                          // roads stay open
+        // districts, Hong Kong style: a dense CBD skyline crowds the waterfront's
+        // north bank; the rest falls off through slab housing to low sprawl
+        const dWater = hy - by2; // >0: north of the harbor
+        const cbd = dWater > 0 && dWater < 170;
+        const zone = (Math.sin(bx2 * 0.006) + Math.sin(by2 * 0.009)) * 0.5; // slow district noise
+        let prof;
+        if (cbd) prof = 'cbd';
+        else if (zone > 0.35) prof = 'dense';
+        else if (zone < -0.5) prof = 'park';
+        else prof = zone > -0.1 ? 'mid' : 'low';
+        if (prof === 'cbd') {
+          if (rng() < 0.3) continue;
+          const spire = rng() < 0.22;
+          const h = spire ? 78 + rng() * 55 : 38 + rng() * rng() * 60;
+          if (rng() < 0.3) { // podium + tower
+            box(bx2, by2, 14, 0.3, 1.4);
+            box(bx2, by2, h, spire ? 0.6 : 0.38, 0.7, 14 + HH * 0.4);
+          } else box(bx2, by2, h, spire ? 0.6 : 0.3 + rng() * 0.2);
+          if (h > 78) { // antenna + beacon
+            ctx.strokeStyle = 'rgba(150,225,255,0.7)'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(bx2, by2 - HH - h); ctx.lineTo(bx2, by2 - HH - h - 12); ctx.stroke();
+            ctx.fillStyle = 'rgba(255,120,140,0.9)';
+            ctx.fillRect(bx2 - 1, by2 - HH - h - 14, 2, 2);
+          }
+        } else if (prof === 'dense') {
+          if (rng() < 0.28) continue;
+          if (rng() < 0.35 && c2 + 1 < cols2) { // HK residential slab, two tiles wide
+            skip.add(r2 * 1000 + c2 + 1);
+            box(bx2 + HW, by2, 22 + rng() * 26, 0.3, 1.7);
+          } else box(bx2, by2, 18 + rng() * 24, 0.2 + rng() * 0.15);
+        } else if (prof === 'mid') {
+          if (rng() < 0.42) continue;
+          box(bx2, by2, 10 + rng() * 22, 0.16 + rng() * 0.16);
+        } else if (prof === 'low') {
+          if (rng() < 0.55) continue;
+          box(bx2, by2, 4 + rng() * 10, 0.12 + rng() * 0.12);
+        } else { // park: open ground, a few groves
+          if (rng() < 0.88) continue;
+          ctx.strokeStyle = 'rgba(90,200,170,0.25)'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(bx2, by2, 3 + rng() * 3, 0, TAU); ctx.stroke();
+        }
+        // lit windows on anything with height
+        if (rng() < 0.35) {
+          ctx.fillStyle = 'rgba(150,225,255,0.45)';
+          for (let w3 = 0; w3 < 2; w3++) ctx.fillRect(bx2 + (rng() - 0.5) * HW, by2 - rng() * 30, 1.5, 1.5);
+        }
       }
     }
   });
+}
+function relayW(i) {
+  if (!RELAY_W.length) buildCity();
+  const p2 = i < 0 ? CITY_A : i >= LEVELS.length ? CITY_B : RELAY_W[i];
+  return { x: p2[0], y: p2[1] };
+}
+// point at parameter t (0..1) along a polyline
+function polyAt(pts2, t) {
+  let tot = 0;
+  for (let i = 1; i < pts2.length; i++) tot += Math.hypot(pts2[i].x - pts2[i - 1].x, pts2[i].y - pts2[i - 1].y);
+  let d = t * tot;
+  for (let i = 1; i < pts2.length; i++) {
+    const seg = Math.hypot(pts2[i].x - pts2[i - 1].x, pts2[i].y - pts2[i - 1].y);
+    if (d <= seg || i === pts2.length - 1) {
+      const q = seg > 0 ? d / seg : 0;
+      return { x: lerp(pts2[i - 1].x, pts2[i].x, q), y: lerp(pts2[i - 1].y, pts2[i].y, q) };
+    }
+    d -= seg;
+  }
+  return pts2[pts2.length - 1];
+}
+// the lens centers on the middle of the selected relay's incoming cable run
+function mapTarget(li) {
+  if (!RELAY_W.length) buildCity();
+  const mid = polyAt(ROUTE_SEGS[li], 0.5), p1 = relayW(li);
+  return { x: lerp(mid.x, p1.x, 0.4), y: lerp(mid.y, p1.y, 0.4) };
 }
 function mapHex(x, y, r) {
   ctx.beginPath();
@@ -4632,19 +4806,10 @@ function mapHex(x, y, r) {
   }
   ctx.closePath();
 }
-function relayW(i) {
-  const p2 = i < 0 ? CITY_A : i >= LEVELS.length ? CITY_B : RELAY_W[i];
-  return { x: p2[0], y: p2[1] };
-}
-// the lens centers on the incoming hop of the selected relay
-function mapTarget(li) {
-  const p0 = relayW(li - 1), p1 = relayW(li);
-  return { x: lerp((p0.x + p1.x) / 2, p1.x, 0.35), y: lerp((p0.y + p1.y) / 2, p1.y, 0.35) };
-}
 function drawMenuMap() {
   const { ccx, ccy } = menuGeom();
   const R = mapR();
-  if (!cityCanvas) buildCity();
+  if (!cityBase) buildCity();
   const frontier = Math.min(progress.unlocked - 1, LEVELS.length - 1);
   // camera: glide toward the selected relay's hop (snap on entry)
   const tgt = mapTarget(mapSel);
@@ -4659,24 +4824,50 @@ function drawMenuMap() {
   // ---- inside the lens ----
   ctx.save();
   ctx.beginPath(); ctx.arc(ccx, ccy, R - 5, 0, TAU); ctx.clip();
-  ctx.drawImage(cityCanvas, ccx - mapCamX, ccy - mapCamY);
-  // route over the city
+  // LAYER 1: streets, harbor, buried cable grid
+  ctx.drawImage(cityBase, ccx - mapCamX, ccy - mapCamY);
+  // LAYER 2: the route — cable runs riding the trunk grid, state-lit
   ctx.lineCap = 'round';
-  for (let k = -1; k < LEVELS.length; k++) {
-    const p0 = relayW(k), p1 = relayW(k + 1);
-    const into = Math.min(k + 1, LEVELS.length - 1);
-    const done = k + 1 < LEVELS.length ? progress.stars[into] > 0 : progress.stars[LEVELS.length - 1] > 0;
-    const active = !done && k + 1 === frontier;
-    if (done) { ctx.strokeStyle = 'rgba(111,227,255,0.6)'; ctx.lineWidth = 2.5; ctx.setLineDash([]); }
-    else if (active) { ctx.strokeStyle = 'rgba(255,210,74,0.75)'; ctx.lineWidth = 2.5; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -time * 26; }
-    else { ctx.strokeStyle = 'rgba(120,180,255,0.18)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 10]); ctx.lineDashOffset = 0; }
-    ctx.beginPath(); ctx.moveTo(wx(p0), wy(p0)); ctx.lineTo(wx(p1), wy(p1)); ctx.stroke();
-    ctx.setLineDash([]);
-    if (done) {
-      const q = (time * 0.35 + k * 0.37) % 1;
-      ctx.fillStyle = 'rgba(190,240,255,0.9)';
-      ctx.beginPath(); ctx.arc(lerp(wx(p0), wx(p1), q), lerp(wy(p0), wy(p1), q), 2, 0, TAU); ctx.fill();
+  for (let k = 0; k < ROUTE_SEGS.length; k++) {
+    const pts2 = ROUTE_SEGS[k];
+    const into = Math.min(k, LEVELS.length - 1);
+    const done = k < LEVELS.length ? progress.stars[into] > 0 : progress.stars[LEVELS.length - 1] > 0;
+    const active = !done && k === frontier;
+    const trace = () => {
+      ctx.beginPath();
+      pts2.forEach((p2, pi) => pi ? ctx.lineTo(wx(p2), wy(p2)) : ctx.moveTo(wx(p2), wy(p2)));
+      ctx.stroke();
+    };
+    if (k === mapSel) { // the selected run glows under everything above it
+      ctx.strokeStyle = 'rgba(120,255,225,0.20)'; ctx.lineWidth = 8; ctx.setLineDash([]);
+      trace();
     }
+    if (done) { ctx.strokeStyle = 'rgba(111,227,255,0.65)'; ctx.lineWidth = 2.5; ctx.setLineDash([]); }
+    else if (active) { ctx.strokeStyle = 'rgba(255,210,74,0.8)'; ctx.lineWidth = 2.5; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -time * 26; }
+    else { ctx.strokeStyle = 'rgba(90,230,200,0.22)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 10]); ctx.lineDashOffset = 0; }
+    trace();
+    ctx.setLineDash([]);
+    if (done || k === mapSel) { // packets riding the lit cable
+      const q = (time * 0.3 + k * 0.37) % 1;
+      const mp = polyAt(pts2, q);
+      ctx.fillStyle = done ? 'rgba(190,240,255,0.9)' : 'rgba(140,255,230,0.9)';
+      ctx.beginPath(); ctx.arc(wx(mp), wy(mp), 2, 0, TAU); ctx.fill();
+    }
+  }
+  // LAYER 3: the city wireframe above — the cables read as underground
+  ctx.drawImage(cityTop, ccx - mapCamX, ccy - mapCamY);
+  // x-ray trace: the selected and frontier runs stay faintly readable through
+  // the blocks above them
+  for (let k = 0; k < ROUTE_SEGS.length; k++) {
+    if (k !== mapSel && k !== frontier) continue;
+    const done = k < LEVELS.length ? progress.stars[Math.min(k, LEVELS.length - 1)] > 0 : progress.stars[LEVELS.length - 1] > 0;
+    ctx.strokeStyle = done ? 'rgba(111,227,255,0.22)' : k === frontier ? 'rgba(255,210,74,0.22)' : 'rgba(120,255,225,0.2)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ROUTE_SEGS[k].forEach((p2, pi) => pi ? ctx.lineTo(wx(p2), wy(p2)) : ctx.moveTo(wx(p2), wy(p2)));
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
   // endpoints
   for (const [pt, lbl, sub] of [[relayW(-1), 'A', 'SOURCE'], [relayW(LEVELS.length), 'B', 'DESTINATION']]) {
