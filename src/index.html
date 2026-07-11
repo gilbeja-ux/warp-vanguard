@@ -1923,11 +1923,11 @@ function drawRangeRings(g) {
     const mul = en.sizeMul || 1;
     const rr = ring(Math.max(en.z - 0.055 * mul, 0.02), g).r;
     const a0 = en.type === 'strip' ? stripAngle(en, 0) : en.angle;
-    ctx.lineWidth = Math.max(0.8, rr / g.nodeR * 1.5);
+    ctx.lineWidth = Math.max(1.1, rr / g.nodeR * 2.1);
     const segs = 16, span = Math.PI;
     for (let s2 = 0; s2 < segs; s2++) {
       const f0 = s2 / segs, f1 = (s2 + 1) / segs;
-      const al = ri.al * 0.55 * Math.pow(1 - f0, 1.7);
+      const al = ri.al * 0.8 * Math.pow(1 - f0, 1.35);
       if (al <= 0.012) break;
       ctx.strokeStyle = `rgba(${ri.glow},${al.toFixed(2)})`;
       ctx.beginPath(); ctx.arc(g.cx, g.cy, rr, a0 + f0 * span, a0 + f1 * span); ctx.stroke();
