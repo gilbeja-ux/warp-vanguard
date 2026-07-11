@@ -1911,7 +1911,8 @@ function rangeInfo(en, g) {
 }
 
 function drawRangeRings(g) {
-  // each hostile projects its own depth ring onto the tunnel — under the bodies
+  // each hostile projects a depth line onto the tunnel at its front edge —
+  // brightest at the body, fading as it wraps around the bore
   if (state !== S.PLAY && state !== S.PAUSE && state !== S.INFO) return;
   if (boss && boss.mergeT >= 1) return; // the duel has its own instrumentation
   ctx.save();
@@ -1919,13 +1920,20 @@ function drawRangeRings(g) {
   for (const en of enemies) {
     const ri = rangeInfo(en, g);
     if (!ri) continue;
-    ctx.strokeStyle = `rgba(${ri.glow},${(ri.al * 0.3).toFixed(2)})`;
-    ctx.lineWidth = Math.max(0.7, ri.rr.r / g.nodeR * 1.2);
-    ctx.setLineDash([ri.rr.r * 0.045, ri.rr.r * 0.085]);
-    ctx.lineDashOffset = time * 7 + en.angle * 40; // each ring drifts on its own phase
-    ctx.beginPath(); ctx.arc(g.cx, g.cy, ri.rr.r, 0, TAU); ctx.stroke();
+    const mul = en.sizeMul || 1;
+    const rr = ring(Math.max(en.z - 0.055 * mul, 0.02), g).r;
+    const a0 = en.type === 'strip' ? stripAngle(en, 0) : en.angle;
+    ctx.lineWidth = Math.max(0.8, rr / g.nodeR * 1.5);
+    const segs = 16, span = Math.PI;
+    for (let s2 = 0; s2 < segs; s2++) {
+      const f0 = s2 / segs, f1 = (s2 + 1) / segs;
+      const al = ri.al * 0.55 * Math.pow(1 - f0, 1.7);
+      if (al <= 0.012) break;
+      ctx.strokeStyle = `rgba(${ri.glow},${al.toFixed(2)})`;
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, rr, a0 + f0 * span, a0 + f1 * span); ctx.stroke();
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, rr, a0 - f1 * span, a0 - f0 * span); ctx.stroke();
+    }
   }
-  ctx.setLineDash([]);
   ctx.restore();
 }
 
@@ -1939,9 +1947,19 @@ function drawRangeTimers(g) {
     const ri = rangeInfo(en, g);
     if (!ri) continue;
     const fs = clamp(ri.rr.r * 0.062, 7, 12);
-    const size = Math.min(W, H) * 0.06 * clamp(ri.rr.r / g.nodeR, 0.1, 2) * (en.sizeMul || 1);
-    const la = en.angle + (size * 1.5 + fs * 1.5) / Math.max(ri.rr.r, 1); // beside the body, along its ring
-    const lx = g.cx + Math.cos(la) * ri.rr.r, ly = g.cy + Math.sin(la) * ri.rr.r;
+    const mul = en.sizeMul || 1;
+    const a0 = en.type === 'strip' ? stripAngle(en, 0) : en.angle;
+    const x = g.cx + Math.cos(a0) * ri.rr.r, y = g.cy + Math.sin(a0) * ri.rr.r;
+    let lx, ly;
+    if (en.type === 'strip') { // ribbons have no needle — tag floats just off the head
+      lx = x + (g.cx - x) / (ri.rr.r || 1) * fs * 2.2;
+      ly = y + (g.cy - y) / (ri.rr.r || 1) * fs * 2.2;
+    } else { // cap the probe needle's tip
+      const S2 = Math.min(W, H) * 0.05 * clamp(ri.rr.r / g.nodeR, 0.06, 2) * mul;
+      const L2 = S2 * (en.type === 'heavy' ? 1.7 : 1.35) + fs * 1.35;
+      lx = x + (g.cx - x) / (ri.rr.r || 1) * L2;
+      ly = y + (g.cy - y) / (ri.rr.r || 1) * L2;
+    }
     ctx.font = `700 ${fs.toFixed(1)}px Audiowide, system-ui`;
     ctx.fillStyle = `rgba(4,8,18,${(ri.al * 0.6).toFixed(2)})`;
     ctx.beginPath(); ctx.arc(lx, ly, fs * 1.1, 0, TAU); ctx.fill();
