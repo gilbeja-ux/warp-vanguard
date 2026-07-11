@@ -308,6 +308,30 @@ G.update(0.01);
 check('catching a pickup arms its effect', G.fx.auto > 4);
 G.fx.auto = 0;
 
+// ================= deterministic campaign levels =================
+function recordSpawns(start, n) {
+  start();
+  const seen = [];
+  let guard = 2000;
+  while (seen.length < n && guard-- > 0) {
+    G.setIntegrity(100);
+    G.update(0.05);
+    for (const e of G.enemies()) {
+      if (!e._rec) { e._rec = true; seen.push(e.type + '|' + (e.lock === undefined ? '-' : e.lock) + '|' + e.angle.toFixed(4)); }
+    }
+  }
+  return seen;
+}
+const detA = recordSpawns(() => G.startLevel(1), 12);
+const detB = recordSpawns(() => G.startLevel(1), 12);
+check('campaign level replays the exact same spawn script',
+  detA.length === 12 && detA.join(';') === detB.join(';'));
+const detC = recordSpawns(() => G.startLevel(2), 12);
+check('each level has its own script', detA.join(';') !== detC.join(';'));
+const endA = recordSpawns(() => G.startEndless(), 10);
+const endB = recordSpawns(() => G.startEndless(), 10);
+check('endless stays procedural', endA.join(';') !== endB.join(';'));
+
 // ================= max-combo regeneration =================
 G.startLevel(1);
 G.enemies().length = 0;

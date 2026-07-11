@@ -628,6 +628,13 @@ if (typeof Image !== 'undefined') {
 }
 
 // ---------- enemies ----------
+// The spawn path draws from its OWN random stream. Campaign levels seed it per
+// level, so every level is a fixed, learnable drill that repeats exactly —
+// training for the real thing (endless/daily, which stay procedural).
+let spawnRng = Math.random;
+const srand = (a, b) => a + spawnRng() * (b - a);
+const schance = p => spawnRng() < p;
+const scripted = () => !endless && !qual; // campaign levels replay a fixed script
 // enemy types:
 //   'normal' — any node zaps it
 //   'heavy'  — must be covered by BOTH nodes at the same time
@@ -636,24 +643,30 @@ function spawnEnemy(forcedAngle, type) {
   type = type || 'normal';
   const heavy = type === 'heavy';
   const L = LV || LEVELS[levelIdx];
-  const crawler = type === 'normal' && Math.random() < L.crawlers;
+  const crawler = type === 'normal' && schance(L.crawlers || 0);
   // color-locked traps only answer to one node: 0 = blue (left), 1 = white (right)
-  let lock = type === 'normal' && !crawler && Math.random() < (L.colors || 0)
-    ? (Math.random() < 0.5 ? 0 : 1) : undefined;
+  let lock = type === 'normal' && !crawler && schance(L.colors || 0)
+    ? (schance(0.5) ? 0 : 1) : undefined;
   // fairness: a color whose node is already booked flips, or unlocks entirely
   if (lock !== undefined && !lockAllowed(lock)) lock = lockAllowed(1 - lock) ? 1 - lock : undefined;
   const en = {
-    type, lock, z: SPAWN_Z, angle: forcedAngle !== undefined ? forcedAngle : Math.random() * TAU,
+    type, lock, z: SPAWN_Z, angle: forcedAngle !== undefined ? forcedAngle : spawnRng() * TAU,
     sizeMul: type === 'frag' ? 0.8 : heavy ? 1.6 : 1, speedMul: heavy ? 0.82 : 1,
-    spin: Math.random() * TAU, spinMul: heavy ? 0.45 : 1, age: 0, dead: false, partner: null
+    spin: spawnRng() * TAU, spinMul: heavy ? 0.45 : 1, age: 0, dead: false, partner: null
   };
   enemies.push(en);
+  // book the arrival in the fairness ledger (strips book in spawnStrip with
+  // their length; friendlies never book — parity with the old live-enemy scan)
+  if (type !== 'strip' && type !== 'frag') {
+    const tA = levelT + arrivalAt(SPAWN_Z, en.speedMul);
+    sched.push({ t0: tA, t1: tA, type, lock, needsNode: type !== 'normal' || lock !== undefined });
+  }
   return en;
 }
 // barrier line: two linked traps at the same depth with an energy wall strung between them
 function spawnLine() {
-  const a = Math.random() * TAU;
-  const gap = rand(0.8, 1.5) * (Math.random() < 0.5 ? -1 : 1);
+  const a = spawnRng() * TAU;
+  const gap = srand(0.8, 1.5) * (schance(0.5) ? -1 : 1);
   const e1 = spawnEnemy(a, 'line');
   const e2 = spawnEnemy(a + gap, 'line');
   e1.partner = e2; e2.partner = e1;
@@ -681,55 +694,52 @@ const travelTime = () => (SPAWN_Z - geo().hitZ) / ((LV || LEVELS[levelIdx]).spee
 function arrivalAt(z, speedMul) {
   return (z - geo().hitZ) / ((LV || LEVELS[levelIdx]).speed * (speedMul || 1));
 }
+// the ledger of booked arrivals (sim-time). Gates read the SCHEDULE, not the
+// live enemies — kills don't free a window, so a level's spawn script plays
+// out identically no matter how the player performs
+let sched = [];
 function windowMates(tNew, gap) {
-  const list = [];
-  for (const en of enemies) {
-    if (en.dead || en.resolved || en.tut || en.type === 'frag') continue;
-    if (en.type === 'strip') {
-      if (tNew > arrivalAt(en.z, 1) - gap && tNew < arrivalAt(en.z + en.len, 1) + gap) list.push(en);
-    } else if (Math.abs(arrivalAt(en.z, en.speedMul) - tNew) < gap) {
-      list.push(en);
-    }
-  }
-  return list;
+  const tA = levelT + tNew;
+  return sched.filter(s => tA > s.t0 - gap && tA < s.t1 + gap);
 }
 function spawnAllowed(type) {
   const GAP = 0.55; // seconds of arrival separation that reads as "same moment"
   const tNew = arrivalAt(SPAWN_Z, type === 'heavy' ? 0.82 : 1);
   if (type === 'heavy' || type === 'line') return windowMates(tNew, GAP * 1.5).length === 0;
   if (type === 'strip') {
-    const tEnd = tNew + 0.9 / (LV || LEVELS[levelIdx]).speed;
-    for (const en of enemies) {
-      if (en.dead || en.resolved || en.tut || en.type === 'frag') continue;
-      const needsNode = en.type !== 'normal' || en.lock !== undefined;
-      const t0 = arrivalAt(en.z, en.speedMul);
-      const t1 = en.type === 'strip' ? arrivalAt(en.z + en.len, 1) : t0;
-      if (needsNode && t1 > tNew - GAP && t0 < tEnd + GAP) return false;
+    const tA0 = levelT + tNew;
+    const tA1 = tA0 + 0.9 / (LV || LEVELS[levelIdx]).speed;
+    for (const s of sched) {
+      if (s.needsNode && s.t1 > tA0 - GAP && s.t0 < tA1 + GAP) return false;
     }
     return windowMates(tNew, GAP).length <= 1;
   }
   if (type === 'frag') return windowMates(tNew, 0.4).length === 0;
   // plain trap (may become a lock — see lockAllowed)
   const mates = windowMates(tNew, GAP);
-  if (mates.some(en => en.type === 'heavy' || en.type === 'line')) return false;
-  const strips = mates.filter(en => en.type === 'strip').length;
+  if (mates.some(s => s.type === 'heavy' || s.type === 'line')) return false;
+  const strips = mates.filter(s => s.type === 'strip').length;
   return mates.length - strips < (strips ? 1 : 2); // a strip leaves only one free node
 }
 // a color lock may only spawn if its node isn't already booked in the window
 function lockAllowed(lock) {
   const mates = windowMates(arrivalAt(SPAWN_Z, 1), 0.55);
-  if (mates.some(en => en.type === 'strip')) return false; // the tracing node is unknowable
-  return !mates.some(en => en.lock === lock);
+  if (mates.some(s => s.type === 'strip')) return false; // the tracing node is unknowable
+  return !mates.some(s => s.lock === lock);
 }
 function trySpawn(dt) {
   spawnT -= dt;
   if (spawnT <= 0) {
     const L = LV || LEVELS[levelIdx];
-    spawnT = beatQuantize(rand(L.spawnMin, L.spawnMax), travelTime());
-    // beat-choreographed volley?
-    if (beatPeriod && musicSrc && !patternQ.length && (endless || levelIdx > 0) && Math.random() < 0.2) {
-      const pat = PATTERNS[(Math.random() * PATTERNS.length) | 0];
-      const base = Math.random() * TAU;
+    sched = sched.filter(s => s.t1 > levelT - 1.5); // drop long-past bookings
+    // scripted levels skip beat-quantize: music phase varies run to run, and
+    // the drill must land the same arrivals every time
+    const delay = srand(L.spawnMin, L.spawnMax);
+    spawnT = scripted() ? delay : beatQuantize(delay, travelTime());
+    // beat-choreographed volley? (procedural runs only — it reads the music clock)
+    if (!scripted() && beatPeriod && musicSrc && !patternQ.length && spawnRng() < 0.2) {
+      const pat = PATTERNS[(spawnRng() * PATTERNS.length) | 0];
+      const base = spawnRng() * TAU;
       const trav = travelTime();
       const pos = AC.currentTime - musicStartAt;
       const first = Math.ceil((pos + trav + 0.3) / beatPeriod);
@@ -740,23 +750,23 @@ function trySpawn(dt) {
       return;
     }
     // friendly payload packet — the one thing you must NOT zap
-    if (Math.random() < (L.frags || 0) && spawnAllowed('frag')) { spawnEnemy(undefined, 'frag'); return; }
+    if (schance(L.frags || 0) && spawnAllowed('frag')) { spawnEnemy(undefined, 'frag'); return; }
     // burst transmissions: occasionally a volley of three in rapid succession
-    if (L.bursts && !burstQ && Math.random() < 0.3 && spawnAllowed('line')) { // volleys start from a clean window
+    if (L.bursts && !burstQ && schance(0.3) && spawnAllowed('line')) { // volleys start from a clean window
       burstQ = { left: 2, t: 0.35 };
       spawnEnemy();
       spawnT += 0.9; // breathe after a volley
       return;
     }
     // fairness gate: an impossible pick falls through to something coverable
-    if (Math.random() < (L.strips || 0) && spawnAllowed('strip')) { spawnStrip(); return; }
-    const roll = Math.random();
+    if (schance(L.strips || 0) && spawnAllowed('strip')) { spawnStrip(); return; }
+    const roll = spawnRng();
     if (roll < L.lines && spawnAllowed('line')) { spawnLine(); return; }
     if (roll < L.lines + L.heavies && spawnAllowed('heavy')) { spawnEnemy(undefined, 'heavy'); return; }
     if (!spawnAllowed('normal')) { spawnT = Math.min(spawnT, 0.35); return; } // wait out the jam
-    const a = Math.random() * TAU;
+    const a = spawnRng() * TAU;
     spawnEnemy(a);
-    if (Math.random() < L.doubles && spawnAllowed('normal')) spawnEnemy(a + Math.PI + rand(-0.6, 0.6));
+    if (schance(L.doubles) && spawnAllowed('normal')) spawnEnemy(a + Math.PI + srand(-0.6, 0.6));
   }
 }
 // data stream: a curved ribbon riding the wall — keep a node ON its crossing
@@ -764,10 +774,12 @@ function trySpawn(dt) {
 function spawnStrip() {
   if (!progress.stripBriefed && !tut) showCard('strip'); // first encounter, mid-run briefing
   const en = spawnEnemy(undefined, 'strip');
-  en.len = rand(0.5, 0.85);                              // depth extent of the ribbon
-  en.amp = rand(0.22, 0.5) * (Math.random() < 0.5 ? -1 : 1);
-  en.frq = rand(2.2, 4.2);
-  en.ph = rand(0, TAU);
+  en.len = srand(0.5, 0.85);                             // depth extent of the ribbon
+  en.amp = srand(0.22, 0.5) * (schance(0.5) ? -1 : 1);
+  en.frq = srand(2.2, 4.2);
+  en.ph = srand(0, TAU);
+  sched.push({ t0: levelT + arrivalAt(SPAWN_Z, 1), t1: levelT + arrivalAt(SPAWN_Z + en.len, 1),
+               type: 'strip', lock: undefined, needsNode: true });
   en.failed = false; en.tracing = false;
   return en;
 }
@@ -782,12 +794,12 @@ const PICKUPS = {
 };
 function spawnPickup() {
   const kinds = Object.keys(PICKUPS);
-  pickups.push({ kind: kinds[(Math.random() * kinds.length) | 0], z: SPAWN_Z, angle: Math.random() * TAU, spin: 0, done: false });
+  pickups.push({ kind: kinds[(spawnRng() * kinds.length) | 0], z: SPAWN_Z, angle: spawnRng() * TAU, spin: 0, done: false });
 }
 // the firewall core duel: it hunts the fused node from inside the tunnel while
 // the ray cannon (left thumb = move, right thumb = aim, hold = fire) drains it
 function spawnBoss() {
-  enemies = []; pickups = []; burstQ = null; patternQ = []; // the lane clears for the duel
+  enemies = []; pickups = []; burstQ = null; patternQ = []; sched = []; // the lane clears for the duel
   boss = {
     hp: 100, maxHp: 100,
     // it FLIES inside the tunnel: cross-section polar (ang, rad) + depth z
@@ -998,13 +1010,13 @@ function burst(x, y, color, n, spd) {
     particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, decay: rand(1.2, 2.6), color, size: rand(0.7, 1.8) });
   }
 }
-function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
+function popup(x, y, text, color, badge) { popups.push({ x, y, text, color, badge, life: 1 }); }
 // firewall shield: eats one breach that would cost integrity. Returns true if
 // it fired — the caller skips the damage AND its red-alert dressing.
 function shieldAbsorb(x, y, ang) {
   if (shieldCharge <= 0) return false;
   shieldCharge = 0;
-  popup(x, y, 'SHIELD ABSORBED THE BREACH', '#8fe0ff');
+  popup(x, y, 'SHIELD ABSORBED THE BREACH', '#8fe0ff', true);
   if (ang !== undefined) rimFX.push({ a: ang, t: 0.7, col: '143,224,255' });
   burst(x, y, '#8fe0ff', 22, 4);
   shake = Math.min(shake + 0.3, 0.8);
@@ -1330,7 +1342,8 @@ function resetRun() {
   introT = 0; introCd = -1;
   rimFX = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; }
-  fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = rand(16, 24);
+  fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24);
+  sched = [];
   nodes[0].angle = Math.PI * 0.75;
   nodes[1].angle = Math.PI * 0.25;
   state = S.PLAY;
@@ -1339,6 +1352,8 @@ function startLevel(i) {
   daily = false; Math.random = sysRandom;
   levelIdx = i; endless = false; qual = false; LV = LEVELS[i];
   tut = null;
+  // fixed seed per level: the same drill, every run — endless is the exam
+  spawnRng = mulberry32((0x51AB1E + i * 7919) >>> 0);
   resetRun();
   runTrack = LV.track || 0;
   playTrack(runTrack);
@@ -1346,7 +1361,7 @@ function startLevel(i) {
 // QUALIFICATION: the training run — movement, every enemy type, one power-up
 function startQualification() {
   daily = false; Math.random = sysRandom;
-  levelIdx = -1; endless = false; qual = true;
+  levelIdx = -1; endless = false; qual = true; spawnRng = Math.random;
   LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.40,
          doubles: 0, heavies: 0, lines: 0, colors: 0, frags: 0 };
   tut = { stage: -1, t: 0, queue: [], moved: [0, 0], lastA: [0, 0], retry: null, spawned: null };
@@ -1365,6 +1380,7 @@ function startBossTest() {
 function startEndless() {
   daily = false; Math.random = sysRandom;
   levelIdx = -1; endless = true; qual = false; LV = endlessCfg(0); tut = null;
+  spawnRng = Math.random;
   resetRun();
   runTrack = (Math.random() * 3) | 0;
   playTrack(runTrack);
@@ -1384,6 +1400,7 @@ function startDaily() {
   Math.random = mulberry32((dayN * 2654435761) >>> 0);
   daily = true;
   levelIdx = -1; endless = true; qual = false; LV = endlessCfg(0); tut = null;
+  spawnRng = Math.random; // the daily seed lives on Math.random itself
   resetRun();
   runTrack = dayN % 3;
   playTrack(runTrack);
@@ -1603,7 +1620,7 @@ function update(dt) {
     while (patternQ.length && patternQ[0].t <= 0) spawnEnemy(patternQ.shift().angle);
   }
   if (!inIntro) pickupT -= sdt;
-  if (!tut && pickupT <= 0) { pickupT = rand(20, 32); if (!mutators.noPickups) spawnPickup(); }
+  if (!tut && pickupT <= 0) { pickupT = srand(20, 32); if (!mutators.noPickups) spawnPickup(); }
 
   const g = geo();
 
@@ -1774,7 +1791,7 @@ function update(dt) {
             if (pulseCharge[fi] >= PULSE_MAX) continue;
             pulseCharge[fi] = Math.min(PULSE_MAX, pulseCharge[fi] + Math.min(combo, 5));
             if (pulseCharge[fi] >= PULSE_MAX) {
-              popup(W / 2, H * 0.35, (fi === 0 ? 'BLUE' : 'WHITE') + ' PULSE CHARGED — TAP ITS CORE', '#8fe0ff');
+              popup(W / 2, H * 0.35, (fi === 0 ? 'BLUE' : 'WHITE') + ' PULSE CHARGED — TAP ITS CORE', '#8fe0ff', true);
               sfx.heal();
               buzz(15);
             }
@@ -1918,7 +1935,7 @@ function update(dt) {
           sfx.pick();
         }
         burst(x, y, '#ffd24a', 24, 4);
-        popup(x, y, PICKUPS[p.kind].label, '#ffd24a');
+        popup(x, y, PICKUPS[p.kind].label, '#ffd24a', true);
         buzz(15);
       }
     }
@@ -4574,8 +4591,23 @@ function frame(now) {
   ctx.textAlign = 'center';
   for (const p of popups) {
     ctx.globalAlpha = clamp(p.life, 0, 1);
-    ctx.fillStyle = p.color; ctx.font = '700 15px Audiowide, system-ui';
-    ctx.fillText(p.text, p.x, p.y);
+    ctx.font = '700 ' + (p.badge ? 13 : 15) + 'px Audiowide, system-ui';
+    if (p.badge) { // announcement pill sized to its text, kept on screen
+      const tw = ctx.measureText(p.text).width;
+      const bw = tw + 26, bh = 24;
+      const bx = clamp(p.x, bw / 2 + 6, W - bw / 2 - 6);
+      ctx.fillStyle = 'rgba(6,12,26,0.82)';
+      roundRect(bx - bw / 2, p.y - bh / 2 - 5, bw, bh, bh / 2); ctx.fill();
+      ctx.strokeStyle = p.color; ctx.lineWidth = 1;
+      ctx.globalAlpha = clamp(p.life, 0, 1) * 0.7;
+      roundRect(bx - bw / 2, p.y - bh / 2 - 5, bw, bh, bh / 2); ctx.stroke();
+      ctx.globalAlpha = clamp(p.life, 0, 1);
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, bx, p.y);
+    } else {
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, p.x, p.y);
+    }
   }
   ctx.globalAlpha = 1; ctx.textAlign = 'left';
 
