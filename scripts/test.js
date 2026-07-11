@@ -98,7 +98,9 @@ code = code.replace("'use strict';", '') + `
   getIntro: () => introT, setIntro: v => { introT = v; introCd = 0; }, getLevelT: () => levelT, setEndT: v => { endT = v; },
   startQualification, getInfoCard: () => infoCard, isQual: () => qual,
   keys, setBeamAim: (x, y) => { beamAim.x = x; beamAim.y = y; }, getHeat: () => heat, isOverheat: () => overheat, startBossTest,
-  rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT
+  rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
+  stripAngle, startDaily, isDaily: () => daily, getPulse: () => pulseCharge,
+  setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -399,6 +401,14 @@ G.update(0.05);
 if (G.getState() === G.S.INFO) { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 8, clientX: 5, clientY: 5, pointerType: 'touch' }); }
 G.update(0.05);
 check('BOSS TEST key drops straight into the duel', !!G.boss());
+G.boss().hp = 39;
+for (let i = 0; i < 40 && !(G.boss() && G.boss().phase2); i++) G.update(0.05); // let the merge finish
+check('cornered core enters phase 2 below 40%', G.boss().phase2 === true);
+{
+  let tGuard = 200;
+  while (tGuard-- > 0 && !G.enemies().length) G.update(0.05);
+  check('phase 2 deploys wall taps mid-duel', G.enemies().length > 0);
+}
 
 // ================= endless mode =================
 G.setState(G.S.MENU);
@@ -412,6 +422,20 @@ G.setScore(1234);
 G.setIntegrity(0);
 G.update(0.01);
 check('endless defeat records the best score', G.getState() === G.S.END && G.progress.best === 1234);
+
+// ================= daily stream =================
+G.setState(G.S.MENU);
+G.setMenuScroll(1e9);
+G.frame(16);
+const dBtn = G.menuBtns().find(b => b.daily);
+check('daily key appears unlocked', !!dBtn && !dBtn.locked);
+G.menuTap(dBtn.x + 10, dBtn.y + 10, 1);
+check('tapping it starts the seeded daily run', G.getState() === G.S.PLAY && G.isDaily() && G.getLV().name === 'DAILY STREAM');
+G.setScore(777);
+G.setIntegrity(0);
+G.update(0.01);
+check('daily defeat records the daily best and streak', G.getState() === G.S.END &&
+  G.progress.daily.best === 777 && G.progress.daily.streak >= 1 && Math.random !== undefined);
 
 // ================= qualification =================
 G.progress.tutorialDone = false;
@@ -458,6 +482,21 @@ dismiss();
 check('blue-lock practice', waitLive(4) && zapPractice());
 check('white-lock practice', waitLive(4) && zapPractice());
 settle();
+check('data-stream briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'strip');
+dismiss();
+{
+  // ride the ribbon: keep the blue node glued to the crossing point
+  const spawned = waitLive(5);
+  let sGuard = 600, st;
+  while (sGuard-- > 0 && (st = G.enemies().find(e => e.type === 'strip' && !e.dead))) {
+    const hz = G.geo().hitZ;
+    aim(0, G.stripAngle(st, Math.max(0, hz - st.z))); // track the head like a player would
+    G.update(0.05);
+  }
+  check('tracing the practice stream end-to-end succeeds',
+    spawned && !G.enemies().some(e => e.type === 'strip' && !e.dead) && G.tut() && !G.tut().retry);
+}
+settle();
 check('friendly-packet briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'frag');
 dismiss();
 waitLive(4);
@@ -477,6 +516,19 @@ waitLive(4);
   G.update(0.01);
   check('catching the practice relay works', G.fx.wide > 0);
   G.fx.wide = 0;
+}
+settle();
+check('pulse briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'pulse');
+dismiss();
+waitLive(4);
+{
+  // the drill pre-charges both orbs — tap the left core to fire the purge
+  const d2 = G.dialCenter('L');
+  canvasHandlers.pointerdown({ pointerId: 9, clientX: d2.x, clientY: d2.y, pointerType: 'touch' });
+  check('tapping a charged core fires the pulse', G.pulseWavesN() > 0 && G.getPulse()[0] === 0);
+  let wGuard = 240;
+  while (wGuard-- > 0 && G.enemies().some(e => e.tut && !e.dead)) G.update(0.05);
+  check('the purge wave clears the practice volley', !G.enemies().some(e => e.tut && !e.dead));
 }
 settle(); settle();
 check('QUALIFIED: victory screen + progress persisted', G.getState() === G.S.END && G.getEndWin() === true && G.progress.tutorialDone === true && G.tut() === null);

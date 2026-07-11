@@ -475,7 +475,7 @@ const LEVELS = [
   { name: 'GLOBAL BACKBONE',duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
     hint: 'NEW THREAT: barrier lines — one node on each end' },
   { name: 'DEEP FIBER',     duration: 60, spawnMin: 0.80, spawnMax: 1.50, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, strips: 0.12, track: 1, waves: true,
-    hint: 'NEW THREAT: data streams — RIDE the ribbon, keep a node on it' },
+    hint: 'NEW THREAT: speed waves — the stream surges and slows' },
   { name: 'QUANTUM RELAY',  duration: 65, spawnMin: 0.80, spawnMax: 1.45, speed: 0.48, doubles: 0.35, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, strips: 0.12, track: 2,
     hint: 'NEW THREAT: color-locked traps — match the node color' },
   { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.68, spawnMax: 1.30, speed: 0.54, doubles: 0.40, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, strips: 0.15, track: 0, bursts: true, waves: true,
@@ -488,7 +488,7 @@ const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
 function endlessCfg(t) {
   const k = clamp(t / 150, 0, 1); // fully spiced after 2.5 minutes
   return {
-    name: 'ENDLESS STREAM', duration: Infinity, endless: true,
+    name: daily ? 'DAILY STREAM' : 'ENDLESS STREAM', duration: Infinity, endless: true,
     spawnMin: ramp(1.4, 0.55, k), spawnMax: ramp(2.2, 1.1, k),
     speed: ramp(0.36, 0.60, k),
     doubles: ramp(0, 0.40, k),
@@ -500,7 +500,7 @@ function endlessCfg(t) {
     bursts: t > 70, waves: t > 100
   };
 }
-const progress = { unlocked: 1, stars: [0, 0, 0, 0, 0, 0, 0, 0], bests: [0, 0, 0, 0, 0, 0, 0, 0], tutorialDone: false, bossBriefed: false, best: 0 };
+const progress = { unlocked: 1, stars: [0, 0, 0, 0, 0, 0, 0, 0], bests: [0, 0, 0, 0, 0, 0, 0, 0], tutorialDone: false, bossBriefed: false, stripBriefed: false, best: 0, daily: { last: 0, streak: 0, best: 0 } };
 
 // ---------- persistence ----------
 const STORE_KEY = 'dataDefenders.v1';
@@ -536,6 +536,8 @@ let pulseCharge = [0, 0], pulseWaves = [];
 let enemies = [], particles = [], popups = [];
 let shake = 0, redFlash = 0, tunnelScroll = 0, wallDist = 0, time = 0;
 let trafficSpeed = 0.4; // THE shared motion clock: everything on/in the wall moves at this z-speed
+const sysRandom = Math.random; // daily mode swaps in a seeded PRNG for the run
+let daily = false;
 let lowFX = false, perfAcc = 0, perfN = 0, perfWin = 0; // perf watchdog state
 let hitStop = 0;              // brief slow-mo after a zap
 let rimFX = [];               // reactive rim lighting: {a, t, col}
@@ -741,6 +743,7 @@ function trySpawn(dt) {
 // data stream: a curved ribbon riding the wall — keep a node ON its crossing
 // point from head to tail (breaking off loses the stream)
 function spawnStrip() {
+  if (!progress.stripBriefed && !tut) showCard('strip'); // first encounter, mid-run briefing
   const en = spawnEnemy(undefined, 'strip');
   en.len = rand(0.5, 0.85);                              // depth extent of the ribbon
   en.amp = rand(0.22, 0.5) * (Math.random() < 0.5 ? -1 : 1);
@@ -888,6 +891,47 @@ function updateBossFight(dt, g) {
         boss = null;
         endLevel(true);
         return;
+      }
+    }
+  }
+  // PHASE 2 — cornered below 40%: the core punches taps into the wall mid-duel.
+  // The beam is the only thing that can burn them off — split your fire.
+  if (b.hp <= 40 && !b.phase2) {
+    b.phase2 = true;
+    b.tapT = 1.2;
+    popup(W / 2, H * 0.3, 'BREACH PROTOCOL — TAPS INBOUND', '#d465ff');
+    shake = Math.min(shake + 0.8, 1);
+    tone(160, 0.5, 'sawtooth', 0.14, 60);
+    buzz([50, 40, 70]);
+  }
+  if (b.phase2) {
+    b.tapT -= dt;
+    if (b.tapT <= 0) {
+      b.tapT = rand(2.4, 3.4);
+      const en2 = spawnEnemy(undefined, 'normal');
+      en2.lock = undefined; // the beam is the only cover — keep them plain
+    }
+  }
+  if (beamActive && b.phase2) {
+    const seg = beamGeometry(g);
+    const dx2 = seg.tx - seg.sx, dy2 = seg.ty - seg.sy;
+    const segL = dx2 * dx2 + dy2 * dy2 || 1;
+    for (const en2 of enemies) {
+      if (en2.dead || en2.resolved || en2.type === 'frag') continue;
+      const rgE = ring(Math.max(en2.z, 0.02), g);
+      const ex2 = rgE.x + Math.cos(en2.angle) * rgE.r, ey2 = rgE.y + Math.sin(en2.angle) * rgE.r;
+      const t2 = clamp(((ex2 - seg.sx) * dx2 + (ey2 - seg.sy) * dy2) / segL, 0, 1);
+      const qx = seg.sx + dx2 * t2, qy = seg.sy + dy2 * t2;
+      const rad = Math.min(W, H) * 0.05 * clamp(rgE.r / g.nodeR, 0.1, 2) + 6;
+      if (Math.hypot(ex2 - qx, ey2 - qy) < rad) {
+        en2.dead = true;
+        burst(ex2, ey2, '#d465ff', 12, 4);
+        burst(ex2, ey2, '#ffffff', 7, 5);
+        const pts2 = Math.round(80 * mutMul());
+        score += pts2;
+        popup(ex2, ey2, '+' + pts2, '#eab8ff');
+        sfx.zap(1);
+        buzz(10);
       }
     }
   }
@@ -1216,7 +1260,7 @@ function menuTap(x, y, pid) {
   }
   for (const b of menuButtons) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h && !b.locked) {
-      if (b.endless) startEndless(); else if (b.qual) startQualification(); else if (b.bossTest) startBossTest(); else startLevel(b.level);
+      if (b.daily) startDaily(); else if (b.endless) startEndless(); else if (b.qual) startQualification(); else if (b.bossTest) startBossTest(); else startLevel(b.level);
       sfx.tick(); return;
     }
   }
@@ -1227,7 +1271,7 @@ function endTap(x, y) {
   for (const b of endButtons) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
       sfx.tick();
-      if (b.action === 'retry') { if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx); }
+      if (b.action === 'retry') { if (daily) startDaily(); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx); }
       else if (b.action === 'next') startLevel(levelIdx + 1);
       else { state = S.MENU; fadeT = 0.35; playTrack('menu'); }
       return;
@@ -1254,6 +1298,7 @@ function resetRun() {
   state = S.PLAY;
 }
 function startLevel(i) {
+  daily = false; Math.random = sysRandom;
   levelIdx = i; endless = false; qual = false; LV = LEVELS[i];
   tut = null;
   resetRun();
@@ -1262,6 +1307,7 @@ function startLevel(i) {
 }
 // QUALIFICATION: the training run — movement, every enemy type, one power-up
 function startQualification() {
+  daily = false; Math.random = sysRandom;
   levelIdx = -1; endless = false; qual = true;
   LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.30,
          doubles: 0, heavies: 0, lines: 0, colors: 0, frags: 0 };
@@ -1279,9 +1325,29 @@ function startBossTest() {
   introT = 999; introCd = 0;                   // skip the countdown
 }
 function startEndless() {
+  daily = false; Math.random = sysRandom;
   levelIdx = -1; endless = true; qual = false; LV = endlessCfg(0); tut = null;
   resetRun();
   runTrack = (Math.random() * 3) | 0;
+  playTrack(runTrack);
+}
+// DAILY STREAM: one seeded endless run per calendar day — same stream for
+// everyone, chase the best, keep the streak alive
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function startDaily() {
+  const dayN = Math.floor(Date.now() / 864e5);
+  Math.random = mulberry32((dayN * 2654435761) >>> 0);
+  daily = true;
+  levelIdx = -1; endless = true; qual = false; LV = endlessCfg(0); tut = null;
+  resetRun();
+  runTrack = dayN % 3;
   playTrack(runTrack);
 }
 
@@ -1294,6 +1360,14 @@ function endLevel(win) {
     sfx.win();
   } else if (endless) {
     progress.best = Math.max(progress.best || 0, score);
+    if (daily) {
+      Math.random = sysRandom;
+      const dayN = Math.floor(Date.now() / 864e5);
+      const D = progress.daily || (progress.daily = { last: 0, streak: 0, best: 0 });
+      if (D.last !== dayN) D.streak = dayN === D.last + 1 ? (D.streak || 0) + 1 : 1;
+      D.last = dayN;
+      D.best = Math.max(D.best || 0, score);
+    }
     saveState();
     sfx.fail();
   } else if (win) {
@@ -1318,8 +1392,10 @@ const QUAL = [
   { card: 'heavy',  queue: ['heavy'] },
   { card: 'line',   queue: ['line'] },
   { card: 'lock',   queue: ['lock0', 'lock1'] },
+  { card: 'strip',  queue: ['strip'] },
   { card: 'frag',   queue: ['frag'] },
-  { card: 'pickup', queue: ['pickup'] }
+  { card: 'pickup', queue: ['pickup'] },
+  { card: 'pulse',  queue: ['pulse'] }
 ];
 const INFO_CARDS = {
   move:   { title: 'DUAL NODES', lines: ['Left thumb steers the BLUE node,', 'right thumb steers the WHITE node.', 'Slide around the dials to ride the ring.'] },
@@ -1329,9 +1405,12 @@ const INFO_CARDS = {
   lock:   { title: 'COLOR LOCK', lines: ['Keyed to a single node. Only the', 'MATCHING color can break it —', 'watch the orbiting dot.'] },
   frag:   { title: 'FRIENDLY PACKET', lines: ['The BLACK packet is payload data.', 'NOT a threat — do NOT zap it.', 'Let it pass and collect the bonus.'] },
   pickup: { title: 'POWER-UP', lines: ['Golden relays ride the stream.', 'Catch one with any node:', 'SLOW-MO · WIDE ARC · AUTO-ZAP.'] },
+  strip:  { title: 'DATA STREAM', lines: ['A live stream rides the wall.', 'Keep a node ON its crossing point', 'from head to tail — do not let go.'] },
+  pulse:  { title: 'PULSE CHARGE', lines: ['Combo zaps bank charge in your pads.', 'When an orb GLOWS, tap it to fire', 'a purge wave down the tunnel.'] },
   boss:   { title: 'FIREWALL CORE', lines: ['Your nodes fuse into a RAY CANNON.', 'LEFT thumb moves it. RIGHT stick aims', 'the beam INTO the tunnel — hold to fire.', 'Dodge the orbs. Watch the heat.'] }
 };
 function showCard(key) {
+  if (key === 'strip' && !progress.stripBriefed) { progress.stripBriefed = true; saveState(); }
   infoCard = key; infoShownAt = time;
   state = S.INFO;
   sfx.tick();
@@ -1340,6 +1419,23 @@ function qualSpawn(kind) {
   tut.spawned = kind;
   if (kind === 'pickup') {
     pickups.push({ kind: 'wide', z: SPAWN_Z, angle: Math.random() * TAU, spin: 0, done: false, tut: true });
+    return;
+  }
+  if (kind === 'strip') {
+    const en2 = spawnStrip();
+    en2.tut = 'strip';
+    en2.len = 0.5; en2.amp = 0.22; en2.frq = 2.2; en2.ph = 0;
+    en2.speedMul = 0.55;
+    return;
+  }
+  if (kind === 'pulse') {
+    // full orbs + a slow volley: fire the purge (or zap through it — both teach)
+    pulseCharge = [PULSE_MAX, PULSE_MAX];
+    for (let k = 0; k < 3; k++) {
+      const e3 = spawnEnemy(Math.random() * TAU, 'normal');
+      e3.lock = undefined; e3.tut = 'pulse'; e3.speedMul = 0.4;
+      e3.z = SPAWN_Z - 0.05 - k * 0.24; // staggered inside the purge wave's reach
+    }
     return;
   }
   if (kind === 'line') {
@@ -1496,6 +1592,7 @@ function update(dt) {
         const aReq = stripAngle(en, g.hitZ - en.z);
         const on0 = covers(nodes[0], aReq), on1 = covers(nodes[1], aReq);
         if (on0 || on1 || fx.auto > 0) {
+          en.offT = 0;
           en.tracing = true;
           en.traceNode = on0 ? 0 : on1 ? 1 : en.traceNode || 0;
           en.traceT = (en.traceT || 0) + sdt;
@@ -1505,7 +1602,16 @@ function update(dt) {
             const hp = ringXY(aReq);
             burst(hp.x, hp.y, '#ff9db0', 2, 2.5);
           }
-        } else if (!en.tut) {
+        } else if ((en.offT = (en.offT || 0) + sdt) < 0.18) {
+          // forgiveness window: a brief slip (or the crossing's first frames)
+          // doesn't break the stream — staying off it does
+        } else if (en.tut) { // practice stream: no penalty, run the drill again
+          if (tut) { tut.retry = en.tut; tut.t = 0; }
+          en.dead = true;
+          const hp = ringXY(aReq);
+          popup(hp.x, hp.y, 'STAY ON THE STREAM — AGAIN', '#ff9a3c');
+          sfx.miss();
+        } else {
           en.failed = true;
           misses++; combo = 0; comboHeal = 0;
           integrity = Math.max(0, integrity - 25);
@@ -1685,7 +1791,7 @@ function update(dt) {
   for (const wv of pulseWaves) {
     wv.z += dt * 1.6;
     for (const en of enemies) {
-      if (en.dead || en.resolved || en.type === 'frag' || en.tut) continue;
+      if (en.dead || en.resolved || en.type === 'frag') continue;
       if (en.z <= wv.z) {
         en.dead = true;
         if (en.partner) en.partner.dead = true;
@@ -3450,8 +3556,8 @@ function pauseTap(x, y, pid) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
       sfx.tick();
       if (b.action === 'resume') { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; }
-      else if (b.action === 'restart') { if (qual) startQualification(); else if (endless) startEndless(); else startLevel(levelIdx); }
-      else { state = S.MENU; fadeT = 0.35; playTrack('menu'); }
+      else if (b.action === 'restart') { if (qual) startQualification(); else if (daily) startDaily(); else if (endless) startEndless(); else startLevel(levelIdx); }
+      else { daily = false; Math.random = sysRandom; state = S.MENU; fadeT = 0.35; playTrack('menu'); }
       return;
     }
   }
@@ -3745,7 +3851,7 @@ function drawMenu(g) {
   ctx.rect(ccx - bw / 2 - 30, listY - 4, bw + 60, viewH + 8);
   ctx.clip();
   const endlessOpen = progress.stars[LEVELS.length - 1] > 0; // clear the campaign to unlock
-  for (let i = 0; i <= LEVELS.length + 2; i++) {
+  for (let i = 0; i <= LEVELS.length + 3; i++) {
     const by = listY + i * (bh + gap) - menuScroll;
     if (by + bh < listY - 6 || by > listY + viewH + 6) continue;
     const bx = ccx - bw / 2;
@@ -3770,7 +3876,17 @@ function drawMenu(g) {
         ctx.textAlign = 'left';
       }
       menuButtons.push({ x: bx, y: by, w: bw, h: bh, level: li, locked });
-    } else if (i === LEVELS.length + 2) { // TEMPORARY: BOSS TEST dev key
+    } else if (i === LEVELS.length + 2) { // one seeded run per day
+      const dailyOpen = progress.unlocked >= 4;
+      levelKey(bx, by, bw, bh, '◈', 'DAILY STREAM', -1, !dailyOpen, false);
+      const D = progress.daily;
+      if (dailyOpen && D && (D.streak || D.best)) {
+        ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 10px Audiowide, system-ui';
+        ctx.fillText((D.streak > 1 ? 'STREAK ' + D.streak + '  ·  ' : '') + 'BEST ' + (D.best || 0).toLocaleString(), bx + bw - 14, by + bh - 8);
+        ctx.textAlign = 'left';
+      }
+      menuButtons.push({ x: bx, y: by, w: bw, h: bh, daily: true, locked: !dailyOpen });
+    } else if (i === LEVELS.length + 3) { // TEMPORARY: BOSS TEST dev key
       levelKey(bx, by, bw, bh, '⚔', 'BOSS TEST (DEV)', -1, false, false);
       menuButtons.push({ x: bx, y: by, w: bw, h: bh, bossTest: true, locked: false });
     } else {
@@ -3875,7 +3991,7 @@ function drawEnd(g) {
   const sc = 0.96 + 0.04 * (1 - Math.pow(1 - pA, 3));
   ctx.translate(W / 2, H / 2); ctx.scale(sc, sc); ctx.translate(-W / 2, -H / 2);
   ctx.globalAlpha = pA;
-  techPanel(W / 2 - pw / 2, pTop, pw, panelBottom - pTop, 'MISSION REPORT  //  ' + (endless ? 'ENDLESS STREAM' : qual ? 'QUALIFICATION' : LEVELS[levelIdx].name));
+  techPanel(W / 2 - pw / 2, pTop, pw, panelBottom - pTop, 'MISSION REPORT  //  ' + (endless ? (daily ? 'DAILY STREAM' : 'ENDLESS STREAM') : qual ? 'QUALIFICATION' : LEVELS[levelIdx].name));
 
   ctx.textAlign = 'center';
   // banner slams in
