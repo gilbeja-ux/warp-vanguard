@@ -1892,24 +1892,62 @@ function drawLattice(g) {
 // range rings: a projected instrument, not wall geometry — three dashed
 // hairlines marking 1s / 2s / 3s from the rim at the CURRENT traffic speed.
 // On wave levels they breathe apart and together as the stream surges.
+// shared gate for the per-enemy depth instrumentation (rings + countdown tags)
+function rangeInfo(en, g) {
+  if (en.dead || en.resolved || en.failed || en.type === 'frag') return null; // payloads stay calm
+  if (en.z <= g.hitZ) return null; // already in the zone — the body itself is the alarm
+  const spd = trafficSpeed * (en.speedMul || 1);
+  if (spd <= 0) return null;
+  const t = (en.z - g.hitZ) / spd;
+  // fade in from the horizon like the body, sharpen as arrival closes in
+  let al = clamp((SPAWN_Z - 0.05 - en.z) / 0.3, 0, 1) * clamp(1.15 - t * 0.22, 0.3, 1);
+  if (t < 1) al *= 0.8 + 0.2 * Math.sin(time * 12); // last second: urgent flicker
+  if (al <= 0.02) return null;
+  const glow = en.type === 'heavy' ? '200,70,255'
+    : en.lock === 0 ? '80,170,255'
+    : en.lock === 1 ? '225,240,255'
+    : '255,60,90';
+  return { t, al, glow, rr: ring(en.z, g) };
+}
+
 function drawRangeRings(g) {
+  // each hostile projects its own depth ring onto the tunnel — under the bodies
   if (state !== S.PLAY && state !== S.PAUSE && state !== S.INFO) return;
   if (boss && boss.mergeT >= 1) return; // the duel has its own instrumentation
   ctx.save();
   ctx.lineCap = 'butt';
-  for (let k = 1; k <= 3; k++) {
-    const z = g.hitZ + trafficSpeed * k;
-    if (z >= SPAWN_Z) continue;
-    const rr = ring(z, g);
-    const al = (0.3 - k * 0.06) * clamp(introT / 2, 0, 1);
-    if (al <= 0.01) continue;
-    ctx.strokeStyle = `rgba(120,215,255,${al.toFixed(2)})`;
-    ctx.lineWidth = Math.max(0.7, rr.r / g.nodeR * 1.3);
-    ctx.setLineDash([rr.r * 0.055, rr.r * 0.075]);
-    ctx.lineDashOffset = time * 6 * (k % 2 ? 1 : -1); // slow counter-rotation: instrument, not wall
-    ctx.beginPath(); ctx.arc(g.cx, g.cy, rr.r, 0, TAU); ctx.stroke();
+  for (const en of enemies) {
+    const ri = rangeInfo(en, g);
+    if (!ri) continue;
+    ctx.strokeStyle = `rgba(${ri.glow},${(ri.al * 0.3).toFixed(2)})`;
+    ctx.lineWidth = Math.max(0.7, ri.rr.r / g.nodeR * 1.2);
+    ctx.setLineDash([ri.rr.r * 0.045, ri.rr.r * 0.085]);
+    ctx.lineDashOffset = time * 7 + en.angle * 40; // each ring drifts on its own phase
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, ri.rr.r, 0, TAU); ctx.stroke();
   }
   ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawRangeTimers(g) {
+  // seconds-to-arrival tags, seated on each enemy's depth ring beside the body
+  if (state !== S.PLAY && state !== S.PAUSE && state !== S.INFO) return;
+  if (boss && boss.mergeT >= 1) return;
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const en of enemies) {
+    const ri = rangeInfo(en, g);
+    if (!ri) continue;
+    const fs = clamp(ri.rr.r * 0.062, 7, 12);
+    const size = Math.min(W, H) * 0.06 * clamp(ri.rr.r / g.nodeR, 0.1, 2) * (en.sizeMul || 1);
+    const la = en.angle + (size * 1.5 + fs * 1.5) / Math.max(ri.rr.r, 1); // beside the body, along its ring
+    const lx = g.cx + Math.cos(la) * ri.rr.r, ly = g.cy + Math.sin(la) * ri.rr.r;
+    ctx.font = `700 ${fs.toFixed(1)}px Audiowide, system-ui`;
+    ctx.fillStyle = `rgba(4,8,18,${(ri.al * 0.6).toFixed(2)})`;
+    ctx.beginPath(); ctx.arc(lx, ly, fs * 1.1, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(${ri.glow},${Math.min(1, ri.al * 1.1).toFixed(2)})`;
+    ctx.fillText(ri.t.toFixed(1), lx, ly + fs * 0.06);
+  }
   ctx.restore();
 }
 
@@ -4400,6 +4438,7 @@ function frame(now) {
   const sorted = enemies.slice().sort((a, b) => b.z - a.z);
   for (const en of sorted) if (en.lineLead) drawLineBeam(en, g); // beams sit under the traps
   for (const en of sorted) drawEnemy(en, g);
+  drawRangeTimers(g);
   for (const p of pickups) drawPickup(p, g);
   drawPulseWave(g);
   drawClearSweep(g);
