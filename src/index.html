@@ -1889,6 +1889,30 @@ function drawLattice(g) {
   ctx.restore();
 }
 
+// range rings: a projected instrument, not wall geometry — three dashed
+// hairlines marking 1s / 2s / 3s from the rim at the CURRENT traffic speed.
+// On wave levels they breathe apart and together as the stream surges.
+function drawRangeRings(g) {
+  if (state !== S.PLAY && state !== S.PAUSE && state !== S.INFO) return;
+  if (boss && boss.mergeT >= 1) return; // the duel has its own instrumentation
+  ctx.save();
+  ctx.lineCap = 'butt';
+  for (let k = 1; k <= 3; k++) {
+    const z = g.hitZ + trafficSpeed * k;
+    if (z >= SPAWN_Z) continue;
+    const rr = ring(z, g);
+    const al = (0.3 - k * 0.06) * clamp(introT / 2, 0, 1);
+    if (al <= 0.01) continue;
+    ctx.strokeStyle = `rgba(120,215,255,${al.toFixed(2)})`;
+    ctx.lineWidth = Math.max(0.7, rr.r / g.nodeR * 1.3);
+    ctx.setLineDash([rr.r * 0.055, rr.r * 0.075]);
+    ctx.lineDashOffset = time * 6 * (k % 2 ? 1 : -1); // slow counter-rotation: instrument, not wall
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, rr.r, 0, TAU); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
 function drawTunnel(g) {
   // the wall is one dense annulus of data, stamped at receding depths —
   // the inside of a fiber optic line packed with traffic, not clean geometry
@@ -4290,6 +4314,7 @@ function frame(now) {
   // the tunnel fills the whole screen — no clipping, we're inside it
   drawTunnel(g);
   drawLattice(g);
+  drawRangeRings(g);
   drawWallCode(g, dt);
   drawStreaks(g, dt);
   // warm glow rising off the golden river
