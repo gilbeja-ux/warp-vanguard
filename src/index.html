@@ -1938,44 +1938,56 @@ function drawRangeRings(g) {
 }
 
 function drawRangeTethers(g) {
-  // analysis tether: a dashed line in true perspective from each antenna tip
-  // down the bore to the rim — the system has a lock, its length IS the distance
+  // flow line: a floating dashed chain linking every antenna tip in arrival
+  // order — follow it hop by hop and you zap the wave in the right sequence
   if (state !== S.PLAY && state !== S.PAUSE && state !== S.INFO) return;
   if (boss && boss.mergeT >= 1) return;
-  ctx.save();
-  ctx.lineCap = 'round';
+  const pts = [];
   for (const en of enemies) {
     const ri = rangeInfo(en, g);
     if (!ri) continue;
     const mul = en.sizeMul || 1;
     const a0 = en.type === 'strip' ? stripAngle(en, 0) : en.angle;
-    // the tether floats at antenna-top height above the wall, all the way in
-    let L2 = 0; // strips ride the wall itself
+    let L2 = 0; // strips have no needle — their head anchors the chain at the wall
     if (en.type !== 'strip') {
       const S2 = Math.min(W, H) * 0.05 * clamp(ri.rr.r / g.nodeR, 0.06, 2) * mul;
       L2 = S2 * (en.type === 'heavy' ? 1.7 : 1.35);
     }
-    const hf = 1 - L2 / Math.max(ri.rr.r, 1); // antenna height as a fraction of the bore
-    const ca = Math.cos(a0), sa = Math.sin(a0);
-    const spanZ = en.z - g.hitZ;
-    const steps = 11, duty = 0.55; // dash covers just over half of each cell
-    const flow = (time * 1.6) % 1; // dashes stream toward the player
-    ctx.beginPath();
-    for (let k = -1; k < steps; k++) {
-      const q0 = clamp((k + flow) / steps, 0, 1), q1 = clamp((k + flow + duty) / steps, 0, 1);
-      if (q1 - q0 <= 0.001) continue;
-      const r0 = ring(en.z - spanZ * q0, g).r * hf, r1 = ring(en.z - spanZ * q1, g).r * hf;
-      ctx.moveTo(g.cx + ca * r0, g.cy + sa * r0);
-      ctx.lineTo(g.cx + ca * r1, g.cy + sa * r1);
-    }
-    // glow pass under a bright core — the scan reads as light, not wire
-    ctx.strokeStyle = `rgba(${ri.glow},${(ri.al * 0.28).toFixed(2)})`;
-    ctx.lineWidth = Math.max(3, ri.rr.r / g.nodeR * 5);
-    ctx.stroke();
-    ctx.strokeStyle = `rgba(${ri.glow},${Math.min(1, ri.al * 0.95).toFixed(2)})`;
-    ctx.lineWidth = Math.max(1, ri.rr.r / g.nodeR * 1.6);
-    ctx.stroke();
+    const r2 = ri.rr.r - L2;
+    pts.push({ t: ri.t, al: ri.al, glow: ri.glow,
+               x: g.cx + Math.cos(a0) * r2, y: g.cy + Math.sin(a0) * r2 });
   }
+  if (!pts.length) return;
+  pts.sort((a, b) => a.t - b.t); // first in line leads the chain
+  ctx.save();
+  ctx.lineCap = 'round';
+  const dash = Math.min(W, H) * 0.014;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const A = pts[i], B = pts[i + 1];
+    // each hop dims a step — the brightest link always points at the next kill
+    const al = Math.min(A.al, B.al) * Math.pow(0.8, i);
+    if (al <= 0.02) continue;
+    const seg = ctx.createLinearGradient(A.x, A.y, B.x, B.y);
+    seg.addColorStop(0, `rgba(${A.glow},1)`);
+    seg.addColorStop(1, `rgba(${B.glow},1)`);
+    ctx.strokeStyle = seg;
+    ctx.setLineDash([dash, dash * 0.85]);
+    ctx.lineDashOffset = time * dash * 3.2; // dashes drift toward the head of the line
+    ctx.globalAlpha = al * 0.3; // halo pass
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+    ctx.globalAlpha = Math.min(1, al * 0.9); // bright core
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+  }
+  // crown the first in line — a pulsing reticle on its antenna tip
+  const h = pts[0];
+  ctx.setLineDash([]);
+  ctx.globalAlpha = Math.min(1, h.al);
+  ctx.strokeStyle = `rgba(${h.glow},0.9)`;
+  ctx.lineWidth = 1.4;
+  const cr = dash * (0.85 + 0.2 * Math.sin(time * 8));
+  ctx.beginPath(); ctx.arc(h.x, h.y, cr, 0, TAU); ctx.stroke();
   ctx.restore();
 }
 
