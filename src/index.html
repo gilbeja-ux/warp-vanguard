@@ -4295,37 +4295,43 @@ function paintMenuStatic() {
   ctx.font = '10px monospace'; ctx.textAlign = 'right';
   ctx.fillStyle = 'rgba(120,210,255,0.45)'; ctx.fillRect(W - 96, H - 54, 76, 2);
   ctx.fillStyle = 'rgba(120,210,255,0.25)'; ctx.fillRect(W - 96, H - 49, 76, 2);
-  // block logo — stacked DATA / DEFE / NDER, top-left
-  const fs = Math.min(H * 0.125, W * 0.055);
-  const lx = 26 + SAFE.l, llh = fs * 1.04;
-  let ly = 24 + fs;
+  // block logo — stacked DATA / DEFE / NDER, top-left (small brand on the map,
+  // where the relay list needs the column)
   ctx.textAlign = 'left';
-  ctx.font = '900 ' + fs.toFixed(0) + 'px Audiowide, system-ui';
-  try { ctx.letterSpacing = (fs * 0.08).toFixed(1) + 'px'; } catch (e) {}
-  ctx.shadowColor = 'rgba(0,10,30,0.85)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
-  ctx.fillStyle = '#c6d6ea';
-  for (const t of ['DATA', 'DEFE', 'NDER']) { ctx.fillText(t, lx, ly); ly += llh; }
-  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  ctx.fillStyle = 'rgba(180,215,255,0.6)'; ctx.font = '500 11px Audiowide, system-ui';
-  ctx.fillText('Guard the payload.', lx + 2, ly - llh + 20);
-  ctx.fillText('Zap the data traps.', lx + 2, ly - llh + 35);
   if (menuScreen === 'map') {
-    // wireframe survey grid behind the relay route — the network from outside
-    ctx.strokeStyle = 'rgba(90,170,255,0.06)'; ctx.lineWidth = 1;
-    for (let gx2 = W * 0.06; gx2 < W * 0.97; gx2 += W * 0.065) {
-      ctx.beginPath(); ctx.moveTo(gx2, H * 0.30); ctx.lineTo(gx2, H * 0.76); ctx.stroke();
-    }
-    for (let gy2 = H * 0.32; gy2 < H * 0.78; gy2 += H * 0.11) {
-      ctx.beginPath(); ctx.moveTo(W * 0.04, gy2); ctx.lineTo(W * 0.96, gy2); ctx.stroke();
-    }
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#f2faff'; ctx.font = '700 15px Audiowide, system-ui';
-    try { ctx.letterSpacing = '2px'; } catch (e) {}
-    ctx.fillText('RELAY ROUTE  A \u21CC B', W / 2, 30 + SAFE.t);
+    ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
+    ctx.fillText('DATA DEFENDER', 20 + SAFE.l, 24 + SAFE.t);
+  } else {
+    const fs = Math.min(H * 0.125, W * 0.055);
+    const lx = 26 + SAFE.l, llh = fs * 1.04;
+    let ly = 24 + fs;
+    ctx.font = '900 ' + fs.toFixed(0) + 'px Audiowide, system-ui';
+    try { ctx.letterSpacing = (fs * 0.08).toFixed(1) + 'px'; } catch (e) {}
+    ctx.shadowColor = 'rgba(0,10,30,0.85)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+    ctx.fillStyle = '#c6d6ea';
+    for (const t of ['DATA', 'DEFE', 'NDER']) { ctx.fillText(t, lx, ly); ly += llh; }
+    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     try { ctx.letterSpacing = '0px'; } catch (e) {}
-    ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 9px Audiowide, system-ui';
-    ctx.fillText('every packet between them crosses your line', W / 2, 46 + SAFE.t);
+    ctx.fillStyle = 'rgba(180,215,255,0.6)'; ctx.font = '500 11px Audiowide, system-ui';
+    ctx.fillText('Guard the payload.', lx + 2, ly - llh + 20);
+    ctx.fillText('Zap the data traps.', lx + 2, ly - llh + 35);
+  }
+  if (menuScreen === 'map') {
+    // the lens mouth: the ring becomes a viewport over the city
+    const RM = mapR();
+    const dg = ctx.createRadialGradient(ccx, ccy, RM * 0.2, ccx, ccy, RM);
+    dg.addColorStop(0, 'rgba(2,6,14,0.92)');
+    dg.addColorStop(1, 'rgba(3,9,20,0.85)');
+    ctx.beginPath(); ctx.arc(ccx, ccy, RM, 0, TAU);
+    ctx.fillStyle = dg; ctx.fill();
+    ctx.strokeStyle = 'rgba(100,190,255,0.25)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#f2faff'; ctx.font = '700 12px Audiowide, system-ui';
+    try { ctx.letterSpacing = '2px'; } catch (e) {}
+    ctx.fillText('THE INVESTIGATION', ccx, 15 + SAFE.t);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
+    ctx.fillText('relay route A \u21CC B', ccx, 27 + SAFE.t);
     ctx.textAlign = 'left';
   } else {
     // tunnel disc — a dark mouth in the center that makes the mode keys pop
@@ -4542,14 +4548,82 @@ function drawMenuFlow() {
 }
 
 // ---------- campaign route map ----------
-// the relays between endpoint A and endpoint B — a wireframe survey of the
-// line you defend. Cleared hops glow, the frontier pulses, the deep route
-// stays encrypted until you earn it.
-const MAP_POS = [
-  [0.115, 0.66], [0.225, 0.48], [0.335, 0.70], [0.45, 0.46],
-  [0.565, 0.68], [0.675, 0.47], [0.785, 0.69], [0.885, 0.50]
+// the ring becomes a LENS over an isometric wireframe city — the network's
+// physical geography. The relay list rides the left column, the dossier the
+// right, and selecting a relay glides the lens along the route.
+let cityCanvas = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true;
+const mapR = () => Math.min(H * 0.42, W * 0.24); // the lens: smaller than the mode disc
+const CITY_W = 1600, CITY_H = 980;
+// relay positions in CITY coordinates, serpentine west -> east
+const RELAY_W = [
+  [250, 640], [390, 460], [540, 660], [700, 440],
+  [860, 640], [1020, 430], [1180, 620], [1330, 450]
 ];
-const MAP_A = [0.048, 0.76], MAP_B = [0.952, 0.40];
+const CITY_A = [140, 720], CITY_B = [1460, 360];
+function buildCity() {
+  cityCanvas = document.createElement('canvas');
+  cityCanvas.width = CITY_W; cityCanvas.height = CITY_H;
+  const rng = mulberry32(0xC17C0DE);
+  withCanvas(cityCanvas, () => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, CITY_W, CITY_H);
+    const HW = 26, HH = 13; // iso half-tile
+    // ground lattice: two families of diagonals covering the WHOLE sheet, so
+    // the lens never pans onto void
+    ctx.lineWidth = 1;
+    let li2 = 0;
+    for (let k = -CITY_W * 0.5; k < CITY_H; k += HH * 2) {
+      ctx.strokeStyle = (li2++ % 6 === 0) ? 'rgba(90,180,255,0.16)' : 'rgba(70,140,220,0.07)';
+      ctx.beginPath(); ctx.moveTo(0, k); ctx.lineTo(CITY_W, k + CITY_W * 0.5); ctx.stroke();
+    }
+    li2 = 0;
+    for (let k = 0; k < CITY_H + CITY_W * 0.5; k += HH * 2) {
+      ctx.strokeStyle = (li2++ % 6 === 0) ? 'rgba(90,180,255,0.16)' : 'rgba(70,140,220,0.07)';
+      ctx.beginPath(); ctx.moveTo(0, k); ctx.lineTo(CITY_W, k - CITY_W * 0.5); ctx.stroke();
+    }
+    // wireframe blocks, painter-ordered back to front (by gx+gy)
+    const box = (x, y, h, a) => {
+      const N = { x, y: y - HH }, E = { x: x + HW, y }, S2 = { x, y: y + HH }, W2 = { x: x - HW, y };
+      const t = dy => ({ N: { x: N.x, y: N.y - dy }, E: { x: E.x, y: E.y - dy }, S: { x: S2.x, y: S2.y - dy }, W: { x: W2.x, y: W2.y - dy } });
+      const T = t(h);
+      // faces first (dark translucent, occludes wireframes behind)
+      ctx.fillStyle = 'rgba(5,13,28,0.85)';
+      ctx.beginPath(); ctx.moveTo(W2.x, W2.y); ctx.lineTo(S2.x, S2.y); ctx.lineTo(T.S.x, T.S.y); ctx.lineTo(T.W.x, T.W.y); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(8,20,42,0.85)';
+      ctx.beginPath(); ctx.moveTo(S2.x, S2.y); ctx.lineTo(E.x, E.y); ctx.lineTo(T.E.x, T.E.y); ctx.lineTo(T.S.x, T.S.y); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(10,26,52,0.9)';
+      ctx.beginPath(); ctx.moveTo(T.N.x, T.N.y); ctx.lineTo(T.E.x, T.E.y); ctx.lineTo(T.S.x, T.S.y); ctx.lineTo(T.W.x, T.W.y); ctx.closePath(); ctx.fill();
+      // edges
+      ctx.strokeStyle = `rgba(110,195,255,${a.toFixed(2)})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(T.N.x, T.N.y); ctx.lineTo(T.E.x, T.E.y); ctx.lineTo(T.S.x, T.S.y); ctx.lineTo(T.W.x, T.W.y); ctx.closePath();
+      ctx.moveTo(W2.x, W2.y); ctx.lineTo(T.W.x, T.W.y);
+      ctx.moveTo(S2.x, S2.y); ctx.lineTo(T.S.x, T.S.y);
+      ctx.moveTo(E.x, E.y); ctx.lineTo(T.E.x, T.E.y);
+      ctx.stroke();
+      // a couple of lit windows on the tall ones
+      if (h > 30 && rng() < 0.7) {
+        ctx.fillStyle = 'rgba(150,225,255,0.5)';
+        for (let w3 = 0; w3 < 3; w3++) {
+          ctx.fillRect(x + (rng() - 0.5) * HW, y - rng() * h, 1.6, 1.6);
+        }
+      }
+    };
+    // staggered block rows fill the rectangle, painter-ordered top to bottom
+    const rows2 = Math.ceil(CITY_H / HH) + 2, cols2 = Math.ceil(CITY_W / (HW * 2)) + 2;
+    for (let r2 = 0; r2 < rows2; r2++) {
+      for (let c2 = 0; c2 < cols2; c2++) {
+        const bx2 = c2 * HW * 2 + (r2 % 2) * HW, by2 = r2 * HH;
+        if ((r2 + c2 * 2) % 9 < 2) continue;  // avenue bands stay open
+        if (rng() < 0.55) continue;           // plazas / empty lots
+        const spire = rng() < 0.035;
+        const h = spire ? 60 + rng() * 55 : 6 + rng() * rng() * 42;
+        box(bx2, by2, h, spire ? 0.55 : 0.16 + rng() * 0.22);
+      }
+    }
+  });
+}
 function mapHex(x, y, r) {
   ctx.beginPath();
   for (let k = 0; k < 6; k++) {
@@ -4558,89 +4632,119 @@ function mapHex(x, y, r) {
   }
   ctx.closePath();
 }
+function relayW(i) {
+  const p2 = i < 0 ? CITY_A : i >= LEVELS.length ? CITY_B : RELAY_W[i];
+  return { x: p2[0], y: p2[1] };
+}
+// the lens centers on the incoming hop of the selected relay
+function mapTarget(li) {
+  const p0 = relayW(li - 1), p1 = relayW(li);
+  return { x: lerp((p0.x + p1.x) / 2, p1.x, 0.35), y: lerp((p0.y + p1.y) / 2, p1.y, 0.35) };
+}
 function drawMenuMap() {
+  const { ccx, ccy } = menuGeom();
+  const R = mapR();
+  if (!cityCanvas) buildCity();
   const frontier = Math.min(progress.unlocked - 1, LEVELS.length - 1);
-  const P = i => i < 0 ? { x: MAP_A[0] * W, y: MAP_A[1] * H }
-    : i >= LEVELS.length ? { x: MAP_B[0] * W, y: MAP_B[1] * H }
-    : { x: MAP_POS[i][0] * W, y: MAP_POS[i][1] * H };
-  // route segments: into node i (last segment runs 7 -> B)
+  // camera: glide toward the selected relay's hop (snap on entry)
+  const tgt = mapTarget(mapSel);
+  const camMinX = R * 0.8, camMaxX = CITY_W - R * 0.8;
+  const tx2 = clamp(tgt.x, camMinX, camMaxX), ty2 = clamp(tgt.y, R * 0.7, CITY_H - R * 0.7);
+  if (mapCamSnap) { mapCamX = tx2; mapCamY = ty2; mapCamSnap = false; }
+  mapCamX += (tx2 - mapCamX) * 0.08;
+  mapCamY += (ty2 - mapCamY) * 0.08;
+  const wx = p2 => ccx + (p2.x - mapCamX); // world -> screen
+  const wy = p2 => ccy + (p2.y - mapCamY);
+
+  // ---- inside the lens ----
+  ctx.save();
+  ctx.beginPath(); ctx.arc(ccx, ccy, R - 5, 0, TAU); ctx.clip();
+  ctx.drawImage(cityCanvas, ccx - mapCamX, ccy - mapCamY);
+  // route over the city
   ctx.lineCap = 'round';
   for (let k = -1; k < LEVELS.length; k++) {
-    const p0 = P(k), p1 = P(k + 1);
-    const into = Math.min(k + 1, LEVELS.length - 1); // level the segment leads to
+    const p0 = relayW(k), p1 = relayW(k + 1);
+    const into = Math.min(k + 1, LEVELS.length - 1);
     const done = k + 1 < LEVELS.length ? progress.stars[into] > 0 : progress.stars[LEVELS.length - 1] > 0;
-    const active = !done && k + 1 <= frontier + (k + 1 === LEVELS.length ? -1 : 0) && k + 1 === frontier;
-    if (done) {
-      ctx.strokeStyle = 'rgba(111,227,255,0.5)'; ctx.lineWidth = 2; ctx.setLineDash([]);
-    } else if (active) {
-      ctx.strokeStyle = 'rgba(255,210,74,0.65)'; ctx.lineWidth = 2;
-      ctx.setLineDash([7, 7]); ctx.lineDashOffset = -time * 24;
-    } else {
-      ctx.strokeStyle = 'rgba(120,180,255,0.14)'; ctx.lineWidth = 1.5;
-      ctx.setLineDash([3, 9]); ctx.lineDashOffset = 0;
-    }
-    ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+    const active = !done && k + 1 === frontier;
+    if (done) { ctx.strokeStyle = 'rgba(111,227,255,0.6)'; ctx.lineWidth = 2.5; ctx.setLineDash([]); }
+    else if (active) { ctx.strokeStyle = 'rgba(255,210,74,0.75)'; ctx.lineWidth = 2.5; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -time * 26; }
+    else { ctx.strokeStyle = 'rgba(120,180,255,0.18)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 10]); ctx.lineDashOffset = 0; }
+    ctx.beginPath(); ctx.moveTo(wx(p0), wy(p0)); ctx.lineTo(wx(p1), wy(p1)); ctx.stroke();
     ctx.setLineDash([]);
-    if (done) { // data motes riding the secured hop
+    if (done) {
       const q = (time * 0.35 + k * 0.37) % 1;
-      ctx.fillStyle = 'rgba(190,240,255,0.8)';
-      ctx.beginPath(); ctx.arc(lerp(p0.x, p1.x, q), lerp(p0.y, p1.y, q), 1.8, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(190,240,255,0.9)';
+      ctx.beginPath(); ctx.arc(lerp(wx(p0), wx(p1), q), lerp(wy(p0), wy(p1), q), 2, 0, TAU); ctx.fill();
     }
   }
   // endpoints
-  for (const [pt, lbl, sub] of [[P(-1), 'A', 'SOURCE'], [P(LEVELS.length), 'B', 'DESTINATION']]) {
-    techRect(pt.x - 13, pt.y - 13, 26, 26, 6);
-    ctx.fillStyle = 'rgba(8,24,46,0.9)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(140,220,255,0.75)'; ctx.lineWidth = 1.5;
-    techRect(pt.x - 13, pt.y - 13, 26, 26, 6); ctx.stroke();
+  for (const [pt, lbl, sub] of [[relayW(-1), 'A', 'SOURCE'], [relayW(LEVELS.length), 'B', 'DESTINATION']]) {
+    const ex2 = wx(pt), ey2 = wy(pt);
+    techRect(ex2 - 12, ey2 - 12, 24, 24, 6);
+    ctx.fillStyle = 'rgba(8,24,46,0.92)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(140,220,255,0.8)'; ctx.lineWidth = 1.5;
+    techRect(ex2 - 12, ey2 - 12, 24, 24, 6); ctx.stroke();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#eafaff'; ctx.font = '800 13px Audiowide, system-ui';
-    ctx.fillText(lbl, pt.x, pt.y + 1);
+    ctx.fillStyle = '#eafaff'; ctx.font = '800 12px Audiowide, system-ui';
+    ctx.fillText(lbl, ex2, ey2 + 1);
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = 'rgba(140,200,255,0.6)'; ctx.font = '500 7px Audiowide, system-ui';
-    ctx.fillText(sub, pt.x, pt.y + 24);
+    ctx.fillStyle = 'rgba(140,200,255,0.7)'; ctx.font = '500 7px Audiowide, system-ui';
+    ctx.fillText(sub, ex2, ey2 + 22);
     ctx.textAlign = 'left';
   }
-  // relay nodes
-  const nr = Math.min(W, H) * 0.032;
+  // relay markers
+  const nr = Math.min(W, H) * 0.03;
   for (let i = 0; i < LEVELS.length; i++) {
-    const pt = P(i);
+    const pt = relayW(i);
+    const mx2 = wx(pt), my2 = wy(pt);
+    if (Math.hypot(mx2 - ccx, my2 - ccy) > R + nr) continue; // outside the lens
     const locked = i + 1 > progress.unlocked;
     const cleared = progress.stars[i] > 0;
     const isFrontier = i === frontier && !cleared;
     const isBoss = !!LEVELS[i].boss;
     const r = nr * (isBoss ? 1.3 : 1);
-    const col = isBoss ? '212,101,255' : '111,227,255';
-    mapHex(pt.x, pt.y, r);
-    ctx.fillStyle = locked ? 'rgba(10,18,34,0.75)' : cleared ? 'rgba(16,50,72,0.9)' : 'rgba(12,30,55,0.9)';
+    mapHex(mx2, my2, r);
+    ctx.fillStyle = locked ? 'rgba(10,18,34,0.85)' : cleared ? 'rgba(16,50,72,0.92)' : 'rgba(12,30,55,0.92)';
     ctx.fill();
-    if (isFrontier) {
-      ctx.strokeStyle = `rgba(255,210,74,${(0.7 + Math.sin(time * 4) * 0.3).toFixed(2)})`;
-      ctx.lineWidth = 2;
-    } else {
-      ctx.strokeStyle = locked ? 'rgba(120,180,255,0.22)' : `rgba(${col},0.8)`;
-      ctx.lineWidth = 1.5;
-    }
-    mapHex(pt.x, pt.y, r); ctx.stroke();
-    if (i === mapSel) { // selection brackets
-      ctx.strokeStyle = 'rgba(240,252,255,0.9)'; ctx.lineWidth = 1.5;
-      mapHex(pt.x, pt.y, r + 5); ctx.stroke();
-    }
+    if (isFrontier) ctx.strokeStyle = `rgba(255,210,74,${(0.7 + Math.sin(time * 4) * 0.3).toFixed(2)})`;
+    else ctx.strokeStyle = locked ? 'rgba(120,180,255,0.25)' : isBoss ? 'rgba(212,101,255,0.85)' : 'rgba(111,227,255,0.85)';
+    ctx.lineWidth = isFrontier ? 2 : 1.5;
+    mapHex(mx2, my2, r); ctx.stroke();
+    if (i === mapSel) { ctx.strokeStyle = 'rgba(240,252,255,0.9)'; ctx.lineWidth = 1.5; mapHex(mx2, my2, r + 5); ctx.stroke(); }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = locked ? 'rgba(200,225,255,0.3)' : '#f2faff';
-    ctx.font = '800 ' + Math.round(r * 0.72) + 'px Audiowide, system-ui';
-    ctx.fillText(locked ? '·' : String(i + 1), pt.x, pt.y + 1);
+    ctx.fillStyle = locked ? 'rgba(200,225,255,0.35)' : '#f2faff';
+    ctx.font = '800 ' + Math.round(r * 0.75) + 'px Audiowide, system-ui';
+    ctx.fillText(locked ? '·' : String(i + 1), mx2, my2 + 1);
     ctx.textBaseline = 'alphabetic';
     if (isBoss) {
-      ctx.fillStyle = locked ? 'rgba(212,101,255,0.35)' : 'rgba(212,101,255,0.85)';
-      ctx.font = '700 7px Audiowide, system-ui';
-      ctx.fillText('CORE', pt.x, pt.y - r - 5);
+      ctx.fillStyle = 'rgba(212,101,255,0.85)'; ctx.font = '700 7px Audiowide, system-ui';
+      ctx.fillText('CORE', mx2, my2 - r - 5);
     }
-    if (cleared) for (let k = 0; k < 3; k++) star5(pt.x - 12 + k * 12, pt.y + r + 9, 4.5, k < progress.stars[i]);
+    if (cleared) for (let k = 0; k < 3; k++) star5(mx2 - 11 + k * 11, my2 + r + 8, 4, k < progress.stars[i]);
     ctx.textAlign = 'left';
-    menuButtons.push({ x: pt.x - 22, y: pt.y - 22, w: 44, h: 44, node: i, locked: false });
+    menuButtons.push({ x: mx2 - 20, y: my2 - 20, w: 40, h: 40, node: i, locked: false });
   }
-  drawMapPanel(mapSel, frontier);
+  // lens optics: inner vignette + a slow radar sweep
+  const vg = ctx.createRadialGradient(ccx, ccy, R * 0.55, ccx, ccy, R);
+  vg.addColorStop(0, 'rgba(2,6,14,0)');
+  vg.addColorStop(1, 'rgba(2,6,14,0.55)');
+  ctx.fillStyle = vg;
+  ctx.beginPath(); ctx.arc(ccx, ccy, R, 0, TAU); ctx.fill();
+  const swA = time * 0.5;
+  const swG = ctx.createLinearGradient(ccx, ccy, ccx + Math.cos(swA) * R, ccy + Math.sin(swA) * R);
+  swG.addColorStop(0, 'rgba(111,227,255,0)');
+  swG.addColorStop(1, 'rgba(111,227,255,0.25)');
+  ctx.strokeStyle = swG; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(ccx, ccy); ctx.lineTo(ccx + Math.cos(swA) * (R - 6), ccy + Math.sin(swA) * (R - 6)); ctx.stroke();
+  ctx.restore();
+  // lens rim
+  ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(ccx, ccy, R - 5, 0, TAU); ctx.stroke();
+
+  drawMapList(ccx, ccy, R, frontier);
+  drawMapCard(mapSel, frontier, ccx, ccy, R);
+
   // TEMPORARY: BOSS TEST dev key
   const dv = { x: W - 116 - SAFE.r, y: 58 + SAFE.t, w: 96, h: 24 };
   techRect(dv.x, dv.y, dv.w, dv.h, 6);
@@ -4651,28 +4755,71 @@ function drawMenuMap() {
   ctx.fillText('⚔ BOSS (DEV)', dv.x + 9, dv.y + 16);
   menuButtons.push({ ...dv, bossTest: true, locked: false });
 }
-// relay dossier: name, expected traffic glyphs, run stats, deploy key
-function drawMapPanel(li, frontier) {
+// left column: the relay list — the selector that drives the lens
+function drawMapList(ccx, ccy, R, frontier) {
+  ctx.textAlign = 'left';
+  const lx2 = 16 + SAFE.l;
+  const lw2 = Math.max(120, ccx - R - lx2 - 14);
+  const rows = LEVELS.length;
+  const rh = Math.min(34, (H - 90) / rows - 6), gap2 = 6;
+  let ly2 = Math.max(40 + SAFE.t, ccy - (rows * (rh + gap2) - gap2) / 2);
+  ctx.fillStyle = 'rgba(120,210,255,0.75)'; ctx.font = '700 9px Audiowide, system-ui';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.fillText('RELAYS', lx2 + 2, ly2 - 8);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  for (let i = 0; i < rows; i++) {
+    const locked = i + 1 > progress.unlocked;
+    const sel = i === mapSel;
+    techRect(lx2, ly2, lw2, rh, 6);
+    ctx.fillStyle = sel ? 'rgba(30,120,190,0.4)' : locked ? 'rgba(90,160,255,0.04)' : 'rgba(10,36,64,0.5)';
+    ctx.fill();
+    ctx.strokeStyle = sel ? 'rgba(150,238,255,0.95)'
+      : i === frontier && !locked ? 'rgba(255,210,74,0.6)'
+      : locked ? 'rgba(120,180,255,0.15)' : 'rgba(95,200,255,0.4)';
+    ctx.lineWidth = sel ? 1.5 : 1;
+    techRect(lx2, ly2, lw2, rh, 6); ctx.stroke();
+    ctx.fillStyle = locked ? 'rgba(220,240,255,0.3)' : '#f2faff';
+    ctx.font = '700 9px Audiowide, system-ui';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('0' + (i + 1) + '  ' + LEVELS[i].name, lx2 + 9, ly2 + rh / 2 + 1);
+    ctx.textBaseline = 'alphabetic';
+    if (locked) padlock(lx2 + lw2 - 12, ly2 + rh / 2, 5);
+    else if (progress.stars[i] > 0) {
+      for (let k = 0; k < 3; k++) star5(lx2 + lw2 - 34 + k * 11, ly2 + rh / 2, 4, k < progress.stars[i]);
+    }
+    menuButtons.push({ x: lx2, y: ly2, w: lw2, h: rh, node: i, locked: false });
+    ly2 += rh + gap2;
+  }
+}
+// right column: the relay dossier + deploy
+function drawMapCard(li, frontier, ccx, ccy, R) {
+  ctx.textAlign = 'left';
   const L2 = LEVELS[li];
   const locked = li + 1 > progress.unlocked;
-  const pw = Math.min(W * 0.62, 560), ph = Math.max(80, H * 0.195);
-  const px2 = W / 2 - pw / 2, py2 = H - ph - 8;
+  const px2 = ccx + R + 12;
+  const pw = Math.max(120, W - SAFE.r - 14 - px2);
+  const ph = Math.min(H - 100, 236);
+  const py2 = ccy - ph / 2;
   techRect(px2, py2, pw, ph, 10);
   ctx.fillStyle = 'rgba(5,14,30,0.82)'; ctx.fill();
   ctx.strokeStyle = locked ? 'rgba(120,180,255,0.25)' : 'rgba(111,227,255,0.45)'; ctx.lineWidth = 1.5;
   techRect(px2, py2, pw, ph, 10); ctx.stroke();
+  ctx.fillStyle = locked ? 'rgba(220,240,255,0.5)' : 'rgba(140,200,255,0.6)';
+  ctx.font = '700 9px Audiowide, system-ui';
+  ctx.fillText('RELAY 0' + (li + 1), px2 + 14, py2 + 20);
   if (locked) {
-    ctx.fillStyle = 'rgba(220,240,255,0.5)'; ctx.font = '700 13px Audiowide, system-ui';
-    ctx.fillText('ENCRYPTED RELAY 0' + (li + 1), px2 + 18, py2 + 26);
-    ctx.fillStyle = 'rgba(160,200,240,0.45)'; ctx.font = '500 10px Audiowide, system-ui';
-    ctx.fillText('secure the previous relay to decrypt this route', px2 + 18, py2 + 46);
-    padlock(px2 + pw - 34, py2 + ph / 2, 8);
+    ctx.fillStyle = 'rgba(220,240,255,0.55)'; ctx.font = '700 12px Audiowide, system-ui';
+    ctx.fillText('ENCRYPTED', px2 + 14, py2 + 44);
+    ctx.fillStyle = 'rgba(160,200,240,0.45)'; ctx.font = '500 9px Audiowide, system-ui';
+    ctx.fillText('secure the previous', px2 + 14, py2 + 64);
+    ctx.fillText('relay to decrypt', px2 + 14, py2 + 78);
+    padlock(px2 + pw / 2, py2 + ph - 40, 9);
     return;
   }
-  ctx.fillStyle = '#f2faff'; ctx.font = '700 13px Audiowide, system-ui';
-  ctx.fillText('0' + (li + 1) + ' · ' + L2.name, px2 + 18, py2 + 24);
-  for (let k = 0; k < 3; k++) star5(px2 + pw - 190 + k * 20, py2 + 19, 7, k < progress.stars[li]);
-  // expected traffic glyph row
+  ctx.fillStyle = '#f2faff'; ctx.font = '700 12px Audiowide, system-ui';
+  ctx.fillText(L2.name, px2 + 14, py2 + 40);
+  for (let k = 0; k < 3; k++) star5(px2 + 22 + k * 20, py2 + 58, 7, k < progress.stars[li]);
+  // expected traffic glyphs, wrapped
   const kinds = ['normal'];
   if (L2.heavies) kinds.push('heavy');
   if (L2.lines) kinds.push('line');
@@ -4681,18 +4828,22 @@ function drawMapPanel(li, frontier) {
   if (L2.frags) kinds.push('frag');
   if (L2.boss) kinds.push('boss');
   ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
-  ctx.fillText('EXPECTED TRAFFIC', px2 + 18, py2 + 38);
-  kinds.forEach((k, ki) => drawInfoGlyph(k, px2 + 30 + ki * 34, py2 + ph - 22, 9));
-  // run stats
-  ctx.textAlign = 'right';
+  ctx.fillText('EXPECTED TRAFFIC', px2 + 14, py2 + 82);
+  kinds.forEach((k, ki) => {
+    const col2 = ki % 5, row2 = Math.floor(ki / 5);
+    drawInfoGlyph(k, px2 + 26 + col2 * 26, py2 + 102 + row2 * 28, 8);
+  });
+  const gRows = Math.ceil(kinds.length / 5);
+  let sy2 = py2 + 96 + gRows * 28 + 8;
   ctx.fillStyle = 'rgba(160,215,255,0.8)'; ctx.font = '600 9px Audiowide, system-ui';
-  const stats = (L2.boss ? 'CORE DUEL · ' : '') + 'RUN ' + L2.duration + 's · TRAFFIC ' + Math.round(L2.speed * 100) +
-    ((progress.bests[li] || 0) > 0 ? ' · BEST ' + progress.bests[li].toLocaleString() : '');
-  ctx.fillText(stats, px2 + pw - 158, py2 + ph - 12);
-  ctx.textAlign = 'left';
-  // deploy key
-  const dw = 128, dh = 36;
-  const dx2 = px2 + pw - dw - 14, dy2 = py2 + ph / 2 - dh / 2;
+  ctx.fillText((L2.boss ? 'CORE DUEL · ' : '') + 'RUN ' + L2.duration + 's', px2 + 14, sy2);
+  ctx.fillText('TRAFFIC ' + Math.round(L2.speed * 100), px2 + 14, sy2 + 14);
+  if ((progress.bests[li] || 0) > 0) {
+    ctx.fillStyle = 'rgba(255,210,74,0.85)';
+    ctx.fillText('BEST ' + progress.bests[li].toLocaleString(), px2 + 14, sy2 + 28);
+  }
+  const dw = pw - 24, dh = 34;
+  const dx2 = px2 + 12, dy2 = py2 + ph - dh - 12;
   levelKey(dx2, dy2, dw, dh, '▶', 'DEPLOY', -1, false, li === frontier);
   menuButtons.push({ x: dx2, y: dy2, w: dw, h: dh, deploy: li, locked: false });
 }
