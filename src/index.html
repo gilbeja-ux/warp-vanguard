@@ -2842,20 +2842,37 @@ function drawNodes(g) {
         color: i === 0 ? '#6fe3ff' : '#ffffff', size: rand(1, 2.2)
       });
     }
-    // coverage arc hint — drawn on the ring itself; grows/shrinks with wide-arc
+    // coverage window — the gauge language of the pads, miniaturized on the
+    // ring: translucent track between hairline rails, end ticks marking the
+    // EXACT edge of the zap window. Grows/shrinks with wide-arc.
     if (!fused) {
-    const cov = 0.314 * tolVis;
-    const wideGlow = clamp((tolVis - 1) / 0.7, 0, 1);
-    ctx.beginPath();
-    ctx.arc(nearR.x, nearR.y, g.nodeR, n.angle - cov, n.angle + cov);
-    ctx.strokeStyle = `rgba(${cCol},${(0.5 + wideGlow * 0.3).toFixed(2)})`;
-    ctx.lineWidth = 4 + wideGlow * 2.5; ctx.lineCap = 'round'; ctx.stroke();
-    if (wideGlow > 0.02) { // golden shimmer while the arc is overcharged
-      ctx.beginPath();
-      ctx.arc(nearR.x, nearR.y, g.nodeR + 5, n.angle - cov, n.angle + cov);
-      ctx.strokeStyle = `rgba(255,210,74,${(wideGlow * (0.35 + Math.sin(time * 6) * 0.15)).toFixed(2)})`;
-      ctx.lineWidth = 2; ctx.stroke();
-    }
+      const cov = 0.314 * tolVis;
+      const wideGlow = clamp((tolVis - 1) / 0.7, 0, 1);
+      const rw = bzn * 0.24; // half-width of the miniature gauge band
+      ctx.lineCap = 'butt';
+      ctx.strokeStyle = `rgba(${cCol},${(0.22 + wideGlow * 0.18).toFixed(2)})`;
+      ctx.lineWidth = rw * 1.7;
+      ctx.beginPath(); ctx.arc(nearR.x, nearR.y, g.nodeR, n.angle - cov, n.angle + cov); ctx.stroke();
+      ctx.strokeStyle = `rgba(${cCol},0.55)`;
+      ctx.lineWidth = 1.2;
+      for (const rr3 of [g.nodeR - rw, g.nodeR + rw]) {
+        ctx.beginPath(); ctx.arc(nearR.x, nearR.y, rr3, n.angle - cov, n.angle + cov); ctx.stroke();
+      }
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = `rgba(${cCol},0.8)`;
+      for (const ea of [n.angle - cov, n.angle + cov]) { // window edge ticks
+        ctx.beginPath();
+        ctx.moveTo(nearR.x + Math.cos(ea) * (g.nodeR - rw * 1.5), nearR.y + Math.sin(ea) * (g.nodeR - rw * 1.5));
+        ctx.lineTo(nearR.x + Math.cos(ea) * (g.nodeR + rw * 1.5), nearR.y + Math.sin(ea) * (g.nodeR + rw * 1.5));
+        ctx.stroke();
+      }
+      if (wideGlow > 0.02) { // golden shimmer while the window is overcharged
+        ctx.beginPath();
+        ctx.arc(nearR.x, nearR.y, g.nodeR + rw * 2, n.angle - cov, n.angle + cov);
+        ctx.strokeStyle = `rgba(255,210,74,${(wideGlow * (0.35 + Math.sin(time * 6) * 0.15)).toFixed(2)})`;
+        ctx.lineWidth = 2; ctx.stroke();
+      }
+      ctx.lineCap = 'round';
     }
     // glow
     const gl = ctx.createRadialGradient(x, y, 0, x, y, size * 2.6);
@@ -2907,6 +2924,25 @@ function drawNodes(g) {
     ctx.lineWidth = Math.max(1.5, size * 0.12);
     ctx.beginPath(); ctx.moveTo(0, -size * 1.35); ctx.lineTo(0, -size * 1.7); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0, size * 1.35); ctx.lineTo(0, size * 1.7); ctx.stroke();
+    // pantograph shoes: two struts reaching out to the node ring, ending in
+    // bright contact pads — the lens is MOUNTED, not floating (they glow
+    // hotter while the carriage slides)
+    if (!fused) {
+      const dRing = g.nodeR - rr2; // radial gap from lens center to the ring (local +x)
+      const slideGlow = clamp(Math.abs(n.trailV || 0) * 8, 0, 1);
+      ctx.strokeStyle = `rgba(${cCol},0.5)`;
+      ctx.lineWidth = Math.max(1.2, size * 0.1);
+      for (const sy of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(size * 0.92, sy * size * 0.42);
+        ctx.lineTo(dRing - size * 0.16, sy * size * 0.66);
+        ctx.stroke();
+      }
+      ctx.fillStyle = `rgba(255,255,255,${(0.55 + slideGlow * 0.45).toFixed(2)})`;
+      for (const sy of [-1, 1]) {
+        ctx.beginPath(); ctx.arc(dRing, sy * size * 0.66, Math.max(1.4, size * 0.11) * (1 + slideGlow * 0.5), 0, TAU); ctx.fill();
+      }
+    }
     ctx.restore();
   }
   if (settings.controls === 2 && !fused) drawControlArcs(g);
@@ -3346,8 +3382,10 @@ function drawHUD(g) {
   // radius is clamped so the arc tips + stroke casing always stay on screen —
   // on wide phones the unclamped radius pushed the tips past the top edge
   const bw2 = Math.max(9, Math.min(W, H) * 0.024);
-  const ELEV = Math.PI * 0.34; // how far above horizontal the arc tips rise
-  const barR = Math.min(g.nodeR + Math.min(W, H) * 0.095, (H / 2 - bw2 - 8) / Math.sin(ELEV));
+  // tips ride lower (0.34π → 0.28π) so the arcs can sit farther out without
+  // clipping the screen edge — clear breathing room between bar and ring
+  const ELEV = Math.PI * 0.28;
+  const barR = Math.min(g.nodeR + Math.min(W, H) * 0.125, (H / 2 - bw2 - 8) / Math.sin(ELEV));
   const aL0 = Math.PI * 1.06, aL1 = Math.PI + ELEV; // lower-left → upper-left
   ctx.lineCap = 'round';
   ctx.strokeStyle = 'rgba(240,250,255,0.85)'; ctx.lineWidth = bw2 + 5;
