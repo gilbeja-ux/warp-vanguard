@@ -563,7 +563,8 @@ let infoCard = null, infoShownAt = 0; // briefing card (S.INFO)
 let menuScroll = 0, menuPtr = null; // level-list scrolling
 let endWin = false, endStars = 0, endT = 0, endNewBest = false;
 let endFxStars = 0, endTickT = 0; // ceremony bookkeeping (star chimes, count ticks)
-const endBtnAt = () => endWin ? 2.1 : 1.25; // when the buttons arrive
+const endBtnAt = () => endWin ? 2.9 : 1.25; // when the buttons arrive (wins ride the sweep first)
+let endSweep = -1; // victory clear-sweep front (z), -1 when idle
 let pauseBtnRect = null, pauseButtonsList = [], pauseSlidersList = [], pauseTogglesList = [];
 let menuSettings = false, menuGearRect = null, menuSetButtons = [], menuSetPanel = null, menuFsRect = null, menuMutRects = [];
 const pauseDrag = {};
@@ -1352,6 +1353,7 @@ function startDaily() {
 }
 
 function endLevel(win) {
+  endSweep = win ? geo().hitZ : -1; // victory: a cleansing wave rolls to the horizon
   beamSound(false, 0); beamActive = false;
   musicDuck = 1;
   endWin = win; endT = 0; endFxStars = 0; endTickT = 0;
@@ -1399,11 +1401,11 @@ const QUAL = [
 ];
 const INFO_CARDS = {
   move:   { title: 'DUAL NODES', lines: ['Left thumb steers the BLUE node,', 'right thumb steers the WHITE node.', 'Slide around the dials to ride the ring.'] },
-  normal: { title: 'DATA TRAP', lines: ['Hostile packet riding the stream.', 'Align ANY node with it as it reaches', 'the ring. Dead-center = PERFECT ×2.'] },
-  heavy:  { title: 'HEAVY TRAP', lines: ['Armored — one node cannot break it.', 'Pin it with BOTH nodes at once.'] },
-  line:   { title: 'BARRIER LINE', lines: ['Two traps linked by an energy wall.', 'Cover BOTH ENDS — one node on each.'] },
-  lock:   { title: 'COLOR LOCK', lines: ['Keyed to a single node. Only the', 'MATCHING color can break it —', 'watch the orbiting dot.'] },
-  frag:   { title: 'FRIENDLY PACKET', lines: ['The BLACK packet is payload data.', 'NOT a threat — do NOT zap it.', 'Let it pass and collect the bonus.'] },
+  normal: { title: 'DATA TAP', lines: ['A siphon latched through the wall,', 'bleeding the stream. Align ANY node', 'as it crosses the ring. Center = ×2.'] },
+  heavy:  { title: 'ARMORED TAP', lines: ['Double-collared — one node cannot', 'break its seal. Pin it with BOTH', 'nodes at once.'] },
+  line:   { title: 'BARRIER TAPS', lines: ['Two taps tearing the wall open', 'between them. Cover BOTH ends —', 'one node on each.'] },
+  lock:   { title: 'KEYED TAP', lines: ['Sealed to a single node. Only the', 'MATCHING color can break it —', 'watch the orbiting key.'] },
+  frag:   { title: 'VOID PACKET', lines: ['The black packet is your PAYLOAD.', 'Zapping it is DEVASTATING to the', 'stream — let it pass, bank the bonus.'] },
   pickup: { title: 'POWER-UP', lines: ['Golden relays ride the stream.', 'Catch one with any node:', 'SLOW-MO · WIDE ARC · AUTO-ZAP.'] },
   strip:  { title: 'DATA STREAM', lines: ['A live stream rides the wall.', 'Keep a node ON its crossing point', 'from head to tail — do not let go.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Combo zaps bank charge in your pads.', 'When an orb GLOWS, tap it to fire', 'a purge wave down the tunnel.'] },
@@ -1510,7 +1512,11 @@ function update(dt) {
   for (const b of bolts) b.life -= dt;
   bolts = bolts.filter(b => b.life > 0);
 
-  if (state !== S.PLAY) { endT += dt; return; }
+  if (state !== S.PLAY) {
+    endT += dt;
+    if (state === S.END && endSweep > 0 && endSweep < SPAWN_Z + 0.4) endSweep += dt * 2.1;
+    return;
+  }
 
   if (endless) LV = endlessCfg(levelT); // difficulty tracks survival time
   const L = LV;
@@ -3288,6 +3294,56 @@ const INFO_PAL = {
   lock:   { glow: '80,170,255',  shades: ['#2f7fe0', '#1c4fae', '#4d9bff', '#12398a', '#3f8af0'], core: '#2f7fe0' },
   frag:   { glow: '90,110,140', shades: ['#2b3242', '#151a26', '#3a4354', '#0d1119', '#232a38'], core: '#2b3242' }
 };
+// a miniature of the live tap hardware, for briefing cards
+function infoTap(r, pal, double) {
+  ctx.save();
+  ctx.rotate(0.55);
+  // hex port plate, squashed for depth
+  ctx.save();
+  ctx.scale(1, 0.5);
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const ha = i / 6 * TAU + Math.PI / 6;
+    i ? ctx.lineTo(Math.cos(ha) * r, Math.sin(ha) * r) : ctx.moveTo(Math.cos(ha) * r, Math.sin(ha) * r);
+  }
+  ctx.closePath();
+  const plate = ctx.createLinearGradient(-r, 0, r, 0);
+  plate.addColorStop(0, '#1a2334'); plate.addColorStop(0.5, '#0a0e1a'); plate.addColorStop(1, '#141b2b');
+  ctx.fillStyle = plate; ctx.fill();
+  ctx.strokeStyle = `rgba(${pal.glow},0.95)`; ctx.lineWidth = Math.max(1.5, r * 0.1); ctx.stroke();
+  if (double) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const ha = i / 6 * TAU + Math.PI / 6;
+      i ? ctx.lineTo(Math.cos(ha) * r * 1.35, Math.sin(ha) * r * 1.35) : ctx.moveTo(Math.cos(ha) * r * 1.35, Math.sin(ha) * r * 1.35);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = pal.shades[2]; ctx.lineWidth = Math.max(1, r * 0.06);
+    ctx.globalAlpha = 0.55 + 0.3 * Math.sin(time * 4);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = 'rgba(190,215,240,0.75)';
+  for (let i = 0; i < 3; i++) {
+    const ha = i / 3 * TAU + Math.PI / 6;
+    ctx.beginPath(); ctx.arc(Math.cos(ha) * r * 0.72, Math.sin(ha) * r * 0.72, r * 0.08, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+  // probe needle with its siphon light-guide
+  const L2 = r * 1.7, nw = r * 0.17;
+  ctx.beginPath(); ctx.moveTo(-nw, 0); ctx.lineTo(0, -L2); ctx.lineTo(nw, 0); ctx.closePath();
+  ctx.fillStyle = '#141b2b'; ctx.fill();
+  ctx.strokeStyle = 'rgba(170,195,225,0.55)'; ctx.lineWidth = Math.max(0.8, r * 0.06); ctx.stroke();
+  ctx.strokeStyle = `rgba(${pal.glow},0.95)`;
+  ctx.lineWidth = Math.max(1, r * 0.09);
+  ctx.setLineDash([r * 0.28, r * 0.2]);
+  ctx.lineDashOffset = time * r * 2.5;
+  ctx.beginPath(); ctx.moveTo(0, -L2); ctx.lineTo(0, 0); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(0, -L2, Math.max(1, r * 0.11), 0, TAU); ctx.fill();
+  ctx.restore();
+}
 function drawInfoGlyph(kind, cx, cy, r) {
   ctx.save();
   ctx.translate(cx, cy);
@@ -3325,11 +3381,6 @@ function drawInfoGlyph(kind, cx, cy, r) {
     ctx.closePath(); ctx.fill();
   } else if (kind === 'frag') {
     const pr = r * 1.05;
-    const gl = ctx.createRadialGradient(0, 0, 0, 0, 0, pr * 1.8);
-    gl.addColorStop(0, 'rgba(90,110,140,0.4)');
-    gl.addColorStop(1, 'rgba(90,110,140,0)');
-    ctx.fillStyle = gl;
-    ctx.beginPath(); ctx.arc(0, 0, pr * 1.8, 0, TAU); ctx.fill();
     ctx.rotate(time * 0.25);
     ctx.beginPath();
     ctx.moveTo(0, -pr);
@@ -3338,26 +3389,63 @@ function drawInfoGlyph(kind, cx, cy, r) {
     ctx.quadraticCurveTo(-pr * 0.55, pr * 0.55, -pr, 0);
     ctx.quadraticCurveTo(-pr * 0.55, -pr * 0.55, 0, -pr);
     ctx.closePath();
-    const fg2 = ctx.createRadialGradient(-pr * 0.2, -pr * 0.25, 0, 0, 0, pr);
-    fg2.addColorStop(0, '#2b3242');
-    fg2.addColorStop(0.45, '#0d1119');
-    fg2.addColorStop(1, '#02040a');
+    const fg2 = ctx.createRadialGradient(0, 0, 0, 0, 0, pr);
+    fg2.addColorStop(0, '#0a0c1a');
+    fg2.addColorStop(0.55, '#04050d');
+    fg2.addColorStop(1, '#010104');
     ctx.fillStyle = fg2; ctx.fill();
-    ctx.strokeStyle = 'rgba(140,150,170,0.55)'; ctx.lineWidth = Math.max(1.5, pr * 0.08); ctx.stroke();
-    ctx.fillStyle = 'rgba(200,210,230,0.35)';
-    ctx.beginPath(); ctx.ellipse(-pr * 0.22, -pr * 0.28, pr * 0.16, pr * 0.09, -0.6, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(185,200,230,0.8)'; ctx.lineWidth = Math.max(1.5, pr * 0.06); ctx.stroke();
+    ctx.fillStyle = 'rgba(90,70,160,0.15)';
+    ctx.beginPath(); ctx.ellipse(-pr * 0.25, -pr * 0.2, pr * 0.5, pr * 0.35, 0.6, 0, TAU); ctx.fill();
   } else if (kind === 'line') {
-    const off = r * 1.05;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = 'rgba(255,60,90,0.6)'; ctx.lineWidth = r * 0.26;
+    // two taps torn open along a running crack
+    const off = r * 1.15;
+    ctx.strokeStyle = 'rgba(255,60,90,0.6)'; ctx.lineWidth = Math.max(2, r * 0.16);
+    ctx.setLineDash([r * 0.4, r * 0.28]);
+    ctx.lineDashOffset = -time * r * 2;
     ctx.beginPath(); ctx.moveTo(-off, 0); ctx.lineTo(off, 0); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,180,195,0.9)'; ctx.lineWidth = r * 0.08;
-    ctx.beginPath(); ctx.moveTo(-off, 0); ctx.lineTo(off, 0); ctx.stroke();
+    ctx.setLineDash([]);
     for (const sx of [-off, off]) {
       ctx.save(); ctx.translate(sx, 0);
-      infoCrystal(r * 0.55, INFO_PAL.normal);
+      infoTap(r * 0.5, INFO_PAL.normal, false);
       ctx.restore();
     }
+  } else if (kind === 'strip') {
+    // the data stream: a flowing ribbon with its trace marker
+    ctx.lineCap = 'round';
+    for (const [w2, col, al] of [[r * 0.34, '255,60,90', 0.7], [r * 0.13, '255,170,188', 0.95]]) {
+      ctx.strokeStyle = `rgba(${col},${al})`;
+      ctx.lineWidth = w2;
+      ctx.beginPath();
+      for (let k = 0; k <= 20; k++) {
+        const t = k / 20;
+        const x = lerp(-r * 1.5, r * 1.5, t);
+        const y = Math.sin(t * 4.2 + time * 2.5) * r * 0.5;
+        k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+    }
+    const my2 = Math.sin(0.5 * 4.2 + time * 2.5) * r * 0.5;
+    const tg2 = ctx.createRadialGradient(0, my2, 0, 0, my2, r * 0.55);
+    tg2.addColorStop(0, 'rgba(255,255,255,0.95)');
+    tg2.addColorStop(1, 'rgba(255,60,90,0)');
+    ctx.fillStyle = tg2;
+    ctx.beginPath(); ctx.arc(0, my2, r * 0.55, 0, TAU); ctx.fill();
+  } else if (kind === 'pulse') {
+    // a charged pad orb, pinging
+    const pu = 1 + Math.sin(time * 6) * 0.12;
+    const og2 = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 1.3 * pu);
+    og2.addColorStop(0, 'rgba(255,255,255,0.95)');
+    og2.addColorStop(0.4, 'rgba(111,227,255,0.8)');
+    og2.addColorStop(1, 'rgba(111,227,255,0)');
+    ctx.fillStyle = og2;
+    ctx.beginPath(); ctx.arc(0, 0, r * 1.3 * pu, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.32 * pu, 0, TAU); ctx.fill();
+    const k2 = (time * 0.9) % 1;
+    ctx.strokeStyle = `rgba(111,227,255,${(0.7 * (1 - k2)).toFixed(2)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, r * (0.6 + k2 * 1.3), 0, TAU); ctx.stroke();
   } else if (kind === 'boss') {
     // mini firewall-core: the same corrupted mosaic the duel shows
     const SH = ['#b03ae8', '#8a2ad4', '#d465ff', '#6f14b8'];
@@ -3371,7 +3459,6 @@ function drawInfoGlyph(kind, cx, cy, r) {
     ctx.globalAlpha = 1;
     ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + 0.5 * (Math.sin(time * 13) * 0.5 + 0.5)).toFixed(2) + ')';
     ctx.fillRect(Math.sin(time * 9) * r * 0.3 - r, Math.sin(time * 3.1) * r * 0.6, r * 2, r * 0.09);
-    // both node colors demanded
     ctx.strokeStyle = 'rgba(230,245,255,0.55)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(0, 0, r * 1.45, 0, TAU); ctx.stroke();
     const oa = time * 1.4;
@@ -3380,46 +3467,104 @@ function drawInfoGlyph(kind, cx, cy, r) {
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.arc(Math.cos(oa + Math.PI) * r * 1.45, Math.sin(oa + Math.PI) * r * 1.45, r * 0.16, 0, TAU); ctx.fill();
   } else {
-    infoCrystal(r, INFO_PAL[kind] || INFO_PAL.normal);
-    if (kind === 'heavy' || kind === 'boss') { // both node colors demanded
+    // the live threat models: tap hardware in the type's color
+    const pal = kind === 'heavy' ? INFO_PAL.heavy : kind === 'lock' ? INFO_PAL.lock : INFO_PAL.normal;
+    infoTap(r * (kind === 'heavy' ? 1.15 : 1), pal, kind === 'heavy' || kind === 'lock');
+    if (kind === 'heavy') { // both node colors demanded
       ctx.strokeStyle = 'rgba(230,245,255,0.55)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(0, 0, r * 1.3, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r * 1.6, 0, TAU); ctx.stroke();
       const oa = time * 1.4;
       ctx.fillStyle = 'rgb(111,227,255)';
-      ctx.beginPath(); ctx.arc(Math.cos(oa) * r * 1.3, Math.sin(oa) * r * 1.3, r * 0.16, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(Math.cos(oa) * r * 1.6, Math.sin(oa) * r * 1.6, r * 0.16, 0, TAU); ctx.fill();
       ctx.fillStyle = '#ffffff';
-      ctx.beginPath(); ctx.arc(Math.cos(oa + Math.PI) * r * 1.3, Math.sin(oa + Math.PI) * r * 1.3, r * 0.16, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(Math.cos(oa + Math.PI) * r * 1.6, Math.sin(oa + Math.PI) * r * 1.6, r * 0.16, 0, TAU); ctx.fill();
     }
     if (kind === 'lock') { // single matching color
       ctx.strokeStyle = 'rgb(111,227,255)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(0, 0, r * 1.3, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r * 1.6, 0, TAU); ctx.stroke();
       const oa = time * 1.4;
       ctx.fillStyle = 'rgb(111,227,255)';
-      ctx.beginPath(); ctx.arc(Math.cos(oa) * r * 1.3, Math.sin(oa) * r * 1.3, r * 0.16, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(Math.cos(oa) * r * 1.6, Math.sin(oa) * r * 1.6, r * 0.16, 0, TAU); ctx.fill();
     }
   }
   ctx.restore();
 }
+// victory sweep: a cleansing wave rolls from the ring to the horizon and the
+// whole tunnel settles into a "cleared" calm behind it
+function drawClearSweep(g) {
+  if (state !== S.END || !endWin || endSweep < 0) return;
+  const zS = Math.min(endSweep, SPAWN_Z);
+  const rg = ring(zS, g);
+  const grad = ctx.createRadialGradient(g.cx, g.cy, Math.max(1, rg.r), g.cx, g.cy, Math.max(W, H) * 0.8);
+  grad.addColorStop(0, 'rgba(126,226,98,0.15)');
+  grad.addColorStop(0.45, 'rgba(120,225,150,0.08)');
+  grad.addColorStop(1, 'rgba(120,225,150,0.03)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  if (endSweep < SPAWN_Z) { // the wavefront itself
+    ctx.lineCap = 'round';
+    for (const [w2, col] of [
+      [20, 'rgba(126,226,98,0.28)'],
+      [8, 'rgba(126,226,98,0.6)'],
+      [3, 'rgba(240,255,235,0.9)']
+    ]) {
+      ctx.lineWidth = Math.max(1, w2 * rg.s * 3);
+      ctx.strokeStyle = col;
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, rg.r, 0, TAU); ctx.stroke();
+    }
+  }
+}
+
 function drawInfoCard() {
   const c = INFO_CARDS[infoCard];
   if (!c) return;
-  ctx.fillStyle = 'rgba(3,6,14,0.72)'; ctx.fillRect(0, 0, W, H);
-  const pw = Math.min(W * 0.78, 560), ph = Math.min(H * 0.76, 260);
-  const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
-  techPanel(px, py, pw, ph, 'FIELD BRIEFING');
-  drawInfoGlyph(infoCard, px + 78, py + ph / 2 + 12, Math.min(ph * 0.16, 36));
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#eafaff'; ctx.font = '800 20px Audiowide, system-ui';
-  try { ctx.letterSpacing = '2px'; } catch (e) {}
-  ctx.fillText(c.title, px + 152, py + 76);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  ctx.fillStyle = 'rgba(190,225,255,0.85)'; ctx.font = '500 13px Audiowide, system-ui';
-  c.lines.forEach((ln, i) => ctx.fillText(ln, px + 152, py + 102 + i * 19));
+  const g = geo();
+  // gentle dim — the briefing lives INSIDE the ring, the field stays visible
+  ctx.fillStyle = 'rgba(3,6,14,0.45)'; ctx.fillRect(0, 0, W, H);
+  const R = g.nodeR * 0.9;
+  const maxW = g.nodeR * 2 * 0.6; // text never wider than 60% of the ring
+  const bg = ctx.createRadialGradient(g.cx, g.cy, R * 0.25, g.cx, g.cy, R);
+  bg.addColorStop(0, 'rgba(6,11,24,0.93)');
+  bg.addColorStop(0.82, 'rgba(5,9,20,0.88)');
+  bg.addColorStop(1, 'rgba(5,9,20,0)');
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, R, 0, TAU); ctx.fill();
+  // tech border: thin ring with four drifting accent arcs
+  ctx.strokeStyle = 'rgba(120,200,255,0.3)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = 'rgba(140,230,255,0.75)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    const a = k / 4 * TAU + Math.PI / 4 + time * 0.15;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, a - 0.22, a + 0.22); ctx.stroke();
+  }
+  // shrink type until it honors the width budget
+  const fit = (weight, px2, text) => {
+    let fs = px2 + 1;
+    do { fs--; ctx.font = weight + ' ' + fs + 'px Audiowide, system-ui'; }
+    while (fs > 8 && ctx.measureText(text).width > maxW);
+    return fs;
+  };
   ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(140,230,255,' + (0.5 + Math.sin(time * 4) * 0.3).toFixed(2) + ')';
-  ctx.font = '700 12px Audiowide, system-ui';
   try { ctx.letterSpacing = '3px'; } catch (e) {}
-  ctx.fillText('TAP TO CONTINUE', W / 2, py + ph - 20);
+  ctx.fillStyle = 'rgba(140,210,255,0.7)';
+  fit('700', 11, 'FIELD BRIEFING');
+  ctx.fillText('FIELD BRIEFING', g.cx, g.cy - R * 0.64);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  drawInfoGlyph(infoCard, g.cx, g.cy - R * 0.33, Math.min(R * 0.16, 40));
+  ctx.fillStyle = '#eafaff';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  fit('800', 22, c.title);
+  ctx.fillText(c.title, g.cx, g.cy + R * 0.06);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.fillStyle = 'rgba(190,225,255,0.88)';
+  let lf = 15;
+  do { lf--; ctx.font = '500 ' + lf + 'px Audiowide, system-ui'; }
+  while (lf > 8 && Math.max(...c.lines.map(l => ctx.measureText(l).width)) > maxW);
+  c.lines.forEach((ln, i) => ctx.fillText(ln, g.cx, g.cy + R * 0.2 + i * (lf + 8)));
+  ctx.fillStyle = 'rgba(140,230,255,' + (0.5 + Math.sin(time * 4) * 0.3).toFixed(2) + ')';
+  try { ctx.letterSpacing = '3px'; } catch (e) {}
+  fit('700', 12, 'TAP TO CONTINUE');
+  ctx.fillText('TAP TO CONTINUE', g.cx, g.cy + R * 0.66);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.textAlign = 'left';
 }
@@ -3962,14 +4107,14 @@ function drawMenuSettings() {
 function drawEnd(g) {
   endButtons = [];
   const ph = (a, b2) => clamp((endT - a) / (b2 - a), 0, 1);
-  // losses resolve fast; wins get the full ceremony
+  // wins let the clear-sweep roll first; losses resolve fast
   const T = endWin
-    ? { panel0: 0.15, panel1: 0.55, cnt0: 0.55, cnt1: 1.75, stars: 0.75, stats: 1.8 }
+    ? { panel0: 0.95, panel1: 1.4, cnt0: 1.4, cnt1: 2.55, stars: 1.6, stats: 2.6 }
     : { panel0: 0.05, panel1: 0.40, cnt0: 0.35, cnt1: 1.00, stars: 99,   stats: 1.0 };
   const btnAt = endBtnAt();
 
-  // the live scene keeps breathing beneath — dim it in, don't cut
-  ctx.fillStyle = 'rgba(3,6,14,' + (0.72 * ph(0, 0.45)).toFixed(2) + ')';
+  // the live (now cleared) scene keeps breathing beneath — dim it gently
+  ctx.fillStyle = 'rgba(3,6,14,' + (0.5 * (endWin ? ph(0.75, 1.2) : ph(0, 0.45))).toFixed(2) + ')';
   ctx.fillRect(0, 0, W, H);
   if (endWin && endT < 0.35) { // victory flash seals the run
     ctx.fillStyle = 'rgba(126,226,98,' + (0.28 * (1 - endT / 0.35)).toFixed(2) + ')';
@@ -3978,40 +4123,61 @@ function drawEnd(g) {
   const pA = ph(T.panel0, T.panel1);
   if (pA <= 0.001) return;
 
-  // build button list first so the report panel can wrap everything
-  const list = [];
-  if (endWin && levelIdx + 1 < LEVELS.length) list.push({ label: 'NEXT LEVEL ▸', action: 'next', primary: true });
-  list.push({ label: endWin ? 'REPLAY' : 'RETRY', action: 'retry', primary: !endWin });
-  list.push({ label: 'MENU', action: 'menu', primary: false });
-  const bh = 50;
-  const panelBottom = (isLandscape() ? H * 0.66 + bh : H * 0.62 + list.length * (bh + 14) - 14) + 24;
-  const pw = Math.min(W * 0.88, 700), pTop = H * 0.13;
+  const R = g.nodeR * 0.94;
+  const maxW = g.nodeR * 2 * 0.62;
+  const endCol = endless ? '#ffb340' : endWin ? '#69e05c' : '#ff4a5e';
+  const endColRgb = endless ? '255,179,64' : endWin ? '105,224,92' : '255,74,94';
+  const fit = (weight, px2, text) => {
+    let fs = px2 + 1;
+    do { fs--; ctx.font = weight + ' ' + fs + 'px Audiowide, system-ui'; }
+    while (fs > 8 && ctx.measureText(text).width > maxW);
+    return fs;
+  };
 
   ctx.save();
-  const sc = 0.96 + 0.04 * (1 - Math.pow(1 - pA, 3));
-  ctx.translate(W / 2, H / 2); ctx.scale(sc, sc); ctx.translate(-W / 2, -H / 2);
   ctx.globalAlpha = pA;
-  techPanel(W / 2 - pw / 2, pTop, pw, panelBottom - pTop, 'MISSION REPORT  //  ' + (endless ? (daily ? 'DAILY STREAM' : 'ENDLESS STREAM') : qual ? 'QUALIFICATION' : LEVELS[levelIdx].name));
+  // the report lives INSIDE the ring
+  const bg = ctx.createRadialGradient(g.cx, g.cy, R * 0.25, g.cx, g.cy, R);
+  bg.addColorStop(0, 'rgba(6,11,24,0.93)');
+  bg.addColorStop(0.82, 'rgba(5,9,20,0.88)');
+  bg.addColorStop(1, 'rgba(5,9,20,0)');
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, R, 0, TAU); ctx.fill();
+  ctx.strokeStyle = `rgba(${endColRgb},0.35)`; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = `rgba(${endColRgb},0.8)`; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    const a = k / 4 * TAU + Math.PI / 4 + time * 0.12;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, a - 0.22, a + 0.22); ctx.stroke();
+  }
 
   ctx.textAlign = 'center';
+  // mode line
+  const modeName = endless ? (daily ? 'DAILY STREAM' : 'ENDLESS STREAM') : qual ? 'QUALIFICATION' : LEVELS[levelIdx].name;
+  try { ctx.letterSpacing = '3px'; } catch (e) {}
+  ctx.fillStyle = 'rgba(140,210,255,0.7)';
+  fit('700', 11, 'MISSION REPORT  //  ' + modeName);
+  ctx.fillText('MISSION REPORT  //  ' + modeName, g.cx, g.cy - R * 0.64);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+
   // banner slams in
   const tPop = 1 + 0.22 * (1 - ph(T.panel0, T.panel0 + 0.3));
-  const endCol = endless ? '#ffb340' : qual && endWin ? '#7ee262' : endWin ? '#69e05c' : '#ff4a5e';
+  const banner = endless ? 'STREAM SEVERED' : qual ? (endWin ? 'QUALIFIED' : 'TRAINING ABORTED') : endWin ? 'PAYLOAD DELIVERED' : 'PAYLOAD CORRUPTED';
   ctx.save();
-  ctx.translate(W / 2, H * 0.25 + 14);
+  ctx.translate(g.cx, g.cy - R * 0.38);
   ctx.scale(tPop, tPop);
   ctx.fillStyle = endCol;
   try { ctx.letterSpacing = '4px'; } catch (e) {}
-  ctx.font = '800 ' + Math.min(W * 0.08, 38) + 'px Audiowide, system-ui';
+  fit('800', 30, banner);
   ctx.shadowColor = endCol; ctx.shadowBlur = 22;
-  ctx.fillText(endless ? 'STREAM SEVERED' : qual ? (endWin ? 'QUALIFIED' : 'TRAINING ABORTED') : endWin ? 'PAYLOAD DELIVERED' : 'PAYLOAD CORRUPTED', 0, 0);
+  ctx.fillText(banner, 0, 0);
   ctx.shadowBlur = 0;
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.restore();
 
   // stars pop one by one, each with a chime
-  if (endWin && !qual) {
-    drawStars(W / 2, H * 0.36, endStars, Math.min(W, H) * 0.045, endT - T.stars);
+  if (endWin && !qual && !endless) {
+    drawStars(g.cx, g.cy - R * 0.16, endStars, Math.min(W, H) * 0.045, endT - T.stars);
     let popped = 0;
     for (let i = 0; i < endStars; i++) if (endT - T.stars > 0.4 + i * 0.35) popped++;
     if (popped > endFxStars) { endFxStars = popped; tone(760 + popped * 220, 0.2, 'triangle', 0.13, 900 + popped * 260); }
@@ -4023,50 +4189,47 @@ function drawEnd(g) {
   const counting = cntP > 0 && cntP < 1 && score > 0;
   if (counting && time - endTickT > 0.07) { endTickT = time; tone(1500, 0.025, 'square', 0.035); }
   ctx.fillStyle = '#eaf4ff';
-  ctx.font = '700 ' + (26 + (counting ? 2 : 0)) + 'px Audiowide, system-ui';
-  ctx.fillText(shown.toLocaleString(), W / 2, H * 0.47);
+  ctx.font = '700 ' + (28 + (counting ? 2 : 0)) + 'px Audiowide, system-ui';
+  ctx.fillText(shown.toLocaleString(), g.cx, g.cy + R * 0.1);
   ctx.fillStyle = 'rgba(160,215,255,0.7)'; ctx.font = '600 11px Audiowide, system-ui';
   try { ctx.letterSpacing = '3px'; } catch (e) {}
-  ctx.fillText('SCORE', W / 2, H * 0.47 + 20);
+  ctx.fillText('SCORE', g.cx, g.cy + R * 0.1 + 20);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
 
   // stats + best reveal after the count settles
   ctx.globalAlpha = pA * ph(T.stats, T.stats + 0.3);
   ctx.fillStyle = 'rgba(140,210,255,0.65)'; ctx.font = '11px monospace';
-  ctx.fillText('zapped: ' + zaps + '   //   perfect: ' + perfects + '   //   missed: ' + misses + '   //   integrity: ' + Math.round(integrity) + '%', W / 2, H * 0.47 + 44);
-  if (endless) {
-    ctx.fillStyle = score >= (progress.best || 0) && score > 0 ? '#ffd24a' : 'rgba(255,210,74,0.7)';
+  ctx.fillText('zapped ' + zaps + '   //   perfect ' + perfects, g.cx, g.cy + R * 0.36);
+  ctx.fillText('missed ' + misses + '   //   integrity ' + Math.round(integrity) + '%', g.cx, g.cy + R * 0.36 + 17);
+  const bestVal = endless ? (daily ? (progress.daily && progress.daily.best) : progress.best) : progress.bests[levelIdx];
+  const isNew = endless ? (score >= (bestVal || 0) && score > 0) : endNewBest;
+  if ((endless || (!qual && (endWin || (bestVal || 0) > 0))) && bestVal !== undefined) {
+    ctx.fillStyle = isNew ? '#ffd24a' : 'rgba(255,210,74,0.7)';
     ctx.font = '700 13px Audiowide, system-ui';
-    ctx.fillText((score >= (progress.best || 0) && score > 0 ? 'NEW BEST  ' : 'BEST  ') + (progress.best || 0).toLocaleString(), W / 2, H * 0.47 + 68);
-  } else if (!qual && (endWin || (progress.bests[levelIdx] || 0) > 0)) {
-    ctx.fillStyle = endNewBest ? '#ffd24a' : 'rgba(255,210,74,0.7)';
-    ctx.font = '700 13px Audiowide, system-ui';
-    ctx.fillText((endNewBest ? 'NEW BEST  ' : 'BEST  ') + (progress.bests[levelIdx] || 0).toLocaleString(), W / 2, H * 0.47 + 68);
+    ctx.fillText((isNew ? 'NEW BEST  ' : 'BEST  ') + (bestVal || 0).toLocaleString(), g.cx, g.cy + R * 0.36 + 44);
   }
 
-  // buttons slide up last
+  // buttons live OUTSIDE the ring, in the side margins
   const bA = ph(btnAt, btnAt + 0.4);
   if (bA > 0.001) {
     ctx.globalAlpha = pA * bA;
     const rise = 14 * (1 - bA);
-    if (isLandscape()) {
-      const bw = Math.min(W * 0.24, 210), gap = 16;
-      const total = list.length * bw + (list.length - 1) * gap;
-      let bx = W / 2 - total / 2;
-      const by = H * 0.66;
-      for (const b of list) {
-        button(bx, by + rise, bw, bh, b.label, b.primary);
-        endButtons.push({ x: bx, y: by, w: bw, h: bh, action: b.action });
-        bx += bw + gap;
-      }
-    } else {
-      const bw = Math.min(W * 0.6, 260);
-      let by = H * 0.62;
-      for (const b of list) {
-        button(W / 2 - bw / 2, by + rise, bw, bh, b.label, b.primary);
-        endButtons.push({ x: W / 2 - bw / 2, y: by, w: bw, h: bh, action: b.action });
-        by += bh + 14;
-      }
+    const margin = g.cx - g.nodeR;
+    const bw = Math.min(Math.max(margin * 0.82, 120), 200), bh = 50;
+    const lx = margin / 2, rx = W - margin / 2;
+    const primary = endWin && !endless && !qual && levelIdx + 1 < LEVELS.length
+      ? { label: 'NEXT LEVEL ▸', action: 'next' }
+      : { label: endWin ? 'REPLAY' : 'RETRY', action: 'retry' };
+    const secondary = [];
+    if (primary.action === 'next') secondary.push({ label: 'REPLAY', action: 'retry' });
+    secondary.push({ label: 'MENU', action: 'menu' });
+    button(rx - bw / 2, g.cy - bh / 2 + rise, bw, bh, primary.label, true);
+    endButtons.push({ x: rx - bw / 2, y: g.cy - bh / 2, w: bw, h: bh, action: primary.action });
+    let sy = g.cy - (secondary.length * bh + (secondary.length - 1) * 14) / 2;
+    for (const b of secondary) {
+      button(lx - bw / 2, sy + rise, bw, bh, b.label, false);
+      endButtons.push({ x: lx - bw / 2, y: sy, w: bw, h: bh, action: b.action });
+      sy += bh + 14;
     }
   }
   ctx.restore();
@@ -4197,6 +4360,7 @@ function frame(now) {
   for (const en of sorted) drawEnemy(en, g);
   for (const p of pickups) drawPickup(p, g);
   drawPulseWave(g);
+  drawClearSweep(g);
   if (boss && state !== S.MENU) drawBoss(g);
 
   if (state !== S.MENU) drawNodes(g);
