@@ -1480,7 +1480,7 @@ const INFO_CARDS = {
   heavy:  { title: 'ARMORED TAP', lines: ['Double-collared — one node cannot', 'break its seal. Pin it with BOTH', 'nodes at once.'] },
   line:   { title: 'BARRIER TAPS', lines: ['Two taps tearing the wall open', 'between them. Cover BOTH ends —', 'one node on each.'] },
   lock:   { title: 'KEYED TAP', lines: ['Sealed to a single node. Only the', 'MATCHING color can break it —', 'watch the orbiting key.'] },
-  frag:   { title: 'NODE KILLER', lines: ['A black trap the intruder left', 'in the stream. Touching it FRIES', 'your node for 3 seconds — let it', 'pass and bank the bonus.'] },
+  frag:   { title: 'NODE KILLER', lines: ['A black trap the intruder left', 'in the stream. Touching it FRIES', 'your node for 2 seconds — let it', 'pass and bank the bonus.'] },
   pickup: { title: 'POWER-UP', lines: ['Golden relays ride the stream.', 'Catch one with any node:', 'SHIELD · WIDE ARC · AUTO-ZAP', 'PULSE FILL · CHAIN LIGHTNING.'] },
   strip:  { title: 'DATA STREAM', lines: ['A live stream rides the wall.', 'Keep a node ON its crossing point', 'from head to tail — do not let go.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Combo zaps bank charge in your pads.', 'When an orb GLOWS, tap it to fire', 'a purge wave down the tunnel.'] },
@@ -1830,8 +1830,8 @@ function update(dt) {
           } else {
             combo = 0; comboHeal = 0; fragsHit++;
             if (!shieldAbsorb(fx2, fy)) {
-              // the trap fries every node that touched it — 3s forced reboot
-              for (const n of nodes) if (covers(n, en.angle)) n.deadT = 3;
+              // the trap fries every node that touched it — 2s forced reboot
+              for (const n of nodes) if (covers(n, en.angle)) n.deadT = 2;
               popup(fx2, fy, 'NODE FRIED — REBOOTING', '#ff4a5e');
               redFlash = 1; shake = Math.min(shake + 0.6, 1);
               sfx.miss();
@@ -2897,7 +2897,7 @@ function drawNodes(g) {
     const x = nearR.x + Math.cos(n.angle) * rr2;
     const y = nearR.y + Math.sin(n.angle) * rr2;
     const cCol = fused ? '160,240,255' : i === 0 ? '111,227,255' : '255,255,255';
-    const rb = clamp((n.deadT || 0) / 3, 0, 1); // >0: fried by a node killer, rebooting
+    const rb = clamp((n.deadT || 0) / 2, 0, 1); // >0: fried by a node killer, rebooting
     // intro: each carriage materializes when the forming ring reaches it
     if (state === S.PLAY || state === S.PAUSE) {
       const p2 = clamp(introT / 2.0, 0, 1);

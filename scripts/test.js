@@ -674,8 +674,8 @@ en = G.spawnEnemy(1.2, 'normal');
 cross(en);
 check('a rebooting node cannot zap', !en.dead);
 G.enemies().length = 0;
-for (let i = 0; i < 70; i++) { G.setIntegrity(100); G.update(0.05); } // ride out the reboot
-check('the node comes back online after 3s', !(G.nodes[1].deadT > 0));
+for (let i = 0; i < 50; i++) { G.setIntegrity(100); G.update(0.05); } // ride out the reboot
+check('the node comes back online after 2s', !(G.nodes[1].deadT > 0));
 G.enemies().length = 0;
 en = G.spawnEnemy(1.2, 'normal');
 aim(1, 1.2);
