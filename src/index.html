@@ -1010,13 +1010,13 @@ function burst(x, y, color, n, spd) {
     particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, decay: rand(1.2, 2.6), color, size: rand(0.7, 1.8) });
   }
 }
-function popup(x, y, text, color, badge) { popups.push({ x, y, text, color, badge, life: 1 }); }
+function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
 // firewall shield: eats one breach that would cost integrity. Returns true if
 // it fired — the caller skips the damage AND its red-alert dressing.
 function shieldAbsorb(x, y, ang) {
   if (shieldCharge <= 0) return false;
   shieldCharge = 0;
-  popup(x, y, 'SHIELD ABSORBED THE BREACH', '#8fe0ff', true);
+  popup(x, y, 'SHIELD ABSORBED THE BREACH', '#8fe0ff');
   if (ang !== undefined) rimFX.push({ a: ang, t: 0.7, col: '143,224,255' });
   burst(x, y, '#8fe0ff', 22, 4);
   shake = Math.min(shake + 0.3, 0.8);
@@ -1791,7 +1791,7 @@ function update(dt) {
             if (pulseCharge[fi] >= PULSE_MAX) continue;
             pulseCharge[fi] = Math.min(PULSE_MAX, pulseCharge[fi] + Math.min(combo, 5));
             if (pulseCharge[fi] >= PULSE_MAX) {
-              popup(W / 2, H * 0.35, (fi === 0 ? 'BLUE' : 'WHITE') + ' PULSE CHARGED — TAP ITS CORE', '#8fe0ff', true);
+              popup(W / 2, H * 0.35, (fi === 0 ? 'BLUE' : 'WHITE') + ' PULSE CHARGED — TAP ITS CORE', '#8fe0ff');
               sfx.heal();
               buzz(15);
             }
@@ -1935,7 +1935,7 @@ function update(dt) {
           sfx.pick();
         }
         burst(x, y, '#ffd24a', 24, 4);
-        popup(x, y, PICKUPS[p.kind].label, '#ffd24a', true);
+        popup(x, y, PICKUPS[p.kind].label, '#ffd24a');
         buzz(15);
       }
     }
@@ -3377,21 +3377,26 @@ function drawHUD(g) {
     ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.textAlign = 'left';
   }
 
-  // active power-up chips (top center)
+  // active power-up chips (top center) — each chip sizes to its own label
   const active = Object.keys(fx).filter(k => fx[k] > 0);
-  active.forEach((k, i) => {
-    const cw = 92, chh = 20;
-    const x0 = W / 2 - (active.length * (cw + 8) - 8) / 2 + i * (cw + 8);
-    const y0 = 14 + SAFE.t;
-    techRect(x0, y0, cw, chh, 6);
-    ctx.fillStyle = 'rgba(60,40,5,0.65)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,210,74,0.8)'; ctx.lineWidth = 1;
-    techRect(x0, y0, cw, chh, 6); ctx.stroke();
-    ctx.fillStyle = '#ffe9b0'; ctx.font = '700 10px Audiowide, system-ui'; ctx.textAlign = 'left';
-    ctx.fillText(PICKUPS[k].label, x0 + 9, y0 + 14);
-    ctx.fillStyle = 'rgba(255,210,74,0.9)';
-    ctx.fillRect(x0, y0 + chh + 3, cw * clamp(fx[k] / PICKUPS[k].dur, 0, 1), 2);
-  });
+  if (active.length) {
+    ctx.font = '700 10px Audiowide, system-ui';
+    const cws = active.map(k => Math.ceil(ctx.measureText(PICKUPS[k].label).width) + 18);
+    let x0 = W / 2 - (cws.reduce((a, b) => a + b, 0) + (active.length - 1) * 8) / 2;
+    active.forEach((k, i) => {
+      const cw = cws[i], chh = 20;
+      const y0 = 14 + SAFE.t;
+      techRect(x0, y0, cw, chh, 6);
+      ctx.fillStyle = 'rgba(60,40,5,0.65)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,210,74,0.8)'; ctx.lineWidth = 1;
+      techRect(x0, y0, cw, chh, 6); ctx.stroke();
+      ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'left';
+      ctx.fillText(PICKUPS[k].label, x0 + 9, y0 + 14);
+      ctx.fillStyle = 'rgba(255,210,74,0.9)';
+      ctx.fillRect(x0, y0 + chh + 3, cw * clamp(fx[k] / PICKUPS[k].dur, 0, 1), 2);
+      x0 += cw + 8;
+    });
+  }
 
   // qualification prompts + guides
   if (tut && tut.stage >= 0) {
@@ -4591,23 +4596,8 @@ function frame(now) {
   ctx.textAlign = 'center';
   for (const p of popups) {
     ctx.globalAlpha = clamp(p.life, 0, 1);
-    ctx.font = '700 ' + (p.badge ? 13 : 15) + 'px Audiowide, system-ui';
-    if (p.badge) { // announcement pill sized to its text, kept on screen
-      const tw = ctx.measureText(p.text).width;
-      const bw = tw + 26, bh = 24;
-      const bx = clamp(p.x, bw / 2 + 6, W - bw / 2 - 6);
-      ctx.fillStyle = 'rgba(6,12,26,0.82)';
-      roundRect(bx - bw / 2, p.y - bh / 2 - 5, bw, bh, bh / 2); ctx.fill();
-      ctx.strokeStyle = p.color; ctx.lineWidth = 1;
-      ctx.globalAlpha = clamp(p.life, 0, 1) * 0.7;
-      roundRect(bx - bw / 2, p.y - bh / 2 - 5, bw, bh, bh / 2); ctx.stroke();
-      ctx.globalAlpha = clamp(p.life, 0, 1);
-      ctx.fillStyle = p.color;
-      ctx.fillText(p.text, bx, p.y);
-    } else {
-      ctx.fillStyle = p.color;
-      ctx.fillText(p.text, p.x, p.y);
-    }
+    ctx.fillStyle = p.color; ctx.font = '700 15px Audiowide, system-ui';
+    ctx.fillText(p.text, p.x, p.y);
   }
   ctx.globalAlpha = 1; ctx.textAlign = 'left';
 
