@@ -666,9 +666,21 @@ const int0 = G.stats().integrity;
 cross(en);
 check('untouched packet pays a small bonus', en.resolved && G.getScore() - s0 === 50 && G.stats().integrity === int0);
 en = G.spawnEnemy(1.2, 'frag');
-aim(1, 1.2); // zap the friendly — the mistake
+aim(1, 1.2); // touch the trap — the mistake
 cross(en);
-check('zapping a friendly packet costs integrity', en.dead && G.stats().integrity === int0 - 25 && G.stats().combo === 0);
+check('touching a node killer fries the node, not the payload',
+  en.dead && G.nodes[1].deadT > 0 && G.stats().integrity === int0 && G.stats().combo === 0);
+en = G.spawnEnemy(1.2, 'normal');
+cross(en);
+check('a rebooting node cannot zap', !en.dead);
+G.enemies().length = 0;
+for (let i = 0; i < 70; i++) { G.setIntegrity(100); G.update(0.05); } // ride out the reboot
+check('the node comes back online after 3s', !(G.nodes[1].deadT > 0));
+G.enemies().length = 0;
+en = G.spawnEnemy(1.2, 'normal');
+aim(1, 1.2);
+cross(en);
+check('the recovered node zaps again', en.dead === true);
 
 // ================= beat sync =================
 const bt = {

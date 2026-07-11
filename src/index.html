@@ -752,8 +752,8 @@ function trySpawn(dt) {
       spawnT += pat.steps.length * beatPeriod * 0.8; // give the volley room
       return;
     }
-    // friendly payload packet — the one thing you must NOT zap
-    if (schance(L.frags || 0) && spawnAllowed('frag')) { spawnEnemy(undefined, 'frag'); return; }
+    // node-killer trap — the one thing you must NOT touch
+    if (schance(L.frags || 0) && spawnAllowed('frag')) { spawnEnemy(undefined, 'frag'); return; } // node killer
     // burst transmissions: occasionally a volley of three in rapid succession
     if (L.bursts && !burstQ && schance(0.3) && spawnAllowed('line')) { // volleys start from a clean window
       burstQ = { left: 2, t: 0.35 };
@@ -1149,7 +1149,7 @@ canvas.addEventListener('pointerdown', e => {
   // charged pulse orbs: tapping a ready core fires that node's wave, solo
   if (!boss) {
     for (let i = 0; i < 2; i++) {
-      if (pulseCharge[i] < PULSE_MAX) continue;
+      if (pulseCharge[i] < PULSE_MAX || nodes[i].deadT > 0) continue; // fried pads stay dark
       const d = dialCenter(i === 0 ? 'L' : 'R');
       if (Math.hypot(P.x - d.x, P.y - d.y) < d.r * 0.5) {
         firePulse(i);
@@ -1361,7 +1361,7 @@ function resetRun() {
   heat = 0; overheat = false; beamActive = false; beamSound(false, 0);
   introT = 0; introCd = -1;
   rimFX = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
-  for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; }
+  for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; }
   fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24);
   sched = [];
   nodes[0].angle = Math.PI * 0.75;
@@ -1480,7 +1480,7 @@ const INFO_CARDS = {
   heavy:  { title: 'ARMORED TAP', lines: ['Double-collared — one node cannot', 'break its seal. Pin it with BOTH', 'nodes at once.'] },
   line:   { title: 'BARRIER TAPS', lines: ['Two taps tearing the wall open', 'between them. Cover BOTH ends —', 'one node on each.'] },
   lock:   { title: 'KEYED TAP', lines: ['Sealed to a single node. Only the', 'MATCHING color can break it —', 'watch the orbiting key.'] },
-  frag:   { title: 'VOID PACKET', lines: ['The black packet is your PAYLOAD.', 'Zapping it is DEVASTATING to the', 'stream — let it pass, bank the bonus.'] },
+  frag:   { title: 'NODE KILLER', lines: ['A black trap the intruder left', 'in the stream. Touching it FRIES', 'your node for 3 seconds — let it', 'pass and bank the bonus.'] },
   pickup: { title: 'POWER-UP', lines: ['Golden relays ride the stream.', 'Catch one with any node:', 'SHIELD · WIDE ARC · AUTO-ZAP', 'PULSE FILL · CHAIN LIGHTNING.'] },
   strip:  { title: 'DATA STREAM', lines: ['A live stream rides the wall.', 'Keep a node ON its crossing point', 'from head to tail — do not let go.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Combo zaps bank charge in your pads.', 'When an orb GLOWS, tap it to fire', 'a purge wave down the tunnel.'] },
@@ -1498,9 +1498,9 @@ const STORY = [
   { title: 'LOG 02 — PATTERN', lines: [
     'These taps are not random noise.', 'Same make. Same timing.',
     'Someone is listening on purpose.', 'HQ opens an investigation.'] },
-  { title: 'LOG 03 — CARGO', lines: [
-    'Volleys now — probing our reflexes.', 'And the black packets have begun.',
-    'Orders from HQ are explicit:', 'protect them. NEVER inspect them.'] },
+  { title: 'LOG 03 — TRAPS', lines: [
+    'Volleys now — probing our reflexes.', 'And they seeded the line with',
+    'NODE KILLERS: black traps that fry', 'any node that touches them.'] },
   { title: 'LOG 04 — BARRIERS', lines: [
     'They string walls across the bore', 'to catch the payload whole.',
     'A asks who else holds these keys.', 'Nobody answers.'] },
@@ -1525,9 +1525,9 @@ const COMMS = [
   [{ t: 6, s: 'HQ', m: 'tap signatures match. one operator.' },
    { t: 20, s: 'B', m: 'we are being read, aren\'t we.' },
    { t: 36, s: 'HQ', m: 'keep talking. we are watching the watcher.' }],
-  [{ t: 6, s: 'HQ', m: 'black packets are priority cargo. do not inspect.' },
-   { t: 22, s: 'A', m: 'what is IN them?' },
-   { t: 36, s: 'HQ', m: 'that information is not on this line.' }],
+  [{ t: 6, s: 'HQ', m: 'black packets are node killers. do not touch.' },
+   { t: 22, s: 'A', m: 'who plants traps inside a live line?' },
+   { t: 36, s: 'HQ', m: 'someone who knows exactly how we defend it.' }],
   [{ t: 6, s: 'B', m: 'your last message never arrived.' },
    { t: 20, s: 'A', m: 'I sent nothing yesterday.' },
    { t: 36, s: 'TRACE', m: 'barrier debris contains reassembled payload.' }],
@@ -1713,11 +1713,24 @@ function update(dt) {
   const waveMul = (L.waves ? 1 + 0.3 * Math.sin(levelT * 0.55) : 1) * (mutators.fast ? 1.35 : 1);
   trafficSpeed = L.speed * waveMul; // tunnel bands, hoops, river and glyphs all ride this
   const TOL = 0.314 * tolVis; // angular tolerance ~18°, eased wider by the wide-arc power-up
-  const covers = (n, a) => Math.abs(angDiff(n.angle, a)) < TOL;
+  // a rebooting node (node-killer hit) covers nothing until it's back online
+  const covers = (n, a) => !(n.deadT > 0) && Math.abs(angDiff(n.angle, a)) < TOL;
   const ringXY = a => ({ x: g.cx + Math.cos(a) * g.nodeR, y: g.cy + Math.sin(a) * g.nodeR });
   const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
   const nodeXY = n => ({ x: g.cx + Math.cos(n.angle) * railR, y: g.cy + Math.sin(n.angle) * railR });
   const nearest = a => Math.abs(angDiff(nodes[0].angle, a)) < Math.abs(angDiff(nodes[1].angle, a)) ? nodes[0] : nodes[1];
+
+  // node-killer reboot: a fried optic counts down, then pops back online
+  for (const n of nodes) if (n.deadT > 0) {
+    n.deadT = Math.max(0, n.deadT - dt);
+    if (n.deadT === 0) {
+      n.formAt = introT; // replay the materialize pop — the lens re-forms
+      const p2 = nodeXY(n);
+      burst(p2.x, p2.y, n === nodes[0] ? '#6fe3ff' : '#ffffff', 20, 4);
+      popup(p2.x, p2.y - 22, 'NODE ONLINE', '#8fe0ff');
+      sfx.heal(); buzz(15);
+    }
+  }
 
   for (const en of enemies) {
     en.z -= L.speed * waveMul * (en.speedMul || 1) * sdt;
@@ -1803,7 +1816,7 @@ function update(dt) {
     }
 
     if (!en.dead && !en.resolved && en.z <= g.hitZ) {
-      // friendly payload packet: touching it IS the mistake — discrimination target
+      // node killer: a hacker trap — touching it IS the mistake
       if (en.type === 'frag') {
         const touched = covers(nodes[0], en.angle) || covers(nodes[1], en.angle);
         const { x: fx2, y: fy } = ringXY(en.angle);
@@ -1812,13 +1825,14 @@ function update(dt) {
           burst(fx2, fy, '#4a5568', 22, 3.5);
           if (en.tut) { // practice: no penalty, try again
             if (tut) { tut.retry = en.tut; tut.t = 0; }
-            popup(fx2, fy, 'THAT ONE WAS FRIENDLY — AGAIN', '#ff9a3c');
+            popup(fx2, fy, 'THAT ONE WAS A TRAP — AGAIN', '#ff9a3c');
             sfx.miss();
           } else {
             combo = 0; comboHeal = 0; fragsHit++;
             if (!shieldAbsorb(fx2, fy)) {
-              integrity = Math.max(0, integrity - 25);
-              popup(fx2, fy, 'FRIENDLY PACKET DESTROYED', '#ff4a5e');
+              // the trap fries every node that touched it — 3s forced reboot
+              for (const n of nodes) if (covers(n, en.angle)) n.deadT = 3;
+              popup(fx2, fy, 'NODE FRIED — REBOOTING', '#ff4a5e');
               redFlash = 1; shake = Math.min(shake + 0.6, 1);
               sfx.miss();
               buzz([40, 40, 60]);
@@ -1828,7 +1842,7 @@ function update(dt) {
           en.resolved = true;
           const bonus = Math.round(50 * mutMul());
           score += bonus;
-          popup(fx2, fy, 'packet safe +' + bonus, '#9aa7bd');
+          popup(fx2, fy, 'trap avoided +' + bonus, '#9aa7bd');
         }
         continue;
       }
@@ -2883,6 +2897,7 @@ function drawNodes(g) {
     const x = nearR.x + Math.cos(n.angle) * rr2;
     const y = nearR.y + Math.sin(n.angle) * rr2;
     const cCol = fused ? '160,240,255' : i === 0 ? '111,227,255' : '255,255,255';
+    const rb = clamp((n.deadT || 0) / 3, 0, 1); // >0: fried by a node killer, rebooting
     // intro: each carriage materializes when the forming ring reaches it
     if (state === S.PLAY || state === S.PAUSE) {
       const p2 = clamp(introT / 2.0, 0, 1);
@@ -2934,17 +2949,18 @@ function drawNodes(g) {
       const cov = 0.314 * tolVis;
       const wideGlow = clamp((tolVis - 1) / 0.7, 0, 1);
       const rw = bzn * 0.24; // half-width of the miniature gauge band
+      const covDim = rb > 0 ? 0.25 : 1; // an offline node covers nothing
       ctx.lineCap = 'butt';
-      ctx.strokeStyle = `rgba(${cCol},${(0.22 + wideGlow * 0.18).toFixed(2)})`;
+      ctx.strokeStyle = `rgba(${cCol},${((0.22 + wideGlow * 0.18) * covDim).toFixed(2)})`;
       ctx.lineWidth = rw * 1.7;
       ctx.beginPath(); ctx.arc(nearR.x, nearR.y, g.nodeR, n.angle - cov, n.angle + cov); ctx.stroke();
-      ctx.strokeStyle = `rgba(${cCol},0.55)`;
+      ctx.strokeStyle = `rgba(${cCol},${(0.55 * covDim).toFixed(2)})`;
       ctx.lineWidth = 1.2;
       for (const rr3 of [g.nodeR - rw, g.nodeR + rw]) {
         ctx.beginPath(); ctx.arc(nearR.x, nearR.y, rr3, n.angle - cov, n.angle + cov); ctx.stroke();
       }
       ctx.lineWidth = 2;
-      ctx.strokeStyle = `rgba(${cCol},0.8)`;
+      ctx.strokeStyle = `rgba(${cCol},${(0.8 * covDim).toFixed(2)})`;
       for (const ea of [n.angle - cov, n.angle + cov]) { // window edge ticks
         ctx.beginPath();
         ctx.moveTo(nearR.x + Math.cos(ea) * (g.nodeR - rw * 1.5), nearR.y + Math.sin(ea) * (g.nodeR - rw * 1.5));
@@ -2959,9 +2975,9 @@ function drawNodes(g) {
       }
       ctx.lineCap = 'round';
     }
-    // glow
+    // glow — a fried lens barely smolders
     const gl = ctx.createRadialGradient(x, y, 0, x, y, size * 2.6);
-    gl.addColorStop(0, `rgba(${cCol},0.6)`);
+    gl.addColorStop(0, `rgba(${cCol},${rb > 0 ? 0.12 : 0.6})`);
     gl.addColorStop(1, `rgba(${cCol},0)`);
     ctx.fillStyle = gl;
     ctx.beginPath(); ctx.arc(x, y, size * 2.6, 0, TAU); ctx.fill();
@@ -2979,7 +2995,7 @@ function drawNodes(g) {
       ctx.beginPath(); ctx.arc(0, 0, size * 1.65, 0, TAU); ctx.stroke();
     }
     // outer aperture ring + a faint second ring for optic depth
-    ctx.strokeStyle = `rgba(${cCol},0.95)`;
+    ctx.strokeStyle = rb > 0 ? `rgba(150,165,190,${Math.random() < 0.12 ? 0.8 : 0.35})` : `rgba(${cCol},0.95)`;
     ctx.lineWidth = Math.max(1.5, size * 0.14);
     ctx.beginPath(); ctx.arc(0, 0, size * 1.12, 0, TAU); ctx.stroke();
     ctx.strokeStyle = `rgba(${cCol},0.28)`;
@@ -2987,8 +3003,8 @@ function drawNodes(g) {
     ctx.beginPath(); ctx.arc(0, 0, size * 1.35, 0, TAU); ctx.stroke();
     // iris blades: segmented arcs spinning slowly, snapping tight on a zap
     const bladeR = size * (0.74 - kick * 0.18);
-    const irisA = time * 0.6 + kick * 1.2;
-    ctx.strokeStyle = `rgba(${cCol},0.8)`;
+    const irisA = rb > 0 ? n.deadT * 0.4 : time * 0.6 + kick * 1.2; // stalls while rebooting
+    ctx.strokeStyle = rb > 0 ? 'rgba(140,155,180,0.4)' : `rgba(${cCol},0.8)`;
     ctx.lineWidth = Math.max(2, size * 0.3);
     ctx.lineCap = 'butt';
     for (let k = 0; k < 6; k++) {
@@ -2999,11 +3015,29 @@ function drawNodes(g) {
     // lens core — flares white while the zap discharges
     const coreR = size * (0.4 + kick * 0.22) * (1 + Math.sin(time * 3 + i) * 0.05);
     const cg2 = ctx.createRadialGradient(0, 0, 0, 0, 0, coreR);
-    cg2.addColorStop(0, '#ffffff');
-    cg2.addColorStop(0.55, kick > 0.25 ? '#ffffff' : `rgba(${cCol},0.95)`);
-    cg2.addColorStop(1, `rgba(${cCol},0)`);
+    if (rb > 0) { // dead core: an ember that strengthens as the reboot completes
+      const emb = 0.15 + (1 - rb) * 0.3 + (Math.random() < 0.1 ? 0.3 : 0);
+      cg2.addColorStop(0, `rgba(255,200,140,${emb.toFixed(2)})`);
+      cg2.addColorStop(0.55, `rgba(120,90,60,${(emb * 0.5).toFixed(2)})`);
+      cg2.addColorStop(1, 'rgba(60,50,40,0)');
+    } else {
+      cg2.addColorStop(0, '#ffffff');
+      cg2.addColorStop(0.55, kick > 0.25 ? '#ffffff' : `rgba(${cCol},0.95)`);
+      cg2.addColorStop(1, `rgba(${cCol},0)`);
+    }
     ctx.fillStyle = cg2;
     ctx.beginPath(); ctx.arc(0, 0, coreR, 0, TAU); ctx.fill();
+    if (rb > 0) { // reboot cycle: amber progress ring + electrical sputter
+      ctx.strokeStyle = 'rgba(255,180,80,0.85)';
+      ctx.lineWidth = Math.max(1.5, size * 0.12);
+      ctx.beginPath(); ctx.arc(0, 0, size * 1.45, -Math.PI / 2, -Math.PI / 2 + (1 - rb) * TAU); ctx.stroke();
+      if (state === S.PLAY && Math.random() < 0.25) {
+        const sa2 = Math.random() * TAU;
+        particles.push({ x: x + Math.cos(sa2) * size, y: y + Math.sin(sa2) * size,
+          vx: Math.cos(sa2) * rand(0.5, 1.5), vy: Math.sin(sa2) * rand(0.5, 1.5),
+          life: 0.4, decay: 2.8, color: '#ffb478', size: rand(0.8, 1.6) });
+      }
+    }
     // focus ticks along the rail axis — the optic's grip on its track
     ctx.strokeStyle = `rgba(${cCol},0.55)`;
     ctx.lineWidth = Math.max(1.5, size * 0.12);
@@ -3605,7 +3639,7 @@ function drawHUD(g) {
     else if (tut.spawned === 'line') msg = 'One node on EACH end of the wall';
     else if (tut.spawned === 'lock0') msg = 'Only the BLUE node can break this one';
     else if (tut.spawned === 'lock1') msg = 'Only the WHITE node can break this one';
-    else if (tut.spawned === 'frag') msg = "It's friendly — DON'T zap it";
+    else if (tut.spawned === 'frag') msg = 'NODE KILLER — do NOT touch it';
     else if (tut.spawned === 'pickup') msg = 'Catch the power-up with any node';
     else if (tut.spawned === 'strip') msg = 'Keep a node ON the stream marker until it ends';
     else if (tut.spawned === 'pulse') msg = 'Tap a GLOWING pad core to fire the purge';
