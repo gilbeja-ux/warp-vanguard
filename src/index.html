@@ -1200,7 +1200,7 @@ canvas.addEventListener('pointerdown', e => {
   const dc = dialCenter(side);
   const onPad = Math.hypot(P.x - dc.x, P.y - dc.y) <= dc.r * 1.15;
   if (onPad || Math.abs(angDiff(a0, nodes[ni].angle)) < 0.6) nodes[ni].angle = a0;
-  pointers[e.pointerId] = { side, lastA: a0 };
+  pointers[e.pointerId] = { side, lastA: a0, px: P.x, py: P.y };
   canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener('pointermove', e => {
@@ -1229,6 +1229,7 @@ canvas.addEventListener('pointermove', e => {
   const a = pointerAngle(p.side, P.x, P.y);
   const delta = angDiff(a, p.lastA);
   p.lastA = a;
+  p.px = P.x; p.py = P.y; // the dial draws its virtual extension out to here
   // pure 1:1 angular deltas: the knob keeps a constant offset from the thumb
   // for the whole hold, and a drifted (farther) thumb naturally gets finer
   // per-cm aiming — both properties die if the gain is scaled, so don't
@@ -3067,15 +3068,37 @@ function drawDials() {
   // immersive/arcs schemes drive the lenses directly — no dials unless the
   // duel's fused cannon needs its fire stick back
   if (settings.controls !== 0 && !(boss && boss.mergeT >= 1)) return;
+  const bz = Math.min(W, H) * 0.055; // shared gauge width with the ARCS strips
   for (let i = 0; i < 2; i++) {
     const side = i === 0 ? 'L' : 'R';
     const d = dialCenter(side);
     const n = nodes[i];
-    ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU);
-    ctx.strokeStyle = i === 0 ? 'rgba(77,141,255,0.85)' : 'rgba(255,255,255,0.85)';
-    ctx.lineWidth = 3; ctx.stroke();
+    const col = i === 0 ? '111,227,255' : '255,255,255';
+    const ptr = Object.values(pointers).find(q => q.side === side && q.lastA !== undefined);
+    const held = !!ptr;
+    ctx.lineCap = 'round';
+    // radar backing
     ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU);
     ctx.fillStyle = 'rgba(10,20,45,0.35)'; ctx.fill();
+    // 360° gauge — the ARCS strips' language wrapped full circle:
+    // wide translucent track between two thin rails, compass ticks across it
+    ctx.strokeStyle = `rgba(${col},${held ? 0.3 : 0.16})`;
+    ctx.lineWidth = bz * 0.85;
+    ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = `rgba(${col},0.4)`;
+    ctx.lineWidth = 1.5;
+    for (const rr of [d.r - bz * 0.42, d.r + bz * 0.42]) {
+      ctx.beginPath(); ctx.arc(d.x, d.y, rr, 0, TAU); ctx.stroke();
+    }
+    for (let t = 0; t < 8; t++) { // majors at the cardinals, minors between
+      const a2 = t / 8 * TAU, wMul = t % 2 === 0 ? 1 : 0.55;
+      ctx.strokeStyle = `rgba(${col},${t % 2 === 0 ? 0.5 : 0.28})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(d.x + Math.cos(a2) * (d.r - bz * 0.42 * wMul), d.y + Math.sin(a2) * (d.r - bz * 0.42 * wMul));
+      ctx.lineTo(d.x + Math.cos(a2) * (d.r + bz * 0.42 * wMul), d.y + Math.sin(a2) * (d.r + bz * 0.42 * wMul));
+      ctx.stroke();
+    }
     // boss duel: the right dial is the fire stick — heat ring + aim knob
     const fireStick = boss && boss.mergeT >= 1 && side === 'R';
     if (fireStick) {
@@ -3092,18 +3115,43 @@ function drawDials() {
         ctx.textAlign = 'left';
       }
     }
-    // knob — during the duel the right knob is the stick position itself
+    // thumb — during the duel the right thumb is the stick position itself
     const kx = fireStick ? d.x + beamAim.x * d.r : d.x + Math.cos(n.angle) * d.r;
     const ky = fireStick ? d.y + beamAim.y * d.r : d.y + Math.sin(n.angle) * d.r;
-    const ks = d.r * 0.3;
-    const gl = ctx.createRadialGradient(kx, ky, 0, kx, ky, ks * 2);
-    gl.addColorStop(0, i === 0 ? 'rgba(77,141,255,0.6)' : 'rgba(255,255,255,0.55)');
-    gl.addColorStop(1, 'rgba(0,0,0,0)');
+    const ts = bz * (held || fireStick ? 0.4 : 0.3);
+    const gl = ctx.createRadialGradient(kx, ky, 0, kx, ky, ts * 2.2);
+    gl.addColorStop(0, `rgba(${col},0.6)`);
+    gl.addColorStop(1, `rgba(${col},0)`);
     ctx.fillStyle = gl;
-    ctx.beginPath(); ctx.arc(kx, ky, ks * 2, 0, TAU); ctx.fill();
-    ctx.beginPath(); ctx.arc(kx, ky, ks, 0, TAU);
-    ctx.fillStyle = n.color; ctx.fill();
-    ctx.strokeStyle = i === 0 ? '#7db2ff' : '#9fc4e0'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(kx, ky, ts * 2.2, 0, TAU); ctx.fill();
+    ctx.fillStyle = n.color;
+    ctx.beginPath(); ctx.arc(kx, ky, ts, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(240,252,255,0.8)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(kx, ky, ts, 0, TAU); ctx.stroke();
+    // virtual extension: a drifted grip re-projects the gauge under the finger —
+    // the bigger wheel IS the fine-aim leverage, now visible
+    if (held && !fireStick && ptr.px !== undefined) {
+      const fr = Math.hypot(ptr.px - d.x, ptr.py - d.y);
+      if (fr > d.r + bz * 0.7) {
+        const fa = Math.atan2(ptr.py - d.y, ptr.px - d.x);
+        ctx.setLineDash([9, 11]);
+        ctx.strokeStyle = `rgba(${col},0.22)`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(d.x, d.y, fr, 0, TAU); ctx.stroke();
+        ctx.setLineDash([]);
+        // spoke from the track out to the fingertip
+        ctx.strokeStyle = `rgba(${col},0.3)`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(d.x + Math.cos(fa) * (d.r + bz * 0.42), d.y + Math.sin(fa) * (d.r + bz * 0.42));
+        ctx.lineTo(d.x + Math.cos(fa) * (fr - ts * 1.3), d.y + Math.sin(fa) * (fr - ts * 1.3));
+        ctx.stroke();
+        // ghost thumb riding the extended wheel, right under the finger
+        ctx.strokeStyle = `rgba(${col},0.75)`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(d.x + Math.cos(fa) * fr, d.y + Math.sin(fa) * fr, ts * 0.8, 0, TAU); ctx.stroke();
+      }
+    }
     // radar blips: live enemy positions — angle matches the tunnel, radius = how close they are
     const blipXY = en => {
       const rr = d.r * (1 - clamp(en.z, 0, 1) * 0.85);
