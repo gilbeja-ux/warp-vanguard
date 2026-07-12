@@ -88,7 +88,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 // ---------- audio ----------
 let AC = null, sfxGain = null;
 const settings = {
-  sound: true, soundVol: 0.8, music: true, musicVol: 0.5, haptics: true,
+  sound: true, soundVol: 0.8, music: true, musicVol: 0.32, haptics: true, // music sits low so sonar and cues read
   controls: 0 // 0 = corner dials · 1 = immersive (drag lenses on the rim) · 2 = side arcs
 };
 const CONTROL_NAMES = ['DIALS', 'IMMERSIVE', 'ARCS'];
@@ -115,14 +115,15 @@ function audio() {
   playTrack(state === S.PLAY || state === S.PAUSE || state === S.INFO ? runTrack : 'menu');
   return AC;
 }
-function tone(freq, dur, type, vol, slideTo, dest) {
+function tone(freq, dur, type, vol, slideTo, dest, delay) {
   const ac = AC; if (!ac || !sfxGain) return;
+  const t0 = ac.currentTime + (delay || 0);
   const o = ac.createOscillator(), g = ac.createGain();
-  o.type = type || 'square'; o.frequency.setValueAtTime(freq, ac.currentTime);
-  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, ac.currentTime + dur);
-  g.gain.setValueAtTime(vol || 0.12, ac.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
-  o.connect(g); g.connect(dest || sfxGain); o.start(); o.stop(ac.currentTime + dur);
+  o.type = type || 'square'; o.frequency.setValueAtTime(freq, t0);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  g.gain.setValueAtTime(vol || 0.12, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(dest || sfxGain); o.start(t0); o.stop(t0 + dur);
 }
 // filtered noise burst — the electric texture tones can't make. A cached
 // noise buffer runs through a swept bandpass with a tight envelope.
@@ -145,6 +146,35 @@ function crackle(dur, f0, f1, q, vol, delay) {
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   src.connect(bp); bp.connect(g); g.connect(sfxGain);
   src.start(t0); src.stop(t0 + dur);
+}
+// the stream-trace drone: a rolling tone that climbs as the ribbon is ridden
+// head to tail — resolve with sfx.traced() on completion
+let stripOsc = null;
+function stripSound(on, prog) {
+  const ac = AC; if (!ac || !sfxGain) return;
+  if (on && !stripOsc) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'triangle'; o.frequency.value = 220; g.gain.value = 0;
+    const lfo = ac.createOscillator(), lg = ac.createGain(); // the "rolling"
+    lfo.type = 'sine'; lfo.frequency.value = 7; lg.gain.value = 9;
+    lfo.connect(lg);
+    if (o.frequency.setTargetAtTime) lg.connect(o.frequency);
+    o.connect(g); g.connect(sfxGain); o.start(); lfo.start();
+    stripOsc = { o, g, lfo };
+  }
+  if (!on && stripOsc) {
+    const so = stripOsc; stripOsc = null;
+    so.g.gain.setTargetAtTime ? so.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.04) : (so.g.gain.value = 0);
+    setTimeout(() => { try { so.o.stop(); so.lfo.stop(); } catch (e) {} }, 250);
+    return;
+  }
+  if (on && stripOsc) {
+    const f = 220 * Math.pow(4, clamp(prog || 0, 0, 1)); // 220Hz filling up to 880Hz
+    if (stripOsc.o.frequency.setTargetAtTime) {
+      stripOsc.o.frequency.setTargetAtTime(f, ac.currentTime, 0.035);
+      stripOsc.g.gain.setTargetAtTime(0.075, ac.currentTime, 0.06);
+    } else { stripOsc.o.frequency.value = f; stripOsc.g.gain.value = 0.075; }
+  }
 }
 // whisper-quiet approach blip, stereo-panned to the threat's angle
 function sonarTick(freq, pan) {
@@ -325,16 +355,17 @@ function beamSound(on, heatVal) {
   }
 }
 const sfx = {
-  zap(combo) { // hard electric discharge: a stuttered ZZZT, noise-first
-    // (bandpass filtering strips most of the noise's energy — the makeup
-    // gains here are deliberately huge; measured, not guessed)
+  zap(combo) { // digital confirmation: two clean rising notes, techy-positive
     const m = Math.pow(1.059, Math.min(combo || 1, 12));
-    crackle(0.05, 1600 * m, 5200 * m, 4, 2.6);         // strike
-    crackle(0.12, 2400 * m, 8200 * m, 5, 2.2, 0.035);  // main arc, sweeping up
-    crackle(0.06, 700 * m, 0, 2.5, 1.1);               // spark body (broadband)
-    tone(150 * m, 0.045, 'square', 0.08, 55 * m);      // capacitor snap underneath
+    tone(760 * m, 0.05, 'sine', 0.12, 900 * m);                  // note 1
+    tone(1140 * m, 0.09, 'sine', 0.11, 1330 * m, null, 0.045);   // note 2, a leap up
+    tone(2280 * m, 0.06, 'triangle', 0.04, 2660 * m, null, 0.045); // sparkle
+    tone(190 * m, 0.03, 'square', 0.05, 120 * m);                // tactile tick underneath
   },
-  pick() { tone(660, 0.09, 'triangle', 0.12, 880); tone(1320, 0.14, 'triangle', 0.10, 1760); },
+  pick() { // power-up: a quick ascending sparkle arpeggio
+    [784, 1047, 1568].forEach((f, i) => tone(f, 0.09, 'triangle', 0.10, f * 1.12, null, i * 0.05));
+    tone(3136, 0.12, 'sine', 0.05, 3520, null, 0.15);
+  },
   shieldUp() { tone(392, 0.18, 'triangle', 0.11, 523); tone(784, 0.3, 'sine', 0.09, 1047); },
   shieldHit() { tone(1047, 0.22, 'triangle', 0.13, 523); tone(196, 0.28, 'square', 0.09, 98); },
   perfect() { tone(2093, 0.14, 'triangle', 0.13, 2637); tone(3136, 0.10, 'sine', 0.08, 3520); },
@@ -345,9 +376,25 @@ const sfx = {
   heal()  { tone(523, 0.14, 'triangle', 0.12, 659); tone(784, 0.22, 'triangle', 0.10, 1047); },
   speedUp()  { tone(180, 0.45, 'sawtooth', 0.11, 880); tone(110, 0.55, 'triangle', 0.09, 440); },
   miss() { tone(160, 0.35, 'sawtooth', 0.14, 60); },
-  win()  { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.22, 'triangle', 0.12), i * 130)); },
+  win()  { // level secured: rising fanfare into a held bright chord
+    [523, 659, 784, 1047].forEach((f, i) => {
+      tone(f, 0.24, 'triangle', 0.12, f * 1.01, null, i * 0.14);
+      tone(f * 2, 0.16, 'sine', 0.045, null, null, i * 0.14);
+    });
+    tone(1319, 0.7, 'triangle', 0.10, null, null, 0.56);
+    tone(2637, 0.5, 'sine', 0.04, null, null, 0.56);
+    tone(330, 0.8, 'sine', 0.07, null, null, 0.56);
+  },
+  traced() { // stream held to the end — resolve the rising trace tone
+    tone(880, 0.09, 'sine', 0.12, 1047);
+    tone(1319, 0.14, 'sine', 0.10, 1760, null, 0.07);
+    tone(2637, 0.10, 'triangle', 0.05, 3136, null, 0.13);
+  },
   fail() { [330, 262, 196].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'sawtooth', 0.1), i * 180)); },
-  tick() { tone(1200, 0.05, 'square', 0.05); }
+  tick() { // techy UI click: a crisp tap with a tiny body
+    tone(2200, 0.02, 'square', 0.05, 1400);
+    tone(660, 0.035, 'sine', 0.045, 480, null, 0.006);
+  }
 };
 
 // ---------- background (deep data-space behind the tunnel walls) ----------
@@ -575,6 +622,8 @@ function saveState() {
     if (d) {
       if (d.progress) Object.assign(progress, d.progress);
       if (d.settings) Object.assign(settings, d.settings);
+      // old default was 0.5 — migrate untouched saves to the new quieter bed
+      if (d.settings && Math.abs(d.settings.musicVol - 0.5) < 1e-9) settings.musicVol = 0.32;
       if (d.mutators) Object.assign(mutators, d.mutators);
       while (progress.stars.length < LEVELS.length) progress.stars.push(0); // older saves had fewer levels
       if (!Array.isArray(progress.bests)) progress.bests = [];
@@ -1412,7 +1461,7 @@ function resetRun() {
   pulseCharge = [0, 0]; pulseWaves = [];
   enemies = []; particles = []; popups = []; bolts = []; pickups = [];
   boss = null; burstQ = null; patternQ = []; hitStop = 0;
-  heat = 0; overheat = false; beamActive = false; beamSound(false, 0);
+  heat = 0; overheat = false; beamActive = false; beamSound(false, 0); stripSound(false, 0);
   introT = 0; introCd = -1;
   rimFX = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; }
@@ -1483,7 +1532,7 @@ function startDaily() {
 
 function endLevel(win) {
   endSweep = win ? geo().hitZ : -1; // victory: a cleansing wave rolls to the horizon
-  beamSound(false, 0); beamActive = false;
+  beamSound(false, 0); beamActive = false; stripSound(false, 0);
   musicDuck = 1;
   endWin = win; endT = 0; endFxStars = 0; endTickT = 0;
   endStars = win && !endless && !qual ? (integrity >= 90 ? 3 : integrity >= 60 ? 2 : 1) : 0;
@@ -1786,6 +1835,7 @@ function update(dt) {
     }
   }
 
+  let stripProg = -1; // >= 0 while a node is riding a stream this frame
   for (const en of enemies) {
     en.z -= L.speed * waveMul * (en.speedMul || 1) * sdt;
     en.spin += sdt * 4 * (en.spinMul || 1);
@@ -1812,6 +1862,7 @@ function update(dt) {
         if (on0 || on1 || fx.auto > 0) {
           en.offT = 0;
           en.tracing = true;
+          stripProg = clamp((g.hitZ - en.z) / en.len, 0, 1); // drives the trace drone
           en.traceNode = on0 ? 0 : on1 ? 1 : en.traceNode || 0;
           en.traceT = (en.traceT || 0) + sdt;
           if (en.traceT > 0.14) { // score ticks while riding the line
@@ -1856,6 +1907,7 @@ function update(dt) {
           burst(hp.x, hp.y, '#ffffff', 14, 5);
           popup(hp.x, hp.y, 'TRACED +' + pts, '#ffe9b0');
           rimFX.push({ a: aEnd, t: 0.5, col: '255,170,188' });
+          sfx.traced();
           // the nearest node banks the trace into its pulse orb
           const ni = Math.abs(angDiff(nodes[0].angle, aEnd)) < Math.abs(angDiff(nodes[1].angle, aEnd)) ? 0 : 1;
           if (!en.tut) pulseCharge[ni] = Math.min(PULSE_MAX, pulseCharge[ni] + Math.min(combo, 5));
@@ -2037,6 +2089,8 @@ function update(dt) {
       }
     }
   }
+  stripSound(stripProg >= 0, stripProg); // the trace drone lives and dies here
+
   // pulse waves sweep down the tunnel, molecularizing every trap they pass
   for (const wv of pulseWaves) {
     wv.z += dt * 1.6;
@@ -5473,6 +5527,7 @@ function frame(now) {
   last = now;
   perfWatch(rawDt);
   update(dt);
+  if (state !== S.PLAY) stripSound(false, 0); // pause/menus never hold the drone
 
   ctx.save();
   if (shake > 0) ctx.translate(rand(-1, 1) * shake * 6, rand(-1, 1) * shake * 6);

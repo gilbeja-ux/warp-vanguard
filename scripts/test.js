@@ -789,7 +789,7 @@ const tick = () => new Promise(r => setImmediate(r));
   G.updateMusic(1.1);
   check('fade-in ramping', ms.gain.gain.value > 0.05 && ms.gain.gain.value < 0.45);
   G.updateMusic(5);
-  check('fade-in completes at the set volume', Math.abs(ms.gain.gain.value - 0.5) < 1e-9);
+  check('fade-in completes at the set volume', Math.abs(ms.gain.gain.value - G.settings.musicVol) < 1e-9);
 
   const oldSrc = ms.src;
   G.playTrack(1);
