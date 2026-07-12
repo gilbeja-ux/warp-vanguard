@@ -324,11 +324,13 @@ function beamSound(on, heatVal) {
 }
 const sfx = {
   zap(combo) { // hard electric discharge: a stuttered ZZZT, noise-first
+    // (bandpass filtering strips most of the noise's energy — the makeup
+    // gains here are deliberately huge; measured, not guessed)
     const m = Math.pow(1.059, Math.min(combo || 1, 12));
-    crackle(0.05, 1600 * m, 5200 * m, 4, 0.55);        // strike
-    crackle(0.12, 2400 * m, 8200 * m, 5, 0.45, 0.035); // main arc, sweeping up
-    crackle(0.06, 700 * m, 0, 2.5, 0.30);              // spark body (broadband)
-    tone(150 * m, 0.045, 'square', 0.10, 55 * m);      // capacitor snap underneath
+    crackle(0.05, 1600 * m, 5200 * m, 4, 2.6);         // strike
+    crackle(0.12, 2400 * m, 8200 * m, 5, 2.2, 0.035);  // main arc, sweeping up
+    crackle(0.06, 700 * m, 0, 2.5, 1.1);               // spark body (broadband)
+    tone(150 * m, 0.045, 'square', 0.08, 55 * m);      // capacitor snap underneath
   },
   pick() { tone(660, 0.09, 'triangle', 0.12, 880); tone(1320, 0.14, 'triangle', 0.10, 1760); },
   shieldUp() { tone(392, 0.18, 'triangle', 0.11, 523); tone(784, 0.3, 'sine', 0.09, 1047); },
