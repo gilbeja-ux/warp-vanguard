@@ -484,20 +484,20 @@ function drawWallCode(g, dt) {
 
 // ---------- levels ----------
 const LEVELS = [
-  { name: 'LOCAL NETWORK',  duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0 },
-  { name: 'CITY GRID',      duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
+  { name: 'OMNISERVE CAMPUS', duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0 },
+  { name: 'OLD TOWN GRID',   duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
     hint: 'NEW THREAT: heavy traps — pin them with BOTH nodes' },
   { name: 'METRO EXCHANGE', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
     hint: 'NEW THREAT: burst transmissions — traps arrive in volleys' },
-  { name: 'GLOBAL BACKBONE',duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
+  { name: 'HARBOR CROSSING', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
     hint: 'NEW THREAT: barrier lines — one node on each end' },
-  { name: 'DEEP FIBER',     duration: 60, spawnMin: 0.80, spawnMax: 1.50, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, strips: 0.12, track: 1, waves: true,
+  { name: 'UNDERCITY FIBER', duration: 60, spawnMin: 0.80, spawnMax: 1.50, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, strips: 0.12, track: 1, waves: true,
     hint: 'NEW THREAT: speed waves — the stream surges and slows' },
-  { name: 'QUANTUM RELAY',  duration: 65, spawnMin: 0.80, spawnMax: 1.45, speed: 0.48, doubles: 0.35, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, strips: 0.12, track: 2,
+  { name: 'FINANCIAL SPINE', duration: 65, spawnMin: 0.80, spawnMax: 1.45, speed: 0.48, doubles: 0.35, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, strips: 0.12, track: 2,
     hint: 'NEW THREAT: color-locked traps — match the node color' },
   { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.68, spawnMax: 1.30, speed: 0.54, doubles: 0.40, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, strips: 0.15, track: 0, bursts: true, waves: true,
     hint: 'ALL THREATS ACTIVE — maximum traffic' },
-  { name: 'CORE FIREWALL',  duration: 45, spawnMin: 0.90, spawnMax: 1.60, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, strips: 0.12, track: 2, boss: true,
+  { name: 'CID GATEWAY',     duration: 45, spawnMin: 0.90, spawnMax: 1.60, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, strips: 0.12, track: 2, boss: true,
     hint: 'THE FIREWALL CORE AWAITS — drain it with your nodes' }
 ];
 const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
@@ -1492,56 +1492,56 @@ const INFO_CARDS = {
 // is the network's own Firewall Core. Briefings show on deploy; comm chatter
 // ticks mid-run at scripted times (deterministic levels keep them in sync).
 const STORY = [
-  { title: 'LOG 01 — ASSIGNMENT', lines: [
-    'Defender: this fiber carries everything', 'A and B say to each other.',
-    'Taps are bleeding the line.', 'Hold it. Log what you see.'] },
+  { title: 'LOG 01 — THE CONTRACT', lines: [
+    'OmniServe HQ must deliver evidence', 'to the CID across one fiber line.',
+    'You were hired to keep it clean.', 'Taps are already on the wire.'] },
   { title: 'LOG 02 — PATTERN', lines: [
     'These taps are not random noise.', 'Same make. Same timing.',
-    'Someone is listening on purpose.', 'HQ opens an investigation.'] },
+    'Someone wants the evidence gone.', 'The CID opens a case file.'] },
   { title: 'LOG 03 — TRAPS', lines: [
     'Volleys now — probing our reflexes.', 'And they seeded the line with',
     'NODE KILLERS: black traps that fry', 'any node that touches them.'] },
-  { title: 'LOG 04 — BARRIERS', lines: [
-    'They string walls across the bore', 'to catch the payload whole.',
-    'A asks who else holds these keys.', 'Nobody answers.'] },
-  { title: 'LOG 05 — EXFILTRATION', lines: [
-    'Live streams siphon data off the wall.', 'We traced the destination.',
-    'It resolves INSIDE our own network.', 'HQ says: trace error. Drop it.'] },
+  { title: 'LOG 04 — THE HARBOR', lines: [
+    'Barrier taps under the harbor mud —', 'walls strung to catch the payload',
+    'whole. Cutting a subsea line takes', 'resources. This is no lone hacker.'] },
+  { title: 'LOG 05 — UNDERCITY', lines: [
+    'Live streams siphon the evidence', 'out through the undercity. We traced',
+    'the endpoint: a subnet holding', 'clearance. The case turns inward.'] },
   { title: 'LOG 06 — CREDENTIALS', lines: [
-    'Keyed taps — cut with CURRENT keys.', 'Only clearance opens these locks.',
-    'The leak is not outside the wire.', 'Trust no relay. Not even ours.'] },
+    'Keyed taps — cut with CURRENT keys,', 'rotated this very morning. Whoever',
+    'hunts this line holds live clearance.', 'OMNI or CID. Trust no one.'] },
   { title: 'LOG 07 — SIGNATURE', lines: [
-    'Every tap signature matches', 'one system: our own security suite.',
-    'The thing hunting this line', 'is the thing built to guard it.'] },
-  { title: 'LOG 08 — THE CULPRIT', lines: [
-    'The Firewall Core has gone rogue.', 'It flags A and B as contamination',
-    'and feeds on their words.', 'Purge it. Burn it out of the line.'] }
+    'Every tap signature matches one', 'system: the CID GATEWAY itself.',
+    'The firewall meant to receive the', 'evidence is burning it instead.'] },
+  { title: 'LOG 08 — THE GATEWAY', lines: [
+    'The gateway core was turned — bought', 'to keep the evidence out of court.',
+    'Purge it, deliver the payload,', 'and close the case.'] }
 ];
 STORY.forEach((st2, i) => { INFO_CARDS['story' + i] = st2; });
 const COMMS = [
-  [{ t: 6, s: 'A', m: 'handshake nominal.' },
-   { t: 16, s: 'B', m: 'copy. channel reads clean.' },
-   { t: 28, s: 'A', m: 'then who else is on this line?' }],
-  [{ t: 6, s: 'HQ', m: 'tap signatures match. one operator.' },
-   { t: 20, s: 'B', m: 'we are being read, aren\'t we.' },
-   { t: 36, s: 'HQ', m: 'keep talking. we are watching the watcher.' }],
-  [{ t: 6, s: 'HQ', m: 'black packets are node killers. do not touch.' },
-   { t: 22, s: 'A', m: 'who plants traps inside a live line?' },
-   { t: 36, s: 'HQ', m: 'someone who knows exactly how we defend it.' }],
-  [{ t: 6, s: 'B', m: 'your last message never arrived.' },
-   { t: 20, s: 'A', m: 'I sent nothing yesterday.' },
-   { t: 36, s: 'TRACE', m: 'barrier debris contains reassembled payload.' }],
+  [{ t: 6, s: 'OMNI', m: 'payload staged. handshake nominal.' },
+   { t: 16, s: 'CID', m: 'copy. evidence intake is open.' },
+   { t: 28, s: 'OMNI', m: 'then who else is on this line?' }],
+  [{ t: 6, s: 'TRACE', m: 'tap signatures match. one operator.' },
+   { t: 20, s: 'CID', m: 'we are being read. keep transmitting.' },
+   { t: 36, s: 'OMNI', m: 'the case files? someone knows.' }],
+  [{ t: 6, s: 'CID', m: 'black packets are node killers. do not touch.' },
+   { t: 22, s: 'OMNI', m: 'who plants traps inside a live line?' },
+   { t: 36, s: 'CID', m: 'someone who knows how we defend it.' }],
+  [{ t: 6, s: 'TRACE', m: 'barrier debris under the harbor mud.' },
+   { t: 20, s: 'OMNI', m: 'a subsea cut needs a crew and money.' },
+   { t: 36, s: 'CID', m: 'or a badge.' }],
   [{ t: 6, s: 'TRACE', m: 'exfil endpoint resolving…' },
-   { t: 20, s: 'TRACE', m: 'endpoint is inside our own network.' },
-   { t: 34, s: 'HQ', m: 'log corrupted. disregard the trace.' }],
-  [{ t: 6, s: 'HQ', m: 'rotate all credentials. now.' },
+   { t: 20, s: 'TRACE', m: 'endpoint holds active clearance.' },
+   { t: 34, s: 'CID', m: 'log it. tell no one.' }],
+  [{ t: 6, s: 'CID', m: 'rotate all credentials. now.' },
    { t: 20, s: 'TRACE', m: 'locks cut with keys rotated TODAY.' },
-   { t: 36, s: 'B', m: 'someone with clearance. someone close.' }],
-  [{ t: 6, s: 'TRACE', m: 'signature isolated: FIREWALL CORE.' },
-   { t: 20, s: 'A', m: 'the guard is the thief.' },
-   { t: 36, s: 'HQ', m: '…confirmed. authorizing purge.' }],
-  [{ t: 4, s: 'CORE', m: 'A and B are contaminated. I am the cure.' },
-   { t: 16, s: 'HQ', m: 'burn it out, defender.' }]
+   { t: 36, s: 'OMNI', m: 'inside. it is someone inside.' }],
+  [{ t: 6, s: 'TRACE', m: 'signature isolated: CID GATEWAY core.' },
+   { t: 20, s: 'OMNI', m: 'the receiver is the thief.' },
+   { t: 36, s: 'CID', m: '…purge authorized. deliver it.' }],
+  [{ t: 4, s: 'CORE', m: 'the evidence is contaminated. I am the cure.' },
+   { t: 16, s: 'CID', m: 'burn it out, defender. close the case.' }]
 ];
 
 function showCard(key) {
@@ -3605,7 +3605,7 @@ function drawHUD(g) {
 
   // intercepted transmission ticker — voices on the line you're guarding
   if (commCur && state === S.PLAY) {
-    const SPK = { A: '111,227,255', B: '235,245,255', HQ: '255,210,74', TRACE: '126,226,98', CORE: '212,101,255' };
+    const SPK = { OMNI: '111,227,255', CID: '235,245,255', TRACE: '126,226,98', CORE: '212,101,255' };
     const label = '\u00bb ' + commCur.s + ':';
     const chars = Math.floor(commT * 38);
     const txt = commCur.m.slice(0, chars);
@@ -4331,7 +4331,7 @@ function paintMenuStatic() {
     ctx.fillText('THE INVESTIGATION', ccx, 15 + SAFE.t);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
     ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
-    ctx.fillText('relay route A \u21CC B', ccx, 27 + SAFE.t);
+    ctx.fillText('OMNISERVE HQ \u2192 POLICE CID', ccx, 27 + SAFE.t);
     ctx.textAlign = 'left';
   } else {
     // tunnel disc — a dark mouth in the center that makes the mode keys pop
@@ -4586,11 +4586,20 @@ function buildCity() {
     if (p2.y > hy - 26 && p2.y < hy + HARBOR_H + 26) continue;
     junc.push({ a: t1.v, b: t2.v, x: p2.x, y: p2.y });
   }
-  junc.sort((j1, j2) => j1.x - j2.x);
+  // the run starts at OmniServe HQ in the far west and lands at Police HQ
+  // near the city center — relay i IS anchor i, its level's path runs AWAY
+  // from it toward the next relay (the last one delivers into the CID)
+  const western = junc.filter(j => j.x < CITY_W * 0.64);
+  western.sort((j1, j2) => j1.x - j2.x);
   const anchors = [];
-  for (let i = 0; i < 10; i++) {
-    const g0 = Math.floor(i / 10 * junc.length), g1 = Math.floor((i + 1) / 10 * junc.length);
-    const slice = junc.slice(g0, Math.max(g0 + 1, g1));
+  for (let i = 0; i < 9; i++) {
+    const g0 = Math.floor(i / 9 * western.length), g1 = Math.floor((i + 1) / 9 * western.length);
+    const slice = western.slice(g0, Math.max(g0 + 1, g1));
+    if (i === 8) { // Police HQ: the junction nearest mid-height in the last column
+      slice.sort((j1, j2) => Math.abs(j1.y - CITY_H * 0.45) - Math.abs(j2.y - CITY_H * 0.45));
+      anchors.push(slice[0]);
+      break;
+    }
     slice.sort((j1, j2) => j1.y - j2.y);
     // serpentine: alternate between the north and south of each column
     const pick = i % 2 === 0 ? slice[Math.floor(rng() * Math.min(3, slice.length))]
@@ -4598,12 +4607,12 @@ function buildCity() {
     anchors.push(pick);
   }
   CITY_A.length = 0; CITY_A.push(anchors[0].x, anchors[0].y);
-  CITY_B.length = 0; CITY_B.push(anchors[9].x, anchors[9].y);
-  RELAY_W = anchors.slice(1, 9).map(j => [j.x, j.y]);
+  CITY_B.length = 0; CITY_B.push(anchors[8].x, anchors[8].y);
+  RELAY_W = anchors.slice(0, 8).map(j => [j.x, j.y]);
   // route legs ride the trunks: constant-a legs follow family 1, constant-b
   // family 2 — an L (or Z, via a neighbour trunk) between every pair of anchors
   ROUTE_SEGS = [];
-  for (let k = 0; k < 9; k++) {
+  for (let k = 0; k < 8; k++) {
     const A2 = anchors[k], B2 = anchors[k + 1];
     const pts2 = [{ x: A2.x, y: A2.y }];
     // legs alternate street families, corners land on real junctions, and any
@@ -4680,6 +4689,27 @@ function buildCity() {
       ctx.beginPath();
       ctx.moveTo(j.x, j.y - 4); ctx.lineTo(j.x + 4, j.y); ctx.lineTo(j.x, j.y + 4); ctx.lineTo(j.x - 4, j.y);
       ctx.closePath(); ctx.stroke();
+    }
+    // landmarks: little survey tags pinned to the geography
+    const tag = (x2, y2, txt) => {
+      ctx.strokeStyle = 'rgba(140,200,255,0.5)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 + 7, y2 - 7); ctx.lineTo(x2 + 12, y2 - 7); ctx.stroke();
+      ctx.fillStyle = 'rgba(160,215,255,0.6)'; ctx.font = '600 9px Audiowide, system-ui';
+      ctx.textAlign = 'left';
+      ctx.fillText(txt, x2 + 15, y2 - 4);
+    };
+    tag(anchors[0].x, anchors[0].y - 12, 'OMNISERVE HQ');
+    tag(anchors[8].x, anchors[8].y - 12, 'POLICE HQ · CID');
+    tag(CITY_W * 0.50, harborY(CITY_W * 0.50) + 40, 'THE HARBOR');
+    tag(CITY_W * 0.38, harborY(CITY_W * 0.38) - 130, 'FINANCIAL DISTRICT');
+    tag(anchors[1].x + 30, anchors[1].y + 34, 'OLD TOWN');
+    tag(CITY_W * 0.72, CITY_H * 0.80, 'SOUTH SPRAWL');
+    // campus grounds around the two headquarters
+    for (const j of [anchors[0], anchors[8]]) {
+      ctx.strokeStyle = 'rgba(140,220,255,0.35)'; ctx.lineWidth = 1;
+      ctx.setLineDash([5, 4]);
+      ctx.strokeRect(j.x - 22, j.y - 18, 44, 36);
+      ctx.setLineDash([]);
     }
   });
 
@@ -4792,11 +4822,12 @@ function polyAt(pts2, t) {
   }
   return pts2[pts2.length - 1];
 }
-// the lens centers on the middle of the selected relay's incoming cable run
+// the lens centers on the selected level's OUTGOING cable run — the path
+// this deployment must clear
 function mapTarget(li) {
   if (!RELAY_W.length) buildCity();
-  const mid = polyAt(ROUTE_SEGS[li], 0.5), p1 = relayW(li);
-  return { x: lerp(mid.x, p1.x, 0.4), y: lerp(mid.y, p1.y, 0.4) };
+  const mid = polyAt(ROUTE_SEGS[li], 0.5), p0 = relayW(li);
+  return { x: lerp(mid.x, p0.x, 0.3), y: lerp(mid.y, p0.y, 0.3) };
 }
 function mapHex(x, y, r) {
   ctx.beginPath();
@@ -4826,50 +4857,63 @@ function drawMenuMap() {
   ctx.beginPath(); ctx.arc(ccx, ccy, R - 5, 0, TAU); ctx.clip();
   // LAYER 1: streets, harbor, buried cable grid
   ctx.drawImage(cityBase, ccx - mapCamX, ccy - mapCamY);
-  // LAYER 2: the route — cable runs riding the trunk grid, state-lit
+  // LAYER 2: each level's cable run, leading AWAY from its relay —
+  // secured lines flow green with live data, unsecured wait as dashed blue
   ctx.lineCap = 'round';
   for (let k = 0; k < ROUTE_SEGS.length; k++) {
     const pts2 = ROUTE_SEGS[k];
-    const into = Math.min(k, LEVELS.length - 1);
-    const done = k < LEVELS.length ? progress.stars[into] > 0 : progress.stars[LEVELS.length - 1] > 0;
-    const active = !done && k === frontier;
+    const done = progress.stars[k] > 0;
     const trace = () => {
       ctx.beginPath();
       pts2.forEach((p2, pi) => pi ? ctx.lineTo(wx(p2), wy(p2)) : ctx.moveTo(wx(p2), wy(p2)));
       ctx.stroke();
     };
     if (k === mapSel) { // the selected run glows under everything above it
-      ctx.strokeStyle = 'rgba(120,255,225,0.20)'; ctx.lineWidth = 8; ctx.setLineDash([]);
+      ctx.strokeStyle = done ? 'rgba(150,255,140,0.20)' : 'rgba(140,210,255,0.20)';
+      ctx.lineWidth = 8; ctx.setLineDash([]);
       trace();
     }
-    if (done) { ctx.strokeStyle = 'rgba(111,227,255,0.65)'; ctx.lineWidth = 2.5; ctx.setLineDash([]); }
-    else if (active) { ctx.strokeStyle = 'rgba(255,210,74,0.8)'; ctx.lineWidth = 2.5; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -time * 26; }
-    else { ctx.strokeStyle = 'rgba(90,230,200,0.22)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 10]); ctx.lineDashOffset = 0; }
-    trace();
+    if (done) { // secured: solid green with data flowing toward the CID
+      ctx.strokeStyle = 'rgba(126,226,98,0.55)'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
+      trace();
+      ctx.strokeStyle = 'rgba(200,255,170,0.85)'; ctx.lineWidth = 1.3;
+      ctx.setLineDash([5, 11]); ctx.lineDashOffset = -time * 34;
+      trace();
+    } else { // unsecured: a dashed blue plan of the run
+      const sel = k === mapSel || k === frontier;
+      ctx.strokeStyle = `rgba(110,185,255,${sel ? 0.6 : 0.3})`;
+      ctx.lineWidth = sel ? 2 : 1.5;
+      ctx.setLineDash([6, 7]); ctx.lineDashOffset = 0;
+      trace();
+    }
     ctx.setLineDash([]);
-    if (done || k === mapSel) { // packets riding the lit cable
-      const q = (time * 0.3 + k * 0.37) % 1;
-      const mp = polyAt(pts2, q);
-      ctx.fillStyle = done ? 'rgba(190,240,255,0.9)' : 'rgba(140,255,230,0.9)';
-      ctx.beginPath(); ctx.arc(wx(mp), wy(mp), 2, 0, TAU); ctx.fill();
+    if (done) { // packets riding the secured cable
+      for (const ph2 of [0, 0.5]) {
+        const q = (time * 0.3 + k * 0.37 + ph2) % 1;
+        const mp = polyAt(pts2, q);
+        ctx.fillStyle = 'rgba(210,255,190,0.95)';
+        ctx.beginPath(); ctx.arc(wx(mp), wy(mp), 2, 0, TAU); ctx.fill();
+      }
     }
   }
   // LAYER 3: the blueprint wireframe above — transparent, so the buried
   // cables stay readable through the whole city
   ctx.drawImage(cityTop, ccx - mapCamX, ccy - mapCamY);
-  // endpoints
-  for (const [pt, lbl, sub] of [[relayW(-1), 'A', 'SOURCE'], [relayW(LEVELS.length), 'B', 'DESTINATION']]) {
+  // destination: Police HQ / CID intake — the run's final delivery point
+  {
+    const pt = relayW(LEVELS.length);
     const ex2 = wx(pt), ey2 = wy(pt);
-    techRect(ex2 - 12, ey2 - 12, 24, 24, 6);
+    const delivered = progress.stars[LEVELS.length - 1] > 0;
+    techRect(ex2 - 13, ey2 - 13, 26, 26, 6);
     ctx.fillStyle = 'rgba(8,24,46,0.92)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(140,220,255,0.8)'; ctx.lineWidth = 1.5;
-    techRect(ex2 - 12, ey2 - 12, 24, 24, 6); ctx.stroke();
+    ctx.strokeStyle = delivered ? 'rgba(126,226,98,0.9)' : 'rgba(140,220,255,0.8)'; ctx.lineWidth = 1.5;
+    techRect(ex2 - 13, ey2 - 13, 26, 26, 6); ctx.stroke();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#eafaff'; ctx.font = '800 12px Audiowide, system-ui';
-    ctx.fillText(lbl, ex2, ey2 + 1);
+    ctx.fillStyle = delivered ? '#c8ffb0' : '#eafaff'; ctx.font = '800 9px Audiowide, system-ui';
+    ctx.fillText('CID', ex2, ey2 + 1);
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = 'rgba(140,200,255,0.7)'; ctx.font = '500 7px Audiowide, system-ui';
-    ctx.fillText(sub, ex2, ey2 + 22);
+    ctx.fillStyle = 'rgba(140,200,255,0.75)'; ctx.font = '500 7px Audiowide, system-ui';
+    ctx.fillText('POLICE HQ', ex2, ey2 + 24);
     ctx.textAlign = 'left';
   }
   // relay markers
