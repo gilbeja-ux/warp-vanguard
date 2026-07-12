@@ -4618,20 +4618,23 @@ function buildCity() {
     const xGoal = anchors[0].x + corridor * (acc / tSum); // pace along the corridor
     const wantNorth = i % 2 === 0; // serpentine
     let best = null, bestScore = 1e9;
-    for (const relax of [0, 1]) {
+    // relax ladder: 0 = pace windows + fresh trunks · 1 = fresh trunks only
+    // (pace becomes soft) · 2 = anything. Fresh trunks matter most: two relays
+    // on one street force their runs to share it.
+    for (const relax of [0, 1, 2]) {
       for (const j of westJunc) {
         if (used.has(j)) continue;
-        if (!relax && (j.x - prev.x < -50 || j.x > xGoal + 190)) continue;
+        if (relax === 0 && (j.x - prev.x < -50 || j.x > xGoal + 190)) continue;
+        if (relax < 2 && (usedA.has(j.a) || usedB.has(j.b))) continue;
         const hop = Math.abs(j.a - prev.a) + Math.abs(j.b - prev.b);
-        if (!relax && (hop < target * 0.7 || hop > target * 1.5)) continue; // hold the pace
+        if (relax === 0 && (hop < target * 0.7 || hop > target * 1.5)) continue; // hold the pace
         let sc = Math.abs(hop - target) * 2 + Math.abs(j.x - xGoal) * 0.06;
         sc += (wantNorth ? j.y - prev.y : prev.y - j.y) * 0.02;   // serpentine bias
         if (i === 8) sc += Math.abs(j.y - CITY_H * 0.45) * 0.06;  // Police HQ sits mid-city
-        // fresh streets: a relay on trunks nobody else uses keeps runs disjoint
-        sc += (usedA.has(j.a) ? 28 : 0) + (usedB.has(j.b) ? 28 : 0);
+        if (relax === 2) sc += (usedA.has(j.a) ? 200 : 0) + (usedB.has(j.b) ? 200 : 0);
         if (sc < bestScore) { bestScore = sc; best = j; }
       }
-      if (best) break; // only relax the corridor if the strict pass found nothing
+      if (best) break;
     }
     anchors.push(best);
     used.add(best); usedA.add(best.a); usedB.add(best.b);
@@ -4646,10 +4649,69 @@ function buildCity() {
     const t2 = fam === 1 ? j.b : j.a;
     return on && t2 > Math.min(lo, hi) + 0.8 && t2 < Math.max(lo, hi) - 0.8;
   });
-  ROUTE_SEGS = [];
-  const usedLegs = []; // every street interval already owned by an earlier run
-  const legOverlap = c => c.reduce((sum, l) => {
-    for (const u of usedLegs) {
+  // ---- cable runs: greedy build, then relaxation passes so every run can
+  // re-route around the streets the others claimed — exclusive tracks ----
+  const candFor = k => {
+    const A2 = anchors[k], B2 = anchors[k + 1];
+    const candidates = [];
+    candidates.push([{ f: 1, at: A2.a, from: A2.b, to: B2.b }, { f: 2, at: B2.b, from: A2.a, to: B2.a }]);
+    candidates.push([{ f: 2, at: A2.b, from: A2.a, to: B2.a }, { f: 1, at: B2.a, from: A2.b, to: B2.b }]);
+    const lo1 = Math.min(A2.a, B2.a) - 22, hi1 = Math.max(A2.a, B2.a) + 22;
+    const lo2 = Math.min(A2.b, B2.b) - 22, hi2 = Math.max(A2.b, B2.b) + 22;
+    // detour corners may use ANY street (minor bands included) — the cable
+    // follows the road grid, not just the trunk avenues
+    const near1 = bands1.filter(t => t.v > lo1 && t.v < hi1 && t.v !== A2.a && t.v !== B2.a);
+    const near2 = bands2.filter(t => t.v > lo2 && t.v < hi2 && t.v !== A2.b && t.v !== B2.b);
+    for (const t of near2) {
+      candidates.push([
+        { f: 1, at: A2.a, from: A2.b, to: t.v },
+        { f: 2, at: t.v, from: A2.a, to: B2.a },
+        { f: 1, at: B2.a, from: t.v, to: B2.b }
+      ]);
+    }
+    for (const t of near1) {
+      candidates.push([
+        { f: 2, at: A2.b, from: A2.a, to: t.v },
+        { f: 1, at: t.v, from: A2.b, to: B2.b },
+        { f: 2, at: B2.b, from: t.v, to: B2.a }
+      ]);
+    }
+    for (const ta of near1) for (const tb of near2) {
+      candidates.push([
+        { f: 1, at: A2.a, from: A2.b, to: tb.v },
+        { f: 2, at: tb.v, from: A2.a, to: ta.v },
+        { f: 1, at: ta.v, from: tb.v, to: B2.b },
+        { f: 2, at: B2.b, from: ta.v, to: B2.a }
+      ]);
+    }
+    // corners must stay inside the sheet
+    const inSheet = c => {
+      let a3 = A2.a, b3 = A2.b;
+      return c.every(l => {
+        if (l.f === 1) b3 = l.to; else a3 = l.to;
+        const p3 = jxy(a3, b3);
+        return p3.x > 60 && p3.x < CITY_W - 60 && p3.y > 70 && p3.y < CITY_H - 60;
+      });
+    };
+    const pool = candidates.filter(inSheet);
+    return pool.length ? pool : candidates;
+  };
+  // scoring: spearing a relay mid-leg or landing a corner on one is
+  // disqualifying; riding a street another run owns nearly so; then shortest
+  const cornerHits = (k, c) => {
+    const A2 = anchors[k], B2 = anchors[k + 1];
+    let a3 = A2.a, b3 = A2.b, n = 0;
+    for (let li2 = 0; li2 < c.length - 1; li2++) {
+      if (c[li2].f === 1) b3 = c[li2].to; else a3 = c[li2].to;
+      for (const j of anchors) {
+        if (j === A2 || j === B2) continue;
+        if (Math.abs(j.a - a3) < 0.8 && Math.abs(j.b - b3) < 0.8) n++;
+      }
+    }
+    return n;
+  };
+  const overlapVs = (c, others) => c.reduce((sum, l) => {
+    for (const u of others) {
       if (u.f !== l.f || Math.abs(u.at - l.at) >= 0.8) continue;
       const lo = Math.max(Math.min(l.from, l.to), Math.min(u.from, u.to));
       const hi = Math.min(Math.max(l.from, l.to), Math.max(u.from, u.to));
@@ -4657,40 +4719,28 @@ function buildCity() {
     }
     return sum;
   }, 0);
+  const segScore = (k, c, others) => {
+    const sp = c.reduce((n, l) => n + (legHits(l.f, l.at, l.from, l.to) ? 1 : 0), 0);
+    const len = c.reduce((n, l) => n + Math.abs(l.to - l.from), 0);
+    return (sp + cornerHits(k, c)) * 50000 + overlapVs(c, others) * 600 + len;
+  };
+  const segLegs = [];
+  for (let k = 0; k < 8; k++) { // greedy first pass
+    const others = segLegs.flat();
+    segLegs.push(candFor(k).slice().sort((c1, c2) => segScore(k, c1, others) - segScore(k, c2, others))[0]);
+  }
+  for (let it = 0; it < 3; it++) { // relaxation: each run re-routes around ALL the others
+    for (let k = 0; k < 8; k++) {
+      const others = segLegs.filter((c, i) => i !== k).flat();
+      const best = candFor(k).slice().sort((c1, c2) => segScore(k, c1, others) - segScore(k, c2, others))[0];
+      if (segScore(k, best, others) < segScore(k, segLegs[k], others)) segLegs[k] = best;
+    }
+  }
+  ROUTE_SEGS = [];
   for (let k = 0; k < 8; k++) {
     const A2 = anchors[k], B2 = anchors[k + 1];
-    const candidates = [];
-    // both L orientations…
-    candidates.push([{ f: 1, at: A2.a, from: A2.b, to: B2.b }, { f: 2, at: B2.b, from: A2.a, to: B2.a }]);
-    candidates.push([{ f: 2, at: A2.b, from: A2.a, to: B2.a }, { f: 1, at: B2.a, from: A2.b, to: B2.b }]);
-    // …and Z detours via streets strictly between the endpoints, in BOTH
-    // families — plenty of alternatives when another run already owns a street
-    for (const t of trunks2) {
-      if ((t.v - A2.b) * (t.v - B2.b) >= 0) continue;
-      candidates.push([
-        { f: 1, at: A2.a, from: A2.b, to: t.v },
-        { f: 2, at: t.v, from: A2.a, to: B2.a },
-        { f: 1, at: B2.a, from: t.v, to: B2.b }
-      ]);
-    }
-    for (const t of trunks1) {
-      if ((t.v - A2.a) * (t.v - B2.a) >= 0) continue;
-      candidates.push([
-        { f: 2, at: A2.b, from: A2.a, to: t.v },
-        { f: 1, at: t.v, from: A2.b, to: B2.b },
-        { f: 2, at: B2.b, from: t.v, to: B2.a }
-      ]);
-    }
-    // shuffle lightly so different seeds pick different shapes
-    candidates.sort(() => rng() - 0.5);
-    // every run owns its streets: reject any path that rides another level's
-    // track (or spears a relay); fall back to the least-overlapping clean path
-    const clean = candidates.filter(c => c.every(l => !legHits(l.f, l.at, l.from, l.to)));
-    const pool = clean.length ? clean : candidates;
-    const legs = pool.slice().sort((c1, c2) => legOverlap(c1) - legOverlap(c2))[0];
-    for (const l of legs) usedLegs.push(l);
     const pts2 = [{ x: A2.x, y: A2.y }];
-    for (const l of legs) pts2.push(l.f === 1 ? jxy(l.at, l.to) : jxy(l.to, l.at));
+    for (const l of segLegs[k]) pts2.push(l.f === 1 ? jxy(l.at, l.to) : jxy(l.to, l.at));
     pts2[pts2.length - 1] = { x: B2.x, y: B2.y };
     ROUTE_SEGS.push(pts2);
   }
@@ -4944,38 +4994,48 @@ function drawMenuMap() {
       pts2.forEach((p2, pi) => pi ? ctx.lineTo(wx(p2), wy(p2)) : ctx.moveTo(wx(p2), wy(p2)));
       ctx.stroke();
     };
-    if (k === mapSel) { // the selected run glows under everything above it
+    const sel = k === mapSel;
+    if (sel) { // the selected run glows under everything above it
       ctx.strokeStyle = done ? 'rgba(150,255,140,0.20)' : 'rgba(140,210,255,0.20)';
       ctx.lineWidth = 8; ctx.setLineDash([]);
       trace();
     }
-    if (done) { // secured: solid green, chevrons marching toward the next relay
-      ctx.strokeStyle = 'rgba(126,226,98,0.55)'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
-      trace();
-      let Ltot = 0;
-      for (let i = 1; i < pts2.length; i++) Ltot += Math.hypot(pts2[i].x - pts2[i - 1].x, pts2[i].y - pts2[i - 1].y);
-      ctx.strokeStyle = 'rgba(215,255,185,0.9)';
-      ctx.lineWidth = 1.5;
-      const step = 38, ph2 = (time * 30) % step;
-      for (let d = ph2 + 6; d < Ltot - 4; d += step) {
-        const p0 = polyAt(pts2, d / Ltot), p1 = polyAt(pts2, Math.min(1, (d + 4) / Ltot));
-        const ang = Math.atan2(wy(p1) - wy(p0), wx(p1) - wx(p0)); // screen-space heading
-        const cxs = wx(p0), cys = wy(p0), ar = 4.5;
-        ctx.beginPath();
-        ctx.moveTo(cxs - Math.cos(ang - 0.55) * ar, cys - Math.sin(ang - 0.55) * ar);
-        ctx.lineTo(cxs, cys);
-        ctx.lineTo(cxs - Math.cos(ang + 0.55) * ar, cys - Math.sin(ang + 0.55) * ar);
-        ctx.stroke();
+    if (done) {
+      if (!sel) { // secured but not in focus: a quiet green ghost
+        ctx.strokeStyle = 'rgba(126,226,98,0.16)'; ctx.lineWidth = 1.5; ctx.setLineDash([]);
+        trace();
+      } else { // selected: solid green, chevrons marching toward the next relay
+        ctx.strokeStyle = 'rgba(126,226,98,0.6)'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
+        trace();
+        let Ltot = 0;
+        for (let i = 1; i < pts2.length; i++) Ltot += Math.hypot(pts2[i].x - pts2[i - 1].x, pts2[i].y - pts2[i - 1].y);
+        ctx.strokeStyle = 'rgba(215,255,185,0.9)';
+        ctx.lineWidth = 1.5;
+        const step = 38, ph2 = (time * 30) % step;
+        for (let d = ph2 + 6; d < Ltot - 4; d += step) {
+          const p0 = polyAt(pts2, d / Ltot), p1 = polyAt(pts2, Math.min(1, (d + 4) / Ltot));
+          const ang = Math.atan2(wy(p1) - wy(p0), wx(p1) - wx(p0)); // screen-space heading
+          const cxs = wx(p0), cys = wy(p0), ar = 4.5;
+          ctx.beginPath();
+          ctx.moveTo(cxs - Math.cos(ang - 0.55) * ar, cys - Math.sin(ang - 0.55) * ar);
+          ctx.lineTo(cxs, cys);
+          ctx.lineTo(cxs - Math.cos(ang + 0.55) * ar, cys - Math.sin(ang + 0.55) * ar);
+          ctx.stroke();
+        }
       }
-    } else { // unsecured: a dashed blue plan, breathing so the path reads alive
-      const sel = k === mapSel || k === frontier;
-      const br = 0.5 + 0.5 * Math.sin(time * 2.2 + k * 1.7); // slow breath, offset per run
-      ctx.strokeStyle = `rgba(120,195,255,${((sel ? 0.10 : 0.05) + br * (sel ? 0.16 : 0.08)).toFixed(2)})`;
+    } else if (!sel) { // unsecured, unfocused: the faintest dashed plan
+      ctx.strokeStyle = 'rgba(110,185,255,0.13)'; ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 7]); ctx.lineDashOffset = 0;
+      trace();
+      ctx.setLineDash([]);
+    } else { // selected + unsecured: dashed blue, breathing
+      const br = 0.5 + 0.5 * Math.sin(time * 2.2); // slow breath
+      ctx.strokeStyle = `rgba(120,195,255,${(0.10 + br * 0.16).toFixed(2)})`;
       ctx.lineWidth = 7 + br * 3; // soft halo swells and fades under the dashes
       ctx.setLineDash([]);
       trace();
-      ctx.strokeStyle = `rgba(110,185,255,${((sel ? 0.45 : 0.22) + br * (sel ? 0.4 : 0.2)).toFixed(2)})`;
-      ctx.lineWidth = sel ? 2 : 1.5;
+      ctx.strokeStyle = `rgba(110,185,255,${(0.45 + br * 0.4).toFixed(2)})`;
+      ctx.lineWidth = 2;
       ctx.setLineDash([6, 7]); ctx.lineDashOffset = 0;
       trace();
       ctx.setLineDash([]);
