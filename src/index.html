@@ -9,7 +9,7 @@ yes <html lang="en">
 <meta name="theme-color" content="#03060e">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<title>Data Defenders</title>
+<title>Data Defender: Dark Fiber</title>
 <style>
   :root {
     --sat: env(safe-area-inset-top, 0px);
@@ -36,7 +36,7 @@ yes <html lang="en">
 'use strict';
 
 // ============================================================
-// DATA DEFENDERS — dual-thumb radial defense prototype
+// DATA DEFENDER: DARK FIBER — dual-thumb radial defense
 // ============================================================
 
 const canvas = document.getElementById('game');
@@ -122,6 +122,27 @@ function tone(freq, dur, type, vol, slideTo, dest) {
   g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
   o.connect(g); g.connect(dest || sfxGain); o.start(); o.stop(ac.currentTime + dur);
 }
+// filtered noise burst — the electric texture tones can't make. A cached
+// noise buffer runs through a swept bandpass with a tight envelope.
+let noiseBuf = null;
+function crackle(dur, f0, f1, q, vol) {
+  const ac = AC; if (!ac || !sfxGain || !ac.createBuffer) return;
+  if (!noiseBuf) {
+    noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+  const bp = ac.createBiquadFilter();
+  bp.type = 'bandpass'; bp.Q.value = q;
+  bp.frequency.setValueAtTime(f0, ac.currentTime);
+  if (f1) bp.frequency.exponentialRampToValueAtTime(f1, ac.currentTime + dur);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(vol, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+  src.connect(bp); bp.connect(g); g.connect(sfxGain);
+  src.start(); src.stop(ac.currentTime + dur);
+}
 // whisper-quiet approach blip, stereo-panned to the threat's angle
 function sonarTick(freq, pan) {
   const ac = AC; if (!ac || !sfxGain || state !== S.PLAY) return;
@@ -142,7 +163,7 @@ function sonarTick(freq, pan) {
 // (native <audio loop> always has an audible seam on mp3). Encoder padding is
 // trimmed via loopStart/loopEnd. One decoded track is held in memory at a time.
 let musicGain = null, musicSrc = null, musicFilter = null;
-let musicStartAt = 0, beatPeriod = 0, musicCut = 16000;
+let musicStartAt = 0, beatPeriod = 0, musicCut = 16000, musicLoopDur = 0;
 let currentTrackKey = null, musicLoadKey = null;
 let musicFade = 1; // 0→1 whenever a track starts from silence
 let musicRate = 1; // eased playback rate — slow-mo drags the track down with it
@@ -221,6 +242,7 @@ function playTrack(key) {
       musicSrc.buffer = buf;
       musicSrc.loop = true;
       musicSrc.loopStart = lp.start; musicSrc.loopEnd = lp.end;
+      musicLoopDur = lp.end - lp.start;
       musicSrc.playbackRate.value = musicRate;
       musicSrc.connect(musicFilter);
       musicFade = 0; musicGain.gain.value = 0; // rise from silence
@@ -233,6 +255,24 @@ function playTrack(key) {
 // runs every frame: drives the fade-in, volume, and the slow-mo tape-warp
 function updateMusic(dt) {
   musicFade = Math.min(1, musicFade + (dt || 0) / MUSIC_FADEIN);
+  // long runs deserve variety: endless/daily rotate through all three level
+  // tracks, switching at the loop boundary (each track plays once through)
+  if (endless && state === S.PLAY && musicSrc && musicLoopDur > 0 && AC &&
+      AC.currentTime - musicStartAt > musicLoopDur - 0.12 && typeof runTrack === 'number') {
+    runTrack = (runTrack + 1) % 3;
+    playTrack(runTrack);
+  }
+  // the menu piece is a short composition with an ending, not a loop —
+  // breathe the volume through the seam instead of hard-cutting
+  let seamDuck = 1;
+  if (currentTrackKey === 'menu' && musicSrc && musicLoopDur > 1 && AC) {
+    const elapsed = AC.currentTime - musicStartAt;
+    if (elapsed > musicLoopDur - 1.2) { // never duck the opening play-through
+      const pos = elapsed % musicLoopDur;
+      const edge = Math.min(pos, musicLoopDur - pos);
+      seamDuck = clamp(edge / 1.2, 0.12, 1);
+    }
+  }
   const rateTarget = 1; // slow-mo retired; the ease stays for future tape-warp moments
   musicRate += (rateTarget - musicRate) * Math.min(1, (dt || 0) * 5);
   if (musicSrc && musicSrc.playbackRate) musicSrc.playbackRate.value = musicRate;
@@ -245,7 +285,7 @@ function updateMusic(dt) {
   if (!musicGain) return;
   musicDuck = Math.max(0, musicDuck - (dt || 0) / 1.2);
   const f = musicFade * musicFade * (3 - 2 * musicFade); // smoothstep
-  musicGain.gain.value = musicVolume() * f * (1 - 0.55 * musicDuck);
+  musicGain.gain.value = musicVolume() * f * (1 - 0.55 * musicDuck) * seamDuck;
 }
 // haptics: Capacitor Haptics on device, vibration API on the web
 function buzz(pattern) {
@@ -282,12 +322,12 @@ function beamSound(on, heatVal) {
   }
 }
 const sfx = {
-  zap(combo) { // a rising confirm, not a falling laser — pitch climbs with the combo
+  zap(combo) { // an electric discharge: crackle + capacitor snap, still rising
     const m = Math.pow(1.059, Math.min(combo || 1, 12));
-    tone(240 * m, 0.07, 'triangle', 0.08, 120 * m);   // impact body
-    tone(620 * m, 0.07, 'square', 0.08, 1240 * m);    // rising attack
-    tone(1568 * m, 0.16, 'triangle', 0.11, 2350 * m); // bright upward confirm
-    tone(3136 * m, 0.09, 'sine', 0.05);               // sparkle overtone
+    crackle(0.10, 2200 * m, 5800 * m, 7, 0.30);       // arcing noise, sweeping up
+    crackle(0.045, 900 * m, 0, 3, 0.18);              // body of the spark
+    tone(180 * m, 0.05, 'square', 0.10, 60 * m);      // capacitor snap
+    tone(1568 * m, 0.10, 'triangle', 0.06, 2350 * m); // faint rising confirm
   },
   pick() { tone(660, 0.09, 'triangle', 0.12, 880); tone(1320, 0.14, 'triangle', 0.10, 1760); },
   shieldUp() { tone(392, 0.18, 'triangle', 0.11, 523); tone(784, 0.3, 'sine', 0.09, 1047); },
@@ -2990,37 +3030,62 @@ function drawNodes(g) {
     gl.addColorStop(1, `rgba(${cCol},0)`);
     ctx.fillStyle = gl;
     ctx.beginPath(); ctx.arc(x, y, size * 2.6, 0, TAU); ctx.fill();
-    // aperture lens — pure focused signal, no hull: the clean counterpoint to
-    // the torn glitch artifacts it erases
+    // EMP emitter — a coil-wound discharge device: twin prongs hold a live
+    // arc facing the wall, and zaps read as the capacitor letting go
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(n.angle); // +x = radially outward, +y = along the rail
     ctx.scale(fscale, fscale); // pop-in overshoot during the intro
-    const kick = clamp(n.recoil || 0, 0, 1); // zap: the iris clamps, the core flares
+    const kick = clamp(n.recoil || 0, 0, 1); // zap: the arc flares white
     // fingertip halo while the lens is being dragged (immersive scheme)
     if (n.held) {
       ctx.strokeStyle = `rgba(${cCol},${(0.3 + Math.sin(time * 5) * 0.1).toFixed(2)})`;
       ctx.lineWidth = Math.max(2, size * 0.18);
       ctx.beginPath(); ctx.arc(0, 0, size * 1.65, 0, TAU); ctx.stroke();
     }
-    // outer aperture ring + a faint second ring for optic depth
+    // coil body: a wound cylinder seen end-on — dark housing, bright windings
+    ctx.fillStyle = '#0b1424';
+    ctx.beginPath(); ctx.arc(0, 0, size * 0.56, 0, TAU); ctx.fill();
     ctx.strokeStyle = rb > 0 ? `rgba(150,165,190,${Math.random() < 0.12 ? 0.8 : 0.35})` : `rgba(${cCol},0.95)`;
-    ctx.lineWidth = Math.max(1.5, size * 0.14);
-    ctx.beginPath(); ctx.arc(0, 0, size * 1.12, 0, TAU); ctx.stroke();
-    ctx.strokeStyle = `rgba(${cCol},0.28)`;
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(0, 0, size * 1.35, 0, TAU); ctx.stroke();
-    // iris blades: segmented arcs spinning slowly, snapping tight on a zap
-    const bladeR = size * (0.74 - kick * 0.18);
-    const irisA = rb > 0 ? n.deadT * 0.4 : time * 0.6 + kick * 1.2; // stalls while rebooting
-    ctx.strokeStyle = rb > 0 ? 'rgba(140,155,180,0.4)' : `rgba(${cCol},0.8)`;
-    ctx.lineWidth = Math.max(2, size * 0.3);
-    ctx.lineCap = 'butt';
-    for (let k = 0; k < 6; k++) {
-      const a0 = irisA + k / 6 * TAU;
-      ctx.beginPath(); ctx.arc(0, 0, bladeR, a0, a0 + TAU / 6 * 0.62); ctx.stroke();
+    ctx.lineWidth = Math.max(1.5, size * 0.13);
+    ctx.beginPath(); ctx.arc(0, 0, size * 0.56, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = rb > 0 ? 'rgba(140,155,180,0.35)' : `rgba(${cCol},0.55)`;
+    ctx.lineWidth = Math.max(1, size * 0.07);
+    for (let k = -2; k <= 2; k++) { // the windings
+      const wxp = k * size * 0.19;
+      const ch = Math.sqrt(Math.max(0, size * 0.5 * size * 0.5 - wxp * wxp));
+      ctx.beginPath(); ctx.moveTo(wxp, -ch); ctx.lineTo(wxp, ch); ctx.stroke();
     }
+    // twin prong electrodes reaching toward the wall
+    const tpx = size * (1.12 - kick * 0.1), tpy = size * 0.58;
+    ctx.strokeStyle = rb > 0 ? 'rgba(140,155,180,0.5)' : 'rgba(180,205,235,0.85)';
+    ctx.lineWidth = Math.max(1.5, size * 0.11);
     ctx.lineCap = 'round';
+    for (const sy of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(size * 0.42, sy * size * 0.3);
+      ctx.lineTo(size * 0.82, sy * size * 0.52);
+      ctx.lineTo(tpx, sy * tpy);
+      ctx.stroke();
+      ctx.fillStyle = rb > 0 ? 'rgba(150,165,190,0.6)' : `rgba(${cCol},0.95)`;
+      ctx.beginPath(); ctx.arc(tpx, sy * tpy, Math.max(1.2, size * 0.09), 0, TAU); ctx.fill();
+    }
+    // the live arc between the prongs — jagged, restless, white-hot on a zap
+    if (rb <= 0) {
+      const segsA = 5;
+      for (const [lw2, al2] of [[size * (kick > 0.2 ? 0.34 : 0.22), 0.22], [size * (kick > 0.2 ? 0.15 : 0.08), 0.9]]) {
+        ctx.strokeStyle = kick > 0.2 ? `rgba(255,255,255,${al2})` : `rgba(${cCol},${(al2 * (0.6 + Math.random() * 0.4)).toFixed(2)})`;
+        ctx.lineWidth = Math.max(1, lw2);
+        ctx.beginPath();
+        ctx.moveTo(tpx, -tpy);
+        for (let k = 1; k < segsA; k++) {
+          const q = k / segsA;
+          ctx.lineTo(tpx + (Math.random() * 0.28 + kick * 0.15) * size, -tpy + tpy * 2 * q + (Math.random() - 0.5) * size * 0.14);
+        }
+        ctx.lineTo(tpx, tpy);
+        ctx.stroke();
+      }
+    }
     // lens core — flares white while the zap discharges
     const coreR = size * (0.4 + kick * 0.22) * (1 + Math.sin(time * 3 + i) * 0.05);
     const cg2 = ctx.createRadialGradient(0, 0, 0, 0, 0, coreR);
@@ -4309,7 +4374,7 @@ function paintMenuStatic() {
   ctx.textAlign = 'left';
   if (menuScreen === 'map') {
     ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
-    ctx.fillText('DATA DEFENDER', 20 + SAFE.l, 24 + SAFE.t);
+    ctx.fillText('DATA DEFENDER · DARK FIBER', 20 + SAFE.l, 24 + SAFE.t);
   } else {
     const fs = Math.min(H * 0.125, W * 0.055);
     const lx = 26 + SAFE.l, llh = fs * 1.04;
@@ -4321,9 +4386,12 @@ function paintMenuStatic() {
     for (const t of ['DATA', 'DEFE', 'NDER']) { ctx.fillText(t, lx, ly); ly += llh; }
     ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     try { ctx.letterSpacing = '0px'; } catch (e) {}
+    ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 13px Audiowide, system-ui';
+    try { ctx.letterSpacing = '3px'; } catch (e) {}
+    ctx.fillText('DARK FIBER', lx + 2, ly - llh + 22);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
     ctx.fillStyle = 'rgba(180,215,255,0.6)'; ctx.font = '500 11px Audiowide, system-ui';
-    ctx.fillText('Guard the payload.', lx + 2, ly - llh + 20);
-    ctx.fillText('Zap the data traps.', lx + 2, ly - llh + 35);
+    ctx.fillText('Guard the payload.', lx + 2, ly - llh + 40);
   }
   if (menuScreen === 'map') {
     // the lens mouth: the ring becomes a viewport over the city
