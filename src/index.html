@@ -4966,8 +4966,12 @@ function drawMenuMap() {
     bx0 = Math.min(bx0, p2.x); by0 = Math.min(by0, p2.y);
     bx1 = Math.max(bx1, p2.x); by1 = Math.max(by1, p2.y);
   }
-  const span = Math.max(bx1 - bx0, by1 - by0);
-  const zt = clamp((R * 2 - 90) / Math.max(span, 1), 0.55, 1);
+  // fit the WHOLE run in the CIRCULAR lens: zoom by the farthest point from
+  // the bbox center, padded for relay markers (hexes, brackets, stars)
+  const cbx = (bx0 + bx1) / 2, cby = (by0 + by1) / 2;
+  let rMax = 1;
+  for (const p2 of seg) rMax = Math.max(rMax, Math.hypot(p2.x - cbx, p2.y - cby));
+  const zt = clamp((R - 58) / rMax, 0.3, 1);
   const Rz = R / Math.max(mapZoom, 0.01);
   const tx2 = clamp((bx0 + bx1) / 2, Math.min(Rz * 0.8, CITY_W / 2), CITY_W - Math.min(Rz * 0.8, CITY_W / 2));
   const ty2 = clamp((by0 + by1) / 2, Math.min(Rz * 0.7, CITY_H / 2), CITY_H - Math.min(Rz * 0.7, CITY_H / 2));
