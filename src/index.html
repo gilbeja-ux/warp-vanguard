@@ -4967,9 +4967,14 @@ function drawMenuMap() {
         ctx.lineTo(cxs - Math.cos(ang + 0.55) * ar, cys - Math.sin(ang + 0.55) * ar);
         ctx.stroke();
       }
-    } else { // unsecured: a dashed blue plan of the run
+    } else { // unsecured: a dashed blue plan, breathing so the path reads alive
       const sel = k === mapSel || k === frontier;
-      ctx.strokeStyle = `rgba(110,185,255,${sel ? 0.6 : 0.3})`;
+      const br = 0.5 + 0.5 * Math.sin(time * 2.2 + k * 1.7); // slow breath, offset per run
+      ctx.strokeStyle = `rgba(120,195,255,${((sel ? 0.10 : 0.05) + br * (sel ? 0.16 : 0.08)).toFixed(2)})`;
+      ctx.lineWidth = 7 + br * 3; // soft halo swells and fades under the dashes
+      ctx.setLineDash([]);
+      trace();
+      ctx.strokeStyle = `rgba(110,185,255,${((sel ? 0.45 : 0.22) + br * (sel ? 0.4 : 0.2)).toFixed(2)})`;
       ctx.lineWidth = sel ? 2 : 1.5;
       ctx.setLineDash([6, 7]); ctx.lineDashOffset = 0;
       trace();
