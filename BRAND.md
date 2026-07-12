@@ -40,8 +40,15 @@ these tokens.
 
 ## Audio direction
 - Music: synthwave/cyber, author-produced. Normalize tracks ~-14 LUFS.
-  Menu track is a 31s piece with an ending — the looper ducks through the
-  seam; a purpose-built 60–90s seamless menu loop is the wishlist item.
+- NEW MENU TRACK SPEC (author to produce; current 31s piece retires):
+  60–90s, composed as a TRUE loop (bar-aligned, no intro/outro or final
+  ringout — last bar must lead back into the first), calmer energy than the
+  level tracks, ~-16 LUFS (menus sit lower), mp3 192kbps. Drop it in
+  src/audio/ and update MUSIC_DATA's `menu:` path at the bottom of
+  index.html — the looper's trim/loop machinery handles the rest, and the
+  seam-duck auto-disables for seamless material (it only ducks near the
+  boundary, which a true loop sails through inaudibly... remove the duck
+  block in updateMusic when the new track lands).
 - SFX: synthesized (Web Audio) for reactive sounds — zaps pitch-ride the
   combo; recorded one-shot layers welcome for big moments (see shortlist).
 
