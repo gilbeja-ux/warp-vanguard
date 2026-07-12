@@ -1326,6 +1326,15 @@ function menuTap(x, y, pid) {
       else if (b.daily) startDaily();
       else if (b.endless) startEndless();
       else if (b.bossTest) startBossTest();
+      else if (b.reset) {
+        if (time - menuResetArm < 2.5) { // confirmed: wipe the campaign
+          progress.unlocked = 1;
+          progress.stars = progress.stars.map(() => 0);
+          progress.bests = progress.bests.map(() => 0);
+          saveState();
+          mapSel = 0; mapCamSnap = true; menuResetArm = 0;
+        } else menuResetArm = time;
+      }
       sfx.tick(); return;
     }
   }
@@ -4551,7 +4560,7 @@ function drawMenuFlow() {
 // the ring becomes a LENS over an isometric wireframe city — the network's
 // physical geography. The relay list rides the left column, the dossier the
 // right, and selecting a relay glides the lens along the route.
-let cityBase = null, cityTop = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true;
+let cityBase = null, cityTop = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1, menuResetArm = 0;
 const mapR = () => Math.min(H * 0.42, W * 0.24); // the lens: smaller than the mode disc
 const CITY_W = 1600, CITY_H = 980;
 let RELAY_W = [], ROUTE_SEGS = []; // filled by buildCity — relays sit ON cable junctions
@@ -4587,44 +4596,75 @@ function buildCity() {
     junc.push({ a: t1.v, b: t2.v, x: p2.x, y: p2.y });
   }
   // the run starts at OmniServe HQ in the far west and lands at Police HQ
-  // near the city center — relay i IS anchor i, its level's path runs AWAY
-  // from it toward the next relay (the last one delivers into the CID)
-  const western = junc.filter(j => j.x < CITY_W * 0.64);
-  western.sort((j1, j2) => j1.x - j2.x);
-  const anchors = [];
-  for (let i = 0; i < 9; i++) {
-    const g0 = Math.floor(i / 9 * western.length), g1 = Math.floor((i + 1) / 9 * western.length);
-    const slice = western.slice(g0, Math.max(g0 + 1, g1));
-    if (i === 8) { // Police HQ: the junction nearest mid-height in the last column
-      slice.sort((j1, j2) => Math.abs(j1.y - CITY_H * 0.45) - Math.abs(j2.y - CITY_H * 0.45));
-      anchors.push(slice[0]);
-      break;
+  // near the city center. Relay i IS anchor i and its level's path runs AWAY
+  // from it. Anchors are chosen by a forward walk that targets a hop length
+  // (|Δa|+|Δb| in street units) that GROWS with the level index, serpentining
+  // north/south — so runs are comparable and later relays are longer hauls.
+  const westJunc = junc.filter(j => j.x < CITY_W * 0.64);
+  westJunc.sort((j1, j2) => j1.x - j2.x);
+  const anchors = [westJunc[Math.floor(rng() * Math.min(4, westJunc.length))]];
+  const used = new Set([anchors[0]]);
+  // hop targets in street-units (px ≈ 8.9 × units), growing with the level;
+  // an x-budget spreads the walk across the corridor so it never runs dry
+  const targets = []; let tSum = 0;
+  for (let i = 1; i < 9; i++) { targets.push(26 + i * 4); tSum += 26 + i * 4; }
+  const corridor = CITY_W * 0.62 - anchors[0].x;
+  let acc = 0;
+  for (let i = 1; i < 9; i++) {
+    const prev = anchors[i - 1];
+    const target = targets[i - 1];
+    acc += target;
+    const xGoal = anchors[0].x + corridor * (acc / tSum); // pace along the corridor
+    const wantNorth = i % 2 === 0; // serpentine
+    let best = null, bestScore = 1e9;
+    for (const relax of [0, 1]) {
+      for (const j of westJunc) {
+        if (used.has(j)) continue;
+        if (!relax && (j.x - prev.x < -50 || j.x > xGoal + 190)) continue;
+        const hop = Math.abs(j.a - prev.a) + Math.abs(j.b - prev.b);
+        if (!relax && (hop < target * 0.7 || hop > target * 1.5)) continue; // hold the pace
+        let sc = Math.abs(hop - target) * 2 + Math.abs(j.x - xGoal) * 0.06;
+        sc += (wantNorth ? j.y - prev.y : prev.y - j.y) * 0.02;   // serpentine bias
+        if (i === 8) sc += Math.abs(j.y - CITY_H * 0.45) * 0.06;  // Police HQ sits mid-city
+        if (sc < bestScore) { bestScore = sc; best = j; }
+      }
+      if (best) break; // only relax the corridor if the strict pass found nothing
     }
-    slice.sort((j1, j2) => j1.y - j2.y);
-    // serpentine: alternate between the north and south of each column
-    const pick = i % 2 === 0 ? slice[Math.floor(rng() * Math.min(3, slice.length))]
-      : slice[slice.length - 1 - Math.floor(rng() * Math.min(3, slice.length))];
-    anchors.push(pick);
+    anchors.push(best);
+    used.add(best);
   }
   CITY_A.length = 0; CITY_A.push(anchors[0].x, anchors[0].y);
   CITY_B.length = 0; CITY_B.push(anchors[8].x, anchors[8].y);
   RELAY_W = anchors.slice(0, 8).map(j => [j.x, j.y]);
-  // route legs ride the trunks: constant-a legs follow family 1, constant-b
-  // family 2 — an L (or Z, via a neighbour trunk) between every pair of anchors
+  // route legs ride the trunks; corners land on junctions; a candidate path is
+  // REJECTED if any leg runs straight through another relay's junction
+  const legHits = (fam, at, lo, hi) => anchors.some(j => {
+    const on = fam === 1 ? Math.abs(j.a - at) < 0.8 : Math.abs(j.b - at) < 0.8;
+    const t2 = fam === 1 ? j.b : j.a;
+    return on && t2 > Math.min(lo, hi) + 0.8 && t2 < Math.max(lo, hi) - 0.8;
+  });
   ROUTE_SEGS = [];
   for (let k = 0; k < 8; k++) {
     const A2 = anchors[k], B2 = anchors[k + 1];
-    const pts2 = [{ x: A2.x, y: A2.y }];
-    // legs alternate street families, corners land on real junctions, and any
-    // detour trunk lies BETWEEN the endpoints — the cable never backtracks
-    const between = trunks2.filter(t => (t.v - A2.b) * (t.v - B2.b) < 0);
-    if (between.length && rng() < 0.6) { // Z: cross to a mid street, ride it, cross again
-      const bm = between[Math.floor(rng() * between.length)].v;
-      pts2.push(jxy(A2.a, bm), jxy(B2.a, bm));
-    } else { // plain L along the endpoints' own streets
-      pts2.push(rng() < 0.5 ? jxy(A2.a, B2.b) : jxy(B2.a, A2.b));
+    const candidates = [];
+    // both L orientations…
+    candidates.push([{ f: 1, at: A2.a, from: A2.b, to: B2.b }, { f: 2, at: B2.b, from: A2.a, to: B2.a }]);
+    candidates.push([{ f: 2, at: A2.b, from: A2.a, to: B2.a }, { f: 1, at: B2.a, from: A2.b, to: B2.b }]);
+    // …and Z detours via streets strictly between the endpoints
+    for (const t of trunks2) {
+      if ((t.v - A2.b) * (t.v - B2.b) >= 0) continue;
+      candidates.push([
+        { f: 1, at: A2.a, from: A2.b, to: t.v },
+        { f: 2, at: t.v, from: A2.a, to: B2.a },
+        { f: 1, at: B2.a, from: t.v, to: B2.b }
+      ]);
     }
-    pts2.push({ x: B2.x, y: B2.y });
+    // shuffle lightly so different seeds pick different shapes
+    candidates.sort(() => rng() - 0.5);
+    let legs = candidates.find(c => c.every(l => !legHits(l.f, l.at, l.from, l.to))) || candidates[0];
+    const pts2 = [{ x: A2.x, y: A2.y }];
+    for (const l of legs) pts2.push(l.f === 1 ? jxy(l.at, l.to) : jxy(l.to, l.at));
+    pts2[pts2.length - 1] = { x: B2.x, y: B2.y };
     ROUTE_SEGS.push(pts2);
   }
 
@@ -4822,12 +4862,11 @@ function polyAt(pts2, t) {
   }
   return pts2[pts2.length - 1];
 }
-// the lens centers on the selected level's OUTGOING cable run — the path
-// this deployment must clear
+// midpoint of the selected level's outgoing run (used by tests/back-compat;
+// the live camera frames the run's whole bounding box)
 function mapTarget(li) {
   if (!RELAY_W.length) buildCity();
-  const mid = polyAt(ROUTE_SEGS[li], 0.5), p0 = relayW(li);
-  return { x: lerp(mid.x, p0.x, 0.3), y: lerp(mid.y, p0.y, 0.3) };
+  return polyAt(ROUTE_SEGS[li], 0.5);
 }
 function mapHex(x, y, r) {
   ctx.beginPath();
@@ -4842,21 +4881,31 @@ function drawMenuMap() {
   const R = mapR();
   if (!cityBase) buildCity();
   const frontier = Math.min(progress.unlocked - 1, LEVELS.length - 1);
-  // camera: glide toward the selected relay's hop (snap on entry)
-  const tgt = mapTarget(mapSel);
-  const camMinX = R * 0.8, camMaxX = CITY_W - R * 0.8;
-  const tx2 = clamp(tgt.x, camMinX, camMaxX), ty2 = clamp(tgt.y, R * 0.7, CITY_H - R * 0.7);
-  if (mapCamSnap) { mapCamX = tx2; mapCamY = ty2; mapCamSnap = false; }
+  // camera: frame the ENTIRE selected run — center on its bounding box and
+  // zoom out until it fits inside the lens
+  const seg = ROUTE_SEGS[mapSel];
+  let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
+  for (const p2 of seg) {
+    bx0 = Math.min(bx0, p2.x); by0 = Math.min(by0, p2.y);
+    bx1 = Math.max(bx1, p2.x); by1 = Math.max(by1, p2.y);
+  }
+  const span = Math.max(bx1 - bx0, by1 - by0);
+  const zt = clamp((R * 2 - 90) / Math.max(span, 1), 0.55, 1);
+  const Rz = R / Math.max(mapZoom, 0.01);
+  const tx2 = clamp((bx0 + bx1) / 2, Math.min(Rz * 0.8, CITY_W / 2), CITY_W - Math.min(Rz * 0.8, CITY_W / 2));
+  const ty2 = clamp((by0 + by1) / 2, Math.min(Rz * 0.7, CITY_H / 2), CITY_H - Math.min(Rz * 0.7, CITY_H / 2));
+  if (mapCamSnap) { mapCamX = tx2; mapCamY = ty2; mapZoom = zt; mapCamSnap = false; }
   mapCamX += (tx2 - mapCamX) * 0.08;
   mapCamY += (ty2 - mapCamY) * 0.08;
-  const wx = p2 => ccx + (p2.x - mapCamX); // world -> screen
-  const wy = p2 => ccy + (p2.y - mapCamY);
+  mapZoom += (zt - mapZoom) * 0.08;
+  const wx = p2 => ccx + (p2.x - mapCamX) * mapZoom; // world -> screen (zoomed)
+  const wy = p2 => ccy + (p2.y - mapCamY) * mapZoom;
 
   // ---- inside the lens ----
   ctx.save();
   ctx.beginPath(); ctx.arc(ccx, ccy, R - 5, 0, TAU); ctx.clip();
   // LAYER 1: streets, harbor, buried cable grid
-  ctx.drawImage(cityBase, ccx - mapCamX, ccy - mapCamY);
+  ctx.drawImage(cityBase, ccx - mapCamX * mapZoom, ccy - mapCamY * mapZoom, CITY_W * mapZoom, CITY_H * mapZoom);
   // LAYER 2: each level's cable run, leading AWAY from its relay —
   // secured lines flow green with live data, unsecured wait as dashed blue
   ctx.lineCap = 'round';
@@ -4898,7 +4947,7 @@ function drawMenuMap() {
   }
   // LAYER 3: the blueprint wireframe above — transparent, so the buried
   // cables stay readable through the whole city
-  ctx.drawImage(cityTop, ccx - mapCamX, ccy - mapCamY);
+  ctx.drawImage(cityTop, ccx - mapCamX * mapZoom, ccy - mapCamY * mapZoom, CITY_W * mapZoom, CITY_H * mapZoom);
   // destination: Police HQ / CID intake — the run's final delivery point
   {
     const pt = relayW(LEVELS.length);
@@ -4977,6 +5026,16 @@ function drawMenuMap() {
   ctx.fillStyle = 'rgba(160,200,240,0.7)'; ctx.font = '700 9px Audiowide, system-ui';
   ctx.fillText('⚔ BOSS (DEV)', dv.x + 9, dv.y + 16);
   menuButtons.push({ ...dv, bossTest: true, locked: false });
+  // reset campaign (two-tap confirm)
+  const rv = { x: dv.x, y: dv.y + 30, w: 96, h: 24 };
+  const armed = time - menuResetArm < 2.5;
+  techRect(rv.x, rv.y, rv.w, rv.h, 6);
+  ctx.fillStyle = armed ? 'rgba(90,20,20,0.6)' : 'rgba(6,20,40,0.55)'; ctx.fill();
+  ctx.strokeStyle = armed ? 'rgba(255,110,110,0.8)' : 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1;
+  techRect(rv.x, rv.y, rv.w, rv.h, 6); ctx.stroke();
+  ctx.fillStyle = armed ? '#ffb0b0' : 'rgba(160,200,240,0.7)'; ctx.font = '700 8px Audiowide, system-ui';
+  ctx.fillText(armed ? 'TAP TO CONFIRM' : '↺ RESET RUN', rv.x + 9, rv.y + 16);
+  menuButtons.push({ ...rv, reset: true, locked: false });
 }
 // left column: the relay list — the selector that drives the lens
 function drawMapList(ccx, ccy, R, frontier) {
@@ -5041,8 +5100,14 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   }
   ctx.fillStyle = '#f2faff'; ctx.font = '700 12px Audiowide, system-ui';
   ctx.fillText(L2.name, px2 + 14, py2 + 40);
-  for (let k = 0; k < 3; k++) star5(px2 + 22 + k * 20, py2 + 58, 7, k < progress.stars[li]);
-  // expected traffic glyphs, wrapped
+  for (let k = 0; k < 3; k++) star5(px2 + 22 + k * 20, py2 + 56, 7, k < progress.stars[li]);
+  // fixed rows top-down, deploy pinned to the bottom — nothing overlaps
+  ctx.fillStyle = 'rgba(160,215,255,0.8)'; ctx.font = '600 9px Audiowide, system-ui';
+  ctx.fillText((L2.boss ? 'CORE DUEL · ' : '') + 'RUN ' + L2.duration + 's · TRAFFIC ' + Math.round(L2.speed * 100), px2 + 14, py2 + 78);
+  if ((progress.bests[li] || 0) > 0) {
+    ctx.fillStyle = 'rgba(255,210,74,0.85)';
+    ctx.fillText('BEST ' + progress.bests[li].toLocaleString(), px2 + 14, py2 + 92);
+  }
   const kinds = ['normal'];
   if (L2.heavies) kinds.push('heavy');
   if (L2.lines) kinds.push('line');
@@ -5051,20 +5116,11 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   if (L2.frags) kinds.push('frag');
   if (L2.boss) kinds.push('boss');
   ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
-  ctx.fillText('EXPECTED TRAFFIC', px2 + 14, py2 + 82);
+  ctx.fillText('EXPECTED TRAFFIC', px2 + 14, py2 + 110);
   kinds.forEach((k, ki) => {
     const col2 = ki % 5, row2 = Math.floor(ki / 5);
-    drawInfoGlyph(k, px2 + 26 + col2 * 26, py2 + 102 + row2 * 28, 8);
+    drawInfoGlyph(k, px2 + 26 + col2 * 26, py2 + 128 + row2 * 26, 8);
   });
-  const gRows = Math.ceil(kinds.length / 5);
-  let sy2 = py2 + 96 + gRows * 28 + 8;
-  ctx.fillStyle = 'rgba(160,215,255,0.8)'; ctx.font = '600 9px Audiowide, system-ui';
-  ctx.fillText((L2.boss ? 'CORE DUEL · ' : '') + 'RUN ' + L2.duration + 's', px2 + 14, sy2);
-  ctx.fillText('TRAFFIC ' + Math.round(L2.speed * 100), px2 + 14, sy2 + 14);
-  if ((progress.bests[li] || 0) > 0) {
-    ctx.fillStyle = 'rgba(255,210,74,0.85)';
-    ctx.fillText('BEST ' + progress.bests[li].toLocaleString(), px2 + 14, sy2 + 28);
-  }
   const dw = pw - 24, dh = 34;
   const dx2 = px2 + 12, dy2 = py2 + ph - dh - 12;
   levelKey(dx2, dy2, dw, dh, '▶', 'DEPLOY', -1, false, li === frontier);
