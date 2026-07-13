@@ -607,16 +607,18 @@ G.progress.tutorialDone = true;
 // ================= level intro =================
 rawStartLevel(1);
 check('intro clock arms on level start', G.getIntro() === 0);
-for (let i = 0; i < 30; i++) G.update(0.05); // 1.5s — mid-countdown
+for (let i = 0; i < 24; i++) G.update(0.05); // 1.2s — the ring is still riding the tunnel in
 check('spawns held during the intro', G.enemies().length === 0);
 check('level clock frozen during the intro', G.getLevelT() === 0);
-drawOk('mid-intro frame (forming ring + countdown)', () => {});
-for (let i = 0; i < 30; i++) G.update(0.05); // reach the thumb gate (2.3s)
-check('boot holds at the gate until thumbs are placed', G.getIntro() < 2.75);
+drawOk('mid-intro frame (ring fly-in + range readout)', () => {});
+for (let i = 0; i < 44; i++) G.update(0.05); // past the dock + checks, into the thumb gate (3.1s)
+check('boot holds at the gate until thumbs are placed', G.getIntro() < 3.55);
+drawOk('gate frame (awaiting operator + thumb prompts)', () => {});
 canvasHandlers.pointerdown({ pointerId: 41, clientX: 120, clientY: 220, pointerType: 'touch' });
 canvasHandlers.pointerdown({ pointerId: 42, clientX: 680, clientY: 220, pointerType: 'touch' });
 for (let i = 0; i < 20; i++) G.update(0.05);
-check('godspeed: boot completes once both pads are held', G.getIntro() > 2.8);
+check('godspeed: boot completes once both pads are held', G.getIntro() > 3.6);
+drawOk('godspeed frame', () => {});
 let spawned = false;
 for (let i = 0; i < 80 && !spawned; i++) { G.update(0.05); spawned = G.enemies().length > 0; }
 check('the stream goes live after GODSPEED', spawned);
