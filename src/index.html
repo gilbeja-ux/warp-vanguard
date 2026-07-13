@@ -3860,7 +3860,8 @@ function drawIntroCard() {
       // monospace status readout under the callout — data garnish, ops style
       let sub = '', subT = stStart;
       if (stI === 0) {
-        const rngM = 2.6 * Math.pow(1 - clamp(t / BOOT_LOCK, 0, 1), 2.1) * 52;
+        const rp = clamp(t / BOOT_LOCK, 0, 1); // distance left to the dock, same motion law
+        const rngM = (1 - rp * rp * (3 - 2 * rp)) * 26;
         sub = 'RANGE ' + rngM.toFixed(1).padStart(5, '0') + ' M';
         subT = t; // live readout — never flash-stamps
       } else if (stI === 1) {
@@ -3881,16 +3882,16 @@ function drawIntroCard() {
         ctx.font = '500 11px Audiowide, system-ui';
         ctx.fillText('PLACE BOTH THUMBS ON THE PADS', W / 2, ly + 32);
       }
-    } else { // GODSPEED. — the stream goes live: a stamp, not a balloon
+    } else { // CONTROLS ACTIVE — the stream goes live (the CID says godspeed)
       const gt = (t - INTRO_DUR) / 0.6;
       ctx.save();
       ctx.translate(W / 2, H * 0.52);
       ctx.globalAlpha = 1 - gt * gt;
       ctx.fillStyle = gt < 0.1 ? '#ffffff' : '#7ee262';
-      ctx.font = '800 ' + Math.min(W * 0.07, 40) + 'px Audiowide, system-ui';
+      ctx.font = '800 ' + Math.min(W * 0.055, 34) + 'px Audiowide, system-ui';
       ctx.shadowColor = '#7ee262'; ctx.shadowBlur = 22;
       try { ctx.letterSpacing = (4 + gt * 6).toFixed(1) + 'px'; } catch (e) {}
-      ctx.fillText('GODSPEED.', 0, 14);
+      ctx.fillText('CONTROLS ACTIVE', 0, 14);
       try { ctx.letterSpacing = '0px'; } catch (e) {}
       ctx.shadowBlur = 0;
       ctx.restore();
@@ -5936,14 +5937,15 @@ function frame(now) {
 
   // node holder ring: thick matte black like the mock, with faked soft shadow for depth
   const bz = Math.min(W, H) * 0.055;
-  // boot: the ring rides the tunnel in from the deep and brakes into the dock —
-  // perspective-true (the same 1/(1+6z) law as the traffic), so it reads as a
-  // physical carrier arriving, not a UI transition
+  // boot: the ring launches from the operator's own viewpoint and flies INTO
+  // the tunnel, braking into the dock — perspective-true (the same 1/(1+6z)
+  // law as the traffic), so it reads as deploying hardware, not a UI transition
   const bootRing = (state === S.PLAY || state === S.PAUSE) && introT < INTRO_DUR + 1;
   let ringS = 1;
   if (bootRing && introT < BOOT_LOCK) {
     const p = clamp(introT / BOOT_LOCK, 0, 1);
-    const zz = g.hitZ + 2.6 * Math.pow(1 - p, 2.1);
+    // smoothstep on z: hangs big near the eye, sweeps out, brakes into the dock
+    const zz = g.hitZ - (g.hitZ + 0.04) * (1 - p * p * (3 - 2 * p)); // starts just behind the eye (z<0)
     ringS = (g.R0 / (1 + zz * 6)) / g.nodeR;
     // dock markers wait at the rim: hairline target circle + four braces
     const ba = 0.5 + 0.4 * p;
@@ -5962,7 +5964,7 @@ function frame(now) {
   if (ringS !== 1) {
     ctx.save();
     ctx.translate(g.cx, g.cy); ctx.scale(ringS, ringS); ctx.translate(-g.cx, -g.cy);
-    ctx.globalAlpha = 0.35 + 0.65 * ringS; // hazed by depth until it closes in
+    ctx.globalAlpha = 0.35 + 0.65 * clamp(introT / BOOT_LOCK, 0, 1); // condenses out of the eye
   }
   ctx.strokeStyle = 'rgba(0,0,0,0.10)'; ctx.lineWidth = bz * 3.0;
   ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bz / 2, 0, TAU); ctx.stroke();
