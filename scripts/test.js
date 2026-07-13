@@ -766,7 +766,7 @@ function soak(name, start, seconds) {
 }
 soak('metro exchange (bursts)', () => G.startLevel(2), 60);
 soak('quantum relay (color locks)', () => G.startLevel(5), 70);
-soak('darknet edge (waves + bursts)', () => G.startLevel(6), 80);
+soak('darknet edge (bursts)', () => G.startLevel(6), 80);
 soak('core firewall (boss fight)', () => G.startLevel(7), 90);
 soak('endless ramp', () => G.startEndless(), 150);
 G.keys['ArrowUp'] = false;

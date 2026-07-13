@@ -583,11 +583,11 @@ const LEVELS = [
     hint: 'NEW THREAT: burst transmissions — traps arrive in volleys' },
   { name: 'HARBOR CROSSING', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
     hint: 'NEW THREAT: barrier lines — one node on each end' },
-  { name: 'UNDERCITY FIBER', duration: 60, spawnMin: 0.80, spawnMax: 1.50, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, strips: 0.12, track: 1, waves: true,
-    hint: 'NEW THREAT: speed waves — the stream surges and slows' },
+  { name: 'UNDERCITY FIBER', duration: 60, spawnMin: 0.80, spawnMax: 1.50, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, strips: 0.12, track: 1,
+    hint: 'NEW THREAT: data streams — ride them head to tail' },
   { name: 'FINANCIAL SPINE', duration: 65, spawnMin: 0.80, spawnMax: 1.45, speed: 0.48, doubles: 0.35, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, strips: 0.12, track: 2,
     hint: 'NEW THREAT: color-locked traps — match the node color' },
-  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.68, spawnMax: 1.30, speed: 0.54, doubles: 0.40, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, strips: 0.15, track: 0, bursts: true, waves: true,
+  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.68, spawnMax: 1.30, speed: 0.54, doubles: 0.40, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, strips: 0.15, track: 0, bursts: true,
     hint: 'ALL THREATS ACTIVE — maximum traffic' },
   { name: 'CID GATEWAY',     duration: 45, spawnMin: 0.90, spawnMax: 1.60, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, strips: 0.12, track: 2, boss: true,
     hint: 'THE FIREWALL CORE AWAITS — drain it with your nodes' }
@@ -599,14 +599,15 @@ function endlessCfg(t) {
   return {
     name: daily ? 'DAILY STREAM' : 'ENDLESS STREAM', duration: Infinity, endless: true,
     spawnMin: ramp(1.4, 0.55, k), spawnMax: ramp(2.2, 1.1, k),
-    speed: ramp(0.36, 0.60, k),
+    // speed climbs in announced SURGE steps every 100s, hard-capped at 6
+    speed: Math.min(0.38 + Math.floor(t / 100) * 0.035, 0.38 + 6 * 0.035),
     doubles: ramp(0, 0.40, k),
     heavies: ramp(0, 0.22, (k - 0.15) / 0.85),
     lines: ramp(0, 0.22, (k - 0.3) / 0.7),
     colors: ramp(0, 0.30, (k - 0.45) / 0.55),
     frags: ramp(0, 0.18, (k - 0.25) / 0.75),
     strips: ramp(0, 0.14, (k - 0.5) / 0.5),
-    bursts: t > 70, waves: t > 100
+    bursts: t > 70
   };
 }
 const progress = { unlocked: 1, stars: [0, 0, 0, 0, 0, 0, 0, 0], bests: [0, 0, 0, 0, 0, 0, 0, 0], tutorialDone: false, bossBriefed: false, stripBriefed: false, best: 0, daily: { last: 0, streak: 0, best: 0 } };
@@ -676,6 +677,7 @@ let menuScroll = 0, menuPtr = null; // level-list scrolling
 let menuScreen = 'home'; // 'home' (mode select) | 'map' (campaign route) | 'flow' (free flow)
 let mapSel = 0;          // selected relay on the campaign map
 let commNext = 0, commCur = null, commT = 0; // intercepted-transmission ticker
+let surgeLevel = 0, surgeCount = -1;         // free-run speed surges (announced)
 let endWin = false, endStars = 0, endT = 0, endNewBest = false;
 let endFxStars = 0, endTickT = 0; // ceremony bookkeeping (star chimes, count ticks)
 const endBtnAt = () => endWin ? 2.9 : 1.25; // when the buttons arrive (wins ride the sweep first)
@@ -1456,6 +1458,7 @@ function resetRun() {
   if (!(progress.stars[LEVELS.length - 1] > 0)) mutators.oneLife = mutators.fast = mutators.noPickups = false;
   levelT = 0; spawnT = 1.2;
   commNext = 0; commCur = null; commT = 0;
+  surgeLevel = 0; surgeCount = -1;
   integrity = mutators.oneLife ? 25 : 100;
   score = 0; zaps = 0; misses = 0; combo = 0; perfects = 0; fragsHit = 0; comboHeal = 0;
   pulseCharge = [0, 0]; pulseWaves = [];
@@ -1813,7 +1816,7 @@ function update(dt) {
 
   const g = geo();
 
-  const waveMul = (L.waves ? 1 + 0.3 * Math.sin(levelT * 0.55) : 1) * (mutators.fast ? 1.35 : 1);
+  const waveMul = mutators.fast ? 1.35 : 1; // constant clock — surges live in endless L.speed
   trafficSpeed = L.speed * waveMul; // tunnel bands, hoops, river and glyphs all ride this
   const TOL = 0.314 * tolVis; // angular tolerance ~18°, eased wider by the wide-arc power-up
   // a rebooting node (node-killer hit) covers nothing until it's back online
@@ -2090,6 +2093,29 @@ function update(dt) {
     }
   }
   stripSound(stripProg >= 0, stripProg); // the trace drone lives and dies here
+
+  // free-run surges: every 100s the stream steps up (capped) — and it never
+  // arrives unannounced: "SPEEDING UP IN 4..3..2..1", then the surge
+  if (endless && !boss) {
+    const surge = Math.floor(levelT / 100);
+    const toNext = (surge + 1) * 100 - levelT;
+    if (surge < 6 && toNext <= 4.2) {
+      const cnt = Math.ceil(toNext);
+      if (cnt !== surgeCount) {
+        surgeCount = cnt;
+        popup(W / 2, H * 0.3, 'SPEEDING UP IN ' + cnt, '#ff9a3c');
+        sfx.count();
+      }
+    }
+    if (surge !== surgeLevel) {
+      surgeLevel = surge; surgeCount = -1;
+      if (surge > 0 && surge <= 6) {
+        popup(W / 2, H * 0.3, 'STREAM SURGE ' + surge + (surge === 6 ? ' — MAX' : ''), '#ff9a3c');
+        sfx.speedUp();
+        buzz(20);
+      }
+    }
+  }
 
   // pulse waves sweep down the tunnel, molecularizing every trap they pass
   for (const wv of pulseWaves) {
