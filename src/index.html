@@ -729,7 +729,11 @@ let resumeHold = 0, resumeDigit = 0; // 3-2-1 after unpausing
 let warpT = 0;                // warp-dive into a fresh level
 let musicDuck = 0;            // music dips under the end ceremony
 let fadeT = 0;                // universal screen-stitch fade
-const INTRO_DUR = 3.7;        // ring formation + 3-2-1 countdown
+const INTRO_DUR = 2.8;        // boot: LOCK -> NODES -> SYSTEMS -> (thumbs) -> GODSPEED
+const INTRO_GATE = 2.3;       // the boot holds here until both thumbs are on the pads
+let introStage = -1;          // last boot stage that fired its sounds
+let padHold = [false, false]; // live thumb contact per pad side
+let introLatch = false;       // both thumbs seen at the gate — godspeed is a promise
 let introT = 999, introCd = -1;
 let tolVis = 1;               // eased hit-arc multiplier (wide-arc grows/shrinks smoothly)
 let bolts = [];               // lightning arcs (node → trap)
@@ -1317,6 +1321,12 @@ canvas.addEventListener('pointerdown', e => {
       P.y > pauseBtnRect.y - 8 && P.y < pauseBtnRect.y + pauseBtnRect.h + 8) {
     state = S.PAUSE; sfx.tick(); return;
   }
+  // boot gate: any grip during the intro registers as a placed thumb
+  if (state === S.PLAY && introT < INTRO_DUR) {
+    if (e.pointerType === 'mouse') { padHold[0] = padHold[1] = true; } // desktop fallback
+    else if (P.x < W / 2) padHold[0] = true;
+    else padHold[1] = true;
+  }
   // charged pulse orbs: tapping a ready core fires that node's wave, solo
   if (!boss) {
     for (let i = 0; i < 2; i++) {
@@ -1414,6 +1424,9 @@ function releasePointer(e) {
   const heldIdx = p && (p.node !== undefined ? p.node : p.arc);
   if (heldIdx !== undefined && nodes[heldIdx]) nodes[heldIdx].held = false;
   delete pointers[e.pointerId]; delete pauseDrag[e.pointerId];
+  // recompute live thumb contact from the remaining pointers
+  padHold[0] = Object.values(pointers).some(q => q.side === 'L' || q.node === 0 || q.arc === 0);
+  padHold[1] = Object.values(pointers).some(q => q.side === 'R' || q.node === 1 || q.arc === 1);
 }
 canvas.addEventListener('pointerup', e => {
   if (menuPtr && menuPtr.id === e.pointerId) {
@@ -1540,7 +1553,7 @@ function resetRun() {
   enemies = []; particles = []; popups = []; bolts = []; pickups = [];
   boss = null; burstQ = null; patternQ = []; hitStop = 0;
   heat = 0; overheat = false; beamActive = false; beamSound(false, 0); stripSound(false, 0);
-  introT = 0; introCd = -1;
+  introT = 0; introCd = -1; introStage = -1; introLatch = false; padHold = [false, false];
   rimFX = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; }
   fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24);
@@ -1852,14 +1865,39 @@ function update(dt) {
     if (d2 !== resumeDigit) { resumeDigit = d2; sfx.count(); }
     if (resumeHold > 0) return;
   }
-  // intro: the ring forms and the countdown runs before the stream goes live
-  introT += dt;
+  // intro: the boot sequence — the ring locks on, nodes power up, systems
+  // check, then the level waits for BOTH thumbs before godspeed
+  if (introT >= INTRO_GATE && introT < INTRO_DUR && padHold[0] && padHold[1]) introLatch = true;
+  if (introT < INTRO_GATE) introT += dt;
+  else if (introT >= INTRO_DUR || introLatch) introT += dt;
+  // (else: holding at the gate, waiting for hands)
   const inIntro = introT < INTRO_DUR;
-  const cdNow = introT < 0.7 ? -1 : introT < 1.7 ? 3 : introT < 2.7 ? 2 : inIntro ? 1 : 0;
-  if (cdNow !== introCd) {
-    introCd = cdNow;
-    if (cdNow > 0) sfx.count();
-    else if (cdNow === 0 && introT < INTRO_DUR + 1) sfx.go();
+  const stageNow = introT >= INTRO_DUR ? 4 : introT >= INTRO_GATE ? 3 : introT >= 1.7 ? 2 : introT >= 0.9 ? 1 : 0;
+  if (stageNow !== introStage && introT < INTRO_DUR + 1) {
+    introStage = stageNow;
+    if (stageNow === 0) { // LOCKING ON STREAM: calculation ticks decelerating into a lock
+      for (let k = 0; k < 6; k++) tone(1500 + k * 130, 0.025, 'square', 0.045, null, null, k * k * 0.02 + k * 0.02);
+      tone(520, 0.12, 'square', 0.10, 490, null, 0.7);
+    } else if (stageNow === 1) { // ACTIVATING NODES: power-up riser + materialize pop
+      tone(150, 0.55, 'sawtooth', 0.07, 640);
+      tone(660, 0.30, 'sine', 0.06, 1320, null, 0.3);
+      const gI = geo(), railRI = gI.nodeR - Math.min(W, H) * 0.055 * 0.86;
+      for (const n of nodes) {
+        burst(gI.cx + Math.cos(n.angle) * railRI, gI.cy + Math.sin(n.angle) * railRI,
+          n === nodes[0] ? '#6fe3ff' : '#ffffff', 14, 3.5);
+        n.formAt = introT; // replay the materialize pop
+      }
+    } else if (stageNow === 2) { // SYSTEMS CHECK: the pads light up
+      sfx.tick();
+      tone(880, 0.08, 'sine', 0.06, 1174, null, 0.12);
+      tone(1174, 0.08, 'sine', 0.06, 1568, null, 0.24);
+    } else if (stageNow === 4) { // GODSPEED
+      tone(220, 0.5, 'sine', 0.12, 880);
+      crackle(0.5, 400, 2600, 1.5, 0.9);
+      sfx.go();
+      buzz([20, 30, 50]);
+      commCur = { s: 'CID', m: 'godspeed, defender.' }; commT = 0;
+    }
   }
 
   // effect timers run on real time; hit-stop scales the game clock
@@ -3151,10 +3189,11 @@ function drawNodes(g) {
     const x = nearR.x + Math.cos(n.angle) * rr2;
     const y = nearR.y + Math.sin(n.angle) * rr2;
     const cCol = fused ? '160,240,255' : i === 0 ? '111,227,255' : '255,255,255';
-    const rb = clamp((n.deadT || 0) / 2, 0, 1); // >0: fried by a node killer, rebooting
+    const dormant = state !== S.MENU && introT < 0.92 && introT < INTRO_DUR; // pre-activation boot
+    const rb = Math.max(clamp((n.deadT || 0) / 2, 0, 1), dormant ? 1 : 0); // >0: fried / not yet powered
     // intro: each carriage materializes when the forming ring reaches it
     if (state === S.PLAY || state === S.PAUSE) {
-      const p2 = clamp(introT / 2.0, 0, 1);
+      const p2 = clamp(introT / 0.85, 0, 1);
       const sw2 = (1 - Math.pow(1 - p2, 3)) * Math.PI;
       if (sw2 < Math.PI - 0.001 && Math.abs(angDiff(n.angle, -Math.PI / 2)) > sw2) {
         n.formAt = introT; n.prevA = n.angle;
@@ -3502,10 +3541,18 @@ function drawDials() {
   // duel's fused cannon needs its fire stick back
   if (settings.controls !== 0 && !(boss && boss.mergeT >= 1)) return;
   const bz = Math.min(W, H) * 0.055; // shared gauge width with the ARCS strips
+  const booting = state === S.PLAY && introT < INTRO_DUR;
+  const padsLive = introT >= 1.7;
   for (let i = 0; i < 2; i++) {
     const side = i === 0 ? 'L' : 'R';
     const d = dialCenter(side);
     const n = nodes[i];
+    if (booting && !padsLive) { // dormant console: a dark ring, nothing more
+      ctx.strokeStyle = 'rgba(90,120,160,0.22)';
+      ctx.lineWidth = bz * 0.85;
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU); ctx.stroke();
+      continue;
+    }
     const col = i === 0 ? '111,227,255' : '255,255,255';
     const ptr = Object.values(pointers).find(q => q.side === side && q.lastA !== undefined);
     const held = !!ptr;
@@ -3583,6 +3630,26 @@ function drawDials() {
         ctx.strokeStyle = `rgba(${col},0.75)`;
         ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(d.x + Math.cos(fa) * fr, d.y + Math.sin(fa) * fr, ts * 0.8, 0, TAU); ctx.stroke();
+      }
+    }
+    if (booting && padsLive) {
+      const flash = clamp(1 - (introT - 1.7) / 0.4, 0, 1); // the check lights it up
+      if (flash > 0) {
+        ctx.strokeStyle = `rgba(${col},${(flash * 0.8).toFixed(2)})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(d.x, d.y, d.r + 6, 0, TAU); ctx.stroke();
+      }
+      if (introT >= INTRO_GATE - 0.01) { // awaiting operator: per-pad prompt
+        const okI = padHold[i];
+        ctx.strokeStyle = okI ? 'rgba(126,226,98,0.9)'
+          : `rgba(255,210,74,${(0.45 + Math.sin(time * 5) * 0.3).toFixed(2)})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(d.x, d.y, d.r + 9, 0, TAU); ctx.stroke();
+        ctx.textAlign = 'center';
+        ctx.fillStyle = okI ? 'rgba(126,226,98,0.9)' : 'rgba(255,210,74,0.85)';
+        ctx.font = '700 10px Audiowide, system-ui';
+        ctx.fillText(okI ? 'READY' : 'PLACE THUMB', d.x, d.y - d.r - 14);
+        ctx.textAlign = 'left';
       }
     }
     // radar blips: live enemy positions — angle matches the tunnel, radius = how close they are
@@ -3734,34 +3801,53 @@ function drawIntroCard() {
         ctx.fillText(L.hint, 0, 26);
       }
       ctx.restore();
-      const cd = t - 0.7;
-      if (cd >= 0) { // 3 … 2 … 1, slamming in on the second
-        const idx = Math.min(Math.floor(cd), 2);
-        const ct = cd - idx;
-        const pop = 1.9 - 0.9 * Math.min(ct / 0.22, 1);
-        const ca = ct < 0.15 ? ct / 0.15 : clamp((1 - ct) / 0.35, 0, 1);
-        ctx.save();
-        ctx.translate(W / 2, H * 0.52);
-        ctx.scale(pop, pop);
-        ctx.globalAlpha = ca;
-        ctx.fillStyle = '#ffd24a';
-        ctx.font = '800 ' + Math.min(W * 0.09, 54) + 'px Audiowide, system-ui';
-        ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 26;
-        ctx.fillText(3 - idx, 0, 18);
-        ctx.shadowBlur = 0;
-        ctx.restore();
+      // LOCKING ON STREAM: a targeting ring converges out of the viewer onto the rim
+      if (t < 0.9) {
+        const g3 = geo();
+        const q = 1 - Math.pow(1 - clamp(t / 0.85, 0, 1), 3);
+        ctx.strokeStyle = `rgba(111,227,255,${(0.15 + q * 0.4).toFixed(2)})`;
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([14, 10]);
+        ctx.lineDashOffset = -t * 60;
+        ctx.beginPath(); ctx.arc(g3.cx, g3.cy, g3.nodeR * (2.4 - 1.4 * q), 0, TAU); ctx.stroke();
+        ctx.setLineDash([]);
       }
-    } else { // GO! flash as the stream goes live
-      const gt = (t - INTRO_DUR) / 0.5;
+      // boot stage label, slamming in on each transition
+      const stI = t >= INTRO_GATE ? 3 : t >= 1.7 ? 2 : t >= 0.9 ? 1 : 0;
+      const stStart = [0, 0.9, 1.7, INTRO_GATE][stI];
+      const ct = t - stStart;
+      const labels = ['LOCKING ON STREAM', 'ACTIVATING NODES', 'SYSTEMS CHECK', 'AWAITING OPERATOR'];
+      const dots = stI < 3 ? '.'.repeat(1 + (Math.floor(ct * 6) % 3)) : '';
+      const pop = 1.3 - 0.3 * Math.min(ct / 0.18, 1);
       ctx.save();
       ctx.translate(W / 2, H * 0.52);
-      ctx.scale(1 + gt * 0.6, 1 + gt * 0.6);
+      ctx.scale(pop, pop);
+      ctx.globalAlpha = stI === 3 ? 0.7 + Math.sin(time * 5) * 0.3 : Math.min(1, ct / 0.1);
+      ctx.fillStyle = stI === 3 ? '#ffd24a' : '#8fe0ff';
+      ctx.font = '700 ' + Math.min(W * 0.032, 19) + 'px Audiowide, system-ui';
+      ctx.shadowColor = stI === 3 ? '#ffd24a' : '#5fd7ff'; ctx.shadowBlur = lowFX ? 0 : 16;
+      try { ctx.letterSpacing = '4px'; } catch (e) {}
+      ctx.fillText(labels[stI] + dots, 0, 8);
+      try { ctx.letterSpacing = '0px'; } catch (e) {}
+      ctx.shadowBlur = 0;
+      ctx.restore();
+      if (stI === 3) { // the gate explains itself
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = 'rgba(200,235,255,0.75)';
+        ctx.font = '500 11px Audiowide, system-ui';
+        ctx.fillText('place both thumbs on the pads', W / 2, H * 0.52 + 30);
+      }
+    } else { // GODSPEED. — the stream goes live
+      const gt = (t - INTRO_DUR) / 0.6;
+      ctx.save();
+      ctx.translate(W / 2, H * 0.52);
+      ctx.scale(1 + gt * 0.5, 1 + gt * 0.5);
       ctx.globalAlpha = 1 - gt;
       ctx.fillStyle = '#7ee262';
-      ctx.font = '800 ' + Math.min(W * 0.09, 54) + 'px Audiowide, system-ui';
+      ctx.font = '800 ' + Math.min(W * 0.08, 46) + 'px Audiowide, system-ui';
       ctx.shadowColor = '#7ee262'; ctx.shadowBlur = 26;
       try { ctx.letterSpacing = '4px'; } catch (e) {}
-      ctx.fillText('GO!', 0, 18);
+      ctx.fillText('GODSPEED.', 0, 18);
       try { ctx.letterSpacing = '0px'; } catch (e) {}
       ctx.shadowBlur = 0;
       ctx.restore();
@@ -5808,7 +5894,7 @@ function frame(now) {
   // node holder ring: thick matte black like the mock, with faked soft shadow for depth
   const bz = Math.min(W, H) * 0.055;
   // during the level intro the ring sweeps into existence from the top
-  const ringP = (state === S.PLAY || state === S.PAUSE) ? clamp(introT / 2.0, 0, 1) : 1;
+  const ringP = (state === S.PLAY || state === S.PAUSE) ? clamp(introT / 0.85, 0, 1) : 1;
   const ringSweep = (1 - Math.pow(1 - ringP, 3)) * Math.PI;
   const ringForming = ringSweep < Math.PI - 0.001;
   if (ringForming) {
