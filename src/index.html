@@ -677,7 +677,7 @@ let menuScroll = 0, menuPtr = null; // level-list scrolling
 let menuScreen = 'home'; // 'home' (mode select) | 'map' (campaign route) | 'flow' (free flow)
 let mapSel = 0;          // selected relay on the campaign map
 let commNext = 0, commCur = null, commT = 0; // intercepted-transmission ticker
-let surgeLevel = 0, surgeCount = -1;         // free-run speed surges (announced)
+let surgeLevel = 0, surgeCount = -1, surgeWaveZ = -1; // free-run speed surges (announced)
 let endWin = false, endStars = 0, endT = 0, endNewBest = false;
 let endFxStars = 0, endTickT = 0; // ceremony bookkeeping (star chimes, count ticks)
 const endBtnAt = () => endWin ? 2.9 : 1.25; // when the buttons arrive (wins ride the sweep first)
@@ -1458,7 +1458,7 @@ function resetRun() {
   if (!(progress.stars[LEVELS.length - 1] > 0)) mutators.oneLife = mutators.fast = mutators.noPickups = false;
   levelT = 0; spawnT = 1.2;
   commNext = 0; commCur = null; commT = 0;
-  surgeLevel = 0; surgeCount = -1;
+  surgeLevel = 0; surgeCount = -1; surgeWaveZ = -1;
   integrity = mutators.oneLife ? 25 : 100;
   score = 0; zaps = 0; misses = 0; combo = 0; perfects = 0; fragsHit = 0; comboHeal = 0;
   pulseCharge = [0, 0]; pulseWaves = [];
@@ -2101,19 +2101,24 @@ function update(dt) {
     const toNext = (surge + 1) * 100 - levelT;
     if (surge < 6 && toNext <= 4.2) {
       const cnt = Math.ceil(toNext);
-      if (cnt !== surgeCount) {
-        surgeCount = cnt;
-        popup(W / 2, H * 0.3, 'SPEEDING UP IN ' + cnt, '#ff9a3c');
-        sfx.count();
-      }
+      if (cnt !== surgeCount) { surgeCount = cnt; sfx.count(); } // HUD draws the big digits
     }
     if (surge !== surgeLevel) {
       surgeLevel = surge; surgeCount = -1;
       if (surge > 0 && surge <= 6) {
-        popup(W / 2, H * 0.3, 'STREAM SURGE ' + surge + (surge === 6 ? ' — MAX' : ''), '#ff9a3c');
+        popup(W / 2, H * 0.26, 'STREAM SURGE' + (surge === 6 ? ' — MAX' : ''), '#ff9a3c');
+        surgeWaveZ = SPAWN_Z; // the surge rides in from the deep
         sfx.speedUp();
         buzz(20);
       }
+    }
+  }
+  // the surge wavefront races from the horizon to the rim
+  if (surgeWaveZ > 0) {
+    surgeWaveZ -= dt * (SPAWN_Z - g.hitZ) / 0.9;
+    if (surgeWaveZ <= g.hitZ) {
+      surgeWaveZ = -1;
+      shake = Math.min(shake + 0.45, 1); // it slams past the ring
     }
   }
 
@@ -2253,6 +2258,33 @@ function rangeInfo(en, g) {
     : en.lock === 1 ? '225,240,255'
     : '255,60,90';
   return { t, al, glow, rr: ring(en.z, g) };
+}
+
+// the surge announcement made visible: an amber wavefront rolling OUT of the
+// deep toward the player, wake trailing behind it (deeper z)
+function drawSurgeWave(g) {
+  if (surgeWaveZ <= 0 || state !== S.PLAY) return;
+  const rg = ring(surgeWaveZ, g);
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (let k = 4; k >= 1; k--) { // wake, deeper than the front
+    const zw = surgeWaveZ + k * 0.09;
+    if (zw >= SPAWN_Z) continue;
+    const wr = ring(zw, g);
+    ctx.strokeStyle = `rgba(255,154,60,${(0.25 * (1 - k / 5)).toFixed(2)})`;
+    ctx.lineWidth = Math.max(1.5, 9 * wr.s * 3 * (1 - k / 6));
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, wr.r, 0, TAU); ctx.stroke();
+  }
+  for (const [w2, col] of [
+    [18, 'rgba(255,154,60,0.30)'],
+    [7, 'rgba(255,180,80,0.65)'],
+    [2.5, 'rgba(255,240,210,0.95)']
+  ]) {
+    ctx.lineWidth = Math.max(1, w2 * rg.s * 3);
+    ctx.strokeStyle = col;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, rg.r, 0, TAU); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawRangeRings(g) {
@@ -3785,6 +3817,35 @@ function drawHUD(g) {
     ctx.font = '500 10px Audiowide, system-ui';
     ctx.fillText(txt + (chars < commCur.m.length ? '\u258c' : ''), x0 + lw2 + 6, cy2);
     ctx.restore();
+  }
+
+  // surge countdown: the header holds, the digits slam in beneath it
+  if (endless && !boss && state === S.PLAY) {
+    const surge = Math.floor(levelT / 100);
+    const toNext = (surge + 1) * 100 - levelT;
+    if (surge < 6 && toNext <= 4.2 && toNext > 0) {
+      const cnt = Math.ceil(toNext);
+      const ct = 1 - (toNext - Math.floor(toNext)); // 0..1 through the current second
+      const pop = 1.6 - 0.6 * Math.min(ct / 0.25, 1);
+      const al = ct < 0.12 ? ct / 0.12 : 1;
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,154,60,0.92)';
+      ctx.font = '700 14px Audiowide, system-ui';
+      try { ctx.letterSpacing = '4px'; } catch (e) {}
+      ctx.fillText('SPEEDING UP', W / 2, H * 0.24);
+      try { ctx.letterSpacing = '0px'; } catch (e) {}
+      ctx.translate(W / 2, H * 0.36);
+      ctx.scale(pop, pop);
+      ctx.globalAlpha = al;
+      ctx.fillStyle = '#ffd24a';
+      ctx.font = '800 42px Audiowide, system-ui';
+      ctx.shadowColor = '#ff9a3c'; ctx.shadowBlur = lowFX ? 0 : 20;
+      ctx.fillText(cnt, 0, 14);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+      ctx.textAlign = 'left';
+    }
   }
 
   // qualification prompts + guides
@@ -5605,6 +5666,7 @@ function frame(now) {
   drawTunnel(g);
   drawLattice(g);
   drawRangeRings(g);
+  drawSurgeWave(g);
   drawWallCode(g, dt);
   drawStreaks(g, dt);
   // warm glow rising off the golden river
