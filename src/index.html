@@ -845,7 +845,7 @@ function spawnEnemy(forcedAngle, type) {
   // fairness: a color whose node is already booked flips, or unlocks entirely
   if (lock !== undefined && !lockAllowed(lock)) lock = lockAllowed(1 - lock) ? 1 - lock : undefined;
   const en = {
-    type, lock, z: SPAWN_Z, angle: forcedAngle !== undefined ? forcedAngle : spawnRng() * TAU,
+    type, lock, z: SPAWN_Z, angle: forcedAngle !== undefined ? forcedAngle : clearOfWalls(spawnRng() * TAU),
     sizeMul: type === 'frag' ? 0.8 : heavy ? 1.6 : 1, speedMul: heavy ? 0.82 : 1,
     spin: spawnRng() * TAU, spinMul: heavy ? 0.45 : 1, age: 0, dead: false, partner: null
   };
@@ -860,8 +860,10 @@ function spawnEnemy(forcedAngle, type) {
 }
 // barrier line: two linked traps at the same depth with an energy wall strung between them
 function spawnLine() {
-  const a = spawnRng() * TAU;
+  let a = spawnRng() * TAU;
   const gap = srand(0.8, 1.5) * (schance(0.5) ? -1 : 1);
+  // clear the whole barrier span of any wall, not just one endpoint
+  a = clearOfWalls(a + gap / 2, Math.abs(gap) / 2 + 0.45) - gap / 2;
   const e1 = spawnEnemy(a, 'line');
   const e2 = spawnEnemy(a + gap, 'line');
   e1.partner = e2; e2.partner = e1;
@@ -958,7 +960,7 @@ function trySpawn(dt) {
       const pos = AC.currentTime - musicStartAt;
       const first = Math.ceil((pos + trav + 0.3) / beatPeriod);
       for (const st of pat.steps) {
-        patternQ.push({ t: (first + st.b) * beatPeriod - pos - trav, angle: base + st.da });
+        patternQ.push({ t: (first + st.b) * beatPeriod - pos - trav, angle: clearOfWalls(base + st.da) });
       }
       spawnT += pat.steps.length * beatPeriod * 0.8; // give the volley room
       return;
@@ -978,9 +980,9 @@ function trySpawn(dt) {
     if (roll < L.lines && spawnAllowed('line')) { spawnLine(); return; }
     if (roll < L.lines + L.heavies && spawnAllowed('heavy')) { spawnEnemy(undefined, 'heavy'); return; }
     if (!spawnAllowed('normal')) { spawnT = Math.min(spawnT, 0.35); return; } // wait out the jam
-    const a = spawnRng() * TAU;
+    const a = clearOfWalls(spawnRng() * TAU);
     spawnEnemy(a);
-    if (schance(L.doubles) && spawnAllowed('normal')) spawnEnemy(a + Math.PI + srand(-0.6, 0.6));
+    if (schance(L.doubles) && spawnAllowed('normal')) spawnEnemy(clearOfWalls(a + Math.PI + srand(-0.6, 0.6)));
   }
 }
 // rim wall: a hazard carpet seizes part of the rail — telegraphed, then live
@@ -988,6 +990,18 @@ function trySpawn(dt) {
 // form). Fairness: never seal an arc that a hostile already in flight will
 // land on while the wall lives — the candidate hops by golden angle (no RNG
 // consumed) until the arc is clear, so campaign replays stay deterministic.
+// keep a candidate angle clear of every wall arc (with margin) — deterministic
+// golden-angle hops, no RNG consumed, so campaign replays stay identical
+function clearOfWalls(a, margin) {
+  if (!latches.length) return a;
+  const m = margin === undefined ? 0.45 : margin;
+  for (let k = 0; k < 8; k++) {
+    if (!latches.some(lt => Math.abs(angDiff(lt.a, a)) < lt.span0 + m)) break;
+    a += 2.399963;
+  }
+  return a;
+}
+
 function spawnWall() {
   if (!progress.wallBriefed && !tut) showCard('wall'); // first encounter, mid-run briefing
   let a = spawnRng() * TAU;
@@ -996,7 +1010,9 @@ function spawnWall() {
   const wallLife = trav + 3 + 0.6; // approach + burn + detour buffer
   for (let k = 0; k < 8; k++) {
     const clash = enemies.some(en => {
-      if (en.dead || en.resolved || en.failed || en.type === 'strip') return false;
+      if (en.dead || en.resolved || en.failed) return false;
+      // a live ribbon meanders — never drop a wall across a rider's path
+      if (en.type === 'strip') return Math.abs(angDiff(en.angle, a)) < 1.3;
       const tArr = (en.z - g2.hitZ) / (trafficSpeed * (en.speedMul || 1));
       return tArr > -0.5 && tArr < wallLife && Math.abs(angDiff(en.angle, a)) < 0.95;
     });
@@ -1015,6 +1031,7 @@ function spawnWall() {
 function spawnStrip() {
   if (!progress.stripBriefed && !tut) showCard('strip'); // first encounter, mid-run briefing
   const en = spawnEnemy(undefined, 'strip');
+  en.angle = clearOfWalls(en.angle, 1.4); // a meandering ride must never cross a wall
   en.len = srand(0.5, 0.85);                             // depth extent of the ribbon
   en.amp = srand(0.22, 0.5) * (schance(0.5) ? -1 : 1);
   en.frq = srand(2.2, 4.2);
@@ -3230,46 +3247,30 @@ function drawLatches(g, bz) {
         // piece reaches the ring — a tapering tongue whose shape IS the timer,
         // matching the rim arc exactly as it feeds through
         const wAt = z => lt.span0 * clamp(1 - (lt.t + (z - g.hitZ) / v2 - lt.tele) / lt.dur, 0, 1);
-        // shear-per-slice must stay well under one stripe width, or the
-        // diagonals alias back into a checkerboard
-        const segs = 20, sw = 0.11, DIAG = 0.8;
-        // slices are fixed to the carpet BODY (not the visible window), so the
-        // pattern stays glued through the bite instead of sliding as it feeds
-        const slice = s2 => {
-          const bz0 = headZ + len * s2 / segs;
-          const bz1 = headZ + len * (s2 + 1) / segs;
-          const sz0 = Math.max(bz0, g.hitZ), sz1 = Math.min(bz1, 2.08);
-          const zMid = (bz0 + bz1) / 2; // body mid drives the stripe phase
-          const hw = wAt(Math.max(zMid, g.hitZ)) * 0.94;
-          const al = sz1 > sz0 + 0.004
-            ? fadeIn * clamp((SPAWN_Z - 0.05 - sz0) / 0.35, 0, 1) : 0;
-          return { sz0, sz1, zMid, hw, al };
-        };
-        // pass A — a dark decal bed MULTIPLIED into the wall, so the tunnel's
-        // own texture keeps showing through: laid ON the surface, not floating
-        ctx.globalCompositeOperation = 'multiply';
-        for (let s2 = 0; s2 < segs; s2++) {
-          const sl = slice(s2);
-          if (sl.hw <= 0.006 || sl.al < 0.02) continue;
-          wallPatch(g, lt.a, sl.hw, sl.sz0, sl.sz1 + 0.006, 'rgba(26,18,28,1)', sl.al * 0.9);
-        }
-        // pass B — glowing DIAGONAL hazard stripes, additive, glued to the
-        // carpet body (the shear phase rides the tail, so they stream in with it)
+        // rendered in the game's own light language — no painted fill: a
+        // colonnade of luminous amber hazard bars (the tunnel's hoop grammar,
+        // clipped to the wedge) glued to the body and marching in with it,
+        // over a faint warm haze that marks the closed AREA
         ctx.globalCompositeOperation = 'lighter';
-        for (let s2 = 0; s2 < segs; s2++) {
-          const sl = slice(s2);
-          if (sl.hw <= 0.006 || sl.al < 0.02) continue;
-          const phase = (tailZ - sl.zMid) / len * DIAG;
-          const kMin = Math.floor((-sl.hw + phase) / sw) - 1;
-          const kMax = Math.floor((sl.hw + phase) / sw) + 1;
-          for (let k2 = kMin; k2 <= kMax; k2++) {
-            if (((k2 % 2) + 2) % 2) continue; // orange stripes only — the bed is the black
-            const c0 = Math.max(-sl.hw, k2 * sw - phase);
-            const c1 = Math.min(sl.hw, (k2 + 1) * sw - phase);
-            if (c1 <= c0 + 0.003) continue;
-            wallPatch(g, lt.a + (c0 + c1) / 2, (c1 - c0) / 2, sl.sz0, sl.sz1 + 0.004,
-              'rgba(255,150,60,1)', sl.al * 0.5);
-          }
+        for (let s2 = 0; s2 < 6; s2++) { // the haze
+          const bz0 = headZ + len * s2 / 6, bz1 = headZ + len * (s2 + 1) / 6;
+          const sz0 = Math.max(bz0, g.hitZ), sz1 = Math.min(bz1, 2.05);
+          if (sz1 <= sz0 + 0.004) continue;
+          const hwH = wAt(Math.max((bz0 + bz1) / 2, g.hitZ)) * 0.9;
+          if (hwH <= 0.006) continue;
+          const alH = fadeIn * clamp((SPAWN_Z - 0.05 - sz0) / 0.35, 0, 1);
+          wallPatch(g, lt.a, hwH, sz0, sz1 + 0.004, 'rgba(255,110,40,1)', alH * 0.10);
+        }
+        const BARS = 9;
+        for (let k2 = 0; k2 <= BARS; k2++) { // the bars
+          const bzM = headZ + len * k2 / BARS;
+          if (bzM < g.hitZ || bzM > 2.05) continue;
+          const hw = wAt(bzM) * 0.94;
+          if (hw <= 0.006) continue;
+          const al = fadeIn * clamp((SPAWN_Z - 0.05 - bzM) / 0.35, 0, 1);
+          if (al < 0.02) continue;
+          wallPatch(g, lt.a, hw, bzM, bzM + 0.028, 'rgba(255,150,60,1)', al * 0.75);
+          wallPatch(g, lt.a, hw, bzM, bzM + 0.012, 'rgba(255,225,170,1)', al * 0.5); // hot core line
         }
         ctx.globalCompositeOperation = 'source-over';
         if (headZ > g.hitZ) { // white-hot leading edge, until it docks
