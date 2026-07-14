@@ -3215,29 +3215,37 @@ function drawLatches(g, bz) {
       const len = v2 * lt.dur;                 // 3s worth of carpet
       const headZ = z0 - v2 * lt.t;
       const tailZ = headZ + len;
-      const zA = Math.max(headZ, g.hitZ), zB = Math.min(tailZ, 2.1);
+      const zA = Math.max(headZ, g.hitZ), zB = Math.min(tailZ, 2.08);
       if (zB > zA + 0.01) {
         const fadeIn = clamp(lt.t / 0.35, 0, 1);
-        const bands = 5, stripes = 9;
-        for (let d = 0; d < bands; d++) { // depth-sliced, hazard-checkered
-          const bz0 = zA + (zB - zA) * d / bands;
-          const bz1 = zA + (zB - zA) * (d + 1) / bands;
-          const bandAl = fadeIn * clamp((SPAWN_Z - 0.05 - bz0) / 0.35, 0, 1);
-          if (bandAl < 0.02) continue;
-          for (let s2 = 0; s2 < stripes; s2++) {
-            const a0 = lt.a - lt.span0 + s2 / stripes * lt.span0 * 2;
-            const a1 = lt.a - lt.span0 + (s2 + 1) / stripes * lt.span0 * 2;
-            const hot = (s2 + d) % 2 === 0;
-            wallPatch(g, (a0 + a1) / 2, (a1 - a0) / 2 * 0.86, bz0, bz1 + 0.004,
-              hot ? 'rgba(255,140,40,1)' : 'rgba(40,16,6,1)', (hot ? 0.5 : 0.55) * bandAl);
+        // the carpet's width at depth z = the clamp's width at the moment that
+        // piece reaches the ring — a tapering tongue whose shape IS the timer,
+        // matching the rim arc exactly as it feeds through
+        const wAt = z => lt.span0 * clamp(1 - (lt.t + (z - g.hitZ) / v2 - lt.tele) / lt.dur, 0, 1);
+        const segs = 16;
+        for (let s2 = 0; s2 < segs; s2++) {
+          const sz0 = zA + (zB - zA) * s2 / segs;
+          const sz1 = zA + (zB - zA) * (s2 + 1) / segs;
+          const zMid = (sz0 + sz1) / 2;
+          const hw = wAt(zMid) * 0.94;
+          if (hw <= 0.006) continue;
+          const al = fadeIn * clamp((SPAWN_Z - 0.05 - sz0) / 0.35, 0, 1);
+          if (al < 0.02) continue;
+          // hazard rungs anchored to the carpet body — they ride in WITH it
+          const rung = Math.floor((tailZ - zMid) / len * 12) % 2 === 0;
+          wallPatch(g, lt.a, hw, sz0, sz1 + 0.004,
+            rung ? 'rgba(255,145,40,1)' : 'rgba(80,30,10,1)', (rung ? 0.55 : 0.5) * al);
+          for (const s3 of [-1, 1]) { // bright edge rails — a bordered hazard zone
+            wallPatch(g, lt.a + s3 * hw, 0.012, sz0, sz1 + 0.004, 'rgba(255,200,120,1)', 0.5 * al);
           }
         }
         if (headZ > g.hitZ) { // white-hot leading edge, until it docks
           const rgF = ring(Math.max(headZ, 0.02), g);
-          ctx.globalAlpha = 0.75 * fadeIn;
-          ctx.strokeStyle = 'rgba(255,220,170,0.9)';
+          const hwF = wAt(headZ);
+          ctx.globalAlpha = 0.8 * fadeIn;
+          ctx.strokeStyle = 'rgba(255,225,180,0.95)';
           ctx.lineWidth = Math.max(1.2, 3.5 * rgF.s * 3);
-          ctx.beginPath(); ctx.arc(g.cx, g.cy, rgF.r, lt.a - lt.span0, lt.a + lt.span0); ctx.stroke();
+          ctx.beginPath(); ctx.arc(g.cx, g.cy, rgF.r, lt.a - hwF, lt.a + hwF); ctx.stroke();
           ctx.globalAlpha = 1;
         }
       }
