@@ -1650,7 +1650,8 @@ function resetRun() {
   introT = 0; introCd = -1; introStage = -1; introLatch = false; padHold = [false, false]; gatePip = 0;
   rimFX = []; latches = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; }
-  fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24); ribbonT = srand(24, 36);
+  fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24);
+  ribbonT = srand(11, 15); // first golden ribbon EARLY — its pulse should serve the whole run
   sched = [];
   nodes[0].angle = Math.PI * 0.75;
   nodes[1].angle = Math.PI * 0.25;
@@ -2056,10 +2057,14 @@ function update(dt) {
   if (!inIntro) pickupT -= sdt;
   if (!tut && pickupT <= 0) { pickupT = srand(20, 32); if (!mutators.noPickups) spawnPickup(); }
   // golden bonus streams ride in on their own clock, once the campaign has
-  // taught them (level 5+) — free flow gets them throughout
+  // taught them (level 5+) — free flow gets them throughout. None spawn near
+  // a level's end: a ribbon must have time to be ridden AND spent
   if (!inIntro && !tut && !boss && (endless || levelIdx >= 4)) {
     ribbonT -= sdt;
-    if (ribbonT <= 0) { ribbonT = srand(26, 40); spawnStrip(); }
+    if (ribbonT <= 0) {
+      ribbonT = srand(26, 40);
+      if (endless || levelT < L.duration - 14) spawnStrip();
+    }
   }
 
   const g = geo();
@@ -3224,13 +3229,19 @@ function drawLatches(g, bz) {
         // piece reaches the ring — a tapering tongue whose shape IS the timer,
         // matching the rim arc exactly as it feeds through
         const wAt = z => lt.span0 * clamp(1 - (lt.t + (z - g.hitZ) / v2 - lt.tele) / lt.dur, 0, 1);
-        const segs = 14, sw = 0.11, DIAG = 1.7; // stripe width + diagonal shear
+        // shear-per-slice must stay well under one stripe width, or the
+        // diagonals alias back into a checkerboard
+        const segs = 20, sw = 0.11, DIAG = 0.8;
+        // slices are fixed to the carpet BODY (not the visible window), so the
+        // pattern stays glued through the bite instead of sliding as it feeds
         const slice = s2 => {
-          const sz0 = zA + (zB - zA) * s2 / segs;
-          const sz1 = zA + (zB - zA) * (s2 + 1) / segs;
-          const zMid = (sz0 + sz1) / 2;
-          const hw = wAt(zMid) * 0.94;
-          const al = fadeIn * clamp((SPAWN_Z - 0.05 - sz0) / 0.35, 0, 1);
+          const bz0 = headZ + len * s2 / segs;
+          const bz1 = headZ + len * (s2 + 1) / segs;
+          const sz0 = Math.max(bz0, g.hitZ), sz1 = Math.min(bz1, 2.08);
+          const zMid = (bz0 + bz1) / 2; // body mid drives the stripe phase
+          const hw = wAt(Math.max(zMid, g.hitZ)) * 0.94;
+          const al = sz1 > sz0 + 0.004
+            ? fadeIn * clamp((SPAWN_Z - 0.05 - sz0) / 0.35, 0, 1) : 0;
           return { sz0, sz1, zMid, hw, al };
         };
         // pass A — a dark decal bed MULTIPLIED into the wall, so the tunnel's
@@ -3257,9 +3268,6 @@ function drawLatches(g, bz) {
             if (c1 <= c0 + 0.003) continue;
             wallPatch(g, lt.a + (c0 + c1) / 2, (c1 - c0) / 2, sl.sz0, sl.sz1 + 0.004,
               'rgba(255,120,30,1)', sl.al * 0.38);
-          }
-          for (const s3 of [-1, 1]) { // bright edge rails — a bordered hazard zone
-            wallPatch(g, lt.a + s3 * sl.hw, 0.012, sl.sz0, sl.sz1 + 0.004, 'rgba(255,170,90,1)', sl.al * 0.45);
           }
         }
         ctx.globalCompositeOperation = 'source-over';
