@@ -103,7 +103,8 @@ code = code.replace("'use strict';", '') + `
   getShield: () => shieldCharge, setShield: v => { shieldCharge = v; },
   setMenuScreen: v => { menuScreen = v; }, getMenuScreen: () => menuScreen, commCur: () => commCur,
   setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length,
-  latches: () => latches, setLatches: v => { latches = v; }
+  latches: () => latches, setLatches: v => { latches = v; },
+  spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; }
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -432,7 +433,7 @@ check('standing still takes the hit', hpMe2 - G.stats().integrity >= 9);
 // rail latches — the core clamps the ring; crossing the orange arc fries the cannon
 B2.shots.length = 0; B2.shootT = 99; B2.latchT = 99; // quiet lane for the latch checks
 aim(0, 1.0); aim(1, 1.0);
-G.setLatches([{ a: 2.4, span0: 0.5, t: 0.3, dur: 3 }]); // far from the cannon
+G.setLatches([{ a: 2.4, span0: 0.5, t: 0.3, dur: 3, tele: 0, arm: 0.25 }]); // far from the cannon
 G.update(0.05);
 check('a latch across the ring leaves a distant cannon alone', !(G.nodes[0].deadT > 0));
 aim(0, 2.4); aim(1, 2.4); // slide INTO the clamp
@@ -473,6 +474,47 @@ check('cornered core enters phase 2 below 40%', G.boss().phase2 === true);
   while (tGuard-- > 0 && !G.enemies().length) G.update(0.05);
   check('phase 2 deploys wall taps mid-duel', G.enemies().length > 0);
 }
+
+// ================= campaign rim walls + bonus ribbon =================
+const quiet = () => { G.setSpawnT(60); G.setIntegrity(100); }; // hold the level script still
+G.startLevel(4); // UNDERCITY FIBER — the wall's home level
+G.enemies().length = 0;
+G.setLatches([{ a: 1.0, span0: 0.5, t: 0, dur: 3, tele: 0.9, arm: 0.4 }]);
+aim(0, 1.0); aim(1, 2.5); // node 0 parked exactly where the wall will bite
+quiet(); G.update(0.05);
+check('a telegraphing wall does not bite yet', !(G.nodes[0].deadT > 0));
+for (let i = 0; i < 30; i++) { quiet(); G.update(0.05); } // through telegraph + arm grace
+check('crossing a live rim wall fries the node', G.nodes[0].deadT > 0);
+check('the far node is untouched', !(G.nodes[1].deadT > 0));
+for (let i = 0; i < 90; i++) { quiet(); G.update(0.05); }
+check('the wall burns off within ~4s', G.latches().length === 0);
+check('the fried node reboots', !(G.nodes[0].deadT > 0));
+// golden ribbon: a full ride buys a full pulse, a lost one costs nothing
+G.progress.stripBriefed = true; G.progress.wallBriefed = true; // no cards mid-test
+G.enemies().length = 0;
+G.setPulse([0, 0]);
+let rib = G.spawnStrip();
+const hz2 = G.geo().hitZ;
+let rGuard = 500;
+while (rGuard-- > 0 && G.enemies().some(e => e.type === 'strip' && !e.dead)) {
+  aim(0, G.stripAngle(rib, Math.max(0, hz2 - rib.z)));
+  quiet(); G.update(0.05);
+}
+check('a full ribbon ride charges that pulse orb to MAX', G.getPulse().some(v => v === G.PULSE_MAX()));
+G.enemies().length = 0;
+G.setPulse([0, 0]);
+rib = G.spawnStrip();
+aim(0, rib.angle + 2.5); aim(1, rib.angle + 2.5); // ignore it completely
+const comboR = G.stats().combo;
+for (let i = 0; i < 400 && G.enemies().some(e => e.type === 'strip' && !e.dead); i++) { quiet(); G.update(0.05); }
+check('an ignored ribbon costs nothing',
+  G.stats().integrity === 100 && G.stats().combo === comboR && G.getPulse()[0] === 0 && G.getPulse()[1] === 0);
+// walls actually spawn from the level script
+G.startLevel(4);
+let sawWall = false;
+for (let i = 0; i < 1400 && !sawWall; i++) { G.setIntegrity(100); G.update(0.05); sawWall = G.latches().length > 0; }
+check('UNDERCITY FIBER deploys rim walls from its script', sawWall);
+G.setState(G.S.MENU);
 
 // ================= mode select & campaign map =================
 G.setState(G.S.MENU);

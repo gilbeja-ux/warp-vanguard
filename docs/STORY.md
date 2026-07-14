@@ -91,19 +91,19 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 ## LEVEL 5 — UNDERCITY FIBER
 
 **LOG 05 — UNDERCITY**
-> Live streams siphon the evidence
-> out through the undercity. We traced
-> the endpoint: a subnet holding
-> clearance. The case turns inward.
+> They chain their traps now — walls
+> of them, sealing whole sections of
+> the rail. We traced the deployment
+> key: it holds CID clearance.
 
-*Hint: NEW THREAT: data streams — ride them head to tail*
+*Hint: NEW THREAT: rim walls — the rail closes, route around*
 
 **Comms**
-- `t=6` **TRACE**: exfil endpoint resolving…
-- `t=20` **TRACE**: endpoint holds active clearance.
+- `t=6` **CID**: they are walling the rail. reroute.
+- `t=20` **TRACE**: deployment key holds active clearance.
 - `t=34` **CID**: log it. tell no one.
 
-**Report** — CASE NOTE: the exfil endpoint holds active clearance.
+**Report** — CASE NOTE: the wall deployment key holds active clearance.
 
 ## LEVEL 6 — FINANCIAL SPINE
 
@@ -159,3 +159,21 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 
 *Boot sequence flavor (every level): LOCKING ON STREAM → ACTIVATING SYSTEMS →
 AWAITING OPERATOR → CONTROLS ACTIVE, with the CID comm "godspeed, defender."*
+
+## Mid-run briefing cards (first encounter only)
+
+**RIM WALL** (first wall, level 5+)
+> They chain their traps now: a wall
+> seizes part of your rail, then burns
+> off within seconds. Crossing it
+> FRIES the node — route the other way.
+
+**BONUS STREAM** (first golden ribbon, level 5+ / free flow)
+> A golden stream rides the wall.
+> OPTIONAL: keep a node ON its crossing
+> point head to tail — a full ride
+> charges that node's PULSE to maximum.
+
+*(Rim walls escalate the node-killer family: point traps at level 3, walls at
+level 5, and the Gateway core throwing them on demand at level 8. The old
+hostile data stream became the optional golden bonus ribbon.)*

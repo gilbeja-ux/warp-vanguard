@@ -659,13 +659,13 @@ const LEVELS = [
     hint: 'NEW THREAT: burst transmissions — traps arrive in volleys' },
   { name: 'HARBOR CROSSING', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
     hint: 'NEW THREAT: barrier lines — one node on each end' },
-  { name: 'UNDERCITY FIBER', duration: 60, spawnMin: 0.80, spawnMax: 1.50, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, strips: 0.12, track: 1,
-    hint: 'NEW THREAT: data streams — ride them head to tail' },
-  { name: 'FINANCIAL SPINE', duration: 65, spawnMin: 0.80, spawnMax: 1.45, speed: 0.48, doubles: 0.35, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, strips: 0.12, track: 2,
+  { name: 'UNDERCITY FIBER', duration: 60, spawnMin: 0.80, spawnMax: 1.50, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, walls: 0.10, track: 1,
+    hint: 'NEW THREAT: rim walls — the rail closes, route around' },
+  { name: 'FINANCIAL SPINE', duration: 65, spawnMin: 0.80, spawnMax: 1.45, speed: 0.48, doubles: 0.35, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, walls: 0.10, track: 2,
     hint: 'NEW THREAT: color-locked traps — match the node color' },
-  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.68, spawnMax: 1.30, speed: 0.54, doubles: 0.40, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, strips: 0.15, track: 0, bursts: true,
+  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.68, spawnMax: 1.30, speed: 0.54, doubles: 0.40, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, walls: 0.12, track: 0, bursts: true,
     hint: 'ALL THREATS ACTIVE — maximum traffic' },
-  { name: 'CID GATEWAY',     duration: 45, spawnMin: 0.90, spawnMax: 1.60, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, strips: 0.12, track: 2, boss: true,
+  { name: 'CID GATEWAY',     duration: 45, spawnMin: 0.90, spawnMax: 1.60, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,
     hint: 'THE FIREWALL CORE AWAITS — drain it with your nodes' }
 ];
 const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
@@ -682,11 +682,11 @@ function endlessCfg(t) {
     lines: ramp(0, 0.22, (k - 0.3) / 0.7),
     colors: ramp(0, 0.30, (k - 0.45) / 0.55),
     frags: ramp(0, 0.18, (k - 0.25) / 0.75),
-    strips: ramp(0, 0.14, (k - 0.5) / 0.5),
+    walls: ramp(0, 0.12, (k - 0.5) / 0.5),
     bursts: t > 70
   };
 }
-const progress = { unlocked: 1, stars: [0, 0, 0, 0, 0, 0, 0, 0], bests: [0, 0, 0, 0, 0, 0, 0, 0], tutorialDone: false, bossBriefed: false, stripBriefed: false, best: 0, daily: { last: 0, streak: 0, best: 0 } };
+const progress = { unlocked: 1, stars: [0, 0, 0, 0, 0, 0, 0, 0], bests: [0, 0, 0, 0, 0, 0, 0, 0], tutorialDone: false, bossBriefed: false, stripBriefed: false, wallBriefed: false, best: 0, daily: { last: 0, streak: 0, best: 0 } };
 
 // ---------- persistence ----------
 const STORE_KEY = 'dataDefenders.v1';
@@ -748,6 +748,7 @@ let bolts = [];               // lightning arcs (node → trap)
 const fx = { wide: 0, auto: 0, chain: 0 }; // power-up effect timers (seconds)
 let shieldCharge = 0; // firewall shield: 1 = the next breach is absorbed
 let pickups = [], pickupT = 20;
+let ribbonT = 30; // bonus stream cadence — golden ribbons on levels 5+ / endless
 let tut = null;               // tutorial controller (level 1, first run)
 let boss = null;              // firewall core (levels with boss: true)
 let latches = [];             // boss rail clamps: {a, span0, t, dur} — orange arcs that fry a crossing node
@@ -971,8 +972,8 @@ function trySpawn(dt) {
       spawnT += 0.9; // breathe after a volley
       return;
     }
-    // fairness gate: an impossible pick falls through to something coverable
-    if (schance(L.strips || 0) && spawnAllowed('strip')) { spawnStrip(); return; }
+    // rim wall: the rail itself closes for a stretch — one at a time
+    if (schance(L.walls || 0) && !latches.length) { spawnWall(); return; }
     const roll = spawnRng();
     if (roll < L.lines && spawnAllowed('line')) { spawnLine(); return; }
     if (roll < L.lines + L.heavies && spawnAllowed('heavy')) { spawnEnemy(undefined, 'heavy'); return; }
@@ -982,8 +983,34 @@ function trySpawn(dt) {
     if (schance(L.doubles) && spawnAllowed('normal')) spawnEnemy(a + Math.PI + srand(-0.6, 0.6));
   }
 }
-// data stream: a curved ribbon riding the wall — keep a node ON its crossing
-// point from head to tail (breaking off loses the stream)
+// rim wall: a hazard carpet seizes part of the rail — telegraphed, then live
+// for 3s while it burns off. Crossing it fries the node (node-killer, in area
+// form). Fairness: never seal an arc that a hostile already in flight will
+// land on while the wall lives — the candidate hops by golden angle (no RNG
+// consumed) until the arc is clear, so campaign replays stay deterministic.
+function spawnWall() {
+  if (!progress.wallBriefed && !tut) showCard('wall'); // first encounter, mid-run briefing
+  let a = spawnRng() * TAU;
+  const g2 = geo();
+  const wallLife = 0.9 + 3 + 0.6; // telegraph + burn + detour buffer
+  for (let k = 0; k < 8; k++) {
+    const clash = enemies.some(en => {
+      if (en.dead || en.resolved || en.failed || en.type === 'strip') return false;
+      const tArr = (en.z - g2.hitZ) / (trafficSpeed * (en.speedMul || 1));
+      return tArr > -0.5 && tArr < wallLife && Math.abs(angDiff(en.angle, a)) < 0.95;
+    });
+    if (!clash) break;
+    a += 2.399963;
+  }
+  latches.push({ a, span0: 0.5, t: 0, dur: 3, tele: 0.9, arm: 0.4 });
+  // warning: dry double tick + static as the dashed arc arms
+  tone(1180, 0.02, 'square', 0.05); tone(1180, 0.02, 'square', 0.05, null, null, 0.22);
+  crackle(0.25, 500, 1800, 2, 0.3);
+}
+
+// bonus stream: a golden ribbon riding the wall — entirely OPTIONAL. Keep a
+// node ON its crossing point head to tail and that node's pulse orb snaps to
+// full charge; breaking off just fizzles the bonus, never wounds you.
 function spawnStrip() {
   if (!progress.stripBriefed && !tut) showCard('strip'); // first encounter, mid-run briefing
   const en = spawnEnemy(undefined, 'strip');
@@ -991,8 +1018,6 @@ function spawnStrip() {
   en.amp = srand(0.22, 0.5) * (schance(0.5) ? -1 : 1);
   en.frq = srand(2.2, 4.2);
   en.ph = srand(0, TAU);
-  sched.push({ t0: levelT + arrivalAt(SPAWN_Z, 1), t1: levelT + arrivalAt(SPAWN_Z + en.len, 1),
-               type: 'strip', lock: undefined, needsNode: true });
   en.failed = false; en.tracing = false;
   return en;
 }
@@ -1221,30 +1246,14 @@ function updateBossFight(dt, g) {
     b.shots.push({ u0: b.u, v0: b.v, zb: b.z, th, t: 0, dur: 1.15, latch: true });
     sfx.bossShot();
   }
-  for (const lt of latches) lt.t += dt;
-  latches = latches.filter(lt => lt.t < lt.dur);
-  if (!(nodes[0].deadT > 0)) {
-    for (const lt of latches) {
-      const half = lt.span0 * (1 - lt.t / lt.dur);
-      if (lt.t > 0.25 && Math.abs(angDiff(nodes[0].angle, lt.a)) < half) { // crossed the clamp
-        nodes[0].deadT = nodes[1].deadT = 2;
-        burst(nx, ny, '#ff9a3c', 22, 4);
-        popup(nx, ny - 24, 'CANNON FRIED', '#ffb478');
-        sfx.fry();
-        redFlash = Math.max(redFlash, 0.5);
-        shake = Math.min(shake + 0.5, 1);
-        buzz([40, 30, 60]);
-        break;
-      }
-    }
-  }
+  // (latch ticking + node fry now live in update() — walls exist campaign-wide)
   for (const sh of b.shots) {
     sh.t += dt;
     if (!sh.done && sh.t >= sh.dur) {
       sh.done = true;
       const hx = g.cx + Math.cos(sh.th) * railR, hy = g.cy + Math.sin(sh.th) * railR;
-      if (sh.latch) { // the grapple bites into the rail
-        latches.push({ a: sh.th, span0: 0.5, t: 0, dur: 3 });
+      if (sh.latch) { // the grapple bites into the rail (dart WAS the telegraph)
+        latches.push({ a: sh.th, span0: 0.5, t: 0, dur: 3, tele: 0, arm: 0.25 });
         burst(hx, hy, '#ff9a3c', 18, 4);
         popup(hx, hy - 20, 'RAIL LATCHED', '#ffb478');
         tone(140, 0.3, 'sawtooth', 0.12, 70);
@@ -1641,7 +1650,7 @@ function resetRun() {
   introT = 0; introCd = -1; introStage = -1; introLatch = false; padHold = [false, false]; gatePip = 0;
   rimFX = []; latches = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; }
-  fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24);
+  fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24); ribbonT = srand(24, 36);
   sched = [];
   nodes[0].angle = Math.PI * 0.75;
   nodes[1].angle = Math.PI * 0.25;
@@ -1761,7 +1770,8 @@ const INFO_CARDS = {
   lock:   { title: 'KEYED TAP', lines: ['Sealed to a single node. Only the', 'MATCHING color can break it —', 'watch the orbiting key.'] },
   frag:   { title: 'NODE KILLER', lines: ['A black trap the intruder left', 'in the stream. Touching it FRIES', 'your node for 2 seconds — let it', 'pass and bank the bonus.'] },
   pickup: { title: 'POWER-UP', lines: ['Golden relays ride the stream.', 'Catch one with any node:', 'SHIELD · WIDE ARC · AUTO-ZAP', 'PULSE FILL · CHAIN LIGHTNING.'] },
-  strip:  { title: 'DATA STREAM', lines: ['A live stream rides the wall.', 'Keep a node ON its crossing point', 'from head to tail — do not let go.'] },
+  strip:  { title: 'BONUS STREAM', lines: ['A golden stream rides the wall.', 'OPTIONAL: keep a node ON its crossing', 'point head to tail — a full ride', 'charges that node\'s PULSE to maximum.'] },
+  wall:   { title: 'RIM WALL', lines: ['They chain their traps now: a wall', 'seizes part of your rail, then burns', 'off within seconds. Crossing it', 'FRIES the node — route the other way.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Combo zaps bank charge in your pads.', 'When an orb GLOWS, tap it to fire', 'a purge wave down the tunnel.'] },
   boss:   { title: 'FIREWALL CORE', lines: ['Your nodes fuse into a RAY CANNON.', 'LEFT thumb moves it. RIGHT stick aims', 'the beam INTO the tunnel — hold to fire.', 'Dodge the orbs. Watch the heat.'] }
 };
@@ -1784,8 +1794,8 @@ const STORY = [
     'Barrier taps under the harbor mud —', 'walls strung to catch the payload',
     'whole. Cutting a subsea line takes', 'resources. This is no lone hacker.'] },
   { title: 'LOG 05 — UNDERCITY', lines: [
-    'Live streams siphon the evidence', 'out through the undercity. We traced',
-    'the endpoint: a subnet holding', 'clearance. The case turns inward.'] },
+    'They chain their traps now — walls', 'of them, sealing whole sections of',
+    'the rail. We traced the deployment', 'key: it holds CID clearance.'] },
   { title: 'LOG 06 — CREDENTIALS', lines: [
     'Keyed taps — cut with CURRENT keys,', 'rotated this very morning. Whoever',
     'hunts this line holds live clearance.', 'OMNI or CID. Trust no one.'] },
@@ -1803,7 +1813,7 @@ const CASE_NOTES = [
   'CASE NOTE: one operator confirmed. the CID opens a file.',
   'CASE NOTE: recovered node killers are factory-made.',
   'CASE NOTE: a subsea cut takes resources. or a badge.',
-  'CASE NOTE: the exfil endpoint holds active clearance.',
+  'CASE NOTE: the wall deployment key holds active clearance.',
   'CASE NOTE: keys rotated TODAY. the leak is inside.',
   'CASE NOTE: signature match — CID GATEWAY. purge authorized.',
   'CASE CLOSED: gateway purged. evidence delivered.'
@@ -1821,8 +1831,8 @@ const COMMS = [
   [{ t: 6, s: 'TRACE', m: 'barrier debris under the harbor mud.' },
    { t: 20, s: 'OMNI', m: 'a subsea cut needs a crew and money.' },
    { t: 36, s: 'CID', m: 'or a badge.' }],
-  [{ t: 6, s: 'TRACE', m: 'exfil endpoint resolving…' },
-   { t: 20, s: 'TRACE', m: 'endpoint holds active clearance.' },
+  [{ t: 6, s: 'CID', m: 'they are walling the rail. reroute.' },
+   { t: 20, s: 'TRACE', m: 'deployment key holds active clearance.' },
    { t: 34, s: 'CID', m: 'log it. tell no one.' }],
   [{ t: 6, s: 'CID', m: 'rotate all credentials. now.' },
    { t: 20, s: 'TRACE', m: 'locks cut with keys rotated TODAY.' },
@@ -1837,6 +1847,7 @@ const COMMS = [
 let typeN = -1; // teletype progress for story cards
 function showCard(key) {
   if (key === 'strip' && !progress.stripBriefed) { progress.stripBriefed = true; saveState(); }
+  if (key === 'wall' && !progress.wallBriefed) { progress.wallBriefed = true; saveState(); }
   typeN = -1;
   infoCard = key; infoShownAt = time;
   state = S.INFO;
@@ -2044,6 +2055,12 @@ function update(dt) {
   }
   if (!inIntro) pickupT -= sdt;
   if (!tut && pickupT <= 0) { pickupT = srand(20, 32); if (!mutators.noPickups) spawnPickup(); }
+  // golden bonus streams ride in on their own clock, once the campaign has
+  // taught them (level 5+) — free flow gets them throughout
+  if (!inIntro && !tut && !boss && (endless || levelIdx >= 4)) {
+    ribbonT -= sdt;
+    if (ribbonT <= 0) { ribbonT = srand(26, 40); spawnStrip(); }
+  }
 
   const g = geo();
 
@@ -2069,6 +2086,43 @@ function update(dt) {
     }
   }
 
+  // rim walls: telegraph (dashed arc arms) -> bite -> 3s burn-off. A node
+  // sliding into the live clamp fries, node-killer style — route around it
+  if (!inIntro) for (const lt of latches) lt.t += dt;
+  latches = latches.filter(lt => lt.t < lt.tele + lt.dur);
+  const fused = boss && boss.mergeT >= 1;
+  for (const lt of latches) {
+    if (!lt.bit && lt.t >= lt.tele) { // the wall bites into the rail
+      lt.bit = true;
+      if (lt.tele > 0) {
+        const hp2 = ringXY(lt.a);
+        burst(hp2.x, hp2.y, '#ff9a3c', 18, 4);
+        popup(hp2.x, hp2.y - 20, 'RAIL LATCHED', '#ffb478');
+        tone(140, 0.3, 'sawtooth', 0.12, 70);
+        crackle(0.3, 2400, 500, 4, 0.6);
+        buzz(25);
+      }
+    }
+    const lt2 = lt.t - lt.tele;
+    if (lt2 < lt.arm) continue; // a beat of grace before it can hurt
+    const half = lt.span0 * (1 - lt2 / lt.dur);
+    for (let i = 0; i < 2; i++) {
+      if (fused && i === 1) continue; // one fused carriage in the duel
+      if (nodes[i].deadT > 0) continue;
+      if (Math.abs(angDiff(nodes[i].angle, lt.a)) < half) { // crossed the clamp
+        nodes[i].deadT = 2;
+        if (fused) nodes[1].deadT = 2;
+        const p2 = nodeXY(nodes[i]);
+        burst(p2.x, p2.y, '#ff9a3c', 22, 4);
+        popup(p2.x, p2.y - 24, fused ? 'CANNON FRIED' : 'NODE FRIED', '#ffb478');
+        sfx.fry(Math.cos(nodes[i].angle) * 0.6);
+        redFlash = Math.max(redFlash, 0.5);
+        shake = Math.min(shake + 0.5, 1);
+        buzz([40, 30, 60]);
+      }
+    }
+  }
+
   let stripProg = -1; // >= 0 while a node is riding a stream this frame
   for (const en of enemies) {
     en.z -= L.speed * waveMul * (en.speedMul || 1) * sdt;
@@ -2078,7 +2132,7 @@ function update(dt) {
 
     // sonar tick: a quiet geiger blip per hostile, panned to its angle,
     // accelerating as it closes — the wave is audible before it's urgent
-    if (!en.dead && !en.resolved && !en.failed && en.type !== 'frag' && en.z > g.hitZ && en.z < 1.9) {
+    if (!en.dead && !en.resolved && !en.failed && en.type !== 'frag' && en.type !== 'strip' && en.z > g.hitZ && en.z < 1.9) {
       en.tickT = (en.tickT || 0) - sdt;
       if (en.tickT <= 0) {
         const tArr = (en.z - g.hitZ) / (trafficSpeed * (en.speedMul || 1));
@@ -2103,7 +2157,7 @@ function update(dt) {
             en.traceT -= 0.14;
             score += Math.round(20 * mutMul());
             const hp = ringXY(aReq);
-            burst(hp.x, hp.y, '#ff9db0', 2, 2.5);
+            burst(hp.x, hp.y, '#ffd24a', 2, 2.5);
           }
         } else if ((en.offT = (en.offT || 0) + sdt) < 0.18) {
           // forgiveness window: a brief slip (or the crossing's first frames)
@@ -2115,38 +2169,32 @@ function update(dt) {
           popup(hp.x, hp.y, 'STAY ON THE STREAM — AGAIN', '#ff9a3c');
           sfx.miss();
         } else {
+          // the bonus fizzles — a missed opportunity, never a wound
           en.failed = true;
-          misses++; combo = 0; comboHeal = 0;
           const hp = ringXY(aReq);
-          if (!shieldAbsorb(hp.x, hp.y, aReq)) {
-            integrity = Math.max(0, integrity - 25);
-            burst(hp.x, hp.y, '#ff4a5e', 20, 3);
-            popup(hp.x, hp.y, 'STREAM LOST', '#ff4a5e');
-            redFlash = 1; shake = Math.min(shake + 0.6, 1);
-            rimFX.push({ a: aReq, t: 0.55, col: '255,74,94' });
-            sfx.miss(Math.cos(aReq) * 0.7);
-            buzz([40, 40, 60]);
-          }
+          burst(hp.x, hp.y, '#ffd24a', 8, 2.5);
+          popup(hp.x, hp.y, 'STREAM LOST', 'rgba(255,225,160,0.85)');
+          tone(520, 0.14, 'sine', 0.05, 390);
         }
       }
       if (!en.dead && en.z + en.len < g.hitZ) { // tail cleared the ring
         en.dead = true;
         if (!en.failed) {
-          combo++;
-          const pts = Math.round(400 * mutMul()) * Math.min(combo, 5);
-          score += pts; zaps++;
+          const pts = Math.round(250 * mutMul());
+          score += pts;
           const aEnd = stripAngle(en, en.len);
           const hp = ringXY(aEnd);
-          burst(hp.x, hp.y, '#ff9db0', 26, 4);
+          burst(hp.x, hp.y, '#ffd24a', 26, 4);
           burst(hp.x, hp.y, '#ffffff', 14, 5);
-          popup(hp.x, hp.y, 'TRACED +' + pts, '#ffe9b0');
-          rimFX.push({ a: aEnd, t: 0.5, col: '255,170,188' });
+          rimFX.push({ a: aEnd, t: 0.5, col: '255,210,74' });
           sfx.traced();
-          // the nearest node banks the trace into its pulse orb
-          const ni = Math.abs(angDiff(nodes[0].angle, aEnd)) < Math.abs(angDiff(nodes[1].angle, aEnd)) ? 0 : 1;
-          if (!en.tut) pulseCharge[ni] = Math.min(PULSE_MAX, pulseCharge[ni] + Math.min(combo, 5));
+          // a full ride buys a full pulse for the node that rode it
+          const ni = en.traceNode !== undefined ? en.traceNode
+            : Math.abs(angDiff(nodes[0].angle, aEnd)) < Math.abs(angDiff(nodes[1].angle, aEnd)) ? 0 : 1;
+          if (!en.tut) pulseCharge[ni] = PULSE_MAX;
+          popup(hp.x, hp.y, 'PULSE CHARGED +' + pts, '#ffe9b0');
           hitStop = Math.min(hitStop + 0.09, 0.12);
-          sfx.zap(combo); sfx.perfect();
+          sfx.perfect();
           buzz(30);
         }
       }
@@ -2484,7 +2532,8 @@ function rangeInfo(en, g) {
   let al = clamp((SPAWN_Z - 0.05 - en.z) / 0.3, 0, 1) * clamp(1.15 - t * 0.22, 0.3, 1);
   if (t < 1) al *= 0.8 + 0.2 * Math.sin(time * 12); // last second: urgent flicker
   if (al <= 0.02) return null;
-  const glow = en.type === 'heavy' ? '200,70,255'
+  const glow = en.type === 'strip' ? '255,210,74' // golden bonus, not a threat
+    : en.type === 'heavy' ? '200,70,255'
     : en.lock === 0 ? '80,170,255'
     : en.lock === 1 ? '225,240,255'
     : '255,60,90';
@@ -2822,12 +2871,12 @@ function drawNailBreach(en, g, fade, PAL) {
 function drawStrip(en, g, fade) {
   const segs = 16;
   const dim = en.failed ? 0.28 : 1;
-  // while a node rides the ribbon it takes that node's color — live feedback
+  // GOLDEN bonus ribbon; while a node rides it, it takes that node's color
   const gN = en.failed ? 0 : (en.traceGlow || 0) * 0.85;
   const nc = en.traceNode === 1 ? [255, 255, 255] : [111, 227, 255];
   const mix = (r0, g0, b0) =>
     `rgba(${Math.round(lerp(r0, nc[0], gN))},${Math.round(lerp(g0, nc[1], gN))},${Math.round(lerp(b0, nc[2], gN))},1)`;
-  const cBase = mix(255, 60, 90), cHi = mix(255, 170, 188);
+  const cBase = mix(255, 180, 40), cHi = mix(255, 235, 170);
   for (let s2 = 0; s2 < segs; s2++) {
     const k0 = s2 / segs * en.len, k1 = (s2 + 1) / segs * en.len;
     const z0 = en.z + k0, z1 = en.z + k1;
@@ -2844,11 +2893,11 @@ function drawStrip(en, g, fade) {
     const mr = Math.min(W, H) * 0.032;
     ctx.globalAlpha = 1;
     const tg = ctx.createRadialGradient(px2, py2, 0, px2, py2, mr);
-    tg.addColorStop(0, en.tracing ? 'rgba(255,255,255,0.95)' : 'rgba(255,130,150,0.85)');
-    tg.addColorStop(1, 'rgba(255,60,90,0)');
+    tg.addColorStop(0, en.tracing ? 'rgba(255,255,255,0.95)' : 'rgba(255,225,150,0.85)');
+    tg.addColorStop(1, 'rgba(255,180,40,0)');
     ctx.fillStyle = tg;
     ctx.beginPath(); ctx.arc(px2, py2, mr, 0, TAU); ctx.fill();
-    ctx.strokeStyle = en.tracing ? 'rgba(255,255,255,0.9)' : 'rgba(255,120,140,0.7)';
+    ctx.strokeStyle = en.tracing ? 'rgba(255,255,255,0.9)' : 'rgba(255,210,110,0.75)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(px2, py2, mr * 0.45 * (1 + Math.sin(time * 8) * 0.15), 0, TAU); ctx.stroke();
   }
@@ -3156,9 +3205,19 @@ function drawLatches(g, bz) {
   ctx.save();
   ctx.lineCap = 'butt';
   for (const lt of latches) {
-    const half = lt.span0 * (1 - lt.t / lt.dur);
+    if (lt.t < lt.tele) { // inbound: the doomed stretch of rail blinks its warning
+      const q = lt.t / lt.tele;
+      ctx.strokeStyle = `rgba(255,154,60,${(0.3 + q * 0.3 + Math.sin(time * 16) * 0.15).toFixed(2)})`;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([5, 7]);
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bz / 2, lt.a - lt.span0 * q, lt.a + lt.span0 * q); ctx.stroke();
+      ctx.setLineDash([]);
+      continue;
+    }
+    const lt2 = lt.t - lt.tele;
+    const half = lt.span0 * (1 - lt2 / lt.dur);
     if (half <= 0.01) continue;
-    const arm = lt.t < 0.25; // landing blink — a beat of grace before it bites
+    const arm = lt2 < lt.arm; // landing blink — a beat of grace before it bites
     const al = arm ? (Math.sin(time * 30) > 0 ? 0.9 : 0.25) : 0.9;
     ctx.strokeStyle = `rgba(255,120,30,${(al * 0.45).toFixed(2)})`; // molten bed
     ctx.lineWidth = bz * 1.05;
@@ -4484,7 +4543,7 @@ function drawHUD(g) {
     else if (tut.spawned === 'lock1') msg = 'Only the WHITE node can break this one';
     else if (tut.spawned === 'frag') msg = 'NODE KILLER — do NOT touch it';
     else if (tut.spawned === 'pickup') msg = 'Catch the power-up with any node';
-    else if (tut.spawned === 'strip') msg = 'Keep a node ON the stream marker until it ends';
+    else if (tut.spawned === 'strip') msg = 'Ride the golden stream to the end — it charges your PULSE';
     else if (tut.spawned === 'pulse') msg = 'Tap a GLOWING pad core to fire the purge';
     if (msg) {
       // dead-center of the ring, word-wrapped to 60% of its width — never
@@ -4683,10 +4742,28 @@ function drawInfoGlyph(kind, cx, cy, r) {
       infoTap(r * 0.5, INFO_PAL.normal, false);
       ctx.restore();
     }
+  } else if (kind === 'wall') {
+    // the rim wall: a hazard-striped clamp arc seizing part of the rail
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = 'rgba(255,120,30,0.5)';
+    ctx.lineWidth = r * 0.6;
+    ctx.beginPath(); ctx.arc(0, r * 1.1, r * 1.9, -Math.PI * 0.78, -Math.PI * 0.22); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,154,60,0.95)';
+    ctx.lineWidth = r * 0.34;
+    ctx.beginPath(); ctx.arc(0, r * 1.1, r * 1.9, -Math.PI * 0.78, -Math.PI * 0.22); ctx.stroke();
+    ctx.strokeStyle = 'rgba(30,12,4,0.7)';
+    ctx.lineWidth = 2;
+    for (let k = 0; k < 6; k++) {
+      const a = -Math.PI * 0.72 + k * Math.PI * 0.09;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a - 0.03) * r * 1.62, r * 1.1 + Math.sin(a - 0.03) * r * 1.62);
+      ctx.lineTo(Math.cos(a + 0.03) * r * 2.18, r * 1.1 + Math.sin(a + 0.03) * r * 2.18);
+      ctx.stroke();
+    }
   } else if (kind === 'strip') {
-    // the data stream: a flowing ribbon with its trace marker
+    // the golden bonus stream: a flowing ribbon with its trace marker
     ctx.lineCap = 'round';
-    for (const [w2, col, al] of [[r * 0.34, '255,60,90', 0.7], [r * 0.13, '255,170,188', 0.95]]) {
+    for (const [w2, col, al] of [[r * 0.34, '255,180,40', 0.7], [r * 0.13, '255,235,170', 0.95]]) {
       ctx.strokeStyle = `rgba(${col},${al})`;
       ctx.lineWidth = w2;
       ctx.beginPath();
@@ -6106,7 +6183,7 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   if (L2.heavies) kinds.push('heavy');
   if (L2.lines) kinds.push('line');
   if (L2.colors) kinds.push('lock');
-  if (L2.strips) kinds.push('strip');
+  if (L2.walls) kinds.push('wall');
   if (L2.frags) kinds.push('frag');
   if (L2.boss) kinds.push('boss');
   ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
