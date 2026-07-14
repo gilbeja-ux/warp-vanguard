@@ -219,6 +219,18 @@ aim(1, 2.5); // split too early
 vstep();
 check('splitting before ARMED fizzles — no bolt', G.volley().charge === 0 && !en.dead);
 G.enemies().length = 0;
+// thumb jitter must never fire an armed charge — only a decisive split does
+G.volley().cd = 0;
+aim(0, 0.5); aim(1, 0.5);
+for (let i = 0; i < 13; i++) vstep(); // armed
+aim(1, 0.5 + 0.35); // wobble past the dock-in threshold but inside the release gap
+for (let i = 0; i < 4; i++) vstep();
+check('jitter inside the hysteresis band holds the charge', G.volley().charge > 0.5 && G.volley().shots.length === 0);
+aim(1, 0.5 + Math.PI); // the decisive split
+vstep();
+check('a decisive split fires it', G.volley().shots.length === 1);
+for (let i = 0; i < 12; i++) vstep(); // spend the bolt
+G.enemies().length = 0;
 for (let i = 0; i < 20; i++) vstep(); // let any live bolt spend itself
 G.enemies().length = 0; G.setIntegrity(100);
 G.nodes[0].deadT = G.nodes[1].deadT = 0; // any fry from the drill ends here

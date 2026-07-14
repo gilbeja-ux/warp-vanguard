@@ -2163,9 +2163,12 @@ function update(dt) {
   // the bore. In the duel the bolt homes on the core instead.
   volley.cd = Math.max(0, volley.cd - dt);
   const bothAlive = !(nodes[0].deadT > 0) && !(nodes[1].deadT > 0);
+  // hysteresis: docking engages inside 0.26 rad, but once charging, only a
+  // DECISIVE split (0.45) releases — thumb jitter on glass can't fire it
+  const dockGap = Math.abs(angDiff(nodes[0].angle, nodes[1].angle));
   const docked = state === S.PLAY && !inIntro && bothAlive
     && !(boss && (boss.introT < BOSS_CER || boss.dying !== undefined))
-    && Math.abs(angDiff(nodes[0].angle, nodes[1].angle)) < 0.26;
+    && dockGap < (volley.charge > 0 ? 0.45 : 0.26);
   if (docked && volley.cd <= 0) {
     if (volley.charge === 0) { crackle(0.5, 300, 2200, 2, 0.28); buzz(8); } // capacitor whine
     const was = volley.charge;
