@@ -992,7 +992,7 @@ function spawnWall() {
   if (!progress.wallBriefed && !tut) showCard('wall'); // first encounter, mid-run briefing
   let a = spawnRng() * TAU;
   const g2 = geo();
-  const wallLife = 0.9 + 3 + 0.6; // telegraph + burn + detour buffer
+  const wallLife = 2.2 + 3 + 0.6; // carpet approach + burn + detour buffer
   for (let k = 0; k < 8; k++) {
     const clash = enemies.some(en => {
       if (en.dead || en.resolved || en.failed || en.type === 'strip') return false;
@@ -1002,8 +1002,8 @@ function spawnWall() {
     if (!clash) break;
     a += 2.399963;
   }
-  latches.push({ a, span0: 0.5, t: 0, dur: 3, tele: 0.9, arm: 0.4 });
-  // warning: dry double tick + static as the dashed arc arms
+  latches.push({ a, span0: 0.5, t: 0, dur: 3, tele: 2.2, arm: 0.4, z0: 1.35 });
+  // warning: dry double tick + static as the carpet enters the tunnel
   tone(1180, 0.02, 'square', 0.05); tone(1180, 0.02, 'square', 0.05, null, null, 0.22);
   crackle(0.25, 500, 1800, 2, 0.3);
 }
@@ -3205,12 +3205,29 @@ function drawLatches(g, bz) {
   ctx.save();
   ctx.lineCap = 'butt';
   for (const lt of latches) {
-    if (lt.t < lt.tele) { // inbound: the doomed stretch of rail blinks its warning
+    if (lt.t < lt.tele) { // inbound: a hazard carpet rides the tunnel to its arc
       const q = lt.t / lt.tele;
-      ctx.strokeStyle = `rgba(255,154,60,${(0.3 + q * 0.3 + Math.sin(time * 16) * 0.15).toFixed(2)})`;
+      const zC = lerp(lt.z0 || 1.35, g.hitZ, q); // the carpet front, closing in
+      const fadeIn = clamp(lt.t / 0.35, 0, 1);
+      const segs = 9;
+      for (let s2 = 0; s2 < segs; s2++) { // striped carpet glued to the wall
+        const a0 = lt.a - lt.span0 + s2 / segs * lt.span0 * 2;
+        const a1 = lt.a - lt.span0 + (s2 + 1) / segs * lt.span0 * 2;
+        const hot = s2 % 2 === 0;
+        wallPatch(g, (a0 + a1) / 2, (a1 - a0) / 2 * 0.86, zC, zC + 0.15,
+          hot ? 'rgba(255,140,40,1)' : 'rgba(40,16,6,1)', (hot ? 0.5 : 0.55) * fadeIn);
+      }
+      const rgF = ring(Math.max(zC, 0.02), g); // white-hot leading edge
+      ctx.globalAlpha = 0.75 * fadeIn;
+      ctx.strokeStyle = 'rgba(255,220,170,0.9)';
+      ctx.lineWidth = Math.max(1.2, 3.5 * rgF.s * 3);
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, rgF.r, lt.a - lt.span0, lt.a + lt.span0); ctx.stroke();
+      ctx.globalAlpha = 1;
+      // landing zone marked on the rim from the first frame — where it will bite
+      ctx.strokeStyle = `rgba(255,154,60,${(0.25 + q * 0.35 + Math.sin(time * 16) * 0.15).toFixed(2)})`;
       ctx.lineWidth = 2.5;
       ctx.setLineDash([5, 7]);
-      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bz / 2, lt.a - lt.span0 * q, lt.a + lt.span0 * q); ctx.stroke();
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bz / 2, lt.a - lt.span0, lt.a + lt.span0); ctx.stroke();
       ctx.setLineDash([]);
       continue;
     }
@@ -3218,7 +3235,9 @@ function drawLatches(g, bz) {
     const half = lt.span0 * (1 - lt2 / lt.dur);
     if (half <= 0.01) continue;
     const arm = lt2 < lt.arm; // landing blink — a beat of grace before it bites
-    const al = arm ? (Math.sin(time * 30) > 0 ? 0.9 : 0.25) : 0.9;
+    let al = arm ? (Math.sin(time * 30) > 0 ? 0.9 : 0.25) : 0.9;
+    const ending = clamp((lt.dur - lt2) / 0.6, 0, 1);
+    if (ending < 1) al *= (Math.sin(time * 24) > 0 ? 1 : 0.5) * (0.5 + ending * 0.5); // blinking out — clear soon
     ctx.strokeStyle = `rgba(255,120,30,${(al * 0.45).toFixed(2)})`; // molten bed
     ctx.lineWidth = bz * 1.05;
     ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bz / 2, lt.a - half, lt.a + half); ctx.stroke();
