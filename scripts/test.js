@@ -175,6 +175,28 @@ aim(0, 2.0); aim(1, 2.0);
 for (let i = 0; i < 40 && !en.dead; i++) vstep();
 check('shooting a trap replicates it (1 -> 2)',
   en.dead === true && G.enemies().filter(e => e.type === 'frag' && !e.dead).length === 2);
+// keyed work stays keyed: the bolt ignores barrier pairs and color locks
+G.enemies().length = 0;
+G.volley().cd = 0;
+{
+  const before = G.enemies().length;
+  G.spawnLine();
+  const pr = G.enemies().slice(before);
+  pr[0].angle = 0.8; pr[1].angle = 1.6; pr[0].z = pr[1].z = 1.25; // in bolt reach, far from the rim
+  const lk = G.spawnEnemy(2.6, 'normal'); lk.lock = 0; lk.z = 1.25;
+  aim(0, 0.8); aim(1, 0.8); // dock on one barrier end
+  for (let i = 0; i < 22; i++) vstep();
+  check('the bolt passes barrier pairs untouched', !pr[0].dead && !pr[1].dead);
+  G.volley().cd = 0;
+  lk.z = 1.0; // in the bolt's path, still well short of the rim
+  aim(0, 2.6); aim(1, 2.6); // dock on the locked tap's lane
+  for (let i = 0; i < 14; i++) vstep();
+  check('the bolt passes color-locked taps untouched', !lk.dead);
+  G.enemies().length = 0;
+  aim(0, Math.PI); aim(1, 0.1); // undock and let any live bolt spend itself
+  for (let i = 0; i < 10; i++) vstep();
+  G.enemies().length = 0;
+}
 G.enemies().length = 0;
 aim(0, 0.5); aim(1, 0.5);
 for (let i = 0; i < 6; i++) vstep(); // charging...

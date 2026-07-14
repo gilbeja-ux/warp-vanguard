@@ -2186,6 +2186,9 @@ function update(dt) {
     if (sh.z > 1.05) { sh.dead = true; continue; } // spent — halfway down the bore
     for (const en of enemies) {
       if (en.dead || en.resolved || en.failed || en.type === 'strip') continue;
+      // the bolt only answers to SINGLE plain reds and heavy armor — barrier
+      // pairs and color-locked taps are keyed work for the nodes themselves
+      if (en.type === 'line' || en.partner || en.lock !== undefined) continue;
       if (Math.abs(angDiff(en.angle, sh.a)) > 0.30 || Math.abs(en.z - sh.z) > 0.09) continue;
       const rgV = ring(Math.max(en.z, 0.02), g);
       const vx = rgV.x + Math.cos(en.angle) * rgV.r, vy = rgV.y + Math.sin(en.angle) * rgV.r;
@@ -2210,8 +2213,7 @@ function update(dt) {
       // volley kills pay a flat bounty — no combo, no zap credit, no pulse
       // feed: interception stays the scoring game, this is a TOOL
       en.dead = true;
-      if (en.partner) en.partner.dead = true;
-      const vb = Math.round((en.type === 'heavy' ? 250 : en.type === 'line' ? 180 : 60) * mutMul());
+      const vb = Math.round((en.type === 'heavy' ? 250 : 60) * mutMul());
       score += vb;
       burst(vx, vy, en.type === 'heavy' ? '#d465ff' : '#bfeaff', 22, 5);
       burst(vx, vy, '#ffffff', 12, 5.5);
