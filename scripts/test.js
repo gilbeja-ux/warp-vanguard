@@ -411,47 +411,38 @@ check('firewall core spawns after the level clock', !!G.boss());
 check('boss briefing card shows first', G.getState() === G.S.INFO && G.getInfoCard() === 'boss');
 dismiss();
 check('briefing dismissed back to the duel', G.getState() === G.S.PLAY);
-for (let i = 0; i < 40 && G.boss().mergeT < 1; i++) G.update(0.05);
-check('nodes fuse into the ray cannon', G.boss().mergeT >= 1 && Math.abs(G.nodes[0].angle - G.nodes[1].angle) < 1e-6);
-function aimBeam() {
-  // solve the stick so the straight screen ray passes through the core:
-  // the far endpoint T is linear in the stick vector, so invert directly
-  const g2 = G.geo();
+// ARRIVAL CEREMONY: the core surfaces before it fights
+check('the core arrives with a ceremony, not a fight', G.boss().introT < G.BOSS_CER());
+let cerGuard = 200;
+while (G.boss().introT < G.BOSS_CER() && cerGuard-- > 0) G.update(0.05);
+check('the ceremony completes and the duel begins', G.boss().introT >= G.BOSS_CER());
+check('the dials never change hands — no fuse', G.boss().mergeT === 0);
+// the duel verb is the campaign verb: dock both nodes, charge, homing bolt
+function bossBolt() {
   const b = G.boss();
-  aim(0, Math.atan2(b.v, b.u)); aim(1, G.nodes[0].angle); // swing the cannon toward it
-  const A = G.nodes[0].angle;
-  const railR = g2.nodeR - Math.min(800, 450) * 0.055 * 0.86;
-  const sx = g2.cx + Math.cos(A) * railR, sy = g2.cy + Math.sin(A) * railR;
-  const rg1 = G.ringAt(1.0);
-  const T0x = rg1.x + Math.cos(A) * rg1.r, T0y = rg1.y + Math.sin(A) * rg1.r; // stick centered
-  const M = 5 * (1.0 - g2.hitZ) * rg1.r; // px of far-plane travel per stick unit
-  const lam = Math.hypot(T0x - sx, T0y - sy) / (Math.hypot(b.sx - sx, b.sy - sy) || 1);
-  const Tx = sx + (b.sx - sx) * lam, Ty = sy + (b.sy - sy) * lam;
-  G.setBeamAim((Tx - T0x) / M, (Ty - T0y) / M);
+  G.volley().cd = 0;
+  aim(0, 1.0); aim(1, 1.0); // dock
+  const hp0 = b.hp;
+  for (let i = 0; i < 60 && b.hp === hp0 && b.hp > 0; i++) {
+    G.setIntegrity(100); b.shots.length = 0; b.latchT = 99; G.update(0.05);
+  }
+  return hp0 - b.hp;
 }
-G.keys['ArrowUp'] = true;
-const hp0 = G.boss().hp;
-for (let i = 0; i < 20; i++) { aimBeam(); G.update(0.05); }
-check('the beam drains the core', G.boss().hp < hp0);
-check('firing builds heat', G.getHeat() > 0.05);
-drawOk('boss duel frame (beam + heat gauge)', () => {});
-for (let i = 0; i < 220 && !G.isOverheat(); i++) {
-  aimBeam(); G.setIntegrity(100);
-  G.boss().hp = Math.max(G.boss().hp, 50); // keep it alive while we cook the cannon
-  G.update(0.05);
+check('a docked charge launches a homing bolt into the core', bossBolt() === 1);
+drawOk('boss duel frame (charge + core)', () => {});
+bossBolt();
+check('three hits trigger BREACH PROTOCOL (phase 2)', (bossBolt(), G.boss().phase2 === true && G.boss().hp === 3));
+{
+  let tGuard = 200;
+  while (tGuard-- > 0 && !G.enemies().length) { G.setIntegrity(100); G.boss().shots.length = 0; G.update(0.05); }
+  check('phase 2 deploys wall taps mid-duel', G.enemies().length > 0);
+  G.enemies().length = 0;
 }
-check('sustained fire overheats the cannon (~5s)', G.isOverheat() === true);
-const hpLock = G.boss().hp;
-for (let i = 0; i < 6; i++) { aimBeam(); G.update(0.05); }
-check('overheated cannon cannot fire', Math.abs(G.boss().hp - hpLock) < 1e-9);
-for (let i = 0; i < 60 && G.isOverheat(); i++) G.update(0.05); // ~2s forced cooldown, fire still held
-check('cooldown clears with fire still held', G.isOverheat() === false);
-G.keys['ArrowUp'] = false;
-// dodge mechanics
+// dodge mechanics — darts hunt either carriage now
 const B2 = G.boss();
 aim(0, 1.0); aim(1, 1.0);
 B2.shots.length = 0; B2.shootT = 0.01;
-G.update(0.05); // fires at the cannon's current spot
+G.update(0.05); // fires at a carriage's current spot
 B2.shootT = 99;  // hold further fire
 check('the core returns fire', B2.shots.length > 0);
 aim(0, 2.4); aim(1, 2.4); // dodge away
@@ -464,34 +455,35 @@ B2.shootT = 99;
 const hpMe2 = G.stats().integrity;
 for (let i = 0; i < 60 && B2.shots.length; i++) G.update(0.05); // stand still
 check('standing still takes the hit', hpMe2 - G.stats().integrity >= 9);
-// rail latches — the core clamps the ring; crossing the orange arc fries the cannon
+// rail latches — the core clamps the ring; crossing the orange arc fries a node
 B2.shots.length = 0; B2.shootT = 99; B2.latchT = 99; // quiet lane for the latch checks
-aim(0, 1.0); aim(1, 1.0);
-G.setLatches([{ a: 2.4, span0: 0.5, t: 0.3, dur: 3, tele: 0, arm: 0.25 }]); // far from the cannon
+aim(0, 1.0); aim(1, 2.0); // apart — no accidental charging
+G.setLatches([{ a: 2.7, span0: 0.5, t: 0.3, dur: 3, tele: 0, arm: 0.25 }]); // away from both
 G.update(0.05);
-check('a latch across the ring leaves a distant cannon alone', !(G.nodes[0].deadT > 0));
-aim(0, 2.4); aim(1, 2.4); // slide INTO the clamp
+check('a latch across the ring leaves distant nodes alone', !(G.nodes[0].deadT > 0));
+aim(0, 2.7); // slide node 0 INTO the clamp
 G.update(0.05);
-check('crossing a latch fries the cannon (node-killer style)', G.nodes[0].deadT > 0);
-G.keys['ArrowUp'] = true;
-const hpLatch = G.boss().hp;
-for (let i = 0; i < 6; i++) { aimBeam(); G.setIntegrity(100); G.update(0.05); }
-check('a fried cannon cannot fire the beam', Math.abs(G.boss().hp - hpLatch) < 1e-9);
-G.keys['ArrowUp'] = false;
+check('crossing a latch fries the node (node-killer style)', G.nodes[0].deadT > 0);
+G.volley().cd = 0;
+aim(0, 2.0); // dock attempt with a fried node
+for (let i = 0; i < 14; i++) { G.setIntegrity(100); B2.shootT = 99; G.update(0.05); }
+check('a fried node cannot charge the volley', G.volley().charge === 0);
+aim(0, 1.0); // apart again
 for (let i = 0; i < 70; i++) { G.setIntegrity(100); B2.shootT = 99; B2.latchT = 99; G.update(0.05); } // reboot + burn-off
 check('the latch burns away within 3s', G.latches().length === 0);
-check('the cannon reboots after the fry', !(G.nodes[0].deadT > 0));
+check('the node reboots after the fry', !(G.nodes[0].deadT > 0));
 B2.latchT = 0.01; // the core throws a grapple on its own
 G.update(0.05);
 check('the core fires latch grapples', B2.shots.some(sh => sh.latch === true));
 B2.shots.length = 0; B2.latchT = 99;
-// finish it
-G.keys['ArrowUp'] = true;
-G.boss().hp = 2;
-let bGuard = 120;
-while (G.boss() && bGuard-- > 0) { aimBeam(); G.setIntegrity(100); G.update(0.05); }
-G.keys['ArrowUp'] = false;
-check('destroying the core wins the level', G.getState() === G.S.END && G.getEndWin() === true);
+// finish it: three more bolts -> death ceremony -> verdict -> case closed
+bossBolt(); bossBolt(); bossBolt();
+check('six bolts put the core down', G.boss() && G.boss().dying !== undefined);
+let dGuard = 400;
+while (G.boss() && dGuard-- > 0) { G.setIntegrity(100); G.update(0.05); }
+check('the death ceremony ends at the VERDICT card', G.getState() === G.S.INFO && G.getInfoCard() === 'verdict');
+dismiss();
+check('the verdict closes the case — campaign complete', G.getState() === G.S.END && G.getEndWin() === true);
 check('campaign completion recorded', G.progress.stars[7] > 0);
 
 // ================= TEMP boss-test shortcut =================
@@ -500,14 +492,9 @@ G.update(0.05);
 if (G.getState() === G.S.INFO) { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 8, clientX: 5, clientY: 5, pointerType: 'touch' }); }
 G.update(0.05);
 check('BOSS TEST key drops straight into the duel', !!G.boss());
-G.boss().hp = 39;
-for (let i = 0; i < 40 && !(G.boss() && G.boss().phase2); i++) G.update(0.05); // let the merge finish
-check('cornered core enters phase 2 below 40%', G.boss().phase2 === true);
-{
-  let tGuard = 200;
-  while (tGuard-- > 0 && !G.enemies().length) G.update(0.05);
-  check('phase 2 deploys wall taps mid-duel', G.enemies().length > 0);
-}
+G.boss().introT = 99; // skip the ceremony for the shortcut check
+for (let i = 0; i < 4; i++) G.update(0.05);
+check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
 
 // ================= campaign rim walls + bonus ribbon =================
 const quiet = () => { G.setSpawnT(60); G.setIntegrity(100); }; // hold the level script still

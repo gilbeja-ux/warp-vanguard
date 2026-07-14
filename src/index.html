@@ -654,7 +654,7 @@ function drawWallCode(g, dt) {
 const LEVELS = [
   { name: 'OMNISERVE CAMPUS', duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0 },
   { name: 'OLD TOWN GRID',   duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
-    hint: 'NEW THREAT: heavy traps — pin them with BOTH nodes' },
+    hint: 'NEW THREAT: heavy armor — DOCK both nodes, charge, fire' },
   { name: 'METRO EXCHANGE', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
     hint: 'NEW THREAT: burst transmissions — traps arrive in volleys' },
   { name: 'HARBOR CROSSING', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
@@ -666,7 +666,7 @@ const LEVELS = [
   { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.58, spawnMax: 1.10, speed: 0.54, doubles: 0.48, heavies: 0.22, lines: 0.22, colors: 0.36, frags: 0.20, walls: 0.15, track: 0, bursts: true,
     hint: 'ALL THREATS ACTIVE — maximum traffic' },
   { name: 'CID GATEWAY',     duration: 45, spawnMin: 0.80, spawnMax: 1.40, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,
-    hint: 'THE FIREWALL CORE AWAITS — drain it with your nodes' }
+    hint: 'THE FIREWALL CORE AWAITS — six bolts close the case' }
 ];
 const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
 // endless mode: difficulty is a function of survival time, rebuilt each frame
@@ -1069,23 +1069,83 @@ function spawnPickup() {
 // the firewall core duel: it hunts the fused node from inside the tunnel while
 // the ray cannon (left thumb = move, right thumb = aim, hold = fire) drains it
 function spawnBoss() {
-  enemies = []; pickups = []; burstQ = null; patternQ = []; sched = []; latches = []; // the lane clears for the duel
+  enemies = []; pickups = []; burstQ = null; patternQ = []; sched = []; latches = []; volley.shots = []; // the lane clears
   boss = {
-    hp: 100, maxHp: 100,
+    hp: 6, maxHp: 6, // six bolts close the case; phase 2 at three
     // it FLIES inside the tunnel: cross-section polar (ang, rad) + depth z
-    ang: Math.random() * TAU, rad: 0.4, z: 0.6,
+    ang: Math.random() * TAU, rad: 0.12, z: 1.55,
     tAng: Math.random() * TAU, tRad: 0.4, tZ: 0.6,
     u: 0, v: 0, sx: W / 2, sy: H / 2, sSize: 40,
     retarget: 1.2, spin: 0, hurtT: 0,
     shootT: 1.6, shots: [],
-    mergeT: 0, mergeFrom: [nodes[0].angle, nodes[1].angle]
+    mergeT: 0, introT: 0 // controls never change hands — no fuse, ever
   };
   heat = 0; overheat = false; beamActive = false; beamAim.x = 0; beamAim.y = 0;
-  popup(W / 2, H * 0.30, 'FIREWALL CORE ONLINE', '#d465ff');
-  shake = Math.min(shake + 0.6, 1);
-  sfx.bossOnline();
-  buzz([30, 40, 60]);
   if (!progress.bossBriefed) { progress.bossBriefed = true; saveState(); showCard('boss'); }
+}
+// a homing volley bolt reached the core
+function bossVolleyHit() {
+  const b = boss;
+  if (!b || b.introT < BOSS_CER || b.dying !== undefined) return;
+  b.hp -= 1;
+  b.hurtT = 0.3;
+  burst(b.sx, b.sy, '#ffffff', 30, 6);
+  burst(b.sx, b.sy, '#d465ff', 26, 5);
+  burst(b.sx + rand(-1, 1) * b.sSize, b.sy + rand(-0.6, 0.6) * b.sSize, '#d465ff', 20, 5); // a plate shears off
+  score += Math.round(300 * mutMul());
+  popup(b.sx, b.sy - b.sSize, 'CORE HIT ' + (b.maxHp - b.hp) + '/' + b.maxHp, '#eab8ff');
+  shake = 1;
+  hitStop = Math.min(hitStop + 0.1, 0.14);
+  tone(70, 0.3, 'sine', 0.2, 40);
+  crackle(0.35, 2000, 300, 2, 0.8);
+  buzz([40, 30, 60]);
+  if (b.hp === 3 && !b.phase2) {
+    b.phase2 = true;
+    b.tapT = 1.2;
+    popup(W / 2, H * 0.3, 'BREACH PROTOCOL — IT FIGHTS BACK', '#d465ff');
+    tone(160, 0.5, 'sawtooth', 0.14, 60);
+    crackle(0.45, 3200, 700, 6, 1.0, 0.1);
+    buzz([50, 40, 70]);
+  }
+  if (b.hp <= 0) { // the kill — hand over to the death ceremony
+    b.dying = 0; b.dyingN = 0;
+    b.shots = []; latches = []; volley.shots = [];
+    score += Math.round(2000 * mutMul());
+    popup(W / 2, H * 0.3, 'FIREWALL DOWN  +' + Math.round(2000 * mutMul()), '#ffd24a');
+    beamSound(false, 0);
+  }
+}
+// the core dies like a star: convulsions, plates torn away one by one, the
+// eye guttering out, implosion, shockwave — the world runs at quarter speed
+function updateBossDeath(dt, g) {
+  const b = boss;
+  b.dying += dt;
+  b.hurtT = 0.1;
+  b.sx += Math.sin(time * 47) * b.sSize * 0.06;
+  b.sy += Math.cos(time * 41) * b.sSize * 0.05;
+  if (b.dying > 0.3 + b.dyingN * 0.3 && b.dyingN < 6) { // plates tear away
+    b.dyingN++;
+    const pa = Math.random() * TAU;
+    burst(b.sx + Math.cos(pa) * b.sSize * 1.2, b.sy + Math.sin(pa) * b.sSize * 0.8, '#d465ff', 24, 6);
+    crackle(0.2, 1800, 300, 3, 0.6);
+    tone(220 - b.dyingN * 20, 0.15, 'square', 0.1, 90);
+    shake = Math.min(shake + 0.4, 1);
+    buzz(20);
+  }
+  if (!b.boom && b.dying > 2.3) { // the implosion lets go
+    b.boom = true;
+    burst(b.sx, b.sy, '#ffffff', 60, 8);
+    burst(b.sx, b.sy, '#d465ff', 50, 6);
+    burst(b.sx, b.sy, '#ff9a3c', 30, 7);
+    sfx.bossDown();
+    shake = 1;
+    buzz([80, 40, 120]);
+  }
+  if (b.dying > 3.2) { // the case closes — verdict, then the report
+    boss = null;
+    commCur = { s: 'CID', m: 'core down. bring it home, defender.' }; commT = 0;
+    showCard('verdict');
+  }
 }
 // the beam is a straight screen-space ray: from the cannon toward where the
 // stick-deflected direction exits the tunnel (far end or wall). Hit testing
@@ -1121,10 +1181,39 @@ function updateBossFight(dt, g) {
   b.spin += dt * 2;
   b.hurtT = Math.max(0, b.hurtT - dt);
   const z0 = g.hitZ;
+  const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
+  // ARRIVAL CEREMONY — the truth surfaces: the core rises out of the deep,
+  // its eye ignites, it speaks — and only then does the duel begin
+  if (b.introT < BOSS_CER) {
+    b.introT = Math.min(BOSS_CER, b.introT + dt);
+    const q = b.introT / BOSS_CER;
+    b.z = lerp(1.55, 0.55, 1 - Math.pow(1 - q, 2));
+    b.ang += dt * 0.35;
+    b.rad = 0.12;
+    b.u = Math.cos(b.ang) * b.rad;
+    b.v = Math.sin(b.ang) * b.rad;
+    const brg0 = ring(b.z, g);
+    b.sx = brg0.x + b.u * brg0.r; b.sy = brg0.y + b.v * brg0.r;
+    b.sSize = Math.min(W, H) * 0.30 * brg0.s;
+    if (!b.cer1) { b.cer1 = true; tone(30, 2.6, 'sine', 0.16, 55); crackle(2.4, 60, 260, 1, 0.35); }
+    if (!b.cer2 && b.introT > 1.5) { // the eye ignites; it speaks
+      b.cer2 = true;
+      sfx.bossOnline(); buzz([40, 60, 90]);
+      commCur = { s: 'CORE', m: 'the evidence is contaminated. I am the cure.' }; commT = 0;
+    }
+    if (b.introT >= BOSS_CER) {
+      popup(W / 2, H * 0.30, 'FIREWALL CORE ONLINE', '#d465ff');
+      shake = 1; buzz([30, 40, 60]);
+      tone(160, 0.5, 'sawtooth', 0.14, 60);
+    }
+    return;
+  }
+  // DEATH CEREMONY
+  if (b.dying !== undefined) { updateBossDeath(dt, g); return; }
   // restless flight inside the tunnel — cross-section polar + depth
   b.retarget -= dt;
   if (b.retarget <= 0) {
-    b.retarget = rand(0.9, 1.7);
+    b.retarget = rand(0.9, 1.7) * (b.phase2 ? 0.75 : 1);
     b.tAng = Math.random() * TAU;
     b.tRad = rand(0.1, 0.6);
     b.tZ = rand(z0 + 0.28, z0 + 0.55);
@@ -1138,129 +1227,24 @@ function updateBossFight(dt, g) {
   b.sx = brg.x + b.u * brg.r;
   b.sy = brg.y + b.v * brg.r;
   b.sSize = Math.min(W, H) * 0.30 * brg.s;
-  // fuse animation: both carriages slide together into the cannon
-  if (b.mergeT < 1) {
-    b.mergeT = Math.min(1, b.mergeT + dt / 0.9);
-    const e = 1 - Math.pow(1 - b.mergeT, 3);
-    const mid = b.mergeFrom[0] + angDiff(b.mergeFrom[1], b.mergeFrom[0]) / 2;
-    nodes[0].angle = b.mergeFrom[0] + angDiff(mid, b.mergeFrom[0]) * e;
-    nodes[1].angle = b.mergeFrom[1] + angDiff(mid, b.mergeFrom[1]) * e;
-    if (b.mergeT >= 1) {
-      const railR0 = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
-      const mx = g.cx + Math.cos(nodes[0].angle) * railR0, my = g.cy + Math.sin(nodes[0].angle) * railR0;
-      burst(mx, my, '#6fe3ff', 20, 5);
-      burst(mx, my, '#ffffff', 20, 5);
-      beamAim.x = 0; beamAim.y = 0; // stick centered = straight down the tunnel
-      sfx.go();
-      buzz(30);
-    }
-    return;
-  }
-  nodes[1].angle = nodes[0].angle; // one fused carriage
-  const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
-  const nx = g.cx + Math.cos(nodes[0].angle) * railR, ny = g.cy + Math.sin(nodes[0].angle) * railR;
-  const uv0x = Math.cos(nodes[0].angle), uv0y = Math.sin(nodes[0].angle);
-  // ray cannon: hold to fire, stick deflects the beam into the tunnel
-  const beamOn = Object.values(pointers).some(p => p.beam) || !!keys['ArrowUp'];
-  if (keys['ArrowLeft'])  beamAim.x -= 2.2 * dt;
-  if (keys['ArrowRight']) beamAim.x += 2.2 * dt;
-  if (keys['w'] || keys['W']) beamAim.y -= 2.2 * dt;
-  if (keys['s'] || keys['S']) beamAim.y += 2.2 * dt;
-  const am = Math.hypot(beamAim.x, beamAim.y);
-  if (am > 0.85) { beamAim.x = beamAim.x / am * 0.85; beamAim.y = beamAim.y / am * 0.85; }
-  beamActive = beamOn && !overheat && !(nodes[0].deadT > 0); // a fried cannon can't fire
-  if (beamActive) {
-    heat = Math.min(1, heat + dt / 5); // ~5s of sustained fire
-    if (heat >= 1) { overheat = true; beamActive = false; sfx.overheatWarn(); buzz([60, 60, 60]); }
-  } else if (overheat) {
-    heat -= dt / 2; // ~2s forced cooldown
-    if (heat <= 0) { heat = 0; overheat = false; sfx.tick(); }
-  } else {
-    heat = Math.max(0, heat - dt / 2.5);
-  }
-  if (beamActive) {
-    const hit = beamHitCore(g);
-    if (hit) {
-      b.hp -= 16 * dt;
-      b.hurtT = 0.15;
-      if (Math.random() < 0.6) burst(b.sx + rand(-10, 10), b.sy + rand(-10, 10), '#d98cff', 2, 3);
-      // containment gimbals shear off at each sixth of its health — the
-      // hardware dies in pieces, so progress reads on the body itself
-      const segNow = Math.ceil(clamp(b.hp / b.maxHp, 0, 1) * 6);
-      if (b.segN === undefined) b.segN = 6;
-      if (segNow < b.segN) {
-        b.segN = segNow;
-        burst(b.sx + rand(-1, 1) * b.sSize, b.sy + rand(-0.6, 0.6) * b.sSize, '#d465ff', 26, 5);
-        burst(b.sx, b.sy, '#ffffff', 10, 6);
-        tone(220, 0.2, 'square', 0.1, 90);
-        crackle(0.25, 1800, 400, 3, 0.5);
-        shake = Math.min(shake + 0.35, 1);
-        buzz(18);
-      }
-      if (b.hp <= 0) {
-        burst(b.sx, b.sy, '#ffffff', 50, 6);
-        burst(b.sx, b.sy, '#d465ff', 50, 5);
-        popup(b.sx, b.sy, 'FIREWALL DOWN  +' + Math.round(2000 * mutMul()), '#ffd24a');
-        score += Math.round(2000 * mutMul());
-        shake = 1;
-        sfx.bossDown();
-        buzz([60, 40, 80]);
-        beamSound(false, 0);
-        boss = null;
-        endLevel(true);
-        return;
-      }
-    }
-  }
-  // PHASE 2 — cornered below 40%: the core punches taps into the wall mid-duel.
-  // The beam is the only thing that can burn them off — split your fire.
-  if (b.hp <= 40 && !b.phase2) {
-    b.phase2 = true;
-    b.tapT = 1.2;
-    popup(W / 2, H * 0.3, 'BREACH PROTOCOL — TAPS INBOUND', '#d465ff');
-    shake = Math.min(shake + 0.8, 1);
-    tone(160, 0.5, 'sawtooth', 0.14, 60);
-    crackle(0.45, 3200, 700, 6, 1.0, 0.1); // alarm sizzle
-    buzz([50, 40, 70]);
-  }
+  // NO fuse, NO beam, NO stick: the dials stay yours. Dock both nodes to
+  // charge — the bolt homes on the core (see the volley block in update)
+  // PHASE 2 — three hits in, the cornered core punches taps into the wall:
+  // zap them like always while you look for the next firing window
   if (b.phase2) {
     b.tapT -= dt;
     if (b.tapT <= 0) {
-      b.tapT = rand(2.4, 3.4);
+      b.tapT = rand(2.6, 3.6);
       const en2 = spawnEnemy(undefined, 'normal');
-      en2.lock = undefined; // the beam is the only cover — keep them plain
+      en2.lock = undefined;
     }
   }
-  if (beamActive && b.phase2) {
-    const seg = beamGeometry(g);
-    const dx2 = seg.tx - seg.sx, dy2 = seg.ty - seg.sy;
-    const segL = dx2 * dx2 + dy2 * dy2 || 1;
-    for (const en2 of enemies) {
-      if (en2.dead || en2.resolved || en2.type === 'frag') continue;
-      const rgE = ring(Math.max(en2.z, 0.02), g);
-      const ex2 = rgE.x + Math.cos(en2.angle) * rgE.r, ey2 = rgE.y + Math.sin(en2.angle) * rgE.r;
-      const t2 = clamp(((ex2 - seg.sx) * dx2 + (ey2 - seg.sy) * dy2) / segL, 0, 1);
-      const qx = seg.sx + dx2 * t2, qy = seg.sy + dy2 * t2;
-      const rad = Math.min(W, H) * 0.05 * clamp(rgE.r / g.nodeR, 0.1, 2) + 6;
-      if (Math.hypot(ex2 - qx, ey2 - qy) < rad) {
-        en2.dead = true;
-        burst(ex2, ey2, '#d465ff', 12, 4);
-        burst(ex2, ey2, '#ffffff', 7, 5);
-        const pts2 = Math.round(80 * mutMul());
-        score += pts2;
-        popup(ex2, ey2, '+' + pts2, '#eab8ff');
-        sfx.zap(1);
-        buzz(10);
-      }
-    }
-  }
-  beamSound(beamActive, heat);
-  // bullet-hell return fire: mini orbs racing out of the tunnel at the ring
+  // bullet-hell return fire: darts hunt EITHER carriage now
   b.shootT -= dt;
   if (b.shootT <= 0) {
-    const enrage = b.hp < 35;
-    b.shootT = rand(0.5, 0.95) * (enrage ? 0.65 : 1);
-    const A = nodes[0].angle;
+    const enrage = b.phase2;
+    b.shootT = rand(0.55, 1.0) * (enrage ? 0.6 : 1);
+    const A = nodes[Math.random() < 0.5 ? 0 : 1].angle;
     const fireOrb = th => b.shots.push({ u0: b.u, v0: b.v, zb: b.z, th, t: 0, dur: rand(1.0, 1.35) });
     const roll = Math.random();
     if (roll < 0.45) fireOrb(A + rand(-0.12, 0.12)); // aimed
@@ -1291,16 +1275,20 @@ function updateBossFight(dt, g) {
         tone(140, 0.3, 'sawtooth', 0.12, 70);
         crackle(0.3, 2400, 500, 4, 0.6);
         buzz(25);
-      } else if (Math.abs(angDiff(nodes[0].angle, sh.th)) < 0.24) { // clipped the cannon
-        if (!shieldAbsorb(nx, ny)) {
-          integrity = Math.max(0, integrity - 9);
-          redFlash = 1; shake = Math.min(shake + 0.5, 1);
-          burst(nx, ny, '#ff4a5e', 20, 4);
-          sfx.miss();
-          buzz([40, 25, 55]);
-        }
       } else {
-        burst(hx, hy, '#d465ff', 6, 2.2); // splash on the ring
+        const clipped = nodes.find(n => Math.abs(angDiff(n.angle, sh.th)) < 0.24);
+        if (clipped) { // a dart caught a carriage
+          const cx2 = g.cx + Math.cos(clipped.angle) * railR, cy2 = g.cy + Math.sin(clipped.angle) * railR;
+          if (!shieldAbsorb(cx2, cy2)) {
+            integrity = Math.max(0, integrity - 9);
+            redFlash = 1; shake = Math.min(shake + 0.5, 1);
+            burst(cx2, cy2, '#ff4a5e', 20, 4);
+            sfx.miss();
+            buzz([40, 25, 55]);
+          }
+        } else {
+          burst(hx, hy, '#d465ff', 6, 2.2); // splash on the ring
+        }
       }
     }
   }
@@ -1427,7 +1415,10 @@ canvas.addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch') tryLockLandscape();
   const P = evPos(e);
   if (state === S.INFO) {
-    if (time - infoShownAt > 0.35) { state = S.PLAY; sfx.tick(); }
+    if (time - infoShownAt > 0.35) {
+      state = S.PLAY; sfx.tick();
+      if (infoCard === 'verdict') { endLevel(true); return; } // the case closes
+    }
     return;
   }
   if (state === S.MENU) {
@@ -1799,15 +1790,16 @@ const QUAL = [
 const INFO_CARDS = {
   move:   { title: 'DUAL NODES', lines: ['Left thumb steers the BLUE node,', 'right thumb steers the WHITE node.', 'Slide around the dials to ride the ring.'] },
   normal: { title: 'DATA TAP', lines: ['A siphon latched through the wall,', 'bleeding the stream. Align ANY node', 'as it crosses the ring. Center = ×2.'] },
-  heavy:  { title: 'ARMORED TAP', lines: ['Double-collared — one node cannot', 'break its seal. Pin it with BOTH', 'nodes at once.'] },
+  heavy:  { title: 'ARMORED TAP', lines: ['No zap breaks its seal. DOCK both', 'nodes on its lane and HOLD — the', 'charge fires a bolt that shoots it', 'down before it lands.'] },
   line:   { title: 'BARRIER TAPS', lines: ['Two taps tearing the wall open', 'between them. Cover BOTH ends —', 'one node on each.'] },
   lock:   { title: 'KEYED TAP', lines: ['Sealed to a single node. Only the', 'MATCHING color can break it —', 'watch the orbiting key.'] },
   frag:   { title: 'NODE KILLER', lines: ['A black trap the intruder left', 'in the stream. Touching it FRIES', 'your node for 2 seconds — let it', 'pass and bank the bonus.'] },
   pickup: { title: 'POWER-UP', lines: ['Golden relays ride the stream.', 'Catch one with any node:', 'SHIELD · WIDE ARC · AUTO-ZAP', 'PULSE FILL · CHAIN LIGHTNING.'] },
   strip:  { title: 'BONUS STREAM', lines: ['A golden stream rides the wall.', 'OPTIONAL: keep a node ON its crossing', 'point head to tail — a full ride', 'charges that node\'s PULSE to maximum.'] },
   wall:   { title: 'RIM WALL', lines: ['They chain their traps now: a wall', 'seizes part of your rail, then burns', 'off within seconds. Crossing it', 'FRIES the node — route the other way.'] },
+  verdict: { title: 'LOG 09 — VERDICT', lines: ['The gateway burned. The payload', 'reached the CID intact. Warrants', 'went out within the hour — the', 'buyer wore a badge. Case closed.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Combo zaps bank charge in your pads.', 'When an orb GLOWS, tap it to fire', 'a purge wave down the tunnel.'] },
-  boss:   { title: 'FIREWALL CORE', lines: ['Your nodes fuse into a RAY CANNON.', 'LEFT thumb moves it. RIGHT stick aims', 'the beam INTO the tunnel — hold to fire.', 'Dodge the orbs. Watch the heat.'] }
+  boss:   { title: 'FIREWALL CORE', lines: ['The dials stay YOURS. Dock both', 'nodes to charge — the bolt homes on', 'the core. SIX hits close the case.', 'Dodge its darts. Mind the latches.'] }
 };
 // ---------- the investigation ----------
 // campaign narrative: you guard the fiber between A and B. Something is
@@ -2064,6 +2056,7 @@ function update(dt) {
   if (commCur) { commT += dt; if (commT > 6) commCur = null; }
   let sdt = dt;
   if (hitStop > 0) { hitStop = Math.max(0, hitStop - dt); sdt *= 0.12; }
+  if (boss && boss.dying !== undefined) sdt *= 0.25; // the kill plays in slow motion
   if (!tut && !inIntro) levelT += sdt;
 
   // keyboard control (desktop testing) — controls always run at full speed
@@ -3480,7 +3473,15 @@ function drawBoss(g) {
   // the CORE: a rogue intelligence rendered as ABSENCE — a void sphere that
   // eats the tunnel's light, warps the data fabric into itself, wears dark
   // armor plates, and watches the player with a slit eye
-  const size = b.sSize * (1 + Math.sin(b.spin * 1.6) * 0.04);
+  // ceremony/death staging: the arrival dims the world; the death collapses it
+  const cerQ = b.introT < BOSS_CER ? clamp(b.introT / BOSS_CER, 0, 1) : 1;
+  const dieQ = b.dying !== undefined ? b.dying : -1;
+  if (cerQ < 1) { // the tunnel's light drains as the truth surfaces
+    ctx.fillStyle = `rgba(2,1,8,${(cerQ * 0.4).toFixed(2)})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+  let size = b.sSize * (1 + Math.sin(b.spin * 1.6) * 0.04);
+  if (dieQ > 2.3) size *= Math.max(0.01, 1 - (dieQ - 2.3) / 0.3); // implosion
   ctx.save();
   ctx.globalAlpha = 0.72 + 0.28 * (1 - clamp(b.z, 0, 1)); // deeper = hazier
   ctx.translate(b.sx, b.sy);
@@ -3577,9 +3578,15 @@ function drawBoss(g) {
   const lky = g.cy + Math.sin(nodes[0].angle) * railR2 - b.sy;
   const lkd = Math.hypot(lkx, lky) || 1;
   const ux2 = lkx / lkd, uy2 = lky / lkd;
-  const sacT = Math.floor(time * 1.3); // gaze re-fixates in small jumps
+  const sacT = Math.floor(time * (dieQ >= 0 ? 7 : 1.3)); // dying: the gaze panics
   const sac1 = Math.sin(sacT * 12.9898) * 0.5, sac2 = Math.sin(sacT * 78.233) * 0.5;
   const eyeR = size * 0.8;
+  // ignition on arrival, guttering out in death
+  const eyeA = cerQ < 1 ? clamp((b.introT - 1.5) / 0.9, 0, 1) * (Math.sin(time * 31) > -0.4 ? 1 : 0.3)
+    : dieQ >= 0 ? Math.max(0, 1 - dieQ / 2.3) * (Math.sin(time * 23) > -0.2 ? 1 : 0.25)
+    : 1;
+  ctx.save();
+  ctx.globalAlpha *= Math.max(0.03, eyeA);
   const ex = ux2 * size * 0.07, ey = uy2 * size * 0.07; // the lens leans at its prey
   // the barrel: a deep dark well — the red lives at the BOTTOM of it
   const wg = ctx.createRadialGradient(ex, ey, 0, ex, ey, eyeR);
@@ -3645,9 +3652,10 @@ function drawBoss(g) {
   // specular catch on the glass — it's a lens, not a hole
   ctx.fillStyle = 'rgba(220,235,255,0.25)';
   ctx.beginPath(); ctx.ellipse(ex - eyeR * 0.42, ey - eyeR * 0.48, eyeR * 0.2, eyeR * 0.1, -0.6, 0, TAU); ctx.fill();
+  ctx.restore(); // eye ignition/gutter alpha
   plates(1.4, 0.85, 1, 1); // near track, riding in front
   // chromatic ghost rims when tearing — it can't hold its own outline
-  if (tear) {
+  if (tear || dieQ > 0.2) {
     ctx.globalAlpha = haze * 0.5;
     for (const [gc, gs2] of [['255,60,90', 1], ['110,200,255', -1]]) {
       ctx.strokeStyle = `rgba(${gc},0.5)`;
@@ -3658,7 +3666,7 @@ function drawBoss(g) {
   }
   // beam contact: targeting brackets stamp onto the core — the same bracket
   // grammar as the boot callouts, so "designated" reads instantly
-  if (b.hurtT > 0) {
+  if (b.hurtT > 0 && dieQ < 0) {
     const br = size * 1.25, armL = size * 0.3;
     ctx.strokeStyle = `rgba(255,255,255,${(0.45 + flash * 0.5).toFixed(2)})`;
     ctx.lineWidth = 1.5;
@@ -3671,6 +3679,40 @@ function drawBoss(g) {
     }
   }
   ctx.restore();
+  // ARRIVAL: the name stamps in while the eye ignites
+  if (cerQ < 1 && b.introT > 1.7) {
+    const ta = clamp((b.introT - 1.7) / 0.25, 0, 1);
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.globalAlpha = ta;
+    ctx.fillStyle = b.introT < 1.8 ? '#ffffff' : '#d465ff';
+    ctx.font = '800 ' + Math.min(W * 0.05, 30) + 'px Audiowide, system-ui';
+    ctx.shadowColor = '#d465ff'; ctx.shadowBlur = lowFX ? 0 : 20;
+    try { ctx.letterSpacing = '5px'; } catch (e) {}
+    ctx.fillText('THE GATEWAY CORE', W / 2, H * 0.24);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    ctx.shadowBlur = 0;
+    ctx.font = '600 11px Audiowide, system-ui';
+    ctx.fillStyle = 'rgba(234,184,255,0.85)';
+    ctx.fillText('DOCK BOTH NODES TO CHARGE — SIX BOLTS CLOSE THE CASE', W / 2, H * 0.24 + 22);
+    ctx.restore();
+  }
+  // DEATH: the implosion lets go — shockwaves and a white world-flash
+  if (b.boom) {
+    const bq = clamp((b.dying - 2.3) / 0.8, 0, 1);
+    ctx.save();
+    ctx.lineCap = 'butt';
+    for (const [spd, col, w2] of [[1, '255,255,255', 3], [0.75, '212,101,255', 2], [0.55, '255,154,60', 1.5]]) {
+      const rr2 = bq * spd * Math.min(W, H) * 1.1;
+      if (rr2 < 2) continue;
+      ctx.strokeStyle = `rgba(${col},${((1 - bq) * 0.85).toFixed(2)})`;
+      ctx.lineWidth = w2 + (1 - bq) * 6;
+      ctx.beginPath(); ctx.arc(b.sx, b.sy, rr2, 0, TAU); ctx.stroke();
+    }
+    ctx.fillStyle = `rgba(255,255,255,${((1 - bq) * 0.55).toFixed(2)})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
 }
 // the fused ray cannon: aim barrel + a straight perspective-tapered beam
 function drawBeam(g) {
@@ -4782,7 +4824,7 @@ function drawHUD(g) {
     let msg = null;
     if (st.card === 'move') msg = 'Slide BOTH thumbs around the dials';
     else if (tut.spawned === 'normal') msg = 'Align a node with the trap';
-    else if (tut.spawned === 'heavy') msg = 'Pin it with BOTH nodes at once';
+    else if (tut.spawned === 'heavy') msg = 'DOCK both nodes on its lane and HOLD — the charge fires itself';
     else if (tut.spawned === 'line') msg = 'One node on EACH end of the wall';
     else if (tut.spawned === 'lock0') msg = 'Only the BLUE node can break this one';
     else if (tut.spawned === 'lock1') msg = 'Only the WHITE node can break this one';

@@ -45,7 +45,7 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 > Someone wants the evidence gone.
 > The CID opens a case file.
 
-*Hint: NEW THREAT: heavy traps — pin them with BOTH nodes*
+*Hint: NEW THREAT: heavy armor — DOCK both nodes, charge, fire*
 
 **Comms**
 - `t=6` **TRACE**: tap signatures match. one operator.
@@ -147,11 +147,19 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 > Purge it, deliver the payload,
 > and close the case.
 
-*Hint: THE FIREWALL CORE AWAITS — drain it with your nodes*
+*Hint: THE FIREWALL CORE AWAITS — six bolts close the case*
 
 **Comms**
 - `t=4` **CORE**: the evidence is contaminated. I am the cure.
 - `t=16` **CID**: burn it out, defender. close the case.
+
+**Mid-duel comm** — `on kill` **CID**: core down. bring it home, defender.
+
+**LOG 09 — VERDICT** *(epilogue card, after the core dies)*
+> The gateway burned. The payload
+> reached the CID intact. Warrants
+> went out within the hour — the
+> buyer wore a badge. Case closed.
 
 **Report** — CASE CLOSED: gateway purged. evidence delivered.
 
