@@ -659,13 +659,13 @@ const LEVELS = [
     hint: 'NEW THREAT: burst transmissions — traps arrive in volleys' },
   { name: 'HARBOR CROSSING', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
     hint: 'NEW THREAT: barrier lines — one node on each end' },
-  { name: 'UNDERCITY FIBER', duration: 60, spawnMin: 0.80, spawnMax: 1.50, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, walls: 0.10, track: 1,
+  { name: 'UNDERCITY FIBER', duration: 60, spawnMin: 0.72, spawnMax: 1.35, speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, walls: 0.10, track: 1,
     hint: 'NEW THREAT: rim walls — the rail closes, route around' },
-  { name: 'FINANCIAL SPINE', duration: 65, spawnMin: 0.80, spawnMax: 1.45, speed: 0.48, doubles: 0.35, heavies: 0.18, lines: 0.18, colors: 0.35, frags: 0.14, walls: 0.10, track: 2,
+  { name: 'FINANCIAL SPINE', duration: 65, spawnMin: 0.68, spawnMax: 1.25, speed: 0.48, doubles: 0.42, heavies: 0.18, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 2,
     hint: 'NEW THREAT: color-locked traps — match the node color' },
-  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.68, spawnMax: 1.30, speed: 0.54, doubles: 0.40, heavies: 0.22, lines: 0.22, colors: 0.30, frags: 0.18, walls: 0.12, track: 0, bursts: true,
+  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.58, spawnMax: 1.10, speed: 0.54, doubles: 0.48, heavies: 0.22, lines: 0.22, colors: 0.36, frags: 0.20, walls: 0.15, track: 0, bursts: true,
     hint: 'ALL THREATS ACTIVE — maximum traffic' },
-  { name: 'CID GATEWAY',     duration: 45, spawnMin: 0.90, spawnMax: 1.60, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,
+  { name: 'CID GATEWAY',     duration: 45, spawnMin: 0.80, spawnMax: 1.40, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,
     hint: 'THE FIREWALL CORE AWAITS — drain it with your nodes' }
 ];
 const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
@@ -722,6 +722,9 @@ let comboHeal = 0; // zaps banked at max combo — every 5 knit back one integri
 // every hostile it passes.
 const PULSE_MAX = 45;
 let pulseCharge = [0, 0], pulseWaves = [];
+// unite-volley: dock both nodes on one spot, hold 0.5s to charge, and a
+// focused bolt fires straight ahead — the game's third verb: SHOOT
+let volley = { charge: 0, cd: 0, shots: [] };
 let enemies = [], particles = [], popups = [];
 let shake = 0, redFlash = 0, tunnelScroll = 0, wallDist = 0, time = 0;
 let trafficSpeed = 0.4; // THE shared motion clock: everything on/in the wall moves at this z-speed
@@ -751,6 +754,7 @@ let pickups = [], pickupT = 20;
 let ribbonT = 30; // bonus stream cadence — golden ribbons on levels 5+ / endless
 let tut = null;               // tutorial controller (level 1, first run)
 let boss = null;              // firewall core (levels with boss: true)
+const BOSS_CER = 3.4;         // arrival ceremony length — the core emerges before it fights
 let latches = [];             // boss rail clamps: {a, span0, t, dur} — orange arcs that fry a crossing node
 let heat = 0, overheat = false, beamActive = false; // ray-cannon duel state
 const beamAim = { x: 0, y: 0 }; // fire-stick vector: deflection of the beam INTO the tunnel
@@ -902,7 +906,12 @@ function windowMates(tNew, gap) {
 function spawnAllowed(type) {
   const GAP = 0.55; // seconds of arrival separation that reads as "same moment"
   const tNew = arrivalAt(SPAWN_Z, type === 'heavy' ? 0.82 : 1);
-  if (type === 'heavy' || type === 'line') return windowMates(tNew, GAP * 1.5).length === 0;
+  if (type === 'heavy' || type === 'line') {
+    // heavies die to the volley now: each needs its own dock+charge+recharge
+    // cycle, so consecutive armor must leave breathing room between them
+    if (type === 'heavy' && windowMates(tNew, 2.4).some(s => s.type === 'heavy')) return false;
+    return windowMates(tNew, GAP * 1.5).length === 0;
+  }
   if (type === 'strip') {
     const tA0 = levelT + tNew;
     const tA1 = tA0 + 0.9 / (LV || LEVELS[levelIdx]).speed;
@@ -1667,6 +1676,7 @@ function resetRun() {
   integrity = mutators.oneLife ? 25 : 100;
   score = 0; zaps = 0; misses = 0; combo = 0; perfects = 0; fragsHit = 0; comboHeal = 0;
   pulseCharge = [0, 0]; pulseWaves = [];
+  volley = { charge: 0, cd: 0, shots: [] };
   enemies = []; particles = []; popups = []; bolts = []; pickups = [];
   boss = null; burstQ = null; patternQ = []; hitStop = 0;
   heat = 0; overheat = false; beamActive = false; beamSound(false, 0); stripSound(false, 0);
@@ -2155,6 +2165,77 @@ function update(dt) {
     }
   }
 
+  // UNITE-VOLLEY: docking both nodes together sacrifices ALL other coverage
+  // for half a second — the charge — then a focused bolt fires straight into
+  // the bore. In the duel the bolt homes on the core instead.
+  volley.cd = Math.max(0, volley.cd - dt);
+  const docked = state === S.PLAY && !inIntro
+    && !(nodes[0].deadT > 0) && !(nodes[1].deadT > 0)
+    && !(boss && (boss.introT < BOSS_CER || boss.dying !== undefined))
+    && Math.abs(angDiff(nodes[0].angle, nodes[1].angle)) < 0.26;
+  if (docked && volley.cd <= 0) {
+    if (volley.charge === 0) { crackle(0.5, 300, 2200, 2, 0.28); buzz(8); } // capacitor whine
+    volley.charge = Math.min(1, volley.charge + dt / 0.5);
+    if (volley.charge >= 1) fireVolley(g);
+  } else {
+    if (volley.charge > 0.25) tone(600, 0.08, 'sine', 0.04, 380); // fizzle — dock broken
+    volley.charge = 0;
+  }
+  for (const sh of volley.shots) {
+    if (sh.dead) continue;
+    if (sh.homing) { // duel bolt: rides the wire straight to the core
+      sh.t += dt / 0.55;
+      if (!boss) { sh.dead = true; continue; }
+      if (sh.t >= 1) { sh.dead = true; bossVolleyHit(); }
+      continue;
+    }
+    sh.z += dt * 2.4;
+    if (sh.z > 1.05) { sh.dead = true; continue; } // spent — halfway down the bore
+    for (const en of enemies) {
+      if (en.dead || en.resolved || en.failed || en.type === 'strip') continue;
+      if (Math.abs(angDiff(en.angle, sh.a)) > 0.30 || Math.abs(en.z - sh.z) > 0.09) continue;
+      const rgV = ring(Math.max(en.z, 0.02), g);
+      const vx = rgV.x + Math.cos(en.angle) * rgV.r, vy = rgV.y + Math.sin(en.angle) * rgV.r;
+      if (en.type === 'frag') {
+        // shooting a trap REPLICATES it — one becomes two. The lesson costs.
+        sh.dead = true;
+        en.dead = true;
+        for (const s3 of [-1, 1]) {
+          enemies.push({ type: 'frag', lock: undefined, z: Math.min(SPAWN_Z - 0.06, en.z + 0.22),
+            angle: en.angle + s3 * 0.32, sizeMul: 0.8, speedMul: 1,
+            spin: Math.random() * TAU, spinMul: 1, age: 0, dead: false, partner: null });
+        }
+        burst(vx, vy, '#4a5568', 26, 4);
+        burst(vx, vy, '#ff9a3c', 12, 3);
+        popup(vx, vy, 'TRAP REPLICATED ×2', '#ff9a3c');
+        tone(150, 0.3, 'sawtooth', 0.13, 60);
+        crackle(0.3, 2600, 500, 3, 0.7);
+        shake = Math.min(shake + 0.5, 1);
+        buzz([30, 30, 50]);
+        break; // the bolt died on the trap
+      }
+      // volley kills pay a flat bounty — no combo, no zap credit, no pulse
+      // feed: interception stays the scoring game, this is a TOOL
+      en.dead = true;
+      if (en.partner) en.partner.dead = true;
+      const vb = Math.round((en.type === 'heavy' ? 250 : en.type === 'line' ? 180 : 60) * mutMul());
+      score += vb;
+      burst(vx, vy, en.type === 'heavy' ? '#d465ff' : '#bfeaff', 22, 5);
+      burst(vx, vy, '#ffffff', 12, 5.5);
+      popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : '+') + vb, '#bfeaff');
+      rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
+      sfx.zap(1, Math.cos(en.angle) * 0.6);
+      buzz(en.type === 'heavy' ? 25 : 12);
+      if (en.type === 'heavy') { // armor stops the bolt; reds it punches through
+        hitStop = Math.min(hitStop + 0.08, 0.12);
+        tone(110, 0.2, 'square', 0.13, 60);
+        sh.dead = true;
+        break;
+      }
+    }
+  }
+  volley.shots = volley.shots.filter(sh => !sh.dead);
+
   let stripProg = -1; // >= 0 while a node is riding a stream this frame
   for (const en of enemies) {
     en.z -= L.speed * waveMul * (en.speedMul || 1) * sdt;
@@ -2273,9 +2354,9 @@ function update(dt) {
         if (en.partner) boltPairs.push([nodes[0], en.angle], [nodes[1], en.partner.angle]);
         else boltPairs.push([nearest(en.angle), en.angle]);
       } else if (en.type === 'heavy') {
-        // heavy: both nodes must pin it at once
-        hit = covers(nodes[0], en.angle) && covers(nodes[1], en.angle);
-        if (hit) boltPairs.push([nodes[0], en.angle], [nodes[1], en.angle]);
+        // heavy armor: no zap breaks it — only a charged volley (or a purge)
+        // brings it down BEFORE it lands. At the rim it simply breaches.
+        hit = false;
       } else if (en.type === 'line') {
         // barrier: one node on each end, either assignment
         const p = en.partner;
@@ -3861,6 +3942,77 @@ function drawNodes(g) {
   if (bs0 !== 1) { ctx.restore(); ctx.globalAlpha = 1; }
   if (settings.controls === 2 && !fused) drawControlArcs(g);
   drawPulseOrbs(g);
+}
+
+// the unite-volley releases: a focused bolt from the docked nodes
+function fireVolley(g) {
+  volley.charge = 0;
+  volley.cd = 1.25; // re-charge gap — shooting crowds is worse than zapping them
+  const a = nodes[0].angle + angDiff(nodes[1].angle, nodes[0].angle) / 2;
+  const sh = { a, z: g.hitZ, dead: false };
+  if (boss && boss.introT >= BOSS_CER && boss.dying === undefined) {
+    sh.homing = true; sh.t = 0; // the duel bolt hunts the core itself
+    const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
+    sh.sx0 = g.cx + Math.cos(a) * railR; sh.sy0 = g.cy + Math.sin(a) * railR;
+  }
+  volley.shots.push(sh);
+  for (const n of nodes) n.recoil = 1;
+  const hx = g.cx + Math.cos(a) * g.nodeR, hy = g.cy + Math.sin(a) * g.nodeR;
+  burst(hx, hy, '#bfeaff', 20, 5);
+  burst(hx, hy, '#ffffff', 12, 6);
+  tone(1900, 0.03, 'square', 0.09);   // capacitor snap
+  crackle(0.22, 2400, 400, 2, 0.6);   // discharge
+  tone(90, 0.15, 'sine', 0.14, 55);   // sub kick
+  buzz([15, 10, 25]);
+}
+// charge halo + the bolt comet riding the bore
+function drawVolley(g) {
+  if (volley.charge > 0.02) {
+    const a = nodes[0].angle + angDiff(nodes[1].angle, nodes[0].angle) / 2;
+    const q = volley.charge;
+    const hx = g.cx + Math.cos(a) * g.nodeR, hy = g.cy + Math.sin(a) * g.nodeR;
+    const cr = Math.min(W, H) * 0.05 * (0.4 + q);
+    const cg2 = ctx.createRadialGradient(hx, hy, 0, hx, hy, cr);
+    cg2.addColorStop(0, `rgba(255,255,255,${(0.35 + q * 0.6).toFixed(2)})`);
+    cg2.addColorStop(0.45, `rgba(140,225,255,${(0.3 + q * 0.4).toFixed(2)})`);
+    cg2.addColorStop(1, 'rgba(140,225,255,0)');
+    ctx.fillStyle = cg2;
+    ctx.beginPath(); ctx.arc(hx, hy, cr, 0, TAU); ctx.fill();
+    // charge ring filling around the dock point
+    ctx.strokeStyle = `rgba(255,255,255,${(0.5 + q * 0.4).toFixed(2)})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(hx, hy, cr * 0.8, -Math.PI / 2, -Math.PI / 2 + q * TAU); ctx.stroke();
+    if (Math.random() < q * 0.7) burst(hx, hy, '#8fe0ff', 2, 2.5); // gathering sparks
+  }
+  for (const sh of volley.shots) {
+    if (sh.dead) continue;
+    let x, y, s;
+    if (sh.homing && boss) { // screen-space sprint to the core
+      const e = sh.t * sh.t;
+      x = lerp(sh.sx0, boss.sx, e); y = lerp(sh.sy0, boss.sy, e);
+      s = 1 - sh.t * 0.5;
+    } else {
+      const rg = ring(sh.z, g);
+      x = rg.x + Math.cos(sh.a) * rg.r; y = rg.y + Math.sin(sh.a) * rg.r;
+      s = rg.s * 3;
+    }
+    const br = Math.max(3, Math.min(W, H) * 0.02 * s);
+    const bg2 = ctx.createRadialGradient(x, y, 0, x, y, br * 2.6);
+    bg2.addColorStop(0, 'rgba(255,255,255,0.95)');
+    bg2.addColorStop(0.4, 'rgba(140,225,255,0.6)');
+    bg2.addColorStop(1, 'rgba(140,225,255,0)');
+    ctx.fillStyle = bg2;
+    ctx.beginPath(); ctx.arc(x, y, br * 2.6, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(x, y, br * 0.55, 0, TAU); ctx.fill();
+    if (!sh.homing) { // wavefront arc hugging the wall at the bolt's depth
+      const rg = ring(sh.z, g);
+      ctx.strokeStyle = 'rgba(140,225,255,0.7)';
+      ctx.lineWidth = Math.max(1.5, 4 * rg.s * 3);
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, rg.r, sh.a - 0.22, sh.a + 0.22); ctx.stroke();
+    }
+  }
 }
 
 // a ready orb tapped: unleash that node's wave from the ring into the deep
@@ -6622,7 +6774,7 @@ function frame(now) {
   if (boss && state !== S.MENU) drawBoss(g);
 
   if (state !== S.MENU) drawNodes(g);
-  if (state !== S.MENU && boss) drawBeam(g);
+  if (state !== S.MENU) drawVolley(g);
 
   // particles + popups (over everything)
   ctx.lineCap = 'round';

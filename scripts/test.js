@@ -104,7 +104,8 @@ code = code.replace("'use strict';", '') + `
   setMenuScreen: v => { menuScreen = v; }, getMenuScreen: () => menuScreen, commCur: () => commCur,
   setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length,
   latches: () => latches, setLatches: v => { latches = v; },
-  spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; }
+  spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; },
+  volley: () => volley, BOSS_CER: () => BOSS_CER
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -145,12 +146,45 @@ check('normal missed when no node covers', en.resolved === true && !en.dead);
 en = G.spawnEnemy(0.1, 'heavy');
 aim(0, Math.PI); aim(1, 0.1);
 cross(en);
-check('heavy survives a single node', en.resolved === true && !en.dead);
+check('heavy armor shrugs off node coverage', en.resolved === true && !en.dead);
 
-en = G.spawnEnemy(0.1, 'heavy');
-aim(0, 0.15); aim(1, 0.05);
-cross(en);
-check('heavy zapped by both nodes together', en.dead === true);
+// the third verb: dock both nodes -> 0.5s charge -> a bolt shoots the armor down
+const vstep = () => { G.setSpawnT(60); G.setIntegrity(100); G.update(0.05); }; // no stray traffic
+G.enemies().length = 0;
+G.volley().cd = 0;
+en = G.spawnEnemy(0.4, 'heavy');
+en.z = 0.95; // inside the bolt's half-tunnel reach
+aim(0, 0.4); aim(1, 0.4); // dock on its lane
+for (let i = 0; i < 30 && !en.dead; i++) vstep();
+check('a charged volley brings the heavy down', en.dead === true);
+G.enemies().length = 0;
+G.volley().cd = 0;
+const comboV = G.stats().combo;
+en = G.spawnEnemy(1.2, 'normal');
+en.z = 1.0;
+aim(0, 1.2); aim(1, 1.2);
+for (let i = 0; i < 40 && !en.dead; i++) vstep();
+check('the volley punches through reds too', en.dead === true);
+check('volley kills pay flat bounty — combo untouched', G.stats().combo === comboV);
+// shooting a node killer REPLICATES it — that'll teach you
+G.enemies().length = 0;
+G.volley().cd = 0;
+en = G.spawnEnemy(2.0, 'frag');
+en.z = 1.0;
+aim(0, 2.0); aim(1, 2.0);
+for (let i = 0; i < 40 && !en.dead; i++) vstep();
+check('shooting a trap replicates it (1 -> 2)',
+  en.dead === true && G.enemies().filter(e => e.type === 'frag' && !e.dead).length === 2);
+G.enemies().length = 0;
+aim(0, 0.5); aim(1, 0.5);
+for (let i = 0; i < 6; i++) vstep(); // charging...
+aim(1, 2.5); // dock broken
+vstep();
+check('breaking the dock aborts the charge', G.volley().charge === 0);
+for (let i = 0; i < 20; i++) vstep(); // let any live bolt spend itself
+G.enemies().length = 0; G.setIntegrity(100);
+G.nodes[0].deadT = G.nodes[1].deadT = 0; // any fry from the drill ends here
+aim(0, Math.PI); aim(1, 0.1);
 
 function makeLine(a1, a2) {
   const before = G.enemies().length;
@@ -585,7 +619,12 @@ function waitLive(maxS) {
 function zapPractice() {
   const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
   if (!pen) return false;
-  if (pen.type === 'heavy') { aim(0, pen.angle + 0.05); aim(1, pen.angle - 0.05); }
+  if (pen.type === 'heavy') { // dock + charge + bolt — the volley drill
+    aim(0, pen.angle); aim(1, pen.angle);
+    pen.z = Math.min(pen.z, 0.9);
+    for (let i = 0; i < 40 && !pen.dead; i++) G.update(0.05);
+    return pen.dead === true;
+  }
   else if (pen.type === 'line') { aim(0, pen.angle); aim(1, pen.partner.angle); }
   else if (pen.lock !== undefined) { aim(pen.lock, pen.angle); aim(1 - pen.lock, pen.angle + Math.PI); }
   else { aim(0, pen.angle); aim(1, pen.angle + Math.PI); }
