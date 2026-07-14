@@ -730,7 +730,7 @@ let warpT = 0;                // warp-dive into a fresh level
 let musicDuck = 0;            // music dips under the end ceremony
 let fadeT = 0;                // universal screen-stitch fade
 const BOOT_LOCK = 1.5;        // the ring rides the tunnel in and docks at this moment
-const BOOT_NODE_ON = [1.75, 2.05]; // each node powers up on its own mark
+const BOOT_NODE_ON = [2.0, 2.3]; // each node's reboot ramp completes on its own mark
 const BOOT_PADS = 2.45;       // systems check: the control consoles arm
 const INTRO_GATE = 3.1;       // the boot holds here until both thumbs are on the pads
 const INTRO_DUR = 3.6;        // boot: LOCK -> NODES -> SYSTEMS -> (thumbs) -> GODSPEED
@@ -791,6 +791,16 @@ function ring(z, g) {
   if (q < 0) q *= 0.4; // gentle opposite parallax for the wall rushing past the ring
   const off = Math.min(W, H) * 0.25;
   return { x: g.cx + g.sw * off * q, y: g.cy + g.swy * off * 0.7 * q, r: g.R0 * s, s };
+}
+
+// boot fly-in: >1 while the node ring is still traveling from the operator's
+// viewpoint into its dock — shared by the ring pass and the node carriages so
+// the whole assembly moves as one piece of hardware
+function bootRingS(g) {
+  if ((state !== S.PLAY && state !== S.PAUSE) || introT >= BOOT_LOCK) return 1;
+  const p = clamp(introT / BOOT_LOCK, 0, 1);
+  const zz = g.hitZ - (g.hitZ + 0.04) * (1 - p * p * (3 - 2 * p));
+  return (g.R0 / (1 + zz * 6)) / g.nodeR;
 }
 
 // ---------- optional sprite skins ----------
@@ -1891,11 +1901,12 @@ function update(dt) {
       tone(90, 0.25, 'sine', 0.24, 40);
       tone(1850, 0.02, 'square', 0.07);
       crackle(0.3, 1100, 240, 1.4, 0.5);
+      crackle(0.9, 160, 1050, 2, 0.26, 0.25); // node capacitors charging through the reboot
       buzz(35);
-    } else if (stageNow === 2) { // SYSTEMS CHECK: radio key + flat double click — consoles armed
-      crackle(0.06, 1500, 2600, 2, 0.3);
-      tone(1250, 0.02, 'square', 0.06, null, null, 0.06);
-      tone(1250, 0.02, 'square', 0.06, null, null, 0.15);
+    } else if (stageNow === 2) { // SYSTEMS CHECK: consoles charge up, then a flat double click
+      crackle(0.45, 200, 1200, 2, 0.3);
+      tone(1250, 0.02, 'square', 0.06, null, null, 0.48);
+      tone(1250, 0.02, 'square', 0.06, null, null, 0.57);
     } else if (stageNow === 4) { // GODSPEED: squelch open, terse double ack, engage
       crackle(0.07, 1300, 2700, 2, 0.4);
       tone(740, 0.05, 'square', 0.09, null, null, 0.08);
@@ -1905,15 +1916,17 @@ function update(dt) {
       commCur = { s: 'CID', m: 'godspeed, defender.' }; commT = 0;
     }
   }
-  // each node powers up on its own mark — relay click, capacitor charge, flash
+  // each node's reboot ramp completes on its own mark — the lens re-forms
+  // exactly like a node-killer recovery: pop, burst, relay click
   if (introPrev < INTRO_DUR) for (let i = 0; i < 2; i++) {
     if (introPrev < BOOT_NODE_ON[i] && introT >= BOOT_NODE_ON[i]) {
       const gI = geo(), railRI = gI.nodeR - Math.min(W, H) * 0.055 * 0.86;
       burst(gI.cx + Math.cos(nodes[i].angle) * railRI, gI.cy + Math.sin(nodes[i].angle) * railRI,
         i === 0 ? '#6fe3ff' : '#ffffff', 16, 4);
+      nodes[i].formAt = introT; // replay the materialize pop
+      nodes[i].formedFx = true;
       tone(1500, 0.014, 'square', 0.05);
-      crackle(0.22, 240, 1500, 2.5, 0.35);
-      tone(215 + i * 45, 0.07, 'square', 0.05, null, null, 0.2);
+      tone(215 + i * 45, 0.07, 'square', 0.05);
       buzz(12);
     }
   }
@@ -3204,6 +3217,13 @@ function drawNodes(g) {
   const railR = g.nodeR - bzn * 0.86;             // carriages ride the rails on the ring's inner face
   const nearR = { x: g.cx, y: g.cy, r: railR };
   const fused = boss && boss.mergeT >= 1;
+  // boot: the carriages fly in mounted on the ring, one piece of hardware
+  const bs0 = bootRingS(g);
+  if (bs0 !== 1) {
+    ctx.save();
+    ctx.translate(g.cx, g.cy); ctx.scale(bs0, bs0); ctx.translate(-g.cx, -g.cy);
+    ctx.globalAlpha = 0.35 + 0.65 * clamp(introT / BOOT_LOCK, 0, 1);
+  }
   for (let i = 0; i < 2; i++) {
     if (fused && i === 1) continue; // one combined cannon carriage
     const n = nodes[i];
@@ -3212,20 +3232,12 @@ function drawNodes(g) {
     const x = nearR.x + Math.cos(n.angle) * rr2;
     const y = nearR.y + Math.sin(n.angle) * rr2;
     const cCol = fused ? '160,240,255' : i === 0 ? '111,227,255' : '255,255,255';
-    const dormant = state !== S.MENU && introT < INTRO_DUR && introT < BOOT_NODE_ON[i]; // pre-activation boot
-    const rb = Math.max(clamp((n.deadT || 0) / 2, 0, 1), dormant ? 1 : 0); // >0: fried / not yet powered
-    // intro: the carriages ride in WITH the ring — hidden until it docks,
-    // then they materialize dormant and wait for their power-on mark
-    if (state === S.PLAY || state === S.PAUSE) {
-      if (introT < BOOT_LOCK) {
-        n.formAt = introT; n.prevA = n.angle;
-        continue;
-      }
-      if (!n.formedFx && introT < INTRO_DUR + 1) {
-        n.formedFx = true;
-        burst(x, y, i === 0 ? '#6fe3ff' : '#ffffff', 10, 3);
-      }
-    }
+    // boot: dark through the flight, then a node-killer-style reboot ramp from
+    // the dock to this node's online mark — same rb drives the same visuals
+    // (amber progress ring, strengthening ember, sputter)
+    const bootRb = state !== S.MENU && introT < INTRO_DUR
+      ? clamp((BOOT_NODE_ON[i] - introT) / (BOOT_NODE_ON[i] - BOOT_LOCK), 0, 1) : 0;
+    const rb = Math.max(clamp((n.deadT || 0) / 2, 0, 1), bootRb); // >0: fried / not yet powered
     const formAge = introT - (n.formAt || 0);
     const eb = t2 => 1 + 2.70158 * Math.pow(t2 - 1, 3) + 1.70158 * Math.pow(t2 - 1, 2); // easeOutBack
     const fscale = formAge < 0.35 ? Math.max(0.01, eb(clamp(formAge / 0.35, 0, 1))) : 1;
@@ -3371,7 +3383,8 @@ function drawNodes(g) {
       ctx.strokeStyle = 'rgba(255,180,80,0.85)';
       ctx.lineWidth = Math.max(1.5, size * 0.12);
       ctx.beginPath(); ctx.arc(0, 0, size * 1.45, -Math.PI / 2, -Math.PI / 2 + (1 - rb) * TAU); ctx.stroke();
-      if (state === S.PLAY && Math.random() < 0.25) {
+      // (no sputter mid-flight: particles live in world space, the ring doesn't yet)
+      if (state === S.PLAY && introT >= BOOT_LOCK && Math.random() < 0.25) {
         const sa2 = Math.random() * TAU;
         particles.push({ x: x + Math.cos(sa2) * size, y: y + Math.sin(sa2) * size,
           vx: Math.cos(sa2) * rand(0.5, 1.5), vy: Math.sin(sa2) * rand(0.5, 1.5),
@@ -3404,6 +3417,7 @@ function drawNodes(g) {
     }
     ctx.restore();
   }
+  if (bs0 !== 1) { ctx.restore(); ctx.globalAlpha = 1; }
   if (settings.controls === 2 && !fused) drawControlArcs(g);
   drawPulseOrbs(g);
 }
@@ -3581,6 +3595,18 @@ function drawDials() {
       continue;
     }
     const col = i === 0 ? '111,227,255' : '255,255,255';
+    // console boot: power sweeps around the ring while the gauge condenses in
+    const pw = booting ? clamp((introT - BOOT_PADS) / 0.45, 0, 1) : 1;
+    if (pw < 1) {
+      ctx.strokeStyle = 'rgba(90,120,160,0.22)';
+      ctx.lineWidth = bz * 0.85;
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU); ctx.stroke();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(${col},0.8)`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, -Math.PI / 2, -Math.PI / 2 + pw * TAU); ctx.stroke();
+      ctx.globalAlpha = 0.15 + 0.85 * pw;
+    }
     const ptr = Object.values(pointers).find(q => q.side === side && q.lastA !== undefined);
     const held = !!ptr;
     ctx.lineCap = 'round';
@@ -3660,7 +3686,9 @@ function drawDials() {
       }
     }
     if (booting && padsLive) {
-      const flash = clamp(1 - (introT - BOOT_PADS) / 0.4, 0, 1); // the check lights it up
+      // the sweep completes, THEN the check lights it up
+      const flash = introT >= BOOT_PADS + 0.45
+        ? clamp(1 - (introT - BOOT_PADS - 0.45) / 0.4, 0, 1) : 0;
       if (flash > 0) {
         ctx.strokeStyle = `rgba(${col},${(flash * 0.8).toFixed(2)})`;
         ctx.lineWidth = 3;
@@ -3722,6 +3750,7 @@ function drawDials() {
       const bs2 = 7;
       ctx.fillRect(bx2 - bs2 / 2, by2 - bs2 / 2, bs2, bs2);
     }
+    ctx.globalAlpha = 1; // boot condense-in ends with this console
   }
 }
 
@@ -5941,12 +5970,9 @@ function frame(now) {
   // the tunnel, braking into the dock — perspective-true (the same 1/(1+6z)
   // law as the traffic), so it reads as deploying hardware, not a UI transition
   const bootRing = (state === S.PLAY || state === S.PAUSE) && introT < INTRO_DUR + 1;
-  let ringS = 1;
+  const ringS = bootRingS(g);
   if (bootRing && introT < BOOT_LOCK) {
     const p = clamp(introT / BOOT_LOCK, 0, 1);
-    // smoothstep on z: hangs big near the eye, sweeps out, brakes into the dock
-    const zz = g.hitZ - (g.hitZ + 0.04) * (1 - p * p * (3 - 2 * p)); // starts just behind the eye (z<0)
-    ringS = (g.R0 / (1 + zz * 6)) / g.nodeR;
     // dock markers wait at the rim: hairline target circle + four braces
     const ba = 0.5 + 0.4 * p;
     ctx.setLineDash([3, 9]);
