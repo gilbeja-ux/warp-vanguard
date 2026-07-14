@@ -2405,7 +2405,9 @@ function update(dt) {
   for (const wv of pulseWaves) {
     wv.z += dt * 1.6;
     for (const en of enemies) {
-      if (en.dead || en.resolved || en.type === 'frag') continue;
+      // never purge payloads or the golden bonus ribbon — the wave that the
+      // ribbon itself charged shouldn't eat the next one
+      if (en.dead || en.resolved || en.type === 'frag' || en.type === 'strip') continue;
       if (en.z <= wv.z) {
         en.dead = true;
         if (en.partner) en.partner.dead = true;
@@ -3222,23 +3224,45 @@ function drawLatches(g, bz) {
         // piece reaches the ring — a tapering tongue whose shape IS the timer,
         // matching the rim arc exactly as it feeds through
         const wAt = z => lt.span0 * clamp(1 - (lt.t + (z - g.hitZ) / v2 - lt.tele) / lt.dur, 0, 1);
-        const segs = 16;
-        for (let s2 = 0; s2 < segs; s2++) {
+        const segs = 14, sw = 0.11, DIAG = 1.7; // stripe width + diagonal shear
+        const slice = s2 => {
           const sz0 = zA + (zB - zA) * s2 / segs;
           const sz1 = zA + (zB - zA) * (s2 + 1) / segs;
           const zMid = (sz0 + sz1) / 2;
           const hw = wAt(zMid) * 0.94;
-          if (hw <= 0.006) continue;
           const al = fadeIn * clamp((SPAWN_Z - 0.05 - sz0) / 0.35, 0, 1);
-          if (al < 0.02) continue;
-          // hazard rungs anchored to the carpet body — they ride in WITH it
-          const rung = Math.floor((tailZ - zMid) / len * 12) % 2 === 0;
-          wallPatch(g, lt.a, hw, sz0, sz1 + 0.004,
-            rung ? 'rgba(255,145,40,1)' : 'rgba(80,30,10,1)', (rung ? 0.55 : 0.5) * al);
+          return { sz0, sz1, zMid, hw, al };
+        };
+        // pass A — a dark decal bed MULTIPLIED into the wall, so the tunnel's
+        // own texture keeps showing through: laid ON the surface, not floating
+        ctx.globalCompositeOperation = 'multiply';
+        for (let s2 = 0; s2 < segs; s2++) {
+          const sl = slice(s2);
+          if (sl.hw <= 0.006 || sl.al < 0.02) continue;
+          wallPatch(g, lt.a, sl.hw, sl.sz0, sl.sz1 + 0.006, 'rgba(60,32,18,1)', sl.al * 0.85);
+        }
+        // pass B — glowing DIAGONAL hazard stripes, additive, glued to the
+        // carpet body (the shear phase rides the tail, so they stream in with it)
+        ctx.globalCompositeOperation = 'lighter';
+        for (let s2 = 0; s2 < segs; s2++) {
+          const sl = slice(s2);
+          if (sl.hw <= 0.006 || sl.al < 0.02) continue;
+          const phase = (tailZ - sl.zMid) / len * DIAG;
+          const kMin = Math.floor((-sl.hw + phase) / sw) - 1;
+          const kMax = Math.floor((sl.hw + phase) / sw) + 1;
+          for (let k2 = kMin; k2 <= kMax; k2++) {
+            if (((k2 % 2) + 2) % 2) continue; // orange stripes only — the bed is the black
+            const c0 = Math.max(-sl.hw, k2 * sw - phase);
+            const c1 = Math.min(sl.hw, (k2 + 1) * sw - phase);
+            if (c1 <= c0 + 0.003) continue;
+            wallPatch(g, lt.a + (c0 + c1) / 2, (c1 - c0) / 2, sl.sz0, sl.sz1 + 0.004,
+              'rgba(255,120,30,1)', sl.al * 0.38);
+          }
           for (const s3 of [-1, 1]) { // bright edge rails — a bordered hazard zone
-            wallPatch(g, lt.a + s3 * hw, 0.012, sz0, sz1 + 0.004, 'rgba(255,200,120,1)', 0.5 * al);
+            wallPatch(g, lt.a + s3 * sl.hw, 0.012, sl.sz0, sl.sz1 + 0.004, 'rgba(255,170,90,1)', sl.al * 0.45);
           }
         }
+        ctx.globalCompositeOperation = 'source-over';
         if (headZ > g.hitZ) { // white-hot leading edge, until it docks
           const rgF = ring(Math.max(headZ, 0.02), g);
           const hwF = wAt(headZ);
