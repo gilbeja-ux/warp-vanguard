@@ -148,31 +148,45 @@ aim(0, Math.PI); aim(1, 0.1);
 cross(en);
 check('heavy armor shrugs off node coverage', en.resolved === true && !en.dead);
 
-// the third verb: dock both nodes -> 0.5s charge -> a bolt shoots the armor down
+// the third verb: dock both nodes, HOLD to charge (hold time = range), SPLIT to fire
 const vstep = () => { G.setSpawnT(60); G.setIntegrity(100); G.update(0.05); }; // no stray traffic
+function volleyShot(a, holdFrames) { // dock on a lane, hold, split
+  G.volley().cd = 0;
+  aim(0, a); aim(1, a);
+  for (let i = 0; i < holdFrames; i++) vstep();
+  aim(1, a + Math.PI); // split fires
+  vstep();
+}
 G.enemies().length = 0;
-G.volley().cd = 0;
 en = G.spawnEnemy(0.4, 'heavy');
-en.z = 0.95; // inside the bolt's half-tunnel reach
-aim(0, 0.4); aim(1, 0.4); // dock on its lane
-for (let i = 0; i < 30 && !en.dead; i++) vstep();
-check('a charged volley brings the heavy down', en.dead === true);
+en.z = 0.95; // inside a half-second bolt's reach
+volleyShot(0.4, 12);
+for (let i = 0; i < 20 && !en.dead; i++) vstep();
+check('dock-hold-split brings the heavy down', en.dead === true);
+// hold time buys range: a half shot dies short of the horizon, a full one reaches it
 G.enemies().length = 0;
-G.volley().cd = 0;
+en = G.spawnEnemy(0.9, 'heavy');
+en.z = 1.7; en.speedMul = 0; // parked deep
+volleyShot(0.9, 12); // ~0.6s hold — halfway shot
+for (let i = 0; i < 20; i++) vstep();
+check('a short hold dies short of deep targets', !en.dead);
+volleyShot(0.9, 22); // ~1.1s hold — full-tunnel shot
+for (let i = 0; i < 25 && !en.dead; i++) vstep();
+check('a full hold reaches the horizon', en.dead === true);
+G.enemies().length = 0;
 const comboV = G.stats().combo;
 en = G.spawnEnemy(1.2, 'normal');
 en.z = 1.0;
-aim(0, 1.2); aim(1, 1.2);
-for (let i = 0; i < 40 && !en.dead; i++) vstep();
+volleyShot(1.2, 12);
+for (let i = 0; i < 25 && !en.dead; i++) vstep();
 check('the volley punches through reds too', en.dead === true);
 check('volley kills pay flat bounty — combo untouched', G.stats().combo === comboV);
 // shooting a node killer REPLICATES it — that'll teach you
 G.enemies().length = 0;
-G.volley().cd = 0;
 en = G.spawnEnemy(2.0, 'frag');
 en.z = 1.0;
-aim(0, 2.0); aim(1, 2.0);
-for (let i = 0; i < 40 && !en.dead; i++) vstep();
+volleyShot(2.0, 12);
+for (let i = 0; i < 25 && !en.dead; i++) vstep();
 check('shooting a trap replicates it (1 -> 2)',
   en.dead === true && G.enemies().filter(e => e.type === 'frag' && !e.dead).length === 2);
 // keyed work stays keyed: the bolt ignores barrier pairs and color locks
@@ -184,13 +198,12 @@ G.volley().cd = 0;
   const pr = G.enemies().slice(before);
   pr[0].angle = 0.8; pr[1].angle = 1.6; pr[0].z = pr[1].z = 1.25; // in bolt reach, far from the rim
   const lk = G.spawnEnemy(2.6, 'normal'); lk.lock = 0; lk.z = 1.25;
-  aim(0, 0.8); aim(1, 0.8); // dock on one barrier end
-  for (let i = 0; i < 22; i++) vstep();
+  volleyShot(0.8, 12); // fire down one barrier end's lane
+  for (let i = 0; i < 12; i++) vstep();
   check('the bolt passes barrier pairs untouched', !pr[0].dead && !pr[1].dead);
-  G.volley().cd = 0;
   lk.z = 1.0; // in the bolt's path, still well short of the rim
-  aim(0, 2.6); aim(1, 2.6); // dock on the locked tap's lane
-  for (let i = 0; i < 14; i++) vstep();
+  volleyShot(2.6, 12); // fire down the locked tap's lane
+  for (let i = 0; i < 10; i++) vstep();
   check('the bolt passes color-locked taps untouched', !lk.dead);
   G.enemies().length = 0;
   aim(0, Math.PI); aim(1, 0.1); // undock and let any live bolt spend itself
@@ -198,11 +211,14 @@ G.volley().cd = 0;
   G.enemies().length = 0;
 }
 G.enemies().length = 0;
+G.volley().cd = 0;
+en = G.spawnEnemy(0.5, 'normal'); en.z = 0.8;
 aim(0, 0.5); aim(1, 0.5);
-for (let i = 0; i < 6; i++) vstep(); // charging...
-aim(1, 2.5); // dock broken
+for (let i = 0; i < 6; i++) vstep(); // 0.3s — under the ARMED threshold
+aim(1, 2.5); // split too early
 vstep();
-check('breaking the dock aborts the charge', G.volley().charge === 0);
+check('splitting before ARMED fizzles — no bolt', G.volley().charge === 0 && !en.dead);
+G.enemies().length = 0;
 for (let i = 0; i < 20; i++) vstep(); // let any live bolt spend itself
 G.enemies().length = 0; G.setIntegrity(100);
 G.nodes[0].deadT = G.nodes[1].deadT = 0; // any fry from the drill ends here
@@ -225,13 +241,14 @@ aim(0, 2.0); aim(1, 1.0);
 cross(e1);
 check('line zapped with swapped node assignment', e1.dead && e2.dead);
 
+const missBase = G.stats().misses;
 [e1, e2] = makeLine(1.0, 2.0);
 aim(0, 1.0); aim(1, 1.05);
 cross(e1);
 check('line survives both nodes on one end', e1.resolved && e2.resolved && !e1.dead && !e2.dead);
 
 const s = G.stats();
-check('line miss counts as ONE miss for the pair', s.misses === 3);
+check('line miss counts as ONE miss for the pair', s.misses === missBase + 1);
 
 // ================= draw smoke tests =================
 function drawOk(name, setup) {
@@ -445,7 +462,9 @@ function bossBolt() {
   G.volley().cd = 0;
   aim(0, 1.0); aim(1, 1.0); // dock
   const hp0 = b.hp;
-  for (let i = 0; i < 60 && b.hp === hp0 && b.hp > 0; i++) {
+  for (let i = 0; i < 14; i++) { G.setIntegrity(100); b.shots.length = 0; b.latchT = 99; G.update(0.05); }
+  aim(1, 1.0 + Math.PI); // SPLIT to fire
+  for (let i = 0; i < 40 && b.hp === hp0 && b.hp > 0; i++) {
     G.setIntegrity(100); b.shots.length = 0; b.latchT = 99; G.update(0.05);
   }
   return hp0 - b.hp;
@@ -628,10 +647,12 @@ function waitLive(maxS) {
 function zapPractice() {
   const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
   if (!pen) return false;
-  if (pen.type === 'heavy') { // dock + charge + bolt — the volley drill
+  if (pen.type === 'heavy') { // dock + hold + SPLIT — the volley drill
     aim(0, pen.angle); aim(1, pen.angle);
     pen.z = Math.min(pen.z, 0.9);
-    for (let i = 0; i < 40 && !pen.dead; i++) G.update(0.05);
+    for (let i = 0; i < 14; i++) G.update(0.05); // hold to ARMED
+    aim(1, pen.angle + Math.PI); // split fires
+    for (let i = 0; i < 30 && !pen.dead; i++) G.update(0.05);
     return pen.dead === true;
   }
   else if (pen.type === 'line') { aim(0, pen.angle); aim(1, pen.partner.angle); }

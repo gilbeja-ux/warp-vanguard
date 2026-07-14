@@ -654,7 +654,7 @@ function drawWallCode(g, dt) {
 const LEVELS = [
   { name: 'OMNISERVE CAMPUS', duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0 },
   { name: 'OLD TOWN GRID',   duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
-    hint: 'NEW THREAT: heavy armor — DOCK both nodes, charge, fire' },
+    hint: 'NEW THREAT: heavy armor — dock, hold, SPLIT to fire' },
   { name: 'METRO EXCHANGE', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
     hint: 'NEW THREAT: burst transmissions — traps arrive in volleys' },
   { name: 'HARBOR CROSSING', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
@@ -1790,7 +1790,7 @@ const QUAL = [
 const INFO_CARDS = {
   move:   { title: 'DUAL NODES', lines: ['Left thumb steers the BLUE node,', 'right thumb steers the WHITE node.', 'Slide around the dials to ride the ring.'] },
   normal: { title: 'DATA TAP', lines: ['A siphon latched through the wall,', 'bleeding the stream. Align ANY node', 'as it crosses the ring. Center = ×2.'] },
-  heavy:  { title: 'ARMORED TAP', lines: ['No zap breaks its seal. DOCK both', 'nodes on its lane and HOLD — the', 'charge fires a bolt that shoots it', 'down before it lands.'] },
+  heavy:  { title: 'ARMORED TAP', lines: ['No zap breaks its seal. DOCK both', 'nodes on its lane, HOLD to charge,', 'and SPLIT to fire — a longer hold', 'throws the bolt deeper.'] },
   line:   { title: 'BARRIER TAPS', lines: ['Two taps tearing the wall open', 'between them. Cover BOTH ends —', 'one node on each.'] },
   lock:   { title: 'KEYED TAP', lines: ['Sealed to a single node. Only the', 'MATCHING color can break it —', 'watch the orbiting key.'] },
   frag:   { title: 'NODE KILLER', lines: ['A black trap the intruder left', 'in the stream. Touching it FRIES', 'your node for 2 seconds — let it', 'pass and bank the bonus.'] },
@@ -1799,7 +1799,7 @@ const INFO_CARDS = {
   wall:   { title: 'RIM WALL', lines: ['They chain their traps now: a wall', 'seizes part of your rail, then burns', 'off within seconds. Crossing it', 'FRIES the node — route the other way.'] },
   verdict: { title: 'LOG 09 — VERDICT', lines: ['The gateway burned. The payload', 'reached the CID intact. Warrants', 'went out within the hour — the', 'buyer wore a badge. Case closed.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Combo zaps bank charge in your pads.', 'When an orb GLOWS, tap it to fire', 'a purge wave down the tunnel.'] },
-  boss:   { title: 'FIREWALL CORE', lines: ['The dials stay YOURS. Dock both', 'nodes to charge — the bolt homes on', 'the core. SIX hits close the case.', 'Dodge its darts. Mind the latches.'] }
+  boss:   { title: 'FIREWALL CORE', lines: ['The dials stay YOURS. Dock both', 'nodes, hold, SPLIT — the bolt homes', 'on the core. SIX hits close the', 'case. Dodge darts. Mind the latches.'] }
 };
 // ---------- the investigation ----------
 // campaign narrative: you guard the fiber between A and B. Something is
@@ -2162,17 +2162,22 @@ function update(dt) {
   // for half a second — the charge — then a focused bolt fires straight into
   // the bore. In the duel the bolt homes on the core instead.
   volley.cd = Math.max(0, volley.cd - dt);
-  const docked = state === S.PLAY && !inIntro
-    && !(nodes[0].deadT > 0) && !(nodes[1].deadT > 0)
+  const bothAlive = !(nodes[0].deadT > 0) && !(nodes[1].deadT > 0);
+  const docked = state === S.PLAY && !inIntro && bothAlive
     && !(boss && (boss.introT < BOSS_CER || boss.dying !== undefined))
     && Math.abs(angDiff(nodes[0].angle, nodes[1].angle)) < 0.26;
   if (docked && volley.cd <= 0) {
     if (volley.charge === 0) { crackle(0.5, 300, 2200, 2, 0.28); buzz(8); } // capacitor whine
-    volley.charge = Math.min(1, volley.charge + dt / 0.5);
-    if (volley.charge >= 1) fireVolley(g);
-  } else {
-    if (volley.charge > 0.25) tone(600, 0.08, 'sine', 0.04, 380); // fizzle — dock broken
-    volley.charge = 0;
+    const was = volley.charge;
+    volley.charge = Math.min(1, volley.charge + dt); // seconds held, capped at a full-tunnel shot
+    // the shot goes where you AIMED while docked — not where the split threw the nodes
+    volley.aimA = nodes[0].angle + angDiff(nodes[1].angle, nodes[0].angle) / 2;
+    if (was < 0.5 && volley.charge >= 0.5) { tone(1568, 0.05, 'square', 0.07); buzz(10); } // ARMED click
+  } else if (volley.charge > 0) {
+    // RELEASE fires: the hold bought the range — 0.5s reaches halfway, a full
+    // second reaches the horizon. Splitting early just fizzles the charge.
+    if (volley.charge >= 0.5 && bothAlive && state === S.PLAY && !inIntro) fireVolley(g);
+    else { tone(600, 0.08, 'sine', 0.04, 380); volley.charge = 0; }
   }
   for (const sh of volley.shots) {
     if (sh.dead) continue;
@@ -2183,7 +2188,7 @@ function update(dt) {
       continue;
     }
     sh.z += dt * 2.4;
-    if (sh.z > 1.05) { sh.dead = true; continue; } // spent — halfway down the bore
+    if (sh.z > (sh.reach || 1.05)) { sh.dead = true; continue; } // spent — as deep as the hold paid for
     for (const en of enemies) {
       if (en.dead || en.resolved || en.failed || en.type === 'strip') continue;
       // the bolt only answers to SINGLE plain reds and heavy armor — barrier
@@ -3696,7 +3701,7 @@ function drawBoss(g) {
     ctx.shadowBlur = 0;
     ctx.font = '600 11px Audiowide, system-ui';
     ctx.fillStyle = 'rgba(234,184,255,0.85)';
-    ctx.fillText('DOCK BOTH NODES TO CHARGE — SIX BOLTS CLOSE THE CASE', W / 2, H * 0.24 + 22);
+    ctx.fillText('DOCK — HOLD — SPLIT TO FIRE. SIX BOLTS CLOSE THE CASE', W / 2, H * 0.24 + 22);
     ctx.restore();
   }
   // DEATH: the implosion lets go — shockwaves and a white world-flash
@@ -3990,10 +3995,12 @@ function drawNodes(g) {
 
 // the unite-volley releases: a focused bolt from the docked nodes
 function fireVolley(g) {
+  const reach = Math.min(SPAWN_Z, SPAWN_Z * volley.charge); // hold time IS the range
   volley.charge = 0;
   volley.cd = 1.25; // re-charge gap — shooting crowds is worse than zapping them
-  const a = nodes[0].angle + angDiff(nodes[1].angle, nodes[0].angle) / 2;
-  const sh = { a, z: g.hitZ, dead: false };
+  const a = volley.aimA !== undefined ? volley.aimA
+    : nodes[0].angle + angDiff(nodes[1].angle, nodes[0].angle) / 2;
+  const sh = { a, z: g.hitZ, reach, dead: false };
   if (boss && boss.introT >= BOSS_CER && boss.dying === undefined) {
     sh.homing = true; sh.t = 0; // the duel bolt hunts the core itself
     const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
@@ -4014,18 +4021,29 @@ function drawVolley(g) {
   if (volley.charge > 0.02) {
     const a = nodes[0].angle + angDiff(nodes[1].angle, nodes[0].angle) / 2;
     const q = volley.charge;
+    const armed = q >= 0.5; // half a second buys the halfway shot; keep holding for range
     const hx = g.cx + Math.cos(a) * g.nodeR, hy = g.cy + Math.sin(a) * g.nodeR;
-    const cr = Math.min(W, H) * 0.05 * (0.4 + q);
+    const cr = Math.min(W, H) * 0.05 * (0.4 + q * 0.6);
     const cg2 = ctx.createRadialGradient(hx, hy, 0, hx, hy, cr);
     cg2.addColorStop(0, `rgba(255,255,255,${(0.35 + q * 0.6).toFixed(2)})`);
     cg2.addColorStop(0.45, `rgba(140,225,255,${(0.3 + q * 0.4).toFixed(2)})`);
     cg2.addColorStop(1, 'rgba(140,225,255,0)');
     ctx.fillStyle = cg2;
     ctx.beginPath(); ctx.arc(hx, hy, cr, 0, TAU); ctx.fill();
-    // charge ring filling around the dock point
-    ctx.strokeStyle = `rgba(255,255,255,${(0.5 + q * 0.4).toFixed(2)})`;
-    ctx.lineWidth = 2.5;
+    // charge ring: fills over a full second; snaps bright once ARMED
+    ctx.strokeStyle = armed
+      ? `rgba(255,255,255,${(0.75 + Math.sin(time * 9) * 0.2).toFixed(2)})`
+      : 'rgba(200,240,255,0.45)';
+    ctx.lineWidth = armed ? 3 : 2.5;
     ctx.beginPath(); ctx.arc(hx, hy, cr * 0.8, -Math.PI / 2, -Math.PI / 2 + q * TAU); ctx.stroke();
+    if (armed) { // reach preview: the dashed line is where this bolt will die
+      const rgR = ring(Math.min(SPAWN_Z - 0.05, SPAWN_Z * q), g);
+      ctx.setLineDash([4, 7]);
+      ctx.strokeStyle = 'rgba(140,225,255,0.6)';
+      ctx.lineWidth = Math.max(1.2, 2.5 * rgR.s * 3);
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, rgR.r, a - 0.3, a + 0.3); ctx.stroke();
+      ctx.setLineDash([]);
+    }
     if (Math.random() < q * 0.7) burst(hx, hy, '#8fe0ff', 2, 2.5); // gathering sparks
   }
   for (const sh of volley.shots) {
@@ -4826,7 +4844,7 @@ function drawHUD(g) {
     let msg = null;
     if (st.card === 'move') msg = 'Slide BOTH thumbs around the dials';
     else if (tut.spawned === 'normal') msg = 'Align a node with the trap';
-    else if (tut.spawned === 'heavy') msg = 'DOCK both nodes on its lane and HOLD — the charge fires itself';
+    else if (tut.spawned === 'heavy') msg = 'DOCK both nodes on its lane, HOLD, then SPLIT to fire';
     else if (tut.spawned === 'line') msg = 'One node on EACH end of the wall';
     else if (tut.spawned === 'lock0') msg = 'Only the BLUE node can break this one';
     else if (tut.spawned === 'lock1') msg = 'Only the WHITE node can break this one';

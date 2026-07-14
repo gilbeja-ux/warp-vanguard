@@ -45,7 +45,7 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 > Someone wants the evidence gone.
 > The CID opens a case file.
 
-*Hint: NEW THREAT: heavy armor — DOCK both nodes, charge, fire*
+*Hint: NEW THREAT: heavy armor — dock, hold, SPLIT to fire*
 
 **Comms**
 - `t=6` **TRACE**: tap signatures match. one operator.
