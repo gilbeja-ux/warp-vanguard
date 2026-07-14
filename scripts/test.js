@@ -150,11 +150,11 @@ check('heavy armor shrugs off node coverage', en.resolved === true && !en.dead);
 
 // the third verb: dock both nodes, HOLD to charge (hold time = range), SPLIT to fire
 const vstep = () => { G.setSpawnT(60); G.setIntegrity(100); G.update(0.05); }; // no stray traffic
-function volleyShot(a, holdFrames) { // dock on a lane, hold, split
+function volleyShot(a, holdFrames) { // dock on a lane and hold — it fires itself
   G.volley().cd = 0;
   aim(0, a); aim(1, a);
   for (let i = 0; i < holdFrames; i++) vstep();
-  aim(1, a + Math.PI); // split fires
+  aim(1, a + Math.PI); // undock afterwards
   vstep();
 }
 G.enemies().length = 0;
@@ -162,17 +162,14 @@ en = G.spawnEnemy(0.4, 'heavy');
 en.z = 0.95; // inside a half-second bolt's reach
 volleyShot(0.4, 12);
 for (let i = 0; i < 20 && !en.dead; i++) vstep();
-check('dock-hold-split brings the heavy down', en.dead === true);
-// hold time buys range: a half shot dies short of the horizon, a full one reaches it
+check('dock-and-hold brings the heavy down', en.dead === true);
+// the bolt runs the whole tunnel
 G.enemies().length = 0;
 en = G.spawnEnemy(0.9, 'heavy');
-en.z = 1.7; en.speedMul = 0; // parked deep
-volleyShot(0.9, 12); // ~0.6s hold — halfway shot
-for (let i = 0; i < 20; i++) vstep();
-check('a short hold dies short of deep targets', !en.dead);
-volleyShot(0.9, 22); // ~1.1s hold — full-tunnel shot
+en.z = 1.8; en.speedMul = 0; // parked at the horizon
+volleyShot(0.9, 12);
 for (let i = 0; i < 25 && !en.dead; i++) vstep();
-check('a full hold reaches the horizon', en.dead === true);
+check('the bolt reaches the horizon', en.dead === true);
 G.enemies().length = 0;
 const comboV = G.stats().combo;
 en = G.spawnEnemy(1.2, 'normal');
@@ -215,21 +212,21 @@ G.volley().cd = 0;
 en = G.spawnEnemy(0.5, 'normal'); en.z = 0.8;
 aim(0, 0.5); aim(1, 0.5);
 for (let i = 0; i < 6; i++) vstep(); // 0.3s — under the ARMED threshold
-aim(1, 2.5); // split too early
+aim(1, 2.5); // split before the charge completes
 vstep();
-check('splitting before ARMED fizzles — no bolt', G.volley().charge === 0 && !en.dead);
+check('breaking the dock early fizzles — no bolt', G.volley().charge === 0 && !en.dead);
 G.enemies().length = 0;
-// thumb jitter must never fire an armed charge — only a decisive split does
+// thumb jitter inside the hysteresis band must not reset the charge
 G.volley().cd = 0;
 aim(0, 0.5); aim(1, 0.5);
-for (let i = 0; i < 13; i++) vstep(); // armed
-aim(1, 0.5 + 0.35); // wobble past the dock-in threshold but inside the release gap
-for (let i = 0; i < 4; i++) vstep();
-check('jitter inside the hysteresis band holds the charge', G.volley().charge > 0.5 && G.volley().shots.length === 0);
-aim(1, 0.5 + Math.PI); // the decisive split
-vstep();
-check('a decisive split fires it', G.volley().shots.length === 1);
-for (let i = 0; i < 12; i++) vstep(); // spend the bolt
+for (let i = 0; i < 5; i++) vstep(); // charging
+aim(1, 0.5 + 0.35); // wobble past dock-in threshold but inside the release band
+for (let i = 0; i < 3; i++) vstep();
+check('jitter inside the hysteresis band keeps charging', G.volley().charge > 0.25);
+for (let i = 0; i < 6; i++) vstep();
+check('the completed charge fires on its own', G.volley().shots.length === 1);
+for (let i = 0; i < 14; i++) vstep(); // spend the bolt
+aim(0, Math.PI); aim(1, 0.1);
 G.enemies().length = 0;
 for (let i = 0; i < 20; i++) vstep(); // let any live bolt spend itself
 G.enemies().length = 0; G.setIntegrity(100);
@@ -472,13 +469,13 @@ check('the dials never change hands — no fuse', G.boss().mergeT === 0);
 function bossBolt() {
   const b = G.boss();
   G.volley().cd = 0;
-  aim(0, 1.0); aim(1, 1.0); // dock
+  aim(0, 1.0); aim(1, 1.0); // dock and hold — the charge fires itself
   const hp0 = b.hp;
-  for (let i = 0; i < 14; i++) { G.setIntegrity(100); b.shots.length = 0; b.latchT = 99; G.update(0.05); }
-  aim(1, 1.0 + Math.PI); // SPLIT to fire
-  for (let i = 0; i < 40 && b.hp === hp0 && b.hp > 0; i++) {
+  for (let i = 0; i < 60 && b.hp === hp0 && b.hp > 0; i++) {
     G.setIntegrity(100); b.shots.length = 0; b.latchT = 99; G.update(0.05);
   }
+  aim(1, 1.0 + Math.PI); // undock between bolts
+  G.update(0.05);
   return hp0 - b.hp;
 }
 check('a docked charge launches a homing bolt into the core', bossBolt() === 1);
@@ -659,12 +656,10 @@ function waitLive(maxS) {
 function zapPractice() {
   const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
   if (!pen) return false;
-  if (pen.type === 'heavy') { // dock + hold + SPLIT — the volley drill
+  if (pen.type === 'heavy') { // dock and hold — the volley drill
     aim(0, pen.angle); aim(1, pen.angle);
     pen.z = Math.min(pen.z, 0.9);
-    for (let i = 0; i < 14; i++) G.update(0.05); // hold to ARMED
-    aim(1, pen.angle + Math.PI); // split fires
-    for (let i = 0; i < 30 && !pen.dead; i++) G.update(0.05);
+    for (let i = 0; i < 40 && !pen.dead; i++) G.update(0.05);
     return pen.dead === true;
   }
   else if (pen.type === 'line') { aim(0, pen.angle); aim(1, pen.partner.angle); }
