@@ -102,7 +102,8 @@ code = code.replace("'use strict';", '') + `
   stripAngle, startDaily, isDaily: () => daily, getPulse: () => pulseCharge,
   getShield: () => shieldCharge, setShield: v => { shieldCharge = v; },
   setMenuScreen: v => { menuScreen = v; }, getMenuScreen: () => menuScreen, commCur: () => commCur,
-  setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length
+  setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length,
+  latches: () => latches, setLatches: v => { latches = v; }
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -428,6 +429,27 @@ B2.shootT = 99;
 const hpMe2 = G.stats().integrity;
 for (let i = 0; i < 60 && B2.shots.length; i++) G.update(0.05); // stand still
 check('standing still takes the hit', hpMe2 - G.stats().integrity >= 9);
+// rail latches — the core clamps the ring; crossing the orange arc fries the cannon
+B2.shots.length = 0; B2.shootT = 99; B2.latchT = 99; // quiet lane for the latch checks
+aim(0, 1.0); aim(1, 1.0);
+G.setLatches([{ a: 2.4, span0: 0.5, t: 0.3, dur: 3 }]); // far from the cannon
+G.update(0.05);
+check('a latch across the ring leaves a distant cannon alone', !(G.nodes[0].deadT > 0));
+aim(0, 2.4); aim(1, 2.4); // slide INTO the clamp
+G.update(0.05);
+check('crossing a latch fries the cannon (node-killer style)', G.nodes[0].deadT > 0);
+G.keys['ArrowUp'] = true;
+const hpLatch = G.boss().hp;
+for (let i = 0; i < 6; i++) { aimBeam(); G.setIntegrity(100); G.update(0.05); }
+check('a fried cannon cannot fire the beam', Math.abs(G.boss().hp - hpLatch) < 1e-9);
+G.keys['ArrowUp'] = false;
+for (let i = 0; i < 70; i++) { G.setIntegrity(100); B2.shootT = 99; B2.latchT = 99; G.update(0.05); } // reboot + burn-off
+check('the latch burns away within 3s', G.latches().length === 0);
+check('the cannon reboots after the fry', !(G.nodes[0].deadT > 0));
+B2.latchT = 0.01; // the core throws a grapple on its own
+G.update(0.05);
+check('the core fires latch grapples', B2.shots.some(sh => sh.latch === true));
+B2.shots.length = 0; B2.latchT = 99;
 // finish it
 G.keys['ArrowUp'] = true;
 G.boss().hp = 2;
