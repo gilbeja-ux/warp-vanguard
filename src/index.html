@@ -3202,7 +3202,9 @@ function drawBoss(g) {
     const p = posAt(k), p2 = posAt(Math.min(1, k + 0.05));
     const dirA = Math.atan2(p2.y - p.y, p2.x - p.x); // it flies point-first
     const os = Math.min(W, H) * 0.055 * p.s;
-    const oc = sh.latch ? '255,154,60' : '212,101,255'; // grapples burn orange
+    // grapples burn orange; darts are threat-red, glitching violet for a frame
+    const oc = sh.latch ? '255,154,60'
+      : Math.sin(time * 11 + sh.th * 5.7) > 0.86 ? '212,101,255' : '255,60,90';
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(dirA);
@@ -3257,6 +3259,10 @@ function drawBoss(g) {
   // erratic: the whole body twitches a frame when it tears — it can't quite
   // hold its position in the stream
   if (tear) ctx.translate(Math.sin(time * 51 + seed) * size * 0.08, Math.cos(time * 47) * size * 0.05);
+  // red-dominant livery to match the eye — the purple survives only as
+  // GLITCHES: parts flicker back to firewall violet for a frame, far more
+  // often while the body is tearing
+  const gCol = ph => Math.sin(time * 11 + ph * 5.7) > (tear ? 0.45 : 0.86) ? '212,101,255' : '255,60,90';
   // it EATS light — the tunnel dims around it before anything is drawn
   const dk = ctx.createRadialGradient(0, 0, size * 0.5, 0, 0, size * 3.1);
   dk.addColorStop(0, 'rgba(2,1,8,0.8)');
@@ -3272,7 +3278,7 @@ function drawBoss(g) {
     const al = Math.sin(ph * Math.PI) * (0.3 + dmg * 0.2) * haze;
     if (al < 0.02) continue;
     const a0 = i * 2.39 + b.spin * 0.7 + ph * 2.2;
-    ctx.strokeStyle = i % 4 === 0 ? `rgba(255,80,100,${al.toFixed(2)})` : `rgba(190,120,255,${al.toFixed(2)})`;
+    ctx.strokeStyle = `rgba(${gCol(i)},${al.toFixed(2)})`;
     ctx.lineWidth = Math.max(1, size * 0.035 * (1 - ph * 0.5));
     ctx.beginPath(); ctx.arc(0, 0, size * lerp(2.9, 0.78, ph), a0, a0 + 0.55 + ph * 0.5); ctx.stroke();
   }
@@ -3290,7 +3296,7 @@ function drawBoss(g) {
       ctx.translate(Math.cos(a0) * size * rr, Math.sin(a0) * size * rr);
       ctx.rotate(a0 + Math.PI / 2);
       ctx.fillStyle = `rgba(8,4,16,${(0.92 * alMul).toFixed(2)})`;
-      ctx.strokeStyle = `rgba(212,101,255,${((0.5 + flash * 0.5) * alMul).toFixed(2)})`;
+      ctx.strokeStyle = `rgba(${gCol(k * 1.7 + dir)},${((0.5 + flash * 0.5) * alMul).toFixed(2)})`;
       ctx.lineWidth = Math.max(1, size * 0.03);
       ctx.beginPath(); // an angular shard of hull, not a neat tile
       ctx.moveTo(-size * 0.30, 0);
@@ -3310,9 +3316,9 @@ function drawBoss(g) {
   sph.addColorStop(1, 'rgba(3,1,8,1)');
   ctx.fillStyle = sph;
   ctx.beginPath(); ctx.arc(0, 0, size * 0.95, 0, TAU); ctx.fill();
-  // event-horizon rim: cold violet catch above, threat-red underglow below
+  // event-horizon rim: hot crimson catch above (glitching violet), red below
   ctx.lineWidth = Math.max(1.5, size * 0.05);
-  ctx.strokeStyle = `rgba(212,101,255,${(0.55 + flash * 0.45).toFixed(2)})`;
+  ctx.strokeStyle = `rgba(${gCol(2.4)},${(0.55 + flash * 0.45).toFixed(2)})`;
   ctx.beginPath(); ctx.arc(0, 0, size * 0.95, Math.PI * 0.8, Math.PI * 1.7); ctx.stroke();
   ctx.strokeStyle = `rgba(255,60,90,${(0.35 + dmg * 0.35).toFixed(2)})`;
   ctx.beginPath(); ctx.arc(0, 0, size * 0.95, Math.PI * 0.05, Math.PI * 0.55); ctx.stroke();
@@ -3352,8 +3358,8 @@ function drawBoss(g) {
   lg2.addColorStop(1, 'rgba(30,3,14,0.96)');
   ctx.fillStyle = lg2;
   ctx.beginPath(); ctx.arc(ex, ey, eyeR, 0, TAU); ctx.fill();
-  // machined lens lip
-  ctx.strokeStyle = `rgba(212,101,255,${(0.5 + flash * 0.4).toFixed(2)})`;
+  // machined lens lip — red steel, glitching violet
+  ctx.strokeStyle = `rgba(${gCol(0.3)},${(0.5 + flash * 0.4).toFixed(2)})`;
   ctx.lineWidth = Math.max(1.2, size * 0.035);
   ctx.beginPath(); ctx.arc(ex, ey, eyeR, 0, TAU); ctx.stroke();
   // inner aperture ring, breathing slowly
