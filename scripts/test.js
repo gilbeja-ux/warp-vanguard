@@ -188,7 +188,7 @@ drawOk('menu audio-config overlay', () => { G.setMenuSettings(true); });
 
 // ================= menu settings interaction =================
 G.frame(16);
-check('overlay populated toggle controls', G.toggles().length === 4); // SFX, MUSIC, HAPTICS, CONTROLS
+check('overlay populated toggle controls', G.toggles().length === 3); // SFX, MUSIC, HAPTICS (CONTROLS hidden behind ALT_CONTROLS)
 const t0 = G.toggles()[0];
 G.menuTap(t0.x + 5, t0.y + 5, 1);
 check('toggle tap flips a setting from the menu overlay', true);
@@ -647,6 +647,23 @@ en = G.spawnEnemy(0.3, 'normal');
 en.z = G.geo().hitZ + 0.2;
 G.update(0.05);
 check('nodes never drift toward traps on their own', Math.abs(n0.angle) < 1e-6);
+
+// ================= dormant alt schemes (behind ALT_CONTROLS) =================
+// hidden from settings at launch, but the code must keep working so the flag
+// can be flipped back on later
+G.settings.controls = 2; // ARCS: left side margin drives node 0, absolute
+aim(0, 0);
+pdown(11, 4, 210 - 55); // above center on the left strip
+check('ARCS (dormant): side-strip touch throws the node', Math.abs(n0.angle) > 0.2 && n0.held === true);
+pup(11, 4, 210 - 55);
+G.settings.controls = 1; // IMMERSIVE: grab a lens on the rim and drag it
+aim(0, Math.PI);
+const gI = G.geo();
+pdown(12, gI.cx + Math.cos(Math.PI) * 100, gI.cy + Math.sin(Math.PI) * 100);
+check('IMMERSIVE (dormant): the lens can be grabbed', n0.held === true);
+pup(12, gI.cx - 100, gI.cy);
+G.settings.controls = 0; // back to the real scheme
+aim(0, 0);
 
 // ================= precision scoring =================
 G.startLevel(1);
