@@ -620,9 +620,30 @@ for (let i = 0; i < 20; i++) G.update(0.05);
 check('godspeed: boot completes once both pads are held', G.getIntro() > 2.9);
 drawOk('godspeed frame', () => {});
 let spawned = false;
-for (let i = 0; i < 80 && !spawned; i++) { G.update(0.05); spawned = G.enemies().length > 0; }
+// generous window: the first spawn can be story-held clear of the t=6 comm
+for (let i = 0; i < 200 && !spawned; i++) { G.update(0.05); spawned = G.enemies().length > 0; }
 check('the stream goes live after GODSPEED', spawned);
 check('nodes finished materializing', G.nodes[0].formedFx === true && G.nodes[1].formedFx === true);
+
+// ================= story lulls =================
+// scripted spawns steer their arrivals clear of the comm windows (t=6/16/28 on
+// level 1) so transmissions play over calm stretches
+G.startLevel(0);
+const hzL = G.geo().hitZ;
+const arrived = new Set(); let lullBreaks = 0;
+for (let i = 0; i < 500; i++) { // 25s covers the first two comm windows
+  G.update(0.05);
+  G.setIntegrity(100); // ride out un-zapped breaches
+  for (const e2 of G.enemies()) {
+    if (!arrived.has(e2) && e2.z <= hzL) {
+      arrived.add(e2);
+      const lt = G.getLevelT();
+      if ((lt > 6 && lt < 9.2) || (lt > 16 && lt < 19.2)) lullBreaks++;
+    }
+  }
+}
+check('story lull: no arrivals land while a transmission plays', lullBreaks === 0);
+check('story lull: the drill still spawns around the windows', arrived.size >= 4);
 
 // ================= control scheme =================
 function pdown(id, x, y) { canvasHandlers.pointerdown({ pointerId: id, clientX: x, clientY: y, pointerType: 'touch' }); }

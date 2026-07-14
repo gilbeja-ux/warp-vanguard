@@ -920,9 +920,28 @@ function lockAllowed(lock) {
   if (mates.some(s => s.type === 'strip')) return false; // the tracing node is unknowable
   return !mates.some(s => s.lock === lock);
 }
+// story lull: a scripted spawn that would ARRIVE mid-transmission is held at
+// the gate until it can land after the words — every comm plays over a calm
+// stretch the player can actually read. The hold consumes no RNG draws, so
+// campaign replays stay identical.
+function storyHold() {
+  if (endless || qual || tut || boss || levelIdx < 0) return 0;
+  const cl = COMMS[levelIdx] || [];
+  const trav = travelTime();
+  // the guarded stretch: typewriter (~1.2s) + a beat to read; the chip lingers
+  // past it, but arrivals may resume under a line that's already been read
+  const tLand = levelT + trav; // a spawn released now reaches the rim here
+  const hit = cl.find(c => tLand > c.t - 0.5 && tLand < c.t + 3.2);
+  return hit ? hit.t + 3.2 + 0.3 - trav - levelT : 0;
+}
+
 function trySpawn(dt) {
   spawnT -= dt;
   if (spawnT <= 0) {
+    if (scripted()) {
+      const wait = storyHold();
+      if (wait > 0) { spawnT = wait; return; } // hold the lane for the story
+    }
     const L = LV || LEVELS[levelIdx];
     sched = sched.filter(s => s.t1 > levelT - 1.5); // drop long-past bookings
     // scripted levels skip beat-quantize: music phase varies run to run, and
@@ -3932,6 +3951,72 @@ function drawIntroCard() {
   }
 }
 
+// procedural holo-portraits for the comm line — line-art busts in the
+// speaker's color, scanlined and flickering like a tapped video feed.
+// OMNI: suit + lapel pin · CID: peaked cap + badge · TRACE: hooded, face
+// lost to glitch bars · CORE: nothing human, a spiked core
+function drawCommFace(s, cx2, cy3, r, col) {
+  ctx.save();
+  ctx.translate(cx2, cy3);
+  const flick = 0.8 + Math.sin(time * 13) * 0.1 + (Math.random() < 0.04 ? -0.3 : 0);
+  ctx.globalAlpha *= Math.max(0.4, flick);
+  ctx.strokeStyle = `rgba(${col},0.9)`;
+  ctx.fillStyle = `rgba(${col},0.16)`;
+  ctx.lineWidth = 1.4;
+  ctx.lineJoin = 'round';
+  if (s === 'CORE') { // the rogue firewall
+    ctx.beginPath();
+    for (let k = 0; k < 8; k++) {
+      const a = k / 8 * TAU + time * 0.8;
+      const rr = k % 2 ? r * 0.45 : r * 0.95;
+      ctx[k ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.3, 0, TAU); ctx.stroke();
+  } else if (s === 'TRACE') { // hooded silhouette
+    ctx.beginPath();
+    ctx.moveTo(-r, r * 1.05);
+    ctx.quadraticCurveTo(-r * 1.05, -r * 0.55, 0, -r * 1.02);
+    ctx.quadraticCurveTo(r * 1.05, -r * 0.55, r, r * 1.05);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(3,6,14,0.85)'; // void where the face should be
+    ctx.beginPath(); ctx.arc(0, -r * 0.08, r * 0.5, 0, TAU); ctx.fill();
+    for (const gy of [-0.28, 0, 0.24]) {  // glitch bars scanning the void
+      const gw = r * (0.34 + Math.sin(time * 7 + gy * 9) * 0.14);
+      ctx.beginPath(); ctx.moveTo(-gw, (gy - 0.08) * r); ctx.lineTo(gw, (gy - 0.08) * r); ctx.stroke();
+    }
+  } else { // OMNI / CID: head + shoulders, each with their uniform's tell
+    ctx.beginPath(); ctx.arc(0, -r * 0.32, r * 0.42, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.95, r * 1.05);
+    ctx.quadraticCurveTo(0, r * 0.05, r * 0.95, r * 1.05);
+    ctx.fill(); ctx.stroke();
+    if (s === 'CID') { // peaked cap seated ON the head, badge on the dome
+      ctx.fillStyle = 'rgba(6,12,26,0.9)'; // solid crown so the head reads as capped
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.62, -r * 0.52);
+      ctx.quadraticCurveTo(0, -r * 1.1, r * 0.62, -r * 0.52);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r * 0.66, -r * 0.5); ctx.lineTo(r * 0.66, -r * 0.5); ctx.stroke();
+      ctx.fillStyle = `rgba(${col},0.95)`;
+      ctx.beginPath(); ctx.arc(0, -r * 0.74, r * 0.08, 0, TAU); ctx.fill();
+    } else { // OMNI: corporate tie + lapel pin
+      ctx.beginPath();
+      ctx.moveTo(0, r * 0.22); ctx.lineTo(-r * 0.13, r * 0.52);
+      ctx.lineTo(0, r * 0.95); ctx.lineTo(r * 0.13, r * 0.52);
+      ctx.closePath(); ctx.stroke();
+      ctx.fillStyle = `rgba(${col},0.95)`;
+      ctx.beginPath(); ctx.arc(r * 0.48, r * 0.6, r * 0.07, 0, TAU); ctx.fill();
+    }
+  }
+  ctx.strokeStyle = `rgba(${col},0.10)`; // transmission scanlines over the feed
+  ctx.lineWidth = 1;
+  for (let sy = -r; sy < r * 1.1; sy += 3) {
+    ctx.beginPath(); ctx.moveTo(-r, sy); ctx.lineTo(r, sy); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawHUD(g) {
   const L = LV || LEVELS[levelIdx];
   const pad = 14;
@@ -4055,10 +4140,22 @@ function drawHUD(g) {
     const lw2 = ctx.measureText(label).width;
     ctx.font = '500 10px Audiowide, system-ui';
     const tw2 = ctx.measureText(commCur.m).width;
-    const x0 = W / 2 - (lw2 + 6 + tw2) / 2;
+    const pr = 14, pb = pr * 2 + 8; // holo-portrait tile + its gap
+    const x0 = W / 2 - (pb + lw2 + 6 + tw2) / 2 + pb;
     const cy2 = 14 + SAFE.t + 20 + 18; // just under the power-up chip row
     ctx.textAlign = 'left';
     const spkCol = SPK[commCur.s] || '160,215,255';
+    // portrait tile, chamfered like the rest of the HUD chrome — the voice
+    // gets a face, like a rough video call from inside the wire
+    const bx = x0 - 6 - pb + 4, by = cy2 - 4 - pr;
+    ctx.fillStyle = 'rgba(6,12,26,0.8)';
+    techRect(bx, by, pr * 2, pr * 2, 5); ctx.fill();
+    ctx.save();
+    techRect(bx, by, pr * 2, pr * 2, 5); ctx.clip();
+    drawCommFace(commCur.s, bx + pr, by + pr + 1.5, pr * 0.82, spkCol);
+    ctx.restore();
+    ctx.strokeStyle = `rgba(${spkCol},0.55)`; ctx.lineWidth = 1;
+    techRect(bx, by, pr * 2, pr * 2, 5); ctx.stroke();
     ctx.fillStyle = `rgba(${spkCol},0.14)`;
     roundRect(x0 - 6, cy2 - 11, lw2 + 11, 15, 4); ctx.fill();
     ctx.strokeStyle = `rgba(${spkCol},0.5)`; ctx.lineWidth = 1;
