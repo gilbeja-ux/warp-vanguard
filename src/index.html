@@ -730,10 +730,9 @@ let warpT = 0;                // warp-dive into a fresh level
 let musicDuck = 0;            // music dips under the end ceremony
 let fadeT = 0;                // universal screen-stitch fade
 const BOOT_LOCK = 1.5;        // the ring rides the tunnel in and docks at this moment
-const BOOT_NODE_ON = [2.0, 2.3]; // each node's reboot ramp completes on its own mark
-const BOOT_PADS = 2.45;       // systems check: the control consoles arm
-const INTRO_GATE = 3.1;       // the boot holds here until both thumbs are on the pads
-const INTRO_DUR = 3.6;        // boot: LOCK -> NODES -> SYSTEMS -> (thumbs) -> GODSPEED
+const BOOT_ON = 2.1;          // nodes AND consoles finish their power ramp together here
+const INTRO_GATE = 2.4;       // the boot holds here until both thumbs are on the pads
+const INTRO_DUR = 2.9;        // boot: LOCK -> POWER-UP -> (thumbs) -> CONTROLS ACTIVE
 let introStage = -1;          // last boot stage that fired its sounds
 let padHold = [false, false]; // live thumb contact per pad side
 let introLatch = false;       // both thumbs seen at the gate — godspeed is a promise
@@ -1887,7 +1886,7 @@ function update(dt) {
   else if (introT >= INTRO_DUR || introLatch) introT += dt;
   // (else: holding at the gate, waiting for hands)
   const inIntro = introT < INTRO_DUR;
-  const stageNow = introT >= INTRO_DUR ? 4 : introT >= INTRO_GATE ? 3 : introT >= BOOT_PADS ? 2 : introT >= BOOT_LOCK ? 1 : 0;
+  const stageNow = introT >= INTRO_DUR ? 4 : introT >= INTRO_GATE ? 3 : introT >= BOOT_LOCK ? 1 : 0;
   if (stageNow !== introStage && introT < INTRO_DUR + 1) {
     introStage = stageNow;
     if (stageNow === 0) { // LOCKING ON STREAM: approach rumble + rangefinder pips closing in
@@ -1901,12 +1900,8 @@ function update(dt) {
       tone(90, 0.25, 'sine', 0.24, 40);
       tone(1850, 0.02, 'square', 0.07);
       crackle(0.3, 1100, 240, 1.4, 0.5);
-      crackle(0.9, 160, 1050, 2, 0.26, 0.25); // node capacitors charging through the reboot
+      crackle(0.7, 160, 1100, 2, 0.28, 0.15); // everything charging at once through the ramp
       buzz(35);
-    } else if (stageNow === 2) { // SYSTEMS CHECK: consoles charge up, then a flat double click
-      crackle(0.45, 200, 1200, 2, 0.3);
-      tone(1250, 0.02, 'square', 0.06, null, null, 0.48);
-      tone(1250, 0.02, 'square', 0.06, null, null, 0.57);
     } else if (stageNow === 4) { // GODSPEED: squelch open, terse double ack, engage
       crackle(0.07, 1300, 2700, 2, 0.4);
       tone(740, 0.05, 'square', 0.09, null, null, 0.08);
@@ -1916,19 +1911,21 @@ function update(dt) {
       commCur = { s: 'CID', m: 'godspeed, defender.' }; commT = 0;
     }
   }
-  // each node's reboot ramp completes on its own mark — the lens re-forms
-  // exactly like a node-killer recovery: pop, burst, relay click
-  if (introPrev < INTRO_DUR) for (let i = 0; i < 2; i++) {
-    if (introPrev < BOOT_NODE_ON[i] && introT >= BOOT_NODE_ON[i]) {
-      const gI = geo(), railRI = gI.nodeR - Math.min(W, H) * 0.055 * 0.86;
+  // nodes and consoles finish their power ramp together — both lenses re-form
+  // node-killer style, and the checks sign off with one flat double click
+  if (introPrev < BOOT_ON && introT >= BOOT_ON && introPrev < INTRO_DUR) {
+    const gI = geo(), railRI = gI.nodeR - Math.min(W, H) * 0.055 * 0.86;
+    for (let i = 0; i < 2; i++) {
       burst(gI.cx + Math.cos(nodes[i].angle) * railRI, gI.cy + Math.sin(nodes[i].angle) * railRI,
         i === 0 ? '#6fe3ff' : '#ffffff', 16, 4);
       nodes[i].formAt = introT; // replay the materialize pop
       nodes[i].formedFx = true;
-      tone(1500, 0.014, 'square', 0.05);
-      tone(215 + i * 45, 0.07, 'square', 0.05);
-      buzz(12);
     }
+    tone(1500, 0.014, 'square', 0.05);
+    tone(215, 0.07, 'square', 0.05); tone(260, 0.07, 'square', 0.04);
+    tone(1250, 0.02, 'square', 0.06, null, null, 0.09);
+    tone(1250, 0.02, 'square', 0.06, null, null, 0.18);
+    buzz(15);
   }
   // holding at the gate: a quiet standby pip keeps the console alive
   if (stageNow === 3 && !introLatch && inIntro) {
@@ -3236,7 +3233,7 @@ function drawNodes(g) {
     // the dock to this node's online mark — same rb drives the same visuals
     // (amber progress ring, strengthening ember, sputter)
     const bootRb = state !== S.MENU && introT < INTRO_DUR
-      ? clamp((BOOT_NODE_ON[i] - introT) / (BOOT_NODE_ON[i] - BOOT_LOCK), 0, 1) : 0;
+      ? clamp((BOOT_ON - introT) / (BOOT_ON - BOOT_LOCK), 0, 1) : 0;
     const rb = Math.max(clamp((n.deadT || 0) / 2, 0, 1), bootRb); // >0: fried / not yet powered
     const formAge = introT - (n.formAt || 0);
     const eb = t2 => 1 + 2.70158 * Math.pow(t2 - 1, 3) + 1.70158 * Math.pow(t2 - 1, 2); // easeOutBack
@@ -3578,7 +3575,7 @@ function drawDials() {
   if (settings.controls !== 0 && !(boss && boss.mergeT >= 1)) return;
   const bz = Math.min(W, H) * 0.055; // shared gauge width with the ARCS strips
   const booting = state === S.PLAY && introT < INTRO_DUR;
-  const padsLive = introT >= BOOT_PADS;
+  const padsLive = introT >= BOOT_LOCK; // consoles start charging the moment the ring docks
   for (let i = 0; i < 2; i++) {
     const side = i === 0 ? 'L' : 'R';
     const d = dialCenter(side);
@@ -3595,8 +3592,9 @@ function drawDials() {
       continue;
     }
     const col = i === 0 ? '111,227,255' : '255,255,255';
-    // console boot: power sweeps around the ring while the gauge condenses in
-    const pw = booting ? clamp((introT - BOOT_PADS) / 0.45, 0, 1) : 1;
+    // console boot: power sweeps around the ring while the gauge condenses in,
+    // on the same clock as the node reboot ramps
+    const pw = booting ? clamp((introT - BOOT_LOCK) / (BOOT_ON - BOOT_LOCK), 0, 1) : 1;
     if (pw < 1) {
       ctx.strokeStyle = 'rgba(90,120,160,0.22)';
       ctx.lineWidth = bz * 0.85;
@@ -3687,8 +3685,7 @@ function drawDials() {
     }
     if (booting && padsLive) {
       // the sweep completes, THEN the check lights it up
-      const flash = introT >= BOOT_PADS + 0.45
-        ? clamp(1 - (introT - BOOT_PADS - 0.45) / 0.4, 0, 1) : 0;
+      const flash = introT >= BOOT_ON ? clamp(1 - (introT - BOOT_ON) / 0.4, 0, 1) : 0;
       if (flash > 0) {
         ctx.strokeStyle = `rgba(${col},${(flash * 0.8).toFixed(2)})`;
         ctx.lineWidth = 3;
@@ -3858,10 +3855,10 @@ function drawIntroCard() {
       }
       ctx.restore();
       // boot stage callouts, stamped like an ops console — no bounce, no chatter
-      const stI = t >= INTRO_GATE ? 3 : t >= BOOT_PADS ? 2 : t >= BOOT_LOCK ? 1 : 0;
-      const stStart = [0, BOOT_LOCK, BOOT_PADS, INTRO_GATE][stI];
+      const stI = t >= INTRO_GATE ? 3 : t >= BOOT_LOCK ? 1 : 0;
+      const stStart = [0, BOOT_LOCK, 0, INTRO_GATE][stI];
       const ct = t - stStart;
-      const labels = ['LOCKING ON STREAM', 'ACTIVATING NODES', 'SYSTEMS CHECK', 'AWAITING OPERATOR'];
+      const labels = ['LOCKING ON STREAM', 'ACTIVATING SYSTEMS', '', 'AWAITING OPERATOR'];
       const ly = H * 0.52;
       ctx.save();
       ctx.globalAlpha = stI === 3 ? 0.8 + Math.sin(time * 2.5) * 0.15 : Math.min(1, ct / 0.06);
@@ -3894,10 +3891,10 @@ function drawIntroCard() {
         sub = 'RANGE ' + rngM.toFixed(1).padStart(5, '0') + ' M';
         subT = t; // live readout — never flash-stamps
       } else if (stI === 1) {
-        if (t >= BOOT_NODE_ON[1]) { sub = 'NODE 02 — ONLINE'; subT = BOOT_NODE_ON[1]; }
-        else if (t >= BOOT_NODE_ON[0]) { sub = 'NODE 01 — ONLINE'; subT = BOOT_NODE_ON[0]; }
+        if (t >= BOOT_ON) { sub = 'ALL SYSTEMS — ONLINE'; subT = BOOT_ON; }
+        else if (t >= BOOT_LOCK + 0.3) { sub = 'CHARGING NODES + CONSOLES'; subT = BOOT_LOCK + 0.3; }
         else sub = 'DOCK CONFIRMED';
-      } else if (stI === 2) sub = 'CONTROL PADS — ARMED';
+      }
       if (sub) {
         const sct = t - subT;
         ctx.globalAlpha = Math.min(1, sct / 0.05 + 0.4);
