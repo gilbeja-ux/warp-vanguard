@@ -3348,33 +3348,69 @@ function drawBoss(g) {
   const sac1 = Math.sin(sacT * 12.9898) * 0.5, sac2 = Math.sin(sacT * 78.233) * 0.5;
   const eyeR = size * 0.8;
   const ex = ux2 * size * 0.07, ey = uy2 * size * 0.07; // the lens leans at its prey
-  const px3 = ex + ux2 * eyeR * 0.2 + sac1 * eyeR * 0.07;
-  const py3 = ey + uy2 * eyeR * 0.2 + sac2 * eyeR * 0.07;
-  const lg2 = ctx.createRadialGradient(px3, py3, 0, ex, ey, eyeR);
-  lg2.addColorStop(0, flash > 0.3 ? '#ffffff' : 'rgba(255,225,200,0.98)');
-  lg2.addColorStop(0.12, flash > 0.3 ? '#ffd0d8' : 'rgba(255,120,120,0.95)');
-  lg2.addColorStop(0.4, 'rgba(190,30,60,0.85)');
-  lg2.addColorStop(0.75, 'rgba(90,8,30,0.92)');
-  lg2.addColorStop(1, 'rgba(30,3,14,0.96)');
-  ctx.fillStyle = lg2;
+  // the barrel: a deep dark well — the red lives at the BOTTOM of it
+  const wg = ctx.createRadialGradient(ex, ey, 0, ex, ey, eyeR);
+  wg.addColorStop(0, 'rgba(30,4,12,1)');
+  wg.addColorStop(0.7, 'rgba(16,2,8,1)');
+  wg.addColorStop(1, 'rgba(8,1,5,1)');
+  ctx.fillStyle = wg;
   ctx.beginPath(); ctx.arc(ex, ey, eyeR, 0, TAU); ctx.fill();
-  // machined lens lip — red steel, glitching violet
+  // stacked glass elements — each deeper ring shifts further toward the prey,
+  // and that parallax is what makes it read as a BARREL, not a disc
+  for (let j = 1; j <= 4; j++) {
+    const rj = eyeR * (1 - j * 0.185);
+    const ox = ex + ux2 * eyeR * 0.055 * j + (j > 2 ? sac1 * eyeR * 0.03 : 0);
+    const oy = ey + uy2 * eyeR * 0.055 * j + (j > 2 ? sac2 * eyeR * 0.03 : 0);
+    ctx.strokeStyle = `rgba(255,70,95,${(0.14 + j * 0.09 + flash * 0.2).toFixed(2)})`;
+    ctx.lineWidth = Math.max(0.8, size * (0.014 + j * 0.004));
+    ctx.beginPath(); ctx.arc(ox, oy, rj, 0, TAU); ctx.stroke();
+    // cold glass glint riding the upper-left of each element
+    ctx.strokeStyle = `rgba(210,230,255,${(0.05 + j * 0.02).toFixed(2)})`;
+    ctx.lineWidth = Math.max(0.6, size * 0.01);
+    ctx.beginPath(); ctx.arc(ox, oy, rj, Math.PI * 0.85, Math.PI * 1.35); ctx.stroke();
+  }
+  // aperture: a machined 7-blade iris around the sensor, contracting under fire
+  const px3 = ex + ux2 * eyeR * 0.22 + sac1 * eyeR * 0.05;
+  const py3 = ey + uy2 * eyeR * 0.22 + sac2 * eyeR * 0.05;
+  const bR = eyeR * (0.34 - flash * 0.08);
+  ctx.strokeStyle = `rgba(255,90,110,${(0.5 + flash * 0.4).toFixed(2)})`;
+  ctx.lineWidth = Math.max(1, size * 0.02);
+  ctx.beginPath();
+  for (let k2 = 0; k2 < 7; k2++) {
+    const a2 = k2 / 7 * TAU + b.spin * 0.25;
+    ctx[k2 ? 'lineTo' : 'moveTo'](px3 + Math.cos(a2) * bR, py3 + Math.sin(a2) * bR);
+  }
+  ctx.closePath(); ctx.stroke();
+  // the sensor at the bottom of the well — a small furious source, not a wash
+  const sg = ctx.createRadialGradient(px3, py3, 0, px3, py3, bR * 0.85);
+  sg.addColorStop(0, flash > 0.3 ? '#ffffff' : 'rgba(255,235,220,1)');
+  sg.addColorStop(0.25, 'rgba(255,110,110,0.9)');
+  sg.addColorStop(0.7, 'rgba(190,25,50,0.5)');
+  sg.addColorStop(1, 'rgba(120,8,30,0)');
+  ctx.fillStyle = sg;
+  ctx.beginPath(); ctx.arc(px3, py3, bR * 0.85, 0, TAU); ctx.fill();
+  // sensor reticle etched on the glass — hairline cross through the fixation point
+  ctx.strokeStyle = 'rgba(255,180,190,0.22)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(px3 - bR * 1.5, py3); ctx.lineTo(px3 + bR * 1.5, py3);
+  ctx.moveTo(px3, py3 - bR * 1.5); ctx.lineTo(px3, py3 + bR * 1.5);
+  ctx.stroke();
+  // machined lens lip — red steel, glitching violet — with focus-ring ticks
   ctx.strokeStyle = `rgba(${gCol(0.3)},${(0.5 + flash * 0.4).toFixed(2)})`;
   ctx.lineWidth = Math.max(1.2, size * 0.035);
   ctx.beginPath(); ctx.arc(ex, ey, eyeR, 0, TAU); ctx.stroke();
-  // inner aperture ring, breathing slowly
-  ctx.strokeStyle = `rgba(255,90,110,${(0.3 + 0.15 * Math.sin(time * 1.7)).toFixed(2)})`;
-  ctx.lineWidth = Math.max(1, size * 0.02);
-  ctx.beginPath(); ctx.arc(ex, ey, eyeR * 0.55, 0, TAU); ctx.stroke();
-  // the burning fixation point and its bloom
-  const cg3 = ctx.createRadialGradient(px3, py3, 0, px3, py3, eyeR * 0.28);
-  cg3.addColorStop(0, 'rgba(255,246,230,0.95)');
-  cg3.addColorStop(0.3, 'rgba(255,150,130,0.5)');
-  cg3.addColorStop(1, 'rgba(255,60,90,0)');
-  ctx.fillStyle = cg3;
-  ctx.beginPath(); ctx.arc(px3, py3, eyeR * 0.28, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,120,140,0.4)';
+  ctx.lineWidth = Math.max(0.8, size * 0.015);
+  for (let k2 = 0; k2 < 12; k2++) {
+    const a2 = k2 / 12 * TAU;
+    ctx.beginPath();
+    ctx.moveTo(ex + Math.cos(a2) * eyeR * 0.93, ey + Math.sin(a2) * eyeR * 0.93);
+    ctx.lineTo(ex + Math.cos(a2) * eyeR * 0.99, ey + Math.sin(a2) * eyeR * 0.99);
+    ctx.stroke();
+  }
   // specular catch on the glass — it's a lens, not a hole
-  ctx.fillStyle = 'rgba(220,235,255,0.30)';
+  ctx.fillStyle = 'rgba(220,235,255,0.25)';
   ctx.beginPath(); ctx.ellipse(ex - eyeR * 0.42, ey - eyeR * 0.48, eyeR * 0.2, eyeR * 0.1, -0.6, 0, TAU); ctx.fill();
   plates(1.4, 0.85, 1, 1); // near track, riding in front
   // chromatic ghost rims when tearing — it can't hold its own outline
