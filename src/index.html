@@ -1036,6 +1036,11 @@ function spawnStrip() {
   en.amp = srand(0.22, 0.5) * (schance(0.5) ? -1 : 1);
   en.frq = srand(2.2, 4.2);
   en.ph = srand(0, TAU);
+  // book the ride in the fairness ledger even though it's optional: while a
+  // ribbon COULD be ridden, nothing dual-node may arrive — taking the bonus
+  // must never cost a life (every level is 100%-able, bonuses included)
+  sched.push({ t0: levelT + arrivalAt(SPAWN_Z, 1), t1: levelT + arrivalAt(SPAWN_Z + en.len, 1),
+               type: 'strip', lock: undefined, needsNode: true });
   en.failed = false; en.tracing = false;
   return en;
 }
@@ -2080,8 +2085,12 @@ function update(dt) {
   if (!inIntro && !tut && !boss && (endless || levelIdx >= 4)) {
     ribbonT -= sdt;
     if (ribbonT <= 0) {
-      ribbonT = srand(26, 40);
-      if (endless || levelT < L.duration - 14) spawnStrip();
+      // the ribbon also RESPECTS the ledger: it won't enter a window where a
+      // dual-node arrival is already booked — it waits for a clean stretch
+      if ((endless || levelT < L.duration - 14) && spawnAllowed('strip')) {
+        ribbonT = srand(26, 40);
+        spawnStrip();
+      } else ribbonT = 2.5; // busy lane — try again shortly
     }
   }
 
@@ -3259,25 +3268,28 @@ function drawLatches(g, bz) {
           const hwH = wAt(Math.max((bz0 + bz1) / 2, g.hitZ)) * 0.9;
           if (hwH <= 0.006) continue;
           const alH = fadeIn * clamp((SPAWN_Z - 0.05 - sz0) / 0.35, 0, 1);
-          wallPatch(g, lt.a, hwH, sz0, sz1 + 0.004, 'rgba(255,110,40,1)', alH * 0.10);
+          wallPatch(g, lt.a, hwH, sz0, sz1 + 0.004, 'rgba(255,60,90,1)', alH * 0.09);
         }
         const BARS = 9;
-        for (let k2 = 0; k2 <= BARS; k2++) { // the bars
+        for (let k2 = 0; k2 <= BARS; k2++) { // the bars: threat-red ALARM lights,
+          // adjacent bars strobing in antiphase — a warning, never an invitation
+          // (gold belongs to bonuses; this must read nothing like the ribbon)
           const bzM = headZ + len * k2 / BARS;
           if (bzM < g.hitZ || bzM > 2.05) continue;
           const hw = wAt(bzM) * 0.94;
           if (hw <= 0.006) continue;
-          const al = fadeIn * clamp((SPAWN_Z - 0.05 - bzM) / 0.35, 0, 1);
+          const strobe = 0.55 + 0.45 * Math.sin(time * 5.5 + (k2 % 2) * Math.PI);
+          const al = fadeIn * clamp((SPAWN_Z - 0.05 - bzM) / 0.35, 0, 1) * strobe;
           if (al < 0.02) continue;
-          wallPatch(g, lt.a, hw, bzM, bzM + 0.028, 'rgba(255,150,60,1)', al * 0.75);
-          wallPatch(g, lt.a, hw, bzM, bzM + 0.012, 'rgba(255,225,170,1)', al * 0.5); // hot core line
+          wallPatch(g, lt.a, hw, bzM, bzM + 0.028, 'rgba(255,60,90,1)', al * 0.8);
+          wallPatch(g, lt.a, hw, bzM, bzM + 0.012, 'rgba(255,170,185,1)', al * 0.5); // hot core line
         }
         ctx.globalCompositeOperation = 'source-over';
-        if (headZ > g.hitZ) { // white-hot leading edge, until it docks
+        if (headZ > g.hitZ) { // red-hot leading edge, until it docks
           const rgF = ring(Math.max(headZ, 0.02), g);
           const hwF = wAt(headZ);
           ctx.globalAlpha = 0.8 * fadeIn;
-          ctx.strokeStyle = 'rgba(255,225,180,0.95)';
+          ctx.strokeStyle = 'rgba(255,190,200,0.95)';
           ctx.lineWidth = Math.max(1.2, 3.5 * rgF.s * 3);
           ctx.beginPath(); ctx.arc(g.cx, g.cy, rgF.r, lt.a - hwF, lt.a + hwF); ctx.stroke();
           ctx.globalAlpha = 1;
