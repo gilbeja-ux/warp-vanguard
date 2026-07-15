@@ -769,6 +769,7 @@ let infoCard = null, infoShownAt = 0; // briefing card (S.INFO)
 let menuScroll = 0, menuPtr = null; // level-list scrolling
 let menuScreen = 'home'; // 'home' (mode select) | 'map' (campaign route) | 'flow' (free flow)
 let mapListScroll = 0;   // relay column scroll (arc scrollbar rides the rim)
+let mapListSelLast = -1; // snap-to-selection only when the selection moves
 let mapSel = 0;          // selected relay on the campaign map
 let commNext = 0, commCur = null, commT = 0; // intercepted-transmission ticker
 let surgeLevel = 0, surgeCount = -1, surgeWaveZ = -1; // free-run speed surges (announced)
@@ -5747,12 +5748,22 @@ function paintMenuStatic() {
     ctx.strokeStyle = 'rgba(100,190,255,0.25)'; ctx.lineWidth = 2; ctx.stroke();
     // the title lives LEFT, over the relay column — never across the lens
     ctx.textAlign = 'left';
+    const tlx = 10 + SAFE.l * 0.6;
     ctx.fillStyle = '#f2faff'; ctx.font = '700 12px Audiowide, system-ui';
     try { ctx.letterSpacing = '2px'; } catch (e) {}
-    ctx.fillText('THE INVESTIGATION', 20 + SAFE.l, 38 + SAFE.t);
+    ctx.fillText('THE INVESTIGATION', tlx, 38 + SAFE.t);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
     ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
-    ctx.fillText('OMNISERVE HQ \u2192 POLICE CID', 20 + SAFE.l, 50 + SAFE.t);
+    ctx.fillText('OMNISERVE HQ \u2192 POLICE CID', tlx, 50 + SAFE.t);
+    { // separator: from the left edge all the way to the rim
+      const sy = 58 + SAFE.t, dy2 = ccy - sy;
+      const endX = Math.abs(dy2) < RM ? ccx - Math.sqrt(RM * RM - dy2 * dy2) + 6 : ccx - RM * 0.3;
+      const sg = ctx.createLinearGradient(tlx, 0, endX, 0);
+      sg.addColorStop(0, 'rgba(120,210,255,0.55)');
+      sg.addColorStop(1, 'rgba(120,210,255,0.08)');
+      ctx.strokeStyle = sg; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(tlx, sy); ctx.lineTo(endX, sy); ctx.stroke();
+    }
   } else {
     // tunnel disc — a dark mouth in the center that makes the mode keys pop
     const dg = ctx.createRadialGradient(ccx, ccy, R * 0.2, ccx, ccy, R);
@@ -6700,29 +6711,26 @@ function drawMenuMap() {
 // left column: the relay list — the selector that drives the lens
 function drawMapList(ccx, ccy, R, frontier) {
   ctx.textAlign = 'left';
-  const lx2 = 16 + SAFE.l;
+  const lx2 = 10 + SAFE.l * 0.6; // use the left pixels — notch owes us the rest
+  const lw2 = Math.max(150, ccx - R - lx2 - 12); // UNIFORM width, up to the lens
   const rows = LEVELS.length;
-  const rh = 38, gap2 = 8; // roomy rows — name and stars never fight
-  const topY = 60 + SAFE.t, botY = H - 20;
+  const rh = 38, gap2 = 8;
+  const topY = 68 + SAFE.t, botY = H - 20; // beneath the title separator
   const viewH2 = botY - topY;
   const contentH2 = rows * (rh + gap2) - gap2;
   const maxSc = Math.max(0, contentH2 - viewH2);
   mapListScroll = clamp(mapListScroll, 0, maxSc);
-  // keep the selected row in view
-  const selTop = mapSel * (rh + gap2);
-  if (selTop - mapListScroll < 0) mapListScroll = selTop;
-  if (selTop + rh - mapListScroll > viewH2) mapListScroll = selTop + rh - viewH2;
+  if (mapListSelLast !== mapSel) { // snap into view only when selection CHANGES
+    mapListSelLast = mapSel;
+    const selTop = mapSel * (rh + gap2);
+    if (selTop - mapListScroll < 0) mapListScroll = selTop;
+    if (selTop + rh - mapListScroll > viewH2) mapListScroll = selTop + rh - viewH2;
+  }
   ctx.save();
   ctx.beginPath(); ctx.rect(0, topY - 4, ccx, viewH2 + 8); ctx.clip();
   for (let i = 0; i < rows; i++) {
     const ly2 = topY + i * (rh + gap2) - mapListScroll;
-    if (ly2 + rh < topY - 6 || ly2 > botY + 6) { // register nothing off-screen
-      continue;
-    }
-    // right edge HUGS the rim: width follows the lens's left boundary
-    const dyC = (ly2 + rh / 2) - ccy;
-    const lensL = Math.abs(dyC) < R + 16 ? ccx - Math.sqrt(Math.max(0, (R + 16) * (R + 16) - dyC * dyC)) : ccx;
-    const lw2 = Math.max(150, lensL - lx2 - 10);
+    if (ly2 + rh < topY - 6 || ly2 > botY + 6) continue;
     const locked = i + 1 > progress.unlocked;
     const sel = i === mapSel;
     ctx.save();
@@ -6735,16 +6743,14 @@ function drawMapList(ccx, ccy, R, frontier) {
       : locked ? 'rgba(120,180,255,0.15)' : 'rgba(95,200,255,0.4)';
     ctx.lineWidth = sel ? 1.5 : 1;
     techRect(lx2, ly2, lw2, rh, 6); ctx.stroke();
+    // title only — stars and stats live in the dossier
     ctx.fillStyle = locked ? 'rgba(220,240,255,0.3)' : '#f2faff';
     const nm = '0' + (i + 1) + '  ' + LEVELS[i].name;
-    ctx.font = '700 ' + fitPx(nm, '700', 10, lw2 - 58, 8) + 'px Audiowide, system-ui';
+    ctx.font = '700 ' + fitPx(nm, '700', 10, lw2 - (locked ? 34 : 18), 8) + 'px Audiowide, system-ui';
     ctx.textBaseline = 'middle';
     ctx.fillText(nm, lx2 + 10, ly2 + rh / 2 + 1);
     ctx.textBaseline = 'alphabetic';
     if (locked) padlock(lx2 + lw2 - 14, ly2 + rh / 2, 5);
-    else if (progress.stars[i] > 0) {
-      for (let k = 0; k < 3; k++) star5(lx2 + lw2 - 40 + k * 12, ly2 + rh / 2, 4.5, k < progress.stars[i]);
-    }
     ctx.restore();
     menuButtons.push({ x: lx2, y: ly2, w: lw2, h: rh, node: i, locked: false });
   }
@@ -6759,7 +6765,6 @@ function drawMapList(ccx, ccy, R, frontier) {
     ctx.beginPath(); ctx.arc(ccx, ccy, R + 9, tA0, tA0 + span * frac); ctx.stroke();
   }
 }
-// right column: the relay dossier + deploy
 function drawMapCard(li, frontier, ccx, ccy, R) {
   ctx.textAlign = 'left';
   const L2 = LEVELS[li];
