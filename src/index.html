@@ -1668,7 +1668,7 @@ function menuTap(x, y, pid) {
   if (menuBackRect && x > menuBackRect.x - 8 && x < menuBackRect.x + menuBackRect.w + 8 &&
       y > menuBackRect.y - 8 && y < menuBackRect.y + menuBackRect.h + 8) {
     pressUI(menuBackRect, () => {
-      menuFx = menuScreen === 'map' ? { kind: 'panelsOut', t: 0, dur: 0.42 } : { kind: 'spinOut', t: 0, dur: 0.35, to: 'home' };
+      menuFx = menuScreen === 'map' ? { kind: 'panelsOut', t: 0, dur: 0.42 } : { kind: 'spinOut', t: 0, dur: 0.35, to: 'home', dir: -1 };
     });
     return;
   }
@@ -5743,14 +5743,14 @@ function paintMenuStatic() {
     ctx.beginPath(); ctx.arc(ccx, ccy, RM, 0, TAU);
     ctx.fillStyle = dg; ctx.fill();
     ctx.strokeStyle = 'rgba(100,190,255,0.25)'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.textAlign = 'center';
+    // the title lives LEFT, over the relay column — never across the lens
+    ctx.textAlign = 'left';
     ctx.fillStyle = '#f2faff'; ctx.font = '700 12px Audiowide, system-ui';
     try { ctx.letterSpacing = '2px'; } catch (e) {}
-    ctx.fillText('THE INVESTIGATION', ccx, 15 + SAFE.t);
+    ctx.fillText('THE INVESTIGATION', 20 + SAFE.l, 38 + SAFE.t);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
     ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
-    ctx.fillText('OMNISERVE HQ \u2192 POLICE CID', ccx, 27 + SAFE.t);
-    ctx.textAlign = 'left';
+    ctx.fillText('OMNISERVE HQ \u2192 POLICE CID', 20 + SAFE.l, 50 + SAFE.t);
   } else {
     // tunnel disc — a dark mouth in the center that makes the mode keys pop
     const dg = ctx.createRadialGradient(ccx, ccy, R * 0.2, ccx, ccy, R);
@@ -5891,8 +5891,8 @@ function drawMenuHome(ccx, ccy, R) {
   ];
   // choreography: the wheel spins out/in around screen changes
   let rot = 0, wheelAl = 1;
-  if (menuFx && menuFx.kind === 'spinOut') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = q * q * 1.5; wheelAl = 1 - q; }
-  if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = -1.5 * Math.pow(1 - q, 2); wheelAl = q; }
+  if (menuFx && menuFx.kind === 'spinOut') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = (menuFx.dir || 1) * q * q * 1.5; wheelAl = 1 - q; }
+  if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = -(menuFx.dir || 1) * 1.5 * Math.pow(1 - q, 2); wheelAl = q; }
   ctx.save();
   ctx.globalAlpha = wheelAl;
   ctx.textAlign = 'center';
@@ -5959,8 +5959,8 @@ function drawMenuFlow() {
   const r1 = R * 0.92, r0 = R * 0.38;
   const D = progress.daily;
   let rot = 0, wheelAl = 1; // same spin choreography as the mode wheel
-  if (menuFx && menuFx.kind === 'spinOut') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = q * q * 1.5; wheelAl = 1 - q; }
-  if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = -1.5 * Math.pow(1 - q, 2); wheelAl = q; }
+  if (menuFx && menuFx.kind === 'spinOut') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = (menuFx.dir || 1) * q * q * 1.5; wheelAl = 1 - q; }
+  if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = -(menuFx.dir || 1) * 1.5 * Math.pow(1 - q, 2); wheelAl = q; }
   const HALVES = [
     { key: 'endless', glyph: '∞', name: 'ENDLESS STREAM', mid: -Math.PI / 2, locked: !endlessOpen, col: '255,210,74',
       cap: endlessOpen ? 'procedural · no mercy' + (progress.best > 0 ? ' · BEST ' + progress.best.toLocaleString() : '') : 'clear the campaign to unlock' },
@@ -6018,8 +6018,16 @@ function drawMenuFlow() {
     try { ctx.letterSpacing = '2px'; } catch (e) {}
     ctx.fillText('MODIFIERS', 26 + SAFE.l, my2 - 10);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
+    let mi = 0;
+    const mutOff = i => { // same staggered fly-in/out grammar as the relay list
+      if (!menuFx) return 0;
+      const span = 200 + SAFE.l;
+      if (menuFx.kind === 'spinIn') { const q = clamp((menuFx.t - i * 0.08) / 0.26, 0, 1); return -span * Math.pow(1 - q, 2); }
+      if (menuFx.kind === 'spinOut' || menuFx.kind === 'launch') { const q = clamp((menuFx.t - i * 0.06) / 0.2, 0, 1); return -span * q * q; }
+      return 0;
+    };
     for (const [key, label, mult] of MUTS) {
-      const r2 = { x: 26 + SAFE.l, y: my2, w: 128, h: 24, key };
+      const r2 = { x: 26 + SAFE.l + mutOff(mi++), y: my2, w: 128, h: 24, key };
       const on = mutators[key];
       techRect(r2.x, r2.y, r2.w, r2.h, 6);
       ctx.fillStyle = on ? 'rgba(120,80,10,0.55)' : 'rgba(6,20,40,0.55)';
@@ -6050,7 +6058,7 @@ function drawMenuFlow() {
 // physical geography. The relay list rides the left column, the dossier the
 // right, and selecting a relay glides the lens along the route.
 let cityBase = null, cityTop = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1, menuResetArm = 0;
-const mapR = () => Math.min(H * 0.42, W * 0.24); // the lens: smaller than the mode disc
+const mapR = () => menuGeom().R * 0.92; // the lens rim MATCHES the mode wheel — seamless crossfade
 const CITY_W = 1600, CITY_H = 980;
 let RELAY_W = [], ROUTE_SEGS = []; // filled by buildCity — relays sit ON cable junctions
 const CITY_A = [], CITY_B = [];
@@ -6475,7 +6483,17 @@ function drawMenuMap() {
   ctx.save();
   ctx.beginPath(); ctx.arc(ccx, ccy, R - 5, 0, TAU); ctx.clip();
   // LAYER 1: streets, harbor, buried cable grid
-  ctx.drawImage(cityBase, ccx - mapCamX * mapZoom, ccy - mapCamY * mapZoom, CITY_W * mapZoom, CITY_H * mapZoom);
+  {
+    const bx0 = ccx - mapCamX * mapZoom, by0 = ccy - mapCamY * mapZoom;
+    const bw0 = CITY_W * mapZoom, bh0 = CITY_H * mapZoom;
+    ctx.drawImage(cityBase, bx0, by0, bw0, bh0);
+    // the city never ENDS: mirrored continuations above and below the sheet
+    ctx.save();
+    ctx.scale(1, -1);
+    ctx.drawImage(cityBase, bx0, -by0, bw0, bh0);
+    ctx.drawImage(cityBase, bx0, -(by0 + bh0 * 2), bw0, bh0);
+    ctx.restore();
+  }
   // LAYER 2: each level's cable run, leading AWAY from its relay —
   // secured lines flow green with live data, unsecured wait as dashed blue
   ctx.lineCap = 'round';
@@ -6536,7 +6554,16 @@ function drawMenuMap() {
   }
   // LAYER 3: the blueprint wireframe above — transparent, so the buried
   // cables stay readable through the whole city
-  ctx.drawImage(cityTop, ccx - mapCamX * mapZoom, ccy - mapCamY * mapZoom, CITY_W * mapZoom, CITY_H * mapZoom);
+  {
+    const bx0 = ccx - mapCamX * mapZoom, by0 = ccy - mapCamY * mapZoom;
+    const bw0 = CITY_W * mapZoom, bh0 = CITY_H * mapZoom;
+    ctx.drawImage(cityTop, bx0, by0, bw0, bh0);
+    ctx.save();
+    ctx.scale(1, -1);
+    ctx.drawImage(cityTop, bx0, -by0, bw0, bh0);
+    ctx.drawImage(cityTop, bx0, -(by0 + bh0 * 2), bw0, bh0);
+    ctx.restore();
+  }
   // destination: Police HQ / CID intake — the run's final delivery point
   {
     const pt = relayW(LEVELS.length);
@@ -6635,12 +6662,9 @@ function drawMapList(ccx, ccy, R, frontier) {
   const lx2 = 16 + SAFE.l;
   const lw2 = Math.max(120, ccx - R - lx2 - 14);
   const rows = LEVELS.length;
-  const rh = Math.min(34, (H - 90) / rows - 6), gap2 = 6;
-  let ly2 = Math.max(40 + SAFE.t, ccy - (rows * (rh + gap2) - gap2) / 2);
-  ctx.fillStyle = 'rgba(120,210,255,0.75)'; ctx.font = '700 9px Audiowide, system-ui';
-  try { ctx.letterSpacing = '2px'; } catch (e) {}
-  ctx.fillText('RELAYS', lx2 + 2, ly2 - 8);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  const rh = Math.min(34, (H - 110) / rows - 6), gap2 = 6;
+  // THE INVESTIGATION header (static layer) titles this column now
+  let ly2 = Math.max(60 + SAFE.t, ccy - (rows * (rh + gap2) - gap2) / 2);
   for (let i = 0; i < rows; i++) {
     const locked = i + 1 > progress.unlocked;
     const sel = i === mapSel;
@@ -6934,10 +6958,11 @@ function tickUI(dt) {
       menuFx = null;
       if (f.kind === 'spinOut') {
         menuScreen = f.to;
-        menuFx = f.to === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6 } : { kind: 'spinIn', t: 0, dur: 0.35 };
+        menuFx = f.to === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6 }
+          : { kind: 'spinIn', t: 0, dur: 0.35, dir: f.dir || 1 };
       } else if (f.kind === 'panelsOut') {
         menuScreen = 'home';
-        menuFx = { kind: 'spinIn', t: 0, dur: 0.35 };
+        menuFx = { kind: 'spinIn', t: 0, dur: 0.35, dir: -1 }; // back = counterclockwise
       } else if (f.kind === 'launch' && f.action) f.action();
     }
   }
