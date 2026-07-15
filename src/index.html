@@ -1668,7 +1668,7 @@ function menuTap(x, y, pid) {
   if (menuBackRect && x > menuBackRect.x - 8 && x < menuBackRect.x + menuBackRect.w + 8 &&
       y > menuBackRect.y - 8 && y < menuBackRect.y + menuBackRect.h + 8) {
     pressUI(menuBackRect, () => {
-      menuFx = menuScreen === 'map' ? { kind: 'panelsOut', t: 0, dur: 0.42 } : { kind: 'spinOut', t: 0, dur: 0.35, to: 'home', dir: -1 };
+      menuFx = menuScreen === 'map' ? { kind: 'panelsOut', t: 0, dur: 0.42, dir: -1 } : { kind: 'spinOut', t: 0, dur: 0.35, to: 'home', dir: -1 };
     });
     return;
   }
@@ -6480,8 +6480,24 @@ function drawMenuMap() {
   const wy = p2 => ccy + (p2.y - mapCamY) * mapZoom;
 
   // ---- inside the lens ----
+  // the map CIRCLES into view while the wheel circles out (and reverses):
+  // forward arrives rotating clockwise; back departs counterclockwise
+  let mapRot = 0, mapAl = 1;
+  if (menuFx && menuFx.kind === 'panelsIn') {
+    const q = clamp(menuFx.t / 0.42, 0, 1);
+    mapRot = -(menuFx.dir || 1) * 0.9 * Math.pow(1 - q, 2);
+    mapAl = q;
+  } else if (menuFx && menuFx.kind === 'panelsOut') {
+    const q = clamp(menuFx.t / menuFx.dur, 0, 1);
+    mapRot = (menuFx.dir || -1) * 0.9 * q * q;
+    mapAl = 1 - q;
+  }
   ctx.save();
   ctx.beginPath(); ctx.arc(ccx, ccy, R - 5, 0, TAU); ctx.clip();
+  if (mapRot !== 0 || mapAl < 1) {
+    ctx.translate(ccx, ccy); ctx.rotate(mapRot); ctx.translate(-ccx, -ccy);
+    ctx.globalAlpha = mapAl;
+  }
   // LAYER 1: streets, harbor, buried cable grid
   {
     const bx0 = ccx - mapCamX * mapZoom, by0 = ccy - mapCamY * mapZoom;
@@ -6958,7 +6974,7 @@ function tickUI(dt) {
       menuFx = null;
       if (f.kind === 'spinOut') {
         menuScreen = f.to;
-        menuFx = f.to === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6 }
+        menuFx = f.to === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: f.dir || 1 }
           : { kind: 'spinIn', t: 0, dur: 0.35, dir: f.dir || 1 };
       } else if (f.kind === 'panelsOut') {
         menuScreen = 'home';
