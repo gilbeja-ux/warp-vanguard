@@ -123,6 +123,7 @@ function check(name, cond) {
   if (!cond) failures++;
 }
 function aim(i, a) { G.nodes[i].angle = a; }
+function flushUI() { for (let i = 0; i < 16; i++) G.update(0.05); } // press beat + transition midpoint
 function cross(en) { // place at the ring and step one tick
   // (exactly hitZ so the hit check fires even when hit-stop slows the clock)
   const hz = G.geo().hitZ;
@@ -593,6 +594,7 @@ G.setMenuScreen('home');
 G.frame(16);
 const cTile = G.menuBtns().find(b => b.mode === 'campaign');
 G.menuTap(cTile.x + 5, cTile.y + 5, 1);
+flushUI(); // press beat -> glitch cut -> screen switch
 check('campaign tile opens the route map', G.getMenuScreen() === 'map');
 G.frame(16);
 const n2 = G.menuBtns().find(b => b.node === 2);
@@ -601,6 +603,7 @@ G.frame(16);
 const dep = G.menuBtns().find(b => b.deploy !== undefined);
 check('selecting a relay arms its deploy key', dep && dep.deploy === 2);
 G.menuTap(dep.x + 5, dep.y + 5, 1);
+flushUI(); // press beat -> warp -> deploy
 check('deploying opens the story log', G.getState() === G.S.INFO && G.getInfoCard() === 'story2');
 G.update(0.5);
 canvasHandlers.pointerdown({ pointerId: 9, clientX: 5, clientY: 5, pointerType: 'touch' });
@@ -619,6 +622,8 @@ G.frame(16);
 const eBtn = G.menuBtns().find(b => b.endless);
 check('endless key appears unlocked after clearing the campaign', !!eBtn && !eBtn.locked);
 G.menuTap(eBtn.x + 10, eBtn.y + 10, 1);
+flushUI();
+G.setIntro(999);
 check('tapping the endless key starts an endless run', G.getState() === G.S.PLAY && G.isEndless() && G.getLV().name === 'ENDLESS STREAM');
 G.setScore(1234);
 G.setIntegrity(0);
@@ -632,6 +637,8 @@ G.frame(16);
 const dBtn = G.menuBtns().find(b => b.daily);
 check('daily key appears unlocked', !!dBtn && !dBtn.locked);
 G.menuTap(dBtn.x + 10, dBtn.y + 10, 1);
+flushUI();
+G.setIntro(999);
 check('tapping it starts the seeded daily run', G.getState() === G.S.PLAY && G.isDaily() && G.getLV().name === 'DAILY STREAM');
 G.setScore(777);
 G.setIntegrity(0);

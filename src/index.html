@@ -1615,19 +1615,28 @@ function menuTap(x, y, pid) {
   }
   if (menuBackRect && x > menuBackRect.x - 8 && x < menuBackRect.x + menuBackRect.w + 8 &&
       y > menuBackRect.y - 8 && y < menuBackRect.y + menuBackRect.h + 8) {
-    menuScreen = 'home'; sfx.tick(); return;
+    pressUI(menuBackRect, () => startTrans('glitch', () => { menuScreen = 'home'; }));
+    return;
   }
   for (const b of menuButtons) {
-    if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h && !b.locked) {
-      if (b.mode === 'tutorial') { startQualification(); }
-      else if (b.mode === 'campaign') { menuScreen = 'map'; mapSel = Math.min(progress.unlocked - 1, LEVELS.length - 1); }
-      else if (b.mode === 'flow') { menuScreen = 'flow'; }
-      else if (b.node !== undefined) { mapSel = b.node; }
-      else if (b.deploy !== undefined) { startLevel(b.deploy, true); }
-      else if (b.daily) startDaily();
-      else if (b.endless) startEndless();
-      else if (b.bossTest) startBossTest();
+    const hit = b.sector
+      ? (() => { const dxs = x - b.sector.cx, dys = y - b.sector.cy, rr = Math.hypot(dxs, dys);
+          if (rr < b.sector.r0 || rr > b.sector.r1) return false;
+          let aa = Math.atan2(dys, dxs);
+          const rel = ((aa - b.sector.a0) % TAU + TAU) % TAU;
+          return rel < ((b.sector.a1 - b.sector.a0) % TAU + TAU) % TAU; })()
+      : (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h);
+    if (hit && !b.locked) {
+      if (b.mode === 'tutorial') pressUI(b, () => startTrans('warp', startQualification));
+      else if (b.mode === 'campaign') pressUI(b, () => startTrans('glitch', () => { menuScreen = 'map'; mapSel = Math.min(progress.unlocked - 1, LEVELS.length - 1); }));
+      else if (b.mode === 'flow') pressUI(b, () => startTrans('glitch', () => { menuScreen = 'flow'; }));
+      else if (b.node !== undefined) { mapSel = b.node; sfx.tick(); }
+      else if (b.deploy !== undefined) pressUI(b, () => startTrans('warp', () => startLevel(b.deploy, true)));
+      else if (b.daily) pressUI(b, () => startTrans('warp', startDaily));
+      else if (b.endless) pressUI(b, () => startTrans('warp', startEndless));
+      else if (b.bossTest) pressUI(b, () => startTrans('warp', startBossTest));
       else if (b.reset) {
+        sfx.tick();
         if (time - menuResetArm < 2.5) { // confirmed: wipe the campaign
           progress.unlocked = 1;
           progress.stars = progress.stars.map(() => 0);
@@ -1635,8 +1644,8 @@ function menuTap(x, y, pid) {
           saveState();
           mapSel = 0; mapCamSnap = true; menuResetArm = 0;
         } else menuResetArm = time;
-      }
-      sfx.tick(); return;
+      } else sfx.tick();
+      return;
     }
   }
 }
@@ -1645,14 +1654,13 @@ function endTap(x, y) {
   if (endT < endBtnAt() + 0.15) { endT = endBtnAt() + 0.15; return; } // skip the ceremony
   for (const b of endButtons) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
-      sfx.tick();
-      if (b.action === 'retry') { if (daily) startDaily(); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx); }
-      else if (b.action === 'next') startLevel(levelIdx + 1, true);
-      else {
+      if (b.action === 'retry') pressUI(b, () => startTrans('warp', () => { if (daily) startDaily(); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx); }));
+      else if (b.action === 'next') pressUI(b, () => startTrans('warp', () => startLevel(levelIdx + 1, true)));
+      else pressUI(b, () => startTrans('glitch', () => {
         menuScreen = qual ? 'home' : endless ? 'flow' : 'map';
         if (!endless && !qual) mapSel = Math.min(progress.unlocked - 1, LEVELS.length - 1);
         state = S.MENU; fadeT = 0.35; playTrack('menu');
-      }
+      }));
       return;
     }
   }
@@ -1953,6 +1961,7 @@ function updateTutorial(dt) {
   }
 }
 function update(dt) {
+  tickUI(dt); // press feedback + screen transitions run on the raw clock
   time += dt;
   updateMusic(dt);
   warpT = Math.max(0, warpT - dt);
@@ -6670,6 +6679,99 @@ function perfWatch(rawDt) {
 
 // ---------- main loop ----------
 let last = performance.now();
+// ---------- screen transitions + button press feedback ----------
+// glitch: quick chromatic slice cut for menu screens. warp: a dive down the
+// fiber for deploys. The action fires at the covered midpoint.
+let trans = null;   // {mode, t, dur, mid, fired}
+let uiPress = null; // {x,y,w,h | sector, t, fn}
+function startTrans(mode, fn) {
+  if (trans) { if (fn) fn(); return; }
+  trans = { mode, t: 0, dur: mode === 'warp' ? 0.62 : 0.26, mid: fn, fired: false };
+  if (mode === 'warp') { tone(70, 0.55, 'sine', 0.13, 260); crackle(0.5, 200, 2600, 1.2, 0.4); }
+  else crackle(0.09, 1200, 3200, 2, 0.35);
+}
+function pressUI(rect, fn) { // micro-interaction: flash NOW, act on the beat
+  uiPress = Object.assign({ t: 0, fn }, rect);
+  sfx.tick();
+  buzz(8);
+}
+function tickUI(dt) {
+  if (uiPress) {
+    uiPress.t += dt;
+    if (uiPress.t >= 0.09 && uiPress.fn) { const f = uiPress.fn; uiPress.fn = null; f(); }
+    if (uiPress.t > 0.3) uiPress = null;
+  }
+  if (trans) {
+    trans.t += dt;
+    if (!trans.fired && trans.t >= trans.dur * 0.5) { trans.fired = true; if (trans.mid) trans.mid(); }
+    if (trans.t >= trans.dur) trans = null;
+  }
+}
+function drawTrans() {
+  if (uiPress && uiPress.t < 0.2) { // the pressed control flashes bright
+    const pa = (1 - uiPress.t / 0.2) * 0.8;
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,255,255,${pa.toFixed(2)})`;
+    ctx.lineWidth = 2.5;
+    if (uiPress.sector) {
+      const sc = uiPress.sector;
+      ctx.beginPath();
+      ctx.arc(sc.cx, sc.cy, sc.r1, sc.a0, sc.a1);
+      ctx.arc(sc.cx, sc.cy, sc.r0, sc.a1, sc.a0, true);
+      ctx.closePath(); ctx.stroke();
+      ctx.fillStyle = `rgba(255,255,255,${(pa * 0.16).toFixed(2)})`; ctx.fill();
+    } else if (uiPress.w) {
+      techRect(uiPress.x - 2, uiPress.y - 2, uiPress.w + 4, uiPress.h + 4, 8);
+      ctx.stroke();
+      ctx.fillStyle = `rgba(255,255,255,${(pa * 0.16).toFixed(2)})`;
+      techRect(uiPress.x - 2, uiPress.y - 2, uiPress.w + 4, uiPress.h + 4, 8); ctx.fill();
+    }
+    ctx.restore();
+  }
+  if (!trans) return;
+  const q = trans.t / trans.dur;
+  const cover = 1 - Math.abs(q * 2 - 1); // 0 -> 1 (switch) -> 0
+  if (trans.mode === 'glitch') {
+    ctx.fillStyle = `rgba(2,4,10,${(cover * 0.9).toFixed(2)})`;
+    ctx.fillRect(-20, -20, W + 40, H + 40);
+    for (let i = 0; i < 9; i++) { // chromatic slices tearing sideways
+      const y0 = i / 9 * H + Math.sin(i * 37.7 + trans.t * 90) * 4;
+      const hh = H / 9 * (0.3 + 0.7 * Math.abs(Math.sin(i * 91.3 + trans.t * 47)));
+      const off = Math.sin(i * 13.7 + trans.t * 71) * W * 0.2 * cover;
+      ctx.fillStyle = i % 3 === 0 ? `rgba(255,60,90,${(cover * 0.22).toFixed(2)})`
+        : i % 3 === 1 ? `rgba(111,227,255,${(cover * 0.22).toFixed(2)})`
+        : `rgba(220,235,255,${(cover * 0.15).toFixed(2)})`;
+      ctx.fillRect(off, y0, W, hh * cover);
+    }
+  } else { // warp: streaks stretch down the fiber, bloom at the switch
+    const g2 = geo();
+    ctx.fillStyle = `rgba(2,4,10,${(cover * 0.55).toFixed(2)})`;
+    ctx.fillRect(-20, -20, W + 40, H + 40);
+    const ease = cover * cover;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 44; i++) {
+      const a = i / 44 * TAU + Math.sin(i * 7.13) * 0.2;
+      const r0 = (0.08 + (i * 0.618 % 1) * 0.9) * Math.min(W, H) * 0.7;
+      const st = ease * Math.min(W, H) * (0.25 + (i * 0.377 % 1) * 0.55);
+      ctx.strokeStyle = i % 4 === 0 ? `rgba(255,210,74,${(ease * 0.5).toFixed(2)})`
+        : `rgba(140,215,255,${(ease * 0.55).toFixed(2)})`;
+      ctx.lineWidth = 1 + ease * 2;
+      ctx.beginPath();
+      ctx.moveTo(g2.cx + Math.cos(a) * r0, g2.cy + Math.sin(a) * r0);
+      ctx.lineTo(g2.cx + Math.cos(a) * (r0 + st), g2.cy + Math.sin(a) * (r0 + st));
+      ctx.stroke();
+    }
+    const bloom = clamp(1 - Math.abs(q - 0.5) * 4, 0, 1);
+    if (bloom > 0) {
+      const bg2 = ctx.createRadialGradient(g2.cx, g2.cy, 0, g2.cx, g2.cy, Math.min(W, H) * 0.7);
+      bg2.addColorStop(0, `rgba(235,248,255,${(bloom * 0.8).toFixed(2)})`);
+      bg2.addColorStop(1, 'rgba(235,248,255,0)');
+      ctx.fillStyle = bg2;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+}
+
 function frame(now) {
   const rawDt = (now - last) / 1000;
   const dt = clamp(rawDt, 0, 0.05); // clock can step backwards (timer quirks) — never simulate in reverse
@@ -6900,6 +7002,8 @@ function frame(now) {
     ctx.fillStyle = 'rgba(2,4,10,' + (fadeT / 0.35 * 0.9).toFixed(2) + ')';
     ctx.fillRect(-20, -20, W + 40, H + 40);
   }
+
+  drawTrans(); // transitions + press feedback ride over everything
 
   ctx.restore();
   requestAnimationFrame(frame);
