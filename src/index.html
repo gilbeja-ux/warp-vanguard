@@ -1716,11 +1716,13 @@ function endTap(x, y) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
       if (b.action === 'retry') pressUI(b, () => startTrans('warp', () => { if (daily) startDaily(); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx); }));
       else if (b.action === 'next') pressUI(b, () => startTrans('warp', () => startLevel(levelIdx + 1, true)));
-      else pressUI(b, () => startTrans('glitch', () => {
+      else pressUI(b, () => { // home in style: the menu drives into view, no glitch
         menuScreen = qual ? 'home' : endless ? 'flow' : 'map';
         if (!endless && !qual) mapSel = Math.min(progress.unlocked - 1, LEVELS.length - 1);
         state = S.MENU; fadeT = 0.35; playTrack('menu');
-      }));
+        menuFx = menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1 }
+          : { kind: 'spinIn', t: 0, dur: 0.35, dir: 1 };
+      });
       return;
     }
   }
@@ -2015,8 +2017,9 @@ function advanceQual() {
 }
 function updateTutorial(dt) {
   tut.t += dt;
-  for (let i = 0; i < 2; i++) { // cumulative thumb travel for the movement stage
-    tut.moved[i] += Math.abs(angDiff(nodes[i].angle, tut.lastA[i]));
+  for (let i = 0; i < 2; i++) { // thumb travel for the movement stage — blue laps
+    const d = angDiff(nodes[i].angle, tut.lastA[i]); // clockwise, white counter;
+    tut.moved[i] += Math.max(0, i === 0 ? d : -d);   // wrong-way travel doesn't count
     tut.lastA[i] = nodes[i].angle;
   }
   if (tut.stage === -1) { tut.stage = 0; showCard(QUAL[0].card); return; }
@@ -4970,15 +4973,17 @@ function drawHUD(g) {
     const nn = a => Math.abs(angDiff(nodes[0].angle, a)) < Math.abs(angDiff(nodes[1].angle, a)) ? nodes[0] : nodes[1];
     let msg = null;
     if (st.card === 'move') {
-      msg = 'Take EACH node one full lap around the ring';
-      // marching arrows lead each node onward; thin meters track the laps
+      msg = 'One full lap each — follow YOUR arrow';
+      // marching arrows lead each node onward (blue clockwise, white counter);
+      // the lap meters wind the same way their node travels
       for (let i = 0; i < 2; i++) {
-        if (tut.moved[i] <= TAU) drawGuideArc(nodes[i], nodes[i].angle + 1.1);
+        const w = i === 0 ? 1 : -1;
+        if (tut.moved[i] <= TAU) drawGuideArc(nodes[i], nodes[i].angle + w * 1.1);
         const d2 = dialCenter(i === 0 ? 'L' : 'R');
         ctx.strokeStyle = i === 0 ? 'rgba(95,150,255,0.9)' : 'rgba(255,255,255,0.85)';
         ctx.lineWidth = 3; ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.arc(d2.x, d2.y, d2.r + 12, -Math.PI / 2, -Math.PI / 2 + clamp(tut.moved[i] / TAU, 0, 1) * TAU);
+        ctx.arc(d2.x, d2.y, d2.r + 12, -Math.PI / 2, -Math.PI / 2 + w * clamp(tut.moved[i] / TAU, 0, 1) * TAU, i === 1);
         ctx.stroke();
       }
     }
@@ -5133,8 +5138,8 @@ function drawInfoGlyph(kind, cx, cy, r) {
     ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
     ctx.strokeStyle = 'rgba(120,220,255,0.4)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(0, 0, r * 0.78, 0, TAU); ctx.stroke();
-    const demoA = time * 1.2;
-    for (const [a, col] of [[Math.PI + demoA, 'rgb(111,227,255)'], [demoA, '#ffffff']]) {
+    const demoA = time * 1.2; // demo dots orbit opposite ways, like the drill asks
+    for (const [a, col] of [[Math.PI + demoA, 'rgb(111,227,255)'], [-demoA, '#ffffff']]) {
       ctx.fillStyle = col;
       ctx.beginPath(); ctx.arc(Math.cos(a) * r, Math.sin(a) * r, r * 0.18, 0, TAU); ctx.fill();
     }
