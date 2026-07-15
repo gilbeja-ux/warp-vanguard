@@ -625,7 +625,8 @@ G.setMenuScreen('flow');
 G.frame(16);
 const eBtn = G.menuBtns().find(b => b.endless);
 check('endless key appears unlocked after clearing the campaign', !!eBtn && !eBtn.locked);
-G.menuTap(eBtn.x + 10, eBtn.y + 10, 1);
+{ const sc = eBtn.sector, ma = (sc.a0 + sc.a1) / 2, mr = (sc.r0 + sc.r1) / 2;
+  G.menuTap(sc.cx + Math.cos(ma) * mr, sc.cy + Math.sin(ma) * mr, 1); }
 flushUI();
 G.setIntro(999);
 check('tapping the endless key starts an endless run', G.getState() === G.S.PLAY && G.isEndless() && G.getLV().name === 'ENDLESS STREAM');
@@ -640,7 +641,8 @@ G.setMenuScreen('flow');
 G.frame(16);
 const dBtn = G.menuBtns().find(b => b.daily);
 check('daily key appears unlocked', !!dBtn && !dBtn.locked);
-G.menuTap(dBtn.x + 10, dBtn.y + 10, 1);
+{ const sc = dBtn.sector, ma = (sc.a0 + sc.a1) / 2, mr = (sc.r0 + sc.r1) / 2;
+  G.menuTap(sc.cx + Math.cos(ma) * mr, sc.cy + Math.sin(ma) * mr, 1); }
 flushUI();
 G.setIntro(999);
 check('tapping it starts the seeded daily run', G.getState() === G.S.PLAY && G.isDaily() && G.getLV().name === 'DAILY STREAM');
