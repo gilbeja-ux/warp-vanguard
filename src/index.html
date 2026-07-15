@@ -5733,7 +5733,7 @@ function paintMenuStatic() {
   // block logo — stacked DATA / DEFE / NDER, top-left (small brand on the map,
   // where the relay list needs the column)
   ctx.textAlign = 'left';
-  if (menuScreen !== 'home') { // small brand up top on sub-screens
+  if (menuScreen === 'flow') { // small brand up top (campaign runs clean for now)
     ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
     ctx.fillText('DATA DEFENDER · DARK FIBER', 20 + SAFE.l, 24 + SAFE.t);
   }
@@ -5749,14 +5749,12 @@ function paintMenuStatic() {
     // the title lives LEFT, over the relay column — never across the lens
     ctx.textAlign = 'left';
     const tlx = 10 + SAFE.l * 0.6;
-    ctx.fillStyle = '#f2faff'; ctx.font = '700 12px Audiowide, system-ui';
+    ctx.fillStyle = '#f2faff'; ctx.font = '700 13px Audiowide, system-ui';
     try { ctx.letterSpacing = '2px'; } catch (e) {}
-    ctx.fillText('THE INVESTIGATION', tlx, 38 + SAFE.t);
+    ctx.fillText('THE INVESTIGATION', tlx, 30 + SAFE.t);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
-    ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
-    ctx.fillText('OMNISERVE HQ \u2192 POLICE CID', tlx, 50 + SAFE.t);
     { // separator: from the left edge all the way to the rim
-      const sy = 58 + SAFE.t, dy2 = ccy - sy;
+      const sy = 40 + SAFE.t, dy2 = ccy - sy;
       const endX = Math.abs(dy2) < RM ? ccx - Math.sqrt(RM * RM - dy2 * dy2) + 6 : ccx - RM * 0.3;
       const sg = ctx.createLinearGradient(tlx, 0, endX, 0);
       sg.addColorStop(0, 'rgba(120,210,255,0.55)');
@@ -6711,26 +6709,17 @@ function drawMenuMap() {
 // left column: the relay list — the selector that drives the lens
 function drawMapList(ccx, ccy, R, frontier) {
   ctx.textAlign = 'left';
-  const lx2 = 10 + SAFE.l * 0.6; // use the left pixels — notch owes us the rest
-  const lw2 = Math.max(150, ccx - R - lx2 - 12); // UNIFORM width, up to the lens
+  const lx2 = 10 + SAFE.l * 0.6;
   const rows = LEVELS.length;
-  const rh = 38, gap2 = 8;
-  const topY = 68 + SAFE.t, botY = H - 20; // beneath the title separator
-  const viewH2 = botY - topY;
-  const contentH2 = rows * (rh + gap2) - gap2;
-  const maxSc = Math.max(0, contentH2 - viewH2);
-  mapListScroll = clamp(mapListScroll, 0, maxSc);
-  if (mapListSelLast !== mapSel) { // snap into view only when selection CHANGES
-    mapListSelLast = mapSel;
-    const selTop = mapSel * (rh + gap2);
-    if (selTop - mapListScroll < 0) mapListScroll = selTop;
-    if (selTop + rh - mapListScroll > viewH2) mapListScroll = selTop + rh - viewH2;
-  }
-  ctx.save();
-  ctx.beginPath(); ctx.rect(0, topY - 4, ccx, viewH2 + 8); ctx.clip();
+  const topY = 52 + SAFE.t, botY = H - 16;
+  const gap2 = 6;
+  const rh = clamp((botY - topY - (rows - 1) * gap2) / rows, 20, 34); // ALL rows fit — no scroll
+  let ly2 = topY + Math.max(0, (botY - topY - (rows * (rh + gap2) - gap2)) / 2);
   for (let i = 0; i < rows; i++) {
-    const ly2 = topY + i * (rh + gap2) - mapListScroll;
-    if (ly2 + rh < topY - 6 || ly2 > botY + 6) continue;
+    // right edge rides the RIM: each key reaches exactly to the lens circle
+    const dyC = (ly2 + rh / 2) - ccy;
+    const lensL = Math.abs(dyC) < R + 14 ? ccx - Math.sqrt(Math.max(0, (R + 14) * (R + 14) - dyC * dyC)) : ccx - R * 0.2;
+    const lw2 = Math.max(140, lensL - lx2 - 8);
     const locked = i + 1 > progress.unlocked;
     const sel = i === mapSel;
     ctx.save();
@@ -6743,7 +6732,7 @@ function drawMapList(ccx, ccy, R, frontier) {
       : locked ? 'rgba(120,180,255,0.15)' : 'rgba(95,200,255,0.4)';
     ctx.lineWidth = sel ? 1.5 : 1;
     techRect(lx2, ly2, lw2, rh, 6); ctx.stroke();
-    // title only — stars and stats live in the dossier
+    // title only — the dossier owns stars and stats
     ctx.fillStyle = locked ? 'rgba(220,240,255,0.3)' : '#f2faff';
     const nm = '0' + (i + 1) + '  ' + LEVELS[i].name;
     ctx.font = '700 ' + fitPx(nm, '700', 10, lw2 - (locked ? 34 : 18), 8) + 'px Audiowide, system-ui';
@@ -6753,16 +6742,7 @@ function drawMapList(ccx, ccy, R, frontier) {
     if (locked) padlock(lx2 + lw2 - 14, ly2 + rh / 2, 5);
     ctx.restore();
     menuButtons.push({ x: lx2, y: ly2, w: lw2, h: rh, node: i, locked: false });
-  }
-  ctx.restore();
-  if (maxSc > 0) { // arc scrollbar hugging the lens's LEFT edge
-    const a0 = Math.PI * 0.72, a1 = Math.PI * 1.28; // left side of the rim
-    ctx.strokeStyle = 'rgba(100,190,255,0.18)'; ctx.lineWidth = 4; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(ccx, ccy, R + 9, a0, a1); ctx.stroke();
-    const span = a1 - a0, frac = viewH2 / contentH2;
-    const tA0 = a0 + (mapListScroll / maxSc) * span * (1 - frac);
-    ctx.strokeStyle = 'rgba(150,238,255,0.75)';
-    ctx.beginPath(); ctx.arc(ccx, ccy, R + 9, tA0, tA0 + span * frac); ctx.stroke();
+    ly2 += rh + gap2;
   }
 }
 function drawMapCard(li, frontier, ccx, ccy, R) {
