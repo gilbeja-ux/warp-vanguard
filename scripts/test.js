@@ -89,6 +89,7 @@ code = code.replace("'use strict';", '') + `
   music: () => ({ src: musicSrc, gain: musicGain, key: currentTrackKey, ac: AC }),
   bolts: () => bolts, hitStop: () => hitStop, fx, pickups: () => pickups, spawnPickup,
   boss: () => boss, endlessCfg, tut: () => tut, isEndless: () => endless, getLV: () => LV,
+  qualStage: () => tut ? QUAL[tut.stage] : null,
   startEndless, menuBtns: () => menuButtons, getEndWin: () => endWin,
   setLevelT: v => { levelT = v; }, setIntegrity: v => { integrity = v; }, setScore: v => { score = v; },
   setMenuScroll: v => { menuScroll = v; }, tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
@@ -786,6 +787,8 @@ dismiss();
 }
 settle();
 check('pulse briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'pulse');
+check('the purge volley is already inbound behind the pulse disc',
+  G.enemies().filter(e => e.tut === 'pulse' && !e.dead).length === 4);
 dismiss();
 waitLive(4);
 {
@@ -798,9 +801,8 @@ waitLive(4);
   check('the purge wave clears the practice volley', !G.enemies().some(e => e.tut && !e.dead));
 }
 settle();
-check('the qualification ends on a QUALIFIED card, not a hard cut', G.getState() === G.S.INFO && G.getInfoCard() === 'done');
-dismiss();
-for (let i = 0; i < 45 && G.getState() !== G.S.END; i++) G.update(0.05); // breathing room, then the report
+check('the QUALIFIED ceremony plays in-world, no info disc', G.getState() === G.S.PLAY && G.tut() && G.qualStage().card === 'done');
+for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05); // the ceremony runs, then the report
 check('QUALIFIED: victory screen + progress persisted', G.getState() === G.S.END && G.getEndWin() === true && G.progress.tutorialDone === true && G.tut() === null);
 drawOk('qualification end screen', () => {});
 drawOk('briefing card frame', () => { G.progress.tutorialDone = false; G.startQualification(); G.update(0.05); });

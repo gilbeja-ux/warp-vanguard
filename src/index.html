@@ -1768,11 +1768,12 @@ function startQualification() {
   levelIdx = -1; endless = false; qual = true; spawnRng = Math.random;
   LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.40,
          doubles: 0, heavies: 0, lines: 0, colors: 0, frags: 0 };
-  tut = { stage: -1, t: 0, queue: [], moved: [0, 0], lastA: [0, 0], retry: null, spawned: null };
+  tut = { stage: 0, t: 0, queue: [], moved: [0, 0], lastA: [0, 0], retry: null, spawned: null };
   resetRun();
   tut.lastA = [nodes[0].angle, nodes[1].angle];
   runTrack = (Math.random() * 3) | 0;
   playTrack(runTrack);
+  showCard('move'); // the DUAL NODES disc greets you BEFORE the boot — read, then fly
 }
 // TEMPORARY dev shortcut: jump straight into the CORE FIREWALL duel.
 // Remove this (and its menu key) before release — grep "BOSS TEST".
@@ -2011,9 +2012,22 @@ function advanceQual() {
     endLevel(true);
     return;
   }
-  showCard(QUAL[tut.stage].card);
+  const c = QUAL[tut.stage].card;
+  if (c === 'done') { // no info disc — a QUALIFIED ceremony plays in-world
+    tut.queue = [];
+    // rising clearance chord: the line accepts its defender
+    tone(330, 0.5, 'sine', 0.10);
+    tone(415, 0.5, 'sine', 0.09, null, null, 0.14);
+    tone(494, 0.6, 'sine', 0.09, null, null, 0.28);
+    tone(659, 1.1, 'sine', 0.08, null, null, 0.42);
+    buzz([30, 40, 90]);
+    return;
+  }
+  showCard(c);
   tut.queue = (QUAL[tut.stage].queue || []).slice();
-  if (QUAL[tut.stage].card === 'wall') { tut.t = 0; tut.queue = []; qualSpawn('wall'); }
+  if (c === 'wall') { tut.t = 0; tut.queue = []; qualSpawn('wall'); }
+  // the purge volley is already inbound while the disc is read — dismiss and fire
+  else if (c === 'pulse') { tut.queue = []; qualSpawn('pulse'); }
 }
 function updateTutorial(dt) {
   tut.t += dt;
@@ -2022,7 +2036,6 @@ function updateTutorial(dt) {
     tut.moved[i] += Math.max(0, i === 0 ? d : -d);   // wrong-way travel doesn't count
     tut.lastA[i] = nodes[i].angle;
   }
-  if (tut.stage === -1) { tut.stage = 0; showCard(QUAL[0].card); return; }
   const st = QUAL[tut.stage];
   if (st.card === 'move') {
     // one FULL circle with each node — the arrows lead the way
@@ -2030,8 +2043,8 @@ function updateTutorial(dt) {
     return;
   }
   if (st.card === 'done') {
-    // breathing room: let the last card sink in, then the report — no hard cut
-    if (tut.t > 1.6) {
+    // the QUALIFIED ceremony runs its course, then the report — no hard cut
+    if (tut.t > 3.4) {
       progress.tutorialDone = true;
       saveState();
       tut = null;
@@ -4968,8 +4981,10 @@ function drawHUD(g) {
   }
 
   // qualification guides — the arrows do ALL the teaching, no captions
-  if (tut && tut.stage >= 0) {
+  // (held until the boot ceremony hands over the controls)
+  if (tut && tut.stage >= 0 && introT >= INTRO_DUR) {
     const st = QUAL[tut.stage];
+    if (st.card === 'done') drawQualCeremony(tut.t);
     const nn = a => Math.abs(angDiff(nodes[0].angle, a)) < Math.abs(angDiff(nodes[1].angle, a)) ? nodes[0] : nodes[1];
     if (st.card === 'move') {
       // marching arrows lead each node onward (blue clockwise, white counter);
@@ -4993,14 +5008,13 @@ function drawHUD(g) {
       }
       else if (ten.type === 'line') {
         drawGuideArc(nodes[0], ten.angle); if (ten.partner) drawGuideArc(nodes[1], ten.partner.angle);
-        if (ten.partner) { // parking spots on the rim + the line they'll cut together
+        if (ten.partner) { // parking spots on the rim + the arc they'll span, riding the rail
           const g2 = geo();
-          const p0 = { x: g2.cx + Math.cos(ten.angle) * g2.nodeR, y: g2.cy + Math.sin(ten.angle) * g2.nodeR };
-          const p1 = { x: g2.cx + Math.cos(ten.partner.angle) * g2.nodeR, y: g2.cy + Math.sin(ten.partner.angle) * g2.nodeR };
+          const d = angDiff(ten.partner.angle, ten.angle);
           ctx.save();
           ctx.strokeStyle = 'rgba(140,220,255,0.6)'; ctx.lineWidth = 2.5;
           ctx.setLineDash([7, 6]); ctx.lineDashOffset = -time * 24;
-          ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+          ctx.beginPath(); ctx.arc(g2.cx, g2.cy, g2.nodeR, ten.angle, ten.angle + d, d < 0); ctx.stroke();
           ctx.restore();
           drawParkSpot(ten.angle, 'rgba(95,150,255,0.9)');
           drawParkSpot(ten.partner.angle, 'rgba(255,255,255,0.85)');
@@ -5445,6 +5459,40 @@ function drawGuideArc(n, targetA) {
   ctx.translate(hx, hy); ctx.rotate(a1 + dir * Math.PI / 2);
   ctx.fillStyle = blue ? 'rgba(150,190,255,0.95)' : 'rgba(255,255,255,0.95)';
   ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-5, -6); ctx.lineTo(-5, 6); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+// QUALIFIED ceremony: lock-in pulses ripple out from the bore and the stamp
+// settles in — the boot ceremony's language, closing the loop it opened
+function drawQualCeremony(t) {
+  const g2 = geo();
+  for (const [d, col] of [[0, '140,230,255'], [0.35, '255,255,255']]) {
+    const q = clamp((t - d) / 1.1, 0, 1);
+    if (q <= 0 || q >= 1) continue;
+    ctx.strokeStyle = 'rgba(' + col + ',' + (0.5 * (1 - q)).toFixed(2) + ')';
+    ctx.lineWidth = 3 - q * 2;
+    ctx.beginPath(); ctx.arc(g2.cx, g2.cy, g2.nodeR * (1 + q * 0.75), 0, TAU); ctx.stroke();
+  }
+  const q2 = clamp((t - 0.3) / 0.5, 0, 1);
+  if (q2 <= 0) return;
+  const s = 1 + 0.5 * Math.pow(1 - q2, 2); // stamps down from oversized
+  const al = q2 * (t > 2.9 ? clamp((3.4 - t) / 0.5, 0, 1) : 1);
+  ctx.save();
+  ctx.translate(g2.cx, g2.cy); ctx.scale(s, s);
+  ctx.textAlign = 'center';
+  try { ctx.letterSpacing = '6px'; } catch (e) {}
+  const fs = fitPx('QUALIFIED', 700, Math.round(g2.nodeR * 0.30), g2.nodeR * 1.7, 12);
+  ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
+  ctx.shadowColor = 'rgba(120,225,255,0.8)'; ctx.shadowBlur = 22 * al;
+  ctx.fillStyle = 'rgba(228,249,255,' + al.toFixed(2) + ')';
+  ctx.fillText('QUALIFIED', 0, -fs * 0.1);
+  ctx.shadowBlur = 0;
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.font = '700 ' + Math.max(9, Math.round(fs * 0.32)) + 'px Audiowide, system-ui';
+  ctx.fillStyle = 'rgba(150,215,240,' + (al * 0.9).toFixed(2) + ')';
+  ctx.fillText('THE LINE IS YOURS TO GUARD', 0, fs * 0.72);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.textAlign = 'left';
   ctx.restore();
 }
 
