@@ -768,6 +768,7 @@ let endless = false, qual = false, LV = null, runTrack = 0; // active run config
 let infoCard = null, infoShownAt = 0; // briefing card (S.INFO)
 let menuScroll = 0, menuPtr = null; // level-list scrolling
 let menuScreen = 'home'; // 'home' (mode select) | 'map' (campaign route) | 'flow' (free flow)
+let mapListScroll = 0;   // relay column scroll (arc scrollbar rides the rim)
 let mapSel = 0;          // selected relay on the campaign map
 let commNext = 0, commCur = null, commT = 0; // intercepted-transmission ticker
 let surgeLevel = 0, surgeCount = -1, surgeWaveZ = -1; // free-run speed surges (announced)
@@ -1561,7 +1562,11 @@ canvas.addEventListener('pointermove', e => {
   if (menuPtr && menuPtr.id === e.pointerId && state === S.MENU && !menuSettings) {
     const dy = P.y - menuPtr.y;
     if (Math.abs(dy) > 6) menuPtr.moved = true;
-    menuScroll = clamp(menuPtr.scroll0 - dy, 0, menuGeom().maxScroll);
+    if (menuScreen === 'map' && menuPtr.x < menuGeom().ccx - mapR() * 0.5) {
+      mapListScroll = (menuPtr.mapScroll0 || 0) - dy; // clamped when the list draws
+    } else {
+      menuScroll = clamp(menuPtr.scroll0 - dy, 0, menuGeom().maxScroll);
+    }
     return;
   }
   const sl = pauseDrag[e.pointerId];
@@ -5727,12 +5732,9 @@ function paintMenuStatic() {
   // block logo — stacked DATA / DEFE / NDER, top-left (small brand on the map,
   // where the relay list needs the column)
   ctx.textAlign = 'left';
-  // one-line brand top-left everywhere — the full mark lives in the wheel hub
-  ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
-  ctx.fillText('DATA DEFENDER · DARK FIBER', 20 + SAFE.l, 24 + SAFE.t);
-  if (menuScreen === 'home') {
-    ctx.fillStyle = 'rgba(180,215,255,0.55)'; ctx.font = '500 10px Audiowide, system-ui';
-    ctx.fillText('Guard the payload.', 20 + SAFE.l, 40 + SAFE.t);
+  if (menuScreen !== 'home') { // small brand up top on sub-screens
+    ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
+    ctx.fillText('DATA DEFENDER · DARK FIBER', 20 + SAFE.l, 24 + SAFE.t);
   }
   if (menuScreen === 'map') {
     // the lens mouth: the ring becomes a viewport over the city
@@ -5783,7 +5785,8 @@ function drawMenu(g) {
 
   ctx.font = '10px monospace'; ctx.textAlign = 'left';
   // bottom-left: diagnostic carousel — count up fast, hold ~5s, then the next block
-  // in the bar lights up white and a fresh count begins
+  // in the bar lights up white and a fresh count begins (HOME garnish only)
+  if (menuScreen === 'home') {
   const CYCLE = 6.5, COUNT = 1.5;
   const cyc = Math.floor(time / CYCLE), ct = time - cyc * CYCLE;
   const cp = clamp(ct / COUNT, 0, 1);
@@ -5801,6 +5804,7 @@ function drawMenu(g) {
       ? (blink ? 'rgba(235,250,255,0.35)' : 'rgba(235,250,255,0.9)')
       : 'rgba(120,210,255,0.3)';
     ctx.fillRect(20 + i * 15, H - 40, 11, 5);
+  }
   }
   // bottom-right: live nav coordinates drifting as we ride the tunnel
   ctx.textAlign = 'right';
@@ -5934,20 +5938,41 @@ function drawMenuHome(ccx, ccy, R) {
     }
     menuButtons.push({ sector: { cx: ccx, cy: ccy, r0, r1, a0: sc0.mid - THIRD / 2 + 0.02, a1: sc0.mid + THIRD / 2 - 0.02 }, mode: sc.mode, locked: sc.locked });
   }
-  // the HUB: the brand, safe inside the wheel
+  // the HUB: a quiet core — the big brand lives LEFT of the wheel now
   ctx.beginPath(); ctx.arc(ccx, ccy, r0 - R * 0.03, 0, TAU);
   ctx.fillStyle = 'rgba(4,10,22,0.85)'; ctx.fill();
   ctx.strokeStyle = 'rgba(120,220,255,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.fillStyle = '#dfeeff';
-  ctx.font = '900 ' + Math.round(R * 0.075) + 'px Audiowide, system-ui';
-  try { ctx.letterSpacing = '1px'; } catch (e) {}
-  ctx.fillText('DATA', ccx, ccy - R * 0.075);
-  ctx.fillText('DEFENDER', ccx, ccy + R * 0.005);
+  ctx.strokeStyle = `rgba(255,210,74,${(0.35 + Math.sin(time * 1.8) * 0.12).toFixed(2)})`;
+  ctx.beginPath(); ctx.arc(ccx, ccy, r0 * 0.55, 0, TAU); ctx.stroke();
   try { ctx.letterSpacing = '2px'; } catch (e) {}
   ctx.fillStyle = 'rgba(255,210,74,0.9)';
-  ctx.font = '700 ' + Math.max(8, Math.round(R * 0.05)) + 'px Audiowide, system-ui';
-  ctx.fillText('DARK FIBER', ccx, ccy + R * 0.09);
+  ctx.font = '700 ' + Math.max(9, Math.round(R * 0.05)) + 'px Audiowide, system-ui';
+  ctx.fillText('DARK FIBER', ccx, ccy + R * 0.014);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.restore();
+  // the BIG logo, left of the wheel — rides out with the forward spin and
+  // back in with the reverse (the map keeps only the small brand up top)
+  let logoOff = 0, logoAl = 1;
+  if (menuFx && menuFx.kind === 'spinOut') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); logoOff = -q * q * 340; logoAl = 1 - q; }
+  if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); logoOff = -Math.pow(1 - q, 2) * 340; logoAl = q; }
+  ctx.save();
+  ctx.globalAlpha = logoAl;
+  ctx.textAlign = 'left';
+  const fs = Math.min(H * 0.115, Math.max(20, (ccx - R - SAFE.l) * 0.24));
+  const lx = 22 + SAFE.l + logoOff, llh = fs * 1.04;
+  let ly = 30 + SAFE.t + fs;
+  ctx.font = '900 ' + fs.toFixed(0) + 'px Audiowide, system-ui';
+  try { ctx.letterSpacing = (fs * 0.08).toFixed(1) + 'px'; } catch (e) {}
+  ctx.shadowColor = 'rgba(0,10,30,0.85)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+  ctx.fillStyle = '#c6d6ea';
+  for (const t2 of ['DATA', 'DEFE', 'NDER']) { ctx.fillText(t2, lx, ly); ly += llh; }
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  try { ctx.letterSpacing = '3px'; } catch (e) {}
+  ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 ' + Math.max(10, fs * 0.42).toFixed(0) + 'px Audiowide, system-ui';
+  ctx.fillText('DARK FIBER', lx + 2, ly + 4);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.fillStyle = 'rgba(180,215,255,0.6)'; ctx.font = '500 10px Audiowide, system-ui';
+  ctx.fillText('Guard the payload.', lx + 2, ly + 22);
   ctx.restore();
   ctx.textAlign = 'left';
 }
@@ -6676,12 +6701,28 @@ function drawMenuMap() {
 function drawMapList(ccx, ccy, R, frontier) {
   ctx.textAlign = 'left';
   const lx2 = 16 + SAFE.l;
-  const lw2 = Math.max(120, ccx - R - lx2 - 14);
   const rows = LEVELS.length;
-  const rh = Math.min(34, (H - 110) / rows - 6), gap2 = 6;
-  // THE INVESTIGATION header (static layer) titles this column now
-  let ly2 = Math.max(60 + SAFE.t, ccy - (rows * (rh + gap2) - gap2) / 2);
+  const rh = 38, gap2 = 8; // roomy rows — name and stars never fight
+  const topY = 60 + SAFE.t, botY = H - 20;
+  const viewH2 = botY - topY;
+  const contentH2 = rows * (rh + gap2) - gap2;
+  const maxSc = Math.max(0, contentH2 - viewH2);
+  mapListScroll = clamp(mapListScroll, 0, maxSc);
+  // keep the selected row in view
+  const selTop = mapSel * (rh + gap2);
+  if (selTop - mapListScroll < 0) mapListScroll = selTop;
+  if (selTop + rh - mapListScroll > viewH2) mapListScroll = selTop + rh - viewH2;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, topY - 4, ccx, viewH2 + 8); ctx.clip();
   for (let i = 0; i < rows; i++) {
+    const ly2 = topY + i * (rh + gap2) - mapListScroll;
+    if (ly2 + rh < topY - 6 || ly2 > botY + 6) { // register nothing off-screen
+      continue;
+    }
+    // right edge HUGS the rim: width follows the lens's left boundary
+    const dyC = (ly2 + rh / 2) - ccy;
+    const lensL = Math.abs(dyC) < R + 16 ? ccx - Math.sqrt(Math.max(0, (R + 16) * (R + 16) - dyC * dyC)) : ccx;
+    const lw2 = Math.max(150, lensL - lx2 - 10);
     const locked = i + 1 > progress.unlocked;
     const sel = i === mapSel;
     ctx.save();
@@ -6695,17 +6736,27 @@ function drawMapList(ccx, ccy, R, frontier) {
     ctx.lineWidth = sel ? 1.5 : 1;
     techRect(lx2, ly2, lw2, rh, 6); ctx.stroke();
     ctx.fillStyle = locked ? 'rgba(220,240,255,0.3)' : '#f2faff';
-    ctx.font = '700 9px Audiowide, system-ui';
+    const nm = '0' + (i + 1) + '  ' + LEVELS[i].name;
+    ctx.font = '700 ' + fitPx(nm, '700', 10, lw2 - 58, 8) + 'px Audiowide, system-ui';
     ctx.textBaseline = 'middle';
-    ctx.fillText('0' + (i + 1) + '  ' + LEVELS[i].name, lx2 + 9, ly2 + rh / 2 + 1);
+    ctx.fillText(nm, lx2 + 10, ly2 + rh / 2 + 1);
     ctx.textBaseline = 'alphabetic';
-    if (locked) padlock(lx2 + lw2 - 12, ly2 + rh / 2, 5);
+    if (locked) padlock(lx2 + lw2 - 14, ly2 + rh / 2, 5);
     else if (progress.stars[i] > 0) {
-      for (let k = 0; k < 3; k++) star5(lx2 + lw2 - 34 + k * 11, ly2 + rh / 2, 4, k < progress.stars[i]);
+      for (let k = 0; k < 3; k++) star5(lx2 + lw2 - 40 + k * 12, ly2 + rh / 2, 4.5, k < progress.stars[i]);
     }
     ctx.restore();
     menuButtons.push({ x: lx2, y: ly2, w: lw2, h: rh, node: i, locked: false });
-    ly2 += rh + gap2;
+  }
+  ctx.restore();
+  if (maxSc > 0) { // arc scrollbar hugging the lens's LEFT edge
+    const a0 = Math.PI * 0.72, a1 = Math.PI * 1.28; // left side of the rim
+    ctx.strokeStyle = 'rgba(100,190,255,0.18)'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(ccx, ccy, R + 9, a0, a1); ctx.stroke();
+    const span = a1 - a0, frac = viewH2 / contentH2;
+    const tA0 = a0 + (mapListScroll / maxSc) * span * (1 - frac);
+    ctx.strokeStyle = 'rgba(150,238,255,0.75)';
+    ctx.beginPath(); ctx.arc(ccx, ccy, R + 9, tA0, tA0 + span * frac); ctx.stroke();
   }
 }
 // right column: the relay dossier + deploy
