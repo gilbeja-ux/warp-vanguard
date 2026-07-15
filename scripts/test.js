@@ -681,15 +681,15 @@ function zapPractice() {
 }
 dismiss();
 check('tap dismisses the briefing', G.getState() === G.S.PLAY);
-for (let i = 1; i <= 14 && G.getState() === G.S.PLAY; i++) { aim(0, i * 0.25); aim(1, -i * 0.25); G.update(0.05); }
-check('thumb travel completes movement training', G.getState() === G.S.INFO && G.getInfoCard() === 'normal');
+for (let i = 1; i <= 30 && G.getState() === G.S.PLAY; i++) { aim(0, i * 0.25); aim(1, -i * 0.25); G.update(0.05); } // a FULL lap each
+check('a full circle per node completes movement training', G.getState() === G.S.INFO && G.getInfoCard() === 'normal');
 dismiss();
 check('practice trap 1 spawns and dies', waitLive(4) && zapPractice());
 check('practice trap 2 spawns and dies', waitLive(4) && zapPractice());
 settle();
 check('heavy briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'heavy');
 dismiss();
-check('heavy practice: pinned by both nodes', waitLive(4) && zapPractice());
+check('heavy practice: dock-and-hold volley', waitLive(4) && zapPractice());
 settle();
 check('barrier briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'line');
 dismiss();
@@ -700,7 +700,49 @@ dismiss();
 check('blue-lock practice', waitLive(4) && zapPractice());
 check('white-lock practice', waitLive(4) && zapPractice());
 settle();
-check('data-stream briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'strip');
+check('node-killer briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'frag');
+dismiss();
+waitLive(4);
+{
+  // lesson one: TOUCH it — feel the fry, no retry
+  const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
+  aim(0, pen.angle); aim(1, pen.angle + Math.PI);
+  cross(pen);
+  check('touching the teaching trap fries the node without a retry',
+    pen.dead === true && G.nodes[0].deadT > 0 && G.tut() && !G.tut().retry);
+  for (let i = 0; i < 50; i++) G.update(0.05); // ride out the reboot
+}
+waitLive(4);
+{
+  // lesson two: AVOID it
+  const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
+  aim(0, pen.angle + 1.5); aim(1, pen.angle - 1.5);
+  cross(pen);
+  check('letting the second trap pass succeeds', pen.resolved === true && !pen.dead);
+}
+settle();
+check('rim-wall briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'wall');
+dismiss();
+{
+  // the practice clamp lands away from the nodes — stay clear until it burns off
+  let wg = 260;
+  aim(0, G.latches().length ? G.latches()[0].a + Math.PI : 0); aim(1, G.nodes[0].angle + 0.5);
+  while (wg-- > 0 && G.latches().length) G.update(0.05);
+  check('routing around the practice wall completes the drill', !G.latches().length && G.tut() && !G.tut().retry);
+}
+settle();
+check('power-up briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'pickup');
+dismiss();
+waitLive(4);
+{
+  const pp = G.pickups().find(p2 => p2.tut && !p2.done);
+  pp.z = G.geo().hitZ; aim(0, pp.angle);
+  G.update(0.01);
+  check('catching the practice relay works', G.fx.wide > 0);
+  G.fx.wide = 0;
+}
+settle();
+check('bonus-stream briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'strip');
 dismiss();
 {
   // ride the ribbon: keep the blue node glued to the crossing point
@@ -715,32 +757,11 @@ dismiss();
     spawned && !G.enemies().some(e => e.type === 'strip' && !e.dead) && G.tut() && !G.tut().retry);
 }
 settle();
-check('friendly-packet briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'frag');
-dismiss();
-waitLive(4);
-{
-  const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
-  aim(0, pen.angle + 1.5); aim(1, pen.angle - 1.5);
-  cross(pen);
-  check('letting the packet pass succeeds', pen.resolved === true && !pen.dead);
-}
-settle();
-check('power-up briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'pickup');
-dismiss();
-waitLive(4);
-{
-  const pp = G.pickups().find(p2 => p2.tut && !p2.done);
-  pp.z = G.geo().hitZ; aim(0, pp.angle);
-  G.update(0.01);
-  check('catching the practice relay works', G.fx.wide > 0);
-  G.fx.wide = 0;
-}
-settle();
 check('pulse briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'pulse');
 dismiss();
 waitLive(4);
 {
-  // the drill pre-charges both orbs — tap the left core to fire the purge
+  // the ribbon charged it — tap the left core to fire the purge
   const d2 = G.dialCenter('L');
   canvasHandlers.pointerdown({ pointerId: 9, clientX: d2.x, clientY: d2.y, pointerType: 'touch' });
   check('tapping a charged core fires the pulse', G.pulseWavesN() > 0 && G.getPulse()[0] === 0);
@@ -748,7 +769,10 @@ waitLive(4);
   while (wGuard-- > 0 && G.enemies().some(e => e.tut && !e.dead)) G.update(0.05);
   check('the purge wave clears the practice volley', !G.enemies().some(e => e.tut && !e.dead));
 }
-settle(); settle();
+settle();
+check('the qualification ends on a QUALIFIED card, not a hard cut', G.getState() === G.S.INFO && G.getInfoCard() === 'done');
+dismiss();
+for (let i = 0; i < 45 && G.getState() !== G.S.END; i++) G.update(0.05); // breathing room, then the report
 check('QUALIFIED: victory screen + progress persisted', G.getState() === G.S.END && G.getEndWin() === true && G.progress.tutorialDone === true && G.tut() === null);
 drawOk('qualification end screen', () => {});
 drawOk('briefing card frame', () => { G.progress.tutorialDone = false; G.startQualification(); G.update(0.05); });

@@ -1817,10 +1817,12 @@ const QUAL = [
   { card: 'heavy',  queue: ['heavy'] },
   { card: 'line',   queue: ['line'] },
   { card: 'lock',   queue: ['lock0', 'lock1'] },
-  { card: 'strip',  queue: ['strip'] },
-  { card: 'frag',   queue: ['frag'] },
+  { card: 'frag',   queue: ['frag', 'frag'] }, // touch the first, dodge the second
+  { card: 'wall',   queue: ['wall'] },
   { card: 'pickup', queue: ['pickup'] },
-  { card: 'pulse',  queue: ['pulse'] }
+  { card: 'strip',  queue: ['strip'] },        // the ride charges a pulse...
+  { card: 'pulse',  queue: ['pulse'] },        // ...which this volley spends
+  { card: 'done' }
 ];
 const INFO_CARDS = {
   move:   { title: 'DUAL NODES', lines: ['Left thumb steers the BLUE node,', 'right thumb steers the WHITE node.', 'Slide around the dials to ride the ring.'] },
@@ -1832,6 +1834,7 @@ const INFO_CARDS = {
   pickup: { title: 'POWER-UP', lines: ['Golden relays ride the stream.', 'Catch one with any node:', 'SHIELD · WIDE ARC · AUTO-ZAP', 'PULSE FILL · CHAIN LIGHTNING.'] },
   strip:  { title: 'BONUS STREAM', lines: ['A golden stream rides the wall.', 'OPTIONAL: keep a node ON its crossing', 'point head to tail — a full ride', 'charges that node\'s PULSE to maximum.'] },
   wall:   { title: 'RIM WALL', lines: ['They chain their traps now: a wall', 'seizes part of your rail, then burns', 'off within seconds. Crossing it', 'FRIES the node — route the other way.'] },
+  done:   { title: 'QUALIFIED', lines: ['The line is yours to guard.', 'Report to OmniServe — the', 'investigation begins at relay 01.'] },
   verdict: { title: 'LOG 09 — VERDICT', lines: ['The gateway burned. The payload', 'reached the CID intact. Warrants', 'went out within the hour — the', 'buyer wore a badge. Case closed.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Combo zaps bank charge in your pads.', 'When an orb GLOWS, tap it to fire', 'a purge wave down the tunnel.'] },
   boss:   { title: 'FIREWALL CORE', lines: ['The dials stay YOURS. Dock both', 'nodes and HOLD — the bolt homes on', 'the core. SIX hits close the case.', 'Dodge darts. Mind the latches.'] }
@@ -1929,13 +1932,22 @@ function qualSpawn(kind) {
     return;
   }
   if (kind === 'pulse') {
-    // full orbs + a slow volley: fire the purge (or zap through it — both teach)
+    // several traps at once — the purge the ribbon charged clears them all
+    // (top up the other orb so either thumb can learn the tap)
     pulseCharge = [PULSE_MAX, PULSE_MAX];
-    for (let k = 0; k < 3; k++) {
+    for (let k = 0; k < 4; k++) {
       const e3 = spawnEnemy(Math.random() * TAU, 'normal');
       e3.lock = undefined; e3.tut = 'pulse';
-      e3.z = SPAWN_Z - 0.05 - k * 0.24; // staggered inside the purge wave's reach
+      e3.z = SPAWN_Z - 0.05 - k * 0.22; // staggered inside the purge wave's reach
     }
+    return;
+  }
+  if (kind === 'wall') {
+    // a practice clamp lands ahead — route around it, or eat the fry and retry
+    latches.length = 0;
+    const away = nodes[0].angle + Math.PI * (Math.random() < 0.5 ? 0.55 : -0.55);
+    latches.push({ a: away, span0: 0.5, t: 0, dur: 3.2, tele: 2.0, arm: 0.4, z0: 1.3 });
+    tone(1180, 0.02, 'square', 0.05); tone(1180, 0.02, 'square', 0.05, null, null, 0.22);
     return;
   }
   if (kind === 'line') {
@@ -1952,11 +1964,12 @@ function qualSpawn(kind) {
   } else en = spawnEnemy(undefined, kind); // normal | heavy | frag
   en.tut = kind;
   en.drift = 0;
+  if (kind === 'frag') en.touchMe = !tut.fragTaught; // first trap: LEARN it by touching
 }
 function advanceQual() {
   tut.stage++;
   tut.t = 0;
-  if (tut.stage >= QUAL.length) { // qualified!
+  if (tut.stage >= QUAL.length) { // safety — 'done' normally ends it with air
     progress.tutorialDone = true;
     saveState();
     tut = null;
@@ -1965,6 +1978,7 @@ function advanceQual() {
   }
   showCard(QUAL[tut.stage].card);
   tut.queue = (QUAL[tut.stage].queue || []).slice();
+  if (QUAL[tut.stage].card === 'wall') { tut.t = 0; tut.queue = []; qualSpawn('wall'); }
 }
 function updateTutorial(dt) {
   tut.t += dt;
@@ -1975,10 +1989,31 @@ function updateTutorial(dt) {
   if (tut.stage === -1) { tut.stage = 0; showCard(QUAL[0].card); return; }
   const st = QUAL[tut.stage];
   if (st.card === 'move') {
-    if (tut.moved[0] > 1.2 && tut.moved[1] > 1.2) advanceQual();
+    // one FULL circle with each node — the arrows lead the way
+    if (tut.moved[0] > TAU && tut.moved[1] > TAU) advanceQual();
     return;
   }
-  const live = enemies.some(e => !e.dead && !e.resolved) || pickups.some(p => !p.done);
+  if (st.card === 'done') {
+    // breathing room: let the last card sink in, then the report — no hard cut
+    if (tut.t > 1.6) {
+      progress.tutorialDone = true;
+      saveState();
+      tut = null;
+      endLevel(true);
+    }
+    return;
+  }
+  if (tut.spawned === 'wall') { // route around the practice clamp
+    if (nodes.some(n => n.deadT > 0)) { // clipped it — reset and try again
+      latches.length = 0;
+      nodes[0].deadT = nodes[1].deadT = 0;
+      tut.retry = 'wall'; tut.t = 0;
+      popup(W / 2, H * 0.4, 'ROUTE AROUND IT — AGAIN', '#ff9a3c');
+      return;
+    }
+    if (latches.length) return; // still burning — hold the stage
+  }
+  const live = enemies.some(e => !e.dead && !e.resolved) || pickups.some(p => !p.done) || latches.length > 0;
   if (tut.retry && !live && tut.t > 0.9) { // practice failed — same drill again
     const k = tut.retry; tut.retry = null; tut.t = 0;
     qualSpawn(k);
@@ -2369,7 +2404,13 @@ function update(dt) {
         if (touched) {
           en.dead = true;
           burst(fx2, fy, '#4a5568', 22, 3.5);
-          if (en.tut) { // practice: no penalty, try again
+          if (en.tut && en.touchMe) { // the lesson: feel the fry, no penalty beyond it
+            if (tut) tut.fragTaught = true;
+            for (const n of nodes) if (covers(n, en.angle)) n.deadT = 2;
+            popup(fx2, fy, 'FRIED — 2s REBOOT. now you know', '#ff9a3c');
+            sfx.fry(Math.cos(en.angle) * 0.7);
+            buzz([40, 40, 60]);
+          } else if (en.tut) { // practice: you knew better — again
             if (tut) { tut.retry = en.tut; tut.t = 0; }
             popup(fx2, fy, 'THAT ONE WAS A TRAP — AGAIN', '#ff9a3c');
             sfx.miss();
@@ -2386,9 +2427,14 @@ function update(dt) {
           }
         } else {
           en.resolved = true;
-          const bonus = Math.round(50 * mutMul());
-          score += bonus;
-          popup(fx2, fy, 'trap avoided +' + bonus, '#9aa7bd');
+          if (en.tut && en.touchMe) { // the lesson requires contact — again
+            if (tut) { tut.retry = en.tut; tut.t = 0; }
+            popup(fx2, fy, 'TOUCH it this once — feel what it does', '#ff9a3c');
+          } else {
+            const bonus = Math.round(50 * mutMul());
+            score += bonus;
+            popup(fx2, fy, 'trap avoided +' + bonus, '#9aa7bd');
+          }
         }
         continue;
       }
@@ -4890,13 +4936,28 @@ function drawHUD(g) {
     const st = QUAL[tut.stage];
     const nn = a => Math.abs(angDiff(nodes[0].angle, a)) < Math.abs(angDiff(nodes[1].angle, a)) ? nodes[0] : nodes[1];
     let msg = null;
-    if (st.card === 'move') msg = 'Slide BOTH thumbs around the dials';
+    if (st.card === 'move') {
+      msg = 'Take EACH node one full lap around the ring';
+      // marching arrows lead each node onward; thin meters track the laps
+      for (let i = 0; i < 2; i++) {
+        if (tut.moved[i] <= TAU) drawGuideArc(nodes[i], nodes[i].angle + 1.1);
+        const d2 = dialCenter(i === 0 ? 'L' : 'R');
+        ctx.strokeStyle = i === 0 ? 'rgba(111,227,255,0.85)' : 'rgba(255,255,255,0.85)';
+        ctx.lineWidth = 3; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(d2.x, d2.y, d2.r + 12, -Math.PI / 2, -Math.PI / 2 + clamp(tut.moved[i] / TAU, 0, 1) * TAU);
+        ctx.stroke();
+      }
+    }
+    else if (st.card === 'done') msg = 'QUALIFIED — stand by...';
+    else if (tut.spawned === 'wall') msg = 'A wall is landing — route AROUND the marked arc';
+    else if (tut.spawned === 'frag' && enemies.some(e => e.tut === 'frag' && e.touchMe && !e.dead && !e.resolved)) msg = 'TOUCH the black trap once — learn what it does';
+    else if (tut.spawned === 'frag') msg = 'Now AVOID it — let it pass, bank the bonus';
     else if (tut.spawned === 'normal') msg = 'Align a node with the trap';
     else if (tut.spawned === 'heavy') msg = 'DOCK both nodes on its lane and HOLD — the charge fires itself';
     else if (tut.spawned === 'line') msg = 'One node on EACH end of the wall';
     else if (tut.spawned === 'lock0') msg = 'Only the BLUE node can break this one';
     else if (tut.spawned === 'lock1') msg = 'Only the WHITE node can break this one';
-    else if (tut.spawned === 'frag') msg = 'NODE KILLER — do NOT touch it';
     else if (tut.spawned === 'pickup') msg = 'Catch the power-up with any node';
     else if (tut.spawned === 'strip') msg = 'Ride the golden stream to the end — it charges your PULSE';
     else if (tut.spawned === 'pulse') msg = 'Tap a GLOWING pad core to fire the purge';
