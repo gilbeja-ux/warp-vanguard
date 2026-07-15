@@ -4975,7 +4975,7 @@ function drawHUD(g) {
       for (let i = 0; i < 2; i++) {
         if (tut.moved[i] <= TAU) drawGuideArc(nodes[i], nodes[i].angle + 1.1);
         const d2 = dialCenter(i === 0 ? 'L' : 'R');
-        ctx.strokeStyle = i === 0 ? 'rgba(111,227,255,0.85)' : 'rgba(255,255,255,0.85)';
+        ctx.strokeStyle = i === 0 ? 'rgba(95,150,255,0.9)' : 'rgba(255,255,255,0.85)';
         ctx.lineWidth = 3; ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.arc(d2.x, d2.y, d2.r + 12, -Math.PI / 2, -Math.PI / 2 + clamp(tut.moved[i] / TAU, 0, 1) * TAU);
@@ -5441,8 +5441,9 @@ function drawGuideArc(n, targetA) {
   if (Math.abs(d) < 0.3) return; // close enough — no guide needed
   const dir = Math.sign(d);
   const a0 = n.angle + dir * 0.12, a1 = n.angle + d * 0.82;
+  const blue = n === nodes[0]; // arc wears its node's color so pupils know whose lead it is
   ctx.save();
-  ctx.strokeStyle = 'rgba(120,225,255,0.85)';
+  ctx.strokeStyle = blue ? 'rgba(95,150,255,0.9)' : 'rgba(255,255,255,0.8)';
   ctx.lineWidth = 3;
   ctx.setLineDash([9, 9]);
   ctx.lineDashOffset = -time * 60 * dir;
@@ -5450,7 +5451,7 @@ function drawGuideArc(n, targetA) {
   ctx.setLineDash([]);
   const hx = g2.cx + Math.cos(a1) * rr, hy = g2.cy + Math.sin(a1) * rr;
   ctx.translate(hx, hy); ctx.rotate(a1 + dir * Math.PI / 2);
-  ctx.fillStyle = 'rgba(160,240,255,0.95)';
+  ctx.fillStyle = blue ? 'rgba(150,190,255,0.95)' : 'rgba(255,255,255,0.95)';
   ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-5, -6); ctx.lineTo(-5, 6); ctx.closePath(); ctx.fill();
   ctx.restore();
 }
