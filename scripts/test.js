@@ -716,7 +716,17 @@ waitLive(4);
 }
 waitLive(4);
 {
-  // lesson two: AVOID it
+  // lesson two: it STILL bites — touching the dodge trap fries and retries
+  const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
+  aim(0, pen.angle); aim(1, pen.angle + Math.PI);
+  cross(pen);
+  check('touching the dodge trap fries the node and demands a retry',
+    pen.dead === true && G.nodes[0].deadT > 0 && G.tut() && G.tut().retry === 'frag');
+  for (let i = 0; i < 60; i++) G.update(0.05); // reboot, then the drill respawns
+}
+waitLive(4);
+{
+  // lesson two, take two: AVOID it
   const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
   aim(0, pen.angle + 1.5); aim(1, pen.angle - 1.5);
   cross(pen);

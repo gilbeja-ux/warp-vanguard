@@ -2446,10 +2446,12 @@ function update(dt) {
             popup(fx2, fy, 'FRIED — 2s REBOOT. now you know', '#ff9a3c');
             sfx.fry(Math.cos(en.angle) * 0.7);
             buzz([40, 40, 60]);
-          } else if (en.tut) { // practice: you knew better — again
+          } else if (en.tut) { // practice: it fries here too — dodge means dodge
             if (tut) { tut.retry = en.tut; tut.t = 0; }
-            popup(fx2, fy, 'THAT ONE WAS A TRAP — AGAIN', '#ff9a3c');
-            sfx.miss();
+            for (const n of nodes) if (covers(n, en.angle)) n.deadT = 2;
+            popup(fx2, fy, 'FRIED — dodge it. AGAIN', '#ff9a3c');
+            sfx.fry(Math.cos(en.angle) * 0.7);
+            buzz([40, 40, 60]);
           } else {
             combo = 0; comboHeal = 0; fragsHit++;
             if (!shieldAbsorb(fx2, fy)) {
@@ -4987,8 +4989,25 @@ function drawHUD(g) {
     }
     const ten = enemies.find(e => e.tut && !e.dead && !e.resolved);
     if (ten) {
-      if (ten.type === 'heavy') { drawGuideArc(nodes[0], ten.angle); drawGuideArc(nodes[1], ten.angle); }
-      else if (ten.type === 'line') { drawGuideArc(nodes[0], ten.angle); if (ten.partner) drawGuideArc(nodes[1], ten.partner.angle); }
+      if (ten.type === 'heavy') { // both arrows converge on a half-blue/half-white dock spot
+        drawGuideArc(nodes[0], ten.angle); drawGuideArc(nodes[1], ten.angle);
+        drawDockSpot(ten.angle);
+      }
+      else if (ten.type === 'line') {
+        drawGuideArc(nodes[0], ten.angle); if (ten.partner) drawGuideArc(nodes[1], ten.partner.angle);
+        if (ten.partner) { // parking spots on the rim + the line they'll cut together
+          const g2 = geo();
+          const p0 = { x: g2.cx + Math.cos(ten.angle) * g2.nodeR, y: g2.cy + Math.sin(ten.angle) * g2.nodeR };
+          const p1 = { x: g2.cx + Math.cos(ten.partner.angle) * g2.nodeR, y: g2.cy + Math.sin(ten.partner.angle) * g2.nodeR };
+          ctx.save();
+          ctx.strokeStyle = 'rgba(140,220,255,0.6)'; ctx.lineWidth = 2.5;
+          ctx.setLineDash([7, 6]); ctx.lineDashOffset = -time * 24;
+          ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+          ctx.restore();
+          drawParkSpot(ten.angle, 'rgba(95,150,255,0.9)');
+          drawParkSpot(ten.partner.angle, 'rgba(255,255,255,0.85)');
+        }
+      }
       else if (ten.lock !== undefined) drawGuideArc(nodes[ten.lock], ten.angle);
       // the killer teaches by contact: the arrow WALKS them into the first
       // one; every one after wears a landing signal so the drill is DODGE
@@ -5431,6 +5450,36 @@ function drawGuideArc(n, targetA) {
   ctx.restore();
 }
 
+// tutorial dock spot: a half-blue/half-white disc on the rim where BOTH
+// nodes must meet — the heavy drill's destination, split like its crew
+function drawDockSpot(a) {
+  const g2 = geo();
+  const px = g2.cx + Math.cos(a) * g2.nodeR, py = g2.cy + Math.sin(a) * g2.nodeR;
+  const r = Math.min(W, H) * 0.024;
+  ctx.save();
+  ctx.translate(px, py); ctx.rotate(a); // the split rides the rim's radial axis
+  ctx.fillStyle = 'rgba(77,141,255,0.85)';
+  ctx.beginPath(); ctx.arc(0, 0, r, Math.PI / 2, Math.PI * 1.5); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath(); ctx.arc(0, 0, r, -Math.PI / 2, Math.PI / 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(200,240,255,0.75)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(0, 0, r * (1.3 + Math.sin(time * 5) * 0.12), 0, TAU); ctx.stroke();
+  ctx.restore();
+}
+
+// tutorial parking spot: a dashed ring on the rim in the color of the node
+// meant to fill it (the barrier drill's two ends)
+function drawParkSpot(a, col) {
+  const g2 = geo();
+  const px = g2.cx + Math.cos(a) * g2.nodeR, py = g2.cy + Math.sin(a) * g2.nodeR;
+  const r = Math.min(W, H) * 0.028 * (1 + Math.sin(time * 5) * 0.08);
+  ctx.save();
+  ctx.strokeStyle = col; ctx.lineWidth = 2.5;
+  ctx.setLineDash([5, 4]); ctx.lineDashOffset = -time * 20;
+  ctx.beginPath(); ctx.arc(px, py, r, 0, TAU); ctx.stroke();
+  ctx.restore();
+}
+
 // mini landing signal for tutorial node killers, in the rim wall's hazard
 // language: once a defender has been fried by one, killers telegraph the arc
 // they'll land on — the drill becomes DODGE, not decode
@@ -5564,7 +5613,14 @@ function pauseTap(x, y, pid) {
       sfx.tick();
       if (b.action === 'resume') { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; }
       else if (b.action === 'restart') { if (qual) startQualification(); else if (daily) startDaily(); else if (endless) startEndless(); else startLevel(levelIdx); }
-      else { daily = false; Math.random = sysRandom; state = S.MENU; fadeT = 0.35; playTrack('menu'); }
+      else { // QUIT rides the same drive-back the end-screen MENU key uses
+        daily = false; Math.random = sysRandom;
+        menuScreen = qual ? 'home' : endless ? 'flow' : 'map';
+        if (!endless && !qual) mapSel = Math.min(progress.unlocked - 1, LEVELS.length - 1);
+        state = S.MENU; fadeT = 0.35; playTrack('menu');
+        menuFx = menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, zoom: true }
+          : { kind: 'spinIn', t: 0, dur: 0.5, dir: 1, zoom: true };
+      }
       return;
     }
   }
