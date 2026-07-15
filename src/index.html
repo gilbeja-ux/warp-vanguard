@@ -1720,8 +1720,8 @@ function endTap(x, y) {
         menuScreen = qual ? 'home' : endless ? 'flow' : 'map';
         if (!endless && !qual) mapSel = Math.min(progress.unlocked - 1, LEVELS.length - 1);
         state = S.MENU; fadeT = 0.35; playTrack('menu');
-        menuFx = menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1 }
-          : { kind: 'spinIn', t: 0, dur: 0.35, dir: 1 };
+        menuFx = menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, zoom: true }
+          : { kind: 'spinIn', t: 0, dur: 0.5, dir: 1, zoom: true };
       });
       return;
     }
@@ -4967,13 +4967,11 @@ function drawHUD(g) {
     }
   }
 
-  // qualification prompts + guides
+  // qualification guides — the arrows do ALL the teaching, no captions
   if (tut && tut.stage >= 0) {
     const st = QUAL[tut.stage];
     const nn = a => Math.abs(angDiff(nodes[0].angle, a)) < Math.abs(angDiff(nodes[1].angle, a)) ? nodes[0] : nodes[1];
-    let msg = null;
     if (st.card === 'move') {
-      msg = 'One full lap each — follow YOUR arrow';
       // marching arrows lead each node onward (blue clockwise, white counter);
       // the lap meters wind the same way their node travels
       for (let i = 0; i < 2; i++) {
@@ -4987,53 +4985,15 @@ function drawHUD(g) {
         ctx.stroke();
       }
     }
-    else if (st.card === 'done') msg = 'QUALIFIED — stand by...';
-    else if (tut.spawned === 'wall') msg = 'A wall is landing — route AROUND the marked arc';
-    else if (tut.spawned === 'frag' && enemies.some(e => e.tut === 'frag' && e.touchMe && !e.dead && !e.resolved)) msg = 'TOUCH the black trap once — learn what it does';
-    else if (tut.spawned === 'frag') msg = 'Now AVOID it — let it pass, bank the bonus';
-    else if (tut.spawned === 'normal') msg = 'Align a node with the trap';
-    else if (tut.spawned === 'heavy') msg = 'DOCK both nodes on its lane and HOLD — the charge fires itself';
-    else if (tut.spawned === 'line') msg = 'One node on EACH end of the wall';
-    else if (tut.spawned === 'lock0') msg = 'Only the BLUE node can break this one';
-    else if (tut.spawned === 'lock1') msg = 'Only the WHITE node can break this one';
-    else if (tut.spawned === 'pickup') msg = 'Catch the power-up with any node';
-    else if (tut.spawned === 'strip') msg = 'Ride the golden stream to the end — it charges your PULSE';
-    else if (tut.spawned === 'pulse') msg = 'Your ride charged that GLOWING core — tap it to purge them all';
-    if (msg) {
-      // dead-center of the ring, word-wrapped to 60% of its width — never
-      // parked over the rim where the action lands
-      const g2 = geo();
-      const maxW2 = g2.nodeR * 2 * 0.6;
-      const a = 0.8 + Math.sin(time * 4) * 0.2;
-      const fs = Math.min(W * 0.019, 12);
-      ctx.textAlign = 'center';
-      ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
-      const lines = [];
-      let cur = '';
-      for (const w2 of msg.split(' ')) {
-        const t2 = cur ? cur + ' ' + w2 : w2;
-        if (cur && ctx.measureText(t2).width > maxW2) { lines.push(cur); cur = w2; }
-        else cur = t2;
-      }
-      if (cur) lines.push(cur);
-      const lh = fs + 7;
-      const boxW = Math.max(...lines.map(l => ctx.measureText(l).width)) + 28;
-      const boxH = lines.length * lh + 14;
-      // whisper of a backdrop — the field stays readable straight through it
-      ctx.fillStyle = 'rgba(6,12,26,0.16)';
-      roundRect(g2.cx - boxW / 2, g2.cy - boxH / 2, boxW, boxH, 9); ctx.fill();
-      ctx.fillStyle = 'rgba(200,244,255,' + a.toFixed(2) + ')';
-      ctx.shadowColor = 'rgba(0,4,12,0.9)'; ctx.shadowBlur = 4;
-      lines.forEach((l, i) => ctx.fillText(l, g2.cx, g2.cy - boxH / 2 + 7 + (i + 0.8) * lh));
-      ctx.shadowBlur = 0;
-      ctx.textAlign = 'left';
-    }
     const ten = enemies.find(e => e.tut && !e.dead && !e.resolved);
     if (ten) {
       if (ten.type === 'heavy') { drawGuideArc(nodes[0], ten.angle); drawGuideArc(nodes[1], ten.angle); }
       else if (ten.type === 'line') { drawGuideArc(nodes[0], ten.angle); if (ten.partner) drawGuideArc(nodes[1], ten.partner.angle); }
       else if (ten.lock !== undefined) drawGuideArc(nodes[ten.lock], ten.angle);
-      else if (ten.type !== 'frag') drawGuideArc(nn(ten.angle), ten.angle);
+      // the killer teaches by contact: the arrow WALKS them into the first
+      // one; every one after wears a landing signal so the drill is DODGE
+      else if (ten.type === 'frag') { if (ten.touchMe) drawGuideArc(nn(ten.angle), ten.angle); else drawKillerSignal(ten); }
+      else drawGuideArc(nn(ten.angle), ten.angle);
     }
     const tp = pickups.find(p => p.tut && !p.done);
     if (tp) drawGuideArc(nn(tp.angle), tp.angle);
@@ -5042,6 +5002,16 @@ function drawHUD(g) {
         const d = dialCenter(side);
         const pr = d.r + 6 + Math.sin(time * 5) * 3;
         ctx.strokeStyle = side === 'L' ? 'rgba(111,227,255,0.8)' : 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(d.x, d.y, pr, 0, TAU); ctx.stroke();
+      }
+    }
+    if (tut.spawned === 'pulse') { // a banked pulse waits on the dial — ring the ready core
+      for (let i = 0; i < 2; i++) {
+        if (pulseCharge[i] < PULSE_MAX || nodes[i].deadT > 0) continue;
+        const d = dialCenter(i === 0 ? 'L' : 'R');
+        const pr = d.r * 0.5 + 8 + Math.sin(time * 6) * 4;
+        ctx.strokeStyle = i === 0 ? 'rgba(111,227,255,0.85)' : 'rgba(255,255,255,0.85)';
         ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(d.x, d.y, pr, 0, TAU); ctx.stroke();
       }
@@ -5458,6 +5428,27 @@ function drawGuideArc(n, targetA) {
   ctx.translate(hx, hy); ctx.rotate(a1 + dir * Math.PI / 2);
   ctx.fillStyle = blue ? 'rgba(150,190,255,0.95)' : 'rgba(255,255,255,0.95)';
   ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-5, -6); ctx.lineTo(-5, 6); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+// mini landing signal for tutorial node killers, in the rim wall's hazard
+// language: once a defender has been fried by one, killers telegraph the arc
+// they'll land on — the drill becomes DODGE, not decode
+function drawKillerSignal(e) {
+  const g2 = geo();
+  const near = 1 - clamp((e.z - 1) / (SPAWN_Z - 1), 0, 1); // 0 far → 1 landing
+  const span = 0.13, blink = 0.5 + 0.5 * Math.sin(time * 9);
+  ctx.save();
+  ctx.lineCap = 'butt';
+  // soft underglow, then striped hazard ticks — sharper as it closes in
+  ctx.strokeStyle = 'rgba(255,120,40,' + (0.10 + 0.16 * near).toFixed(2) + ')';
+  ctx.lineWidth = 11;
+  ctx.beginPath(); ctx.arc(g2.cx, g2.cy, g2.nodeR, e.angle - span, e.angle + span); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,150,60,' + ((0.35 + 0.45 * near) * (0.55 + 0.45 * blink)).toFixed(2) + ')';
+  ctx.lineWidth = 4;
+  ctx.setLineDash([6, 5]);
+  ctx.lineDashOffset = -time * 30;
+  ctx.beginPath(); ctx.arc(g2.cx, g2.cy, g2.nodeR, e.angle - span, e.angle + span); ctx.stroke();
   ctx.restore();
 }
 
@@ -7321,6 +7312,15 @@ function frame(now) {
   else if (state === S.MENU) {
     if (menuFx && menuFx.kind === 'launch') {
       const q = clamp(menuFx.t / menuFx.dur, 0, 1), e2 = q * q;
+      ctx.save();
+      ctx.translate(g.cx, g.cy); ctx.scale(1 + e2 * 1.7, 1 + e2 * 1.7); ctx.translate(-g.cx, -g.cy);
+      ctx.globalAlpha = 1 - e2;
+      drawMenu(g);
+      ctx.restore();
+    } else if (menuFx && menuFx.zoom) {
+      // launch, run backwards: the menu lives BEHIND the run, so returning
+      // from a level it drives back into view — oversized and faint, settling
+      const q = clamp(menuFx.t / menuFx.dur, 0, 1), e2 = (1 - q) * (1 - q);
       ctx.save();
       ctx.translate(g.cx, g.cy); ctx.scale(1 + e2 * 1.7, 1 + e2 * 1.7); ctx.translate(-g.cx, -g.cy);
       ctx.globalAlpha = 1 - e2;
