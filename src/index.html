@@ -2040,12 +2040,10 @@ function updateTutorial(dt) {
     return;
   }
   if (tut.spawned === 'wall') { // route around the practice clamp
-    if (nodes.some(n => n.deadT > 0)) { // clipped it — reset and try again
-      latches.length = 0;
-      nodes[0].deadT = nodes[1].deadT = 0;
+    if (nodes.some(n => n.deadT > 0) && !tut.retry) {
+      // clipped it — the fry STANDS (reboot and all); the drill repeats
+      // once the clamp burns off
       tut.retry = 'wall'; tut.t = 0;
-      popup(W / 2, H * 0.4, 'ROUTE AROUND IT — AGAIN', '#ff9a3c');
-      return;
     }
     if (latches.length) return; // still burning — hold the stage
   }

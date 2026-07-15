@@ -736,6 +736,22 @@ settle();
 check('rim-wall briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'wall');
 dismiss();
 {
+  // clip the practice clamp on purpose — the fry is REAL and the drill repeats
+  const lt = G.latches()[0];
+  let wg0 = 100;
+  while (wg0-- > 0 && !lt.bit) G.update(0.05); // telegraph lands
+  G.update(0.5);                               // ...and the arm grace passes
+  aim(0, lt.a); aim(1, lt.a + Math.PI);
+  for (let i = 0; i < 20 && !(G.nodes[0].deadT > 0); i++) G.update(0.05);
+  G.update(0.05); // next tutorial tick registers the fry and arms the retry
+  check('clipping the practice wall fries the node for real',
+    G.nodes[0].deadT > 0 && G.tut() && G.tut().retry === 'wall');
+  aim(0, lt.a + Math.PI + 0.5); // step clear while it burns off and respawns
+  let wg1 = 300;
+  while (wg1-- > 0 && !(G.latches().length && G.latches()[0] !== lt)) G.update(0.05);
+  check('the wall drill respawns after the fry', G.latches().length === 1 && G.latches()[0] !== lt);
+}
+{
   // the practice clamp lands away from the nodes — stay clear until it burns off
   let wg = 260;
   aim(0, G.latches().length ? G.latches()[0].a + Math.PI : 0); aim(1, G.nodes[0].angle + 0.5);
