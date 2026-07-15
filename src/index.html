@@ -248,6 +248,7 @@ function sonarTick(freq, pan) {
 // (native <audio loop> always has an audible seam on mp3). Encoder padding is
 // trimmed via loopStart/loopEnd. One decoded track is held in memory at a time.
 let musicGain = null, musicSrc = null, musicFilter = null;
+let musicLift = 1; // max-combo streaks brighten the mix a touch
 let musicStartAt = 0, beatPeriod = 0, musicCut = 16000, musicLoopDur = 0;
 let currentTrackKey = null, musicLoadKey = null;
 let musicFade = 1; // 0→1 whenever a track starts from silence
@@ -370,7 +371,9 @@ function updateMusic(dt) {
   if (!musicGain) return;
   musicDuck = Math.max(0, musicDuck - (dt || 0) / 1.2);
   const f = musicFade * musicFade * (3 - 2 * musicFade); // smoothstep
-  musicGain.gain.value = musicVolume() * f * (1 - 0.55 * musicDuck) * seamDuck;
+  const liftTarget = state === S.PLAY && combo >= 8 ? 1.07 : 1; // hot streaks lift the mix
+  musicLift += (liftTarget - musicLift) * Math.min(1, (dt || 0) * 2);
+  musicGain.gain.value = musicVolume() * f * (1 - 0.55 * musicDuck) * seamDuck * musicLift;
 }
 // haptics: Capacitor Haptics on device, vibration API on the web
 function buzz(pattern) {
@@ -652,20 +655,20 @@ function drawWallCode(g, dt) {
 
 // ---------- levels ----------
 const LEVELS = [
-  { name: 'OMNISERVE CAMPUS', duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0 },
-  { name: 'OLD TOWN GRID',   duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
+  { name: 'OMNISERVE CAMPUS', tint: '80,160,255', duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0 },
+  { name: 'OLD TOWN GRID', tint: '255,170,90',   duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
     hint: 'NEW THREAT: heavy armor — dock both nodes and HOLD' },
-  { name: 'METRO EXCHANGE', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
+  { name: 'METRO EXCHANGE', tint: '110,230,200', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
     hint: 'NEW THREAT: burst transmissions — traps arrive in volleys' },
-  { name: 'HARBOR CROSSING', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
+  { name: 'HARBOR CROSSING', tint: '70,205,235', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
     hint: 'NEW THREAT: barrier lines — one node on each end' },
-  { name: 'UNDERCITY FIBER', duration: 60, spawnMin: 0.72, spawnMax: 1.35, speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, walls: 0.10, track: 1,
+  { name: 'UNDERCITY FIBER', tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35, speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, walls: 0.10, track: 1,
     hint: 'NEW THREAT: rim walls — the rail closes, route around' },
-  { name: 'FINANCIAL SPINE', duration: 65, spawnMin: 0.68, spawnMax: 1.25, speed: 0.48, doubles: 0.42, heavies: 0.18, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 2,
+  { name: 'FINANCIAL SPINE', tint: '255,205,80', duration: 65, spawnMin: 0.68, spawnMax: 1.25, speed: 0.48, doubles: 0.42, heavies: 0.18, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 2,
     hint: 'NEW THREAT: color-locked traps — match the node color' },
-  { name: 'DARKNET EDGE',   duration: 70, spawnMin: 0.58, spawnMax: 1.10, speed: 0.54, doubles: 0.48, heavies: 0.22, lines: 0.22, colors: 0.36, frags: 0.20, walls: 0.15, track: 0, bursts: true,
+  { name: 'DARKNET EDGE', tint: '255,70,100',   duration: 70, spawnMin: 0.58, spawnMax: 1.10, speed: 0.54, doubles: 0.48, heavies: 0.22, lines: 0.22, colors: 0.36, frags: 0.20, walls: 0.15, track: 0, bursts: true,
     hint: 'ALL THREATS ACTIVE — maximum traffic' },
-  { name: 'CID GATEWAY',     duration: 45, spawnMin: 0.80, spawnMax: 1.40, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,
+  { name: 'CID GATEWAY', tint: '212,101,255',     duration: 45, spawnMin: 0.80, spawnMax: 1.40, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,
     hint: 'THE FIREWALL CORE AWAITS — six bolts close the case' }
 ];
 const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
@@ -1318,6 +1321,18 @@ function burst(x, y, color, n, spd) {
   }
 }
 function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
+// the LAST hostile of a finished campaign level dies on a beat — every level
+// ends like it means it (the boss has its own, bigger version)
+function lastKillBeat(justKilled) {
+  if (endless || qual || tut || boss || levelT < (LV || LEVELS[levelIdx]).duration) return;
+  if (enemies.some(e => e !== justKilled && e !== justKilled.partner
+      && !e.dead && !e.resolved && !e.failed && e.type !== 'strip')) return;
+  hitStop = Math.min(hitStop + 0.5, 0.5);
+  popup(W / 2, H * 0.36, 'LINE SECURED', '#7ee262');
+  tone(784, 0.18, 'triangle', 0.1, 1046);
+  tone(1046, 0.22, 'triangle', 0.08, 1568, null, 0.12);
+  buzz([20, 30, 60]);
+}
 // firewall shield: eats one breach that would cost integrity. Returns true if
 // it fired — the caller skips the damage AND its red-alert dressing.
 function shieldAbsorb(x, y, ang) {
@@ -2255,6 +2270,7 @@ function update(dt) {
       rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
       sfx.zap(1, Math.cos(en.angle) * 0.6);
       buzz(en.type === 'heavy' ? 25 : 12);
+      lastKillBeat(en);
       if (en.type === 'heavy') { // armor stops the bolt; reds it punches through
         hitStop = Math.min(hitStop + 0.08, 0.12);
         tone(110, 0.2, 'square', 0.13, 60);
@@ -2486,6 +2502,7 @@ function update(dt) {
         }
         if (en.lock !== undefined) burst(ex, ey, en.lock === 0 ? '#4d9bff' : '#eef6ff', 14, 4.5);
         hitStop = Math.min(hitStop + (en.type === 'normal' ? 0.05 : 0.09), 0.12);
+        lastKillBeat(en);
         popup(ex, ey, (perfect ? 'PERFECT +' : '+') + pts + (combo >= 3 ? '  x' + Math.min(combo, 5) : ''), perfect ? '#ffe9b0' : '#bfeaff');
         shake = Math.min(shake + (en.type === 'normal' ? 0.35 : 0.5), 0.8);
         sfx.zap(combo, Math.cos(en.angle) * 0.7);
@@ -7039,6 +7056,15 @@ function frame(now) {
   grade.addColorStop(1, 'rgba(255,150,50,0.08)');  // warm river light below
   ctx.fillStyle = grade;
   ctx.fillRect(0, 0, W, H);
+
+  // per-level color identity: each relay tints the air at the edges
+  if ((state === S.PLAY || state === S.PAUSE || state === S.INFO) && LV && LV.tint) {
+    const tg2 = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
+    tg2.addColorStop(0, `rgba(${LV.tint},0)`);
+    tg2.addColorStop(1, `rgba(${LV.tint},0.11)`);
+    ctx.fillStyle = tg2;
+    ctx.fillRect(0, 0, W, H);
+  }
 
   if (state === S.PLAY) { drawHUD(g); drawDials(); drawIntroCard(); }
   else if (state === S.PAUSE) { drawHUD(g); drawDials(); drawIntroCard(); drawPause(); }
