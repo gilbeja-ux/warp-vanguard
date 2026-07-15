@@ -540,7 +540,7 @@ check('campaign completion recorded', G.progress.stars[7] > 0);
 // ================= TEMP boss-test shortcut =================
 G.startBossTest();
 G.update(0.05);
-if (G.getState() === G.S.INFO) { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 8, clientX: 5, clientY: 5, pointerType: 'touch' }); }
+if (G.getState() === G.S.INFO) { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 8, clientX: 5, clientY: 5, pointerType: 'touch' }); G.update(0.15); G.update(0.15); G.update(0.15); }
 G.update(0.05);
 check('BOSS TEST key drops straight into the duel', !!G.boss());
 G.boss().introT = 99; // skip the ceremony for the shortcut check
@@ -593,7 +593,10 @@ G.setState(G.S.MENU);
 G.setMenuScreen('home');
 G.frame(16);
 const cTile = G.menuBtns().find(b => b.mode === 'campaign');
-G.menuTap(cTile.x + 5, cTile.y + 5, 1);
+{ // tap the middle of the campaign slice on the mode wheel
+  const sc = cTile.sector, ma = (sc.a0 + sc.a1) / 2, mr = (sc.r0 + sc.r1) / 2;
+  G.menuTap(sc.cx + Math.cos(ma) * mr, sc.cy + Math.sin(ma) * mr, 1);
+}
 flushUI(); // press beat -> glitch cut -> screen switch
 check('campaign tile opens the route map', G.getMenuScreen() === 'map');
 G.frame(16);
@@ -607,6 +610,7 @@ flushUI(); // press beat -> warp -> deploy
 check('deploying opens the story log', G.getState() === G.S.INFO && G.getInfoCard() === 'story2');
 G.update(0.5);
 canvasHandlers.pointerdown({ pointerId: 9, clientX: 5, clientY: 5, pointerType: 'touch' });
+G.update(0.15); G.update(0.15); G.update(0.15); // card animates out
 check('dismissing the log enters the relay', G.getState() === G.S.PLAY && G.getLV().name === 'METRO EXCHANGE');
 G.setIntro(999);
 {
@@ -651,7 +655,7 @@ G.progress.tutorialDone = false;
 G.startQualification();
 G.update(0.05);
 check('qualification opens with the movement briefing', G.getState() === G.S.INFO && G.getInfoCard() === 'move' && G.isQual());
-function dismiss() { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 7, clientX: 5, clientY: 5, pointerType: 'touch' }); }
+function dismiss() { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 7, clientX: 5, clientY: 5, pointerType: 'touch' }); G.update(0.15); G.update(0.15); G.update(0.15); }
 function settle() { for (let i = 0; i < 4; i++) G.update(0.4); }
 function waitLive(maxS) {
   for (let i = 0; i < maxS / 0.05; i++) {

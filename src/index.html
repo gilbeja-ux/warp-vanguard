@@ -803,6 +803,21 @@ function ring(z, g) {
   return { x: g.cx + g.sw * off * q, y: g.cy + g.swy * off * 0.7 * q, r: g.R0 * s, s };
 }
 
+// typography helpers: text lives INSIDE the bore — shrink to the clear chord
+function ringChord(y, margin) {
+  const g2 = geo();
+  const dy = Math.abs(y - g2.cy);
+  if (dy >= g2.nodeR) return W * 0.4;
+  return 2 * Math.sqrt(g2.nodeR * g2.nodeR - dy * dy) - (margin === undefined ? 34 : margin);
+}
+function fitPx(text, weight, px, maxW, minPx) {
+  for (let p2 = Math.round(px); p2 >= (minPx || 9); p2--) {
+    ctx.font = weight + ' ' + p2 + 'px Audiowide, system-ui';
+    if (ctx.measureText(text).width <= maxW) return p2;
+  }
+  return minPx || 9;
+}
+
 // boot fly-in: >1 while the node ring is still traveling from the operator's
 // viewpoint into its dock — shared by the ring pass and the node carriages so
 // the whole assembly moves as one piece of hardware
@@ -1415,10 +1430,7 @@ canvas.addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch') tryLockLandscape();
   const P = evPos(e);
   if (state === S.INFO) {
-    if (time - infoShownAt > 0.35) {
-      state = S.PLAY; sfx.tick();
-      if (infoCard === 'verdict') { endLevel(true); return; } // the case closes
-    }
+    if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); }
     return;
   }
   if (state === S.MENU) {
@@ -1879,10 +1891,12 @@ const COMMS = [
 ];
 
 let typeN = -1; // teletype progress for story cards
+let infoOutAt = 0; // briefing dismissal animates out before play resumes
 function showCard(key) {
   if (key === 'strip' && !progress.stripBriefed) { progress.stripBriefed = true; saveState(); }
   if (key === 'wall' && !progress.wallBriefed) { progress.wallBriefed = true; saveState(); }
   typeN = -1;
+  infoOutAt = 0;
   infoCard = key; infoShownAt = time;
   state = S.INFO;
   sfx.tick();
@@ -1962,6 +1976,12 @@ function updateTutorial(dt) {
 }
 function update(dt) {
   tickUI(dt); // press feedback + screen transitions run on the raw clock
+  if (state === S.INFO && infoOutAt && time - infoOutAt >= 0.18) {
+    const wasVerdict = infoCard === 'verdict';
+    infoOutAt = 0;
+    state = S.PLAY;
+    if (wasVerdict) endLevel(true); // the case closes
+  }
   time += dt;
   updateMusic(dt);
   warpT = Math.max(0, warpT - dt);
@@ -3702,15 +3722,17 @@ function drawBoss(g) {
     ctx.textAlign = 'center';
     ctx.globalAlpha = ta;
     ctx.fillStyle = b.introT < 1.8 ? '#ffffff' : '#d465ff';
-    ctx.font = '800 ' + Math.min(W * 0.05, 30) + 'px Audiowide, system-ui';
-    ctx.shadowColor = '#d465ff'; ctx.shadowBlur = lowFX ? 0 : 20;
     try { ctx.letterSpacing = '5px'; } catch (e) {}
-    ctx.fillText('THE GATEWAY CORE', W / 2, H * 0.24);
+    const btpx = fitPx('THE GATEWAY CORE', '800', Math.min(W * 0.05, 30), ringChord(H * 0.26), 13);
+    ctx.font = '800 ' + btpx + 'px Audiowide, system-ui';
+    ctx.shadowColor = '#d465ff'; ctx.shadowBlur = lowFX ? 0 : 20;
+    ctx.fillText('THE GATEWAY CORE', W / 2, H * 0.26);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
     ctx.shadowBlur = 0;
-    ctx.font = '600 11px Audiowide, system-ui';
+    const bspx = fitPx('DOCK BOTH NODES AND HOLD — SIX BOLTS CLOSE THE CASE', '600', 11, ringChord(H * 0.26 + 22), 8);
+    ctx.font = '600 ' + bspx + 'px Audiowide, system-ui';
     ctx.fillStyle = 'rgba(234,184,255,0.85)';
-    ctx.fillText('DOCK BOTH NODES AND HOLD — SIX BOLTS CLOSE THE CASE', W / 2, H * 0.24 + 22);
+    ctx.fillText('DOCK BOTH NODES AND HOLD — SIX BOLTS CLOSE THE CASE', W / 2, H * 0.26 + 22);
     ctx.restore();
   }
   // DEATH: the implosion lets go — shockwaves and a white world-flash
@@ -4499,15 +4521,18 @@ function drawIntroCard() {
       ctx.scale(scale, scale);
       ctx.globalAlpha = Math.min(inA, outA);
       try { ctx.letterSpacing = '6px'; } catch (e) {}
+      const titleMaxW = ringChord(H * 0.30) / scale;
       ctx.fillStyle = 'rgba(200,235,255,0.85)'; ctx.font = '600 13px Audiowide, system-ui';
       ctx.fillText(endless ? 'SURVIVE' : qual ? 'TRAINING' : 'LEVEL ' + (levelIdx + 1), 0, -34);
-      ctx.fillStyle = '#eafaff'; ctx.font = '800 ' + Math.min(W * 0.055, 32) + 'px Audiowide, system-ui';
+      const tpx = fitPx(L.name, '800', Math.min(W * 0.055, 32), titleMaxW, 15);
+      ctx.fillStyle = '#eafaff'; ctx.font = '800 ' + tpx + 'px Audiowide, system-ui';
       ctx.shadowColor = '#5fd7ff'; ctx.shadowBlur = 24;
       ctx.fillText(L.name, 0, 0);
       ctx.shadowBlur = 0;
       try { ctx.letterSpacing = '0px'; } catch (e) {}
       if (L.hint) {
-        ctx.fillStyle = '#ffb8c8'; ctx.font = '600 12px Audiowide, system-ui';
+        const hpx = fitPx(L.hint, '600', 12, titleMaxW, 9);
+        ctx.fillStyle = '#ffb8c8'; ctx.font = '600 ' + hpx + 'px Audiowide, system-ui';
         ctx.fillText(L.hint, 0, 26);
       }
       ctx.restore();
@@ -4521,7 +4546,9 @@ function drawIntroCard() {
       ctx.globalAlpha = stI === 3 ? 0.8 + Math.sin(time * 2.5) * 0.15 : Math.min(1, ct / 0.06);
       const lcol = stI === 3 ? '#ffd24a' : '#8fe0ff';
       ctx.fillStyle = ct < 0.07 ? '#ffffff' : lcol; // one-flash stamp, then steady
-      ctx.font = '700 ' + Math.min(W * 0.032, 19) + 'px Audiowide, system-ui';
+      try { ctx.letterSpacing = '5px'; } catch (e) {}
+      const bpx = fitPx(labels[stI], '700', Math.min(W * 0.032, 19), ringChord(H * 0.52, 90), 11);
+      ctx.font = '700 ' + bpx + 'px Audiowide, system-ui';
       ctx.shadowColor = lcol; ctx.shadowBlur = lowFX ? 0 : 10;
       try { ctx.letterSpacing = '5px'; } catch (e) {}
       ctx.fillText(labels[stI], W / 2, ly + 8);
@@ -4774,13 +4801,18 @@ function drawHUD(g) {
     const fade = commT < 0.2 ? commT / 0.2 : clamp((6 - commT) / 0.8, 0, 1);
     ctx.save();
     ctx.globalAlpha = Math.min(1, fade);
-    ctx.font = '700 10px Audiowide, system-ui';
-    const lw2 = ctx.measureText(label).width;
-    ctx.font = '500 10px Audiowide, system-ui';
-    const tw2 = ctx.measureText(commCur.m).width;
+    const cy2 = Math.max(14 + SAFE.t + 38, H * 0.185); // inside the bore's clear width
     const pr = 14, pb = pr * 2 + 8; // holo-portrait tile + its gap
+    // shrink the line until portrait + chip + message fit the chord here
+    let cfz = 10, lw2, tw2;
+    for (; cfz >= 8; cfz--) {
+      ctx.font = '700 ' + cfz + 'px Audiowide, system-ui';
+      lw2 = ctx.measureText(label).width;
+      ctx.font = '500 ' + cfz + 'px Audiowide, system-ui';
+      tw2 = ctx.measureText(commCur.m).width;
+      if (pb + lw2 + 6 + tw2 <= ringChord(cy2, 26)) break;
+    }
     const x0 = W / 2 - (pb + lw2 + 6 + tw2) / 2 + pb;
-    const cy2 = 14 + SAFE.t + 20 + 18; // just under the power-up chip row
     ctx.textAlign = 'left';
     const spkCol = SPK[commCur.s] || '160,215,255';
     // portrait tile, chamfered like the rest of the HUD chrome — the voice
@@ -4799,10 +4831,10 @@ function drawHUD(g) {
     ctx.strokeStyle = `rgba(${spkCol},0.5)`; ctx.lineWidth = 1;
     roundRect(x0 - 6, cy2 - 11, lw2 + 11, 15, 4); ctx.stroke();
     ctx.fillStyle = `rgba(${spkCol},0.95)`;
-    ctx.font = '700 10px Audiowide, system-ui';
+    ctx.font = '700 ' + cfz + 'px Audiowide, system-ui';
     ctx.fillText(label, x0, cy2);
     ctx.fillStyle = 'rgba(200,235,255,0.92)';
-    ctx.font = '500 10px Audiowide, system-ui';
+    ctx.font = '500 ' + cfz + 'px Audiowide, system-ui';
     ctx.fillText(txt + (chars < commCur.m.length ? '\u258c' : ''), x0 + lw2 + 6, cy2);
     ctx.restore();
   }
@@ -4819,8 +4851,8 @@ function drawHUD(g) {
       ctx.save();
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(255,154,60,0.92)';
-      ctx.font = '700 14px Audiowide, system-ui';
       try { ctx.letterSpacing = '4px'; } catch (e) {}
+      ctx.font = '700 ' + fitPx('SPEEDING UP', '700', 14, ringChord(H * 0.24, 60), 10) + 'px Audiowide, system-ui';
       ctx.fillText('SPEEDING UP', W / 2, H * 0.24);
       try { ctx.letterSpacing = '0px'; } catch (e) {}
       ctx.translate(W / 2, H * 0.36);
@@ -5211,8 +5243,16 @@ function drawInfoCard() {
   const c = INFO_CARDS[infoCard];
   if (!c) return;
   const g = geo();
+  // pop in, ease out — cards never just appear or vanish
+  const inQ = clamp((time - infoShownAt) / 0.28, 0, 1);
+  const outQ = infoOutAt ? clamp((time - infoOutAt) / 0.18, 0, 1) : 0;
+  const pop = 1 - Math.pow(1 - inQ, 3);
+  ctx.save();
+  ctx.globalAlpha = Math.min(pop, 1 - outQ);
+  const sc2 = (0.92 + 0.08 * pop) * (1 - 0.05 * outQ);
+  ctx.translate(g.cx, g.cy); ctx.scale(sc2, sc2); ctx.translate(-g.cx, -g.cy);
   // gentle dim — the briefing lives INSIDE the ring, the field stays visible
-  ctx.fillStyle = 'rgba(3,6,14,0.45)'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(3,6,14,0.45)'; ctx.fillRect(-40, -40, W + 80, H + 80);
   const R = g.nodeR * 0.9;
   const maxW = g.nodeR * 2 * 0.6; // text never wider than 60% of the ring
   const bg = ctx.createRadialGradient(g.cx, g.cy, R * 0.25, g.cx, g.cy, R);
@@ -5268,10 +5308,10 @@ function drawInfoCard() {
       budget -= ln.length;
       let cursor = '';
       if (!cursorPlaced && take < ln.length) { cursor = '\u258c'; cursorPlaced = true; }
-      ctx.fillText(ln.slice(0, take) + cursor, g.cx, g.cy + R * 0.2 + i * (lf + 8));
+      ctx.fillText(ln.slice(0, take) + cursor, g.cx, g.cy + R * 0.2 + i * (lf + 3));
     });
   } else {
-    c.lines.forEach((ln, i) => ctx.fillText(ln, g.cx, g.cy + R * 0.2 + i * (lf + 8)));
+    c.lines.forEach((ln, i) => ctx.fillText(ln, g.cx, g.cy + R * 0.2 + i * (lf + 3)));
   }
   ctx.fillStyle = 'rgba(140,230,255,' + (0.5 + Math.sin(time * 4) * 0.3).toFixed(2) + ')';
   try { ctx.letterSpacing = '3px'; } catch (e) {}
@@ -5279,6 +5319,7 @@ function drawInfoCard() {
   ctx.fillText('TAP TO CONTINUE', g.cx, g.cy + R * 0.66);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.textAlign = 'left';
+  ctx.restore();
 }
 
 // marching dashed arc from a node toward the tutorial trap, with an arrowhead
@@ -5581,26 +5622,12 @@ function paintMenuStatic() {
   // block logo — stacked DATA / DEFE / NDER, top-left (small brand on the map,
   // where the relay list needs the column)
   ctx.textAlign = 'left';
-  if (menuScreen === 'map') {
-    ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
-    ctx.fillText('DATA DEFENDER · DARK FIBER', 20 + SAFE.l, 24 + SAFE.t);
-  } else {
-    const fs = Math.min(H * 0.125, W * 0.055);
-    const lx = 26 + SAFE.l, llh = fs * 1.04;
-    let ly = 24 + fs;
-    ctx.font = '900 ' + fs.toFixed(0) + 'px Audiowide, system-ui';
-    try { ctx.letterSpacing = (fs * 0.08).toFixed(1) + 'px'; } catch (e) {}
-    ctx.shadowColor = 'rgba(0,10,30,0.85)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
-    ctx.fillStyle = '#c6d6ea';
-    for (const t of ['DATA', 'DEFE', 'NDER']) { ctx.fillText(t, lx, ly); ly += llh; }
-    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-    try { ctx.letterSpacing = '0px'; } catch (e) {}
-    ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 13px Audiowide, system-ui';
-    try { ctx.letterSpacing = '3px'; } catch (e) {}
-    ctx.fillText('DARK FIBER', lx + 2, ly - llh + 22);
-    try { ctx.letterSpacing = '0px'; } catch (e) {}
-    ctx.fillStyle = 'rgba(180,215,255,0.6)'; ctx.font = '500 11px Audiowide, system-ui';
-    ctx.fillText('Guard the payload.', lx + 2, ly - llh + 40);
+  // one-line brand top-left everywhere — the full mark lives in the wheel hub
+  ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
+  ctx.fillText('DATA DEFENDER · DARK FIBER', 20 + SAFE.l, 24 + SAFE.t);
+  if (menuScreen === 'home') {
+    ctx.fillStyle = 'rgba(180,215,255,0.55)'; ctx.font = '500 10px Audiowide, system-ui';
+    ctx.fillText('Guard the payload.', 20 + SAFE.l, 40 + SAFE.t);
   }
   if (menuScreen === 'map') {
     // the lens mouth: the ring becomes a viewport over the city
@@ -5628,12 +5655,14 @@ function paintMenuStatic() {
     ctx.beginPath(); ctx.arc(ccx, ccy, R, 0, TAU);
     ctx.fillStyle = dg; ctx.fill();
     ctx.strokeStyle = 'rgba(100,190,255,0.14)'; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#f2faff'; ctx.font = '700 17px Audiowide, system-ui';
-    try { ctx.letterSpacing = '1px'; } catch (e) {}
-    ctx.fillText(menuScreen === 'flow' ? 'FREE FLOW' : 'SELECT MODE', ccx, ccy - R + 34);
-    try { ctx.letterSpacing = '0px'; } catch (e) {}
-    ctx.textAlign = 'left';
+    if (menuScreen === 'flow') { // home's mode wheel needs no header
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#f2faff'; ctx.font = '700 17px Audiowide, system-ui';
+      try { ctx.letterSpacing = '1px'; } catch (e) {}
+      ctx.fillText('FREE FLOW', ccx, ccy - R + 34);
+      try { ctx.letterSpacing = '0px'; } catch (e) {}
+      ctx.textAlign = 'left';
+    }
   }
 }
 let menuCache = null, menuCacheScreen = null;
@@ -5748,29 +5777,79 @@ function modeKey(bx, by, bw, bh, glyph, name, caption, locked, primary) {
 }
 
 function drawMenuHome(ccx, ccy, R) {
-  const bw = Math.min(R * 1.5, W * 0.44), bh = 48, step = bh + 24;
-  const bx = ccx - bw / 2;
-  let by = ccy - (step * 3 - 24) / 2 + 12;
+  // the MODE WHEEL: the ring's whole interior, cut like a pie into the three
+  // modes, with the brand living in the hub — nothing overlaps the ring again
   const campDone = progress.stars[LEVELS.length - 1] > 0;
   const flowOpen = progress.unlocked >= 4 || campDone;
-  modeKey(bx, by, bw, bh, 'T', 'TUTORIAL', 'qualification run', false, !progress.tutorialDone);
-  if (progress.tutorialDone) { // cleared check
-    ctx.strokeStyle = '#7ee262'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  const r1 = R * 0.92, r0 = R * 0.38;
+  const THIRD = TAU / 3;
+  const SECTORS = [
+    { mode: 'tutorial', name: 'TUTORIAL', glyph: 'T', cap: progress.tutorialDone ? 'qualified ✓' : 'qualification run',
+      mid: -Math.PI / 2, locked: false, primary: !progress.tutorialDone, col: '111,227,255' },
+    { mode: 'campaign', name: 'CAMPAIGN', glyph: 'C', cap: 'the investigation · ' + LEVELS.length + ' relays',
+      mid: -Math.PI / 2 + THIRD, locked: false, primary: progress.tutorialDone && !campDone, col: '126,226,98' },
+    { mode: 'flow', name: 'FREE FLOW', glyph: '∞', cap: flowOpen ? 'endless · daily challenge' : 'reach relay 04 to unlock',
+      mid: -Math.PI / 2 - THIRD, locked: !flowOpen, primary: campDone, col: '255,210,74' }
+  ];
+  ctx.save();
+  ctx.textAlign = 'center';
+  for (const sc of SECTORS) {
+    const a0 = sc.mid - THIRD / 2 + 0.02, a1 = sc.mid + THIRD / 2 - 0.02;
+    const hot = sc.primary && !sc.locked;
+    // slice body
     ctx.beginPath();
-    ctx.moveTo(bx + bw - 40, by + bh / 2 + 1);
-    ctx.lineTo(bx + bw - 33, by + bh / 2 + 8);
-    ctx.lineTo(bx + bw - 20, by + bh / 2 - 8);
+    ctx.arc(ccx, ccy, r1, a0, a1);
+    ctx.arc(ccx, ccy, r0, a1, a0, true);
+    ctx.closePath();
+    ctx.fillStyle = sc.locked ? 'rgba(8,16,30,0.55)'
+      : hot ? `rgba(${sc.col},${(0.10 + Math.sin(time * 2.5) * 0.04).toFixed(2)})`
+      : 'rgba(10,24,48,0.42)';
+    ctx.fill();
+    ctx.strokeStyle = sc.locked ? 'rgba(90,130,170,0.3)'
+      : hot ? `rgba(${sc.col},${(0.75 + Math.sin(time * 2.5) * 0.2).toFixed(2)})`
+      : `rgba(${sc.col},0.4)`;
+    ctx.lineWidth = hot ? 2.5 : 1.5;
     ctx.stroke();
+    // glyph + name + caption along the slice's spine
+    const rm = (r0 + r1) / 2;
+    const tx = ccx + Math.cos(sc.mid) * rm, ty = ccy + Math.sin(sc.mid) * rm;
+    ctx.fillStyle = sc.locked ? 'rgba(140,170,200,0.35)' : `rgba(${sc.col},0.9)`;
+    ctx.font = '800 ' + Math.round(R * 0.13) + 'px Audiowide, system-ui';
+    ctx.fillText(sc.glyph, tx, ty - R * 0.085);
+    ctx.fillStyle = sc.locked ? 'rgba(150,180,210,0.45)' : '#eaf6ff';
+    ctx.font = '800 ' + Math.round(R * 0.078) + 'px Audiowide, system-ui';
+    try { ctx.letterSpacing = '2px'; } catch (e) {}
+    ctx.fillText(sc.name, tx, ty + R * 0.035);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    ctx.fillStyle = sc.locked ? 'rgba(140,170,200,0.4)' : 'rgba(160,215,255,0.7)';
+    ctx.font = '500 ' + Math.max(8, Math.round(R * 0.045)) + 'px Audiowide, system-ui';
+    ctx.fillText(sc.cap, tx, ty + R * 0.115);
+    if (sc.mode === 'tutorial' && progress.tutorialDone) { // cleared check
+      ctx.strokeStyle = '#7ee262'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(tx + R * 0.19, ty - R * 0.10);
+      ctx.lineTo(tx + R * 0.215, ty - R * 0.072);
+      ctx.lineTo(tx + R * 0.26, ty - R * 0.128);
+      ctx.stroke();
+    }
+    menuButtons.push({ sector: { cx: ccx, cy: ccy, r0, r1, a0, a1 }, mode: sc.mode, locked: sc.locked });
   }
-  menuButtons.push({ x: bx, y: by, w: bw, h: bh, mode: 'tutorial', locked: false });
-  by += step;
-  modeKey(bx, by, bw, bh, 'C', 'CAMPAIGN', 'the investigation · ' + LEVELS.length + ' relays', false,
-    progress.tutorialDone && !campDone);
-  menuButtons.push({ x: bx, y: by, w: bw, h: bh, mode: 'campaign', locked: false });
-  by += step;
-  modeKey(bx, by, bw, bh, '∞', 'FREE FLOW', flowOpen ? 'endless · daily challenge' : 'reach relay 04 to unlock',
-    !flowOpen, campDone);
-  menuButtons.push({ x: bx, y: by, w: bw, h: bh, mode: 'flow', locked: !flowOpen });
+  // the HUB: the brand, safe inside the wheel
+  ctx.beginPath(); ctx.arc(ccx, ccy, r0 - R * 0.03, 0, TAU);
+  ctx.fillStyle = 'rgba(4,10,22,0.85)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(120,220,255,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#dfeeff';
+  ctx.font = '900 ' + Math.round(R * 0.075) + 'px Audiowide, system-ui';
+  try { ctx.letterSpacing = '1px'; } catch (e) {}
+  ctx.fillText('DATA', ccx, ccy - R * 0.075);
+  ctx.fillText('DEFENDER', ccx, ccy + R * 0.005);
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.fillStyle = 'rgba(255,210,74,0.9)';
+  ctx.font = '700 ' + Math.max(8, Math.round(R * 0.05)) + 'px Audiowide, system-ui';
+  ctx.fillText('DARK FIBER', ccx, ccy + R * 0.09);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.restore();
+  ctx.textAlign = 'left';
 }
 
 function drawMenuFlow() {
