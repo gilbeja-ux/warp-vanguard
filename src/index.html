@@ -1421,21 +1421,11 @@ function burst(x, y, color, n, spd) {
   }
 }
 function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
-// kill feedback that BELONGS to the tunnel: a shockwave runs through the rim
-// at the kill angle while the payload shreds into data chunks that streak
-// outward and smear into the wall's river — nothing else pauses or flinches
-function spawnKillRipple(a) {
-  const parts = [];
-  for (let i = 0; i < 14; i++) {
-    parts.push({
-      da: (Math.random() - 0.5) * 0.6,  // angular spread around the kill
-      sp: 0.55 + Math.random() * 1.1,   // outward drift, riding the flow
-      sz: 1.5 + Math.random() * 3.5,
-      amber: Math.random() < 0.25       // a few chunks pick up the river's gold
-    });
-  }
-  ripples.push({ a, t: 0, parts });
-}
+// kill feedback that BELONGS to the tunnel: every kill HEALS its patch of
+// the line — a green wave (the victory sweep's language, one enemy at a
+// time) rides the wall surface out from the kill, reaching mostly FORWARD
+// down the bore. Nothing else pauses or flinches.
+function spawnKillRipple(a) { ripples.push({ a, t: 0 }); }
 // the LAST hostile of a finished campaign level dies on a beat — every level
 // ends like it means it (the boss has its own, bigger version)
 function lastKillBeat(justKilled) {
@@ -2362,7 +2352,7 @@ function update(dt) {
   popups = popups.filter(p => p.life > 0);
   shieldFlashT = Math.max(0, shieldFlashT - dt);
   for (const r of ripples) r.t += dt;
-  ripples = ripples.filter(r => r.t < 0.5);
+  ripples = ripples.filter(r => r.t < 0.55);
   for (const b of bolts) b.life -= dt;
   bolts = bolts.filter(b => b.life > 0);
 
@@ -7677,52 +7667,52 @@ function frame(now) {
   }
   ctx.globalAlpha = 1;
   drawBolts();
-  if (ripples.length) { // the kill pop lives ON the tunnel wall
-    const g2 = geo(), u = Math.min(W, H); // effect scales with the viewport
+  if (ripples.length) { // each kill heals its patch of the line
+    const g2 = geo(), u = Math.min(W, H);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const r of ripples) {
-      const q = r.t / 0.5;
-      if (q < 0.22) { // impact instant: a hot core right ON the rim
+      const q = r.t / 0.55, e2 = 1 - Math.pow(1 - q, 2); // ease-out growth
+      if (q < 0.2) { // impact instant: a soft green core on the rim
         const ix = g2.cx + Math.cos(r.a) * g2.nodeR, iy = g2.cy + Math.sin(r.a) * g2.nodeR;
-        const iq = q / 0.22;
         const gl = ctx.createRadialGradient(ix, iy, 0, ix, iy, u * 0.05);
-        gl.addColorStop(0, 'rgba(230,250,255,' + (0.85 * (1 - iq)).toFixed(2) + ')');
-        gl.addColorStop(1, 'rgba(140,225,255,0)');
-        ctx.globalAlpha = 1;
+        gl.addColorStop(0, 'rgba(220,255,215,' + (0.85 * (1 - q / 0.2)).toFixed(2) + ')');
+        gl.addColorStop(1, 'rgba(126,226,98,0)');
         ctx.fillStyle = gl;
         ctx.beginPath(); ctx.arc(ix, iy, u * 0.05, 0, TAU); ctx.fill();
       }
-      // shockwave: arcs concentric with the bore, running through the rim
-      // at the kill angle and swelling outward with the flow
-      for (let k = 0; k < 2; k++) {
-        const qq = clamp(q * 1.25 - k * 0.12, 0, 1);
-        if (qq <= 0 || qq >= 1) continue;
-        const span = 0.8 * (1 - qq * 0.55);
-        ctx.globalAlpha = (1 - qq) * 0.9;
-        ctx.strokeStyle = '#dff4ff';
-        ctx.shadowColor = 'rgba(140,225,255,0.9)'; ctx.shadowBlur = u * 0.01;
-        ctx.lineWidth = u * (0.006 - qq * 0.0035);
+      // the wavefront is a closed loop living ON the wall surface: centered
+      // at the kill, it spreads along the rim and reaches down the bore —
+      // forward travel dominates, like the victory sweep rolling to the
+      // horizon from this one healed point
+      for (const [lw, base, al] of [[u * 0.014, 'rgba(126,226,98,', 0.45], [u * 0.0045, 'rgba(240,255,235,', 0.9]]) {
+        ctx.strokeStyle = base + ((1 - q) * al).toFixed(2) + ')';
+        ctx.lineWidth = lw * (1 - q * 0.45);
         ctx.beginPath();
-        ctx.arc(g2.cx, g2.cy, g2.nodeR * (1 + qq * 0.22 + k * 0.05), r.a - span, r.a + span);
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+        for (let i = 0; i <= 28; i++) {
+          const t2 = i / 28 * TAU;
+          const s = Math.sin(t2);
+          // deeper = forward (toward the horizon); the backward lip barely leaves the rim
+          const z = clamp(g2.hitZ + (s > 0 ? s * e2 * 0.32 : s * e2 * 0.09), 0.05, SPAWN_Z);
+          const rr = ring(z, g2).r;
+          const aa = r.a + Math.cos(t2) * e2 * 0.42;
+          const x = g2.cx + Math.cos(aa) * rr, y = g2.cy + Math.sin(aa) * rr;
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+        ctx.closePath(); ctx.stroke();
       }
-      // the payload shreds: chunks streak radially outward, smearing into
-      // the same lines the wall's data river is made of
-      for (const p of r.parts) {
-        const pr2 = g2.nodeR * (1 + p.sp * q * 0.45);
-        const aa = r.a + p.da * (0.6 + q * 0.7);
-        const x = g2.cx + Math.cos(aa) * pr2, y = g2.cy + Math.sin(aa) * pr2;
-        const sz = p.sz * u * 0.003;
-        const stretch = sz * (1 + q * 7);
-        ctx.globalAlpha = (1 - q) * 0.9;
-        ctx.fillStyle = p.amber ? '#ffd24a' : '#cfeeff';
-        ctx.save();
-        ctx.translate(x, y); ctx.rotate(aa);
-        ctx.fillRect(-stretch / 2, -sz / 2, stretch, sz);
-        ctx.restore();
+      // a faint healed wash inside the fresh wavefront
+      if (q > 0.1) {
+        const zc = clamp(g2.hitZ + e2 * 0.14, 0.05, SPAWN_Z);
+        const cr = ring(zc, g2).r;
+        const cx2 = g2.cx + Math.cos(r.a) * cr, cy2 = g2.cy + Math.sin(r.a) * cr;
+        const wg = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, u * 0.055 * e2);
+        wg.addColorStop(0, 'rgba(126,226,98,' + (0.22 * (1 - q)).toFixed(2) + ')');
+        wg.addColorStop(1, 'rgba(126,226,98,0)');
+        ctx.fillStyle = wg;
+        ctx.beginPath(); ctx.arc(cx2, cy2, u * 0.055 * e2, 0, TAU); ctx.fill();
       }
     }
-    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
   }
   ctx.textAlign = 'center';
   for (const p of popups) {
