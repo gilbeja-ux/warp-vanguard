@@ -113,7 +113,7 @@ code = code.replace("'use strict';", '') + `
   latches: () => latches, setLatches: v => { latches = v; },
   spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; },
   volley: () => volley, BOSS_CER: () => BOSS_CER,
-  bandCfg, lintLevel, lintCampaign, lintWalk, getSched: () => sched
+  bandCfg, lintLevel, lintCampaign, lintWalk, birthFade, getSched: () => sched
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -1201,8 +1201,22 @@ G.keys['ArrowUp'] = false;
   const has = (lvl, code) => G.lintLevel(lvl, 0).some(v => v.code === code);
   check('lint: simultaneous heavy + line beats → dual-conflict',
     has({ ...lintBase, beats: [{ t: 10, kind: 'enemy', type: 'heavy' }, { t: 10, kind: 'enemy', type: 'line' }] }, 'dual-conflict'));
-  check('lint: a beat authored onto a live wall carpet → wall-conflict',
-    has({ ...lintBase, beats: [{ t: 10, kind: 'wall', angle: 2.0 }, { t: 12, kind: 'enemy', type: 'normal', angle: 2.0 }] }, 'wall-conflict'));
+  // REACHABILITY (designer ruling): enemies may share a wall's window as long
+  // as their dock arc stays out of the carpet. An unforced on-carpet beat is
+  // relocated to safety by the engine (no finding); only a FORCE-overridden
+  // beat actually lands unreachable — and the linter tells the truth about it.
+  check('lint: a FORCED beat left on a wall carpet → wall-conflict',
+    has({ ...lintBase, beats: [{ t: 10, kind: 'wall', angle: 2.0, force: true }, { t: 12, kind: 'enemy', type: 'normal', angle: 2.0, force: true }] }, 'wall-conflict'));
+  check('lint: the same beat unforced relocates to safety — no finding',
+    !has({ ...lintBase, beats: [{ t: 10, kind: 'wall', angle: 2.0, force: true }, { t: 12, kind: 'enemy', type: 'normal', angle: 2.0 }] }, 'wall-conflict'));
+  {
+    // near-but-not-ON a carpet is now legal EVERYWHERE: an authored angle a
+    // node-width clear of the wall stays verbatim (no relocation, no finding)
+    const nearL = { ...lintBase, beats: [{ t: 10, kind: 'wall', angle: 2.0, force: true }, { t: 12, kind: 'enemy', type: 'normal', angle: 2.9 }] };
+    const nearR = G.lintWalk(nearL, 0).arr.find(r => r.beat === 1);
+    check('reachable-but-close beats keep their authored angle', !!nearR && nearR.angle === 2.9);
+    check('...and lint agrees they are fair', !G.lintLevel(nearL, 0).some(v => v.code === 'wall-conflict'));
+  }
   check('lint: a beat inside another beat\'s lull → lull-violation',
     has({ ...lintBase, beats: [{ t: 20, kind: 'lull', dur: 6 }, { t: 22, kind: 'enemy', type: 'normal' }] }, 'lull-violation'));
   check('lint: a beat arrival inside a comm window → comm-overlap',
@@ -1299,6 +1313,21 @@ G.keys['ArrowUp'] = false;
     ED.colors.heavy === '#d465ff' && ED.colors.wall === '#ff963c' &&
     ED.colors.lock0 === '#4d9bff' && ED.colors.frag === '#0b0e16' && ED.colors.normal === '#ff5468');
 
+  // track packing (video-editor semantics): sequential beats share TRACK 1,
+  // genuinely simultaneous ones open a new track; touching edges still share
+  const pk = [
+    { t: 5, kind: 'enemy', type: 'normal' }, { t: 10, kind: 'enemy' }, { t: 15, kind: 'enemy' },
+    { t: 20, kind: 'enemy' }, { t: 25, kind: 'enemy' }, { t: 10.5, kind: 'enemy' }];
+  const pkL = ED.packLanes(pk, { trav: 4.6, speed: 0.4 });
+  check('packLanes: five sequential beats share TRACK 1', pkL.slice(0, 5).every(l2 => l2 === 0));
+  check('packLanes: a sixth inside another window opens TRACK 2', pkL[5] === 1);
+  check('packLanes: edge-touching extents share a track (no new lane)',
+    ED.packLanes([{ t: 10, kind: 'enemy' }, { t: 11.6, kind: 'enemy' }], {}).every(l2 => l2 === 0));
+  const pkW = ED.packLanes([{ t: 10, kind: 'wall' }, { t: 8, kind: 'enemy' }, { t: 12, kind: 'lull', dur: 4 }],
+    { trav: 4, speed: 0.4 });
+  check('packLanes: a wall owns its telegraph+burn window; first-fit reuses freed tracks',
+    pkW[0] === 0 && pkW[1] === 1 && pkW[2] === 1);
+
   // --- lintWalk: the extracted timeline walk (filler lane + wall predictions) ---
   const wkA = G.lintWalk(G.CAMPAIGNS[0].levels[1], 1);
   const wkB = G.lintWalk(G.CAMPAIGNS[0].levels[1], 1);
@@ -1317,6 +1346,67 @@ G.keys['ArrowUp'] = false;
   const wpA = recordSpawns(() => G.startLevel(1), 10);
   const wpB = recordSpawns(() => { G.startLevel(1); G.lintWalk(G.getLevels()[4], 4); }, 10);
   check('lintWalk never disturbs the live spawn stream', wpA.join(';') === wpB.join(';'));
+}
+
+// ================= round 3: force flag, fast opening, birth fade =================
+{
+  G.progress.wallBriefed = true;
+  // --- the force override reaches the live engine verbatim ---
+  const FP = { id: 'force-test', format: 1, title: 'FORCE', speakers: [{ id: 'OMNI', color: '1,2,3' }],
+    levels: [{ name: 'F', tint: '1,2,3', duration: 40, spawnMin: 9, spawnMax: 9, speed: 0.4,
+      doubles: 0, heavies: 0, lines: 0, colors: 0,
+      beats: [{ t: 2, kind: 'enemy', type: 'normal', angle: 4.0 },
+              { t: 10, kind: 'wall', angle: 2.0, force: true },
+              { t: 12, kind: 'enemy', type: 'normal', angle: 2.0, force: true }] }] };
+  check('validator accepts the force flag', G.validateCampaign(FP).length === 0);
+  const FPbad = JSON.parse(JSON.stringify(FP)); FPbad.levels[0].beats[1].force = 'yes';
+  check('validator rejects a non-boolean force', G.validateCampaign(FPbad).length > 0);
+  G.installCampaign(FP);
+  G.startLevel(0);
+  // the early t=2 beat can't back-time before the level start: it clamps at
+  // t≈0 and materializes mid-bore at CONSTANT speed, arriving on cue
+  let earlyEn = null, g3 = 100;
+  while (g3-- > 0 && !earlyEn) { G.setIntegrity(100); G.update(0.05); earlyEn = G.enemies().find(e => e.angle === 4.0); }
+  check('an early beat clamps at the level start: mid-bore spawn', !!earlyEn && earlyEn.z < 1.6 && earlyEn.speedMul === 1);
+  let earlyT = -1; g3 = 100;
+  const hz3 = G.geo().hitZ;
+  while (g3-- > 0 && earlyT < 0) { G.setIntegrity(100); G.update(0.05); if (earlyEn.z <= hz3 + 0.02) earlyT = G.getLevelT(); }
+  check('...and still arrives on the authored cue (t=2 ±0.4)', earlyT > 1.6 && earlyT < 2.45);
+  let fEn = null; g3 = 300;
+  while (g3-- > 0 && !fEn) { G.setIntegrity(100); G.update(0.05); fEn = G.enemies().find(e => e.angle === 2.0); }
+  check('a forced beat lands EXACTLY on its authored angle, on the carpet',
+    !!fEn && fEn.angle === 2.0 && G.latches().length === 1 && Math.abs(G.latches()[0].a - 2.0) < 1e-9);
+  check('the linter still tells the truth about the override',
+    G.lintLevel(FP.levels[0], 0).some(v => v.code === 'wall-conflict'));
+  G.installCampaign(G.CAMPAIGNS[0]);
+
+  // --- fast opening: the player never flies into an empty tunnel ---
+  G.startLevel(1);
+  G.update(0.05);
+  const opener = G.enemies().filter(e => !e.dead);
+  check('traffic is inbound from second zero, at full horizon depth',
+    opener.length >= 1 && opener.every(e => e.z > 1.9));
+  const hz5 = G.geo().hitZ;
+  const exp5 = (2.1 - hz5) / (0.40 * opener[0].speedMul);
+  let arrT = -1, g5 = 300;
+  while (g5-- > 0 && arrT < 0) { G.setIntegrity(100); G.update(0.05); if (opener[0].z <= hz5 + 0.02) arrT = G.getLevelT(); }
+  check('first contact comes at NATURAL travel time — speed is never scaled',
+    (opener[0].speedMul === 1 || opener[0].speedMul === 0.82) && arrT > 0 && Math.abs(arrT - exp5) < 0.35);
+  G.startEndless();
+  G.update(0.05);
+  check('endless opens with traffic inbound too', G.enemies().length >= 1);
+
+  // --- birth fade: nothing pops into existence ---
+  G.startLevel(1);
+  G.enemies().length = 0;
+  const nb = G.spawnEnemy(1.0, 'normal');
+  check('a newborn trap is still materializing (birth fade < 1)', G.birthFade(nb) < 0.5);
+  for (let i = 0; i < 12; i++) { G.setIntegrity(100); G.update(0.05); }
+  check('the birth fade completes within ~0.4s', G.birthFade(nb) === 1);
+  G.spawnPickup();
+  const nbp = G.pickups()[G.pickups().length - 1];
+  check('pickups carry the birth fade too', G.birthFade(nbp) < 0.5);
+  G.setState(G.S.MENU);
 }
 
 // ================= gamepad (desktop playtesting) =================

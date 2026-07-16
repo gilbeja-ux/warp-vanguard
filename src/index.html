@@ -694,7 +694,7 @@ function endlessCfg(t) {
 // [t0, t1) the spawner runs on { ...level, ...mix } and intensity scales the
 // cadence (1 = the level's own spawnMin/spawnMax, 2 = twice as dense). Pure:
 // the live spawner AND the fairness linter read the exact same function, and
-// a level without bands returns ITSELF — legacy levels replay bit-identically
+// a level without bands returns ITSELF — legacy levels replay deterministically
 function bandCfg(level, t) {
   const bs = level.bands;
   if (!bs || !bs.length) return level;
@@ -784,6 +784,9 @@ function validateCampaign(p) {
       if (b.kind === 'pickup' && b.type !== undefined && !PK[b.type]) errs.push(tag + 'bad beat pickup type');
       if (b.kind === 'lull' && !(b.dur > 0 && b.t + b.dur <= l.duration)) errs.push(tag + 'bad lull');
       if (b.angle !== undefined && !isFinite(b.angle)) errs.push(tag + 'bad beat angle');
+      // force: the author's override — the beat lands EXACTLY as written, no
+      // fairness relocation. The linter still judges it (that's the safety net)
+      if (b.force !== undefined && typeof b.force !== 'boolean') errs.push(tag + 'bad beat force');
     });
     // bands: only the rate knobs may be mixed — speed/duration stay level-wide
     const MK = { doubles: 1, heavies: 1, lines: 1, colors: 1, frags: 1, walls: 1, crawlers: 1, bursts: 1 };
@@ -1033,26 +1036,33 @@ function spawnEnemy(forcedAngle, type) {
     ? (schance(0.5) ? 0 : 1) : undefined;
   // fairness: a color whose node is already booked flips, or unlocks entirely
   if (lock !== undefined && !lockAllowed(lock)) lock = lockAllowed(1 - lock) ? 1 - lock : undefined;
+  const speedMul = heavy ? 0.82 : 1;
+  // dropTravel: an early-clamped beat can't back-time before the level start —
+  // it materializes partway down the bore instead (CONSTANT speed, never
+  // scaled; the birth fade covers the deep entrance) so its arrival keeps the
+  // authored cue. null = normal horizon spawn.
+  const z0 = dropTravel !== null ? geo().hitZ + dropTravel * trafficSpeed * speedMul : SPAWN_Z;
   const en = {
-    type, lock, z: SPAWN_Z, angle: forcedAngle !== undefined ? forcedAngle : clearOfWalls(spawnRng() * TAU),
-    sizeMul: type === 'frag' ? 0.8 : heavy ? 1.6 : 1, speedMul: heavy ? 0.82 : 1,
+    type, lock, z: z0, angle: forcedAngle !== undefined ? forcedAngle : clearOfWalls(spawnRng() * TAU),
+    sizeMul: type === 'frag' ? 0.8 : heavy ? 1.6 : 1, speedMul,
     spin: spawnRng() * TAU, spinMul: heavy ? 0.45 : 1, age: 0, dead: false, partner: null
   };
   enemies.push(en);
-  // book the arrival in the fairness ledger (strips book in spawnStrip with
-  // their length; friendlies never book — parity with the old live-enemy scan)
+  // book the TRUE arrival in the fairness ledger (strips book in spawnStrip
+  // with their length; friendlies never book — parity with the live-enemy scan)
   if (type !== 'strip' && type !== 'frag') {
-    const tA = levelT + arrivalAt(SPAWN_Z, en.speedMul);
+    const tA = levelT + arrivalAt(en.z, en.speedMul);
     sched.push({ t0: tA, t1: tA, type, lock, needsNode: type !== 'normal' || lock !== undefined });
   }
   return en;
 }
 // barrier line: two linked traps at the same depth with an energy wall strung between them
-function spawnLine(forcedA) { // beats may pin the lead end's angle
+function spawnLine(forcedA, force) { // beats may pin the lead end's angle; force = verbatim
   let a = forcedA !== undefined ? forcedA : spawnRng() * TAU;
   const gap = srand(0.8, 1.5) * (schance(0.5) ? -1 : 1);
-  // clear the whole barrier span of any wall, not just one endpoint
-  a = clearOfWalls(a + gap / 2, Math.abs(gap) / 2 + 0.45) - gap / 2;
+  // clear the whole barrier span of any wall — the pair's dual-node geometry
+  // adds its half-gap to the reachability bound
+  if (!force) a = clearOfWalls(a + gap / 2, Math.abs(gap) / 2) - gap / 2;
   const e1 = spawnEnemy(a, 'line');
   const e2 = spawnEnemy(a + gap, 'line');
   e1.partner = e2; e2.partner = e1;
@@ -1153,11 +1163,15 @@ function lullHold() {
 // ---------- beats ----------
 // hand-placed timeline events (schema in docs/CMS-ROADMAP.md). A beat's t is
 // its ARRIVAL moment at the ring: the release is back-timed by the travel
-// lead so the event lands on cue. Every beat draws from its OWN seeded side
-// stream (like volley replicants, which also never touch spawnRng), so the
-// level's main seeded sequence stays untouched — a level with beats replays
-// exactly, and a level without them is bit-identical to pre-beats builds.
+// lead so the event lands on cue (early beats clamp at t≈0 via dropTravel).
+// Every beat draws from its OWN seeded side stream (like volley replicants,
+// which also never touch spawnRng), so the level's main seeded sequence
+// stays untouched — same seed, same script, beats or no beats.
 let beatSt = null; // { fired: [bool] } for the active scripted level
+// remaining-travel override for the spawns of an early-clamped beat: the
+// entity materializes partway down the bore at CONSTANT speed so the arrival
+// still lands on the authored cue (the birth fade hides the deep entrance)
+let dropTravel = null;
 const beatStream = (li, bi) => mulberry32((0xBEA75 ^ (li * 7919 + bi * 104729)) >>> 0);
 const beatLead = b => b.kind === 'wall' ? travelTime()
   : b.kind === 'pickup' ? arrivalAt(SPAWN_Z, 0.9)
@@ -1189,23 +1203,32 @@ function runBeats() {
     if (b.kind === 'lull') { if (levelT >= b.t) beatSt.fired[bi] = true; continue; }
     const lead = beatLead(b);
     if (levelT < b.t - lead) continue;
+    // an early beat (t < lead) can't back-time before the level start — its
+    // release clamps at t≈0 with a shortened travel (see dropTravel), never
+    // a negative time. Ordinary beats keep the full lead.
+    const eff = b.t < lead ? Math.max(0.4, b.t - levelT) : lead;
     // a beat that would LAND mid-transmission waits for the words, exactly
     // like filler does — it slides late, never disappears
-    const tArr = levelT + lead;
+    const tArr = levelT + eff;
     if (cl.some(c => tArr > c.t - 0.5 && tArr < c.t + 3.2)) continue;
     beatSt.fired[bi] = true;
-    fireBeat(b, bi);
+    fireBeat(b, bi, eff < lead - 1e-9 ? eff : undefined);
   }
 }
-function fireBeat(b, bi) {
+function fireBeat(b, bi, eff) {
   sched = sched.filter(s => s.beat !== bi); // the live booking replaces the reservation
   const keep = spawnRng;
   spawnRng = beatStream(levelIdx, bi); // side stream — the main script's draws stay aligned
-  const a = b.angle !== undefined ? clearOfWalls(b.angle) : undefined;
-  if (b.kind === 'wall') spawnWall(a);
+  dropTravel = eff !== undefined ? eff : null; // clamped release: spawn partway down, constant speed
+  // reachability: an authored angle relocates only when its dock arc is truly
+  // ON a carpet (walls add their own half-span); force skips even that
+  const a = b.angle !== undefined
+    ? (b.force ? b.angle : clearOfWalls(b.angle, b.kind === 'wall' ? 0.5 : 0))
+    : undefined;
+  if (b.kind === 'wall') spawnWall(a, b.force, eff);
   else if (b.kind === 'strip') spawnStrip();
   else if (b.kind === 'pickup') { if (!mutators.noPickups) spawnPickup(b.type); }
-  else if (b.type === 'line') spawnLine(a);
+  else if (b.type === 'line') spawnLine(a, b.force);
   else if (b.type === 'lock0' || b.type === 'lock1') {
     // fairness beats authorship: a lock whose node is booked flips or unlocks
     let lock = b.type === 'lock1' ? 1 : 0;
@@ -1216,6 +1239,7 @@ function fireBeat(b, bi) {
     s.lock = lock; s.needsNode = lock !== undefined;
   }
   else spawnEnemy(a, b.type || 'normal');
+  dropTravel = null;
   spawnRng = keep;
 }
 
@@ -1227,7 +1251,9 @@ function fireBeat(b, bi) {
 // no game state is touched. Geometry uses a nominal hitZ (the real one moves
 // ±0.02 with viewport aspect and never flips a verdict). Codes:
 //   dual-conflict     two simultaneous demands both nodes can't cover
-//   wall-conflict     an arrival authored onto a live wall carpet
+//   wall-conflict     an arrival left UNREACHABLE inside a wall carpet (the
+//                     reachability law: half-span + node tolerance; landed
+//                     positions, so force-overridden beats are judged too)
 //   lull-violation    a beat scheduled inside another beat's lull
 //   comm-overlap      a beat arrival inside a comm window
 //   unreachable-strip a bonus ride that forces a wall crossing or abandons
@@ -1276,16 +1302,16 @@ function lintWalk(level, idx) {
   let sched2 = [];
   // --- mirrors of the live fairness helpers, on local state ---
   const liveWalls = tN => walls.filter(w => tN >= w.tRel && tN < w.tLand + 3);
-  const cow = (a2, tN, margin) => {
+  const cow = (a2, tN, extra) => { // clearOfWalls mirror — same reachability law
     const lw = liveWalls(tN);
     if (!lw.length) return a2;
-    const m = margin === undefined ? 0.45 : margin;
     for (let k = 0; k < 8; k++) {
-      if (!lw.some(w => Math.abs(angDiff(w.a, a2)) < 0.5 + m)) break;
+      if (!lw.some(w => wallBlocks(angDiff(w.a, a2), 0.5, extra))) break;
       a2 += 2.399963;
     }
     return a2;
   };
+  let dropT = null; // early-clamped beat: shortened remaining travel (mirrors dropTravel)
   const mates = (tA, gap) => sched2.filter(s => tA > s.t0 - gap && tA < s.t1 + gap);
   const allow = (type, tN) => {
     const tNew = lead(type === 'heavy' ? 0.82 : 1);
@@ -1319,53 +1345,54 @@ function lintWalk(level, idx) {
     if (lock !== undefined && !lockOk(tN, lock)) lock = lockOk(tN, 1 - lock) ? 1 - lock : undefined;
     const angle = forcedA !== undefined ? forcedA : cow(dr() * TAU, tN);
     dr(); // spin
-    const tA = tN + lead(heavy ? 0.82 : 1);
+    const tA = tN + (dropT !== null ? dropT : lead(heavy ? 0.82 : 1));
     const rec = { t: tA, t1: tA, type, lock, needsNode: type !== 'normal' || lock !== undefined, angle, beat };
     arr.push(rec);
     if (type !== 'strip' && type !== 'frag')
       sched2.push({ t0: tA, t1: tA, type, lock, needsNode: rec.needsNode });
     return rec;
   }
-  function simLine(cfg, tN, forcedA, beat) {
+  function simLine(cfg, tN, forcedA, beat, force) {
     let a2 = forcedA !== undefined ? forcedA : dr() * TAU;
     const gap = drr(0.8, 1.5) * (dch(0.5) ? -1 : 1);
-    a2 = cow(a2 + gap / 2, tN, Math.abs(gap) / 2 + 0.45) - gap / 2;
+    if (!force) a2 = cow(a2 + gap / 2, tN, Math.abs(gap) / 2) - gap / 2;
     const e1 = simEnemy(cfg, tN, a2, 'line', beat);
     const e2 = simEnemy(cfg, tN, a2 + gap, 'line', beat);
     e1.pair = e2; e2.pair = e1;
   }
   function simStrip(cfg, tN, beat) {
     const rec = simEnemy(cfg, tN, undefined, 'strip', beat);
-    rec.angle = cow(rec.angle, tN, 1.4);
+    rec.angle = cow(rec.angle, tN, 0.5); // meander amplitude joins the bound
     const len = drr(0.5, 0.85);
     drr(0.22, 0.5); dch(0.5); drr(2.2, 4.2); drr(0, TAU); // amp/sign/frq/phase
     rec.t1 = rec.t + len / level.speed;
     sched2.push({ t0: rec.t, t1: rec.t1, type: 'strip', lock: undefined, needsNode: true });
     return rec;
   }
-  function simWall(tN, forcedA, beat) {
+  function simWall(tN, forcedA, beat, force, tele) {
     let a2 = forcedA !== undefined ? forcedA : dr() * TAU;
     const auth = a2; // the AUTHORED arc — the clash hops below may move the real one
-    const wallLife = trav + 3 + 0.6;
-    for (let k = 0; k < 8; k++) {
+    const teleT = tele !== undefined ? tele : trav;
+    const wallLife = teleT + 3 + 0.6;
+    for (let k = 0; !force && k < 8; k++) {
       const clash = arr.some(rec => {
-        if (rec.type === 'strip') return tN < rec.t1 + 0.4 && Math.abs(angDiff(rec.angle, a2)) < 1.3;
+        if (rec.type === 'strip') return tN < rec.t1 + 0.4 && wallBlocks(angDiff(rec.angle, a2), 0.5, 0.5);
         const tArr = rec.t - tN;
-        return tArr > -0.5 && tArr < wallLife && Math.abs(angDiff(rec.angle, a2)) < 0.95;
+        return tArr > -0.5 && tArr < wallLife && wallBlocks(angDiff(rec.angle, a2), 0.5);
       });
       if (!clash) break;
       a2 += 2.399963;
     }
-    walls.push({ tRel: tN, tLand: tN + trav, a: a2, aA: auth, beat });
+    walls.push({ tRel: tN, tLand: tN + teleT, a: a2, aA: auth, beat });
   }
   function simPickup(tN, kind, beat) {
     if (kind === undefined) dr(); // kind roll
-    picks.push({ t: tN + lead(0.9), angle: dr() * TAU, beat });
+    picks.push({ t: tN + (dropT !== null ? dropT : lead(0.9)), angle: dr() * TAU, beat });
   }
   // --- the run: same tick order as update() (spawner → beats → burst →
   // pickup clock → ribbon clock), same draw order as resetRun/trySpawn ---
   let pkT = drr(16, 24), rbT = drr(11, 15); // resetRun's opening draws
-  let lvT = 0, spT = 1.2, bq = null;
+  let lvT = 0, spT = 0.01, bq = null; // first release on the first tick — the tunnel is never empty
   const fired = beats.map(() => false);
   beats.forEach((b, bi) => { // the same pre-bookings initBeats makes
     if (b.kind === 'enemy') {
@@ -1411,7 +1438,8 @@ function lintWalk(level, idx) {
         }
       }
     }
-    // beats (runBeats): released back-timed, sliding past comm windows
+    // beats (runBeats): released back-timed, sliding past comm windows;
+    // early beats clamp at t≈0 with a shortened travel (dropT)
     for (let bi = 0; bi < beats.length; bi++) {
       if (fired[bi]) continue;
       const b = beats[bi];
@@ -1419,16 +1447,20 @@ function lintWalk(level, idx) {
       const leadB = b.kind === 'wall' ? trav : b.kind === 'pickup' ? lead(0.9)
         : lead(b.kind === 'enemy' && b.type === 'heavy' ? 0.82 : 1);
       if (lvT < b.t - leadB) continue;
-      const tA = lvT + leadB;
+      const eff = b.t < leadB ? Math.max(0.4, b.t - lvT) : leadB;
+      const tA = lvT + eff;
       if (comms.some(c => tA > c.t - 0.5 && tA < c.t + 3.2)) continue;
       fired[bi] = true;
       sched2 = sched2.filter(s => s.beat !== bi);
       R = beatStream(idx, bi);
-      const a2 = b.angle !== undefined ? cow(b.angle, lvT) : undefined;
-      if (b.kind === 'wall') simWall(lvT, a2, bi);
+      dropT = eff < leadB - 1e-9 ? eff : null;
+      const a2 = b.angle !== undefined
+        ? (b.force ? b.angle : cow(b.angle, lvT, b.kind === 'wall' ? 0.5 : 0))
+        : undefined;
+      if (b.kind === 'wall') simWall(lvT, a2, bi, b.force, dropT !== null ? dropT : undefined);
       else if (b.kind === 'strip') simStrip(bandCfg(level, lvT), lvT, bi);
       else if (b.kind === 'pickup') simPickup(lvT, b.type, bi);
-      else if (b.type === 'line') simLine(bandCfg(level, lvT), lvT, a2, bi);
+      else if (b.type === 'line') simLine(bandCfg(level, lvT), lvT, a2, bi, b.force);
       else if (b.type === 'lock0' || b.type === 'lock1') {
         let lk = b.type === 'lock1' ? 1 : 0;
         if (!lockOk(lvT, lk)) lk = lockOk(lvT, 1 - lk) ? 1 - lk : undefined;
@@ -1438,6 +1470,7 @@ function lintWalk(level, idx) {
         s.lock = lk; s.needsNode = rec.needsNode;
       }
       else simEnemy(bandCfg(level, lvT), lvT, a2, b.type || 'normal', bi);
+      dropT = null;
       R = rng;
     }
     // burst replicants
@@ -1489,26 +1522,37 @@ function lintVerdicts(bad, level, arr, picks, walls) {
     if (beaty(f, h) && h.needsNode && Math.abs(h.t - f.t) < 0.35 && Math.abs(angDiff(h.angle, f.angle)) < 0.5)
       bad(f.t, 'dual-conflict', 'node killer parked on a mandatory dock');
   }
-  // wall clearance: arrivals authored onto a carpet (live spawns self-relocate,
-  // so flag the AUTHORED intent — the engine would move it and break the design)
-  const wallHit = (t2, ang, useAuth) => walls.find(w =>
-    t2 > w.tRel - 0.5 && t2 < w.tLand + 3.6 && Math.abs(angDiff(useAuth ? w.aA : w.a, ang)) < 0.95);
-  for (const b of beats) {
-    if (b.kind !== 'enemy' && b.kind !== 'pickup') continue;
-    if (b.angle === undefined) continue;
-    if (wallHit(b.t, b.angle, true)) bad(b.t, 'wall-conflict', 'beat arrival authored onto a wall carpet');
+  // wall clearance — REACHABILITY (the designer's ruling, the law everywhere):
+  // an arrival may share a live wall's window as long as its demanded dock arc
+  // stays out of the carpet (wallBlocks: half-span + node tolerance). Checked
+  // on LANDED positions: relocation already saves unforced spawns, so findings
+  // surface exactly what an OVERRIDE (force) or a late-landing wall swallowed.
+  // Barrier ends are separate arrivals — a pair flags when EITHER demanded end
+  // is swallowed; nodes route around any sub-π carpet from either side, so a
+  // clear dock arc is always attainable. Frags demand avoidance, not a dock —
+  // exempt. Filler-vs-filler stays exempt (the live gates replayed clean).
+  const wallHit = (t2, ang) => walls.find(w =>
+    t2 > w.tRel - 0.5 && t2 < w.tLand + 3.6 && wallBlocks(angDiff(w.a, ang), 0.5));
+  for (const rec of arr) {
+    if (rec.type === 'strip' || rec.type === 'frag') continue;
+    const w = wallHit(rec.t, rec.angle);
+    if (w && (rec.beat !== undefined || w.beat !== undefined))
+      bad(rec.t, 'wall-conflict', 'arrival unreachable inside a wall carpet');
   }
-  for (const p2 of picks) if (p2.beat !== undefined && wallHit(p2.t, p2.angle))
-    bad(p2.t, 'wall-conflict', 'power-up beat rides into a wall carpet');
+  for (const p2 of picks) {
+    const w = wallHit(p2.t, p2.angle);
+    if (w && (p2.beat !== undefined || w.beat !== undefined))
+      bad(p2.t, 'wall-conflict', 'power-up unreachable inside a wall carpet');
+  }
   // strips: the full ride must stay ownable and clear of walls
   for (const st of arr) {
     if (st.type !== 'strip') continue;
     for (const h of host) if (beaty(st, h) && h.needsNode && h.t1 > st.t - GAP && h.t < st.t1 + GAP) {
       bad(st.t, 'unreachable-strip', 'bonus ride overlaps a mandatory dual-node kill'); break;
     }
-    // 1.3 = wall half-span 0.5 + max meander 0.5 + node tolerance ~0.3
+    // meander amplitude joins the reachability bound for rides
     for (const w of walls) if ((st.beat !== undefined || w.beat !== undefined) &&
-      st.t1 > w.tLand && st.t < w.tLand + 3 && Math.abs(angDiff(w.a, st.angle)) < 1.3) {
+      st.t1 > w.tLand && st.t < w.tLand + 3 && wallBlocks(angDiff(w.a, st.angle), 0.5, 0.5)) {
       bad(st.t, 'unreachable-strip', 'bonus ride crosses a wall carpet'); break;
     }
   }
@@ -1574,39 +1618,47 @@ function trySpawn(dt) {
 }
 // rim wall: a hazard carpet seizes part of the rail — telegraphed, then live
 // for 3s while it burns off. Crossing it fries the node (node-killer, in area
-// form). Fairness: never seal an arc that a hostile already in flight will
-// land on while the wall lives — the candidate hops by golden angle (no RNG
-// consumed) until the arc is clear, so campaign replays stay deterministic.
-// keep a candidate angle clear of every wall arc (with margin) — deterministic
+// form).
+// ---------- THE REACHABILITY LAW ----------
+// a demanded node position is UNREACHABLE when it falls inside a wall's
+// occupied arc: half-span + node zap tolerance (+ the demand's own extra —
+// a ribbon's meander amplitude, a barrier's half-gap, a second wall's own
+// half-span). This single bound IS the 100%-completable law around walls:
+// spawns may coexist with a live carpet as long as the player can still
+// REACH them. The filler gates, beat firing, wall clash hops and the linter
+// all share this one definition (the linter mirrors it via wallBlocks too).
+const WALL_TOL = 0.3; // node zap tolerance margin
+const wallBlocks = (d, span, extra) => Math.abs(d) < span + WALL_TOL + (extra || 0);
+// keep a candidate angle reachable past every wall arc — deterministic
 // golden-angle hops, no RNG consumed, so campaign replays stay identical
-function clearOfWalls(a, margin) {
+function clearOfWalls(a, extra) {
   if (!latches.length) return a;
-  const m = margin === undefined ? 0.45 : margin;
   for (let k = 0; k < 8; k++) {
-    if (!latches.some(lt => Math.abs(angDiff(lt.a, a)) < lt.span0 + m)) break;
+    if (!latches.some(lt => wallBlocks(angDiff(lt.a, a), lt.span0, extra))) break;
     a += 2.399963;
   }
   return a;
 }
 
-function spawnWall(forcedA) { // beats may pin the landing arc (fairness hops still apply)
+function spawnWall(forcedA, force, teleOverride) { // beats may pin the arc; force = verbatim, no hops
   if (!progress.wallBriefed && !tut) showCard('wall'); // first encounter, mid-run briefing
   let a = forcedA !== undefined ? forcedA : spawnRng() * TAU;
   const g2 = geo();
   const trav = travelTime(); // the carpet is world traffic: horizon to rim at stream speed
-  const wallLife = trav + 3 + 0.6; // approach + burn + detour buffer
-  for (let k = 0; k < 8; k++) {
+  const tele = teleOverride !== undefined ? teleOverride : trav; // early-clamped beats bite sooner
+  const wallLife = tele + 3 + 0.6; // approach + burn + detour buffer
+  for (let k = 0; !force && k < 8; k++) {
     const clash = enemies.some(en => {
       if (en.dead || en.resolved || en.failed) return false;
-      // a live ribbon meanders — never drop a wall across a rider's path
-      if (en.type === 'strip') return Math.abs(angDiff(en.angle, a)) < 1.3;
+      // a live ribbon meanders — its whole ride corridor must stay reachable
+      if (en.type === 'strip') return wallBlocks(angDiff(en.angle, a), 0.5, 0.5);
       const tArr = (en.z - g2.hitZ) / (trafficSpeed * (en.speedMul || 1));
-      return tArr > -0.5 && tArr < wallLife && Math.abs(angDiff(en.angle, a)) < 0.95;
+      return tArr > -0.5 && tArr < wallLife && wallBlocks(angDiff(en.angle, a), 0.5);
     });
     if (!clash) break;
     a += 2.399963;
   }
-  latches.push({ a, span0: 0.5, t: 0, dur: 3, tele: trav, arm: 0.4, z0: SPAWN_Z });
+  latches.push({ a, span0: 0.5, t: 0, dur: 3, tele, arm: 0.4, z0: SPAWN_Z });
   // warning: dry double tick + static as the carpet enters the tunnel
   tone(1180, 0.02, 'square', 0.05); tone(1180, 0.02, 'square', 0.05, null, null, 0.22);
   crackle(0.25, 500, 1800, 2, 0.3);
@@ -1618,7 +1670,7 @@ function spawnWall(forcedA) { // beats may pin the landing arc (fairness hops st
 function spawnStrip() {
   if (!progress.stripBriefed && !tut) showCard('strip'); // first encounter, mid-run briefing
   const en = spawnEnemy(undefined, 'strip');
-  en.angle = clearOfWalls(en.angle, 1.4); // a meandering ride must never cross a wall
+  en.angle = clearOfWalls(en.angle, 0.5); // the ride meanders — its amplitude joins the reachability bound
   en.len = srand(0.5, 0.85);                             // depth extent of the ribbon
   en.amp = srand(0.22, 0.5) * (schance(0.5) ? -1 : 1);
   en.frq = srand(2.2, 4.2);
@@ -1626,7 +1678,7 @@ function spawnStrip() {
   // book the ride in the fairness ledger even though it's optional: while a
   // ribbon COULD be ridden, nothing dual-node may arrive — taking the bonus
   // must never cost a life (every level is 100%-able, bonuses included)
-  sched.push({ t0: levelT + arrivalAt(SPAWN_Z, 1), t1: levelT + arrivalAt(SPAWN_Z + en.len, 1),
+  sched.push({ t0: levelT + arrivalAt(en.z, 1), t1: levelT + arrivalAt(en.z + en.len, 1),
                type: 'strip', lock: undefined, needsNode: true });
   en.failed = false; en.tracing = false;
   return en;
@@ -1642,7 +1694,8 @@ const PICKUPS = {
 };
 function spawnPickup(kind) { // beats may pin the kind (skipping that roll)
   const kinds = Object.keys(PICKUPS);
-  pickups.push({ kind: kind || kinds[(spawnRng() * kinds.length) | 0], z: SPAWN_Z, angle: spawnRng() * TAU, spin: 0, done: false });
+  const z0 = dropTravel !== null ? geo().hitZ + dropTravel * (LV || LEVELS[levelIdx]).speed * 0.9 : SPAWN_Z;
+  pickups.push({ kind: kind || kinds[(spawnRng() * kinds.length) | 0], z: z0, angle: spawnRng() * TAU, spin: 0, age: 0, done: false });
 }
 // the firewall core duel: it hunts the fused node from inside the tunnel while
 // the ray cannon (left thumb = move, right thumb = aim, hold = fire) drains it
@@ -2276,7 +2329,10 @@ function endTap(x, y) {
 function resetRun() {
   // modifiers stay locked until the campaign is cleared
   if (!anyCampaignCleared()) mutators.oneLife = mutators.fast = mutators.noPickups = false;
-  levelT = 0; spawnT = 1.2;
+  // the player must never fly into an EMPTY tunnel: the first release fires on
+  // the first post-boot tick at full horizon depth, so traffic is visibly
+  // inbound from second zero (natural speed — first CONTACT comes at travel time)
+  levelT = 0; spawnT = 0.01;
   commNext = 0; commCur = null; commT = 0;
   surgeLevel = 0; surgeCount = -1; surgeWaveZ = -1;
   integrity = mutators.oneLife ? 25 : 100;
@@ -3413,6 +3469,7 @@ function update(dt) {
   for (const p of pickups) {
     p.z -= L.speed * 0.9 * sdt;
     p.spin += dt * 2;
+    p.age = (p.age || 0) + sdt;
     if (!p.done && p.z <= g.hitZ) {
       p.done = true;
       if (p.tut && tut && !(covers(nodes[0], p.angle) || covers(nodes[1], p.angle))) {
@@ -3883,17 +3940,24 @@ function drawStrip(en, g, fade) {
   ctx.globalAlpha = fade;
 }
 
+// birth fade: everything materializes over its first ~0.35s (alpha 0→1 plus a
+// touch of scale) so nothing ever POPS into existence — deep horizon spawns
+// and early-clamped mid-bore drops alike emerge from the glow. Draw-only:
+// zero effect on hitboxes or timing.
+const birthFade = o => clamp((o.age || 0) / 0.35, 0, 1);
 function drawEnemy(en, g) {
   const rg = ring(Math.max(en.z, 0.02), g);
   const x = rg.x + Math.cos(en.angle) * rg.r;
   const y = rg.y + Math.sin(en.angle) * rg.r;
+  const birth = birthFade(en);
   // size tracks the WALL geometry (rg.r/nodeR), not raw z — bodies scale in
   // lockstep with the ring they sit on, so they read as glued to the tunnel
-  let size = Math.min(W, H) * 0.06 * clamp(rg.r / g.nodeR, 0.1, 2) * (en.sizeMul || 1);
+  let size = Math.min(W, H) * 0.06 * clamp(rg.r / g.nodeR, 0.1, 2) * (en.sizeMul || 1) * (0.85 + 0.15 * birth);
   const near = 1 - en.z;
   // missed traps balloon past the ring and dissolve; fresh ones fade in from the deep
   let fade = en.resolved ? clamp(en.z / g.hitZ, 0, 1) : 1;
   fade *= clamp((SPAWN_Z - 0.05 - en.z) / 0.3, 0, 1); // smooth entrance at the horizon
+  fade *= birth;
   if (fade <= 0.005) return;
   if (en.resolved) size *= 1 + (1 - clamp(en.z / g.hitZ, 0, 1)) * 1.6;
   // per-type palettes — the color IS the gameplay language: red = any node,
@@ -4087,6 +4151,7 @@ function drawPickup(p, g) {
   const x = rg.x + Math.cos(p.angle) * rg.r, y = rg.y + Math.sin(p.angle) * rg.r;
   const size = Math.min(W, H) * 0.042 * clamp(rg.r / g.nodeR, 0.12, 1.6);
   let fade = clamp((SPAWN_Z - 0.05 - p.z) / 0.3, 0, 1);
+  fade *= birthFade(p); // materialize, never pop
   if (p.done) fade *= clamp(p.z / g.hitZ, 0, 1);
   if (fade <= 0.005) return;
   ctx.save();

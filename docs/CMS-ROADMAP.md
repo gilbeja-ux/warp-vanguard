@@ -44,7 +44,8 @@ does not ship in the store build.
   Timeline compiler (beats + seeded band filler → one deterministic spawn
   schedule). Fairness linter as a pure function: walks a compiled level and
   reports 100%-completable-law violations (dual-node conflicts, wall
-  clearance, unreachable streams) with timestamps.
+  reachability, unreachable streams) with timestamps. The 100%-completable
+  law around walls is defined BY reachability, everywhere.
 
   ### Beats — `level.beats: [ ... ]`
 
@@ -53,8 +54,8 @@ does not ship in the store build.
   leaves the horizon earlier than a normal to land on the same cue):
 
   ```
-  { t, kind: 'enemy', type: 'normal'|'heavy'|'line'|'lock0'|'lock1'|'frag', angle? }
-  { t, kind: 'wall', angle? }      // rim wall; its latch BITES at t
+  { t, kind: 'enemy', type: 'normal'|'heavy'|'line'|'lock0'|'lock1'|'frag', angle?, force? }
+  { t, kind: 'wall', angle?, force? } // rim wall; its latch BITES at t
   { t, kind: 'strip' }             // golden bonus ribbon, head arrives at t
   { t, kind: 'pickup', type? }     // power-up (shield|wide|auto|inject|chain)
   { t, kind: 'lull', dur }         // quiet window: no filler ARRIVALS in [t, t+dur]
@@ -62,11 +63,32 @@ does not ship in the store build.
 
   Rules the runtime enforces:
   - `angle` optional (radians). Omitted → drawn from the beat's own seeded
-    side stream. Given → still passes `clearOfWalls`, and walls still run
-    their clash hops: fairness beats authorship.
+    side stream. Given → used VERBATIM unless the reachability law (below)
+    says the demanded dock arc is swallowed by a live wall — only then does
+    the fairness pipeline relocate it (golden-angle hops).
+  - `force: true` — the author's OVERRIDE: the beat lands exactly as written,
+    bypassing relocation and clash hops entirely. The linter still evaluates
+    forced beats and reports findings — override places it, lint tells the
+    truth. The Tunnel Designer marks overridden beats with a ⚡ badge.
+  - REACHABILITY is the one wall-clearance law, everywhere (filler gates,
+    beat firing, wall clash hops, the linter): a spawn may coexist with a
+    live wall window as long as the node position it demands stays out of
+    the carpet's occupied arc — wall half-span + node zap tolerance
+    (`wallBlocks` in index.html), plus the demand's own extra (a ribbon's
+    meander amplitude, a barrier's half-gap, a second wall's half-span).
+  - An early beat (`t` < its travel lead) cannot back-time before the level
+    start: its release clamps at t≈0 and the entity materializes partway
+    down the bore at CONSTANT speed (the birth fade covers the entrance),
+    so the arrival still lands on the authored cue.
   - Beats never touch the level's main `spawnRng` sequence (each beat has a
     per-index `mulberry32` side stream), so adding/removing beats does not
-    reshuffle the procedural filler, and legacy levels replay bit-identically.
+    reshuffle the procedural filler, and legacy levels replay
+    deterministically (same seed → same script; exact angles near walls
+    follow the reachability law, not historical builds).
+  - Fast opening: the first filler release fires on the first post-boot tick
+    at full horizon depth (natural speed — never scaled), so the player
+    always flies into a tunnel with traffic visibly inbound. Every
+    enemy/pickup carries a ~0.35s birth fade — nothing pops into existence.
   - Beat demand windows are PRE-BOOKED in the `sched` fairness ledger at
     level start, so filler routes around the authored moments from second 0.
   - A beat whose arrival would land inside a comm window (`c.t-0.5 ..
@@ -98,12 +120,16 @@ does not ship in the store build.
   - `dual-conflict` — two simultaneous demands both nodes can't cover
     (heavy/line windows, same-color lock double-booking, node killer parked
     on a mandatory dock)
-  - `wall-conflict` — an arrival authored onto a live wall carpet (the
-    engine would relocate it and break the authored design)
+  - `wall-conflict` — an arrival left UNREACHABLE inside a wall carpet: its
+    demanded dock arc falls within half-span + node tolerance of the LANDED
+    wall. Unforced spawns relocate to safety on their own, so the usual
+    culprits are `force`-overridden beats. Barrier pairs / heavies flag when
+    either demanded end is swallowed — nodes route around any sub-π carpet,
+    so a clear dock arc is otherwise always attainable.
   - `lull-violation` — a beat scheduled inside another beat's lull
   - `comm-overlap` — a beat arrival inside a comm window (it will slide late)
   - `unreachable-strip` — a bonus ride that overlaps a mandatory dual-node
-    kill or crosses a wall carpet
+    kill or crosses a wall carpet (meander amplitude joins the bound)
 
 - **Phase 2 — the Tunnel Designer (editor.html)** (done)
   Desktop-only page driving the real engine: `src/editor.html` provides the
@@ -134,8 +160,14 @@ does not ship in the store build.
     Marker/tool/chip colors speak the in-game enemy language exactly.
   - wall authoring is honest about fairness: the WALL tool shows a ghost arc
     where the carpet will ACTUALLY land (relocation predicted via lintWalk),
-    overlapping wall windows are blocked at placement, and a relocated wall
-    carries an inline "authored X, lands Y" warning in the beat list
+    and a relocated beat carries an inline "authored X, lands Y" warning
+  - authored beats live on PACKED tracks (video-editor semantics): sequential
+    beats share TRACK 1, genuinely simultaneous ones open TRACK 2/3…; type
+    identity is the chip color; lulls pack as range chips
+  - the FAIRNESS DIALOG: a conflicting placement (wall-vs-wall overlap or a
+    predicted relocation) opens a 3-option choice — 1 CANCEL · 2 AUTO-PLACE
+    (accept the engine's resolved position) · 3 OVERRIDE ⚡ (`force: true`,
+    lands exactly as authored; the lint panel still judges it)
   - export as pretty JSON / copy-as-campaigns.js-entry; import validates
     through validateCampaign before load
 

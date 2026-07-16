@@ -87,21 +87,50 @@ const ED = {
     if (!level.beats.length) delete level.beats;
     return true;
   },
-  // walls: one carpet per rim window. A wall owns its stretch of the rail from
-  // release (t - travel: the telegraph rides in with the traffic) until
-  // burn-off (t + 3.6). A second wall whose window AND arc overlap would be
-  // golden-angle hopped by the engine (fairness beats authorship) — block it
-  // at authoring time instead, so clicks always stick where they land.
+  // wall-vs-wall: a wall owns its stretch of the rail from release
+  // (t - travel: the telegraph rides in with the traffic) until burn-off
+  // (t + 3.6). A second wall inside that window whose arc overlaps (both
+  // half-spans + node tolerance = 1.3 — the engine's reachability law) would
+  // be golden-angle hopped; the editor surfaces that as a conflict CHOICE
+  // (cancel / auto-place / override), never a silent fix.
   wallFits(level, t, angle, trav) {
     for (const w of level.beats || []) {
       if (w.kind !== 'wall') continue;
       if (Math.abs(w.t - t) >= trav + 3.6) continue; // rim windows clear of each other
       if (angle === undefined || w.angle === undefined)
         return { ok: false, why: 'window overlaps the seeded-arc wall at ' + w.t + 's' };
-      if (Math.abs(ED.angDiff(angle, w.angle)) < 1.0)
+      if (Math.abs(ED.angDiff(angle, w.angle)) < 1.3)
         return { ok: false, why: 'arc overlaps the wall at ' + w.t + 's' };
     }
     return { ok: true };
+  },
+  // ---------- track packing (video-editor semantics) ----------
+  // display time-extent of a beat — generous enough that chips never collide
+  // visually. trav/speed come from the level (tests pass them explicitly).
+  beatExtent(b, opts) {
+    const trav = (opts && opts.trav) || 4.6, speed = (opts && opts.speed) || 0.4;
+    if (b.kind === 'wall') return [b.t - trav, b.t + 3.6];    // telegraph ride-in + burn-off
+    if (b.kind === 'strip') return [b.t, b.t + 0.85 / speed]; // longest head-to-tail ride
+    if (b.kind === 'lull') return [b.t, b.t + (b.dur || 1)];
+    return [b.t - 0.8, b.t + 0.8];                            // enemy / pickup chip
+  },
+  // greedy first-fit onto packed tracks: sorted by extent start, each beat
+  // takes the LOWEST track whose previous occupant has already ended —
+  // touching edges share a track, only genuine overlap opens a new one.
+  // Returns one track index per beat, aligned to the INPUT order.
+  packLanes(beats, opts) {
+    const order = beats.map((b, i) => i)
+      .sort((a, b2) => ED.beatExtent(beats[a], opts)[0] - ED.beatExtent(beats[b2], opts)[0]);
+    const ends = []; // per-track end of the last placed extent
+    const out = new Array(beats.length).fill(0);
+    for (const i of order) {
+      const ex = ED.beatExtent(beats[i], opts);
+      let k = ends.findIndex(e => ex[0] >= e - 1e-9);
+      if (k < 0) { k = ends.length; ends.push(ex[1]); }
+      else ends[k] = ex[1];
+      out[i] = k;
+    }
+    return out;
   },
 
   // ---------- band mutators ----------
@@ -192,7 +221,7 @@ const EDUI = {
   walk: null,              // lintWalk of the active level — filler lane + wall predictions
   ghost: null, ghostEv: null, ghostRaf: 0, flash: null, flashT: 0,
   markerOf: null,          // beat -> timeline marker element (hover highlight)
-  commRows: [],
+  commRows: [], closedTracks: new Set(), dlg: null,
   dragging: false, booted: false
 };
 const EDTOOLS = ['select', 'normal', 'heavy', 'line', 'lock0', 'lock1', 'frag', 'wall', 'strip', 'pickup', 'lull'];
@@ -371,8 +400,8 @@ function edHud() {
   let ghost = '';
   if (EDUI.ghost) {
     const gh = EDUI.ghost;
-    ghost = !gh.fit.ok ? '<br><span class="warn">BLOCKED — ' + gh.fit.why + '</span>'
-      : gh.moved ? '<br><span class="warn">fairness will relocate — authored ' + gh.aA.toFixed(2) + ', lands ' + gh.aR.toFixed(2) + '</span>'
+    ghost = !gh.fit.ok ? '<br><span class="warn">' + gh.fit.why + ' — click for options (1/2/3)</span>'
+      : gh.moved ? '<br><span class="warn">fairness would relocate — authored ' + gh.aA.toFixed(2) + ', lands ' + gh.aR.toFixed(2) + ' — click for options</span>'
       : '<br>wall lands at ' + gh.aA.toFixed(2) + ' rad — as authored';
   }
   const flash = EDUI.flash ? '<br><span class="warn">' + EDUI.flash + '</span>' : '';
@@ -387,13 +416,73 @@ function edFlash(msg) { // transient stage warning (e.g. a blocked wall click)
 }
 // nominal travel time of a wall carpet, same law as the linter (hitZ 0.25)
 function edWallTrav() { return (SPAWN_Z - 0.25) / edLv().speed; }
-// the fairness verdict for an authored wall beat, from the cached walk
-function edWalkWall(b) {
+// the fairness verdict for any angle-authored beat, from the cached walk:
+// where did it actually LAND, and did the engine move it?
+function edWalkLanded(b) {
   if (!EDUI.walk || b.angle === undefined) return null;
   const bi = (edLv().beats || []).indexOf(b);
-  const w = EDUI.walk.walls.find(w2 => w2.beat === bi);
-  if (!w) return null; // slid past the level end or never released
-  return { a: ED.norm(w.a), moved: Math.abs(ED.angDiff(w.a, b.angle)) > 0.02 };
+  let a;
+  if (b.kind === 'wall') {
+    const w = EDUI.walk.walls.find(w2 => w2.beat === bi);
+    if (!w) return null; // slid past the level end or never released
+    a = w.a;
+  } else {
+    const rec = EDUI.walk.arr.find(r => r.beat === bi);
+    if (!rec) return null;
+    a = rec.angle;
+  }
+  return { a: ED.norm(a), moved: Math.abs(ED.angDiff(a, b.angle)) > 0.02 };
+}
+// predict where a CANDIDATE beat would land: clone the level, add it, walk
+function edPredictLanded(beat) {
+  const cl = ED.clone(edLv());
+  const nb = ED.addBeat(cl, ED.clone(beat));
+  const bi = cl.beats.indexOf(nb);
+  try {
+    const wk = lintWalk(cl, EDUI.li);
+    if (beat.kind === 'wall') { const w = wk.walls.find(w2 => w2.beat === bi); return w ? ED.norm(w.a) : undefined; }
+    const rec = wk.arr.find(r => r.beat === bi);
+    return rec ? ED.norm(rec.angle) : undefined;
+  } catch (e) { return undefined; }
+}
+// would this placement conflict with fairness? null = clean, else the dialog payload
+function edPredictConflict(beat) {
+  if (beat.angle === undefined) return null; // seeded angles carry no authored intent
+  let msg = null;
+  if (beat.kind === 'wall') {
+    const fit = ED.wallFits(edLv(), beat.t, beat.angle, edWallTrav());
+    if (!fit.ok) msg = 'WALL vs WALL — ' + fit.why;
+  }
+  const landed = edPredictLanded(beat);
+  if (!msg && landed !== undefined && Math.abs(ED.angDiff(landed, beat.angle)) > 0.02)
+    msg = 'fairness would relocate this ' + (beat.kind === 'wall' ? 'wall' : 'beat') +
+      ': authored ' + beat.angle.toFixed(2) + ' → lands ' + landed.toFixed(2);
+  return msg ? { msg, landed } : null;
+}
+
+// ---------- the fairness dialog: conflicts are a CHOICE, never a silent fix ----------
+function edOpenDialog(beat, verdict) {
+  EDUI.dlg = { beat, verdict };
+  edq('edDlgMsg').textContent = verdict.msg;
+  edq('edDlg2').textContent = '2 · AUTO-PLACE' +
+    (verdict.landed !== undefined ? ' (lands at ' + verdict.landed.toFixed(2) + ')' : '');
+  edq('edDlg').style.display = 'flex';
+}
+function edCloseDialog() {
+  EDUI.dlg = null;
+  edq('edDlg').style.display = 'none';
+}
+function edDlgChoose(n) {
+  const d = EDUI.dlg;
+  if (!d) return;
+  edCloseDialog();
+  if (n === 1) return;                 // 1 CANCEL — no placement
+  if (n === 3) d.beat.force = true;    // 3 OVERRIDE — place EXACTLY as authored ⚡
+  ED.addBeat(edLv(), d.beat);          // 2 AUTO-PLACE — the engine resolves it at runtime
+  EDUI.selBeat = d.beat; EDUI.selBand = null;
+  edApply(true);
+  if (n === 2 && d.verdict.landed !== undefined) edFlash('auto-placed — lands at ' + d.verdict.landed.toFixed(2));
+  if (n === 3) edFlash('override placed ⚡ — the linter will still judge it');
 }
 
 // ---------- wall ghost: preview where the carpet would ACTUALLY land ----------
@@ -473,30 +562,38 @@ function edBuildStatic() {
     });
   }
 
-  // keyboard: typing must never leak into the game's key handlers, and
-  // DELETE / SPACE are editor verbs
+  // keyboard: typing must never leak into the game's key handlers; the
+  // fairness dialog answers to 1/2/3; DELETE / SPACE are editor verbs
   window.addEventListener('keydown', e => {
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) { e.stopImmediatePropagation(); return; }
+    if (EDUI.dlg) {
+      if (e.key === '1' || e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); edDlgChoose(1); }
+      if (e.key === '2') { e.preventDefault(); e.stopImmediatePropagation(); edDlgChoose(2); }
+      if (e.key === '3') { e.preventDefault(); e.stopImmediatePropagation(); edDlgChoose(3); }
+      return;
+    }
     if (EDUI.mode === 'live') return; // the game owns the keys during live play
     if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); edDeleteSel(); }
     if (e.key === ' ') { e.preventDefault(); e.stopImmediatePropagation(); edTogglePlay(); }
   }, true);
+  edq('edDlg1').addEventListener('click', () => edDlgChoose(1));
+  edq('edDlg2').addEventListener('click', () => edDlgChoose(2));
+  edq('edDlg3').addEventListener('click', () => edDlgChoose(3));
 
   // canvas overlay: click-to-place beats (t = playhead, angle = click bearing).
-  // every placement re-applies + re-scrubs, so its effect shows immediately
+  // every placement re-applies + re-scrubs, so its effect shows immediately.
+  // A conflicting placement opens the fairness dialog instead of placing.
   edq('edOv').addEventListener('pointerdown', e => {
     if (EDUI.mode === 'play') edTogglePlay(); // placing implies pausing
-    if (EDUI.mode !== 'edit' || EDUI.tool === 'select' || EDUI.errs.length) return;
+    if (EDUI.mode !== 'edit' || EDUI.tool === 'select' || EDUI.errs.length || EDUI.dlg) return;
     const g = geo(); // the real game's bore geometry — canvas sits at page (0,0)
     const angle = ED.norm(Math.atan2(e.clientY - g.cy, e.clientX - g.cx));
     const withAngle = EDUI.tool !== 'strip' && EDUI.tool !== 'pickup' && EDUI.tool !== 'lull';
     const t = ED.snap(EDUI.playhead);
-    if (EDUI.tool === 'wall') { // one carpet per rim window — a blocked click never lands
-      const fit = ED.wallFits(edLv(), t, +angle.toFixed(3), edWallTrav());
-      if (!fit.ok) { edFlash('WALL BLOCKED — ' + fit.why); return; }
-    }
     const beat = ED.makeBeat(EDUI.tool, t, withAngle ? +angle.toFixed(3) : undefined);
     if (beat.angle === undefined) delete beat.angle;
+    const conflict = edPredictConflict(beat);
+    if (conflict) { edOpenDialog(beat, conflict); return; } // 1 cancel · 2 auto · 3 override
     ED.addBeat(edLv(), beat);
     EDUI.selBeat = beat; EDUI.selBand = null;
     edApply(true);
@@ -756,12 +853,29 @@ function edRenderTimeline() {
     b.title = cm.t + 's ' + cm.s + ': ' + cm.m + ' — click to edit';
     b.addEventListener('click', () => edSelectComm(i));
   });
-  // authored beats, each kind on its own lane
-  const laneFor = b => b.kind === 'wall' ? 'edWallLane' : b.kind === 'lull' ? 'edLullLane'
-    : b.kind === 'enemy' ? 'edEnemyLane' : 'edStreamLane';
-  for (const id of ['edWallLane', 'edEnemyLane', 'edStreamLane', 'edLullLane']) edq(id).innerHTML = '';
-  for (const b of lv.beats || []) {
-    const track = edq(laneFor(b));
+  // authored beats: a pool of PACKED tracks, video-editor style — sequential
+  // beats share TRACK 1, genuinely simultaneous ones open TRACK 2/3/…; type
+  // identity lives in the chip color. Lulls pack too: they're authored range
+  // chips whose whole meaning is their position BETWEEN the other clips.
+  const tracksEl = edq('edTracks');
+  tracksEl.innerHTML = '';
+  const beats = lv.beats || [];
+  const laneIdx = ED.packLanes(beats, { trav: edWallTrav(), speed: lv.speed });
+  const nTracks = beats.length ? Math.max.apply(null, laneIdx) + 1 : 1;
+  const trackEls = [];
+  for (let k = 0; k < nTracks; k++) {
+    const row = edEl('div', 'laneRow' + (EDUI.closedTracks.has(k) ? ' closed' : ''), tracksEl);
+    const head = edEl('div', 'laneHead', row);
+    head.textContent = 'TRACK ' + (k + 1);
+    head.title = 'authored beats, packed — click to collapse';
+    head.addEventListener('click', () => {
+      if (EDUI.closedTracks.has(k)) EDUI.closedTracks.delete(k); else EDUI.closedTracks.add(k);
+      row.classList.toggle('closed');
+    });
+    trackEls.push(edEl('div', 'laneTrack trackLane', row));
+  }
+  beats.forEach((b, i) => {
+    const track = trackEls[laneIdx[i]];
     let el;
     if (b.kind === 'lull') {
       el = edEl('div', 'lullM', track);
@@ -770,24 +884,22 @@ function edRenderTimeline() {
       el.title = 'lull ' + b.t + 's +' + b.dur + 's';
     } else {
       const key = ED.beatKey(b), ch = ED.chip(key);
-      el = edEl('div', 'beatM' + (key === 'pickup' ? ' hollow' : ''), track);
+      el = edEl('div', 'beatM' + (key === 'pickup' ? ' hollow' : '') + (b.force ? ' forced' : ''), track);
       el.style.left = ED.t2x(b.t, lv.duration, w) + 'px';
       el.style.background = ch.bg;
       el.style.borderColor = ch.bd;
-      el.title = key + ' @ ' + b.t + 's';
-      if (b.kind === 'wall') { // fairness verdict straight on the marker
-        const wk = edWalkWall(b);
-        if (wk && wk.moved) {
-          el.title += ' — RELOCATED by fairness, lands at ' + wk.a.toFixed(2);
-          el.style.boxShadow = '0 0 6px var(--gold)';
-        }
+      el.title = key + ' @ ' + b.t + 's' + (b.force ? ' — FORCED (placed exactly as authored)' : '');
+      const wk = b.force ? null : edWalkLanded(b); // fairness verdict straight on the marker
+      if (wk && wk.moved) {
+        el.title += ' — RELOCATED by fairness, lands at ' + wk.a.toFixed(2);
+        el.style.boxShadow = '0 0 6px var(--gold)';
       }
     }
     if (b === EDUI.selBeat) el.classList.add('sel');
     el._beat = b;
     EDUI.markerOf.set(b, el);
     edWireBeatDrag(el, track);
-  }
+  });
   // FILLER (read-only): the procedurally generated arrivals for the current
   // knobs + bands, from the linter's pure walk — the whole level at a glance
   const fl = edq('edFillerLane');
@@ -1045,6 +1157,16 @@ function edRenderBeatList() {
         edApply(true);
       });
     }
+    if (b.force) { // ⚡ override badge — click to hand the beat back to fairness
+      const fz = edEl('button', 'xbtn zap', row);
+      fz.textContent = '⚡';
+      fz.title = 'FORCED — placed exactly as authored, fairness bypassed. Click to clear.';
+      fz.addEventListener('click', e => {
+        e.stopPropagation();
+        delete b.force;
+        edApply(true);
+      });
+    }
     const x = edEl('button', 'xbtn danger', row); x.textContent = '✕';
     x.addEventListener('click', e => {
       e.stopPropagation();
@@ -1052,8 +1174,8 @@ function edRenderBeatList() {
       if (EDUI.selBeat === b) EDUI.selBeat = null;
       edApply(true); edRenderBeatList();
     });
-    if (b.kind === 'wall') { // the engine moved an authored wall — say so, inline
-      const wk = edWalkWall(b);
+    if (!b.force && b.angle !== undefined) { // the engine moved an authored beat — say so, inline
+      const wk = edWalkLanded(b);
       if (wk && wk.moved) {
         const warn = edEl('div', 'bwarn', row);
         warn.textContent = '⚠ relocated by fairness — authored ' + b.angle.toFixed(2) + ', lands ' + wk.a.toFixed(2);

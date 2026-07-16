@@ -33,6 +33,12 @@
   #edSide { grid-column: 2; grid-row: 1 / 3; border-left: 1px solid var(--line); background: var(--panel);
     overflow-y: auto; overflow-x: hidden; }
 
+  /* ---- fairness dialog: conflicts become a choice, never a silent fix ---- */
+  #edDlg { display: flex; gap: 8px; align-items: center; padding: 6px 10px; font-size: 11px;
+    background: #241a06; border-bottom: 1px solid var(--gold); color: var(--gold); }
+  #edDlg button { border-color: var(--gold); color: var(--gold); }
+  #edDlg button:hover { background: #3a2c0c; }
+
   /* ---- transport + tools ---- */
   #edBar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--line); flex-wrap: nowrap; overflow-x: auto; }
   button { font-family: inherit; font-size: 11px; color: var(--ink); background: var(--panel2);
@@ -56,8 +62,8 @@
   .laneTrack { flex: 1; position: relative; border: 1px solid var(--line); border-radius: 3px;
     background: var(--panel2); overflow: hidden; min-width: 0; }
   #edRuler { height: 20px; cursor: ew-resize; }
-  #edStoryLane, #edWallLane, #edEnemyLane, #edStreamLane { height: 24px; }
-  #edLullLane { height: 16px; }
+  #edStoryLane { height: 24px; }
+  .trackLane { height: 24px; } /* packed authored tracks (video-editor semantics) */
   #edBandLane { height: 20px; cursor: copy; }
   #edFillerLane { height: 16px; }
   .laneRow.closed .laneTrack { height: 6px; }
@@ -72,6 +78,9 @@
   .beatM.hollow { background: transparent !important; border-width: 2px; }
   .beatM.sel { outline: 2px solid var(--gold); z-index: 4; }
   .beatM.hov, .lullM.hov { outline: 2px solid var(--cyan); z-index: 4; }
+  .beatM.forced::after { content: '⚡'; position: absolute; top: -3px; left: -4px; font-size: 10px;
+    color: var(--gold); text-shadow: 0 0 3px #000; }
+  .zap { color: var(--gold); border-color: var(--gold); padding: 1px 5px; font-size: 10px; }
   .lullM { position: absolute; top: 2px; bottom: 2px; background: #46608c44; border: 1px dashed #7ea2d8; border-radius: 3px;
     cursor: grab; z-index: 2; }
   .lullM.sel { outline: 2px solid var(--gold); }
@@ -138,6 +147,12 @@
 </div>
 
 <div id="edTl">
+  <div id="edDlg" style="display:none">
+    <span id="edDlgMsg"></span>
+    <button id="edDlg1">1 · CANCEL</button>
+    <button id="edDlg2">2 · AUTO-PLACE</button>
+    <button id="edDlg3">3 · OVERRIDE ⚡</button>
+  </div>
   <div id="edBar">
     <button id="edHome" title="playhead to 0">|&#9666;</button>
     <button id="edPlay" title="preview from the playhead (integrity pinned)">&#9655; PLAY</button>
@@ -150,10 +165,7 @@
   <div id="edLanes">
     <div class="laneRow"><div class="laneHead" title="collapse">TIME</div><div class="laneTrack" id="edRuler"></div></div>
     <div class="laneRow"><div class="laneHead" title="story card + comm windows (read-only)">STORY</div><div class="laneTrack" id="edStoryLane"></div></div>
-    <div class="laneRow"><div class="laneHead">WALLS</div><div class="laneTrack" id="edWallLane"></div></div>
-    <div class="laneRow"><div class="laneHead">ENEMIES</div><div class="laneTrack" id="edEnemyLane"></div></div>
-    <div class="laneRow"><div class="laneHead" title="bonus streams + power-ups">STREAMS</div><div class="laneTrack" id="edStreamLane"></div></div>
-    <div class="laneRow"><div class="laneHead">LULLS</div><div class="laneTrack" id="edLullLane"></div></div>
+    <div id="edTracks"></div>
     <div class="laneRow"><div class="laneHead">BANDS</div><div class="laneTrack" id="edBandLane"></div></div>
     <div class="laneRow"><div class="laneHead" title="procedural filler, simulated by the linter's walk (read-only)">FILLER</div><div class="laneTrack" id="edFillerLane"></div></div>
     <div id="edPh"></div>
@@ -215,8 +227,9 @@
     <div class="body">
       <p class="hintNote">pick a beat tool in the timeline bar, then CLICK THE TUNNEL — t = playhead,
         angle = click bearing from the bore center. drag markers to retime; DELETE removes the selection.
-        WALL tool shows a ghost arc where the carpet will ACTUALLY land (fairness may relocate it);
-        overlapping wall windows are blocked outright.</p>
+        WALL tool shows a ghost arc where the carpet will ACTUALLY land. A conflicting placement opens
+        the fairness dialog: 1 CANCEL · 2 AUTO-PLACE (engine resolves) · 3 OVERRIDE ⚡ (lands exactly
+        as authored — the lint panel still judges it).</p>
       <div class="list" id="bList"></div>
     </div>
   </div>
