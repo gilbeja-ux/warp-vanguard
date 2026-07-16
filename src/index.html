@@ -7987,9 +7987,12 @@ function drawTrans() {
 
 function frame(now) {
   const rawDt = (now - last) / 1000;
-  const dt = clamp(rawDt, 0, 0.05); // clock can step backwards (timer quirks) — never simulate in reverse
+  let dt = clamp(rawDt, 0, 0.05); // clock can step backwards (timer quirks) — never simulate in reverse
   last = now;
   perfWatch(rawDt);
+  // tunnel designer hook: editor.html feeds the sim clock (0 = hold the world,
+  // draw only). The global never exists in the game — this line is inert here.
+  if (globalThis.EDITOR_DRIVE) dt = EDITOR_DRIVE(dt);
   update(dt);
   if (state !== S.PLAY) stripSound(false, 0); // pause/menus never hold the drone
   ambient(state === S.PLAY); // the tunnel bed breathes only during play

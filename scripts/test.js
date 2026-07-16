@@ -1217,6 +1217,74 @@ G.keys['ArrowUp'] = false;
   check('lintLevel never disturbs the live spawn stream', pureA.join(';') === pureB.join(';'));
 }
 
+// ================= tunnel designer pure helpers (Phase 2) =================
+{
+  // editor.js guards its DOM boot behind window.__EDITOR_PAGE__ — evaling it
+  // here only defines the pure ED namespace (exposed on globalThis)
+  eval(fs.readFileSync(path.join(__dirname, '..', 'src', 'editor.js'), 'utf8'));
+  const ED = globalThis.ED;
+  check('editor.js evals headless and exposes the ED namespace', !!ED && typeof ED.addBeat === 'function');
+  // clone isolation: the editor always works on a deep copy
+  const src = G.CAMPAIGNS[0];
+  const wc = ED.clone(src);
+  wc.levels[0].name = 'MUTATED';
+  wc.levels[0].comms[0].m = 'changed';
+  check('clone: edits never leak back into the source package',
+    src.levels[0].name === 'OMNISERVE CAMPUS' && src.levels[0].comms[0].m !== 'changed');
+  // factories ship valid data
+  const np = ED.newCampaign();
+  check('new-campaign template passes validateCampaign', G.validateCampaign(np).length === 0);
+  ED.addLevel(np);
+  check('an added level keeps the package valid', np.levels.length === 2 && G.validateCampaign(np).length === 0);
+  // beats: add / retime / delete (list stays sorted, times stay in-clock)
+  const lv = np.levels[0]; // duration 45
+  const b1 = ED.addBeat(lv, ED.makeBeat('heavy', 20, 1.0));
+  const b2 = ED.addBeat(lv, ED.makeBeat('wall', 5, 2.0));
+  check('addBeat keeps the beat list sorted by t', lv.beats[0] === b2 && lv.beats[1] === b1);
+  ED.retimeBeat(lv, b2, 999);
+  check('retime clamps into the level clock and resorts', b2.t <= 44.9 && lv.beats[1] === b2);
+  ED.retimeBeat(lv, b2, -3);
+  check('retime clamps at zero', b2.t === 0 && lv.beats[0] === b2);
+  const lull = ED.addBeat(lv, ED.makeBeat('lull', 44.9));
+  check('a lull can never spill past the level end', lull.t + lull.dur <= 45);
+  check('snap rides a 0.1s grid without float dust', ED.snap(3.14159) === 3.1 && ED.snap(8.65) === 8.7);
+  ED.deleteBeat(lv, b1); ED.deleteBeat(lv, b2); ED.deleteBeat(lv, lull);
+  check('deleting the last beat drops the beats key entirely', lv.beats === undefined);
+  // timeline math
+  const px = ED.t2x(12.3, 60, 800);
+  check('time <-> pixel mapping round-trips', Math.abs(ED.x2t(px, 60, 800) - 12.3) < 1e-9);
+  // bands: normalization always yields validator-clean windows
+  lv.bands = [{ t0: 20, t1: 40, intensity: 2 }, { t0: 10, t1: 30 }, { t0: 44.8, t1: 60 }, { t0: 5, t1: 5.1 }];
+  const bs = ED.normalizeBands(lv);
+  check('normalizeBands sorts, clips overlaps and drops slivers',
+    bs.length === 2 && bs[0].t0 === 10 && bs[0].t1 === 30 && bs[1].t0 === 30 && bs[1].t1 === 40 &&
+    G.validateCampaign(np).length === 0);
+  // export -> import round trip with beats + bands aboard
+  ED.addBeat(np.levels[0], ED.makeBeat('normal', 8, 1.2));
+  ED.addBand(np.levels[1], 10, 20);
+  const txt = ED.exportJSON(np);
+  const back = JSON.parse(txt);
+  check('export round-trips through validateCampaign with beats + bands intact',
+    G.validateCampaign(back).length === 0 && back.levels[0].beats.length === 1 && back.levels[1].bands.length === 1);
+  check('the campaigns.js entry is pasteable JSON under a comment header',
+    ED.exportEntry(np).startsWith('//') && JSON.parse(ED.exportEntry(np).split('\n').slice(1).join('\n')).id === np.id);
+  // import validation flow
+  check('import rejects broken JSON', !!ED.importJSON('{nope', G.validateCampaign).errors);
+  const badPkg = ED.clone(np); badPkg.levels[0].tint = 'red';
+  check('import surfaces validator errors', ED.importJSON(JSON.stringify(badPkg), G.validateCampaign).errors.length > 0);
+  const okImp = ED.importJSON(txt, G.validateCampaign);
+  check('import returns the parsed package when it validates', !okImp.errors && okImp.pkg.id === np.id);
+  // level ops
+  const mv = ED.clone(G.CAMPAIGNS[0]);
+  const n0 = mv.levels[0].name;
+  ED.moveLevel(mv, 0, 2);
+  check('moveLevel reorders and stays valid', mv.levels[2].name === n0 && G.validateCampaign(mv).length === 0);
+  check('moveLevel refuses out-of-range targets', ED.moveLevel(mv, 0, 99) === 0);
+  const solo = ED.newCampaign();
+  check('removeLevel never empties a campaign', ED.removeLevel(solo, 0) === false && solo.levels.length === 1);
+  check('comms clamp at the 64-char transmission limit', ED.clampComm('x'.repeat(80)).length === 64);
+}
+
 // ================= gamepad (desktop playtesting) =================
 {
   const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 16 }, () => ({ pressed: false })) };

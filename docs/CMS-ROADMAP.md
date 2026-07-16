@@ -105,12 +105,39 @@ does not ship in the store build.
   - `unreachable-strip` — a bonus ride that overlaps a mandatory dual-node
     kill or crosses a wall carpet
 
-- **Phase 2 — the Tunnel Designer (editor.html)**
-  Desktop-only page driving the real engine (same eval-the-game-script trick
-  as scripts/test.js). Video-style scrubbing of the tunnel; click to place
-  enemies/pickups/comms at time+angle; band lanes with knobs; map image
-  upload + click-to-pin levels; speaker roster + portrait upload; live lint
-  panel; play-from-here; package export.
+- **Phase 2 — the Tunnel Designer (editor.html)** (done)
+  Desktop-only page driving the real engine: `src/editor.html` provides the
+  layout + `#game` canvas, and `src/editor.js` fetches `index.html`, lifts its
+  inline script out (same regex trick as scripts/test.js) and injects it, so
+  the ACTUAL game runs inside the editor. The preview pane poses as the game's
+  window (`innerWidth`/`innerHeight` getters), and one guarded hook inside the
+  game loop (`EDITOR_DRIVE` in `frame()` — inert when the global is absent)
+  lets the editor feed the sim clock: 0 freezes the world, real dt plays it.
+
+  What ships:
+  - campaign manager (edit/reorder/add levels, meta, speakers, new-from-template)
+  - per-level knobs, story card, comms rows (speaker dropdown, 64-char limit),
+    case note, map-pin + image/portrait upload (data plumbing only for now)
+  - the TUNNEL SCRUBBER: a draggable playhead re-simulates the level
+    deterministically (reset + fast-forward with rendering suppressed — the
+    same replay law that makes campaign levels bit-identical) and shows the
+    true world state at that moment; play/pause preview + play-from-here with
+    live input + back-to-editing
+  - beat placement by clicking the tunnel (t = playhead, angle = click
+    bearing); draggable timeline markers, band lane with intensity/mix
+    inspector, live debounced lint panel (findings jump the playhead)
+  - export as pretty JSON / copy-as-campaigns.js-entry; import validates
+    through validateCampaign before load
+
+  Launch: `npm run dev` (or `node scripts/serve.js`) →
+  http://localhost:8000/editor.html. All editing happens on a deep working
+  copy; every apply reinstalls via installCampaign so the scrubber always
+  simulates the EDITED data. Pure editor logic lives on the `ED` namespace in
+  editor.js and is unit-tested headless by `npm test`.
+
+  NOTE — store builds: `src/editor.html` and `src/editor.js` are dev-only and
+  MUST be excluded from store packages ("admin only" = the editor simply does
+  not ship). Actual build exclusion is release-phase work (scripts/build.js).
 
 - **Phase 3 — campaign UX in game**
   Campaign picker (CAMPAIGN wheel sector → list when >1), per-campaign
