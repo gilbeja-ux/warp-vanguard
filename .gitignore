@@ -17,3 +17,4 @@ ios/
 android/
 .capacitor/
 capacitor.config.json.bak
+.claude/

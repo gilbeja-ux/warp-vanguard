@@ -7700,45 +7700,58 @@ function frame(now) {
         ctx.fillStyle = gl;
         ctx.beginPath(); ctx.arc(ix, iy, u * 0.05, 0, TAU); ctx.fill();
       }
+      // the trails LIE ON the wall: every quad corner is a polar point
+      // (angle ± half-width in RADIANS at its depth), so each strip hugs
+      // the surface and foreshortens with it — tron light-lines on the
+      // road, not stickers over it. Additive blend melts them into the
+      // tunnel's own light.
+      const P = (aa, z) => { const rg = ring(z, g2); return { x: rg.x + Math.cos(aa) * rg.r, y: rg.y + Math.sin(aa) * rg.r }; };
+      ctx.globalCompositeOperation = 'lighter';
       for (const st of r.streams) {
-        // the trail: a solid tapered wedge of light laid on the wall — fat
-        // and hot at the kill, thinning and cooling to nothing at the tip
         const SEG = 7;
         for (let i = 0; i < SEG; i++) {
-          const p0 = wallP(r.a, grow * i / SEG, st), p1 = wallP(r.a, grow * (i + 1) / SEG, st);
-          let tx = p1.x - p0.x, ty = p1.y - p0.y;
-          const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+          const f0 = grow * i / SEG, f1 = grow * (i + 1) / SEG;
           const fr0 = i / SEG, fr1 = (i + 1) / SEG;
-          // keeps body along its whole run — a trail, not a spike
-          const w0 = u * 0.03 * st.wj * (1 - fr0 * 0.75) * (p0.s / 0.4);
-          const w1 = u * 0.03 * st.wj * (1 - fr1 * 0.75) * (p1.s / 0.4);
-          ctx.globalAlpha = glob * (1 - fr0 * 0.7);
-          ctx.fillStyle = fr0 < 0.22 ? 'rgba(214,255,205,0.92)'
-            : fr0 < 0.55 ? 'rgba(152,238,122,0.85)' : 'rgba(126,226,98,0.75)';
+          const z0 = clamp(g2.hitZ + st.vz * f0, 0.05, SPAWN_Z), z1 = clamp(g2.hitZ + st.vz * f1, 0.05, SPAWN_Z);
+          const a0 = r.a + st.a0 + st.va * f0, a1 = r.a + st.a0 + st.va * f1;
+          const wa0 = 0.02 * st.wj * (1 - fr0 * 0.75), wa1 = 0.02 * st.wj * (1 - fr1 * 0.75);
+          const c00 = P(a0 - wa0, z0), c01 = P(a0 + wa0, z0), c11 = P(a1 + wa1, z1), c10 = P(a1 - wa1, z1);
+          ctx.globalAlpha = glob * (1 - fr0 * 0.7) * 0.38; // soft additive body
+          ctx.fillStyle = 'rgb(126,226,98)';
           ctx.beginPath();
-          ctx.moveTo(p0.x - ty * w0 / 2, p0.y + tx * w0 / 2);
-          ctx.lineTo(p0.x + ty * w0 / 2, p0.y - tx * w0 / 2);
-          ctx.lineTo(p1.x + ty * w1 / 2, p1.y - tx * w1 / 2);
-          ctx.lineTo(p1.x - ty * w1 / 2, p1.y + tx * w1 / 2);
+          ctx.moveTo(c00.x, c00.y); ctx.lineTo(c01.x, c01.y);
+          ctx.lineTo(c11.x, c11.y); ctx.lineTo(c10.x, c10.y);
           ctx.closePath(); ctx.fill();
         }
-        // the shard leading the trail — a chunk of the body, spending itself
+        // the tron core: a thin bright line down the middle, hottest at the
+        // kill and starving toward the tip
+        ctx.lineCap = 'round';
+        ctx.lineWidth = u * 0.0028;
+        for (let i = 0; i < SEG; i++) {
+          const p0 = wallP(r.a, grow * i / SEG, st), p1 = wallP(r.a, grow * (i + 1) / SEG, st);
+          ctx.globalAlpha = glob * (1 - i / SEG * 0.8) * 0.9;
+          ctx.strokeStyle = 'rgba(228,255,220,0.95)';
+          ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+        }
+        // head sliver riding the wall — the shard spending itself
         if (q < 0.5) {
-          const hp = wallP(r.a, grow, st);
-          const nx = wallP(r.a, Math.max(0, grow - 0.05), st);
-          let tx = hp.x - nx.x, ty = hp.y - nx.y;
-          const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
-          const hs = u * 0.015 * (1 - q * 2) * (hp.s / 0.4);
+          const hs = 0.018 * (1 - q * 2);
           if (hs > 0) {
-            ctx.globalAlpha = glob;
+            const zH = clamp(g2.hitZ + st.vz * grow, 0.05, SPAWN_Z);
+            const zB = clamp(zH - 0.035, 0.05, SPAWN_Z);
+            const aH = r.a + st.a0 + st.va * grow;
+            const h0 = P(aH - hs, zB), h1 = P(aH + hs, zB), h2 = P(aH + hs, zH), h3 = P(aH - hs, zH);
+            ctx.globalAlpha = glob * 0.9;
             ctx.fillStyle = '#eaffe4';
-            ctx.save();
-            ctx.translate(hp.x, hp.y); ctx.rotate(Math.atan2(ty, tx));
-            ctx.fillRect(-hs * 1.4, -hs / 2, hs * 2.8, hs);
-            ctx.restore();
+            ctx.beginPath();
+            ctx.moveTo(h0.x, h0.y); ctx.lineTo(h1.x, h1.y);
+            ctx.lineTo(h2.x, h2.y); ctx.lineTo(h3.x, h3.y);
+            ctx.closePath(); ctx.fill();
           }
         }
+        ctx.lineCap = 'butt';
       }
+      ctx.globalCompositeOperation = 'source-over';
     }
     ctx.globalAlpha = 1;
   }
