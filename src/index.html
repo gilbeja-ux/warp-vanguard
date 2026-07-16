@@ -81,6 +81,12 @@ function evPos(e) {
 
 // ---------- utils ----------
 const TAU = Math.PI * 2;
+// build stamp: derived from the script's own byte length, so it shifts with
+// ANY code change — shown on the home screen to catch stale cached builds
+const BUILD = (() => {
+  try { return (document.currentScript.textContent.length % 46656).toString(36).toUpperCase().padStart(3, '0'); }
+  catch (e) { return '---'; }
+})();
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 function angDiff(a, b) { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; }
@@ -1420,11 +1426,11 @@ function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 });
 // outward and smear into the wall's river — nothing else pauses or flinches
 function spawnKillRipple(a) {
   const parts = [];
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < 14; i++) {
     parts.push({
-      da: (Math.random() - 0.5) * 0.5,  // angular spread around the kill
-      sp: 0.55 + Math.random() * 0.9,   // outward drift, riding the flow
-      sz: 1.5 + Math.random() * 3,
+      da: (Math.random() - 0.5) * 0.6,  // angular spread around the kill
+      sp: 0.55 + Math.random() * 1.1,   // outward drift, riding the flow
+      sz: 1.5 + Math.random() * 3.5,
       amber: Math.random() < 0.25       // a few chunks pick up the river's gold
     });
   }
@@ -6185,11 +6191,15 @@ function drawMenu(g) {
     ctx.fillRect(20 + i * 15, H - 40, 11, 5);
   }
   }
-  // bottom-right: live nav coordinates drifting as we ride the tunnel
+  // bottom-right: live nav coordinates drifting as we ride the tunnel,
+  // capped by the build stamp — changes with ANY code change, so a stale
+  // cached build is spottable at a glance
   ctx.textAlign = 'right';
   ctx.fillStyle = 'rgba(120,210,255,0.5)';
   ctx.fillText(String(Math.floor(44589 + time * 12.4) % 100000).padStart(5, '0'), W - 20, H - 34);
   ctx.fillText(String(Math.floor(45895 + time * 31.7) % 100000).padStart(5, '0'), W - 20, H - 22);
+  ctx.fillStyle = 'rgba(120,210,255,0.35)';
+  ctx.fillText('BLD ' + BUILD, W - 20, H - 48);
 
   // fullscreen key (left of the gear; hidden when already chromeless)
   menuFsRect = null;
@@ -7671,18 +7681,28 @@ function frame(now) {
     const g2 = geo(), u = Math.min(W, H); // effect scales with the viewport
     for (const r of ripples) {
       const q = r.t / 0.5;
+      if (q < 0.22) { // impact instant: a hot core right ON the rim
+        const ix = g2.cx + Math.cos(r.a) * g2.nodeR, iy = g2.cy + Math.sin(r.a) * g2.nodeR;
+        const iq = q / 0.22;
+        const gl = ctx.createRadialGradient(ix, iy, 0, ix, iy, u * 0.05);
+        gl.addColorStop(0, 'rgba(230,250,255,' + (0.85 * (1 - iq)).toFixed(2) + ')');
+        gl.addColorStop(1, 'rgba(140,225,255,0)');
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = gl;
+        ctx.beginPath(); ctx.arc(ix, iy, u * 0.05, 0, TAU); ctx.fill();
+      }
       // shockwave: arcs concentric with the bore, running through the rim
       // at the kill angle and swelling outward with the flow
       for (let k = 0; k < 2; k++) {
         const qq = clamp(q * 1.25 - k * 0.12, 0, 1);
         if (qq <= 0 || qq >= 1) continue;
-        const span = 0.55 * (1 - qq * 0.55);
-        ctx.globalAlpha = (1 - qq) * 0.8;
+        const span = 0.8 * (1 - qq * 0.55);
+        ctx.globalAlpha = (1 - qq) * 0.9;
         ctx.strokeStyle = '#dff4ff';
-        ctx.shadowColor = 'rgba(140,225,255,0.9)'; ctx.shadowBlur = u * 0.008;
-        ctx.lineWidth = u * (0.005 - qq * 0.003);
+        ctx.shadowColor = 'rgba(140,225,255,0.9)'; ctx.shadowBlur = u * 0.01;
+        ctx.lineWidth = u * (0.006 - qq * 0.0035);
         ctx.beginPath();
-        ctx.arc(g2.cx, g2.cy, g2.nodeR * (1 + qq * 0.16 + k * 0.045), r.a - span, r.a + span);
+        ctx.arc(g2.cx, g2.cy, g2.nodeR * (1 + qq * 0.22 + k * 0.05), r.a - span, r.a + span);
         ctx.stroke();
         ctx.shadowBlur = 0;
       }
@@ -7692,7 +7712,7 @@ function frame(now) {
         const pr2 = g2.nodeR * (1 + p.sp * q * 0.45);
         const aa = r.a + p.da * (0.6 + q * 0.7);
         const x = g2.cx + Math.cos(aa) * pr2, y = g2.cy + Math.sin(aa) * pr2;
-        const sz = p.sz * u * 0.0022;
+        const sz = p.sz * u * 0.003;
         const stretch = sz * (1 + q * 7);
         ctx.globalAlpha = (1 - q) * 0.9;
         ctx.fillStyle = p.amber ? '#ffd24a' : '#cfeeff';
