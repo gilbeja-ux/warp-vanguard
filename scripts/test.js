@@ -96,6 +96,7 @@ code = code.replace("'use strict';", '') + `
   getLevels: () => LEVELS, migrateSaveShape, getInfoCards: () => INFO_CARDS,
   getGpSel: () => gpSel, setGpSel: v => { gpSel = v; },
   getMapSel: () => mapSel, getPadHold: () => padHold,
+  getCampScroll: () => campScrollTgt, setCampScroll: v => { campScroll = campScrollTgt = v; }, CAMPS_SOON,
   startEndless, menuBtns: () => menuButtons, getEndWin: () => endWin,
   setLevelT: v => { levelT = v; }, setIntegrity: v => { integrity = v; }, setScore: v => { score = v; },
   setMenuScroll: v => { menuScroll = v; }, tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
@@ -606,16 +607,17 @@ const cTile = G.menuBtns().find(b => b.mode === 'campaign');
   G.menuTap(sc.cx + Math.cos(ma) * mr, sc.cy + Math.sin(ma) * mr, 1);
 }
 flushUI(); // press beat -> spin -> screen switch
-check('campaign tile opens the case-file picker (two campaigns shipped)', G.getMenuScreen() === 'camps');
-G.frame(16);
-{ // the picker lists both investigations; picking the FIRST opens its map
-  const rows = G.menuBtns().filter(b => b.camp !== undefined);
-  check('picker lists every bundled campaign', rows.length === G.CAMPAIGNS.length && G.CAMPAIGNS.length === 2);
-  const inv = rows.find(b => G.CAMPAIGNS[b.camp].id === 'investigation');
+check('campaign tile opens the case-file carousel (two campaigns shipped)', G.getMenuScreen() === 'camps');
+flushUI(); G.frame(16);
+{ // discs: every real campaign gets a SYNC key; teasers ride along without one
+  const syncs = G.menuBtns().filter(b => b.sync !== undefined);
+  check('carousel: one SYNC key per real campaign, three teaser discs', syncs.length === G.CAMPAIGNS.length && G.CAMPS_SOON.length === 3);
+  check('carousel: scroll hint appears with discs off-stage', G.menuBtns().some(b => b.scrollDir === 1));
+  const inv = syncs.find(b => G.CAMPAIGNS[b.sync].id === 'investigation');
   G.menuTap(inv.x + inv.w / 2, inv.y + inv.h / 2, 1);
 }
-flushUI();
-check('picking a case file opens its route map', G.getMenuScreen() === 'map' && G.getCamp().id === 'investigation');
+flushUI(); flushUI(); // press beat -> disc zoom -> panels drive in
+check('SYNC STREAM zooms the disc into its route map', G.getMenuScreen() === 'map' && G.getCamp().id === 'investigation');
 flushUI(); // panels settle
 G.frame(16);
 const n2 = G.menuBtns().find(b => b.node === 2);
@@ -1464,11 +1466,15 @@ G.keys['ArrowUp'] = false;
   pad.axes = [0, 0, 0, 0];
   tap(0);
   flushUI();
-  check('A on the campaign slice opens the case-file picker', G.getMenuScreen() === 'camps');
-  G.frame(16); G.update(0.05); // rows build; focus snaps to the ACTIVE case file
-  tap(0);
-  flushUI();
-  check('A on the focused case file opens its route map', G.getMenuScreen() === 'map');
+  check('A on the campaign slice opens the case-file carousel', G.getMenuScreen() === 'camps');
+  flushUI(); G.frame(16); G.update(0.05); // discs build; centered = active case
+  tap(15); // right: slide to the next disc
+  check('D-pad right slides the carousel', G.getCampScroll() === 1);
+  tap(14); // and back to the active case
+  check('D-pad left slides it back', G.getCampScroll() === 0);
+  tap(0); // A syncs the centered disc
+  flushUI(); flushUI();
+  check('A syncs the centered case file into its route map', G.getMenuScreen() === 'map');
   flushUI(); // let the panels finish driving in
   G.frame(16); G.update(0.05);
   // the map is a list: D-pad up/down moves the relay selection directly
@@ -1495,8 +1501,8 @@ G.keys['ArrowUp'] = false;
   // B backs out of the map — via the case-file picker — to the wheel
   G.setState(G.S.MENU); G.setMenuScreen('map'); G.frame(16); G.update(0.05);
   tap(1);
-  flushUI();
-  check('B backs out of the map to the case-file picker', G.getMenuScreen() === 'camps');
+  flushUI(); flushUI(); // panels fly out -> the disc shrinks back into its slot
+  check('B backs out of the map to the carousel (disc zoom-out)', G.getMenuScreen() === 'camps');
   tap(1);
   flushUI();
   check('B backs out to the mode wheel', G.getMenuScreen() === 'home');

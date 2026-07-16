@@ -2279,14 +2279,26 @@ function menuTap(x, y, pid) {
     if (hit && !b.locked) {
       if (b.mode === 'tutorial') pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startQualification }; tone(70, 0.45, 'sine', 0.12, 260); });
       else if (b.mode === 'campaign') pressUI(b, () => {
-        if (CAMPAIGNS.length > 1) menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'camps' };
+        if (CAMPAIGNS.length > 1) {
+          campScroll = campScrollTgt = Math.max(0, CAMPAIGNS.indexOf(CAMP)); // active case center-stage
+          menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'camps' };
+        }
         else { mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1); menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'map' }; }
       });
-      else if (b.camp !== undefined) pressUI(b, () => { // case file picked
-        switchCampaign(b.camp);
+      else if (b.sync !== undefined) pressUI(b, () => { // SYNC STREAM: dive into the disc
+        switchCampaign(b.sync);
         mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
-        menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'map' };
+        campScrollTgt = b.sync;
+        menuFx = { kind: 'discZoom', t: 0, dur: 0.55, disc: b.sync };
+        tone(70, 0.45, 'sine', 0.12, 260);
       });
+      else if (b.scrollDir !== undefined) {
+        campScrollTgt = clamp(campScrollTgt + b.scrollDir, 0, CAMPAIGNS.length + CAMPS_SOON.length - 1);
+        sfx.tick();
+      }
+      else if (b.campDisc !== undefined) { // tapping a side disc brings it center-stage
+        if (Math.abs(b.campDisc - campScrollTgt) > 0.01) { campScrollTgt = b.campDisc; sfx.tick(); }
+      }
       else if (b.mode === 'flow') pressUI(b, () => { menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'flow' }; });
       else if (b.node !== undefined) { mapSel = b.node; sfx.tick(); }
       else if (b.deploy !== undefined) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: () => startLevel(b.deploy, true) }; tone(70, 0.45, 'sine', 0.12, 260); });
@@ -2775,6 +2787,31 @@ function pollGamepad() {
     const hadY = padPrev.stick;
     padPrev.stick = sy !== null;
     if (sy !== null && !hadY && Math.abs(Math.sin(sy)) > 0.6) step(Math.sign(Math.sin(sy)) > 0 ? 1 : -1);
+  } else if (state === S.MENU && menuScreen === 'camps' && !menuFx) {
+    // the carousel: left/right slides discs, A syncs the centered case
+    const totalD = CAMPAIGNS.length + CAMPS_SOON.length;
+    if (list) { // focus ring rides the centered disc's SYNC key
+      const si = list.findIndex(b2 => b2.sync === Math.round(campScrollTgt));
+      if (si >= 0) gpSel = si;
+    }
+    for (const [bi, d] of [[14, -1], [15, 1]]) {
+      const dn = press(bi), key = 'd' + bi;
+      if (dn && !padPrev[key]) { campScrollTgt = clamp(campScrollTgt + d, 0, totalD - 1); sfx.tick(); }
+      padPrev[key] = dn;
+    }
+    padPrev.d12 = press(12); padPrev.d13 = press(13);
+    const sx2 = stick(0) !== null ? stick(0) : stick(1);
+    const hadX = padPrev.stick;
+    padPrev.stick = sx2 !== null;
+    if (sx2 !== null && !hadX && Math.abs(Math.cos(sx2)) > 0.6) {
+      campScrollTgt = clamp(campScrollTgt + (Math.cos(sx2) > 0 ? 1 : -1), 0, totalD - 1); sfx.tick();
+    }
+    const aC = press(0);
+    if (aC && !padPrev.a && list) {
+      const sy2 = list.find(b2 => b2.sync === Math.round(campScrollTgt));
+      if (sy2) { gpNav = true; const c = gpCenter(sy2); menuTap(c.x, c.y, -7); }
+    }
+    padPrev.a = aC;
   } else if (list && list.length) {
     gpSyncFocus(list); // fresh screen → focus lands on the CONFIRM key
     for (const [bi, dx, dy] of [[12, 0, -1], [13, 0, 1], [14, -1, 0], [15, 1, 0]]) {
@@ -6884,67 +6921,173 @@ function drawMenuHome(ccx, ccy, R) {
   ctx.textAlign = 'left';
 }
 
-// case-file picker: one key per campaign, stacked in the bore — the active
-// investigation highlighted, each with its progress and difficulty pips
+// case-file carousel: every campaign is a DISC — a bore-ringed lens whose
+// top third is the route map and whose lower two thirds carry the dossier —
+// laid out in a horizontal, scrollable line. SYNC STREAM zooms the disc up
+// into the tunnel and opens its relay map.
+let campScroll = 0, campScrollTgt = 0; // disc index at stage center (eased)
+const CAMPS_SOON = ['SIGNAL LOST', 'BLACK ICE', 'ZERO DAY']; // teaser discs
 function drawMenuCamps(ccx, ccy, R) {
-  let rot = 0, wheelAl = 1; // same spin choreography as the mode wheel
-  if (menuFx && menuFx.kind === 'spinOut') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = (menuFx.dir || 1) * q * q * 1.5; wheelAl = 1 - q; }
-  if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = -(menuFx.dir || 1) * 1.5 * Math.pow(1 - q, 2); wheelAl = q; }
+  // entry/exit: the row flies in from the LEFT on arrival and out to the
+  // RIGHT on back — the mode wheel spins on the other side of the crossfade
+  let rowOff = 0, rowAl = 1;
+  if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rowOff = -W * 0.7 * Math.pow(1 - q, 2); rowAl = q; }
+  if (menuFx && menuFx.kind === 'spinOut') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rowOff = W * 0.7 * q * q; rowAl = 1 - q; }
+  // sync zoom: the chosen disc swells into the tunnel; the rest fall away
+  let zoomI = -1, zq = 0;
+  if (menuFx && menuFx.kind === 'discZoom') { zoomI = menuFx.disc; zq = clamp(menuFx.t / menuFx.dur, 0, 1); }
+  if (menuFx && menuFx.kind === 'discOut') { zoomI = menuFx.disc; zq = 1 - clamp(menuFx.t / menuFx.dur, 0, 1); }
+  const total = CAMPAIGNS.length + CAMPS_SOON.length;
+  const R2 = Math.min(H * 0.30, W * 0.16);
+  const dx = R2 * 2.35;
   ctx.save();
-  ctx.translate(ccx, ccy); ctx.rotate(rot); ctx.translate(-ccx, -ccy);
-  ctx.globalAlpha = wheelAl;
-  const n = CAMPAIGNS.length;
-  const bh = Math.min(72, (R * 1.2 - (n - 1) * 14) / n), gap = 14;
-  const bw = Math.min(R * 1.36, W * 0.72);
-  let y = ccy - (n * (bh + gap) - gap) / 2;
+  ctx.globalAlpha = rowAl;
   ctx.textAlign = 'center';
   try { ctx.letterSpacing = '3px'; } catch (e) {}
   ctx.font = '700 12px Audiowide, system-ui';
-  ctx.fillStyle = 'rgba(140,215,255,0.75)';
-  ctx.fillText('SELECT CASE FILE', ccx, y - 22);
+  ctx.fillStyle = 'rgba(140,215,255,' + (0.75 * rowAl * (1 - zq)).toFixed(2) + ')';
+  ctx.fillText('SELECT CASE FILE', ccx, ccy - R2 - 34);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
-  for (let i = 0; i < n; i++) {
-    const pk = CAMPAIGNS[i];
-    const cp = progress.camp[pk.id] || { unlocked: 1, stars: [] };
-    const active = pk === CAMP;
-    const done = campaignCleared(pk.id);
-    const x = ccx - bw / 2;
-    techRect(x, y, bw, bh, 8);
-    ctx.fillStyle = active ? 'rgba(40,110,180,0.4)' : 'rgba(10,26,50,0.72)'; ctx.fill();
-    ctx.strokeStyle = done ? 'rgba(126,226,98,0.75)' : active ? 'rgba(140,230,255,0.9)' : 'rgba(120,180,255,0.4)';
-    ctx.lineWidth = active ? 2 : 1.2;
-    techRect(x, y, bw, bh, 8); ctx.stroke();
-    ctx.textAlign = 'left';
-    const tpx = fitPx(pk.title, 800, 17, bw * 0.52, 11);
-    ctx.font = '800 ' + tpx + 'px Audiowide, system-ui';
-    ctx.fillStyle = active ? '#eaf7ff' : 'rgba(200,230,255,0.85)';
-    ctx.fillText(pk.title, x + 16, y + bh / 2 - 3);
-    ctx.font = '500 9px Audiowide, system-ui';
-    ctx.fillStyle = 'rgba(140,200,240,0.7)';
-    ctx.fillText(pk.tagline || '', x + 16, y + bh / 2 + 13);
-    // right side: stars banked, difficulty pips, case state
-    ctx.textAlign = 'right';
-    const starSum = (cp.stars || []).reduce((a2, b2) => a2 + b2, 0);
-    ctx.font = '700 12px Audiowide, system-ui';
-    ctx.fillStyle = 'rgba(255,210,74,0.9)';
-    ctx.fillText('★ ' + starSum + '/' + pk.levels.length * 3, x + bw - 16, y + bh / 2 - 3);
-    ctx.font = '700 10px Audiowide, system-ui';
-    ctx.fillStyle = done ? 'rgba(126,226,98,0.9)' : 'rgba(140,200,240,0.7)';
-    ctx.fillText(done ? 'CASE CLOSED' : 'RELAY ' + Math.min(cp.unlocked || 1, pk.levels.length) + '/' + pk.levels.length,
-      x + bw - 16, y + bh / 2 + 13);
-    // difficulty pips over the top edge
-    for (let d = 0; d < (pk.difficulty || 1); d++) {
-      ctx.fillStyle = 'rgba(255,150,80,0.85)';
-      ctx.beginPath();
-      ctx.moveTo(x + bw - 18 - d * 12, y - 4); ctx.lineTo(x + bw - 13 - d * 12, y + 4); ctx.lineTo(x + bw - 23 - d * 12, y + 4);
-      ctx.closePath(); ctx.fill();
+  let zx = 0, zy = 0, zr = 0; // the zooming disc draws LAST, over its siblings
+  for (let i = 0; i < total; i++) {
+    const cx2 = ccx + (i - campScroll) * dx + rowOff;
+    if (cx2 < -R2 * 1.6 || cx2 > W + R2 * 1.6) continue; // off-stage
+    if (i === zoomI && zq > 0) { zx = cx2; zy = ccy; zr = R2; continue; }
+    if (zq > 0) ctx.globalAlpha = rowAl * (1 - zq); // siblings fall away
+    drawCampDisc(i, cx2, ccy, R2, 0);
+    ctx.globalAlpha = rowAl;
+  }
+  if (zoomI >= 0 && zq > 0 && zr) {
+    const ze = zq * zq;
+    drawCampDisc(zoomI, lerp(zx, ccx, ze), lerp(zy, ccy, ze), R2 * (1 + ze * (R * 1.12 / R2 - 1)), zq);
+  }
+  // scroll hints: chevrons + a dot per disc, only when something is off-stage
+  if (zq === 0 && total * dx > W * 0.9) {
+    const hy = ccy + R2 + 30;
+    ctx.font = '700 11px Audiowide, system-ui';
+    for (const [dir, sym, on] of [[-1, '\u2039', campScrollTgt > 0], [1, '\u203a', campScrollTgt < total - 1]]) {
+      if (!on) continue;
+      const hx = ccx + dir * R2 * 1.6;
+      const hb = { x: hx - 17, y: hy - 17, w: 34, h: 34 };
+      techRect(hb.x, hb.y, hb.w, hb.h, 8);
+      ctx.fillStyle = 'rgba(8,22,44,0.7)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(120,210,255,0.5)'; ctx.lineWidth = 1.2;
+      techRect(hb.x, hb.y, hb.w, hb.h, 8); ctx.stroke();
+      ctx.fillStyle = '#cfeaff';
+      ctx.font = '700 18px Audiowide, system-ui';
+      ctx.fillText(sym, hx, hy + 6);
+      menuButtons.push({ ...hb, scrollDir: dir });
     }
-    menuButtons.push({ x, y, w: bw, h: bh, camp: i });
-    y += bh + gap;
+    for (let i = 0; i < total; i++) { // position dots
+      ctx.beginPath();
+      ctx.arc(ccx + (i - (total - 1) / 2) * 14, hy + 1, i === Math.round(campScrollTgt) ? 3.2 : 2, 0, TAU);
+      ctx.fillStyle = i === Math.round(campScrollTgt) ? 'rgba(140,230,255,0.95)' : 'rgba(120,180,255,0.35)';
+      ctx.fill();
+    }
   }
   ctx.textAlign = 'left';
   ctx.restore();
   ctx.globalAlpha = 1;
+}
+// one campaign disc: a miniature bore. zq>0 = mid sync-zoom (contents fade
+// as the disc becomes the tunnel itself)
+function drawCampDisc(i, x, y, r, zq) {
+  const real = i < CAMPAIGNS.length;
+  const pk = real ? CAMPAIGNS[i] : null;
+  const title = real ? pk.title : CAMPS_SOON[i - CAMPAIGNS.length];
+  const cp = real ? (progress.camp[pk.id] || { unlocked: 1, stars: [] }) : null;
+  const done = real && campaignCleared(pk.id);
+  const active = real && pk === CAMP;
+  const contentAl = 1 - zq;
+  ctx.save();
+  // the bore: deep radial well + concentric rings, ringed like the tunnel
+  const well = ctx.createRadialGradient(x, y, r * 0.1, x, y, r);
+  well.addColorStop(0, real ? 'rgba(30,48,84,0.95)' : 'rgba(16,22,36,0.95)');
+  well.addColorStop(1, 'rgba(4,8,18,0.98)');
+  ctx.fillStyle = well;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  for (let k = 1; k <= 3; k++) {
+    ctx.strokeStyle = 'rgba(90,160,230,' + (0.10 - k * 0.02).toFixed(2) + ')';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(x, y, r * (1 - k * 0.16), 0, TAU); ctx.stroke();
+  }
+  ctx.strokeStyle = done ? 'rgba(126,226,98,0.8)' : active ? 'rgba(140,230,255,0.95)' : real ? 'rgba(120,180,255,0.45)' : 'rgba(110,140,180,0.3)';
+  ctx.lineWidth = active ? 2.5 : 1.5;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = 'rgba(60,110,180,0.25)';
+  ctx.beginPath(); ctx.arc(x, y, r * 1.05, 0, TAU); ctx.stroke();
+  if (contentAl <= 0.02) { ctx.restore(); return; } // fully a tunnel now
+  ctx.globalAlpha *= contentAl;
+  ctx.beginPath(); ctx.arc(x, y, r * 0.97, 0, TAU); ctx.clip();
+  // top third: the route map (stylized preview — seeded, stable per disc)
+  const sepY = y - r / 3;
+  ctx.fillStyle = 'rgba(8,18,36,0.85)';
+  ctx.fillRect(x - r, y - r, r * 2, sepY - (y - r));
+  const rng = mulberry32(0xD15C + i * 7919);
+  ctx.strokeStyle = 'rgba(70,130,200,0.18)'; ctx.lineWidth = 1;
+  for (let gy = 1; gy <= 2; gy++) { ctx.beginPath(); ctx.moveTo(x - r, y - r + gy * r * 0.22); ctx.lineTo(x + r, y - r + gy * r * 0.22); ctx.stroke(); }
+  for (let gx = -2; gx <= 2; gx++) { ctx.beginPath(); ctx.moveTo(x + gx * r * 0.3, y - r); ctx.lineTo(x + gx * r * 0.3, sepY); ctx.stroke(); }
+  if (real) { // dashed route with relay pips, west to east like the real map
+    const pts = [];
+    const n = Math.min(6, pk.levels.length);
+    for (let k = 0; k < n; k++) {
+      pts.push({ px: x - r * 0.62 + (k / (n - 1)) * r * 1.24, py: sepY - r * 0.14 - rng() * r * 0.42 });
+    }
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = 'rgba(120,200,255,0.6)'; ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    pts.forEach((p2, k) => k ? ctx.lineTo(p2.px, p2.py) : ctx.moveTo(p2.px, p2.py));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    pts.forEach((p2, k) => {
+      const lit = cp.unlocked > Math.round(k * (pk.levels.length - 1) / Math.max(1, n - 1));
+      ctx.fillStyle = lit ? 'rgba(140,230,255,0.95)' : 'rgba(90,130,180,0.5)';
+      ctx.beginPath(); ctx.arc(p2.px, p2.py, 2.4, 0, TAU); ctx.fill();
+    });
+  } else { // static for the teasers
+    ctx.fillStyle = 'rgba(120,170,230,0.25)';
+    for (let k = 0; k < 26; k++) ctx.fillRect(x - r + rng() * r * 2, y - r + rng() * (r * 0.6), 2, 2);
+  }
+  ctx.strokeStyle = 'rgba(120,200,255,0.35)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x - r, sepY); ctx.lineTo(x + r, sepY); ctx.stroke();
+  // dossier: big title, then the data lines
+  ctx.textAlign = 'center';
+  const tpx = fitPx(title, 800, Math.round(r * 0.17), r * 1.5, 10);
+  ctx.font = '800 ' + tpx + 'px Audiowide, system-ui';
+  ctx.fillStyle = real ? '#eaf7ff' : 'rgba(150,175,210,0.8)';
+  ctx.fillText(title, x, sepY + r * 0.30);
+  ctx.font = '700 ' + Math.max(9, Math.round(r * 0.085)) + 'px Audiowide, system-ui';
+  if (real) {
+    const starSum = (cp.stars || []).reduce((a2, b2) => a2 + b2, 0);
+    ctx.fillStyle = 'rgba(160,210,250,0.85)';
+    ctx.fillText(pk.levels.length + ' RELAYS \u00b7 ' + '\u25b2'.repeat(pk.difficulty || 1) + ' \u00b7 \u2605 ' + starSum + '/' + pk.levels.length * 3, x, sepY + r * 0.52);
+    ctx.fillStyle = done ? 'rgba(126,226,98,0.95)' : 'rgba(140,200,240,0.8)';
+    ctx.fillText(done ? 'CASE CLOSED' : 'RELAY ' + Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length, x, sepY + r * 0.70);
+    // short description: the tagline carries the pitch
+    ctx.font = '500 ' + Math.max(8, Math.round(r * 0.07)) + 'px Audiowide, system-ui';
+    ctx.fillStyle = 'rgba(130,180,225,0.7)';
+    ctx.fillText(pk.tagline || '', x, sepY + r * 0.80);
+    // SYNC STREAM key
+    const bw = r * 1.06, bh = Math.max(24, r * 0.19);
+    const bx = x - bw / 2, by = y + r * 0.58;
+    techRect(bx, by, bw, bh, 7);
+    ctx.fillStyle = active ? 'rgba(40,120,190,0.5)' : 'rgba(14,40,72,0.8)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(140,230,255,0.85)'; ctx.lineWidth = 1.5;
+    techRect(bx, by, bw, bh, 7); ctx.stroke();
+    ctx.font = '700 ' + Math.max(10, Math.round(r * 0.085)) + 'px Audiowide, system-ui';
+    ctx.fillStyle = '#dff4ff';
+    ctx.fillText('\u25b6 SYNC STREAM', x, by + bh * 0.68);
+    menuButtons.push({ x: bx, y: by, w: bw, h: bh, sync: i });
+    menuButtons.push({ x: x - r, y: y - r, w: r * 2, h: r * 1.4, campDisc: i }); // body = bring to center
+  } else {
+    ctx.fillStyle = 'rgba(150,175,210,0.75)';
+    ctx.fillText('COMING SOON', x, sepY + r * 0.55);
+    ctx.font = '500 ' + Math.max(8, Math.round(r * 0.07)) + 'px Audiowide, system-ui';
+    ctx.fillStyle = 'rgba(120,150,190,0.55)';
+    ctx.fillText('a new case is being prepared', x, sepY + r * 0.72);
+  }
+  ctx.textAlign = 'left';
+  ctx.restore();
 }
 function drawMenuFlow() {
   const { ccx, ccy, R } = menuGeom();
@@ -7965,6 +8108,7 @@ function tickUI(dt) {
     if (!trans.fired && trans.t >= trans.dur * 0.5) { trans.fired = true; if (trans.mid) trans.mid(); }
     if (trans.t >= trans.dur) trans = null;
   }
+  campScroll += (campScrollTgt - campScroll) * Math.min(1, dt * 8); // carousel glide
   if (menuFx) {
     menuFx.t += dt;
     if (menuFx.t >= menuFx.dur) {
@@ -7974,11 +8118,22 @@ function tickUI(dt) {
         menuScreen = f.to;
         menuFx = f.to === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: f.dir || 1 }
           : { kind: 'spinIn', t: 0, dur: 0.35, dir: f.dir || 1 };
+      } else if (f.kind === 'discZoom') {
+        // the disc became the tunnel — its relay map takes over
+        menuScreen = 'map';
+        menuFx = { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1 };
       } else if (f.kind === 'panelsOut') {
-        // backing out of the map lands on the case-file picker when there
-        // is more than one campaign to pick
-        menuScreen = CAMPAIGNS.length > 1 ? 'camps' : 'home';
-        menuFx = { kind: 'spinIn', t: 0, dur: 0.35, dir: -1 }; // back = counterclockwise
+        // backing out of the map: with several campaigns the disc shrinks
+        // back into its slot on the carousel; single campaign goes home
+        if (CAMPAIGNS.length > 1) {
+          menuScreen = 'camps';
+          const di = Math.max(0, CAMPAIGNS.indexOf(CAMP));
+          campScroll = campScrollTgt = di;
+          menuFx = { kind: 'discOut', t: 0, dur: 0.5, disc: di };
+        } else {
+          menuScreen = 'home';
+          menuFx = { kind: 'spinIn', t: 0, dur: 0.35, dir: -1 }; // back = counterclockwise
+        }
       } else if (f.kind === 'launch' && f.action) f.action();
     }
   }
