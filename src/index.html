@@ -818,6 +818,7 @@ let tolVis = 1;               // eased hit-arc multiplier (wide-arc grows/shrink
 let bolts = [];               // lightning arcs (node → trap)
 const fx = { wide: 0, auto: 0, chain: 0 }; // power-up effect timers (seconds)
 let shieldCharge = 0; // firewall shield: 1 = the next breach is absorbed
+let shieldFlashT = 0; // catch-ring flare when the shield eats a breach
 let pickups = [], pickupT = 20;
 let ribbonT = 30; // bonus stream cadence — golden ribbons on levels 5+ / endless
 let tut = null;               // tutorial controller (level 1, first run)
@@ -1430,6 +1431,7 @@ function lastKillBeat(justKilled) {
 function shieldAbsorb(x, y, ang) {
   if (shieldCharge <= 0) return false;
   shieldCharge = 0;
+  shieldFlashT = 0.5; // the catch-ring flares as it eats the hit
   popup(x, y, 'SHIELD ABSORBED THE BREACH', '#8fe0ff');
   if (ang !== undefined) rimFX.push({ a: ang, t: 0.7, col: '143,224,255' });
   burst(x, y, '#8fe0ff', 22, 4);
@@ -2084,8 +2086,40 @@ function updateTutorial(dt) {
 // angle (up = top of the ring), triggers spend the matching pulse, START
 // pauses, A dismisses info discs. In menus the D-pad walks a focus ring
 // across the buttons and A presses the focused one.
-let padPrev = { a: false, start: false, lt: false, rt: false };
+let padPrev = { a: false, b: false, y: false, start: false, lt: false, rt: false, stick: false };
 let gpSel = 0, gpNav = false; // menu focus index + "a controller drives the menus"
+let gpSig = ''; // screen signature — focus snaps to the primary key on arrival
+function gpSyncFocus(list) {
+  const sig = state + ':' + (state === S.MENU ? menuScreen : '') + ':' + list.length;
+  if (sig === gpSig) return;
+  gpSig = sig;
+  // A means CONFIRM: deploy on the map, next on the report, resume in pause,
+  // the campaign slice on the wheel — whatever moves the player forward
+  let i = list.findIndex(b => b.deploy !== undefined || b.action === 'next' || b.action === 'resume' || b.mode === 'campaign');
+  if (i < 0) i = list.findIndex(b => b.action === 'retry' || b.endless !== undefined);
+  gpSel = Math.max(0, i);
+}
+function gpBackAction() { // B: one step back, wherever you are
+  if (state === S.MENU) {
+    if (menuScreen !== 'home' && !menuFx) {
+      sfx.tick();
+      menuFx = menuScreen === 'map' ? { kind: 'panelsOut', t: 0, dur: 0.42, dir: -1 }
+        : { kind: 'spinOut', t: 0, dur: 0.35, to: 'home', dir: -1 };
+    }
+  } else if (state === S.PAUSE) { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; sfx.tick(); }
+  else if (state === S.INFO) { if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); } }
+  else if (state === S.END) gpEndPress('menu');
+}
+function gpQuitAction() { // Y: abandon the run from pause, or leave the report
+  if (state === S.PAUSE) {
+    const b = pauseButtonsList.find(b2 => b2.action === 'menu');
+    if (b) pauseTap(b.x + b.w / 2, b.y + b.h / 2, -7);
+  } else if (state === S.END) gpEndPress('menu');
+}
+function gpEndPress(action) {
+  const b = endButtons.find(b2 => b2.action === action);
+  if (b) endTap(b.x + b.w / 2, b.y + b.h / 2);
+}
 function gpList() {
   if (state === S.MENU) return menuButtons;
   if (state === S.PAUSE) return pauseButtonsList;
@@ -2152,18 +2186,48 @@ function pollGamepad() {
   }
   padPrev.start = start;
   const list = gpList();
-  if (list && list.length) { // D-pad walks the focus ring
+  if (list && list.length) {
+    gpSyncFocus(list); // fresh screen → focus lands on the CONFIRM key
     for (const [bi, dx, dy] of [[12, 0, -1], [13, 0, 1], [14, -1, 0], [15, 1, 0]]) {
-      const dn = press(bi), key = 'd' + bi;
+      const dn = press(bi), key = 'd' + bi; // D-pad walks the focus ring
       if (dn && !padPrev[key]) gpMove(list, dx, dy);
       padPrev[key] = dn;
     }
+    // the analog stick navigates too: on the wheel it POINTS at a slice,
+    // elsewhere a fresh deflection acts as one D-pad step
+    const sa = stick(0) !== null ? stick(0) : stick(1);
+    const hadStick = padPrev.stick;
+    padPrev.stick = sa !== null;
+    if (sa !== null) {
+      let pointed = -1;
+      list.forEach((b, i) => {
+        if (!b.sector) return;
+        const s = b.sector;
+        let d0 = (sa - s.a0) % TAU; if (d0 < 0) d0 += TAU;
+        let span = (s.a1 - s.a0) % TAU; if (span < 0) span += TAU;
+        if (d0 <= span) pointed = i;
+      });
+      if (pointed >= 0) {
+        if (pointed !== gpSel && gpNav) sfx.tick();
+        gpSel = pointed; gpNav = true;
+      } else if (!hadStick) {
+        const dx = Math.abs(Math.cos(sa)) > Math.abs(Math.sin(sa)) ? Math.sign(Math.cos(sa)) : 0;
+        gpMove(list, dx, dx ? 0 : Math.sign(Math.sin(sa)));
+      }
+    }
   }
+  const bb = press(1); // B — back
+  if (bb && !padPrev.b) gpBackAction();
+  padPrev.b = bb;
+  const yy = press(3); // Y — quit
+  if (yy && !padPrev.y) gpQuitAction();
+  padPrev.y = yy;
   const a0 = press(0);
   if (a0 && !padPrev.a) {
     if (state === S.INFO) {
       if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); }
-    } else if (list && list.length && gpNav) { // A presses the focused button
+    } else if (list && list.length) { // A confirms: presses the focused key
+      gpNav = true; // (which is the screen's primary until the player steers)
       const c = gpCenter(list[Math.min(gpSel, list.length - 1)]);
       if (state === S.MENU) menuTap(c.x, c.y, -7);
       else if (state === S.PAUSE) pauseTap(c.x, c.y, -7);
@@ -2213,6 +2277,7 @@ function update(dt) {
   particles = particles.filter(p => p.life > 0);
   for (const p of popups) { p.y -= 30 * dt; p.life -= dt * 0.9; }
   popups = popups.filter(p => p.life > 0);
+  shieldFlashT = Math.max(0, shieldFlashT - dt);
   for (const b of bolts) b.life -= dt;
   bolts = bolts.filter(b => b.life > 0);
 
@@ -2718,7 +2783,8 @@ function update(dt) {
         hitStop = Math.min(hitStop + (en.type === 'normal' ? 0.05 : 0.09), 0.12);
         lastKillBeat(en);
         popup(ex, ey, (perfect ? 'PERFECT +' : '+') + pts + (combo >= 3 ? '  x' + Math.min(combo, 5) : ''), perfect ? '#ffe9b0' : '#bfeaff');
-        shake = Math.min(shake + (en.type === 'normal' ? 0.35 : 0.5), 0.8);
+        // no screen shake on a clean kill — the rim flash + haptics carry it;
+        // the tunnel only twitches when something goes WRONG
         sfx.zap(combo, Math.cos(en.angle) * 0.7);
         if (en.type === 'heavy') tone(110, 0.2, 'square', 0.13, 60); // armor thump
         if (en.lock !== undefined) tone(1568, 0.12, 'triangle', 0.09, 1976); // key chime
@@ -5002,23 +5068,28 @@ function drawHUD(g) {
     ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.textAlign = 'left';
   }
 
-  // active power-up chips (top center) — each chip sizes to its own label
-  const active = Object.keys(fx).filter(k => fx[k] > 0);
-  if (active.length) {
+  // active power-up chips (top center) — each chip sizes to its own label;
+  // an armed shield rides the row too (cyan, no timer: it waits, not ticks)
+  const chips = Object.keys(fx).filter(k => fx[k] > 0)
+    .map(k => ({ label: PICKUPS[k].label, frac: clamp(fx[k] / PICKUPS[k].dur, 0, 1) }));
+  if (shieldCharge > 0) chips.unshift({ label: 'SHIELD ARMED', cyan: true });
+  if (chips.length) {
     ctx.font = '700 10px Audiowide, system-ui';
-    const cws = active.map(k => Math.ceil(ctx.measureText(PICKUPS[k].label).width) + 18);
-    let x0 = W / 2 - (cws.reduce((a, b) => a + b, 0) + (active.length - 1) * 8) / 2;
-    active.forEach((k, i) => {
+    const cws = chips.map(c => Math.ceil(ctx.measureText(c.label).width) + 18);
+    let x0 = W / 2 - (cws.reduce((a, b) => a + b, 0) + (chips.length - 1) * 8) / 2;
+    chips.forEach((c, i) => {
       const cw = cws[i], chh = 20;
       const y0 = 14 + SAFE.t;
       techRect(x0, y0, cw, chh, 6);
-      ctx.fillStyle = 'rgba(60,40,5,0.65)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(255,210,74,0.8)'; ctx.lineWidth = 1;
+      ctx.fillStyle = c.cyan ? 'rgba(8,38,58,0.65)' : 'rgba(60,40,5,0.65)'; ctx.fill();
+      ctx.strokeStyle = c.cyan ? 'rgba(143,224,255,0.8)' : 'rgba(255,210,74,0.8)'; ctx.lineWidth = 1;
       techRect(x0, y0, cw, chh, 6); ctx.stroke();
-      ctx.fillStyle = '#ffe9b0'; ctx.textAlign = 'left';
-      ctx.fillText(PICKUPS[k].label, x0 + 9, y0 + 14);
-      ctx.fillStyle = 'rgba(255,210,74,0.9)';
-      ctx.fillRect(x0, y0 + chh + 3, cw * clamp(fx[k] / PICKUPS[k].dur, 0, 1), 2);
+      ctx.fillStyle = c.cyan ? '#d9f2ff' : '#ffe9b0'; ctx.textAlign = 'left';
+      ctx.fillText(c.label, x0 + 9, y0 + 14);
+      if (c.frac !== undefined) {
+        ctx.fillStyle = 'rgba(255,210,74,0.9)';
+        ctx.fillRect(x0, y0 + chh + 3, cw * c.frac, 2);
+      }
       x0 += cw + 8;
     });
   }
@@ -7462,16 +7533,30 @@ function frame(now) {
   }
   drawLatches(g, bz);
   if (state !== S.MENU) drawArrivalPings(g);
-  if (shieldCharge > 0 && state !== S.MENU) { // firewall film breathing on the rim
-    const sr = g.nodeR + Math.min(W, H) * 0.018;
+  if (shieldCharge > 0 && state !== S.MENU) {
+    // the shield is a SECOND RAIL: an armed catch-ring standing just behind
+    // the rim, visibly waiting to eat the next breach
+    const sr = g.nodeR + Math.min(W, H) * 0.032;
     ctx.save();
-    ctx.globalAlpha = 0.22 + 0.09 * Math.sin(time * 3);
-    ctx.strokeStyle = 'rgba(143,224,255,0.9)';
-    ctx.lineWidth = Math.min(W, H) * 0.006;
+    ctx.globalAlpha = 0.5 + 0.15 * Math.sin(time * 3);
+    ctx.strokeStyle = 'rgba(143,224,255,0.95)';
+    ctx.lineWidth = Math.min(W, H) * 0.008;
+    ctx.setLineDash([26, 14]);
+    ctx.lineDashOffset = time * 26; // it patrols, slowly
     ctx.beginPath(); ctx.arc(g.cx, g.cy, sr, 0, TAU); ctx.stroke();
-    ctx.globalAlpha *= 0.45;
-    ctx.lineWidth *= 3;
+    ctx.setLineDash([]);
+    ctx.globalAlpha *= 0.35;
+    ctx.lineWidth *= 3.2;
     ctx.beginPath(); ctx.arc(g.cx, g.cy, sr, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+  if (shieldFlashT > 0 && state !== S.MENU) { // the catch: the rail flares as it eats the breach
+    const q = 1 - shieldFlashT / 0.5;
+    ctx.save();
+    ctx.globalAlpha = (1 - q) * 0.8;
+    ctx.strokeStyle = 'rgba(143,224,255,1)';
+    ctx.lineWidth = Math.min(W, H) * (0.012 - q * 0.008);
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, (g.nodeR + Math.min(W, H) * 0.032) * (1 + q * 0.25), 0, TAU); ctx.stroke();
     ctx.restore();
   }
 
@@ -7503,9 +7588,19 @@ function frame(now) {
   drawBolts();
   ctx.textAlign = 'center';
   for (const p of popups) {
-    ctx.globalAlpha = clamp(p.life, 0, 1);
-    ctx.fillStyle = p.color; ctx.font = '700 15px Audiowide, system-ui';
-    ctx.fillText(p.text, p.x, p.y);
+    const al = clamp(p.life, 0, 1);
+    ctx.font = '700 15px Audiowide, system-ui';
+    const tw = ctx.measureText(p.text).width;
+    const px = clamp(p.x, tw / 2 + 12, W - tw / 2 - 12); // plates stay on screen
+    ctx.globalAlpha = al * 0.72; // backing plate so popups read over any traffic
+    ctx.fillStyle = 'rgba(4,10,22,0.9)';
+    roundRect(px - tw / 2 - 9, p.y - 15, tw + 18, 21, 6); ctx.fill();
+    ctx.globalAlpha = al * 0.5;
+    ctx.strokeStyle = p.color; ctx.lineWidth = 1;
+    roundRect(px - tw / 2 - 9, p.y - 15, tw + 18, 21, 6); ctx.stroke();
+    ctx.globalAlpha = al;
+    ctx.fillStyle = p.color;
+    ctx.fillText(p.text, px, p.y);
   }
   ctx.globalAlpha = 1; ctx.textAlign = 'left';
 

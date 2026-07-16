@@ -1088,20 +1088,40 @@ G.keys['ArrowUp'] = false;
   check('START again resumes', G.getState() === G.S.PLAY);
   pad.buttons[9].pressed = false;
   G.update(0.05);
-  // D-pad drives the menus: pause the run, walk down to QUIT, press A
+  // D-pad drives the menus: pause the run, walk right to QUIT, press A
   tap(9); // pause
   G.frame(16); // draw builds pauseButtonsList
+  check('pause opens with RESUME focused', G.getGpSel() === 0);
   tap(15); tap(15); // right, right: RESUME -> RESTART -> QUIT
   check('D-pad walks the pause row to QUIT', G.getState() === G.S.PAUSE && G.getGpSel() === 2);
   tap(0); // A presses the focused key
   check('A on QUIT lands back in the menu', G.getState() === G.S.MENU);
   flushUI();
-  // mode wheel: focus the campaign slice and press A
-  G.setMenuScreen('home'); G.frame(16);
-  G.setGpSel(G.menuBtns().findIndex(b => b.mode === 'campaign'));
+  // Y from pause = QUIT straight away
+  G.startLevel(1); G.update(0.05);
+  tap(9); G.frame(16);
+  tap(3);
+  check('Y quits the run from pause', G.getState() === G.S.MENU);
+  flushUI();
+  // mode wheel: POINT the stick at the campaign slice, then A
+  G.setMenuScreen('home'); G.frame(16); G.update(0.05);
+  const cSec = G.menuBtns().find(b2 => b2.mode === 'campaign').sector;
+  const cMid = (cSec.a0 + cSec.a1) / 2;
+  pad.axes = [Math.cos(cMid), Math.sin(cMid), 0, 0];
+  G.update(0.05);
+  check('pointing the stick focuses the campaign slice',
+    G.menuBtns()[G.getGpSel()] && G.menuBtns()[G.getGpSel()].mode === 'campaign');
+  pad.axes = [0, 0, 0, 0];
   tap(0);
   flushUI();
   check('A on the campaign slice opens the route map', G.getMenuScreen() === 'map');
+  flushUI(); // let the panels finish driving in
+  G.frame(16); G.update(0.05);
+  check('the map opens with DEPLOY focused', G.menuBtns()[G.getGpSel()] && G.menuBtns()[G.getGpSel()].deploy !== undefined);
+  // B backs out of the map to the wheel
+  tap(1);
+  flushUI();
+  check('B backs out to the mode wheel', G.getMenuScreen() === 'home');
   delete globalThis.navigator;
   G.setState(G.S.MENU);
 }
