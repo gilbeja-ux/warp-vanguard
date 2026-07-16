@@ -188,3 +188,151 @@ AWAITING OPERATOR → CONTROLS ACTIVE, with the CID comm "godspeed, defender."*
 *(Rim walls escalate the node-killer family: point traps at level 3, walls at
 level 5, and the Gateway core throwing them on demand at level 8. The old
 hostile data stream became the optional golden bonus ribbon.)*
+
+---
+
+# CAMPAIGN 2 — GOING DEEPER (THE CORRUPTION CASE)
+
+Premise: The gateway burned and a buyer wore a badge — but a badge takes orders. Someone above the arrest is still burning evidence, and every wire you defend digs one layer closer to whoever is behind the corruption.
+
+## LEVEL 1 — EVIDENCE VAULT
+
+**LOG 10 — REOPENED**
+> The buyer wore a badge. He also
+> took orders. Tonight the sealed
+> case archive is being scrubbed —
+> someone above him is still awake.
+
+*Hint: the archive is under attack — everything you learned, at once*
+
+**Comms**
+- `t=6` **CID**: the vault line is live. hold it.
+- `t=20` **TRACE**: these taps know our sealed filenames.
+- `t=36` **OMNI**: sealed means six people. count them.
+
+**Report** — CASE NOTE: the scrub list matches SEALED files. six suspects.
+
+## LEVEL 2 — PRECINCT LOOP
+
+**LOG 11 — THE LOOP**
+> We tapped the precinct intranet.
+> Whoever burns evidence files their
+> overtime on this loop. Defend the
+> wire while TRACE reads the badges.
+
+*Hint: police intranet — armor and barriers on a hot line*
+
+**Comms**
+- `t=6` **TRACE**: pulling duty rosters off the loop.
+- `t=22` **CID**: four of the six were on shift. narrow it.
+- `t=38` **OMNI**: and two of them signed the gateway PO.
+
+**Report** — CASE NOTE: two signatures on the gateway purchase order.
+
+## LEVEL 3 — INTERNAL AFFAIRS
+
+**LOG 12 — CLEAN HANDS**
+> Internal Affairs opened their own
+> file — then their line lit up with
+> keyed taps cut from IA credentials.
+> The watchers are being watched.
+
+*Hint: keyed taps return — IA files answer to matching colors only*
+
+**Comms**
+- `t=6` **CID**: IA is compromised. assume everything leaks.
+- `t=22` **TRACE**: keys cut from an IA terminal. inside again.
+- `t=38` **CID**: clean hands. dirty terminal. noted.
+
+**Report** — CASE NOTE: the IA leak runs through ONE terminal. logged.
+
+## LEVEL 4 — SHELL EXCHANGE
+
+**LOG 13 — PAPER WALLS**
+> The gateway money moved through
+> shell companies — eleven names,
+> one drawer. They flood the line
+> with noise to bury one transfer.
+
+*Hint: burst volleys — shell companies flood the wire to hide ONE transfer*
+
+**Comms**
+- `t=6` **OMNI**: eleven shells, one registered drawer.
+- `t=24` **TRACE**: volley pattern says: hiding ONE packet.
+- `t=40` **CID**: find the packet they protect. follow it.
+
+**Report** — CASE NOTE: one transfer matters. the rest is smoke.
+
+## LEVEL 5 — LAUNDRY LINE
+
+**LOG 14 — THE WASH**
+> The transfer washes through a
+> crypto mixer under the old mint.
+> They wall the rail while value
+> moves. Route around. Stay on it.
+
+*Hint: rim walls return — the laundry seals sections while money moves*
+
+**Comms**
+- `t=6` **CID**: they wall the rail on every wash cycle.
+- `t=24` **TRACE**: mixer output pings a BLACKSITE relay.
+- `t=40` **OMNI**: a blacksite. of course it is.
+
+**Report** — CASE NOTE: the wash empties into a blacksite relay.
+
+## LEVEL 6 — BLACKSITE RELAY
+
+**LOG 15 — OFF THE BOOKS**
+> The relay is not on any network
+> map. Government-grade hardware,
+> zero paperwork. Nobody builds a
+> blacksite for one dirty badge.
+
+*Hint: off-the-books hardware — maximum hostility, no rules*
+
+**Comms**
+- `t=6` **TRACE**: this hardware matches the gateway spec.
+- `t=26` **CID**: same vendor. same signature. same hand.
+- `t=44` **OMNI**: the paymaster built BOTH. find him.
+
+**Report** — CASE NOTE: gateway and blacksite share one paymaster.
+
+## LEVEL 7 — THE PAYMASTER
+
+**LOG 16 — THE LEDGER**
+> A name signs every invoice: a
+> commissioner-level login, retired
+> on paper for six years. His ledger
+> syncs tonight. Take the line.
+
+*Hint: everything, faster — his ledger is one relay away*
+
+**Comms**
+- `t=6` **CID**: a retired login signing live invoices.
+- `t=28` **TRACE**: ledger sync begins. defend the intercept.
+- `t=48` **OMNI**: he knows we are reading. he is proud.
+
+**Report** — CASE NOTE: the ledger names every buyer. one login signs.
+
+## LEVEL 8 — BADGE ZERO (boss)
+
+**LOG 17 — BADGE ZERO**
+> He built himself a private core
+> from the stolen gateway schematics
+> — his shield, his shredder, his
+> alibi. Burn it. End the ladder.
+
+*Hint: his private core runs stolen gateway schematics — burn it too*
+
+**Comms**
+- `t=4` **CORE**: my maker is untouchable. so am I.
+- `t=16` **CID**: six bolts says otherwise. go.
+
+**Report** — CASE CLOSED: badge zero indicted. the ladder is ash.
+
+**LOG 18 — THE LADDER** *(epilogue card, after the private core dies)*
+> The private core burned with the
+> ledger open. Every name on it was
+> served by morning — badge zero
+> first. The line is finally quiet.
+
