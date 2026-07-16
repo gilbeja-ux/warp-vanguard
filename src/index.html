@@ -825,7 +825,6 @@ let bolts = [];               // lightning arcs (node → trap)
 const fx = { wide: 0, auto: 0, chain: 0 }; // power-up effect timers (seconds)
 let shieldCharge = 0; // firewall shield: 1 = the next breach is absorbed
 let shieldFlashT = 0; // catch-ring flare when the shield eats a breach
-let ripples = [];     // kill ripples: rim shockwave + data shreds joining the river
 let pickups = [], pickupT = 20;
 let ribbonT = 30; // bonus stream cadence — golden ribbons on levels 5+ / endless
 let tut = null;               // tutorial controller (level 1, first run)
@@ -1421,22 +1420,6 @@ function burst(x, y, color, n, spd) {
   }
 }
 function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
-// kill feedback that BELONGS to the tunnel: the enemy SHATTERS into three
-// chunks that elongate into tapered trails of green light on the wall — one
-// straight down the bore, two diagonal — each growing forward and dimming
-// as it stretches, the tip petering out like it ran out of energy.
-function spawnKillRipple(a) {
-  const streams = [];
-  for (const [va, vz, a0] of [[0, 0.5, 0], [0.3, 0.34, 0.06], [-0.3, 0.34, -0.06]]) {
-    streams.push({
-      va: va * (0.85 + Math.random() * 0.3), // angular drift (the diagonals)
-      vz: vz * (0.85 + Math.random() * 0.3), // depth run — forward, up the line
-      a0,                                    // base offset: three DISTINCT trails
-      wj: 0.8 + Math.random() * 0.4          // width character per trail
-    });
-  }
-  ripples.push({ a, t: 0, streams });
-}
 // the LAST hostile of a finished campaign level dies on a beat — every level
 // ends like it means it (the boss has its own, bigger version)
 function lastKillBeat(justKilled) {
@@ -1835,7 +1818,7 @@ function resetRun() {
   boss = null; burstQ = null; patternQ = []; hitStop = 0;
   heat = 0; overheat = false; beamActive = false; beamSound(false, 0); stripSound(false, 0);
   introT = 0; introCd = -1; introStage = -1; introLatch = false; padHold = [false, false]; gatePip = 0;
-  rimFX = []; latches = []; ripples = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
+  rimFX = []; latches = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; }
   fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24);
   ribbonT = srand(11, 15); // first golden ribbon EARLY — its pulse should serve the whole run
@@ -2362,8 +2345,6 @@ function update(dt) {
   for (const p of popups) { p.y -= 30 * dt; p.life -= dt * 0.9; }
   popups = popups.filter(p => p.life > 0);
   shieldFlashT = Math.max(0, shieldFlashT - dt);
-  for (const r of ripples) r.t += dt;
-  ripples = ripples.filter(r => r.t < 0.55);
   for (const b of bolts) b.life -= dt;
   bolts = bolts.filter(b => b.life > 0);
 
@@ -2618,7 +2599,6 @@ function update(dt) {
       score += vb;
       burst(vx, vy, en.type === 'heavy' ? '#d465ff' : '#bfeaff', 22, 5);
       burst(vx, vy, '#ffffff', 12, 5.5);
-      spawnKillRipple(en.angle);
       popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : '+') + vb, '#bfeaff');
       rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
       sfx.zap(1, Math.cos(en.angle) * 0.6);
@@ -2865,9 +2845,8 @@ function update(dt) {
           for (let k2 = 1; k2 < 4; k2++) burst(lerp(ex, p3.x, k2 / 4), lerp(ey, p3.y, k2 / 4), '#ff8ba0', 6, 3);
         }
         if (en.lock !== undefined) burst(ex, ey, en.lock === 0 ? '#4d9bff' : '#eef6ff', 14, 4.5);
-        // no hit-stop on routine kills — the world freezing made every OTHER
-        // enemy visibly flinch; the rim shockwave + data shreds carry the pop
-        spawnKillRipple(en.angle);
+        // no hit-stop, no screen shake on routine kills — the burst, rim
+        // flash and haptics carry it (a dedicated kill effect is TBD)
         lastKillBeat(en);
         popup(ex, ey, (perfect ? 'PERFECT +' : '+') + pts + (combo >= 3 ? '  x' + Math.min(combo, 5) : ''), perfect ? '#ffe9b0' : '#bfeaff');
         // no screen shake on a clean kill — the rim flash + haptics carry it;
@@ -7678,83 +7657,6 @@ function frame(now) {
   }
   ctx.globalAlpha = 1;
   drawBolts();
-  if (ripples.length) { // the enemy shatters into trails of green light
-    const g2 = geo(), u = Math.min(W, H);
-    const DUR = 0.7;
-    const wallP = (a, f, st) => { // point along a stream's wall path
-      const z = clamp(g2.hitZ + st.vz * f, 0.05, SPAWN_Z);
-      const rg = ring(z, g2);
-      const aa = a + st.a0 + st.va * f;
-      return { x: rg.x + Math.cos(aa) * rg.r, y: rg.y + Math.sin(aa) * rg.r, s: rg.s };
-    };
-    for (const r of ripples) {
-      const q = r.t / DUR;
-      const grow = 1 - Math.pow(1 - Math.min(q / 0.8, 1), 2); // heads ease forward
-      const glob = q < 0.7 ? 1 : 1 - (q - 0.7) / 0.3;         // then the trails let go
-      if (q < 0.18) { // the shatter instant: a green core where the body breaks
-        const rg0 = ring(g2.hitZ, g2);
-        const ix = rg0.x + Math.cos(r.a) * rg0.r, iy = rg0.y + Math.sin(r.a) * rg0.r;
-        const gl = ctx.createRadialGradient(ix, iy, 0, ix, iy, u * 0.05);
-        gl.addColorStop(0, 'rgba(225,255,220,' + (0.95 * (1 - q / 0.18)).toFixed(2) + ')');
-        gl.addColorStop(1, 'rgba(126,226,98,0)');
-        ctx.fillStyle = gl;
-        ctx.beginPath(); ctx.arc(ix, iy, u * 0.05, 0, TAU); ctx.fill();
-      }
-      // the trails LIE ON the wall: every quad corner is a polar point
-      // (angle ± half-width in RADIANS at its depth), so each strip hugs
-      // the surface and foreshortens with it — tron light-lines on the
-      // road, not stickers over it. Additive blend melts them into the
-      // tunnel's own light.
-      const P = (aa, z) => { const rg = ring(z, g2); return { x: rg.x + Math.cos(aa) * rg.r, y: rg.y + Math.sin(aa) * rg.r }; };
-      ctx.globalCompositeOperation = 'lighter';
-      for (const st of r.streams) {
-        const SEG = 7;
-        for (let i = 0; i < SEG; i++) {
-          const f0 = grow * i / SEG, f1 = grow * (i + 1) / SEG;
-          const fr0 = i / SEG, fr1 = (i + 1) / SEG;
-          const z0 = clamp(g2.hitZ + st.vz * f0, 0.05, SPAWN_Z), z1 = clamp(g2.hitZ + st.vz * f1, 0.05, SPAWN_Z);
-          const a0 = r.a + st.a0 + st.va * f0, a1 = r.a + st.a0 + st.va * f1;
-          const wa0 = 0.02 * st.wj * (1 - fr0 * 0.75), wa1 = 0.02 * st.wj * (1 - fr1 * 0.75);
-          const c00 = P(a0 - wa0, z0), c01 = P(a0 + wa0, z0), c11 = P(a1 + wa1, z1), c10 = P(a1 - wa1, z1);
-          ctx.globalAlpha = glob * (1 - fr0 * 0.7) * 0.38; // soft additive body
-          ctx.fillStyle = 'rgb(126,226,98)';
-          ctx.beginPath();
-          ctx.moveTo(c00.x, c00.y); ctx.lineTo(c01.x, c01.y);
-          ctx.lineTo(c11.x, c11.y); ctx.lineTo(c10.x, c10.y);
-          ctx.closePath(); ctx.fill();
-        }
-        // the tron core: a thin bright line down the middle, hottest at the
-        // kill and starving toward the tip
-        ctx.lineCap = 'round';
-        ctx.lineWidth = u * 0.0028;
-        for (let i = 0; i < SEG; i++) {
-          const p0 = wallP(r.a, grow * i / SEG, st), p1 = wallP(r.a, grow * (i + 1) / SEG, st);
-          ctx.globalAlpha = glob * (1 - i / SEG * 0.8) * 0.9;
-          ctx.strokeStyle = 'rgba(228,255,220,0.95)';
-          ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
-        }
-        // head sliver riding the wall — the shard spending itself
-        if (q < 0.5) {
-          const hs = 0.018 * (1 - q * 2);
-          if (hs > 0) {
-            const zH = clamp(g2.hitZ + st.vz * grow, 0.05, SPAWN_Z);
-            const zB = clamp(zH - 0.035, 0.05, SPAWN_Z);
-            const aH = r.a + st.a0 + st.va * grow;
-            const h0 = P(aH - hs, zB), h1 = P(aH + hs, zB), h2 = P(aH + hs, zH), h3 = P(aH - hs, zH);
-            ctx.globalAlpha = glob * 0.9;
-            ctx.fillStyle = '#eaffe4';
-            ctx.beginPath();
-            ctx.moveTo(h0.x, h0.y); ctx.lineTo(h1.x, h1.y);
-            ctx.lineTo(h2.x, h2.y); ctx.lineTo(h3.x, h3.y);
-            ctx.closePath(); ctx.fill();
-          }
-        }
-        ctx.lineCap = 'butt';
-      }
-      ctx.globalCompositeOperation = 'source-over';
-    }
-    ctx.globalAlpha = 1;
-  }
   ctx.textAlign = 'center';
   for (const p of popups) {
     const al = clamp(p.life, 0, 1);

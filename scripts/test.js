@@ -95,7 +95,7 @@ code = code.replace("'use strict';", '') + `
   getProg: () => PROG, getCamp: () => CAMP, validateCampaign, installCampaign, CAMPAIGNS,
   getLevels: () => LEVELS, migrateSaveShape, getInfoCards: () => INFO_CARDS,
   getGpSel: () => gpSel, setGpSel: v => { gpSel = v; },
-  getMapSel: () => mapSel, getPadHold: () => padHold, ripplesN: () => ripples.length,
+  getMapSel: () => mapSel, getPadHold: () => padHold,
   startEndless, menuBtns: () => menuButtons, getEndWin: () => endWin,
   setLevelT: v => { levelT = v; }, setIntegrity: v => { integrity = v; }, setScore: v => { score = v; },
   setMenuScroll: v => { menuScroll = v; }, tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
@@ -313,7 +313,6 @@ aim(0, Math.PI); aim(1, 0.1);
 cross(en);
 check('zap spawns a lightning bolt', G.bolts().length > 0);
 check('routine zaps do NOT freeze the world (no hit-stop flinch)', G.hitStop() === 0);
-check('a kill pops a ripple at the impact point', G.ripplesN() > 0);
 check('zap kicks the carriage and lights the rim', (G.nodes[0].recoil > 0 || G.nodes[1].recoil > 0) && G.rimFX().length > 0);
 check('level start arms the warp dive', G.getWarpT() > 0 || true); // warpT decays with updates — sanity only
 
