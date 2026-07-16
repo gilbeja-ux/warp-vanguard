@@ -2071,8 +2071,51 @@ function updateTutorial(dt) {
     else if (tut.t > 0.8) advanceQual();
   }
 }
+// ---------- gamepad (desktop playtesting) ----------
+// two analog sticks ARE the dials: stick direction maps absolutely to node
+// angle (up = top of the ring), triggers spend the matching pulse, START
+// pauses, A dismisses info discs. Menus stay pointer-driven.
+let padPrev = { a: false, start: false, lt: false, rt: false };
+function pollGamepad() {
+  if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
+  let gp = null;
+  try { gp = Array.from(navigator.getGamepads()).find(p => p && p.connected && p.axes.length >= 4); } catch (e) {}
+  if (!gp) return;
+  const press = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
+  const stick = i => { // absolute node angle, or null inside the deadzone
+    const x = gp.axes[i * 2], y = gp.axes[i * 2 + 1];
+    return Math.hypot(x, y) > 0.45 ? Math.atan2(y, x) : null;
+  };
+  const start = press(9);
+  if (start && !padPrev.start) {
+    if (state === S.PLAY && introT >= INTRO_DUR) { state = S.PAUSE; sfx.tick(); }
+    else if (state === S.PAUSE) { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; sfx.tick(); }
+  }
+  padPrev.start = start;
+  const a0 = press(0);
+  if (a0 && !padPrev.a && state === S.INFO && !infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); }
+  padPrev.a = a0;
+  if (state !== S.PLAY) return;
+  if (introT < INTRO_DUR) { // boot gate: a deflected stick is a placed thumb
+    if (stick(0) !== null) padHold[0] = true;
+    if (stick(1) !== null) padHold[1] = true;
+    return;
+  }
+  const fused = boss && boss.mergeT >= 1;
+  for (let i = 0; i < 2; i++) {
+    if (fused && i === 1) continue;
+    const a = stick(i);
+    if (a !== null) nodes[i].angle = a;
+  }
+  for (const [bi, ni, key] of [[6, 0, 'lt'], [7, 1, 'rt']]) { // LT/RT → pulse
+    const dn = press(bi);
+    if (dn && !padPrev[key] && !boss && pulseCharge[ni] >= PULSE_MAX && nodes[ni].deadT <= 0) firePulse(ni);
+    padPrev[key] = dn;
+  }
+}
 function update(dt) {
   tickUI(dt); // press feedback + screen transitions run on the raw clock
+  pollGamepad();
   if (state === S.INFO && infoOutAt && time - infoOutAt >= 0.18) {
     const wasVerdict = infoCard === 'verdict';
     infoOutAt = 0;

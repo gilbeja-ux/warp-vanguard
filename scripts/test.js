@@ -1020,6 +1020,38 @@ soak('core firewall (boss fight)', () => G.startLevel(7), 90);
 soak('endless ramp', () => G.startEndless(), 150);
 G.keys['ArrowUp'] = false;
 
+// ================= gamepad (desktop playtesting) =================
+{
+  const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 10 }, () => ({ pressed: false })) };
+  Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [pad] }, configurable: true });
+  G.startLevel(1);
+  G.update(0.05);
+  pad.axes = [1, 0, 0, -1]; // left stick east, right stick north
+  G.update(0.05);
+  check('sticks steer the nodes absolutely',
+    Math.abs(G.nodes[0].angle) < 1e-6 && Math.abs(G.nodes[1].angle + Math.PI / 2) < 1e-6);
+  pad.axes = [0.1, 0.1, 0, -1]; // left stick inside the deadzone
+  G.update(0.05);
+  check('deadzone leaves the node parked', Math.abs(G.nodes[0].angle) < 1e-6);
+  G.setPulse([G.PULSE_MAX(), 0]);
+  pad.buttons[6].pressed = true; // LT
+  G.update(0.05);
+  check('left trigger spends the charged blue pulse', G.pulseWavesN() > 0 && G.getPulse()[0] === 0);
+  pad.buttons[6].pressed = false;
+  pad.buttons[9].pressed = true; // START
+  G.update(0.05);
+  check('START pauses the run', G.getState() === G.S.PAUSE);
+  pad.buttons[9].pressed = false;
+  G.update(0.05);
+  pad.buttons[9].pressed = true;
+  G.update(0.05);
+  check('START again resumes', G.getState() === G.S.PLAY);
+  pad.buttons[9].pressed = false;
+  G.update(0.05);
+  delete globalThis.navigator;
+  G.setState(G.S.MENU);
+}
+
 // ================= Web Audio music looper =================
 const tick = () => new Promise(r => setImmediate(r));
 (async () => {
