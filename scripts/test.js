@@ -113,7 +113,7 @@ code = code.replace("'use strict';", '') + `
   latches: () => latches, setLatches: v => { latches = v; },
   spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; },
   volley: () => volley, BOSS_CER: () => BOSS_CER,
-  bandCfg, lintLevel, lintCampaign, getSched: () => sched
+  bandCfg, lintLevel, lintCampaign, lintWalk, getSched: () => sched
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -1283,6 +1283,40 @@ G.keys['ArrowUp'] = false;
   const solo = ED.newCampaign();
   check('removeLevel never empties a campaign', ED.removeLevel(solo, 0) === false && solo.levels.length === 1);
   check('comms clamp at the 64-char transmission limit', ED.clampComm('x'.repeat(80)).length === 64);
+  // wall authoring guard: one carpet per rim window (release..burn-off) —
+  // an overlapping window + arc would be golden-angle hopped by the engine
+  const wl = ED.newLevel('WALLS'); wl.duration = 60;
+  ED.addBeat(wl, ED.makeBeat('wall', 20, 1.0));
+  const trav = 5; // nominal travel — the guard takes it as a param, purity intact
+  check('wallFits blocks a stacked wall (same window, same arc)', ED.wallFits(wl, 21, 1.2, trav).ok === false);
+  check('wallFits blocks an unknown (seeded) arc inside the window', ED.wallFits(wl, 21, undefined, trav).ok === false);
+  check('wallFits allows the same arc once the windows clear', ED.wallFits(wl, 20 + trav + 3.7, 1.0, trav).ok === true);
+  check('wallFits allows an opposite arc inside the window', ED.wallFits(wl, 21, 1.0 + Math.PI, trav).ok === true);
+  // color language: every chip resolves, and the game's code is spoken exactly
+  check('every tool speaks the in-game color language',
+    ['normal', 'heavy', 'line', 'lock0', 'lock1', 'frag', 'wall', 'strip', 'pickup', 'lull']
+      .every(k => { const c = ED.chip(k); return !!(c.bg && c.bd && c.tick); }) &&
+    ED.colors.heavy === '#d465ff' && ED.colors.wall === '#ff963c' &&
+    ED.colors.lock0 === '#4d9bff' && ED.colors.frag === '#0b0e16' && ED.colors.normal === '#ff5468');
+
+  // --- lintWalk: the extracted timeline walk (filler lane + wall predictions) ---
+  const wkA = G.lintWalk(G.CAMPAIGNS[0].levels[1], 1);
+  const wkB = G.lintWalk(G.CAMPAIGNS[0].levels[1], 1);
+  check('lintWalk emits a deterministic arrival list',
+    wkA.arr.length > 10 && JSON.stringify(wkA.arr.map(r => [r.t, r.type, r.angle])) ===
+    JSON.stringify(wkB.arr.map(r => [r.t, r.type, r.angle])));
+  check('pure filler arrivals carry no beat tag', wkA.arr.every(r => r.beat === undefined));
+  const wlv = { name: 'WK', tint: '1,2,3', duration: 40, spawnMin: 1.0, spawnMax: 1.6, speed: 0.4,
+    doubles: 0.3, heavies: 0, lines: 0, colors: 0,
+    beats: [{ t: 10, kind: 'enemy', type: 'normal', angle: 2.0 }, { t: 10.5, kind: 'wall', angle: 2.0 }] };
+  const wk = G.lintWalk(wlv, 0);
+  const ww = wk.walls.find(w2 => w2.beat !== undefined);
+  check('walk separates authored beats from filler', wk.arr.some(r => r.beat !== undefined) && !!ww);
+  check('walk reports where a clashing authored wall actually LANDS',
+    !!ww && Math.abs(ww.a - 2.0) > 0.1); // the t=10 arrival owns that arc — the engine hops the wall
+  const wpA = recordSpawns(() => G.startLevel(1), 10);
+  const wpB = recordSpawns(() => { G.startLevel(1); G.lintWalk(G.getLevels()[4], 4); }, 10);
+  check('lintWalk never disturbs the live spawn stream', wpA.join(';') === wpB.join(';'));
 }
 
 // ================= gamepad (desktop playtesting) =================

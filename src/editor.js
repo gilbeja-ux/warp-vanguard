@@ -14,6 +14,13 @@ const ED = {
   // ---------- primitives ----------
   clone(o) { return JSON.parse(JSON.stringify(o)); },
   norm(a) { const TAU = Math.PI * 2; a %= TAU; return a < 0 ? a + TAU : a; },
+  angDiff(a, b) {
+    const TAU = Math.PI * 2;
+    let d = (a - b) % TAU;
+    if (d > Math.PI) d -= TAU;
+    if (d < -Math.PI) d += TAU;
+    return d;
+  },
   snap(t, step) { step = step || 0.1; return +(Math.round(t / step) * step).toFixed(2); },
   // timeline math: 0..duration maps linearly onto 0..w pixels
   t2x(t, dur, w) { return dur > 0 ? t / dur * w : 0; },
@@ -80,6 +87,22 @@ const ED = {
     if (!level.beats.length) delete level.beats;
     return true;
   },
+  // walls: one carpet per rim window. A wall owns its stretch of the rail from
+  // release (t - travel: the telegraph rides in with the traffic) until
+  // burn-off (t + 3.6). A second wall whose window AND arc overlap would be
+  // golden-angle hopped by the engine (fairness beats authorship) — block it
+  // at authoring time instead, so clicks always stick where they land.
+  wallFits(level, t, angle, trav) {
+    for (const w of level.beats || []) {
+      if (w.kind !== 'wall') continue;
+      if (Math.abs(w.t - t) >= trav + 3.6) continue; // rim windows clear of each other
+      if (angle === undefined || w.angle === undefined)
+        return { ok: false, why: 'window overlaps the seeded-arc wall at ' + w.t + 's' };
+      if (Math.abs(ED.angDiff(angle, w.angle)) < 1.0)
+        return { ok: false, why: 'arc overlaps the wall at ' + w.t + 's' };
+    }
+    return { ok: true };
+  },
 
   // ---------- band mutators ----------
   addBand(level, t0, t1) {
@@ -136,10 +159,23 @@ const ED = {
     return errs.length ? { errors: errs } : { pkg };
   },
 
-  // marker palette (kept here so tests can assert coverage of every tool)
+  // the in-game enemy color language — toolbox underlines, timeline markers,
+  // beat-list chips and filler ticks all speak it: normal/barrier RED, heavy
+  // PURPLE, locks BLUE/WHITE, node-killer BLACK, wall latch-ORANGE
+  // (255,150,60), bonus stream + power-up GOLD, lull neutral gray-blue
   colors: {
-    normal: '#ff6a7a', heavy: '#ffb347', line: '#ffe066', lock0: '#4d8dff',
-    lock1: '#f4f8ff', frag: '#d465ff', wall: '#ff8c42', strip: '#ffd24a', pickup: '#7ee262'
+    normal: '#ff5468', heavy: '#d465ff', line: '#ff5468', lock0: '#4d9bff',
+    lock1: '#ffffff', frag: '#0b0e16', wall: '#ff963c', strip: '#ffd24a',
+    pickup: '#ffd24a', lull: '#46608c'
+  },
+  chip(key) {
+    const c = ED.colors[key] || '#46608c';
+    if (key === 'frag') return { bg: c, bd: '#7ea2d8', tick: '#7ea2d8' };  // the black trap needs an outline on a dark UI
+    if (key === 'pickup') return { bg: 'transparent', bd: c, tick: c };    // gold RING — the solid gold chip is the strip
+    if (key === 'line') return { bg: c, bd: '#ff8ba0', tick: c };          // red base, pinkish beam accent
+    if (key === 'lock1') return { bg: c, bd: '#5a6a85', tick: c };
+    if (key === 'lull') return { bg: 'rgba(70,96,140,0.27)', bd: '#7ea2d8', tick: '#7ea2d8' };
+    return { bg: c, bd: '#000', tick: c };
   },
   beatKey(b) { return b.kind === 'enemy' ? (b.type || 'normal') : b.kind; }
 };
@@ -151,8 +187,12 @@ globalThis.ED = ED;
 const EDUI = {
   pkg: null, li: 0, playhead: 0, scrubMs: 0,
   mode: 'edit',            // 'edit' | 'play' (preview) | 'live' (real input)
-  tool: 'select', selBeat: null, selBand: null,
+  tool: 'select', selBeat: null, selBand: null, selComm: -1,
   errs: [], sources: [], applyT: 0, seekT: 0, seekRaf: 0,
+  walk: null,              // lintWalk of the active level — filler lane + wall predictions
+  ghost: null, ghostEv: null, ghostRaf: 0, flash: null, flashT: 0,
+  markerOf: null,          // beat -> timeline marker element (hover highlight)
+  commRows: [],
   dragging: false, booted: false
 };
 const EDTOOLS = ['select', 'normal', 'heavy', 'line', 'lock0', 'lock1', 'frag', 'wall', 'strip', 'pickup', 'lull'];
@@ -245,12 +285,15 @@ function edApply(now) {
   clearTimeout(EDUI.applyT);
   const run = () => {
     EDUI.errs = validateCampaign(EDUI.pkg);
+    EDUI.walk = null;
     if (!EDUI.errs.length) {
       installCampaign(ED.clone(EDUI.pkg)); // the scrubber always simulates the EDITED data
       edScrub(EDUI.playhead);
+      // the linter's walk feeds the FILLER lane + wall-relocation verdicts
+      try { EDUI.walk = lintWalk(edLv(), EDUI.li); } catch (e) { /* lane goes dark, editing continues */ }
     }
     edRenderLint();
-    if (!EDUI.dragging) edRenderTimeline();
+    if (!EDUI.dragging) { edRenderTimeline(); edRenderBeatList(); }
     edHud();
   };
   if (now) run(); else EDUI.applyT = setTimeout(run, 250);
@@ -259,14 +302,15 @@ function edApply(now) {
 function edLoadPkg(p, srcIdx) {
   if (srcIdx !== undefined) EDUI.srcIdx = srcIdx;
   EDUI.pkg = p; EDUI.li = 0; EDUI.playhead = 0;
-  EDUI.selBeat = EDUI.selBand = null; EDUI.mode = 'edit';
+  EDUI.selBeat = EDUI.selBand = null; EDUI.selComm = -1; EDUI.mode = 'edit';
   edApply(true);
   edRenderCampaign(srcIdx);
   edRenderLevel(); edRenderBeatList(); edRenderBandIns(); edTransport();
 }
 function edSelectLevel(i) {
   EDUI.li = Math.max(0, Math.min(i, EDUI.pkg.levels.length - 1));
-  EDUI.playhead = 0; EDUI.selBeat = EDUI.selBand = null;
+  EDUI.playhead = 0; EDUI.selBeat = EDUI.selBand = null; EDUI.selComm = -1;
+  edGhostClear();
   if (EDUI.mode !== 'edit') { EDUI.mode = 'edit'; edTransport(); }
   edApply(true);
   edRenderCampaign(); edRenderLevel(); edRenderBeatList(); edRenderBandIns();
@@ -324,15 +368,87 @@ function edHud() {
     : EDUI.mode === 'play' ? 'PREVIEW (integrity pinned)' : 'LIVE INPUT — the canvas is the game';
   const tool = EDUI.mode === 'edit' && EDUI.tool !== 'select'
     ? '<br>tool: ' + EDUI.tool.toUpperCase() + ' — click the tunnel to place at t=' + EDUI.playhead.toFixed(1) + 's' : '';
+  let ghost = '';
+  if (EDUI.ghost) {
+    const gh = EDUI.ghost;
+    ghost = !gh.fit.ok ? '<br><span class="warn">BLOCKED — ' + gh.fit.why + '</span>'
+      : gh.moved ? '<br><span class="warn">fairness will relocate — authored ' + gh.aA.toFixed(2) + ', lands ' + gh.aR.toFixed(2) + '</span>'
+      : '<br>wall lands at ' + gh.aA.toFixed(2) + ' rad — as authored';
+  }
+  const flash = EDUI.flash ? '<br><span class="warn">' + EDUI.flash + '</span>' : '';
   const bad = EDUI.errs.length ? '<br><span class="warn">PACKAGE INVALID — canvas shows the last good data</span>' : '';
-  h.innerHTML = mode + tool + bad;
+  h.innerHTML = mode + tool + ghost + flash + bad;
+}
+function edFlash(msg) { // transient stage warning (e.g. a blocked wall click)
+  EDUI.flash = msg;
+  clearTimeout(EDUI.flashT);
+  EDUI.flashT = setTimeout(() => { EDUI.flash = null; edHud(); }, 2000);
+  edHud();
+}
+// nominal travel time of a wall carpet, same law as the linter (hitZ 0.25)
+function edWallTrav() { return (SPAWN_Z - 0.25) / edLv().speed; }
+// the fairness verdict for an authored wall beat, from the cached walk
+function edWalkWall(b) {
+  if (!EDUI.walk || b.angle === undefined) return null;
+  const bi = (edLv().beats || []).indexOf(b);
+  const w = EDUI.walk.walls.find(w2 => w2.beat === bi);
+  if (!w) return null; // slid past the level end or never released
+  return { a: ED.norm(w.a), moved: Math.abs(ED.angDiff(w.a, b.angle)) > 0.02 };
+}
+
+// ---------- wall ghost: preview where the carpet would ACTUALLY land ----------
+function edGhostClear() {
+  const c = edq('edGhost');
+  c.getContext('2d').clearRect(0, 0, c.width, c.height);
+  if (EDUI.ghost) { EDUI.ghost = null; edHud(); }
+}
+function edGhostDraw() {
+  const c = edq('edGhost'), stage = edq('edStage');
+  if (c.width !== stage.clientWidth || c.height !== stage.clientHeight) {
+    c.width = stage.clientWidth; c.height = stage.clientHeight;
+  }
+  const x = c.getContext('2d');
+  x.clearRect(0, 0, c.width, c.height);
+  EDUI.ghost = null;
+  const ev = EDUI.ghostEv;
+  if (!ev || EDUI.tool !== 'wall' || EDUI.mode !== 'edit' || EDUI.errs.length) { edHud(); return; }
+  const lv = edLv(), g = geo();
+  const aA = ED.norm(Math.atan2(ev.y - g.cy, ev.x - g.cx));
+  const t = ED.snap(EDUI.playhead);
+  const fit = ED.wallFits(lv, t, aA, edWallTrav());
+  let aR = aA, moved = false;
+  if (fit.ok) {
+    // predict the landed arc with the linter's own walk: clone the level, add
+    // the candidate beat, and read back where simWall put it (clash hops incl.)
+    const cl = ED.clone(lv);
+    const nb = ED.addBeat(cl, ED.makeBeat('wall', t, +aA.toFixed(3)));
+    const bi = cl.beats.indexOf(nb);
+    try {
+      const w = lintWalk(cl, EDUI.li).walls.find(w2 => w2.beat === bi);
+      if (w) { aR = ED.norm(w.a); moved = Math.abs(ED.angDiff(aR, aA)) > 0.02; }
+    } catch (err) { /* preview only — never blocks editing */ }
+  }
+  const span = 0.5; // latch half-span
+  const arc = (ang, color, lw, alpha, dash) => {
+    x.save();
+    x.globalAlpha = alpha; x.strokeStyle = color; x.lineWidth = lw; x.setLineDash(dash); x.lineCap = 'round';
+    x.beginPath(); x.arc(g.cx, g.cy, g.nodeR, ang - span, ang + span); x.stroke();
+    x.restore();
+  };
+  if (!fit.ok) arc(aA, '#8fa4c8', 4, 0.45, [3, 6]);                                  // greyed: click will not place
+  else if (moved) { arc(aA, '#8fa4c8', 3, 0.4, [3, 6]); arc(aR, '#ff963c', 6, 0.9, [8, 5]); } // authored scar + landed arc
+  else arc(aA, '#ff963c', 6, 0.9, [8, 5]);
+  EDUI.ghost = { fit, aA, aR, moved };
+  edHud();
 }
 
 // ---------- static wiring: transport, tools, lanes, keys, io ----------
 function edBuildStatic() {
-  // collapsible side sections
+  // collapsible side sections + timeline lane headers
   for (const sec of document.querySelectorAll('.sec > h2'))
     sec.addEventListener('click', () => sec.parentElement.classList.toggle('closed'));
+  for (const head of document.querySelectorAll('.laneHead'))
+    head.addEventListener('click', () => head.parentElement.classList.toggle('closed'));
 
   edq('edHome').addEventListener('click', () => { if (EDUI.mode === 'edit') edScrub(0); });
   edq('edPlay').addEventListener('click', edTogglePlay);
@@ -348,10 +464,11 @@ function edBuildStatic() {
     b.textContent = toolNames[t];
     b.title = t;
     b.dataset.tool = t;
-    if (ED.colors[t]) b.style.borderBottom = '2px solid ' + ED.colors[t];
+    if (t !== 'select') b.style.borderBottom = '2px solid ' + ED.chip(t).tick;
     b.addEventListener('click', () => {
       EDUI.tool = t;
       for (const o of tools.children) o.classList.toggle('on', o.dataset.tool === t);
+      if (t !== 'wall') edGhostClear();
       edHud();
     });
   }
@@ -365,19 +482,34 @@ function edBuildStatic() {
     if (e.key === ' ') { e.preventDefault(); e.stopImmediatePropagation(); edTogglePlay(); }
   }, true);
 
-  // canvas overlay: click-to-place beats (t = playhead, angle = click bearing)
+  // canvas overlay: click-to-place beats (t = playhead, angle = click bearing).
+  // every placement re-applies + re-scrubs, so its effect shows immediately
   edq('edOv').addEventListener('pointerdown', e => {
     if (EDUI.mode === 'play') edTogglePlay(); // placing implies pausing
     if (EDUI.mode !== 'edit' || EDUI.tool === 'select' || EDUI.errs.length) return;
     const g = geo(); // the real game's bore geometry — canvas sits at page (0,0)
     const angle = ED.norm(Math.atan2(e.clientY - g.cy, e.clientX - g.cx));
     const withAngle = EDUI.tool !== 'strip' && EDUI.tool !== 'pickup' && EDUI.tool !== 'lull';
-    const beat = ED.makeBeat(EDUI.tool, ED.snap(EDUI.playhead), withAngle ? +angle.toFixed(3) : undefined);
+    const t = ED.snap(EDUI.playhead);
+    if (EDUI.tool === 'wall') { // one carpet per rim window — a blocked click never lands
+      const fit = ED.wallFits(edLv(), t, +angle.toFixed(3), edWallTrav());
+      if (!fit.ok) { edFlash('WALL BLOCKED — ' + fit.why); return; }
+    }
+    const beat = ED.makeBeat(EDUI.tool, t, withAngle ? +angle.toFixed(3) : undefined);
     if (beat.angle === undefined) delete beat.angle;
     ED.addBeat(edLv(), beat);
     EDUI.selBeat = beat; EDUI.selBand = null;
-    edApply(true); edRenderBeatList();
+    edApply(true);
+    if (EDUI.tool === 'wall') edGhostDraw(); // the guard windows just changed under the cursor
   });
+  // wall tool: live ghost of the resolved landing arc under the cursor
+  const ov = edq('edOv');
+  ov.addEventListener('pointermove', e => {
+    if (EDUI.tool !== 'wall' || EDUI.mode !== 'edit') return;
+    EDUI.ghostEv = { x: e.clientX, y: e.clientY };
+    if (!EDUI.ghostRaf) EDUI.ghostRaf = requestAnimationFrame(() => { EDUI.ghostRaf = 0; edGhostDraw(); });
+  });
+  ov.addEventListener('pointerleave', () => { EDUI.ghostEv = null; edGhostClear(); });
 
   // ruler: seek / drag the playhead
   const ruler = edq('edRuler');
@@ -580,57 +712,112 @@ function edDeleteSel() {
   edApply(true); edRenderBeatList(); edRenderBandIns();
 }
 
-// ---------- timeline rendering ----------
+// ---------- timeline rendering: one lane per ingredient ----------
 function edPlacePlayhead() {
-  const w = edq('edRuler').clientWidth;
-  edq('edPh').style.left = ED.t2x(EDUI.playhead, edLv().duration, w) + 'px';
+  const tr = edq('edRuler'); // the playhead spans every lane; tracks share one x-origin
+  edq('edPh').style.left = (tr.offsetLeft + ED.t2x(EDUI.playhead, edLv().duration, tr.clientWidth)) + 'px';
 }
 function edRenderTimeline() {
   const lv = edLv();
   const w = edq('edRuler').clientWidth;
-  // ruler: ticks + comm diamonds
+  EDUI.markerOf = new Map();
+  // TIME
   const ruler = edq('edRuler');
-  ruler.innerHTML = '<span class="laneTag">TIME</span>';
+  ruler.innerHTML = '';
   const step = lv.duration > 180 ? 30 : lv.duration > 90 ? 10 : 5;
   for (let t = 0; t <= lv.duration; t += step) {
     const x = ED.t2x(t, lv.duration, w);
     edEl('div', 'tick', ruler).style.left = x + 'px';
-    if (!t) continue; // the TIME tag owns the left corner
+    if (!t) continue;
     const l = edEl('div', 'tickL', ruler);
     l.style.left = (x + 3) + 'px';
     l.textContent = t + 's';
   }
-  for (const c of lv.comms || []) {
-    const d = edEl('div', 'commD', ruler);
-    d.style.left = (ED.t2x(c.t, lv.duration, w) - 3) + 'px';
-    const spk = (EDUI.pkg.speakers || []).find(s => s.id === c.s);
-    d.style.background = spk ? 'rgb(' + spk.color + ')' : '#888';
-    d.title = c.t + 's ' + c.s + ': ' + c.m;
+  // STORY (read-only): deploy card at t=0 + each comm's on-screen window
+  const st = edq('edStoryLane');
+  st.innerHTML = '';
+  if (lv.story) {
+    const sb = edEl('div', 'storyB', st);
+    sb.style.left = '0px';
+    sb.style.width = Math.max(46, ED.t2x(3, lv.duration, w)) + 'px';
+    sb.textContent = lv.story.title;
+    sb.title = 'deploy briefing: ' + lv.story.title;
   }
-  // beat lane
-  const bl = edq('edBeatLane');
-  bl.innerHTML = '<span class="laneTag">BEATS</span>';
+  (lv.comms || []).forEach((cm, i) => {
+    const spk = (EDUI.pkg.speakers || []).find(s => s.id === cm.s);
+    const col = spk ? spk.color : '110,143,184';
+    const b = edEl('div', 'commB' + (i === EDUI.selComm ? ' hot' : ''), st);
+    b.style.left = ED.t2x(Math.max(0, cm.t - 0.5), lv.duration, w) + 'px'; // the window filler routes around
+    b.style.width = Math.max(20, ED.t2x(3.7, lv.duration, w)) + 'px';
+    b.style.borderColor = 'rgb(' + col + ')';
+    b.style.background = 'rgba(' + col + ',0.22)';
+    b.style.color = 'rgb(' + col + ')';
+    b.textContent = cm.s + ' ' + cm.m;
+    b.title = cm.t + 's ' + cm.s + ': ' + cm.m + ' — click to edit';
+    b.addEventListener('click', () => edSelectComm(i));
+  });
+  // authored beats, each kind on its own lane
+  const laneFor = b => b.kind === 'wall' ? 'edWallLane' : b.kind === 'lull' ? 'edLullLane'
+    : b.kind === 'enemy' ? 'edEnemyLane' : 'edStreamLane';
+  for (const id of ['edWallLane', 'edEnemyLane', 'edStreamLane', 'edLullLane']) edq(id).innerHTML = '';
   for (const b of lv.beats || []) {
+    const track = edq(laneFor(b));
     let el;
     if (b.kind === 'lull') {
-      el = edEl('div', 'lullM', bl);
+      el = edEl('div', 'lullM', track);
       el.style.left = ED.t2x(b.t, lv.duration, w) + 'px';
       el.style.width = Math.max(6, ED.t2x(b.dur || 1, lv.duration, w)) + 'px';
       el.title = 'lull ' + b.t + 's +' + b.dur + 's';
     } else {
-      el = edEl('div', 'beatM', bl);
+      const key = ED.beatKey(b), ch = ED.chip(key);
+      el = edEl('div', 'beatM' + (key === 'pickup' ? ' hollow' : ''), track);
       el.style.left = ED.t2x(b.t, lv.duration, w) + 'px';
-      el.style.background = ED.colors[ED.beatKey(b)] || '#999';
-      el.title = ED.beatKey(b) + ' @ ' + b.t + 's';
-      const lbl = edEl('div', 'bLbl', el);
-      lbl.textContent = ED.beatKey(b).slice(0, 4);
+      el.style.background = ch.bg;
+      el.style.borderColor = ch.bd;
+      el.title = key + ' @ ' + b.t + 's';
+      if (b.kind === 'wall') { // fairness verdict straight on the marker
+        const wk = edWalkWall(b);
+        if (wk && wk.moved) {
+          el.title += ' — RELOCATED by fairness, lands at ' + wk.a.toFixed(2);
+          el.style.boxShadow = '0 0 6px var(--gold)';
+        }
+      }
     }
     if (b === EDUI.selBeat) el.classList.add('sel');
     el._beat = b;
-    edWireBeatDrag(el, bl);
+    EDUI.markerOf.set(b, el);
+    edWireBeatDrag(el, track);
+  }
+  // FILLER (read-only): the procedurally generated arrivals for the current
+  // knobs + bands, from the linter's pure walk — the whole level at a glance
+  const fl = edq('edFillerLane');
+  fl.innerHTML = '';
+  if (EDUI.walk) {
+    const tick = (t, key, wide, label) => {
+      const tk = edEl('div', 'fillT', fl);
+      tk.style.left = ED.t2x(t, lv.duration, w) + 'px';
+      tk.style.background = ED.chip(key).tick;
+      if (wide) tk.style.width = '5px';
+      tk.title = label + ' @ ' + t.toFixed(1) + 's (filler)';
+    };
+    for (const rec of EDUI.walk.arr) {
+      if (rec.beat !== undefined) continue; // authored — lives on its lane
+      const key = rec.lock === 0 ? 'lock0' : rec.lock === 1 ? 'lock1' : (ED.colors[rec.type] ? rec.type : 'normal');
+      tick(rec.t, key, false, key);
+    }
+    for (const wl of EDUI.walk.walls) if (wl.beat === undefined) tick(wl.tLand, 'wall', true, 'wall');
+    for (const p of EDUI.walk.picks) if (p.beat === undefined) tick(p.t, 'pickup', false, 'power-up');
   }
   edPaintBands();
   edPlacePlayhead(); edClock();
+}
+function edSelectComm(i) { // a comm block on the STORY lane jumps to its editor row
+  EDUI.selComm = i;
+  edq('secLevel').classList.remove('closed');
+  edRenderLevel();
+  edRenderTimeline();
+  const row = EDUI.commRows[i];
+  if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 function edWireBeatDrag(el, bl) {
   el.addEventListener('pointerdown', e => {
@@ -638,7 +825,7 @@ function edWireBeatDrag(el, bl) {
     e.stopPropagation();
     const lv = edLv(), b = el._beat;
     EDUI.selBeat = b; EDUI.selBand = null;
-    for (const o of bl.children) o.classList && o.classList.toggle('sel', o._beat === b);
+    for (const [bb, m] of EDUI.markerOf) m.classList.toggle('sel', bb === b);
     edRenderBeatList(); edRenderBandIns();
     const rect = bl.getBoundingClientRect();
     const off = e.clientX - rect.left - ED.t2x(b.t, lv.duration, bl.clientWidth);
@@ -653,7 +840,7 @@ function edWireBeatDrag(el, bl) {
     const up = () => {
       el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up);
       EDUI.dragging = false;
-      edApply(true); edRenderBeatList();
+      edApply(true);
     };
     el.addEventListener('pointermove', mv);
     el.addEventListener('pointerup', up);
@@ -662,7 +849,7 @@ function edWireBeatDrag(el, bl) {
 function edPaintBands() {
   const lv = edLv();
   const lane = edq('edBandLane');
-  lane.innerHTML = '<span class="laneTag">BANDS</span>';
+  lane.innerHTML = '';
   (lv.bands || []).forEach((b, i) => {
     const el = edEl('div', 'bandM' + (b === EDUI.selBand ? ' sel' : ''), lane);
     el.dataset.i = i;
@@ -772,8 +959,10 @@ function edRenderLevel() {
   // comms
   const cm = edq('lComms');
   cm.innerHTML = '';
+  EDUI.commRows = [];
   (lv.comms || []).forEach((c, i) => {
-    const row = edEl('div', 'row', cm);
+    const row = edEl('div', 'row' + (i === EDUI.selComm ? ' sel' : ''), cm);
+    EDUI.commRows.push(row);
     const t = edEl('input', '', row); t.type = 'number'; t.step = 0.5; t.value = c.t; t.style.width = '52px';
     t.addEventListener('input', e => { c.t = +e.target.value || 0; edApply(); });
     const s = edEl('select', '', row);
@@ -785,7 +974,7 @@ function edRenderLevel() {
     const m = edEl('input', '', row); m.maxLength = 64; m.value = c.m; m.style.flex = '1';
     m.addEventListener('input', e => { c.m = ED.clampComm(e.target.value); edApply(); });
     const x = edEl('button', 'xbtn danger', row); x.textContent = '✕';
-    x.addEventListener('click', () => { lv.comms.splice(i, 1); edApply(); edRenderLevel(); });
+    x.addEventListener('click', () => { lv.comms.splice(i, 1); EDUI.selComm = -1; edApply(); edRenderLevel(); });
   });
   edPaintMap();
 }
@@ -813,8 +1002,18 @@ function edRenderBeatList() {
       EDUI.selBeat = b; EDUI.selBand = null;
       edRenderBeatList(); edRenderTimeline(); edRenderBandIns();
     });
+    // hovering a row lights up its timeline marker
+    row.addEventListener('mouseenter', () => {
+      const m = EDUI.markerOf && EDUI.markerOf.get(b);
+      if (m) m.classList.add('hov');
+    });
+    row.addEventListener('mouseleave', () => {
+      const m = EDUI.markerOf && EDUI.markerOf.get(b);
+      if (m) m.classList.remove('hov');
+    });
+    const ch = ED.chip(ED.beatKey(b));
     const sw = edEl('span', 'swatch', row);
-    sw.style.background = ED.colors[ED.beatKey(b)] || '#46608c';
+    sw.style.background = ch.bg; sw.style.borderColor = ch.bd;
     const t = edEl('input', '', row); t.type = 'number'; t.step = 0.1; t.value = b.t; t.style.width = '58px'; t.title = 't (arrival)';
     t.addEventListener('change', e => { ED.retimeBeat(lv, b, +e.target.value || 0); edApply(true); edRenderBeatList(); });
     const tag = edEl('span', '', row); tag.textContent = b.kind;
@@ -825,7 +1024,8 @@ function edRenderBeatList() {
       s.value = b.type || '';
       s.addEventListener('change', e => {
         if (e.target.value) b.type = e.target.value; else delete b.type;
-        sw.style.background = ED.colors[ED.beatKey(b)] || '#46608c';
+        const c2 = ED.chip(ED.beatKey(b));
+        sw.style.background = c2.bg; sw.style.borderColor = c2.bd;
         edApply(true);
       });
     }
@@ -852,6 +1052,13 @@ function edRenderBeatList() {
       if (EDUI.selBeat === b) EDUI.selBeat = null;
       edApply(true); edRenderBeatList();
     });
+    if (b.kind === 'wall') { // the engine moved an authored wall — say so, inline
+      const wk = edWalkWall(b);
+      if (wk && wk.moved) {
+        const warn = edEl('div', 'bwarn', row);
+        warn.textContent = '⚠ relocated by fairness — authored ' + b.angle.toFixed(2) + ', lands ' + wk.a.toFixed(2);
+      }
+    }
   }
   if (!sorted.length) edEl('div', 'hintNote', el).textContent = 'no beats yet — arm a tool and click the tunnel.';
 }

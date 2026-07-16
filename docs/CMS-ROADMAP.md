@@ -126,6 +126,16 @@ does not ship in the store build.
   - beat placement by clicking the tunnel (t = playhead, angle = click
     bearing); draggable timeline markers, band lane with intensity/mix
     inspector, live debounced lint panel (findings jump the playhead)
+  - layered timeline, video-editor style: TIME · STORY (deploy card + comm
+    windows, read-only, click-to-edit) · WALLS · ENEMIES · STREAMS · LULLS ·
+    BANDS · FILLER — the filler lane renders the procedurally generated
+    arrivals from `lintWalk` (the linter's pure timeline walk, extracted from
+    lintLevel behavior-identically), so the whole level is visible at once.
+    Marker/tool/chip colors speak the in-game enemy language exactly.
+  - wall authoring is honest about fairness: the WALL tool shows a ghost arc
+    where the carpet will ACTUALLY land (relocation predicted via lintWalk),
+    overlapping wall windows are blocked at placement, and a relocated wall
+    carries an inline "authored X, lands Y" warning in the beat list
   - export as pretty JSON / copy-as-campaigns.js-entry; import validates
     through validateCampaign before load
 

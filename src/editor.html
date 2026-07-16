@@ -20,7 +20,7 @@
     font-family: 'Audiowide', 'Segoe UI', system-ui, sans-serif; font-size: 12px; }
   /* layout: game preview MUST sit at page (0,0) — the game maps pointer events
      assuming its canvas starts at the viewport origin */
-  body { display: grid; grid-template-columns: minmax(0,1fr) 400px; grid-template-rows: minmax(0,1fr) 252px; }
+  body { display: grid; grid-template-columns: minmax(0,1fr) 400px; grid-template-rows: minmax(0,1fr) 256px; }
   #edStage { grid-column: 1; grid-row: 1; position: relative; overflow: hidden; background: #03060e; }
   #edStage canvas { display: block; position: absolute; left: 0; top: 0; }
   #edOv { position: absolute; inset: 0; z-index: 5; cursor: crosshair; }
@@ -45,28 +45,44 @@
   #edTools { margin-left: auto; display: flex; gap: 4px; }
   #edTools button { padding: 4px 6px; font-size: 10px; }
 
-  /* ---- timeline lanes ---- */
-  #edLanes { position: relative; flex: 1; margin: 6px 12px 10px; min-height: 0; }
-  .lane { position: relative; border: 1px solid var(--line); border-radius: 3px; background: var(--panel2); overflow: hidden; }
-  #edRuler { height: 26px; cursor: ew-resize; }
-  #edBeatLane { height: 66px; margin-top: 5px; }
-  #edBandLane { height: 40px; margin-top: 5px; cursor: copy; }
-  .laneTag { position: absolute; left: 4px; top: 2px; font-size: 9px; color: var(--dim); pointer-events: none; z-index: 1; }
+  /* ---- timeline: one lane per ingredient, video-editor style ---- */
+  #edLanes { position: relative; flex: 1; margin: 5px 12px 6px; min-height: 0; overflow: hidden; }
+  .laneRow { display: flex; align-items: stretch; margin-bottom: 3px; }
+  .laneHead { width: 62px; flex: none; font-size: 8px; letter-spacing: 1px; color: var(--dim);
+    padding: 2px 4px 0 2px; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; }
+  .laneHead:hover { color: var(--cyan); }
+  .laneHead::before { content: '▾'; margin-right: 3px; }
+  .laneRow.closed .laneHead::before { content: '▸'; }
+  .laneTrack { flex: 1; position: relative; border: 1px solid var(--line); border-radius: 3px;
+    background: var(--panel2); overflow: hidden; min-width: 0; }
+  #edRuler { height: 20px; cursor: ew-resize; }
+  #edStoryLane, #edWallLane, #edEnemyLane, #edStreamLane { height: 24px; }
+  #edLullLane { height: 16px; }
+  #edBandLane { height: 20px; cursor: copy; }
+  #edFillerLane { height: 16px; }
+  .laneRow.closed .laneTrack { height: 6px; }
+  .laneRow.closed .laneTrack > * { display: none; }
   .tick { position: absolute; top: 0; bottom: 0; width: 1px; background: #14305a88; pointer-events: none; }
-  .tickL { position: absolute; top: 1px; font-size: 9px; color: var(--dim); pointer-events: none; }
-  .commD { position: absolute; bottom: 2px; width: 7px; height: 7px; transform: rotate(45deg); border: 1px solid #000; pointer-events: none; }
+  .tickL { position: absolute; top: 3px; font-size: 9px; color: var(--dim); pointer-events: none; }
   #edPh { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--gold); z-index: 8; pointer-events: none;
     box-shadow: 0 0 8px var(--gold); }
   #edPh::before { content: ''; position: absolute; top: -1px; left: -4px; border: 5px solid transparent; border-top: 7px solid var(--gold); }
-  .beatM { position: absolute; top: 14px; width: 12px; height: 26px; margin-left: -6px; border-radius: 3px;
+  .beatM { position: absolute; top: 3px; bottom: 3px; width: 10px; margin-left: -5px; border-radius: 3px;
     border: 1px solid #000; cursor: grab; z-index: 3; }
+  .beatM.hollow { background: transparent !important; border-width: 2px; }
   .beatM.sel { outline: 2px solid var(--gold); z-index: 4; }
-  .beatM .bLbl { position: absolute; top: 27px; left: -14px; width: 40px; text-align: center; font-size: 8px; color: var(--dim); pointer-events: none; }
-  .lullM { position: absolute; top: 14px; height: 26px; background: #46608c44; border: 1px dashed #7ea2d8; border-radius: 3px;
+  .beatM.hov, .lullM.hov { outline: 2px solid var(--cyan); z-index: 4; }
+  .lullM { position: absolute; top: 2px; bottom: 2px; background: #46608c44; border: 1px dashed #7ea2d8; border-radius: 3px;
     cursor: grab; z-index: 2; }
   .lullM.sel { outline: 2px solid var(--gold); }
-  .bandM { position: absolute; top: 6px; bottom: 6px; background: #0e5f7a66; border: 1px solid var(--cyan); border-radius: 3px;
-    cursor: grab; z-index: 2; font-size: 9px; color: var(--cyan); text-align: center; overflow: hidden; line-height: 26px; }
+  .storyB, .commB { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; border: 1px solid;
+    font-size: 8px; line-height: 17px; padding: 0 3px; overflow: hidden; white-space: nowrap; z-index: 2; }
+  .commB { cursor: pointer; }
+  .commB.hot { outline: 2px solid var(--cyan); }
+  .storyB { color: var(--ink); border-color: var(--dim); background: #23324f66; }
+  .fillT { position: absolute; top: 3px; bottom: 3px; width: 3px; margin-left: -1px; opacity: 0.7; border-radius: 1px; }
+  .bandM { position: absolute; top: 2px; bottom: 2px; background: #0e5f7a66; border: 1px solid var(--cyan); border-radius: 3px;
+    cursor: grab; z-index: 2; font-size: 9px; color: var(--cyan); text-align: center; overflow: hidden; line-height: 14px; }
   .bandM.sel { outline: 2px solid var(--gold); }
   .bandM .bEdge { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
   .bandM .bEdge.l { left: 0; } .bandM .bEdge.r { right: 0; }
@@ -97,6 +113,7 @@
   .list .row.click { cursor: pointer; }
   .xbtn { margin-left: auto; padding: 1px 6px; font-size: 10px; }
   .hintNote { color: var(--dim); font-size: 9px; line-height: 1.5; margin: 6px 0; }
+  .bwarn { flex-basis: 100%; color: var(--gold); font-size: 9px; }
   .err { color: var(--red); font-size: 10px; margin: 2px 0; }
   .lintRow { cursor: pointer; font-size: 10px; padding: 3px 6px; margin: 3px 0; background: var(--panel2);
     border: 1px solid var(--line); border-left: 3px solid var(--gold); border-radius: 3px; }
@@ -115,6 +132,7 @@
 <body>
 <div id="edStage">
   <canvas id="game"></canvas>
+  <canvas id="edGhost" style="position:absolute;inset:0;z-index:4;pointer-events:none"></canvas>
   <div id="edOv"></div>
   <div id="edHud"></div>
 </div>
@@ -130,9 +148,14 @@
     <div id="edTools"></div>
   </div>
   <div id="edLanes">
-    <div class="lane" id="edRuler"><span class="laneTag">TIME</span></div>
-    <div class="lane" id="edBeatLane"><span class="laneTag">BEATS</span></div>
-    <div class="lane" id="edBandLane"><span class="laneTag">BANDS</span></div>
+    <div class="laneRow"><div class="laneHead" title="collapse">TIME</div><div class="laneTrack" id="edRuler"></div></div>
+    <div class="laneRow"><div class="laneHead" title="story card + comm windows (read-only)">STORY</div><div class="laneTrack" id="edStoryLane"></div></div>
+    <div class="laneRow"><div class="laneHead">WALLS</div><div class="laneTrack" id="edWallLane"></div></div>
+    <div class="laneRow"><div class="laneHead">ENEMIES</div><div class="laneTrack" id="edEnemyLane"></div></div>
+    <div class="laneRow"><div class="laneHead" title="bonus streams + power-ups">STREAMS</div><div class="laneTrack" id="edStreamLane"></div></div>
+    <div class="laneRow"><div class="laneHead">LULLS</div><div class="laneTrack" id="edLullLane"></div></div>
+    <div class="laneRow"><div class="laneHead">BANDS</div><div class="laneTrack" id="edBandLane"></div></div>
+    <div class="laneRow"><div class="laneHead" title="procedural filler, simulated by the linter's walk (read-only)">FILLER</div><div class="laneTrack" id="edFillerLane"></div></div>
     <div id="edPh"></div>
   </div>
 </div>
@@ -191,7 +214,9 @@
     <h2>BEATS</h2>
     <div class="body">
       <p class="hintNote">pick a beat tool in the timeline bar, then CLICK THE TUNNEL — t = playhead,
-        angle = click bearing from the bore center. drag markers to retime; DELETE removes the selection.</p>
+        angle = click bearing from the bore center. drag markers to retime; DELETE removes the selection.
+        WALL tool shows a ghost arc where the carpet will ACTUALLY land (fairness may relocate it);
+        overlapping wall windows are blocked outright.</p>
       <div class="list" id="bList"></div>
     </div>
   </div>

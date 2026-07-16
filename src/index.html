@@ -1242,6 +1242,22 @@ function lintLevel(level, idx) {
     seenIss.add(key);
     issues.push({ t: Math.round(t * 100) / 100, code, msg });
   };
+  const { arr, picks, walls } = lintWalk(level, idx);
+  lintVerdicts(bad, level, arr, picks, walls);
+  issues.sort((x, y) => x.t - y.t);
+  return issues;
+}
+// the timeline walk behind the linter: a pure, draw-for-draw mirror of the
+// live spawner (beats + bands + seeded filler) on its own mulberry32 — the
+// live spawnRng never advances. Returns every arrival the level will make:
+//   arr   [{t, t1, type, lock, needsNode, angle, pair, beat}]   beat === undefined -> filler
+//   picks [{t, angle, beat}]
+//   walls [{tRel, tLand, a, aA, beat}]   a = landed arc, aA = authored arc
+// lintLevel's verdicts consume this walk; the Tunnel Designer also renders it
+// (generated-filler lane, wall-relocation preview). Extracted from lintLevel
+// verbatim — behavior identical.
+function lintWalk(level, idx) {
+  idx = idx || 0;
   const rng = mulberry32((0x51AB1E + idx * 7919) >>> 0);
   let R = rng; // active draw stream — beat firings swap in their side stream
   const dr = () => R();
@@ -1440,7 +1456,13 @@ function lintLevel(level, idx) {
       }
     }
   }
-  // --- verdicts ---
+  return { arr, picks, walls };
+}
+// --- verdicts: judge the walk; only beat-involved moments can be findings ---
+function lintVerdicts(bad, level, arr, picks, walls) {
+  const GAP = 0.55;
+  const beats = level.beats || [];
+  const comms = level.comms || [];
   // filler-vs-filler pairs already passed the live gates (the sim replays
   // them), so every check demands a BEAT party: beats bypass spawnAllowed and
   // are the only way to author an impossible moment. Windows are spawn-order
@@ -1502,8 +1524,6 @@ function lintLevel(level, idx) {
     const c = comms.find(c2 => b.t > c2.t - 0.5 && b.t < c2.t + 3.2);
     if (c) bad(b.t, 'comm-overlap', 'beat arrival lands inside a comm window');
   }
-  issues.sort((x, y) => x.t - y.t);
-  return issues;
 }
 
 function trySpawn(dt) {
