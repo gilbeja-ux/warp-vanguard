@@ -311,7 +311,7 @@ en = G.spawnEnemy(0.1, 'normal');
 aim(0, Math.PI); aim(1, 0.1);
 cross(en);
 check('zap spawns a lightning bolt', G.bolts().length > 0);
-check('zap triggers hit-stop', G.hitStop() > 0);
+check('routine zaps do NOT freeze the world (no hit-stop flinch)', G.hitStop() === 0);
 check('zap kicks the carriage and lights the rim', (G.nodes[0].recoil > 0 || G.nodes[1].recoil > 0) && G.rimFX().length > 0);
 check('level start arms the warp dive', G.getWarpT() > 0 || true); // warpT decays with updates — sanity only
 

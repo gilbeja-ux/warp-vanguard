@@ -2538,7 +2538,6 @@ function update(dt) {
       buzz(en.type === 'heavy' ? 25 : 12);
       lastKillBeat(en);
       if (en.type === 'heavy') { // armor stops the bolt; reds it punches through
-        hitStop = Math.min(hitStop + 0.08, 0.12);
         tone(110, 0.2, 'square', 0.13, 60);
         sh.dead = true;
         break;
@@ -2617,7 +2616,6 @@ function update(dt) {
             : Math.abs(angDiff(nodes[0].angle, aEnd)) < Math.abs(angDiff(nodes[1].angle, aEnd)) ? 0 : 1;
           pulseCharge[ni] = PULSE_MAX; // the ride banks a full pulse — tutorial included
           popup(hp.x, hp.y, 'PULSE CHARGED +' + pts, '#ffe9b0');
-          hitStop = Math.min(hitStop + 0.09, 0.12);
           sfx.perfect();
           buzz(30);
         }
@@ -2780,7 +2778,8 @@ function update(dt) {
           for (let k2 = 1; k2 < 4; k2++) burst(lerp(ex, p3.x, k2 / 4), lerp(ey, p3.y, k2 / 4), '#ff8ba0', 6, 3);
         }
         if (en.lock !== undefined) burst(ex, ey, en.lock === 0 ? '#4d9bff' : '#eef6ff', 14, 4.5);
-        hitStop = Math.min(hitStop + (en.type === 'normal' ? 0.05 : 0.09), 0.12);
+        // no hit-stop on routine kills — the world freezing made every OTHER
+        // enemy visibly flinch; freeze frames are for ceremonies (last kill, boss)
         lastKillBeat(en);
         popup(ex, ey, (perfect ? 'PERFECT +' : '+') + pts + (combo >= 3 ? '  x' + Math.min(combo, 5) : ''), perfect ? '#ffe9b0' : '#bfeaff');
         // no screen shake on a clean kill — the rim flash + haptics carry it;

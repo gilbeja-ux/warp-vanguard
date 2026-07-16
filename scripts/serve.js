@@ -33,7 +33,8 @@ http.createServer((req, res) => {
     const type = TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
     const total = stat.size;
     const range = req.headers.range;
-    const headers = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' };
+    // no-store: this is a dev server — the browser must never serve a stale build
+    const headers = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store' };
 
     if (range) {
       const m = /bytes=(\d*)-(\d*)/.exec(range);
