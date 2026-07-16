@@ -1421,17 +1421,18 @@ function burst(x, y, color, n, spd) {
   }
 }
 function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
-// kill feedback that BELONGS to the tunnel: the enemy SPLASHES into green
-// smears of data — a few pixelated streams (one straight down the bore, two
-// diagonal) that ride the wall away from the kill and fade, the victory
-// sweep's green one packet at a time. Nothing else pauses or flinches.
+// kill feedback that BELONGS to the tunnel: the enemy SHATTERS into three
+// chunks that elongate into tapered trails of green light on the wall — one
+// straight down the bore, two diagonal — each growing forward and dimming
+// as it stretches, the tip petering out like it ran out of energy.
 function spawnKillRipple(a) {
   const streams = [];
-  for (const [va, vz] of [[0, 0.85], [0.5, 0.5], [-0.5, 0.5]]) {
+  for (const [va, vz, a0] of [[0, 0.5, 0], [0.3, 0.34, 0.06], [-0.3, 0.34, -0.06]]) {
     streams.push({
-      va: va * (0.8 + Math.random() * 0.4), // angular drift (the diagonals)
-      vz: vz * (0.8 + Math.random() * 0.4), // depth run — forward, into the bore
-      ph: Math.random() * 9                 // per-stream pixel jitter phase
+      va: va * (0.85 + Math.random() * 0.3), // angular drift (the diagonals)
+      vz: vz * (0.85 + Math.random() * 0.3), // depth run — forward, up the line
+      a0,                                    // base offset: three DISTINCT trails
+      wj: 0.8 + Math.random() * 0.4          // width character per trail
     });
   }
   ripples.push({ a, t: 0, streams });
@@ -7677,34 +7678,65 @@ function frame(now) {
   }
   ctx.globalAlpha = 1;
   drawBolts();
-  if (ripples.length) { // the enemy splashes into green data smears
+  if (ripples.length) { // the enemy shatters into trails of green light
     const g2 = geo(), u = Math.min(W, H);
+    const DUR = 0.7;
+    const wallP = (a, f, st) => { // point along a stream's wall path
+      const z = clamp(g2.hitZ + st.vz * f, 0.05, SPAWN_Z);
+      const rg = ring(z, g2);
+      const aa = a + st.a0 + st.va * f;
+      return { x: rg.x + Math.cos(aa) * rg.r, y: rg.y + Math.sin(aa) * rg.r, s: rg.s };
+    };
     for (const r of ripples) {
-      const q = r.t / 0.6, e2 = 1 - Math.pow(1 - q, 2); // streams ease out
-      if (q < 0.22) { // the splash instant: a green burst core at the kill
+      const q = r.t / DUR;
+      const grow = 1 - Math.pow(1 - Math.min(q / 0.8, 1), 2); // heads ease forward
+      const glob = q < 0.7 ? 1 : 1 - (q - 0.7) / 0.3;         // then the trails let go
+      if (q < 0.18) { // the shatter instant: a green core where the body breaks
         const rg0 = ring(g2.hitZ, g2);
         const ix = rg0.x + Math.cos(r.a) * rg0.r, iy = rg0.y + Math.sin(r.a) * rg0.r;
-        const gl = ctx.createRadialGradient(ix, iy, 0, ix, iy, u * 0.045);
-        gl.addColorStop(0, 'rgba(225,255,220,' + (0.9 * (1 - q / 0.22)).toFixed(2) + ')');
+        const gl = ctx.createRadialGradient(ix, iy, 0, ix, iy, u * 0.05);
+        gl.addColorStop(0, 'rgba(225,255,220,' + (0.95 * (1 - q / 0.18)).toFixed(2) + ')');
         gl.addColorStop(1, 'rgba(126,226,98,0)');
         ctx.fillStyle = gl;
-        ctx.beginPath(); ctx.arc(ix, iy, u * 0.045, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(ix, iy, u * 0.05, 0, TAU); ctx.fill();
       }
-      // pixelated streams riding the wall away from the kill: each is a
-      // smear of squares trailing its head, shrinking with perspective as
-      // it runs toward the horizon
       for (const st of r.streams) {
-        for (let k = 0; k < 6; k++) {
-          const f = e2 - k * 0.11; // trail samples behind the head
-          if (f <= 0) continue;
-          const z = clamp(g2.hitZ + st.vz * f, 0.05, SPAWN_Z);
-          const rg = ring(z, g2);
-          const aa = r.a + st.va * f + Math.sin(st.ph + k * 4.7) * 0.018; // pixel jitter
-          const x = rg.x + Math.cos(aa) * rg.r, y = rg.y + Math.sin(aa) * rg.r;
-          const sz = u * 0.017 * (1 - k * 0.11) * (rg.s / 0.4); // perspective shrink
-          ctx.globalAlpha = (1 - q) * (1 - k * 0.13) * 0.9;
-          ctx.fillStyle = k === 0 ? '#eaffe4' : k % 2 ? '#7ee262' : '#a9f08c';
-          ctx.fillRect(x - sz / 2, y - sz / 2, sz, sz);
+        // the trail: a solid tapered wedge of light laid on the wall — fat
+        // and hot at the kill, thinning and cooling to nothing at the tip
+        const SEG = 7;
+        for (let i = 0; i < SEG; i++) {
+          const p0 = wallP(r.a, grow * i / SEG, st), p1 = wallP(r.a, grow * (i + 1) / SEG, st);
+          let tx = p1.x - p0.x, ty = p1.y - p0.y;
+          const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+          const fr0 = i / SEG, fr1 = (i + 1) / SEG;
+          // keeps body along its whole run — a trail, not a spike
+          const w0 = u * 0.03 * st.wj * (1 - fr0 * 0.75) * (p0.s / 0.4);
+          const w1 = u * 0.03 * st.wj * (1 - fr1 * 0.75) * (p1.s / 0.4);
+          ctx.globalAlpha = glob * (1 - fr0 * 0.7);
+          ctx.fillStyle = fr0 < 0.22 ? 'rgba(214,255,205,0.92)'
+            : fr0 < 0.55 ? 'rgba(152,238,122,0.85)' : 'rgba(126,226,98,0.75)';
+          ctx.beginPath();
+          ctx.moveTo(p0.x - ty * w0 / 2, p0.y + tx * w0 / 2);
+          ctx.lineTo(p0.x + ty * w0 / 2, p0.y - tx * w0 / 2);
+          ctx.lineTo(p1.x + ty * w1 / 2, p1.y - tx * w1 / 2);
+          ctx.lineTo(p1.x - ty * w1 / 2, p1.y + tx * w1 / 2);
+          ctx.closePath(); ctx.fill();
+        }
+        // the shard leading the trail — a chunk of the body, spending itself
+        if (q < 0.5) {
+          const hp = wallP(r.a, grow, st);
+          const nx = wallP(r.a, Math.max(0, grow - 0.05), st);
+          let tx = hp.x - nx.x, ty = hp.y - nx.y;
+          const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+          const hs = u * 0.015 * (1 - q * 2) * (hp.s / 0.4);
+          if (hs > 0) {
+            ctx.globalAlpha = glob;
+            ctx.fillStyle = '#eaffe4';
+            ctx.save();
+            ctx.translate(hp.x, hp.y); ctx.rotate(Math.atan2(ty, tx));
+            ctx.fillRect(-hs * 1.4, -hs / 2, hs * 2.8, hs);
+            ctx.restore();
+          }
         }
       }
     }
