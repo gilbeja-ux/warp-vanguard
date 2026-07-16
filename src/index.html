@@ -2234,6 +2234,9 @@ document.addEventListener('visibilitychange', () => {
 // ---------- menu / end screens hit areas ----------
 let menuButtons = [];
 function menuTap(x, y, pid) {
+  // one-shot transitions: while an OUTBOUND animation is carrying us to
+  // another screen, every key is spent — no restarting the ride mid-ride
+  if (menuFx && (menuFx.kind === 'spinOut' || menuFx.kind === 'panelsOut' || menuFx.kind === 'discZoom' || menuFx.kind === 'launch')) return;
   if (menuSettings) {
     if (settingsTap(x, y, pid)) return;
     for (const b of menuSetButtons) {
@@ -2321,6 +2324,7 @@ function menuTap(x, y, pid) {
 }
 let endButtons = [];
 function endTap(x, y) {
+  if (trans || menuFx) return; // a departure is already in motion — keys are spent
   if (endT < endBtnAt() + 0.15) { endT = endBtnAt() + 0.15; return; } // skip the ceremony
   for (const b of endButtons) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
@@ -6948,18 +6952,30 @@ function drawMenuCamps(ccx, ccy, R) {
   ctx.fillStyle = 'rgba(140,215,255,' + (0.75 * rowAl * (1 - zq)).toFixed(2) + ')';
   ctx.fillText('SELECT CASE FILE', ccx, ccy - R2 - 34);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
+  // every disc titles at ONE size: the tightest fit across the whole row
+  let uniT = Math.round(R2 * 0.17);
+  for (let i = 0; i < total; i++) {
+    const t2 = i < CAMPAIGNS.length ? CAMPAIGNS[i].title : CAMPS_SOON[i - CAMPAIGNS.length];
+    uniT = Math.min(uniT, fitPx(t2, 800, Math.round(R2 * 0.17), R2 * 1.5, 10));
+  }
   let zx = 0, zy = 0, zr = 0; // the zooming disc draws LAST, over its siblings
   for (let i = 0; i < total; i++) {
     const cx2 = ccx + (i - campScroll) * dx + rowOff;
     if (cx2 < -R2 * 1.6 || cx2 > W + R2 * 1.6) continue; // off-stage
     if (i === zoomI && zq > 0) { zx = cx2; zy = ccy; zr = R2; continue; }
     if (zq > 0) ctx.globalAlpha = rowAl * (1 - zq); // siblings fall away
-    drawCampDisc(i, cx2, ccy, R2, 0);
+    drawCampDisc(i, cx2, ccy, R2, 0, uniT);
     ctx.globalAlpha = rowAl;
   }
   if (zoomI >= 0 && zq > 0 && zr) {
-    const ze = zq * zq;
-    drawCampDisc(zoomI, lerp(zx, ccx, ze), lerp(zy, ccy, ze), lerp(R2, mapR(), ze), zq); // lands at the lens rim
+    // draw at BASE size under a smooth scale transform — text px stay fixed,
+    // so nothing jitters while the disc swells into the lens
+    const ze = zq * zq, k = lerp(R2, mapR(), ze) / R2;
+    ctx.save();
+    ctx.translate(lerp(zx, ccx, ze), lerp(zy, ccy, ze));
+    ctx.scale(k, k);
+    drawCampDisc(zoomI, 0, 0, R2, zq, uniT);
+    ctx.restore();
   }
   // scroll hints: chevrons + a dot per disc, only when something is off-stage
   if (zq === 0 && total * dx > W * 0.9) {
@@ -6991,7 +7007,7 @@ function drawMenuCamps(ccx, ccy, R) {
 }
 // one campaign disc: a miniature bore. zq>0 = mid sync-zoom (contents fade
 // as the disc becomes the tunnel itself)
-function drawCampDisc(i, x, y, r, zq) {
+function drawCampDisc(i, x, y, r, zq, tpx) {
   const real = i < CAMPAIGNS.length;
   const pk = real ? CAMPAIGNS[i] : null;
   const title = real ? pk.title : CAMPS_SOON[i - CAMPAIGNS.length];
@@ -7057,7 +7073,7 @@ function drawCampDisc(i, x, y, r, zq) {
   ctx.beginPath(); ctx.moveTo(x - r, sepY); ctx.lineTo(x + r, sepY); ctx.stroke();
   // dossier: big title, then the data lines
   ctx.textAlign = 'center';
-  const tpx = fitPx(title, 800, Math.round(r * 0.17), r * 1.5, 10);
+  if (tpx === undefined) tpx = fitPx(title, 800, Math.round(r * 0.17), r * 1.5, 10);
   ctx.font = '800 ' + tpx + 'px Audiowide, system-ui';
   ctx.fillStyle = real ? '#eaf7ff' : 'rgba(150,175,210,0.8)';
   ctx.fillText(title, x, sepY + r * 0.22);
@@ -7086,8 +7102,10 @@ function drawCampDisc(i, x, y, r, zq) {
     ctx.font = '700 ' + Math.max(10, Math.round(r * 0.085)) + 'px Audiowide, system-ui';
     ctx.fillStyle = '#dff4ff';
     ctx.fillText('\u25b6 SYNC STREAM', x, y + dSeg + (rr2 - dSeg) * 0.56);
-    menuButtons.push({ x: x - chHalf, y: y + dSeg, w: chHalf * 2, h: rr2 - dSeg, sync: i });
-    menuButtons.push({ x: x - r, y: y - r, w: r * 2, h: r + dSeg, campDisc: i }); // body = bring to center
+    if (zq === 0) { // mid-zoom the disc is scenery, not a control
+      menuButtons.push({ x: x - chHalf, y: y + dSeg, w: chHalf * 2, h: rr2 - dSeg, sync: i });
+      menuButtons.push({ x: x - r, y: y - r, w: r * 2, h: r + dSeg, campDisc: i }); // body = bring to center
+    }
   } else {
     ctx.fillStyle = 'rgba(150,175,210,0.75)';
     ctx.fillText('COMING SOON', x, sepY + r * 0.55);

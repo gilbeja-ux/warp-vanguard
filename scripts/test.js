@@ -97,6 +97,7 @@ code = code.replace("'use strict';", '') + `
   getGpSel: () => gpSel, setGpSel: v => { gpSel = v; },
   getMapSel: () => mapSel, getPadHold: () => padHold,
   getCampScroll: () => campScrollTgt, setCampScroll: v => { campScroll = campScrollTgt = v; }, CAMPS_SOON,
+  getMenuFx: () => menuFx, getBackRect: () => menuBackRect,
   startEndless, menuBtns: () => menuButtons, getEndWin: () => endWin,
   setLevelT: v => { levelT = v; }, setIntegrity: v => { integrity = v; }, setScore: v => { score = v; },
   setMenuScroll: v => { menuScroll = v; }, tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
@@ -1409,6 +1410,24 @@ G.keys['ArrowUp'] = false;
   const nbp = G.pickups()[G.pickups().length - 1];
   check('pickups carry the birth fade too', G.birthFade(nbp) < 0.5);
   G.setState(G.S.MENU);
+}
+
+// ================= one-shot transitions =================
+{
+  G.setState(G.S.MENU); G.setMenuScreen('map'); G.frame(16);
+  const bk = G.getBackRect();
+  G.menuTap(bk.x + 5, bk.y + 5, 1);
+  for (let i = 0; i < 6; i++) G.update(0.05); // press beat fires -> panelsOut under way
+  const fx1 = G.getMenuFx();
+  const k1 = fx1 && fx1.kind, t1 = fx1 && fx1.t; // snapshot scalars — the fx object is live
+  G.menuTap(bk.x + 5, bk.y + 5, 1); // mash BACK again mid-flight
+  G.update(0.05);
+  const fx2 = G.getMenuFx();
+  check('mashing BACK cannot restart the transition',
+    k1 === 'panelsOut' && fx2 && fx2.kind === 'panelsOut' && fx2.t > t1);
+  flushUI(); flushUI();
+  check('the single back still lands on the carousel', G.getMenuScreen() === 'camps');
+  G.setMenuScreen('home'); G.frame(16);
 }
 
 // ================= gamepad (desktop playtesting) =================
