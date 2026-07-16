@@ -819,7 +819,7 @@ let bolts = [];               // lightning arcs (node → trap)
 const fx = { wide: 0, auto: 0, chain: 0 }; // power-up effect timers (seconds)
 let shieldCharge = 0; // firewall shield: 1 = the next breach is absorbed
 let shieldFlashT = 0; // catch-ring flare when the shield eats a breach
-let ripples = [];     // kill ripples: crisp expanding rings — delight without time freeze
+let ripples = [];     // kill ripples: rim shockwave + data shreds joining the river
 let pickups = [], pickupT = 20;
 let ribbonT = 30; // bonus stream cadence — golden ribbons on levels 5+ / endless
 let tut = null;               // tutorial controller (level 1, first run)
@@ -1415,6 +1415,21 @@ function burst(x, y, color, n, spd) {
   }
 }
 function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
+// kill feedback that BELONGS to the tunnel: a shockwave runs through the rim
+// at the kill angle while the payload shreds into data chunks that streak
+// outward and smear into the wall's river — nothing else pauses or flinches
+function spawnKillRipple(a) {
+  const parts = [];
+  for (let i = 0; i < 9; i++) {
+    parts.push({
+      da: (Math.random() - 0.5) * 0.5,  // angular spread around the kill
+      sp: 0.55 + Math.random() * 0.9,   // outward drift, riding the flow
+      sz: 1.5 + Math.random() * 3,
+      amber: Math.random() < 0.25       // a few chunks pick up the river's gold
+    });
+  }
+  ripples.push({ a, t: 0, parts });
+}
 // the LAST hostile of a finished campaign level dies on a beat — every level
 // ends like it means it (the boss has its own, bigger version)
 function lastKillBeat(justKilled) {
@@ -2341,7 +2356,7 @@ function update(dt) {
   popups = popups.filter(p => p.life > 0);
   shieldFlashT = Math.max(0, shieldFlashT - dt);
   for (const r of ripples) r.t += dt;
-  ripples = ripples.filter(r => r.t < 0.3);
+  ripples = ripples.filter(r => r.t < 0.5);
   for (const b of bolts) b.life -= dt;
   bolts = bolts.filter(b => b.life > 0);
 
@@ -2596,7 +2611,7 @@ function update(dt) {
       score += vb;
       burst(vx, vy, en.type === 'heavy' ? '#d465ff' : '#bfeaff', 22, 5);
       burst(vx, vy, '#ffffff', 12, 5.5);
-      ripples.push({ x: vx, y: vy, t: 0 });
+      spawnKillRipple(en.angle);
       popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : '+') + vb, '#bfeaff');
       rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
       sfx.zap(1, Math.cos(en.angle) * 0.6);
@@ -2844,8 +2859,8 @@ function update(dt) {
         }
         if (en.lock !== undefined) burst(ex, ey, en.lock === 0 ? '#4d9bff' : '#eef6ff', 14, 4.5);
         // no hit-stop on routine kills — the world freezing made every OTHER
-        // enemy visibly flinch; a crisp ripple at the impact carries the pop
-        ripples.push({ x: ex, y: ey, t: 0 });
+        // enemy visibly flinch; the rim shockwave + data shreds carry the pop
+        spawnKillRipple(en.angle);
         lastKillBeat(en);
         popup(ex, ey, (perfect ? 'PERFECT +' : '+') + pts + (combo >= 3 ? '  x' + Math.min(combo, 5) : ''), perfect ? '#ffe9b0' : '#bfeaff');
         // no screen shake on a clean kill — the rim flash + haptics carry it;
@@ -7652,14 +7667,43 @@ function frame(now) {
   }
   ctx.globalAlpha = 1;
   drawBolts();
-  for (const r of ripples) { // the kill pop: a fast ring, gone in a blink
-    const q = r.t / 0.3;
-    ctx.globalAlpha = (1 - q) * 0.75;
-    ctx.strokeStyle = '#bfeaff';
-    ctx.lineWidth = 2.5 - q * 1.8;
-    ctx.beginPath(); ctx.arc(r.x, r.y, 6 + q * q * 52, 0, TAU); ctx.stroke();
+  if (ripples.length) { // the kill pop lives ON the tunnel wall
+    const g2 = geo(), u = Math.min(W, H); // effect scales with the viewport
+    for (const r of ripples) {
+      const q = r.t / 0.5;
+      // shockwave: arcs concentric with the bore, running through the rim
+      // at the kill angle and swelling outward with the flow
+      for (let k = 0; k < 2; k++) {
+        const qq = clamp(q * 1.25 - k * 0.12, 0, 1);
+        if (qq <= 0 || qq >= 1) continue;
+        const span = 0.55 * (1 - qq * 0.55);
+        ctx.globalAlpha = (1 - qq) * 0.8;
+        ctx.strokeStyle = '#dff4ff';
+        ctx.shadowColor = 'rgba(140,225,255,0.9)'; ctx.shadowBlur = u * 0.008;
+        ctx.lineWidth = u * (0.005 - qq * 0.003);
+        ctx.beginPath();
+        ctx.arc(g2.cx, g2.cy, g2.nodeR * (1 + qq * 0.16 + k * 0.045), r.a - span, r.a + span);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+      // the payload shreds: chunks streak radially outward, smearing into
+      // the same lines the wall's data river is made of
+      for (const p of r.parts) {
+        const pr2 = g2.nodeR * (1 + p.sp * q * 0.45);
+        const aa = r.a + p.da * (0.6 + q * 0.7);
+        const x = g2.cx + Math.cos(aa) * pr2, y = g2.cy + Math.sin(aa) * pr2;
+        const sz = p.sz * u * 0.0022;
+        const stretch = sz * (1 + q * 7);
+        ctx.globalAlpha = (1 - q) * 0.9;
+        ctx.fillStyle = p.amber ? '#ffd24a' : '#cfeeff';
+        ctx.save();
+        ctx.translate(x, y); ctx.rotate(aa);
+        ctx.fillRect(-stretch / 2, -sz / 2, stretch, sz);
+        ctx.restore();
+      }
+    }
+    ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = 1;
   ctx.textAlign = 'center';
   for (const p of popups) {
     const al = clamp(p.life, 0, 1);
