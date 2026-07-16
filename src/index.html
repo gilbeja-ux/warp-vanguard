@@ -6931,15 +6931,15 @@ function drawMenuCamps(ccx, ccy, R) {
   // entry/exit: the row flies in from the LEFT on arrival and out to the
   // RIGHT on back — the mode wheel spins on the other side of the crossfade
   let rowOff = 0, rowAl = 1;
-  if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rowOff = -W * 0.7 * Math.pow(1 - q, 2); rowAl = q; }
+  if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rowOff = W * 0.7 * Math.pow(1 - q, 2); rowAl = q; } // in from the RIGHT
   if (menuFx && menuFx.kind === 'spinOut') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rowOff = W * 0.7 * q * q; rowAl = 1 - q; }
   // sync zoom: the chosen disc swells into the tunnel; the rest fall away
   let zoomI = -1, zq = 0;
   if (menuFx && menuFx.kind === 'discZoom') { zoomI = menuFx.disc; zq = clamp(menuFx.t / menuFx.dur, 0, 1); }
   if (menuFx && menuFx.kind === 'discOut') { zoomI = menuFx.disc; zq = 1 - clamp(menuFx.t / menuFx.dur, 0, 1); }
   const total = CAMPAIGNS.length + CAMPS_SOON.length;
-  const R2 = Math.min(H * 0.30, W * 0.16);
-  const dx = R2 * 2.35;
+  const R2 = Math.min(H * 0.34, W * 0.185);
+  const dx = R2 * 2.3;
   ctx.save();
   ctx.globalAlpha = rowAl;
   ctx.textAlign = 'center';
@@ -6959,7 +6959,7 @@ function drawMenuCamps(ccx, ccy, R) {
   }
   if (zoomI >= 0 && zq > 0 && zr) {
     const ze = zq * zq;
-    drawCampDisc(zoomI, lerp(zx, ccx, ze), lerp(zy, ccy, ze), R2 * (1 + ze * (R * 1.12 / R2 - 1)), zq);
+    drawCampDisc(zoomI, lerp(zx, ccx, ze), lerp(zy, ccy, ze), lerp(R2, mapR(), ze), zq); // lands at the lens rim
   }
   // scroll hints: chevrons + a dot per disc, only when something is off-stage
   if (zq === 0 && total * dx > W * 0.9) {
@@ -7024,9 +7024,14 @@ function drawCampDisc(i, x, y, r, zq) {
   ctx.fillStyle = 'rgba(8,18,36,0.85)';
   ctx.fillRect(x - r, y - r, r * 2, sepY - (y - r));
   const rng = mulberry32(0xD15C + i * 7919);
-  ctx.strokeStyle = 'rgba(70,130,200,0.18)'; ctx.lineWidth = 1;
-  for (let gy = 1; gy <= 2; gy++) { ctx.beginPath(); ctx.moveTo(x - r, y - r + gy * r * 0.22); ctx.lineTo(x + r, y - r + gy * r * 0.22); ctx.stroke(); }
-  for (let gx = -2; gx <= 2; gx++) { ctx.beginPath(); ctx.moveTo(x + gx * r * 0.3, y - r); ctx.lineTo(x + gx * r * 0.3, sepY); ctx.stroke(); }
+  if (real) { // the actual city render, cropped into the disc's viewport
+    if (!cityBase) buildCity();
+    const mh = sepY - (y - r);
+    const sw2 = CITY_W, sh2 = sw2 * (mh / (r * 2));
+    const sy2 = clamp(180 + (i * 167) % 160, 0, CITY_H - sh2);
+    ctx.drawImage(cityBase, 0, sy2, sw2, sh2, x - r, y - r, r * 2, mh);
+    if (cityTop) ctx.drawImage(cityTop, 0, sy2, sw2, sh2, x - r, y - r, r * 2, mh);
+  }
   if (real) { // dashed route with relay pips, west to east like the real map
     const pts = [];
     const n = Math.min(6, pk.levels.length);
@@ -7055,30 +7060,34 @@ function drawCampDisc(i, x, y, r, zq) {
   const tpx = fitPx(title, 800, Math.round(r * 0.17), r * 1.5, 10);
   ctx.font = '800 ' + tpx + 'px Audiowide, system-ui';
   ctx.fillStyle = real ? '#eaf7ff' : 'rgba(150,175,210,0.8)';
-  ctx.fillText(title, x, sepY + r * 0.30);
+  ctx.fillText(title, x, sepY + r * 0.22);
   ctx.font = '700 ' + Math.max(9, Math.round(r * 0.085)) + 'px Audiowide, system-ui';
   if (real) {
     const starSum = (cp.stars || []).reduce((a2, b2) => a2 + b2, 0);
     ctx.fillStyle = 'rgba(160,210,250,0.85)';
-    ctx.fillText(pk.levels.length + ' RELAYS \u00b7 ' + '\u25b2'.repeat(pk.difficulty || 1) + ' \u00b7 \u2605 ' + starSum + '/' + pk.levels.length * 3, x, sepY + r * 0.52);
+    ctx.fillText(pk.levels.length + ' RELAYS \u00b7 ' + '\u25b2'.repeat(pk.difficulty || 1) + ' \u00b7 \u2605 ' + starSum + '/' + pk.levels.length * 3, x, sepY + r * 0.44);
     ctx.fillStyle = done ? 'rgba(126,226,98,0.95)' : 'rgba(140,200,240,0.8)';
-    ctx.fillText(done ? 'CASE CLOSED' : 'RELAY ' + Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length, x, sepY + r * 0.70);
+    ctx.fillText(done ? 'CASE CLOSED' : 'RELAY ' + Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length, x, sepY + r * 0.62);
     // short description: the tagline carries the pitch
     ctx.font = '500 ' + Math.max(8, Math.round(r * 0.07)) + 'px Audiowide, system-ui';
     ctx.fillStyle = 'rgba(130,180,225,0.7)';
-    ctx.fillText(pk.tagline || '', x, sepY + r * 0.80);
-    // SYNC STREAM key
-    const bw = r * 1.06, bh = Math.max(24, r * 0.19);
-    const bx = x - bw / 2, by = y + r * 0.58;
-    techRect(bx, by, bw, bh, 7);
+    ctx.fillText(pk.tagline || '', x, sepY + r * 0.78);
+    // SYNC STREAM: the disc's own bottom segment — the circle edge IS the
+    // button edge; a chord line separates it from the dossier
+    const rr2 = r * 0.97, dSeg = r * 0.60;
+    const aSeg = Math.asin(clamp(dSeg / rr2, 0, 1)); // chord intersection angle
+    ctx.beginPath();
+    ctx.arc(x, y, rr2, aSeg, Math.PI - aSeg);
+    ctx.closePath();
     ctx.fillStyle = active ? 'rgba(40,120,190,0.5)' : 'rgba(14,40,72,0.8)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(140,230,255,0.85)'; ctx.lineWidth = 1.5;
-    techRect(bx, by, bw, bh, 7); ctx.stroke();
+    const chHalf = rr2 * Math.cos(aSeg);
+    ctx.strokeStyle = 'rgba(140,230,255,0.75)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x - chHalf, y + dSeg); ctx.lineTo(x + chHalf, y + dSeg); ctx.stroke();
     ctx.font = '700 ' + Math.max(10, Math.round(r * 0.085)) + 'px Audiowide, system-ui';
     ctx.fillStyle = '#dff4ff';
-    ctx.fillText('\u25b6 SYNC STREAM', x, by + bh * 0.68);
-    menuButtons.push({ x: bx, y: by, w: bw, h: bh, sync: i });
-    menuButtons.push({ x: x - r, y: y - r, w: r * 2, h: r * 1.4, campDisc: i }); // body = bring to center
+    ctx.fillText('\u25b6 SYNC STREAM', x, y + dSeg + (rr2 - dSeg) * 0.56);
+    menuButtons.push({ x: x - chHalf, y: y + dSeg, w: chHalf * 2, h: rr2 - dSeg, sync: i });
+    menuButtons.push({ x: x - r, y: y - r, w: r * 2, h: r + dSeg, campDisc: i }); // body = bring to center
   } else {
     ctx.fillStyle = 'rgba(150,175,210,0.75)';
     ctx.fillText('COMING SOON', x, sepY + r * 0.55);
@@ -7619,15 +7628,17 @@ function drawMenuMap() {
   // ---- inside the lens ----
   // the map CIRCLES into view while the wheel circles out (and reverses):
   // forward arrives rotating clockwise; back departs counterclockwise
-  let mapRot = 0, mapAl = 1;
+  let mapRot = 0, mapAl = 1, discRimAl = 0;
   if (menuFx && menuFx.kind === 'panelsIn') {
     const q = clamp(menuFx.t / 0.42, 0, 1);
     mapRot = -(menuFx.dir || 1) * 0.9 * Math.pow(1 - q, 2);
     mapAl = q;
+    if (menuFx.fromDisc) { mapRot = 0; discRimAl = 1 - q; } // disc-born: pure crossfade, no spin
   } else if (menuFx && menuFx.kind === 'panelsOut') {
     const q = clamp(menuFx.t / menuFx.dur, 0, 1);
     mapRot = (menuFx.dir || -1) * 0.9 * q * q;
     mapAl = 1 - q;
+    if (CAMPAIGNS.length > 1) discRimAl = q; // the disc rim rises to meet the shrink-out
   }
   ctx.save();
   ctx.beginPath(); ctx.arc(ccx, ccy, R - 5, 0, TAU); ctx.clip();
@@ -7782,6 +7793,15 @@ function drawMenuMap() {
   // lens rim
   ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(ccx, ccy, R - 5, 0, TAU); ctx.stroke();
+  if (discRimAl > 0) { // the campaign disc's rim, mid-crossfade with the lens
+    ctx.save();
+    ctx.globalAlpha = discRimAl;
+    ctx.strokeStyle = 'rgba(140,230,255,0.95)'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(ccx, ccy, R, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = 'rgba(60,110,180,0.35)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(ccx, ccy, R * 1.05, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
 
   drawMapList(ccx, ccy, R, frontier);
   ctx.save();
@@ -8121,7 +8141,7 @@ function tickUI(dt) {
       } else if (f.kind === 'discZoom') {
         // the disc became the tunnel — its relay map takes over
         menuScreen = 'map';
-        menuFx = { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1 };
+        menuFx = { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, fromDisc: true };
       } else if (f.kind === 'panelsOut') {
         // backing out of the map: with several campaigns the disc shrinks
         // back into its slot on the carousel; single campaign goes home
