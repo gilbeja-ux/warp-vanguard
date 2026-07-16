@@ -90,6 +90,8 @@ code = code.replace("'use strict';", '') + `
   bolts: () => bolts, hitStop: () => hitStop, fx, pickups: () => pickups, spawnPickup,
   boss: () => boss, endlessCfg, tut: () => tut, isEndless: () => endless, getLV: () => LV,
   qualStage: () => tut ? QUAL[tut.stage] : null,
+  getProg: () => PROG, getCamp: () => CAMP, validateCampaign, installCampaign, CAMPAIGNS,
+  getLevels: () => LEVELS, migrateSaveShape, getInfoCards: () => INFO_CARDS,
   startEndless, menuBtns: () => menuButtons, getEndWin: () => endWin,
   setLevelT: v => { levelT = v; }, setIntegrity: v => { integrity = v; }, setScore: v => { score = v; },
   setMenuScroll: v => { menuScroll = v; }, tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
@@ -536,7 +538,7 @@ while (G.boss() && dGuard-- > 0) { G.setIntegrity(100); G.update(0.05); }
 check('the death ceremony ends at the VERDICT card', G.getState() === G.S.INFO && G.getInfoCard() === 'verdict');
 dismiss();
 check('the verdict closes the case — campaign complete', G.getState() === G.S.END && G.getEndWin() === true);
-check('campaign completion recorded', G.progress.stars[7] > 0);
+check('campaign completion recorded', G.getProg().stars[7] > 0);
 
 // ================= TEMP boss-test shortcut =================
 G.startBossTest();
@@ -965,7 +967,7 @@ cross(en); // some score on the board
 G.setLevelT(60);
 G.enemies().length = 0;
 G.update(0.01);
-check('winning records a per-level best', G.getState() === G.S.END && G.progress.bests[1] === G.getScore() && G.getScore() > 0);
+check('winning records a per-level best', G.getState() === G.S.END && G.getProg().bests[1] === G.getScore() && G.getScore() > 0);
 G.setEndT(0.1); drawOk('end ceremony: banner fading in', () => {});
 G.setEndT(1.2); drawOk('end ceremony: counters running', () => {});
 G.setEndT(3.0); drawOk('end ceremony: buttons arrived', () => {});
@@ -1019,6 +1021,40 @@ soak('darknet edge (bursts)', () => G.startLevel(6), 80);
 soak('core firewall (boss fight)', () => G.startLevel(7), 90);
 soak('endless ramp', () => G.startEndless(), 150);
 G.keys['ArrowUp'] = false;
+
+// ================= campaign packages (Phase 0) =================
+{
+  check('boot installed the bundled campaign', G.getCamp().id === 'investigation' && G.getLevels().length === 8);
+  const mini = () => ({
+    id: 'test-camp', format: 1, title: 'TEST CAMPAIGN',
+    speakers: [{ id: 'OMNI', color: '1,2,3' }],
+    levels: [{ name: 'ALPHA', tint: '10,20,30', duration: 30, spawnMin: 1, spawnMax: 2, speed: 0.4,
+      comms: [{ t: 5, s: 'OMNI', m: 'hello' }], story: { title: 'LOG X', lines: ['a line'] }, caseNote: 'note' }]
+  });
+  check('validator passes a well-formed package', G.validateCampaign(mini()).length === 0);
+  let p = mini(); p.levels[0].tint = 'red';
+  check('validator rejects a bad tint', G.validateCampaign(p).length > 0);
+  p = mini(); p.levels[0].comms[0].s = 'GHOST';
+  check('validator rejects a comm from an unknown speaker', G.validateCampaign(p).length > 0);
+  p = mini(); p.levels[0].comms[0].t = 99;
+  check('validator rejects a comm after the level ends', G.validateCampaign(p).length > 0);
+  p = mini(); p.levels[0].speed = 0;
+  check('validator rejects zero speed', G.validateCampaign(p).length > 0);
+  p = mini(); p.id = 'BAD ID!';
+  check('validator rejects a malformed id', G.validateCampaign(p).length > 0);
+  check('installCampaign refuses an invalid package', G.installCampaign(p) === false && G.getCamp().id === 'investigation');
+  const star1 = G.getProg().stars[1];
+  check('a valid package installs and switches the views', G.installCampaign(mini()) === true &&
+    G.getCamp().id === 'test-camp' && G.getLevels().length === 1 && G.getLevels()[0].name === 'ALPHA');
+  check('fresh campaign gets fresh progress', G.getProg().unlocked === 1 && G.getProg().stars.length === 1);
+  check('story cards re-registered for the new campaign',
+    G.getInfoCards().story0.title === 'LOG X' && !G.getInfoCards().story1);
+  check('back to the bundled campaign, progress intact',
+    G.installCampaign(G.CAMPAIGNS[0]) === true && G.getProg().stars[1] === star1 && G.getLevels().length === 8);
+  const m = G.migrateSaveShape({ stars: [3, 2], bests: [100], unlocked: 2, tutorialDone: true });
+  check('old flat saves fold into campaign #1', m.camp.investigation.unlocked === 2 &&
+    m.camp.investigation.stars[0] === 3 && m.stars === undefined && m.tutorialDone === true);
+}
 
 // ================= gamepad (desktop playtesting) =================
 {

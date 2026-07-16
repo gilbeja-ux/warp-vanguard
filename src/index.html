@@ -654,23 +654,99 @@ function drawWallCode(g, dt) {
 }
 
 // ---------- levels ----------
-const LEVELS = [
-  { name: 'OMNISERVE CAMPUS', tint: '80,160,255', duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0 },
-  { name: 'OLD TOWN GRID', tint: '255,170,90',   duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
-    hint: 'NEW THREAT: heavy armor — dock both nodes and HOLD' },
-  { name: 'METRO EXCHANGE', tint: '110,230,200', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
-    hint: 'NEW THREAT: burst transmissions — traps arrive in volleys' },
-  { name: 'HARBOR CROSSING', tint: '70,205,235', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
-    hint: 'NEW THREAT: barrier lines — one node on each end' },
-  { name: 'UNDERCITY FIBER', tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35, speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, walls: 0.10, track: 1,
-    hint: 'NEW THREAT: rim walls — the rail closes, route around' },
-  { name: 'FINANCIAL SPINE', tint: '255,205,80', duration: 65, spawnMin: 0.68, spawnMax: 1.25, speed: 0.48, doubles: 0.42, heavies: 0.18, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 2,
-    hint: 'NEW THREAT: color-locked traps — match the node color' },
-  { name: 'DARKNET EDGE', tint: '255,70,100',   duration: 70, spawnMin: 0.58, spawnMax: 1.10, speed: 0.54, doubles: 0.48, heavies: 0.22, lines: 0.22, colors: 0.36, frags: 0.20, walls: 0.15, track: 0, bursts: true,
-    hint: 'ALL THREATS ACTIVE — maximum traffic' },
-  { name: 'CID GATEWAY', tint: '212,101,255',     duration: 45, spawnMin: 0.80, spawnMax: 1.40, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,
-    hint: 'THE FIREWALL CORE AWAITS — six bolts close the case' }
-];
+// ---------- campaign packages ----------
+// A campaign is ONE self-contained, JSON-shaped object (no functions) — the
+// exact format the Tunnel Designer will export and future community packages
+// will import. The game only ever reads a package through installCampaign();
+// nothing else touches one directly. See docs/CMS-ROADMAP.md.
+const INVESTIGATION = {
+  id: 'investigation', format: 1,
+  title: 'THE INVESTIGATION', tagline: 'OMNISERVE HQ · POLICE CID', difficulty: 1,
+  story: 'OmniServe HQ must deliver critical evidence to the CID across one fiber line. You are the hired defender who clears it, relay by relay, while the investigation uncovers who is trying to burn the evidence.',
+  map: { theme: 'city' }, // procedural city; image maps carry { image, pins }
+  speakers: [
+    { id: 'OMNI',  name: 'OmniServe HQ', color: '111,227,255', portrait: { drawn: 'OMNI' } },
+    { id: 'CID',   name: 'Cyber Investigations Dept', color: '235,245,255', portrait: { drawn: 'CID' } },
+    { id: 'TRACE', name: 'CID tracer analyst', color: '126,226,98', portrait: { drawn: 'TRACE' } },
+    { id: 'CORE',  name: 'CID Gateway core', color: '212,101,255', portrait: { drawn: 'CORE' } }
+  ],
+  levels: [
+    { name: 'OMNISERVE CAMPUS', tint: '80,160,255', duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0,
+      story: { title: 'LOG 01 — THE CONTRACT', lines: [
+        'OmniServe HQ must deliver evidence', 'to the CID across one fiber line.',
+        'You were hired to keep it clean.', 'Taps are already on the wire.'] },
+      comms: [{ t: 6, s: 'OMNI', m: 'payload staged. handshake nominal.' },
+              { t: 16, s: 'CID', m: 'copy. evidence intake is open.' },
+              { t: 28, s: 'OMNI', m: 'then who else is on this line?' }],
+      caseNote: 'CASE NOTE: tap signatures logged. someone is listening.' },
+    { name: 'OLD TOWN GRID', tint: '255,170,90', duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
+      hint: 'NEW THREAT: heavy armor — dock both nodes and HOLD',
+      story: { title: 'LOG 02 — PATTERN', lines: [
+        'These taps are not random noise.', 'Same make. Same timing.',
+        'Someone wants the evidence gone.', 'The CID opens a case file.'] },
+      comms: [{ t: 6, s: 'TRACE', m: 'tap signatures match. one operator.' },
+              { t: 20, s: 'CID', m: 'we are being read. keep transmitting.' },
+              { t: 36, s: 'OMNI', m: 'the case files? someone knows.' }],
+      caseNote: 'CASE NOTE: one operator confirmed. the CID opens a file.' },
+    { name: 'METRO EXCHANGE', tint: '110,230,200', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
+      hint: 'NEW THREAT: burst transmissions — traps arrive in volleys',
+      story: { title: 'LOG 03 — TRAPS', lines: [
+        'Volleys now — probing our reflexes.', 'And they seeded the line with',
+        'NODE KILLERS: black traps that fry', 'any node that touches them.'] },
+      comms: [{ t: 6, s: 'CID', m: 'black packets are node killers. do not touch.' },
+              { t: 22, s: 'OMNI', m: 'who plants traps inside a live line?' },
+              { t: 36, s: 'CID', m: 'someone who knows how we defend it.' }],
+      caseNote: 'CASE NOTE: recovered node killers are factory-made.' },
+    { name: 'HARBOR CROSSING', tint: '70,205,235', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
+      hint: 'NEW THREAT: barrier lines — one node on each end',
+      story: { title: 'LOG 04 — THE HARBOR', lines: [
+        'Barrier taps under the harbor mud —', 'walls strung to catch the payload',
+        'whole. Cutting a subsea line takes', 'resources. This is no lone hacker.'] },
+      comms: [{ t: 6, s: 'TRACE', m: 'barrier debris under the harbor mud.' },
+              { t: 20, s: 'OMNI', m: 'a subsea cut needs a crew and money.' },
+              { t: 36, s: 'CID', m: 'or a badge.' }],
+      caseNote: 'CASE NOTE: a subsea cut takes resources. or a badge.' },
+    { name: 'UNDERCITY FIBER', tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35, speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, walls: 0.10, track: 1,
+      hint: 'NEW THREAT: rim walls — the rail closes, route around',
+      story: { title: 'LOG 05 — UNDERCITY', lines: [
+        'They chain their traps now — walls', 'of them, sealing whole sections of',
+        'the rail. We traced the deployment', 'key: it holds CID clearance.'] },
+      comms: [{ t: 6, s: 'CID', m: 'they are walling the rail. reroute.' },
+              { t: 20, s: 'TRACE', m: 'deployment key holds active clearance.' },
+              { t: 34, s: 'CID', m: 'log it. tell no one.' }],
+      caseNote: 'CASE NOTE: the wall deployment key holds active clearance.' },
+    { name: 'FINANCIAL SPINE', tint: '255,205,80', duration: 65, spawnMin: 0.68, spawnMax: 1.25, speed: 0.48, doubles: 0.42, heavies: 0.18, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 2,
+      hint: 'NEW THREAT: color-locked traps — match the node color',
+      story: { title: 'LOG 06 — CREDENTIALS', lines: [
+        'Keyed taps — cut with CURRENT keys,', 'rotated this very morning. Whoever',
+        'hunts this line holds live clearance.', 'OMNI or CID. Trust no one.'] },
+      comms: [{ t: 6, s: 'CID', m: 'rotate all credentials. now.' },
+              { t: 20, s: 'TRACE', m: 'locks cut with keys rotated TODAY.' },
+              { t: 36, s: 'OMNI', m: 'inside. it is someone inside.' }],
+      caseNote: 'CASE NOTE: keys rotated TODAY. the leak is inside.' },
+    { name: 'DARKNET EDGE', tint: '255,70,100', duration: 70, spawnMin: 0.58, spawnMax: 1.10, speed: 0.54, doubles: 0.48, heavies: 0.22, lines: 0.22, colors: 0.36, frags: 0.20, walls: 0.15, track: 0, bursts: true,
+      hint: 'ALL THREATS ACTIVE — maximum traffic',
+      story: { title: 'LOG 07 — SIGNATURE', lines: [
+        'Every tap signature matches one', 'system: the CID GATEWAY itself.',
+        'The firewall meant to receive the', 'evidence is burning it instead.'] },
+      comms: [{ t: 6, s: 'TRACE', m: 'signature isolated: CID GATEWAY core.' },
+              { t: 20, s: 'OMNI', m: 'the receiver is the thief.' },
+              { t: 36, s: 'CID', m: '…purge authorized. deliver it.' }],
+      caseNote: 'CASE NOTE: signature match — CID GATEWAY. purge authorized.' },
+    { name: 'CID GATEWAY', tint: '212,101,255', duration: 45, spawnMin: 0.80, spawnMax: 1.40, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,
+      hint: 'THE FIREWALL CORE AWAITS — six bolts close the case',
+      story: { title: 'LOG 08 — THE GATEWAY', lines: [
+        'The gateway core was turned — bought', 'to keep the evidence out of court.',
+        'Purge it, deliver the payload,', 'and close the case.'] },
+      comms: [{ t: 4, s: 'CORE', m: 'the evidence is contaminated. I am the cure.' },
+              { t: 16, s: 'CID', m: 'burn it out, defender. close the case.' }],
+      caseNote: 'CASE CLOSED: gateway purged. evidence delivered.' }
+  ]
+};
+const CAMPAIGNS = [INVESTIGATION];
+// active-campaign views — populated ONLY by installCampaign()
+let CAMP = null, PROG = null;
+let LEVELS = [], STORY = [], COMMS = [], CASE_NOTES = [], SPKCOL = {};
 const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
 // endless mode: difficulty is a function of survival time, rebuilt each frame
 function endlessCfg(t) {
@@ -689,10 +765,24 @@ function endlessCfg(t) {
     bursts: t > 70
   };
 }
-const progress = { unlocked: 1, stars: [0, 0, 0, 0, 0, 0, 0, 0], bests: [0, 0, 0, 0, 0, 0, 0, 0], tutorialDone: false, bossBriefed: false, stripBriefed: false, wallBriefed: false, best: 0, daily: { last: 0, streak: 0, best: 0 } };
+// campaign progress lives per campaign id under progress.camp; the flat
+// pre-CMS fields (stars/bests/unlocked) migrate into camp.investigation
+const progress = { camp: {}, tutorialDone: false, bossBriefed: false, stripBriefed: false, wallBriefed: false, best: 0, daily: { last: 0, streak: 0, best: 0 } };
 
 // ---------- persistence ----------
 const STORE_KEY = 'dataDefenders.v1';
+// pre-campaign saves kept flat stars/bests/unlocked — fold them into campaign #1
+function migrateSaveShape(dp) {
+  if (dp.stars && !dp.camp) {
+    dp.camp = { investigation: {
+      unlocked: dp.unlocked || 1,
+      stars: dp.stars,
+      bests: Array.isArray(dp.bests) ? dp.bests : []
+    } };
+  }
+  delete dp.stars; delete dp.bests; delete dp.unlocked;
+  return dp;
+}
 function saveState() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify({ progress, settings, mutators })); } catch (e) {}
 }
@@ -700,18 +790,74 @@ function saveState() {
   try {
     const d = JSON.parse(localStorage.getItem(STORE_KEY));
     if (d) {
-      if (d.progress) Object.assign(progress, d.progress);
+      if (d.progress) {
+        Object.assign(progress, migrateSaveShape(d.progress));
+        if (!progress.camp) progress.camp = {};
+      }
       if (d.settings) Object.assign(settings, d.settings);
       // old default was 0.5 — migrate untouched saves to the new quieter bed
       if (d.settings && Math.abs(d.settings.musicVol - 0.5) < 1e-9) settings.musicVol = 0.32;
       if (!ALT_CONTROLS) settings.controls = 0; // saved alt schemes fold back to the pads
       if (d.mutators) Object.assign(mutators, d.mutators);
-      while (progress.stars.length < LEVELS.length) progress.stars.push(0); // older saves had fewer levels
-      if (!Array.isArray(progress.bests)) progress.bests = [];
-      while (progress.bests.length < LEVELS.length) progress.bests.push(0);
     }
   } catch (e) {}
 })();
+
+// ---------- campaign loader ----------
+// every package — bundled today, community-made tomorrow — enters through
+// validateCampaign + installCampaign. The validator is the gate that will
+// keep future user-made packages inside the rules; keep it strict.
+function validateCampaign(p) {
+  const errs = [];
+  const str = v => typeof v === 'string' && v.length > 0;
+  if (!p || typeof p !== 'object') return ['not an object'];
+  if (!str(p.id) || !/^[a-z0-9-]{1,32}$/.test(p.id)) errs.push('bad id');
+  if (p.format !== 1) errs.push('unknown format version');
+  if (!str(p.title) || p.title.length > 40) errs.push('bad title');
+  if (!Array.isArray(p.speakers) || p.speakers.some(s => !str(s.id) || !/^\d{1,3},\d{1,3},\d{1,3}$/.test(s.color || ''))) errs.push('bad speakers');
+  if (!Array.isArray(p.levels) || !p.levels.length || p.levels.length > 32) { errs.push('bad levels'); return errs; }
+  const spk = new Set((p.speakers || []).map(s => s.id));
+  p.levels.forEach((l, i) => {
+    const tag = 'level ' + (i + 1) + ': ';
+    if (!str(l.name) || l.name.length > 28) errs.push(tag + 'bad name');
+    if (!(l.duration > 0 && l.duration <= 600)) errs.push(tag + 'bad duration');
+    if (!(l.speed > 0 && l.speed <= 2)) errs.push(tag + 'bad speed');
+    if (!(l.spawnMin > 0 && l.spawnMax >= l.spawnMin)) errs.push(tag + 'bad spawn window');
+    for (const k of ['doubles', 'heavies', 'lines', 'colors', 'frags', 'walls'])
+      if (l[k] !== undefined && !(l[k] >= 0 && l[k] <= 1)) errs.push(tag + 'bad ' + k + ' rate');
+    if (!/^\d{1,3},\d{1,3},\d{1,3}$/.test(l.tint || '')) errs.push(tag + 'bad tint');
+    if (l.story && !(str(l.story.title) && Array.isArray(l.story.lines) && l.story.lines.every(str))) errs.push(tag + 'bad story card');
+    (l.comms || []).forEach(c => {
+      if (!(c.t >= 0 && c.t < l.duration) || !spk.has(c.s) || !str(c.m) || c.m.length > 64) errs.push(tag + 'bad comm');
+    });
+  });
+  return errs;
+}
+function installCampaign(p) {
+  const errs = validateCampaign(p);
+  if (errs.length) { console.error('campaign rejected:', errs); return false; }
+  CAMP = p;
+  LEVELS = p.levels;
+  STORY = p.levels.map(l => l.story || null);
+  COMMS = p.levels.map(l => l.comms || []);
+  CASE_NOTES = p.levels.map(l => l.caseNote || '');
+  SPKCOL = {};
+  for (const s of p.speakers) SPKCOL[s.id] = s.color;
+  // per-campaign progress rides along, padded to this package's level count
+  const c = progress.camp[p.id] || (progress.camp[p.id] = { unlocked: 1, stars: [], bests: [] });
+  while (c.stars.length < LEVELS.length) c.stars.push(0);
+  while (c.bests.length < LEVELS.length) c.bests.push(0);
+  c.unlocked = Math.min(Math.max(1, c.unlocked || 1), LEVELS.length);
+  PROG = c;
+  if (infoCardsReady) registerStoryCards(); // first install runs before INFO_CARDS exists
+  return true;
+}
+let infoCardsReady = false;
+function registerStoryCards() {
+  for (const k of Object.keys(INFO_CARDS)) if (/^story\d+$/.test(k)) delete INFO_CARDS[k];
+  STORY.forEach((st2, i) => { if (st2) INFO_CARDS['story' + i] = st2; });
+}
+installCampaign(INVESTIGATION);
 
 // ---------- game state ----------
 const S = { MENU: 0, PLAY: 1, END: 2, PAUSE: 3, INFO: 4 }; // INFO: frozen behind a briefing card
@@ -1688,7 +1834,7 @@ function menuTap(x, y, pid) {
       : (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h);
     if (hit && !b.locked) {
       if (b.mode === 'tutorial') pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startQualification }; tone(70, 0.45, 'sine', 0.12, 260); });
-      else if (b.mode === 'campaign') pressUI(b, () => { mapSel = Math.min(progress.unlocked - 1, LEVELS.length - 1); menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'map' }; });
+      else if (b.mode === 'campaign') pressUI(b, () => { mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1); menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'map' }; });
       else if (b.mode === 'flow') pressUI(b, () => { menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'flow' }; });
       else if (b.node !== undefined) { mapSel = b.node; sfx.tick(); }
       else if (b.deploy !== undefined) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: () => startLevel(b.deploy, true) }; tone(70, 0.45, 'sine', 0.12, 260); });
@@ -1698,9 +1844,9 @@ function menuTap(x, y, pid) {
       else if (b.reset) {
         sfx.tick();
         if (time - menuResetArm < 2.5) { // confirmed: wipe the campaign
-          progress.unlocked = 1;
-          progress.stars = progress.stars.map(() => 0);
-          progress.bests = progress.bests.map(() => 0);
+          PROG.unlocked = 1;
+          PROG.stars = PROG.stars.map(() => 0);
+          PROG.bests = PROG.bests.map(() => 0);
           saveState();
           mapSel = 0; mapCamSnap = true; menuResetArm = 0;
         } else menuResetArm = time;
@@ -1718,7 +1864,7 @@ function endTap(x, y) {
       else if (b.action === 'next') pressUI(b, () => startTrans('warp', () => startLevel(levelIdx + 1, true)));
       else pressUI(b, () => { // home in style: the menu drives into view, no glitch
         menuScreen = qual ? 'home' : endless ? 'flow' : 'map';
-        if (!endless && !qual) mapSel = Math.min(progress.unlocked - 1, LEVELS.length - 1);
+        if (!endless && !qual) mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
         state = S.MENU; fadeT = 0.35; playTrack('menu');
         menuFx = menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, zoom: true }
           : { kind: 'spinIn', t: 0, dur: 0.5, dir: 1, zoom: true };
@@ -1730,7 +1876,7 @@ function endTap(x, y) {
 
 function resetRun() {
   // modifiers stay locked until the campaign is cleared
-  if (!(progress.stars[LEVELS.length - 1] > 0)) mutators.oneLife = mutators.fast = mutators.noPickups = false;
+  if (!(PROG.stars[LEVELS.length - 1] > 0)) mutators.oneLife = mutators.fast = mutators.noPickups = false;
   levelT = 0; spawnT = 1.2;
   commNext = 0; commCur = null; commT = 0;
   surgeLevel = 0; surgeCount = -1; surgeWaveZ = -1;
@@ -1832,10 +1978,10 @@ function endLevel(win) {
     saveState();
     sfx.fail();
   } else if (win) {
-    progress.stars[levelIdx] = Math.max(progress.stars[levelIdx], endStars);
-    progress.unlocked = Math.max(progress.unlocked, Math.min(levelIdx + 2, LEVELS.length));
-    endNewBest = score > (progress.bests[levelIdx] || 0);
-    progress.bests[levelIdx] = Math.max(progress.bests[levelIdx] || 0, score);
+    PROG.stars[levelIdx] = Math.max(PROG.stars[levelIdx], endStars);
+    PROG.unlocked = Math.max(PROG.unlocked, Math.min(levelIdx + 2, LEVELS.length));
+    endNewBest = score > (PROG.bests[levelIdx] || 0);
+    PROG.bests[levelIdx] = Math.max(PROG.bests[levelIdx] || 0, score);
     saveState();
     sfx.win();
   } else { endNewBest = false; sfx.fail(); }
@@ -1876,73 +2022,13 @@ const INFO_CARDS = {
   boss:   { title: 'FIREWALL CORE', lines: ['The dials stay YOURS. Dock both', 'nodes and HOLD — the bolt homes on', 'the core. SIX hits close the case.', 'Dodge darts. Mind the latches.'] }
 };
 // ---------- the investigation ----------
-// campaign narrative: you guard the fiber between A and B. Something is
-// tapping the line — the story unfolds one relay at a time, and the culprit
-// is the network's own Firewall Core. Briefings show on deploy; comm chatter
-// ticks mid-run at scripted times (deterministic levels keep them in sync).
-const STORY = [
-  { title: 'LOG 01 — THE CONTRACT', lines: [
-    'OmniServe HQ must deliver evidence', 'to the CID across one fiber line.',
-    'You were hired to keep it clean.', 'Taps are already on the wire.'] },
-  { title: 'LOG 02 — PATTERN', lines: [
-    'These taps are not random noise.', 'Same make. Same timing.',
-    'Someone wants the evidence gone.', 'The CID opens a case file.'] },
-  { title: 'LOG 03 — TRAPS', lines: [
-    'Volleys now — probing our reflexes.', 'And they seeded the line with',
-    'NODE KILLERS: black traps that fry', 'any node that touches them.'] },
-  { title: 'LOG 04 — THE HARBOR', lines: [
-    'Barrier taps under the harbor mud —', 'walls strung to catch the payload',
-    'whole. Cutting a subsea line takes', 'resources. This is no lone hacker.'] },
-  { title: 'LOG 05 — UNDERCITY', lines: [
-    'They chain their traps now — walls', 'of them, sealing whole sections of',
-    'the rail. We traced the deployment', 'key: it holds CID clearance.'] },
-  { title: 'LOG 06 — CREDENTIALS', lines: [
-    'Keyed taps — cut with CURRENT keys,', 'rotated this very morning. Whoever',
-    'hunts this line holds live clearance.', 'OMNI or CID. Trust no one.'] },
-  { title: 'LOG 07 — SIGNATURE', lines: [
-    'Every tap signature matches one', 'system: the CID GATEWAY itself.',
-    'The firewall meant to receive the', 'evidence is burning it instead.'] },
-  { title: 'LOG 08 — THE GATEWAY', lines: [
-    'The gateway core was turned — bought', 'to keep the evidence out of court.',
-    'Purge it, deliver the payload,', 'and close the case.'] }
-];
-STORY.forEach((st2, i) => { INFO_CARDS['story' + i] = st2; });
-// one line of investigative fallout per secured relay — shown on the report
-const CASE_NOTES = [
-  'CASE NOTE: tap signatures logged. someone is listening.',
-  'CASE NOTE: one operator confirmed. the CID opens a file.',
-  'CASE NOTE: recovered node killers are factory-made.',
-  'CASE NOTE: a subsea cut takes resources. or a badge.',
-  'CASE NOTE: the wall deployment key holds active clearance.',
-  'CASE NOTE: keys rotated TODAY. the leak is inside.',
-  'CASE NOTE: signature match — CID GATEWAY. purge authorized.',
-  'CASE CLOSED: gateway purged. evidence delivered.'
-];
-const COMMS = [
-  [{ t: 6, s: 'OMNI', m: 'payload staged. handshake nominal.' },
-   { t: 16, s: 'CID', m: 'copy. evidence intake is open.' },
-   { t: 28, s: 'OMNI', m: 'then who else is on this line?' }],
-  [{ t: 6, s: 'TRACE', m: 'tap signatures match. one operator.' },
-   { t: 20, s: 'CID', m: 'we are being read. keep transmitting.' },
-   { t: 36, s: 'OMNI', m: 'the case files? someone knows.' }],
-  [{ t: 6, s: 'CID', m: 'black packets are node killers. do not touch.' },
-   { t: 22, s: 'OMNI', m: 'who plants traps inside a live line?' },
-   { t: 36, s: 'CID', m: 'someone who knows how we defend it.' }],
-  [{ t: 6, s: 'TRACE', m: 'barrier debris under the harbor mud.' },
-   { t: 20, s: 'OMNI', m: 'a subsea cut needs a crew and money.' },
-   { t: 36, s: 'CID', m: 'or a badge.' }],
-  [{ t: 6, s: 'CID', m: 'they are walling the rail. reroute.' },
-   { t: 20, s: 'TRACE', m: 'deployment key holds active clearance.' },
-   { t: 34, s: 'CID', m: 'log it. tell no one.' }],
-  [{ t: 6, s: 'CID', m: 'rotate all credentials. now.' },
-   { t: 20, s: 'TRACE', m: 'locks cut with keys rotated TODAY.' },
-   { t: 36, s: 'OMNI', m: 'inside. it is someone inside.' }],
-  [{ t: 6, s: 'TRACE', m: 'signature isolated: CID GATEWAY core.' },
-   { t: 20, s: 'OMNI', m: 'the receiver is the thief.' },
-   { t: 36, s: 'CID', m: '…purge authorized. deliver it.' }],
-  [{ t: 4, s: 'CORE', m: 'the evidence is contaminated. I am the cure.' },
-   { t: 16, s: 'CID', m: 'burn it out, defender. close the case.' }]
-];
+// campaign narrative lives in the campaign package (see INVESTIGATION above):
+// story briefings show on deploy, comm chatter ticks mid-run at scripted
+// times (deterministic levels keep them in sync), case notes cap the report.
+// installCampaign() has already filled STORY/COMMS/CASE_NOTES by the time
+// they're read; story cards register into INFO_CARDS here, once it exists.
+infoCardsReady = true;
+registerStoryCards();
 
 let typeN = -1; // teletype progress for story cards
 let infoOutAt = 0; // briefing dismissal animates out before play resumes
@@ -4949,7 +5035,7 @@ function drawHUD(g) {
 
   // intercepted transmission ticker — voices on the line you're guarding
   if (commCur && state === S.PLAY) {
-    const SPK = { OMNI: '111,227,255', CID: '235,245,255', TRACE: '126,226,98', CORE: '212,101,255' };
+    const SPK = SPKCOL; // speaker colors come with the campaign package
     const label = '\u00bb ' + commCur.s + ':';
     const chars = Math.floor(commT * 38);
     const txt = commCur.m.slice(0, chars);
@@ -5705,7 +5791,7 @@ function pauseTap(x, y, pid) {
       else { // QUIT rides the same drive-back the end-screen MENU key uses
         daily = false; Math.random = sysRandom;
         menuScreen = qual ? 'home' : endless ? 'flow' : 'map';
-        if (!endless && !qual) mapSel = Math.min(progress.unlocked - 1, LEVELS.length - 1);
+        if (!endless && !qual) mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
         state = S.MENU; fadeT = 0.35; playTrack('menu');
         menuFx = menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, zoom: true }
           : { kind: 'spinIn', t: 0, dur: 0.5, dir: 1, zoom: true };
@@ -6032,8 +6118,8 @@ function modeKey(bx, by, bw, bh, glyph, name, caption, locked, primary) {
 function drawMenuHome(ccx, ccy, R) {
   // the MODE WHEEL: the ring's whole interior, cut like a pie into the three
   // modes, with the brand living in the hub — nothing overlaps the ring again
-  const campDone = progress.stars[LEVELS.length - 1] > 0;
-  const flowOpen = progress.unlocked >= 4 || campDone;
+  const campDone = PROG.stars[LEVELS.length - 1] > 0;
+  const flowOpen = PROG.unlocked >= 4 || campDone;
   const r1 = R * 0.92, r0 = R * 0.38;
   const THIRD = TAU / 3;
   const SECTORS = [
@@ -6130,8 +6216,8 @@ function drawMenuHome(ccx, ccy, R) {
 
 function drawMenuFlow() {
   const { ccx, ccy, R } = menuGeom();
-  const endlessOpen = progress.stars[LEVELS.length - 1] > 0;
-  const dailyOpen = progress.unlocked >= 4;
+  const endlessOpen = PROG.stars[LEVELS.length - 1] > 0;
+  const dailyOpen = PROG.unlocked >= 4;
   const r1 = R * 0.92, r0 = R * 0.38;
   const D = progress.daily;
   let rot = 0, wheelAl = 1; // same spin choreography as the mode wheel
@@ -6186,7 +6272,7 @@ function drawMenuFlow() {
   ctx.textAlign = 'left';
 
   // score modifiers — the campaign reward for players chasing numbers
-  if (progress.stars[LEVELS.length - 1] > 0) {
+  if (PROG.stars[LEVELS.length - 1] > 0) {
     const MUTS = [['oneLife', '1 LIFE', '×2'], ['fast', 'FAST STREAM', '×1.5'], ['noPickups', 'NO PICKUPS', '×1.3']];
     let my2 = H * 0.56;
     ctx.font = '700 10px Audiowide, system-ui';
@@ -6630,7 +6716,7 @@ function drawMenuMap() {
   const { ccx, ccy } = menuGeom();
   const R = mapR();
   if (!cityBase) buildCity();
-  const frontier = Math.min(progress.unlocked - 1, LEVELS.length - 1);
+  const frontier = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
   // camera: frame the ENTIRE selected run — center on its bounding box and
   // zoom out until it fits inside the lens
   const seg = ROUTE_SEGS[mapSel];
@@ -6691,7 +6777,7 @@ function drawMenuMap() {
   ctx.lineCap = 'round';
   for (let k = 0; k < ROUTE_SEGS.length; k++) {
     const pts2 = ROUTE_SEGS[k];
-    const done = progress.stars[k] > 0;
+    const done = PROG.stars[k] > 0;
     const trace = () => {
       ctx.beginPath();
       pts2.forEach((p2, pi) => pi ? ctx.lineTo(wx(p2), wy(p2)) : ctx.moveTo(wx(p2), wy(p2)));
@@ -6760,7 +6846,7 @@ function drawMenuMap() {
   {
     const pt = relayW(LEVELS.length);
     const ex2 = wx(pt), ey2 = wy(pt);
-    const delivered = progress.stars[LEVELS.length - 1] > 0;
+    const delivered = PROG.stars[LEVELS.length - 1] > 0;
     techRect(ex2 - 13, ey2 - 13, 26, 26, 6);
     ctx.fillStyle = 'rgba(8,24,46,0.92)'; ctx.fill();
     ctx.strokeStyle = delivered ? 'rgba(126,226,98,0.9)' : 'rgba(140,220,255,0.8)'; ctx.lineWidth = 1.5;
@@ -6779,8 +6865,8 @@ function drawMenuMap() {
     const pt = relayW(i);
     const mx2 = wx(pt), my2 = wy(pt);
     if (Math.hypot(mx2 - ccx, my2 - ccy) > R + nr) continue; // outside the lens
-    const locked = i + 1 > progress.unlocked;
-    const cleared = progress.stars[i] > 0;
+    const locked = i + 1 > PROG.unlocked;
+    const cleared = PROG.stars[i] > 0;
     const isFrontier = i === frontier && !cleared;
     const isBoss = !!LEVELS[i].boss;
     const r = nr * (isBoss ? 1.3 : 1);
@@ -6801,7 +6887,7 @@ function drawMenuMap() {
       ctx.fillStyle = 'rgba(212,101,255,0.85)'; ctx.font = '700 7px Audiowide, system-ui';
       ctx.fillText('CORE', mx2, my2 - r - 5);
     }
-    if (cleared) for (let k = 0; k < 3; k++) star5(mx2 - 11 + k * 11, my2 + r + 8, 4, k < progress.stars[i]);
+    if (cleared) for (let k = 0; k < 3; k++) star5(mx2 - 11 + k * 11, my2 + r + 8, 4, k < PROG.stars[i]);
     ctx.textAlign = 'left';
     menuButtons.push({ x: mx2 - 20, y: my2 - 20, w: 40, h: 40, node: i, locked: false });
   }
@@ -6864,7 +6950,7 @@ function drawMapList(ccx, ccy, R, frontier) {
     const dyC = (ly2 + rh / 2) - ccy;
     const lensL = Math.abs(dyC) < R + 14 ? ccx - Math.sqrt(Math.max(0, (R + 14) * (R + 14) - dyC * dyC)) : ccx - R * 0.2;
     const rx = lensL - 8 - lw2; // right-aligned to the rim
-    const locked = i + 1 > progress.unlocked;
+    const locked = i + 1 > PROG.unlocked;
     const sel = i === mapSel;
     ctx.save();
     ctx.translate(menuRowOff(i, rows), 0); // staggered fly-in from the left
@@ -6892,7 +6978,7 @@ function drawMapList(ccx, ccy, R, frontier) {
 function drawMapCard(li, frontier, ccx, ccy, R) {
   ctx.textAlign = 'left';
   const L2 = LEVELS[li];
-  const locked = li + 1 > progress.unlocked;
+  const locked = li + 1 > PROG.unlocked;
   const px2 = ccx + R + 12;
   const pw = Math.max(120, W - SAFE.r - 14 - px2);
   const ph = Math.min(H - 100, 236);
@@ -6915,13 +7001,13 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   }
   ctx.fillStyle = '#f2faff'; ctx.font = '700 12px Audiowide, system-ui';
   ctx.fillText(L2.name, px2 + 14, py2 + 40);
-  for (let k = 0; k < 3; k++) star5(px2 + 22 + k * 20, py2 + 56, 7, k < progress.stars[li]);
+  for (let k = 0; k < 3; k++) star5(px2 + 22 + k * 20, py2 + 56, 7, k < PROG.stars[li]);
   // fixed rows top-down, deploy pinned to the bottom — nothing overlaps
   ctx.fillStyle = 'rgba(160,215,255,0.8)'; ctx.font = '600 9px Audiowide, system-ui';
   ctx.fillText((L2.boss ? 'CORE DUEL · ' : '') + 'RUN ' + L2.duration + 's · TRAFFIC ' + Math.round(L2.speed * 100), px2 + 14, py2 + 78);
-  if ((progress.bests[li] || 0) > 0) {
+  if ((PROG.bests[li] || 0) > 0) {
     ctx.fillStyle = 'rgba(255,210,74,0.85)';
-    ctx.fillText('BEST ' + progress.bests[li].toLocaleString(), px2 + 14, py2 + 92);
+    ctx.fillText('BEST ' + PROG.bests[li].toLocaleString(), px2 + 14, py2 + 92);
   }
   const kinds = ['normal'];
   if (L2.heavies) kinds.push('heavy');
@@ -7057,7 +7143,7 @@ function drawEnd(g) {
   ctx.fillStyle = 'rgba(140,210,255,0.65)'; ctx.font = '11px monospace';
   ctx.fillText('zapped ' + zaps + '   //   perfect ' + perfects, g.cx, g.cy + R * 0.36);
   ctx.fillText('missed ' + misses + '   //   integrity ' + Math.round(integrity) + '%', g.cx, g.cy + R * 0.36 + 17);
-  const bestVal = endless ? (daily ? (progress.daily && progress.daily.best) : progress.best) : progress.bests[levelIdx];
+  const bestVal = endless ? (daily ? (progress.daily && progress.daily.best) : progress.best) : PROG.bests[levelIdx];
   const isNew = endless ? (score >= (bestVal || 0) && score > 0) : endNewBest;
   if ((endless || (!qual && (endWin || (bestVal || 0) > 0))) && bestVal !== undefined) {
     ctx.fillStyle = isNew ? '#ffd24a' : 'rgba(255,210,74,0.7)';

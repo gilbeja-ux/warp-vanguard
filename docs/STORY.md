@@ -5,10 +5,13 @@ Edit here for review, then port changes into `src/index.html`:
 
 | Text | Where it appears in game | Source in `src/index.html` |
 |---|---|---|
-| CASE FILE logs | Briefing card on DEPLOY (typewriter) | `STORY` (~line 1725) |
-| Level hint | Under the level title during boot | `LEVELS[].hint` (~line 655) |
-| Comms | In-level ticker with holo-portraits | `COMMS` (~line 1763) |
-| Case note | Victory report screen | `CASE_NOTES` (~line 1753) |
+| CASE FILE logs | Briefing card on DEPLOY (typewriter) | `INVESTIGATION.levels[].story` |
+| Level hint | Under the level title during boot | `INVESTIGATION.levels[].hint` |
+| Comms | In-level ticker with holo-portraits | `INVESTIGATION.levels[].comms` |
+| Case note | Victory report screen | `INVESTIGATION.levels[].caseNote` |
+
+All narrative now lives in ONE campaign package object (`const INVESTIGATION`,
+~line 660) — the same format the Tunnel Designer will export.
 
 Speakers: **OMNI** = OmniServe HQ (corporate, blue) · **CID** = Cyber
 Investigations Dept (white) · **TRACE** = CID's tracer analyst (green) ·
