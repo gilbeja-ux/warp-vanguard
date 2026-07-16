@@ -5,7 +5,9 @@
 const fs = require('fs');
 const path = require('path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
-let code = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const campaigns = fs.readFileSync(path.join(__dirname, '..', 'src', 'campaigns.js'), 'utf8');
+// campaigns.js loads before the game script in the page — mirror that here
+let code = campaigns + '\n' + html.match(/<script>([\s\S]*?)<\/script>/)[1];
 
 // --- DOM stubs ---
 const grad = { addColorStop() {} };
@@ -92,6 +94,7 @@ code = code.replace("'use strict';", '') + `
   qualStage: () => tut ? QUAL[tut.stage] : null,
   getProg: () => PROG, getCamp: () => CAMP, validateCampaign, installCampaign, CAMPAIGNS,
   getLevels: () => LEVELS, migrateSaveShape, getInfoCards: () => INFO_CARDS,
+  getGpSel: () => gpSel, setGpSel: v => { gpSel = v; },
   startEndless, menuBtns: () => menuButtons, getEndWin: () => endWin,
   setLevelT: v => { levelT = v; }, setIntegrity: v => { integrity = v; }, setScore: v => { score = v; },
   setMenuScroll: v => { menuScroll = v; }, tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
@@ -1058,8 +1061,9 @@ G.keys['ArrowUp'] = false;
 
 // ================= gamepad (desktop playtesting) =================
 {
-  const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 10 }, () => ({ pressed: false })) };
+  const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 16 }, () => ({ pressed: false })) };
   Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [pad] }, configurable: true });
+  const tap = (i) => { pad.buttons[i].pressed = true; G.update(0.05); pad.buttons[i].pressed = false; G.update(0.05); };
   G.startLevel(1);
   G.update(0.05);
   pad.axes = [1, 0, 0, -1]; // left stick east, right stick north
@@ -1084,6 +1088,20 @@ G.keys['ArrowUp'] = false;
   check('START again resumes', G.getState() === G.S.PLAY);
   pad.buttons[9].pressed = false;
   G.update(0.05);
+  // D-pad drives the menus: pause the run, walk down to QUIT, press A
+  tap(9); // pause
+  G.frame(16); // draw builds pauseButtonsList
+  tap(15); tap(15); // right, right: RESUME -> RESTART -> QUIT
+  check('D-pad walks the pause row to QUIT', G.getState() === G.S.PAUSE && G.getGpSel() === 2);
+  tap(0); // A presses the focused key
+  check('A on QUIT lands back in the menu', G.getState() === G.S.MENU);
+  flushUI();
+  // mode wheel: focus the campaign slice and press A
+  G.setMenuScreen('home'); G.frame(16);
+  G.setGpSel(G.menuBtns().findIndex(b => b.mode === 'campaign'));
+  tap(0);
+  flushUI();
+  check('A on the campaign slice opens the route map', G.getMenuScreen() === 'map');
   delete globalThis.navigator;
   G.setState(G.S.MENU);
 }
