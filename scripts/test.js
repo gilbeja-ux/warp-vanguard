@@ -112,7 +112,8 @@ code = code.replace("'use strict';", '') + `
   setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length,
   latches: () => latches, setLatches: v => { latches = v; },
   spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; },
-  volley: () => volley, BOSS_CER: () => BOSS_CER
+  volley: () => volley, BOSS_CER: () => BOSS_CER,
+  bandCfg, lintLevel, lintCampaign, getSched: () => sched
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -1077,6 +1078,143 @@ G.keys['ArrowUp'] = false;
     G.getProg().unlocked === 1 && G.getInfoCards().verdict.title === 'LOG 18 — THE LADDER');
   G.installCampaign(G.CAMPAIGNS[0]);
   check('back on campaign #1 its verdict is restored', G.getInfoCards().verdict.title === 'LOG 09 — VERDICT');
+}
+
+// ================= beats + bands + fairness linter (Phase 1) =================
+{
+  G.progress.wallBriefed = true; G.progress.stripBriefed = true; // no cards mid-test
+  const knobs = { tint: '10,20,30', duration: 45, spawnMin: 1.5, spawnMax: 2.3, speed: 0.4,
+    doubles: 0, heavies: 0, lines: 0, colors: 0 };
+  // index 4 is a test-only UNDERCITY FIBER twin: its procedural wall pressure
+  // (walls: 0.10) converted into 2 scripted wall beats + a lull, with a band
+  // densifying the tail — the SHIPPED campaign keeps its original tuning
+  const P1 = {
+    id: 'phase1-test', format: 1, title: 'PHASE 1 TEST',
+    speakers: [{ id: 'OMNI', color: '1,2,3' }],
+    levels: [
+      { name: 'BEATS', ...knobs,
+        comms: [{ t: 35, s: 'OMNI', m: 'hold the line' }],
+        beats: [
+          { t: 8, kind: 'enemy', type: 'normal', angle: 1.0 },
+          { t: 12, kind: 'wall', angle: 3.0 },
+          { t: 20, kind: 'lull', dur: 6 },
+          { t: 30, kind: 'enemy', type: 'heavy' },
+          { t: 36, kind: 'enemy', type: 'normal', angle: 2.0 } // authored INSIDE the comm window
+        ] },
+      { name: 'BANDS', ...knobs, duration: 60, spawnMax: 2.0,
+        bands: [{ t0: 20, t1: 40, intensity: 3, mix: { doubles: 0.9 } }] },
+      { name: 'CLEAN', ...knobs },
+      { name: 'PAD', ...knobs },
+      { name: 'UNDERCITY TWIN', tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35,
+        speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14,
+        comms: [{ t: 6, s: 'OMNI', m: 'they are walling the rail.' },
+                { t: 20, s: 'OMNI', m: 'deployment key holds clearance.' },
+                { t: 34, s: 'OMNI', m: 'log it. tell no one.' }],
+        beats: [{ t: 18, kind: 'wall' }, { t: 28, kind: 'lull', dur: 5 }, { t: 38, kind: 'wall', angle: 4.0 }],
+        bands: [{ t0: 45, t1: 58, intensity: 1.3 }] }
+    ]
+  };
+  check('validator accepts beats + bands', G.validateCampaign(P1).length === 0);
+  let pb = JSON.parse(JSON.stringify(P1)); pb.levels[0].beats[0].kind = 'meteor';
+  check('validator rejects an unknown beat kind', G.validateCampaign(pb).length > 0);
+  pb = JSON.parse(JSON.stringify(P1)); pb.levels[1].bands[0].t1 = 99;
+  check('validator rejects a band past the level end', G.validateCampaign(pb).length > 0);
+  pb = JSON.parse(JSON.stringify(P1)); pb.levels[1].bands[0].mix = { speed: 2 };
+  check('validator rejects a non-rate band mix key', G.validateCampaign(pb).length > 0);
+
+  // --- run a level and journal arrivals + wall latches on the level clock ---
+  function journal(idx, seconds) {
+    G.startLevel(idx);
+    const arr = [], latch = [];
+    const hz = G.geo().hitZ;
+    const seen = new Set();
+    for (let i = 0; i < seconds / 0.05; i++) {
+      G.setIntegrity(100);
+      G.update(0.05);
+      const spd = G.getLV().speed;
+      for (const e of G.enemies()) {
+        // catch them a hair BEFORE the ring (a parked node may zap-and-remove
+        // an arrival on its exact crossing tick) and extrapolate the true
+        // crossing time from the remaining travel
+        if (!seen.has(e) && e.type !== 'strip' && e.z <= hz + 0.03) {
+          seen.add(e);
+          arr.push({ t: G.getLevelT() + Math.max(0, e.z - hz) / (spd * (e.speedMul || 1)), angle: e.angle, type: e.type });
+        }
+      }
+      for (const lt of G.latches()) if (lt.bit && !lt._seen) { lt._seen = true; latch.push(G.getLevelT()); }
+    }
+    return { arr, latch };
+  }
+  // the t:36 beat is authored inside the comm window ON PURPOSE — install
+  // surfaces it as an advisory warning (see console) and still installs
+  check('phase1 package installs despite advisory lint findings', G.installCampaign(P1) === true);
+  check('lintCampaign surfaces the authored comm overlap', G.lintCampaign(P1)[0].some(v => v.code === 'comm-overlap'));
+  const j0 = journal(0, 42);
+  const bHit = j0.arr.find(a => Math.abs(a.angle - 1.0) < 1e-9);
+  check('beat: enemy arrives within ±0.4s of its authored time', !!bHit && Math.abs(bHit.t - 8) <= 0.4);
+  check('beat: wall latch lands at its authored time', j0.latch.length === 1 && Math.abs(j0.latch[0] - 12) <= 0.4);
+  const hHit = j0.arr.find(a => a.type === 'heavy');
+  check('beat: heavy back-times its slower travel to still land on cue', !!hHit && Math.abs(hHit.t - 30) <= 0.4);
+  check('beat: lull keeps every filler arrival out of its window',
+    j0.arr.length > 6 && !j0.arr.some(a => a.t > 20.1 && a.t < 26));
+  const cHit = j0.arr.find(a => Math.abs(a.angle - 2.0) < 1e-9);
+  check('beat: an arrival aimed into a transmission slides past the comm window',
+    !!cHit && cHit.t > 37.2 && cHit.t < 39.8);
+  const j0b = journal(0, 42);
+  check('beats replay identically (their side stream never shifts the script)',
+    j0.arr.length === j0b.arr.length &&
+    j0.arr.every((a, i) => a.t === j0b.arr[i].t && a.angle === j0b.arr[i].angle && a.type === j0b.arr[i].type));
+
+  // --- bands ---
+  const bl = G.getLevels()[1];
+  check('bandCfg: outside a band the level itself comes back', G.bandCfg(bl, 5) === bl && G.bandCfg(bl, 45) === bl);
+  const bc = G.bandCfg(bl, 25);
+  check('bandCfg: intensity divides the cadence, mix overrides the knobs',
+    Math.abs(bc.spawnMin - 0.5) < 1e-9 && Math.abs(bc.spawnMax - 2 / 3) < 1e-9 &&
+    bc.doubles === 0.9 && bc.speed === bl.speed && bl.doubles === 0);
+  check('bandCfg: legacy level without bands is untouched', G.bandCfg(G.CAMPAIGNS[0].levels[1], 10) === G.CAMPAIGNS[0].levels[1]);
+  {
+    G.startLevel(1);
+    const seen = new Set();
+    let inB = 0, outB = 0;
+    for (let i = 0; i < 60 / 0.05; i++) {
+      G.setIntegrity(100);
+      G.update(0.05);
+      for (const e of G.enemies()) if (!seen.has(e) && e.type !== 'strip') {
+        seen.add(e);
+        const t = G.getLevelT();
+        if (t >= 20 && t < 40) inB++; else outB++;
+      }
+    }
+    check('band intensity densifies the stream (2× window, ≥1.5× the spawns)', inB > outB * 1.5 && outB > 5);
+  }
+
+  // --- the UNDERCITY twin: scripted walls carry the old procedural pressure ---
+  const j4 = journal(4, 60);
+  check('undercity twin: both scripted walls land on schedule', j4.latch.length === 2 &&
+    Math.abs(j4.latch[0] - 18) <= 0.4 && Math.abs(j4.latch[1] - 38) <= 0.4);
+  check('undercity twin: the lull holds a dense level quiet', !j4.arr.some(a => a.t > 28.1 && a.t < 33));
+  check('undercity twin: lints clean', G.lintCampaign(P1)[4].length === 0);
+
+  // --- fairness linter ---
+  const lintBase = { ...knobs, name: 'LINT', duration: 40 };
+  const has = (lvl, code) => G.lintLevel(lvl, 0).some(v => v.code === code);
+  check('lint: simultaneous heavy + line beats → dual-conflict',
+    has({ ...lintBase, beats: [{ t: 10, kind: 'enemy', type: 'heavy' }, { t: 10, kind: 'enemy', type: 'line' }] }, 'dual-conflict'));
+  check('lint: a beat authored onto a live wall carpet → wall-conflict',
+    has({ ...lintBase, beats: [{ t: 10, kind: 'wall', angle: 2.0 }, { t: 12, kind: 'enemy', type: 'normal', angle: 2.0 }] }, 'wall-conflict'));
+  check('lint: a beat inside another beat\'s lull → lull-violation',
+    has({ ...lintBase, beats: [{ t: 20, kind: 'lull', dur: 6 }, { t: 22, kind: 'enemy', type: 'normal' }] }, 'lull-violation'));
+  check('lint: a beat arrival inside a comm window → comm-overlap',
+    has({ ...lintBase, comms: [{ t: 10, s: 'OMNI', m: 'x' }], beats: [{ t: 11, kind: 'enemy', type: 'normal' }] }, 'comm-overlap'));
+  check('lint: a clean level yields no findings', G.lintLevel(lintBase, 0).length === 0);
+  check('lint: the shipped campaign is warning-free', G.lintCampaign(G.CAMPAIGNS[0]).every(li => li.length === 0));
+
+  // purity: linting mid-run must not advance the live seeded stream
+  G.installCampaign(G.CAMPAIGNS[0]);
+  const pureA = recordSpawns(() => G.startLevel(1), 10);
+  const pureB = recordSpawns(() => { G.startLevel(1); G.lintLevel(G.getLevels()[4], 4); }, 10);
+  check('lintLevel never disturbs the live spawn stream', pureA.join(';') === pureB.join(';'));
 }
 
 // ================= gamepad (desktop playtesting) =================

@@ -690,6 +690,22 @@ function endlessCfg(t) {
     bursts: t > 70
   };
 }
+// bands: timed partial overrides of a level's rate knobs. While t is inside
+// [t0, t1) the spawner runs on { ...level, ...mix } and intensity scales the
+// cadence (1 = the level's own spawnMin/spawnMax, 2 = twice as dense). Pure:
+// the live spawner AND the fairness linter read the exact same function, and
+// a level without bands returns ITSELF — legacy levels replay bit-identically
+function bandCfg(level, t) {
+  const bs = level.bands;
+  if (!bs || !bs.length) return level;
+  const b = bs.find(b2 => t >= b2.t0 && t < b2.t1);
+  if (!b) return level;
+  const cfg = Object.assign({}, level, b.mix || {});
+  const k = b.intensity || 1;
+  cfg.spawnMin = level.spawnMin / k;
+  cfg.spawnMax = level.spawnMax / k;
+  return cfg;
+}
 // campaign progress lives per campaign id under progress.camp; the flat
 // pre-CMS fields (stars/bests/unlocked) migrate into camp.investigation
 const progress = { camp: {}, tutorialDone: false, bossBriefed: false, stripBriefed: false, wallBriefed: false, best: 0, daily: { last: 0, streak: 0, best: 0 } };
@@ -756,12 +772,46 @@ function validateCampaign(p) {
     (l.comms || []).forEach(c => {
       if (!(c.t >= 0 && c.t < l.duration) || !spk.has(c.s) || !str(c.m) || c.m.length > 64) errs.push(tag + 'bad comm');
     });
+    // beats: hand-placed timeline events (structural checks only — fairness
+    // findings are lintCampaign WARNINGS, never rejection grounds)
+    const BK = { enemy: 1, wall: 1, strip: 1, pickup: 1, lull: 1 };
+    const ET = { normal: 1, heavy: 1, line: 1, lock0: 1, lock1: 1, frag: 1 };
+    const PK = { shield: 1, wide: 1, auto: 1, inject: 1, chain: 1 }; // mirrors PICKUPS (declared later — TDZ at boot)
+    if (l.beats !== undefined && !Array.isArray(l.beats)) errs.push(tag + 'bad beats');
+    (Array.isArray(l.beats) ? l.beats : []).forEach(b => {
+      if (!b || !BK[b.kind] || !(b.t >= 0 && b.t < l.duration)) { errs.push(tag + 'bad beat'); return; }
+      if (b.kind === 'enemy' && !ET[b.type || 'normal']) errs.push(tag + 'bad beat enemy type');
+      if (b.kind === 'pickup' && b.type !== undefined && !PK[b.type]) errs.push(tag + 'bad beat pickup type');
+      if (b.kind === 'lull' && !(b.dur > 0 && b.t + b.dur <= l.duration)) errs.push(tag + 'bad lull');
+      if (b.angle !== undefined && !isFinite(b.angle)) errs.push(tag + 'bad beat angle');
+    });
+    // bands: only the rate knobs may be mixed — speed/duration stay level-wide
+    const MK = { doubles: 1, heavies: 1, lines: 1, colors: 1, frags: 1, walls: 1, crawlers: 1, bursts: 1 };
+    if (l.bands !== undefined && !Array.isArray(l.bands)) errs.push(tag + 'bad bands');
+    (Array.isArray(l.bands) ? l.bands : []).forEach(b => {
+      if (!b || !(b.t0 >= 0 && b.t1 > b.t0 && b.t1 <= l.duration)) { errs.push(tag + 'bad band window'); return; }
+      if (b.intensity !== undefined && !(b.intensity > 0 && b.intensity <= 4)) errs.push(tag + 'bad band intensity');
+      for (const k of Object.keys(b.mix || {})) {
+        if (!MK[k]) errs.push(tag + 'bad band mix key');
+        else if (k !== 'bursts' && !(b.mix[k] >= 0 && b.mix[k] <= 1)) errs.push(tag + 'bad band mix ' + k);
+      }
+    });
   });
   return errs;
+}
+// advisory fairness pass: one findings array per level. Callers (editor,
+// import UI, tests) surface these as WARNINGS — install never rejects on them
+function lintCampaign(p) {
+  return (p && Array.isArray(p.levels) ? p.levels : []).map((l, i) => lintLevel(l, i));
 }
 function installCampaign(p) {
   const errs = validateCampaign(p);
   if (errs.length) { console.error('campaign rejected:', errs); return false; }
+  if (lintReady) { // fairness findings are warnings only — the package still installs
+    const lint = lintCampaign(p);
+    if (lint.some(li => li.length)) console.warn('campaign lint (advisory):',
+      lint.flatMap((li, i) => li.map(v => 'L' + (i + 1) + ' @' + v.t.toFixed(1) + 's ' + v.code + ': ' + v.msg)));
+  }
   CAMP = p;
   LEVELS = p.levels;
   STORY = p.levels.map(l => l.story || null);
@@ -779,6 +829,7 @@ function installCampaign(p) {
   return true;
 }
 let infoCardsReady = false;
+let lintReady = false; // lintLevel leans on consts declared below — first install runs before they exist
 function registerStoryCards() {
   for (const k of Object.keys(INFO_CARDS)) if (/^story\d+$/.test(k)) delete INFO_CARDS[k];
   STORY.forEach((st2, i) => { if (st2) INFO_CARDS['story' + i] = st2; });
@@ -975,7 +1026,7 @@ const scripted = () => !endless && !qual; // campaign levels replay a fixed scri
 function spawnEnemy(forcedAngle, type) {
   type = type || 'normal';
   const heavy = type === 'heavy';
-  const L = LV || LEVELS[levelIdx];
+  const L = bandCfg(LV || LEVELS[levelIdx], levelT); // band mixes reach the lock/crawler rolls too
   const crawler = type === 'normal' && schance(L.crawlers || 0);
   // color-locked traps only answer to one node: 0 = blue (left), 1 = white (right)
   let lock = type === 'normal' && !crawler && schance(L.colors || 0)
@@ -997,8 +1048,8 @@ function spawnEnemy(forcedAngle, type) {
   return en;
 }
 // barrier line: two linked traps at the same depth with an energy wall strung between them
-function spawnLine() {
-  let a = spawnRng() * TAU;
+function spawnLine(forcedA) { // beats may pin the lead end's angle
+  let a = forcedA !== undefined ? forcedA : spawnRng() * TAU;
   const gap = srand(0.8, 1.5) * (schance(0.5) ? -1 : 1);
   // clear the whole barrier span of any wall, not just one endpoint
   a = clearOfWalls(a + gap / 2, Math.abs(gap) / 2 + 0.45) - gap / 2;
@@ -1081,15 +1132,388 @@ function storyHold() {
   const hit = cl.find(c => tLand > c.t - 0.5 && tLand < c.t + 3.2);
   return hit ? hit.t + 3.2 + 0.3 - trav - levelT : 0;
 }
+// beat lull: an AUTHORED quiet window ({ t, kind: 'lull', dur } in the level's
+// beats). Filler whose arrival would fall inside [t, t+dur] is held at the
+// gate — same displacement rule as storyHold, consuming no RNG draws. The
+// landing estimate is bracketed [normal, heavy] speed so slow armor released
+// just before a lull can't drift into it.
+function lullHold() {
+  const bl = LV && LV.beats;
+  if (!bl || !bl.length) return 0;
+  const trav = travelTime();
+  const t0 = levelT + trav, t1 = levelT + trav / 0.82;
+  let wait = 0;
+  for (const b of bl) {
+    if (b.kind === 'lull' && t1 > b.t && t0 < b.t + b.dur)
+      wait = Math.max(wait, b.t + b.dur + 0.05 - trav - levelT);
+  }
+  return wait;
+}
+
+// ---------- beats ----------
+// hand-placed timeline events (schema in docs/CMS-ROADMAP.md). A beat's t is
+// its ARRIVAL moment at the ring: the release is back-timed by the travel
+// lead so the event lands on cue. Every beat draws from its OWN seeded side
+// stream (like volley replicants, which also never touch spawnRng), so the
+// level's main seeded sequence stays untouched — a level with beats replays
+// exactly, and a level without them is bit-identical to pre-beats builds.
+let beatSt = null; // { fired: [bool] } for the active scripted level
+const beatStream = (li, bi) => mulberry32((0xBEA75 ^ (li * 7919 + bi * 104729)) >>> 0);
+const beatLead = b => b.kind === 'wall' ? travelTime()
+  : b.kind === 'pickup' ? arrivalAt(SPAWN_Z, 0.9)
+  : arrivalAt(SPAWN_Z, b.kind === 'enemy' && b.type === 'heavy' ? 0.82 : 1);
+function initBeats() {
+  beatSt = null;
+  if (!scripted() || !LV || !LV.beats || !LV.beats.length) return;
+  beatSt = { fired: LV.beats.map(() => false) };
+  // pre-book every authored demand window so the filler routes around the
+  // beats from second zero — the real booking replaces this at spawn time
+  LV.beats.forEach((b, bi) => {
+    if (b.kind === 'enemy') {
+      const lock = b.type === 'lock0' ? 0 : b.type === 'lock1' ? 1 : undefined;
+      const type = lock !== undefined ? 'normal' : (b.type || 'normal');
+      if (type !== 'frag')
+        sched.push({ t0: b.t, t1: b.t, type, lock, needsNode: type !== 'normal' || lock !== undefined, beat: bi });
+    } else if (b.kind === 'strip') { // longest possible ride (len ≤ 0.85)
+      sched.push({ t0: b.t, t1: b.t + 0.85 / LV.speed, type: 'strip', lock: undefined, needsNode: true, beat: bi });
+    }
+  });
+}
+function runBeats() {
+  if (!beatSt) return;
+  const bl = LV.beats;
+  const cl = COMMS[levelIdx] || [];
+  for (let bi = 0; bi < bl.length; bi++) {
+    if (beatSt.fired[bi]) continue;
+    const b = bl[bi];
+    if (b.kind === 'lull') { if (levelT >= b.t) beatSt.fired[bi] = true; continue; }
+    const lead = beatLead(b);
+    if (levelT < b.t - lead) continue;
+    // a beat that would LAND mid-transmission waits for the words, exactly
+    // like filler does — it slides late, never disappears
+    const tArr = levelT + lead;
+    if (cl.some(c => tArr > c.t - 0.5 && tArr < c.t + 3.2)) continue;
+    beatSt.fired[bi] = true;
+    fireBeat(b, bi);
+  }
+}
+function fireBeat(b, bi) {
+  sched = sched.filter(s => s.beat !== bi); // the live booking replaces the reservation
+  const keep = spawnRng;
+  spawnRng = beatStream(levelIdx, bi); // side stream — the main script's draws stay aligned
+  const a = b.angle !== undefined ? clearOfWalls(b.angle) : undefined;
+  if (b.kind === 'wall') spawnWall(a);
+  else if (b.kind === 'strip') spawnStrip();
+  else if (b.kind === 'pickup') { if (!mutators.noPickups) spawnPickup(b.type); }
+  else if (b.type === 'line') spawnLine(a);
+  else if (b.type === 'lock0' || b.type === 'lock1') {
+    // fairness beats authorship: a lock whose node is booked flips or unlocks
+    let lock = b.type === 'lock1' ? 1 : 0;
+    if (!lockAllowed(lock)) lock = lockAllowed(1 - lock) ? 1 - lock : undefined;
+    const en = spawnEnemy(a, 'normal');
+    en.lock = lock;
+    const s = sched[sched.length - 1]; // patch the booking spawnEnemy just made
+    s.lock = lock; s.needsNode = lock !== undefined;
+  }
+  else spawnEnemy(a, b.type || 'normal');
+  spawnRng = keep;
+}
+
+// ---------- fairness linter ----------
+// lintLevel walks a level's whole spawn timeline — beats, bands and the
+// seeded procedural filler — and reports violations of the 100%-completable
+// law as [{ t, code, msg }]. PURE: it runs on its own mulberry32 built from
+// the same seed the level would get, so the live spawnRng never advances and
+// no game state is touched. Geometry uses a nominal hitZ (the real one moves
+// ±0.02 with viewport aspect and never flips a verdict). Codes:
+//   dual-conflict     two simultaneous demands both nodes can't cover
+//   wall-conflict     an arrival authored onto a live wall carpet
+//   lull-violation    a beat scheduled inside another beat's lull
+//   comm-overlap      a beat arrival inside a comm window
+//   unreachable-strip a bonus ride that forces a wall crossing or abandons
+//                     a mandatory dual-node kill
+function lintLevel(level, idx) {
+  idx = idx || 0;
+  const issues = [];
+  const seenIss = new Set(); // one finding per moment (a barrier's two ends report as one)
+  const bad = (t, code, msg) => {
+    const key = code + '|' + msg + '|' + Math.round(t * 10);
+    if (seenIss.has(key)) return;
+    seenIss.add(key);
+    issues.push({ t: Math.round(t * 100) / 100, code, msg });
+  };
+  const rng = mulberry32((0x51AB1E + idx * 7919) >>> 0);
+  let R = rng; // active draw stream — beat firings swap in their side stream
+  const dr = () => R();
+  const drr = (a2, b2) => a2 + R() * (b2 - a2);
+  const dch = p => R() < p;
+  const hitZ = 0.25; // nominal viewport
+  const lead = mul => (SPAWN_Z - hitZ) / (level.speed * (mul || 1));
+  const trav = lead(1);
+  const GAP = 0.55;
+  const dur = level.duration;
+  const beats = level.beats || [];
+  const comms = level.comms || [];
+  const arr = [];   // arrivals {t, t1, type, lock, needsNode, angle, pair, beat}
+  const picks = []; // pickup arrivals {t, angle, beat}
+  const walls = []; // {tRel, tLand, a, beat} — live on the rim tLand..tLand+3
+  let sched2 = [];
+  // --- mirrors of the live fairness helpers, on local state ---
+  const liveWalls = tN => walls.filter(w => tN >= w.tRel && tN < w.tLand + 3);
+  const cow = (a2, tN, margin) => {
+    const lw = liveWalls(tN);
+    if (!lw.length) return a2;
+    const m = margin === undefined ? 0.45 : margin;
+    for (let k = 0; k < 8; k++) {
+      if (!lw.some(w => Math.abs(angDiff(w.a, a2)) < 0.5 + m)) break;
+      a2 += 2.399963;
+    }
+    return a2;
+  };
+  const mates = (tA, gap) => sched2.filter(s => tA > s.t0 - gap && tA < s.t1 + gap);
+  const allow = (type, tN) => {
+    const tNew = lead(type === 'heavy' ? 0.82 : 1);
+    const tA = tN + tNew;
+    if (type === 'heavy' || type === 'line') {
+      if (type === 'heavy' && mates(tA, 2.4).some(s => s.type === 'heavy')) return false;
+      return mates(tA, GAP * 1.5).length === 0;
+    }
+    if (type === 'strip') {
+      const tA1 = tA + 0.9 / level.speed;
+      for (const s of sched2) if (s.needsNode && s.t1 > tA - GAP && s.t0 < tA1 + GAP) return false;
+      return mates(tA, GAP).length <= 1;
+    }
+    if (type === 'frag') return mates(tA, 0.4).length === 0;
+    const m = mates(tA, GAP);
+    if (m.some(s => s.type === 'heavy' || s.type === 'line')) return false;
+    const strips = m.filter(s => s.type === 'strip').length;
+    return m.length - strips < (strips ? 1 : 2);
+  };
+  const lockOk = (tN, lk) => {
+    const m = mates(tN + lead(1), 0.55);
+    if (m.some(s => s.type === 'strip')) return false;
+    return !m.some(s => s.lock === lk);
+  };
+  // --- mirrors of the spawners: draw ORDER matches the live code exactly ---
+  function simEnemy(cfg, tN, forcedA, type, beat) {
+    type = type || 'normal';
+    const heavy = type === 'heavy';
+    const crawler = type === 'normal' && dch(cfg.crawlers || 0);
+    let lock = type === 'normal' && !crawler && dch(cfg.colors || 0) ? (dch(0.5) ? 0 : 1) : undefined;
+    if (lock !== undefined && !lockOk(tN, lock)) lock = lockOk(tN, 1 - lock) ? 1 - lock : undefined;
+    const angle = forcedA !== undefined ? forcedA : cow(dr() * TAU, tN);
+    dr(); // spin
+    const tA = tN + lead(heavy ? 0.82 : 1);
+    const rec = { t: tA, t1: tA, type, lock, needsNode: type !== 'normal' || lock !== undefined, angle, beat };
+    arr.push(rec);
+    if (type !== 'strip' && type !== 'frag')
+      sched2.push({ t0: tA, t1: tA, type, lock, needsNode: rec.needsNode });
+    return rec;
+  }
+  function simLine(cfg, tN, forcedA, beat) {
+    let a2 = forcedA !== undefined ? forcedA : dr() * TAU;
+    const gap = drr(0.8, 1.5) * (dch(0.5) ? -1 : 1);
+    a2 = cow(a2 + gap / 2, tN, Math.abs(gap) / 2 + 0.45) - gap / 2;
+    const e1 = simEnemy(cfg, tN, a2, 'line', beat);
+    const e2 = simEnemy(cfg, tN, a2 + gap, 'line', beat);
+    e1.pair = e2; e2.pair = e1;
+  }
+  function simStrip(cfg, tN, beat) {
+    const rec = simEnemy(cfg, tN, undefined, 'strip', beat);
+    rec.angle = cow(rec.angle, tN, 1.4);
+    const len = drr(0.5, 0.85);
+    drr(0.22, 0.5); dch(0.5); drr(2.2, 4.2); drr(0, TAU); // amp/sign/frq/phase
+    rec.t1 = rec.t + len / level.speed;
+    sched2.push({ t0: rec.t, t1: rec.t1, type: 'strip', lock: undefined, needsNode: true });
+    return rec;
+  }
+  function simWall(tN, forcedA, beat) {
+    let a2 = forcedA !== undefined ? forcedA : dr() * TAU;
+    const auth = a2; // the AUTHORED arc — the clash hops below may move the real one
+    const wallLife = trav + 3 + 0.6;
+    for (let k = 0; k < 8; k++) {
+      const clash = arr.some(rec => {
+        if (rec.type === 'strip') return tN < rec.t1 + 0.4 && Math.abs(angDiff(rec.angle, a2)) < 1.3;
+        const tArr = rec.t - tN;
+        return tArr > -0.5 && tArr < wallLife && Math.abs(angDiff(rec.angle, a2)) < 0.95;
+      });
+      if (!clash) break;
+      a2 += 2.399963;
+    }
+    walls.push({ tRel: tN, tLand: tN + trav, a: a2, aA: auth, beat });
+  }
+  function simPickup(tN, kind, beat) {
+    if (kind === undefined) dr(); // kind roll
+    picks.push({ t: tN + lead(0.9), angle: dr() * TAU, beat });
+  }
+  // --- the run: same tick order as update() (spawner → beats → burst →
+  // pickup clock → ribbon clock), same draw order as resetRun/trySpawn ---
+  let pkT = drr(16, 24), rbT = drr(11, 15); // resetRun's opening draws
+  let lvT = 0, spT = 1.2, bq = null;
+  const fired = beats.map(() => false);
+  beats.forEach((b, bi) => { // the same pre-bookings initBeats makes
+    if (b.kind === 'enemy') {
+      const lk = b.type === 'lock0' ? 0 : b.type === 'lock1' ? 1 : undefined;
+      const ty = lk !== undefined ? 'normal' : (b.type || 'normal');
+      if (ty !== 'frag') sched2.push({ t0: b.t, t1: b.t, type: ty, lock: lk, needsNode: ty !== 'normal' || lk !== undefined, beat: bi });
+    } else if (b.kind === 'strip') sched2.push({ t0: b.t, t1: b.t + 0.85 / level.speed, type: 'strip', lock: undefined, needsNode: true, beat: bi });
+  });
+  const dt = 1 / 60;
+  while (lvT < dur) {
+    lvT += dt;
+    // filler release (trySpawn)
+    spT -= dt;
+    if (spT <= 0 && lvT < dur) {
+      const tLand = lvT + trav;
+      const cHit = comms.find(c => tLand > c.t - 0.5 && tLand < c.t + 3.2);
+      let lWait = 0;
+      const tL1 = lvT + trav / 0.82;
+      for (const b of beats) if (b.kind === 'lull' && tL1 > b.t && tLand < b.t + b.dur)
+        lWait = Math.max(lWait, b.t + b.dur + 0.05 - trav - lvT);
+      const wait = Math.max(cHit ? cHit.t + 3.2 + 0.3 - trav - lvT : 0, lWait);
+      if (wait > 0) spT = wait;
+      else {
+        sched2 = sched2.filter(s => s.t1 > lvT - 1.5); // same pruning as the live ledger
+        const cfg = bandCfg(level, lvT);
+        spT = drr(cfg.spawnMin, cfg.spawnMax);
+        let done = false;
+        if (dch(cfg.frags || 0) && allow('frag', lvT)) { simEnemy(cfg, lvT, undefined, 'frag'); done = true; }
+        if (!done && cfg.bursts && !bq && dch(0.3) && allow('line', lvT)) {
+          bq = { left: 2, t: 0.35 }; simEnemy(cfg, lvT); spT += 0.9; done = true;
+        }
+        if (!done && dch(cfg.walls || 0) && !liveWalls(lvT).length) { simWall(lvT); done = true; }
+        if (!done) {
+          const roll = dr();
+          if (roll < cfg.lines && allow('line', lvT)) simLine(cfg, lvT);
+          else if (roll < cfg.lines + cfg.heavies && allow('heavy', lvT)) simEnemy(cfg, lvT, undefined, 'heavy');
+          else if (!allow('normal', lvT)) spT = Math.min(spT, 0.35);
+          else {
+            const a2 = cow(dr() * TAU, lvT);
+            simEnemy(cfg, lvT, a2);
+            if (dch(cfg.doubles) && allow('normal', lvT)) simEnemy(cfg, lvT, cow(a2 + Math.PI + drr(-0.6, 0.6), lvT));
+          }
+        }
+      }
+    }
+    // beats (runBeats): released back-timed, sliding past comm windows
+    for (let bi = 0; bi < beats.length; bi++) {
+      if (fired[bi]) continue;
+      const b = beats[bi];
+      if (b.kind === 'lull') { if (lvT >= b.t) fired[bi] = true; continue; }
+      const leadB = b.kind === 'wall' ? trav : b.kind === 'pickup' ? lead(0.9)
+        : lead(b.kind === 'enemy' && b.type === 'heavy' ? 0.82 : 1);
+      if (lvT < b.t - leadB) continue;
+      const tA = lvT + leadB;
+      if (comms.some(c => tA > c.t - 0.5 && tA < c.t + 3.2)) continue;
+      fired[bi] = true;
+      sched2 = sched2.filter(s => s.beat !== bi);
+      R = beatStream(idx, bi);
+      const a2 = b.angle !== undefined ? cow(b.angle, lvT) : undefined;
+      if (b.kind === 'wall') simWall(lvT, a2, bi);
+      else if (b.kind === 'strip') simStrip(bandCfg(level, lvT), lvT, bi);
+      else if (b.kind === 'pickup') simPickup(lvT, b.type, bi);
+      else if (b.type === 'line') simLine(bandCfg(level, lvT), lvT, a2, bi);
+      else if (b.type === 'lock0' || b.type === 'lock1') {
+        let lk = b.type === 'lock1' ? 1 : 0;
+        if (!lockOk(lvT, lk)) lk = lockOk(lvT, 1 - lk) ? 1 - lk : undefined;
+        const rec = simEnemy(bandCfg(level, lvT), lvT, a2, 'normal', bi);
+        rec.lock = lk; rec.needsNode = lk !== undefined;
+        const s = sched2[sched2.length - 1];
+        s.lock = lk; s.needsNode = rec.needsNode;
+      }
+      else simEnemy(bandCfg(level, lvT), lvT, a2, b.type || 'normal', bi);
+      R = rng;
+    }
+    // burst replicants
+    if (bq) {
+      bq.t -= dt;
+      if (bq.t <= 0) { simEnemy(bandCfg(level, lvT), lvT); bq.left--; bq.t = 0.35; if (!bq.left) bq = null; }
+    }
+    // pickup + ribbon clocks (ribbons only exist from level 5 up)
+    pkT -= dt;
+    if (pkT <= 0) { pkT = drr(20, 32); simPickup(lvT); }
+    if (idx >= 4) {
+      rbT -= dt;
+      if (rbT <= 0) {
+        if (lvT < dur - 14 && allow('strip', lvT)) { rbT = drr(26, 40); simStrip(bandCfg(level, lvT), lvT); }
+        else rbT = 2.5;
+      }
+    }
+  }
+  // --- verdicts ---
+  // filler-vs-filler pairs already passed the live gates (the sim replays
+  // them), so every check demands a BEAT party: beats bypass spawnAllowed and
+  // are the only way to author an impossible moment. Windows are spawn-order
+  // aware, mirroring the asymmetric live gates (a dual released later needs a
+  // 0.825s-clear window; a single landing after a booked dual only needs 0.55)
+  const isDual = r => r.type === 'heavy' || r.type === 'line';
+  const host = arr.filter(r => r.type !== 'strip' && r.type !== 'frag');
+  const beaty = (...rs) => rs.some(r => r.beat !== undefined);
+  for (let i = 0; i < host.length; i++) for (let j = i + 1; j < host.length; j++) {
+    const a2 = host[i], b2 = host[j]; // arr is in spawn order
+    if (a2.pair === b2 || !beaty(a2, b2)) continue;
+    const d2 = Math.abs(a2.t - b2.t);
+    if (a2.type === 'heavy' && b2.type === 'heavy' && d2 < 2.4)
+      bad(b2.t, 'dual-conflict', 'two heavies inside one volley cycle');
+    else if (isDual(b2) && d2 < GAP * 1.5)
+      bad(b2.t, 'dual-conflict', 'both-nodes demand overlaps another arrival');
+    else if (isDual(a2) && d2 < GAP)
+      bad(b2.t, 'dual-conflict', 'arrival lands inside a both-nodes window');
+    else if (a2.lock !== undefined && a2.lock === b2.lock && d2 < GAP)
+      bad(b2.t, 'dual-conflict', 'same-color locks double-book one node');
+  }
+  // a trap parked on a mandatory dock: the player MUST be there — and dies
+  for (const f of arr) if (f.type === 'frag') for (const h of host) {
+    if (beaty(f, h) && h.needsNode && Math.abs(h.t - f.t) < 0.35 && Math.abs(angDiff(h.angle, f.angle)) < 0.5)
+      bad(f.t, 'dual-conflict', 'node killer parked on a mandatory dock');
+  }
+  // wall clearance: arrivals authored onto a carpet (live spawns self-relocate,
+  // so flag the AUTHORED intent — the engine would move it and break the design)
+  const wallHit = (t2, ang, useAuth) => walls.find(w =>
+    t2 > w.tRel - 0.5 && t2 < w.tLand + 3.6 && Math.abs(angDiff(useAuth ? w.aA : w.a, ang)) < 0.95);
+  for (const b of beats) {
+    if (b.kind !== 'enemy' && b.kind !== 'pickup') continue;
+    if (b.angle === undefined) continue;
+    if (wallHit(b.t, b.angle, true)) bad(b.t, 'wall-conflict', 'beat arrival authored onto a wall carpet');
+  }
+  for (const p2 of picks) if (p2.beat !== undefined && wallHit(p2.t, p2.angle))
+    bad(p2.t, 'wall-conflict', 'power-up beat rides into a wall carpet');
+  // strips: the full ride must stay ownable and clear of walls
+  for (const st of arr) {
+    if (st.type !== 'strip') continue;
+    for (const h of host) if (beaty(st, h) && h.needsNode && h.t1 > st.t - GAP && h.t < st.t1 + GAP) {
+      bad(st.t, 'unreachable-strip', 'bonus ride overlaps a mandatory dual-node kill'); break;
+    }
+    // 1.3 = wall half-span 0.5 + max meander 0.5 + node tolerance ~0.3
+    for (const w of walls) if ((st.beat !== undefined || w.beat !== undefined) &&
+      st.t1 > w.tLand && st.t < w.tLand + 3 && Math.abs(angDiff(w.a, st.angle)) < 1.3) {
+      bad(st.t, 'unreachable-strip', 'bonus ride crosses a wall carpet'); break;
+    }
+  }
+  // beats inside lulls / comm windows (authored times — the runtime slides
+  // them late, which is exactly the surprise the author should fix)
+  for (const l of beats) {
+    if (l.kind !== 'lull') continue;
+    for (const b of beats) if (b !== l && b.kind !== 'lull' && b.t > l.t && b.t < l.t + l.dur)
+      bad(b.t, 'lull-violation', 'beat scheduled inside another beat\'s lull');
+  }
+  for (const b of beats) {
+    if (b.kind === 'lull') continue;
+    const c = comms.find(c2 => b.t > c2.t - 0.5 && b.t < c2.t + 3.2);
+    if (c) bad(b.t, 'comm-overlap', 'beat arrival lands inside a comm window');
+  }
+  issues.sort((x, y) => x.t - y.t);
+  return issues;
+}
 
 function trySpawn(dt) {
   spawnT -= dt;
   if (spawnT <= 0) {
     if (scripted()) {
-      const wait = storyHold();
-      if (wait > 0) { spawnT = wait; return; } // hold the lane for the story
+      const wait = Math.max(storyHold(), lullHold());
+      if (wait > 0) { spawnT = wait; return; } // hold the lane for the story / an authored lull
     }
-    const L = LV || LEVELS[levelIdx];
+    const L = bandCfg(LV || LEVELS[levelIdx], levelT); // bands may retune the knobs mid-level
     sched = sched.filter(s => s.t1 > levelT - 1.5); // drop long-past bookings
     // scripted levels skip beat-quantize: music phase varies run to run, and
     // the drill must land the same arrivals every time
@@ -1145,9 +1569,9 @@ function clearOfWalls(a, margin) {
   return a;
 }
 
-function spawnWall() {
+function spawnWall(forcedA) { // beats may pin the landing arc (fairness hops still apply)
   if (!progress.wallBriefed && !tut) showCard('wall'); // first encounter, mid-run briefing
-  let a = spawnRng() * TAU;
+  let a = forcedA !== undefined ? forcedA : spawnRng() * TAU;
   const g2 = geo();
   const trav = travelTime(); // the carpet is world traffic: horizon to rim at stream speed
   const wallLife = trav + 3 + 0.6; // approach + burn + detour buffer
@@ -1196,9 +1620,9 @@ const PICKUPS = {
   inject: { dur: 0,  label: 'PULSE INJECTED' },  // both purge orbs snap to ready
   chain:  { dur: 6,  label: 'CHAIN OVERDRIVE' }  // zaps arc to the nearest hostile
 };
-function spawnPickup() {
+function spawnPickup(kind) { // beats may pin the kind (skipping that roll)
   const kinds = Object.keys(PICKUPS);
-  pickups.push({ kind: kinds[(spawnRng() * kinds.length) | 0], z: SPAWN_Z, angle: spawnRng() * TAU, spin: 0, done: false });
+  pickups.push({ kind: kind || kinds[(spawnRng() * kinds.length) | 0], z: SPAWN_Z, angle: spawnRng() * TAU, spin: 0, done: false });
 }
 // the firewall core duel: it hunts the fused node from inside the tunnel while
 // the ray cannon (left thumb = move, right thumb = aim, hold = fire) drains it
@@ -1848,6 +2272,7 @@ function resetRun() {
   fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24);
   ribbonT = srand(11, 15); // first golden ribbon EARLY — its pulse should serve the whole run
   sched = [];
+  initBeats(); // authored timeline: arm the beat queue + pre-book its windows
   nodes[0].angle = Math.PI * 0.75;
   nodes[1].angle = Math.PI * 0.25;
   state = S.PLAY;
@@ -1983,6 +2408,7 @@ const INFO_CARDS = {
 // installCampaign() has already filled STORY/COMMS/CASE_NOTES by the time
 // they're read; story cards register into INFO_CARDS here, once it exists.
 infoCardsReady = true;
+lintReady = true;
 registerStoryCards();
 
 let typeN = -1; // teletype progress for story cards
@@ -2473,7 +2899,7 @@ function update(dt) {
 
   if (!inIntro) {
     if (tut) updateTutorial(sdt);
-    else if (levelT < L.duration) trySpawn(sdt); // stop spawning once the run distance is covered
+    else if (levelT < L.duration) { trySpawn(sdt); runBeats(); } // stop spawning once the run distance is covered
   }
   if (burstQ) {
     burstQ.t -= sdt;
