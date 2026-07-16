@@ -95,6 +95,7 @@ code = code.replace("'use strict';", '') + `
   getProg: () => PROG, getCamp: () => CAMP, validateCampaign, installCampaign, CAMPAIGNS,
   getLevels: () => LEVELS, migrateSaveShape, getInfoCards: () => INFO_CARDS,
   getGpSel: () => gpSel, setGpSel: v => { gpSel = v; },
+  getMapSel: () => mapSel, getPadHold: () => padHold, ripplesN: () => ripples.length,
   startEndless, menuBtns: () => menuButtons, getEndWin: () => endWin,
   setLevelT: v => { levelT = v; }, setIntegrity: v => { integrity = v; }, setScore: v => { score = v; },
   setMenuScroll: v => { menuScroll = v; }, tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
@@ -312,6 +313,7 @@ aim(0, Math.PI); aim(1, 0.1);
 cross(en);
 check('zap spawns a lightning bolt', G.bolts().length > 0);
 check('routine zaps do NOT freeze the world (no hit-stop flinch)', G.hitStop() === 0);
+check('a kill pops a ripple at the impact point', G.ripplesN() > 0);
 check('zap kicks the carriage and lights the rim', (G.nodes[0].recoil > 0 || G.nodes[1].recoil > 0) && G.rimFX().length > 0);
 check('level start arms the warp dive', G.getWarpT() > 0 || true); // warpT decays with updates — sanity only
 
@@ -1117,8 +1119,29 @@ G.keys['ArrowUp'] = false;
   check('A on the campaign slice opens the route map', G.getMenuScreen() === 'map');
   flushUI(); // let the panels finish driving in
   G.frame(16); G.update(0.05);
-  check('the map opens with DEPLOY focused', G.menuBtns()[G.getGpSel()] && G.menuBtns()[G.getGpSel()].deploy !== undefined);
+  // the map is a list: D-pad up/down moves the relay selection directly
+  const sel0 = G.getMapSel();
+  tap(12); // up
+  check('D-pad up steps the relay selection', G.getMapSel() === Math.max(0, sel0 - 1));
+  tap(13); // down
+  check('D-pad down steps it back', G.getMapSel() === sel0);
+  // A deploys the selected relay (launch zoom -> level)
+  tap(0);
+  flushUI();
+  check('A deploys the selected relay', G.getState() === G.S.PLAY || G.getState() === G.S.INFO);
+  if (G.getState() === G.S.INFO) dismiss();
+  // controller boot gate: same-direction sticks do NOT arm; opposite sticks do
+  G.setIntro(2.5); // inside the AWAITING OPERATOR window
+  pad.axes = [1, 0, 1, 0]; // both sticks east — one thumb, effectively
+  G.update(0.05);
+  check('same-direction sticks do not satisfy the gate', !G.getPadHold()[0] && !G.getPadHold()[1]);
+  pad.axes = [1, 0, -1, 0]; // bracing the ring from both sides
+  G.update(0.05);
+  check('opposite sticks register the operator', G.getPadHold()[0] && G.getPadHold()[1]);
+  pad.axes = [0, 0, 0, 0];
+  G.setIntro(999);
   // B backs out of the map to the wheel
+  G.setState(G.S.MENU); G.setMenuScreen('map'); G.frame(16); G.update(0.05);
   tap(1);
   flushUI();
   check('B backs out to the mode wheel', G.getMenuScreen() === 'home');

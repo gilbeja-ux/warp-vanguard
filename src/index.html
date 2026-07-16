@@ -819,6 +819,7 @@ let bolts = [];               // lightning arcs (node → trap)
 const fx = { wide: 0, auto: 0, chain: 0 }; // power-up effect timers (seconds)
 let shieldCharge = 0; // firewall shield: 1 = the next breach is absorbed
 let shieldFlashT = 0; // catch-ring flare when the shield eats a breach
+let ripples = [];     // kill ripples: crisp expanding rings — delight without time freeze
 let pickups = [], pickupT = 20;
 let ribbonT = 30; // bonus stream cadence — golden ribbons on levels 5+ / endless
 let tut = null;               // tutorial controller (level 1, first run)
@@ -1812,7 +1813,7 @@ function resetRun() {
   boss = null; burstQ = null; patternQ = []; hitStop = 0;
   heat = 0; overheat = false; beamActive = false; beamSound(false, 0); stripSound(false, 0);
   introT = 0; introCd = -1; introStage = -1; introLatch = false; padHold = [false, false]; gatePip = 0;
-  rimFX = []; latches = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
+  rimFX = []; latches = []; ripples = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; }
   fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24);
   ribbonT = srand(11, 15); // first golden ribbon EARLY — its pulse should serve the whole run
@@ -2088,6 +2089,7 @@ function updateTutorial(dt) {
 // across the buttons and A presses the focused one.
 let padPrev = { a: false, b: false, y: false, start: false, lt: false, rt: false, stick: false };
 let gpSel = 0, gpNav = false; // menu focus index + "a controller drives the menus"
+let gpSeen = false; // a controller has spoken — show button hints, arm the stick gate
 let gpSig = ''; // screen signature — focus snaps to the primary key on arrival
 function gpSyncFocus(list) {
   const sig = state + ':' + (state === S.MENU ? menuScreen : '') + ':' + list.length;
@@ -2151,6 +2153,7 @@ function gpMove(list, dx, dy) { // nearest button lying in the pressed direction
 }
 function drawGpFocus() { // pulsing outline on the focused button, controller users only
   if (!gpNav) return;
+  if (state === S.MENU && menuScreen === 'map') return; // the map highlights its own selection
   const list = gpList();
   if (!list || !list.length) return;
   if (gpSel >= list.length) gpSel = list.length - 1;
@@ -2169,6 +2172,36 @@ function drawGpFocus() { // pulsing outline on the focused button, controller us
   }
   ctx.restore();
 }
+// tiny controller-button badge (A / B / Y / START) pinned to a key's top edge
+function drawPadHint(x, y, label) {
+  ctx.save();
+  ctx.font = '800 9px Audiowide, system-ui';
+  const w = Math.ceil(ctx.measureText(label).width) + 10, h = 14;
+  ctx.fillStyle = 'rgba(6,16,30,0.92)';
+  roundRect(x - w / 2, y - h / 2, w, h, 4); ctx.fill();
+  ctx.strokeStyle = 'rgba(140,235,255,0.9)'; ctx.lineWidth = 1;
+  roundRect(x - w / 2, y - h / 2, w, h, 4); ctx.stroke();
+  ctx.fillStyle = '#d9f4ff'; ctx.textAlign = 'center';
+  ctx.fillText(label, x, y + 3);
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+function drawGpHints() { // once a controller speaks, keys wear their buttons
+  if (!gpSeen) return;
+  const list = gpList();
+  if (list) for (const b of list) {
+    let h = null;
+    if (b.deploy !== undefined || b.action === 'next' || b.action === 'resume') h = 'A';
+    else if (b.back) h = 'B';
+    else if (b.action === 'menu' && state !== S.MENU) h = 'Y';
+    if (!h || b.sector) continue;
+    drawPadHint(b.x + b.w / 2, b.y - 2, h);
+  }
+  if (state === S.MENU && menuScreen !== 'home' && menuBackRect)
+    drawPadHint(menuBackRect.x + menuBackRect.w / 2, menuBackRect.y + menuBackRect.h + 9, 'B');
+  if (state === S.PLAY && pauseBtnRect && introT >= INTRO_DUR)
+    drawPadHint(pauseBtnRect.x + pauseBtnRect.w / 2, pauseBtnRect.y + pauseBtnRect.h + 10, 'START');
+}
 function pollGamepad() {
   if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
   let gp = null;
@@ -2179,14 +2212,37 @@ function pollGamepad() {
     const x = gp.axes[i * 2], y = gp.axes[i * 2 + 1];
     return Math.hypot(x, y) > 0.45 ? Math.atan2(y, x) : null;
   };
+  if (!gpSeen && (gp.buttons.some(b2 => b2 && b2.pressed) || gp.axes.some(v => Math.abs(v) > 0.3)))
+    gpSeen = true; // first real input → button hints + controller boot gate
   const start = press(9);
   if (start && !padPrev.start) {
     if (state === S.PLAY && introT >= INTRO_DUR) { state = S.PAUSE; sfx.tick(); }
     else if (state === S.PAUSE) { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; sfx.tick(); }
+    else if (state === S.MENU && menuScreen !== 'home') gpBackAction(); // START: out to the menu
   }
   padPrev.start = start;
   const list = gpList();
-  if (list && list.length) {
+  const onMap = state === S.MENU && menuScreen === 'map';
+  if (list && list.length && onMap) {
+    // the map is a LIST, not a maze: up/down picks the relay, A deploys,
+    // B backs out. Dev keys (BOSS TEST, RESET) stay mouse-only on purpose.
+    const rows = list.filter(b2 => b2.node !== undefined);
+    const step = d => {
+      const cur = rows.findIndex(r => r.node === mapSel);
+      const nx = rows[clamp((cur < 0 ? 0 : cur) + d, 0, rows.length - 1)];
+      if (nx && nx.node !== mapSel) { const c = gpCenter(nx); menuTap(c.x, c.y, -7); }
+    };
+    for (const [bi, d] of [[12, -1], [13, 1]]) {
+      const dn = press(bi), key = 'd' + bi;
+      if (dn && !padPrev[key]) step(d);
+      padPrev[key] = dn;
+    }
+    padPrev.d14 = press(14); padPrev.d15 = press(15); // eaten — no sideways ghosts
+    const sy = stick(0) !== null ? stick(0) : stick(1);
+    const hadY = padPrev.stick;
+    padPrev.stick = sy !== null;
+    if (sy !== null && !hadY && Math.abs(Math.sin(sy)) > 0.6) step(Math.sign(Math.sin(sy)) > 0 ? 1 : -1);
+  } else if (list && list.length) {
     gpSyncFocus(list); // fresh screen → focus lands on the CONFIRM key
     for (const [bi, dx, dy] of [[12, 0, -1], [13, 0, 1], [14, -1, 0], [15, 1, 0]]) {
       const dn = press(bi), key = 'd' + bi; // D-pad walks the focus ring
@@ -2226,19 +2282,25 @@ function pollGamepad() {
   if (a0 && !padPrev.a) {
     if (state === S.INFO) {
       if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); }
-    } else if (list && list.length) { // A confirms: presses the focused key
-      gpNav = true; // (which is the screen's primary until the player steers)
-      const c = gpCenter(list[Math.min(gpSel, list.length - 1)]);
-      if (state === S.MENU) menuTap(c.x, c.y, -7);
-      else if (state === S.PAUSE) pauseTap(c.x, c.y, -7);
-      else endTap(c.x, c.y);
+    } else if (list && list.length) { // A confirms: on the map that's DEPLOY,
+      const target = onMap ? list.find(b2 => b2.deploy !== undefined) // elsewhere the focused key
+        : list[Math.min(gpSel, list.length - 1)];
+      if (target) {
+        gpNav = true;
+        const c = gpCenter(target);
+        if (state === S.MENU) menuTap(c.x, c.y, -7);
+        else if (state === S.PAUSE) pauseTap(c.x, c.y, -7);
+        else endTap(c.x, c.y);
+      }
     }
   }
   padPrev.a = a0;
   if (state !== S.PLAY) return;
-  if (introT < INTRO_DUR) { // boot gate: a deflected stick is a placed thumb
-    if (stick(0) !== null) padHold[0] = true;
-    if (stick(1) !== null) padHold[1] = true;
+  if (introT < INTRO_DUR) {
+    // controller grip: both sticks held pointing APART — two thumbs bracing
+    // the ring — registers the operator (touch thumbs still work as ever)
+    const g0 = stick(0), g1 = stick(1);
+    if (g0 !== null && g1 !== null && Math.abs(angDiff(g0, g1)) > 2.1) padHold[0] = padHold[1] = true;
     return;
   }
   const fused = boss && boss.mergeT >= 1;
@@ -2278,6 +2340,8 @@ function update(dt) {
   for (const p of popups) { p.y -= 30 * dt; p.life -= dt * 0.9; }
   popups = popups.filter(p => p.life > 0);
   shieldFlashT = Math.max(0, shieldFlashT - dt);
+  for (const r of ripples) r.t += dt;
+  ripples = ripples.filter(r => r.t < 0.3);
   for (const b of bolts) b.life -= dt;
   bolts = bolts.filter(b => b.life > 0);
 
@@ -2532,6 +2596,7 @@ function update(dt) {
       score += vb;
       burst(vx, vy, en.type === 'heavy' ? '#d465ff' : '#bfeaff', 22, 5);
       burst(vx, vy, '#ffffff', 12, 5.5);
+      ripples.push({ x: vx, y: vy, t: 0 });
       popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : '+') + vb, '#bfeaff');
       rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
       sfx.zap(1, Math.cos(en.angle) * 0.6);
@@ -2779,7 +2844,8 @@ function update(dt) {
         }
         if (en.lock !== undefined) burst(ex, ey, en.lock === 0 ? '#4d9bff' : '#eef6ff', 14, 4.5);
         // no hit-stop on routine kills — the world freezing made every OTHER
-        // enemy visibly flinch; freeze frames are for ceremonies (last kill, boss)
+        // enemy visibly flinch; a crisp ripple at the impact carries the pop
+        ripples.push({ x: ex, y: ey, t: 0 });
         lastKillBeat(en);
         popup(ex, ey, (perfect ? 'PERFECT +' : '+') + pts + (combo >= 3 ? '  x' + Math.min(combo, 5) : ''), perfect ? '#ffe9b0' : '#bfeaff');
         // no screen shake on a clean kill — the rim flash + haptics carry it;
@@ -4886,7 +4952,7 @@ function drawIntroCard() {
         ctx.globalAlpha = 0.85;
         ctx.fillStyle = 'rgba(200,235,255,0.8)';
         ctx.font = '500 11px Audiowide, system-ui';
-        ctx.fillText('PLACE BOTH THUMBS ON THE PADS', W / 2, ly + 32);
+        ctx.fillText(gpSeen ? 'HOLD BOTH STICKS — OPPOSITE SIDES' : 'PLACE BOTH THUMBS ON THE PADS', W / 2, ly + 32);
       }
     } else { // CONTROLS ACTIVE — the stream goes live (the CID says godspeed)
       const gt = (t - INTRO_DUR) / 0.6;
@@ -5623,6 +5689,7 @@ function drawInfoCard() {
   try { ctx.letterSpacing = '3px'; } catch (e) {}
   fit('700', 12, 'TAP TO CONTINUE');
   ctx.fillText('TAP TO CONTINUE', g.cx, g.cy + R * 0.66);
+  if (gpSeen) drawPadHint(g.cx + ctx.measureText('TAP TO CONTINUE').width / 2 + 22, g.cy + R * 0.66 - 4, 'A');
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.textAlign = 'left';
   ctx.restore();
@@ -7585,6 +7652,14 @@ function frame(now) {
   }
   ctx.globalAlpha = 1;
   drawBolts();
+  for (const r of ripples) { // the kill pop: a fast ring, gone in a blink
+    const q = r.t / 0.3;
+    ctx.globalAlpha = (1 - q) * 0.75;
+    ctx.strokeStyle = '#bfeaff';
+    ctx.lineWidth = 2.5 - q * 1.8;
+    ctx.beginPath(); ctx.arc(r.x, r.y, 6 + q * q * 52, 0, TAU); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
   ctx.textAlign = 'center';
   for (const p of popups) {
     const al = clamp(p.life, 0, 1);
@@ -7645,6 +7720,7 @@ function frame(now) {
   }
   else drawEnd(g);
   drawGpFocus(); // controller focus ring rides on top of whatever screen owns the buttons
+  drawGpHints();
 
   // system-critical glitches — the screen itself degrades with the payload
   if (state === S.PLAY && integrity <= 50) {
