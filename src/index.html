@@ -1421,11 +1421,21 @@ function burst(x, y, color, n, spd) {
   }
 }
 function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
-// kill feedback that BELONGS to the tunnel: every kill HEALS its patch of
-// the line — a green wave (the victory sweep's language, one enemy at a
-// time) rides the wall surface out from the kill, reaching mostly FORWARD
-// down the bore. Nothing else pauses or flinches.
-function spawnKillRipple(a) { ripples.push({ a, t: 0 }); }
+// kill feedback that BELONGS to the tunnel: the enemy SPLASHES into green
+// smears of data — a few pixelated streams (one straight down the bore, two
+// diagonal) that ride the wall away from the kill and fade, the victory
+// sweep's green one packet at a time. Nothing else pauses or flinches.
+function spawnKillRipple(a) {
+  const streams = [];
+  for (const [va, vz] of [[0, 0.85], [0.5, 0.5], [-0.5, 0.5]]) {
+    streams.push({
+      va: va * (0.8 + Math.random() * 0.4), // angular drift (the diagonals)
+      vz: vz * (0.8 + Math.random() * 0.4), // depth run — forward, into the bore
+      ph: Math.random() * 9                 // per-stream pixel jitter phase
+    });
+  }
+  ripples.push({ a, t: 0, streams });
+}
 // the LAST hostile of a finished campaign level dies on a beat — every level
 // ends like it means it (the boss has its own, bigger version)
 function lastKillBeat(justKilled) {
@@ -7667,52 +7677,38 @@ function frame(now) {
   }
   ctx.globalAlpha = 1;
   drawBolts();
-  if (ripples.length) { // each kill heals its patch of the line
+  if (ripples.length) { // the enemy splashes into green data smears
     const g2 = geo(), u = Math.min(W, H);
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const r of ripples) {
-      const q = r.t / 0.55, e2 = 1 - Math.pow(1 - q, 2); // ease-out growth
-      if (q < 0.2) { // impact instant: a soft green core on the rim
-        const ix = g2.cx + Math.cos(r.a) * g2.nodeR, iy = g2.cy + Math.sin(r.a) * g2.nodeR;
-        const gl = ctx.createRadialGradient(ix, iy, 0, ix, iy, u * 0.05);
-        gl.addColorStop(0, 'rgba(220,255,215,' + (0.85 * (1 - q / 0.2)).toFixed(2) + ')');
+      const q = r.t / 0.6, e2 = 1 - Math.pow(1 - q, 2); // streams ease out
+      if (q < 0.22) { // the splash instant: a green burst core at the kill
+        const rg0 = ring(g2.hitZ, g2);
+        const ix = rg0.x + Math.cos(r.a) * rg0.r, iy = rg0.y + Math.sin(r.a) * rg0.r;
+        const gl = ctx.createRadialGradient(ix, iy, 0, ix, iy, u * 0.045);
+        gl.addColorStop(0, 'rgba(225,255,220,' + (0.9 * (1 - q / 0.22)).toFixed(2) + ')');
         gl.addColorStop(1, 'rgba(126,226,98,0)');
         ctx.fillStyle = gl;
-        ctx.beginPath(); ctx.arc(ix, iy, u * 0.05, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(ix, iy, u * 0.045, 0, TAU); ctx.fill();
       }
-      // the wavefront is a closed loop living ON the wall surface: centered
-      // at the kill, it spreads along the rim and reaches down the bore —
-      // forward travel dominates, like the victory sweep rolling to the
-      // horizon from this one healed point
-      for (const [lw, base, al] of [[u * 0.014, 'rgba(126,226,98,', 0.45], [u * 0.0045, 'rgba(240,255,235,', 0.9]]) {
-        ctx.strokeStyle = base + ((1 - q) * al).toFixed(2) + ')';
-        ctx.lineWidth = lw * (1 - q * 0.45);
-        ctx.beginPath();
-        for (let i = 0; i <= 28; i++) {
-          const t2 = i / 28 * TAU;
-          const s = Math.sin(t2);
-          // deeper = forward (toward the horizon); the backward lip barely leaves the rim
-          const z = clamp(g2.hitZ + (s > 0 ? s * e2 * 0.32 : s * e2 * 0.09), 0.05, SPAWN_Z);
-          const rr = ring(z, g2).r;
-          const aa = r.a + Math.cos(t2) * e2 * 0.42;
-          const x = g2.cx + Math.cos(aa) * rr, y = g2.cy + Math.sin(aa) * rr;
-          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      // pixelated streams riding the wall away from the kill: each is a
+      // smear of squares trailing its head, shrinking with perspective as
+      // it runs toward the horizon
+      for (const st of r.streams) {
+        for (let k = 0; k < 6; k++) {
+          const f = e2 - k * 0.11; // trail samples behind the head
+          if (f <= 0) continue;
+          const z = clamp(g2.hitZ + st.vz * f, 0.05, SPAWN_Z);
+          const rg = ring(z, g2);
+          const aa = r.a + st.va * f + Math.sin(st.ph + k * 4.7) * 0.018; // pixel jitter
+          const x = rg.x + Math.cos(aa) * rg.r, y = rg.y + Math.sin(aa) * rg.r;
+          const sz = u * 0.017 * (1 - k * 0.11) * (rg.s / 0.4); // perspective shrink
+          ctx.globalAlpha = (1 - q) * (1 - k * 0.13) * 0.9;
+          ctx.fillStyle = k === 0 ? '#eaffe4' : k % 2 ? '#7ee262' : '#a9f08c';
+          ctx.fillRect(x - sz / 2, y - sz / 2, sz, sz);
         }
-        ctx.closePath(); ctx.stroke();
-      }
-      // a faint healed wash inside the fresh wavefront
-      if (q > 0.1) {
-        const zc = clamp(g2.hitZ + e2 * 0.14, 0.05, SPAWN_Z);
-        const cr = ring(zc, g2).r;
-        const cx2 = g2.cx + Math.cos(r.a) * cr, cy2 = g2.cy + Math.sin(r.a) * cr;
-        const wg = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, u * 0.055 * e2);
-        wg.addColorStop(0, 'rgba(126,226,98,' + (0.22 * (1 - q)).toFixed(2) + ')');
-        wg.addColorStop(1, 'rgba(126,226,98,0)');
-        ctx.fillStyle = wg;
-        ctx.beginPath(); ctx.arc(cx2, cy2, u * 0.055 * e2, 0, TAU); ctx.fill();
       }
     }
-    ctx.lineCap = 'butt';
+    ctx.globalAlpha = 1;
   }
   ctx.textAlign = 'center';
   for (const p of popups) {
