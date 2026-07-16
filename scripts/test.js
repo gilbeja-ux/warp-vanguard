@@ -604,8 +604,18 @@ const cTile = G.menuBtns().find(b => b.mode === 'campaign');
   const sc = cTile.sector, ma = (sc.a0 + sc.a1) / 2, mr = (sc.r0 + sc.r1) / 2;
   G.menuTap(sc.cx + Math.cos(ma) * mr, sc.cy + Math.sin(ma) * mr, 1);
 }
-flushUI(); // press beat -> glitch cut -> screen switch
-check('campaign tile opens the route map', G.getMenuScreen() === 'map');
+flushUI(); // press beat -> spin -> screen switch
+check('campaign tile opens the case-file picker (two campaigns shipped)', G.getMenuScreen() === 'camps');
+G.frame(16);
+{ // the picker lists both investigations; picking the FIRST opens its map
+  const rows = G.menuBtns().filter(b => b.camp !== undefined);
+  check('picker lists every bundled campaign', rows.length === G.CAMPAIGNS.length && G.CAMPAIGNS.length === 2);
+  const inv = rows.find(b => G.CAMPAIGNS[b.camp].id === 'investigation');
+  G.menuTap(inv.x + inv.w / 2, inv.y + inv.h / 2, 1);
+}
+flushUI();
+check('picking a case file opens its route map', G.getMenuScreen() === 'map' && G.getCamp().id === 'investigation');
+flushUI(); // panels settle
 G.frame(16);
 const n2 = G.menuBtns().find(b => b.node === 2);
 G.menuTap(n2.x + 22, n2.y + 22, 1);
@@ -1058,6 +1068,15 @@ G.keys['ArrowUp'] = false;
   const m = G.migrateSaveShape({ stars: [3, 2], bests: [100], unlocked: 2, tutorialDone: true });
   check('old flat saves fold into campaign #1', m.camp.investigation.unlocked === 2 &&
     m.camp.investigation.stars[0] === 3 && m.stars === undefined && m.tutorialDone === true);
+  // campaign #2: GOING DEEPER
+  check('GOING DEEPER ships as campaign #2 and validates clean',
+    G.CAMPAIGNS.length === 2 && G.CAMPAIGNS[1].id === 'going-deeper' && G.validateCampaign(G.CAMPAIGNS[1]).length === 0);
+  G.installCampaign(G.CAMPAIGNS[1]);
+  check('campaign #2: 8 levels, boss finale, own progress, own verdict',
+    G.getLevels().length === 8 && G.getLevels()[7].boss === true &&
+    G.getProg().unlocked === 1 && G.getInfoCards().verdict.title === 'LOG 18 — THE LADDER');
+  G.installCampaign(G.CAMPAIGNS[0]);
+  check('back on campaign #1 its verdict is restored', G.getInfoCards().verdict.title === 'LOG 09 — VERDICT');
 }
 
 // ================= gamepad (desktop playtesting) =================
@@ -1115,7 +1134,11 @@ G.keys['ArrowUp'] = false;
   pad.axes = [0, 0, 0, 0];
   tap(0);
   flushUI();
-  check('A on the campaign slice opens the route map', G.getMenuScreen() === 'map');
+  check('A on the campaign slice opens the case-file picker', G.getMenuScreen() === 'camps');
+  G.frame(16); G.update(0.05); // rows build; focus snaps to the ACTIVE case file
+  tap(0);
+  flushUI();
+  check('A on the focused case file opens its route map', G.getMenuScreen() === 'map');
   flushUI(); // let the panels finish driving in
   G.frame(16); G.update(0.05);
   // the map is a list: D-pad up/down moves the relay selection directly
@@ -1139,8 +1162,11 @@ G.keys['ArrowUp'] = false;
   check('opposite sticks register the operator', G.getPadHold()[0] && G.getPadHold()[1]);
   pad.axes = [0, 0, 0, 0];
   G.setIntro(999);
-  // B backs out of the map to the wheel
+  // B backs out of the map — via the case-file picker — to the wheel
   G.setState(G.S.MENU); G.setMenuScreen('map'); G.frame(16); G.update(0.05);
+  tap(1);
+  flushUI();
+  check('B backs out of the map to the case-file picker', G.getMenuScreen() === 'camps');
   tap(1);
   flushUI();
   check('B backs out to the mode wheel', G.getMenuScreen() === 'home');

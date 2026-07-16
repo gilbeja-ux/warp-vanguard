@@ -752,6 +752,7 @@ function validateCampaign(p) {
       if (l[k] !== undefined && !(l[k] >= 0 && l[k] <= 1)) errs.push(tag + 'bad ' + k + ' rate');
     if (!/^\d{1,3},\d{1,3},\d{1,3}$/.test(l.tint || '')) errs.push(tag + 'bad tint');
     if (l.story && !(str(l.story.title) && Array.isArray(l.story.lines) && l.story.lines.every(str))) errs.push(tag + 'bad story card');
+    if (i === 0 && p.verdict && !(str(p.verdict.title) && Array.isArray(p.verdict.lines) && p.verdict.lines.every(str))) errs.push('bad verdict card');
     (l.comms || []).forEach(c => {
       if (!(c.t >= 0 && c.t < l.duration) || !spk.has(c.s) || !str(c.m) || c.m.length > 64) errs.push(tag + 'bad comm');
     });
@@ -781,8 +782,24 @@ let infoCardsReady = false;
 function registerStoryCards() {
   for (const k of Object.keys(INFO_CARDS)) if (/^story\d+$/.test(k)) delete INFO_CARDS[k];
   STORY.forEach((st2, i) => { if (st2) INFO_CARDS['story' + i] = st2; });
+  if (CAMP && CAMP.verdict) INFO_CARDS.verdict = CAMP.verdict; // the epilogue is the campaign's own
 }
-installCampaign(CAMPAIGNS[0]);
+// which campaigns has this player finished? FREE FLOW and the score
+// modifiers unlock off ANY cleared campaign, not just the active one
+function campaignCleared(id) {
+  const c = progress.camp[id], pk = CAMPAIGNS.find(p => p.id === id);
+  return !!(c && pk && c.stars[pk.levels.length - 1] > 0);
+}
+const anyCampaignCleared = () => CAMPAIGNS.some(p => campaignCleared(p.id));
+const anyCampaignAt = n => CAMPAIGNS.some(p => (progress.camp[p.id] || {}).unlocked >= n);
+function switchCampaign(i) {
+  if (!CAMPAIGNS[i] || CAMPAIGNS[i] === CAMP) return;
+  installCampaign(CAMPAIGNS[i]);
+  progress.lastCamp = CAMPAIGNS[i].id;
+  saveState();
+}
+// boot into the campaign the player last had open
+installCampaign(CAMPAIGNS.find(p => p.id === progress.lastCamp) || CAMPAIGNS[0]);
 
 // ---------- game state ----------
 const S = { MENU: 0, PLAY: 1, END: 2, PAUSE: 3, INFO: 4 }; // INFO: frozen behind a briefing card
@@ -1764,7 +1781,15 @@ function menuTap(x, y, pid) {
       : (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h);
     if (hit && !b.locked) {
       if (b.mode === 'tutorial') pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startQualification }; tone(70, 0.45, 'sine', 0.12, 260); });
-      else if (b.mode === 'campaign') pressUI(b, () => { mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1); menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'map' }; });
+      else if (b.mode === 'campaign') pressUI(b, () => {
+        if (CAMPAIGNS.length > 1) menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'camps' };
+        else { mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1); menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'map' }; }
+      });
+      else if (b.camp !== undefined) pressUI(b, () => { // case file picked
+        switchCampaign(b.camp);
+        mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
+        menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'map' };
+      });
       else if (b.mode === 'flow') pressUI(b, () => { menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'flow' }; });
       else if (b.node !== undefined) { mapSel = b.node; sfx.tick(); }
       else if (b.deploy !== undefined) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: () => startLevel(b.deploy, true) }; tone(70, 0.45, 'sine', 0.12, 260); });
@@ -1806,7 +1831,7 @@ function endTap(x, y) {
 
 function resetRun() {
   // modifiers stay locked until the campaign is cleared
-  if (!(PROG.stars[LEVELS.length - 1] > 0)) mutators.oneLife = mutators.fast = mutators.noPickups = false;
+  if (!anyCampaignCleared()) mutators.oneLife = mutators.fast = mutators.noPickups = false;
   levelT = 0; spawnT = 1.2;
   commNext = 0; commCur = null; commT = 0;
   surgeLevel = 0; surgeCount = -1; surgeWaveZ = -1;
@@ -2102,7 +2127,8 @@ function gpSyncFocus(list) {
   gpSig = sig;
   // A means CONFIRM: deploy on the map, next on the report, resume in pause,
   // the campaign slice on the wheel — whatever moves the player forward
-  let i = list.findIndex(b => b.deploy !== undefined || b.action === 'next' || b.action === 'resume' || b.mode === 'campaign');
+  let i = list.findIndex(b => b.deploy !== undefined || b.action === 'next' || b.action === 'resume' || b.mode === 'campaign'
+    || (b.camp !== undefined && CAMPAIGNS[b.camp] === CAMP));
   if (i < 0) i = list.findIndex(b => b.action === 'retry' || b.endless !== undefined);
   gpSel = Math.max(0, i);
 }
@@ -6234,6 +6260,7 @@ function drawMenu(g) {
 
   if (menuScreen === 'map') drawMenuMap();
   else if (menuScreen === 'flow') drawMenuFlow();
+  else if (menuScreen === 'camps') drawMenuCamps(ccx, ccy, R);
   else drawMenuHome(ccx, ccy, R);
 
   if (menuSettings) drawMenuSettings();
@@ -6250,8 +6277,8 @@ function modeKey(bx, by, bw, bh, glyph, name, caption, locked, primary) {
 function drawMenuHome(ccx, ccy, R) {
   // the MODE WHEEL: the ring's whole interior, cut like a pie into the three
   // modes, with the brand living in the hub — nothing overlaps the ring again
-  const campDone = PROG.stars[LEVELS.length - 1] > 0;
-  const flowOpen = PROG.unlocked >= 4 || campDone;
+  const campDone = anyCampaignCleared();
+  const flowOpen = anyCampaignAt(4) || campDone;
   const r1 = R * 0.92, r0 = R * 0.38;
   const THIRD = TAU / 3;
   const SECTORS = [
@@ -6346,10 +6373,72 @@ function drawMenuHome(ccx, ccy, R) {
   ctx.textAlign = 'left';
 }
 
+// case-file picker: one key per campaign, stacked in the bore — the active
+// investigation highlighted, each with its progress and difficulty pips
+function drawMenuCamps(ccx, ccy, R) {
+  let rot = 0, wheelAl = 1; // same spin choreography as the mode wheel
+  if (menuFx && menuFx.kind === 'spinOut') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = (menuFx.dir || 1) * q * q * 1.5; wheelAl = 1 - q; }
+  if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = -(menuFx.dir || 1) * 1.5 * Math.pow(1 - q, 2); wheelAl = q; }
+  ctx.save();
+  ctx.translate(ccx, ccy); ctx.rotate(rot); ctx.translate(-ccx, -ccy);
+  ctx.globalAlpha = wheelAl;
+  const n = CAMPAIGNS.length;
+  const bh = Math.min(72, (R * 1.2 - (n - 1) * 14) / n), gap = 14;
+  const bw = Math.min(R * 1.36, W * 0.72);
+  let y = ccy - (n * (bh + gap) - gap) / 2;
+  ctx.textAlign = 'center';
+  try { ctx.letterSpacing = '3px'; } catch (e) {}
+  ctx.font = '700 12px Audiowide, system-ui';
+  ctx.fillStyle = 'rgba(140,215,255,0.75)';
+  ctx.fillText('SELECT CASE FILE', ccx, y - 22);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  for (let i = 0; i < n; i++) {
+    const pk = CAMPAIGNS[i];
+    const cp = progress.camp[pk.id] || { unlocked: 1, stars: [] };
+    const active = pk === CAMP;
+    const done = campaignCleared(pk.id);
+    const x = ccx - bw / 2;
+    techRect(x, y, bw, bh, 8);
+    ctx.fillStyle = active ? 'rgba(40,110,180,0.4)' : 'rgba(10,26,50,0.72)'; ctx.fill();
+    ctx.strokeStyle = done ? 'rgba(126,226,98,0.75)' : active ? 'rgba(140,230,255,0.9)' : 'rgba(120,180,255,0.4)';
+    ctx.lineWidth = active ? 2 : 1.2;
+    techRect(x, y, bw, bh, 8); ctx.stroke();
+    ctx.textAlign = 'left';
+    const tpx = fitPx(pk.title, 800, 17, bw * 0.52, 11);
+    ctx.font = '800 ' + tpx + 'px Audiowide, system-ui';
+    ctx.fillStyle = active ? '#eaf7ff' : 'rgba(200,230,255,0.85)';
+    ctx.fillText(pk.title, x + 16, y + bh / 2 - 3);
+    ctx.font = '500 9px Audiowide, system-ui';
+    ctx.fillStyle = 'rgba(140,200,240,0.7)';
+    ctx.fillText(pk.tagline || '', x + 16, y + bh / 2 + 13);
+    // right side: stars banked, difficulty pips, case state
+    ctx.textAlign = 'right';
+    const starSum = (cp.stars || []).reduce((a2, b2) => a2 + b2, 0);
+    ctx.font = '700 12px Audiowide, system-ui';
+    ctx.fillStyle = 'rgba(255,210,74,0.9)';
+    ctx.fillText('★ ' + starSum + '/' + pk.levels.length * 3, x + bw - 16, y + bh / 2 - 3);
+    ctx.font = '700 10px Audiowide, system-ui';
+    ctx.fillStyle = done ? 'rgba(126,226,98,0.9)' : 'rgba(140,200,240,0.7)';
+    ctx.fillText(done ? 'CASE CLOSED' : 'RELAY ' + Math.min(cp.unlocked || 1, pk.levels.length) + '/' + pk.levels.length,
+      x + bw - 16, y + bh / 2 + 13);
+    // difficulty pips over the top edge
+    for (let d = 0; d < (pk.difficulty || 1); d++) {
+      ctx.fillStyle = 'rgba(255,150,80,0.85)';
+      ctx.beginPath();
+      ctx.moveTo(x + bw - 18 - d * 12, y - 4); ctx.lineTo(x + bw - 13 - d * 12, y + 4); ctx.lineTo(x + bw - 23 - d * 12, y + 4);
+      ctx.closePath(); ctx.fill();
+    }
+    menuButtons.push({ x, y, w: bw, h: bh, camp: i });
+    y += bh + gap;
+  }
+  ctx.textAlign = 'left';
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
 function drawMenuFlow() {
   const { ccx, ccy, R } = menuGeom();
-  const endlessOpen = PROG.stars[LEVELS.length - 1] > 0;
-  const dailyOpen = PROG.unlocked >= 4;
+  const endlessOpen = anyCampaignCleared();
+  const dailyOpen = anyCampaignAt(4);
   const r1 = R * 0.92, r0 = R * 0.38;
   const D = progress.daily;
   let rot = 0, wheelAl = 1; // same spin choreography as the mode wheel
@@ -6404,7 +6493,7 @@ function drawMenuFlow() {
   ctx.textAlign = 'left';
 
   // score modifiers — the campaign reward for players chasing numbers
-  if (PROG.stars[LEVELS.length - 1] > 0) {
+  if (anyCampaignCleared()) {
     const MUTS = [['oneLife', '1 LIFE', '×2'], ['fast', 'FAST STREAM', '×1.5'], ['noPickups', 'NO PICKUPS', '×1.3']];
     let my2 = H * 0.56;
     ctx.font = '700 10px Audiowide, system-ui';
@@ -7375,7 +7464,9 @@ function tickUI(dt) {
         menuFx = f.to === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: f.dir || 1 }
           : { kind: 'spinIn', t: 0, dur: 0.35, dir: f.dir || 1 };
       } else if (f.kind === 'panelsOut') {
-        menuScreen = 'home';
+        // backing out of the map lands on the case-file picker when there
+        // is more than one campaign to pick
+        menuScreen = CAMPAIGNS.length > 1 ? 'camps' : 'home';
         menuFx = { kind: 'spinIn', t: 0, dur: 0.35, dir: -1 }; // back = counterclockwise
       } else if (f.kind === 'launch' && f.action) f.action();
     }
