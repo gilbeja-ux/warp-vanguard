@@ -181,7 +181,15 @@ does not ship in the store build.
   MUST be excluded from store packages ("admin only" = the editor simply does
   not ship). Actual build exclusion is release-phase work (scripts/build.js).
 
-- **Phase 3 — campaign UX in game**
+- **Phase 3 — campaign UX in game** (mostly done)
+  DONE: case-file disc carousel (sync-zoom, swipe, teaser slots), per-campaign
+  progress + verdicts + lastCamp restore, any-campaign unlocks, and IMAGE MAPS:
+  a package's `map.image` (data:image URI) + per-level `mapPos {x,y in 0..1}`
+  now render in the relay-map lens (camera, routes, hexes, chevrons all ride
+  the image) and in the disc previews; the procedural city remains the
+  fallback. REMAINING: custom speaker portrait rendering, per-campaign boss
+  config, the player-facing community import entry, editor exclusion from
+  store builds.
   Campaign picker (CAMPAIGN wheel sector → list when >1), per-campaign
   progress, difficulty tiers on the picker, dormant import path for
   community packages.

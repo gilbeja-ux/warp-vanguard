@@ -769,6 +769,8 @@ function validateCampaign(p) {
     if (!/^\d{1,3},\d{1,3},\d{1,3}$/.test(l.tint || '')) errs.push(tag + 'bad tint');
     if (l.story && !(str(l.story.title) && Array.isArray(l.story.lines) && l.story.lines.every(str))) errs.push(tag + 'bad story card');
     if (i === 0 && p.verdict && !(str(p.verdict.title) && Array.isArray(p.verdict.lines) && p.verdict.lines.every(str))) errs.push('bad verdict card');
+    if (i === 0 && p.map && p.map.image !== undefined && !(str(p.map.image) && /^data:image\//.test(p.map.image))) errs.push('bad map image (data:image URI required)');
+    if (l.mapPos && !(l.mapPos.x >= 0 && l.mapPos.x <= 1 && l.mapPos.y >= 0 && l.mapPos.y <= 1)) errs.push(tag + 'bad mapPos (0..1)');
     (l.comms || []).forEach(c => {
       if (!(c.t >= 0 && c.t < l.duration) || !spk.has(c.s) || !str(c.m) || c.m.length > 64) errs.push(tag + 'bad comm');
     });
@@ -7058,13 +7060,19 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
   ctx.fillStyle = 'rgba(8,18,36,0.85)';
   ctx.fillRect(x - r, y - r, r * 2, sepY - (y - r));
   const rng = mulberry32(0xD15C + i * 7919);
-  if (real) { // the actual city render, cropped into the disc's viewport
-    if (!cityBase) buildCity();
+  if (real) { // the campaign's own map image, else the city render, cropped in
     const mh = sepY - (y - r);
-    const sw2 = CITY_W, sh2 = sw2 * (mh / (r * 2));
-    const sy2 = clamp(180 + (i * 167) % 160, 0, CITY_H - sh2);
-    ctx.drawImage(cityBase, 0, sy2, sw2, sh2, x - r, y - r, r * 2, mh);
-    if (cityTop) ctx.drawImage(cityTop, 0, sy2, sw2, sh2, x - r, y - r, r * 2, mh);
+    const im2 = campMapImg(pk);
+    if (im2) {
+      const sh2 = im2.w * (mh / (r * 2));
+      ctx.drawImage(im2.img, 0, clamp((im2.h - sh2) / 2, 0, im2.h), im2.w, Math.min(sh2, im2.h), x - r, y - r, r * 2, mh);
+    } else {
+      if (!cityBase) buildCity();
+      const sw2 = CITY_W, sh2 = sw2 * (mh / (r * 2));
+      const sy2 = clamp(180 + (i * 167) % 160, 0, CITY_H - sh2);
+      ctx.drawImage(cityBase, 0, sy2, sw2, sh2, x - r, y - r, r * 2, mh);
+      if (cityTop) ctx.drawImage(cityTop, 0, sy2, sw2, sh2, x - r, y - r, r * 2, mh);
+    }
   }
   if (real) { // dashed route with relay pips, west to east like the real map
     const pts = [];
@@ -7622,8 +7630,36 @@ function polyAt(pts2, t) {
 // midpoint of the selected level's outgoing run (used by tests/back-compat;
 // the live camera frames the run's whole bounding box)
 function mapTarget(li) {
+  if (campMapImg(CAMP)) return imgPin(li);
   if (!RELAY_W.length) buildCity();
   return polyAt(ROUTE_SEGS[li], 0.5);
+}
+// ---- image maps: a package may bring its OWN world (map.image + mapPos pins) ----
+const MAPIMG = {}; // decoded per campaign id
+function campMapImg(pk) {
+  if (!pk || !pk.map || !pk.map.image || typeof Image === 'undefined') return null;
+  let e2 = MAPIMG[pk.id];
+  if (!e2) {
+    e2 = MAPIMG[pk.id] = { img: new Image(), w: 0, h: 0 };
+    e2.img.onload = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; menuCache = null; };
+    e2.img.src = pk.map.image;
+  }
+  return e2.w ? e2 : null; // null until decoded — callers fall back to the city
+}
+function imgPin(i) { // a level's pin in image-world pixels (graceful when unset)
+  const im = MAPIMG[CAMP.id];
+  const n = LEVELS.length, li = Math.min(i, n - 1);
+  const l = LEVELS[li];
+  const p2 = l && l.mapPos ? l.mapPos : { x: 0.15 + 0.7 * (li / Math.max(1, n - 1)), y: 0.5 };
+  return { x: p2.x * im.w, y: p2.y * im.h };
+}
+function imgSegs() { // runs lead away from each relay toward the next pin
+  const segs = [];
+  for (let k = 0; k < LEVELS.length; k++) {
+    const a = imgPin(k);
+    segs.push(k < LEVELS.length - 1 ? [a, imgPin(k + 1)] : [a, { x: a.x + 1, y: a.y + 1 }]);
+  }
+  return segs;
 }
 function mapHex(x, y, r) {
   ctx.beginPath();
@@ -7636,11 +7672,15 @@ function mapHex(x, y, r) {
 function drawMenuMap() {
   const { ccx, ccy } = menuGeom();
   const R = mapR();
-  if (!cityBase) buildCity();
+  const IM = campMapImg(CAMP); // image-mode: the package brought its own world
+  if (!IM && !cityBase) buildCity();
+  const WW = IM ? IM.w : CITY_W, WH = IM ? IM.h : CITY_H;
+  const SEGS = IM ? imgSegs() : ROUTE_SEGS;
+  const RPT = i => IM ? imgPin(i) : relayW(i);
   const frontier = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
   // camera: frame the ENTIRE selected run — center on its bounding box and
   // zoom out until it fits inside the lens
-  const seg = ROUTE_SEGS[mapSel];
+  const seg = SEGS[mapSel];
   let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
   for (const p2 of seg) {
     bx0 = Math.min(bx0, p2.x); by0 = Math.min(by0, p2.y);
@@ -7653,8 +7693,8 @@ function drawMenuMap() {
   for (const p2 of seg) rMax = Math.max(rMax, Math.hypot(p2.x - cbx, p2.y - cby));
   const zt = clamp((R - 58) / rMax, 0.3, 1);
   const Rz = R / Math.max(mapZoom, 0.01);
-  const tx2 = clamp((bx0 + bx1) / 2, Math.min(Rz * 0.8, CITY_W / 2), CITY_W - Math.min(Rz * 0.8, CITY_W / 2));
-  const ty2 = clamp((by0 + by1) / 2, Math.min(Rz * 0.7, CITY_H / 2), CITY_H - Math.min(Rz * 0.7, CITY_H / 2));
+  const tx2 = clamp((bx0 + bx1) / 2, Math.min(Rz * 0.8, WW / 2), WW - Math.min(Rz * 0.8, WW / 2));
+  const ty2 = clamp((by0 + by1) / 2, Math.min(Rz * 0.7, WH / 2), WH - Math.min(Rz * 0.7, WH / 2));
   if (mapCamSnap) { mapCamX = tx2; mapCamY = ty2; mapZoom = zt; mapCamSnap = false; }
   mapCamX += (tx2 - mapCamX) * 0.08;
   mapCamY += (ty2 - mapCamY) * 0.08;
@@ -7683,23 +7723,32 @@ function drawMenuMap() {
     ctx.translate(ccx, ccy); ctx.rotate(mapRot); ctx.translate(-ccx, -ccy);
     ctx.globalAlpha = mapAl;
   }
-  // LAYER 1: streets, harbor, buried cable grid
+  // LAYER 1: the world sheet — a package image, or the procedural city
   {
     const bx0 = ccx - mapCamX * mapZoom, by0 = ccy - mapCamY * mapZoom;
-    const bw0 = CITY_W * mapZoom, bh0 = CITY_H * mapZoom;
-    ctx.drawImage(cityBase, bx0, by0, bw0, bh0);
-    // the city never ENDS: mirrored continuations above and below the sheet
-    ctx.save();
-    ctx.scale(1, -1);
-    ctx.drawImage(cityBase, bx0, -by0, bw0, bh0);
-    ctx.drawImage(cityBase, bx0, -(by0 + bh0 * 2), bw0, bh0);
-    ctx.restore();
+    const bw0 = WW * mapZoom, bh0 = WH * mapZoom;
+    if (IM) {
+      ctx.fillStyle = '#04070f';
+      ctx.fillRect(ccx - R, ccy - R, R * 2, R * 2);
+      ctx.drawImage(IM.img, bx0, by0, bw0, bh0);
+      // readability veil — the route and relays stay the loudest layer
+      ctx.fillStyle = 'rgba(4,10,22,0.28)';
+      ctx.fillRect(ccx - R, ccy - R, R * 2, R * 2);
+    } else {
+      ctx.drawImage(cityBase, bx0, by0, bw0, bh0);
+      // the city never ENDS: mirrored continuations above and below the sheet
+      ctx.save();
+      ctx.scale(1, -1);
+      ctx.drawImage(cityBase, bx0, -by0, bw0, bh0);
+      ctx.drawImage(cityBase, bx0, -(by0 + bh0 * 2), bw0, bh0);
+      ctx.restore();
+    }
   }
   // LAYER 2: each level's cable run, leading AWAY from its relay —
   // secured lines flow green with live data, unsecured wait as dashed blue
   ctx.lineCap = 'round';
-  for (let k = 0; k < ROUTE_SEGS.length; k++) {
-    const pts2 = ROUTE_SEGS[k];
+  for (let k = 0; k < SEGS.length; k++) {
+    const pts2 = SEGS[k];
     const done = PROG.stars[k] > 0;
     const trace = () => {
       ctx.beginPath();
@@ -7754,8 +7803,8 @@ function drawMenuMap() {
     }
   }
   // LAYER 3: the blueprint wireframe above — transparent, so the buried
-  // cables stay readable through the whole city
-  {
+  // cables stay readable through the whole city (procedural world only)
+  if (!IM) {
     const bx0 = ccx - mapCamX * mapZoom, by0 = ccy - mapCamY * mapZoom;
     const bw0 = CITY_W * mapZoom, bh0 = CITY_H * mapZoom;
     ctx.drawImage(cityTop, bx0, by0, bw0, bh0);
@@ -7766,7 +7815,8 @@ function drawMenuMap() {
     ctx.restore();
   }
   // destination: Police HQ / CID intake — the run's final delivery point
-  {
+  // (city lore; image worlds carry only their own pins)
+  if (!IM) {
     const pt = relayW(LEVELS.length);
     const ex2 = wx(pt), ey2 = wy(pt);
     const delivered = PROG.stars[LEVELS.length - 1] > 0;
@@ -7785,7 +7835,7 @@ function drawMenuMap() {
   // relay markers
   const nr = Math.min(W, H) * 0.03;
   for (let i = 0; i < LEVELS.length; i++) {
-    const pt = relayW(i);
+    const pt = RPT(i);
     const mx2 = wx(pt), my2 = wy(pt);
     if (Math.hypot(mx2 - ccx, my2 - ccy) > R + nr) continue; // outside the lens
     const locked = i + 1 > PROG.unlocked;

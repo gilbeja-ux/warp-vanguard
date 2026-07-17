@@ -1069,6 +1069,13 @@ G.keys['ArrowUp'] = false;
     G.getInfoCards().story0.title === 'LOG X' && !G.getInfoCards().story1);
   check('back to the bundled campaign, progress intact',
     G.installCampaign(G.CAMPAIGNS[0]) === true && G.getProg().stars[1] === star1 && G.getLevels().length === 8);
+  // image maps: package-supplied worlds validate; junk is refused
+  p = mini(); p.map = { image: 'data:image/png;base64,iVBORw0KGgo=' }; p.levels[0].mapPos = { x: 0.4, y: 0.6 };
+  check('validator accepts an image map with normalized pins', G.validateCampaign(p).length === 0);
+  p = mini(); p.map = { image: 'https://elsewhere.example/map.png' };
+  check('validator rejects a non-data-URI map image', G.validateCampaign(p).length > 0);
+  p = mini(); p.levels[0].mapPos = { x: 1.4, y: 0.5 };
+  check('validator rejects an out-of-range pin', G.validateCampaign(p).length > 0);
   const m = G.migrateSaveShape({ stars: [3, 2], bests: [100], unlocked: 2, tutorialDone: true });
   check('old flat saves fold into campaign #1', m.camp.investigation.unlocked === 2 &&
     m.camp.investigation.stars[0] === 3 && m.stars === undefined && m.tutorialDone === true);
