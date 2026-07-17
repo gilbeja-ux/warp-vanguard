@@ -11,7 +11,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/df-192.png?v=3">
 <link rel="icon" type="image/png" sizes="512x512" href="icons/df-512.png?v=3">
 <link rel="apple-touch-icon" href="icons/df-192.png?v=3">
-<title>Data Defender: Dark Fiber</title>
+<title>Data Defenders: Dark Fiber</title>
 <style>
   :root {
     --sat: env(safe-area-inset-top, 0px);
@@ -39,7 +39,7 @@
 'use strict';
 
 // ============================================================
-// DATA DEFENDER: DARK FIBER — dual-thumb radial defense
+// DATA DEFENDERS: DARK FIBER — dual-thumb radial defense
 // ============================================================
 
 const canvas = document.getElementById('game');
@@ -7202,9 +7202,9 @@ function paintMenuStatic() {
   // block logo — stacked DATA / DEFE / NDER, top-left (small brand on the map,
   // where the relay list needs the column)
   ctx.textAlign = 'left';
-  if (menuScreen === 'flow') { // small brand up top (campaign runs clean for now)
+  if (menuScreen === 'flow' || menuScreen === 'map') { // small brand line up top
     ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
-    ctx.fillText('DATA DEFENDER · DARK FIBER', 20 + SAFE.l, 24 + SAFE.t);
+    ctx.fillText('DATA DEFENDERS · DARK FIBER', 20 + SAFE.l, 24 + SAFE.t);
   }
   if (menuScreen === 'map') {
     // the lens mouth: the ring becomes a viewport over the city
@@ -7220,10 +7220,10 @@ function paintMenuStatic() {
     const tlx = 10 + SAFE.l * 0.6;
     ctx.fillStyle = '#f2faff'; ctx.font = '700 13px Audiowide, system-ui';
     try { ctx.letterSpacing = '2px'; } catch (e) {}
-    ctx.fillText(CAMP.title, tlx, 30 + SAFE.t);
+    ctx.fillText(CAMP.title, tlx, 46 + SAFE.t); // brand line sits above
     try { ctx.letterSpacing = '0px'; } catch (e) {}
     { // separator: from the left edge all the way to the rim
-      const sy = 40 + SAFE.t, dy2 = ccy - sy;
+      const sy = 56 + SAFE.t, dy2 = ccy - sy;
       const endX = Math.abs(dy2) < RM ? ccx - Math.sqrt(RM * RM - dy2 * dy2) + 6 : ccx - RM * 0.3;
       const sg = ctx.createLinearGradient(tlx, 0, endX, 0);
       sg.addColorStop(0, 'rgba(120,210,255,0.55)');
@@ -7441,21 +7441,35 @@ function drawMenuHome(ccx, ccy, R) {
   ctx.save();
   ctx.globalAlpha = logoAl;
   ctx.textAlign = 'left';
-  const fs = Math.min(H * 0.115, Math.max(20, (ccx - R - SAFE.l) * 0.24));
-  const lx = 22 + SAFE.l + logoOff, llh = fs * 1.04;
-  let ly = 30 + SAFE.t + fs;
-  ctx.font = '900 ' + fs.toFixed(0) + 'px Audiowide, system-ui';
-  try { ctx.letterSpacing = (fs * 0.08).toFixed(1) + 'px'; } catch (e) {}
-  ctx.shadowColor = 'rgba(0,10,30,0.85)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
-  ctx.fillStyle = '#c6d6ea';
-  for (const t2 of ['DATA', 'DEFE', 'NDER']) { ctx.fillText(t2, lx, ly); ly += llh; }
-  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-  try { ctx.letterSpacing = '3px'; } catch (e) {}
-  ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 ' + Math.max(10, fs * 0.42).toFixed(0) + 'px Audiowide, system-ui';
-  ctx.fillText('DARK FIBER', lx + 2, ly + 4);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  ctx.fillStyle = 'rgba(180,215,255,0.6)'; ctx.font = '500 10px Audiowide, system-ui';
-  ctx.fillText('Guard the payload.', lx + 2, ly + 22);
+  const lg = brandLogo();
+  if (lg) { // the shield badge, sized to the space left of the wheel
+    const availW = Math.max(120, ccx - R - SAFE.l - 44);
+    const availH = H * 0.6;
+    const sc = Math.min(availW / lg.w, availH / lg.h);
+    const lw3 = lg.w * sc, lh3 = lg.h * sc;
+    const lx = 22 + SAFE.l + logoOff, ly3 = Math.max(24 + SAFE.t, ccy - lh3 / 2);
+    ctx.drawImage(lg.img, lx, ly3, lw3, lh3);
+    ctx.fillStyle = 'rgba(180,215,255,0.6)'; ctx.font = '500 10px Audiowide, system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('Guard the payload.', lx + lw3 / 2, ly3 + lh3 + 16);
+    ctx.textAlign = 'left';
+  } else { // fallback: the drawn stack, until the badge file ships
+    const fs = Math.min(H * 0.115, Math.max(20, (ccx - R - SAFE.l) * 0.24));
+    const lx = 22 + SAFE.l + logoOff, llh = fs * 1.04;
+    let ly = 30 + SAFE.t + fs;
+    ctx.font = '900 ' + fs.toFixed(0) + 'px Audiowide, system-ui';
+    try { ctx.letterSpacing = (fs * 0.08).toFixed(1) + 'px'; } catch (e) {}
+    ctx.shadowColor = 'rgba(0,10,30,0.85)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+    ctx.fillStyle = '#c6d6ea';
+    for (const t2 of ['DATA', 'DEFEN', 'DERS']) { ctx.fillText(t2, lx, ly); ly += llh; }
+    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    try { ctx.letterSpacing = '3px'; } catch (e) {}
+    ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 ' + Math.max(10, fs * 0.42).toFixed(0) + 'px Audiowide, system-ui';
+    ctx.fillText('DARK FIBER', lx + 2, ly + 4);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    ctx.fillStyle = 'rgba(180,215,255,0.6)'; ctx.font = '500 10px Audiowide, system-ui';
+    ctx.fillText('Guard the payload.', lx + 2, ly + 22);
+  }
   ctx.restore();
   ctx.textAlign = 'left';
 }
@@ -8149,6 +8163,19 @@ function mapTarget(li) {
   if (!RELAY_W.length) buildCity();
   return polyAt(ROUTE_SEGS[li], 0.5);
 }
+// the shield badge (src/logo.png) — the drawn brand remains the fallback
+// until the file ships alongside the game
+let LOGOIMG = null;
+function brandLogo() {
+  if (typeof Image === 'undefined') return null;
+  if (!LOGOIMG) {
+    LOGOIMG = { img: new Image(), w: 0, h: 0 };
+    LOGOIMG.img.onload = () => { LOGOIMG.w = LOGOIMG.img.naturalWidth || 1; LOGOIMG.h = LOGOIMG.img.naturalHeight || 1; menuCache = null; };
+    LOGOIMG.img.onerror = () => {}; // no badge on disk — the drawn brand stands
+    LOGOIMG.img.src = 'logo.png';
+  }
+  return LOGOIMG.w ? LOGOIMG : null;
+}
 // ---- image maps: a package may bring its OWN world (map.image + mapPos pins) ----
 const MAPIMG = {}; // decoded per campaign id
 function campMapImg(pk) {
@@ -8436,7 +8463,7 @@ function drawMapList(ccx, ccy, R, frontier) {
   ctx.textAlign = 'left';
   const lx2 = 10 + SAFE.l * 0.6;
   const rows = LEVELS.length;
-  const topY = 52 + SAFE.t, botY = H - 16;
+  const topY = 68 + SAFE.t, botY = H - 16; // list starts under brand + title + rule
   const gap2 = 6;
   const rh = clamp((botY - topY - (rows - 1) * gap2) / rows, 20, 34); // ALL rows fit — no scroll
   let ly2 = topY + Math.max(0, (botY - topY - (rows * (rh + gap2) - gap2)) / 2);

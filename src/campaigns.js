@@ -1,4 +1,4 @@
-// DATA DEFENDER: DARK FIBER — bundled campaign packages.
+// DATA DEFENDERS: DARK FIBER — bundled campaign packages.
 // One self-contained, JSON-shaped object per campaign (no functions): the
 // exact format the Tunnel Designer exports and future community packages
 // will use. Loaded before the game script; every package still passes

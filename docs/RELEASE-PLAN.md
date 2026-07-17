@@ -1,4 +1,4 @@
-# Release Plan — DATA DEFENDER: DARK FIBER
+# Release Plan — DATA DEFENDERS: DARK FIBER
 
 ## Business model (decided 2026-07-14)
 

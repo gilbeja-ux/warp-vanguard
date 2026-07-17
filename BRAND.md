@@ -1,7 +1,7 @@
-# Brand & Design Tokens — DATA DEFENDER: DARK FIBER
+# Brand & Design Tokens — DATA DEFENDERS: DARK FIBER
 
 ## Name
-- Full: **DATA DEFENDER: DARK FIBER**  ·  Short: **DARK FIBER**
+- Full: **DATA DEFENDERS: DARK FIBER**  ·  Short: **DARK FIBER**
 - Tagline: *Guard the payload.*
 - Store subtitle: *Defend the line. Deliver the evidence.*
 - Before store submission: run a USPTO TESS + Play/App Store search on the
