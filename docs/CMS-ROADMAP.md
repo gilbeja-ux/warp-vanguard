@@ -199,3 +199,25 @@ does not ship in the store build.
 - **Gamepad on desktop**: two analog sticks map absolutely to the two nodes
   (stick direction = node angle) for MacBook playtesting. Triggers fire the
   matching pulse, START pauses, A dismisses cards.
+
+## Campaign arc & future boss concepts (designer-approved direction)
+
+- Campaign 1 THE INVESTIGATION (difficulty 1): teaches the enemy types one by
+  one. Finale: the Firewall Core (`bossKind: 'core'`).
+- Campaign 2 GOING DEEPER (difficulty 2): MASS & FLOW — dense red traffic,
+  high speed, few puzzle types; the player "rides" the tunnel. Bands drive
+  surge waves. Finale: BADGE ZERO's private core (`bossKind: 'triad'`) —
+  three linked mini cores (SHIELD / SHREDDER / ALIBI), destroyed core by
+  core, arena riddled with rim walls + dart volleys.
+- Campaign 3 SIGNAL LOST (difficulty 3): alternating hard-to-read puzzle
+  levels and fast flow bursts (first shipped use of beats + bands). Finale:
+  THE BEACON (`bossKind: 'spinner'`) — a rotating beam the player orbits to
+  avoid; every COMPLETED sweep overloads the boss (4 sweeps kill it); add
+  waves incl. rim walls between sweeps.
+- Campaign 4 (BLACK ICE, teaser): TBD.
+- Campaign 5 (ZERO DAY, teaser) FINALE CONCEPT — THE TUNNEL ITSELF: the far
+  end glows red and attacks in phases — (1) a torrent of reds, (2) walls of
+  node killers + rim walls, (3) purples, (4) demanding blue/white keyed
+  waves — then the end MATERIALIZES INTO AN ORB killed by one SUPERSHOT the
+  player charges for 2 seconds (dock-and-hold, extended charge) for a final
+  cinematic kill. Needs: supershot charge mechanic + tunnel-mouth boss body.

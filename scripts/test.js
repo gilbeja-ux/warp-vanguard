@@ -608,11 +608,11 @@ const cTile = G.menuBtns().find(b => b.mode === 'campaign');
   G.menuTap(sc.cx + Math.cos(ma) * mr, sc.cy + Math.sin(ma) * mr, 1);
 }
 flushUI(); // press beat -> spin -> screen switch
-check('campaign tile opens the case-file carousel (two campaigns shipped)', G.getMenuScreen() === 'camps');
-flushUI(); G.frame(16);
+check('campaign tile opens the case-file carousel (multiple campaigns shipped)', G.getMenuScreen() === 'camps');
+flushUI(); G.setCampScroll(1); G.frame(16); // center the row so all real discs are on stage
 { // discs: every real campaign gets a SYNC key; teasers ride along without one
   const syncs = G.menuBtns().filter(b => b.sync !== undefined);
-  check('carousel: one SYNC key per real campaign, three teaser discs', syncs.length === G.CAMPAIGNS.length && G.CAMPS_SOON.length === 3);
+  check('carousel: one SYNC key per real campaign, plus teaser discs', syncs.length === G.CAMPAIGNS.length && G.CAMPS_SOON.length === 2);
   check('carousel: scroll hint appears with discs off-stage', G.menuBtns().some(b => b.scrollDir === 1));
   const inv = syncs.find(b => G.CAMPAIGNS[b.sync].id === 'investigation');
   G.menuTap(inv.x + inv.w / 2, inv.y + inv.h / 2, 1);
@@ -1081,7 +1081,15 @@ G.keys['ArrowUp'] = false;
     m.camp.investigation.stars[0] === 3 && m.stars === undefined && m.tutorialDone === true);
   // campaign #2: GOING DEEPER
   check('GOING DEEPER ships as campaign #2 and validates clean',
-    G.CAMPAIGNS.length === 2 && G.CAMPAIGNS[1].id === 'going-deeper' && G.validateCampaign(G.CAMPAIGNS[1]).length === 0);
+    G.CAMPAIGNS.length === 3 && G.CAMPAIGNS[1].id === 'going-deeper' && G.validateCampaign(G.CAMPAIGNS[1]).length === 0);
+  check('SIGNAL LOST ships as campaign #3 and validates clean',
+    G.CAMPAIGNS[2].id === 'signal-lost' && G.validateCampaign(G.CAMPAIGNS[2]).length === 0);
+  check('difficulty rises across the shipped campaigns',
+    G.CAMPAIGNS[0].difficulty < G.CAMPAIGNS[1].difficulty && G.CAMPAIGNS[1].difficulty < G.CAMPAIGNS[2].difficulty);
+  check('finales escalate: core, then triad, then spinner',
+    G.CAMPAIGNS[0].levels[7].bossKind === undefined && G.CAMPAIGNS[1].levels[7].bossKind === 'triad' && G.CAMPAIGNS[2].levels[7].bossKind === 'spinner');
+  check('every shipped campaign lints clean (beats + bands included)',
+    G.CAMPAIGNS.every(pk => G.lintCampaign(pk).every(fl => fl.length === 0)));
   G.installCampaign(G.CAMPAIGNS[1]);
   check('campaign #2: 8 levels, boss finale, own progress, own verdict',
     G.getLevels().length === 8 && G.getLevels()[7].boss === true &&

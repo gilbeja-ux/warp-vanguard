@@ -771,6 +771,7 @@ function validateCampaign(p) {
     if (i === 0 && p.verdict && !(str(p.verdict.title) && Array.isArray(p.verdict.lines) && p.verdict.lines.every(str))) errs.push('bad verdict card');
     if (i === 0 && p.map && p.map.image !== undefined && !(str(p.map.image) && /^data:image\//.test(p.map.image))) errs.push('bad map image (data:image URI required)');
     if (l.mapPos && !(l.mapPos.x >= 0 && l.mapPos.x <= 1 && l.mapPos.y >= 0 && l.mapPos.y <= 1)) errs.push(tag + 'bad mapPos (0..1)');
+    if (l.bossKind !== undefined && (!l.boss || !['core', 'triad', 'spinner'].includes(l.bossKind))) errs.push(tag + 'bad bossKind');
     (l.comms || []).forEach(c => {
       if (!(c.t >= 0 && c.t < l.duration) || !spk.has(c.s) || !str(c.m) || c.m.length > 64) errs.push(tag + 'bad comm');
     });
@@ -6950,7 +6951,7 @@ function drawMenuHome(ccx, ccy, R) {
 // laid out in a horizontal, scrollable line. SYNC STREAM zooms the disc up
 // into the tunnel and opens its relay map.
 let campScroll = 0, campScrollTgt = 0; // disc index at stage center (eased)
-const CAMPS_SOON = ['SIGNAL LOST', 'BLACK ICE', 'ZERO DAY']; // teaser discs
+const CAMPS_SOON = ['BLACK ICE', 'ZERO DAY']; // teaser discs
 function drawMenuCamps(ccx, ccy, R) {
   // entry/exit: the row flies in from the LEFT on arrival and out to the
   // RIGHT on back — the mode wheel spins on the other side of the crossfade

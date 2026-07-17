@@ -203,7 +203,7 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 > case archive is being scrubbed —
 > someone above him is still awake.
 
-*Hint: the archive is under attack — everything you learned, at once*
+*Hint: volume over trickery — ride the stream, keep the combo*
 
 **Comms**
 - `t=6` **CID**: the vault line is live. hold it.
@@ -220,7 +220,7 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 > overtime on this loop. Defend the
 > wire while TRACE reads the badges.
 
-*Hint: police intranet — armor and barriers on a hot line*
+*Hint: the loop runs HOT — pure traffic, find your rhythm*
 
 **Comms**
 - `t=6` **TRACE**: pulling duty rosters off the loop.
@@ -237,7 +237,7 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 > keyed taps cut from IA credentials.
 > The watchers are being watched.
 
-*Hint: keyed taps return — IA files answer to matching colors only*
+*Hint: keyed taps in the flood — glance, match, keep moving*
 
 **Comms**
 - `t=6` **CID**: IA is compromised. assume everything leaks.
@@ -254,7 +254,7 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 > one drawer. They flood the line
 > with noise to bury one transfer.
 
-*Hint: burst volleys — shell companies flood the wire to hide ONE transfer*
+*Hint: burst volleys — the flood comes in waves now*
 
 **Comms**
 - `t=6` **OMNI**: eleven shells, one registered drawer.
@@ -271,7 +271,7 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 > They wall the rail while value
 > moves. Route around. Stay on it.
 
-*Hint: rim walls return — the laundry seals sections while money moves*
+*Hint: walls in the current — reroute without losing the beat*
 
 **Comms**
 - `t=6` **CID**: they wall the rail on every wash cycle.
@@ -288,7 +288,7 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 > zero paperwork. Nobody builds a
 > blacksite for one dirty badge.
 
-*Hint: off-the-books hardware — maximum hostility, no rules*
+*Hint: blacksite pace — the fastest line yet*
 
 **Comms**
 - `t=6` **TRACE**: this hardware matches the gateway spec.
@@ -305,7 +305,7 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 > on paper for six years. His ledger
 > syncs tonight. Take the line.
 
-*Hint: everything, faster — his ledger is one relay away*
+*Hint: his ledger floods the line — survive the torrent*
 
 **Comms**
 - `t=6` **CID**: a retired login signing live invoices.
@@ -314,7 +314,7 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 
 **Report** — CASE NOTE: the ledger names every buyer. one login signs.
 
-## LEVEL 8 — BADGE ZERO (boss)
+## LEVEL 8 — BADGE ZERO (boss: triad)
 
 **LOG 17 — BADGE ZERO**
 > He built himself a private core
@@ -322,17 +322,163 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 > — his shield, his shredder, his
 > alibi. Burn it. End the ladder.
 
-*Hint: his private core runs stolen gateway schematics — burn it too*
+*Hint: his private core is THREE — shield, shredder, alibi. break each*
 
 **Comms**
 - `t=4` **CORE**: my maker is untouchable. so am I.
-- `t=16` **CID**: six bolts says otherwise. go.
+- `t=16` **CID**: three heads, one snake. take them all.
 
 **Report** — CASE CLOSED: badge zero indicted. the ladder is ash.
 
-**LOG 18 — THE LADDER** *(epilogue card, after the private core dies)*
+**LOG 18 — THE LADDER** *(epilogue card)*
 > The private core burned with the
 > ledger open. Every name on it was
 > served by morning — badge zero
 > first. The line is finally quiet.
+
+
+---
+
+# CAMPAIGN 3 — SIGNAL LOST (THE DEAD COAST)
+
+Premise: Badge Zero is served — and a whole coastal relay chain goes dark overnight. No breach, no ransom, just silence. Its automated defenses still run with no master, and something has re-lit the dead beacon at the end of the line.
+
+## LEVEL 1 — DEAD HARBOR
+
+**LOG 19 — SIGNAL LOST**
+> Badge Zero is served. Then a whole
+> coastal relay chain drops off the
+> map overnight. No breach, no ransom
+> — just silence. We go in dark.
+
+*Hint: a dead grid — every tap here was left ON PURPOSE*
+
+**Comms**
+- `t=6` **CID**: the coast line is dark. all of it.
+- `t=22` **TRACE**: defenses live, operators gone. eerie.
+- `t=40` **OMNI**: who taps a line nobody runs?
+
+**Report** — CASE NOTE: the coast went dark on a SCHEDULE. planned silence.
+
+## LEVEL 2 — GHOST CURRENT
+
+**LOG 20 — GHOST CURRENT**
+> The line still carries traffic.
+> Nobody sends it. Nobody reads it.
+> Ghost packets on a dead current —
+> and something is EATING them.
+
+*Hint: the current still runs — fast, blind, and full*
+
+**Comms**
+- `t=6` **TRACE**: traffic with no sender. recorded loops.
+- `t=24` **OMNI**: a dead line that will not die.
+- `t=44` **CID**: ride it. see where it drains.
+
+**Report** — CASE NOTE: the ghost traffic drains toward the old lighthouse hub.
+
+## LEVEL 3 — CIPHER SHOALS
+
+**LOG 21 — THE SHOALS**
+> The shallows are mined with keyed
+> taps cut years ago — still armed,
+> still rotating their colors on a
+> dead man’s schedule. Navigate.
+
+*Hint: shoal water — keyed reefs and sealed pairs, read before you steer*
+
+**Comms**
+- `t=6` **CID**: old keys, still turning. mind the colors.
+- `t=20` **TRACE**: these locks predate badge zero. YEARS old.
+- `t=38` **OMNI**: then who has been winding them?
+
+**Report** — CASE NOTE: the shoal locks are OLDER than the corruption case.
+
+## LEVEL 4 — RIPTIDE
+
+**LOG 22 — RIPTIDE**
+> The drain quickens near the hub.
+> Whole reels of ghost traffic pulled
+> under at once. Hold the line in the
+> riptide and do not let go.
+
+*Hint: riptide — do not fight the pace, become it*
+
+**Comms**
+- `t=6` **OMNI**: flow rate doubled. tripled. keep up.
+- `t=30` **CID**: steady hands. it wants you rushed.
+
+**Report** — CASE NOTE: the drain pulls harder the closer we get.
+
+## LEVEL 5 — THE SHALLOWS
+
+**LOG 23 — THE SHALLOWS**
+> Wrecks everywhere: relays fried by
+> their own walls years ago. Whoever
+> holds the beacon rehearsed this
+> exact defense — on these bones.
+
+*Hint: the rail closes in shallow water — plan two moves ahead*
+
+**Comms**
+- `t=6` **TRACE**: wall scars on every wreck here.
+- `t=20` **CID**: this is a training ground. WAS.
+- `t=46` **OMNI**: so the beacon had a teacher once.
+
+**Report** — CASE NOTE: the wrecks are practice targets. YEARS of drills.
+
+## LEVEL 6 — UNDERTOW
+
+**LOG 24 — UNDERTOW**
+> Under the surface current there is
+> a second one, running the OTHER
+> way — carrying copies of everything
+> we transmit straight to the hub.
+
+*Hint: undertow — the fastest water on the dead coast*
+
+**Comms**
+- `t=6` **CID**: it reads us as we ride. shield nothing.
+- `t=38` **TRACE**: copies of OUR traffic in the drain.
+
+**Report** — CASE NOTE: the beacon has been listening since relay one.
+
+## LEVEL 7 — THE NARROWS
+
+**LOG 25 — THE NARROWS**
+> One channel left. It is everything
+> at once: keys, walls, pairs, ghost
+> floods. The beacon watches us
+> thread it. It is almost polite.
+
+*Hint: the narrows: every trick on the coast, then open water*
+
+**Comms**
+- `t=6` **OMNI**: it is WAITING for us now.
+- `t=26` **TRACE**: signal ahead. clean. an invitation.
+- `t=54` **CID**: accept it. weapons hot.
+
+**Report** — CASE NOTE: it let us through. it wanted an audience.
+
+## LEVEL 8 — THE BEACON (boss: spinner)
+
+**LOG 26 — THE LIGHT**
+> The beacon was built to guide. Left
+> alone with dead orders it guides
+> still — burning every ship it sees.
+> Stay out of the light. Let it turn.
+
+*Hint: ride the light — survive every sweep and the beacon burns itself out*
+
+**Comms**
+- `t=4` **CORE**: i kept the light on. where were you?
+- `t=16` **CID**: ride the beam, defender. let it spend itself.
+
+**Report** — CASE CLOSED: the light is out. the coast sleeps quiet.
+
+**LOG 27 — LIGHTS OUT** *(epilogue card)*
+> The beacon burned through its own
+> charge and went dark for good. The
+> coast came back online by morning.
+> Somewhere, a new case is waiting.
 
