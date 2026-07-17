@@ -2180,15 +2180,24 @@ function spawnSpinnerWave() {
   const th = nodes[0].angle + Math.PI + rand(-0.8, 0.8);
   latches.push({ a: th, span0: 0.5, t: 0, dur: 3, tele: 0.9, arm: 0.4, z0: SPAWN_Z });
   tone(1180, 0.02, 'square', 0.05); tone(1180, 0.02, 'square', 0.05, null, null, 0.22);
+  // FAIRNESS: the wave is a CONVOY, not a wall. At most TWO hostiles share an
+  // arrival window (one per node), window partners land a half-ring apart so
+  // both are reachable, and windows arrive ~0.85s apart down the pipe.
   const n2 = 3 + Math.min(3, b.round); // the waves thicken round by round
-  const base = Math.random() * TAU;
+  const gapZ = 0.85 * (LV.speed || 0.5) * (mutators.fast ? 1.35 : 1);
+  let prevA = Math.random() * TAU;
   for (let k = 0; k < n2; k++) {
-    const en2 = spawnEnemy(clearOfWalls(base + k * (TAU / n2) + rand(-0.3, 0.3)), 'normal');
+    const w = k >> 1; // window index — two seats per window
+    let a;
+    if (k & 1) { // seat 2: opposite-ish — and NEVER stacked on the partner,
+      a = clearOfWalls(prevA + Math.PI + rand(-0.6, 0.6)); // even when a wall
+      for (let h = 0; h < 6 && Math.abs(angDiff(a, prevA)) < 1.2; h++)
+        a = clearOfWalls(a + 2.399963); // hop shifted it — hop until honestly apart
+    } else a = clearOfWalls(prevA + 2.4 + rand(-0.4, 0.4)); // fresh window: hop onward
+    const en2 = spawnEnemy(a, 'normal');
     en2.lock = undefined;
-    if (k === 0) { // a double rides along
-      const tw = spawnEnemy(clearOfWalls(en2.angle + Math.PI + rand(-0.5, 0.5)), 'normal');
-      tw.lock = undefined;
-    }
+    en2.z = SPAWN_Z + w * gapZ; // stagger the windows down the pipe
+    if (!(k & 1)) prevA = a;
   }
   popup(W / 2, H * 0.3, 'INTRUSION WAVE', '#d465ff');
   crackle(0.3, 900, 2200, 2, 0.4);

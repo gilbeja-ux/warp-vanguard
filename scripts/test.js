@@ -723,6 +723,23 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
       SP.hp === hp1 - 1 && SP.mode === 'adds');
     check('an intrusion wave (with a rim latch) spawns between sweeps',
       G.enemies().filter(e => !e.dead).length >= 3 && G.latches().length >= 1);
+    { // FAIRNESS: the wave is a convoy — max two per arrival window, window
+      // partners a half-ring apart, windows staggered down the pipe
+      const wave = G.enemies().filter(e => !e.dead && e.type === 'normal');
+      const spd = G.getLV().speed;
+      const arr = wave.map(e => e.z / spd).sort((a, b) => a - b);
+      let fair = true;
+      for (let i = 0; i < arr.length; i++) {
+        const mates = wave.filter(e2 => Math.abs(e2.z / spd - arr[i]) < 0.4);
+        if (mates.length > 2) fair = false;
+        if (mates.length === 2) { // window partners must be coverable one-per-node
+          let d = Math.abs(mates[0].angle - mates[1].angle) % (Math.PI * 2);
+          if (d > Math.PI) d = Math.PI * 2 - d;
+          if (d < 0.9) fair = false; // near-stacked reds = one node asked twice
+        }
+      }
+      check('the intrusion wave respects the fairness law (\u22642 per window, split angles)', fair);
+    }
     check('the next sweep runs the other way', SP.beamDir === -dir0);
     drawOk('spinner add-wave frame', () => {});
     // the add phase ends on wave-clear or timeout — force the timeout path
