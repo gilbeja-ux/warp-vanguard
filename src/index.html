@@ -7421,17 +7421,26 @@ function drawMenuHome(ccx, ccy, R) {
     }
     menuButtons.push({ sector: { cx: ccx, cy: ccy, r0, r1, a0: sc0.mid - THIRD / 2 + 0.02, a1: sc0.mid + THIRD / 2 - 0.02 }, mode: sc.mode, locked: sc.locked });
   }
-  // the HUB: a quiet core — the big brand lives LEFT of the wheel now
+  // the HUB: the shield badge holds the wheel's center; the quiet text
+  // core stands in until the badge file ships
   ctx.beginPath(); ctx.arc(ccx, ccy, r0 - R * 0.03, 0, TAU);
   ctx.fillStyle = 'rgba(4,10,22,0.85)'; ctx.fill();
   ctx.strokeStyle = 'rgba(120,220,255,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.strokeStyle = `rgba(255,210,74,${(0.35 + Math.sin(time * 1.8) * 0.12).toFixed(2)})`;
-  ctx.beginPath(); ctx.arc(ccx, ccy, r0 * 0.55, 0, TAU); ctx.stroke();
-  try { ctx.letterSpacing = '2px'; } catch (e) {}
-  ctx.fillStyle = 'rgba(255,210,74,0.9)';
-  ctx.font = '700 ' + Math.max(9, Math.round(R * 0.05)) + 'px Audiowide, system-ui';
-  ctx.fillText('DARK FIBER', ccx, ccy + R * 0.014);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  const hubLg = brandLogo();
+  if (hubLg) {
+    const fit = (r0 - R * 0.03) * 2 * 0.86; // breathing room inside the core
+    const sc2 = Math.min(fit / hubLg.w, fit / hubLg.h);
+    const lw3 = hubLg.w * sc2, lh3 = hubLg.h * sc2;
+    ctx.drawImage(hubLg.img, ccx - lw3 / 2, ccy - lh3 / 2, lw3, lh3);
+  } else {
+    ctx.strokeStyle = `rgba(255,210,74,${(0.35 + Math.sin(time * 1.8) * 0.12).toFixed(2)})`;
+    ctx.beginPath(); ctx.arc(ccx, ccy, r0 * 0.55, 0, TAU); ctx.stroke();
+    try { ctx.letterSpacing = '2px'; } catch (e) {}
+    ctx.fillStyle = 'rgba(255,210,74,0.9)';
+    ctx.font = '700 ' + Math.max(9, Math.round(R * 0.05)) + 'px Audiowide, system-ui';
+    ctx.fillText('DARK FIBER', ccx, ccy + R * 0.014);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+  }
   ctx.restore();
   // the BIG logo, left of the wheel — rides out with the forward spin and
   // back in with the reverse (the map keeps only the small brand up top)
@@ -7442,17 +7451,11 @@ function drawMenuHome(ccx, ccy, R) {
   ctx.globalAlpha = logoAl;
   ctx.textAlign = 'left';
   const lg = brandLogo();
-  if (lg) { // the shield badge, sized to the space left of the wheel
-    const availW = Math.max(120, ccx - R - SAFE.l - 44);
-    const availH = H * 0.6;
-    const sc = Math.min(availW / lg.w, availH / lg.h);
-    const lw3 = lg.w * sc, lh3 = lg.h * sc;
-    const lx = 22 + SAFE.l + logoOff, ly3 = Math.max(24 + SAFE.t, ccy - lh3 / 2);
-    ctx.drawImage(lg.img, lx, ly3, lw3, lh3);
+  if (lg) {
+    // the badge holds the hub — the left column stays clear except the motto
+    // (top-left; bottom-left belongs to the diagnostics carousel)
     ctx.fillStyle = 'rgba(180,215,255,0.6)'; ctx.font = '500 10px Audiowide, system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillText('Guard the payload.', lx + lw3 / 2, ly3 + lh3 + 16);
-    ctx.textAlign = 'left';
+    ctx.fillText('Guard the payload.', 22 + SAFE.l + logoOff, 26 + SAFE.t);
   } else { // fallback: the drawn stack, until the badge file ships
     const fs = Math.min(H * 0.115, Math.max(20, (ccx - R - SAFE.l) * 0.24));
     const lx = 22 + SAFE.l + logoOff, llh = fs * 1.04;
