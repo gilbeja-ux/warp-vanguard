@@ -900,6 +900,7 @@ let bolts = [];               // lightning arcs (node → trap)
 const fx = { wide: 0, auto: 0, chain: 0 }; // power-up effect timers (seconds)
 let shieldCharge = 0; // firewall shield: 1 = the next breach is absorbed
 let shieldFlashT = 0; // catch-ring flare when the shield eats a breach
+let killStreaks = []; // kill streaks: reprogrammed packets tracing home
 let pickups = [], pickupT = 20;
 let ribbonT = 30; // bonus stream cadence — golden ribbons on levels 5+ / endless
 let tut = null;               // tutorial controller (level 1, first run)
@@ -2289,6 +2290,10 @@ function burst(x, y, color, n, spd) {
   }
 }
 function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
+// the kill streak: the enemy, REPROGRAMMED, launches forward as a single
+// green tracer from wherever it died (angle + depth) — a bright head easing
+// toward the horizon with a tapering tail, riding the wall like it did
+function spawnKillStreak(a, z) { killStreaks.push({ a, z: Math.max(z, 0.05), t: 0 }); }
 // the LAST hostile of a finished campaign level dies on a beat — every level
 // ends like it means it (the boss has its own, bigger version)
 function lastKillBeat(justKilled) {
@@ -2732,7 +2737,7 @@ function resetRun() {
   boss = null; burstQ = null; patternQ = []; hitStop = 0;
   heat = 0; overheat = false; beamActive = false; beamSound(false, 0); stripSound(false, 0);
   introT = 0; introCd = -1; introStage = -1; introLatch = false; padHold = [false, false]; gatePip = 0;
-  rimFX = []; latches = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
+  rimFX = []; latches = []; killStreaks = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; }
   fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24);
   ribbonT = srand(11, 15); // first golden ribbon EARLY — its pulse should serve the whole run
@@ -3289,6 +3294,8 @@ function update(dt) {
   for (const p of popups) { p.y -= 30 * dt; p.life -= dt * 0.9; }
   popups = popups.filter(p => p.life > 0);
   shieldFlashT = Math.max(0, shieldFlashT - dt);
+  for (const st of killStreaks) st.t += dt;
+  killStreaks = killStreaks.filter(st => st.t < 0.55);
   for (const b of bolts) b.life -= dt;
   bolts = bolts.filter(b => b.life > 0);
 
@@ -3547,6 +3554,7 @@ function update(dt) {
       rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
       sfx.zap(1, Math.cos(en.angle) * 0.6);
       buzz(en.type === 'heavy' ? 25 : 12);
+      spawnKillStreak(en.angle, en.z);
       lastKillBeat(en);
       if (en.type === 'heavy') { // armor stops the bolt; reds it punches through
         tone(110, 0.2, 'square', 0.13, 60);
@@ -3780,6 +3788,7 @@ function update(dt) {
             const cpts = Math.round(cb * 0.5 * mutMul());
             score += cpts; zaps++;
             popup(bx, by, 'CHAIN +' + cpts, '#d8b4ff');
+            spawnKillStreak(cBest.angle, cBest.z);
             tone(1976, 0.1, 'triangle', 0.08, 2960);
           }
         }
@@ -3789,8 +3798,9 @@ function update(dt) {
           for (let k2 = 1; k2 < 4; k2++) burst(lerp(ex, p3.x, k2 / 4), lerp(ey, p3.y, k2 / 4), '#ff8ba0', 6, 3);
         }
         if (en.lock !== undefined) burst(ex, ey, en.lock === 0 ? '#4d9bff' : '#eef6ff', 14, 4.5);
-        // no hit-stop, no screen shake on routine kills — the burst, rim
-        // flash and haptics carry it (a dedicated kill effect is TBD)
+        // no hit-stop, no screen shake on routine kills — the streak, rim
+        // flash and haptics carry it
+        spawnKillStreak(en.angle, en.z);
         lastKillBeat(en);
         popup(ex, ey, (perfect ? 'PERFECT +' : '+') + pts + (combo >= 3 ? '  x' + Math.min(combo, 5) : ''), perfect ? '#ffe9b0' : '#bfeaff');
         // no screen shake on a clean kill — the rim flash + haptics carry it;
@@ -3869,6 +3879,7 @@ function update(dt) {
         burst(px2, py2, `rgb(${wv.col})`, 20, 4);
         burst(px2, py2, '#ffffff', 14, 6.5);
         rimFX.push({ a: en.angle, t: 0.4, col: wv.col });
+        spawnKillStreak(en.angle, en.z);
         wv.kills++;
         score += Math.round(60 * mutMul()); // flat bounty — no combo, no zap credit
       }
@@ -7401,24 +7412,10 @@ function drawMenuHome(ccx, ccy, R) {
       : `rgba(${sc.col},0.4)`;
     ctx.lineWidth = hot ? 2.5 : 1.5;
     ctx.stroke();
-    // glyph on the spine; name + caption CURVE with the slice, inside it
-    const rm = (r0 + r1) / 2;
-    const tx = ccx + Math.cos(sc.mid) * rm, ty = ccy + Math.sin(sc.mid) * rm;
-    ctx.fillStyle = sc.locked ? 'rgba(140,170,200,0.35)' : `rgba(${sc.col},0.9)`;
-    ctx.font = '800 ' + Math.round(R * 0.12) + 'px Audiowide, system-ui';
-    ctx.fillText(sc.glyph, tx, ty + R * 0.04);
-    arcText(sc.name, ccx, ccy, r1 - R * 0.135, sc.mid, Math.round(R * 0.075),
+    // just the NAME, curved with the slice — the badge owns the center, so
+    // glyphs, captions and status marks are gone and the title breathes
+    arcText(sc.name, ccx, ccy, r1 - R * 0.135, sc.mid, Math.round(R * 0.09),
       sc.locked ? 'rgba(150,180,210,0.45)' : '#eaf6ff', '800', THIRD * 0.9);
-    arcText(sc.cap, ccx, ccy, r0 + R * 0.075, sc.mid, Math.max(8, Math.round(R * 0.042)),
-      sc.locked ? 'rgba(140,170,200,0.4)' : 'rgba(160,215,255,0.75)', '500', THIRD * 0.9);
-    if (sc.mode === 'tutorial' && progress.tutorialDone) { // cleared check
-      ctx.strokeStyle = '#7ee262'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(tx + R * 0.16, ty - R * 0.02);
-      ctx.lineTo(tx + R * 0.185, ty + R * 0.008);
-      ctx.lineTo(tx + R * 0.23, ty - R * 0.048);
-      ctx.stroke();
-    }
     menuButtons.push({ sector: { cx: ccx, cy: ccy, r0, r1, a0: sc0.mid - THIRD / 2 + 0.02, a1: sc0.mid + THIRD / 2 - 0.02 }, mode: sc.mode, locked: sc.locked });
   }
   // the HUB: the shield badge holds the wheel's center; the quiet text
@@ -7428,7 +7425,7 @@ function drawMenuHome(ccx, ccy, R) {
   ctx.strokeStyle = 'rgba(120,220,255,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
   const hubLg = brandLogo();
   if (hubLg) {
-    const fit = (r0 - R * 0.03) * 2 * 0.86; // breathing room inside the core
+    const fit = r0 * 2 * 1.5; // the badge OVERLAPS the slices — it leads the screen
     const sc2 = Math.min(fit / hubLg.w, fit / hubLg.h);
     const lw3 = hubLg.w * sc2, lh3 = hubLg.h * sc2;
     ctx.drawImage(hubLg.img, ccx - lw3 / 2, ccy - lh3 / 2, lw3, lh3);
@@ -9077,6 +9074,53 @@ function frame(now) {
   }
   ctx.globalAlpha = 1;
   drawBolts();
+  if (killStreaks.length) { // reprogrammed packets tracing home along the wall
+    const g2 = geo(), u = Math.min(W, H);
+    const P = (aa, z) => { const rg = ring(z, g2); return { x: rg.x + Math.cos(aa) * rg.r, y: rg.y + Math.sin(aa) * rg.r, s: rg.s }; };
+    ctx.globalCompositeOperation = 'lighter';
+    const DUR = 0.55, RUN = 0.62; // a fixed stretch of the bore, mock-sized
+    for (const st of killStreaks) {
+      const q = st.t / DUR;
+      const glob = q < 0.72 ? 1 : 1 - (q - 0.72) / 0.28;
+      const zHead = st.z + RUN * (1 - Math.pow(1 - q, 2));   // the head eases forward
+      const zTail = Math.max(st.z, zHead - RUN * (0.30 + 0.5 * q)); // the tail lets go late
+      if (zTail >= SPAWN_Z) continue;
+      const SEG = 6;
+      for (let i = 0; i < SEG; i++) {
+        const f0 = i / SEG, f1 = (i + 1) / SEG; // 0 = tail, 1 = head
+        const z0 = Math.min(lerp(zTail, zHead, f0), SPAWN_Z), z1 = Math.min(lerp(zTail, zHead, f1), SPAWN_Z);
+        const wa0 = 0.05 * (0.35 + f0 * 0.65), wa1 = 0.05 * (0.35 + f1 * 0.65); // fat at the head
+        const c00 = P(st.a - wa0, z0), c01 = P(st.a + wa0, z0);
+        const c11 = P(st.a + wa1, z1), c10 = P(st.a - wa1, z1);
+        ctx.globalAlpha = glob * (0.12 + 0.30 * f0);
+        ctx.fillStyle = 'rgb(126,226,98)';
+        ctx.beginPath();
+        ctx.moveTo(c00.x, c00.y); ctx.lineTo(c01.x, c01.y);
+        ctx.lineTo(c11.x, c11.y); ctx.lineTo(c10.x, c10.y);
+        ctx.closePath(); ctx.fill();
+      }
+      // white-hot filament along the spine, brightest at the head
+      ctx.lineCap = 'round';
+      for (let i = 0; i < SEG; i++) {
+        const p0 = P(st.a, lerp(zTail, zHead, i / SEG)), p1 = P(st.a, Math.min(lerp(zTail, zHead, (i + 1) / SEG), SPAWN_Z));
+        ctx.globalAlpha = glob * (0.15 + 0.7 * (i / SEG));
+        ctx.strokeStyle = 'rgba(228,255,220,0.95)';
+        ctx.lineWidth = u * 0.0035 * (0.5 + (i / SEG));
+        ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+      const hp = P(st.a, Math.min(zHead, SPAWN_Z)); // the head: a hot green mote
+      const hr = u * 0.016 * (hp.s / 0.4);
+      const gl = ctx.createRadialGradient(hp.x, hp.y, 0, hp.x, hp.y, hr);
+      gl.addColorStop(0, 'rgba(235,255,230,' + (0.9 * glob).toFixed(2) + ')');
+      gl.addColorStop(1, 'rgba(126,226,98,0)');
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = gl;
+      ctx.beginPath(); ctx.arc(hp.x, hp.y, hr, 0, TAU); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  }
   ctx.textAlign = 'center';
   for (const p of popups) {
     const al = clamp(p.life, 0, 1);
