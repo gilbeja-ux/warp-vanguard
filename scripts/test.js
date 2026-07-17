@@ -1412,6 +1412,19 @@ G.keys['ArrowUp'] = false;
   G.setState(G.S.MENU);
 }
 
+// ================= carousel swipe =================
+{
+  G.setState(G.S.MENU); G.setMenuScreen('camps'); G.setCampScroll(0); G.frame(16);
+  canvasHandlers.pointerdown({ pointerId: 4, clientX: 700, clientY: 300, pointerType: 'touch', timeStamp: 0 });
+  canvasHandlers.pointermove({ pointerId: 4, clientX: 250, clientY: 300, pointerType: 'touch', timeStamp: 40 });
+  canvasHandlers.pointerup({ pointerId: 4, clientX: 250, clientY: 300, pointerType: 'touch', timeStamp: 45 });
+  check('a left swipe slides the carousel to a later disc', G.getCampScroll() >= 1);
+  const at = G.getCampScroll();
+  check('release snaps to a whole disc', at === Math.round(at));
+  check('a swipe is a swipe, not a tap — no key under it fired', G.getMenuScreen() === 'camps');
+  G.setCampScroll(0); G.setMenuScreen('home'); G.frame(16);
+}
+
 // ================= one-shot transitions =================
 {
   G.setState(G.S.MENU); G.setMenuScreen('map'); G.frame(16);

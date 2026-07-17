@@ -2072,7 +2072,7 @@ canvas.addEventListener('pointerdown', e => {
       menuTap(P.x, P.y, e.pointerId);
       return;
     }
-    menuPtr = { id: e.pointerId, x: P.x, y: P.y, scroll0: menuScroll, moved: false };
+    menuPtr = { id: e.pointerId, x: P.x, y: P.y, scroll0: menuScroll, camp0: campScroll, lastX: P.x, lastT: e.timeStamp || 0, vx: 0, moved: false };
     return;
   }
   if (state === S.END)  { endTap(P.x, P.y); return; }
@@ -2151,6 +2151,17 @@ canvas.addEventListener('pointerdown', e => {
 canvas.addEventListener('pointermove', e => {
   const P = evPos(e);
   if (menuPtr && menuPtr.id === e.pointerId && state === S.MENU && !menuSettings) {
+    if (menuScreen === 'camps' && !menuFx) { // swipe the carousel — discs follow the finger
+      const dxp = P.x - menuPtr.x;
+      if (Math.abs(dxp) > 6) menuPtr.moved = true;
+      const step = Math.min(H * 0.34, W * 0.185) * 2.3;
+      const total = CAMPAIGNS.length + CAMPS_SOON.length;
+      campScroll = campScrollTgt = clamp((menuPtr.camp0 || 0) - dxp / step, -0.35, total - 0.65);
+      const dtm = ((e.timeStamp || 0) - menuPtr.lastT) || 16;
+      menuPtr.vx = (P.x - menuPtr.lastX) / dtm * 1000; // px/s, for the release flick
+      menuPtr.lastX = P.x; menuPtr.lastT = e.timeStamp || 0;
+      return;
+    }
     const dy = P.y - menuPtr.y;
     if (Math.abs(dy) > 6) menuPtr.moved = true;
     if (menuScreen === 'map' && menuPtr.x < menuGeom().ccx - mapR() * 0.5) {
@@ -2197,6 +2208,13 @@ canvas.addEventListener('pointerup', e => {
   if (menuPtr && menuPtr.id === e.pointerId) {
     const P = evPos(e);
     if (!menuPtr.moved && state === S.MENU && !menuSettings) menuTap(P.x, P.y, e.pointerId);
+    else if (menuPtr.moved && state === S.MENU && menuScreen === 'camps') {
+      // release: snap to the nearest disc, a hard flick carries one further
+      const total = CAMPAIGNS.length + CAMPS_SOON.length;
+      const flick = Math.abs(menuPtr.vx || 0) > 550 ? -Math.sign(menuPtr.vx) * 0.5 : 0;
+      campScrollTgt = clamp(Math.round(campScroll + flick), 0, total - 1);
+      sfx.tick();
+    }
     menuPtr = null;
   }
   releasePointer(e);
