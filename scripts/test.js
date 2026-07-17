@@ -114,7 +114,7 @@ code = code.replace("'use strict';", '') + `
   setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length,
   latches: () => latches, setLatches: v => { latches = v; },
   spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; },
-  volley: () => volley, BOSS_CER: () => BOSS_CER,
+  volley: () => volley, BOSS_CER: () => BOSS_CER, latchFreeArc,
   bandCfg, lintLevel, lintCampaign, lintWalk, birthFade, getSched: () => sched
 };`;
 eval(code);
@@ -556,6 +556,201 @@ check('BOSS TEST key drops straight into the duel', !!G.boss());
 G.boss().introT = 99; // skip the ceremony for the shortcut check
 for (let i = 0; i < 4; i++) G.update(0.05);
 check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
+
+// ================= boss engine dispatch (Phase 3: triad + spinner) =================
+{
+  // the classic campaign duel above (and this shortcut) ran without bossKind
+  check('a boss level without bossKind fields the classic core', G.boss() && G.boss().kind === 'core');
+  const bossPack = kind => ({
+    id: 'boss-' + kind, format: 1, title: kind.toUpperCase() + ' TEST',
+    speakers: [{ id: 'CORE', color: '212,101,255' }, { id: 'CID', color: '235,245,255' }],
+    verdict: { title: 'TEST VERDICT', lines: ['case closed.'] },
+    levels: [{ name: 'FINALE', tint: '212,101,255', duration: 10, spawnMin: 1, spawnMax: 2, speed: 0.5,
+      boss: true, bossKind: kind }]
+  });
+  check('validator accepts bossKind triad + spinner',
+    G.validateCampaign(bossPack('triad')).length === 0 && G.validateCampaign(bossPack('spinner')).length === 0);
+  const badP = bossPack('triad'); badP.levels[0].bossKind = 'megacore';
+  check('validator rejects an unknown bossKind', G.validateCampaign(badP).length > 0);
+
+  function enterBossLevel(kind) {
+    G.installCampaign(bossPack(kind));
+    G.startLevel(0);
+    G.setLevelT(11); // past the level clock — the finale spawns at once
+    G.update(0.01);
+  }
+  function ceremonyOut() {
+    let guard = 200;
+    while (G.boss() && G.boss().introT < G.BOSS_CER() && guard-- > 0) { G.setIntegrity(100); G.update(0.05); }
+  }
+
+  // ---------- TRIAD: SHIELD · SHREDDER · ALIBI ----------
+  G.progress.triadBriefed = false;
+  enterBossLevel('triad');
+  const T = G.boss();
+  check('bossKind triad spawns the three-body private core',
+    !!T && T.kind === 'triad' && T.cores.length === 3 && T.maxHp === 9 && T.hp === 9);
+  check('triad briefing card gates the fight once',
+    G.getState() === G.S.INFO && G.getInfoCard() === 'bossTriad' && G.progress.triadBriefed === true);
+  dismiss();
+  ceremonyOut();
+  check('triad ceremony completes into a live three-body fight',
+    T.introT >= G.BOSS_CER() && T.cores.every(c => !c.dead));
+  drawOk('triad mid-fight frame (three bodies + links)', () => {});
+  // a bolt routes to the body NEAREST the docked aim bearing
+  function triadBolt(pick) { // dock on the chosen body's bearing; returns the wounded index
+    const b = G.boss();
+    G.volley().cd = 0;
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
+    const hp0 = b.cores.map(c => c.hp);
+    let guard = 90, hit = -1;
+    while (guard-- > 0 && hit < 0 && b.dying === undefined) {
+      const c = b.cores[pick];
+      const a = c.dead ? G.nodes[0].angle : c.bear;
+      aim(0, a); aim(1, a);
+      G.setIntegrity(100); b.shots.length = 0; b.latchT = 99; b.volleyT = 99; G.setLatches([]);
+      G.update(0.05);
+      hit = b.cores.findIndex((c2, i2) => c2.hp < hp0[i2]);
+    }
+    aim(1, G.nodes[0].angle + Math.PI); // undock between bolts
+    G.update(0.05);
+    return hit;
+  }
+  check('the bolt routes to the aimed body (SHIELD)', triadBolt(0) === 0);
+  check('re-aiming routes the next bolt elsewhere (SHREDDER)', triadBolt(1) === 1);
+  triadBolt(0); triadBolt(0);
+  check('three bolts fell one body — the others fight on',
+    T.cores[0].dead === true && !T.cores[1].dead && !T.cores[2].dead && T.hp === 5 && T.dying === undefined);
+  drawOk('triad frame with one body down', () => {});
+  // wall pressure: two concurrent latches, but the dockable-arc law holds
+  {
+    T.shots.length = 0;
+    aim(0, 1.0); aim(1, 2.2); // undocked — no bolts fly during the pressure soak
+    let saw2 = false, minArc = 99;
+    for (let i = 0; i < 700; i++) {
+      G.setIntegrity(100);
+      T.volleyT = 99;                          // fans quiet — this soak is about walls
+      T.latchT = Math.min(T.latchT, 0.05);     // keep the wall pressure maxed
+      G.update(0.05);
+      if (G.latches().length >= 2) saw2 = true;
+      minArc = Math.min(minArc, G.latchFreeArc());
+      G.nodes[0].deadT = G.nodes[1].deadT = 0; // the soak measures arcs, not fries
+      if (T.dying !== undefined) break;
+    }
+    check('the triad rides the ring with two concurrent latches', saw2);
+    check('a wall-free dock arc >= 1.6 rad always survives', minArc >= 1.6 - 1e-6);
+    G.setLatches([]); T.shots.length = 0;
+  }
+  // telegraphed radial dart fans, alternating bodies
+  {
+    T.shots.length = 0;
+    T.volleyT = 0.01;
+    let fanGuard = 60, sawCharge = false;
+    while (fanGuard-- > 0 && !T.shots.filter(sh => !sh.latch).length) {
+      G.setIntegrity(100); T.latchT = 99;
+      G.update(0.05);
+      sawCharge = sawCharge || T.cores.some(c => c.chargeT > 0);
+    }
+    const fan = T.shots.filter(sh => !sh.latch);
+    check('a radial dart fan fires from a body (5 darts, wide spread)',
+      fan.length >= 5 && Math.abs(fan[fan.length - 1].th - fan[0].th) > 1.5);
+    check('the fan was telegraphed by a charge glow', sawCharge);
+    T.shots.length = 0; T.volleyT = 99;
+  }
+  // finish it: nine total bolts -> death ceremony -> verdict -> END
+  triadBolt(1); triadBolt(1);
+  check('six bolts, two bodies down', T.cores[1].dead === true && T.hp === 3);
+  triadBolt(2); triadBolt(2); triadBolt(2);
+  check('nine bolts fell the triad — death ceremony', T.dying !== undefined);
+  {
+    let dg = 400;
+    while (G.boss() && dg-- > 0) { G.setIntegrity(100); G.update(0.05); }
+    check('triad death ends at the VERDICT card', G.getState() === G.S.INFO && G.getInfoCard() === 'verdict');
+    dismiss();
+    check('triad verdict closes the case — END, win recorded',
+      G.getState() === G.S.END && G.getEndWin() === true && G.getProg().stars[0] > 0);
+  }
+
+  // ---------- SPINNER: THE BEACON ----------
+  G.progress.spinnerBriefed = false;
+  enterBossLevel('spinner');
+  const SP = G.boss();
+  check('bossKind spinner spawns THE BEACON', !!SP && SP.kind === 'spinner' && SP.maxHp === 4);
+  check('spinner briefing card gates the fight once',
+    G.getState() === G.S.INFO && G.getInfoCard() === 'bossSpinner' && G.progress.spinnerBriefed === true);
+  dismiss();
+  ceremonyOut();
+  check('beacon ceremony completes into the telegraph phase',
+    SP.introT >= G.BOSS_CER() && SP.mode === 'tele');
+  // a volley bolt fizzles on the shield — the beacon takes ZERO bolt damage
+  {
+    SP.mode = 'adds'; SP.modeT = 99; // hold the beam so the dock is safe
+    G.enemies().length = 0; G.setLatches([]);
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
+    G.volley().cd = 0;
+    const hp0 = SP.hp;
+    let fg = 60, shielded = false;
+    while (fg-- > 0 && !shielded) {
+      aim(0, 1.0); aim(1, 1.0);
+      G.setIntegrity(100); G.update(0.05);
+      shielded = SP.shieldT > 0;
+    }
+    aim(1, 1.0 + Math.PI); G.update(0.05);
+    check('a volley bolt fizzles on the beacon shield — zero damage', shielded && SP.hp === hp0);
+    drawOk('spinner shield-shimmer frame', () => {});
+  }
+  // the sweep fries a node parked in its path — and rolls on
+  {
+    G.enemies().length = 0; G.setLatches([]);
+    aim(0, 1.0); aim(1, 1.0 + Math.PI);
+    SP.mode = 'sweep'; SP.swept = 0; SP.beamDir = 1;
+    SP.sweepSpd = Math.PI * 2 / 5.6;
+    SP.beamA = 1.0 - 0.4; // the light closes on the parked blue node
+    let sg = 40, fried = false;
+    while (sg-- > 0 && !fried) { G.setIntegrity(100); G.update(0.05); fried = G.nodes[0].deadT > 0; }
+    check('the sweeping beam fries a node parked in its path', fried);
+    check('the sweep rolls on after the fry', SP.mode === 'sweep' && SP.dying === undefined);
+    drawOk('spinner mid-sweep frame (beam live)', () => {});
+  }
+  // a completed sweep overloads the BEACON itself — and the add wave rides in
+  {
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
+    const hp1 = SP.hp, dir0 = SP.beamDir;
+    SP.swept = Math.PI * 2 - 0.001;
+    SP.beamA = G.nodes[0].angle + Math.PI; // away — the overload tick fries nobody
+    G.setIntegrity(100); G.update(0.05);
+    check('a completed sweep overloads the beacon — one round of damage',
+      SP.hp === hp1 - 1 && SP.mode === 'adds');
+    check('an intrusion wave (with a rim latch) spawns between sweeps',
+      G.enemies().filter(e => !e.dead).length >= 3 && G.latches().length >= 1);
+    check('the next sweep runs the other way', SP.beamDir === -dir0);
+    drawOk('spinner add-wave frame', () => {});
+    // the add phase ends on wave-clear or timeout — force the timeout path
+    SP.modeT = 0.01;
+    G.setIntegrity(100); G.update(0.05);
+    check('the add phase hands back to the telegraph', SP.mode === 'tele');
+  }
+  // three more survived sweeps put the light out -> death -> verdict -> END
+  {
+    for (let r = 0; r < 3; r++) {
+      G.enemies().length = 0; G.setLatches([]);
+      G.nodes[0].deadT = G.nodes[1].deadT = 0;
+      SP.mode = 'sweep'; SP.swept = Math.PI * 2 - 0.001;
+      SP.beamA = G.nodes[0].angle + Math.PI;
+      G.setIntegrity(100); G.update(0.05);
+    }
+    check('four survived sweeps put the beacon down', SP.dying !== undefined);
+    let dg = 400;
+    while (G.boss() && dg-- > 0) { G.setIntegrity(100); G.update(0.05); }
+    check('beacon death ends at the VERDICT card', G.getState() === G.S.INFO && G.getInfoCard() === 'verdict');
+    dismiss();
+    check('beacon verdict closes the case — END, win recorded',
+      G.getState() === G.S.END && G.getEndWin() === true && G.getProg().stars[0] > 0);
+  }
+  // back to the bundled campaign for everything downstream
+  G.installCampaign(G.CAMPAIGNS[0]);
+  G.setState(G.S.MENU);
+}
 
 // ================= campaign rim walls + bonus ribbon =================
 const quiet = () => { G.setSpawnT(60); G.setIntegrity(100); }; // hold the level script still
