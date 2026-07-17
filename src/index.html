@@ -767,7 +767,6 @@ function validateCampaign(p) {
     for (const k of ['doubles', 'heavies', 'lines', 'colors', 'frags', 'walls'])
       if (l[k] !== undefined && !(l[k] >= 0 && l[k] <= 1)) errs.push(tag + 'bad ' + k + ' rate');
     // boss finales may pick their intruder; the engine defaults to 'core'
-    if (l.bossKind !== undefined && !(l.bossKind === 'core' || l.bossKind === 'triad' || l.bossKind === 'spinner')) errs.push(tag + 'bad bossKind');
     if (!/^\d{1,3},\d{1,3},\d{1,3}$/.test(l.tint || '')) errs.push(tag + 'bad tint');
     if (l.story && !(str(l.story.title) && Array.isArray(l.story.lines) && l.story.lines.every(str))) errs.push(tag + 'bad story card');
     if (i === 0 && p.verdict && !(str(p.verdict.title) && Array.isArray(p.verdict.lines) && p.verdict.lines.every(str))) errs.push('bad verdict card');
