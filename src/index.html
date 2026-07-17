@@ -7121,7 +7121,8 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     ctx.fillStyle = '#dff4ff';
     ctx.fillText('\u25b6 SYNC STREAM', x, y + dSeg + (rr2 - dSeg) * 0.56);
     if (zq === 0) { // mid-zoom the disc is scenery, not a control
-      menuButtons.push({ x: x - chHalf, y: y + dSeg, w: chHalf * 2, h: rr2 - dSeg, sync: i });
+      menuButtons.push({ x: x - chHalf, y: y + dSeg, w: chHalf * 2, h: rr2 - dSeg, sync: i,
+        seg: { cx: x, cy: y, r: rr2, d: dSeg } }); // press flash wears the segment shape
       menuButtons.push({ x: x - r, y: y - r, w: r * 2, h: r + dSeg, campDisc: i }); // body = bring to center
     }
   } else {
@@ -8228,6 +8229,14 @@ function drawTrans() {
       ctx.arc(sc.cx, sc.cy, sc.r1, sc.a0, sc.a1);
       ctx.arc(sc.cx, sc.cy, sc.r0, sc.a1, sc.a0, true);
       ctx.closePath(); ctx.stroke();
+      ctx.fillStyle = `rgba(255,255,255,${(pa * 0.16).toFixed(2)})`; ctx.fill();
+    } else if (uiPress.seg) { // circle-segment keys flash in their own shape
+      const sg = uiPress.seg;
+      const a2 = Math.asin(clamp(sg.d / sg.r, 0, 1));
+      ctx.beginPath();
+      ctx.arc(sg.cx, sg.cy, sg.r, a2, Math.PI - a2);
+      ctx.closePath();
+      ctx.stroke();
       ctx.fillStyle = `rgba(255,255,255,${(pa * 0.16).toFixed(2)})`; ctx.fill();
     } else if (uiPress.w) {
       techRect(uiPress.x - 2, uiPress.y - 2, uiPress.w + 4, uiPress.h + 4, 8);
