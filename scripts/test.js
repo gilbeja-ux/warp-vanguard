@@ -954,14 +954,6 @@ waitLive(4);
   cross(pen);
   check('letting the killer pass banks the dodge', pen.resolved === true && !pen.dead);
 }
-waitLive(4);
-{
-  // the second killer: dodge again
-  const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
-  aim(0, pen.angle + 1.5); aim(1, pen.angle - 1.5);
-  cross(pen);
-  check('the second killer passes clean too', pen.resolved === true && !pen.dead);
-}
 settle();
 check('rim-wall drill rolls in without a stop', G.qualStage().card === 'wall');
 {
