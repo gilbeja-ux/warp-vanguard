@@ -7196,7 +7196,7 @@ const TUT_LBL = {
   lock0:  ['MATCHING NODE ONLY', '#7db2ff'],
   lock1:  ['MATCHING NODE ONLY', '#ffffff'],
   frag:   ['DANGER! AVOID!', '#ff5a3c', 'AGAIN — DODGE IT'],
-  strip:  ['RIDE THE STREAM — CHARGE YOUR PULSE', '#ffd24a', 'AGAIN — STAY ON THE STREAM'],
+  strip:  ['RIDE TO CHARGE PULSE', '#ffd24a', 'AGAIN — STAY ON THE STREAM'],
 };
 function drawTutText(text, x, y, col, px) { // one pulsing outlined line
   ctx.save();
@@ -7209,15 +7209,17 @@ function drawTutText(text, x, y, col, px) { // one pulsing outlined line
   ctx.fillText(text, x, y);
   ctx.restore();
 }
-// every drill label sits CENTERED in the bore, wrapping to two lines before
-// it would ever reach the tunnel walls — the action stays visible around it
+// every drill label sits CENTERED in the bore and wraps AGGRESSIVELY into a
+// boxy block — narrow beats wide, so the walls and incoming traffic stay
+// visible around the words
 function drawTutLabel(text, col) {
   const g2 = geo();
-  const maxW = g2.nodeR * 1.45; // the bore's comfortable clear width
+  const wrapW = g2.nodeR * 0.9;  // wider than this and the label breaks in two
+  const maxW = g2.nodeR * 1.45;  // a single line may never spill past this
   let px = Math.round(Math.min(W, H) * 0.036);
   ctx.font = '700 ' + px + 'px Audiowide, system-ui';
   let lines = [text];
-  if (ctx.measureText(text).width > maxW) { // split at the space nearest the middle
+  if (ctx.measureText(text).width > wrapW) { // split at the space nearest the middle
     let best = -1, bd = 1e9;
     for (let i = 0; i < text.length; i++) {
       if (text[i] !== ' ') continue;
