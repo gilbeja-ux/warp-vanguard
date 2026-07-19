@@ -6520,20 +6520,22 @@ function drawHUD(g) {
   }
   ctx.lineCap = 'round';
 
-  // score (right)
+  // score (right) — during the tutorial the corner briefing owns the top,
+  // so the score block steps down out of its way
+  const sy = H * 0.12 + (tut ? Math.min(W, H) * 0.16 : 0);
   ctx.textAlign = 'right';
   ctx.fillStyle = '#ffd24a'; ctx.font = '700 20px Audiowide, system-ui';
-  ctx.fillText(score.toLocaleString(), W - pad - SAFE.r, H * 0.12 + 8);
+  ctx.fillText(score.toLocaleString(), W - pad - SAFE.r, sy + 8);
   ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '600 10px Audiowide, system-ui';
-  ctx.fillText('SCORE', W - pad - SAFE.r, H * 0.12 + 24);
+  ctx.fillText('SCORE', W - pad - SAFE.r, sy + 24);
   if (combo >= 3) {
     ctx.fillStyle = '#ffd24a'; ctx.font = '700 14px Audiowide, system-ui';
-    ctx.fillText('COMBO x' + Math.min(combo, 5), W - pad - SAFE.r, H * 0.12 + 48);
+    ctx.fillText('COMBO x' + Math.min(combo, 5), W - pad - SAFE.r, sy + 48);
   }
   const mm = mutMul();
   if (mm > 1) {
     ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 11px Audiowide, system-ui';
-    ctx.fillText('MODIFIERS ×' + (Math.round(mm * 100) / 100), W - pad - SAFE.r, H * 0.12 + 66);
+    ctx.fillText('MODIFIERS ×' + (Math.round(mm * 100) / 100), W - pad - SAFE.r, sy + 66);
   }
   ctx.textAlign = 'left';
 
@@ -6679,6 +6681,8 @@ function drawHUD(g) {
     }
     if (st.card === 'done') drawQualCeremony(tut.t);
     const nn = a => Math.abs(angDiff(nodes[0].angle, a)) < Math.abs(angDiff(nodes[1].angle, a)) ? nodes[0] : nodes[1];
+    const ten = enemies.find(e => e.tut && !e.dead && !e.resolved);
+    if (st.card !== 'done') drawTutPanels(st.card, ten); // the corner briefing
     if (st.card === 'move') {
       // marching arrows lead each node onward (blue clockwise, white counter);
       // the lap meters wind the same way their node travels
@@ -6708,9 +6712,7 @@ function drawHUD(g) {
         }
       }
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-      drawTutLabel('TRACE A FULL CIRCLE — BOTH NODES', '#bfeaff');
     }
-    const ten = enemies.find(e => e.tut && !e.dead && !e.resolved);
     if (ten) {
       if (ten.type === 'heavy') { // both arrows converge on a half-blue/half-white dock spot
         drawGuideArc(nodes[0], ten.angle); drawGuideArc(nodes[1], ten.angle);
@@ -6737,11 +6739,6 @@ function drawHUD(g) {
       // killers wear a landing signal — the drill is DODGE, the label says why
       else if (ten.type === 'frag') drawKillerSignal(ten);
       else drawGuideArc(nn(ten.angle), ten.angle);
-      const lbl = TUT_LBL[ten.tut];
-      if (lbl) {
-        const again = tut.again === ten.tut;
-        drawTutLabel(again ? (lbl[2] || 'AGAIN — ' + lbl[0]) : lbl[0], lbl[1]);
-      }
       if (ten.type === 'strip' && ten.tracing) {
         // the ribbon FEEDS the orb: ride progress winds a gold meter around
         // the destined pad — cause and effect on the same screen, and the
@@ -6756,14 +6753,8 @@ function drawHUD(g) {
         ctx.beginPath(); ctx.arc(dS.x, dS.y, dS.r + 12, -Math.PI / 2, -Math.PI / 2 + fr * TAU); ctx.stroke();
       }
     }
-    if (tut.spawned === 'wall' && latches.length) {
-      drawTutLabel(tut.again === 'wall' ? 'AGAIN — ROUTE AROUND IT' : 'DANGER! AVOID!', '#ff5a3c');
-    }
     const tp = pickups.find(p => p.tut && !p.done);
-    if (tp) {
-      drawGuideArc(nn(tp.angle), tp.angle);
-      drawTutLabel(tut.again === 'pickup' ? 'AGAIN — PICK UP' : 'PICK UP', '#ffd24a');
-    }
+    if (tp) drawGuideArc(nn(tp.angle), tp.angle);
     if (st.card === 'move') { // pulse both dials + the gesture ghost laps them
       for (let i = 0; i < 2; i++) {
         const d = dialCenter(i === 0 ? 'L' : 'R');
@@ -7209,28 +7200,137 @@ function drawTutText(text, x, y, col, px) { // one pulsing outlined line
   ctx.fillText(text, x, y);
   ctx.restore();
 }
-// every drill label sits CENTERED in the bore and wraps AGGRESSIVELY into a
-// boxy block — narrow beats wide, so the walls and incoming traffic stay
-// visible around the words
-function drawTutLabel(text, col) {
-  const g2 = geo();
-  const wrapW = g2.nodeR * 0.9;  // wider than this and the label breaks in two
-  const maxW = g2.nodeR * 1.45;  // a single line may never spill past this
-  let px = Math.round(Math.min(W, H) * 0.036);
-  ctx.font = '700 ' + px + 'px Audiowide, system-ui';
-  let lines = [text];
-  if (ctx.measureText(text).width > wrapW) { // split at the space nearest the middle
-    let best = -1, bd = 1e9;
-    for (let i = 0; i < text.length; i++) {
-      if (text[i] !== ' ') continue;
-      const d = Math.abs(i - text.length / 2);
-      if (d < bd) { bd = d; best = i; }
-    }
-    if (best > 0) lines = [text.slice(0, best).trim(), text.slice(best + 1).trim()];
+function wrapNearMid(text, weight, px, maxW) { // ≤2 balanced lines
+  ctx.font = weight + ' ' + px + 'px Audiowide, system-ui';
+  if (ctx.measureText(text).width <= maxW) return [text];
+  let best = -1, bd = 1e9;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== ' ') continue;
+    const d = Math.abs(i - text.length / 2);
+    if (d < bd) { bd = d; best = i; }
   }
-  for (const ln of lines) px = fitPx(ln, 700, px, maxW, 10); // shrink only if a line still spills
-  const lh = px * 1.35, y0 = g2.cy - (lines.length - 1) * lh / 2;
-  lines.forEach((ln, i) => drawTutText(ln, g2.cx, y0 + i * lh, col, px));
+  return best > 0 ? [text.slice(0, best).trim(), text.slice(best + 1).trim()] : [text];
+}
+// the corner briefing: the words live OUTSIDE the ring so the bore stays
+// clear. Top-left, beside the pause key: the drill's face and name. Top-right:
+// the command line plus a one-line manual (the old info discs, distilled).
+// Power users follow the arrows and never read; everyone else can.
+const TUT_INFO = {
+  move:   { name: 'DUAL NODES',   sub: 'LEFT THUMB — BLUE · RIGHT — WHITE', cmd: 'TRACE A FULL CIRCLE', col: '#bfeaff' },
+  normal: { name: 'DATA TAP',     sub: 'ALIGN ANY NODE AS IT CROSSES · CENTER = ×2' },
+  heavy:  { name: 'ARMORED TAP',  sub: 'HOLD — THE CHARGE FIRES THE BOLT' },
+  line:   { name: 'BARRIER TAPS', sub: 'EITHER NODE CAN TAKE EITHER END' },
+  lock:   { name: 'KEYED TAP',    sub: 'ONLY THE MATCHING COLOR BREAKS IT' },
+  frag:   { name: 'NODE KILLER',  sub: 'TOUCHING IT FRIES A NODE — LET IT PASS' },
+  wall:   { name: 'RIM WALL',     sub: 'IT BURNS OFF IN SECONDS — GO AROUND', cmd: 'DANGER! AVOID!', col: '#ff5a3c' },
+  pickup: { name: 'POWER-UP',     sub: 'GOLDEN RELAYS ARM RANDOM POWERS', cmd: 'PICK UP', col: '#ffd24a' },
+  strip:  { name: 'BONUS STREAM', sub: 'OPTIONAL — A FULL RIDE BANKS A FULL PULSE' },
+  pulse:  { name: 'PULSE CHARGE', sub: 'A CHARGED PAD FIRES A PURGE WAVE', cmd: 'TAP TO FIRE!', col: '#8fe0ff' },
+};
+// the drill's face: sprite skin when loaded, minimal emblems otherwise
+function drawTutPortrait(card, ten, x, y, s) {
+  ctx.save();
+  if (card === 'move') { // two mini dials
+    for (const [dx2, c2] of [[-s * 0.24, '111,227,255'], [s * 0.24, '255,255,255']]) {
+      ctx.strokeStyle = 'rgba(' + c2 + ',0.9)'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(x + dx2, y, s * 0.19, 0, TAU); ctx.stroke();
+    }
+  } else if (card === 'wall') { // a clamp seizing a slice of the rim
+    ctx.strokeStyle = 'rgba(90,120,160,0.6)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y + s * 0.95, s * 1.15, -Math.PI * 0.78, -Math.PI * 0.22); ctx.stroke();
+    ctx.strokeStyle = '#ff4a5e'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(x, y + s * 0.95, s * 1.15, -Math.PI * 0.64, -Math.PI * 0.36); ctx.stroke();
+  } else if (card === 'strip') { // the golden ribbon
+    ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let i = 0; i <= 16; i++) {
+      const t2 = i / 16, xx = x - s * 0.45 + t2 * s * 0.9, yy = y + Math.sin(t2 * TAU) * s * 0.16;
+      i ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy);
+    }
+    ctx.stroke();
+  } else if (card === 'pickup' || card === 'pulse') { // a glowing core, gold or cyan
+    const c2 = card === 'pickup' ? '255,210,74' : '111,227,255';
+    const gl = ctx.createRadialGradient(x, y, 0, x, y, s * 0.5);
+    gl.addColorStop(0, 'rgba(' + c2 + ',0.85)'); gl.addColorStop(1, 'rgba(' + c2 + ',0)');
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, s * 0.5, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(' + c2 + ',0.95)'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(x, y, s * 0.22, 0, TAU); ctx.stroke();
+  } else { // a body: glow + sprite skin, or its palette diamond
+    const kind = ten ? ten.tut : card === 'lock' ? 'lock0' : card;
+    const en2 = kind === 'lock0' ? { lock: 0 } : kind === 'lock1' ? { lock: 1 } : { type: kind };
+    const pal = enemyPal(en2);
+    const gl = ctx.createRadialGradient(x, y, 0, x, y, s * 0.62);
+    gl.addColorStop(0, 'rgba(' + pal.glow + ',0.55)'); gl.addColorStop(1, 'rgba(' + pal.glow + ',0)');
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, s * 0.62, 0, TAU); ctx.fill();
+    const spr = SPRITES[kind === 'line' ? 'normal' : kind];
+    if (spr) ctx.drawImage(spr, x - s / 2, y - s / 2, s, s);
+    else {
+      ctx.fillStyle = pal.shades[0];
+      ctx.beginPath(); ctx.moveTo(x, y - s * 0.3); ctx.lineTo(x + s * 0.3, y);
+      ctx.lineTo(x, y + s * 0.3); ctx.lineTo(x - s * 0.3, y); ctx.closePath(); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+function drawTutPanels(card, ten) {
+  const info = TUT_INFO[card];
+  if (!info) return;
+  const u2 = Math.min(W, H);
+  // LEFT: portrait + name, beside the pause key
+  const ps = u2 * 0.1;
+  const lx = SAFE.l + 12 + 38 + 12, ly = SAFE.t + 10;
+  drawTutPortrait(card, ten, lx + ps / 2, ly + ps / 2, ps);
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const npx = Math.max(10, Math.round(u2 * 0.028));
+  ctx.font = '700 ' + npx + 'px Audiowide, system-ui';
+  ctx.strokeStyle = 'rgba(2,4,12,0.85)'; ctx.lineWidth = 4;
+  ctx.strokeText(info.name, lx + ps + 8, ly + ps / 2);
+  ctx.fillStyle = 'rgba(235,245,255,0.95)';
+  ctx.fillText(info.name, lx + ps + 8, ly + ps / 2);
+  // RIGHT: the command, then the manual line under it
+  let cmd = info.cmd, col = info.col;
+  const lbl = ten && TUT_LBL[ten.tut];
+  if (lbl) {
+    cmd = tut.again === ten.tut ? (lbl[2] || 'AGAIN — ' + lbl[0]) : lbl[0];
+    col = lbl[1];
+  } else if (!cmd) {
+    const dk = TUT_LBL[card === 'lock' ? 'lock0' : card];
+    if (dk) { cmd = dk[0]; col = dk[1]; }
+  }
+  if (tut.again === 'wall' && card === 'wall') cmd = 'AGAIN — ROUTE AROUND IT';
+  if (tut.again === 'pickup' && card === 'pickup') cmd = 'AGAIN — PICK UP';
+  const rx = W - SAFE.r - 14, maxW = W * 0.3;
+  let y = SAFE.t + 12;
+  ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+  if (cmd) {
+    let cpx = Math.max(11, Math.round(u2 * 0.034));
+    const cls = wrapNearMid(cmd, '700', cpx, maxW);
+    for (const ln of cls) cpx = fitPx(ln, 700, cpx, maxW, 9);
+    for (const ln of cls) {
+      ctx.font = '700 ' + cpx + 'px Audiowide, system-ui';
+      ctx.globalAlpha = 0.85 + Math.sin(time * 5) * 0.15;
+      ctx.strokeStyle = 'rgba(2,4,12,0.85)'; ctx.lineWidth = 4;
+      ctx.strokeText(ln, rx, y);
+      ctx.fillStyle = col || '#bfeaff';
+      ctx.fillText(ln, rx, y);
+      y += cpx * 1.28;
+    }
+  }
+  let spx = Math.max(8, Math.round(u2 * 0.02));
+  const sls = wrapNearMid(info.sub, '600', spx, maxW);
+  for (const ln of sls) spx = fitPx(ln, 600, spx, maxW, 7);
+  ctx.globalAlpha = 0.8;
+  for (const ln of sls) {
+    ctx.font = '600 ' + spx + 'px Audiowide, system-ui';
+    ctx.strokeStyle = 'rgba(2,4,12,0.8)'; ctx.lineWidth = 3;
+    ctx.strokeText(ln, rx, y + 3);
+    ctx.fillStyle = 'rgba(200,215,235,0.95)';
+    ctx.fillText(ln, rx, y + 3);
+    y += spx * 1.35;
+  }
+  ctx.restore();
 }
 // the gesture ghost: a comet laps the dial rim in the drill direction — it
 // teaches the THUMB MOTION itself, not just the goal (blue clockwise, white
