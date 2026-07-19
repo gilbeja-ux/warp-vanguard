@@ -889,13 +889,12 @@ check('daily defeat records the daily best and streak', G.getState() === G.S.END
   G.progress.daily.best === 777 && G.progress.daily.streak >= 1 && Math.random !== undefined);
 
 // ================= qualification =================
-// the streamlined curriculum: no briefing stops — drills roll in while the
-// tunnel runs, action labels ride the guides, and the pulse drill freezes
-// the run for the TAP-TO-FIRE moment
+// the curriculum: brief discs (zoom in, read, zoom out) + in-world guides,
+// and the pulse drill freezes the run for the TAP-TO-FIRE moment
 G.progress.tutorialDone = false;
 G.startQualification();
 G.update(0.05);
-check('qualification boots straight into play — no briefing stop', G.getState() === G.S.PLAY && G.isQual() && G.qualStage().card === 'move');
+check('qualification opens with the movement briefing', G.getState() === G.S.INFO && G.getInfoCard() === 'move' && G.isQual());
 function dismiss() { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 7, clientX: 5, clientY: 5, pointerType: 'touch' }); G.update(0.15); G.update(0.15); G.update(0.15); }
 function settle() { for (let i = 0; i < 4; i++) G.update(0.4); }
 function waitLive(maxS) {
@@ -920,22 +919,29 @@ function zapPractice() {
   cross(pen);
   return pen.dead === true;
 }
-for (let i = 1; i <= 30 && G.qualStage().card === 'move'; i++) { aim(0, i * 0.25); aim(1, -i * 0.25); G.update(0.05); } // a FULL lap each
-check('a full circle per node completes movement training', G.getState() === G.S.PLAY && G.qualStage().card === 'normal');
+dismiss();
+check('tap dismisses the briefing', G.getState() === G.S.PLAY);
+for (let i = 1; i <= 30 && G.getState() === G.S.PLAY; i++) { aim(0, i * 0.25); aim(1, -i * 0.25); G.update(0.05); } // a FULL lap each
+check('a full circle per node completes movement training', G.getState() === G.S.INFO && G.getInfoCard() === 'normal');
+dismiss();
 check('practice trap 1 spawns and dies', waitLive(4) && zapPractice());
 check('practice trap 2 spawns and dies', waitLive(4) && zapPractice());
 settle();
-check('heavy drill rolls in without a stop', G.getState() === G.S.PLAY && G.qualStage().card === 'heavy');
+check('heavy briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'heavy');
+dismiss();
 check('heavy practice: dock-and-hold volley', waitLive(4) && zapPractice());
 settle();
-check('barrier drill rolls in without a stop', G.qualStage().card === 'line');
+check('barrier briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'line');
+dismiss();
 check('barrier practice: node per end', waitLive(4) && zapPractice());
 settle();
-check('color-lock drill rolls in without a stop', G.qualStage().card === 'lock');
+check('color-lock briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'lock');
+dismiss();
 check('blue-lock practice', waitLive(4) && zapPractice());
 check('white-lock practice', waitLive(4) && zapPractice());
 settle();
-check('node-killer drill rolls in without a stop', G.qualStage().card === 'frag');
+check('node-killer briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'frag');
+dismiss();
 waitLive(4);
 {
   // the drill is DODGE — touching the killer fries the node and retries
@@ -955,7 +961,8 @@ waitLive(4);
   check('letting the killer pass banks the dodge', pen.resolved === true && !pen.dead);
 }
 settle();
-check('rim-wall drill rolls in without a stop', G.qualStage().card === 'wall');
+check('rim-wall briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'wall');
+dismiss();
 {
   // clip the practice clamp on purpose — the fry is REAL and the drill repeats
   const lt = G.latches()[0];
@@ -980,7 +987,8 @@ check('rim-wall drill rolls in without a stop', G.qualStage().card === 'wall');
   check('routing around the practice wall completes the drill', !G.latches().length && G.tut() && !G.tut().retry);
 }
 settle();
-check('power-up drill rolls in without a stop', G.qualStage().card === 'pickup');
+check('power-up briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'pickup');
+dismiss();
 waitLive(4);
 {
   const pp = G.pickups().find(p2 => p2.tut && !p2.done);
@@ -990,7 +998,8 @@ waitLive(4);
   G.fx.wide = 0;
 }
 settle();
-check('bonus-stream drill rolls in without a stop', G.qualStage().card === 'strip');
+check('bonus-stream briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'strip');
+dismiss();
 {
   // ride the ribbon: keep the blue node glued to the crossing point
   const spawned = waitLive(5);
@@ -1004,9 +1013,10 @@ check('bonus-stream drill rolls in without a stop', G.qualStage().card === 'stri
     spawned && !G.enemies().some(e => e.type === 'strip' && !e.dead) && G.tut() && !G.tut().retry);
 }
 settle();
-check('pulse drill rolls in without a stop', G.qualStage().card === 'pulse');
-check('the purge volley is already inbound',
+check('pulse briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'pulse');
+check('the purge volley is already inbound behind the pulse disc',
   G.enemies().filter(e => e.tut === 'pulse' && !e.dead).length === 4);
+dismiss();
 {
   // two seconds in, the run HOLDS: world frozen, music wound to a stop
   let fGuard = 60;
@@ -1029,7 +1039,7 @@ check('the QUALIFIED ceremony plays in-world, no info disc', G.getState() === G.
 for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05); // the ceremony runs, then the report
 check('QUALIFIED: victory screen + progress persisted', G.getState() === G.S.END && G.getEndWin() === true && G.progress.tutorialDone === true && G.tut() === null);
 drawOk('qualification end screen', () => {});
-drawOk('tutorial opening frame (guides + labels, no disc)', () => { G.progress.tutorialDone = false; G.startQualification(); G.update(0.05); });
+drawOk('briefing card frame (zoom-in)', () => { G.progress.tutorialDone = false; G.startQualification(); G.update(0.05); });
 G.setState(G.S.MENU);
 G.progress.tutorialDone = true;
 

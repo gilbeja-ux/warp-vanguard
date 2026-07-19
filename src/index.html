@@ -2950,8 +2950,7 @@ function startQualification() {
   tut.lastA = [nodes[0].angle, nodes[1].angle];
   runTrack = (Math.random() * 3) | 0;
   playTrack(runTrack);
-  // no briefing disc — the qualification teaches entirely in-world: arrows,
-  // meters and action labels while the tunnel runs
+  showCard('move'); // the DUAL NODES disc greets you BEFORE the boot — read, then fly
 }
 // TEMPORARY dev shortcut: jump straight into the CORE FIREWALL duel.
 // Remove this (and its menu key) before release — grep "BOSS TEST".
@@ -3039,18 +3038,18 @@ const QUAL = [
   { card: 'done' }
 ];
 const INFO_CARDS = {
-  move:   { title: 'DUAL NODES', lines: ['Left thumb steers the BLUE node,', 'right thumb steers the WHITE node.', 'Slide around the dials to ride the ring.'] },
-  normal: { title: 'DATA TAP', lines: ['A siphon latched through the wall,', 'bleeding the stream. Align ANY node', 'as it crosses the ring. Center = ×2.'] },
-  heavy:  { title: 'ARMORED TAP', lines: ['No zap breaks its seal. DOCK both', 'nodes on its lane and HOLD — the', 'charge fires the bolt itself, all', 'the way down the tunnel.'] },
-  line:   { title: 'BARRIER TAPS', lines: ['Two taps tearing the wall open', 'between them. Cover BOTH ends —', 'one node on each.'] },
-  lock:   { title: 'KEYED TAP', lines: ['Sealed to a single node. Only the', 'MATCHING color can break it —', 'watch the orbiting key.'] },
-  frag:   { title: 'NODE KILLER', lines: ['A black trap the intruder left', 'in the stream. Touching it FRIES', 'your node for 2 seconds — let it', 'pass and bank the bonus.'] },
-  pickup: { title: 'POWER-UP', lines: ['Golden relays ride the stream.', 'Catch one with any node:', 'SHIELD · WIDE ARC · AUTO-ZAP', 'PULSE FILL · CHAIN LIGHTNING.'] },
-  strip:  { title: 'BONUS STREAM', lines: ['A golden stream rides the wall.', 'OPTIONAL: keep a node ON its crossing', 'point head to tail — a full ride', 'charges that node\'s PULSE to maximum.'] },
-  wall:   { title: 'RIM WALL', lines: ['They chain their traps now: a wall', 'seizes part of your rail, then burns', 'off within seconds. Crossing it', 'FRIES the node — route the other way.'] },
+  move:   { title: 'DUAL NODES', lines: ['Left thumb — BLUE. Right — WHITE.', 'Slide the dials to ride the ring.'] },
+  normal: { title: 'DATA TAP', lines: ['Align ANY node as it crosses.', 'Dead center pays ×2.'] },
+  heavy:  { title: 'ARMORED TAP', lines: ['Dock BOTH nodes on its lane.', 'HOLD — the charge fires itself.'] },
+  line:   { title: 'BARRIER TAPS', lines: ['Cover BOTH ends —', 'one node on each.'] },
+  lock:   { title: 'KEYED TAP', lines: ['Only the MATCHING color', 'breaks it.'] },
+  frag:   { title: 'NODE KILLER', lines: ['Touching it FRIES a node.', 'Let it pass.'] },
+  pickup: { title: 'POWER-UP', lines: ['Golden relays arm powers.', 'Catch one with any node.'] },
+  strip:  { title: 'BONUS STREAM', lines: ['Optional: ride its crossing point.', 'A full ride banks a full PULSE.'] },
+  wall:   { title: 'RIM WALL', lines: ['It seizes part of your rail.', 'Crossing FRIES — go around.'] },
   done:   { title: 'QUALIFIED', lines: ['The line is yours to guard.', 'Report to OmniServe — the', 'investigation begins at relay 01.'] },
   verdict: { title: 'LOG 09 — VERDICT', lines: ['The gateway burned. The payload', 'reached the CID intact. Warrants', 'went out within the hour — the', 'buyer wore a badge. Case closed.'] },
-  pulse:  { title: 'PULSE CHARGE', lines: ['Combo zaps bank charge in your pads.', 'When an orb GLOWS, tap it to fire', 'a purge wave down the tunnel.'] },
+  pulse:  { title: 'PULSE CHARGE', lines: ['Zaps bank charge in your pads.', 'A glowing orb: TAP to fire.'] },
   boss:   { title: 'FIREWALL CORE', lines: ['The dials stay YOURS. Dock both', 'nodes and HOLD — the bolt homes on', 'the core. SIX hits close the case.', 'Dodge darts. Mind the latches.'] },
   bossTriad: { title: 'PRIVATE CORE ×3', lines: ['One machine in three bodies. The', 'bolt hunts the body you AIM at —', 'three bolts each. The walls come', 'fast: dock in the gaps, then fire.'] },
   bossSpinner: { title: 'THE BEACON', lines: ['Bolts fizzle on its shield. Its', 'sweeping light FRIES a caught node', '— outrun the beam with both. Each', 'survived sweep overloads it once.'] }
@@ -3146,11 +3145,10 @@ function advanceQual() {
     buzz([30, 40, 90]);
     return;
   }
-  // no disc, no stop: the next drill rolls in while the tunnel runs, its
-  // action label riding the guide arrows
-  sfx.tick();
+  showCard(c);
   tut.queue = (QUAL[tut.stage].queue || []).slice();
   if (c === 'wall') { tut.t = 0; tut.queue = []; qualSpawn('wall'); }
+  // the purge volley is already inbound while the disc is read — dismiss and fire
   else if (c === 'pulse') { tut.queue = []; qualSpawn('pulse'); }
 }
 function updateTutorial(dt) {
@@ -6520,9 +6518,8 @@ function drawHUD(g) {
   }
   ctx.lineCap = 'round';
 
-  // score (right) — during the tutorial the corner briefing owns the top,
-  // so the score block steps down out of its way
-  const sy = H * 0.12 + (tut ? Math.min(W, H) * 0.16 : 0);
+  // score (right)
+  const sy = H * 0.12;
   ctx.textAlign = 'right';
   ctx.fillStyle = '#ffd24a'; ctx.font = '700 20px Audiowide, system-ui';
   ctx.fillText(score.toLocaleString(), W - pad - SAFE.r, sy + 8);
@@ -6682,7 +6679,6 @@ function drawHUD(g) {
     if (st.card === 'done') drawQualCeremony(tut.t);
     const nn = a => Math.abs(angDiff(nodes[0].angle, a)) < Math.abs(angDiff(nodes[1].angle, a)) ? nodes[0] : nodes[1];
     const ten = enemies.find(e => e.tut && !e.dead && !e.resolved);
-    if (st.card !== 'done') drawTutPanels(st.card, ten); // the corner briefing
     if (st.card === 'move') {
       // marching arrows lead each node onward (blue clockwise, white counter);
       // the lap meters wind the same way their node travels
@@ -7097,16 +7093,18 @@ function drawInfoCard() {
   const c = INFO_CARDS[infoCard];
   if (!c) return;
   const g = geo();
-  // pop in, ease out — cards never just appear or vanish
+  // ZOOM in, ZOOM out — the disc flies up to the operator and back away
   const inQ = clamp((time - infoShownAt) / 0.28, 0, 1);
   const outQ = infoOutAt ? clamp((time - infoOutAt) / 0.18, 0, 1) : 0;
   const pop = 1 - Math.pow(1 - inQ, 3);
   ctx.save();
   ctx.globalAlpha = Math.min(pop, 1 - outQ);
-  const sc2 = (0.92 + 0.08 * pop) * (1 - 0.05 * outQ);
+  // gentle dim — drawn UNSCALED so the field dims evenly while the disc flies
+  ctx.fillStyle = 'rgba(3,6,14,0.45)'; ctx.fillRect(0, 0, W, H);
+  const bk = 1.70158; // ease-out-back: the zoom lands with a breath of overshoot
+  const zin = 1 + (bk + 1) * Math.pow(inQ - 1, 3) + bk * Math.pow(inQ - 1, 2);
+  const sc2 = (0.3 + 0.7 * zin) * (1 - 0.75 * outQ * outQ);
   ctx.translate(g.cx, g.cy); ctx.scale(sc2, sc2); ctx.translate(-g.cx, -g.cy);
-  // gentle dim — the briefing lives INSIDE the ring, the field stays visible
-  ctx.fillStyle = 'rgba(3,6,14,0.45)'; ctx.fillRect(-40, -40, W + 80, H + 80);
   const R = g.nodeR * 0.9;
   const maxW = g.nodeR * 2 * 0.6; // text never wider than 60% of the ring
   const bg = ctx.createRadialGradient(g.cx, g.cy, R * 0.25, g.cx, g.cy, R);
@@ -7177,18 +7175,7 @@ function drawInfoCard() {
   ctx.restore();
 }
 
-// short action labels that ride the guides — the streamlined curriculum's
-// only words, placed where the pupil is already looking
-// [live text, color, retry text] — the third voice acknowledges a do-over
-const TUT_LBL = {
-  normal: ['MOVE TO INTERCEPT', '#bfeaff'],
-  heavy:  ['LINK BOTH NODES TO NEUTRALIZE', '#eab8ff'],
-  line:   ['ALIGN BOTH NODES TO INTERCEPT', '#8fe0ff'],
-  lock0:  ['MATCHING NODE ONLY', '#7db2ff'],
-  lock1:  ['MATCHING NODE ONLY', '#ffffff'],
-  frag:   ['DANGER! AVOID!', '#ff5a3c', 'AGAIN — DODGE IT'],
-  strip:  ['RIDE TO CHARGE PULSE', '#ffd24a', 'AGAIN — STAY ON THE STREAM'],
-};
+// TAP TO FIRE rides the charged pad during the hold
 function drawTutText(text, x, y, col, px) { // one pulsing outlined line
   ctx.save();
   ctx.font = '700 ' + px + 'px Audiowide, system-ui';
@@ -7200,138 +7187,7 @@ function drawTutText(text, x, y, col, px) { // one pulsing outlined line
   ctx.fillText(text, x, y);
   ctx.restore();
 }
-function wrapNearMid(text, weight, px, maxW) { // ≤2 balanced lines
-  ctx.font = weight + ' ' + px + 'px Audiowide, system-ui';
-  if (ctx.measureText(text).width <= maxW) return [text];
-  let best = -1, bd = 1e9;
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] !== ' ') continue;
-    const d = Math.abs(i - text.length / 2);
-    if (d < bd) { bd = d; best = i; }
-  }
-  return best > 0 ? [text.slice(0, best).trim(), text.slice(best + 1).trim()] : [text];
-}
-// the corner briefing: the words live OUTSIDE the ring so the bore stays
-// clear. Top-left, beside the pause key: the drill's face and name. Top-right:
-// the command line plus a one-line manual (the old info discs, distilled).
-// Power users follow the arrows and never read; everyone else can.
-const TUT_INFO = {
-  move:   { name: 'DUAL NODES',   sub: 'LEFT THUMB — BLUE · RIGHT — WHITE', cmd: 'TRACE A FULL CIRCLE', col: '#bfeaff' },
-  normal: { name: 'DATA TAP',     sub: 'ALIGN ANY NODE AS IT CROSSES · CENTER = ×2' },
-  heavy:  { name: 'ARMORED TAP',  sub: 'HOLD — THE CHARGE FIRES THE BOLT' },
-  line:   { name: 'BARRIER TAPS', sub: 'EITHER NODE CAN TAKE EITHER END' },
-  lock:   { name: 'KEYED TAP',    sub: 'ONLY THE MATCHING COLOR BREAKS IT' },
-  frag:   { name: 'NODE KILLER',  sub: 'TOUCHING IT FRIES A NODE — LET IT PASS' },
-  wall:   { name: 'RIM WALL',     sub: 'IT BURNS OFF IN SECONDS — GO AROUND', cmd: 'DANGER! AVOID!', col: '#ff5a3c' },
-  pickup: { name: 'POWER-UP',     sub: 'GOLDEN RELAYS ARM RANDOM POWERS', cmd: 'PICK UP', col: '#ffd24a' },
-  strip:  { name: 'BONUS STREAM', sub: 'OPTIONAL — A FULL RIDE BANKS A FULL PULSE' },
-  pulse:  { name: 'PULSE CHARGE', sub: 'A CHARGED PAD FIRES A PURGE WAVE', cmd: 'TAP TO FIRE!', col: '#8fe0ff' },
-};
-// the drill's face: sprite skin when loaded, minimal emblems otherwise
-function drawTutPortrait(card, ten, x, y, s) {
-  ctx.save();
-  if (card === 'move') { // two mini dials
-    for (const [dx2, c2] of [[-s * 0.24, '111,227,255'], [s * 0.24, '255,255,255']]) {
-      ctx.strokeStyle = 'rgba(' + c2 + ',0.9)'; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(x + dx2, y, s * 0.19, 0, TAU); ctx.stroke();
-    }
-  } else if (card === 'wall') { // a clamp seizing a slice of the rim
-    ctx.strokeStyle = 'rgba(90,120,160,0.6)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(x, y + s * 0.95, s * 1.15, -Math.PI * 0.78, -Math.PI * 0.22); ctx.stroke();
-    ctx.strokeStyle = '#ff4a5e'; ctx.lineWidth = 6; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(x, y + s * 0.95, s * 1.15, -Math.PI * 0.64, -Math.PI * 0.36); ctx.stroke();
-  } else if (card === 'strip') { // the golden ribbon
-    ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-    ctx.beginPath();
-    for (let i = 0; i <= 16; i++) {
-      const t2 = i / 16, xx = x - s * 0.45 + t2 * s * 0.9, yy = y + Math.sin(t2 * TAU) * s * 0.16;
-      i ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy);
-    }
-    ctx.stroke();
-  } else if (card === 'pickup' || card === 'pulse') { // a glowing core, gold or cyan
-    const c2 = card === 'pickup' ? '255,210,74' : '111,227,255';
-    const gl = ctx.createRadialGradient(x, y, 0, x, y, s * 0.5);
-    gl.addColorStop(0, 'rgba(' + c2 + ',0.85)'); gl.addColorStop(1, 'rgba(' + c2 + ',0)');
-    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, s * 0.5, 0, TAU); ctx.fill();
-    ctx.strokeStyle = 'rgba(' + c2 + ',0.95)'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(x, y, s * 0.22, 0, TAU); ctx.stroke();
-  } else { // a body: glow + sprite skin, or its palette diamond
-    const kind = ten ? ten.tut : card === 'lock' ? 'lock0' : card;
-    const en2 = kind === 'lock0' ? { lock: 0 } : kind === 'lock1' ? { lock: 1 } : { type: kind };
-    const pal = enemyPal(en2);
-    const gl = ctx.createRadialGradient(x, y, 0, x, y, s * 0.62);
-    gl.addColorStop(0, 'rgba(' + pal.glow + ',0.55)'); gl.addColorStop(1, 'rgba(' + pal.glow + ',0)');
-    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, s * 0.62, 0, TAU); ctx.fill();
-    const spr = SPRITES[kind === 'line' ? 'normal' : kind];
-    if (spr) ctx.drawImage(spr, x - s / 2, y - s / 2, s, s);
-    else {
-      ctx.fillStyle = pal.shades[0];
-      ctx.beginPath(); ctx.moveTo(x, y - s * 0.3); ctx.lineTo(x + s * 0.3, y);
-      ctx.lineTo(x, y + s * 0.3); ctx.lineTo(x - s * 0.3, y); ctx.closePath(); ctx.fill();
-    }
-  }
-  ctx.restore();
-}
-function drawTutPanels(card, ten) {
-  const info = TUT_INFO[card];
-  if (!info) return;
-  const u2 = Math.min(W, H);
-  // LEFT: portrait + name, beside the pause key
-  const ps = u2 * 0.1;
-  const lx = SAFE.l + 12 + 38 + 12, ly = SAFE.t + 10;
-  drawTutPortrait(card, ten, lx + ps / 2, ly + ps / 2, ps);
-  ctx.save();
-  ctx.lineJoin = 'round';
-  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  const npx = Math.max(10, Math.round(u2 * 0.028));
-  ctx.font = '700 ' + npx + 'px Audiowide, system-ui';
-  ctx.strokeStyle = 'rgba(2,4,12,0.85)'; ctx.lineWidth = 4;
-  ctx.strokeText(info.name, lx + ps + 8, ly + ps / 2);
-  ctx.fillStyle = 'rgba(235,245,255,0.95)';
-  ctx.fillText(info.name, lx + ps + 8, ly + ps / 2);
-  // RIGHT: the command, then the manual line under it
-  let cmd = info.cmd, col = info.col;
-  const lbl = ten && TUT_LBL[ten.tut];
-  if (lbl) {
-    cmd = tut.again === ten.tut ? (lbl[2] || 'AGAIN — ' + lbl[0]) : lbl[0];
-    col = lbl[1];
-  } else if (!cmd) {
-    const dk = TUT_LBL[card === 'lock' ? 'lock0' : card];
-    if (dk) { cmd = dk[0]; col = dk[1]; }
-  }
-  if (tut.again === 'wall' && card === 'wall') cmd = 'AGAIN — ROUTE AROUND IT';
-  if (tut.again === 'pickup' && card === 'pickup') cmd = 'AGAIN — PICK UP';
-  const rx = W - SAFE.r - 14, maxW = W * 0.3;
-  let y = SAFE.t + 12;
-  ctx.textAlign = 'right'; ctx.textBaseline = 'top';
-  if (cmd) {
-    let cpx = Math.max(11, Math.round(u2 * 0.034));
-    const cls = wrapNearMid(cmd, '700', cpx, maxW);
-    for (const ln of cls) cpx = fitPx(ln, 700, cpx, maxW, 9);
-    for (const ln of cls) {
-      ctx.font = '700 ' + cpx + 'px Audiowide, system-ui';
-      ctx.globalAlpha = 0.85 + Math.sin(time * 5) * 0.15;
-      ctx.strokeStyle = 'rgba(2,4,12,0.85)'; ctx.lineWidth = 4;
-      ctx.strokeText(ln, rx, y);
-      ctx.fillStyle = col || '#bfeaff';
-      ctx.fillText(ln, rx, y);
-      y += cpx * 1.28;
-    }
-  }
-  let spx = Math.max(8, Math.round(u2 * 0.02));
-  const sls = wrapNearMid(info.sub, '600', spx, maxW);
-  for (const ln of sls) spx = fitPx(ln, 600, spx, maxW, 7);
-  ctx.globalAlpha = 0.8;
-  for (const ln of sls) {
-    ctx.font = '600 ' + spx + 'px Audiowide, system-ui';
-    ctx.strokeStyle = 'rgba(2,4,12,0.8)'; ctx.lineWidth = 3;
-    ctx.strokeText(ln, rx, y + 3);
-    ctx.fillStyle = 'rgba(200,215,235,0.95)';
-    ctx.fillText(ln, rx, y + 3);
-    y += spx * 1.35;
-  }
-  ctx.restore();
-}
+
 // the gesture ghost: a comet laps the dial rim in the drill direction — it
 // teaches the THUMB MOTION itself, not just the goal (blue clockwise, white
 // counter, matching the lap meters)
