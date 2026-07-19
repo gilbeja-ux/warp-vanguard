@@ -385,8 +385,10 @@ function updateMusic(dt) {
       seamDuck = clamp(edge / 1.2, 0.12, 1);
     }
   }
-  const rateTarget = 1; // slow-mo retired; the ease stays for future tape-warp moments
-  musicRate += (rateTarget - musicRate) * Math.min(1, (dt || 0) * 5);
+  // the tape-warp moment this ease was kept for: the tutorial's TAP-TO-FIRE
+  // hold drags the track down to a stop, releasing it spools back up
+  const rateTarget = tut && tut.frozen ? 0.0001 : 1;
+  musicRate += (rateTarget - musicRate) * Math.min(1, (dt || 0) * (tut && tut.frozen ? 2.5 : 5));
   if (musicSrc && musicSrc.playbackRate) musicSrc.playbackRate.value = musicRate;
   if (musicFilter) { // the payload's health bleeds into the mix
     const open = 16000;
@@ -2948,7 +2950,8 @@ function startQualification() {
   tut.lastA = [nodes[0].angle, nodes[1].angle];
   runTrack = (Math.random() * 3) | 0;
   playTrack(runTrack);
-  showCard('move'); // the DUAL NODES disc greets you BEFORE the boot — read, then fly
+  // no briefing disc — the qualification teaches entirely in-world: arrows,
+  // meters and action labels while the tunnel runs
 }
 // TEMPORARY dev shortcut: jump straight into the CORE FIREWALL duel.
 // Remove this (and its menu key) before release — grep "BOSS TEST".
@@ -3118,7 +3121,8 @@ function qualSpawn(kind) {
   } else en = spawnEnemy(undefined, kind); // normal | heavy | frag
   en.tut = kind;
   en.drift = 0;
-  if (kind === 'frag') en.touchMe = !tut.fragTaught; // first trap: LEARN it by touching
+  // killers are pure dodge drills — the DANGER label states the consequence
+  // instead of making the pupil feel the fry
 }
 function advanceQual() {
   tut.stage++;
@@ -3141,10 +3145,11 @@ function advanceQual() {
     buzz([30, 40, 90]);
     return;
   }
-  showCard(c);
+  // no disc, no stop: the next drill rolls in while the tunnel runs, its
+  // action label riding the guide arrows
+  sfx.tick();
   tut.queue = (QUAL[tut.stage].queue || []).slice();
   if (c === 'wall') { tut.t = 0; tut.queue = []; qualSpawn('wall'); }
-  // the purge volley is already inbound while the disc is read — dismiss and fire
   else if (c === 'pulse') { tut.queue = []; qualSpawn('pulse'); }
 }
 function updateTutorial(dt) {
@@ -3167,6 +3172,22 @@ function updateTutorial(dt) {
       saveState();
       tut = null;
       endLevel(true);
+    }
+    return;
+  }
+  if (st.card === 'pulse' && !tut.fired) {
+    // the teaching hold: two seconds after the volley shows, the tunnel
+    // freezes and the music winds down to a stop — TAP TO FIRE points at the
+    // charged pad. firePulse() releases the hold and the wave clears the lane.
+    if (!tut.frozen && tut.t >= 2) {
+      tut.frozen = true;
+      // the hold must always be releasable: guarantee a tappable charged pad
+      if (!(pulseCharge[0] >= PULSE_MAX && nodes[0].deadT <= 0)
+        && !(pulseCharge[1] >= PULSE_MAX && nodes[1].deadT <= 0)) {
+        pulseCharge[nodes[0].deadT <= 0 ? 0 : 1] = PULSE_MAX;
+      }
+      tone(720, 0.9, 'sine', 0.10, 70); // tape-warp down: the run holds its breath
+      buzz([15, 40, 25]);
     }
     return;
   }
@@ -3492,8 +3513,10 @@ function update(dt) {
   warpT = Math.max(0, warpT - dt);
   const warp2 = warpT / 0.9;
   // the wall streams at EXACTLY the traffic speed — leaks stay glued to it
-  tunnelScroll = (tunnelScroll + dt * (state === S.PLAY ? trafficSpeed * 10 : 0.5) * (1 + warp2 * 4)) % 10;
-  wallDist += dt * (state === S.PLAY ? trafficSpeed : 0.05) * (1 + warp2 * 4);
+  // (the tutorial's TAP-TO-FIRE hold stops the whole bore, wall included)
+  const flowMul = tut && tut.frozen ? 0 : 1;
+  tunnelScroll = (tunnelScroll + dt * (state === S.PLAY ? trafficSpeed * 10 : 0.5) * (1 + warp2 * 4) * flowMul) % 10;
+  wallDist += dt * (state === S.PLAY ? trafficSpeed : 0.05) * (1 + warp2 * 4) * flowMul;
   shake = Math.max(0, shake - dt * 3);
   redFlash = Math.max(0, redFlash - dt * 2);
 
@@ -3607,6 +3630,7 @@ function update(dt) {
   if (commCur) { commT += dt; if (commT > 6) commCur = null; }
   let sdt = dt;
   if (hitStop > 0) { hitStop = Math.max(0, hitStop - dt); sdt *= 0.12; }
+  if (tut && tut.frozen) sdt = 0; // the TAP-TO-FIRE hold: the world stands still
   if (boss && boss.dying !== undefined) sdt *= 0.25; // the kill plays in slow motion
   if (!tut && !inIntro) levelT += sdt;
 
@@ -5853,6 +5877,10 @@ function firePulse(i) {
   shake = Math.min(shake + 0.7, 1);
   sfx.pulseFire();
   buzz([30, 30, 90]);
+  if (tut && tut.spawned === 'pulse' && !tut.fired) { // the hold releases
+    tut.fired = true; tut.frozen = false; tut.t = 0;
+    tone(90, 0.5, 'sine', 0.08, 660); // tape-warp back up: the run breathes again
+  }
 }
 // the wave: a white-hot front racing down the tunnel, dragging a glowing wake
 // that fills the whole cave behind it
@@ -6656,6 +6684,7 @@ function drawHUD(g) {
         }
       }
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      drawTutLabel('TRACE A FULL CIRCLE — BOTH NODES', gT.cx, gT.cy - gT.nodeR * 0.5, '#bfeaff');
     }
     const ten = enemies.find(e => e.tut && !e.dead && !e.resolved);
     if (ten) {
@@ -6678,13 +6707,20 @@ function drawHUD(g) {
         }
       }
       else if (ten.lock !== undefined) drawGuideArc(nodes[ten.lock], ten.angle);
-      // the killer teaches by contact: the arrow WALKS them into the first
-      // one; every one after wears a landing signal so the drill is DODGE
-      else if (ten.type === 'frag') { if (ten.touchMe) drawGuideArc(nn(ten.angle), ten.angle); else drawKillerSignal(ten); }
+      // killers wear a landing signal — the drill is DODGE, the label says why
+      else if (ten.type === 'frag') drawKillerSignal(ten);
       else drawGuideArc(nn(ten.angle), ten.angle);
+      const lbl = TUT_LBL[ten.tut];
+      if (lbl) {
+        // barriers label the span's midpoint; everything else labels its lane
+        const aL = ten.type === 'line' && ten.partner
+          ? ten.angle + angDiff(ten.partner.angle, ten.angle) / 2 : ten.angle;
+        tutLabelAt(aL, lbl[0], lbl[1]);
+      }
     }
+    if (tut.spawned === 'wall' && latches.length) tutLabelAt(latches[0].a, 'DANGER! AVOID!', '#ff5a3c');
     const tp = pickups.find(p => p.tut && !p.done);
-    if (tp) drawGuideArc(nn(tp.angle), tp.angle);
+    if (tp) { drawGuideArc(nn(tp.angle), tp.angle); tutLabelAt(tp.angle, 'PICK UP', '#ffd24a'); }
     if (st.card === 'move') { // pulse both dials
       for (const side of ['L', 'R']) {
         const d = dialCenter(side);
@@ -6702,6 +6738,15 @@ function drawHUD(g) {
         ctx.strokeStyle = i === 0 ? 'rgba(111,227,255,0.85)' : 'rgba(255,255,255,0.85)';
         ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(d.x, d.y, pr, 0, TAU); ctx.stroke();
+        if (tut.frozen) { // the hold: the whole run waits on this tap
+          const bob = Math.sin(time * 6) * 5;
+          drawTutLabel('TAP TO FIRE!', d.x, d.y - d.r - Math.min(W, H) * 0.075 + bob, '#8fe0ff');
+          ctx.save();
+          ctx.translate(d.x, d.y - d.r * 0.62 - 12 + bob);
+          ctx.fillStyle = 'rgba(143,224,255,0.95)';
+          ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(-7, -6); ctx.lineTo(7, -6); ctx.closePath(); ctx.fill();
+          ctx.restore();
+        }
       }
     }
   }
@@ -7095,6 +7140,35 @@ function drawInfoCard() {
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.textAlign = 'left';
   ctx.restore();
+}
+
+// short action labels that ride the guides — the streamlined curriculum's
+// only words, placed where the pupil is already looking
+const TUT_LBL = {
+  normal: ['MOVE TO INTERCEPT', '#bfeaff'],
+  heavy:  ['LINK BOTH NODES TO NEUTRALIZE', '#eab8ff'],
+  line:   ['ALIGN BOTH NODES TO INTERCEPT', '#8fe0ff'],
+  lock0:  ['MATCHING NODE ONLY', '#7db2ff'],
+  lock1:  ['MATCHING NODE ONLY', '#ffffff'],
+  frag:   ['DANGER! AVOID!', '#ff5a3c'],
+  strip:  ['RIDE THE STREAM — CHARGE YOUR PULSE', '#ffd24a'],
+};
+function drawTutLabel(text, x, y, col) {
+  ctx.save();
+  const px = fitPx(text, 700, Math.round(Math.min(W, H) * 0.032), W * 0.42, 9);
+  ctx.font = '700 ' + px + 'px Audiowide, system-ui';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.globalAlpha = 0.8 + Math.sin(time * 5) * 0.2;
+  ctx.strokeStyle = 'rgba(2,4,12,0.85)'; ctx.lineWidth = 4;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = col;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+// ring-target anchor: the label floats inside the bore at the target's angle
+function tutLabelAt(a, text, col) {
+  const g2 = geo();
+  drawTutLabel(text, g2.cx + Math.cos(a) * g2.nodeR * 0.55, g2.cy + Math.sin(a) * g2.nodeR * 0.55, col);
 }
 
 // marching dashed arc from a node toward the tutorial trap, with an arrowhead
