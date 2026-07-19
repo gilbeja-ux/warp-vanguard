@@ -3127,6 +3127,7 @@ function qualSpawn(kind) {
 function advanceQual() {
   tut.stage++;
   tut.t = 0;
+  tut.again = null; // a fresh drill speaks in the present tense
   if (tut.stage >= QUAL.length) { // safety — 'done' normally ends it with air
     progress.tutorialDone = true;
     saveState();
@@ -3198,10 +3199,15 @@ function updateTutorial(dt) {
       tut.retry = 'wall'; tut.t = 0;
     }
     if (latches.length) return; // still burning — hold the stage
+    if (!tut.wallDone && !tut.retry) { // the clamp burned off untouched
+      tut.wallDone = true;
+      popup(W / 2, H * 0.35, 'ROUTED AROUND', '#7ee262');
+    }
   }
   const live = enemies.some(e => !e.dead && !e.resolved) || pickups.some(p => !p.done) || latches.length > 0;
   if (tut.retry && !live && tut.t > 0.9) { // practice failed — same drill again
     const k = tut.retry; tut.retry = null; tut.t = 0;
+    tut.again = k; // the label acknowledges the do-over
     qualSpawn(k);
     return;
   }
@@ -3805,6 +3811,7 @@ function update(dt) {
       score += vb;
       decompile(en.angle, en.z, en);
       popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : '+') + vb, '#bfeaff');
+      if (en.tut) popup(vx, vy - 30, 'NEUTRALIZED', '#7ee262'); // the label's verb, answered
       rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
       const volleyZapSampled = sfx.zap(1, Math.cos(en.angle) * 0.6);
       buzz(en.type === 'heavy' ? 25 : 12);
@@ -3937,7 +3944,7 @@ function update(dt) {
           } else {
             const bonus = Math.round(50 * mutMul());
             score += bonus;
-            popup(fx2, fy, 'trap avoided +' + bonus, '#9aa7bd');
+            popup(fx2, fy, (en.tut ? 'DODGED +' : 'trap avoided +') + bonus, en.tut ? '#7ee262' : '#9aa7bd');
           }
         }
         continue;
@@ -4051,6 +4058,7 @@ function update(dt) {
         spawnKillStreak(en.angle, en.z);
         lastKillBeat(en);
         popup(ex, ey, (perfect ? 'PERFECT +' : '+') + pts + (combo >= 3 ? '  x' + Math.min(combo, 5) : ''), perfect ? '#ffe9b0' : '#bfeaff');
+        if (en.tut) popup(ex, ey - 30, 'INTERCEPTED', '#7ee262'); // the label's verb, answered
         // no screen shake on a clean kill — the rim flash + haptics carry it;
         // the tunnel only twitches when something goes WRONG
         const zapSampled = sfx.zap(combo, Math.cos(en.angle) * 0.7);
@@ -4162,6 +4170,7 @@ function update(dt) {
         }
         burst(x, y, '#ffd24a', 24, 4);
         popup(x, y, PICKUPS[p.kind].label, '#ffd24a');
+        if (p.tut) popup(x, y - 30, 'PICKED UP', '#7ee262'); // the label's verb, answered
         buzz(15);
       }
     }
@@ -6110,7 +6119,7 @@ function drawDials() {
     gl.addColorStop(1, `rgba(${col},0)`);
     ctx.fillStyle = gl;
     ctx.beginPath(); ctx.arc(kx, ky, ts * 2.2, 0, TAU); ctx.fill();
-    ctx.fillStyle = n.color;
+    ctx.fillStyle = 'rgb(' + col + ')'; // the knob wears its PAD's color, both sides
     ctx.beginPath(); ctx.arc(kx, ky, ts, 0, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(240,252,255,0.8)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(kx, ky, ts, 0, TAU); ctx.stroke();
@@ -6157,6 +6166,9 @@ function drawDials() {
         ctx.font = '700 10px Audiowide, system-ui';
         ctx.fillText(okI ? 'READY' : 'PLACE THUMB', d.x, d.y - d.r - 14);
         ctx.textAlign = 'left';
+        // first boot: the gesture ghost already laps the rim, so the pupil
+        // learns the thumb motion before the controls are even handed over
+        if (tut) drawDialComet(i);
       }
     }
     // radar blips: live enemy positions — angle matches the tunnel, radius = how close they are
@@ -6653,6 +6665,18 @@ function drawHUD(g) {
   // (held until the boot ceremony hands over the controls)
   if (tut && tut.stage >= 0 && introT >= INTRO_DUR) {
     const st = QUAL[tut.stage];
+    { // curriculum pips: one per drill, so the pupil can SEE the finish line
+      const nP = QUAL.length - 1; // 'done' is the ceremony, not a drill
+      const uP = Math.min(W, H), gap = uP * 0.032;
+      const x0 = W / 2 - (nP - 1) * gap / 2, y0 = SAFE.t + uP * 0.045;
+      for (let i = 0; i < nP; i++) {
+        const done2 = i < tut.stage, cur = i === tut.stage;
+        ctx.globalAlpha = cur ? 0.7 + Math.sin(time * 5) * 0.3 : 1;
+        ctx.fillStyle = done2 ? 'rgba(126,226,98,0.9)' : cur ? 'rgba(143,224,255,0.95)' : 'rgba(90,120,160,0.4)';
+        ctx.beginPath(); ctx.arc(x0 + i * gap, y0, uP * (done2 || cur ? 0.008 : 0.0055), 0, TAU); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
     if (st.card === 'done') drawQualCeremony(tut.t);
     const nn = a => Math.abs(angDiff(nodes[0].angle, a)) < Math.abs(angDiff(nodes[1].angle, a)) ? nodes[0] : nodes[1];
     if (st.card === 'move') {
@@ -6715,19 +6739,39 @@ function drawHUD(g) {
         // barriers label the span's midpoint; everything else labels its lane
         const aL = ten.type === 'line' && ten.partner
           ? ten.angle + angDiff(ten.partner.angle, ten.angle) / 2 : ten.angle;
-        tutLabelAt(aL, lbl[0], lbl[1]);
+        const again = tut.again === ten.tut;
+        tutLabelAt(aL, again ? (lbl[2] || 'AGAIN — ' + lbl[0]) : lbl[0], lbl[1]);
+      }
+      if (ten.type === 'strip' && ten.tracing) {
+        // the ribbon FEEDS the orb: ride progress winds a gold meter around
+        // the destined pad — cause and effect on the same screen, and the
+        // meter closing is the exact moment PULSE CHARGED pops
+        const gS = geo();
+        const ni = ten.traceNode || 0;
+        const dS = dialCenter(ni === 0 ? 'L' : 'R');
+        const fr = clamp((gS.hitZ - ten.z) / ten.len, 0, 1);
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(255,210,74,' + (0.6 + Math.sin(time * 8) * 0.25).toFixed(2) + ')';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(dS.x, dS.y, dS.r + 12, -Math.PI / 2, -Math.PI / 2 + fr * TAU); ctx.stroke();
       }
     }
-    if (tut.spawned === 'wall' && latches.length) tutLabelAt(latches[0].a, 'DANGER! AVOID!', '#ff5a3c');
+    if (tut.spawned === 'wall' && latches.length) {
+      tutLabelAt(latches[0].a, tut.again === 'wall' ? 'AGAIN — ROUTE AROUND IT' : 'DANGER! AVOID!', '#ff5a3c');
+    }
     const tp = pickups.find(p => p.tut && !p.done);
-    if (tp) { drawGuideArc(nn(tp.angle), tp.angle); tutLabelAt(tp.angle, 'PICK UP', '#ffd24a'); }
-    if (st.card === 'move') { // pulse both dials
-      for (const side of ['L', 'R']) {
-        const d = dialCenter(side);
+    if (tp) {
+      drawGuideArc(nn(tp.angle), tp.angle);
+      tutLabelAt(tp.angle, tut.again === 'pickup' ? 'AGAIN — PICK UP' : 'PICK UP', '#ffd24a');
+    }
+    if (st.card === 'move') { // pulse both dials + the gesture ghost laps them
+      for (let i = 0; i < 2; i++) {
+        const d = dialCenter(i === 0 ? 'L' : 'R');
         const pr = d.r + 6 + Math.sin(time * 5) * 3;
-        ctx.strokeStyle = side === 'L' ? 'rgba(111,227,255,0.8)' : 'rgba(255,255,255,0.8)';
+        ctx.strokeStyle = i === 0 ? 'rgba(111,227,255,0.8)' : 'rgba(255,255,255,0.8)';
         ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(d.x, d.y, pr, 0, TAU); ctx.stroke();
+        if (tut.moved[i] <= TAU) drawDialComet(i); // the lap's done — the ghost retires
       }
     }
     if (tut.spawned === 'pulse') { // a banked pulse waits on the dial — ring the ready core
@@ -7144,14 +7188,15 @@ function drawInfoCard() {
 
 // short action labels that ride the guides — the streamlined curriculum's
 // only words, placed where the pupil is already looking
+// [live text, color, retry text] — the third voice acknowledges a do-over
 const TUT_LBL = {
   normal: ['MOVE TO INTERCEPT', '#bfeaff'],
   heavy:  ['LINK BOTH NODES TO NEUTRALIZE', '#eab8ff'],
   line:   ['ALIGN BOTH NODES TO INTERCEPT', '#8fe0ff'],
   lock0:  ['MATCHING NODE ONLY', '#7db2ff'],
   lock1:  ['MATCHING NODE ONLY', '#ffffff'],
-  frag:   ['DANGER! AVOID!', '#ff5a3c'],
-  strip:  ['RIDE THE STREAM — CHARGE YOUR PULSE', '#ffd24a'],
+  frag:   ['DANGER! AVOID!', '#ff5a3c', 'AGAIN — DODGE IT'],
+  strip:  ['RIDE THE STREAM — CHARGE YOUR PULSE', '#ffd24a', 'AGAIN — STAY ON THE STREAM'],
 };
 function drawTutLabel(text, x, y, col) {
   ctx.save();
@@ -7169,6 +7214,24 @@ function drawTutLabel(text, x, y, col) {
 function tutLabelAt(a, text, col) {
   const g2 = geo();
   drawTutLabel(text, g2.cx + Math.cos(a) * g2.nodeR * 0.55, g2.cy + Math.sin(a) * g2.nodeR * 0.55, col);
+}
+// the gesture ghost: a comet laps the dial rim in the drill direction — it
+// teaches the THUMB MOTION itself, not just the goal (blue clockwise, white
+// counter, matching the lap meters)
+function drawDialComet(i) {
+  const d = dialCenter(i === 0 ? 'L' : 'R');
+  const w = i === 0 ? 1 : -1;
+  const col = i === 0 ? '111,227,255' : '255,255,255';
+  const a = -Math.PI / 2 + time * 2.2 * w;
+  for (let k = 0; k < 7; k++) {
+    const ta = a - w * k * 0.11;
+    ctx.globalAlpha = (1 - k / 7) * 0.75;
+    ctx.fillStyle = 'rgba(' + col + ',1)';
+    ctx.beginPath();
+    ctx.arc(d.x + Math.cos(ta) * d.r, d.y + Math.sin(ta) * d.r, Math.max(1.5, 4.5 - k * 0.55), 0, TAU);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 // marching dashed arc from a node toward the tutorial trap, with an arrowhead
