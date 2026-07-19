@@ -8,9 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#03060e">
 <link rel="manifest" href="manifest.webmanifest?v=3">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/df-192.png?v=4">
-<link rel="icon" type="image/png" sizes="512x512" href="icons/df-512.png?v=4">
-<link rel="apple-touch-icon" href="icons/df-192.png?v=4">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/df-192.png?v=5">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/df-512.png?v=5">
+<link rel="apple-touch-icon" href="icons/df-mask-192.png?v=5">
 <title>Data Defenders: Dark Fiber</title>
 <style>
   :root {
@@ -123,11 +123,15 @@ function initAC() {
       sfxGain.connect(comp); comp.connect(AC.destination);
     } else sfxGain.connect(AC.destination);
     applySettings();
+    loadSamples(); // recorded sfx decode in the background; synths cover until then
   } catch (e) {}
 }
 function audio() {
   initAC();
   if (AC && AC.state === 'suspended') AC.resume().catch(() => {});
+  // during the boot splash its score owns the mix — the menu track would land
+  // on top of it; splashAudioTry() picks the take up once the context runs
+  if (SPLASH.on) return AC;
   // (re)start the right track — every audio() call originates from a user gesture
   playTrack(state === S.PLAY || state === S.PAUSE || state === S.INFO ? runTrack : 'menu');
   return AC;
@@ -250,11 +254,11 @@ function sonarTick(freq, pan) {
   o.connect(g); tail.connect(sfxGain); o.start(); o.stop(ac.currentTime + 0.05);
 }
 // ---------- soundtrack (MUSIC_DATA is injected in a script at the end of this file) ----------
-// menu: View From The Dashboard · L1: Sub Level Three · L2: Steel and Rain · L3: Terminal Velocity
+// menu: Midnight Terminal Wait · L1: Sub Level Three · L2: Steel and Rain · L3: Terminal Velocity
 // Web Audio looper: each track is decoded to a buffer and looped sample-accurately
 // (native <audio loop> always has an audible seam on mp3). Encoder padding is
 // trimmed via loopStart/loopEnd. One decoded track is held in memory at a time.
-let musicGain = null, musicSrc = null, musicFilter = null;
+let musicGain = null, musicSrc = null, musicSrcGain = null, musicFilter = null;
 let musicLift = 1; // max-combo streaks brighten the mix a touch
 let musicStartAt = 0, beatPeriod = 0, musicCut = 16000, musicLoopDur = 0;
 let currentTrackKey = null, musicLoadKey = null;
@@ -262,13 +266,27 @@ let musicFade = 1; // 0→1 whenever a track starts from silence
 let musicRate = 1; // eased playback rate — slow-mo drags the track down with it
 const musicVolume = () => settings.music ? settings.musicVol : 0;
 const MUSIC_FADEIN = 2.2; // seconds to fade a track in
+const MUSIC_FADEOUT = 1.0; // seconds the outgoing track takes to bow out on a switch
 const trackUrl = k => k === 'menu' ? window.MUSIC_DATA.menu : window.MUSIC_DATA.levels[k];
-function stopMusicSrc() {
-  if (musicSrc) {
-    try { musicSrc.stop(); } catch (e) {}
-    try { musicSrc.disconnect(); } catch (e) {}
+function stopMusicSrc(fade) {
+  const src = musicSrc, g = musicSrcGain;
+  musicSrc = null; musicSrcGain = null;
+  if (!src) return;
+  if (fade && AC && g && g.gain.setTargetAtTime) {
+    // hand the outgoing source its own exit ramp — the shared musicGain is
+    // about to drop to silence for the incoming track's fade-in
+    try {
+      g.disconnect();
+      g.gain.value = musicGain ? musicGain.gain.value : 0; // carry the audible level across the reroute
+      g.connect(AC.destination);
+      g.gain.setTargetAtTime(0.0001, AC.currentTime, fade / 4);
+      src.stop(AC.currentTime + fade);
+      setTimeout(() => { try { src.disconnect(); g.disconnect(); } catch (e) {} }, fade * 1000 + 250);
+      return;
+    } catch (e) {}
   }
-  musicSrc = null;
+  try { src.stop(); } catch (e) {}
+  try { src.disconnect(); } catch (e) {}
 }
 // estimate the track's beat period (sec) — energy-flux autocorrelation over 60–180 BPM
 function detectBeat(buf) {
@@ -305,8 +323,8 @@ function beatQuantize(delay, travel) {
   return Math.max(snapped - (travel || 0) - pos, Math.max(0.25, delay * 0.5));
 }
 // find where the real signal starts/ends so the loop skips encoder padding
-function loopPoints(buf) {
-  const d = buf.getChannelData(0), thr = 0.001;
+function loopPoints(buf, thr0) {
+  const d = buf.getChannelData(0), thr = thr0 || 0.001;
   let s = 0, e = d.length - 1;
   while (s < e && Math.abs(d[s]) < thr) s++;
   while (e > s && Math.abs(d[e]) < thr) e--;
@@ -323,7 +341,7 @@ function playTrack(key) {
   }
   if (key === currentTrackKey && (musicSrc || musicLoadKey === key)) return;
   currentTrackKey = key; musicLoadKey = key;
-  stopMusicSrc();
+  stopMusicSrc(MUSIC_FADEOUT); // the old track fades out under the new one's fade-in
   fetch(trackUrl(key))
     .then(r => r.arrayBuffer())
     .then(a => AC.decodeAudioData(a))
@@ -337,7 +355,8 @@ function playTrack(key) {
       musicSrc.loopStart = lp.start; musicSrc.loopEnd = lp.end;
       musicLoopDur = lp.end - lp.start;
       musicSrc.playbackRate.value = musicRate;
-      musicSrc.connect(musicFilter);
+      musicSrcGain = AC.createGain(); // per-take handle so a switch can fade THIS take out
+      musicSrc.connect(musicSrcGain); musicSrcGain.connect(musicFilter);
       musicFade = 0; musicGain.gain.value = 0; // rise from silence
       musicSrc.start(0, lp.start);
       musicStartAt = AC.currentTime;
@@ -416,15 +435,92 @@ function beamSound(on, heatVal) {
     beamOscs.o2.frequency.value = 240 + heatVal * 230 + Math.sin(time * 30) * 12;
   }
 }
+// ---------- recorded sfx (audio/sfx/*, decoded once when audio wakes) ----------
+// event → [file, gain trim]. Remap or retune here; anything missing or not yet
+// decoded falls back to the synth voice in sfx below, so a bad path fails soft.
+const SFX_FILES = {
+  hit:    ['audio/sfx/hit-1.wav', 0.8],
+  ui:     ['audio/sfx/mini-hit.wav', 0.5],
+  miss:   ['audio/sfx/miss.wav', 0.9],
+  miss2:  ['audio/sfx/miss2.wav', 0.9],
+  pick:   ['audio/sfx/power-up.wav', 0.8],
+  pulse:  ['audio/sfx/pulse.mp3', 1.0],
+  volley: ['audio/sfx/volley.mp3', 0.9],
+  shutdown: ['audio/sfx/shutdown.mp3', 0.9],   // a node fried by a killer/wall
+  restart:  ['audio/sfx/restarting.mp3', 0.9], // that node rebooting back online
+  startup:  ['audio/sfx/startup1.mp3', 0.9], // boot sequence as the ring locks in (cut at 2s)
+  fail:   ['audio/sfx/failed.mp3', 1.0],
+  win:    ['audio/sfx/win.mp3', 1.0]
+  // splash2.mp3 (8.1s) scores the boot splash — it has its own player there
+};
+const sampleBufs = {}, sampleTrim = {}; // audible [start,end] per take — encoder silence mapped out
+let samplesLoading = false;
+function loadSamples() {
+  if (samplesLoading || !AC) return;
+  samplesLoading = true;
+  for (const k of Object.keys(SFX_FILES)) {
+    fetch(SFX_FILES[k][0])
+      .then(r => r.arrayBuffer())
+      .then(a => AC.decodeAudioData(a))
+      .then(buf => {
+        sampleBufs[k] = buf;
+        sampleTrim[k] = loopPoints(buf, 0.01); // hotter gate: sfx must SNAP
+        // the take's last real HIT (not its ring-out) — for end-aligned cues
+        const d = buf.getChannelData(0);
+        let m = 0;
+        for (let i = 0; i < d.length; i += 4) { const v = Math.abs(d[i]); if (v > m) m = v; }
+        let e = d.length - 1;
+        while (e > 0 && Math.abs(d[e]) < m * 0.6) e--;
+        sampleTrim[k].peak = e / buf.sampleRate;
+      })
+      .catch(() => {}); // the synth voice keeps covering this one
+  }
+}
+// play a decoded sample through the sfx bus; false = not ready, use the synth.
+// offset skips into the take; fadeIn ramps the entry instead of a hard start;
+// cut ends the take early — hold `cut` seconds, then a `fadeOut`-second ramp
+function playSample(name, vol, pan, rate, delay, offset, fadeIn, cut, fadeOut) {
+  const ac = AC, buf = sampleBufs[name];
+  if (!ac || !sfxGain || !buf) return false;
+  const src = ac.createBufferSource(); src.buffer = buf;
+  if (rate && src.playbackRate) src.playbackRate.value = rate;
+  const g = ac.createGain();
+  const lvl = SFX_FILES[name][1] * (vol === undefined ? 1 : vol);
+  const t0 = ac.currentTime + (delay || 0);
+  if (fadeIn && g.gain.setValueAtTime && g.gain.linearRampToValueAtTime) {
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(lvl, t0 + fadeIn);
+  } else g.gain.value = lvl;
+  let tail = g;
+  if (pan && ac.createStereoPanner) {
+    const p = ac.createStereoPanner(); p.pan.value = clamp(pan, -1, 1);
+    g.connect(p); tail = p;
+  }
+  src.connect(g); tail.connect(sfxGain);
+  // no offset given → skip the take's leading silence so the attack is instant
+  const tr = sampleTrim[name];
+  src.start(t0, offset !== undefined ? offset : tr ? tr.start : 0);
+  if (cut && g.gain.setValueAtTime && g.gain.linearRampToValueAtTime) {
+    // scheduled exit — MUST come after start(); stop-before-start throws
+    const fo = fadeOut || 0.3;
+    g.gain.setValueAtTime(lvl, t0 + cut);
+    g.gain.linearRampToValueAtTime(0.0001, t0 + cut + fo);
+    src.stop(t0 + cut + fo + 0.05);
+  }
+  return true;
+}
 const sfx = {
-  zap(combo, pan) { // digital confirmation: two clean rising notes, techy-positive
+  zap(combo, pan) { // digital confirmation — combo winds the pitch up, sample or synth
+    if (playSample('hit', 1, pan, Math.pow(1.0293, Math.min(combo || 1, 12) - 1))) return true;
     const m = Math.pow(1.059, Math.min(combo || 1, 12));
     tone(760 * m, 0.05, 'sine', 0.12, 900 * m, null, 0, pan);
     tone(1140 * m, 0.09, 'sine', 0.11, 1330 * m, null, 0.045, pan);
     tone(2280 * m, 0.06, 'triangle', 0.04, 2660 * m, null, 0.045, pan);
     tone(190 * m, 0.03, 'square', 0.05, 120 * m, null, 0, pan);
+    return false; // synth voice carried it — accents may layer
   },
   pick() { // power-up: a quick ascending sparkle arpeggio
+    if (playSample('pick')) return;
     [784, 1047, 1568].forEach((f, i) => tone(f, 0.09, 'triangle', 0.10, f * 1.12, null, i * 0.05));
     tone(3136, 0.12, 'sine', 0.05, 3520, null, 0.15);
   },
@@ -438,16 +534,19 @@ const sfx = {
   heal()  { tone(523, 0.14, 'triangle', 0.12, 659); tone(784, 0.22, 'triangle', 0.10, 1047); },
   speedUp()  { tone(180, 0.45, 'sawtooth', 0.11, 880); tone(110, 0.55, 'triangle', 0.09, 440); },
   miss(pan) { // a dull thud + terse alarm blip — bad news without harshness
+    if (playSample(misses & 1 ? 'miss2' : 'miss', 1, pan)) return; // two takes, alternating
     tone(130, 0.22, 'sine', 0.13, 50, null, 0, pan);
     tone(500, 0.09, 'square', 0.05, 470, null, 0.06, pan);
     crackle(0.08, 300, 120, 2, 0.5, 0, pan);
   },
   fry(pan) { // node killer: electricity dying in the coil
+    if (playSample('shutdown', 1, pan)) return;
     crackle(0.28, 1400, 220, 3, 2.0, 0, pan);
     crackle(0.10, 900, 500, 5, 1.2, 0.10, pan);
     tone(220, 0.30, 'sawtooth', 0.07, 55, null, 0, pan);
   },
   pulseFire() { // the purge: sub drop under a rising pressure sweep
+    if (playSample('pulse')) return;
     tone(170, 0.5, 'sine', 0.17, 38);
     crackle(0.55, 500, 3400, 1.2, 1.5);
     tone(2637, 0.25, 'sine', 0.05, 3520, null, 0.12);
@@ -463,6 +562,7 @@ const sfx = {
     crackle(0.4, 4000, 600, 4, 1.2, 0.15);
   },
   win()  { // level secured: rising fanfare into a held bright chord
+    if (playSample('win')) return;
     [523, 659, 784, 1047].forEach((f, i) => {
       tone(f, 0.24, 'triangle', 0.12, f * 1.01, null, i * 0.14);
       tone(f * 2, 0.16, 'sine', 0.045, null, null, i * 0.14);
@@ -476,8 +576,12 @@ const sfx = {
     tone(1319, 0.14, 'sine', 0.10, 1760, null, 0.07);
     tone(2637, 0.10, 'triangle', 0.05, 3136, null, 0.13);
   },
-  fail() { [330, 262, 196].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'sawtooth', 0.1), i * 180)); },
+  fail() {
+    if (playSample('fail')) return;
+    [330, 262, 196].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'sawtooth', 0.1), i * 180));
+  },
   tick() { // techy UI click: a crisp tap with a tiny body
+    if (playSample('ui')) return;
     tone(2200, 0.02, 'square', 0.05, 1400);
     tone(660, 0.035, 'sine', 0.045, 480, null, 0.006);
   }
@@ -875,6 +979,7 @@ let pulseCharge = [0, 0], pulseWaves = [];
 // focused bolt fires straight ahead — the game's third verb: SHOOT
 let volley = { charge: 0, cd: 0, shots: [] };
 let enemies = [], particles = [], popups = [];
+let ghosts = [], ripples = []; // the decompile: de-rezzing bodies + healed-wall washes
 let shake = 0, redFlash = 0, tunnelScroll = 0, wallDist = 0, time = 0;
 let trafficSpeed = 0.4; // THE shared motion clock: everything on/in the wall moves at this z-speed
 const sysRandom = Math.random; // daily mode swaps in a seeded PRNG for the run
@@ -891,6 +996,8 @@ const BOOT_ON = 2.1;          // nodes AND consoles finish their power ramp toge
 const INTRO_GATE = 2.4;       // the boot holds here until both thumbs are on the pads
 const INTRO_DUR = 2.9;        // boot: LOCK -> POWER-UP -> (thumbs) -> CONTROLS ACTIVE
 let introStage = -1;          // last boot stage that fired its sounds
+let bootSample = false;       // the startup take carries the boot — synth layers stand down
+let bootNodeSample = false;   // the node whir carries the power ramp — ditto
 let padHold = [false, false]; // live thumb contact per pad side
 let introLatch = false;       // both thumbs seen at the gate — godspeed is a promise
 let gatePip = 0;              // standby blip metronome while awaiting the operator
@@ -927,6 +1034,11 @@ const endBtnAt = () => endWin ? 2.9 : 1.25; // when the buttons arrive (wins rid
 let endSweep = -1; // victory clear-sweep front (z), -1 when idle
 let pauseBtnRect = null, pauseButtonsList = [], pauseSlidersList = [], pauseTogglesList = [];
 let menuSettings = false, menuGearRect = null, menuSetButtons = [], menuSetPanel = null, menuFsRect = null, menuMutRects = [], menuBackRect = null;
+let menuConfirm = false, menuConfirmBtns = []; // reset-campaign confirmation modal
+let menuHold = null;   // long-press charge on the last relay → the CORE duel: { node, t }
+let menuBadge = null;  // hub shield draw params, replayed on top of the press FX
+let mapLastRowY = 0, mapLastRowH = 0; // last relay row's rect — the reset key mirrors it
+const HOLD_BOSS = 3;   // seconds to hold the final relay to drop into the boss fight
 const pauseDrag = {};
 
 // nodes: [left(blue), right(white)]
@@ -964,12 +1076,14 @@ function ringChord(y, margin) {
   return 2 * Math.sqrt(g2.nodeR * g2.nodeR - dy * dy) - (margin === undefined ? 34 : margin);
 }
 // text laid along an arc, upright on both halves of the circle
-function arcText(text, cx2, cy2, r, midA, px, fill, weight, maxArc) {
+function arcText(text, cx2, cy2, r, midA, px, fill, weight, maxArc, flipOv) {
   ctx.font = (weight || '800') + ' ' + px + 'px Audiowide, system-ui';
   while (px > 8 && ctx.measureText(text).width > (maxArc || TAU) * r * 0.86) {
     px--; ctx.font = (weight || '800') + ' ' + px + 'px Audiowide, system-ui';
   }
-  const flip = Math.sin(midA) > 0; // lower half reads outward-up
+  // lower half reads outward-up. Animated callers pass flipOv locked to the
+  // RESTING angle so a spin can't toggle the orientation mid-flight
+  const flip = flipOv === undefined ? Math.sin(midA) > 0 : flipOv;
   const total = ctx.measureText(text).width;
   let a = midA + (flip ? 1 : -1) * (total / 2) / r;
   ctx.fillStyle = fill;
@@ -1697,10 +1811,24 @@ const PICKUPS = {
   inject: { dur: 0,  label: 'PULSE INJECTED' },  // both purge orbs snap to ready
   chain:  { dur: 6,  label: 'CHAIN OVERDRIVE' }  // zaps arc to the nearest hostile
 };
-function spawnPickup(kind) { // beats may pin the kind (skipping that roll)
+// kinds come from a seeded shuffle-bag: every kind appears once before any
+// repeats. A plain uniform roll + per-level fixed seeds froze whole kinds out
+// of entire levels forever (chain, chain — and never a shield, on any replay)
+let pickupBag = [];
+function spawnPickup(kind) { // beats may pin the kind (skipping the bag)
   const kinds = Object.keys(PICKUPS);
   const z0 = dropTravel !== null ? geo().hitZ + dropTravel * (LV || LEVELS[levelIdx]).speed * 0.9 : SPAWN_Z;
-  pickups.push({ kind: kind || kinds[(spawnRng() * kinds.length) | 0], z: z0, angle: spawnRng() * TAU, spin: 0, age: 0, done: false });
+  if (!kind) {
+    if (!pickupBag.length) {
+      pickupBag = kinds.slice();
+      for (let i = pickupBag.length - 1; i > 0; i--) {
+        const j = (spawnRng() * (i + 1)) | 0;
+        const tmp = pickupBag[i]; pickupBag[i] = pickupBag[j]; pickupBag[j] = tmp;
+      }
+    }
+    kind = pickupBag.pop();
+  }
+  pickups.push({ kind, z: z0, angle: spawnRng() * TAU, spin: 0, age: 0, done: false });
 }
 // ---------- the boss fights ----------
 // one framework, three intruders: every boss shares the arrival ceremony,
@@ -2289,11 +2417,37 @@ function burst(x, y, color, n, spd) {
     particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, decay: rand(1.2, 2.6), color, size: rand(0.7, 1.8) });
   }
 }
+// the decompile: a killed hostile doesn't explode — the body GLITCHES OUT in
+// place (its skin tears into displaced strips that flicker and drop away)
+// while a translucent green wash ripples across the wall from the death
+// point: the tunnel healing over where the corruption sat. Both live in
+// (angle, z) wall space, so depth still tells the story.
+// the tuning deck — mirrored 1:1 by the sliders in fxlab.html: tune there,
+// paste the readout back here
+const DECOMP = {
+  rippleR: 0.50, // healed-wash reach along the ring (rad)
+  rippleT: 0.60, // wash lifetime (s)
+  fill: 0.04,    // wash fill alpha
+  edge: 0.60,    // wash rim alpha
+  glitchT: 0.40, // body de-rez time (s)
+  slices: 6,     // glitch strips across the body
+  jitter: 1.2,   // strip displacement, in body sizes
+};
+function decompile(a, z, en, mul) {
+  const m = (mul || 1) * (en.sizeMul || 1) * (en.type === 'heavy' ? 1.3 : 1);
+  z = Math.max(z, 0.02);
+  ghosts.push({ a, z, t: 0, sizeMul: en.sizeMul || 1, pal: enemyPal(en),
+    spr: SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.type] });
+  ripples.push({ a, z, t: 0, mul: Math.sqrt(m) });
+}
 function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
 // the kill streak: the enemy, REPROGRAMMED, launches forward as a single
 // green tracer from wherever it died (angle + depth) — a bright head easing
 // toward the horizon with a tapering tail, riding the wall like it did
-function spawnKillStreak(a, z) { killStreaks.push({ a, z: Math.max(z, 0.05), t: 0 }); }
+// deep kills (volley bolts down the bore) pull the comet's start back inside
+// the tunnel so the streak always gets its full run — killed at the horizon,
+// the zip would otherwise clip out instantly and read as "no effect"
+function spawnKillStreak(a, z) { killStreaks.push({ a, z: clamp(z, 0.05, SPAWN_Z - 0.75), t: 0 }); }
 // the LAST hostile of a finished campaign level dies on a beat — every level
 // ends like it means it (the boss has its own, bigger version)
 function lastKillBeat(justKilled) {
@@ -2345,6 +2499,9 @@ function dialCenter(side) {
 // Works on Android Chrome; iPhone Safari has no element fullscreen — there the
 // home-screen standalone mode is the fullscreen path.
 const inStandalone = () =>
+  // Native Capacitor app: the OS already forces landscape + immersive fullscreen,
+  // so it's chromeless — hide the fullscreen button and don't fight it.
+  (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
   (window.matchMedia && window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches) ||
   navigator.standalone;
 function toggleFullscreen() {
@@ -2420,6 +2577,7 @@ function arcHit(P, g) {
 canvas.addEventListener('pointerdown', e => {
   audio();
   if (e.pointerType === 'touch') tryLockLandscape();
+  if (SPLASH.on) { splashTap(); return; } // the splash eats the tap — unlock or skip
   const P = evPos(e);
   if (state === S.INFO) {
     if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); }
@@ -2428,9 +2586,15 @@ canvas.addEventListener('pointerdown', e => {
   if (state === S.MENU) {
     // overlay + gear act immediately; the level list uses tap-vs-drag on release
     const hitRect = (r, m) => r && P.x > r.x - m && P.x < r.x + r.w + m && P.y > r.y - m && P.y < r.y + r.h + m;
-    if (menuSettings || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6)) {
+    if (menuSettings || menuConfirm || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6)) {
       menuTap(P.x, P.y, e.pointerId);
       return;
+    }
+    // hidden dev gesture: press-and-hold the final relay to charge the CORE duel
+    if (menuScreen === 'map' && !menuFx) {
+      const last = LEVELS.length - 1;
+      const nb = menuButtons.find(b2 => b2.node === last && P.x > b2.x && P.x < b2.x + b2.w && P.y > b2.y && P.y < b2.y + b2.h);
+      if (nb) menuHold = { node: last, t: 0, x: P.x, y: P.y };
     }
     menuPtr = { id: e.pointerId, x: P.x, y: P.y, scroll0: menuScroll, camp0: campScroll, lastX: P.x, lastT: e.timeStamp || 0, vx: 0, moved: false };
     return;
@@ -2510,6 +2674,8 @@ canvas.addEventListener('pointerdown', e => {
 });
 canvas.addEventListener('pointermove', e => {
   const P = evPos(e);
+  // a drag cancels the final-relay hold — this is a still press, not a scroll
+  if (menuHold && Math.hypot(P.x - menuHold.x, P.y - menuHold.y) > 10) menuHold = null;
   if (menuPtr && menuPtr.id === e.pointerId && state === S.MENU && !menuSettings) {
     if (menuScreen === 'camps' && !menuFx) { // swipe the carousel — discs follow the finger
       const dxp = P.x - menuPtr.x;
@@ -2577,10 +2743,12 @@ canvas.addEventListener('pointerup', e => {
     }
     menuPtr = null;
   }
+  menuHold = null; // lift ends the charge (the boss already fired if it completed)
   releasePointer(e);
 });
 canvas.addEventListener('pointercancel', e => {
   if (menuPtr && menuPtr.id === e.pointerId) menuPtr = null;
+  menuHold = null;
   releasePointer(e);
 });
 // desktop: wheel scrolls the level list
@@ -2612,6 +2780,26 @@ document.addEventListener('visibilitychange', () => {
 // ---------- menu / end screens hit areas ----------
 let menuButtons = [];
 function menuTap(x, y, pid) {
+  // the reset-confirm modal owns every tap while it's up
+  if (menuConfirm) {
+    for (const b of menuConfirmBtns) {
+      if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
+        sfx.tick();
+        if (b.confirm === 'wipe') {
+          PROG.unlocked = 1;
+          PROG.stars = PROG.stars.map(() => 0);
+          PROG.bests = PROG.bests.map(() => 0);
+          saveState();
+          mapSel = 0; mapCamSnap = true;
+        }
+        menuConfirm = false;
+        return;
+      }
+    }
+    // a tap on the dimmed backdrop cancels
+    menuConfirm = false; sfx.tick();
+    return;
+  }
   // one-shot transitions: while an OUTBOUND animation is carrying us to
   // another screen, every key is spent — no restarting the ride mid-ride
   if (menuFx && (menuFx.kind === 'spinOut' || menuFx.kind === 'panelsOut' || menuFx.kind === 'discZoom' || menuFx.kind === 'launch')) return;
@@ -2685,17 +2873,8 @@ function menuTap(x, y, pid) {
       else if (b.deploy !== undefined) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: () => startLevel(b.deploy, true) }; tone(70, 0.45, 'sine', 0.12, 260); });
       else if (b.daily) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startDaily }; tone(70, 0.45, 'sine', 0.12, 260); });
       else if (b.endless) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startEndless }; tone(70, 0.45, 'sine', 0.12, 260); });
-      else if (b.bossTest) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startBossTest }; });
-      else if (b.reset) {
-        sfx.tick();
-        if (time - menuResetArm < 2.5) { // confirmed: wipe the campaign
-          PROG.unlocked = 1;
-          PROG.stars = PROG.stars.map(() => 0);
-          PROG.bests = PROG.bests.map(() => 0);
-          saveState();
-          mapSel = 0; mapCamSnap = true; menuResetArm = 0;
-        } else menuResetArm = time;
-      } else sfx.tick();
+      else if (b.reset) { menuConfirm = true; sfx.tick(); } // open the confirm modal
+      else sfx.tick();
       return;
     }
   }
@@ -2733,13 +2912,13 @@ function resetRun() {
   score = 0; zaps = 0; misses = 0; combo = 0; perfects = 0; fragsHit = 0; comboHeal = 0;
   pulseCharge = [0, 0]; pulseWaves = [];
   volley = { charge: 0, cd: 0, shots: [] };
-  enemies = []; particles = []; popups = []; bolts = []; pickups = [];
+  enemies = []; particles = []; popups = []; bolts = []; pickups = []; ghosts = []; ripples = [];
   boss = null; burstQ = null; patternQ = []; hitStop = 0;
   heat = 0; overheat = false; beamActive = false; beamSound(false, 0); stripSound(false, 0);
   introT = 0; introCd = -1; introStage = -1; introLatch = false; padHold = [false, false]; gatePip = 0;
   rimFX = []; latches = []; killStreaks = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; }
-  fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24);
+  fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24); pickupBag = [];
   ribbonT = srand(11, 15); // first golden ribbon EARLY — its pulse should serve the whole run
   sched = [];
   initBeats(); // authored timeline: arm the beat queue + pre-book its windows
@@ -3017,6 +3196,7 @@ function updateTutorial(dt) {
 // across the buttons and A presses the focused one.
 let padPrev = { a: false, b: false, y: false, start: false, lt: false, rt: false, stick: false };
 let gpSel = 0, gpNav = false; // menu focus index + "a controller drives the menus"
+let gpStickDir = ''; // last stick step direction — a NEW direction steps again
 let gpSeen = false; // a controller has spoken — show button hints, arm the stick gate
 let gpSig = ''; // screen signature — focus snaps to the primary key on arrival
 function gpSyncFocus(list) {
@@ -3037,7 +3217,11 @@ function gpBackAction() { // B: one step back, wherever you are
       menuFx = menuScreen === 'map' ? { kind: 'panelsOut', t: 0, dur: 0.42, dir: -1 }
         : { kind: 'spinOut', t: 0, dur: 0.35, to: 'home', dir: -1 };
     }
-  } else if (state === S.PAUSE) { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; sfx.tick(); }
+  } else if (state === S.PAUSE) { // B restarts the level from pause
+    const b = pauseButtonsList.find(b2 => b2.action === 'restart');
+    if (b) pauseTap(b.x + b.w / 2, b.y + b.h / 2, -7);
+    else { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; sfx.tick(); }
+  }
   else if (state === S.INFO) { if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); } }
   else if (state === S.END) gpEndPress('menu');
 }
@@ -3080,26 +3264,24 @@ function gpMove(list, dx, dy) { // nearest button lying in the pressed direction
   });
   if (best >= 0) { gpSel = best; sfx.tick(); }
 }
-function drawGpFocus() { // pulsing outline on the focused button, controller users only
-  if (!gpNav) return;
-  if (state === S.MENU && menuScreen === 'map') return; // the map highlights its own selection
-  const list = gpList();
-  if (!list || !list.length) return;
-  if (gpSel >= list.length) gpSel = list.length - 1;
-  const b = list[Math.max(0, gpSel)];
-  ctx.save();
-  ctx.strokeStyle = 'rgba(140,235,255,' + (0.65 + Math.sin(time * 6) * 0.25).toFixed(2) + ')';
-  ctx.lineWidth = 2.5;
-  if (b.sector) { // trace the wheel slice
-    const s = b.sector;
+// trace a key's TRUE visible outline — the ONE source of shape for every
+// press flash and focus ring: wedge, disc segment, or tech-cornered rect
+function keyShapePath(b, pad) {
+  if (b.sector) {
+    const sc = b.sector;
     ctx.beginPath();
-    ctx.arc(s.cx, s.cy, s.r1 - 3, s.a0 + 0.02, s.a1 - 0.02);
-    ctx.arc(s.cx, s.cy, s.r0 + 3, s.a1 - 0.02, s.a0 + 0.02, true);
-    ctx.closePath(); ctx.stroke();
-  } else {
-    roundRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6, 8); ctx.stroke();
+    ctx.arc(sc.cx, sc.cy, sc.r1, sc.a0, sc.a1);
+    ctx.arc(sc.cx, sc.cy, sc.r0, sc.a1, sc.a0, true);
+    ctx.closePath(); return true;
   }
-  ctx.restore();
+  if (b.seg) { // circle-segment key: the disc edge IS the button edge
+    const sg = b.seg, a2 = Math.asin(clamp(sg.d / sg.r, 0, 1));
+    ctx.beginPath();
+    ctx.arc(sg.cx, sg.cy, sg.r, a2, Math.PI - a2);
+    ctx.closePath(); return true;
+  }
+  if (b.w) { techRect(b.x - pad, b.y - pad, b.w + pad * 2, b.h + pad * 2, 8); return true; }
+  return false;
 }
 // tiny controller-button badge (A / B / Y / START) pinned to a key's top edge
 function drawPadHint(x, y, label) {
@@ -3118,10 +3300,23 @@ function drawPadHint(x, y, label) {
 function drawGpHints() { // once a controller speaks, keys wear their buttons
   if (!gpSeen) return;
   const list = gpList();
+  // the focused key wears a ring in its OWN shape (wheel slices glow on their
+  // own; the route map draws its relay selection itself)
+  if (list && list.length && gpNav && !(state === S.MENU && menuScreen === 'map')) {
+    const fb = list[Math.min(gpSel, list.length - 1)];
+    if (fb && !fb.sector) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(140,235,255,0.9)'; ctx.lineWidth = 2;
+      ctx.shadowColor = 'rgba(120,220,255,0.8)'; ctx.shadowBlur = 8;
+      if (keyShapePath(fb, 2)) ctx.stroke();
+      ctx.restore();
+    }
+  }
   if (list) for (const b of list) {
     let h = null;
     if (b.deploy !== undefined || b.action === 'next' || b.action === 'resume') h = 'A';
     else if (b.back) h = 'B';
+    else if (b.action === 'restart' && state === S.PAUSE) h = 'B';
     else if (b.action === 'menu' && state !== S.MENU) h = 'Y';
     if (!h || b.sector) continue;
     drawPadHint(b.x + b.w / 2, b.y - 2, h);
@@ -3131,7 +3326,8 @@ function drawGpHints() { // once a controller speaks, keys wear their buttons
   if (state === S.PLAY && pauseBtnRect && introT >= INTRO_DUR)
     drawPadHint(pauseBtnRect.x + pauseBtnRect.w / 2, pauseBtnRect.y + pauseBtnRect.h + 10, 'START');
 }
-function pollGamepad() {
+function pollGamepad(dt) {
+  if (SPLASH.on) return; // the splash owns the screen — controllers wait at the door
   if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
   let gp = null;
   try { gp = Array.from(navigator.getGamepads()).find(p => p && p.connected && p.axes.length >= 4); } catch (e) {}
@@ -3145,7 +3341,7 @@ function pollGamepad() {
     gpSeen = true; // first real input → button hints + controller boot gate
   const start = press(9);
   if (start && !padPrev.start) {
-    if (state === S.PLAY && introT >= INTRO_DUR) { state = S.PAUSE; sfx.tick(); }
+    if (state === S.PLAY) { state = S.PAUSE; sfx.tick(); } // any time — boot sequence included
     else if (state === S.PAUSE) { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; sfx.tick(); }
     else if (state === S.MENU && menuScreen !== 'home') gpBackAction(); // START: out to the menu
   }
@@ -3170,7 +3366,10 @@ function pollGamepad() {
     const sy = stick(0) !== null ? stick(0) : stick(1);
     const hadY = padPrev.stick;
     padPrev.stick = sy !== null;
-    if (sy !== null && !hadY && Math.abs(Math.sin(sy)) > 0.6) step(Math.sign(Math.sin(sy)) > 0 ? 1 : -1);
+    if (sy !== null && Math.abs(Math.sin(sy)) > 0.6) { // a NEW direction steps again
+      const d = Math.sign(Math.sin(sy)) > 0 ? 1 : -1;
+      if (!hadY || gpStickDir !== 'm' + d) { step(d); gpStickDir = 'm' + d; }
+    } else if (sy === null) gpStickDir = '';
   } else if (state === S.MENU && menuScreen === 'camps' && !menuFx) {
     // the carousel: left/right slides discs, A syncs the centered case
     const totalD = CAMPAIGNS.length + CAMPS_SOON.length;
@@ -3187,9 +3386,13 @@ function pollGamepad() {
     const sx2 = stick(0) !== null ? stick(0) : stick(1);
     const hadX = padPrev.stick;
     padPrev.stick = sx2 !== null;
-    if (sx2 !== null && !hadX && Math.abs(Math.cos(sx2)) > 0.6) {
-      campScrollTgt = clamp(campScrollTgt + (Math.cos(sx2) > 0 ? 1 : -1), 0, totalD - 1); sfx.tick();
-    }
+    if (sx2 !== null && Math.abs(Math.cos(sx2)) > 0.6) { // a NEW direction slides again
+      const d2 = Math.cos(sx2) > 0 ? 1 : -1;
+      if (!hadX || gpStickDir !== 'c' + d2) {
+        campScrollTgt = clamp(campScrollTgt + d2, 0, totalD - 1); sfx.tick();
+        gpStickDir = 'c' + d2;
+      }
+    } else if (sx2 === null) gpStickDir = '';
     const aC = press(0);
     if (aC && !padPrev.a && list) {
       const sy2 = list.find(b2 => b2.sync === Math.round(campScrollTgt));
@@ -3220,11 +3423,17 @@ function pollGamepad() {
       if (pointed >= 0) {
         if (pointed !== gpSel && gpNav) sfx.tick();
         gpSel = pointed; gpNav = true;
-      } else if (!hadStick) {
+      } else {
+        // one push = one step; sweeping to a NEW direction steps again
+        // without recentering
         const dx = Math.abs(Math.cos(sa)) > Math.abs(Math.sin(sa)) ? Math.sign(Math.cos(sa)) : 0;
-        gpMove(list, dx, dx ? 0 : Math.sign(Math.sin(sa)));
+        const dir = 'g' + dx + ':' + (dx ? 0 : Math.sign(Math.sin(sa)));
+        if (!hadStick || dir !== gpStickDir) {
+          gpMove(list, dx, dx ? 0 : Math.sign(Math.sin(sa)));
+          gpStickDir = dir;
+        }
       }
-    }
+    } else gpStickDir = '';
   }
   const bb = press(1); // B — back
   if (bb && !padPrev.b) gpBackAction();
@@ -3271,7 +3480,7 @@ function pollGamepad() {
 }
 function update(dt) {
   tickUI(dt); // press feedback + screen transitions run on the raw clock
-  pollGamepad();
+  pollGamepad(dt);
   if (state === S.INFO && infoOutAt && time - infoOutAt >= 0.18) {
     const wasVerdict = infoCard === 'verdict';
     infoOutAt = 0;
@@ -3291,11 +3500,15 @@ function update(dt) {
   // particles & popups & bolts always animate
   for (const p of particles) { p.x += p.vx * dt * 60; p.y += p.vy * dt * 60; p.vx *= 0.96; p.vy *= 0.96; p.life -= p.decay * dt; }
   particles = particles.filter(p => p.life > 0);
+  for (const gh of ghosts) gh.t += dt;
+  ghosts = ghosts.filter(gh => gh.t < DECOMP.glitchT);
+  for (const rp of ripples) rp.t += dt;
+  ripples = ripples.filter(rp => rp.t < DECOMP.rippleT);
   for (const p of popups) { p.y -= 30 * dt; p.life -= dt * 0.9; }
   popups = popups.filter(p => p.life > 0);
   shieldFlashT = Math.max(0, shieldFlashT - dt);
   for (const st of killStreaks) st.t += dt;
-  killStreaks = killStreaks.filter(st => st.t < 0.55);
+  killStreaks = killStreaks.filter(st => st.t < 0.15); // must match DUR in the draw pass
   for (const b of bolts) b.life -= dt;
   bolts = bolts.filter(b => b.life > 0);
 
@@ -3327,17 +3540,25 @@ function update(dt) {
   if (stageNow !== introStage && introT < INTRO_DUR + 1) {
     introStage = stageNow;
     if (stageNow === 0) { // LOCKING ON STREAM: approach rumble + rangefinder pips closing in
-      tone(36, BOOT_LOCK, 'sine', 0.10, 58);
-      crackle(BOOT_LOCK, 70, 300, 0.8, 0.22);
-      for (let k = 0; k < 7; k++) {
-        const dly = BOOT_LOCK * (1 - Math.pow(1 - (k + 1) / 7.6, 1.9));
-        tone(1240, 0.016, 'square', 0.03 + k * 0.004, null, null, dly);
+      // the startup take runs from the top of the boot, pre-cut to length
+      bootSample = playSample('startup');
+      if (!bootSample) {
+        tone(36, BOOT_LOCK, 'sine', 0.10, 58);
+        crackle(BOOT_LOCK, 70, 300, 0.8, 0.22);
+        for (let k = 0; k < 7; k++) {
+          const dly = BOOT_LOCK * (1 - Math.pow(1 - (k + 1) / 7.6, 1.9));
+          tone(1240, 0.016, 'square', 0.03 + k * 0.004, null, null, dly);
+        }
       }
-    } else if (stageNow === 1) { // the DOCK: sub thunk, metal clack, pressure wave off the rim
-      tone(90, 0.25, 'sine', 0.24, 40);
-      tone(1850, 0.02, 'square', 0.07);
-      crackle(0.3, 1100, 240, 1.4, 0.5);
-      crackle(0.7, 160, 1100, 2, 0.28, 0.15); // everything charging at once through the ramp
+    } else if (stageNow === 1) { // the DOCK — the startup take's own thump owns this beat
+      // the nodes' amber reboot ramp starts HERE — so does their whir
+      bootNodeSample = playSample('restart');
+      if (!bootSample) {
+        tone(90, 0.25, 'sine', 0.24, 40);
+        tone(1850, 0.02, 'square', 0.07);
+        crackle(0.3, 1100, 240, 1.4, 0.5);
+        crackle(0.7, 160, 1100, 2, 0.28, 0.15); // everything charging at once through the ramp
+      }
       buzz(35);
     } else if (stageNow === 4) { // GODSPEED: squelch open, terse double ack, engage
       crackle(0.07, 1300, 2700, 2, 0.4);
@@ -3358,10 +3579,12 @@ function update(dt) {
       nodes[i].formAt = introT; // replay the materialize pop
       nodes[i].formedFx = true;
     }
-    tone(1500, 0.014, 'square', 0.05);
-    tone(215, 0.07, 'square', 0.05); tone(260, 0.07, 'square', 0.04);
-    tone(1250, 0.02, 'square', 0.06, null, null, 0.09);
-    tone(1250, 0.02, 'square', 0.06, null, null, 0.18);
+    if (!bootNodeSample) { // sign-off clicks — only when no whir is carrying the ramp
+      tone(1500, 0.014, 'square', 0.05);
+      tone(215, 0.07, 'square', 0.05); tone(260, 0.07, 'square', 0.04);
+      tone(1250, 0.02, 'square', 0.06, null, null, 0.09);
+      tone(1250, 0.02, 'square', 0.06, null, null, 0.18);
+    }
     buzz(15);
   }
   // holding at the gate: a quiet standby pip keeps the console alive
@@ -3439,13 +3662,21 @@ function update(dt) {
 
   // node-killer reboot: a fried optic counts down, then pops back online
   for (const n of nodes) if (n.deadT > 0) {
+    const prevDead = n.deadT;
     n.deadT = Math.max(0, n.deadT - dt);
+    // the reboot take whirs while the optic spins back up, timed so its
+    // ENDING lands on the node popping back online
+    const rs = sampleTrim.restart;
+    const rebootAt = rs ? Math.min(2, rs.end - rs.start) : 0;
+    if (sampleBufs.restart && prevDead >= rebootAt && n.deadT < rebootAt)
+      playSample('restart', 1, Math.cos(n.angle) * 0.6);
     if (n.deadT === 0) {
       n.formAt = introT; // replay the materialize pop — the lens re-forms
       const p2 = nodeXY(n);
       burst(p2.x, p2.y, n === nodes[0] ? '#6fe3ff' : '#ffffff', 20, 4);
       popup(p2.x, p2.y - 22, 'NODE ONLINE', '#8fe0ff');
-      sfx.heal(); buzz(15);
+      if (!sampleBufs.restart) sfx.heal(); // synth stand-in when samples are absent
+      buzz(15);
     }
   }
 
@@ -3548,16 +3779,15 @@ function update(dt) {
       en.dead = true;
       const vb = Math.round((en.type === 'heavy' ? 250 : 60) * mutMul());
       score += vb;
-      burst(vx, vy, en.type === 'heavy' ? '#d465ff' : '#bfeaff', 22, 5);
-      burst(vx, vy, '#ffffff', 12, 5.5);
+      decompile(en.angle, en.z, en);
       popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : '+') + vb, '#bfeaff');
       rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
-      sfx.zap(1, Math.cos(en.angle) * 0.6);
+      const volleyZapSampled = sfx.zap(1, Math.cos(en.angle) * 0.6);
       buzz(en.type === 'heavy' ? 25 : 12);
       spawnKillStreak(en.angle, en.z);
       lastKillBeat(en);
       if (en.type === 'heavy') { // armor stops the bolt; reds it punches through
-        tone(110, 0.2, 'square', 0.13, 60);
+        if (!volleyZapSampled) tone(110, 0.2, 'square', 0.13, 60); // synth-era armor thump
         sh.dead = true;
         break;
       }
@@ -3752,13 +3982,10 @@ function update(dt) {
             buzz(12);
           }
         }
-        burst(ex, ey, '#bfeaff', 26, 4);
-        burst(ex, ey, '#ffffff', 14, 5);
+        decompile(en.angle, g.hitZ, en);
         if (en.partner) {
           en.partner.dead = true;
-          const p2 = ringXY(en.partner.angle);
-          burst(p2.x, p2.y, '#bfeaff', 26, 4);
-          burst(p2.x, p2.y, '#ffffff', 14, 5);
+          decompile(en.partner.angle, g.hitZ, en.partner);
         }
         for (const [n, a] of boltPairs) {
           const s0 = nodeXY(n), t0 = ringXY(a);
@@ -3782,8 +4009,7 @@ function update(dt) {
             const rg2 = ring(Math.max(cBest.z, 0.02), g);
             const bx = g.cx + Math.cos(cBest.angle) * rg2.r, by = g.cy + Math.sin(cBest.angle) * rg2.r;
             spawnBolt(ex, ey, bx, by);
-            burst(bx, by, '#d8b4ff', 18, 3.5);
-            burst(bx, by, '#ffffff', 10, 4);
+            decompile(cBest.angle, cBest.z, cBest, 0.8);
             const cb = cBest.type === 'heavy' ? 250 : cBest.type === 'line' ? 300 : cBest.lock !== undefined ? 150 : 100;
             const cpts = Math.round(cb * 0.5 * mutMul());
             score += cpts; zaps++;
@@ -3792,12 +4018,10 @@ function update(dt) {
             tone(1976, 0.1, 'triangle', 0.08, 2960);
           }
         }
-        if (en.type === 'heavy') burst(ex, ey, '#d465ff', 16, 5.5); // armor plates fly
         if (en.type === 'line' && en.partner) { // the wall snaps
           const p3 = ringXY(en.partner.angle);
           for (let k2 = 1; k2 < 4; k2++) burst(lerp(ex, p3.x, k2 / 4), lerp(ey, p3.y, k2 / 4), '#ff8ba0', 6, 3);
         }
-        if (en.lock !== undefined) burst(ex, ey, en.lock === 0 ? '#4d9bff' : '#eef6ff', 14, 4.5);
         // no hit-stop, no screen shake on routine kills — the streak, rim
         // flash and haptics carry it
         spawnKillStreak(en.angle, en.z);
@@ -3805,10 +4029,10 @@ function update(dt) {
         popup(ex, ey, (perfect ? 'PERFECT +' : '+') + pts + (combo >= 3 ? '  x' + Math.min(combo, 5) : ''), perfect ? '#ffe9b0' : '#bfeaff');
         // no screen shake on a clean kill — the rim flash + haptics carry it;
         // the tunnel only twitches when something goes WRONG
-        sfx.zap(combo, Math.cos(en.angle) * 0.7);
-        if (en.type === 'heavy') tone(110, 0.2, 'square', 0.13, 60); // armor thump
-        if (en.lock !== undefined) tone(1568, 0.12, 'triangle', 0.09, 1976); // key chime
-        if (perfect) sfx.perfect();
+        const zapSampled = sfx.zap(combo, Math.cos(en.angle) * 0.7);
+        // synth-era accents — the recorded hit stands alone
+        if (!zapSampled && en.type === 'heavy') tone(110, 0.2, 'square', 0.13, 60); // armor thump
+        if (!zapSampled && en.lock !== undefined) tone(1568, 0.12, 'triangle', 0.09, 1976); // key chime
         buzz(en.type === 'normal' ? 18 : 30);
       } else {
         en.resolved = true; // slips past the ring and flies by the player
@@ -3872,12 +4096,9 @@ function update(dt) {
         if (en.partner) en.partner.dead = true;
         const rg2 = ring(Math.max(en.z, 0.02), g);
         const px2 = rg2.x + Math.cos(en.angle) * rg2.r, py2 = rg2.y + Math.sin(en.angle) * rg2.r;
-        // to molecules: a dense three-layer disintegration
-        const eCol = en.type === 'heavy' ? '#d465ff' : en.lock === 0 ? '#4d9bff'
-          : en.lock === 1 ? '#eef6ff' : '#ff8ba0';
-        burst(px2, py2, eCol, 26, 5.5);
-        burst(px2, py2, `rgb(${wv.col})`, 20, 4);
-        burst(px2, py2, '#ffffff', 14, 6.5);
+        // the body decompiles; a spray in the wave's own color signs the sweep
+        decompile(en.angle, en.z, en);
+        burst(px2, py2, `rgb(${wv.col})`, 12, 4);
         rimFX.push({ a: en.angle, t: 0.4, col: wv.col });
         spawnKillStreak(en.angle, en.z);
         wv.kills++;
@@ -4372,24 +4593,12 @@ function drawStrip(en, g, fade) {
 // and early-clamped mid-bore drops alike emerge from the glow. Draw-only:
 // zero effect on hitboxes or timing.
 const birthFade = o => clamp((o.age || 0) / 0.35, 0, 1);
-function drawEnemy(en, g) {
-  const rg = ring(Math.max(en.z, 0.02), g);
-  const x = rg.x + Math.cos(en.angle) * rg.r;
-  const y = rg.y + Math.sin(en.angle) * rg.r;
-  const birth = birthFade(en);
-  // size tracks the WALL geometry (rg.r/nodeR), not raw z — bodies scale in
-  // lockstep with the ring they sit on, so they read as glued to the tunnel
-  let size = Math.min(W, H) * 0.06 * clamp(rg.r / g.nodeR, 0.1, 2) * (en.sizeMul || 1) * (0.85 + 0.15 * birth);
-  const near = 1 - en.z;
-  // missed traps balloon past the ring and dissolve; fresh ones fade in from the deep
-  let fade = en.resolved ? clamp(en.z / g.hitZ, 0, 1) : 1;
-  fade *= clamp((SPAWN_Z - 0.05 - en.z) / 0.3, 0, 1); // smooth entrance at the horizon
-  fade *= birth;
-  if (fade <= 0.005) return;
-  if (en.resolved) size *= 1 + (1 - clamp(en.z / g.hitZ, 0, 1)) * 1.6;
-  // per-type palettes — the color IS the gameplay language: red = any node,
-  // blue/white = matching node, purple = both nodes, orange = it moves
-  const PAL = en.type === 'frag'
+// per-type palettes — the color IS the gameplay language: red = any node,
+// blue/white = matching node, purple = both nodes, orange = it moves.
+// shared by the body renderer and the decompile, so a death speaks in the
+// body's own inks
+function enemyPal(en) {
+  return en.type === 'frag'
     ? { glow: '90,110,140',
         shades: ['#2b3242', '#151a26', '#3a4354', '#0d1119', '#232a38'],
         lights: ['#4a5568', '#5a6a80', '#3a4354'] }
@@ -4408,6 +4617,56 @@ function drawEnemy(en, g) {
     : { glow: '255,60,90',
         shades: ['#e8274b', '#ff5a3c', '#d81f6e', '#b3123a', '#ff8c5a'],
         lights: ['#ff9db0', '#ffc9d4', '#ff8ba0'] };
+}
+
+// the glitch-out: a killed body freezes where it died and de-rezzes — its
+// skin tears into horizontal strips that displace sideways, flicker, drop
+// out, and finally collapse toward the body's midline. Sprite skins tear as
+// image strips; procedural bodies tear as a diamond silhouette in their own
+// plating shades.
+function drawGhost(gh, g) {
+  const k = gh.t / DECOMP.glitchT;
+  const rg = ring(gh.z, g);
+  const x = rg.x + Math.cos(gh.a) * rg.r, y = rg.y + Math.sin(gh.a) * rg.r;
+  const size = Math.min(W, H) * 0.06 * clamp(rg.r / g.nodeR, 0.1, 2) * gh.sizeMul;
+  const S = DECOMP.slices;
+  const half = gh.spr ? size * 1.7 : size; // sprite skins draw on a wider box
+  const collapse = Math.max(0, (k - 0.55) / 0.45) * 0.8; // the strips fall into the midline
+  for (let i = 0; i < S; i++) {
+    if (Math.random() < k * 0.6) continue; // strips drop out as the de-rez deepens
+    const jx = (Math.random() - 0.5) * size * DECOMP.jitter * (0.3 + k);
+    const y0 = -half + 2 * half * (i / S), h = 2 * half / S;
+    const yd = y + (y0 + h / 2) * (1 - collapse) - h / 2;
+    ctx.globalAlpha = (1 - k) * (0.5 + Math.random() * 0.5);
+    if (gh.spr) {
+      const sh = gh.spr.height;
+      ctx.drawImage(gh.spr, 0, sh * (i / S), gh.spr.width, sh / S, x - half + jx, yd, half * 2, h);
+    } else {
+      const f = (y0 + h / 2) / half; // -1..1 down the body: a diamond profile
+      const hw = Math.max(1, size * (1 - Math.abs(f) * 0.9));
+      ctx.fillStyle = gh.pal.shades[i % gh.pal.shades.length];
+      ctx.fillRect(x - hw + jx, yd, hw * 2, h);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawEnemy(en, g) {
+  const rg = ring(Math.max(en.z, 0.02), g);
+  const x = rg.x + Math.cos(en.angle) * rg.r;
+  const y = rg.y + Math.sin(en.angle) * rg.r;
+  const birth = birthFade(en);
+  // size tracks the WALL geometry (rg.r/nodeR), not raw z — bodies scale in
+  // lockstep with the ring they sit on, so they read as glued to the tunnel
+  let size = Math.min(W, H) * 0.06 * clamp(rg.r / g.nodeR, 0.1, 2) * (en.sizeMul || 1) * (0.85 + 0.15 * birth);
+  const near = 1 - en.z;
+  // missed traps balloon past the ring and dissolve; fresh ones fade in from the deep
+  let fade = en.resolved ? clamp(en.z / g.hitZ, 0, 1) : 1;
+  fade *= clamp((SPAWN_Z - 0.05 - en.z) / 0.3, 0, 1); // smooth entrance at the horizon
+  fade *= birth;
+  if (fade <= 0.005) return;
+  if (en.resolved) size *= 1 + (1 - clamp(en.z / g.hitZ, 0, 1)) * 1.6;
+  const PAL = enemyPal(en);
 
   ctx.save();
   ctx.globalAlpha = fade;
@@ -5528,9 +5787,11 @@ function fireVolley(g) {
   const hx = g.cx + Math.cos(a) * g.nodeR, hy = g.cy + Math.sin(a) * g.nodeR;
   burst(hx, hy, '#bfeaff', 20, 5);
   burst(hx, hy, '#ffffff', 12, 6);
-  tone(1900, 0.03, 'square', 0.09);   // capacitor snap
-  crackle(0.22, 2400, 400, 2, 0.6);   // discharge
-  tone(90, 0.15, 'sine', 0.14, 55);   // sub kick
+  if (!playSample('volley')) {
+    tone(1900, 0.03, 'square', 0.09);   // capacitor snap
+    crackle(0.22, 2400, 400, 2, 0.6);   // discharge
+    tone(90, 0.15, 'sine', 0.14, 55);   // sub kick
+  }
   buzz([15, 10, 25]);
 }
 // charge halo + the bolt comet riding the bore
@@ -6369,6 +6630,7 @@ function drawHUD(g) {
     if (st.card === 'move') {
       // marching arrows lead each node onward (blue clockwise, white counter);
       // the lap meters wind the same way their node travels
+      const gT = geo(), uT = Math.min(W, H);
       for (let i = 0; i < 2; i++) {
         const w = i === 0 ? 1 : -1;
         if (tut.moved[i] <= TAU) drawGuideArc(nodes[i], nodes[i].angle + w * 1.1);
@@ -6378,7 +6640,22 @@ function drawHUD(g) {
         ctx.beginPath();
         ctx.arc(d2.x, d2.y, d2.r + 12, -Math.PI / 2, -Math.PI / 2 + w * clamp(tut.moved[i] / TAU, 0, 1) * TAU, i === 1);
         ctx.stroke();
+        if (tut.moved[i] <= TAU) {
+          // degrees-to-go rides just inside the guide arrowhead: the number
+          // winds down 360° → 0° so pupils can SEE how much turn is left
+          const aH = nodes[i].angle + w * 1.1 * 0.82; // where drawGuideArc parks its head
+          const rr = gT.nodeR - uT * 0.055 * 2.0 - uT * 0.065;
+          const cx2 = gT.cx + Math.cos(aH) * rr, cy2 = gT.cy + Math.sin(aH) * rr;
+          const deg = Math.max(0, Math.ceil((TAU - tut.moved[i]) / TAU * 360));
+          ctx.font = '700 ' + Math.round(uT * 0.034) + 'px Audiowide, system-ui';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+          ctx.strokeStyle = 'rgba(2,4,12,0.75)'; ctx.lineWidth = 4;
+          ctx.strokeText(deg + '°', cx2, cy2);
+          ctx.fillStyle = i === 0 ? 'rgba(150,190,255,0.95)' : 'rgba(255,255,255,0.95)';
+          ctx.fillText(deg + '°', cx2, cy2);
+        }
       }
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     }
     const ten = enemies.find(e => e.tut && !e.dead && !e.resolved);
     if (ten) {
@@ -7009,11 +7286,42 @@ function settingsTap(x, y, pid) {
   return false;
 }
 
+// ---------- popup scan-print (the splash's sweep, pocket-sized) ----------
+// Every system panel prints on and erases off behind a scan line: open sweeps
+// down (~180ms), close runs the same print in reverse. Drawers call popFxQ
+// with their popup's logical flag each frame — the q eases toward it — and
+// keep drawing while popLive so the erase has frames to finish on.
+const POPFX = {};
+function popFxQ(key, flag) {
+  const e = POPFX[key] || (POPFX[key] = { q: 0 });
+  e.q = clamp(e.q + (flag ? 1 : -1) * frameDt / 0.18, 0, 1);
+  return e.q;
+}
+const popLive = key => !!POPFX[key] && POPFX[key].q > 0;
+function popClip(q, px, py, pw, ph) { // the panel exists only above the scan
+  if (q >= 1) return;
+  ctx.beginPath(); ctx.rect(px - 14, py - 14, pw + 28, (ph + 28) * q); ctx.clip();
+}
+function popScan(q, px, py, pw, ph) { // the print head riding the edge
+  if (q <= 0 || q >= 1) return;
+  const sy = py - 14 + (ph + 28) * q;
+  const g2 = ctx.createLinearGradient(0, sy - 26, 0, sy);
+  g2.addColorStop(0, 'rgba(111,227,255,0)');
+  g2.addColorStop(1, 'rgba(111,227,255,0.28)');
+  ctx.fillStyle = g2;
+  ctx.fillRect(px - 8, sy - 26, pw + 16, 26);
+  ctx.fillStyle = 'rgba(235,250,255,0.85)';
+  ctx.fillRect(px - 8, sy, pw + 16, 1.5);
+}
+
 function drawPause() {
+  const q = popFxQ('pause', state === S.PAUSE);
   pauseButtonsList = []; pauseSlidersList = []; pauseTogglesList = [];
-  ctx.fillStyle = 'rgba(3,6,14,0.78)'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(3,6,14,' + (0.78 * q).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
   const pw = Math.min(W * 0.74, 540), ph = Math.min(H * 0.86, ALT_CONTROLS ? 330 : 300);
   const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
+  ctx.save();
+  popClip(q, px, py, pw, ph);
   techPanel(px, py, pw, ph, 'SYSTEM PAUSED');
   settingRow('SFX',        'sound',     'soundVol', py + 70,  px, pw);
   settingRow('MUSIC',      'music',     'musicVol', py + 108, px, pw);
@@ -7030,6 +7338,8 @@ function drawPause() {
     pauseButtonsList.push({ x: bx, y: by, w: bw, h: bh, action });
     bx += bw + gap;
   });
+  ctx.restore();
+  popScan(q, px, py, pw, ph);
   ctx.textAlign = 'left';
 }
 
@@ -7266,16 +7576,33 @@ function buildMenuCache() {
   });
 }
 
+// boot build-in: after the splash's wheel cue, each furniture cluster eases
+// from its nearest screen edge into place. 1 = settled (and always 1 outside
+// the boot intro, so the steady-state menu costs nothing).
+let menuIntroAt = null;
+function introE(delay) {
+  if (menuIntroAt === null) return 1;
+  if (time - menuIntroAt > 2.5) { menuIntroAt = null; return 1; } // everyone's home
+  const q = clamp((time - menuIntroAt - delay) / 0.5, 0, 1);
+  return 1 - Math.pow(1 - q, 3);
+}
 function drawMenu(g) {
   menuButtons = [];
+  menuBadge = null; // repopulated by the home wheel; stays null on other screens
   if (!menuCache || menuCacheScreen !== menuScreen) buildMenuCache();
-  if (menuCache) ctx.drawImage(menuCache, 0, 0, W, H);
+  if (menuCache) { // static furniture breathes in with the wheel on boot
+    ctx.globalAlpha = introE(0);
+    ctx.drawImage(menuCache, 0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
   const { ccx, ccy, R, bw, bh, gap, listY, contentH, viewH, maxScroll } = menuGeom();
 
   ctx.font = '10px monospace'; ctx.textAlign = 'left';
   // bottom-left: diagnostic carousel — count up fast, hold ~5s, then the next block
   // in the bar lights up white and a fresh count begins (HOME garnish only)
   if (menuScreen === 'home') {
+  ctx.save();
+  ctx.translate(-(1 - introE(0.35)) * 280, 0); // boot: flies in from the left
   const CYCLE = 6.5, COUNT = 1.5;
   const cyc = Math.floor(time / CYCLE), ct = time - cyc * CYCLE;
   const cp = clamp(ct / COUNT, 0, 1);
@@ -7294,17 +7621,25 @@ function drawMenu(g) {
       : 'rgba(120,210,255,0.3)';
     ctx.fillRect(20 + i * 15, H - 40, 11, 5);
   }
+  ctx.restore();
   }
   // bottom-right: live nav coordinates drifting as we ride the tunnel,
   // capped by the build stamp — changes with ANY code change, so a stale
   // cached build is spottable at a glance
+  ctx.save();
+  ctx.translate((1 - introE(0.5)) * 280, 0); // boot: flies in from the right
   ctx.textAlign = 'right';
   ctx.fillStyle = 'rgba(120,210,255,0.5)';
   ctx.fillText(String(Math.floor(44589 + time * 12.4) % 100000).padStart(5, '0'), W - 20, H - 34);
   ctx.fillText(String(Math.floor(45895 + time * 31.7) % 100000).padStart(5, '0'), W - 20, H - 22);
   ctx.fillStyle = 'rgba(120,210,255,0.35)';
   ctx.fillText('BLD ' + BUILD, W - 20, H - 48);
+  ctx.restore();
+  ctx.textAlign = 'right';
 
+  // top-right cluster: boot drops it in from above the screen edge
+  ctx.save();
+  ctx.translate(0, -(1 - introE(0.2)) * 140);
   // fullscreen key (left of the gear; hidden when already chromeless)
   menuFsRect = null;
   if (!inStandalone() && !(document.fullscreenElement || document.webkitFullscreenElement)) {
@@ -7339,6 +7674,7 @@ function drawMenu(g) {
     ctx.fillStyle = '#dff6ff';
     ctx.fillRect(knobX[i] - 2.5, gy - 3.5, 5, 7);
   }
+  ctx.restore(); // top-right cluster fly-in
 
   // back key on sub-screens (left of the fullscreen/gear cluster)
   menuBackRect = null;
@@ -7361,7 +7697,72 @@ function drawMenu(g) {
   else if (menuScreen === 'camps') drawMenuCamps(ccx, ccy, R);
   else drawMenuHome(ccx, ccy, R);
 
-  if (menuSettings) drawMenuSettings();
+  if (menuPopUp() && menuBadge) stampMenuBadge(g); // badge holds its post, under the popup
+  if (menuSettings || popLive('set')) drawMenuSettings(); // …through the erase too
+  if (menuConfirm || popLive('confirm')) drawResetConfirm();
+}
+// the launch/zoom transform frame() wraps around the whole menu — mirrored so
+// the floating badge scales and fades in lockstep with the rest of the wheel
+function menuMenuXform() {
+  if (menuFx && menuFx.kind === 'launch') { const q = clamp(menuFx.t / menuFx.dur, 0, 1), e2 = q * q; return { s: 1 + e2 * 1.7, a: 1 - e2 }; }
+  if (menuFx && menuFx.zoom) { const q = clamp(menuFx.t / menuFx.dur, 0, 1), e2 = (1 - q) * (1 - q); return { s: 1 + e2 * 1.7, a: 1 - e2 }; }
+  return { s: 1, a: 1 };
+}
+// replay the hub shield on top of the press flash / transitions so the logo
+// always leads the screen
+function stampMenuBadge(g) { // the hub shield at its home spot
+  const xf = menuMenuXform();
+  ctx.save();
+  ctx.translate(g.cx, g.cy); ctx.scale(xf.s, xf.s); ctx.translate(-g.cx, -g.cy);
+  ctx.globalAlpha = xf.a * menuBadge.alpha;
+  ctx.drawImage(menuBadge.img, menuBadge.x, menuBadge.y, menuBadge.w, menuBadge.h);
+  ctx.restore();
+}
+// with a popup up the badge doesn't vanish — it steps back INTO the scene
+// (stamped under the popup's dim by drawMenu) instead of riding on top
+const menuPopUp = () => menuSettings || menuConfirm || popLive('set') || popLive('confirm');
+function drawMenuBadgeTop(g) {
+  if (state !== S.MENU || menuScreen !== 'home' || !menuBadge || menuPopUp()) return;
+  stampMenuBadge(g);
+}
+// "erase all progress?" modal — the only way to wipe a campaign
+function drawResetConfirm() {
+  const q = popFxQ('confirm', !!menuConfirm);
+  menuConfirmBtns = [];
+  ctx.save();
+  ctx.fillStyle = 'rgba(2,6,14,' + (0.72 * q).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H); // dim the menu behind
+  const pw = Math.min(W - 48, 420), ph = 172;
+  const px = (W - pw) / 2, py = (H - ph) / 2;
+  popClip(q, px, py, pw, ph); // undone by the restore below
+  techRect(px, py, pw, ph, 12);
+  ctx.fillStyle = 'rgba(8,18,34,0.98)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,110,110,0.7)'; ctx.lineWidth = 1.5;
+  techRect(px, py, pw, ph, 12); ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ff9a9a'; ctx.font = '800 15px Audiowide, system-ui';
+  ctx.fillText('RESET CAMPAIGN', W / 2, py + 34);
+  ctx.fillStyle = 'rgba(220,235,255,0.9)'; ctx.font = '500 12px Audiowide, system-ui';
+  ctx.fillText("This will erase this campaign's progress,", W / 2, py + 66);
+  ctx.fillText('are you sure?', W / 2, py + 86);
+  // two keys: Cancel (calm) · Reset Campaign (red)
+  const bw = (pw - 48) / 2, bh = 38, byb = py + ph - bh - 20;
+  const cx0 = px + 16, rx0 = px + pw - 16 - bw;
+  const cancel = { x: cx0, y: byb, w: bw, h: bh, confirm: 'cancel' };
+  techRect(cancel.x, cancel.y, bw, bh, 8);
+  ctx.fillStyle = 'rgba(20,44,72,0.9)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(120,200,255,0.55)'; ctx.lineWidth = 1.2; techRect(cancel.x, cancel.y, bw, bh, 8); ctx.stroke();
+  ctx.fillStyle = '#dff2ff'; ctx.font = '700 12px Audiowide, system-ui';
+  ctx.fillText('CANCEL', cancel.x + bw / 2, byb + bh / 2 + 4);
+  const wipe = { x: rx0, y: byb, w: bw, h: bh, confirm: 'wipe' };
+  techRect(wipe.x, wipe.y, bw, bh, 8);
+  ctx.fillStyle = 'rgba(120,26,26,0.92)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,120,120,0.85)'; ctx.lineWidth = 1.2; techRect(wipe.x, wipe.y, bw, bh, 8); ctx.stroke();
+  ctx.fillStyle = '#ffd9d9'; ctx.font = '700 12px Audiowide, system-ui';
+  ctx.fillText('RESET CAMPAIGN', wipe.x + bw / 2, byb + bh / 2 + 4);
+  ctx.textAlign = 'left';
+  ctx.restore();
+  popScan(q, px, py, pw, ph);
+  menuConfirmBtns.push(cancel, wipe);
 }
 
 // mode key + a small caption line beneath it
@@ -7395,9 +7796,11 @@ function drawMenuHome(ccx, ccy, R) {
   ctx.globalAlpha = wheelAl;
   ctx.textAlign = 'center';
   for (const sc0 of SECTORS) {
+    const myIdx = menuButtons.length; // the tap-list index this slice takes below
     const sc = Object.assign({}, sc0, { mid: sc0.mid + rot });
     const a0 = sc.mid - THIRD / 2 + 0.02, a1 = sc.mid + THIRD / 2 - 0.02;
-    const hot = sc.primary && !sc.locked;
+    // a controller's focus owns the glow; without one, progression suggests
+    const hot = gpNav ? myIdx === gpSel : sc.primary && !sc.locked;
     // slice body
     ctx.beginPath();
     ctx.arc(ccx, ccy, r1, a0, a1);
@@ -7413,9 +7816,18 @@ function drawMenuHome(ccx, ccy, R) {
     ctx.lineWidth = hot ? 2.5 : 1.5;
     ctx.stroke();
     // just the NAME, curved with the slice — the badge owns the center, so
-    // glyphs, captions and status marks are gone and the title breathes
-    arcText(sc.name, ccx, ccy, r1 - R * 0.135, sc.mid, Math.round(R * 0.09),
-      sc.locked ? 'rgba(150,180,210,0.45)' : '#eaf6ff', '800', THIRD * 0.9);
+    // glyphs, captions and status marks are gone and the title breathes;
+    // each mode wears its own color, centered in the slice's radial height
+    const ts = Math.round(R * 0.115);
+    // the side slices sit 20% of the band's width further out — clear of the
+    // badge — but the top (tutorial) slice reads best dead-centered
+    const outPush = sc.mode === 'tutorial' ? 0 : (r1 - r0) * 0.2;
+    const tr = (r0 + r1) / 2 - ts * 0.36 + outPush;
+    try { ctx.letterSpacing = (ts * 0.12).toFixed(1) + 'px'; } catch (e) {}
+    arcText(sc.name, ccx, ccy, tr, sc.mid, ts,
+      sc.locked ? 'rgba(150,180,210,0.45)' : `rgb(${sc.col})`, '800', THIRD * 0.9,
+      Math.sin(sc0.mid) > 0); // orientation pinned to the slice's HOME angle
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
     menuButtons.push({ sector: { cx: ccx, cy: ccy, r0, r1, a0: sc0.mid - THIRD / 2 + 0.02, a1: sc0.mid + THIRD / 2 - 0.02 }, mode: sc.mode, locked: sc.locked });
   }
   // the HUB: the shield badge holds the wheel's center; the quiet text
@@ -7425,10 +7837,16 @@ function drawMenuHome(ccx, ccy, R) {
   ctx.strokeStyle = 'rgba(120,220,255,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
   const hubLg = brandLogo();
   if (hubLg) {
-    const fit = r0 * 2 * 1.5; // the badge OVERLAPS the slices — it leads the screen
+    const fit = r0 * 2 * 1.575; // the badge OVERLAPS the slices — it leads the screen
     const sc2 = Math.min(fit / hubLg.w, fit / hubLg.h);
     const lw3 = hubLg.w * sc2, lh3 = hubLg.h * sc2;
-    ctx.drawImage(hubLg.img, ccx - lw3 / 2, ccy - lh3 / 2, lw3, lh3);
+    // ride a touch low (proportional, so every resolution agrees) so the
+    // shield's chin caps the side slices' inner ends. The badge itself is NOT
+    // stamped here — it's replayed ON TOP of the press/scene FX (drawMenuBadgeTop)
+    // so the logo is never occluded by a click flash or transition, and never
+    // double-composited over its own soft glow.
+    const bx = ccx - lw3 / 2, by = ccy - lh3 / 2 + lh3 * 0.04;
+    menuBadge = { img: hubLg.img, x: bx, y: by, w: lw3, h: lh3, alpha: wheelAl };
   } else {
     ctx.strokeStyle = `rgba(255,210,74,${(0.35 + Math.sin(time * 1.8) * 0.12).toFixed(2)})`;
     ctx.beginPath(); ctx.arc(ccx, ccy, r0 * 0.55, 0, TAU); ctx.stroke();
@@ -7691,13 +8109,15 @@ function drawMenuFlow() {
   ctx.globalAlpha = wheelAl;
   ctx.textAlign = 'center';
   for (const hv of HALVES) {
+    const myIdx = menuButtons.length; // the tap-list index this half takes below
     const mid = hv.mid + rot;
     const a0 = mid - Math.PI / 2 + 0.03, a1 = mid + Math.PI / 2 - 0.03;
     ctx.beginPath();
     ctx.arc(ccx, ccy, r1, a0, a1);
     ctx.arc(ccx, ccy, r0, a1, a0, true);
     ctx.closePath();
-    const hot = !hv.locked && hv.key === 'endless';
+    // a controller's focus owns the glow; without one, ENDLESS suggests
+    const hot = gpNav ? myIdx === gpSel : !hv.locked && hv.key === 'endless';
     ctx.fillStyle = hv.locked ? 'rgba(8,16,30,0.55)'
       : hot ? `rgba(${hv.col},${(0.09 + Math.sin(time * 2.5) * 0.03).toFixed(2)})` : 'rgba(10,24,48,0.42)';
     ctx.fill();
@@ -7777,7 +8197,7 @@ function drawMenuFlow() {
 // the ring becomes a LENS over an isometric wireframe city — the network's
 // physical geography. The relay list rides the left column, the dossier the
 // right, and selecting a relay glides the lens along the route.
-let cityBase = null, cityTop = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1, menuResetArm = 0;
+let cityBase = null, cityTop = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1;
 const mapR = () => menuGeom().R * 0.92; // the lens rim MATCHES the mode wheel — seamless crossfade
 const CITY_W = 1600, CITY_H = 980;
 let RELAY_W = [], ROUTE_SEGS = []; // filled by buildCity — relays sit ON cable junctions
@@ -8255,9 +8675,11 @@ function drawMenuMap() {
     if (menuFx.fromDisc) { mapRot = 0; discRimAl = 1 - q; } // disc-born: pure crossfade, no spin
   } else if (menuFx && menuFx.kind === 'panelsOut') {
     const q = clamp(menuFx.t / menuFx.dur, 0, 1);
-    mapRot = (menuFx.dir || -1) * 0.9 * q * q;
     mapAl = 1 - q;
-    if (CAMPAIGNS.length > 1) discRimAl = q; // the disc rim rises to meet the shrink-out
+    // heading back to the carousel: pure zoom-out crossfade (no spin) so it
+    // mirrors the disc-born zoom-in; only the home-bound exit still spins
+    if (CAMPAIGNS.length > 1) { mapRot = 0; discRimAl = q; } // disc rim rises to meet the shrink-out
+    else mapRot = (menuFx.dir || -1) * 0.9 * q * q;
   }
   ctx.save();
   ctx.beginPath(); ctx.arc(ccx, ccy, R - 5, 0, TAU); ctx.clip();
@@ -8438,25 +8860,43 @@ function drawMenuMap() {
   drawMapCard(mapSel, frontier, ccx, ccy, R);
   ctx.restore();
 
-  // TEMPORARY: BOSS TEST dev key
-  const dv = { x: W - 116 - SAFE.r, y: 58 + SAFE.t, w: 96, h: 24 };
-  techRect(dv.x, dv.y, dv.w, dv.h, 6);
-  ctx.fillStyle = 'rgba(6,20,40,0.55)'; ctx.fill();
-  ctx.strokeStyle = 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1;
-  techRect(dv.x, dv.y, dv.w, dv.h, 6); ctx.stroke();
-  ctx.fillStyle = 'rgba(160,200,240,0.7)'; ctx.font = '700 9px Audiowide, system-ui';
-  ctx.fillText('⚔ BOSS (DEV)', dv.x + 9, dv.y + 16);
-  menuButtons.push({ ...dv, bossTest: true, locked: false });
-  // reset campaign (two-tap confirm)
-  const rv = { x: dv.x, y: dv.y + 30, w: 96, h: 24 };
-  const armed = time - menuResetArm < 2.5;
-  techRect(rv.x, rv.y, rv.w, rv.h, 6);
-  ctx.fillStyle = armed ? 'rgba(90,20,20,0.6)' : 'rgba(6,20,40,0.55)'; ctx.fill();
-  ctx.strokeStyle = armed ? 'rgba(255,110,110,0.8)' : 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1;
-  techRect(rv.x, rv.y, rv.w, rv.h, 6); ctx.stroke();
-  ctx.fillStyle = armed ? '#ffb0b0' : 'rgba(160,200,240,0.7)'; ctx.font = '700 8px Audiowide, system-ui';
-  ctx.fillText(armed ? 'TAP TO CONFIRM' : '↺ RESET RUN', rv.x + 9, rv.y + 16);
-  menuButtons.push({ ...rv, reset: true, locked: false });
+  // RESET CAMPAIGN — a red key mirroring the last relay row across the lens:
+  // left edge hugging the RIGHT rim, same height/baseline as that row. Its right
+  // edge is capped short of the bottom-right coord readout so those stay visible;
+  // the label shrinks to fit if the row is tight. Resets THIS campaign only.
+  // Tapping opens the confirm modal (no accidental wipes).
+  if (mapLastRowH) {
+    const rby = mapLastRowY, rbh = mapLastRowH;
+    const dyC = (rby + rbh / 2) - ccy;
+    const lensR = ccx + Math.sqrt(Math.max(0, (R + 14) * (R + 14) - dyC * dyC)); // rim x at this row
+    const rbx = lensR + 8; // 8px off the rim — mirror of the left column's gap
+    const label = '↺ RESET CAMPAIGN';
+    const avail = Math.max(72, (W - SAFE.r - 74) - rbx); // stop short of the coord readout
+    const rfs = fitPx(label, '700', Math.min(11, Math.round(rbh * 0.42)), avail - 20, 7);
+    ctx.font = '700 ' + rfs + 'px Audiowide, system-ui';
+    const rbw = Math.min(Math.ceil(ctx.measureText(label).width) + 20, avail);
+    const rv = { x: rbx, y: rby, w: rbw, h: rbh };
+    techRect(rv.x, rv.y, rv.w, rv.h, 6);
+    ctx.fillStyle = 'rgba(70,16,16,0.7)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,90,90,0.7)'; ctx.lineWidth = 1.5;
+    techRect(rv.x, rv.y, rv.w, rv.h, 6); ctx.stroke();
+    ctx.fillStyle = '#ff9a9a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, rv.x + rbw / 2, rv.y + rbh / 2 + 1);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    menuButtons.push({ ...rv, reset: true, locked: false });
+  }
+
+  // hidden dev gesture: hold the FINAL relay for HOLD_BOSS seconds to drop
+  // straight into the CORE duel — a charging ring gives quiet feedback
+  if (menuHold) {
+    const p = clamp(menuHold.t / HOLD_BOSS, 0, 1);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(212,101,255,0.9)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(menuHold.x, menuHold.y, 26, -Math.PI / 2, -Math.PI / 2 + p * TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 // left column: the relay list — the selector that drives the lens
 function drawMapList(ccx, ccy, R, frontier) {
@@ -8496,6 +8936,7 @@ function drawMapList(ccx, ccy, R, frontier) {
     if (locked) padlock(rx + lw2 - 14, ly2 + rh / 2, 5);
     ctx.restore();
     menuButtons.push({ x: rx, y: ly2, w: lw2, h: rh, node: i, locked: false });
+    if (i === rows - 1) { mapLastRowY = ly2; mapLastRowH = rh; } // the reset key aligns to this
     ly2 += rh + gap2;
   }
 }
@@ -8554,11 +8995,14 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
 
 // audio config overlay on the main menu — same controls as the pause panel
 function drawMenuSettings() {
+  const q = popFxQ('set', menuSettings);
   pauseSlidersList = []; pauseTogglesList = []; menuSetButtons = [];
-  ctx.fillStyle = 'rgba(3,6,14,0.62)'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(3,6,14,' + (0.62 * q).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
   const pw = Math.min(W * 0.72, 520), ph = Math.min(H * 0.84, ALT_CONTROLS ? 340 : 300);
   const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
   menuSetPanel = { x: px, y: py, w: pw, h: ph };
+  ctx.save();
+  popClip(q, px, py, pw, ph);
   techPanel(px, py, pw, ph, 'SYSTEM CONFIG');
   settingRow('SFX',     'sound',   'soundVol', py + 76,  px, pw);
   settingRow('MUSIC',   'music',   'musicVol', py + 120, px, pw);
@@ -8567,6 +9011,8 @@ function drawMenuSettings() {
   const bw = 160, bh = 42;
   button(W / 2 - bw / 2, py + ph - bh - 20, bw, bh, 'CLOSE', true);
   menuSetButtons.push({ x: W / 2 - bw / 2, y: py + ph - bh - 20, w: bw, h: bh, action: 'close' });
+  ctx.restore();
+  popScan(q, px, py, pw, ph);
   ctx.textAlign = 'left';
 }
 
@@ -8727,6 +9173,7 @@ function perfWatch(rawDt) {
 
 // ---------- main loop ----------
 let last = performance.now();
+let frameDt = 0; // this frame's wall-clock dt — drives UI fx even when the sim clock is held
 // ---------- screen transitions + button press feedback ----------
 // glitch: quick chromatic slice cut for menu screens. warp: a dive down the
 // fiber for deploys. The action fires at the covered midpoint.
@@ -8751,6 +9198,16 @@ function tickUI(dt) {
     uiPress.t += dt;
     if (uiPress.t >= 0.09 && uiPress.fn) { const f = uiPress.fn; uiPress.fn = null; f(); }
     if (uiPress.t > 0.3) uiPress = null;
+  }
+  // final-relay hold → the CORE duel, once the ring completes
+  if (menuHold && (state !== S.MENU || menuScreen !== 'map' || menuFx || menuConfirm)) menuHold = null;
+  else if (menuHold) {
+    menuHold.t += dt;
+    if (menuHold.t >= HOLD_BOSS) {
+      menuHold = null;
+      buzz(20); tone(70, 0.45, 'sine', 0.12, 260);
+      menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startBossTest };
+    }
   }
   if (trans) {
     trans.t += dt;
@@ -8815,26 +9272,9 @@ function drawTrans() {
     ctx.save();
     ctx.strokeStyle = `rgba(255,255,255,${pa.toFixed(2)})`;
     ctx.lineWidth = 2.5;
-    if (uiPress.sector) {
-      const sc = uiPress.sector;
-      ctx.beginPath();
-      ctx.arc(sc.cx, sc.cy, sc.r1, sc.a0, sc.a1);
-      ctx.arc(sc.cx, sc.cy, sc.r0, sc.a1, sc.a0, true);
-      ctx.closePath(); ctx.stroke();
-      ctx.fillStyle = `rgba(255,255,255,${(pa * 0.16).toFixed(2)})`; ctx.fill();
-    } else if (uiPress.seg) { // circle-segment keys flash in their own shape
-      const sg = uiPress.seg;
-      const a2 = Math.asin(clamp(sg.d / sg.r, 0, 1));
-      ctx.beginPath();
-      ctx.arc(sg.cx, sg.cy, sg.r, a2, Math.PI - a2);
-      ctx.closePath();
+    if (keyShapePath(uiPress, 2)) { // every key flashes in its own shape
       ctx.stroke();
       ctx.fillStyle = `rgba(255,255,255,${(pa * 0.16).toFixed(2)})`; ctx.fill();
-    } else if (uiPress.w) {
-      techRect(uiPress.x - 2, uiPress.y - 2, uiPress.w + 4, uiPress.h + 4, 8);
-      ctx.stroke();
-      ctx.fillStyle = `rgba(255,255,255,${(pa * 0.16).toFixed(2)})`;
-      techRect(uiPress.x - 2, uiPress.y - 2, uiPress.w + 4, uiPress.h + 4, 8); ctx.fill();
     }
     ctx.restore();
   }
@@ -8882,9 +9322,319 @@ function drawTrans() {
   }
 }
 
+// ---------- boot splash: GB Interactive → data-glitch → DATA DEFENDERS ----------
+// The menu runs live underneath from the very first frame; the splash is an
+// opaque curtain staged on top of it. That makes the finale free: the badge
+// materializes exactly where the menu's hub badge lives, then the curtain
+// thins to nothing and the menu has "faded in behind the logo". splash2.mp3
+// scores the ride and is the master clock once it runs — the sequence ends
+// with the take, and playTrack('menu') is the hand-off it was building to.
+// On autoplay-blocked browsers the first tap unlocks the score mid-sequence;
+// any tap after that (or any tap when sound already runs) skips to the menu.
+const SPLASH = {
+  on: typeof Image !== 'undefined' && !globalThis.EDITOR_DRIVE, // headless tests + the editor skip the theater
+  t: 0, dur: 8.1,      // sequence clock (sec); dur trued from the decoded take
+  buf: null, lp: null, // decoded splash2 + its audible window
+  src: null, gain: null, startAC: 0, startOff: 0,
+  built: false         // wheel cue fired — the menu is building beneath us
+};
+// the beat sheet, in seconds against the 8.1s take. The finale is a staged
+// build: reveal thins the curtain (the game's tunnel fades in), wheel cues
+// the menu itself — the mode wheel spins in behind the badge and the corner
+// furniture flies in from its nearest screen edge (see introE / menuIntroAt)
+const SPL = { gb: 0.35, type: 1.3, glitch: 3.0, crush: 4.1, df: 4.3, settle: 5.5, reveal: 5.55, wheel: 6.35 };
+const GB_TAG = 'GB Interactive';
+const GBIMG = { img: null, w: 0, h: 0 };
+if (SPLASH.on) {
+  GBIMG.img = new Image();
+  GBIMG.img.onload = () => { GBIMG.w = GBIMG.img.naturalWidth || 1; GBIMG.h = GBIMG.img.naturalHeight || 1; };
+  GBIMG.img.onerror = () => {}; // no mark on disk — the typed tag carries the card alone
+  GBIMG.img.src = 'icons/GB-logo-hollow.png';
+}
+function splashBoot() { // once at load: decode the score and try to run it
+  brandLogo(); // and kick the badge's lazy decode NOW — card two needs it by SPL.df
+  initAC(); if (!AC) return;
+  if (AC.state === 'suspended') AC.resume().catch(() => {}); // Capacitor allows it; browsers wait for a tap
+  fetch('audio/sfx/splash2.mp3')
+    .then(r => r.arrayBuffer()).then(a => AC.decodeAudioData(a))
+    .then(buf => {
+      SPLASH.buf = buf;
+      SPLASH.lp = loopPoints(buf, 0.004);           // encoder padding mapped out
+      SPLASH.dur = SPLASH.lp.end - SPLASH.lp.start; // the sequence ENDS with the take
+    })
+    .catch(() => {}); // silent splash — the frame clock carries the timing alone
+}
+function splashAudioTry() { // start (or join) the score the moment audio is allowed
+  if (!SPLASH.on || SPLASH.src || !SPLASH.buf || !AC || AC.state !== 'running' || !settings.music) return;
+  const off = SPLASH.lp.start + SPLASH.t;
+  if (off >= SPLASH.lp.end - 0.15) return; // too late — nothing left worth playing
+  try {
+    SPLASH.gain = AC.createGain();
+    SPLASH.gain.gain.value = musicVolume();
+    SPLASH.gain.connect(AC.destination);
+    if (SPLASH.t > 0.1 && SPLASH.gain.gain.setValueAtTime) { // joining mid-take — ease in, don't slam
+      SPLASH.gain.gain.setValueAtTime(0.0001, AC.currentTime);
+      SPLASH.gain.gain.exponentialRampToValueAtTime(Math.max(musicVolume(), 0.001), AC.currentTime + 0.3);
+    }
+    SPLASH.src = AC.createBufferSource();
+    SPLASH.src.buffer = SPLASH.buf;
+    SPLASH.src.connect(SPLASH.gain);
+    SPLASH.src.start(0, off);
+    SPLASH.startAC = AC.currentTime; SPLASH.startOff = SPLASH.t; // audio-clock anchor
+  } catch (e) { SPLASH.src = null; SPLASH.gain = null; }
+}
+function splashEnd(skip) {
+  if (!SPLASH.on) return;
+  SPLASH.on = false;
+  if (SPLASH.src && AC) { // bow out fast on a skip; a natural end is already silent
+    try {
+      SPLASH.gain.gain.setValueAtTime(SPLASH.gain.gain.value, AC.currentTime);
+      SPLASH.gain.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + 0.25);
+      SPLASH.src.stop(AC.currentTime + 0.3);
+    } catch (e) { try { SPLASH.src.stop(); } catch (e2) {} }
+  }
+  SPLASH.src = null; SPLASH.gain = null; SPLASH.buf = null;
+  if (skip) fadeT = 0.35;  // screen-stitch over the jump cut
+  playTrack('menu');       // …and the menu music takes over, fading in as normal
+}
+function splashTap() {
+  if (SPLASH.t < 0.3) return; // launch tap-through guard
+  const hadAudio = !!SPLASH.src;
+  splashAudioTry(); // this tap may be the very unlock the score was waiting for
+  if (!hadAudio && SPLASH.src) return; // …then it joins the sequence instead of skipping it
+  // resume() still in flight from audio() — treat this tap as the unlock too
+  if (!SPLASH.src && SPLASH.buf && AC && AC.state !== 'running' && settings.music) return;
+  splashEnd(true);
+}
+// per-row silhouette of an image's opaque pixels (normalized spans), computed
+// once and cached on the element — lets the scan sweep hug the ART instead of
+// the file's bounding box. Rows with no content collapse to a point.
+function contentRows(img) {
+  if (img.__rows) return img.__rows;
+  if (!img.naturalWidth) return []; // not decoded yet — try again next frame
+  try {
+    const N = 48;
+    const cv = document.createElement('canvas');
+    cv.width = N; cv.height = N;
+    const c2 = cv.getContext('2d', { willReadFrequently: true });
+    c2.drawImage(img, 0, 0, N, N);
+    const d = c2.getImageData(0, 0, N, N).data;
+    const rows = [];
+    for (let y = 0; y < N; y++) {
+      let x0 = N, x1 = -1;
+      for (let x = 0; x < N; x++) {
+        if (d[(y * N + x) * 4 + 3] > 24) { if (x < x0) x0 = x; x1 = x; }
+      }
+      rows.push(x1 < 0 ? { x0: 0.5, x1: 0.5 } : { x0: x0 / N, x1: (x1 + 1) / N });
+    }
+    img.__rows = rows;
+  } catch (e) { img.__rows = []; } // tainted/unreadable — callers fall back to the box
+  return img.__rows;
+}
+function splashBadge() { // where the menu wants the logo — the hub badge's rect
+  if (menuBadge) return menuBadge; // the live menu underneath drew this frame — exact
+  const lg = brandLogo(); if (!lg) return null;
+  const { ccx, ccy, R } = menuGeom();
+  const r0 = R * 0.38, fit = r0 * 2 * 1.575; // mirror drawMenuHome's hub math
+  const sc = Math.min(fit / lg.w, fit / lg.h);
+  const w2 = lg.w * sc, h2 = lg.h * sc;
+  return { img: lg.img, x: ccx - w2 / 2, y: ccy - h2 / 2 + h2 * 0.04, w: w2, h: h2 };
+}
+// an image torn into horizontal bands, each thrown sideways by amt; ghost
+// doubles under it fake the chromatic smear
+function splashSlices(img, x, y, w2, h2, amt) {
+  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+  if (!iw || !ih) return;
+  if (amt > 0.03) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha *= amt * 0.4;
+    ctx.drawImage(img, x - amt * w2 * 0.07, y + amt * 3, w2, h2);
+    ctx.drawImage(img, x + amt * w2 * 0.07, y - amt * 3, w2, h2);
+    ctx.restore();
+  }
+  const bands = 12, bh2 = h2 / bands, sh = ih / bands;
+  for (let i = 0; i < bands; i++) {
+    const off = Math.random() < amt * 0.7 ? (Math.random() * 2 - 1) * amt * w2 * 0.22 : 0;
+    ctx.drawImage(img, 0, sh * i, iw, sh, x + off, y + bh2 * i, w2, bh2);
+  }
+}
+// full-screen artifacts riding over the card: shifted tint bands, raw data
+// spray, drifting scanlines — everything scaled by amt
+function splashStatic(amt) {
+  if (amt <= 0.02) return;
+  for (let i = 0, n = 2 + Math.floor(amt * 5); i < n; i++) {
+    if (Math.random() > amt) continue;
+    const ry = Math.random() * H, rh = rand(2, 6 + amt * 22);
+    ctx.fillStyle = ['rgba(111,227,255,0.10)', 'rgba(212,101,255,0.09)', 'rgba(255,60,80,0.07)'][i % 3];
+    ctx.fillRect(rand(-40, 40) * amt, ry, W, rh);
+  }
+  ctx.font = '10px monospace'; ctx.textAlign = 'left';
+  const chars = '01<>#$/&:;';
+  for (let i = 0, n = Math.floor(amt * 26); i < n; i++) {
+    if (Math.random() < 0.5) continue;
+    ctx.fillStyle = Math.random() < 0.7 ? 'rgba(111,227,255,0.35)' : 'rgba(126,226,98,0.3)';
+    ctx.fillText(chars[(Math.random() * chars.length) | 0], Math.random() * W, Math.random() * H);
+  }
+  ctx.textAlign = 'center';
+  ctx.fillStyle = `rgba(111,227,255,${(amt * 0.05).toFixed(3)})`;
+  for (let sy = ((SPLASH.t * 40) % 6) - 6; sy < H; sy += 6) ctx.fillRect(0, sy, W, 1);
+}
+function drawSplash(rawDt) {
+  if (!SPLASH.on) return;
+  splashAudioTry();
+  // the score is the master clock once it runs (rAF gaps can't drift it);
+  // until then the frame clock stands in
+  if (SPLASH.src && AC) SPLASH.t = SPLASH.startOff + (AC.currentTime - SPLASH.startAC);
+  else SPLASH.t += clamp(rawDt, 0, 0.05);
+  if (SPLASH.t >= SPLASH.dur) { splashEnd(false); return; }
+  const t = SPLASH.t, u = Math.min(W, H);
+  const ss = (a, b) => { const q = clamp((t - a) / (b - a), 0, 1); return q * q * (3 - 2 * q); };
+  ctx.save();
+  ctx.textAlign = 'center';
+  // the wheel cue: hand the stage to the menu — it spins its wheel in behind
+  // the badge (the same choreography as returning from a sub-screen) and
+  // starts the corner fly-ins
+  if (t >= SPL.wheel && !SPLASH.built) {
+    SPLASH.built = true;
+    menuIntroAt = time;
+    if (!menuFx) menuFx = { kind: 'spinIn', t: 0, dur: 0.6, dir: 1 };
+  }
+  // the curtain: opaque through the build, thinning through the reveal — the
+  // LIVE tunnel painted underneath is what shows through (the menu itself
+  // waits for the wheel cue)
+  ctx.globalAlpha = 1 - ss(SPL.reveal, SPL.reveal + 0.95);
+  ctx.fillStyle = 'rgb(2,4,10)';
+  ctx.fillRect(-20, -20, W + 40, H + 40);
+  ctx.globalAlpha = 1;
+  // tear intensity: one micro-glitch tease, then the build to the crush,
+  // then a decaying after-shudder while the badge locks in
+  let glitchAmt = t < SPL.glitch
+    ? 0
+    : t < SPL.df
+      ? Math.pow((t - SPL.glitch) / (SPL.df - SPL.glitch), 1.5)
+      : Math.max(0, 1 - (t - SPL.df) / (SPL.settle - SPL.df)) * 0.7;
+  if (t > 2.45 && t < 2.58) glitchAmt = 0.3; // the first flicker of trouble
+
+  // ---- card one: the GB mark over black ----
+  if (t < SPL.df) {
+    const crushQ = clamp((t - SPL.crush) / (SPL.df - SPL.crush), 0, 1);
+    const gbA = ss(SPL.gb, SPL.gb + 1.15);
+    const gcx = W / 2, gcy = H * 0.44, gw = u * 0.51;
+    if (gbA > 0) {
+      ctx.save();
+      // CRT power-off: the whole card squeezes into a hot horizontal filament
+      ctx.translate(gcx, gcy);
+      ctx.scale(1 + crushQ * 0.6, Math.max(0.004, Math.pow(1 - crushQ, 2)));
+      ctx.translate(-gcx, -gcy);
+      ctx.globalAlpha = gbA * (glitchAmt > 0.05 && Math.random() < glitchAmt * 0.5 ? rand(0.55, 0.95) : 1);
+      const gh = GBIMG.w ? gw * GBIMG.h / GBIMG.w : 0;
+      if (GBIMG.w) {
+        const gx = gcx - gw / 2, gy = gcy - gh / 2 - u * 0.05;
+        if (glitchAmt > 0.03) splashSlices(GBIMG.img, gx, gy, gw, gh, glitchAmt);
+        else ctx.drawImage(GBIMG.img, gx, gy, gw, gh);
+      }
+      // the studio tag types itself out under the mark
+      const shown = Math.floor(clamp((t - SPL.type) / 0.055, 0, GB_TAG.length));
+      if (shown > 0) {
+        const fs = Math.max(14, Math.round(u * 0.052));
+        ctx.font = '500 ' + fs + 'px Audiowide, system-ui';
+        try { ctx.letterSpacing = (fs * 0.14).toFixed(1) + 'px'; } catch (e) {}
+        const ty = gcy + gh / 2 + u * 0.055;
+        const jx = glitchAmt > 0.1 ? rand(-1, 1) * glitchAmt * 8 : 0;
+        ctx.fillStyle = 'rgba(225,240,255,0.92)';
+        ctx.fillText(GB_TAG.slice(0, shown), gcx + jx, ty);
+        if (t < SPL.glitch && (shown < GB_TAG.length || Math.sin(t * 9) > -0.2)) { // block cursor
+          const tw = ctx.measureText(GB_TAG.slice(0, shown)).width;
+          ctx.fillStyle = 'rgba(111,227,255,0.85)';
+          ctx.fillRect(gcx + jx + tw / 2 + fs * 0.18, ty - fs * 0.78, fs * 0.5, fs * 0.92);
+        }
+        try { ctx.letterSpacing = '0px'; } catch (e) {}
+      }
+      ctx.restore();
+      if (crushQ > 0) { // the filament flash at the heart of the collapse
+        ctx.globalAlpha = Math.sin(crushQ * Math.PI);
+        ctx.fillStyle = 'rgba(235,250,255,0.9)';
+        const fw = u * 0.6 * (1 - crushQ * 0.5);
+        ctx.fillRect(gcx - fw / 2, gcy - 1, fw, 2);
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  // ---- card two: the badge materializes where the menu's hub holds it ----
+  if (t >= SPL.df) {
+    const b = splashBadge();
+    const inQ = ss(SPL.df, SPL.settle);
+    if (b) {
+      const amt = Math.pow(1 - inQ, 2);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, inQ * 1.6) * (Math.random() < amt * 0.4 ? rand(0.5, 0.9) : 1);
+      const iw = b.img.naturalWidth || 1, ih = b.img.naturalHeight || 1;
+      // the print clip: only what the scan has passed exists — ONE clean rect,
+      // so no band seams or missing strips ever cross the art (the glitch
+      // texture below is strictly additive: it can add light, never cut black)
+      if (inQ < 1) {
+        ctx.beginPath();
+        ctx.rect(b.x - b.w * 0.1, b.y - b.h * 0.05, b.w * 1.2, b.h * 0.05 + b.h * inQ + 3);
+        ctx.clip();
+      }
+      if (amt > 0.03) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha *= amt * 0.4; // chromatic ghosts fade as it locks
+        ctx.drawImage(b.img, b.x - amt * b.w * 0.06, b.y, b.w, b.h);
+        ctx.drawImage(b.img, b.x + amt * b.w * 0.06, b.y, b.w, b.h);
+        // a few displaced echo slices sparking off the printed part
+        ctx.globalAlpha = Math.min(1, inQ * 1.6) * amt * 0.35;
+        for (let i = 0; i < 3; i++) {
+          if (Math.random() > amt * 0.8) continue;
+          const fy = Math.random() * inQ, fh = rand(0.03, 0.08);
+          ctx.drawImage(b.img, 0, fy * ih, iw, fh * ih,
+            b.x + (Math.random() * 2 - 1) * amt * b.w * 0.15, b.y + fy * b.h, b.w, fh * b.h);
+        }
+        ctx.restore();
+      }
+      ctx.drawImage(b.img, b.x, b.y, b.w, b.h); // the print itself — whole and seamless
+      if (inQ < 1) { // a scan sweep rakes down the badge as it forms — form-
+        // fitting: it enters at the GB mark's CONTENT width and converges onto
+        // the shield's per-row silhouette, printing one brand as the other
+        const sy = b.y + b.h * inQ;
+        const rows = contentRows(b.img);
+        const row = rows.length ? rows[clamp(Math.floor(inQ * rows.length), 0, rows.length - 1)] : null;
+        const rx = row ? b.x + row.x0 * b.w : b.x, rw = row ? (row.x1 - row.x0) * b.w : b.w;
+        let gbW = 0; // GB content width, as a fraction of its file
+        for (const r of contentRows(GBIMG.img)) gbW = Math.max(gbW, r.x1 - r.x0);
+        if (!gbW) gbW = 0.9; // silhouette unavailable — assume most of the file
+        const blend = clamp(inQ * 2.5, 0, 1); // the GB echo dies a third of the way down
+        const swW = u * 0.51 * gbW * (1 - blend) + rw * blend;
+        const sx = (b.x + b.w / 2) * (1 - blend) + (rx + rw / 2) * blend - swW / 2;
+        const gsc = ctx.createLinearGradient(0, sy - b.h * 0.18, 0, sy);
+        gsc.addColorStop(0, 'rgba(111,227,255,0)');
+        gsc.addColorStop(1, 'rgba(111,227,255,0.35)');
+        ctx.fillStyle = gsc;
+        ctx.fillRect(sx, sy - b.h * 0.18, swW, b.h * 0.18);
+        ctx.fillStyle = 'rgba(235,250,255,0.8)';
+        ctx.fillRect(sx, sy, swW, 1.5);
+      }
+      ctx.restore();
+    }
+  }
+
+  splashStatic(glitchAmt);
+  const fl = 1 - clamp(Math.abs(t - SPL.df) / 0.09, 0, 1); // the white pop at the cut
+  if (fl > 0) {
+    ctx.globalAlpha = fl * 0.5;
+    ctx.fillStyle = '#eaf6ff';
+    ctx.fillRect(-20, -20, W + 40, H + 40);
+  }
+  ctx.restore();
+}
+
 function frame(now) {
   const rawDt = (now - last) / 1000;
   let dt = clamp(rawDt, 0, 0.05); // clock can step backwards (timer quirks) — never simulate in reverse
+  frameDt = dt;
   last = now;
   perfWatch(rawDt);
   // tunnel designer hook: editor.html feeds the sim clock (0 = hold the world,
@@ -9052,6 +9802,7 @@ function frame(now) {
   const sorted = enemies.slice().sort((a, b) => b.z - a.z);
   for (const en of sorted) if (en.lineLead) drawLineBeam(en, g); // beams sit under the traps
   for (const en of sorted) drawEnemy(en, g);
+  for (const gh of ghosts) drawGhost(gh, g); // dead bodies de-rezzing in place
   for (const p of pickups) drawPickup(p, g);
   drawPulseWave(g);
   drawClearSweep(g);
@@ -9073,15 +9824,46 @@ function frame(now) {
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
+  if (ripples.length) { // the healed wash, soaking into the wall
+    const gD = geo();
+    for (const rp of ripples) {
+      const k = rp.t / DECOMP.rippleT, rg = ring(rp.z, gD);
+      const sc = clamp(rg.r / gD.nodeR, 0.1, 2); // wall-lockstep scale, like the bodies
+      const A = DECOMP.rippleR * rp.mul * (1 - Math.pow(1 - k, 3)); // angular reach along the ring
+      const zd = A * 0.34 * (1 + 6 * rp.z) / 6;  // axial reach, sized so the loop reads round ON the wall
+      // the wash is a disc drawn ON the cylinder: every sample point is an
+      // (angle, z) wall coordinate projected through ring(), so the patch
+      // bends around the bore and foreshortens with depth — geometry, not a decal
+      ctx.beginPath();
+      for (let i = 0; i <= 28; i++) {
+        const ph = i / 28 * TAU;
+        const th = rp.a + A * Math.cos(ph);
+        const r2 = ring(Math.max(0.012, rp.z + zd * Math.sin(ph)), gD);
+        const sx = r2.x + Math.cos(th) * r2.r, sy = r2.y + Math.sin(th) * r2.r;
+        i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy);
+      }
+      ctx.closePath();
+      // healed: a neon-green wash that soaks the wall and drains away
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(57,255,20,' + (DECOMP.fill * (1 - k)).toFixed(3) + ')';
+      ctx.fill();
+      ctx.globalAlpha = (1 - k) * DECOMP.edge;
+      ctx.strokeStyle = 'rgba(57,255,20,1)';
+      ctx.lineWidth = Math.max(0.8, 3 * sc * (1 - k));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
   drawBolts();
   if (killStreaks.length) { // reprogrammed packets tracing home along the wall
     const g2 = geo(), u = Math.min(W, H);
     const P = (aa, z) => { const rg = ring(z, g2); return { x: rg.x + Math.cos(aa) * rg.r, y: rg.y + Math.sin(aa) * rg.r, s: rg.s }; };
     ctx.globalCompositeOperation = 'lighter';
-    const DUR = 0.55, RUN = 0.62; // a fixed stretch of the bore, mock-sized
+    const DUR = 0.15, RUN = 0.62; // a comet: one hot zip down the bore, gone in a blink
     for (const st of killStreaks) {
       const q = st.t / DUR;
-      const glob = q < 0.72 ? 1 : 1 - (q - 0.72) / 0.28;
+      const heat = Math.pow(1 - q, 1.5);              // the head loses heat as it runs
+      const glob = q < 0.7 ? 1 : (1 - q) / 0.3;       // the tail snuffs right after
       const zHead = st.z + RUN * (1 - Math.pow(1 - q, 2));   // the head eases forward
       const zTail = Math.max(st.z, zHead - RUN * (0.30 + 0.5 * q)); // the tail lets go late
       if (zTail >= SPAWN_Z) continue;
@@ -9089,10 +9871,10 @@ function frame(now) {
       for (let i = 0; i < SEG; i++) {
         const f0 = i / SEG, f1 = (i + 1) / SEG; // 0 = tail, 1 = head
         const z0 = Math.min(lerp(zTail, zHead, f0), SPAWN_Z), z1 = Math.min(lerp(zTail, zHead, f1), SPAWN_Z);
-        const wa0 = 0.05 * (0.35 + f0 * 0.65), wa1 = 0.05 * (0.35 + f1 * 0.65); // fat at the head
+        const wa0 = 0.075 * (0.35 + f0 * 0.65), wa1 = 0.075 * (0.35 + f1 * 0.65); // fat at the head
         const c00 = P(st.a - wa0, z0), c01 = P(st.a + wa0, z0);
         const c11 = P(st.a + wa1, z1), c10 = P(st.a - wa1, z1);
-        ctx.globalAlpha = glob * (0.12 + 0.30 * f0);
+        ctx.globalAlpha = glob * (0.30 + 0.70 * heat) * (0.05 + 0.14 * f0);
         ctx.fillStyle = 'rgb(126,226,98)';
         ctx.beginPath();
         ctx.moveTo(c00.x, c00.y); ctx.lineTo(c01.x, c01.y);
@@ -9103,16 +9885,16 @@ function frame(now) {
       ctx.lineCap = 'round';
       for (let i = 0; i < SEG; i++) {
         const p0 = P(st.a, lerp(zTail, zHead, i / SEG)), p1 = P(st.a, Math.min(lerp(zTail, zHead, (i + 1) / SEG), SPAWN_Z));
-        ctx.globalAlpha = glob * (0.15 + 0.7 * (i / SEG));
+        ctx.globalAlpha = glob * heat * (0.08 + 0.40 * (i / SEG));
         ctx.strokeStyle = 'rgba(228,255,220,0.95)';
-        ctx.lineWidth = u * 0.0035 * (0.5 + (i / SEG));
+        ctx.lineWidth = u * 0.0045 * (0.5 + (i / SEG));
         ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
       }
       ctx.lineCap = 'butt';
       const hp = P(st.a, Math.min(zHead, SPAWN_Z)); // the head: a hot green mote
-      const hr = u * 0.016 * (hp.s / 0.4);
+      const hr = u * 0.016 * (hp.s / 0.4) * (0.45 + 0.55 * heat); // it shrinks as it cools
       const gl = ctx.createRadialGradient(hp.x, hp.y, 0, hp.x, hp.y, hr);
-      gl.addColorStop(0, 'rgba(235,255,230,' + (0.9 * glob).toFixed(2) + ')');
+      gl.addColorStop(0, 'rgba(235,255,230,' + (0.8 * glob * heat).toFixed(2) + ')');
       gl.addColorStop(1, 'rgba(126,226,98,0)');
       ctx.globalAlpha = 1;
       ctx.fillStyle = gl;
@@ -9157,11 +9939,16 @@ function frame(now) {
     ctx.fillRect(0, 0, W, H);
   }
 
-  if (state === S.PLAY) { drawHUD(g); drawDials(); drawIntroCard(); }
+  if (state === S.PLAY) {
+    drawHUD(g); drawDials(); drawIntroCard();
+    if (popLive('pause')) drawPause(); // resume: the panel erases behind its scan
+  }
   else if (state === S.PAUSE) { drawHUD(g); drawDials(); drawIntroCard(); drawPause(); }
   else if (state === S.INFO) { drawHUD(g); drawDials(); drawIntroCard(); drawInfoCard(); }
   else if (state === S.MENU) {
-    if (menuFx && menuFx.kind === 'launch') {
+    if (SPLASH.on && SPLASH.t < SPL.wheel) { /* boot stage one: only the tunnel
+      breathes behind the badge — the menu waits for its wheel cue */ }
+    else if (menuFx && menuFx.kind === 'launch') {
       const q = clamp(menuFx.t / menuFx.dur, 0, 1), e2 = q * q;
       ctx.save();
       ctx.translate(g.cx, g.cy); ctx.scale(1 + e2 * 1.7, 1 + e2 * 1.7); ctx.translate(-g.cx, -g.cy);
@@ -9180,7 +9967,6 @@ function frame(now) {
     } else drawMenu(g);
   }
   else drawEnd(g);
-  drawGpFocus(); // controller focus ring rides on top of whatever screen owns the buttons
   drawGpHints();
 
   // system-critical glitches — the screen itself degrades with the payload
@@ -9220,6 +10006,8 @@ function frame(now) {
   }
 
   drawTrans(); // transitions + press feedback ride over everything
+  drawMenuBadgeTop(g); // …except the logo, which rides over the press feedback
+  drawSplash(rawDt); // …and the boot splash curtains the whole stage at launch
 
   ctx.restore();
   requestAnimationFrame(frame);
@@ -9231,16 +10019,21 @@ requestAnimationFrame(frame);
 if ('serviceWorker' in navigator && window.isSecureContext) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
-// try to start the soundtrack right away — the Capacitor app WebView allows it;
-// desktop browsers that block autoplay simply start it on the first tap instead
+// boot: the splash decodes its score and tries to run it right away — the
+// Capacitor app WebView allows it; desktop browsers that block autoplay let
+// the first tap unlock it mid-sequence. Contexts without the splash (headless
+// tests, the editor) keep the old behavior: straight to the menu track.
 // (deferred a tick: the MUSIC_DATA manifest script below hasn't parsed yet)
-setTimeout(() => { if (state === S.MENU) playTrack('menu'); }, 0);
+setTimeout(() => {
+  if (SPLASH.on) splashBoot();
+  else if (state === S.MENU) playTrack('menu');
+}, 0);
 </script>
 <script>
 // ---------- soundtrack manifest ----------
-// menu: View From The Dashboard · L1: Sub Level Three · L2: Steel and Rain · L3: Terminal Velocity
+// menu: Midnight Terminal Wait · L1: Sub Level Three · L2: Steel and Rain · L3: Terminal Velocity
 window.MUSIC_DATA = {
-  menu: 'audio/View_From_The_Dashboard.mp3',
+  menu: 'audio/Midnight_Terminal_Wait.mp3',
   levels: [
     'audio/Sub_Level_Three.mp3',
     'audio/Steel_and_Rain.mp3',

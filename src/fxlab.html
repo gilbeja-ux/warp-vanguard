@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DATA DEFENDERS — FX LAB · decompile</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #04060f; overflow: hidden;
+    font: 12px/1.4 system-ui, sans-serif; color: #9fb2c8; }
+  canvas { display: block; position: fixed; inset: 0; }
+  #panel { position: fixed; top: 10px; right: 10px; width: 250px; max-height: calc(100% - 20px);
+    overflow-y: auto; background: rgba(6,10,22,0.88); border: 1px solid #1c2740;
+    border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(4px); }
+  #panel h1 { font-size: 13px; letter-spacing: 2px; color: #8fe0ff; margin: 0 0 10px; }
+  .row { display: grid; grid-template-columns: 1fr 44px; gap: 6px; align-items: center; margin: 7px 0; }
+  .row label { grid-column: 1 / -1; display: flex; justify-content: space-between; color: #7d90a8; }
+  .row label b { color: #d0e4ff; font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: #4d9bff; }
+  .btns { display: flex; gap: 6px; margin: 10px 0 6px; flex-wrap: wrap; }
+  button { background: #101a30; color: #bfeaff; border: 1px solid #27395e; border-radius: 6px;
+    padding: 5px 10px; font: 600 11px system-ui; cursor: pointer; }
+  button:hover { background: #18264a; }
+  pre { background: #060a14; border: 1px solid #1c2740; border-radius: 6px; padding: 8px;
+    font-size: 10px; color: #7ee262; white-space: pre-wrap; user-select: all; margin: 8px 0 0; }
+  #tag { position: fixed; left: 14px; top: 12px; color: #33507a; letter-spacing: 3px; font-size: 11px; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="tag">FX LAB — DECOMPILE (loops on its own · click anywhere to fire)</div>
+<div id="panel">
+  <h1>DECOMPILE DECK</h1>
+  <div id="sliders"></div>
+  <div class="btns">
+    <button id="bPause">pause</button>
+    <button id="bFire">fire one</button>
+    <button id="bCopy">copy values</button>
+  </div>
+  <pre id="out"></pre>
+</div>
+<script>
+'use strict';
+// A pocket copy of the game's tunnel math + the decompile effect, on a loop.
+// Tune the sliders, then paste the readout over the DECOMP block in index.html.
+const TAU = Math.PI * 2;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let W = 0, H = 0, u = 0;
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+// ---- knobs (defaults mirror index.html's DECOMP) ----
+const K = {
+  rippleR: { v: 0.50, min: 0,    max: 1.4, step: 0.05, lbl: 'wash reach (rad)' },
+  rippleT: { v: 0.60, min: 0.15, max: 2,   step: 0.05, lbl: 'wash life' },
+  fill:    { v: 0.04, min: 0,    max: 0.6, step: 0.01, lbl: 'wash fill alpha' },
+  edge:    { v: 0.6,  min: 0,    max: 1,   step: 0.05, lbl: 'wash rim alpha' },
+  glitchT: { v: 0.4,  min: 0.1,  max: 1.2, step: 0.05, lbl: 'glitch-out time' },
+  slices:  { v: 6,    min: 2,    max: 14,  step: 1,    lbl: 'glitch strips' },
+  jitter:  { v: 1.2,  min: 0,    max: 3,   step: 0.1,  lbl: 'strip jitter' },
+};
+const D = new Proxy({}, { get: (_, k) => K[k].v }); // read knobs like the game reads DECOMP
+
+// ---- simplified tunnel (no swerve: every ring concentric) ----
+const geo = () => {
+  const nodeR = Math.min(W, H) * 0.44;
+  const R0 = Math.hypot(W, H) / 2 * 1.08;
+  return { cx: W / 2, cy: H / 2, nodeR, R0, hitZ: (R0 / nodeR - 1) / 6 };
+};
+function ring(z, g) {
+  const s = 1 / (1 + z * 6);
+  return { x: g.cx, y: g.cy, r: g.R0 * s, s };
+}
+
+// ---- the enemy palettes, verbatim from the game ----
+const PALS = [
+  { name: 'RED',   glow: '255,60,90',   body: '#e8274b', shades: ['#e8274b', '#ff5a3c', '#d81f6e', '#b3123a', '#ff8c5a'], lights: ['#ff9db0', '#ffc9d4', '#ff8ba0'] },
+  { name: 'BLUE',  glow: '80,170,255',  body: '#2f7fe0', shades: ['#2f7fe0', '#1c4fae', '#4d9bff', '#12398a', '#3f8af0'], lights: ['#a8ccff', '#d0e4ff', '#7db2ff'] },
+  { name: 'WHITE', glow: '225,240,255', body: '#c8d6e6', shades: ['#c8d6e6', '#9fb2c8', '#e8f2fc', '#8194ab', '#d5e2f0'], lights: ['#ffffff', '#eef6ff', '#dbe8f6'] },
+  { name: 'HEAVY', glow: '200,70,255',  body: '#b03ae8', shades: ['#b03ae8', '#8a2ad4', '#d465ff', '#6f14b8', '#c44af0'], lights: ['#eab8ff', '#f3d4ff', '#d98cff'], m: 1.5 },
+  { name: 'FRAG',  glow: '90,110,140',  body: '#151a26', shades: ['#2b3242', '#151a26', '#3a4354', '#0d1119', '#232a38'], lights: ['#4a5568', '#5a6a80', '#3a4354'] },
+];
+
+// ---- the effect, same shape as the game's ----
+let ghosts = [], ripples = [];
+function decompile(a, z, pal, mul) {
+  const m = (mul || 1) * (pal.m || 1);
+  z = Math.max(z, 0.02);
+  ghosts.push({ a, z, t: 0, sizeMul: 1, pal, spr: null }); // the lab has no sprite skins
+  ripples.push({ a, z, t: 0, mul: Math.sqrt(m) });
+}
+
+// ---- the loop: a body flies in, holds a beat, decompiles ----
+let dummy = null, palIdx = 0, depthIdx = 0, nextKill = 0.6, paused = false;
+const DEPTHS = g => [g.hitZ, 0.55, 1.2]; // rim kill, mid bore, deep volley range
+function spawnDummy(g) {
+  dummy = { a: rand(0, TAU), z: 2.2, target: DEPTHS(g)[depthIdx % 3], hold: 0.35,
+    pal: PALS[palIdx % PALS.length], spin: rand(0, TAU) };
+  palIdx++; depthIdx++;
+}
+function killDummy() {
+  if (!dummy) return;
+  decompile(dummy.a, dummy.z, dummy.pal);
+  dummy = null;
+  nextKill = 1.0;
+}
+
+// ---- sim ----
+function step(dt, g) {
+  if (!dummy) { nextKill -= dt; if (nextKill <= 0) spawnDummy(g); }
+  else if (dummy.z > dummy.target) dummy.z = Math.max(dummy.target, dummy.z - dt * 1.4);
+  else { dummy.hold -= dt; dummy.spin += dt * 4; if (dummy.hold <= 0) killDummy(); }
+  for (const gh of ghosts) gh.t += dt;
+  ghosts = ghosts.filter(gh => gh.t < D.glitchT);
+  for (const rp of ripples) rp.t += dt;
+  ripples = ripples.filter(rp => rp.t < D.rippleT);
+}
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const g = geo();
+  if (!paused) step(dt, g);
+  draw(g, dt);
+  requestAnimationFrame(tick);
+}
+
+// ---- draw ----
+let wallZ = [];
+function draw(g, dt) {
+  ctx.fillStyle = '#04060f'; ctx.fillRect(0, 0, W, H);
+  // drifting depth rings — enough wall to judge readability in motion
+  if (!wallZ.length) for (let i = 0; i < 14; i++) wallZ.push(0.05 + i * 0.18);
+  for (let i = 0; i < wallZ.length; i++) {
+    if (!paused) wallZ[i] -= dt * 0.35;
+    if (wallZ[i] < 0.02) wallZ[i] += 14 * 0.18;
+    const rg = ring(wallZ[i], g);
+    ctx.strokeStyle = 'rgba(70,110,190,' + (0.16 * rg.s + 0.02).toFixed(3) + ')';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(rg.x, rg.y, rg.r, 0, TAU); ctx.stroke();
+  }
+  // the node ring
+  ctx.strokeStyle = 'rgba(110,227,255,0.5)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, 0, TAU); ctx.stroke();
+
+  // the dummy body: glow + diamond, near enough to the game's read
+  if (dummy) {
+    const rg = ring(dummy.z, g);
+    const x = rg.x + Math.cos(dummy.a) * rg.r, y = rg.y + Math.sin(dummy.a) * rg.r;
+    const size = u * 0.06 * clamp(rg.r / g.nodeR, 0.1, 2);
+    const gl = ctx.createRadialGradient(x, y, 0, x, y, size * 2.4);
+    gl.addColorStop(0, 'rgba(' + dummy.pal.glow + ',0.55)');
+    gl.addColorStop(1, 'rgba(' + dummy.pal.glow + ',0)');
+    ctx.fillStyle = gl;
+    ctx.beginPath(); ctx.arc(x, y, size * 2.4, 0, TAU); ctx.fill();
+    ctx.save(); ctx.translate(x, y); ctx.rotate(dummy.spin * 0.3);
+    ctx.fillStyle = dummy.pal.body;
+    ctx.beginPath(); ctx.moveTo(0, -size); ctx.lineTo(size, 0); ctx.lineTo(0, size); ctx.lineTo(-size, 0);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  // ---- ghosts + wash: keep in lockstep with index.html's passes ----
+  // the glitch-out: the dead body de-rezzes in place as displaced strips
+  for (const gh of ghosts) {
+    const k = gh.t / D.glitchT;
+    const rg = ring(gh.z, g);
+    const x = rg.x + Math.cos(gh.a) * rg.r, y = rg.y + Math.sin(gh.a) * rg.r;
+    const size = u * 0.06 * clamp(rg.r / g.nodeR, 0.1, 2) * gh.sizeMul;
+    const S = D.slices, half = size;
+    const collapse = Math.max(0, (k - 0.55) / 0.45) * 0.8;
+    for (let i = 0; i < S; i++) {
+      if (Math.random() < k * 0.6) continue;
+      const jx = (Math.random() - 0.5) * size * D.jitter * (0.3 + k);
+      const y0 = -half + 2 * half * (i / S), h = 2 * half / S;
+      const yd = y + (y0 + h / 2) * (1 - collapse) - h / 2;
+      const f = (y0 + h / 2) / half;
+      const hw = Math.max(1, size * (1 - Math.abs(f) * 0.9));
+      ctx.globalAlpha = (1 - k) * (0.5 + Math.random() * 0.5);
+      ctx.fillStyle = gh.pal.shades[i % gh.pal.shades.length];
+      ctx.fillRect(x - hw + jx, yd, hw * 2, h);
+    }
+  }
+  ctx.globalAlpha = 1;
+  // the healed wash: a green disc drawn ON the cylinder — (angle, z) samples
+  // projected through ring(), bending around the bore
+  for (const rp of ripples) {
+    const k = rp.t / D.rippleT, rg = ring(rp.z, g);
+    const sc = clamp(rg.r / g.nodeR, 0.1, 2);
+    const A = D.rippleR * rp.mul * (1 - Math.pow(1 - k, 3));
+    const zd = A * 0.34 * (1 + 6 * rp.z) / 6;
+    ctx.beginPath();
+    for (let i = 0; i <= 28; i++) {
+      const ph = i / 28 * TAU;
+      const th = rp.a + A * Math.cos(ph);
+      const r2 = ring(Math.max(0.012, rp.z + zd * Math.sin(ph)), g);
+      const sx = r2.x + Math.cos(th) * r2.r, sy = r2.y + Math.sin(th) * r2.r;
+      i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy);
+    }
+    ctx.closePath();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(57,255,20,' + (D.fill * (1 - k)).toFixed(3) + ')';
+    ctx.fill();
+    ctx.globalAlpha = (1 - k) * D.edge;
+    ctx.strokeStyle = 'rgba(57,255,20,1)';
+    ctx.lineWidth = Math.max(0.8, 3 * sc * (1 - k));
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---- panel wiring ----
+const slidersEl = document.getElementById('sliders'), outEl = document.getElementById('out');
+function readout() {
+  const f = (k, d) => K[k].v.toFixed(d);
+  outEl.textContent = 'const DECOMP = {\n' +
+    '  rippleR: ' + f('rippleR', 2) + ',\n  rippleT: ' + f('rippleT', 2) +
+    ',\n  fill: ' + f('fill', 2) + ',\n  edge: ' + f('edge', 2) +
+    ',\n  glitchT: ' + f('glitchT', 2) + ',\n  slices: ' + K.slices.v +
+    ',\n  jitter: ' + f('jitter', 1) + ',\n};';
+}
+for (const key in K) {
+  const k = K[key], row = document.createElement('div'); row.className = 'row';
+  row.innerHTML = '<label>' + k.lbl + ' <b id="v_' + key + '">' + k.v + '</b></label>' +
+    '<input type="range" style="grid-column:1/-1" id="s_' + key + '" min="' + k.min +
+    '" max="' + k.max + '" step="' + k.step + '" value="' + k.v + '">';
+  slidersEl.appendChild(row);
+  row.querySelector('input').addEventListener('input', e => {
+    k.v = +e.target.value;
+    document.getElementById('v_' + key).textContent = k.v;
+    readout();
+  });
+}
+readout();
+document.getElementById('bPause').onclick = e => { paused = !paused; e.target.textContent = paused ? 'play' : 'pause'; };
+document.getElementById('bFire').onclick = () => { if (dummy) dummy.hold = 0; else nextKill = 0; };
+document.getElementById('bCopy').onclick = () => navigator.clipboard.writeText(outEl.textContent);
+cv.addEventListener('pointerdown', e => { // fire wherever you tap
+  const g = geo(), a = Math.atan2(e.clientY - g.cy, e.clientX - g.cx);
+  decompile(a, DEPTHS(g)[(Math.random() * 3) | 0], PALS[(Math.random() * PALS.length) | 0]);
+});
+
+function resize() { W = cv.width = innerWidth; H = cv.height = innerHeight; u = Math.min(W, H); }
+addEventListener('resize', resize);
+resize();
+// snapshot mode (?boom&t=0.25&freeze): fire a rim/mid/deep kill at load,
+// fast-forward the sim to t seconds, optionally freeze — headless-screenshot bait
+const Q = new URLSearchParams(location.search);
+if (Q.has('boom')) {
+  const g = geo(), zs = DEPTHS(g);
+  for (let i = 0; i < 3; i++) decompile(TAU * (0.12 + i * 0.3), zs[i], PALS[i]);
+  nextKill = 99;
+  for (let t = +Q.get('t') || 0; t > 0; t -= 1 / 60) step(1 / 60, g);
+  paused = Q.has('freeze');
+  if (paused) document.getElementById('bPause').textContent = 'play';
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
