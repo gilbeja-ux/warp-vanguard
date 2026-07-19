@@ -6708,7 +6708,7 @@ function drawHUD(g) {
         }
       }
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-      drawTutLabel('TRACE A FULL CIRCLE — BOTH NODES', gT.cx, gT.cy - gT.nodeR * 0.5, '#bfeaff');
+      drawTutLabel('TRACE A FULL CIRCLE — BOTH NODES', '#bfeaff');
     }
     const ten = enemies.find(e => e.tut && !e.dead && !e.resolved);
     if (ten) {
@@ -6717,7 +6717,10 @@ function drawHUD(g) {
         drawDockSpot(ten.angle);
       }
       else if (ten.type === 'line') {
-        drawGuideArc(nodes[0], ten.angle); if (ten.partner) drawGuideArc(nodes[1], ten.partner.angle);
+        // EITHER node may take EITHER end — everything guides in neutral cyan
+        // so no colored lead reads as an assignment
+        const NEU = 'rgba(140,220,255,0.9)';
+        drawGuideArc(nodes[0], ten.angle, NEU); if (ten.partner) drawGuideArc(nodes[1], ten.partner.angle, NEU);
         if (ten.partner) { // parking spots on the rim + the arc they'll span, riding the rail
           const g2 = geo();
           const d = angDiff(ten.partner.angle, ten.angle);
@@ -6726,8 +6729,8 @@ function drawHUD(g) {
           ctx.setLineDash([7, 6]); ctx.lineDashOffset = -time * 24;
           ctx.beginPath(); ctx.arc(g2.cx, g2.cy, g2.nodeR, ten.angle, ten.angle + d, d < 0); ctx.stroke();
           ctx.restore();
-          drawParkSpot(ten.angle, 'rgba(95,150,255,0.9)');
-          drawParkSpot(ten.partner.angle, 'rgba(255,255,255,0.85)');
+          drawParkSpot(ten.angle, 'rgba(140,220,255,0.85)');
+          drawParkSpot(ten.partner.angle, 'rgba(140,220,255,0.85)');
         }
       }
       else if (ten.lock !== undefined) drawGuideArc(nodes[ten.lock], ten.angle);
@@ -6736,11 +6739,8 @@ function drawHUD(g) {
       else drawGuideArc(nn(ten.angle), ten.angle);
       const lbl = TUT_LBL[ten.tut];
       if (lbl) {
-        // barriers label the span's midpoint; everything else labels its lane
-        const aL = ten.type === 'line' && ten.partner
-          ? ten.angle + angDiff(ten.partner.angle, ten.angle) / 2 : ten.angle;
         const again = tut.again === ten.tut;
-        tutLabelAt(aL, again ? (lbl[2] || 'AGAIN — ' + lbl[0]) : lbl[0], lbl[1]);
+        drawTutLabel(again ? (lbl[2] || 'AGAIN — ' + lbl[0]) : lbl[0], lbl[1]);
       }
       if (ten.type === 'strip' && ten.tracing) {
         // the ribbon FEEDS the orb: ride progress winds a gold meter around
@@ -6757,12 +6757,12 @@ function drawHUD(g) {
       }
     }
     if (tut.spawned === 'wall' && latches.length) {
-      tutLabelAt(latches[0].a, tut.again === 'wall' ? 'AGAIN — ROUTE AROUND IT' : 'DANGER! AVOID!', '#ff5a3c');
+      drawTutLabel(tut.again === 'wall' ? 'AGAIN — ROUTE AROUND IT' : 'DANGER! AVOID!', '#ff5a3c');
     }
     const tp = pickups.find(p => p.tut && !p.done);
     if (tp) {
       drawGuideArc(nn(tp.angle), tp.angle);
-      tutLabelAt(tp.angle, tut.again === 'pickup' ? 'AGAIN — PICK UP' : 'PICK UP', '#ffd24a');
+      drawTutLabel(tut.again === 'pickup' ? 'AGAIN — PICK UP' : 'PICK UP', '#ffd24a');
     }
     if (st.card === 'move') { // pulse both dials + the gesture ghost laps them
       for (let i = 0; i < 2; i++) {
@@ -6784,7 +6784,7 @@ function drawHUD(g) {
         ctx.beginPath(); ctx.arc(d.x, d.y, pr, 0, TAU); ctx.stroke();
         if (tut.frozen) { // the hold: the whole run waits on this tap
           const bob = Math.sin(time * 6) * 5;
-          drawTutLabel('TAP TO FIRE!', d.x, d.y - d.r - Math.min(W, H) * 0.075 + bob, '#8fe0ff');
+          drawTutText('TAP TO FIRE!', d.x, d.y - d.r - Math.min(W, H) * 0.075 + bob, '#8fe0ff', Math.round(Math.min(W, H) * 0.034));
           ctx.save();
           ctx.translate(d.x, d.y - d.r * 0.62 - 12 + bob);
           ctx.fillStyle = 'rgba(143,224,255,0.95)';
@@ -7198,9 +7198,8 @@ const TUT_LBL = {
   frag:   ['DANGER! AVOID!', '#ff5a3c', 'AGAIN — DODGE IT'],
   strip:  ['RIDE THE STREAM — CHARGE YOUR PULSE', '#ffd24a', 'AGAIN — STAY ON THE STREAM'],
 };
-function drawTutLabel(text, x, y, col) {
+function drawTutText(text, x, y, col, px) { // one pulsing outlined line
   ctx.save();
-  const px = fitPx(text, 700, Math.round(Math.min(W, H) * 0.032), W * 0.42, 9);
   ctx.font = '700 ' + px + 'px Audiowide, system-ui';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
   ctx.globalAlpha = 0.8 + Math.sin(time * 5) * 0.2;
@@ -7210,10 +7209,26 @@ function drawTutLabel(text, x, y, col) {
   ctx.fillText(text, x, y);
   ctx.restore();
 }
-// ring-target anchor: the label floats inside the bore at the target's angle
-function tutLabelAt(a, text, col) {
+// every drill label sits CENTERED in the bore, wrapping to two lines before
+// it would ever reach the tunnel walls — the action stays visible around it
+function drawTutLabel(text, col) {
   const g2 = geo();
-  drawTutLabel(text, g2.cx + Math.cos(a) * g2.nodeR * 0.55, g2.cy + Math.sin(a) * g2.nodeR * 0.55, col);
+  const maxW = g2.nodeR * 1.45; // the bore's comfortable clear width
+  let px = Math.round(Math.min(W, H) * 0.036);
+  ctx.font = '700 ' + px + 'px Audiowide, system-ui';
+  let lines = [text];
+  if (ctx.measureText(text).width > maxW) { // split at the space nearest the middle
+    let best = -1, bd = 1e9;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] !== ' ') continue;
+      const d = Math.abs(i - text.length / 2);
+      if (d < bd) { bd = d; best = i; }
+    }
+    if (best > 0) lines = [text.slice(0, best).trim(), text.slice(best + 1).trim()];
+  }
+  for (const ln of lines) px = fitPx(ln, 700, px, maxW, 10); // shrink only if a line still spills
+  const lh = px * 1.35, y0 = g2.cy - (lines.length - 1) * lh / 2;
+  lines.forEach((ln, i) => drawTutText(ln, g2.cx, y0 + i * lh, col, px));
 }
 // the gesture ghost: a comet laps the dial rim in the drill direction — it
 // teaches the THUMB MOTION itself, not just the goal (blue clockwise, white
@@ -7234,8 +7249,10 @@ function drawDialComet(i) {
   ctx.globalAlpha = 1;
 }
 
-// marching dashed arc from a node toward the tutorial trap, with an arrowhead
-function drawGuideArc(n, targetA) {
+// marching dashed arc from a node toward the tutorial trap, with an arrowhead.
+// col overrides the node's color — barriers guide in NEUTRAL cyan because
+// either node may take either end; a colored lead would read as an assignment
+function drawGuideArc(n, targetA, col) {
   const g2 = geo();
   const rr = g2.nodeR - Math.min(W, H) * 0.055 * 2.0;
   const d = angDiff(targetA, n.angle);
@@ -7244,7 +7261,7 @@ function drawGuideArc(n, targetA) {
   const a0 = n.angle + dir * 0.12, a1 = n.angle + d * 0.82;
   const blue = n === nodes[0]; // arc wears its node's color so pupils know whose lead it is
   ctx.save();
-  ctx.strokeStyle = blue ? 'rgba(95,150,255,0.9)' : 'rgba(255,255,255,0.8)';
+  ctx.strokeStyle = col || (blue ? 'rgba(95,150,255,0.9)' : 'rgba(255,255,255,0.8)');
   ctx.lineWidth = 3;
   ctx.setLineDash([9, 9]);
   ctx.lineDashOffset = -time * 60 * dir;
@@ -7252,7 +7269,7 @@ function drawGuideArc(n, targetA) {
   ctx.setLineDash([]);
   const hx = g2.cx + Math.cos(a1) * rr, hy = g2.cy + Math.sin(a1) * rr;
   ctx.translate(hx, hy); ctx.rotate(a1 + dir * Math.PI / 2);
-  ctx.fillStyle = blue ? 'rgba(150,190,255,0.95)' : 'rgba(255,255,255,0.95)';
+  ctx.fillStyle = col || (blue ? 'rgba(150,190,255,0.95)' : 'rgba(255,255,255,0.95)');
   ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-5, -6); ctx.lineTo(-5, 6); ctx.closePath(); ctx.fill();
   ctx.restore();
 }
