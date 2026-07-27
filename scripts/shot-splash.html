@@ -1,0 +1,74 @@
+<!doctype html>
+<!-- Splash-screen screenshot harness (dev only, not shipped: scripts/, not src/).
+     Serve the REPO ROOT, open /scripts/shot-splash.html?t=3.9 — it lifts the
+     game scripts out of src/index.html (same trick as the tunnel designer),
+     waits for the logo files to decode, then hand-cranks the rAF clock to the
+     requested splash time and freezes. document.title flips to "READY" so an
+     automated screenshotter knows the frame is staged. -->
+<html>
+<head>
+<meta charset="utf-8">
+<base href="../src/">
+<title>staging…</title>
+<style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+(async () => {
+  const target = parseFloat(new URLSearchParams(location.search).get('t') || '2') * 1000;
+  const html = await (await fetch('index.html')).text();
+  const blocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+  const camp = await (await fetch('campaigns.js')).text();
+  // capture rAF callbacks instead of scheduling them — we own the clock
+  let cbs = [], fired = 0;
+  window.__err = '';
+  window.onerror = (m, s, l) => { window.__err += m + ' @' + l + '; '; };
+  const nativeRAF = window.requestAnimationFrame.bind(window);
+  window.requestAnimationFrame = f => cbs.push(f);
+  // no audio: with a live AudioContext the splash locks its clock to the
+  // audio's — which runs on WALL time and would ignore the crank below
+  window.AudioContext = undefined; window.webkitAudioContext = undefined;
+  for (const src of [camp, ...blocks]) {
+    const s = document.createElement('script');
+    s.textContent = src;
+    document.body.appendChild(s); // executes synchronously
+  }
+  // both logos decoded before the clock starts (real time, cache-warming the
+  // game's own Image loads); virtual time can't skip past real network
+  for (const f of ['icons/GB-logo-hollow.png', 'logo.png']) {
+    try { await createImageBitmap(await (await fetch(f)).blob()); } catch (e) {}
+  }
+  await new Promise(r => setTimeout(r, 60)); // a few task turns for the game's onloads
+  let t = 0;
+  const crank = to => {
+    while (t < to) {
+      t += 1000 / 60;
+      const list = cbs; cbs = [];
+      for (const f of list) { fired++; try { f(t); } catch (e) { window.__err += e.message + '; '; } }
+    }
+  };
+  // two-stage: the first menu frame kicks off logo.png's lazy Image load,
+  // which needs REAL event-loop turns to complete before we crank on
+  crank(Math.min(100, target));
+  await new Promise(r => setTimeout(r, 400));
+  crank(target);
+  // optional popup probe: ?pop=open|close snapshots the settings panel
+  // mid-print / mid-erase (a later <script> shares the game's script scope)
+  const pop = new URLSearchParams(location.search).get('pop');
+  if (pop) {
+    const poke = code => { const s = document.createElement('script'); s.textContent = code; document.body.appendChild(s); };
+    poke('menuSettings = true;');
+    if (pop === 'close') { crank(t + 400); poke('menuSettings = false;'); }
+    crank(t + 90); // ~half the 180ms sweep
+  }
+  // hand the frame straight to the receiver — headless Chrome's own
+  // --screenshot timing proved unreliable against async staging
+  const cnv = document.getElementById('game');
+  const meta = 'crank ' + (t / 1000).toFixed(2) + 's frames ' + fired + ' err ' + (window.__err || 'none');
+  await fetch('/shot?name=t' + (target / 1000) + (pop ? '-' + pop : '') + '&meta=' + encodeURIComponent(meta), { method: 'POST', body: cnv.toDataURL('image/png') });
+  document.title = 'READY ' + meta;
+})();
+</script>
+</body>
+</html>

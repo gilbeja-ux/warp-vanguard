@@ -23,7 +23,10 @@
 
 - [ ] Remove the temporary "BOSS TEST (DEV)" menu key and `startBossTest()`
       (grep "BOSS TEST" in `src/index.html`)
-- [ ] App icons + splash screens for Capacitor (both platforms)
+- [x] App icons — Android launcher icons are the DD shield badge
+      (`android/app/src/main/res/mipmap-*/ic_launcher*.png`), and the web
+      manifest ships `any` + `maskable` variants from `src/icons/`.
+      **iOS still pending** — the `ios/` platform has not been added yet.
 - [ ] Orientation lock via `@capacitor/screen-orientation` (native plugin —
       iOS ignores `screen.orientation.lock()` from the web layer)
 - [ ] Device test pass on low-end Android (verify the `lowFX` perf watchdog
@@ -41,7 +44,10 @@
 
 ## Assets still owed (author)
 
-- New menu track: 60–90s true loop, bar-aligned, ~-16 LUFS (full spec in
-  BRAND.md). Wire via `MUSIC_DATA.menu`, then remove the seam-duck block in
-  `updateMusic`.
-- Any licensed SFX one-shots — log source + license in CREDITS.md before ship.
+- ~~New menu track~~ — **done.** *Midnight Terminal Wait* (116s) is wired at
+  `MUSIC_DATA.menu`. The seam-duck block in `updateMusic` was kept rather than
+  removed: it crossfades the loop through a 1.2s gain dip at the boundary.
+- **SFX origin logging** — 13 recorded one-shots ship in `src/audio/sfx/`, all
+  CC0 / royalty-free (Sonniss, Kenney, Freesound CC0). The license is settled;
+  what's missing is which pack or URL each file came from. CREDITS.md has the
+  table with `_TBC_` placeholders ready to fill.

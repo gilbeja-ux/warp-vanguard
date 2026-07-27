@@ -6,11 +6,14 @@
   "scripts": {
     "start": "npm run build",
     "test": "node scripts/test.js",
+    "build:verifier": "node scripts/build-verifier.js",
+    "deploy:verifier": "node scripts/build-verifier.js && supabase functions deploy submit-run",
     "build": "node scripts/build.js",
     "dev": "npm run build && node scripts/serve.js",
-    "ios": "ionic cap open ios",
-    "android": "ionic cap open android",
-    "sync": "npm run build && ionic cap sync"
+    "ios": "npx cap open ios",
+    "android": "npx cap open android",
+    "sync": "npm run build && npx cap sync",
+    "apk": "bash scripts/build-apk.sh"
   },
   "keywords": [
     "game",

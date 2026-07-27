@@ -84,7 +84,11 @@ global.screen = {};
 // expose internals for the tests
 code = code.replace("'use strict';", '') + `
 ;globalThis.__g = {
-  startLevel, spawnEnemy, spawnLine, update, nodes, geo, frame, menuTap,
+  startLevel, spawnEnemy, spawnLine, nodes, geo, frame, menuTap,
+  // the harness drives the sim by calling update(dt) with explicit steps (it
+  // stubs performance.now, so frame() can't advance time). tickUI + pollGamepad
+  // now live frame-side, so mirror a full frame's per-frame work here.
+  update: dt => { tickUI(dt); pollGamepad(dt); update(dt); },
   setState: v => { state = v; }, getState: () => state, S,
   setMenuSettings: v => { menuSettings = v; }, getMenuSettings: () => menuSettings,
   gearRect: () => menuGearRect, toggles: () => pauseTogglesList,
@@ -107,6 +111,14 @@ code = code.replace("'use strict';", '') + `
   detectBeat, beatQuantize, setBeat: (p, at) => { beatPeriod = p; musicStartAt = at; },
   patternQ: () => patternQ, mutators, musicFilterHz: () => musicFilter && musicFilter.frequency.value,
   getPerfects: () => perfects, getScore: () => score, ringAt: z => ring(z, geo()),
+  getTime: () => time, resetLoop: t => { last = t; simAcc = 0; }, // fixed-timestep loop probes
+  getIdentity: () => identity, boardKey, captureRun, getLastRun: () => lastRun, // leaderboard capture
+  lbTop, lbRank, lbDay, LEADERBOARD, // leaderboard read client (Supabase)
+  boardKeyFor, boardPick, openBoard, getBoardSel: () => boardSel, setBoardData: v => { boardData = v; }, // board screen
+  setNameEntry: v => { nameEntry = v; }, setEndProvisional: v => { endProvisional = v; }, // high-score name card
+  getMaxCombo: () => maxCombo, endLevel,
+  simStep, startTrace, stopTrace, startReplay, stopReplay, // run-trace record/replay
+  rawFrame: now => frame(now), // the real frame() incl. the accumulator (G.frame is the same)
   getIntro: () => introT, setIntro: v => { introT = v; introCd = 0; }, getLevelT: () => levelT, setEndT: v => { endT = v; },
   startQualification, getInfoCard: () => infoCard, isQual: () => qual,
   keys, setBeamAim: (x, y) => { beamAim.x = x; beamAim.y = y; }, getHeat: () => heat, isOverheat: () => overheat, startBossTest,
@@ -136,6 +148,8 @@ function check(name, cond) {
   if (!cond) failures++;
 }
 function aim(i, a) { G.nodes[i].angle = a; }
+// tap through an INFO disc (boss/story briefings — the tutorial no longer uses them)
+function dismiss() { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 7, clientX: 5, clientY: 5, pointerType: 'touch' }); G.update(0.15); G.update(0.15); G.update(0.15); }
 function flushUI() { for (let i = 0; i < 16; i++) G.update(0.05); } // press beat + transition midpoint
 function cross(en) { // place at the ring and step one tick
   // (exactly hitZ so the hit check fires even when hit-stop slows the clock)
@@ -161,6 +175,11 @@ en = G.spawnEnemy(0.1, 'heavy');
 aim(0, Math.PI); aim(1, 0.1);
 cross(en);
 check('heavy armor shrugs off node coverage', en.resolved === true && !en.dead);
+
+en = G.spawnEnemy(0.1, 'heavy');
+aim(0, 0.1); aim(1, 0.1);
+cross(en);
+check('both arcs docked break the heavy at the rim', en.dead === true && !en.resolved);
 
 // the third verb: dock both nodes, HOLD to charge (hold time = range), SPLIT to fire
 const vstep = () => { G.setSpawnT(60); G.setIntegrity(100); G.update(0.05); }; // no stray traffic
@@ -281,8 +300,32 @@ function drawOk(name, setup) {
 drawOk('play HUD with all enemy types', () => { G.setState(G.S.PLAY); });
 drawOk('pause panel', () => { G.setState(G.S.PAUSE); });
 drawOk('end screen', () => { G.setState(G.S.END); });
+drawOk('high-score takeover card', () => { G.setState(G.S.END); G.setEndT(3.2); G.setScore(38800); G.setEndProvisional({ rank: 7, total: 50 }); G.setNameEntry({ board: 'investigation:2' }); });
+drawOk('high-score takeover (rank pending)', () => { G.setState(G.S.END); G.setEndT(3.2); G.setEndProvisional(null); G.setNameEntry({ board: 'endless' }); });
+G.setNameEntry(null); G.setEndProvisional(null); // don't leak the card into later END tests
 drawOk('main menu', () => { G.setState(G.S.MENU); });
 drawOk('menu audio-config overlay', () => { G.setMenuSettings(true); });
+// dedicated leaderboard screen — every data state must render without throwing
+drawOk('leaderboard: syncing', () => { G.setMenuSettings(false); G.setState(G.S.MENU); G.setMenuScreen('board'); G.setBoardData(null); });
+drawOk('leaderboard: offline', () => { G.setMenuScreen('board'); G.setBoardData({ key: 'endless', loading: false, rows: null, error: true }); });
+drawOk('leaderboard: empty', () => { G.setMenuScreen('board'); G.setBoardData({ key: 'endless', loading: false, rows: [], error: false }); });
+drawOk('leaderboard: populated', () => {
+  G.setMenuScreen('board'); G.getBoardSel().mode = 'campaign';
+  G.setBoardData({ key: 'investigation:0', loading: false, error: false, rows: [
+    { rank: 1, player_id: 'x', player_name: 'ACE', score: 48200, max_combo: 22, time_sec: 41, verified: true, trace_id: 't1' },
+    { rank: 2, player_id: G.getIdentity().id, player_name: 'YOU', score: 39750, max_combo: 16, time_sec: 44, verified: true, trace_id: null },
+    { rank: 3, player_id: 'z', player_name: 'RAYzor', score: 31100, max_combo: 11, time_sec: 47, verified: false, trace_id: null } ] });
+});
+drawOk('leaderboard: endless tab', () => { G.getBoardSel().mode = 'endless'; });
+// board navigation + key scheme (keys must match boardKey() the runs store under)
+{
+  G.boardPick('campaign', 0, 1);
+  check('board: boardPick selects a campaign level', G.getBoardSel().mode === 'campaign' && G.getBoardSel().camp === 0 && G.getBoardSel().level === 1);
+  check('board: boardKeyFor matches the campaign boardKey scheme', G.boardKeyFor() === G.CAMPAIGNS[0].id + ':1');
+  G.boardPick('daily');
+  check('board: daily key is a single board', G.boardKeyFor() === 'daily');
+}
+G.setMenuScreen('home'); G.setState(G.S.MENU);
 
 // ================= menu settings interaction =================
 G.frame(16);
@@ -813,6 +856,91 @@ for (let i = 0; i < 1400 && !sawWall; i++) { G.setIntegrity(100); G.update(0.05)
 check('UNDERCITY FIBER deploys rim walls from its script', sawWall);
 G.setState(G.S.MENU);
 
+// fixed-timestep determinism: the same seeded level, no input, driven through
+// the real frame() at two different frame rates must land on an identical sim
+// state — the property server-side replay verification depends on.
+function runFramerate(fps, targetSec) {
+  G.startLevel(4); G.setState(G.S.PLAY); // seeded spawns; resetRun zeroes score/integrity/misses
+  G.resetLoop(0);
+  const t0 = G.getTime(), stepMs = 1000 / fps;
+  let i = 0;
+  while (G.getTime() - t0 < targetSec && i < 200000) { i++; G.rawFrame(i * stepMs); }
+  const s = G.stats();
+  return { steps: Math.round((G.getTime() - t0) * 60), score: s.score, integrity: s.integrity, misses: s.misses, zaps: s.zaps };
+}
+{
+  const a = runFramerate(60, 15), b = runFramerate(144, 15); // long enough that traffic reaches the ring
+  check('fixed-timestep: 60fps and 144fps step the sim the same number of times', a.steps === b.steps);
+  check('fixed-timestep: the run actually processed traffic (non-trivial signature)', a.integrity < 100 || a.misses > 0);
+  check('fixed-timestep: sim outcome is frame-rate independent (score/integrity/misses agree)',
+    a.score === b.score && a.integrity === b.integrity && a.misses === b.misses);
+}
+G.setState(G.S.MENU);
+
+// ================= run-trace record → replay round-trip =================
+// Record a run whose nodes sweep the ring (killing seeded traffic), then replay
+// purely from the trace and confirm the score is reproduced EXACTLY. This is the
+// property the verifier relies on: seed + trace -> identical score.
+const TRACE_ANGLES = [0.1, 0.7, 1.3, 1.9, 2.5]; // node parks on each in turn — a moving input
+function traceRun(mode, frames) {
+  G.startLevel(2); G.setState(G.S.PLAY); // resetRun zeroes the stats
+  if (mode === 'record') G.startTrace(); else G.startReplay(frames);
+  const hz = G.geo().hitZ;
+  // scaffolding runs IDENTICALLY in both passes (spawns aren't in the trace —
+  // the trace only carries node input, exactly as seeded traffic would in real
+  // life). Only the node angles differ: recorded live vs injected from trace.
+  for (const A of TRACE_ANGLES) {
+    const en = G.spawnEnemy(A, 'normal'); if (en) en.z = hz; // deliver it to the ring
+    for (let s = 0; s < 4; s++) {
+      if (mode === 'record') { G.nodes[0].angle = A; G.nodes[1].angle = A; } // "player" parks on it
+      G.simStep(); // replay injects the recorded angle itself
+    }
+  }
+  const s = G.stats();
+  const out = { score: s.score, integrity: s.integrity, misses: s.misses, zaps: s.zaps };
+  if (mode === 'record') out.frames = G.stopTrace(); else G.stopReplay();
+  return out;
+}
+{
+  const rec = traceRun('record');
+  const rep = traceRun('replay', rec.frames);
+  check('trace: recorded a frame per fixed step', rec.frames.length === TRACE_ANGLES.length * 4);
+  check('trace: the run was non-trivial (parked shots landed kills)', rec.zaps > 0 && rec.score > 0);
+  check('trace round-trip: replay reproduces score/integrity/misses/zaps exactly',
+    rec.score === rep.score && rec.integrity === rep.integrity && rec.misses === rep.misses && rec.zaps === rep.zaps);
+}
+// the live lifecycle: resetRun starts recording, endLevel attaches the trace
+{
+  G.startLevel(2); G.setState(G.S.PLAY);
+  for (let i = 0; i < 10; i++) G.simStep();
+  G.endLevel(true);
+  const lr = G.getLastRun();
+  check('a finished ranked run attaches its input trace to lastRun', lr && Array.isArray(lr.trace) && lr.trace.length === 10);
+}
+G.setState(G.S.MENU);
+
+// ================= leaderboard identity + run capture =================
+check('a persistent player id is minted on boot', typeof G.getIdentity().id === 'string' && G.getIdentity().id.length > 0);
+// board keys: one per campaign level, one per free-flow mode
+G.startLevel(2);
+check('board key names the campaign level', G.boardKey() === G.getCamp().id + ':2');
+G.startEndless();
+check('board key for endless is a single shared board', G.boardKey() === 'endless');
+G.startDaily();
+check('board key for daily is a single daily-reset board', G.boardKey() === 'daily');
+// captureRun snapshots the submission payload
+G.startLevel(2); G.setState(G.S.PLAY); G.setScore(4200); G.setLevelT(31.5);
+const run = G.captureRun(true);
+check('captured run pins the board + seed for replay', run.board === G.getCamp().id + ':2' && run.seed === 2 && run.verifiable === true);
+check('captured run carries score, time, and owner', run.score === 4200 && run.timeSec === 31.5 && run.playerId === G.getIdentity().id && run.mode === 'campaign');
+// the run id is the leaderboard ROW key: fresh per run (so a player keeps
+// several records on one board), stable across a rename re-submit of that run
+check('captured run mints a run id', typeof run.runId === 'string' && run.runId.length > 0);
+check('a second run gets its OWN id (multiple entries per player)', G.captureRun(true).runId !== run.runId);
+G.startEndless(); G.setState(G.S.PLAY);
+check('endless capture is marked unverifiable (unseeded)', G.captureRun(false).verifiable === false && G.captureRun(false).seed === null);
+G.setState(G.S.MENU);
+
 // ================= mode select & campaign map =================
 G.setState(G.S.MENU);
 G.setMenuScreen('home');
@@ -824,12 +952,22 @@ const cTile = G.menuBtns().find(b => b.mode === 'campaign');
 }
 flushUI(); // press beat -> spin -> screen switch
 check('campaign tile opens the case-file carousel (multiple campaigns shipped)', G.getMenuScreen() === 'camps');
-flushUI(); G.setCampScroll(1); G.frame(16); // center the row so all real discs are on stage
-{ // discs: every real campaign gets a SYNC key; teasers ride along without one
+flushUI(); G.setCampScroll(1); G.frame(16); // center the row
+{ // discs: a Defender Training disc leads the carousel, then every real campaign,
+  // each reachable with its own SYNC key (its carousel index); no teasers left
+  const TRAIN = 1; // the training disc occupies carousel slot 0; campaigns follow
+  const totalDiscs = TRAIN + G.CAMPAIGNS.length;
+  let covered = 0; // discs no longer all fit on stage — scroll to each and confirm its key
+  for (let i = 0; i < totalDiscs; i++) {
+    G.setCampScroll(i); G.frame(16);
+    if (G.menuBtns().some(b => b.sync === i)) covered++;
+  }
+  check('carousel: training disc + one SYNC key per real campaign, no teasers', covered === totalDiscs && G.CAMPS_SOON.length === 0);
+  const invCarousel = TRAIN + G.CAMPAIGNS.findIndex(c => c.id === 'investigation'); // carousel slot of the investigation disc
+  G.setCampScroll(invCarousel); G.frame(16);
   const syncs = G.menuBtns().filter(b => b.sync !== undefined);
-  check('carousel: one SYNC key per real campaign, plus teaser discs', syncs.length === G.CAMPAIGNS.length && G.CAMPS_SOON.length === 2);
   check('carousel: scroll hint appears with discs off-stage', G.menuBtns().some(b => b.scrollDir === 1));
-  const inv = syncs.find(b => G.CAMPAIGNS[b.sync].id === 'investigation');
+  const inv = syncs.find(b => b.sync === invCarousel);
   G.menuTap(inv.x + inv.w / 2, inv.y + inv.h / 2, 1);
 }
 flushUI(); flushUI(); // press beat -> disc zoom -> panels drive in
@@ -889,13 +1027,14 @@ check('daily defeat records the daily best and streak', G.getState() === G.S.END
   G.progress.daily.best === 777 && G.progress.daily.streak >= 1 && Math.random !== undefined);
 
 // ================= qualification =================
-// the curriculum: brief discs (zoom in, read, zoom out) + in-world guides,
-// and the pulse drill freezes the run for the TAP-TO-FIRE moment
+// the FREE-FLOW curriculum: no briefing discs — stage banners + in-world
+// guides while the run keeps moving; the pulse drill freezes the run for
+// the FIRE-PULSE moment
 G.progress.tutorialDone = false;
 G.startQualification();
 G.update(0.05);
-check('qualification opens with the movement briefing', G.getState() === G.S.INFO && G.getInfoCard() === 'move' && G.isQual());
-function dismiss() { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 7, clientX: 5, clientY: 5, pointerType: 'touch' }); G.update(0.15); G.update(0.15); G.update(0.15); }
+check('qualification opens straight into play on the movement drill',
+  G.getState() === G.S.PLAY && G.isQual() && G.qualStage().card === 'move');
 function settle() { for (let i = 0; i < 4; i++) G.update(0.4); }
 function waitLive(maxS) {
   for (let i = 0; i < maxS / 0.05; i++) {
@@ -907,11 +1046,8 @@ function waitLive(maxS) {
 function zapPractice() {
   const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
   if (!pen) return false;
-  if (pen.type === 'heavy') { // dock and hold — the volley drill
+  if (pen.type === 'heavy') { // dock BOTH together — the crossing breaks it
     aim(0, pen.angle); aim(1, pen.angle);
-    pen.z = Math.min(pen.z, 0.9);
-    for (let i = 0; i < 40 && !pen.dead; i++) G.update(0.05);
-    return pen.dead === true;
   }
   else if (pen.type === 'line') { aim(0, pen.angle); aim(1, pen.partner.angle); }
   else if (pen.lock !== undefined) { aim(pen.lock, pen.angle); aim(1 - pen.lock, pen.angle + Math.PI); }
@@ -919,76 +1055,90 @@ function zapPractice() {
   cross(pen);
   return pen.dead === true;
 }
-dismiss();
-check('tap dismisses the briefing', G.getState() === G.S.PLAY);
-for (let i = 1; i <= 30 && G.getState() === G.S.PLAY; i++) { aim(0, i * 0.25); aim(1, -i * 0.25); G.update(0.05); } // a FULL lap each
-check('a full circle per node completes movement training', G.getState() === G.S.INFO && G.getInfoCard() === 'normal');
-dismiss();
-check('practice trap 1 spawns and dies', waitLive(4) && zapPractice());
-check('practice trap 2 spawns and dies', waitLive(4) && zapPractice());
-settle();
-check('heavy briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'heavy');
-dismiss();
-check('heavy practice: dock-and-hold volley', waitLive(4) && zapPractice());
-settle();
-check('barrier briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'line');
-dismiss();
-check('barrier practice: node per end', waitLive(4) && zapPractice());
-settle();
-check('color-lock briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'lock');
-dismiss();
-check('blue-lock practice', waitLive(4) && zapPractice());
-check('white-lock practice', waitLive(4) && zapPractice());
-settle();
-check('node-killer briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'frag');
-dismiss();
-waitLive(4);
+// CONTROLS CHECK is now an ALIGN drill: bring each lit target's node onto it
+// and HOLD. First, a brief swipe-past must NOT lock a target.
 {
-  // the drill is DODGE — touching the killer fries the node and retries
-  const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
-  aim(0, pen.angle); aim(1, pen.angle + Math.PI);
-  cross(pen);
-  check('touching the killer fries the node and demands a retry',
-    pen.dead === true && G.nodes[0].deadT > 0 && G.tut() && G.tut().retry === 'frag');
-  for (let i = 0; i < 60; i++) G.update(0.05); // reboot, then the drill respawns
+  const A = G.tut().aim;
+  const t0 = A.targets[0];                        // rep 0 materialized on the opening update
+  aim(t0.node, t0.a); G.update(0.05);             // one frame on target (< hold) …
+  aim(t0.node, t0.a + 1.0); G.update(0.05);       // … then gone
+  check('a brief swipe past the target does not lock it', G.tut().aim.idx === 0);
 }
+// hold each rep to completion — the last rep lights BOTH nodes at once
+{
+  let guard = 120;
+  while (guard-- > 0 && G.qualStage().card === 'move') {
+    const A = G.tut().aim;
+    if (A.targets) for (const t of A.targets) aim(t.node, t.a);
+    G.update(0.05);
+  }
+  check('landing both nodes on their targets completes the control check', G.qualStage().card === 'normal');
+}
+check('practice trap 1 spawns and dies', waitLive(4) && zapPractice());
+// the node killer rides with the early traps — STEER CLEAR: dodge it
 waitLive(4);
 {
-  // take two: AVOID it
   const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
+  check('the killer joins the early flow', !!pen && pen.type === 'frag');
   aim(0, pen.angle + 1.5); aim(1, pen.angle - 1.5);
   cross(pen);
   check('letting the killer pass banks the dodge', pen.resolved === true && !pen.dead);
 }
-settle();
-check('rim-wall briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'wall');
-dismiss();
+check('practice trap 2 spawns and dies', waitLive(4) && zapPractice());
+// the practice wall lands in the same flow — steer clear until it burns off
 {
-  // clip the practice clamp on purpose — the fry is REAL and the drill repeats
-  const lt = G.latches()[0];
-  let wg0 = 100;
-  while (wg0-- > 0 && !lt.bit) G.update(0.05); // telegraph lands
-  G.update(0.5);                               // ...and the arm grace passes
-  aim(0, lt.a); aim(1, lt.a + Math.PI);
-  for (let i = 0; i < 20 && !(G.nodes[0].deadT > 0); i++) G.update(0.05);
-  G.update(0.05); // next tutorial tick registers the fry and arms the retry
-  check('clipping the practice wall fries the node for real',
-    G.nodes[0].deadT > 0 && G.tut() && G.tut().retry === 'wall');
-  aim(0, lt.a + Math.PI + 0.5); // step clear while it burns off and respawns
-  let wg1 = 300;
-  while (wg1-- > 0 && !(G.latches().length && G.latches()[0] !== lt)) G.update(0.05);
-  check('the wall drill respawns after the fry', G.latches().length === 1 && G.latches()[0] !== lt);
-}
-{
-  // the practice clamp lands away from the nodes — stay clear until it burns off
+  let wg0 = 200;
+  while (wg0-- > 0 && !G.latches().length) G.update(0.05);
+  check('the practice wall lands in the early flow', G.latches().length === 1);
+  aim(0, G.latches()[0].a + Math.PI); aim(1, G.latches()[0].a + Math.PI + 0.5);
   let wg = 260;
-  aim(0, G.latches().length ? G.latches()[0].a + Math.PI : 0); aim(1, G.nodes[0].angle + 0.5);
   while (wg-- > 0 && G.latches().length) G.update(0.05);
-  check('routing around the practice wall completes the drill', !G.latches().length && G.tut() && !G.tut().retry);
+  check('routing around the practice wall completes the lesson', !G.latches().length && G.tut() && !G.tut().retry);
 }
 settle();
-check('power-up briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'pickup');
-dismiss();
+check('heavy drill begins without a disc stop', G.getState() === G.S.PLAY && G.qualStage().card === 'heavy');
+check('heavy practice: dock together breaks it at the rim', waitLive(4) && zapPractice());
+settle();
+check('barrier drill begins', G.qualStage().card === 'line');
+check('barrier practice: node per end', waitLive(4) && zapPractice());
+settle();
+check('color-lock drill begins', G.qualStage().card === 'lock');
+check('blue-lock practice', waitLive(4) && zapPractice());
+check('white-lock practice', waitLive(4) && zapPractice());
+settle();
+check('volley drill: the red column is already inbound, one lane',
+  G.qualStage().card === 'volley'
+  && G.enemies().filter(e => e.tut === 'volley' && !e.dead).length === 4
+  && new Set(G.enemies().filter(e => e.tut === 'volley').map(e => e.angle)).size === 1);
+{
+  // plain zaps don't graduate this stage: killing a column red the old way
+  // arms a retry and the column comes back
+  const pen = G.enemies().find(e => e.tut === 'volley');
+  aim(0, pen.angle); aim(1, pen.angle + Math.PI);
+  cross(pen);
+  check('zapping the column arms a volley retry', pen.dead === true && G.tut().retry === 'volley');
+  let dGuard = 400;
+  while (dGuard-- > 0 && G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved)) G.update(0.05);
+  let rGuard = 100;
+  while (rGuard-- > 0 && !G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved)) G.update(0.05);
+  check('the column respawns for the volley lesson',
+    G.enemies().filter(e => e.tut === 'volley' && !e.dead && !e.resolved).length === 4);
+}
+{
+  // dock both on the lane, hold — the charged shot sweeps the whole column
+  const colA = G.enemies().find(e => e.tut === 'volley' && !e.dead && !e.resolved).angle;
+  G.volley().cd = 0;
+  aim(0, colA); aim(1, colA);
+  let vGuard = 200;
+  while (vGuard-- > 0 && G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved)) G.update(0.05);
+  // dead bodies are culled from the array — "cleared" means none remain and
+  // none slipped past (a tut miss would have armed a retry)
+  check('one charged shot clears the whole column',
+    !G.enemies().some(e => e.tut === 'volley') && G.tut() && !G.tut().retry);
+  aim(1, colA + Math.PI); // undock for the next drill
+}
+settle();
+check('power-up drill begins', G.qualStage().card === 'pickup');
 waitLive(4);
 {
   const pp = G.pickups().find(p2 => p2.tut && !p2.done);
@@ -998,8 +1148,7 @@ waitLive(4);
   G.fx.wide = 0;
 }
 settle();
-check('bonus-stream briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'strip');
-dismiss();
+check('bonus-stream drill begins', G.qualStage().card === 'strip');
 {
   // ride the ribbon: keep the blue node glued to the crossing point
   const spawned = waitLive(5);
@@ -1013,15 +1162,13 @@ dismiss();
     spawned && !G.enemies().some(e => e.type === 'strip' && !e.dead) && G.tut() && !G.tut().retry);
 }
 settle();
-check('pulse briefing appears', G.getState() === G.S.INFO && G.getInfoCard() === 'pulse');
-check('the purge volley is already inbound behind the pulse disc',
-  G.enemies().filter(e => e.tut === 'pulse' && !e.dead).length === 4);
-dismiss();
+check('pulse drill: the purge volley is already inbound',
+  G.qualStage().card === 'pulse' && G.enemies().filter(e => e.tut === 'pulse' && !e.dead).length === 4);
 {
   // two seconds in, the run HOLDS: world frozen, music wound to a stop
   let fGuard = 60;
   while (fGuard-- > 0 && !(G.tut() && G.tut().frozen)) G.update(0.05);
-  check('the TAP-TO-FIRE hold freezes the run', G.tut() && G.tut().frozen === true);
+  check('the FIRE-PULSE hold freezes the run', G.tut() && G.tut().frozen === true);
   const zBefore = G.enemies().find(e => e.tut === 'pulse' && !e.dead).z;
   for (let i = 0; i < 6; i++) G.update(0.05);
   check('the hold stops the traffic', G.enemies().find(e => e.tut === 'pulse' && !e.dead).z === zBefore);
@@ -1039,7 +1186,7 @@ check('the QUALIFIED ceremony plays in-world, no info disc', G.getState() === G.
 for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05); // the ceremony runs, then the report
 check('QUALIFIED: victory screen + progress persisted', G.getState() === G.S.END && G.getEndWin() === true && G.progress.tutorialDone === true && G.tut() === null);
 drawOk('qualification end screen', () => {});
-drawOk('briefing card frame (zoom-in)', () => { G.progress.tutorialDone = false; G.startQualification(); G.update(0.05); });
+drawOk('briefing card frame (zoom-in)', () => { G.startBossTest(); G.update(0.05); });
 G.setState(G.S.MENU);
 G.progress.tutorialDone = true;
 
@@ -1108,22 +1255,6 @@ en.z = G.geo().hitZ + 0.2;
 G.update(0.05);
 check('nodes never drift toward traps on their own', Math.abs(n0.angle) < 1e-6);
 
-// ================= dormant alt schemes (behind ALT_CONTROLS) =================
-// hidden from settings at launch, but the code must keep working so the flag
-// can be flipped back on later
-G.settings.controls = 2; // ARCS: left side margin drives node 0, absolute
-aim(0, 0);
-pdown(11, 4, 210 - 55); // above center on the left strip
-check('ARCS (dormant): side-strip touch throws the node', Math.abs(n0.angle) > 0.2 && n0.held === true);
-pup(11, 4, 210 - 55);
-G.settings.controls = 1; // IMMERSIVE: grab a lens on the rim and drag it
-aim(0, Math.PI);
-const gI = G.geo();
-pdown(12, gI.cx + Math.cos(Math.PI) * 100, gI.cy + Math.sin(Math.PI) * 100);
-check('IMMERSIVE (dormant): the lens can be grabbed', n0.held === true);
-pup(12, gI.cx - 100, gI.cy);
-G.settings.controls = 0; // back to the real scheme
-aim(0, 0);
 
 // ================= precision scoring =================
 G.startLevel(1);
@@ -1295,11 +1426,15 @@ G.keys['ArrowUp'] = false;
     m.camp.investigation.stars[0] === 3 && m.stars === undefined && m.tutorialDone === true);
   // campaign #2: GOING DEEPER
   check('GOING DEEPER ships as campaign #2 and validates clean',
-    G.CAMPAIGNS.length === 3 && G.CAMPAIGNS[1].id === 'going-deeper' && G.validateCampaign(G.CAMPAIGNS[1]).length === 0);
+    G.CAMPAIGNS.length === 5 && G.CAMPAIGNS[1].id === 'going-deeper' && G.validateCampaign(G.CAMPAIGNS[1]).length === 0);
   check('SIGNAL LOST ships as campaign #3 and validates clean',
     G.CAMPAIGNS[2].id === 'signal-lost' && G.validateCampaign(G.CAMPAIGNS[2]).length === 0);
-  check('difficulty rises across the shipped campaigns',
-    G.CAMPAIGNS[0].difficulty < G.CAMPAIGNS[1].difficulty && G.CAMPAIGNS[1].difficulty < G.CAMPAIGNS[2].difficulty);
+  check('THE BAIT ships as campaign #4 and validates clean',
+    G.CAMPAIGNS[3].id === 'the-bait' && G.validateCampaign(G.CAMPAIGNS[3]).length === 0);
+  check('SHUTDOWN ships as campaign #5 and validates clean',
+    G.CAMPAIGNS[4].id === 'shutdown' && G.validateCampaign(G.CAMPAIGNS[4]).length === 0);
+  check('difficulty rises across all five shipped campaigns',
+    G.CAMPAIGNS.every((pk, i) => i === 0 || pk.difficulty > G.CAMPAIGNS[i - 1].difficulty));
   check('finales escalate: core, then triad, then spinner',
     G.CAMPAIGNS[0].levels[7].bossKind === undefined && G.CAMPAIGNS[1].levels[7].bossKind === 'triad' && G.CAMPAIGNS[2].levels[7].bossKind === 'spinner');
   check('every shipped campaign lints clean (beats + bands included)',
@@ -1729,10 +1864,14 @@ G.keys['ArrowUp'] = false;
   flushUI();
   check('A on the campaign slice opens the case-file carousel', G.getMenuScreen() === 'camps');
   flushUI(); G.frame(16); G.update(0.05); // discs build; centered = active case
+  // the carousel opens centered on the ACTIVE case, whose slot is TRAIN_DISCS +
+  // its campaign index — never a fixed number. Step RELATIVE to wherever it
+  // opened so inserting or dropping a disc can't turn this into a false alarm.
+  const d0 = G.getCampScroll();
   tap(15); // right: slide to the next disc
-  check('D-pad right slides the carousel', G.getCampScroll() === 1);
+  check('D-pad right slides the carousel', G.getCampScroll() === d0 + 1);
   tap(14); // and back to the active case
-  check('D-pad left slides it back', G.getCampScroll() === 0);
+  check('D-pad left slides it back', G.getCampScroll() === d0);
   tap(0); // A syncs the centered disc
   flushUI(); flushUI();
   check('A syncs the centered case file into its route map', G.getMenuScreen() === 'map');
@@ -1767,8 +1906,42 @@ G.keys['ArrowUp'] = false;
   tap(1);
   flushUI();
   check('B backs out to the mode wheel', G.getMenuScreen() === 'home');
+  flushUI(); flushUI(); // let any inbound spin settle — START must not race a transition
+  // START in the menus toggles the settings panel; B cancels it
+  tap(9);
+  check('START opens the settings panel from the menu', G.getMenuSettings() === true);
+  tap(1);
+  check('B closes the settings panel', G.getMenuSettings() === false);
+  // LB/RB ride the case-file carousel
+  G.setMenuScreen('camps'); G.setCampScroll(0); G.frame(16); G.update(0.05);
+  tap(5); // RB
+  check('RB slides the carousel to the next disc', G.getCampScroll() === 1);
+  tap(4); // LB
+  check('LB slides it back', G.getCampScroll() === 0);
+  G.setMenuScreen('home'); G.frame(16); G.update(0.05);
+  // pause: the focus ring climbs from the buttons into the settings rows
+  G.startLevel(1); G.update(0.05);
+  tap(9); G.frame(16); G.update(0.05); // pause + draw builds buttons AND toggles
+  const nBtns = G.pauseBtns().length;
+  tap(12); // up: RESUME -> a settings row
+  check('D-pad up climbs from RESUME into the settings rows', G.getGpSel() >= nBtns);
+  const hv = G.settings.haptics;
+  G.setGpSel(nBtns + G.toggles().findIndex(t => t.key === 'haptics')); G.frame(16);
+  tap(0); // A flips the focused toggle
+  check('A flips the focused HAPTICS toggle', G.settings.haptics === !hv);
+  G.settings.haptics = hv; // leave the world as found
+  G.setGpSel(nBtns + G.toggles().findIndex(t => t.key === 'sound'));
+  G.settings.sound = true; G.settings.soundVol = 0.5; G.frame(16);
+  tap(15); // right: ride the volume rail instead of moving focus
+  check('right on the SFX row nudges the volume rail', Math.abs(G.settings.soundVol - 0.625) < 1e-9);
+  tap(14);
+  check('left brings it back', Math.abs(G.settings.soundVol - 0.5) < 1e-9);
+  tap(3); // Y = QUIT the run
+  flushUI();
+  check('Y quits the paused run to the menu', G.getState() === G.S.MENU);
+  flushUI(); flushUI();
   delete globalThis.navigator;
-  G.setState(G.S.MENU);
+  G.setState(G.S.MENU); G.setMenuScreen('home');
 }
 
 // ================= Web Audio music looper =================
@@ -1806,6 +1979,29 @@ const tick = () => new Promise(r => setImmediate(r));
   G.settings.music = false; G.updateMusic(0.016);
   check('music toggle silences the gain', G.music().gain.gain.value === 0);
   G.settings.music = true;
+
+  // ================= leaderboard read client (Supabase) =================
+  {
+    const realFetch = global.fetch;
+    let lastUrl = null, lastBody = null, lastHeaders = null;
+    global.fetch = async (url, opts) => {
+      lastUrl = url; lastBody = JSON.parse(opts.body); lastHeaders = opts.headers;
+      return { ok: true, json: async () => ([{ rank: 1, player_id: 'p1', player_name: 'ACE', score: 5000, verified: true }]) };
+    };
+    const top = await G.lbTop('investigation:2', 10);
+    check('lbTop hits the leaderboard_top RPC', lastUrl.endsWith('/rest/v1/rpc/leaderboard_top'));
+    check('lbTop passes board + limit, null day for a campaign board', lastBody.p_board === 'investigation:2' && lastBody.p_limit === 10 && lastBody.p_day === null);
+    check('lbTop ships the publishable key, not a secret', String(lastHeaders.apikey).startsWith('sb_publishable_'));
+    check('lbTop parses the ranked rows', Array.isArray(top) && top[0].score === 5000);
+    check('lbDay keys daily per UTC day, null elsewhere', typeof G.lbDay('daily') === 'number' && G.lbDay('endless') === null);
+    await G.lbTop('daily');
+    check('a daily read sends a numeric day', typeof lastBody.p_day === 'number');
+    await G.lbRank('endless', 'me');
+    check('lbRank hits leaderboard_rank with the player id', lastUrl.endsWith('/rest/v1/rpc/leaderboard_rank') && lastBody.p_player === 'me');
+    global.fetch = async () => { throw new Error('offline'); };
+    check('leaderboard reads fail soft to null when offline', (await G.lbTop('endless')) === null);
+    global.fetch = realFetch;
+  }
 
   console.log(failures === 0 ? '\nALL TESTS PASSED' : '\n' + failures + ' FAILURES');
   process.exit(failures === 0 ? 0 : 1);

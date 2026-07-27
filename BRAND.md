@@ -8,15 +8,29 @@
   final name ("Data Defenders" alone is already in use by two other apps).
 
 ## Mark
-The player's EMP node is the logo mark: coil body + twin prongs with a live
-arc between them, cyan on void-dark, one red nail-breach silhouette behind it
-for tension. App icon = mark only, no text. Wordmark: Audiowide, stacked
-DATA / DEFEN / DER with DARK FIBER in gold beneath.
+A **shield badge**: gold rim over a chamfered near-black body, with a receding
+blue tunnel grid — concentric hoops and radial spokes converging on a bright
+vanishing point — filling the lower half. The bore is the mark.
+
+- **Full lockup** — `src/logo.png`. The badge carrying its own lettering:
+  DATA large in cyan-chrome, DEFENDERS beneath it, *Dark Fiber* in gold between
+  two gold rules, over the tunnel grid. Used on the menu and marketing surfaces.
+  Loaded at runtime by `brandLogo()`; the code keeps an Audiowide drawn stack as
+  a fallback if the file is missing.
+- **App icon** — `src/icons/df-192.png` / `df-512.png` (`any`) and
+  `df-mask-192.png` / `df-mask-512.png` (`maskable`). Same shield with the
+  lettering removed and an interlocked gold **DD monogram** over the tunnel
+  grid, cyan chevrons top and bottom. Icon = badge only, no wordmark.
+
+The old EMP-emitter mark (coil body, twin prongs, live arc) is **retired**. It
+was retired with the thing it depicted: the player node is no longer a device on
+the ring, it is a lit arc sector of the ring itself.
 
 ## Color tokens
 | Token | Value | Meaning |
 |---|---|---|
-| `--node-blue` | `#6FE3FF` (111,227,255) | player node 1, UI primary |
+| `--node-blue` | `#50aaff` (80,170,255) | player node 1 — must match the blue lock enemy |
+| `--chrome-cyan` | `#6FE3FF` (111,227,255) | UI/console chrome: panels, brackets, headers |
 | `--node-white` | `#FFFFFF` / `#EBF5FF` | player node 2, CID |
 | `--threat-red` | `#FF3C5A` (255,60,90) | hostile taps, alarms |
 | `--armor-purple` | `#D465FF` (212,101,255) | heavies, boss, CORE |
@@ -40,29 +54,34 @@ these tokens.
 
 ## Audio direction
 - Music: synthwave/cyber, author-produced. Normalize tracks ~-14 LUFS.
-- NEW MENU TRACK SPEC (author to produce; current 31s piece retires):
-  60–90s, composed as a TRUE loop (bar-aligned, no intro/outro or final
-  ringout — last bar must lead back into the first), calmer energy than the
-  level tracks, ~-16 LUFS (menus sit lower), mp3 192kbps. Drop it in
-  src/audio/ and update MUSIC_DATA's `menu:` path at the bottom of
-  index.html — the looper's trim/loop machinery handles the rest, and the
-  seam-duck auto-disables for seamless material (it only ducks near the
-  boundary, which a true loop sails through inaudibly... remove the duck
-  block in updateMusic when the new track lands).
-- SFX: synthesized (Web Audio) for reactive sounds — zaps pitch-ride the
-  combo; recorded one-shot layers welcome for big moments (see shortlist).
+- **Menu track: SHIPPED** — *Midnight Terminal Wait*
+  (`src/audio/Midnight_Terminal_Wait.mp3`), wired at `MUSIC_DATA.menu`. It
+  replaced the 31s *View From The Dashboard*, which has been deleted.
+- The **seam duck is retained deliberately**, not removed as the old spec
+  planned: `updateMusic` eases the menu track's gain down to 0.12 across the
+  1.2s either side of the loop boundary and back up, so the loop crossfades
+  through itself instead of hard-cutting. It never touches the opening
+  play-through. Level tracks don't use it — they're sample-accurate Web Audio
+  loops with encoder padding trimmed via `loopStart`/`loopEnd`.
+- SFX: a hybrid. Reactive sounds stay synthesized in Web Audio (zaps pitch-ride
+  the combo, and falling pitch reads as failure — resolve upward on success).
+  Big moments are **recorded one-shots**, decoded once when audio wakes and
+  wired through the `SFX_SRC` map: hit, ui, miss, miss2, pick, pulse, volley,
+  shutdown (node fried), restart (node rebooting), startup (boot sequence),
+  fail, win, plus the splash sting. Files live in `src/audio/sfx/`.
+- Boot-sequence audio stays dry and military: sub rumble, rangefinder pips,
+  dock thunk, relay clicks, radio-key double clicks. **No melodic risers or
+  pitch slides** — that is what read as comical in the first cut.
 
-## SFX acquisition shortlist (to license/download, then log in CREDITS.md)
+## SFX source libraries (CC0 / royalty-free)
+The shipped one-shots were pulled from these. Log the specific pack or URL per
+file in CREDITS.md before submission — the license is settled, the origin isn't.
 - Sonniss GameAudioGDC bundles — royalty-free, no attribution:
   https://sonniss.com/gameaudiogdc/  (2026: https://gdc.sonniss.com/)
-  Search inside for: "electricity arc", "impact sub", "cinematic braam",
-  "interface", "power down", "power up".
 - Kenney CC0 packs (UI clicks, sci-fi, impacts): https://kenney.nl/assets?q=audio
-- Freesound (filter license = CC0): https://freesound.org/search/?q=electric+arc&license=Creative+Commons+0
-  Useful queries: "electric arc zap", "capacitor discharge", "sub impact",
-  "camera flash charge" (great EMP charge-up), "relay click".
-- Target one-shots: pulse purge fire, boss death, level-win ceremony hit,
-  shield break, node fry (electrical sputter), CID delivery sting.
+- Freesound, filtered to CC0: https://freesound.org/search/?q=electric+arc&license=Creative+Commons+0
+  Productive queries: "electric arc zap", "capacitor discharge", "sub impact",
+  "camera flash charge", "relay click".
 
 ## Store asset specs (Google Play)
 - Icon 512×512 PNG (32-bit, <1MB) · Feature graphic 1024×500 (no alpha,

@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DATA DEFENDERS — FX LAB · enemy roster</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #04060f; overflow: hidden;
+    font: 12px/1.4 system-ui, sans-serif; color: #9fb2c8; }
+  canvas { display: block; position: fixed; inset: 0; }
+  #panel { position: fixed; top: 10px; right: 10px; width: 250px; max-height: calc(100% - 20px);
+    overflow-y: auto; background: rgba(6,10,22,0.88); border: 1px solid #1c2740;
+    border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(4px); }
+  #panel h1 { font-size: 13px; letter-spacing: 2px; color: #8fe0ff; margin: 0 0 10px; }
+  .row { display: grid; grid-template-columns: 1fr 44px; gap: 6px; align-items: center; margin: 7px 0; }
+  .row label { grid-column: 1 / -1; display: flex; justify-content: space-between; color: #7d90a8; }
+  .row label b { color: #d0e4ff; font-weight: 600; }
+  .sect { margin: 10px 0 2px; color: #4d6a94; letter-spacing: 2px; font-size: 10px; }
+  input[type=range] { width: 100%; accent-color: #4d9bff; }
+  .btns { display: flex; gap: 6px; margin: 10px 0 6px; flex-wrap: wrap; }
+  button { background: #101a30; color: #bfeaff; border: 1px solid #27395e; border-radius: 6px;
+    padding: 5px 10px; font: 600 11px system-ui; cursor: pointer; }
+  button:hover { background: #18264a; }
+  button.on { background: #1c3a2a; border-color: #2f7a4a; color: #8fe8a8; }
+  pre { background: #060a14; border: 1px solid #1c2740; border-radius: 6px; padding: 8px;
+    font-size: 10px; color: #7ee262; white-space: pre-wrap; user-select: all; margin: 8px 0 0; }
+  #tag { position: fixed; left: 14px; top: 12px; color: #33507a; letter-spacing: 3px; font-size: 11px; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="tag">FX LAB — ENEMY ROSTER (machined vs parasite · click the wall to plant one · style button swaps the whole family)</div>
+<div id="panel">
+  <h1>BREACH DECK</h1>
+  <div class="btns">
+    <button id="bStyle">style: MACHINED</button>
+    <button id="bPause">pause</button>
+  </div>
+  <div class="btns">
+    <button id="tNormal" class="on">red</button>
+    <button id="tHeavy" class="on">heavy</button>
+    <button id="tLock0" class="on">blue</button>
+    <button id="tLock1" class="on">white</button>
+    <button id="bCopy">copy values</button>
+  </div>
+  <div id="sliders"></div>
+  <pre id="out"></pre>
+</div>
+<script src="labbg.js"></script>
+<script>
+'use strict';
+// The enemy roster lab: the four core breach enemies (red / heavy / blue-lock /
+// white-lock) parked around the bore on the REAL tunnel wall, judged in two
+// candidate design directions that share the game's color language and sigils:
+//   MACHINED — the current hex tap evolved: key-lit machined plate, anchor
+//              claws, a segmented auger drill with live flutes, seam glow.
+//   PARASITE — bio-digital infection: a machined core heart inside a pulsing
+//              translucent membrane, veined tendrils crawling the wall.
+const TAU = Math.PI * 2;
+const LIGHT_A = -TAU * 0.31;            // world key-light azimuth (top-left)
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let W = 0, H = 0, u = 0;
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const hash = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+
+// ---- knobs ----
+const K = {
+  size:    { v: 1.00, min: 0.5,  max: 2,    step: 0.05, lbl: 'body scale' },
+  squash:  { v: 0.36, min: 0.22, max: 0.6,  step: 0.01, lbl: 'wall foreshorten' },
+  glow:    { v: 1.00, min: 0,    max: 1.6,  step: 0.05, lbl: 'halo strength' },
+  urg:     { v: 0.35, min: 0,    max: 1,    step: 0.05, lbl: 'urgency (sim)' },
+  depth:   { v: 0.55, min: 0.28, max: 1.5,  step: 0.01, lbl: 'park depth (z)' },
+  drift:   { v: 0.00, min: 0,    max: 1,    step: 0.05, lbl: 'approach drift' },
+  grain:   { v: 0.40, min: 0,    max: 1,    step: 0.05, lbl: 'film grain' },
+  mMetal:  { v: 1.00, min: 0.5,  max: 1.6,  step: 0.05, lbl: 'M · plate metal', sect: 'MACHINED' },
+  mSeam:   { v: 0.55, min: 0,    max: 1,    step: 0.05, lbl: 'M · seam glow' },
+  mBeamL:  { v: 1.20, min: 0.3,  max: 2.5,  step: 0.05, lbl: 'M · exfil beam length' },
+  mBeamI:  { v: 0.55, min: 0,    max: 1,    step: 0.05, lbl: 'M · exfil beam glow' },
+  mDrill:  { v: 1.35, min: 0.6,  max: 2.2,  step: 0.05, lbl: 'M · drill length' },
+  mSpin:   { v: 3.50, min: 0,    max: 8,    step: 0.25, lbl: 'M · drill spin' },
+  mCrack:  { v: 1.00, min: 0,    max: 2,    step: 0.1,  lbl: 'M · crack reach' },
+  pCore:   { v: 0.42, min: 0.2,  max: 0.8,  step: 0.02, lbl: 'P · core size', sect: 'PARASITE' },
+  pSac:    { v: 1.15, min: 0.7,  max: 1.8,  step: 0.05, lbl: 'P · membrane radius' },
+  pPulse:  { v: 0.50, min: 0,    max: 1,    step: 0.05, lbl: 'P · breathing' },
+  pWobble: { v: 0.45, min: 0,    max: 1,    step: 0.05, lbl: 'P · membrane wobble' },
+  pTend:   { v: 5,    min: 2,    max: 8,    step: 1,    lbl: 'P · tendrils' },
+  pTendLen:{ v: 1.10, min: 0.4,  max: 2,    step: 0.05, lbl: 'P · tendril reach' },
+  pVein:   { v: 0.70, min: 0,    max: 1,    step: 0.05, lbl: 'P · vein pulse' },
+};
+const D = new Proxy({}, { get: (_, k) => K[k].v });
+// any knob can be preset from the URL for snapshots: ?depth=0.32&urg=0.8
+const Q = new URLSearchParams(location.search);
+for (const key in K) if (Q.has(key)) K[key].v = clamp(+Q.get(key), K[key].min, K[key].max);
+
+// ---- game tunnel math (lockstep with index.html) ----
+const geo = () => {
+  const nodeR = Math.min(W, H) * 0.44;
+  const R0 = Math.hypot(W, H) / 2 * 1.08;
+  return { cx: W / 2, cy: H / 2, nodeR, R0, hitZ: (R0 / nodeR - 1) / 6 };
+};
+function ring(z, g) {
+  const s = 1 / (1 + z * 6);
+  return { x: g.cx, y: g.cy, r: g.R0 * s, s };
+}
+const gun = l => { l *= D.mMetal; return 'rgb(' + Math.round(l * 0.92) + ',' + Math.round(l * 0.96) + ',' + Math.round(Math.min(255, l * 1.04)) + ')'; };
+
+// per-type palettes — identical to the game's enemyPal (color IS gameplay)
+function enemyPal(en) {
+  return en.type === 'heavy'
+    ? { glow: '200,70,255', lights: ['#eab8ff', '#f3d4ff'] }
+    : en.lock === 0
+    ? { glow: '80,170,255', lights: ['#a8ccff', '#d0e4ff'] }
+    : en.lock === 1
+    ? { glow: '225,240,255', lights: ['#ffffff', '#eef6ff'] }
+    : { glow: '255,60,90', lights: ['#ff9db0', '#ffc9d4'] };
+}
+
+// ---- the parked roster ----
+let style = 'machined';
+const roster = [
+  { key: 'tNormal', type: 'normal', angle: Math.PI * 1.25, sizeMul: 1 },
+  { key: 'tHeavy',  type: 'heavy',  angle: Math.PI * 1.75, sizeMul: 1.6 },
+  { key: 'tLock0',  type: 'normal', lock: 0, angle: Math.PI * 0.75, sizeMul: 1 },
+  { key: 'tLock1',  type: 'normal', lock: 1, angle: Math.PI * 0.25, sizeMul: 1 },
+];
+for (let i = 0; i < roster.length; i++) {
+  const en = roster[i];
+  en.on = true; en.z = D.depth; en.age = 9; en.spin = hash(i) * TAU; en.seed = hash(i + 40) * 100;
+}
+let planted = [];   // extra click-planted bodies (these always drift in)
+let particles = [];
+let paused = false, time = 0;
+
+// ---- sim ----
+function step(dt, g) {
+  time += dt;
+  LabBG.step(dt);
+  for (const en of roster) {
+    en.age += dt; en.spin += dt * 1.2;
+    if (D.drift > 0.01) {
+      en.z -= dt * 0.45 * D.drift;
+      if (en.z <= g.hitZ + 0.03) { en.z = 1.5; en.age = 0; }   // loop, re-showing the birth
+    } else {
+      en.z += (D.depth - en.z) * Math.min(1, dt * 5);
+    }
+  }
+  for (const en of planted) {
+    en.age += dt; en.spin += dt * 1.2;
+    en.z -= dt * 0.35;
+    if (en.z <= g.hitZ + 0.03) en.dead = true;
+  }
+  planted = planted.filter(en => !en.dead);
+  for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vx *= 0.92; p.vy *= 0.92; p.life -= dt * p.decay; }
+  particles = particles.filter(p => p.life > 0);
+}
+
+// urgency stand-in: ramps as a body closes on the ring, capped by the slider
+const urgency = (en, g) => D.urg * clamp(1 - (en.z - g.hitZ) / 0.45, 0, 1);
+const birthFade = en => clamp(en.age / 0.35, 0, 1);
+
+// wall decal helper — an annular arc patch in (angle x depth) space
+function wallPatch(g, a, halfA, z0, z1, col, alpha) {
+  const r0 = ring(Math.max(Math.min(z0, z1), 0.02), g).r;
+  const r1 = ring(Math.max(Math.max(z0, z1), 0.02), g).r;
+  const rm = (r0 + r1) / 2;
+  if (rm < 3) return;
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = col;
+  ctx.lineCap = 'butt';
+  ctx.lineWidth = Math.max(0.7, r0 - r1);
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, rm, a - halfA, a + halfA); ctx.stroke();
+}
+
+// =====================================================================
+// MACHINED — the tap evolved: claws, key-lit plate, live auger drill
+// =====================================================================
+function drawMachined(en, g, fade, PAL) {
+  const rg = ring(Math.max(en.z, 0.02), g);
+  const x = rg.x + Math.cos(en.angle) * rg.r, y = rg.y + Math.sin(en.angle) * rg.r;
+  const wallW = clamp(rg.r / g.nodeR, 0.06, 2);
+  const mul = en.sizeMul || 1;
+  const S = Math.min(W, H) * 0.05 * wallW * mul * D.size;
+  const seed = en.seed;
+  const lockKind = en.lock !== undefined, heavy = en.type === 'heavy';
+  const ux = (g.cx - x) / (rg.r || 1), uy = (g.cy - y) / (rg.r || 1);
+  const tx2 = -uy, ty2 = ux;
+  const tanA = Math.atan2(ty2, tx2);
+  const urg = urgency(en, g);
+
+  // exfil beam: on the far side of the wall, the tap transmits its haul OUT
+  // to the outside world — a translucent type-colored cone rising away from
+  // the bore, narrow and dense at the plate, spreading and dissolving with
+  // distance. Additive, layered, flickering slightly: light, not hardware.
+  if (D.mBeamI > 0.02) {
+    const BL = S * 2.4 * D.mBeamL;
+    const fl2 = 0.8 + 0.2 * Math.sin(time * 6.5 + seed * 2);
+    // perspective: the cone CONVERGES as it recedes from the tunnel — wide
+    // where it leaves the plate, vanishing to a point out in the dark
+    const w0b = S * 0.55, w1b = S * 0.06;
+    const ex2 = x - ux * BL, ey2 = y - uy * BL;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [wm2, am] of [[1.6, 0.09], [1.0, 0.20], [0.45, 0.34]]) {
+      const bg3 = ctx.createLinearGradient(x, y, ex2, ey2);
+      bg3.addColorStop(0, `rgba(${PAL.glow},${(am * D.mBeamI * fl2 * fade).toFixed(3)})`);
+      bg3.addColorStop(0.3, `rgba(${PAL.glow},${(am * 0.55 * D.mBeamI * fl2 * fade).toFixed(3)})`);
+      bg3.addColorStop(1, `rgba(${PAL.glow},0)`);
+      ctx.fillStyle = bg3;
+      ctx.beginPath();
+      ctx.moveTo(x + tx2 * w0b * wm2, y + ty2 * w0b * wm2);
+      ctx.lineTo(ex2 + tx2 * w1b * wm2, ey2 + ty2 * w1b * wm2);
+      ctx.lineTo(ex2 - tx2 * w1b * wm2, ey2 - ty2 * w1b * wm2);
+      ctx.lineTo(x - tx2 * w0b * wm2, y - ty2 * w0b * wm2);
+      ctx.closePath(); ctx.fill();
+    }
+    // faint packets escaping through the cone, spreading as they go
+    for (let i = 0; i < 2; i++) {
+      const q = (time * 0.45 + i / 2 + seed * 0.2) % 1;
+      const px3 = lerp(x, ex2, q), py3 = lerp(y, ey2, q);
+      const pw = Math.max(1, lerp(w0b * 0.55, w1b * 1.6, q));  // shrinks with distance
+      const pa = (1 - q * 0.6) * Math.min(1, q * 4) * 0.30 * D.mBeamI * fade;
+      const pg2 = ctx.createRadialGradient(px3, py3, 0, px3, py3, pw);
+      pg2.addColorStop(0, `rgba(${PAL.glow},${pa.toFixed(3)})`);
+      pg2.addColorStop(1, `rgba(${PAL.glow},0)`);
+      ctx.fillStyle = pg2;
+      ctx.beginPath(); ctx.arc(px3, py3, pw, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // impact cracks — reach grows with the bite knob (locks stay clean punches)
+  if (!lockKind && wallW > 0.12 && D.mCrack > 0.05) {
+    ctx.lineCap = 'round';
+    for (let c = 0; c < (heavy ? 4 : 2); c++) {
+      const dirA = Math.sin(seed * 7 + c * 5.13) > 0 ? 1 : -1;
+      const flick = 0.5 + 0.4 * Math.sin(time * (4 + c) + seed + c * 2.1);
+      ctx.strokeStyle = `rgba(${PAL.glow},${(fade * 0.45 * flick).toFixed(2)})`;
+      ctx.lineWidth = Math.max(0.8, wallW * 1.8);
+      ctx.beginPath();
+      let a = en.angle + dirA * 0.02, z = en.z + Math.sin(seed * 11 + c * 3.7) * 0.02;
+      const steps = 2 + Math.round(D.mCrack);
+      for (let sN = 0; sN <= steps; sN++) {
+        const rr = ring(Math.max(z, 0.02), g).r;
+        const px2 = g.cx + Math.cos(a) * rr, py2 = g.cy + Math.sin(a) * rr;
+        sN ? ctx.lineTo(px2, py2) : ctx.moveTo(px2, py2);
+        a += dirA * (0.028 + 0.015 * Math.sin(seed * 3 + c * 7 + sN * 4.2)) * D.mCrack;
+        z += 0.016 * Math.sin(seed * 5 + c * 9 + sN * 2.6) * D.mCrack;
+      }
+      ctx.stroke();
+    }
+  }
+
+  // scorched puncture + grounding — ONE soft radial pool squashed to the
+  // wall: near-black scorch at the center melting into contact shadow, then
+  // nothing. No wall-decal patches left, so no hard edges anywhere.
+  ctx.globalAlpha = fade;
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(tanA); ctx.scale(1, D.squash);
+  const sh2 = ctx.createRadialGradient(0, 0, 0, 0, 0, S * 1.7);
+  sh2.addColorStop(0, 'rgba(1,2,8,0.8)');
+  sh2.addColorStop(0.4, 'rgba(0,2,8,0.35)');
+  sh2.addColorStop(1, 'rgba(0,2,8,0)');
+  ctx.fillStyle = sh2;
+  ctx.beginPath(); ctx.arc(0, 0, S * 1.7, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'lighter';
+  const bl2 = ctx.createRadialGradient(0, 0, 0, 0, 0, S * 2.3);
+  bl2.addColorStop(0, `rgba(${PAL.glow},${(fade * 0.16).toFixed(3)})`);
+  bl2.addColorStop(0.5, `rgba(${PAL.glow},${(fade * 0.07).toFixed(3)})`);
+  bl2.addColorStop(1, `rgba(${PAL.glow},0)`);
+  ctx.fillStyle = bl2;
+  ctx.beginPath(); ctx.arc(0, 0, S * 2.3, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.restore();
+
+  // breach ripple: a wave train expanding ACROSS the wall — each ring is a
+  // loop in (angle x radius) space, so its long edges bow along the tunnel's
+  // hoops instead of cutting straight through them
+  const wallRing = P => {
+    ctx.beginPath();
+    const N = 22;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N * TAU;
+      const a = en.angle + Math.cos(t) * P / rg.r;
+      const rt = rg.r + Math.sin(t) * P * D.squash;
+      const px2 = g.cx + Math.cos(a) * rt, py2 = g.cy + Math.sin(a) * rt;
+      i ? ctx.lineTo(px2, py2) : ctx.moveTo(px2, py2);
+    }
+  };
+  for (const ph of [0, 0.5]) {
+    const rip = (time * (0.8 + urg * 1.3) + seed + ph) % 1;
+    ctx.strokeStyle = `rgba(${PAL.glow},${(fade * (0.5 + urg * 0.3) * (1 - rip) * (ph ? 0.5 : 1)).toFixed(2)})`;
+    ctx.lineWidth = Math.max(1, S * 0.1 * (1 - rip * 0.5));
+    wallRing(S * (0.7 + rip * 1.8));
+    ctx.stroke();
+  }
+
+  const hexR = S * 0.72;
+  const lightLocal = LIGHT_A - tanA;           // key light rotated into plate space
+  const key = 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.cos(en.angle - LIGHT_A), 2);
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(tanA);
+  ctx.scale(1, D.squash);                      // everything below lies ON the wall
+
+  // (claws retired — anchor lugs draw over the plate edge, further below)
+
+  // hex plate: machined gunmetal, shaded off the world key light
+  const hexPath = r => {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const ha = i / 6 * TAU + Math.PI / 6;
+      i ? ctx.lineTo(Math.cos(ha) * r, Math.sin(ha) * r) : ctx.moveTo(Math.cos(ha) * r, Math.sin(ha) * r);
+    }
+    ctx.closePath();
+  };
+  const lx = Math.cos(lightLocal) * hexR, ly = Math.sin(lightLocal) * hexR;
+  const plate = ctx.createLinearGradient(lx, ly, -lx, -ly);
+  plate.addColorStop(0, gun(30 + 30 * key));
+  plate.addColorStop(0.5, gun(16 + 12 * key));
+  plate.addColorStop(1, gun(9));
+  hexPath(hexR);
+  ctx.globalAlpha = fade * 0.92;
+  ctx.fillStyle = plate; ctx.fill();
+  ctx.globalAlpha = fade;
+  // chamfered bevel: lit hairline + inner shadow step
+  hexPath(hexR * 0.99);
+  ctx.strokeStyle = `rgba(225,235,255,${(0.10 + 0.25 * key).toFixed(2)})`;
+  ctx.lineWidth = Math.max(0.7, S * 0.035); ctx.stroke();
+  hexPath(hexR * 0.84);
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+  ctx.lineWidth = Math.max(0.7, S * 0.05); ctx.stroke();
+  // seam glow: the tap's energy leaking at the machined joint
+  if (D.mSeam > 0.02) {
+    hexPath(hexR * 0.92);
+    ctx.strokeStyle = `rgba(${PAL.glow},${(D.mSeam * (0.35 + 0.3 * Math.sin(time * 3 + seed))).toFixed(2)})`;
+    ctx.lineWidth = Math.max(0.8, S * 0.05); ctx.stroke();
+    // vent slots, breathing with the siphon
+    for (let i = 0; i < 3; i++) {
+      const va = i / 3 * TAU + Math.PI / 2;
+      const vk = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(time * 4 + i * 2.1 + seed));
+      ctx.strokeStyle = `rgba(${PAL.glow},${(D.mSeam * vk * 0.8).toFixed(2)})`;
+      ctx.lineWidth = Math.max(0.8, S * 0.045);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(va) * hexR * 0.3, Math.sin(va) * hexR * 0.3);
+      ctx.lineTo(Math.cos(va) * hexR * 0.58, Math.sin(va) * hexR * 0.58);
+      ctx.stroke();
+    }
+  }
+  // keyed / armored taps carry the game's outer type ring
+  if (lockKind || heavy) {
+    hexPath(hexR * 1.32);
+    ctx.strokeStyle = PAL.lights[0];
+    ctx.lineWidth = Math.max(0.7, S * 0.05);
+    ctx.globalAlpha = fade * (0.5 + 0.3 * Math.sin(time * 4 + seed));
+    ctx.stroke();
+    ctx.globalAlpha = fade;
+  }
+  ctx.restore();
+
+  // the wall's own hoops keep running OVER the plate edges
+  ctx.globalAlpha = fade * 0.3;
+  ctx.strokeStyle = 'rgba(120,200,255,0.9)';
+  ctx.lineWidth = Math.max(0.6, wallW * 1.2);
+  for (const dz2 of [-0.028, 0.028]) {
+    const rr3 = ring(Math.max(en.z + dz2 * mul, 0.02), g).r;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, rr3, en.angle - 0.045 * mul, en.angle + 0.045 * mul); ctx.stroke();
+  }
+  ctx.globalAlpha = fade;
+
+  // machined socket the auger emerges from — the joint reads as a bored
+  // hole in the plate, not a painted line across it
+  const L2 = S * (heavy ? 1.35 : 1.0) * D.mDrill;
+  const nw = S * 0.15;
+  const tipX = x + ux * L2, tipY = y + uy * L2;
+  // where the auger enters the plate: NO ring hardware — just a soft dark
+  // seam squeezed out at the SIDES of the shaft; the drill hides it in front
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(tanA); ctx.scale(1, D.squash * 0.55);
+  const sg3 = ctx.createRadialGradient(0, 0, 0, 0, 0, S * 0.22);
+  sg3.addColorStop(0, 'rgba(2,4,10,0.85)');
+  sg3.addColorStop(0.7, 'rgba(2,4,10,0.5)');
+  sg3.addColorStop(1, 'rgba(2,4,10,0)');
+  ctx.fillStyle = sg3;
+  ctx.beginPath(); ctx.arc(0, 0, S * 0.22, 0, TAU); ctx.fill();
+  ctx.restore();
+  // the TYPE RING: the donut reborn as the telegraph — a breathing ring in
+  // the required node's color around the drill base, half-hidden by the
+  // shaft passing through it. Heavies split it: blue side + white side.
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(tanA); ctx.scale(1, D.squash);
+  const bb = 0.5 + 0.5 * Math.sin(time * (2.2 + urg * 3) + seed);
+  const halves = heavy
+    ? [['80,170,255', Math.PI / 2, Math.PI * 1.5], ['255,255,255', -Math.PI / 2, Math.PI / 2]]
+    : [[en.lock === 0 ? '80,170,255' : en.lock === 1 ? '255,255,255' : PAL.glow, 0, TAU]];
+  for (const [col, a0, a1] of halves) {
+    ctx.strokeStyle = `rgba(${col},${(0.16 + 0.28 * bb).toFixed(2)})`;   // soft halo pass
+    ctx.lineWidth = Math.max(1.6, S * 0.17);
+    ctx.beginPath(); ctx.arc(0, 0, S * 0.23, a0, a1); ctx.stroke();
+    ctx.strokeStyle = `rgba(${col},${(0.5 + 0.45 * bb).toFixed(2)})`;    // ring core
+    ctx.lineWidth = Math.max(0.9, S * 0.06);
+    ctx.beginPath(); ctx.arc(0, 0, S * 0.23, a0, a1); ctx.stroke();
+  }
+  ctx.restore();
+  // auger shaft: flanks only get edges — nothing crosses the socket joint
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x + tx2 * nw, y + ty2 * nw);
+  ctx.lineTo(tipX + tx2 * nw * 0.2, tipY + ty2 * nw * 0.2);
+  ctx.lineTo(tipX - tx2 * nw * 0.2, tipY - ty2 * nw * 0.2);
+  ctx.lineTo(x - tx2 * nw, y - ty2 * nw);
+  ctx.closePath();
+  // graphite body: neutral near-black, dull metal — the lit flank lifts a
+  // touch, the shaded flank sinks to black
+  const lit = (tx2 * Math.cos(LIGHT_A) + ty2 * Math.sin(LIGHT_A)) > 0 ? 1 : -1;
+  const gg2 = ctx.createLinearGradient(x + tx2 * lit * nw, y + ty2 * lit * nw,
+                                       x - tx2 * lit * nw, y - ty2 * lit * nw);
+  gg2.addColorStop(0, '#222327');
+  gg2.addColorStop(0.55, '#131417');
+  gg2.addColorStop(1, '#0a0b0d');
+  ctx.fillStyle = gg2; ctx.fill();
+  ctx.clip();                                   // flutes live inside the shaft
+  // the faintest dull graphite luster on the lit flank
+  ctx.strokeStyle = 'rgba(180,185,195,0.10)';
+  ctx.lineWidth = Math.max(0.8, S * 0.05);
+  ctx.beginPath();
+  ctx.moveTo(x + tx2 * lit * nw * 0.55, y + ty2 * lit * nw * 0.55);
+  ctx.lineTo(tipX + tx2 * lit * nw * 0.1, tipY + ty2 * lit * nw * 0.1);
+  ctx.stroke();
+  const pitch = S * 0.22;
+  const off = pitch - (time * D.mSpin * S * 0.35) % pitch;  // flutes crawl toward the base
+  ctx.strokeStyle = 'rgba(5,9,18,0.65)';       // flutes are dark machined grooves
+  ctx.lineWidth = Math.max(0.7, S * 0.05);
+  for (let d = -pitch + off; d < L2 + pitch; d += pitch) {
+    const q0 = clamp(d / L2, 0, 1), wq = nw * (1 - q0 * 0.8);
+    const bx = x + ux * d, by = y + uy * d;
+    ctx.beginPath();                            // slanted band = one helix turn
+    ctx.moveTo(bx + tx2 * wq, by + ty2 * wq - Math.abs(wq) * 0);
+    ctx.lineTo(bx - tx2 * wq + ux * pitch * 0.45, by - ty2 * wq + uy * pitch * 0.45);
+    ctx.stroke();
+  }
+  ctx.restore();
+  // black flank edges — the silhouette does the work, no light outline
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = Math.max(0.6, S * 0.035);
+  for (const sgn of [1, -1]) {
+    ctx.beginPath();
+    ctx.moveTo(x + tx2 * sgn * nw, y + ty2 * sgn * nw);
+    ctx.lineTo(tipX + tx2 * sgn * nw * 0.2, tipY + ty2 * sgn * nw * 0.2);
+    ctx.stroke();
+  }
+  // siphon: packets of stolen energy climbing OUT of the stream, tip → plate,
+  // each streaming a tail behind it and swelling as it nears the tap
+  ctx.strokeStyle = `rgba(${PAL.glow},0.25)`;
+  ctx.lineWidth = Math.max(0.6, S * 0.04);
+  ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.lineTo(x, y); ctx.stroke();
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 3; i++) {
+    const q = (time * (0.55 + urg * 0.4) + i / 3 + seed * 0.1) % 1;
+    const fo = clamp((1 - q) / 0.22, 0, 1);   // absorbed into the tap near the base
+    const hx = lerp(tipX, x, q), hy = lerp(tipY, y, q);
+    const tq = Math.max(0, q - 0.16);
+    const tx3 = lerp(tipX, x, tq), ty3 = lerp(tipY, y, tq);
+    const tg2 = ctx.createLinearGradient(tx3, ty3, hx, hy);
+    tg2.addColorStop(0, `rgba(${PAL.glow},0)`);
+    tg2.addColorStop(1, `rgba(${PAL.glow},${(0.9 * fo).toFixed(2)})`);
+    ctx.strokeStyle = tg2;
+    ctx.lineWidth = Math.max(0.8, S * 0.06) * (0.7 + q * 0.6);
+    ctx.beginPath(); ctx.moveTo(tx3, ty3); ctx.lineTo(hx, hy); ctx.stroke();
+    // white-hot head bead (elongated, not a dot)
+    const bq = Math.max(0, q - 0.035);
+    ctx.strokeStyle = `rgba(255,255,255,${(0.75 * fade * fo).toFixed(2)})`;
+    ctx.lineWidth = Math.max(0.7, S * 0.045) * (0.7 + q * 0.6);
+    ctx.beginPath(); ctx.moveTo(lerp(tipX, x, bq), lerp(tipY, y, bq)); ctx.lineTo(hx, hy); ctx.stroke();
+  }
+  // the tip stays a bare cutting point — no hot spot, no circle
+  // (the front LEDs are gone — the type ring at the drill base is the telegraph)
+  // drill sparks at the tip + gold payload specks siphoned in
+  if (en.z < 1.6 && Math.random() < (0.25 + urg * 0.5) * fade) {
+    particles.push({ x: tipX, y: tipY,
+      vx: ux * rand(0.4, 1.2) + tx2 * rand(-0.8, 0.8), vy: uy * rand(0.4, 1.2) + ty2 * rand(-0.8, 0.8),
+      life: 0.35, decay: 2.8, col: PAL.glow, size: rand(0.6, 1.2) * Math.max(0.5, wallW) });
+  }
+  if (en.z < 1.5 && Math.random() < 0.35 * fade) {
+    const sa = en.angle + rand(-1, 1) * 0.14, sz = en.z + rand(-0.08, 0.08);
+    const rr2 = ring(Math.max(sz, 0.02), g).r;
+    const sx = g.cx + Math.cos(sa) * rr2, sy = g.cy + Math.sin(sa) * rr2;
+    particles.push({ x: sx, y: sy, vx: (x - sx) * 0.09, vy: (y - sy) * 0.09,
+      life: 0.4, decay: 2.6, col: '255,210,74', size: rand(0.6, 1.3) * wallW * 1.6 });
+  }
+}
+
+// =====================================================================
+// PARASITE — infection: core heart, breathing membrane, wall tendrils
+// =====================================================================
+function drawParasite(en, g, fade, PAL) {
+  const rg = ring(Math.max(en.z, 0.02), g);
+  const x = rg.x + Math.cos(en.angle) * rg.r, y = rg.y + Math.sin(en.angle) * rg.r;
+  const wallW = clamp(rg.r / g.nodeR, 0.06, 2);
+  const mul = en.sizeMul || 1;
+  const S = Math.min(W, H) * 0.05 * wallW * mul * D.size;
+  const seed = en.seed;
+  const lockKind = en.lock !== undefined, heavy = en.type === 'heavy';
+  const ux = (g.cx - x) / (rg.r || 1), uy = (g.cy - y) / (rg.r || 1);
+  const tanA = Math.atan2(ux, -uy);        // wall tangent, matching machined
+  const urg = urgency(en, g);
+
+  // infection stain: the wall discolors under the growth, bleeding type color
+  wallPatch(g, en.angle, 0.085 * mul, en.z - 0.06 * mul, en.z + 0.06 * mul, '#01040a', fade * 0.45);
+  ctx.globalCompositeOperation = 'lighter';
+  wallPatch(g, en.angle, 0.12 * mul, en.z - 0.085 * mul, en.z + 0.085 * mul, `rgba(${PAL.glow},0.5)`, fade * 0.10);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = fade;
+
+  // tendrils: veins crawling the wall in (angle x depth) space, each carrying
+  // a pulse of siphoned light back toward the core
+  const NT = Math.round(D.pTend) + (heavy ? 2 : 0);
+  const SEGS = 7;
+  for (let t = 0; t < NT; t++) {
+    const theta = t / NT * TAU + seed + (lockKind ? 0.4 : 0);
+    const reach = D.pTendLen * (0.7 + hash(t + seed) * 0.6);
+    const pts = [];
+    for (let sN = 0; sN <= SEGS; sN++) {
+      const q = sN / SEGS;
+      const wig = Math.sin(q * 5 + time * 1.4 + t * 2.3 + seed) * 0.012 * q;
+      const a = en.angle + (Math.cos(theta) * 0.13 * reach * q + wig) * mul;
+      const z = en.z + Math.sin(theta) * 0.10 * reach * q * mul;
+      const rr = ring(Math.max(z, 0.02), g).r;
+      pts.push([g.cx + Math.cos(a) * rr, g.cy + Math.sin(a) * rr, q]);
+    }
+    // dark vein under a glowing thread, both tapering
+    for (const [lw, col, al] of [[0.09, '2,6,14', 0.6], [0.045, PAL.glow, 0.55]]) {
+      ctx.strokeStyle = `rgba(${col},${(al * fade).toFixed(2)})`;
+      ctx.lineCap = 'round';
+      ctx.lineWidth = Math.max(0.7, S * lw);
+      ctx.beginPath();
+      for (let sN = 0; sN < pts.length; sN++) sN ? ctx.lineTo(pts[sN][0], pts[sN][1]) : ctx.moveTo(pts[sN][0], pts[sN][1]);
+      ctx.stroke();
+    }
+    // the pulse: a bright packet sliding tip → core (feeding, not spreading)
+    if (D.pVein > 0.02) {
+      const pq = 1 - ((time * (0.5 + urg * 0.6) + hash(t + 7) * 3) % 1);
+      const pi2 = Math.min(SEGS - 1, Math.floor(pq * SEGS));
+      const frac = pq * SEGS - pi2;
+      const px2 = lerp(pts[pi2][0], pts[pi2 + 1][0], frac), py2 = lerp(pts[pi2][1], pts[pi2 + 1][1], frac);
+      ctx.fillStyle = `rgba(${PAL.glow},${(D.pVein * fade * 0.9).toFixed(2)})`;
+      ctx.beginPath(); ctx.arc(px2, py2, Math.max(0.8, S * 0.055 * (1 - pq * 0.5)), 0, TAU); ctx.fill();
+    }
+  }
+
+  // membrane: a translucent sac breathing on the wall, wobbling organically
+  const breathe = 1 + D.pPulse * 0.08 * Math.sin(time * 2 + seed) + urg * 0.05 * Math.sin(time * 9);
+  const R = S * D.pSac * breathe;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(tanA);
+  ctx.scale(1, D.squash);
+  const blob = rr => {
+    ctx.beginPath();
+    const N = 26;
+    for (let i = 0; i <= N; i++) {
+      const ba = i / N * TAU;
+      const wob = 1 + D.pWobble * (0.10 * Math.sin(3 * ba + time * 1.7 + seed) + 0.06 * Math.sin(5 * ba - time * 2.3 + seed * 2));
+      const br = rr * wob;
+      const bx = Math.cos(ba) * br, by = Math.sin(ba) * br;
+      i ? ctx.lineTo(bx, by) : ctx.moveTo(bx, by);
+    }
+    ctx.closePath();
+  };
+  blob(R);
+  const mg = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+  mg.addColorStop(0, `rgba(${PAL.glow},0.05)`);
+  mg.addColorStop(0.72, `rgba(${PAL.glow},0.16)`);
+  mg.addColorStop(1, `rgba(${PAL.glow},0.30)`);
+  ctx.fillStyle = mg; ctx.fill();
+  ctx.strokeStyle = `rgba(${PAL.glow},${(0.5 + 0.2 * Math.sin(time * 2 + seed)).toFixed(2)})`;
+  ctx.lineWidth = Math.max(0.8, S * 0.055);
+  ctx.stroke();
+  blob(R * 1.04);
+  ctx.strokeStyle = 'rgba(230,242,255,0.18)';
+  ctx.lineWidth = Math.max(0.5, S * 0.02);
+  ctx.stroke();
+  // interior veins reaching from the core to the membrane rim
+  ctx.strokeStyle = `rgba(${PAL.glow},0.32)`;
+  ctx.lineWidth = Math.max(0.6, S * 0.03);
+  for (let v = 0; v < 4; v++) {
+    const va = v / 4 * TAU + seed + time * 0.15;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(va) * S * D.pCore * 0.8, Math.sin(va) * S * D.pCore * 0.8);
+    ctx.quadraticCurveTo(Math.cos(va + 0.5) * R * 0.6, Math.sin(va + 0.5) * R * 0.6,
+                         Math.cos(va + 0.25) * R * 0.92, Math.sin(va + 0.25) * R * 0.92);
+    ctx.stroke();
+  }
+
+  // the core heart: remnant machined hardware the growth swallowed
+  const cR = S * D.pCore * (heavy ? 1.25 : 1);
+  const hexPath = r => {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const ha = i / 6 * TAU + Math.PI / 6;
+      i ? ctx.lineTo(Math.cos(ha) * r, Math.sin(ha) * r) : ctx.moveTo(Math.cos(ha) * r, Math.sin(ha) * r);
+    }
+    ctx.closePath();
+  };
+  hexPath(cR);
+  ctx.fillStyle = '#0a0e1a'; ctx.fill();
+  ctx.strokeStyle = `rgba(${PAL.glow},0.9)`;
+  ctx.lineWidth = Math.max(0.8, S * 0.06);
+  ctx.stroke();
+  if (heavy) { hexPath(cR * 1.3); ctx.strokeStyle = `rgba(${PAL.glow},0.45)`; ctx.lineWidth = Math.max(0.6, S * 0.04); ctx.stroke(); }
+  // heartbeat: the core flashes as each vein pulse arrives
+  const beat = Math.pow(0.5 + 0.5 * Math.sin(time * (2 + urg * 4) + seed), 6);
+  ctx.fillStyle = `rgba(255,255,255,${(0.35 + beat * 0.6).toFixed(2)})`;
+  ctx.beginPath(); ctx.arc(0, 0, cR * (0.28 + beat * 0.14), 0, TAU); ctx.fill();
+  ctx.restore();
+
+  // the wall's hoops still read through the translucent growth
+  ctx.globalAlpha = fade * 0.22;
+  ctx.strokeStyle = 'rgba(120,200,255,0.9)';
+  ctx.lineWidth = Math.max(0.6, wallW * 1.2);
+  for (const dz2 of [-0.028, 0.028]) {
+    const rr3 = ring(Math.max(en.z + dz2 * mul, 0.02), g).r;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, rr3, en.angle - 0.05 * mul, en.angle + 0.05 * mul); ctx.stroke();
+  }
+  ctx.globalAlpha = fade;
+
+  // spores drifting off the membrane + gold specks pulled into the core
+  if (en.z < 1.6 && Math.random() < (0.15 + urg * 0.3) * fade) {
+    const sa2 = rand(0, TAU);
+    particles.push({ x: x + Math.cos(sa2) * R * 0.9, y: y + Math.sin(sa2) * R * 0.9 * D.squash,
+      vx: Math.cos(sa2) * 0.4, vy: Math.sin(sa2) * 0.4,
+      life: rand(0.3, 0.6), decay: 2, col: PAL.glow, size: rand(0.5, 1.1) * Math.max(0.5, wallW) });
+  }
+  if (en.z < 1.5 && Math.random() < 0.35 * fade) {
+    const sa = en.angle + rand(-1, 1) * 0.14, sz = en.z + rand(-0.08, 0.08);
+    const rr2 = ring(Math.max(sz, 0.02), g).r;
+    const sx = g.cx + Math.cos(sa) * rr2, sy = g.cy + Math.sin(sa) * rr2;
+    particles.push({ x: sx, y: sy, vx: (x - sx) * 0.09, vy: (y - sy) * 0.09,
+      life: 0.4, decay: 2.6, col: '255,210,74', size: rand(0.6, 1.3) * wallW * 1.6 });
+  }
+}
+
+// ---- shared wrapper: halo, body, warp-in, sigils (the gameplay language) ----
+function drawEnemy(en, g) {
+  const rg = ring(Math.max(en.z, 0.02), g);
+  const x = rg.x + Math.cos(en.angle) * rg.r, y = rg.y + Math.sin(en.angle) * rg.r;
+  const birth = birthFade(en);
+  const size = Math.min(W, H) * 0.06 * clamp(rg.r / g.nodeR, 0.1, 2) * (en.sizeMul || 1) * D.size * (0.85 + 0.15 * birth);
+  let fade = clamp((1.55 - en.z) / 0.3, 0, 1) * birth;
+  if (fade <= 0.005) return;
+  const PAL = enemyPal(en);
+  const urg = urgency(en, g);
+  const near = 1 - en.z;
+  ctx.save();
+  ctx.globalAlpha = fade;
+
+  // hot halo at the wall point, breathing harder as arrival closes in
+  if (D.glow > 0.02) {
+    const pulse = 1 + Math.sin(en.spin * 2) * 0.08 + urg * 0.1 * Math.sin(time * 10);
+    const gl = ctx.createRadialGradient(x, y, 0, x, y, size * 2.4 * pulse);
+    gl.addColorStop(0, `rgba(${PAL.glow},${(D.glow * (0.5 + urg * 0.3)).toFixed(2)})`);
+    gl.addColorStop(0.5, `rgba(${PAL.glow},${(D.glow * (0.16 + urg * 0.12)).toFixed(2)})`);
+    gl.addColorStop(1, `rgba(${PAL.glow},0)`);
+    ctx.fillStyle = gl;
+    ctx.beginPath(); ctx.arc(x, y, size * 2.4 * pulse, 0, TAU); ctx.fill();
+  }
+
+  (style === 'machined' ? drawMachined : drawParasite)(en, g, fade, PAL);
+
+  // warp-in flash
+  if (en.age < 0.3) {
+    const wa = 1 - en.age / 0.3;
+    ctx.strokeStyle = 'rgba(255,255,255,' + (wa * 0.8).toFixed(2) + ')';
+    ctx.lineWidth = Math.max(1, size * 0.15 * wa);
+    ctx.beginPath(); ctx.arc(x, y, size * (1.2 + (1 - wa) * 1.6), 0, TAU); ctx.stroke();
+  }
+  // (orbit sigils removed — the plate LEDs carry the lock telegraph now)
+  ctx.restore();
+}
+
+// ---- noise (film grain, matching the other decks) ----
+const noiseCv = document.createElement('canvas');
+function buildNoise() {
+  noiseCv.width = noiseCv.height = 256;
+  const c = noiseCv.getContext('2d');
+  const im = c.createImageData(256, 256);
+  for (let i = 0; i < im.data.length; i += 4) {
+    const v = 118 + (Math.random() - 0.5) * 255;
+    im.data[i] = im.data[i + 1] = im.data[i + 2] = v;
+    im.data[i + 3] = 255;
+  }
+  c.putImageData(im, 0, 0);
+}
+
+// ---- draw ----
+function draw(g) {
+  LabBG.draw(ctx, g, ring);
+  const all = roster.filter(en => en.on).concat(planted);
+  all.sort((a, b) => b.z - a.z);          // deep bodies draw first
+  for (const en of all) drawEnemy(en, g);
+  for (const p of particles) {
+    ctx.globalAlpha = clamp(p.life, 0, 1);
+    ctx.fillStyle = 'rgba(' + p.col + ',1)';
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  if (D.grain > 0.01) {
+    ctx.globalAlpha = 0.05 * D.grain;
+    const ox = (Math.floor(time * 24) * 97) % 256, oy = (Math.floor(time * 24) * 53) % 256;
+    for (let yy = -oy; yy < H; yy += 256) for (let xx = -ox; xx < W; xx += 256)
+      ctx.drawImage(noiseCv, xx, yy);
+    ctx.globalAlpha = 1;
+  }
+  LabBG.vignette(ctx);
+}
+
+// ---- loop ----
+let last = performance.now();
+function tick(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const g = geo();
+  if (!paused) step(dt, g);
+  draw(g);
+  requestAnimationFrame(tick);
+}
+
+// ---- panel wiring ----
+const slidersEl = document.getElementById('sliders'), outEl = document.getElementById('out');
+function readout() {
+  const lines = Object.keys(K).map(k => '  ' + k + ': ' + (K[k].step >= 1 ? K[k].v : K[k].v.toFixed(2)) + ',');
+  outEl.textContent = 'const ENEMYFX = { // style: ' + style + '\n' + lines.join('\n') + '\n};';
+}
+for (const key in K) {
+  const k = K[key];
+  if (k.sect) {
+    const s = document.createElement('div'); s.className = 'sect'; s.textContent = '— ' + k.sect + ' —';
+    slidersEl.appendChild(s);
+  }
+  const row = document.createElement('div'); row.className = 'row';
+  row.innerHTML = '<label>' + k.lbl + ' <b id="v_' + key + '">' + k.v + '</b></label>' +
+    '<input type="range" style="grid-column:1/-1" id="s_' + key + '" min="' + k.min +
+    '" max="' + k.max + '" step="' + k.step + '" value="' + k.v + '">';
+  slidersEl.appendChild(row);
+  row.querySelector('input').addEventListener('input', e => {
+    k.v = +e.target.value;
+    document.getElementById('v_' + key).textContent = k.v;
+    readout();
+  });
+}
+readout();
+const styleBtn = document.getElementById('bStyle');
+styleBtn.onclick = () => {
+  style = style === 'machined' ? 'parasite' : 'machined';
+  styleBtn.textContent = 'style: ' + style.toUpperCase();
+  readout();
+};
+document.getElementById('bPause').onclick = e => { paused = !paused; e.target.textContent = paused ? 'play' : 'pause'; };
+document.getElementById('bCopy').onclick = () => navigator.clipboard.writeText(outEl.textContent);
+for (const en of roster) {
+  const b = document.getElementById(en.key);
+  b.onclick = () => { en.on = !en.on; b.classList.toggle('on', en.on); };
+}
+
+// click the wall: plant a drifting copy of the nearest roster body's type there
+cv.addEventListener('pointerdown', e => {
+  const g = geo();
+  const a = Math.atan2(e.clientY - g.cy, e.clientX - g.cx);
+  let best = roster[0], bd = 9;
+  for (const en of roster) {
+    let d = Math.abs(a - en.angle); d = Math.min(d, TAU - d);
+    if (d < bd) { bd = d; best = en; }
+  }
+  planted.push({ type: best.type, lock: best.lock, sizeMul: best.sizeMul,
+    angle: a, z: 1.5, age: 0, spin: rand(0, TAU), seed: rand(0, 100) });
+});
+
+function resize() { W = cv.width = innerWidth; H = cv.height = innerHeight; u = Math.min(W, H); buildNoise(); LabBG.resize(W, H); }
+addEventListener('resize', resize);
+resize();
+// snapshot mode (?t=2.5&freeze&style=parasite): fast-forward, pick style, pause
+if (Q.get('style') === 'parasite') styleBtn.onclick();
+if (Q.has('t') || Q.has('freeze')) {
+  const g = geo();
+  for (let t = +Q.get('t') || 0; t > 0; t -= 1 / 60) step(1 / 60, g);
+  paused = Q.has('freeze');
+  if (paused) document.getElementById('bPause').textContent = 'play';
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
