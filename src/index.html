@@ -8885,30 +8885,21 @@ function archTapSpec(key, type, lock, cx, cy, r, k) {
   drawEnemy(en, g2);
   ctx.restore();
 }
-// stasis containment: a slow dashed ring AT the cell radius — the cage hugs its
-// specimen, so the row's packing budget buys body size, not empty circle
-function archStasis(cx, cy, r, al, col) {
-  if (al <= 0.02) return;
-  ctx.save(); ctx.globalAlpha = al; ctx.lineCap = 'butt';
-  ctx.strokeStyle = `rgba(${col},0.28)`; ctx.lineWidth = 1.2;
-  ctx.setLineDash([r * 0.16, r * 0.1]); ctx.lineDashOffset = -time * r * 0.5;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.restore();
-}
+// (the dashed containment ring is gone — it cost every specimen the room it
+// enclosed, and the bodies read better at full size with their label beneath)
 // the lineup — color IS the guidance, so each caption wears its type's ink
 const GUIDE_ITEMS = [
-  { cap: 'HIT WITH ANY NODE', col: '255,96,120',
+  { cap: ['HIT WITH', 'ANY NODE'], col: '255,96,120',
     draw: (cx, cy, r) => archTapSpec('n1', 'normal', undefined, cx, cy, r, 0.5) },
-  { cap: 'HIT WITH BOTH NODES', col: '212,101,255',
+  { cap: ['HIT WITH', 'BOTH NODES'], col: '212,101,255',
     draw: (cx, cy, r) => archTapSpec('hv', 'heavy', undefined, cx, cy, r, 0.46) },
-  { cap: 'HIT WITH BLUE NODE', col: '80,170,255',
+  { cap: ['HIT WITH', 'BLUE NODE'], col: '80,170,255',
     draw: (cx, cy, r) => archTapSpec('lk0', 'normal', 0, cx, cy, r, 0.5) },
-  { cap: 'HIT WITH WHITE NODE', col: '235,245,255',
+  { cap: ['HIT WITH', 'WHITE NODE'], col: '235,245,255',
     draw: (cx, cy, r) => archTapSpec('lk1', 'normal', 1, cx, cy, r, 0.5) },
-  { cap: 'DANGER! STEER CLEAR', col: '160,175,200',
+  { cap: ['DANGER!', 'STEER CLEAR'], col: '160,175,200',
     draw: (cx, cy, r) => archTapSpec('frag', 'frag', undefined, cx, cy, r, 0.95) },
-  { cap: 'RIDE IT TO CHARGE PULSE', col: '255,210,74',
+  { cap: ['RIDE IT TO', 'CHARGE PULSE'], col: '255,210,74',
     draw: (cx, cy, r) => { // the ribbon in its true 3D form: a STATIC snake of
       // wall arcs receding into a private bore (real wallPatch projection),
       // with a ride-light sweeping it head-to-tail, letting go, and looping
@@ -8987,56 +8978,51 @@ function drawGuide(g) {
   ctx.font = '700 ' + titlePx + 'px Audiowide, system-ui';
   ctx.fillText('FIELD GUIDE // KNOW YOUR ENEMY', W / 2, titleY);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
-  // foot: the tip fills the safe width; the dismiss hint tucks under it
+  // ONE caption size for the whole lineup: the widest line anywhere sets it, so
+  // no item's guidance reads smaller than its neighbour's (measured WITH the
+  // caption letter-spacing, since that's what the drawn width will carry)
+  try { ctx.letterSpacing = '1px'; } catch (e) {}
+  let capFs = Math.round(U * 0.06);
+  for (const it of GUIDE_ITEMS)
+    for (const ln of it.cap) capFs = Math.min(capFs, fitPx(ln, '700', capFs, colW - 8));
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  // foot: the tip fills the safe width, but never shouts over the guidance it
+  // supports — the captions ARE the page. The dismiss hint tucks under it.
   const TIP = 'TIP: DOCK BOTH NODES TOGETHER TO FIRE A SHOT';
   try { ctx.letterSpacing = '2px'; } catch (e) {}
-  const tipPx = fitPx(TIP, '700', Math.round(U * 0.05), W - mL - mR, 9);
+  const tipPx = fitPx(TIP, '700', Math.round(Math.min(U * 0.06, capFs * 1.35)), W - mL - mR, 9);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   const hintPx = clamp(Math.round(U * 0.028), 9, 15);
   const hintY = H - mB;
   const tipY = hintY - hintPx - gap * 0.9;
-  // The lineup STAGGERS: even cells ride high, odd ones low, so neighbours meet
-  // on the DIAGONAL. Side by side, two cages are capped by the step between
-  // them; offset vertically they're capped by hypot(step, 2·stagger) — a longer
-  // leash. The screen's spare HEIGHT is what pays for the extra width, so the
-  // specimens grow instead of the gaps.
-  // (the captions ride INSIDE the cages now, so nothing is reserved below them)
+  // A plain row: specimen, its two lines underneath. With no ring drawn around
+  // them the bodies answer only to their own footprint, so they take four
+  // fifths of the column — the plates never meet, and the glows that do are
+  // soft light. Height is the other ceiling: whatever the band leaves once the
+  // captions have their two lines.
+  const capH = capFs * 2 + 5;
+  const capGap = gap * 0.6;
   const bandTop = titleY + gap, bandBot = tipY - tipPx - gap;
   const bandH = bandBot - bandTop;
-  const halfV = bandH / 2;                       // each cell's own half-height budget
-  const CLEAR = 1.04;                            // clearance kept between neighbouring cages
-  // walk the cell radius down from the ceiling until the row actually packs.
-  // Centres span the safe width edge-to-edge, so the end cages never overhang.
-  let cellR = 12, dy = 0, step = colW;
-  const hiR = Math.max(12, Math.min(U * 0.34, halfV));
-  for (let k = 0; k <= 60; k++) {
-    const R = Math.max(12, hiR * (1 - k / 60));
-    const d = Math.max(0, Math.min(halfV - R, R));       // stagger: the leftover height, never past one radius
-    const s = (W - mL - mR - 2 * R) / (n - 1);           // centre-to-centre once the ends are tucked in
-    if (s > 0 && Math.hypot(s, 2 * d) >= 2 * R * CLEAR) { cellR = R; dy = d; step = s; break; }
-  }
-  const cyS = bandTop + (bandH - (2 * dy + 2 * cellR)) / 2 + dy + cellR;
-  // The guidance rides ONE arc across the top inside of its cage, hugging the
-  // rim like the legend stamped around a dial — the specimen sits centred and
-  // untouched below it.
-  const ARC_MAX = 3.2;                           // widest sweep a caption may take (rad)
-  let capFs = Math.max(8, Math.round(cellR * 0.22));
-  // top-arc glyphs rise OUTWARD from their baseline, so the baseline sits a
-  // cap-height inside the rim to keep the whole line within the circle
-  const arcR = fs2 => cellR * 0.97 - fs2 * 0.72;
-  while (capFs > 8) {                            // ONE size for the lineup: the longest caption sets it
-    ctx.font = '700 ' + capFs + 'px Audiowide, system-ui';
-    const widest = GUIDE_ITEMS.reduce((w2, it) => Math.max(w2, ctx.measureText(it.cap).width), 0);
-    if (widest <= ARC_MAX * arcR(capFs) * 0.86) break;   // 0.86: arcText's own fill factor
-    capFs--;
-  }
-  const capR = arcR(capFs);
+  // a body is NOT a circle: the drill reaches high, the plate sits low. Budget
+  // the two directions separately so the label tucks under the plate instead of
+  // floating where a ring's rim used to be.
+  const ART_UP = 0.85, ART_DN = 0.45;
+  const cellR = Math.max(12, Math.min(colW * 0.85, U * 0.42,
+    (bandH - capH - capGap) / (ART_UP + ART_DN)));
+  const blockH = cellR * (ART_UP + ART_DN) + capGap + capH;
+  const cyS = bandTop + (bandH - blockH) / 2 + cellR * ART_UP;
+  const capY = cyS + cellR * ART_DN + capGap + capFs;
+  const x0 = W / 2 - colW * n / 2;
   GUIDE_ITEMS.forEach((it, i) => {
-    const cx = mL + cellR + step * i;
-    const cy = cyS + (i % 2 ? dy : -dy);         // the zigzag
-    archStasis(cx, cy, cellR, master * 0.9, it.col);
-    it.draw(cx, cy, cellR);                      // the specimen sits dead centre
-    arcText(it.cap, cx, cy, capR, -Math.PI / 2, capFs, `rgb(${it.col})`, '700', TAU, false);
+    const cx = x0 + colW * (i + 0.5);
+    it.draw(cx, cyS, cellR);
+    ctx.textAlign = 'center';
+    try { ctx.letterSpacing = '1px'; } catch (e) {}
+    ctx.fillStyle = `rgb(${it.col})`;
+    ctx.font = '700 ' + capFs + 'px Audiowide, system-ui';
+    it.cap.forEach((ln, li) => ctx.fillText(ln, cx, capY + li * (capFs + 5)));
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
   });
   // the tip + the way out
   try { ctx.letterSpacing = '2px'; } catch (e) {}
