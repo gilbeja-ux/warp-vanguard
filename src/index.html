@@ -6180,22 +6180,26 @@ const PLANET_SHADE = {
 // the tilt squashes the ring, `ring` is the tube's orbit, `tube` its thickness.
 // A gate has an iris and no hub; a station has a pressurised core and lit ports.
 const RING_KINDS = {
-  station: { id: 'STN', n: 'station', sq: 0.40, ring: 0.60, tube: 0.17, metal: [176, 192, 214], spec: 12, hub: 1, win: 1, iris: null },
-  gate:    { id: 'GAT', n: 'gate',    sq: 0.46, ring: 0.74, tube: 0.13, metal: [150, 168, 196], spec: 18, hub: 0, win: 0, iris: [110, 236, 218] }
+  station: { id: 'STN', n: 'station', sq: 0.40, ring: 0.60, tube: 0.17, metal: [176, 192, 214], hub: 1, win: 1, iris: null },
+  gate:    { id: 'GAT', n: 'gate',    sq: 0.46, ring: 0.74, tube: 0.13, metal: [150, 168, 196], hub: 0, win: 0, iris: [110, 236, 218] }
 };
 // The torus shading model, shared by both kinds — the ring's equivalent of
 // PLANET_SHADE, and separate for the same reason: these are the dials that move
 // stations and gates TOGETHER.
 const RING_SHADE = {
   id: 'RSH',
-  lz: 0.55,          // key light pushed toward the viewer, as the worlds do it
-  amb: 0.16,         // how much metal survives where the tube faces away
-  specK: 235,        // highlight strength (its tightness is per-kind, K.spec)
+  hi: 1.55,          // how much brighter the lit limb runs than the tube's body
+  amb: 0.20,         // how much metal survives where the tube faces away
+  farK: 0.55,        // the far half of the ring, dimmed because it sits behind the hub
+  specK: 0.55,       // highlight alpha — this is what says metal rather than line
+  specW: 0.42,       // highlight width, as a fraction of the tube
+  specA: 0.75,       // how far around the lit quadrant the highlight runs, radians
   winN: 9,           // lit ports spaced around the rim
-  winP: 26,          // how tight each port is — higher is a smaller, harder light
-  winC: [210, 150, 60],
-  irisP: 1.7, irisK: 150, irisA: 26,     // energy in the throat: curve, strength, floor
-  hubR: 0.30, hubAmb: 0.18, hubC: [196, 208, 226]
+  winA: 0.9,         // port brightness at the point facing the sun
+  winC: [255, 206, 120],
+  irisA: 0.42,       // energy standing in a gate's throat
+  hubR: 0.17,        // the pressurised core, as a fraction of the body radius
+  hubC: [196, 208, 226]
 };
 // How often each kind turns up as a mission endpoint, out of 100. Gates take
 // whatever planets and stations leave — so these two are the whole dial.
@@ -6261,68 +6265,88 @@ function planetVariant() {
 // stops being a drawing and starts being an object.
 // >>> DEST-RING
 // The lab lifts this region verbatim. It may reach only TAU, LIGHT_A, ctx,
-// RING_KINDS and RING_SHADE — every constant that used to be loose in the loop
-// now lives in RING_SHADE so the lab can drive the shading itself.
-const ringChips = {};
-function buildRingSprite(R, K) {
-  const S = Math.ceil(R * 2.3);
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = S;
-  const c = cv.getContext('2d');
-  const img = c && c.createImageData && c.createImageData(S, S);
-  if (!img || !img.data) return null;              // stubbed context: no ImageData
-  const D = img.data, cx = S / 2, cy = S / 2;
+// RING_KINDS and RING_SHADE — every constant lives in RING_SHADE so the lab can
+// drive the shading without touching the drawing.
+//
+// VECTOR ART, deliberately. A pixel shader would be easy here and it is the wrong
+// choice: the lab edits SHAPES, and you cannot drag a handle on a pixel loop.
+// Everything below is paths and gradients, so the geometry stays editable.
+//
+// What stops it reading as a doodle is not detail, it is DEPTH — three things
+// flat strokes never had:
+//
+//   1. The ring is drawn in TWO HALVES with the hub and iris between them, so the
+//      near half genuinely occludes the far half. That single ordering does more
+//      for solidity than any amount of added linework.
+//   2. The tube is shaded by a gradient laid along the KEY LIGHT AXIS, not filled
+//      with a flat colour, so it turns from lit to dark across its circumference
+//      the way a real torus does.
+//   3. A specular arc rides only the lit quadrant, which is what says "metal"
+//      rather than "line".
+function drawRingBody(x, y, R, kind) {
+  const K = RING_KINDS[kind] || RING_KINDS.station;
   const H = RING_SHADE;
-  let lx = Math.cos(LIGHT_A), ly = Math.sin(LIGHT_A), lz = H.lz;
-  const ln = Math.hypot(lx, ly, lz); lx /= ln; ly /= ln; lz /= ln;
+  const rx = R * K.ring, ry = rx * K.sq;
+  const tube = Math.max(0.8, R * K.tube * 2);
+  const lx = Math.cos(LIGHT_A), ly = Math.sin(LIGHT_A);
   const [m0, m1, m2] = K.metal;
-  const [w0, w1, w2] = H.winC, [c0, c1, c2] = H.hubC;
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const i4 = (y * S + x) * 4;
-      const u = (x - cx) / R, v = ((y - cy) / R) / K.sq;   // un-squash the tilt
-      const d = Math.hypot(u, v);
-      const q = (d - K.ring) / K.tube;
-      if (Math.abs(q) <= 1 && d > 1e-4) {
-        const nz = Math.sqrt(1 - q * q);
-        const nx = (u / d) * q, ny = (v / d) * q;
-        const diff = Math.max(0, nx * lx + ny * ly + nz * lz);
-        const spec = Math.pow(diff, K.spec) * H.specK;
-        const k2 = H.amb + (1 - H.amb) * diff;
-        let r8 = m0 * k2 + spec, g8 = m1 * k2 + spec, b8 = m2 * k2 + spec;
-        if (K.win) {                                       // lit ports around the rim
-          const az = Math.atan2(v, u);
-          const w = Math.pow(Math.max(0, Math.sin(az * H.winN)), H.winP) * (1 - Math.abs(q));
-          r8 += w * w0; g8 += w * w1; b8 += w * w2;
-        }
-        D[i4] = Math.min(255, r8); D[i4 + 1] = Math.min(255, g8); D[i4 + 2] = Math.min(255, b8);
-        D[i4 + 3] = 255;
-      } else if (K.iris && d < K.ring - K.tube) {          // energy standing in the throat
-        const t = d / (K.ring - K.tube);
-        const a = Math.pow(1 - t, H.irisP) * H.irisK + H.irisA;
-        D[i4] = K.iris[0]; D[i4 + 1] = K.iris[1]; D[i4 + 2] = K.iris[2];
-        D[i4 + 3] = Math.min(255, a);
-      } else if (K.hub && d < H.hubR) {                     // the pressurised core
-        const nz2 = Math.sqrt(Math.max(0, 1 - (d / H.hubR) * (d / H.hubR)));
-        const diff = Math.max(0, (u / H.hubR) * lx + (v / H.hubR) * ly + nz2 * lz);
-        const k2 = H.hubAmb + (1 - H.hubAmb) * diff;
-        D[i4] = Math.min(255, c0 * k2); D[i4 + 1] = Math.min(255, c1 * k2); D[i4 + 2] = Math.min(255, c2 * k2);
-        D[i4 + 3] = 255;
-      } else D[i4 + 3] = 0;
+  // the tube's cross-light gradient: lit limb -> body -> terminator
+  const tg = ctx.createLinearGradient(x + lx * rx, y + ly * ry, x - lx * rx, y - ly * ry);
+  const lit = c => `rgb(${Math.min(255, c[0] * H.hi) | 0},${Math.min(255, c[1] * H.hi) | 0},${Math.min(255, c[2] * H.hi) | 0})`;
+  const mid = c => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+  const dim = c => `rgb(${c[0] * H.amb | 0},${c[1] * H.amb | 0},${c[2] * H.amb | 0})`;
+  tg.addColorStop(0, lit(K.metal));
+  tg.addColorStop(0.42, mid(K.metal));
+  tg.addColorStop(1, dim(K.metal));
+  const half = (a0, a1, w, style) => {
+    ctx.strokeStyle = style; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, a0, a1); ctx.stroke();
+  };
+  ctx.save();
+  ctx.lineCap = 'butt';
+  // --- 1. the FAR half (screen-top), dimmed: it is behind the hub ---
+  ctx.globalAlpha = H.farK;
+  half(Math.PI, TAU, tube, tg);
+  ctx.globalAlpha = 1;
+  // --- 2. what sits inside the ring ---
+  if (K.iris) {                                   // energy standing in the throat
+    const ir = ctx.createRadialGradient(x, y, 0, x, y, rx * 0.94);
+    ir.addColorStop(0, `rgba(${K.iris},${H.irisA})`);
+    ir.addColorStop(0.55, `rgba(${K.iris},${(H.irisA * 0.42).toFixed(3)})`);
+    ir.addColorStop(1, `rgba(${K.iris},0)`);
+    ctx.fillStyle = ir;
+    ctx.beginPath(); ctx.ellipse(x, y, rx * 0.94, ry * 0.94, 0, 0, TAU); ctx.fill();
+  }
+  if (K.hub) {                                    // the pressurised core, lit as a sphere
+    const hr = R * H.hubR;
+    const hg = ctx.createRadialGradient(x + lx * hr * 0.6, y + ly * hr * 0.6, hr * 0.06, x, y, hr * 1.3);
+    hg.addColorStop(0, `rgb(${H.hubC})`);
+    hg.addColorStop(0.55, `rgba(${H.hubC},0.55)`);
+    hg.addColorStop(1, 'rgba(12,18,30,0.9)');
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.arc(x, y, hr, 0, TAU); ctx.fill();
+    // the spine, so the hub is mounted rather than floating
+    ctx.strokeStyle = `rgba(${H.hubC},0.55)`; ctx.lineWidth = Math.max(0.6, R * 0.05);
+    ctx.beginPath(); ctx.moveTo(x - rx, y); ctx.lineTo(x + rx, y); ctx.stroke();
+  }
+  // --- 3. the NEAR half (screen-bottom), full strength: occludes everything ---
+  half(0, Math.PI, tube, tg);
+  // --- the specular: metal, and only on the lit quadrant ---
+  const sa = Math.atan2(ly * 0.5, lx);
+  ctx.strokeStyle = `rgba(255,255,255,${H.specK})`;
+  ctx.lineWidth = Math.max(0.5, tube * H.specW);
+  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, sa - H.specA, sa + H.specA); ctx.stroke();
+  // --- lit ports around the rim, brighter where the sun already is ---
+  if (K.win) {
+    for (let i = 0; i < H.winN; i++) {
+      const a2 = (i / H.winN) * TAU;
+      const px = x + Math.cos(a2) * rx, py = y + Math.sin(a2) * ry;
+      const face = 0.35 + 0.65 * Math.max(0, Math.cos(a2) * lx + Math.sin(a2) * ly);
+      ctx.fillStyle = `rgba(${H.winC},${(H.winA * face).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(px, py, Math.max(0.4, tube * 0.22), 0, TAU); ctx.fill();
     }
   }
-  c.putImageData(img, 0, 0);
-  return { cv, S, R };
-}
-function ringChip(kind) {
-  if (!(kind in ringChips)) ringChips[kind] = buildRingSprite(26, RING_KINDS[kind] || RING_KINDS.station);
-  return ringChips[kind];
-}
-function drawRingBody(x, y, R, kind) {
-  const chip = ringChip(kind);
-  if (!chip) return false;
-  const w = chip.S * (R / chip.R);
-  ctx.drawImage(chip.cv, x - w / 2, y - w / 2, w, w);
+  ctx.restore();
   return true;
 }
 // <<< DEST-RING
@@ -12709,8 +12733,8 @@ function destKindFor(campId, lv, isBoss) {
 // (drawStationArt / drawGateArt / drawFieldArt are RETIRED. They were stroked
 // rings with drawn solar panels and scattered rock ellipses — line art, which at
 // chart scale reads as a doodle beside a shaded planet. Stations and gates are
-// per-pixel shaded tori now (buildRingSprite), and asteroid fields are gone with
-// the scenery model that needed them: a galaxy is star systems, not props.)
+// shaded vector tori now (drawRingBody in DEST-RING), and asteroid fields are
+// gone with the scenery model that needed them: a galaxy is star systems.)
 
 // ---------- THE GALAXY CHART ----------
 // Replaces the isometric city wholesale. The structure that survives is the one
@@ -13103,12 +13127,7 @@ function drawSystemsLive(wx, wy, z, ccx, ccy, R) {
       const o = pl.o * 1.15 * z;
       if (o > 4) {
         const ix = sx + Math.cos(pl.a + 0.9) * o, iy = syy + Math.sin(pl.a + 0.9) * o * 0.5;
-        const ir = Math.max(1, 1.6 * z);
-        const chip = ringChip('station');
-        if (chip) {
-          const w = chip.S * (ir / chip.R);
-          ctx.drawImage(chip.cv, ix - w / 2, iy - w / 2, w, w);
-        }
+        drawRingBody(ix, iy, Math.max(1.2, 1.9 * z), 'station');
       }
     }
     ctx.restore();
