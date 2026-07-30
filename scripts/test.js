@@ -996,7 +996,7 @@ flushUI(); G.setCampScroll(1); G.frame(16); // center the row
   G.menuTap(inv.x + inv.w / 2, inv.y + inv.h / 2, 1);
 }
 flushUI(); flushUI(); // press beat -> disc zoom -> panels drive in
-check('SYNC STREAM zooms the disc into its route map', G.getMenuScreen() === 'map' && G.getCamp().id === 'investigation');
+check('TAKE CONTRACT zooms the disc into its route map', G.getMenuScreen() === 'map' && G.getCamp().id === 'investigation');
 flushUI(); // panels settle
 G.frame(16);
 const n2 = G.menuBtns().find(b => b.node === 2);
