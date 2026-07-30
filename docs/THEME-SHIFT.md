@@ -58,7 +58,7 @@ Not translated. Already correct.
 | a packet | **a charge** / **a mine** | |
 | node (player-facing) | **emitter** | Engine identifier `node` stays. |
 | Data Defenders *(the licensing body)* | **the Lane Authority** | Certifies squadrons, brokers contracts, takes its cut, does not protect you. Dispatch channel still automated. |
-| operator | **runner** | Already the player's callsign. Now also the trade. |
+| operator *(the trade)* | **operator** — unchanged | Setting-neutral; the Lane Authority still certifies operators. What changed is how the player is *addressed*: callsign **RUNNER**, unit callsign **wolf**. |
 | the firewall perimeters *(map)* | **the patrol cordons** | Concentric belts of escort cover around the core systems. |
 | FIREWALL *(power-up)* | **DEFLECTOR** | |
 | the isometric neon city | **the lane chart** | New `map.theme: 'chart'` painter beside the city one. |
@@ -100,6 +100,29 @@ Consequences to hold:
   The sawtooth curve is tuned; retuning it is not part of a theme change.
 - The control scheme, the power-up roster, the 100%-able rule, the business model.
 - All audio. Every file, every mapping.
+
+## Deliberately left on the old name
+
+Not oversights — each is a record of something that already happened, or an
+identifier with consequences.
+
+| | Why |
+|---|---|
+| `capacitor.config.json` → `appId: com.datadefenders.game` | The permanent Play Store identity. `appName` was changed; the **appId was not**, because it cannot be changed after first publish and picking the replacement is the author's call. Nothing is published yet, so it is still free to change — decide it before the first store upload. |
+| `docs/IDENTITY-SETUP.md` | Marked **SUPERSEDED (2026-07-25)** — those accounts were cancelled. It is a historical record of a flow that no longer exists, including the `com.datadefenders.game` bundle ID. Rewriting it would falsify the record. |
+| `knowledge/README.md`, `knowledge/data-defenders-src.html` | A point-in-time snapshot from 2026-07-05. A stale snapshot retitled is still stale. |
+
+## Not landed here, on purpose
+
+`src/campaigns.js` carries the **shipped** story (Investigation → Going Deeper →
+Signal Lost → The Bait → Shutdown). [SCREENPLAY.md](SCREENPLAY.md) holds a
+*pending narrative rewrite* — Renke, Reyes, the wardens, the signature spine —
+that was never applied to the engine.
+
+**Both were themed; neither was swapped for the other.** Landing the narrative
+rewrite inside a theme branch would have made this diff unreviewable, and the
+two changes want separate review. The work order for the narrative rewrite is
+still [SCREENPLAY-PLAN.md](SCREENPLAY-PLAN.md), now written in lane vocabulary.
 
 ## Owed art
 

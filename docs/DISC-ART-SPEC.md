@@ -20,10 +20,10 @@ kicker, no LOG title, no border but the disc's own ring.
    │▓▓▓▓▓▓▓▓ your keyframe ▓▓▓▓▓▓▓│
    │▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
    │████████████████████████████████│ ← caption bar, full disc width,
-   │██ One line. One payload. ██████│   overlaying the art's lower edge
+   │██ One lane. One convoy. ███████│   overlaying the art's lower edge
    │────────────────────────────────│
    │    40s            18           │ ← the readings: number over name
-   │ FIBER LENGTH  DETECTED THREATS │
+   │ LANE LENGTH   DETECTED THREATS │
     ╲      TAP TO CONTINUE        ╱
       ╰─────────────────────────╯
 ```

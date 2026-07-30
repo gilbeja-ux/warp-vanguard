@@ -1,4 +1,4 @@
--- Data Defenders — leaderboard backend (Supabase / Postgres)
+-- Warp Lane — leaderboard backend (Supabase / Postgres)
 -- Run this in the Supabase SQL editor (or `supabase db push`) once, on a fresh
 -- project. It creates the single leaderboard table, the write-lockdown that
 -- makes anti-cheat enforceable, and the ranking functions the client reads.

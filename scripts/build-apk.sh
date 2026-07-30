@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build a self-contained, offline Android APK for Data Defenders.
+# Build a self-contained, offline Android APK for Warp Lane.
 # No Android Studio or sudo required — uses the Homebrew JDK 17 formula
 # and the android-commandlinetools SDK. See BUILD.md for one-time setup.
 set -euo pipefail

@@ -1,6 +1,6 @@
 # The story rewrite — plan of work
 
-A full rewrite of all 45 logs against a new spine: you are a **Data Defenders
+A full rewrite of all 45 logs against a new spine: you are a **Lane Authority
 operator**, a freelancer running contracts, who gets read into a corruption
 investigation one mission at a time.
 
@@ -11,7 +11,7 @@ and the order we build it. The writing itself lives in `docs/SCREENPLAY.md`.
 
 ## The spine
 
-> Data Defenders are licensed operators, hired to protect data streams. You are
+> The Lane Authority licenses operators, hired to run point ahead of convoys. You are
 > one of them, running contracts for clients.
 >
 > The first contract is ordinary. The second is a rebooking. After the third, the
@@ -36,7 +36,7 @@ and the order we build it. The writing itself lives in `docs/SCREENPLAY.md`.
 | **Client** | One client, straight with you. He rebooks you deliberately — the rebooking *is* the tell. |
 | **Evidence loop** | Real, not fictional: destroyed enemy counts (already tracked) feed a **TRACE ANALYSIS** line on the victory report. The gameplay verb produces the story beat. |
 | **In-run voice** | The channel changes hands. M1–M4 it is **DEFENDERS DISPATCH** — bored, procedural, contractual. From M5 the same slot is **the commander**. The tonal switch does the storytelling for free. |
-| **Setting** | One named city, near-future. Its harbor, old town, financial spine and undercity are the existing level names — they already read as one map. |
+| **Setting** | One named reach, near-future. Its harbor, old moorings, trade spine and sublanes are the existing level names — they already read as one chart. |
 | **Tone** | It comes for you. Mid-game they stop attacking the line and start attacking the operator. |
 | **Structure** | Straight chronology, mission 1 to 40, present tense. |
 | **Briefing** | Three art beats per mission, tapped through, inside the existing disc. |
@@ -47,7 +47,7 @@ and the order we build it. The writing itself lives in `docs/SCREENPLAY.md`.
 - The operator: callsign — and whether the leaderboard handle becomes the name
   she says out loud (`docs/IDENTITY-SETUP.md` already stores one).
 - The client: name, company, what he is actually shipping.
-- The city: name.
+- The reach: name.
 - Whether **OMNI** and **TRACE** survive as speakers, or collapse into
   client + commander.
 
@@ -95,7 +95,7 @@ earns and no more:
 
 | Beats | When | Examples |
 |---|---|---|
-| **1** | Pace missions, escalation, "more of the same but worse" | C3 M18 GHOST CURRENT, C5 M38 DEEP FIBER |
+| **1** | Pace missions, escalation, "more of the same but worse" | C3 M18 GHOST CURRENT, C5 M38 DEEP TRANSIT |
 | **2** | A situation plus a turn | most missions |
 | **3** | Reveals, arrivals, and the moment a campaign changes shape | C1 M3 THE OFFER, C1 M4 THE CONTACT, C3 M22 BLADE |
 
@@ -180,7 +180,7 @@ rewrite lands, so there is exactly one source of truth.
 
 ## Order of work
 
-1. **The bible** — one page: the city, the cast, the rules of the world, the
+1. **The bible** — one page: the reach, the cast, the rules of the world, the
    corruption ladder, and who knows what when. Agreed before a word of scene work.
 2. **Campaign 1 in full** — 8 missions + verdict, written as the template. This is
    the one we argue about. Everything downstream copies its shape.

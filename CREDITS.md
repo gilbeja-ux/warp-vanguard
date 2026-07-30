@@ -1,4 +1,4 @@
-# Credits & Licenses — Data Defender: Dark Fiber
+# Credits & Licenses — Warp Lane: Vanguard Squadron
 
 ## Music
 Every soundtrack piece in this game — the menu theme and **every file in

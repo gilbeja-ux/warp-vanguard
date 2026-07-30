@@ -85,7 +85,7 @@ const BARKS = {
   pickup:      ['good grab.', "that'll hold.", 'logged.', 'useful.'],
   streak:      ["you're ahead of them.", 'nice line.', 'keep that rhythm.',
                 "they can't place a hit."],
-  cleanHalf:   ["halfway. nothing's through.", "payload's intact. stay on it.",
+  cleanHalf:   ["halfway. nothing's through.", "convoy's intact. stay on it.",
                 'clean so far. hold it.'],
   nodeLost:    ["node's down. hold what's left.", "we're one short. tighten up.",
                 "lost one. don't lose the line."],
@@ -93,7 +93,7 @@ const BARKS = {
                 "almost home. don't ease off.", 'last leg. finish it.'],
   bossOpen:    ["that's the core. six hits.", 'there it is. dock and hold.'],
   bossLow:     ["it's failing. finish it.", 'one more. put it down.'],
-  win:         ["relay's clear. good work.", 'payload delivered. logged.'],
+  win:         ["relay's clear. good work.", 'convoy delivered. logged.'],
   loss:        ["line's gone. we'll re-run it.", 'they got through. again.']
 };
 ```

@@ -15,7 +15,7 @@ is [DESIGN.md](../DESIGN.md); Play asset specs and brand tokens are in
 [BRAND.md](../BRAND.md).
 
 **Mode: Persuade.** Play now, App Store-ready. Title assumed to be
-`Data Defenders: Dark Fiber` (26 of Play's 30 characters).
+`Warp Lane: Vanguard Squadron` (28 of Play's 30 characters).
 
 ---
 
@@ -41,7 +41,7 @@ second, later decision and the listing should not fight for it.
 
 - Skill-fairness is absolute — nothing purchasable moves a score. No
   consumables, no ads, no pay-per-campaign.
-- The daily run is the same seeded stream for every player, worldwide, that day.
+- The daily run is the same seeded lane for every player, worldwide, that day.
 - Every level is 100% completable. Difficulty rises; impossibility never.
 - Real scope: 5 campaigns, 40 relays, 5 distinct bosses (verified against
   `src/campaigns.js`).
@@ -69,10 +69,10 @@ All landscape 16:9, matching the game's locked orientation.
 | 1 | Mid-run bore. Both arcs lit, four breaches at staggered depth, one mid-discharge. High combo. | `TWO THUMBS. ONE LINE.` |
 | 2 | Nodes docked, white-hot volley core filling the arc window, four reds nose-to-tail in one lane. | `DOCK BOTH. CLEAR THE LANE.` |
 | 3 | The Gateway core — eye lit, plates torn, darts inbound. | `THE FIREWALL WAS BOUGHT.` |
-| 4 | Route map: blueprint city, green secured lines flowing, dossier open. | `5 CAMPAIGNS. 40 RELAYS.` |
+| 4 | Lane chart: patrol cordons, green cleared routes flowing, dossier open. | `5 CAMPAIGNS. 40 RELAYS.` |
 | 5 | Briefing disc mid-typewriter, case-file kicker in gold. | `EVERY RELAY IS A CASE FILE.` |
 | 6 | Rim wall crossing the bore with the golden ribbon riding it. | `ROUTE AROUND. RIDE THE GOLD.` |
-| 7 | Daily leaderboard. | `SAME STREAM. EVERY PLAYER. EVERY DAY.` |
+| 7 | Daily leaderboard. | `SAME LANE. EVERY PLAYER. EVERY DAY.` |
 
 **Focal moment: shot 1.** It appears beside the icon in search results and
 carries more weight than the other six combined. It must show both nodes, the
@@ -93,11 +93,11 @@ thumbnailing.
 
 ## 4. Copy
 
-- **Title:** `Data Defenders: Dark Fiber`
+- **Title:** `Warp Lane: Vanguard Squadron`
 - **Short description (80 max):**
-  `Command two nodes around a data tunnel. Intercept every trap. Guard the payload.` (79)
+  `Command two emitters around a warp lane. Collapse every interdictor. Clear the path.` (83)
   Comprehension first. Alternate, if leading with the differentiator is
-  preferred: `Two thumbs. One fiber line. Nothing you can buy will move your score.` (68)
+  preferred: `Two thumbs. One warp lane. Nothing you can buy will move your score.` (68)
 - **Full description (4000 max):** six blocks — the hook; the loop in three
   sentences; the third verb (unite-volley); scope (campaigns, endless, daily);
   the fairness promise stated plainly as a *refusal* list; then an honest

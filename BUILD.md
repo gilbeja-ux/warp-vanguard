@@ -1,6 +1,6 @@
 # Building the Android app (offline APK)
 
-Data Defenders ships as a [Capacitor](https://capacitorjs.com) app: the web game
+Warp Lane ships as a [Capacitor](https://capacitorjs.com) app: the web game
 in `src/` is bundled into a native Android project so it runs fully offline — no
 browser, no dev server, no wifi. This is done **without Android Studio or sudo**.
 

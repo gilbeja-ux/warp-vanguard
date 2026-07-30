@@ -1,4 +1,4 @@
-# Release Plan — DATA DEFENDERS: DARK FIBER
+# Release Plan — WARP LANE: VANGUARD SQUADRON
 
 ## Business model (decided 2026-07-14)
 
