@@ -5969,6 +5969,18 @@ function drawFarGlow(far, vr) {
   }
 }
 
+// The projection floor. ring() scales by 1/(1 + z*6), which divides by zero at
+// z = -1/6 and returns a NEGATIVE radius past it, flipping whatever it projects to
+// the opposite side of the bore. Nothing may be projected beyond this.
+const Z_FLOOR = -0.160;
+// The exit must never be SUB-FRAME. z can move 0.089 in a single frame during the
+// warp dive, while the entire radius blow-up happens inside the last ~0.14 of z —
+// so at full dive speed a streak crossed its whole exit between two frames and
+// simply stopped existing. Once a streak is past EXIT_Z its step is capped, so
+// leaving the frame always takes ~11 frames no matter how fast the sim is running.
+// Normal play steps ~0.0095, well under the cap, so nothing there changes at all.
+const EXIT_Z = -0.02, EXIT_CAP = 0.012;
+
 // the live warp-line stack: same light-blue-to-white ramp as the baked texture's
 // WARP_PASSES, so the moving lines and the wall they ride on are the same
 // material. Widest pass is ~2.6px at full calibre — deliberately under the
@@ -6201,22 +6213,35 @@ function drawStreaks(g, dt) {
   const ambSpan = 0.11 + spd * 0.34;
   for (const st of streaks) {
     const wsp = 1 + (warpT / 0.9) * 5; // warp-dive stretch
-    st.z -= dt * spd * st.sp * wsp; // the river flows WITH the traffic
-    // Warp lines must FLY PAST, never fade out in front of you. They used to be
-    // recycled at z=-0.08 with an alpha ramp that started dimming them at z=0 —
-    // and a star at low rmul is still well inside the frame at z=0, so it visibly
-    // dissolved a hand's width from the camera. Now they hold full brightness and
-    // keep going: ring() blows the radius up as z goes negative, so they sweep out
-    // through the screen edge under their own steam.
-    //
-    // -0.14 is as far as it is safe to run. ring()'s scale is 1/(1 + z*6), which
-    // blows up at z = -1/6, so anything past about -0.15 divides by ~zero.
-    const gone = st.gold ? -0.08 : -0.14;
-    if (st.z <= gone) { st.z = 1; if (st.gold) st.a = Math.PI / 2 + rand(-0.55, 0.55); }
-    if (st.gold && st.ord > riverK) continue;
     // per-star length, so no two smears are the same size
     const span = (st.gold ? 0.05 : ambSpan * st.lenK) * (1 + (warpT / 0.9) * 3);
-    const r1 = ring(st.z, g), r2 = ring(Math.min(st.z + span, 1), g);
+    let dz = dt * spd * st.sp * wsp; // the river flows WITH the traffic
+    if (st.z + span < EXIT_Z) dz = Math.min(dz, EXIT_CAP); // never a sub-frame exit
+    st.z -= dz;
+    // RECYCLE ON THE TAIL, NOT THE HEAD. This is the whole reason warp lines kept
+    // vanishing in front of the viewer, and no amount of alpha work was ever going
+    // to fix it. A streak is a LINE: its head is at z, its tail at z+span. Recycling
+    // when the head cleared the frame threw away a hero streak whose tail was still
+    // at z≈0.6 — dead centre of the screen. The longest, brightest lines popped the
+    // hardest, which is precisely the ones you notice.
+    //
+    // So the streak lives until its TAIL has gone, and the head is PINNED at the
+    // projection floor meanwhile. Pinning is safe because the floor is already far
+    // off-screen, and it is necessary because ring()'s scale is 1/(1 + z*6), which
+    // divides by zero at z = -1/6 and goes NEGATIVE past it — an unpinned head
+    // would flip to the opposite side of the bore.
+    //
+    // The visible line therefore shortens from the head end as it leaves. That is
+    // what flying out of frame actually looks like.
+    if (st.z + span <= Z_FLOOR) {
+      st.z = 1;
+      if (st.gold) st.a = Math.PI / 2 + rand(-0.55, 0.55);
+      continue; // nothing to draw on the frame it respawns
+    }
+    if (st.gold && st.ord > riverK) continue;
+    const zH = Math.max(st.z, Z_FLOOR);
+    const zT = Math.max(Math.min(st.z + span, 1), Z_FLOOR);
+    const r1 = ring(zH, g), r2 = ring(zT, g);
     // rmul is the fix for "stars aligned in circles": each star keeps its OWN
     // distance from the axis, held across both ends of its smear so the line
     // still runs true along the direction of travel.
@@ -6227,18 +6252,21 @@ function drawStreaks(g, dt) {
     // no near-fade on the warp lines: the `clamp(1 + z/0.1)` term that used to be
     // here is exactly what made them dissolve in front of the viewer
     const al = st.gold
-      ? Math.min(1 - st.z, 1.05) * 0.75 * clamp(1 + st.z / 0.1, 0, 1)
-      : Math.min(1 - st.z, 1.05) * 0.52 * st.br;
+      ? Math.min(1 - zH, 1.05) * 0.75 * clamp(1 + zH / 0.1, 0, 1)
+      : Math.min(1 - zH, 1.05) * 0.52 * st.br;
     if (st.gold) {
       ctx.strokeStyle = `rgba(255,196,88,${al.toFixed(2)})`;
-      ctx.lineWidth = lerp(0.5, 2.6, 1 - st.z);
+      ctx.lineWidth = lerp(0.5, 2.6, 1 - zH);
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     } else {
       // the live warp lines: a STACK of narrow additive strokes, light blue
       // outside to white-hot core. Never one wide stroke — that is a capsule, and
       // a capsule reads as a flat surface. Calibre is per-star now, so the field
       // has heavy hero lines and fine ones instead of one uniform gauge.
-      const k = lerp(0.6, 1.25, 1 - st.z) * st.cal;
+      // capped: without this a hero streak (cal 2.5) at the near end reaches a
+      // 15px halo, and anything past ~5px is a capsule again — the exact fault
+      // that took three passes to kill. Cap it once, here.
+      const k = Math.min(1.7, lerp(0.6, 1.25, 1 - zH) * st.cal);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.lineCap = 'round';
@@ -6252,7 +6280,7 @@ function drawStreaks(g, dt) {
       ctx.restore();
     }
     // hot core on the nearest gold particles
-    if (st.gold && st.z < 0.35) {
+    if (st.gold && zH < 0.35) {
       ctx.strokeStyle = `rgba(255,238,190,${(al * 0.7).toFixed(2)})`;
       ctx.lineWidth = 0.8;
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
@@ -6260,8 +6288,8 @@ function drawStreaks(g, dt) {
     // the LEADING HEAD on a near ambient streak: the point the star still
     // occupies before the smear behind it. A streak with a head has a direction;
     // a bare line is ambiguous, and ambiguity is what made the old wall read flat.
-    if (!st.gold && st.z < 0.55) {
-      const hk = clamp(1 - st.z / 0.55, 0, 1.35) * (st.cal || 1);
+    if (!st.gold && zH < 0.55) {
+      const hk = clamp(1 - zH / 0.55, 0, 1.35) * (st.cal || 1);
       ctx.fillStyle = `rgba(255,255,255,${Math.min(1, al * hk * 0.95).toFixed(2)})`;
       ctx.beginPath(); ctx.arc(x1, y1, Math.max(0.5, 1.5 * hk), 0, TAU); ctx.fill();
     }
