@@ -1,7 +1,7 @@
 # In-run voice — the handler barks
 
 Replaces the scripted comm chatter (113 bespoke lines across 40 levels) with one
-reactive voice: **CID**, the handler. Plot moves entirely to the briefing discs
+reactive voice: **CMD**, the handler. Plot moves entirely to the briefing discs
 and case notes; the in-run channel stops carrying story and starts carrying
 *reaction*.
 
@@ -16,7 +16,7 @@ loses no plot.
 
 | Voice | Where it speaks | Carries |
 |---|---|---|
-| **CID** — the handler | In-run barks | Direction, reaction. Never plot. |
+| **CMD** — the handler | In-run barks | Direction, reaction. Never plot. |
 | **CORE** — the intruder | Boss fights only | Taunts. Already wired at [index.html:2711](../src/index.html#L2711). |
 | **OMNI**, **TRACE** | Discs + case notes only | Exposition, the case. |
 
@@ -61,7 +61,7 @@ Priority 1 = highest. "Once" = fires at most once per run.
 | `bossLow` | boss at final hits | 1 | — | ✓ |
 | `win` / `loss` | run ends | 1 | — | ✓ |
 
-Boss barks defer to CORE: if a CORE taunt is on screen, CID stays quiet.
+Boss barks defer to WARD: if a warden taunt is on screen, CMD stays quiet.
 
 ## The pool
 

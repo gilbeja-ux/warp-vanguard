@@ -289,7 +289,7 @@ The signature component. Story and instruction arrive as a disc that flies up to
 - **Shape:** Circle at `0.9 × nodeR`, radial fill from `rgba(6,11,24,0.93)` at center to fully transparent at the rim, so it dissolves into the bore rather than ending
 - **Rim:** 1.5px ring at 97% radius in `rgba(120,200,255,0.3)`, overlaid with four 2.5px accent arcs at 75% that drift slowly around it
 - **Content order:** kicker → glyph → title → body → `TAP TO CONTINUE`
-- **Kicker:** Payload Gold at 80% for case files (`CASE FILE // CID-2209`), Chrome Cyan at 70% for field briefings — gold marks archival value, cyan marks instruction
+- **Kicker:** Payload Gold at 80% for case files (`CASE FILE // LC-2209`), Chrome Cyan at 70% for field briefings — gold marks archival value, cyan marks instruction
 - **Body:** Body Ice at 88%, shrink-to-fit against a 60%-of-diameter width budget, 3px extra leading
 - **Story typing:** Case-file logs type themselves in at 46 characters per second with a block cursor and a teletype tick every other character
 - **Motion:** Zoom in over 0.28s with an ease-out-back overshoot (`1.70158`), out over 0.18s; the field dims to `rgba(3,6,14,0.45)` unscaled beneath so the dim stays even while the disc flies

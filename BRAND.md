@@ -58,7 +58,7 @@ rule is now emitter phase, not encryption polarity.
 |---|---|---|
 | `--node-blue` | `#50aaff` (80,170,255) | emitter ⊕ — must match the blue phase-lock |
 | `--chrome-cyan` | `#6FE3FF` (111,227,255) | UI/console chrome: panels, brackets, headers |
-| `--node-white` | `#FFFFFF` / `#EBF5FF` | emitter ⊖, CID |
+| `--node-white` | `#FFFFFF` / `#EBF5FF` | emitter ⊖, CMD |
 | `--threat-red` | `#FF3C5A` (255,60,90) | unphased interdictors, alarms |
 | `--armor-purple` | `#D465FF` (212,101,255) | superposed threats, heavies, wardens, CORE |
 | `--gold` | `#FFD24A` (255,210,74) | pickups, frontier, rewards, attention |

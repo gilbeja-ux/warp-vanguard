@@ -139,8 +139,8 @@ offline entitlement flag; no server for v1. Full plan in
   icon set are owed art** — both still carry DATA DEFENDERS lettering and the
   retired DD monogram. The story voice may address the player as "runner"
   (singular); every brand surface is the squadron.
-- Voice: terse operational radio traffic. Four speakers — OMNI (Meridian Haulage
-  Yards), CID (Lane Command), TRACE (analyst), CORE (the hostile
+- Voice: terse operational radio traffic. Four speakers — HAUL (Meridian Haulage
+  Yards), CMD (Lane Command), TRACE (analyst), WARD (the hostile
   warden core). Lowercase clipped comms in-level; typewriter case-file logs on
   briefing discs.
 - The full brand record — tokens, mark, typography, chrome grammar, audio

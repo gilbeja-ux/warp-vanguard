@@ -136,10 +136,10 @@ victory report, until it pays.
 
 | Slot | Now |
 |---|---|
-| `OMNI` | **Tomas Renke** — the client |
+| `HAUL` | **Tomas Renke** — the client |
 | `TRACE` | **TRACE** — Reyes's engineer |
-| `CID` | **Commander Ada Reyes** — Lane Command |
-| `CORE` | **the warden** (recast per act; the Dispatcher in Act V) |
+| `CMD` | **Commander Ada Reyes** — Lane Command |
+| `WARD` | **the warden** (recast per act; the Dispatcher in Act V) |
 
 ### YOU — callsign RUNNER
 
@@ -196,7 +196,7 @@ and did not mention it.
 Her instructions are protective to the point of rudeness. She does not thank you.
 When she is warm it is guilt, and when she is cold it is also guilt.
 
-### TRACE — tech engineer, CID
+### TRACE — tech engineer, Lane Command
 
 Reyes's engineer; goes by the handle. Young, fast, and the only person in this
 story enjoying herself. Deadpan about atrocities, delighted by metadata.
@@ -223,7 +223,7 @@ way she can — by making you hard to locate rather than hard to reach.
   you. It buys time. It is not elegant and it is not permanent.
 - **The cutter.** A technical cutter, and one instruction: *stay mobile.* Never the
   same berth twice, never a fixed uplink, never a pattern.
-- **Not a safe berth.** She will not put you under CID protection and she says why:
+- **Not a safe berth.** She will not put you under Lane Command protection and she says why:
   there are people inside her own division who would sell the bearing. She learned
   that the expensive way.
 
@@ -295,7 +295,7 @@ to end, into Lane Command. They string barrier nets across the harbor crossing t
 it whole. It is the first time the lane stops pretending to be weather.
 
 The file lands. And a second voice opens on the channel with no greeting:
-**Commander Ada Reyes, CID.** She has read it, she believes it, and she names you
+**Commander Ada Reyes, Lane Command.** She has read it, she believes it, and she names you
 in the first thirty seconds without explaining why.
 
 > **REYES:** *"You're RUNNER."*
@@ -441,7 +441,7 @@ old, never cancelled, still running. Two designations on it.
 One is yours, added the week the file landed.
 
 The other belonged to an operator who was certified the year the Lanes were
-charted, worked four contracts for a CID commander with no case number, and was
+charted, worked four contracts for a Lane Command commander with no case number, and was
 never certified again.
 
 > **REYES:** *"BLADE."*

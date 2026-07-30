@@ -14,7 +14,7 @@ All narrative now lives in ONE campaign package object (`const INVESTIGATION`,
 ~line 660) — the same format the Tunnel Designer will export.
 
 Speakers: **OMNI** = Meridian Haulage (corporate, blue) · **CID** = Cyber
-Investigations Dept (white) · **TRACE** = CID's tracer analyst (green) ·
+Investigations Dept (white) · **TRACE** = Lane Command's tracer analyst (green) ·
 **CORE** = the Command Gateway warden core (purple).
 
 Premise: Meridian Haulage must deliver critical evidence to Lane Command across one

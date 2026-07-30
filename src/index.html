@@ -6310,7 +6310,7 @@ const DEST_LIFE = {
   moonR: 0.15, moonO: [1.5, 2.15], moonC: '198,192,180',
   shipN: 3, shipO: 0.9, shipPer: [70, 160],  // shipPer is the gap BETWEEN departures
   stnR: 0.085, stnO: [1.2, 1.55],
-  twinkle: 0.34, blinkP: 0.14      // deep-sky scintillation depth, and how many are slow blinkers
+  twinkle: 0.16, blinkP: 0.08      // deep-sky scintillation depth, and how many are slow blinkers
 };
 // <<< DEST-DATA
 // >>> DEST-PICK
@@ -7329,13 +7329,12 @@ function drawDeepField(g, dt) {
     if (px < -4 || px > W + 4 || py < -4 || py > H + 4) continue;
     // fades up out of the deep AND back down before the recycle edge — both ends
     const near = clamp((st.rf - DEEP_R0) / 0.5, 0, 1) * clamp((DEEP_R1 - st.rf) / DEEP_FADE, 0, 1);
-    // PARKED, THE SKY IS THE SHOW. Under way there is a lane full of traffic to
-    // read and a deep twinkle would just be flicker in the corner of the eye, so
-    // the depth scales with how stopped we are — on a menu it runs at full swing,
-    // which is the difference between a backdrop and a night sky.
-    const depth = DEST_LIFE.twinkle * (1 + (1 - laneFlow));
+    // Shallow on purpose. The backdrop's own live stars (STAR_CLASS) carry the
+    // scintillation now; this layer is the parallaxing deep field in front of it,
+    // and two fields twinkling at full depth reads as static, not as sky.
+    const depth = DEST_LIFE.twinkle;
     const tw = st.blink
-      ? 0.12 + 0.88 * Math.pow(0.5 + 0.5 * Math.sin(time * st.tw * 0.35 + st.tp), 4) // long dark, brief return
+      ? 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(time * st.tw * 0.35 + st.tp), 4) // long dim, brief return
       : 1 - depth + depth * (0.5 + 0.5 * Math.sin(time * st.tw + st.tp));
     const al = st.al * (0.45 + 0.55 * near) * tw;
     ctx.fillStyle = st.warm ? `rgba(255,214,170,${al.toFixed(3)})` : `rgba(216,236,255,${al.toFixed(3)})`;

@@ -22,10 +22,10 @@ and the order we build it. The writing itself lives in `docs/SCREENPLAY.md`.
 >
 > After the fourth, you are given a contact: a **commander in Lane Command**, running
 > that investigation. From there the job inverts. You stop only defending the line
-> and start harvesting it — every trap you destroy is recovered, analyzed by CID,
+> and start harvesting it — every trap you destroy is recovered, analyzed by Lane Command,
 > and turned into a name.
 >
-> Use CID's capabilities. Take them out one by one. Cut the head off the snake.
+> Use Lane Command's capabilities. Take them out one by one. Cut the head off the snake.
 
 ## Decisions — locked
 

@@ -618,7 +618,7 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
   check('a boss level without bossKind fields the classic core', G.boss() && G.boss().kind === 'core');
   const bossPack = kind => ({
     id: 'boss-' + kind, format: 1, title: kind.toUpperCase() + ' TEST',
-    speakers: [{ id: 'CORE', color: '212,101,255' }, { id: 'CID', color: '235,245,255' }],
+    speakers: [{ id: 'WARD', color: '212,101,255' }, { id: 'CMD', color: '235,245,255' }],
     verdict: { title: 'TEST VERDICT', lines: ['case closed.'] },
     levels: [{ name: 'FINALE', tint: '212,101,255', duration: 10, spawnMin: 1, spawnMax: 2, speed: 0.5,
       boss: true, bossKind: kind }]
