@@ -26,6 +26,7 @@
     --ink:       #dcecff;
     --ink-2:     #a8c6e8;
     --ink-3:     #7b9bc2;
+    --ink-4:     #4d6c93;  /* instrument labels — the quietest ink that still reads */
     --cyan:      #6fe3ff;
     --gold:      #ffd24a;
     --red:       #ff3c5a;
@@ -111,7 +112,7 @@
   }
   .group {
     font-family: var(--mono); font-size: 9px; letter-spacing: 1.6px;
-    text-transform: uppercase; color: #4d6c93;
+    text-transform: uppercase; color: var(--ink-4);
     padding: 14px 14px 6px;
   }
   .tab {
@@ -166,7 +167,7 @@
   .scale canvas { display: block; margin: 0 auto 6px; }
   .scale span {
     font-family: var(--mono); font-size: 9px; letter-spacing: 1.2px;
-    text-transform: uppercase; color: #4d6c93;
+    text-transform: uppercase; color: var(--ink-4);
   }
   .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 4px 0; padding: 16px 22px 30px; width: 100%; }
   .cell { text-align: center; padding: 8px 4px; border-radius: 8px; cursor: pointer; transition: background .14s var(--ease); }
@@ -199,14 +200,14 @@
     padding: 12px 14px; background: var(--panel);
     border-bottom: 1px solid var(--line-soft);
   }
-  .dials-head b { font-family: var(--mono); font-size: 10px; letter-spacing: 1.6px; color: #4d6c93; text-transform: uppercase; font-weight: 400; }
+  .dials-head b { font-family: var(--mono); font-size: 10px; letter-spacing: 1.6px; color: var(--ink-4); text-transform: uppercase; font-weight: 400; }
   .dials-head button { padding: 4px 8px; font-size: 10px; }
 
   .dial { padding: 9px 14px 11px; border-bottom: 1px solid rgba(14,34,66,.55); }
   .dial.edited { background: rgba(255,210,74,.045); box-shadow: inset 2px 0 0 var(--gold); }
   .dial > .top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
   .dial .key { font-family: var(--mono); font-size: 11px; color: var(--ink-2); }
-  .dial .lbl { font-size: 10px; color: #4d6c93; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dial .lbl { font-size: 10px; color: var(--ink-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dial .val {
     margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--cyan);
     background: transparent; border: 1px solid transparent; border-radius: 4px;
@@ -241,7 +242,7 @@
   }
   .rgb .trip:focus { outline: none; border-color: var(--cyan); color: var(--ink); }
 
-  .hint { padding: 12px 14px; font-size: 11px; color: #4d6c93; line-height: 1.55; }
+  .hint { padding: 12px 14px; font-size: 11px; color: var(--ink-4); line-height: 1.55; }
   .hint code { font-family: var(--mono); color: var(--ink-3); }
 
   .boot { grid-column: 1 / -1; grid-row: 2; display: grid; place-items: center; padding: 40px; }
@@ -283,6 +284,9 @@ let dirty = false;
 
 const $ = s => document.querySelector(s);
 const clone = o => JSON.parse(JSON.stringify(o));
+// canvas cannot resolve var(), so the one label drawn INTO a canvas reads the
+// token off the root rather than repeating the literal
+const INK4 = getComputedStyle(document.documentElement).getPropertyValue('--ink-4').trim() || '#4d6c93';
 
 /* ── dial metadata ───────────────────────────────────────────────────────
    [label, min, max, step] for a number, or [label, 'rgb'] for a 0–255 triple
@@ -300,6 +304,57 @@ const DIALS = {
     ak:   ['air amount', 0, 3, 0.05],
     glow: ['belt emission', 0, 2, 0.05],
     emis: ['self-lit', 0, 1, 0.05]
+  },
+  ring: {
+    sq:    ['tilt squash', 0.05, 1, 0.01],
+    ring:  ['tube orbit', 0.2, 1, 0.01],
+    tube:  ['tube thickness', 0.01, 0.4, 0.005],
+    metal: ['hull colour', 'rgb'],
+    hub:   ['has a core', 0, 1, 1],
+    win:   ['has lit ports', 0, 1, 1],
+    iris:  ['throat colour', 'rgb']
+  },
+  RING_SHADE: {
+    hi:    ['lit limb gain', 1, 3, 0.01],
+    amb:   ['dark side floor', 0, 1, 0.01],
+    farK:  ['far half dimming', 0, 1, 0.01],
+    specK: ['highlight alpha', 0, 1, 0.01],
+    specW: ['highlight width', 0, 1, 0.01],
+    specA: ['highlight sweep', 0, 3.14, 0.01],
+    winN:  ['lit ports', 0, 24, 1],
+    winA:  ['port brightness', 0, 1, 0.01],
+    winC:  ['port colour', 'rgb'],
+    irisA: ['throat energy', 0, 1, 0.01],
+    hubR:  ['core radius', 0, 0.5, 0.005],
+    hubC:  ['core colour', 'rgb']
+  },
+  DEST_LIFE: {
+    n0:        ['features dealt, fewest', 0, 5, 1],
+    n1:        ['features dealt, most', 0, 5, 1],
+    vis0:      ['life fades in at R/nodeR', 0, 1, 0.01],
+    vis1:      ['and reaches full after', 0.01, 1, 0.01],
+    creep:     ['terminator swing (rad)', 0, 1, 0.005],
+    creepRate: ['how slowly it swings', 0, 0.3, 0.001],
+    nightK:    ['night limb darkening', 0, 1, 0.01],
+    clus0:     ['city clusters, fewest', 0, 30, 1],
+    clusN:     ['extra clusters', 0, 30, 1],
+    perClus:   ['lights per cluster', 0, 30, 1],
+    lightsO:   ['city light brightness', 0, 1, 0.01],
+    lightsC:   ['city light colour', 'rgbs'],
+    auroraO:   ['aurora brightness', 0, 1, 0.01],
+    auroraW:   ['aurora bands', 0, 8, 1],
+    auroraC:   ['aurora colour', 'rgbs'],
+    auroraC2:  ['aurora colour, alt', 'rgbs'],
+    moonR:     ['moon size', 0, 0.5, 0.005],
+    moonO:     ['moon distance, near/far', 'vec'],
+    moonC:     ['moon colour', 'rgbs'],
+    shipN:     ['departures, most', 0, 12, 1],
+    shipO:     ['wake brightness', 0, 1, 0.01],
+    shipPer:   ['gap between departures', 'vec'],
+    stnR:      ['orbital station size', 0, 0.3, 0.005],
+    stnO:      ['station distance, near/far', 'vec'],
+    twinkle:   ['deep-sky scintillation', 0, 1, 0.01],
+    blinkP:    ['share of slow blinkers', 0, 1, 0.01]
   },
   PLANET_SHADE: {
     lz:            ['key light toward viewer', 0, 1.5, 0.01],
@@ -323,63 +378,6 @@ const DIALS = {
     shellSide:     ['shell on the dark side', 0, 1, 0.01],
     shellA:        ['shell peak alpha', 0, 255, 1]
   },
-  STATION_SPEC: {
-    spin:   ['fixed rotation', 0, 6.28, 0.01],
-    ringA:  ['habitat ring w,h', 'vec'],
-    ringW:  ['ring line weight', 0, 0.4, 0.005],
-    ringC:  ['ring colour', 'rgbs'],
-    ringO:  ['ring opacity', 0, 1, 0.01],
-    ringB:  ['inner ring w,h', 'vec'],
-    ring2W: ['inner line weight', 0, 0.4, 0.005],
-    ring2C: ['inner colour', 'rgbs'],
-    ring2O: ['inner opacity', 0, 1, 0.01],
-    spine:  ['spine length', 0, 1.5, 0.01],
-    spineW: ['spine weight', 0, 0.4, 0.005],
-    spineC: ['spine colour', 'rgbs'],
-    spineO: ['spine opacity', 0, 1, 0.01],
-    wingY:  ['wing offset', 0, 1.5, 0.01],
-    wingW:  ['wing span', 0, 3, 0.01],
-    wingH:  ['wing thickness', 0, 0.6, 0.005],
-    wingC:  ['wing colour', 'rgbs'],
-    wingO:  ['wing opacity', 0, 1, 0.01],
-    wins:   ['lit windows', 0, 16, 1],
-    winR:   ['window size', 0, 0.3, 0.005],
-    winC:   ['window colour', 'rgbs'],
-    winO:   ['window opacity', 0, 1, 0.01]
-  },
-  GATE_SPEC: {
-    segs:     ['torus segments', 3, 24, 1],
-    gap:      ['segment gap', 0, 0.4, 0.005],
-    torusR:   ['torus radius', 0, 1.5, 0.01],
-    torusW:   ['torus thickness', 0, 0.5, 0.005],
-    torusC:   ['torus colour', 'rgbs'],
-    torusO:   ['torus opacity', 0, 1, 0.01],
-    irisR:    ['iris radius', 0, 1.5, 0.01],
-    irisC0:   ['iris core colour', 'rgbs'],
-    irisA0:   ['iris core alpha', 0, 1, 0.01],
-    irisC1:   ['iris edge colour', 'rgbs'],
-    irisA1:   ['iris edge alpha', 0, 1, 0.01],
-    irisStop: ['iris midpoint', 0, 1, 0.01],
-    arcs:     ['turning arcs', 0, 8, 1],
-    arcR:     ['arc radius', 0, 1.5, 0.01],
-    arcLen:   ['arc length', 0, 6.28, 0.01],
-    arcW:     ['arc weight', 0, 0.3, 0.005],
-    arcC:     ['arc colour', 'rgbs'],
-    arcO:     ['arc opacity', 0, 1, 0.01],
-    spin:     ['spin rate', 0, 2, 0.01]
-  },
-  FIELD_SPEC: {
-    rocks:   ['rock count', 0, 80, 1],
-    spread:  ['clustering', 0.1, 3, 0.02],
-    flatten: ['vertical squash', 0, 1.5, 0.01],
-    szMin:   ['smallest rock', 0, 0.3, 0.002],
-    szVar:   ['size spread', 0, 0.4, 0.002],
-    warmP:   ['share of warm rocks', 0, 1, 0.01],
-    warmC:   ['warm rock colour', 'rgbs'],
-    coldC:   ['cold rock colour', 'rgbs'],
-    aMin:    ['floor opacity', 0, 1, 0.01],
-    aVar:    ['opacity spread', 0, 1, 0.01]
-  },
   DEST_MIX: {
     planet:  ['planets per 100 relays', 0, 100, 1],
     station: ['stations per 100 relays', 0, 100, 1]
@@ -391,11 +389,12 @@ const DIALS = {
 const NOTES = {
   ALL: 'Every destination the game can put at the end of a lane, at chart scale. Click one to tune it.',
   SHD: 'The shading model shared by all nine worlds. Move a dial here and every world changes together — that is the point of it being separate.',
-  STN: 'A crewed station. Machined, so it is drawn rather than shaded; the same function serves the chart chip and the full body at the end of the bore.',
-  GAT: 'A jump gate. The segment gaps are load-bearing: an unbroken torus reads as a drawn circle rather than a built object.',
-  FLD: 'An asteroid field. Scenery only — you fly THROUGH one, you never arrive at one, so it is never a mission endpoint.',
+  RSH: 'The torus shading shared by stations and gates. The ring equivalent of SHD: these dials move both kinds at once.',
+  STN: 'A crewed station: a torus with a pressurised core and lit ports. Drawn in two halves so the near side genuinely occludes the far side.',
+  GAT: 'A jump gate. Same torus, different proportion, and energy standing in the throat instead of a hub.',
   MIX: 'How often each kind turns up. Gates take whatever planets and stations leave, so those two dials are the whole distribution.',
-  SUN: 'The boss sun. Self-lit, so it has no terminator and no night side — the shading model skips N·L entirely for it.'
+  SUN: 'The boss sun. Self-lit, so it has no terminator and no night side — the shading model skips N·L entirely for it.',
+  LIF: 'What makes a destination a PLACE rather than a picture of one. Each relay is dealt a hand — moon, aurora, cities, traffic, a station — off its own seed, so a place you have been to keeps its life forever.'
 };
 
 /* ── the rail ────────────────────────────────────────────────────────── */
@@ -404,10 +403,11 @@ function railItems() {
   out.push({ g: 'WORLDS', id: 'SHD', n: 'shared shading' });
   G.PLANET_TYPES.forEach(p => out.push({ id: p.id, n: p.n }));
   out.push({ id: G.PLANET_STAR.id, n: G.PLANET_STAR.n + ' (boss)' });
-  out.push({ g: 'BUILT & SCENERY', id: G.STATION_SPEC.id, n: G.STATION_SPEC.n });
-  out.push({ id: G.GATE_SPEC.id, n: G.GATE_SPEC.n });
-  out.push({ id: G.FIELD_SPEC.id, n: G.FIELD_SPEC.n });
-  out.push({ g: 'DISTRIBUTION', id: G.DEST_MIX.id, n: 'kind mix' });
+  out.push({ g: 'BUILT', id: G.RING_SHADE.id, n: 'shared torus shading' });
+  out.push({ id: G.RING_KINDS.station.id, n: G.RING_KINDS.station.n });
+  out.push({ id: G.RING_KINDS.gate.id, n: G.RING_KINDS.gate.n });
+  out.push({ g: 'THE PLACE', id: G.DEST_LIFE.id, n: 'what lives there' });
+  out.push({ id: G.DEST_MIX.id, n: 'kind mix' });
   return out;
 }
 
@@ -440,12 +440,15 @@ function markRail() {
 
 /* ── which table does an ID point at ─────────────────────────────────── */
 function target(id) {
-  if (id === 'SHD') return { live: G.PLANET_SHADE, base: DEFAULTS.PLANET_SHADE, dials: DIALS.PLANET_SHADE, name: 'shared shading' };
+  if (id === 'SHD') return { live: G.PLANET_SHADE, base: DEFAULTS.PLANET_SHADE, dials: DIALS.PLANET_SHADE, name: 'shared world shading' };
+  if (id === 'RSH') return { live: G.RING_SHADE, base: DEFAULTS.RING_SHADE, dials: DIALS.RING_SHADE, name: 'shared torus shading' };
   if (id === 'SUN') return { live: G.PLANET_STAR, base: DEFAULTS.PLANET_STAR, dials: DIALS.world, name: G.PLANET_STAR.n };
-  if (id === 'STN') return { live: G.STATION_SPEC, base: DEFAULTS.STATION_SPEC, dials: DIALS.STATION_SPEC, name: 'station' };
-  if (id === 'GAT') return { live: G.GATE_SPEC, base: DEFAULTS.GATE_SPEC, dials: DIALS.GATE_SPEC, name: 'gate' };
-  if (id === 'FLD') return { live: G.FIELD_SPEC, base: DEFAULTS.FIELD_SPEC, dials: DIALS.FIELD_SPEC, name: 'asteroid field' };
   if (id === 'MIX') return { live: G.DEST_MIX, base: DEFAULTS.DEST_MIX, dials: DIALS.DEST_MIX, name: 'kind mix' };
+  if (id === 'LIF') return { live: G.DEST_LIFE, base: DEFAULTS.DEST_LIFE, dials: DIALS.DEST_LIFE, name: 'what lives there' };
+  for (const k of ['station', 'gate']) {
+    if (G.RING_KINDS[k].id === id)
+      return { live: G.RING_KINDS[k], base: DEFAULTS.RING_KINDS[k], dials: DIALS.ring, name: G.RING_KINDS[k].n, ringKind: k };
+  }
   const i = G.PLANET_TYPES.findIndex(p => p.id === id);
   if (i >= 0) return { live: G.PLANET_TYPES[i], base: DEFAULTS.PLANET_TYPES[i], dials: DIALS.world, name: G.PLANET_TYPES[i].n };
   return null;
@@ -595,6 +598,9 @@ function dialFor(t, key) {
 let saveTimer = null;
 function touched() {
   rev++;
+  // the dealt hand is memoised per relay, so a DEST_LIFE dial would otherwise
+  // not show until the relay changed
+  if (G && G.resetLife) G.resetLife();
   dirty = allChanges().length > 0;
   setState(dirty ? 'dirty' : 'ok',
     dirty ? allChanges().length + ' change' + (allChanges().length === 1 ? '' : 's') + ' not yet in the game'
@@ -611,7 +617,8 @@ function setState(s, txt) {
 function payload() {
   return {
     PLANET_TYPES: G.PLANET_TYPES, PLANET_STAR: G.PLANET_STAR, PLANET_SHADE: G.PLANET_SHADE,
-    STATION_SPEC: G.STATION_SPEC, GATE_SPEC: G.GATE_SPEC, FIELD_SPEC: G.FIELD_SPEC, DEST_MIX: G.DEST_MIX
+    RING_KINDS: G.RING_KINDS, RING_SHADE: G.RING_SHADE,
+    DEST_MIX: G.DEST_MIX, DEST_LIFE: G.DEST_LIFE
   };
 }
 function saveWork() {
@@ -635,10 +642,13 @@ function blit(c, V, R, x, y) {
 }
 // Any destination, at any radius, on any context — one entry point, so the
 // contact sheet and the hero cannot disagree about how a thing is drawn.
+//
+// The ring art draws through the game's module-level `ctx`, so the context is
+// handed to the sandbox rather than passed as an argument. That is the game's
+// own shape and the lab bends to it, not the other way round.
 function drawDest(c, id, R, x, y, t) {
-  if (id === 'STN') return G.drawStationArt(c, x, y, R, 3.1);
-  if (id === 'GAT') return G.drawGateArt(c, x, y, R, t);
-  if (id === 'FLD') return G.drawFieldArt(c, x, y, R, 41);
+  const T = target(id);
+  if (T && T.ringKind) { G.set({ ctx: c, time: t }); return G.drawRingBody(x, y, R, T.ringKind); }
   const V = id === 'SUN' ? G.PLANET_STAR : G.PLANET_TYPES.find(p => p.id === id);
   if (V) blit(c, V, R, x, y);
 }
@@ -676,6 +686,7 @@ function buildStage() {
 
   if (cur === 'ALL' || cur === 'SHD') return sheetStage(st);
   if (cur === 'MIX') return mixStage(st);
+  if (cur === 'LIF') return arrivalStage(st);
   return bodyStage(st);
 }
 
@@ -732,7 +743,7 @@ function sheetStage(st) {
   sheet.className = 'sheet';
   const ids = cur === 'SHD'
     ? G.PLANET_TYPES.map(p => p.id).concat(['SUN'])
-    : G.PLANET_TYPES.map(p => p.id).concat(['SUN', 'STN', 'GAT', 'FLD']);
+    : G.PLANET_TYPES.map(p => p.id).concat(['SUN', 'STN', 'GAT']);
   const cells = ids.map(id => {
     const t = target(id);
     const s = cv(110, 110);
@@ -750,10 +761,110 @@ function sheetStage(st) {
   stageDraw = t => {
     for (const { s, id } of cells) {
       s.c.clearRect(0, 0, s.w, s.h);
-      drawDest(s.c, id, id === 'FLD' ? 44 : 38, s.w / 2, s.h / 2, t);
+      drawDest(s.c, id, 38, s.w / 2, s.h / 2, t);
     }
   };
 }
+
+/* THE ARRIVAL. The one view that answers what the destination system is actually
+   for: not "is this planet nice" but "does this place feel inhabited". Composed
+   from the same pieces, in the same order, as drawFarGlow does it — far-half
+   orbits, body, creeping terminator, near-half life. */
+function arrivalStage(st) {
+  const hero = document.createElement('div');
+  hero.className = 'hero';
+  const big = cv(460, 400);
+  hero.appendChild(big.el);
+  st.appendChild(hero);
+
+  const strip = document.createElement('div');
+  strip.className = 'scales';
+  strip.style.flexDirection = 'column';
+  strip.style.alignItems = 'stretch';
+  strip.style.gap = '10px';
+
+  // WHICH RELAY. The hand is dealt per relay, so a preview that cannot change
+  // relay is showing one deal and calling it the system.
+  const pick = document.createElement('div');
+  pick.className = 'row';
+  pick.style.cssText = 'display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap';
+  let campI = 0, lv = 0, approach = 0.55;
+  const relayLabel = document.createElement('span');
+  relayLabel.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--ink-4);letter-spacing:1px';
+  const step = (d) => {
+    lv += d;
+    while (lv < 0) { lv += 8; campI = (campI + CAMPS.length - 1) % CAMPS.length; }
+    while (lv > 7) { lv -= 8; campI = (campI + 1) % CAMPS.length; }
+    G.resetLife();
+    render();
+  };
+  const btn = (txt, d) => { const b = document.createElement('button'); b.textContent = txt; b.onclick = () => step(d); return b; };
+  const dice = document.createElement('button');
+  dice.textContent = 'Next relay';
+  dice.onclick = () => step(1);
+  pick.append(btn('‹', -1), relayLabel, btn('›', 1), dice);
+  strip.appendChild(pick);
+
+  // HOW CLOSE. Life ramps in with the approach, so vis0/vis1 can only be judged
+  // by scrubbing through it.
+  const scrub = document.createElement('div');
+  scrub.style.cssText = 'display:flex;gap:10px;align-items:center;max-width:520px;margin:0 auto;width:100%';
+  const scrubLbl = document.createElement('span');
+  scrubLbl.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--ink-4);white-space:nowrap';
+  const rng = document.createElement('input');
+  rng.type = 'range'; rng.min = 0.05; rng.max = 1; rng.step = 0.01; rng.value = approach;
+  rng.oninput = () => { approach = +rng.value; render(); };
+  scrub.append(scrubLbl, rng);
+  strip.appendChild(scrub);
+  st.appendChild(strip);
+
+  function render() {
+    const camp = CAMPS[campI];
+    const kind = G.destKindFor(camp, lv, false);
+    relayLabel.textContent = camp + ' · level ' + (lv + 1) + ' · ' + kind;
+    scrubLbl.textContent = 'approach ' + Math.round(approach * 100) + '%';
+  }
+
+  stageDraw = t => {
+    const camp = CAMPS[campI];
+    const c = big.c;
+    c.clearRect(0, 0, big.w, big.h);
+    G.set({ ctx: c, time: t, CAMP: { id: camp }, levelIdx: lv, LV: { boss: false } });
+
+    const kind = G.destKindFor(camp, lv, false);
+    const V = G.planetVariantFor(camp, lv, false);
+    const fx = big.w / 2, fy = big.h / 2;
+    const R = 122;
+    // vis inside the life system is R/nodeR, so the scrub drives nodeR
+    const geo = { nodeR: R / approach };
+    const far = { x: fx, y: fy };
+    const la = G.destLightA();
+
+    // the haze the body sits in, so nothing is judged against bare black
+    const hz = c.createRadialGradient(fx, fy, R * 0.8, fx, fy, R * 2.1);
+    hz.addColorStop(0, 'rgba(' + V.atmo + ',0.075)');
+    hz.addColorStop(1, 'rgba(' + V.atmo + ',0)');
+    c.fillStyle = hz; c.fillRect(0, 0, big.w, big.h);
+
+    G.drawDestLife(far, R, geo, false, la);        // whatever is round the back
+    if (kind === 'planet') {
+      blit(c, V, R, fx, fy);
+      G.drawTerminatorCreep(far, R, clamp01((R / geo.nodeR - G.DEST_LIFE.vis0) / G.DEST_LIFE.vis1), la);
+    } else {
+      G.drawRingBody(fx, fy, R * (kind === 'gate' ? 1.25 : 1.15), kind);
+    }
+    G.drawDestLife(far, R, geo, true, la);         // and everything over the top
+
+    // name what was dealt — otherwise a quiet relay reads as a broken preview
+    const F = G.destinationLife();
+    const had = Object.keys(F.has).filter(k => F.has[k]);
+    c.font = '10px ui-monospace, Menlo, monospace';
+    c.fillStyle = INK4;
+    c.fillText(had.length ? 'dealt: ' + had.join(' · ') : 'dealt: nothing', 10, big.h - 10);
+  };
+  render();
+}
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
 
 /* the distribution, and what it actually produces across the campaign ladder */
 const CAMPS = ['investigation', 'going-deeper', 'signal-lost', 'the-bait', 'shutdown'];
@@ -877,13 +988,34 @@ function fail(msg) {
       const TAU = Math.PI * 2;
       const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
       const LIGHT_A = -TAU * 0.31;
+      // The game's module-level mutables the lifted regions read. They are LET,
+      // not arguments, because the game's own code reads them as free variables —
+      // the lab hands them in through set() rather than rewriting the regions.
+      let ctx = null, time = 0, CAMP = { id: 'investigation' }, levelIdx = 0, LV = null;
+      ${src.rng}
       ${src.data}
       ${src.pick}
+      ${src.kind}
+      ${src.ring}
       ${src.sprite}
-      ${src.art}
-      return { PLANET_REF_R, PLANET_TYPES, PLANET_STAR, PLANET_SHADE, STATION_SPEC,
-               GATE_SPEC, FIELD_SPEC, DEST_MIX, planetVariantFor, buildPlanetSprite,
-               destKindFor, drawStationArt, drawGateArt, drawFieldArt };
+      ${src.wake}
+      ${src.life}
+      return {
+        PLANET_REF_R, PLANET_TYPES, PLANET_STAR, PLANET_SHADE,
+        RING_KINDS, RING_SHADE, DEST_MIX, DEST_LIFE,
+        planetVariantFor, buildPlanetSprite, destKindFor, drawRingBody,
+        drawDestLife, drawTerminatorCreep, destinationLife, destLightA, orbitAt,
+        set(o) {
+          if (o.ctx !== undefined) ctx = o.ctx;
+          if (o.time !== undefined) time = o.time;
+          if (o.CAMP !== undefined) CAMP = o.CAMP;
+          if (o.levelIdx !== undefined) levelIdx = o.levelIdx;
+          if (o.LV !== undefined) LV = o.LV;
+        },
+        // the dealt hand is memoised inside the region; this is the only handle
+        // on that cache, and the lab must drop it whenever a dial or relay moves
+        resetLife() { destLifeKey = ''; destLifeVal = null; }
+      };
     `)();
   } catch (e) {
     return fail('The marked regions in src/index.html did not evaluate:\n\n' + (e.message || e));

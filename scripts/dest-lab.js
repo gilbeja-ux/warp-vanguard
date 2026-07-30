@@ -222,6 +222,7 @@ http.createServer((req, res) => {
         kind: region(src, 'DEST-KIND'),
         ring: region(src, 'DEST-RING'),
         sprite: region(src, 'DEST-SPRITE'),
+        wake: region(src, 'DEST-WAKE'),
         life: region(src, 'DEST-LIFE')
       }));
     } catch (e) { return send(res, 500, 'text/plain', e.message); }

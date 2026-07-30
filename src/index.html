@@ -904,12 +904,77 @@ const sfx = {
 let bgCanvas = null, vignetteCanvas = null, wallTex = null, wallCloud = null;
 let ringFxCv = null, grainCv = null; // prerendered monolith ring + film-grain tile
 let bgMotes = [];
+// THE SKY BREATHES — as one thing, not as 1500 separate ones.
+//
+// Two attempts at scintillation failed for the same reason: the backdrop is a
+// BAKED canvas of ~1500 stars, and anything drawn live on top of it is a rounding
+// error against that. Fading individual stars, even 450 of them, disappears into
+// the static field around it.
+//
+// So this is a filter over the whole sky instead. A copy of the backdrop is
+// masked by a few enormous soft blobs drifting on incommensurate paths, and added
+// back over the original. Where a blob passes, every star under it swells
+// together and settles again; because it is a copy of the sky being added to
+// itself, black stays black and only the stars can brighten. That is the whole
+// trick, and it costs four half-resolution blits instead of 1500 arcs.
+// TWO THINGS DECIDE WHETHER THIS IS VISIBLE AT ALL, and the first cut got both
+// wrong. (1) The copy of the sky must be PIXEL-FOR-PIXEL. Taken at half size, a
+// 1px star is averaged over four source pixels and comes back a quarter as
+// bright, so the pass added almost nothing — the mask can be tiny, because a
+// smooth gradient survives any amount of upscaling, but the sky copy cannot.
+// (2) The swell has to run at the speed of BREATHING. The first rates gave the
+// blobs periods of one to two minutes, which is not a slow effect, it is a still
+// image. Seconds, not minutes.
+// (3) And it needs a COMMON breath. Four blobs each on their own cycle cancel
+// each other out — one swells while the next settles, and the frame as a whole
+// barely changes, which measured as a 7% swing and looked like nothing at all.
+// The blobs give the sky its texture and drift; one shared swell over the top is
+// what makes it read as a single thing breathing.
+let skyBreathCv = null, skyMaskCv = null, skyBW = 0, skyBH = 0;
+const SKY_MASK_R = 128;      // the mask is smooth — it costs nothing to keep it small
+const SKY_BLOBS = [];
+for (let i = 0; i < 3; i++) SKY_BLOBS.push({
+  sx: rand(0.03, 0.075), sy: rand(0.025, 0.07),     // drift: slow wander across the sky
+  px: Math.random() * TAU, py: Math.random() * TAU,
+  sa: rand(0.45, 0.95), pa: Math.random() * TAU,    // swell: its own, on top of the common one
+  r: rand(0.7, 1.25), a: rand(0.7, 1)
+});
+// (4) And the AMOUNT is measured in whole copies of the sky, not in fractions of
+// one. This is the part that had to be measured in a browser rather than reasoned
+// about: a dark sky swallows added light, and one extra copy at 60% is nothing
+// you would ever notice. Screenshots at 0.3 / 1.15 / 2.5 copies settled it —
+// under one copy the field is bare, and around two and a half the dust and the
+// faint stars come up. So the breath runs BETWEEN those, and the pass lays the
+// copy down as many times as it takes.
+const SKY_BREATH_K = 2.4;    // copies of the sky added at the top of a breath
+const SKY_BREATH_LO = 0.35;  // ...and at the bottom of one
+// The floor is high on purpose. With a low one the blobs ARE the effect, and a
+// corner of sky they happen not to be over gets none of the breath at all — which
+// is what the first peak/trough screenshots showed. The floor makes the whole sky
+// breathe; the blobs then make it uneven, which is the part that reads as organic.
+const SKY_BREATH_BASE = 0.62;
+// the common breath: three incommensurate periods around ~7s so it never repeats.
+// OFF during a run. It lands late in the frame, over the lane rather than behind
+// it, so in play it would be adding starlight on top of the traffic — brightening
+// the very thing the colour rule needs dark. The sky is barely visible down a live
+// bore anyway; this belongs to the screens where the sky IS the view.
+const skyBreath = () => {
+  if (state === S.PLAY || state === S.PAUSE || state === S.INFO) return 0;
+  const s = 0.5 + 0.36 * Math.sin(time * 0.83) + 0.1 * Math.sin(time * 1.41 + 1.2)
+    + 0.04 * Math.sin(time * 0.37 + 2.7);
+  return SKY_BREATH_LO + (SKY_BREATH_K - SKY_BREATH_LO) * clamp(s, 0, 1);
+};
 let litPanels = [];
 // (randCode is retired with the fiber theme — there is no binary on a lane wall.
 // The wall's motion is carried by streaked starlight and the marker trains below.)
 function buildBackground() {
   // live layer state
   bgMotes = [];
+  // the sky copy matches the backdrop pixel for pixel (see SKY_BLOBS); the mask
+  // is a fixed small square, since upscaling a smooth gradient costs nothing
+  skyBW = Math.max(64, Math.round(W * DPR)); skyBH = Math.max(64, Math.round(H * DPR));
+  skyBreathCv = document.createElement('canvas'); skyBreathCv.width = skyBW; skyBreathCv.height = skyBH;
+  skyMaskCv = document.createElement('canvas'); skyMaskCv.width = SKY_MASK_R; skyMaskCv.height = SKY_MASK_R;
   for (let i = 0; i < 18; i++) {
     bgMotes.push({ x: Math.random() * W, y: Math.random() * H, sp: rand(4, 14), r: rand(0.6, 1.8), ph: rand(0, TAU), white: Math.random() < 0.3 });
   }
@@ -1301,6 +1366,48 @@ function buildRingFx() {
 // animated background layer: drifting motes. (The periodic glitch scanlines are
 // GONE — a signal artefact belongs to a screen showing a fiber feed, and this is
 // a window onto open space. Nothing tears across a window.)
+// the breath pass — see SKY_BLOBS above. Called with the backdrop already down.
+function drawSkyBreath() {
+  if (!bgCanvas || !skyBreathCv || lowFX || skyBreath() <= 0.01) return;
+  const mc = skyMaskCv.getContext('2d'), bc = skyBreathCv.getContext('2d');
+  if (!mc || !bc || !mc.createRadialGradient) return; // headless stub: nothing to composite
+  // 1. the mask: a floor, plus the drifting blobs added on top of each other
+  const M = SKY_MASK_R;
+  mc.globalCompositeOperation = 'source-over';
+  mc.clearRect(0, 0, M, M);
+  mc.fillStyle = `rgba(255,255,255,${SKY_BREATH_BASE})`;
+  mc.fillRect(0, 0, M, M);
+  mc.globalCompositeOperation = 'lighter';
+  for (const b of SKY_BLOBS) {
+    const x = (0.5 + 0.45 * Math.sin(time * b.sx + b.px)) * M;
+    const y = (0.5 + 0.45 * Math.sin(time * b.sy + b.py)) * M;
+    const r = b.r * M * (0.85 + 0.15 * Math.sin(time * b.sa * 1.7 + b.pa));
+    const a = b.a * (0.5 + 0.5 * Math.sin(time * b.sa + b.pa));
+    const gd = mc.createRadialGradient(x, y, 0, x, y, r);
+    gd.addColorStop(0, `rgba(255,255,255,${a.toFixed(3)})`);
+    gd.addColorStop(0.55, `rgba(255,255,255,${(a * 0.34).toFixed(3)})`);
+    gd.addColorStop(1, 'rgba(255,255,255,0)');
+    mc.fillStyle = gd;
+    mc.fillRect(0, 0, M, M);
+  }
+  // 2. a 1:1 copy of the sky, cut down to where the mask is
+  bc.globalCompositeOperation = 'source-over';
+  bc.clearRect(0, 0, skyBW, skyBH);
+  bc.drawImage(bgCanvas, 0, 0);
+  bc.globalCompositeOperation = 'destination-in';
+  bc.drawImage(skyMaskCv, 0, 0, skyBW, skyBH);
+  bc.globalCompositeOperation = 'source-over';
+  // 3. added back over the original — only what was already lit can get brighter
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  // as many copies as the breath asks for: globalAlpha caps at 1, so more than
+  // one copy of the sky means laying it down more than once
+  for (let left = skyBreath(); left > 0.01; left -= 1) {
+    ctx.globalAlpha = Math.min(1, left);
+    ctx.drawImage(skyBreathCv, 0, 0, W, H);
+  }
+  ctx.restore();
+}
 function drawLiveBg(dt) {
   for (const m of bgMotes) {
     m.y -= m.sp * dt;
@@ -6219,9 +6326,11 @@ const DEST_LIFE = {
   clus0: 7, clusN: 5, perClus: 9,  // city-light clusters, and lights per cluster
   lightsO: 0.62, lightsC: '255,206,140',
   auroraO: 0.55, auroraW: 3, auroraC: '120,255,190', auroraC2: '160,190,255',
-  moonR: 0.15, moonO: [1.5, 2.15], moonPer: [48, 104], moonC: '198,192,180',
-  shipN: 4, shipO: 0.9, shipC: '255,230,196', shipPer: [26, 62],
-  stnR: 0.085, stnO: [1.2, 1.55], stnPer: [74, 140],
+  // moon and station carry no period: they are PARKED where their seed puts them.
+  // Nothing that big moves in the time you spend looking at a score.
+  moonR: 0.15, moonO: [1.5, 2.15], moonC: '198,192,180',
+  shipN: 3, shipO: 0.9, shipPer: [70, 160],  // shipPer is the gap BETWEEN departures
+  stnR: 0.085, stnO: [1.2, 1.55],
   twinkle: 0.34, blinkP: 0.14      // deep-sky scintillation depth, and how many are slow blinkers
 };
 // <<< DEST-DATA
@@ -6604,13 +6713,21 @@ function destinationLife() {
       }
     }
   }
+  // Departures FROM this world — the same wake the deep gets, at the scale of the
+  // place they are leaving. Positions are in units of R around the body, so they
+  // ride the approach without any rescaling.
   const ships = [];
   if (has.traffic) {
     const many = 2 + ((rnd() * (L.shipN - 1)) | 0);
-    for (let i = 0; i < many; i++) ships.push({
-      dir: rnd() * TAU, off: rr(-0.8, 0.8), per: rr(L.shipPer[0], L.shipPer[1]),
-      ph: rnd(), sz: rr(0.9, 1.8), back: rnd() < 0.4  // some cross BEHIND the body
-    });
+    for (let i = 0; i < many; i++) {
+      const a = rnd() * TAU, d = rr(0.45, 1.5);
+      ships.push({
+        x: Math.cos(a) * d, y: Math.sin(a) * d * 0.9,
+        dir: a + rr(-0.7, 0.7),                     // outbound-ish: away from the world
+        len: rr(0.35, 0.9), per: rr(L.shipPer[0], L.shipPer[1]), ph: rnd(),
+        back: rnd() < 0.35                          // some jump from BEHIND the body
+      });
+    }
   }
   destLifeKey = key;
   destLifeVal = {
@@ -6618,23 +6735,25 @@ function destinationLife() {
     aurora: { col: rnd() < 0.62 ? L.auroraC : L.auroraC2, k: rr(0.7, 1.25), ph: rnd() * TAU },
     moon: has.moon ? {
       orb: rr(L.moonO[0], L.moonO[1]), sq: rr(0.16, 0.46), tilt: rr(-0.8, 0.8),
-      per: rr(L.moonPer[0], L.moonPer[1]), ph: rnd() * TAU, sz: L.moonR * rr(0.62, 1.18), warm: rnd() < 0.4
+      ph: rnd() * TAU, sz: L.moonR * rr(0.62, 1.18), warm: rnd() < 0.4
     } : null,
     stn: has.station ? {
       orb: rr(L.stnO[0], L.stnO[1]), sq: rr(0.12, 0.4), tilt: rr(-0.8, 0.8),
-      per: rr(L.stnPer[0], L.stnPer[1]), ph: rnd() * TAU, seed: rnd() * 20
+      ph: rnd() * TAU, seed: rnd() * 20
     } : null
   };
   return destLifeVal;
 }
-// where a body in a tilted circular orbit sits this frame. front = the near half,
-// which is the whole reason a moon reads as ORBITING rather than as a sticker:
-// half its cycle it goes behind the world and is occluded by it.
+// Where a body in a tilted orbit SITS. Note the phase is fixed, not clocked: you
+// are looking at a system for half a minute, and in half a minute nothing that
+// large visibly moves. A moon sliding round its primary while you read a score is
+// a time-lapse, and a time-lapse says "animation" where stillness says "place".
+// The orbit geometry stays because it still decides where the body sits and
+// whether the world is in front of it.
 function orbitAt(o, far, R) {
-  const p = time / o.per * TAU + o.ph;
-  const ox = Math.cos(p) * R * o.orb, oy = Math.sin(p) * R * o.orb * o.sq;
+  const ox = Math.cos(o.ph) * R * o.orb, oy = Math.sin(o.ph) * R * o.orb * o.sq;
   const ct = Math.cos(o.tilt), st = Math.sin(o.tilt);
-  return { x: far.x + ox * ct - oy * st, y: far.y + ox * st + oy * ct, front: Math.sin(p) > 0 };
+  return { x: far.x + ox * ct - oy * st, y: far.y + ox * st + oy * ct, front: Math.sin(o.ph) > 0 };
 }
 // THE CREEPING TERMINATOR. The sprite bakes its shading at a fixed light angle,
 // so rebuilding it to move the sun is out of the question at these sizes. Instead
@@ -6743,29 +6862,17 @@ function drawMoon(far, R, la, F, vis) {
   ctx.fill();
   ctx.restore();
 }
-// TRAFFIC. Specks on long straight crossings with a short wake — the scale cue
-// that turns a big disc into a big PLACE, because you can only read the size of
-// something by what is small in front of it.
+// TRAFFIC: ships leaving. A world with departures off it is a world with
+// somewhere to go — and a wake beside the disc is the scale cue that turns a big
+// circle into a big PLACE.
 function drawShips(far, R, F, vis, back) {
-  const L = DEST_LIFE;
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
   for (const s of F.ships) {
     if (!!s.back !== back) continue;
-    const k = ((time / s.per + s.ph) % 1 + 1) % 1;
-    const t2 = -1.35 + k * 2.7;                      // off one limb, across, off the other
-    const ca = Math.cos(s.dir), sa = Math.sin(s.dir);
-    const ends = clamp(Math.min(k, 1 - k) / 0.09, 0, 1); // never pops in or out
-    const al = L.shipO * vis * ends;
-    if (al < 0.02) continue;
-    for (let w = 0; w < 4; w++) {                    // the wake, oldest first
-      const tw = t2 - w * 0.035;
-      const x = far.x + (tw * ca - s.off * sa) * R, y = far.y + (tw * sa + s.off * ca) * R;
-      ctx.fillStyle = `rgba(${L.shipC},${(al * (1 - w * 0.24) * (w ? 0.28 : 1)).toFixed(3)})`;
-      ctx.beginPath(); ctx.arc(x, y, s.sz * (1 - w * 0.16), 0, TAU); ctx.fill();
-    }
+    const p = ((time / s.per + s.ph) % 1 + 1) % 1;
+    const k = p * s.per / WAKE_TOT;
+    if (k >= 1) continue;
+    drawWarpWake(far.x + s.x * R, far.y + s.y * R, s.dir, s.len * R, k, DEST_LIFE.shipO * vis);
   }
-  ctx.restore();
 }
 // A STATION in low orbit — drawn by the SAME art the chart and the station
 // destinations use, just small and on an orbit. It says the place is worked.
@@ -6812,70 +6919,113 @@ function drawDestLife(far, R, g, front, la) {
 // Stateless per frame — each ship is a fixed course read against `time` — so it
 // costs nothing to have them running in every state, and they never need
 // resetting, recycling or pausing.
+// THE WAKE ITSELF, in four beats. Specks sliding across the frame read as dots
+// moving, because that is all they are; a departure has a SHAPE, and this is it:
+//
+//   1. a small blue point fades up out of nothing — a drive spooling
+//   2. it charges to white, and blooms
+//   3. it SNAPS away as a line running off into the distance
+//   4. the line burns out from the near end to the far one
+//
+// Beat 4 is the whole effect. The line does not dim as a unit — it is CONSUMED
+// from the tail forward, so what you watch is the trail closing behind something
+// that has already gone. Everything is a function of one 0→1 progress value, so a
+// wake carries no state and can be driven from any clock.
+// >>> DEST-WAKE
+// Lifted by the destinations lab too — a relay's traffic IS this wake, so the lab
+// cannot stage an arrival without it. Reaches only TAU, clamp and ctx.
+const WAKE_T = { in: 0.95, charge: 0.5, shoot: 0.14, burn: 0.8 };
+const WAKE_TOT = WAKE_T.in + WAKE_T.charge + WAKE_T.shoot + WAKE_T.burn;
+function drawWarpWake(x, y, dir, len, k, alpha) {
+  if (k <= 0 || k >= 1 || alpha <= 0.01) return;
+  const T = WAKE_T;
+  const t = k * WAKE_TOT;
+  const ca = Math.cos(dir), sa = Math.sin(dir);
+  const pt = (d) => [x + ca * d, y + sa * d];
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  if (t < T.in + T.charge) {
+    // beats 1+2: the point, cold and faint, warming to a white-hot pinprick
+    const spool = clamp(t / T.in, 0, 1);
+    const chg = clamp((t - T.in) / T.charge, 0, 1);
+    const a = alpha * (0.35 + 0.65 * spool) * (0.55 + 0.45 * chg);
+    const r = 1.1 + spool * 0.7 + chg * 2.2;
+    const col = chg > 0 ? `${Math.round(120 + 135 * chg)},${Math.round(190 + 65 * chg)},255` : '120,190,255';
+    const gl = ctx.createRadialGradient(x, y, 0, x, y, r * 5);
+    gl.addColorStop(0, `rgba(${col},${(a * 0.6).toFixed(3)})`);
+    gl.addColorStop(0.4, `rgba(${col},${(a * 0.16).toFixed(3)})`);
+    gl.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = gl;
+    ctx.beginPath(); ctx.arc(x, y, r * 5, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(255,255,255,${(a * (0.35 + 0.65 * chg)).toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    ctx.restore();
+    return;
+  }
+  // beats 3+4: the line. The head races out, then the tail chases it down.
+  const shot = clamp((t - T.in - T.charge) / T.shoot, 0, 1);
+  const burn = clamp((t - T.in - T.charge - T.shoot) / T.burn, 0, 1);
+  const head = len * (1 - Math.pow(1 - shot, 2.2));   // snaps out, decelerating
+  const tail = len * Math.pow(burn, 1.5);             // then eats its way forward
+  if (tail >= head - 0.5) { ctx.restore(); return; }
+  const [x0, y0] = pt(tail), [x1, y1] = pt(head);
+  const a = alpha * (1 - burn * 0.55);
+  // a gradient along the segment: hot where it is being consumed, thinning into
+  // the distance, so the line has a direction and a depth rather than a length
+  const gr = ctx.createLinearGradient(x0, y0, x1, y1);
+  gr.addColorStop(0, `rgba(150,215,255,${(a * 0.1).toFixed(3)})`);
+  gr.addColorStop(0.18, `rgba(210,238,255,${(a * 0.75).toFixed(3)})`);
+  gr.addColorStop(0.75, `rgba(255,255,255,${(a * 0.42).toFixed(3)})`);
+  gr.addColorStop(1, 'rgba(255,255,255,0)');
+  for (const [w, m] of [[3.4, 0.3], [1.5, 0.7], [0.7, 1]]) { // soft shaft, then the core
+    ctx.strokeStyle = gr;
+    ctx.globalAlpha = m;
+    ctx.lineWidth = w * (1 - burn * 0.4);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  if (shot < 1) { // the head is still a body while it is leaving
+    const hg = ctx.createRadialGradient(x1, y1, 0, x1, y1, 7);
+    hg.addColorStop(0, `rgba(255,255,255,${(a * 0.9).toFixed(3)})`);
+    hg.addColorStop(1, 'rgba(190,225,255,0)');
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.arc(x1, y1, 7, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+// <<< DEST-WAKE
+// Ambient departures: somebody, somewhere off in the deep, jumping out.
+//
+// STATUS SCREENS ONLY, and RARE. Two reasons it has no business in a live run: a
+// bright line snapping across the frame is exactly the shape of a threat cue, and
+// the lane already has all the motion it can carry. Off-run it is the opposite —
+// the thing that says the galaxy did not stop while you were reading a score.
+// One jump every ~20 seconds somewhere on the frame. A departure is an EVENT; at
+// any tighter cadence it stops being one.
 const AMB_SHIPS = [];
 function initAmbTraffic() {
   AMB_SHIPS.length = 0;
-  const n = lowFX ? 4 : 10;
-  for (let i = 0; i < n; i++) {
-    const far2 = Math.random() < 0.55;              // most are distant specks
-    AMB_SHIPS.push({
-      dir: Math.random() * TAU,
-      off: rand(-0.9, 0.9),                         // how far off centre the course runs
-      per: far2 ? rand(55, 120) : rand(28, 60),     // seconds to cross the frame
-      ph: Math.random(),
-      sz: far2 ? rand(0.9, 1.4) : rand(1.6, 2.6),
-      al: far2 ? rand(0.30, 0.55) : rand(0.6, 0.95),
-      warm: Math.random() < 0.35,
-      // a convoy reads as INDUSTRY where a single speck reads as an anomaly
-      convoy: Math.random() < 0.3 ? 2 + ((Math.random() * 3) | 0) : 0,
-      gap: rand(0.055, 0.11)
-    });
-  }
+  const n = lowFX ? 3 : 6;
+  for (let i = 0; i < n; i++) AMB_SHIPS.push({
+    x: rand(0.08, 0.92), y: rand(0.08, 0.92),      // fraction of the frame
+    dir: Math.random() * TAU,
+    len: rand(0.18, 0.5),                          // fraction of the min side
+    per: rand(95, 190), ph: Math.random(),
+    al: rand(0.5, 0.95)
+  });
 }
 initAmbTraffic();
 function drawAmbTraffic(g) {
   if (!AMB_SHIPS.length) return;
-  // TWO different scales, and conflating them is what made the first cut invisible.
-  // ALONG the course, the run has to start and finish well off-frame, so it is
-  // measured in diagonals. ACROSS it, the course must actually intersect the
-  // VISIBLE frame — scaled by the same diagonal, an offset of 0.8 put the whole
-  // crossing off the side of the screen, and six of seven ships never appeared.
-  const D = Math.hypot(W, H) * 0.62;   // along-track: enters and leaves out of frame
-  const P = Math.min(W, H) * 0.42;     // cross-track: the lane stays on screen
-  // during play they pull right back: the colour rule owns the lane, and nothing
-  // ambient may compete with a threat for the eye
-  const k = state === S.PLAY || state === S.PAUSE || state === S.INFO ? 0.35 : 1;
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
+  if (state !== S.MENU && state !== S.END && state !== S.GUIDE) return;
+  const M = Math.min(W, H);
   for (const s of AMB_SHIPS) {
     const p = ((time / s.per + s.ph) % 1 + 1) % 1;
-    const t0 = -1.15 + p * 2.3;
-    const ca = Math.cos(s.dir), sa = Math.sin(s.dir);
-    const ends = clamp(Math.min(p, 1 - p) / 0.07, 0, 1);   // never pops in or out
-    const base = s.al * k * ends;
-    if (base < 0.02) continue;
-    const col = s.warm ? '255,226,186' : '206,232,255';
-    for (let c = 0; c <= s.convoy; c++) {
-      const lead = t0 - c * s.gap;
-      for (let w = 0; w < 3; w++) {                        // hull, then its wake
-        const tw = lead - w * 0.022;
-        const x = g.cx + tw * ca * D - s.off * sa * P;
-        const y = g.cy + tw * sa * D + s.off * ca * P;
-        if (x < -20 || x > W + 20 || y < -20 || y > H + 20) continue;
-        const al = base * (c ? 0.6 : 1) * (w ? 0.22 / w : 1);
-        if (!w) { // a running light, not a dot: the glow is what makes it read at this size
-          const gl = ctx.createRadialGradient(x, y, 0, x, y, s.sz * 4);
-          gl.addColorStop(0, `rgba(${col},${(al * 0.5).toFixed(3)})`);
-          gl.addColorStop(1, `rgba(${col},0)`);
-          ctx.fillStyle = gl;
-          ctx.beginPath(); ctx.arc(x, y, s.sz * 4, 0, TAU); ctx.fill();
-        }
-        ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
-        ctx.beginPath(); ctx.arc(x, y, s.sz * (1 - w * 0.2), 0, TAU); ctx.fill();
-      }
-    }
+    const k2 = p * s.per / WAKE_TOT;               // the event occupies the head of the cycle
+    if (k2 >= 1) continue;                         // ...and the rest is empty sky
+    drawWarpWake(s.x * W, s.y * H, s.dir, s.len * M, k2, s.al);
   }
-  ctx.restore();
 }
 
 
@@ -12672,6 +12822,15 @@ function drawMenuBoard() {
 // sharp, the star systems, is drawn LIVE and culled to the lens instead, which
 // also made it sharper than baking ever did. 123MB -> 16MB.
 const BASE_K = 0.5;
+// THE GRID ARTEFACT, and why it was there. cityBloom made a temp canvas at the
+// SHEET's nominal size (5200x3100 — 61MB) and blurred it with ctx.filter. Two
+// things went wrong at once: the sheet went half-res, so the layer only filled
+// the temp's top-left quarter and the bloom came back misaligned; and a canvas
+// filter blur over a surface that large is executed in TILES by the compositor,
+// which leaves faint seams along the tile boundaries — the regular horizontal and
+// vertical lines. The base is nothing but radial gradients now, so it was already
+// as soft as a bloom would make it. The pass is gone, with it the 61MB, and
+// cityFalloff/isoRadial went too — both dead once the city did.
 let cityBase = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1;
 const mapR = () => menuGeom().R * 0.92; // the lens rim MATCHES the mode wheel — seamless crossfade
 const CITY_W = 5200, CITY_H = 3100;
@@ -12787,6 +12946,48 @@ let SCENERY = [];   // non-mission destinations: the rest of the settled volume
 // block and a label is mush. Those are DATA now, drawn live at screen
 // resolution, so they stay sharp at any zoom the lens reaches.
 let GAL_STARS = [];
+// Every system and every world gets a NAME, dealt off its own seed so it is
+// permanent — a place you have flown to is called the same thing next time.
+const NM_A = ['AL', 'BEL', 'CAS', 'DRA', 'ERI', 'FOR', 'GAL', 'HYD', 'IND', 'KEP',
+              'LYR', 'MEN', 'NOR', 'ORI', 'PYX', 'QUI', 'RIG', 'SER', 'TAU', 'VEG',
+              'XAN', 'ZUB', 'CET', 'MIR', 'ALT', 'DEN'];
+const NM_B = ['', 'A', 'AR', 'EN', 'IS', 'OR', 'US', 'AN', 'EL', 'IX', 'OS', 'YR'];
+const NM_C = ['', '', '', ' PRIME', ' MINOR', ' MAJOR', ' REACH', ' DEEP', ' WATCH'];
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+function sysName(seed) {
+  let h = (seed * 2654435761) >>> 0;
+  const a = NM_A[h % NM_A.length]; h = Math.imul(h ^ h >>> 13, 0x5bd1e995) >>> 0;
+  const b = NM_B[h % NM_B.length]; h = Math.imul(h ^ h >>> 11, 0x27d4eb2d) >>> 0;
+  const c = NM_C[h % NM_C.length]; h = Math.imul(h ^ h >>> 9, 0x85ebca6b) >>> 0;
+  return a + b + c + (c ? '' : ' ' + (100 + h % 899));
+}
+// A destination is a BODY IN a system, never a system itself. It is either one of
+// the planets on an orbit or the star at the centre — and if it is the star, the
+// star is what a star looks like, never a planet wearing a sun's job.
+let RELAY_SYS = [];
+function relayDest(i) { return RELAY_SYS[i] || null; }
+function relayDestPos(i) {
+  const d = RELAY_SYS[i];
+  if (!d) return relayW(i);
+  if (d.slot < 0) return { x: d.sys.x, y: d.sys.y };
+  const pl = d.sys.planets[d.slot];
+  return { x: d.sys.x + Math.cos(pl.a) * pl.o, y: d.sys.y + Math.sin(pl.a) * pl.o * 0.5 };
+}
+function relayDestName(i) {
+  const d = RELAY_SYS[i];
+  if (!d) return 'UNCHARTED';
+  if (d.slot < 0) return d.sys.name;                       // the star itself
+  const k = destKindFor((typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x', i, false);
+  if (k === 'station') return d.sys.name + ' STATION';
+  if (k === 'gate') return d.sys.name + ' GATE';
+  return d.sys.name + ' ' + ROMAN[Math.min(d.slot, ROMAN.length - 1)];
+}
+// The level's name is the ROUTE it flies: where the convoy forms up, and where it
+// is going. A relay is a leg, and a leg has two ends.
+function levelRouteName(i) {
+  const from = i > 0 ? relayDestName(i - 1) : ((CAMP && CAMP.origin) || 'OMNISERVE YARDS');
+  return from + ' » ' + relayDestName(i);
+}
 function buildCity() {
   const rng = mulberry32(0xC17C0DE);
 
@@ -12911,7 +13112,10 @@ function buildCity() {
       orb += 5 + rng() * 13;
       planets.push({ o: orb, a: rng() * TAU, sz: 0.7 + rng() * 1.3, V: PLANET_TYPES[rng() * PLANET_TYPES.length | 0] });
     }
-    SCENERY.push({ x, y, cls, planets, far, station: rng() < 0.14, seed: rng() * 100 });
+    const sy = { x, y, cls, planets, far, station: rng() < 0.14, seed: rng() * 100 };
+    sy.name = sysName(Math.floor(x * 31 + y * 17));
+    SCENERY.push(sy);
+    return sy;
   };
   for (let arm = 0; arm < 2; arm++) {
     for (let i = 0; i < 300; i++) {
@@ -12928,7 +13132,18 @@ function buildCity() {
     const ang2 = rng() * TAU;
     mkSystem(CITY_CORE.x + Math.cos(ang2) * rr, CITY_CORE.y + Math.sin(ang2) * rr * 0.5);
   }
-  for (const q of pts) mkSystem(q.x, q.y);  // every relay is a system too
+  // every relay is a system, and one body inside it is the destination
+  RELAY_SYS = [];
+  for (let i = 0; i < pts.length; i++) {
+    const sy = mkSystem(pts[i].x, pts[i].y);
+    if (!sy) continue;
+    const campId = (CAMPAIGNS.length && CAMP && CAMP.id) || 'x';
+    const isBoss = !!(LEVELS[i] && LEVELS[i].boss);
+    // a boss duel happens AT the star; everything else orbits one
+    const slot = isBoss ? -1 : (Math.abs(Math.floor(pts[i].x * 13 + pts[i].y * 7)) % sy.planets.length);
+    RELAY_SYS[i] = { sys: sy, slot };
+    sy.relay = i;
+  }
   // the field: generated once, drawn live
   GAL_STARS = [];
   const SCOL = ['206,224,255', '255,242,222', '255,212,172', '214,200,255', '190,240,255'];
@@ -13005,7 +13220,6 @@ function buildCity() {
         ctx.beginPath(); ctx.arc(x2, y2, br, 0, TAU); ctx.fill();
       }
     }
-    cityBloom(cityBase, 3, 0.7);
   });
 
 }
@@ -13139,46 +13353,6 @@ function isoEllipse(r) {
   ctx.ellipse ? ctx.ellipse(CITY_CORE.x, CITY_CORE.y, r, r * 0.5, 0, 0, TAU)
               : ctx.arc(CITY_CORE.x, CITY_CORE.y, r, 0, TAU);
 }
-// a radial wash centered on the core, squashed onto the ground plane
-function isoRadial(r0, r1, stops, comp) {
-  ctx.save();
-  ctx.translate(CITY_CORE.x, CITY_CORE.y); ctx.scale(1, 0.5); ctx.translate(-CITY_CORE.x, -CITY_CORE.y);
-  const g = ctx.createRadialGradient(CITY_CORE.x, CITY_CORE.y, r0, CITY_CORE.x, CITY_CORE.y, r1);
-  stops.forEach((s, i) => g.addColorStop(i / (stops.length - 1), s));
-  if (comp) ctx.globalCompositeOperation = comp;
-  ctx.fillStyle = g;
-  ctx.fillRect(-CITY_W, CITY_CORE.y - CITY_H * 2, CITY_W * 3, CITY_H * 4);
-  ctx.restore();
-}
-// neon bloom: composite a blurred copy of the layer back over itself. Without
-// canvas filters (older engines, headless) the layer simply stays crisp.
-function cityBloom(layer, px, amt) {
-  try {
-    if (typeof document === 'undefined') return;
-    const tmp = document.createElement('canvas');
-    tmp.width = CITY_W; tmp.height = CITY_H;
-    const tc = tmp.getContext('2d');
-    if (!tc || !('filter' in tc)) return;
-    tc.drawImage(layer, 0, 0);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = amt;
-    ctx.filter = 'blur(' + px + 'px)';
-    ctx.drawImage(tmp, 0, 0);
-    ctx.restore();
-    tmp.width = tmp.height = 0; // release it now, not whenever the GC feels like it
-  } catch (e) { /* no filters here — the crisp layer stands on its own */ }
-}
-// light falls off with distance from the core: the outskirts fade toward dark.
-// On the building layer that means ERASING the far towers, so they thin out
-// instead of sitting behind a grey wash.
-function cityFalloff(erase) {
-  if (erase) { // towers: the skyline holds through the rings, then breaks up
-    isoRadial(620, 1560, ['rgba(0,0,0,0)', 'rgba(0,0,0,0.14)', 'rgba(0,0,0,0.82)'], 'destination-out');
-  } else {     // ground: the lit street plan gives out well before the buildings do
-    isoRadial(320, 1480, ['rgba(2,6,16,0)', 'rgba(2,6,16,0.5)', 'rgba(2,6,16,0.985)']);
-  }
-}
 // the chain belongs to the CURRENT case — each one works its own band of rings
 function cityChain() {
   if (!CITY_CHAINS.length) buildCity();
@@ -13302,29 +13476,32 @@ function drawMenuMap() {
   const frontier = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
   // camera: frame the ENTIRE selected run — center on its bounding box and
   // zoom out until it fits inside the lens
+  // THE APPROACH. The camera no longer frames the whole run — it closes on the
+  // DESTINATION, because that is the thing being chosen and it is now the size of
+  // any other world on the chart rather than a marker standing in for one.
+  //
+  // Zoom is set so the destination's own system fills a good part of the lens,
+  // which is what makes a planet on an orbit legible at all.
   const seg = SEGS[mapSel];
-  let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
-  for (const p2 of seg) {
-    bx0 = Math.min(bx0, p2.x); by0 = Math.min(by0, p2.y);
-    bx1 = Math.max(bx1, p2.x); by1 = Math.max(by1, p2.y);
-  }
-  // fit the WHOLE run in the CIRCULAR lens: zoom by the farthest point from
-  // the bbox center, padded for relay markers (hexes, brackets, stars)
-  const cbx = (bx0 + bx1) / 2, cby = (by0 + by1) / 2;
-  let rMax = 1;
-  for (const p2 of seg) rMax = Math.max(rMax, Math.hypot(p2.x - cbx, p2.y - cby));
-  // The 0.7 ceiling was sized for the old city, where a run spanned a third of
-  // the sheet. Runs are a fraction of that now, so the lens is allowed much
-  // further in — which is what makes the camera travel between levels and what
-  // keeps the visible slice down to a fraction of the galaxy.
-  const zt = clamp((R - 58) / rMax, 0.34, 2.2);
-  const Rz = R / Math.max(mapZoom, 0.01);
-  const tx2 = clamp((bx0 + bx1) / 2, Math.min(Rz * 0.8, WW / 2), WW - Math.min(Rz * 0.8, WW / 2));
-  const ty2 = clamp((by0 + by1) / 2, Math.min(Rz * 0.7, WH / 2), WH - Math.min(Rz * 0.7, WH / 2));
+  const dsel = IM ? null : relayDest(mapSel);
+  const focus = IM ? seg[seg.length - 1] : relayDestPos(mapSel);
+  // how wide the system around it is — orbits included, so nothing is cropped
+  let sysR = 40;
+  if (dsel) for (const pl of dsel.sys.planets) sysR = Math.max(sysR, pl.o * 1.35);
+  const zt = clamp((R - 40) / sysR, 0.34, 6);
+  const tx2 = clamp(focus.x, 0, WW);
+  const ty2 = clamp(focus.y, 0, WH);
   if (mapCamSnap) { mapCamX = tx2; mapCamY = ty2; mapZoom = zt; mapCamSnap = false; }
-  mapCamX += (tx2 - mapCamX) * 0.08;
-  mapCamY += (ty2 - mapCamY) * 0.08;
-  mapZoom += (zt - mapZoom) * 0.08;
+  // Time-based easing, ~1000ms to settle, so the approach reads the same on any
+  // refresh rate. The old per-frame 0.08 lerp was both faster and frame-rate
+  // dependent — it arrived in about a third of a second on a 60Hz screen and
+  // twice as fast on a 120Hz one.
+  {
+    const k = 1 - Math.pow(0.02, Math.min(0.05, frameDt || 0.016) / 1.0);
+    mapCamX += (tx2 - mapCamX) * k;
+    mapCamY += (ty2 - mapCamY) * k;
+    mapZoom += (zt - mapZoom) * k;
+  }
   const wx = p2 => ccx + (p2.x - mapCamX) * mapZoom; // world -> screen (zoomed)
   const wy = p2 => ccy + (p2.y - mapCamY) * mapZoom;
 
@@ -13465,40 +13642,42 @@ function drawMenuMap() {
   // sits clear below and a short leader points down at it.
   const nr = Math.min(W, H) * 0.03;
   for (let i = 0; i < LEVELS.length; i++) {
-    const pt = RPT(i);
-    const mx2 = wx(pt), my2 = wy(pt);
-    if (Math.hypot(mx2 - ccx, my2 - ccy) > R + nr * 2.6) continue; // outside the lens
+    if (Math.hypot(wx(RPT(i)) - ccx, wy(RPT(i)) - ccy) > R + nr * 6) continue; // outside the lens
     const locked = i + 1 > PROG.unlocked;
     const cleared = PROG.stars[i] > 0;
     const isFrontier = i === frontier && !cleared;
     const isBoss = !!LEVELS[i].boss;
     const campId = (typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x';
-    const kind = destKindFor(campId, i, isBoss);
     // 40% smaller than the first cut: at full size the bodies crowded each other
     // and left no room for the systems and lanes around them
-    const dR = nr * (isBoss ? 0.87 : 0.67);
     // ---- the destination body ----
+    // It is NOT drawn here any more. The body is a planet on an orbit (or the
+    // star) inside the system that drawSystemsLive already paints, at the same
+    // scale as every other world on the chart — a destination is a place in a
+    // system, not a system-sized object sitting where a system should be. All
+    // this pass adds is a reticle saying WHICH body, and the camera closes in far
+    // enough to read it.
+    const dp = relayDestPos(i);
+    const mx2 = wx(dp), my2 = wy(dp);
+    const dR = Math.max(3.5, nr * 0.30);
     ctx.save();
-    ctx.globalAlpha = locked ? 0.34 : 1;
-    if (kind === 'station' || kind === 'gate') drawRingBody(mx2, my2, dR, kind);
-    else {
-      const V = kind === 'star' ? PLANET_STAR : planetVariantFor(campId, i, false);
-      const chip = planetChip(V);
-      if (chip) {
-        const w = chip.S * (dR / chip.R);
-        ctx.drawImage(chip.cv, mx2 - w / 2, my2 - w / 2, w, w);
-      } else {
-        ctx.fillStyle = `rgba(${V.z},0.8)`;
-        ctx.beginPath(); ctx.arc(mx2, my2, dR, 0, TAU); ctx.fill();
-      }
+    ctx.globalAlpha = locked ? 0.4 : 1;
+    ctx.strokeStyle = locked ? 'rgba(150,190,240,0.5)'
+      : isBoss ? 'rgba(212,101,255,0.95)' : 'rgba(126,226,98,0.95)';
+    ctx.lineWidth = 1.3;
+    // an open reticle, so the body it marks stays visible inside it
+    for (let k = 0; k < 4; k++) {
+      const a2 = k * (TAU / 4) + TAU / 8;
+      ctx.beginPath();
+      ctx.arc(mx2, my2, dR, a2 - 0.42, a2 + 0.42);
+      ctx.stroke();
     }
     ctx.restore();
-    // selection / frontier reads on the BODY, where the eye already is
     if (isFrontier || i === mapSel) {
       ctx.strokeStyle = i === mapSel ? 'rgba(240,252,255,0.9)'
         : `rgba(255,210,74,${(0.7 + Math.sin(time * 4) * 0.3).toFixed(2)})`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(mx2, my2, dR * 1.3, 0, TAU); ctx.stroke();
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(mx2, my2, dR * 1.7, 0, TAU); ctx.stroke();
     }
     // ---- the numbered plate, riding above ----
     const py3 = my2 - dR - nr * 0.95;
@@ -15047,6 +15226,14 @@ function frame(now) {
     ctx.fillStyle = tg2;
     ctx.fillRect(0, 0, W, H);
   }
+
+  // THE SKY BREATHES — and it has to happen HERE, at the very end of the world
+  // pass, which took measuring to find. Laid down with the backdrop it was worth
+  // 0.73 luminance per copy of the sky; laid down last it is worth 5.3. Everything
+  // between the two points — wall stamps, fog, ring, vignette, grade — dilutes
+  // what is under it, and seven eighths of the effect was being eaten before the
+  // frame was finished. The UI is the only thing that goes over the top of it.
+  drawSkyBreath();
 
   if (state === S.PLAY) {
     drawHUD(g); drawDials(); drawIntroCard(); drawNowPlaying();
