@@ -3915,6 +3915,7 @@ function resetRun() {
   // the first post-boot tick at full horizon depth, so traffic is visibly
   // inbound from second zero (natural speed — first CONTACT comes at travel time)
   levelT = 0; spawnT = 0.01;
+  lanePlanetProg = 0; // the destination starts far away again
   commNext = 0; commCur = null; commT = 0;
   surgeLevel = 0; surgeCount = -1; surgeWaveZ = -1;
   integrity = mutators.oneLife ? 25 : 100;
@@ -4427,7 +4428,8 @@ const INFO_CARDS = {
 // ---------- the investigation ----------
 // campaign narrative lives in the campaign package (src/campaigns.js):
 // story briefings show on deploy, comm chatter ticks mid-run at scripted
-// times (deterministic levels keep them in sync), case notes cap the report.
+// times (deterministic levels keep them in sync). Case notes are still authored
+// per level but no longer drawn on the mission report.
 // installCampaign() has already filled STORY/COMMS/CASE_NOTES by the time
 // they're read; story cards register into INFO_CARDS here, once it exists.
 infoCardsReady = true;
@@ -5994,16 +5996,28 @@ for (let i = 0; i < 34; i++) {
     warm: Math.random() < 0.3
   });
 }
-// how far along the lane we are — the same expression the HUD progress arc uses,
-// so the world's growth and the bar are literally the same number
+// How far along the lane we are — the same expression the HUD progress arc uses,
+// so the world's growth and the bar are literally the same number.
+//
+// LATCHED and monotonic. Two reasons. It must never shrink mid-run (a boss's HP
+// can tick back up on a heal, and a world that shrinks reads as reversing), and
+// it must not collapse to 0 the instant the run leaves S.PLAY — that snapped the
+// world back to its departure size exactly at arrival, which is the one moment it
+// should be at its largest. It holds until the next level resets it.
+let lanePlanetProg = 0;
 function laneProgress() {
-  if (state !== S.PLAY) return 0;
-  const L = LV || LEVELS[levelIdx];
-  if (boss) return clamp(1 - boss.hp / boss.maxHp, 0, 1);
-  if (endless) return clamp(levelT / 150, 0, 1);
-  return L ? clamp(levelT / L.duration, 0, 1) : 0;
+  if (state === S.PLAY) {
+    const L = LV || LEVELS[levelIdx];
+    const p = boss ? clamp(1 - boss.hp / boss.maxHp, 0, 1)
+      : endless ? clamp(levelT / 150, 0, 1)
+      : L ? clamp(levelT / L.duration, 0, 1) : 0;
+    if (p > lanePlanetProg) lanePlanetProg = p;
+  }
+  return lanePlanetProg;
 }
-// The world is rendered PER PIXEL, into a cached sprite. Canvas gradients cannot
+// DESTINATION WORLDS.
+//
+// Rendered PER PIXEL, into a sprite cached per variant. Canvas gradients cannot
 // make a sphere: a radial gradient is a flat falloff, and offsetting its centre
 // toward the light only fakes the direction, never the FORM. What reads as 3D is
 // three things a gradient cannot express —
@@ -6016,12 +6030,40 @@ function laneProgress() {
 //      the eye it is looking at a ball. On a screen-aligned axis they come out as
 //      flat horizontal stripes and it reads as a painted disc.
 //
-// It is at most ~40px across, so this is a few thousand pixels, and it is cached
-// until the radius changes by a whole pixel — so a run rebuilds it a few dozen
-// times total, not every frame.
-let planetSprite = null, planetSpriteR = -1;
-function buildPlanetSprite(R) {
-  const pad = Math.max(3, Math.round(R * 0.85));   // room for the atmosphere
+// The sprite is built ONCE per world at a fixed reference resolution and then
+// SCALED to whatever size the approach calls for. The first cut rebuilt it every
+// time the radius crossed a whole pixel, which meant the world grew in 26 discrete
+// 1px jumps across a level — the "choppy" growth. Scaling a single sprite is
+// continuous, and costs one drawImage.
+const PLANET_REF_R = 104;
+const PLANET_TYPES = [
+  { n: 'tan giant',   z: [214, 184, 150], belt: [140, 80, 58],   bf: 8.5,  ba: 1.00, atmo: [140, 178, 230], ak: 1.0 },
+  { n: 'ice world',   z: [228, 242, 252], belt: [148, 186, 218], bf: 5.5,  ba: 0.55, atmo: [170, 215, 255], ak: 1.2 },
+  { n: 'rust desert', z: [202, 142, 96],  belt: [118, 62, 42],   bf: 14.0, ba: 0.85, atmo: [220, 150, 110], ak: 0.7 },
+  { n: 'ocean',       z: [92, 152, 216],  belt: [34, 74, 146],   bf: 6.0,  ba: 0.80, atmo: [130, 190, 255], ak: 1.5 },
+  { n: 'verdant',     z: [152, 192, 132], belt: [64, 104, 76],   bf: 9.0,  ba: 0.80, atmo: [160, 220, 180], ak: 1.1 },
+  { n: 'violet giant',z: [192, 166, 226], belt: [106, 66, 148],  bf: 11.0, ba: 0.95, atmo: [190, 160, 255], ak: 1.0 },
+  { n: 'pale rock',   z: [196, 192, 184], belt: [104, 100, 96],  bf: 17.0, ba: 0.60, atmo: [150, 165, 190], ak: 0.5 },
+  { n: 'molten',      z: [64, 42, 40],    belt: [255, 126, 52],  bf: 12.0, ba: 1.00, atmo: [255, 140, 80],  ak: 1.2, glow: 1 }
+];
+const PLANET_STAR = { n: 'star', z: [255, 226, 150], belt: [255, 150, 46], bf: 22.0, ba: 0.7, atmo: [255, 176, 80], ak: 2.6, emis: 1 };
+// Deterministic per campaign + level, so a given relay always shows the same
+// world — it is a place, not a random skin, and a player can recognise it.
+function planetVariant() {
+  if (LV && LV.boss) return PLANET_STAR; // the duel happens at a sun
+  const id = (typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x';
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+  h ^= levelIdx + 1; h = Math.imul(h, 16777619);
+  // Avalanche before the modulo. Without this, `% 8` reads only the low three
+  // bits, which FNV alone does not decorrelate — two campaigns came out with
+  // byte-identical destination sequences.
+  h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15;
+  return PLANET_TYPES[(h >>> 0) % PLANET_TYPES.length];
+}
+let planetSprite = null, planetSpriteKey = '';
+function buildPlanetSprite(R, V) {
+  const pad = Math.max(3, Math.round(R * (V.emis ? 1.25 : 0.85)));
   const S = Math.ceil(R * 2 + pad * 2);
   const cv = document.createElement('canvas');
   cv.width = cv.height = S;
@@ -6041,6 +6083,7 @@ function buildPlanetSprite(R) {
   let ax = 0.27, ay = -0.89, az = 0.36;
   const an = Math.hypot(ax, ay, az); ax /= an; ay /= an; az /= an;
   const padN = pad / R;
+  const [z0, z1, z2] = V.z, [e0, e1, e2] = V.belt, [t0, t1, t2] = V.atmo;
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       const dx = (x - cx) / R, dy = (y - cy) / R;
@@ -6048,86 +6091,85 @@ function buildPlanetSprite(R) {
       const i4 = (y * S + x) * 4;
       if (d2 <= 1) {
         const nz = Math.sqrt(1 - d2);
-        const ndl = Math.max(0, dx * lx + dy * ly + nz * lz);
-        const limb = 0.45 + 0.55 * nz;                       // (2)
-        const lat = dx * ax + dy * ay + nz * az;             // (3)
-        const b1 = 0.5 + 0.5 * Math.sin(lat * 8.5);
-        const b2 = 0.5 + 0.5 * Math.sin(lat * 19.0 + 1.4);
-        const b3 = 0.5 + 0.5 * Math.sin(lat * 41.0 + 0.3);
-        const band = b1 * (0.62 + 0.38 * b2) * (0.85 + 0.15 * b3);
-        // warm banded body: pale zones over rust belts
-        const rr = 214 - 74 * band, gg = 184 - 104 * band, bb = 150 - 92 * band;
-        const lit = Math.pow(ndl, 0.85) * limb;              // (1)
-        // a little cool ambient so the night side is a silhouette, not a hole
-        const amb = 0.055;
-        D[i4]     = Math.min(255, rr * lit + 26 * amb * 4);
-        D[i4 + 1] = Math.min(255, gg * lit + 34 * amb * 4);
-        D[i4 + 2] = Math.min(255, bb * lit + 58 * amb * 4);
+        const limb = 0.45 + 0.55 * nz;                        // (2)
+        const lat = dx * ax + dy * ay + nz * az;              // (3)
+        const b1 = 0.5 + 0.5 * Math.sin(lat * V.bf);
+        const b2 = 0.5 + 0.5 * Math.sin(lat * V.bf * 2.24 + 1.4);
+        const b3 = 0.5 + 0.5 * Math.sin(lat * V.bf * 4.8 + 0.3);
+        const band = clamp((b1 * (0.62 + 0.38 * b2) * (0.85 + 0.15 * b3)) * V.ba, 0, 1);
+        const rr = z0 + (e0 - z0) * band, gg = z1 + (e1 - z1) * band, bb = z2 + (e2 - z2) * band;
+        // a star has no night side — it makes its own light
+        const lit = V.emis ? (0.72 + 0.28 * nz) : Math.pow(Math.max(0, dx * lx + dy * ly + nz * lz), 0.85) * limb;
+        const amb = V.emis ? 0 : 0.22;
+        D[i4]     = Math.min(255, rr * lit + 26 * amb);
+        D[i4 + 1] = Math.min(255, gg * lit + 34 * amb);
+        D[i4 + 2] = Math.min(255, bb * lit + 58 * amb);
         D[i4 + 3] = 255;
-        // atmosphere piling up on the lit limb, brightest where the surface turns away
-        const rim = Math.pow(1 - nz, 2.4) * Math.max(0, ndl) * 210;
+        // molten belts and stars emit regardless of the light
+        if (V.glow) {
+          const em = band * band * 150;
+          D[i4] = Math.min(255, D[i4] + em); D[i4 + 1] = Math.min(255, D[i4 + 1] + em * 0.42); D[i4 + 2] = Math.min(255, D[i4 + 2] + em * 0.12);
+        }
+        // atmosphere piling up on the limb, brightest where the surface turns away
+        const ndl2 = V.emis ? 1 : Math.max(0, dx * lx + dy * ly + nz * lz);
+        const rim = Math.pow(1 - nz, 2.4) * ndl2 * 210 * V.ak;
         if (rim > 1) {
-          D[i4]     = Math.min(255, D[i4] + rim * 0.75);
-          D[i4 + 1] = Math.min(255, D[i4 + 1] + rim * 0.86);
-          D[i4 + 2] = Math.min(255, D[i4 + 2] + rim);
+          D[i4]     = Math.min(255, D[i4] + rim * (t0 / 255));
+          D[i4 + 1] = Math.min(255, D[i4 + 1] + rim * (t1 / 255));
+          D[i4 + 2] = Math.min(255, D[i4 + 2] + rim * (t2 / 255));
         }
       } else {
         // the atmosphere shell outside the disc — only where the sun reaches it
         const d = Math.sqrt(d2);
         const t = (d - 1) / padN;
         if (t >= 1) { D[i4 + 3] = 0; continue; }
-        const fall = Math.exp(-t * 3.6) * (1 - t);
-        const side = Math.max(0, (dx * lx + dy * ly) / d);
-        const a = fall * (0.16 + 0.84 * side) * 175;
-        D[i4] = 140; D[i4 + 1] = 178; D[i4 + 2] = 230;
-        D[i4 + 3] = Math.max(0, Math.min(255, a));
+        const fall = Math.exp(-t * (V.emis ? 2.2 : 3.6)) * (1 - t);
+        const side = V.emis ? 1 : Math.max(0, (dx * lx + dy * ly) / d);
+        D[i4] = t0; D[i4 + 1] = t1; D[i4 + 2] = t2;
+        D[i4 + 3] = Math.max(0, Math.min(255, fall * (0.16 + 0.84 * side) * 175 * V.ak));
       }
     }
   }
   c.putImageData(img, 0, 0);
-  return { cv, S, pad };
+  return { cv, S, R };
 }
 function drawFarGlow(far, vr) {
-  // 1x at departure, 4x at arrival. The first cut capped at 2x and read as barely
-  // moving; at 4x the approach is legible across a run without the world ever
-  // getting large enough to fight the threats that are read over it.
+  // 1x at departure, 4x at arrival. laneProgress() is LATCHED and monotonic, so
+  // the world never shrinks mid-run and never snaps back when the level ends —
+  // it holds its arrival size for whatever the end sequence wants to do with it.
   const grow = 1 + laneProgress() * 3;
   const R = Math.max(2, vr * 0.075 * grow);
-  // a slow breath, nothing like the old beacon's 2s pulse — a world does not blink
+  const V = planetVariant();
   const breath = 0.5 + 0.5 * Math.sin(time * 0.7);
 
   // --- the haze shell: what replaced the light rays ---
   const hz = ctx.createRadialGradient(far.x, far.y, R * 0.8, far.x, far.y, R * 4.6);
-  hz.addColorStop(0, `rgba(150,190,240,${(0.075 + 0.02 * breath).toFixed(4)})`);
-  hz.addColorStop(0.35, `rgba(96,140,205,${(0.034 + 0.012 * breath).toFixed(4)})`);
-  hz.addColorStop(1, 'rgba(50,80,150,0)');
+  hz.addColorStop(0, `rgba(${V.atmo},${(0.075 + 0.02 * breath).toFixed(4)})`);
+  hz.addColorStop(0.35, `rgba(${V.atmo},${(0.034 + 0.012 * breath).toFixed(4)})`);
+  hz.addColorStop(1, `rgba(${V.atmo},0)`);
   ctx.fillStyle = hz;
   ctx.beginPath(); ctx.arc(far.x, far.y, R * 4.6, 0, TAU); ctx.fill();
 
-  // --- the body ---
-  const rk = Math.max(2, Math.round(R));
-  if (planetSpriteR !== rk) { planetSprite = buildPlanetSprite(rk); planetSpriteR = rk; }
+  // --- the body: one sprite, scaled continuously. No rebuild while it grows. ---
+  if (planetSpriteKey !== V.n) { planetSprite = buildPlanetSprite(PLANET_REF_R, V); planetSpriteKey = V.n; }
   if (planetSprite) {
-    const sp = planetSprite;
-    ctx.drawImage(sp.cv, far.x - sp.S / 2, far.y - sp.S / 2, sp.S, sp.S);
+    const w = planetSprite.S * (R / planetSprite.R);
+    ctx.drawImage(planetSprite.cv, far.x - w / 2, far.y - w / 2, w, w);
   } else {
     // no-ImageData fallback: a lit disc, offset toward the key light
-    const la2 = LIGHT_A;
     ctx.save();
     ctx.beginPath(); ctx.arc(far.x, far.y, R, 0, TAU); ctx.clip();
     ctx.fillStyle = 'rgba(9,14,26,0.95)';
     ctx.fillRect(far.x - R, far.y - R, R * 2, R * 2);
     const bg2 = ctx.createRadialGradient(
-      far.x + Math.cos(la2) * R * 0.62, far.y + Math.sin(la2) * R * 0.62, R * 0.05,
+      far.x + Math.cos(LIGHT_A) * R * 0.62, far.y + Math.sin(LIGHT_A) * R * 0.62, R * 0.05,
       far.x, far.y, R * 1.45);
-    bg2.addColorStop(0, 'rgba(206,196,176,0.75)');
-    bg2.addColorStop(0.45, 'rgba(132,110,88,0.40)');
+    bg2.addColorStop(0, `rgba(${V.z},0.75)`);
     bg2.addColorStop(1, 'rgba(14,22,44,0)');
     ctx.fillStyle = bg2;
     ctx.fillRect(far.x - R, far.y - R, R * 2, R * 2);
     ctx.restore();
   }
-
   // --- glowing grain in the haze: the atmosphere lit from within ---
   // Stateless — each mote is a fixed phase read against the shared clock — so it
   // behaves identically in menus, replays and pauses without touching the sim.
@@ -13038,7 +13080,7 @@ function drawEnd(g) {
 
   // banner slams in
   const tPop = 1 + 0.22 * (1 - ph(T.panel0, T.panel0 + 0.3));
-  const banner = endless ? 'STREAM SEVERED' : qual ? (endWin ? 'QUALIFIED' : 'TRAINING ABORTED') : endWin ? 'PAYLOAD DELIVERED' : 'PAYLOAD CORRUPTED';
+  const banner = endless ? 'STREAM SEVERED' : qual ? (endWin ? 'QUALIFIED' : 'TRAINING ABORTED') : endWin ? 'LANE CLEARED' : 'PAYLOAD CORRUPTED';
   ctx.save();
   ctx.translate(g.cx, g.cy - R * 0.38);
   ctx.scale(tPop, tPop);
@@ -13075,7 +13117,7 @@ function drawEnd(g) {
   // stats + best reveal after the count settles
   ctx.globalAlpha = pA * ph(T.stats, T.stats + 0.3);
   ctx.fillStyle = 'rgba(140,210,255,0.65)'; ctx.font = '11px monospace';
-  ctx.fillText('zapped ' + zaps + '   //   perfect ' + perfects, g.cx, g.cy + R * 0.36);
+  ctx.fillText('intercepted ' + zaps + '   //   perfect ' + perfects, g.cx, g.cy + R * 0.36);
   ctx.fillText('missed ' + misses + '   //   integrity ' + Math.round(integrity) + '%', g.cx, g.cy + R * 0.36 + 17);
   const bestVal = endless ? (daily ? (progress.daily && progress.daily.best) : progress.best) : PROG.bests[levelIdx];
   const isNew = endless ? (score >= (bestVal || 0) && score > 0) : endNewBest;
@@ -13083,14 +13125,6 @@ function drawEnd(g) {
     ctx.fillStyle = isNew ? '#ffd24a' : 'rgba(255,210,74,0.7)';
     ctx.font = '700 13px Audiowide, system-ui';
     ctx.fillText((isNew ? 'NEW BEST  ' : 'BEST  ') + (bestVal || 0).toLocaleString(), g.cx, g.cy + R * 0.36 + 44);
-  }
-  // the investigation advances: one case-note line per secured relay
-  if (endWin && !endless && !qual && levelIdx >= 0 && CASE_NOTES[levelIdx]) {
-    ctx.globalAlpha = pA * ph(1.15, 1.5);
-    ctx.fillStyle = 'rgba(255,210,74,0.8)';
-    ctx.font = '600 9px Audiowide, system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillText(CASE_NOTES[levelIdx], g.cx, g.cy + R * 0.36 + 62);
   }
   // leaderboard sync status (ranked runs) — green on success, amber on a problem
   if (lbStatus && !qual) {
