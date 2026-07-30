@@ -926,6 +926,12 @@ let ringFxCv = null, grainCv = null; // prerendered monolith ring + film-grain t
 //   · amplitude by class — most barely move, a few really swim, a handful sit
 //     dead still (bright planets do not twinkle, and having some anchors is what
 //     makes the movement in the others read as movement)
+//   · A GATE, which is the whole timing of the thing: a star is not permitted to
+//     scintillate continuously. Every one carries two very slow, incommensurate
+//     gate waves, and it only twinkles while their PRODUCT is open — roughly an
+//     eighth of the time, at intervals that never repeat. A sky where every star
+//     is always shimmering is a screensaver; the effect only reads as atmosphere
+//     when most of the field is dead still and the movement wanders around it.
 //   · the brightest ones shift COLOUR slightly as they scintillate, warm to cool,
 //     which is what a real bright star does through atmosphere and is the single
 //     most convincing detail in the whole effect
@@ -941,16 +947,25 @@ let liveStars = [];
 // first cut's 0.15 rad/s a star took forty seconds to complete one swing, which
 // is not twinkling, it is weather.
 const STAR_CLASS = [
-  [0.08, [0.00, 0.00], [0.0, 0.0]],   // steady: anchors the field
-  [0.34, [0.15, 0.30], [0.9, 2.6]],   // gentle
-  [0.40, [0.32, 0.60], [1.3, 4.4]],   // lively — the body of the field
-  [0.18, [0.62, 0.95], [0.6, 2.2]]    // dramatic: near-out, then hard flare
-];
+  [0.30, [0.00, 0.00], [0.0, 0.0]],   // steady: the anchors, and most of the sky
+  [0.40, [0.15, 0.30], [0.9, 2.6]],   // gentle — the body of the field
+  [0.23, [0.32, 0.60], [1.3, 4.4]],   // lively
+  [0.07, [0.62, 0.95], [0.6, 2.2]]    // dramatic: near-out, then hard flare. RARE — one
+];                                    // star doing this is an event; fifty is a fault light
+// GATE. Two slow waves per star, multiplied: open only where both happen to be
+// high. Periods of 60–200s and no common factor, so a star's bursts never land
+// on a schedule and no two stars agree about when to have one. Below GATE_T it
+// is dead still; by GATE_1 it is at full class amplitude, smoothstepped between
+// so a burst arrives and leaves rather than switching on.
+const GATE_T = 0.40, GATE_1 = 0.72;
 function starClass() {
   let r = Math.random(), i = 0;
   for (; i < STAR_CLASS.length - 1; i++) { if (r < STAR_CLASS[i][0]) break; r -= STAR_CLASS[i][0]; }
   const [, amp, rate] = STAR_CLASS[i];
-  return { amp: rand(amp[0], amp[1]), r1: rand(rate[0], rate[1]) || 0.001, r2: rand(rate[0], rate[1]) * 1.7 + 0.11 };
+  return {
+    amp: rand(amp[0], amp[1]), r1: rand(rate[0], rate[1]) || 0.001, r2: rand(rate[0], rate[1]) * 1.7 + 0.11,
+    g1: rand(0.030, 0.075), g2: rand(0.041, 0.098), gp1: Math.random() * TAU, gp2: Math.random() * TAU
+  };
 }
 let litPanels = [];
 // (randCode is retired with the fiber theme — there is no binary on a lane wall.
@@ -1093,6 +1108,7 @@ function buildBackground() {
           r: big ? rand(1.0, 1.8) : rand(0.3, 0.85),
           amp: cl.amp * (big ? 0.75 : 1),          // bright stars swing less, in proportion
           r1: cl.r1, r2: cl.r2, p1: Math.random() * TAU, p2: Math.random() * TAU,
+          g1: cl.g1, g2: cl.g2, gp1: cl.gp1, gp2: cl.gp2, // when it is allowed to twinkle at all
           // only the bright few carry the colour shift — on a 0.5px dot it is
           // invisible, and it is what makes a real star read as burning
           hue: big ? rand(10, 26) : 0
@@ -1369,12 +1385,22 @@ function drawStarField() {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter'; // a flare ADDS light; over the band it
   for (const s of liveStars) {              // has to build on what is already there
+    // THE GATE FIRST: most of the time this is 0 and the star is simply painted,
+    // costing one multiply to find out. What survives is a field where a scatter
+    // of stars is shimmering and the rest of the sky is holding still.
+    let amp = s.amp;
+    if (amp) {
+      const gu = (0.5 + 0.5 * Math.sin(time * s.g1 + s.gp1))
+        * (0.5 + 0.5 * Math.sin(time * s.g2 + s.gp2));
+      const gx = clamp((gu - GATE_T) / (GATE_1 - GATE_T), 0, 1);
+      amp *= gx * gx * (3 - 2 * gx);        // smoothstep: bursts fade in and out
+    }
     // two incommensurate rates, so a star never repeats its own pattern and no
-    // two stars ever agree. amp 0 (the steady class) short-circuits to a constant.
-    const w = s.amp && (0.62 * (0.5 + 0.5 * Math.sin(time * s.r1 + s.p1))
+    // two stars ever agree. amp 0 (steady class, or a shut gate) → a constant.
+    const w = amp && (0.62 * (0.5 + 0.5 * Math.sin(time * s.r1 + s.p1))
       + 0.38 * (0.5 + 0.5 * Math.sin(time * s.r2 + s.p2)));
     // both ways around the baseline: 1-amp at the bottom, 1+amp at the top
-    const k = 1 - s.amp + 2 * s.amp * w;
+    const k = 1 - amp + 2 * amp * w;
     const al = Math.min(1, s.al * k);
     if (al < 0.006) continue;
     let col = s.col;
@@ -6327,7 +6353,10 @@ const DEST_LIFE = {
   moonR: 0.15, moonO: [1.5, 2.15], moonC: '198,192,180',
   shipN: 3, shipO: 0.9, shipPer: [70, 160],  // shipPer is the gap BETWEEN departures
   stnR: 0.085, stnO: [1.2, 1.55],
-  twinkle: 0.16, blinkP: 0.08      // deep-sky scintillation depth, and how many are slow blinkers
+  twinkle: 0.09, blinkP: 0.03      // deep-sky scintillation depth, and how many are slow blinkers
+  // (both deliberately small. This layer is 430 points and the backdrop's own
+  // gated stars carry the twinkling — if this one breathes as well, the two
+  // fields cross-fade against each other and the sky reads as noise.)
 };
 // <<< DEST-DATA
 // >>> DEST-PICK
@@ -7150,6 +7179,7 @@ initStreaks();
 // it, and the far void pool still swallows everything near the beacon — new
 // motes emerge out of that darkness instead of popping in.
 let deepStars = [], deepRocks = [], deepWisps = [];
+let worldVis = 1; // the far worlds are a LANE feature — they fade off the menus, see drawDeepField
 // Emerge / recycle radius, in half-min-side units. R1 must clear the SCREEN
 // CORNERS or motes wink out in plain sight: the corner sits at
 // hypot(W/2, H/2) / (min(W,H)/2), which is ~2.04 on 16:9 and worse on wider
@@ -7240,16 +7270,24 @@ initDeepField();
 // THE SKY IS DRAWN EVERYWHERE, INCLUDING MENUS. It used to bail on S.MENU, from
 // back when the menu was a console rather than a window: you sat at a home screen
 // with a baked backdrop and nothing alive in it. The lane is parked out here
-// (laneFlow 0), so none of this MOVES on a menu — the worlds hang still and the
-// wisps, which are pure motion smears, take themselves out. What is left is a
-// sky: distant bodies, and stars scintillating over them.
+// (laneFlow 0), so none of this MOVES on a menu — the wisps, which are pure
+// motion smears, take themselves out. What is left is a sky, and it is stars.
+//
+// THE WORLDS DO NOT SURVIVE THE MENUS. Parked, they hang dead still in frame, and
+// a motionless disc with a painted terminator behind a menu card reads as a decal
+// stuck on the wallpaper — the parallax was the only thing selling it as a body
+// with distance behind it. They go for the meta screens and come back with the
+// lane. Faded rather than cut: the home screen is one continuous shot out of the
+// run, and a planet vanishing between two frames is worse than the planet. Stars
+// stay — a point of light needs no parallax to be believed.
 function drawDeepField(g, dt) {
   const SR = Math.min(W, H) * 0.5; // NOT S — that is the state enum, and shadowing it TDZs S.MENU above
   const dive = clamp(warpT / 0.9, 0, 1);
   const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5) * laneFlow;
   ctx.save();
+  worldVis += clamp(dt / 0.5, 0, 1) * ((state === S.MENU || state === S.GUIDE ? 0 : 1) - worldVis);
   // --- worlds first, so stars always pass IN FRONT of them, never behind ---
-  for (const rk of deepRocks) {
+  if (worldVis > 0.004) for (const rk of deepRocks) {
     rk.rf *= 1 + dt * rate * rk.sp;
     if (rk.rf > DEEP_R1) { Object.assign(rk, mkDeepRock()); rk.rf = DEEP_R0; }
     const px = g.cx + Math.cos(rk.a) * rk.rf * SR, py = g.cy + Math.sin(rk.a) * rk.rf * SR;
@@ -7257,7 +7295,7 @@ function drawDeepField(g, dt) {
     const rkEdge = clamp((DEEP_R1 - rk.rf) / DEEP_FADE, 0, 1) * clamp((rk.rf - DEEP_R0) / 0.30, 0, 1);
     if (rkEdge <= 0.01) continue; // faded both ends — never a pop, never a snap
     if (px < -rad * 3 || px > W + rad * 3 || py < -rad * 3 || py > H + rad * 3) continue;
-    const al = rk.al * rkEdge;
+    const al = rk.al * rkEdge * worldVis;
     const [lit, mid] = rk.pal;
     // the ring's BACK half goes down first, so the body occludes it — that
     // overlap is the entire reason a ring reads as a ring and not as a halo
@@ -7351,7 +7389,7 @@ function drawDeepField(g, dt) {
     // and two fields twinkling at full depth reads as static, not as sky.
     const depth = DEST_LIFE.twinkle;
     const tw = st.blink
-      ? 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(time * st.tw * 0.35 + st.tp), 4) // long dim, brief return
+      ? 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(time * st.tw * 0.22 + st.tp), 6) // long dim, brief return
       : 1 - depth + depth * (0.5 + 0.5 * Math.sin(time * st.tw + st.tp));
     const al = st.al * (0.45 + 0.55 * near) * tw;
     ctx.fillStyle = st.warm ? `rgba(255,214,170,${al.toFixed(3)})` : `rgba(216,236,255,${al.toFixed(3)})`;
@@ -12953,7 +12991,14 @@ const BASE_K = 0.25;
 // thing you scan the column by, so an unfocused row must show it. Offsets are
 // eased rather than snapped, so losing focus walks the name home instead of
 // jumping it.
-let relayScroll = [], relayScrollSel = -1, relayScrollT = 0;
+let relayScroll = [], relayScrollSel = -1;
+// THE MARQUEE IS THE CAMERA. The focused row's name scrolls on the same 0..1 the
+// lens uses to fly the lane, so the two are one motion: at the start of the ride
+// you are over the FROM system and reading the FROM name, the text travels while
+// the camera travels, and it lands on the TO name exactly as the camera arrives.
+// Then both reverse together. It used to run on its own clock, which meant the
+// text and the map were telling the same story out of step.
+let mapRideK = 0;
 let mapRideT = 0, mapRideSel = -1; // the camera's trip along the selected lane
 let cityBase = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1;
 const mapR = () => menuGeom().R * 0.92; // the lens rim MATCHES the mode wheel — seamless crossfade
@@ -13773,12 +13818,12 @@ function drawMenuMap() {
   // moment at each destination. You see where the convoy forms up, the corridor
   // it takes, and where it delivers, without giving up the scale that makes a
   // planet on an orbit legible.
-  relayScrollT += Math.min(0.05, frameDt || 0.016);
   if (mapRideSel !== mapSel) { mapRideSel = mapSel; mapRideT = 0; }
   mapRideT += (frameDt || 0.016) * 0.17;            // ~6s each way
   const ping = mapRideT % 2, raw = ping < 1 ? ping : 2 - ping;
   const held = clamp((raw - 0.14) / 0.72, 0, 1);    // dwell at both ends
   const ride = held * held * (3 - 2 * held);        // ease in and out of the run
+  mapRideK = ride;                                 // the relay list reads this to scroll its name
   const focus = IM ? seg[seg.length - 1] : polyAt(seg, ride);
   // zoom so the destination's own system fills a good part of the lens
   let sysR = 40;
@@ -14123,7 +14168,7 @@ function drawMapList(ccx, ccy, R, frontier) {
     // It rests at the start for most of the cycle, so the column reads as still
     // type rather than eight things sliding at once, and each row is phased off
     // its own index so nothing moves in lockstep.
-    if (relayScrollSel !== mapSel) { relayScrollSel = mapSel; relayScrollT = 0; relayScroll = []; }
+    if (relayScrollSel !== mapSel) { relayScrollSel = mapSel; relayScroll = []; }
     const padR = locked ? 34 : 18;
     const boxX = rx + 10, boxW = lw2 - padR - 4;
     ctx.save();
@@ -14131,17 +14176,13 @@ function drawMapList(ccx, ccy, R, frontier) {
     ctx.font = '700 11px Audiowide, system-ui';
     ctx.textBaseline = 'middle';
     const tw = ctx.measureText(nm).width;
-    let want = 0;
-    if (sel && tw > boxW) {
-      const over = tw - boxW;
-      const per = 4 + over / 26;                       // longer names take longer to read
-      const ph = (relayScrollT / per) % 2;             // clock restarts on every focus change,
-      const raw = ph < 1 ? ph : 2 - ph;                // so a name always begins at its head
-      const held = clamp((raw - 0.30) / 0.40, 0, 1);   // long dwell at both ends
-      want = -over * held * held * (3 - 2 * held);
-    }
+    // Driven by the camera's position along the lane, not by a clock of its own.
+    // The dwell at each destination comes free: the ride already holds there.
+    const want = (sel && tw > boxW) ? -(tw - boxW) * mapRideK : 0;
     const cur = relayScroll[i] === undefined ? 0 : relayScroll[i];
-    relayScroll[i] = cur + (want - cur) * (1 - Math.pow(0.002, Math.min(0.05, frameDt || 0.016) / 0.30));
+    // fast ease — enough to smooth a focus change without lagging the camera it
+    // is supposed to be moving with
+    relayScroll[i] = cur + (want - cur) * (1 - Math.pow(0.002, Math.min(0.05, frameDt || 0.016) / 0.12));
     const ox = relayScroll[i];
     ctx.fillText(nm, boxX + ox, ly2 + rh / 2 + 1);
     ctx.restore();
