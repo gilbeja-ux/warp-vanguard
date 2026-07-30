@@ -904,83 +904,50 @@ const sfx = {
 let bgCanvas = null, vignetteCanvas = null, wallTex = null, wallCloud = null;
 let ringFxCv = null, grainCv = null; // prerendered monolith ring + film-grain tile
 let bgMotes = [];
-// THE SKY BREATHES — as one thing, not as 1500 separate ones.
+// SCINTILLATION, STAR BY STAR.
 //
-// Two attempts at scintillation failed for the same reason: the backdrop is a
-// BAKED canvas of ~1500 stars, and anything drawn live on top of it is a rounding
-// error against that. Fading individual stars, even 450 of them, disappears into
-// the static field around it.
+// The backdrop bakes ~1500 stars into a canvas, so the first two attempts at this
+// were invisible: anything drawn live on top is a rounding error against a static
+// field that size. The third attempt fixed the visibility by modulating a COPY of
+// the whole sky — and that is exactly what made it wrong. A sky where every star
+// brightens and dims on the same clock is not a sky, it is a dimmer switch.
 //
-// So this is a filter over the whole sky instead. A copy of the backdrop is
-// masked by a few enormous soft blobs drifting on incommensurate paths, and added
-// back over the original. Where a blob passes, every star under it swells
-// together and settles again; because it is a copy of the sky being added to
-// itself, black stays black and only the stars can brighten. That is the whole
-// trick, and it costs four half-resolution blits instead of 1500 arcs.
-// TWO THINGS DECIDE WHETHER THIS IS VISIBLE AT ALL, and the first cut got both
-// wrong. (1) The copy of the sky must be PIXEL-FOR-PIXEL. Taken at half size, a
-// 1px star is averaged over four source pixels and comes back a quarter as
-// bright, so the pass added almost nothing — the mask can be tiny, because a
-// smooth gradient survives any amount of upscaling, but the sky copy cannot.
-// (2) The swell has to run at the speed of BREATHING. The first rates gave the
-// blobs periods of one to two minutes, which is not a slow effect, it is a still
-// image. Seconds, not minutes.
-// (3) And it needs a COMMON breath. Four blobs each on their own cycle cancel
-// each other out — one swells while the next settles, and the frame as a whole
-// barely changes, which measured as a 7% swing and looked like nothing at all.
-// The blobs give the sky its texture and drift; one shared swell over the top is
-// what makes it read as a single thing breathing.
-let skyBreathCv = null, skyMaskCv = null, skyBW = 0, skyBH = 0;
-const SKY_MASK_R = 128;      // the mask is smooth — it costs nothing to keep it small
-const SKY_BLOBS = [];
-for (let i = 0; i < 3; i++) SKY_BLOBS.push({
-  sx: rand(0.03, 0.075), sy: rand(0.025, 0.07),     // drift: slow wander across the sky
-  px: Math.random() * TAU, py: Math.random() * TAU,
-  sa: rand(0.45, 0.95), pa: Math.random() * TAU,    // swell: its own, on top of the common one
-  r: rand(0.7, 1.25), a: rand(0.7, 1)
-});
-// (4) And the AMOUNT is measured in whole copies of the sky, not in fractions of
-// one. This is the part that had to be measured in a browser rather than reasoned
-// about: a dark sky swallows added light, and one extra copy at 60% is nothing
-// you would ever notice. Screenshots at 0.3 / 1.15 / 2.5 copies settled it —
-// under one copy the field is bare, and around two and a half the dust and the
-// faint stars come up. So the breath runs BETWEEN those, and the pass lays the
-// copy down as many times as it takes.
-// Calibrated against real captures, because the arithmetic is misleading here: a
-// backdrop whose base is #020510 is so nearly black that one added copy of it is
-// literally invisible. Screenshots at 0.3 / 2.5 / 7 copies put the readable range
-// far higher than any guess — under two copies nothing happens, and the swell only
-// starts to read around four.
-const SKY_BREATH_K = 5;      // copies of the sky added at the top of a breath
-const SKY_BREATH_LO = 1.2;   // ...and at the bottom of one
-// The floor is high on purpose. With a low one the blobs ARE the effect, and a
-// corner of sky they happen not to be over gets none of the breath at all — which
-// is what the first peak/trough screenshots showed. The floor makes the whole sky
-// breathe; the blobs then make it uneven, which is the part that reads as organic.
-const SKY_BREATH_BASE = 0.62;
-// the common breath: three incommensurate periods around ~7s so it never repeats.
-// MENUS ONLY, because of where it lands. Composited late it goes over the lane,
-// not behind it — in play that would put starlight on top of the traffic, brighten
-// the very thing the colour rule needs dark; and on the arrival report it would
-// scatter stars across the face of the destination. Those screens have their own
-// life. This belongs to the ones where the sky IS the view.
-const skyBreath = () => {
-  if (state !== S.MENU && state !== S.GUIDE) return 0;
-  const s = 0.5 + 0.36 * Math.sin(time * 0.83) + 0.1 * Math.sin(time * 1.41 + 1.2)
-    + 0.04 * Math.sin(time * 0.37 + 2.7);
-  return SKY_BREATH_LO + (SKY_BREATH_K - SKY_BREATH_LO) * clamp(s, 0, 1);
-};
+// So: a share of the backdrop is held OUT of the bake and drawn live, at the same
+// positions, in the same colours, with the same distribution — and each of those
+// stars gets its own rate, its own phase, and its own amplitude. Nothing is
+// synchronised with anything. Drawn in place, under the lane, so the depth order
+// of the sky is untouched.
+//
+// What makes it read as sky rather than as blinking lights:
+//   · two incommensurate rates per star, so no star ever repeats its own pattern
+//   · amplitude by class — most barely move, a few really swim, a handful sit
+//     dead still (bright planets do not twinkle, and having some anchors is what
+//     makes the movement in the others read as movement)
+//   · the brightest ones shift COLOUR slightly as they scintillate, warm to cool,
+//     which is what a real bright star does through atmosphere and is the single
+//     most convincing detail in the whole effect
+let liveStars = [];
+// class table: [share, amplitude range, rate range]. Weighted hard toward the
+// subtle end — the effect should be something you notice on the second look.
+const STAR_CLASS = [
+  [0.10, [0.00, 0.00], [0.0, 0.0]],   // steady: anchors the field
+  [0.55, [0.06, 0.16], [0.5, 1.6]],   // barely there
+  [0.26, [0.18, 0.34], [0.4, 2.4]],   // visible shimmer
+  [0.09, [0.40, 0.72], [0.15, 0.7]]   // slow deep swimmers, the ones you catch
+];
+function starClass() {
+  let r = Math.random(), i = 0;
+  for (; i < STAR_CLASS.length - 1; i++) { if (r < STAR_CLASS[i][0]) break; r -= STAR_CLASS[i][0]; }
+  const [, amp, rate] = STAR_CLASS[i];
+  return { amp: rand(amp[0], amp[1]), r1: rand(rate[0], rate[1]) || 0.001, r2: rand(rate[0], rate[1]) * 1.7 + 0.11 };
+}
 let litPanels = [];
 // (randCode is retired with the fiber theme — there is no binary on a lane wall.
 // The wall's motion is carried by streaked starlight and the marker trains below.)
 function buildBackground() {
   // live layer state
   bgMotes = [];
-  // the sky copy matches the backdrop pixel for pixel (see SKY_BLOBS); the mask
-  // is a fixed small square, since upscaling a smooth gradient costs nothing
-  skyBW = Math.max(64, Math.round(W * DPR)); skyBH = Math.max(64, Math.round(H * DPR));
-  skyBreathCv = document.createElement('canvas'); skyBreathCv.width = skyBW; skyBreathCv.height = skyBH;
-  skyMaskCv = document.createElement('canvas'); skyMaskCv.width = SKY_MASK_R; skyMaskCv.height = SKY_MASK_R;
+  liveStars = [];
   for (let i = 0; i < 18; i++) {
     bgMotes.push({ x: Math.random() * W, y: Math.random() * H, sp: rand(4, 14), r: rand(0.6, 1.8), ph: rand(0, TAU), white: Math.random() < 0.3 });
   }
@@ -1108,6 +1075,23 @@ function buildBackground() {
       const big = Math.random() < 0.035;
       const al3 = big ? 0.45 + Math.random() * 0.45 : 0.06 + Math.random() * 0.34;
       const col3 = SCOL[Math.random() * SCOL.length | 0];
+      // HELD OUT OF THE BAKE. Every bright star goes live (they are the ones the
+      // eye tracks, and there are only ~50 of them) plus a third of the faint
+      // field — enough that the movement is everywhere without paying for 1500
+      // arcs a frame. The rest stay painted, and are the still sky behind it.
+      if (!lowFX && (big || Math.random() < 0.34)) {
+        const cl = starClass();
+        liveStars.push({
+          x: x3, y: y3, col: col3, rgb: col3.split(',').map(Number), al: al3, big,
+          r: big ? rand(1.0, 1.8) : rand(0.3, 0.85),
+          amp: cl.amp * (big ? 0.75 : 1),          // bright stars swing less, in proportion
+          r1: cl.r1, r2: cl.r2, p1: Math.random() * TAU, p2: Math.random() * TAU,
+          // only the bright few carry the colour shift — on a 0.5px dot it is
+          // invisible, and it is what makes a real star read as burning
+          hue: big ? rand(10, 26) : 0
+        });
+        continue;
+      }
       if (big) {                                  // the bright ones bloom
         const gg = b.createRadialGradient(x3, y3, 0, x3, y3, 8);
         gg.addColorStop(0, `rgba(${col3},${(al3 * 0.42).toFixed(3)})`);
@@ -1372,47 +1356,36 @@ function buildRingFx() {
 // animated background layer: drifting motes. (The periodic glitch scanlines are
 // GONE — a signal artefact belongs to a screen showing a fiber feed, and this is
 // a window onto open space. Nothing tears across a window.)
-// the breath pass — see SKY_BLOBS above. Called with the backdrop already down.
-function drawSkyBreath() {
-  if (!bgCanvas || !skyBreathCv || lowFX || skyBreath() <= 0.01) return;
-  const mc = skyMaskCv.getContext('2d'), bc = skyBreathCv.getContext('2d');
-  if (!mc || !bc || !mc.createRadialGradient) return; // headless stub: nothing to composite
-  // 1. the mask: a floor, plus the drifting blobs added on top of each other
-  const M = SKY_MASK_R;
-  mc.globalCompositeOperation = 'source-over';
-  mc.clearRect(0, 0, M, M);
-  mc.fillStyle = `rgba(255,255,255,${SKY_BREATH_BASE})`;
-  mc.fillRect(0, 0, M, M);
-  mc.globalCompositeOperation = 'lighter';
-  for (const b of SKY_BLOBS) {
-    const x = (0.5 + 0.45 * Math.sin(time * b.sx + b.px)) * M;
-    const y = (0.5 + 0.45 * Math.sin(time * b.sy + b.py)) * M;
-    const r = b.r * M * (0.85 + 0.15 * Math.sin(time * b.sa * 1.7 + b.pa));
-    const a = b.a * (0.5 + 0.5 * Math.sin(time * b.sa + b.pa));
-    const gd = mc.createRadialGradient(x, y, 0, x, y, r);
-    gd.addColorStop(0, `rgba(255,255,255,${a.toFixed(3)})`);
-    gd.addColorStop(0.55, `rgba(255,255,255,${(a * 0.34).toFixed(3)})`);
-    gd.addColorStop(1, 'rgba(255,255,255,0)');
-    mc.fillStyle = gd;
-    mc.fillRect(0, 0, M, M);
+// the live half of the star field — see STAR_CLASS above. Drawn with the backdrop
+// so the sky keeps its depth: everything in the lane still passes IN FRONT of it.
+function drawStarField() {
+  for (const s of liveStars) {
+    // two incommensurate rates, so a star never repeats its own pattern and no
+    // two stars ever agree. amp 0 (the steady class) short-circuits to a constant.
+    const dim = s.amp && s.amp * (0.62 * (0.5 + 0.5 * Math.sin(time * s.r1 + s.p1))
+      + 0.38 * (0.5 + 0.5 * Math.sin(time * s.r2 + s.p2)));
+    const al = s.al * (1 - dim);
+    if (al < 0.006) continue;
+    let col = s.col;
+    if (s.hue) {
+      // the scintillation colour shift: a bright star seen through anything at all
+      // splits toward blue as it dims and toward amber as it flares. Tiny numbers —
+      // it should never read as a coloured light, only as a star that is burning.
+      const k = Math.sin(time * s.r2 * 1.9 + s.p1) * s.hue;
+      const [r0, g0, b0] = s.rgb;
+      col = clamp(r0 + k, 0, 255).toFixed(0) + ',' + clamp(g0 + k * 0.15, 0, 255).toFixed(0)
+        + ',' + clamp(b0 - k, 0, 255).toFixed(0);
+    }
+    if (s.big) {                                  // the bright ones bloom
+      const gg = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 8);
+      gg.addColorStop(0, `rgba(${col},${(al * 0.42).toFixed(3)})`);
+      gg.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = gg;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 8, 0, TAU); ctx.fill();
+    }
+    ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
   }
-  // 2. a 1:1 copy of the sky, cut down to where the mask is
-  bc.globalCompositeOperation = 'source-over';
-  bc.clearRect(0, 0, skyBW, skyBH);
-  bc.drawImage(bgCanvas, 0, 0);
-  bc.globalCompositeOperation = 'destination-in';
-  bc.drawImage(skyMaskCv, 0, 0, skyBW, skyBH);
-  bc.globalCompositeOperation = 'source-over';
-  // 3. added back over the original — only what was already lit can get brighter
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  // as many copies as the breath asks for: globalAlpha caps at 1, so more than
-  // one copy of the sky means laying it down more than once
-  for (let left = skyBreath(); left > 0.01; left -= 1) {
-    ctx.globalAlpha = Math.min(1, left);
-    ctx.drawImage(skyBreathCv, 0, 0, W, H);
-  }
-  ctx.restore();
 }
 function drawLiveBg(dt) {
   for (const m of bgMotes) {
@@ -3090,7 +3063,7 @@ function updateBossDeath(dt, g) {
   }
   if (b.dying > 3.2) { // the case closes — verdict, then the report
     boss = null;
-    commCur = { s: 'CID', m: 'core down. bring it home, defender.' }; commT = 0;
+    commCur = { s: 'CMD', m: 'warden down. bring it home, runner.' }; commT = 0;
     showCard('verdict');
   }
 }
@@ -4510,8 +4483,8 @@ const INFO_CARDS = {
   pickup: { title: 'POWER-UP', lines: ['Golden relays arm powers.', 'Catch one with any emitter.'] },
   strip:  { title: 'BONUS RIBBON', lines: ['Optional: ride its crossing point.', 'A full ride banks a full PULSE.'] },
   wall:   { title: 'RIM WALL', lines: ['It seizes part of your rail.', 'Crossing FRIES — go around.'] },
-  done:   { title: 'QUALIFIED', lines: ['The lane is yours to clear.', 'Report to OmniServe — the', 'investigation begins at relay 01.'] },
-  verdict: { title: 'LOG 09 — VERDICT', lines: ['The gateway burned. The convoy', 'reached the CID intact. Warrants', 'went out within the hour — the', 'buyer wore a badge. Case closed.'] },
+  done:   { title: 'QUALIFIED', lines: ['The lane is yours to clear.', 'Report to Meridian Haulage — the', 'investigation begins at relay 01.'] },
+  verdict: { title: 'LOG 09 — VERDICT', lines: ['The gateway burned. The convoy', 'reached Lane Command intact. Warrants', 'went out within the hour — the', 'buyer wore a badge. Case closed.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Zaps bank charge in your pads.', 'A glowing orb: TAP to fire.'] },
   boss:   { title: 'WARDEN CORE', lines: ['The dials stay YOURS. Dock both', 'emitters and HOLD — the bolt homes', 'on the core. SIX hits close the case.', 'Dodge darts. Mind the latches.'] },
   bossTriad: { title: 'PRIVATE WARDEN ×3', lines: ['One machine in three bodies. The', 'bolt hunts the body you AIM at —', 'three bolts each. The walls come', 'fast: dock in the gaps, then fire.'] },
@@ -5168,7 +5141,7 @@ function update(dt) {
       tone(740, 0.05, 'square', 0.09, null, null, 0.17);
       tone(58, 0.4, 'sine', 0.22, 42);
       buzz([20, 30, 50]);
-      commCur = { s: 'CID', m: 'godspeed, defender.' }; commT = 0;
+      commCur = { s: 'CMD', m: 'godspeed, runner.' }; commT = 0;
     }
   }
   // nodes and consoles finish their power ramp together — both lenses re-form
@@ -9827,7 +9800,7 @@ function drawIntroCard() {
         ctx.font = '500 11px Audiowide, system-ui';
         ctx.fillText(gpSeen ? 'HOLD BOTH STICKS — OPPOSITE SIDES' : 'PLACE BOTH THUMBS ON THE PADS', W / 2, ly + 32);
       }
-    } else { // CONTROLS ACTIVE — the lane goes live (the CID says godspeed)
+    } else { // CONTROLS ACTIVE — the lane goes live (Lane Command says godspeed)
       const gt = (t - INTRO_DUR) / 0.6;
       ctx.save();
       ctx.translate(W / 2, H * 0.52);
@@ -9848,7 +9821,7 @@ function drawIntroCard() {
 
 // procedural holo-portraits for the comm line — line-art busts in the
 // speaker's color, scanlined and flickering like a tapped video feed.
-// OMNI: suit + lapel pin · CID: peaked cap + badge · TRACE: hooded, face
+// HAUL: suit + lapel pin · CMD: peaked cap + badge · TRACE: hooded, face
 // lost to glitch bars · CORE: nothing human, a spiked core
 function drawCommFace(s, cx2, cy3, r, col) {
   ctx.save();
@@ -9859,7 +9832,7 @@ function drawCommFace(s, cx2, cy3, r, col) {
   ctx.fillStyle = `rgba(${col},0.16)`;
   ctx.lineWidth = 1.4;
   ctx.lineJoin = 'round';
-  if (s === 'CORE') { // the rogue firewall: a void disc, watching
+  if (s === 'WARD') { // the rogue warden: a void disc, watching
     ctx.fillStyle = 'rgba(3,1,8,0.95)';
     ctx.beginPath(); ctx.arc(0, 0, r * 0.88, 0, TAU); ctx.fill();
     ctx.strokeStyle = `rgba(${col},0.9)`;
@@ -9885,13 +9858,13 @@ function drawCommFace(s, cx2, cy3, r, col) {
       const gw = r * (0.34 + Math.sin(time * 7 + gy * 9) * 0.14);
       ctx.beginPath(); ctx.moveTo(-gw, (gy - 0.08) * r); ctx.lineTo(gw, (gy - 0.08) * r); ctx.stroke();
     }
-  } else { // OMNI / CID: head + shoulders, each with their uniform's tell
+  } else { // HAUL / CMD: head + shoulders, each with their uniform's tell
     ctx.beginPath(); ctx.arc(0, -r * 0.32, r * 0.42, 0, TAU); ctx.fill(); ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(-r * 0.95, r * 1.05);
     ctx.quadraticCurveTo(0, r * 0.05, r * 0.95, r * 1.05);
     ctx.fill(); ctx.stroke();
-    if (s === 'CID') { // peaked cap seated ON the head, badge on the dome
+    if (s === 'CMD') { // peaked cap seated ON the head, badge on the dome
       ctx.fillStyle = 'rgba(6,12,26,0.9)'; // solid crown so the head reads as capped
       ctx.beginPath();
       ctx.moveTo(-r * 0.62, -r * 0.52);
@@ -9900,7 +9873,7 @@ function drawCommFace(s, cx2, cy3, r, col) {
       ctx.beginPath(); ctx.moveTo(-r * 0.66, -r * 0.5); ctx.lineTo(r * 0.66, -r * 0.5); ctx.stroke();
       ctx.fillStyle = `rgba(${col},0.95)`;
       ctx.beginPath(); ctx.arc(0, -r * 0.74, r * 0.08, 0, TAU); ctx.fill();
-    } else { // OMNI: corporate tie + lapel pin
+    } else { // HAUL: corporate tie + lapel pin
       ctx.beginPath();
       ctx.moveTo(0, r * 0.22); ctx.lineTo(-r * 0.13, r * 0.52);
       ctx.lineTo(0, r * 0.95); ctx.lineTo(r * 0.13, r * 0.52);
@@ -12823,22 +12796,29 @@ function drawMenuBoard() {
 // lanes inside that core; every case after it spirals further out into weaker
 // cover until the last one runs dark past the final cordon — which is exactly
 // why a lane carries more interdictors the further out you work.
-// The sheet is baked at HALF resolution and there is only ONE layer now.
+// The sheet is baked at QUARTER resolution and there is only ONE layer now.
 // Two full-res layers cost 123MB, which is absurd for a static backdrop. The
-// baked content is all diffuse — arms, bulge, dust, a 9000-star field — and
-// diffuse content survives a 2x upscale invisibly. The one thing that must stay
-// sharp, the star systems, is drawn LIVE and culled to the lens instead, which
-// also made it sharper than baking ever did. 123MB -> 16MB.
-const BASE_K = 0.5;
-// THE GRID ARTEFACT, and why it was there. cityBloom made a temp canvas at the
-// SHEET's nominal size (5200x3100 — 61MB) and blurred it with ctx.filter. Two
-// things went wrong at once: the sheet went half-res, so the layer only filled
-// the temp's top-left quarter and the bloom came back misaligned; and a canvas
-// filter blur over a surface that large is executed in TILES by the compositor,
-// which leaves faint seams along the tile boundaries — the regular horizontal and
-// vertical lines. The base is nothing but radial gradients now, so it was already
-// as soft as a bloom would make it. The pass is gone, with it the 61MB, and
-// cityFalloff/isoRadial went too — both dead once the city did.
+// baked content is all diffuse — arms, bulge, dust — and diffuse content is
+// precisely what survives an upscale. Everything with an EDGE (the 9000-star
+// field, the systems, the cordons) is drawn LIVE and culled to the lens, which
+// also made it sharper than baking ever did. 123MB -> 4MB.
+const BASE_K = 0.25;
+// THE GRID ARTEFACT, and what it actually was. It got blamed on a bloom pass
+// that blurred a 5200x3100 temp canvas with ctx.filter — plausible, since a
+// filter that large is executed in TILES. That pass is gone and the grid stayed,
+// because the grid was never a seam.
+//
+// Skia DITHERS every gradient it rasterises, with a 4x4 ordered matrix locked to
+// device pixels. The arms are ~4800 radial gradients at alpha 0.010-0.040, and
+// at those alphas the dither is not a rounding correction — it IS the signal.
+// 'lighter' then stacks the SAME matrix 4800 times, in register, until it
+// reinforces into a mesh. Measured on the bake: local luminance 18 against a
+// lattice amplitude of 6, autocorrelation peaking at lag 4 on both axes. The
+// lens magnifies that 4px lattice by the map zoom, which is why it read as a
+// grid of cells rather than as grain.
+//
+// So the diffuse field is accumulated in FLOATS below and handed to the canvas
+// as one finished image. There is nothing left for the rasteriser to dither.
 let mapRideT = 0, mapRideSel = -1; // the camera's trip along the selected lane
 let cityBase = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1;
 const mapR = () => menuGeom().R * 0.92; // the lens rim MATCHES the mode wheel — seamless crossfade
@@ -12855,7 +12835,7 @@ const groundR = (x, y) => Math.hypot(x - CITY_CORE.x, (y - CITY_CORE.y) * 2);
 // the chart and the case list cannot disagree about where you are. Cover falls
 // band by band, which is the map's own account of why the traffic thickens.
 const RING_NAMES = ['LOW ORBIT', 'MONITORED SECTORS', 'DEEP SPACE', 'OUTLAW TERRITORY', 'NO MANS LAND'];
-const CORE_NAME = 'CORE SYSTEMS', DARK_ZONE = 'NO MANS LAND';
+const CORE_NAME = 'THE INNER WORLDS', DARK_ZONE = 'NO MANS LAND';
 let RINGS = []; // [{ r0, r1, name }] per case band, innermost first
 // escort coverage: total at the core, gone by the far edge. This is the number
 // the dossier quotes — and the reason the traffic thickens as you go out.
@@ -12865,13 +12845,9 @@ const shieldAt = r => Math.round(100 * clamp(1 - Math.pow(clamp(r / BANDS[BANDS.
 // star chart the equivalent is scenery — asteroid fields, placed as destinations
 // like everything else, rather than a river you route around.)
 // where each case finally delivers — the terminus past its last relay
-const CITY_TERMS = {
-  'investigation': ['CID', 'CID INTAKE'],
-  'going-deeper': ['IA', 'INTERNAL AFFAIRS'],
-  'signal-lost': ['BCN', 'REACH BEACON'],
-  'the-bait': ['HIVE', 'THE APIARY'],
-  'shutdown': ['SYS', 'ARCHITECT CORE']
-};
+// (CITY_TERMS is gone. It hardcoded CID / POLICE HQ / INTERNAL AFFAIRS — Data
+// Defenders' own places, on a star chart. A campaign's terminus is simply the
+// last destination it delivers to, and that already has a name.)
 // one chain per campaign: { pts: [...relays, terminus], segs: [...runs] }.
 // The chains are links of ONE spiral, so a case begins exactly where the last
 // one delivered.
@@ -12996,7 +12972,7 @@ function levelRouteName(ci, li) {
   if (!CITY_CHAINS.length) buildCity();
   const from = li > 0 ? destNameAt(ci, li - 1)
     : ci > 0 ? destNameAt(ci - 1, (CAMPAIGNS[ci - 1] && CAMPAIGNS[ci - 1].levels.length - 1) || 0)
-    : 'OMNISERVE YARDS';
+    : 'MERIDIAN HAULAGE';
   return from + ' » ' + destNameAt(ci, li);
 }
 // the route for the level being flown right now
@@ -13204,68 +13180,92 @@ function buildCity() {
   }
 
   // ---------- BASE: the galaxy ----------
+  // Painted into a float field rather than onto the canvas — see the note by
+  // BASE_K for why every one of these blobs used to arrive pre-dithered.
+  const BW = Math.round(CITY_W * BASE_K), BH = Math.round(CITY_H * BASE_K);
+  const fld = new Float32Array(BW * BH * 3);
+  for (let i = 0; i < BW * BH; i++) { fld[i * 3] = 1; fld[i * 3 + 1] = 2; fld[i * 3 + 2] = 7; } // #010207
+  // One blob, in WORLD coordinates so the placement maths below is unchanged.
+  // `yw` squashes it onto the iso plane, `mid` gives the bulge its two-slope
+  // profile, and `over` paints dark dust the way source-over would.
+  const blob = (wx2, wy2, wr, yw, col, al, mid, over) => {
+    const cx2 = wx2 * BASE_K, cy2 = wy2 * BASE_K, rx = wr * BASE_K, ry = rx / yw;
+    if (rx < 0.5) return;
+    const x0 = Math.max(0, Math.ceil(cx2 - rx)), x1 = Math.min(BW - 1, Math.floor(cx2 + rx));
+    const y0 = Math.max(0, Math.ceil(cy2 - ry)), y1 = Math.min(BH - 1, Math.floor(cy2 + ry));
+    for (let y = y0; y <= y1; y++) {
+      const dy2 = (y - cy2) * yw;
+      for (let x = x0; x <= x1; x++) {
+        const dx2 = x - cx2;
+        const t = Math.sqrt(dx2 * dx2 + dy2 * dy2) / rx;
+        if (t >= 1) continue;
+        // a canvas radial gradient is LINEAR between its stops — match that, so
+        // the field is the same picture the gradients painted, minus the dither
+        const a2 = al * (mid ? (t < 0.45 ? 1 - t * (0.55 / 0.45) : 0.45 * (1 - (t - 0.45) / 0.55)) : 1 - t);
+        const i2 = (y * BW + x) * 3;
+        if (over) {
+          fld[i2] += (col[0] - fld[i2]) * a2;
+          fld[i2 + 1] += (col[1] - fld[i2 + 1]) * a2;
+          fld[i2 + 2] += (col[2] - fld[i2 + 2]) * a2;
+        } else {
+          fld[i2] += col[0] * a2; fld[i2 + 1] += col[1] * a2; fld[i2 + 2] += col[2] * a2;
+        }
+      }
+    }
+  };
+  // --- the arms: dust and unresolved starlight wound out of the core ---
+  // arms run blue-white at the edges where young stars are, warmer inward
+  const ARM_WARM = [206, 178, 140], ARM_EDGE = [186, 206, 255], ARM_MID = [132, 150, 214];
+  for (let arm = 0; arm < 2; arm++) {
+    for (let i = 0; i < 2400; i++) {
+      const t = Math.pow(rng(), 0.78);
+      const A2 = armAt(t, arm);
+      const off = ((rng() + rng() + rng() - 1.5) / 1.5) * A2.spread;
+      const ang2 = A2.a + off / Math.max(60, A2.r);
+      const rr = A2.r + off * 0.6;
+      const x2 = CITY_CORE.x + Math.cos(ang2) * rr, y2 = CITY_CORE.y + Math.sin(ang2) * rr * 0.5;
+      const q = 1 - Math.min(1, Math.abs(off) / A2.spread);
+      const br = 26 + rng() * 130;
+      const col = t < 0.30 ? ARM_WARM : q > 0.55 ? ARM_EDGE : ARM_MID;
+      const al = (0.010 + rng() * 0.030) * (0.25 + q) * (1 - t * 0.35);
+      blob(x2, y2, br, 1, col, al);
+    }
+  }
+  // --- the bulge: the old yellow core every spiral has ---
+  for (const [rad, col, al] of [[1150, [196, 168, 120], 0.030], [700, [236, 214, 168], 0.055], [380, [255, 244, 214], 0.10], [180, [255, 252, 240], 0.16]])
+    blob(CITY_CORE.x, CITY_CORE.y, rad, 2, col, al, true);
+  // --- DARK DUST LANES: the feature that stops arms reading as airbrush ---
+  const DUST = [2, 3, 10];
+  for (let arm = 0; arm < 2; arm++) {
+    for (let i = 0; i < 900; i++) {
+      const t = Math.pow(rng(), 0.8);
+      const A2 = armAt(t, arm);
+      // the lane rides just INSIDE its arm, as real dust does
+      const off = -A2.spread * (0.30 + rng() * 0.45) + (rng() - 0.5) * A2.spread * 0.35;
+      const ang2 = A2.a + off / Math.max(60, A2.r);
+      const rr = A2.r + off * 0.6;
+      const x2 = CITY_CORE.x + Math.cos(ang2) * rr, y2 = CITY_CORE.y + Math.sin(ang2) * rr * 0.5;
+      blob(x2, y2, 24 + rng() * 96, 1, DUST, 0.10 + rng() * 0.26, false, true);
+    }
+  }
   cityBase = document.createElement('canvas');
-  cityBase.width = Math.round(CITY_W * BASE_K); cityBase.height = Math.round(CITY_H * BASE_K);
+  cityBase.width = BW; cityBase.height = BH;
   withCanvas(cityBase, () => {
-    // draw in WORLD coordinates; the transform does the downscale, so none of the
-    // painting below has to know the bitmap is half size
-    ctx.setTransform(BASE_K, 0, 0, BASE_K, 0, 0);
-    ctx.clearRect(0, 0, CITY_W, CITY_H);
-    ctx.lineCap = 'round';
-    ctx.fillStyle = '#010207'; ctx.fillRect(0, 0, CITY_W, CITY_H);
-    // --- the arms: dust and unresolved starlight wound out of the core ---
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (let arm = 0; arm < 2; arm++) {
-      for (let i = 0; i < 2400; i++) {
-        const t = Math.pow(rng(), 0.78);
-        const A2 = armAt(t, arm);
-        const off = ((rng() + rng() + rng() - 1.5) / 1.5) * A2.spread;
-        const ang2 = A2.a + off / Math.max(60, A2.r);
-        const rr = A2.r + off * 0.6;
-        const x2 = CITY_CORE.x + Math.cos(ang2) * rr, y2 = CITY_CORE.y + Math.sin(ang2) * rr * 0.5;
-        const q = 1 - Math.min(1, Math.abs(off) / A2.spread);
-        const br = 26 + rng() * 130;
-        // arms run blue-white at the edges where young stars are, warmer inward
-        const col = t < 0.30 ? '206,178,140' : q > 0.55 ? '186,206,255' : '132,150,214';
-        const al = (0.010 + rng() * 0.030) * (0.25 + q) * (1 - t * 0.35);
-        const gr2 = ctx.createRadialGradient(x2, y2, 0, x2, y2, br);
-        gr2.addColorStop(0, `rgba(${col},${al.toFixed(4)})`);
-        gr2.addColorStop(1, `rgba(${col},0)`);
-        ctx.fillStyle = gr2;
-        ctx.beginPath(); ctx.arc(x2, y2, br, 0, TAU); ctx.fill();
-      }
+    const im = ctx.createImageData && ctx.createImageData(BW, BH), px = im && im.data;
+    // Guarded like buildPlanetSprite: a stubbed 2D context (the headless harness)
+    // has no real ImageData, and the chart must not be able to take a frame down.
+    if (!px) return;
+    for (let i = 0, n = BW * BH; i < n; i++) {
+      // a RANDOM half-LSB of dither. The field is smooth enough to band across a
+      // 4x upscale otherwise, and random noise cannot stack into a lattice the
+      // way an ordered matrix does — which is the entire point of doing this here
+      const j = i * 4, k = i * 3, d2 = rng() - 0.5;
+      px[j] = Math.min(255, fld[k] + d2);
+      px[j + 1] = Math.min(255, fld[k + 1] + d2);
+      px[j + 2] = Math.min(255, fld[k + 2] + d2);
+      px[j + 3] = 255;
     }
-    // --- the bulge: the old yellow core every spiral has ---
-    for (const [rad, col, al] of [[1150, '196,168,120', 0.030], [700, '236,214,168', 0.055], [380, '255,244,214', 0.10], [180, '255,252,240', 0.16]]) {
-      const gg = ctx.createRadialGradient(CITY_CORE.x, CITY_CORE.y, 0, CITY_CORE.x, CITY_CORE.y, rad);
-      gg.addColorStop(0, `rgba(${col},${al})`);
-      gg.addColorStop(0.45, `rgba(${col},${(al * 0.45).toFixed(4)})`);
-      gg.addColorStop(1, `rgba(${col},0)`);
-      ctx.fillStyle = gg;
-      ctx.save(); ctx.translate(CITY_CORE.x, CITY_CORE.y); ctx.scale(1, 0.5); ctx.translate(-CITY_CORE.x, -CITY_CORE.y);
-      ctx.beginPath(); ctx.arc(CITY_CORE.x, CITY_CORE.y, rad, 0, TAU); ctx.fill();
-      ctx.restore();
-    }
-    ctx.restore();
-    // --- DARK DUST LANES: the feature that stops arms reading as airbrush ---
-    for (let arm = 0; arm < 2; arm++) {
-      for (let i = 0; i < 900; i++) {
-        const t = Math.pow(rng(), 0.8);
-        const A2 = armAt(t, arm);
-        // the lane rides just INSIDE its arm, as real dust does
-        const off = -A2.spread * (0.30 + rng() * 0.45) + (rng() - 0.5) * A2.spread * 0.35;
-        const ang2 = A2.a + off / Math.max(60, A2.r);
-        const rr = A2.r + off * 0.6;
-        const x2 = CITY_CORE.x + Math.cos(ang2) * rr, y2 = CITY_CORE.y + Math.sin(ang2) * rr * 0.5;
-        const br = 24 + rng() * 96;
-        const gg = ctx.createRadialGradient(x2, y2, 0, x2, y2, br);
-        gg.addColorStop(0, `rgba(2,3,10,${(0.10 + rng() * 0.26).toFixed(3)})`);
-        gg.addColorStop(1, 'rgba(2,3,10,0)');
-        ctx.fillStyle = gg;
-        ctx.beginPath(); ctx.arc(x2, y2, br, 0, TAU); ctx.fill();
-      }
-    }
+    ctx.putImageData(im, 0, 0);
   });
 
 }
@@ -13278,7 +13278,7 @@ function drawGalaxyOverlay(tf, ccx, ccy, R) {
   const z = tf.z, pad = 8;
   for (const st of GAL_STARS) {
     const sx = tf.ox + st.x * z, sy = tf.oy + st.y * z;
-    if (Math.hypot(sx - ccx, sy - ccy) > R + pad) continue;
+    if (Math.hypot(sx - ccx, sy - ccy) > R + pad) continue;   // a star has no extent
     if (st.big) {
       const gg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 10 * z);
       gg.addColorStop(0, `rgba(${st.c},${(st.a * 0.42).toFixed(3)})`);
@@ -13343,7 +13343,13 @@ function drawSystemsLive(wx, wy, z, ccx, ccy, R) {
   const pad = 60;
   for (const sy of SCENERY) {
     const sx = wx(sy), syy = wy(sy);
-    if (Math.hypot(sx - ccx, syy - ccy) > R + pad) continue;   // outside the lens
+    // Cull by the system's OWN reach, not by its centre. Orbits run out to ~40
+    // world px, which at 6x zoom is 240 screen px — a fixed 60px pad threw away
+    // systems whose planets were plainly inside the lens. That is what made
+    // things vanish as the camera moved.
+    let reach = 0;
+    for (const pl of sy.planets) reach = Math.max(reach, pl.o * 1.3);
+    if (Math.hypot(sx - ccx, syy - ccy) > R + reach * z + 24) continue;
     const fade = clamp(1 - (sy.far - 900) / 2400, 0.30, 1);
     ctx.save();
     ctx.globalAlpha = fade;
@@ -13695,7 +13701,7 @@ function drawMenuMap() {
   // the terminus: where THIS case finally delivers — and where the next one
   // picks the journey up (city lore; image worlds carry only their own pins)
   if (!IM) {
-    const term = CITY_TERMS[CAMP && CAMP.id] || ['END', 'TERMINUS'];
+    const term = ['\u25b8', destNameAt(Math.max(0, CAMPAIGNS.indexOf(CAMP)), LEVELS.length - 1)];
     const pt = relayW(LEVELS.length);
     const ex2 = wx(pt), ey2 = wy(pt);
     const delivered = PROG.stars[LEVELS.length - 1] > 0;
@@ -13717,7 +13723,11 @@ function drawMenuMap() {
   // sits clear below and a short leader points down at it.
   const nr = Math.min(W, H) * 0.03;
   for (let i = 0; i < LEVELS.length; i++) {
-    if (Math.hypot(wx(RPT(i)) - ccx, wy(RPT(i)) - ccy) > R + nr * 6) continue; // outside the lens
+    // Cull on the DESTINATION, which is where the marker actually draws — the
+    // system centre can sit well outside the lens while the planet it holds is
+    // dead centre of it.
+    { const dp0 = relayDestPos(i);
+      if (Math.hypot(wx(dp0) - ccx, wy(dp0) - ccy) > R + nr * 8) continue; }
     const locked = i + 1 > PROG.unlocked;
     const cleared = PROG.stars[i] > 0;
     const isFrontier = i === frontier && !cleared;
@@ -13778,18 +13788,14 @@ function drawMenuMap() {
     // the hit box spans plate AND body, so either can be tapped
     menuButtons.push({ x: mx2 - 22, y: py3 - 20, w: 44, h: (my2 + dR + 12) - (py3 - 20), node: i, locked: false });
   }
-  // lens optics: inner vignette + a slow radar sweep
+  // lens optics: an inner vignette. The rotating radar needle is GONE — it swept
+  // a bright wedge across everything twice a minute and there is nothing on this
+  // chart it was reporting.
   const vg = ctx.createRadialGradient(ccx, ccy, R * 0.55, ccx, ccy, R);
   vg.addColorStop(0, 'rgba(2,6,14,0)');
   vg.addColorStop(1, 'rgba(2,6,14,0.55)');
   ctx.fillStyle = vg;
   ctx.beginPath(); ctx.arc(ccx, ccy, R, 0, TAU); ctx.fill();
-  const swA = time * 0.5;
-  const swG = ctx.createLinearGradient(ccx, ccy, ccx + Math.cos(swA) * R, ccy + Math.sin(swA) * R);
-  swG.addColorStop(0, 'rgba(111,227,255,0)');
-  swG.addColorStop(1, 'rgba(111,227,255,0.25)');
-  ctx.strokeStyle = swG; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(ccx, ccy); ctx.lineTo(ccx + Math.cos(swA) * (R - 6), ccy + Math.sin(swA) * (R - 6)); ctx.stroke();
   ctx.restore();
   // lens rim
   ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5;
@@ -14895,6 +14901,7 @@ function frame(now) {
   const worldFx = !!replayXfer;
   if (worldFx) { ctx.save(); ctx.globalAlpha = worldAlpha; ctx.translate(W / 2, H / 2); ctx.scale(worldZoom, worldZoom); ctx.translate(-W / 2, -H / 2); }
   if (bgCanvas) ctx.drawImage(bgCanvas, 0, 0, W, H);
+  drawStarField();  // the half of the backdrop that is allowed to move
   drawLiveBg(dt);
 
   const g = geo();
@@ -15297,14 +15304,6 @@ function frame(now) {
     ctx.fillStyle = tg2;
     ctx.fillRect(0, 0, W, H);
   }
-
-  // THE SKY BREATHES — and it has to happen HERE, at the very end of the world
-  // pass, which took measuring to find. Laid down with the backdrop it was worth
-  // 0.73 luminance per copy of the sky; laid down last it is worth 5.3. Everything
-  // between the two points — wall stamps, fog, ring, vignette, grade — dilutes
-  // what is under it, and seven eighths of the effect was being eaten before the
-  // frame was finished. The UI is the only thing that goes over the top of it.
-  drawSkyBreath();
 
   if (state === S.PLAY) {
     drawHUD(g); drawDials(); drawIntroCard(); drawNowPlaying();

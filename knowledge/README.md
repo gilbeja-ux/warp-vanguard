@@ -22,7 +22,7 @@ The player flies down a fiber-optic data tunnel escorting a golden data payload.
 - L1: Sub Level Three · L2: Steel and Rain · L3: Terminal Velocity
 - SFX are synthesized (WebAudio). Pause menu has toggles + volume sliders for both.
 
-## Visual architecture (canvas 2D, no libs)
+## Visual dispatcherure (canvas 2D, no libs)
 
 - Landscape-only: portrait screens render the whole game rotated 90° (`ROT`), input mapped inversely.
 - Tunnel = dense prerendered "data annulus" texture (`wallTex`: ~650 broken arcs, 170 code strings, ticks, specks; blue/white/amber) stamped at 10 receding depths with per-band twist. Nearest band continues past the viewer and fades (no popping).

@@ -21,7 +21,7 @@ Three things make the swap close to free:
    explanation to be a fiber-optic cable. The most expensive art in the game
    gets more legible for zero work.
 2. **`CID` survives as an acronym.** Cyber Investigations Department becomes
-   **Convoy Integrity Division**. Same three letters, same institutional
+   **Lane Command**. Same three letters, same institutional
    register, same role — the authority that receives evidence and cannot trust
    its own building. 71 occurrences in source need no edit.
 3. **The engine's nouns were already spatial.** `bore`, `tunnel`, `ring`,
@@ -34,10 +34,10 @@ Not translated. Already correct.
 
 | | Why it works unchanged |
 |---|---|
-| **OmniServe** | "The largest carrier on it, hosting the load nobody thinks about." Change what it carries from records to freight and every word of the existing description holds. |
+| **Meridian Haulage** | "The largest carrier on it, hosting the load nobody thinks about." Change what it carries from records to freight and every word of the existing description holds. |
 | **Meridian** | Reads as a system as naturally as a city. Now the **Meridian Reach** — the settled volume the lane network serves. |
 | **The Ring** | People who run a place quietly and never touch a line themselves. Setting-agnostic. And the name now doubles: a ring of powerful holdings around the core systems. |
-| **THE ARCHITECT** | A program with four jobs, iterating, never shipping the same weakness twice. Nothing about it is data-specific. |
+| **THE DISPATCHER** | A program with four jobs, iterating, never shipping the same weakness twice. Nothing about it is data-specific. |
 | **The wardens** | Guardian programs stationed at junctions. Junctions exist in both worlds. Boss kinds `core` / `triad` / `spinner` / `triad` / `core` unchanged. |
 | **TRACE** | An analyst who reads what you bring back. Handle, not a job title. |
 | **relay** | A waypoint on a route. *More* natural in space than in fiber. All 73 occurrences stand. |

@@ -13,21 +13,21 @@ Edit here for review, then port changes into `src/index.html`:
 All narrative now lives in ONE campaign package object (`const INVESTIGATION`,
 ~line 660) — the same format the Tunnel Designer will export.
 
-Speakers: **OMNI** = OmniServe Yards (corporate, blue) · **CID** = Cyber
+Speakers: **OMNI** = Meridian Haulage (corporate, blue) · **CID** = Cyber
 Investigations Dept (white) · **TRACE** = CID's tracer analyst (green) ·
-**CORE** = the CID Gateway warden core (purple).
+**CORE** = the Command Gateway warden core (purple).
 
-Premise: OmniServe Yards must deliver critical evidence to the CID across one
+Premise: Meridian Haulage must deliver critical evidence to Lane Command across one
 warp lane. The player runs point ahead of the convoy and clears the lane, relay by
 relay, while the investigation uncovers who is trying to burn the evidence.
 
 ---
 
-## LEVEL 1 — OMNISERVE YARDS
+## LEVEL 1 — MERIDIAN HAULAGE
 
 **LOG 01 — THE CONTRACT**
-> OmniServe Yards must deliver evidence
-> to the CID down one warp lane.
+> Meridian Haulage must deliver evidence
+> to Lane Command down one warp lane.
 > You were hired to keep it clean.
 > Interdictors are already seeded.
 
@@ -46,7 +46,7 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 > These interdictors are not random noise.
 > Same make. Same timing.
 > Someone wants the evidence gone.
-> The CID opens a case file.
+> Lane Command opens a case file.
 
 *Hint: NEW THREAT: heavy armor — dock both emitters and HOLD*
 
@@ -55,7 +55,7 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 - `t=20` **CID**: we are being watched. keep hauling.
 - `t=36` **OMNI**: the manifests? someone knows.
 
-**Report** — CASE NOTE: one dispatcher confirmed. the CID opens a file.
+**Report** — CASE NOTE: one dispatcher confirmed. Lane Command opens a file.
 
 ## LEVEL 3 — TRANSIT EXCHANGE
 
@@ -129,20 +129,20 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 
 **LOG 07 — SIGNATURE**
 > Every interdictor mark matches one
-> system: the CID GATEWAY itself.
+> system: the COMMAND GATEWAY itself.
 > The warden meant to receive the
 > evidence is burning it instead.
 
 *Hint: ALL THREATS ACTIVE — maximum traffic*
 
 **Comms**
-- `t=6` **TRACE**: signature isolated: CID GATEWAY warden.
+- `t=6` **TRACE**: signature isolated: COMMAND GATEWAY warden.
 - `t=20` **OMNI**: the receiver is the thief.
 - `t=36` **CID**: …purge authorized. deliver it.
 
-**Report** — CASE NOTE: signature match — CID GATEWAY. purge authorized.
+**Report** — CASE NOTE: signature match — COMMAND GATEWAY. purge authorized.
 
-## LEVEL 8 — CID GATEWAY (boss)
+## LEVEL 8 — COMMAND GATEWAY (boss)
 
 **LOG 08 — THE GATEWAY**
 > The gateway core was turned — bought
@@ -160,7 +160,7 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 
 **LOG 09 — VERDICT** *(epilogue card, after the core dies)*
 > The gateway burned. The convoy
-> reached the CID intact. Warrants
+> reached Lane Command intact. Warrants
 > went out within the hour — the
 > buyer wore a badge. Case closed.
 
@@ -169,7 +169,7 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 ---
 
 *Boot sequence flavor (every level): LOCKING ON STREAM → ACTIVATING SYSTEMS →
-AWAITING RUNNER → CONTROLS ACTIVE, with the CID comm "godspeed, runner."*
+AWAITING RUNNER → CONTROLS ACTIVE, with Lane Command comm "godspeed, runner."*
 
 ## Mid-run briefing cards (first encounter only)
 

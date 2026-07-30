@@ -51,7 +51,7 @@ const ED = {
       id: 'new-campaign', format: 1, title: 'NEW CAMPAIGN', tagline: 'UNTITLED CASE', difficulty: 1,
       story: 'describe the case here.',
       map: { theme: 'chart' },
-      speakers: [{ id: 'OMNI', name: 'OmniServe HQ', color: '111,227,255', portrait: { drawn: 'OMNI' } }],
+      speakers: [{ id: 'OMNI', name: 'Meridian Haulage', color: '111,227,255', portrait: { drawn: 'OMNI' } }],
       levels: [ED.newLevel('FIRST RELAY')]
     };
   },

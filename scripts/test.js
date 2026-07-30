@@ -14,6 +14,9 @@ const grad = { addColorStop() {} };
 const ctxStub = new Proxy({}, {
   get: (t, k) => {
     if (k === 'canvas') return canvasStub;
+    // createImageData must hand back a REAL buffer — the galaxy bake writes its
+    // pixels into one, and a gradient stub has nothing to write to
+    if (k === 'createImageData') return (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) });
     return (...a) => (String(k).startsWith('create') ? grad : (k === 'measureText' ? { width: 10 } : undefined));
   },
   set: () => true
@@ -1646,7 +1649,7 @@ G.keys['ArrowUp'] = false;
   wc.levels[0].name = 'MUTATED';
   wc.levels[0].comms[0].m = 'changed';
   check('clone: edits never leak back into the source package',
-    src.levels[0].name === 'OMNISERVE YARDS' && src.levels[0].comms[0].m !== 'changed');
+    src.levels[0].name === 'MERIDIAN HAULAGE' && src.levels[0].comms[0].m !== 'changed');
   // factories ship valid data
   const np = ED.newCampaign();
   check('new-campaign template passes validateCampaign', G.validateCampaign(np).length === 0);

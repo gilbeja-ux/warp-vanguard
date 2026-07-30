@@ -47,7 +47,7 @@ const ACTS = [
   {
     id: 'act1', act: 'ACT I', title: 'THE CONTRACT', pkg: 'investigation',
     premise: 'A new operator is screened across three ordinary contracts, told why, and handed a delivery that matters. The file arrives — and so does a commander with no case number.',
-    outline: 'You are newly certified — no service record, no fleet friends, no debts to anyone in Meridian. Every one of those is a hole in your résumé and every one of them is why you get chosen.\n\nThree contracts for OmniServe, each planting one detail that only makes sense later: the fee clears before you file, he rebooks inside the hour and asks nothing, and clause 6 forbids you to discuss the run with anyone including the Lane Authority.\n\nThe offer: Renke tells you certain customer consignments have been hit for months — patient, professional, always the same kind of cargo. Not theft. Suppression. He built a file proving it and every attempt to deliver it has been interdicted in transit. You were not hired. You were chosen.\n\nThe delivery lands, Reyes opens the channel and names you RUNNER without explaining. The operation begins: staged traffic, clean interceptions, recovered keys — and the keys turn out to be current.\n\nThe answer: Renke’s file was never lost. It arrived four times and was destroyed at the door by something resident in the CID’s own evidence intake.\n\n(The qualification run is NOT one of these eight — it is the separate TUTORIAL mode on the carousel.)',
+    outline: 'You are newly certified — no service record, no fleet friends, no debts to anyone in Meridian. Every one of those is a hole in your résumé and every one of them is why you get chosen.\n\nThree contracts for Meridian Haulage, each planting one detail that only makes sense later: the fee clears before you file, he rebooks inside the hour and asks nothing, and clause 6 forbids you to discuss the run with anyone including the Lane Authority.\n\nThe offer: Renke tells you certain customer consignments have been hit for months — patient, professional, always the same kind of cargo. Not theft. Suppression. He built a file proving it and every attempt to deliver it has been interdicted in transit. You were not hired. You were chosen.\n\nThe delivery lands, Reyes opens the channel and names you RUNNER without explaining. The operation begins: staged traffic, clean interceptions, recovered keys — and the keys turn out to be current.\n\nThe answer: Renke’s file was never lost. It arrived four times and was destroyed at the door by something resident in Lane Command’s own evidence intake.\n\n(The qualification run is NOT one of these eight — it is the separate TUTORIAL mode on the carousel.)',
     verdict: { name: 'THE WARDEN', beat: 'The intake is clean, the file is safe, the case can finally move. Nobody builds a thing like that for one file.' },
     missions: [
       { name: 'YARDS OUTBOUND', beat: 'First contract, taken because it is work. Routine outbound convoy, ordinary interdictors. PLANT 1: the fee clears before you file.' },
@@ -57,20 +57,20 @@ const ACTS = [
       { name: 'SUBLANE DRIFT', beat: 'First staged convoy. TRACE pulls a deployment key off the wreckage — it holds ACTIVE clearance. "log it, tell no one."' },
       { name: 'TRADE SPINE', beat: 'Phase-locked interdictors. A clean interception yields a working key — cut with credentials rotated this morning. THE SIGNATURES BEGIN.' },
       { name: 'CID APPROACH', beat: 'TRACE isolates it: the file was never lost in transit. It arrived four times and was destroyed at the door.' },
-      { name: 'EVIDENCE INTAKE', beat: 'THE WARDEN. Resident in the CID’s own intake, refusing one class of cargo for years. "everything i refused was contaminated. i was the filter."' }
+      { name: 'EVIDENCE INTAKE', beat: 'THE WARDEN. Resident in Lane Command’s own intake, refusing one class of cargo for years. "everything i refused was contaminated. i was the filter."' }
     ]
   },
   {
     id: 'act2', act: 'ACT II', title: 'THE RING', pkg: 'going-deeper',
     premise: 'Wardens are everywhere and were never hidden. The interdictors are not placed — they are issued, by one dispatcher that signs its work. And somebody owns it.',
-    outline: 'Once you know the shape of a warden, TRACE finds more, fast, because they were never hidden. Port authority. The courts. The licensing exchange. Guardians at the junctions that matter, deciding what arrives.\n\nThe signatures give up the rest: interdictors are dispatched — written, keyed, assigned a lane, deployed. So are the wardens. Six years of it, out of one source, signing itself in a metadata field nobody was meant to read. The Architect.\n\nReyes says the part she has been building to: nobody rents this. Somebody owns it. There is a ring in Meridian — people who know exactly who each other are, in a Reach that does not know they exist.\n\nAnd it keeps. Intercepted cargo is not destroyed, it is filed. There is an archive.\n\nYou take the Tribunal at the courts junction. The junction is clear for about a day. Then there is another one, cast later, already better.',
+    outline: 'Once you know the shape of a warden, TRACE finds more, fast, because they were never hidden. Port authority. The courts. The licensing exchange. Guardians at the junctions that matter, deciding what arrives.\n\nThe signatures give up the rest: interdictors are dispatched — written, keyed, assigned a lane, deployed. So are the wardens. Six years of it, out of one source, signing itself in a metadata field nobody was meant to read. The Dispatcher.\n\nReyes says the part she has been building to: nobody rents this. Somebody owns it. There is a ring in Meridian — people who know exactly who each other are, in a Reach that does not know they exist.\n\nAnd it keeps. Intercepted cargo is not destroyed, it is filed. There is an archive.\n\nYou take the Tribunal at the courts junction. The junction is clear for about a day. Then there is another one, cast later, already better.',
     verdict: { name: 'THE TRIBUNAL', beat: 'A day later the junction has another warden, and it is already better. REYES: "We stop chasing wardens. We find the thing that writes them."' },
     missions: [
       { name: 'PORT AUTHORITY', beat: 'Now that you know the shape of a warden, TRACE finds another. It was never hidden — it has been standing there for years.' },
       { name: 'CIVIC RECORDS', beat: 'And another. Meridian has been running on a Grid that answers to somebody else.' },
       { name: 'LICENSING EXCHANGE', beat: 'Phase-locked interdictors at every junction. The signatures start matching across attacks with nothing else in common.' },
       { name: 'THE JUNCTIONS', beat: 'They are not placed by hand. They are dispatched — written, keyed, assigned a lane, deployed.' },
-      { name: 'DISPATCH LANES', beat: 'One source, six years, and it signs its work. TRACE: "it has a name for itself. the architect."' },
+      { name: 'DISPATCH LANES', beat: 'One source, six years, and it signs its work. TRACE: "it has a name for itself. the dispatcher."' },
       { name: 'THE OLD BUILD', beat: 'REYES: nobody rents this. Somebody owns it. The Ring — and the Lanes were charted around them so long ago they look like geography.' },
       { name: 'COLD STORAGE', beat: 'Intercepted cargo is not destroyed. It is filed. There is an archive, and it is still intact.' },
       { name: 'THE TRIBUNAL', beat: 'Three cores at the courts junction. A newer casting than the intake warden, and it does not make the intake warden’s mistake.' }
@@ -85,7 +85,7 @@ const ACTS = [
       { name: 'DARK ROUTE', beat: 'Renke is suspended pending review. No client, no cover, no routing. Reyes puts you somewhere nobody is looking.' },
       { name: 'PARKING LEVEL 3', beat: 'The van. Stay mobile — never the same lot twice, never a fixed uplink, never a pattern.' },
       { name: 'BAIT LINES', beat: 'TRACE stops reading and starts planting. Bait data on live lines. Renke would have refused to sign it.' },
-      { name: 'THE BITE', beat: 'It works enormously. Every bite is a phase-locked interdictor cast into a lane the Architect had no reason to watch. The count starts climbing.' },
+      { name: 'THE BITE', beat: 'It works enormously. Every bite is a phase-locked interdictor cast into a lane the Dispatcher had no reason to watch. The count starts climbing.' },
       { name: 'OPEN SWEEP', beat: 'Something is sweeping. Patiently, endlessly, across every line in Meridian, looking for the shape of an operator.' },
       { name: 'UNDER THE BEAM', beat: 'You cannot hide from it and you cannot outrun it. So you go where it is looking.' },
       { name: 'SEARCH PATTERN', beat: 'It has been looking for you since the harbor crossing. Reyes’s decoys are the only reason it has not closed.' },
@@ -94,11 +94,11 @@ const ACTS = [
   },
   {
     id: 'act4', act: 'ACT IV', title: 'THE FOUNDRY', pkg: 'the-bait',
-    premise: 'Map the Architect’s reach, find the casting line every warden comes from, and write the antidote from its own handwriting.',
-    outline: 'You know what it is and roughly where. Now find out what it is made of, because you are not going to fight it — you are going to unwrite it, and TRACE needs to know exactly how it is put together.\n\nReconnaissance at speed, under fire. Dispatch lanes. Deployment schedules. The route a warden takes from written to standing. How far it reaches, which is: everywhere, into every junction in the Reach, continuously, without anyone having asked it to for years.\n\nMeanwhile the decoys thin, Renke’s review date is set, and TRACE is running staging she is not qualified for. Nobody says the word deadline.\n\nAt the bottom of the reach: not a guard. A casting line — where the Architect writes wardens, tests them against the last thing that killed one, and ships. The least defended thing in the game and the most dangerous, because it is producing while you are inside it.',
+    premise: 'Map the Dispatcher’s reach, find the casting line every warden comes from, and write the antidote from its own handwriting.',
+    outline: 'You know what it is and roughly where. Now find out what it is made of, because you are not going to fight it — you are going to unwrite it, and TRACE needs to know exactly how it is put together.\n\nReconnaissance at speed, under fire. Dispatch lanes. Deployment schedules. The route a warden takes from written to standing. How far it reaches, which is: everywhere, into every junction in the Reach, continuously, without anyone having asked it to for years.\n\nMeanwhile the decoys thin, Renke’s review date is set, and TRACE is running staging she is not qualified for. Nobody says the word deadline.\n\nAt the bottom of the reach: not a guard. A casting line — where the Dispatcher writes wardens, tests them against the last thing that killed one, and ships. The least defended thing in the game and the most dangerous, because it is producing while you are inside it.',
     verdict: { name: 'THE ANTIDOTE', beat: 'TRACE writes it from the pattern and four acts of signatures. It does not fight — it unwrites. "i can write it. i can’t take it there."' },
     missions: [
-      { name: 'REACH SURVEY', beat: 'Stop chasing and start mapping. How far does the Architect actually go?' },
+      { name: 'REACH SURVEY', beat: 'Stop chasing and start mapping. How far does the Dispatcher actually go?' },
       { name: 'DISPATCH ORDER', beat: 'The route an interdictor takes from written to standing. Every one carries where it came from.' },
       { name: 'CASTING SCHEDULE', beat: 'Wardens are not deployed at random. They are scheduled, and the schedule has a shape.' },
       { name: 'EVERY JUNCTION', beat: 'The answer to how far it reaches: everywhere, continuously, and nobody has asked it to for years.' },
@@ -110,8 +110,8 @@ const ACTS = [
   },
   {
     id: 'act5', act: 'ACT V', title: 'THE ARCHIVE', pkg: 'shutdown',
-    premise: 'Carry the antidote into the oldest segment of the Lanes, unwrite the Architect, and bring six years of what it kept out whole.',
-    outline: 'The last act is the first act inverted. Forty missions protecting other people’s cargo down other people’s lanes; now you carry one consignment of your own into the deepest, oldest, most defended stretch of lane in Meridian — laid when the Reach was surveyed, never opened to anything since.\n\nRenke comes back for it. Still suspended, still under review, and he does it anyway, because a run into that segment needs OmniServe’s transit fabric and he is the only person alive who knows how it is stitched together.\n\nThe signatures are the door. Their defenses stop pretending: walls folding shut in sequence, a channel screaming with everything thrown blind, deep transit running hot enough to blur, and one narrow threshold with the whole network firing into it.\n\nAnd the Architect talks, because it has never in six years been asked to explain itself.',
+    premise: 'Carry the antidote into the oldest segment of the Lanes, unwrite the Dispatcher, and bring six years of what it kept out whole.',
+    outline: 'The last act is the first act inverted. Forty missions protecting other people’s cargo down other people’s lanes; now you carry one consignment of your own into the deepest, oldest, most defended stretch of lane in Meridian — laid when the Reach was surveyed, never opened to anything since.\n\nRenke comes back for it. Still suspended, still under review, and he does it anyway, because a run into that segment needs Meridian Haulage’s transit fabric and he is the only person alive who knows how it is stitched together.\n\nThe signatures are the door. Their defenses stop pretending: walls folding shut in sequence, a channel screaming with everything thrown blind, deep transit running hot enough to blur, and one narrow threshold with the whole network firing into it.\n\nAnd the Dispatcher talks, because it has never in six years been asked to explain itself.',
     verdict: { name: 'THE ARCHIVE', beat: 'The archive falls open — six years of killed audits and filings that never arrived, each tagged with the order that stopped it. Transfer all of it to Reyes.' },
     missions: [
       { name: 'INJECTION', beat: 'Renke comes back. The antidote goes on the wire, and it only exists once.' },
@@ -121,7 +121,7 @@ const ACTS = [
       { name: 'LAST RING', beat: 'It falls back and seals the approach — every gate keyed, every lane walled.' },
       { name: 'DEEP TRANSIT', beat: 'No walls left down here. Just speed, the last thing it has.' },
       { name: 'THE THRESHOLD', beat: 'One narrow gate with the whole Reach’s infrastructure firing into it.' },
-      { name: 'THE ARCHITECT', beat: 'Not a fortress — a clerk with six locks. "you have been arguing with a form." Seat the antidote.' }
+      { name: 'THE DISPATCHER', beat: 'Not a fortress — a clerk with six locks. "you have been arguing with a form." Seat the antidote.' }
     ]
   }
 ];

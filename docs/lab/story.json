@@ -33,14 +33,14 @@
       "act": "ACT I",
       "title": "THE CONTRACT",
       "premise": "A new operator is screened across three ordinary contracts, told why, and handed a delivery that matters. The file arrives — and so does a commander with no case number.",
-      "outline": "You are newly certified — no service record, no fleet friends, no debts to anyone in Meridian. Every one of those is a hole in your résumé and every one of them is why you get chosen.\n\nThree contracts for OmniServe, each planting one detail that only makes sense later: the fee clears before you file, he rebooks inside the hour and asks nothing, and clause 6 forbids you to discuss the run with anyone including the Lane Authority.\n\nThe offer: Renke tells you certain customer consignments have been hit for months — patient, professional, always the same kind of cargo. Not theft. Suppression. He built a file proving it and every attempt to deliver it has been interdicted in transit. You were not hired. You were chosen.\n\nThe delivery lands, Reyes opens the channel and names you RUNNER without explaining. The operation begins: staged traffic, clean interceptions, recovered keys — and the keys turn out to be current.\n\nThe answer: Renke’s file was never lost. It arrived four times and was destroyed at the door by something resident in the CID’s own evidence intake.\n\n(The qualification run is NOT one of these eight — it is the separate TUTORIAL mode on the carousel.)",
+      "outline": "You are newly certified — no service record, no fleet friends, no debts to anyone in Meridian. Every one of those is a hole in your résumé and every one of them is why you get chosen.\n\nThree contracts for Meridian Haulage, each planting one detail that only makes sense later: the fee clears before you file, he rebooks inside the hour and asks nothing, and clause 6 forbids you to discuss the run with anyone including the Lane Authority.\n\nThe offer: Renke tells you certain customer consignments have been hit for months — patient, professional, always the same kind of cargo. Not theft. Suppression. He built a file proving it and every attempt to deliver it has been interdicted in transit. You were not hired. You were chosen.\n\nThe delivery lands, Reyes opens the channel and names you RUNNER without explaining. The operation begins: staged traffic, clean interceptions, recovered keys — and the keys turn out to be current.\n\nThe answer: Renke’s file was never lost. It arrived four times and was destroyed at the door by something resident in Lane Command’s own evidence intake.\n\n(The qualification run is NOT one of these eight — it is the separate TUTORIAL mode on the carousel.)",
       "notes": "",
       "missions": [
         {
           "n": 1,
           "name": "YARDS OUTBOUND",
           "beat": "First contract, taken because it is work. Routine outbound convoy, ordinary interdictors. PLANT 1: the fee clears before you file.",
-          "scene": "INT. RENTED CARREL, DATA DEFENDERS FIELD OFFICE — NIGHT\n\nThe board posts at 22:40. One line, no detail, the way they all read:\n\n        OMNISERVE — OUTBOUND, CAMPUS → CITY ARCHIVE\n        RATE: HOURLY · CLEARANCE: STANDARD\n\nNobody bids on institutional records at that hour. Records do not get\nhit. That is the whole reason the rate is what it is.\n\nYou take it because your designation is nine days old and nothing else\nhas posted.\n\nThe run is unremarkable. Ordinary taps, ordinary spacing, the kind of\ntraffic any certified operator clears without thinking about it.\n\nYou file at 04:12.\n\nThe fee cleared at 03:58.\n\nYou notice. Then you stop noticing, because a client who pays early is\nnot a problem anyone has ever had.",
+          "scene": "INT. RENTED CARREL, DATA DEFENDERS FIELD OFFICE — NIGHT\n\nThe board posts at 22:40. One line, no detail, the way they all read:\n\n        MERIDIAN HAULAGE — OUTBOUND, CAMPUS → CITY ARCHIVE\n        RATE: HOURLY · CLEARANCE: STANDARD\n\nNobody bids on institutional records at that hour. Records do not get\nhit. That is the whole reason the rate is what it is.\n\nYou take it because your designation is nine days old and nothing else\nhas posted.\n\nThe run is unremarkable. Ordinary taps, ordinary spacing, the kind of\ntraffic any certified operator clears without thinking about it.\n\nYou file at 04:12.\n\nThe fee cleared at 03:58.\n\nYou notice. Then you stop noticing, because a client who pays early is\nnot a problem anyone has ever had.",
           "discs": [
             {
               "title": "LOG 01 — FIRST RUN",
@@ -50,7 +50,7 @@
                 "",
                 "Gotta start somewhere..."
               ],
-              "art": "Wide 2.39:1. Night. A rented operator carrel in a Data Defenders field office — narrow booth, one screen, a foam cup. Through the window behind it, Meridian's campus district in rain: glass towers, and a long low OmniServe block with its sign dark.\n\nThe operator seen from behind, small, a silhouette against the screen glow. Palette: cold blue-grey city, one warm amber pool from the desk lamp, everything else black. Hard rim light along the booth's machined edge, no outlines.\n\nReads at thumbnail as one lit rectangle with a figure in it. Mood: ordinary night shift, nothing at stake."
+              "art": "Wide 2.39:1. Night. A rented operator carrel in a Data Defenders field office — narrow booth, one screen, a foam cup. Through the window behind it, Meridian's campus district in rain: glass towers, and a long low Meridian Haulage block with its sign dark.\n\nThe operator seen from behind, small, a silhouette against the screen glow. Palette: cold blue-grey city, one warm amber pool from the desk lamp, everything else black. Hard rim light along the booth's machined edge, no outlines.\n\nReads at thumbnail as one lit rectangle with a figure in it. Mood: ordinary night shift, nothing at stake."
             }
           ],
           "hint": "",
@@ -264,7 +264,7 @@
         {
           "n": 8,
           "name": "EVIDENCE INTAKE",
-          "beat": "THE WARDEN. Resident in the CID’s own intake, refusing one class of cargo for years. \"everything i refused was contaminated. i was the filter.\"",
+          "beat": "THE WARDEN. Resident in Lane Command’s own intake, refusing one class of cargo for years. \"everything i refused was contaminated. i was the filter.\"",
           "scene": "",
           "discs": [
             {
@@ -316,7 +316,7 @@
       "act": "ACT II",
       "title": "THE RING",
       "premise": "Wardens are everywhere and were never hidden. The interdictors are not placed — they are issued, by one dispatcher that signs its work. And somebody owns it.",
-      "outline": "Once you know the shape of a warden, TRACE finds more, fast, because they were never hidden. Port authority. The courts. The licensing exchange. Guardians at the junctions that matter, deciding what arrives.\n\nThe signatures give up the rest: interdictors are dispatched — written, keyed, assigned a lane, deployed. So are the wardens. Six years of it, out of one source, signing itself in a metadata field nobody was meant to read. The Architect.\n\nReyes says the part she has been building to: nobody rents this. Somebody owns it. There is a ring in Meridian — people who know exactly who each other are, in a Reach that does not know they exist.\n\nAnd it keeps. Intercepted cargo is not destroyed, it is filed. There is an archive.\n\nYou take the Tribunal at the courts junction. The junction is clear for about a day. Then there is another one, cast later, already better.",
+      "outline": "Once you know the shape of a warden, TRACE finds more, fast, because they were never hidden. Port authority. The courts. The licensing exchange. Guardians at the junctions that matter, deciding what arrives.\n\nThe signatures give up the rest: interdictors are dispatched — written, keyed, assigned a lane, deployed. So are the wardens. Six years of it, out of one source, signing itself in a metadata field nobody was meant to read. The Dispatcher.\n\nReyes says the part she has been building to: nobody rents this. Somebody owns it. There is a ring in Meridian — people who know exactly who each other are, in a Reach that does not know they exist.\n\nAnd it keeps. Intercepted cargo is not destroyed, it is filed. There is an archive.\n\nYou take the Tribunal at the courts junction. The junction is clear for about a day. Then there is another one, cast later, already better.",
       "notes": "",
       "missions": [
         {
@@ -446,7 +446,7 @@
         {
           "n": 13,
           "name": "DISPATCH LANES",
-          "beat": "One source, six years, and it signs its work. TRACE: \"it has a name for itself. the architect.\"",
+          "beat": "One source, six years, and it signs its work. TRACE: \"it has a name for itself. the dispatcher.\"",
           "scene": "",
           "discs": [
             {
@@ -691,7 +691,7 @@
         {
           "n": 20,
           "name": "THE BITE",
-          "beat": "It works enormously. Every bite is a phase-locked interdictor cast into a lane the Architect had no reason to watch. The count starts climbing.",
+          "beat": "It works enormously. Every bite is a phase-locked interdictor cast into a lane the Dispatcher had no reason to watch. The count starts climbing.",
           "scene": "",
           "discs": [
             {
@@ -858,14 +858,14 @@
       "id": "act4",
       "act": "ACT IV",
       "title": "THE FOUNDRY",
-      "premise": "Map the Architect’s reach, find the casting line every warden comes from, and write the antidote from its own handwriting.",
-      "outline": "You know what it is and roughly where. Now find out what it is made of, because you are not going to fight it — you are going to unwrite it, and TRACE needs to know exactly how it is put together.\n\nReconnaissance at speed, under fire. Dispatch lanes. Deployment schedules. The route a warden takes from written to standing. How far it reaches, which is: everywhere, into every junction in the Reach, continuously, without anyone having asked it to for years.\n\nMeanwhile the decoys thin, Renke’s review date is set, and TRACE is running staging she is not qualified for. Nobody says the word deadline.\n\nAt the bottom of the reach: not a guard. A casting line — where the Architect writes wardens, tests them against the last thing that killed one, and ships. The least defended thing in the game and the most dangerous, because it is producing while you are inside it.",
+      "premise": "Map the Dispatcher’s reach, find the casting line every warden comes from, and write the antidote from its own handwriting.",
+      "outline": "You know what it is and roughly where. Now find out what it is made of, because you are not going to fight it — you are going to unwrite it, and TRACE needs to know exactly how it is put together.\n\nReconnaissance at speed, under fire. Dispatch lanes. Deployment schedules. The route a warden takes from written to standing. How far it reaches, which is: everywhere, into every junction in the Reach, continuously, without anyone having asked it to for years.\n\nMeanwhile the decoys thin, Renke’s review date is set, and TRACE is running staging she is not qualified for. Nobody says the word deadline.\n\nAt the bottom of the reach: not a guard. A casting line — where the Dispatcher writes wardens, tests them against the last thing that killed one, and ships. The least defended thing in the game and the most dangerous, because it is producing while you are inside it.",
       "notes": "",
       "missions": [
         {
           "n": 25,
           "name": "REACH SURVEY",
-          "beat": "Stop chasing and start mapping. How far does the Architect actually go?",
+          "beat": "Stop chasing and start mapping. How far does the Dispatcher actually go?",
           "scene": "",
           "discs": [
             {
@@ -1128,8 +1128,8 @@
       "id": "act5",
       "act": "ACT V",
       "title": "THE ARCHIVE",
-      "premise": "Carry the antidote into the oldest segment of the Lanes, unwrite the Architect, and bring six years of what it kept out whole.",
-      "outline": "The last act is the first act inverted. Forty missions protecting other people’s cargo down other people’s lanes; now you carry one consignment of your own into the deepest, oldest, most defended stretch of lane in Meridian — laid when the Reach was surveyed, never opened to anything since.\n\nRenke comes back for it. Still suspended, still under review, and he does it anyway, because a run into that segment needs OmniServe’s transit fabric and he is the only person alive who knows how it is stitched together.\n\nThe signatures are the door. Their defenses stop pretending: walls folding shut in sequence, a channel screaming with everything thrown blind, deep transit running hot enough to blur, and one narrow threshold with the whole network firing into it.\n\nAnd the Architect talks, because it has never in six years been asked to explain itself.",
+      "premise": "Carry the antidote into the oldest segment of the Lanes, unwrite the Dispatcher, and bring six years of what it kept out whole.",
+      "outline": "The last act is the first act inverted. Forty missions protecting other people’s cargo down other people’s lanes; now you carry one consignment of your own into the deepest, oldest, most defended stretch of lane in Meridian — laid when the Reach was surveyed, never opened to anything since.\n\nRenke comes back for it. Still suspended, still under review, and he does it anyway, because a run into that segment needs Meridian Haulage’s transit fabric and he is the only person alive who knows how it is stitched together.\n\nThe signatures are the door. Their defenses stop pretending: walls folding shut in sequence, a channel screaming with everything thrown blind, deep transit running hot enough to blur, and one narrow threshold with the whole network firing into it.\n\nAnd the Dispatcher talks, because it has never in six years been asked to explain itself.",
       "notes": "",
       "missions": [
         {
@@ -1346,7 +1346,7 @@
         },
         {
           "n": 40,
-          "name": "THE ARCHITECT",
+          "name": "THE DISPATCHER",
           "beat": "Not a fortress — a clerk with six locks. \"you have been arguing with a form.\" Seat the antidote.",
           "scene": "",
           "discs": [

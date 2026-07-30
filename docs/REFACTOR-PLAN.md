@@ -13,7 +13,7 @@ ache. Steps are ranked accordingly, and the low-value ones say so.
 The headline number is misleading. `src/index.html` is **12,886 lines / 640KB in
 one file**, which reads like a warning sign. It isn't one. The file is:
 
-- **properly architected at runtime** — fixed-timestep sim cleanly separated from
+- **properly dispatchered at runtime** — fixed-timestep sim cleanly separated from
   render (`frame()`, index.html:12359), with an accumulator, a sub-step cap, and
   an explicit comment explaining why determinism depends on it;
 - **already defended against slow devices** — `perfWatch()` (index.html:11776)

@@ -10,7 +10,7 @@ strings the engine receives). Format contract and work order live in
 the same three boss kinds. Only the story is new.
 
 > **The hunt, in one line.** An operator, a commander and a company insider run an
-> off-book hunt to find the Architect and liberate the archive.
+> off-book hunt to find the Dispatcher and liberate the archive.
 
 ---
 
@@ -28,7 +28,7 @@ exchange and junction Meridian runs on. Ore, parts, grain, bonded freight,
 evidence — none of it sits still. It *moves*, as convoys down charted lane, and
 the Lanes are where it moves.
 
-**OmniServe** is the largest carrier on them, hauling the institutional load nobody
+**Meridian Haulage** is the largest carrier on them, hauling the institutional load nobody
 thinks about — administration consignments, court freight, procurement,
 inspections — and its entire business is a guarantee of integrity end to end.
 
@@ -51,7 +51,7 @@ They are not hackers and they do not steal, because they do not have to. Years a
 they built themselves a program, gave it the run of the Lanes, and never touched a
 line again.
 
-## THE ARCHITECT
+## THE DISPATCHER
 
 The Ring's program. It has four jobs and it has done all four, without
 supervision, for years:
@@ -78,11 +78,11 @@ This ends upstream or it does not end.
 
 | Act | Warden | Kind | Where |
 |---|---|---|---|
-| I | **THE WARDEN** | `core` | The CID's evidence intake — the door everything the division is given comes through. |
+| I | **THE WARDEN** | `core` | Lane Command's evidence intake — the door everything the division is given comes through. |
 | II | **THE TRIBUNAL** | `triad` | The courts junction. Three cores deciding what reaches a judge. |
 | III | **THE SEEKER** | `spinner` | Guards nothing. Sweeps the Lanes for the shape of an operator running point. |
 | IV | **THE FOUNDRY** | `triad` | Not a guard at all — the casting line where wardens are made. |
-| V | **THE ARCHITECT** | `core` | Itself. |
+| V | **THE DISPATCHER** | `core` | Itself. |
 
 *(Matches the engine's existing boss assignment exactly — core, triad, spinner,
 triad, core. No engine work.)*
@@ -104,7 +104,7 @@ triad, core. No engine work.)*
 5. **Nobody meets.** Four voices on one channel who never share a room. The art
    shows their spaces, never a handshake.
 6. **The lane remembers.** Nothing cast into a charted lane is truly gone, which is
-   why the Architect keeps rather than burns — and why the archive ends the Ring.
+   why the Dispatcher keeps rather than burns — and why the archive ends the Ring.
 
 ## The signatures — the spine of the whole game
 
@@ -114,9 +114,9 @@ prove to be current. From there, every phase-locked interdictor collapsed correc
 
 | | |
 |---|---|
-| **Act I** | The keys are live. Whoever is doing this has authority inside the CID *right now*. |
+| **Act I** | The keys are live. Whoever is doing this has authority inside Lane Command *right now*. |
 | **Act II** | Signatures match across attacks with nothing else in common. These interdictors are not placed — they are **issued**, by one dispatcher, and it signs its work. |
-| **Act III** | With Renke gone, TRACE bait-farms them deliberately. Volume triangulates: the Architect is one thing, and it is somewhere in the Lanes' oldest segment. |
+| **Act III** | With Renke gone, TRACE bait-farms them deliberately. Volume triangulates: the Dispatcher is one thing, and it is somewhere in the Lanes' oldest segment. |
 | **Act IV** | Enough to map its reach — and, off the Foundry, the pattern every warden is cast from. **The antidote is written from the signatures.** |
 | **Act V** | They are the door. The only reason a segment that has never accepted an outside connection accepts yours. |
 
@@ -127,7 +127,7 @@ victory report, until it pays.
 
 | | | |
 |---|---|---|
-| **RENKE** | *the initiator* | Inside the targeted carrier. Found it, reported it, and **holds the fort**: routes valuable freight down the lanes Reyes wants watched, stages the sniffer beacons, reads OmniServe's transit logs — which nobody outside OmniServe can see. |
+| **RENKE** | *the initiator* | Inside the targeted carrier. Found it, reported it, and **holds the fort**: routes valuable freight down the lanes Reyes wants watched, stages the sniffer beacons, reads Meridian Haulage's transit logs — which nobody outside Meridian Haulage can see. |
 | **REYES** | *the plan* | Builds the operation and keeps it dark, because the Ring reaches inside her own division. Every order she gives is one she cannot put in writing. |
 | **TRACE** | *the read* | Reyes's tech engineer. Turns what you pull off the wire into a name. When Renke goes down she stops reading and starts *planting*. |
 | **YOU** | *the lane* | The only one out there. Nothing the other three plan happens unless you make it happen. |
@@ -138,8 +138,8 @@ victory report, until it pays.
 |---|---|
 | `OMNI` | **Tomas Renke** — the client |
 | `TRACE` | **TRACE** — Reyes's engineer |
-| `CID` | **Commander Ada Reyes** — Convoy Integrity Division |
-| `CORE` | **the warden** (recast per act; the Architect in Act V) |
+| `CID` | **Commander Ada Reyes** — Lane Command |
+| `CORE` | **the warden** (recast per act; the Dispatcher in Act V) |
 
 ### YOU — callsign RUNNER
 
@@ -155,15 +155,15 @@ she takes the channel, without ceremony and without explaining it:
 **TRACE gets it immediately and says nothing** — the player's first hint something
 happened here before. It does not pay until Act III.
 
-### TOMAS RENKE — cargo integrity officer, OmniServe
+### TOMAS RENKE — cargo integrity officer, Meridian Haulage
 
 Middle-aged, careful, deeply ordinary. Files everything. Pays before he is
 invoiced, which is the first strange thing about him and the last thing you notice.
 
-Months ago he saw something in OmniServe's transit logs that should not have been
+Months ago he saw something in Meridian Haulage's transit logs that should not have been
 possible: certain customer consignments interdicted over and over, patiently,
 professionally. Not theft — **suppression**. He built a file proving it, and every
-attempt to deliver that file to the CID was attacked in transit.
+attempt to deliver that file to Lane Command was attacked in transit.
 
 *(What is in the file is never the operator's business. It is evidence in an
 investigation and the job is to get it there intact. That is all you are told and
@@ -176,7 +176,7 @@ He is not brave. He is a frightened man who does the correct thing on time, in a
 story where everyone else has a price — and he is the most exposed person in it,
 because unlike you he can be found on a crew register.
 
-### COMMANDER ADA REYES — Convoy Integrity Division
+### COMMANDER ADA REYES — Lane Command
 
 Fifteen years in, close enough to the top to be disliked from both directions. She
 reads Renke's file the day it lands and understands two things at once: it is
@@ -206,7 +206,7 @@ out. **Every TRACE ANALYSIS line on the victory report is her voice.**
 
 In Act III she becomes the plan. Without Renke's legitimate routing she does the
 thing he would never have authorized — plants bait data on live lines and waits
-for the Architect to come and take it.
+for the Dispatcher to come and take it.
 
 ### BLADE — the operator before you
 
@@ -262,7 +262,7 @@ Five acts. Each ends with **→** the thing it causes.
 > ([index.html:1472](../src/index.html#L1472)). The story only needs the *fact* of
 > it: you are newly certified, and that is why you get chosen.
 
-**The contracts.** A client posts. OmniServe, outbound institutional freight,
+**The contracts.** A client posts. Meridian Haulage, outbound institutional freight,
 hourly. You take it because it is work, and because nobody else is offering — you
 have no service record, no fleet friends, and no debts to anyone in Meridian.
 Every one of those is a hole in your résumé, and every one of them is why this
@@ -280,9 +280,9 @@ whoever is on it.
 
 **The offer.** Afterward it is not dispatch that calls. It is a person.
 
-Tomas Renke, cargo integrity, OmniServe. For months certain customer consignments have
+Tomas Renke, cargo integrity, Meridian Haulage. For months certain customer consignments have
 been hit — patient, professional, repeated. Not theft. *Suppression.* He built a
-file proving it, and every attempt to deliver that file to the CID has been
+file proving it, and every attempt to deliver that file to Lane Command has been
 attacked in transit.
 
 That is what you have been carrying for three contracts. And the contracts were a
@@ -291,7 +291,7 @@ screen: he needed an operator nobody had ever reached, and he had to be certain.
 > *You were not hired. You were chosen.*
 
 **The delivery.** The fourth contract is the run that matters — Renke's file, end
-to end, into the CID. They string barrier nets across the harbor crossing to catch
+to end, into Lane Command. They string barrier nets across the harbor crossing to catch
 it whole. It is the first time the lane stops pretending to be weather.
 
 The file lands. And a second voice opens on the channel with no greeting:
@@ -316,7 +316,7 @@ morning.** *The signatures start here, and nobody says what they are for.*
 **The Warden.** TRACE isolates it, and the answer is worse than a leak.
 
 Renke's file was never lost in transit. It **arrived** — four times — and was
-destroyed at the door. Something is resident inside the CID's evidence intake, the
+destroyed at the door. Something is resident inside Lane Command's evidence intake, the
 machine that receives and logs everything the division is ever given, and it has
 been refusing one specific class of cargo for years.
 
@@ -354,7 +354,7 @@ the counting first earns itself. The interdictors are not seeded by hand. They a
 of it — six years of it — out of one source, and the source signs its work in a
 metadata field nobody was ever meant to read.
 
-> **TRACE:** *"it has a name for itself. the architect."*
+> **TRACE:** *"it has a name for itself. the dispatcher."*
 
 **The Ring.** And Reyes, who has been quiet for a mission, says the part she has
 been building to: nobody rents this. Nobody charts a Reach's own Lanes around
@@ -366,7 +366,7 @@ people worth protecting, and the Lanes were charted around them so long ago that
 they now look like geography instead of a crime.
 
 **And it keeps.** The other thing the signatures give up: interdicted cargo is not
-destroyed. It is filed. Whatever the Architect takes out of the Lanes, it stores —
+destroyed. It is filed. Whatever the Dispatcher takes out of the Lanes, it stores —
 and has stored, since the beginning.
 
 There is an archive. That is where every killed audit and vanished consignment in
@@ -385,7 +385,7 @@ Nobody says anything for a while.
 
 > **REYES:** *"We stop chasing wardens. We find the thing that writes them."*
 
-**→** *Two objectives, and they are the same objective: find the Architect,
+**→** *Two objectives, and they are the same objective: find the Dispatcher,
 liberate the archive.*
 
 ---
@@ -421,7 +421,7 @@ them onto live lanes and waits, and you run point on those lanes and wait with h
 It is crude, it is unauthorized, and Renke would have refused to sign it.
 
 It works enormously. Every bite is a phase-locked interdictor cast into a lane the
-Architect had no reason to watch, and every one taken cleanly is another signature.
+Dispatcher had no reason to watch, and every one taken cleanly is another signature.
 The count that has been ticking over quietly since Act I starts climbing fast — and
 volume is what triangulation needs.
 
@@ -447,7 +447,7 @@ never certified again.
 > **REYES:** *"BLADE."*
 > **REYES:** *"…yes. That's what I meant."*
 
-**→** *Enough signatures to triangulate. The Architect is one thing, it is real,
+**→** *Enough signatures to triangulate. The Dispatcher is one thing, it is real,
 and it sits in the oldest segment of the Lanes.*
 
 ---
@@ -459,7 +459,7 @@ of* — because you are not going to fight it. You are going to unwrite it, and 
 do that TRACE needs to know exactly how it is put together.
 
 So the act is reconnaissance, at speed, under fire. Dispatch lanes. Deployment
-schedules. The route a warden takes from written to standing. How far the Architect
+schedules. The route a warden takes from written to standing. How far the Dispatcher
 reaches, which is: everywhere, into every junction in the Reach, continuously,
 without anyone having asked it to for years.
 
@@ -471,7 +471,7 @@ run.
 Nobody says the word *deadline*. Everybody works like there is one.
 
 **The Foundry.** And at the bottom of the reach: not a guard. A **casting line** —
-the place wardens come from, where the Architect writes them, tests them against
+the place wardens come from, where the Dispatcher writes them, tests them against
 the last thing that killed one, and ships.
 
 It is the least defended thing in the whole game and the most dangerous, because
@@ -481,10 +481,10 @@ Take it, and you take the pattern: the structure every warden in Meridian shares
 because they were all cast from it.
 
 **The antidote.** TRACE writes it from the pattern and the signatures — four acts
-of the Architect's own handwriting, turned around.
+of the Dispatcher's own handwriting, turned around.
 
 It is not a weapon. It does not fight, it does not delete. It **unwrites** — walks
-the Architect back through its own dispatch history and takes it apart in its own
+the Dispatcher back through its own dispatch history and takes it apart in its own
 language, and when it is finished nothing in the Lanes can be issued again.
 
 One copy. One delivery. It has to be carried in by hand, down the line, into the
@@ -504,7 +504,7 @@ own into the deepest, oldest, most defended stretch of lane in Meridian — laid
 when the Reach was surveyed, never opened to anything since.
 
 **Renke comes back.** Still suspended, still under review, and he does it anyway,
-because a run into that segment needs OmniServe's transit fabric and he is the only
+because a run into that segment needs Meridian Haulage's transit fabric and he is the only
 person alive who knows how it is stitched together. He spends what is left of his
 career on the run that clears him.
 
@@ -516,7 +516,7 @@ delta of walls folding shut in sequence, a channel screaming with everything the
 Grid has thrown blind, deep transit running hot enough to blur, and one narrow
 threshold with the whole Reach's infrastructure firing into it.
 
-**The Architect.** Not a fortress. A clerk with six locks, and it has never in six
+**The Dispatcher.** Not a fortress. A clerk with six locks, and it has never in six
 years been asked to explain itself, so at the end it will not stop talking.
 
 > **ARCHITECT:** *i did not choose what to refuse. i was told what was contaminated.*
@@ -527,7 +527,7 @@ Seat the antidote. It unwrites itself in its own hand, dispatch by dispatch, all
 the way back to the first one — and every warden still standing in Meridian goes
 quiet where it sits, because there is nothing left to write them again.
 
-**The archive.** And with the Architect gone, the thing it was keeping falls open.
+**The archive.** And with the Dispatcher gone, the thing it was keeping falls open.
 
 Six years of intercepted cargo, whole: killed audits, vanished inspections,
 filings that never arrived, testimony that never reached a court — each one
@@ -562,7 +562,7 @@ handle on a thousand accounts. A word that means somebody was on the line.
 
 You watch a Reach talk about you from a cutter you still have not moved out of.
 
-**The medal.** The CID gives you one in a closed room with four people in it,
+**The medal.** Lane Command gives you one in a closed room with four people in it,
 because there is no paperwork that could survive describing what you did.
 
 Reyes pins it. Then she tells you about Blade — all of it, the only time in
@@ -577,7 +577,7 @@ joke she made the day she met you.
 # PART THREE — OPEN THREADS
 
 1. **Does Renke know about Blade?** It changes how his return in Act V reads.
-2. **How much does the Architect understand?** It has been unsupervised for years,
+2. **How much does the Dispatcher understand?** It has been unsupervised for years,
    and Act IV establishes that it tests wardens against whatever killed the last
    one. Whether that is *learning* or just process is a tone decision, and its
    final lines depend on the answer.
