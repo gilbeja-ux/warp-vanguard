@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1400">
+<title>Destinations Lab — Warp Lane</title>
+<style>
+  /* Desktop-only tuning tool for the things at the ends of lanes. NOT part of
+     the store build. Chrome borrows the game's console language; the preview
+     stage borrows the game's actual void, because the only honest background
+     for a destination is the one it will be seen against. */
+  @font-face {
+    font-family: 'Audiowide';
+    src: url('/fonts/audiowide.woff2') format('woff2');
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+
+  :root {
+    --void:      #02040c;
+    --shell:     #050a16;
+    --panel:     #081226;
+    --panel-2:   #0b1830;
+    --panel-3:   #0f2140;
+    --line:      #14305a;
+    --line-soft: #0e2242;
+    --ink:       #dcecff;
+    --ink-2:     #a8c6e8;
+    --ink-3:     #7b9bc2;
+    --cyan:      #6fe3ff;
+    --gold:      #ffd24a;
+    --red:       #ff3c5a;
+    --green:     #7ee262;
+    --amber:     #ff9a3c;
+
+    --display: 'Audiowide', 'Segoe UI', system-ui, sans-serif;
+    --text: ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --rail: 200px;
+    --dials: 336px;
+    --ease: cubic-bezier(.2, .7, .3, 1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%; background: var(--shell); color: var(--ink);
+    font-family: var(--text); font-size: 13px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, 1fr) var(--dials);
+    grid-template-rows: 52px minmax(0, 1fr);
+    overflow: hidden;
+  }
+  ::selection { background: rgba(111, 227, 255, .26); }
+  * { scrollbar-width: thin; scrollbar-color: #17304f transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #17304f; border: 3px solid var(--shell); border-radius: 6px; }
+
+  /* ══ top bar ══════════════════════════════════════════════════════════ */
+  header {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; gap: 14px; padding: 0 16px;
+    background: linear-gradient(180deg, #0a1730, #061020);
+    border-bottom: 1px solid var(--line);
+    position: relative; z-index: 30;
+  }
+  header::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(111,227,255,.5), transparent);
+  }
+  .brand {
+    font-family: var(--display); font-size: 12px; letter-spacing: 3px;
+    color: var(--cyan); text-transform: uppercase; white-space: nowrap;
+  }
+  .brand span { color: var(--ink-3); }
+  .spacer { flex: 1; }
+
+  .state {
+    display: flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+    padding: 5px 10px; border-radius: 6px; border: 1px solid transparent;
+    transition: color .2s var(--ease), border-color .2s var(--ease);
+  }
+  .state .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+  .state[data-s="dirty"] { color: var(--gold); }
+  .state[data-s="ok"]    { color: var(--green); }
+  .state[data-s="err"]   { color: var(--red); border-color: rgba(255,60,90,.4); }
+  .state[data-s="busy"] .dot { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+
+  button {
+    font-family: var(--text); font-size: 11px; letter-spacing: .8px;
+    text-transform: uppercase; color: var(--ink-2);
+    background: var(--panel-2); border: 1px solid var(--line);
+    padding: 7px 12px; border-radius: 6px; cursor: pointer;
+    transition: all .16s var(--ease);
+  }
+  button:hover { background: var(--panel-3); color: var(--ink); border-color: #1d4173; }
+  button:disabled { opacity: .35; cursor: default; }
+  button.go { color: #041018; background: var(--cyan); border-color: var(--cyan); font-weight: 600; }
+  button.go:hover { background: #9aeeff; color: #041018; }
+  button.go:disabled { background: var(--panel-2); color: var(--ink-3); border-color: var(--line); }
+
+  /* ══ the rail: every destination, by ID ═══════════════════════════════ */
+  nav {
+    background: var(--panel); border-right: 1px solid var(--line);
+    overflow-y: auto; padding: 10px 0 40px;
+  }
+  .group {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 1.6px;
+    text-transform: uppercase; color: #4d6c93;
+    padding: 14px 14px 6px;
+  }
+  .tab {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 12px 7px 14px; cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: background .14s var(--ease);
+  }
+  .tab:hover { background: var(--panel-2); }
+  .tab.on { background: var(--panel-3); border-left-color: var(--cyan); }
+  .tab .id {
+    font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .5px;
+    color: var(--cyan); width: 32px; flex: none;
+  }
+  .tab.on .id { color: #b6f2ff; }
+  .tab .nm { font-size: 12px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tab.on .nm { color: var(--ink); }
+  .tab .chg {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--gold);
+    flex: none; margin-left: auto; box-shadow: 0 0 6px var(--gold); opacity: 0;
+  }
+  .tab.edited .chg { opacity: 1; }
+
+  /* ══ the stage ════════════════════════════════════════════════════════ */
+  main {
+    background: var(--void); overflow-y: auto; position: relative;
+    display: flex; flex-direction: column;
+  }
+  .stage-head {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 16px 22px 0; flex: none;
+  }
+  .stage-head h1 { font-family: var(--display); font-size: 15px; letter-spacing: 2px; color: var(--ink); font-weight: 400; }
+  .stage-head .code {
+    font-family: var(--mono); font-size: 11px; color: #041018; background: var(--cyan);
+    padding: 2px 7px; border-radius: 4px; font-weight: 700; letter-spacing: 1px;
+  }
+  .stage-head .note { font-size: 11px; color: var(--ink-3); margin-left: auto; max-width: 46ch; text-align: right; line-height: 1.45; }
+
+  .hero { flex: 1; display: grid; place-items: center; padding: 10px 22px; min-height: 300px; }
+  .hero canvas { max-width: 100%; }
+  .scales {
+    flex: none; display: flex; gap: 20px; align-items: flex-end; justify-content: center;
+    padding: 12px 22px 22px; border-top: 1px solid var(--line-soft);
+    background: linear-gradient(180deg, rgba(8,18,38,.5), transparent);
+  }
+  .scale { text-align: center; }
+  .scale canvas { display: block; margin: 0 auto 6px; }
+  .scale span {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 1.2px;
+    text-transform: uppercase; color: #4d6c93;
+  }
+  .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 4px 0; padding: 16px 22px 30px; width: 100%; }
+  .cell { text-align: center; padding: 8px 4px; border-radius: 8px; cursor: pointer; transition: background .14s var(--ease); }
+  .cell:hover { background: rgba(15,33,64,.6); }
+  .cell canvas { display: block; margin: 0 auto 7px; }
+  .cell b { display: block; font-family: var(--mono); font-size: 11px; color: var(--cyan); letter-spacing: 1px; }
+  .cell span { display: block; font-size: 10px; color: var(--ink-3); }
+
+  /* the mix tab's own furniture */
+  .mixbar { display: flex; height: 34px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); width: 100%; max-width: 640px; }
+  .mixbar div { display: grid; place-items: center; font-family: var(--mono); font-size: 10px; letter-spacing: 1px; color: #04121c; }
+  .ladder { width: 100%; max-width: 720px; margin-top: 22px; }
+  .ladder .row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .ladder .cn { font-family: var(--mono); font-size: 10px; color: var(--ink-3); width: 120px; flex: none; text-align: right; }
+  .ladder .k {
+    font-family: var(--mono); font-size: 9px; letter-spacing: .5px; padding: 3px 0;
+    border-radius: 3px; flex: 1; text-align: center; color: #04121c; font-weight: 700;
+  }
+  .k-planet { background: #6fe3ff; } .k-station { background: #c4d8f0; }
+  .k-gate { background: #60e0d0; } .k-star { background: #ffd24a; }
+
+  /* ══ the dials ════════════════════════════════════════════════════════ */
+  aside {
+    background: var(--panel); border-left: 1px solid var(--line);
+    overflow-y: auto; padding: 0 0 60px;
+  }
+  .dials-head {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 14px; background: var(--panel);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .dials-head b { font-family: var(--mono); font-size: 10px; letter-spacing: 1.6px; color: #4d6c93; text-transform: uppercase; font-weight: 400; }
+  .dials-head button { padding: 4px 8px; font-size: 10px; }
+
+  .dial { padding: 9px 14px 11px; border-bottom: 1px solid rgba(14,34,66,.55); }
+  .dial.edited { background: rgba(255,210,74,.045); box-shadow: inset 2px 0 0 var(--gold); }
+  .dial > .top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
+  .dial .key { font-family: var(--mono); font-size: 11px; color: var(--ink-2); }
+  .dial .lbl { font-size: 10px; color: #4d6c93; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dial .val {
+    margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--cyan);
+    background: transparent; border: 1px solid transparent; border-radius: 4px;
+    width: 68px; text-align: right; padding: 1px 4px;
+  }
+  .dial .val:hover { border-color: var(--line); }
+  .dial .val:focus { outline: none; border-color: var(--cyan); background: var(--void); color: var(--ink); }
+  .dial.edited .key { color: var(--gold); }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 3px;
+    background: var(--line); border-radius: 2px; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
+    background: var(--ink-2); cursor: pointer; border: 2px solid var(--panel);
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  input[type=range]:hover::-webkit-slider-thumb { background: var(--cyan); }
+
+  .rgb { display: flex; align-items: center; gap: 8px; }
+  .rgb input[type=color] {
+    -webkit-appearance: none; appearance: none; width: 40px; height: 26px;
+    border: 1px solid var(--line); border-radius: 5px; background: none; cursor: pointer; padding: 0;
+  }
+  .rgb input[type=color]::-webkit-color-swatch-wrapper { padding: 2px; }
+  .rgb input[type=color]::-webkit-color-swatch { border: none; border-radius: 3px; }
+  .rgb .trip {
+    flex: 1; font-family: var(--mono); font-size: 11px; color: var(--ink-2);
+    background: var(--void); border: 1px solid var(--line); border-radius: 5px;
+    padding: 4px 7px;
+  }
+  .rgb .trip:focus { outline: none; border-color: var(--cyan); color: var(--ink); }
+
+  .hint { padding: 12px 14px; font-size: 11px; color: #4d6c93; line-height: 1.55; }
+  .hint code { font-family: var(--mono); color: var(--ink-3); }
+
+  .boot { grid-column: 1 / -1; grid-row: 2; display: grid; place-items: center; padding: 40px; }
+  .boot p { font-family: var(--mono); font-size: 12px; color: var(--ink-3); max-width: 60ch; text-align: center; line-height: 1.7; }
+  .boot p b { color: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">DESTINATIONS <span>/ LAB</span></div>
+  <div class="state" id="state" data-s="ok"><i class="dot"></i><span id="stateTxt">in sync with the game</span></div>
+  <div class="spacer"></div>
+  <button id="btnBrief" title="Copy a plain-text list of what you changed, ready to paste into a chat">Copy brief</button>
+  <button id="btnRevert" title="Throw away every change and reload from src/index.html">Revert all</button>
+  <button id="btnApply" class="go" title="Write these values back into src/index.html">Write to game</button>
+</header>
+
+<nav id="rail"></nav>
+<main id="stage"></main>
+<aside id="dials"></aside>
+
+<script>
+'use strict';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   The lab does not own a renderer. It lifts four marked regions out of
+   src/index.html — the data tables, the deterministic pick, the planet pixel
+   shader and the vector art — and evaluates them here. Every pixel on this
+   page therefore comes off the game's own code. If the game changes, the lab
+   changes with it; there is nothing to keep in sync by hand.
+   ───────────────────────────────────────────────────────────────────────── */
+
+let G = null;          // the evaluated game regions
+let DEFAULTS = null;   // deep copy of the tables as the game source has them
+let rev = 0;           // bumped on every edit; keys the sprite cache
+let cur = 'ALL';
+let dirty = false;
+
+const $ = s => document.querySelector(s);
+const clone = o => JSON.parse(JSON.stringify(o));
+
+/* ── dial metadata ───────────────────────────────────────────────────────
+   [label, min, max, step] for a number, or [label, 'rgb'] for a 0–255 triple
+   stored as an array, or [label, 'rgbs'] for one stored as an 'r,g,b' string.
+   A key with no entry here still gets a dial — it just gets a generic range.
+   A key NOT PRESENT on the object gets no dial at all, which is what keeps the
+   lab from inventing fields the writer would then fail to find. */
+const DIALS = {
+  world: {
+    z:    ['surface colour', 'rgb'],
+    belt: ['band colour', 'rgb'],
+    bf:   ['band count', 0.5, 32, 0.1],
+    ba:   ['band strength', 0, 1, 0.01],
+    atmo: ['air colour', 'rgb'],
+    ak:   ['air amount', 0, 3, 0.05],
+    glow: ['belt emission', 0, 2, 0.05],
+    emis: ['self-lit', 0, 1, 0.05]
+  },
+  PLANET_SHADE: {
+    lz:            ['key light toward viewer', 0, 1.5, 0.01],
+    limbK:         ['limb darkening', 0, 1, 0.01],
+    litP:          ['terminator curve', 0.2, 2.5, 0.01],
+    amb:           ['night-side fill', 0, 1, 0.01],
+    ambTint:       ['fill colour', 'rgb'],
+    emisBase:      ['star floor brightness', 0, 1, 0.01],
+    tilt:          ['spin axis x,y,z', 'vec'],
+    h2:            ['2nd harmonic rate', 0, 12, 0.02],
+    h2p:           ['2nd harmonic phase', 0, 6.28, 0.01],
+    h2m:           ['2nd harmonic depth', 0, 1, 0.01],
+    h3:            ['3rd harmonic rate', 0, 16, 0.02],
+    h3p:           ['3rd harmonic phase', 0, 6.28, 0.01],
+    h3m:           ['3rd harmonic depth', 0, 1, 0.01],
+    glowK:         ['glow-belt emission', 0, 400, 1],
+    rimP:          ['rim curve', 0.5, 6, 0.01],
+    rimK:          ['rim strength', 0, 600, 1],
+    shellFall:     ['air shell falloff', 0.5, 10, 0.05],
+    shellFallEmis: ['star shell falloff', 0.5, 10, 0.05],
+    shellSide:     ['shell on the dark side', 0, 1, 0.01],
+    shellA:        ['shell peak alpha', 0, 255, 1]
+  },
+  STATION_SPEC: {
+    spin:   ['fixed rotation', 0, 6.28, 0.01],
+    ringA:  ['habitat ring w,h', 'vec'],
+    ringW:  ['ring line weight', 0, 0.4, 0.005],
+    ringC:  ['ring colour', 'rgbs'],
+    ringO:  ['ring opacity', 0, 1, 0.01],
+    ringB:  ['inner ring w,h', 'vec'],
+    ring2W: ['inner line weight', 0, 0.4, 0.005],
+    ring2C: ['inner colour', 'rgbs'],
+    ring2O: ['inner opacity', 0, 1, 0.01],
+    spine:  ['spine length', 0, 1.5, 0.01],
+    spineW: ['spine weight', 0, 0.4, 0.005],
+    spineC: ['spine colour', 'rgbs'],
+    spineO: ['spine opacity', 0, 1, 0.01],
+    wingY:  ['wing offset', 0, 1.5, 0.01],
+    wingW:  ['wing span', 0, 3, 0.01],
+    wingH:  ['wing thickness', 0, 0.6, 0.005],
+    wingC:  ['wing colour', 'rgbs'],
+    wingO:  ['wing opacity', 0, 1, 0.01],
+    wins:   ['lit windows', 0, 16, 1],
+    winR:   ['window size', 0, 0.3, 0.005],
+    winC:   ['window colour', 'rgbs'],
+    winO:   ['window opacity', 0, 1, 0.01]
+  },
+  GATE_SPEC: {
+    segs:     ['torus segments', 3, 24, 1],
+    gap:      ['segment gap', 0, 0.4, 0.005],
+    torusR:   ['torus radius', 0, 1.5, 0.01],
+    torusW:   ['torus thickness', 0, 0.5, 0.005],
+    torusC:   ['torus colour', 'rgbs'],
+    torusO:   ['torus opacity', 0, 1, 0.01],
+    irisR:    ['iris radius', 0, 1.5, 0.01],
+    irisC0:   ['iris core colour', 'rgbs'],
+    irisA0:   ['iris core alpha', 0, 1, 0.01],
+    irisC1:   ['iris edge colour', 'rgbs'],
+    irisA1:   ['iris edge alpha', 0, 1, 0.01],
+    irisStop: ['iris midpoint', 0, 1, 0.01],
+    arcs:     ['turning arcs', 0, 8, 1],
+    arcR:     ['arc radius', 0, 1.5, 0.01],
+    arcLen:   ['arc length', 0, 6.28, 0.01],
+    arcW:     ['arc weight', 0, 0.3, 0.005],
+    arcC:     ['arc colour', 'rgbs'],
+    arcO:     ['arc opacity', 0, 1, 0.01],
+    spin:     ['spin rate', 0, 2, 0.01]
+  },
+  FIELD_SPEC: {
+    rocks:   ['rock count', 0, 80, 1],
+    spread:  ['clustering', 0.1, 3, 0.02],
+    flatten: ['vertical squash', 0, 1.5, 0.01],
+    szMin:   ['smallest rock', 0, 0.3, 0.002],
+    szVar:   ['size spread', 0, 0.4, 0.002],
+    warmP:   ['share of warm rocks', 0, 1, 0.01],
+    warmC:   ['warm rock colour', 'rgbs'],
+    coldC:   ['cold rock colour', 'rgbs'],
+    aMin:    ['floor opacity', 0, 1, 0.01],
+    aVar:    ['opacity spread', 0, 1, 0.01]
+  },
+  DEST_MIX: {
+    planet:  ['planets per 100 relays', 0, 100, 1],
+    station: ['stations per 100 relays', 0, 100, 1]
+  }
+};
+
+/* Each tab's one-line brief — why this destination exists, so a dial is never
+   moved without knowing what the thing is for. */
+const NOTES = {
+  ALL: 'Every destination the game can put at the end of a lane, at chart scale. Click one to tune it.',
+  SHD: 'The shading model shared by all nine worlds. Move a dial here and every world changes together — that is the point of it being separate.',
+  STN: 'A crewed station. Machined, so it is drawn rather than shaded; the same function serves the chart chip and the full body at the end of the bore.',
+  GAT: 'A jump gate. The segment gaps are load-bearing: an unbroken torus reads as a drawn circle rather than a built object.',
+  FLD: 'An asteroid field. Scenery only — you fly THROUGH one, you never arrive at one, so it is never a mission endpoint.',
+  MIX: 'How often each kind turns up. Gates take whatever planets and stations leave, so those two dials are the whole distribution.',
+  SUN: 'The boss sun. Self-lit, so it has no terminator and no night side — the shading model skips N·L entirely for it.'
+};
+
+/* ── the rail ────────────────────────────────────────────────────────── */
+function railItems() {
+  const out = [{ g: 'OVERVIEW', id: 'ALL', n: 'contact sheet' }];
+  out.push({ g: 'WORLDS', id: 'SHD', n: 'shared shading' });
+  G.PLANET_TYPES.forEach(p => out.push({ id: p.id, n: p.n }));
+  out.push({ id: G.PLANET_STAR.id, n: G.PLANET_STAR.n + ' (boss)' });
+  out.push({ g: 'BUILT & SCENERY', id: G.STATION_SPEC.id, n: G.STATION_SPEC.n });
+  out.push({ id: G.GATE_SPEC.id, n: G.GATE_SPEC.n });
+  out.push({ id: G.FIELD_SPEC.id, n: G.FIELD_SPEC.n });
+  out.push({ g: 'DISTRIBUTION', id: G.DEST_MIX.id, n: 'kind mix' });
+  return out;
+}
+
+function buildRail() {
+  const rail = $('#rail');
+  rail.innerHTML = '';
+  for (const it of railItems()) {
+    if (it.g) {
+      const h = document.createElement('div');
+      h.className = 'group'; h.textContent = it.g;
+      rail.appendChild(h);
+    }
+    const el = document.createElement('div');
+    el.className = 'tab'; el.dataset.id = it.id;
+    el.innerHTML = '<span class="id"></span><span class="nm"></span><i class="chg"></i>';
+    el.querySelector('.id').textContent = it.id;
+    el.querySelector('.nm').textContent = it.n;
+    el.onclick = () => select(it.id);
+    rail.appendChild(el);
+  }
+  markRail();
+}
+
+function markRail() {
+  document.querySelectorAll('.tab').forEach(el => {
+    el.classList.toggle('on', el.dataset.id === cur);
+    el.classList.toggle('edited', tabChanges(el.dataset.id).length > 0);
+  });
+}
+
+/* ── which table does an ID point at ─────────────────────────────────── */
+function target(id) {
+  if (id === 'SHD') return { live: G.PLANET_SHADE, base: DEFAULTS.PLANET_SHADE, dials: DIALS.PLANET_SHADE, name: 'shared shading' };
+  if (id === 'SUN') return { live: G.PLANET_STAR, base: DEFAULTS.PLANET_STAR, dials: DIALS.world, name: G.PLANET_STAR.n };
+  if (id === 'STN') return { live: G.STATION_SPEC, base: DEFAULTS.STATION_SPEC, dials: DIALS.STATION_SPEC, name: 'station' };
+  if (id === 'GAT') return { live: G.GATE_SPEC, base: DEFAULTS.GATE_SPEC, dials: DIALS.GATE_SPEC, name: 'gate' };
+  if (id === 'FLD') return { live: G.FIELD_SPEC, base: DEFAULTS.FIELD_SPEC, dials: DIALS.FIELD_SPEC, name: 'asteroid field' };
+  if (id === 'MIX') return { live: G.DEST_MIX, base: DEFAULTS.DEST_MIX, dials: DIALS.DEST_MIX, name: 'kind mix' };
+  const i = G.PLANET_TYPES.findIndex(p => p.id === id);
+  if (i >= 0) return { live: G.PLANET_TYPES[i], base: DEFAULTS.PLANET_TYPES[i], dials: DIALS.world, name: G.PLANET_TYPES[i].n };
+  return null;
+}
+
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+function tabChanges(id) {
+  const t = target(id);
+  if (!t) return [];
+  return Object.keys(t.live)
+    .filter(k => k !== 'id' && k !== 'n' && !same(t.live[k], t.base[k]))
+    .map(k => ({ id, key: k, from: t.base[k], to: t.live[k] }));
+}
+function allChanges() {
+  return railItems().filter(i => i.id !== 'ALL').flatMap(i => tabChanges(i.id));
+}
+
+/* ── dials ───────────────────────────────────────────────────────────── */
+function buildDials() {
+  const box = $('#dials');
+  box.innerHTML = '';
+  const t = target(cur);
+
+  const head = document.createElement('div');
+  head.className = 'dials-head';
+  head.innerHTML = '<b></b>';
+  head.querySelector('b').textContent = t ? cur + ' — ' + t.name : 'no dials';
+  if (t) {
+    const r = document.createElement('button');
+    r.textContent = 'Reset ' + cur;
+    r.style.marginLeft = 'auto';
+    r.onclick = () => { Object.assign(t.live, clone(t.base)); touched(); buildDials(); };
+    head.appendChild(r);
+  }
+  box.appendChild(head);
+
+  if (!t) {
+    const h = document.createElement('div');
+    h.className = 'hint';
+    h.textContent = 'The contact sheet is a view, not a thing to tune. Pick a destination on the left — or click one in the sheet.';
+    box.appendChild(h);
+    return;
+  }
+
+  for (const key of Object.keys(t.live)) {
+    if (key === 'id' || key === 'n') continue;
+    box.appendChild(dialFor(t, key));
+  }
+
+  const h = document.createElement('div');
+  h.className = 'hint';
+  h.innerHTML = 'Every number here is a fraction of the body radius, so it holds at both the 20px chart chip and the full-size arrival. Say <code>' +
+    cur + '</code> in chat to point me at this one.';
+  if (cur === 'SHD') h.innerHTML = 'These are shared by all nine worlds. Say <code>SHD</code> in chat to point me at them.';
+  box.appendChild(h);
+}
+
+function dialFor(t, key) {
+  const meta = t.dials[key] || ['', 0, 1, 0.01];
+  const kind = typeof meta[1] === 'string' ? meta[1] : 'num';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'dial';
+  wrap.dataset.key = key;
+
+  const top = document.createElement('div');
+  top.className = 'top';
+  top.innerHTML = '<span class="key"></span><span class="lbl"></span>';
+  top.querySelector('.key').textContent = key;
+  top.querySelector('.lbl').textContent = meta[0];
+  wrap.appendChild(top);
+
+  const flagEdited = () => wrap.classList.toggle('edited', !same(t.live[key], t.base[key]));
+
+  // click the key name to put this one dial back
+  top.querySelector('.key').style.cursor = 'pointer';
+  top.querySelector('.key').title = 'reset to the game value';
+  top.querySelector('.key').onclick = () => { t.live[key] = clone(t.base[key]); touched(); buildDials(); };
+
+  if (kind === 'rgb' || kind === 'rgbs') {
+    const asArr = () => kind === 'rgb' ? t.live[key].slice() : t.live[key].split(',').map(Number);
+    const put = arr => {
+      t.live[key] = kind === 'rgb' ? arr : arr.join(',');
+      touched(); flagEdited();
+    };
+    const row = document.createElement('div');
+    row.className = 'rgb';
+    const hex = document.createElement('input');
+    hex.type = 'color';
+    hex.value = '#' + asArr().map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+    const trip = document.createElement('input');
+    trip.className = 'trip'; trip.value = asArr().join(', ');
+    hex.oninput = () => {
+      const v = hex.value;
+      const arr = [1, 3, 5].map(i => parseInt(v.substr(i, 2), 16));
+      trip.value = arr.join(', '); put(arr);
+    };
+    trip.onchange = () => {
+      const arr = trip.value.split(',').map(s => Math.max(0, Math.min(255, Math.round(+s) || 0)));
+      if (arr.length !== 3) { trip.value = asArr().join(', '); return; }
+      hex.value = '#' + arr.map(v => v.toString(16).padStart(2, '0')).join('');
+      put(arr);
+    };
+    row.append(hex, trip);
+    wrap.appendChild(row);
+    flagEdited();
+    return wrap;
+  }
+
+  if (kind === 'vec') {
+    // a small tuple (an axis, an ellipse) — three or two plain numbers, no slider
+    const row = document.createElement('div');
+    row.className = 'rgb';
+    const inp = document.createElement('input');
+    inp.className = 'trip'; inp.value = t.live[key].join(', ');
+    inp.onchange = () => {
+      const arr = inp.value.split(',').map(s => +s);
+      if (arr.length !== t.live[key].length || arr.some(isNaN)) { inp.value = t.live[key].join(', '); return; }
+      t.live[key] = arr; touched(); flagEdited();
+    };
+    row.appendChild(inp);
+    wrap.appendChild(row);
+    flagEdited();
+    return wrap;
+  }
+
+  const [, lo, hi, step] = meta;
+  const val = document.createElement('input');
+  val.className = 'val'; val.value = t.live[key];
+  top.appendChild(val);
+  const rng = document.createElement('input');
+  rng.type = 'range'; rng.min = lo; rng.max = hi; rng.step = step; rng.value = t.live[key];
+  wrap.appendChild(rng);
+
+  rng.oninput = () => { t.live[key] = +rng.value; val.value = rng.value; touched(); flagEdited(); };
+  val.onchange = () => {
+    const v = +val.value;
+    if (isNaN(v)) { val.value = t.live[key]; return; }
+    t.live[key] = v; rng.value = v; touched(); flagEdited();   // typed values may exceed the slider on purpose
+  };
+  flagEdited();
+  return wrap;
+}
+
+/* ── state ───────────────────────────────────────────────────────────── */
+let saveTimer = null;
+function touched() {
+  rev++;
+  dirty = allChanges().length > 0;
+  setState(dirty ? 'dirty' : 'ok',
+    dirty ? allChanges().length + ' change' + (allChanges().length === 1 ? '' : 's') + ' not yet in the game'
+          : 'in sync with the game');
+  markRail();
+  draw();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveWork, 500);
+}
+function setState(s, txt) {
+  $('#state').dataset.s = s;
+  $('#stateTxt').textContent = txt;
+}
+function payload() {
+  return {
+    PLANET_TYPES: G.PLANET_TYPES, PLANET_STAR: G.PLANET_STAR, PLANET_SHADE: G.PLANET_SHADE,
+    STATION_SPEC: G.STATION_SPEC, GATE_SPEC: G.GATE_SPEC, FIELD_SPEC: G.FIELD_SPEC, DEST_MIX: G.DEST_MIX
+  };
+}
+function saveWork() {
+  if (!dirty) { fetch('/api/work', { method: 'DELETE' }); return; }
+  fetch('/api/work', { method: 'PUT', body: JSON.stringify(payload()) }).catch(() => {});
+}
+
+/* ── the stage ───────────────────────────────────────────────────────── */
+const spriteCache = new Map();
+let cacheRev = -1;
+function sprite(V, R) {
+  if (cacheRev !== rev) { spriteCache.clear(); cacheRev = rev; }
+  const k = V.id + '@' + R;
+  if (!spriteCache.has(k)) spriteCache.set(k, G.buildPlanetSprite(R, V));
+  return spriteCache.get(k);
+}
+function blit(c, V, R, x, y) {
+  const s = sprite(V, R);
+  if (!s) return;
+  c.drawImage(s.cv, x - s.S / 2, y - s.S / 2);
+}
+// Any destination, at any radius, on any context — one entry point, so the
+// contact sheet and the hero cannot disagree about how a thing is drawn.
+function drawDest(c, id, R, x, y, t) {
+  if (id === 'STN') return G.drawStationArt(c, x, y, R, 3.1);
+  if (id === 'GAT') return G.drawGateArt(c, x, y, R, t);
+  if (id === 'FLD') return G.drawFieldArt(c, x, y, R, 41);
+  const V = id === 'SUN' ? G.PLANET_STAR : G.PLANET_TYPES.find(p => p.id === id);
+  if (V) blit(c, V, R, x, y);
+}
+function cv(w, h) {
+  const el = document.createElement('canvas');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  el.width = w * dpr; el.height = h * dpr;
+  el.style.width = w + 'px'; el.style.height = h + 'px';
+  const c = el.getContext('2d');
+  c.scale(dpr, dpr);
+  return { el, c, w, h };
+}
+
+let stageDraw = () => {};
+function select(id) {
+  cur = id;
+  markRail();
+  buildStage();
+  buildDials();
+}
+
+function buildStage() {
+  const st = $('#stage');
+  st.innerHTML = '';
+  const t = target(cur);
+
+  const head = document.createElement('div');
+  head.className = 'stage-head';
+  head.innerHTML = '<span class="code"></span><h1></h1><div class="note"></div>';
+  head.querySelector('.code').textContent = cur;
+  head.querySelector('h1').textContent = t ? t.name : 'all destinations';
+  head.querySelector('.note').textContent = NOTES[cur] ||
+    'A world at the end of a lane. It grows across the run and the chart shows the same body as a chip, off this same renderer.';
+  st.appendChild(head);
+
+  if (cur === 'ALL' || cur === 'SHD') return sheetStage(st);
+  if (cur === 'MIX') return mixStage(st);
+  return bodyStage(st);
+}
+
+/* one destination, at the sizes it is actually seen at */
+function bodyStage(st) {
+  const hero = document.createElement('div');
+  hero.className = 'hero';
+  const big = cv(420, 420);
+  hero.appendChild(big.el);
+  st.appendChild(hero);
+
+  const strip = document.createElement('div');
+  strip.className = 'scales';
+  // The three moments a destination is seen at: departure (a speck at the
+  // vanishing point), mid-run, and the chart chip. If it only reads at one of
+  // these it is not finished.
+  const SCALES = [[14, 'departure'], [38, 'mid-run'], [24, 'chart chip']];
+  const small = SCALES.map(([R, label]) => {
+    const s = cv(110, 110);
+    const w = document.createElement('div');
+    w.className = 'scale';
+    const cap = document.createElement('span');
+    cap.textContent = label;
+    w.append(s.el, cap);
+    strip.appendChild(w);
+    return { s, R };
+  });
+  st.appendChild(strip);
+
+  stageDraw = t => {
+    const R = cur === 'FLD' ? 150 : 130;
+    big.c.clearRect(0, 0, big.w, big.h);
+    // the haze the game puts around every body, so a colour is judged in air
+    const V = cur === 'SUN' ? G.PLANET_STAR : G.PLANET_TYPES.find(p => p.id === cur);
+    if (V) {
+      const hz = big.c.createRadialGradient(big.w / 2, big.h / 2, R * 0.8, big.w / 2, big.h / 2, R * 1.9);
+      hz.addColorStop(0, 'rgba(' + V.atmo + ',0.075)');
+      hz.addColorStop(1, 'rgba(' + V.atmo + ',0)');
+      big.c.fillStyle = hz;
+      big.c.fillRect(0, 0, big.w, big.h);
+    }
+    drawDest(big.c, cur, R, big.w / 2, big.h / 2, t);
+    for (const { s, R: r } of small) {
+      s.c.clearRect(0, 0, s.w, s.h);
+      drawDest(s.c, cur, r, s.w / 2, s.h / 2, t);
+    }
+  };
+}
+
+/* every destination at once — the only view that answers "do these read as one
+   set", which is a question no single-body view can be asked */
+function sheetStage(st) {
+  const sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  const ids = cur === 'SHD'
+    ? G.PLANET_TYPES.map(p => p.id).concat(['SUN'])
+    : G.PLANET_TYPES.map(p => p.id).concat(['SUN', 'STN', 'GAT', 'FLD']);
+  const cells = ids.map(id => {
+    const t = target(id);
+    const s = cv(110, 110);
+    const el = document.createElement('div');
+    el.className = 'cell';
+    el.innerHTML = '<b></b><span></span>';
+    el.querySelector('b').textContent = id;
+    el.querySelector('span').textContent = t ? t.name : '';
+    el.insertBefore(s.el, el.firstChild);
+    el.onclick = () => select(id);
+    sheet.appendChild(el);
+    return { s, id };
+  });
+  st.appendChild(sheet);
+  stageDraw = t => {
+    for (const { s, id } of cells) {
+      s.c.clearRect(0, 0, s.w, s.h);
+      drawDest(s.c, id, id === 'FLD' ? 44 : 38, s.w / 2, s.h / 2, t);
+    }
+  };
+}
+
+/* the distribution, and what it actually produces across the campaign ladder */
+const CAMPS = ['investigation', 'going-deeper', 'signal-lost', 'the-bait', 'shutdown'];
+function mixStage(st) {
+  const hero = document.createElement('div');
+  hero.className = 'hero';
+  hero.style.alignContent = 'start';
+  hero.style.paddingTop = '26px';
+
+  const bar = document.createElement('div');
+  bar.className = 'mixbar';
+  hero.appendChild(bar);
+
+  const ladder = document.createElement('div');
+  ladder.className = 'ladder';
+  hero.appendChild(ladder);
+  st.appendChild(hero);
+
+  stageDraw = () => {
+    const p = G.DEST_MIX.planet, s = G.DEST_MIX.station, g = Math.max(0, 100 - p - s);
+    bar.innerHTML = '';
+    for (const [w, lab, col] of [[p, 'PLANET ' + p, '#6fe3ff'], [s, 'STATION ' + s, '#c4d8f0'], [g, 'GATE ' + g, '#60e0d0']]) {
+      const d = document.createElement('div');
+      d.style.flex = w; d.style.background = col;
+      d.textContent = w >= 9 ? lab : '';
+      bar.appendChild(d);
+    }
+    // the real sequence, straight off the game's own picker — the honest answer
+    // to "what will a player actually see", which a percentage cannot give
+    ladder.innerHTML = '';
+    for (const camp of CAMPS) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const nm = document.createElement('div');
+      nm.className = 'cn'; nm.textContent = camp;
+      row.appendChild(nm);
+      for (let lv = 0; lv < 8; lv++) {
+        const isBoss = lv === 7;
+        const kind = G.destKindFor(camp, lv, isBoss);
+        const k = document.createElement('div');
+        k.className = 'k k-' + kind;
+        k.textContent = kind === 'planet' ? G.planetVariantFor(camp, lv, false).id : kind.slice(0, 3).toUpperCase();
+        k.title = camp + ' level ' + (lv + 1) + ' — ' + kind;
+        row.appendChild(k);
+      }
+      ladder.appendChild(row);
+    }
+  };
+}
+
+/* ── the loop ────────────────────────────────────────────────────────── */
+let t0 = performance.now();
+function draw() { stageDraw((performance.now() - t0) / 1000); }
+function loop() { draw(); requestAnimationFrame(loop); }
+
+/* ── buttons ─────────────────────────────────────────────────────────── */
+function brief() {
+  const ch = allChanges();
+  if (!ch.length) return 'DESTINATIONS — nothing changed.';
+  const fmt = v => Array.isArray(v) ? '[' + v.join(', ') + ']' : typeof v === 'string' ? "'" + v + "'" : String(v);
+  const w = Math.max(...ch.map(c => c.key.length));
+  return 'DESTINATIONS — ' + ch.length + ' change' + (ch.length === 1 ? '' : 's') + '\n' +
+    ch.map(c => c.id.padEnd(4) + c.key.padEnd(w + 2) + fmt(c.from) + '  →  ' + fmt(c.to)).join('\n');
+}
+
+$('#btnBrief').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(brief());
+    setState('ok', 'brief copied — paste it into the chat');
+    setTimeout(() => touched(), 1800);
+  } catch (e) { setState('err', 'clipboard refused — brief is in the console'); console.log(brief()); }
+};
+
+$('#btnRevert').onclick = async () => {
+  if (dirty && !confirm('Throw away ' + allChanges().length + ' change(s) and reload from src/index.html?')) return;
+  await fetch('/api/work', { method: 'DELETE' });
+  location.reload();
+};
+
+$('#btnApply').onclick = async () => {
+  if (!dirty) return;
+  setState('busy', 'writing src/index.html…');
+  try {
+    const r = await fetch('/api/apply', { method: 'POST', body: JSON.stringify(payload()) });
+    if (!r.ok) throw new Error(await r.text());
+    // reload so DEFAULTS come back off the file: after a write, "changed"
+    // must mean changed-since-the-write, not changed-since-the-page-opened
+    location.reload();
+  } catch (e) { setState('err', String(e.message || e)); }
+};
+
+// arrows walk the rail, but never while a field has focus
+addEventListener('keydown', e => {
+  if (/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) && !e.altKey) return;
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  const ids = railItems().map(i => i.id);
+  const at = ids.indexOf(cur);
+  select(ids[(at + (e.key === 'ArrowDown' ? 1 : ids.length - 1)) % ids.length]);
+  e.preventDefault();
+});
+
+/* ── boot ────────────────────────────────────────────────────────────── */
+function fail(msg) {
+  document.body.innerHTML = '<div class="boot"><p><b>The lab could not read the game.</b><br><br>' +
+    msg.replace(/</g, '&lt;') + '</p></div>';
+}
+
+(async function boot() {
+  let src;
+  try {
+    const r = await fetch('/api/dest-src');
+    if (!r.ok) throw new Error(await r.text());
+    src = await r.json();
+  } catch (e) { return fail(String(e.message || e)); }
+
+  // The game's own regions, in a scope holding only what they are allowed to
+  // reach. If one of them ever grabs another game global, it fails loudly here
+  // rather than drawing something subtly wrong.
+  try {
+    G = new Function(`
+      const TAU = Math.PI * 2;
+      const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+      const LIGHT_A = -TAU * 0.31;
+      ${src.data}
+      ${src.pick}
+      ${src.sprite}
+      ${src.art}
+      return { PLANET_REF_R, PLANET_TYPES, PLANET_STAR, PLANET_SHADE, STATION_SPEC,
+               GATE_SPEC, FIELD_SPEC, DEST_MIX, planetVariantFor, buildPlanetSprite,
+               destKindFor, drawStationArt, drawGateArt, drawFieldArt };
+    `)();
+  } catch (e) {
+    return fail('The marked regions in src/index.html did not evaluate:\n\n' + (e.message || e));
+  }
+
+  DEFAULTS = clone(payload());
+
+  // a working copy from a previous session, if the tab was closed mid-tune
+  try {
+    const w = await (await fetch('/api/work')).json();
+    if (w) for (const k of Object.keys(w)) {
+      if (Array.isArray(w[k])) w[k].forEach((v, i) => G[k][i] && Object.assign(G[k][i], v));
+      else Object.assign(G[k], w[k]);
+    }
+  } catch (e) {}
+
+  buildRail();
+  select('ALL');
+  dirty = allChanges().length > 0;
+  setState(dirty ? 'dirty' : 'ok', dirty ? 'restored an unsaved session' : 'in sync with the game');
+  markRail();
+  loop();
+})();
+</script>
+</body>
+</html>

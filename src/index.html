@@ -4303,7 +4303,7 @@ function endLevel(win) {
   // whole ceremony hanging in open space next to the destination. It goes here,
   // on the frame the run ends, under the victory flash. (Replays too: they play
   // the same finish.) A failed run keeps its traps — you are still in the lane.
-  pickups = []; latches = [];
+  pickups = []; latches = []; pulseWaves = [];
   if (win) enemies = [];
   // watching a replay: the run reached its end. NO submit, NO progress writes,
   // and NO end screen — but DO play the finish beat (the victory clear-sweep +
@@ -6207,6 +6207,7 @@ const FIELD_SPEC = {
 // whatever planets and stations leave — so these two are the whole dial.
 const DEST_MIX = { id: 'MIX', planet: 62, station: 24 };
 // <<< DEST-DATA
+// >>> DEST-PICK
 // Deterministic per campaign + level, so a given relay always shows the same
 // world — it is a place, not a random skin, and a player can recognise it.
 //
@@ -6225,6 +6226,7 @@ function planetVariantFor(campId, lv, isBoss) {
   h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15;
   return PLANET_TYPES[(h >>> 0) % PLANET_TYPES.length];
 }
+// <<< DEST-PICK
 function planetVariant() {
   return planetVariantFor((typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x',
     levelIdx, !!(LV && LV.boss));
@@ -6241,6 +6243,10 @@ function planetChip(V) {
   return planetChips[V.n];
 }
 let planetSprite = null, planetSpriteKey = '';
+// >>> DEST-SPRITE
+// The lab lifts this function verbatim and runs it against the live tables, so a
+// dial moved in the lab is shaded by the game's own pixel loop. It may reach only
+// TAU, clamp, LIGHT_A and PLANET_SHADE.
 function buildPlanetSprite(R, V) {
   const pad = Math.max(3, Math.round(R * (V.emis ? 1.25 : 0.85)));
   const S = Math.ceil(R * 2 + pad * 2);
@@ -6318,6 +6324,7 @@ function buildPlanetSprite(R, V) {
   c.putImageData(img, 0, 0);
   return { cv, S, R };
 }
+// <<< DEST-SPRITE
 function drawFarGlow(far, vr, g) {
   // 1x at departure, 4x at arrival. laneProgress() is LATCHED and monotonic, so
   // the world never shrinks mid-run and never snaps back when the level ends —
@@ -6566,16 +6573,37 @@ function mkDeepStar() {
 // wrong silhouette entirely. A distant world is a disc with a terminator on it,
 // and the only thing that sells its scale is that the lit limb agrees with the
 // one world key light everything else obeys.
+// The far bodies are DISTANT WORLDS, and two things stopped them reading that
+// way. They grew to a third of the screen before recycling — a world that big is
+// something you are arriving at, which fights the destination for the same job —
+// and every one was the same dark disc with the same lit limb, so nine bodies
+// read as one asset repeated nine times. They are smaller and further now, and
+// each one is drawn from a palette with its own character: some ringed, some
+// banded, all at their own albedo and phase.
+const DEEP_PAL = [
+  ['214,186,150', '132,108,84'],   // ochre dust
+  ['168,198,230', '90,120,160'],   // cold blue
+  ['206,150,116', '120,72,54'],    // rust
+  ['186,206,198', '92,116,112'],   // pale jade
+  ['196,176,214', '104,86,132'],   // violet
+  ['222,214,198', '116,112,104'],  // bare rock
+  ['160,196,182', '78,108,100']    // sea green
+];
 function mkDeepRock() {
+  const big = Math.random() < 0.25;  // a couple of nearer ones, the rest far off
   return {
     a: Math.random() * TAU,
     rf: DEEP_R0 + Math.random() * (DEEP_R1 - DEEP_R0),
-    sz: rand(0.014, 0.048),           // fraction of min side
-    al: 0.10 + Math.random() * 0.16,  // faint: far away, and lit by one distant sun
+    sz: big ? rand(0.021, 0.032) : rand(0.008, 0.019), // fraction of min side
+    al: 0.07 + Math.random() * 0.23,  // faint: far away, and lit by one distant sun
     squash: rand(0.94, 1),            // barely oblate — a body, not an egg
     tilt: Math.random() * TAU,        // which way the oblateness lies
     phase: rand(0.25, 0.95),          // how much of the disc the sun has
-    warm: Math.random() < 0.3,
+    pal: DEEP_PAL[(Math.random() * DEEP_PAL.length) | 0],
+    // a ring system is the strongest silhouette a distant body can have — one in
+    // five carries one, tilted its own way, so the sky has landmarks in it
+    ring: Math.random() < 0.2 ? { tilt: rand(-0.9, 0.9), sq: rand(0.14, 0.34), r0: rand(1.35, 1.55), r1: rand(1.9, 2.4) } : null,
+    bands: Math.random() < 0.35 ? rand(2, 4) | 0 : 0,
     sp: rand(0.7, 1.1)
   };
 }
@@ -6615,11 +6643,23 @@ function drawDeepField(g, dt) {
     rk.rf *= 1 + dt * rate * rk.sp;
     if (rk.rf > DEEP_R1) { Object.assign(rk, mkDeepRock()); rk.rf = DEEP_R0; }
     const px = g.cx + Math.cos(rk.a) * rk.rf * SR, py = g.cy + Math.sin(rk.a) * rk.rf * SR;
-    const rad = Math.min(W, H) * rk.sz * (0.45 + rk.rf * 0.75); // swells as it comes abeam
+    const rad = Math.min(W, H) * rk.sz * (0.5 + rk.rf * 0.34); // swells as it comes abeam
     const rkEdge = clamp((DEEP_R1 - rk.rf) / DEEP_FADE, 0, 1) * clamp((rk.rf - DEEP_R0) / 0.30, 0, 1);
     if (rkEdge <= 0.01) continue; // faded both ends — never a pop, never a snap
-    if (px < -rad * 2 || px > W + rad * 2 || py < -rad * 2 || py > H + rad * 2) continue;
+    if (px < -rad * 3 || px > W + rad * 3 || py < -rad * 3 || py > H + rad * 3) continue;
     const al = rk.al * rkEdge;
+    const [lit, mid] = rk.pal;
+    // the ring's BACK half goes down first, so the body occludes it — that
+    // overlap is the entire reason a ring reads as a ring and not as a halo
+    if (rk.ring) {
+      const rg3 = rk.ring;
+      ctx.save();
+      ctx.translate(px, py); ctx.rotate(rk.tilt + rg3.tilt); ctx.scale(1, rg3.sq);
+      ctx.strokeStyle = `rgba(${mid},${(al * 0.5).toFixed(3)})`;
+      ctx.lineWidth = rad * (rg3.r1 - rg3.r0) / rg3.sq * 0.34;
+      ctx.beginPath(); ctx.arc(0, 0, rad * (rg3.r0 + rg3.r1) / 2, Math.PI, TAU); ctx.stroke();
+      ctx.restore();
+    }
     ctx.save();
     ctx.translate(px, py); ctx.rotate(rk.tilt);
     ctx.scale(1, rk.squash); // barely oblate — a body, not an egg, and never faceted
@@ -6634,13 +6674,35 @@ function drawDeepField(g, dt) {
     const la = LIGHT_A - rk.tilt;
     const lx = Math.cos(la), ly = Math.sin(la);
     const lg = ctx.createRadialGradient(lx * rad * 0.72, ly * rad * 0.72, 0, 0, 0, rad * 1.5);
-    const warm = rk.warm;
-    lg.addColorStop(0, `rgba(${warm ? '214,186,150' : '168,198,230'},${(al * rk.phase).toFixed(3)})`);
-    lg.addColorStop(0.42, `rgba(${warm ? '132,108,84' : '90,120,160'},${(al * 0.26).toFixed(3)})`);
+    lg.addColorStop(0, `rgba(${lit},${(al * rk.phase).toFixed(3)})`);
+    lg.addColorStop(0.42, `rgba(${mid},${(al * 0.26).toFixed(3)})`);
     lg.addColorStop(1, 'rgba(30,44,70,0)');
     ctx.fillStyle = lg;
     ctx.fill();
+    // latitude banding on the gas giants — clipped to the disc, running across
+    // the lit face only, so it never turns into a striped coin on the night side
+    if (rk.bands && rad > 6) {
+      ctx.save();
+      ctx.clip();
+      ctx.strokeStyle = `rgba(${mid},${(al * 0.5).toFixed(3)})`;
+      for (let b2 = 0; b2 < rk.bands; b2++) {
+        const yy = (b2 + 0.7) / (rk.bands + 0.4) * 2 * rad - rad;
+        ctx.lineWidth = rad * 0.13;
+        ctx.beginPath(); ctx.moveTo(-rad, yy); ctx.lineTo(rad, yy); ctx.stroke();
+      }
+      ctx.restore();
+    }
     ctx.restore();
+    // ...and the FRONT half over the top
+    if (rk.ring) {
+      const rg3 = rk.ring;
+      ctx.save();
+      ctx.translate(px, py); ctx.rotate(rk.tilt + rg3.tilt); ctx.scale(1, rg3.sq);
+      ctx.strokeStyle = `rgba(${lit},${(al * 0.62).toFixed(3)})`;
+      ctx.lineWidth = rad * (rg3.r1 - rg3.r0) / rg3.sq * 0.34;
+      ctx.beginPath(); ctx.arc(0, 0, rad * (rg3.r0 + rg3.r1) / 2, 0, Math.PI); ctx.stroke();
+      ctx.restore();
+    }
   }
   // --- the cruise wisps: long soft smears drifting among the points ---
   // Radial, so they agree with the direction of travel, and longer the further
@@ -12164,6 +12226,7 @@ let CITY_CHAINS = [];
 // TOP (the building wireframe). The live route draws between them, so the data
 // infrastructure reads as underground — ghosting through the towers.
 // ---------- DESTINATION KINDS ----------
+// >>> DEST-ART
 // A relay delivers to a place, and places are not all planets. Kind is chosen
 // deterministically from campaign + level, exactly like the planet variant, so
 // the chart and the end of the lane always agree about what is out there.
@@ -12176,69 +12239,79 @@ function destKindFor(campId, lv, isBoss) {
   for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
   h ^= h >>> 15; h = Math.imul(h, 0x2545f491); h ^= h >>> 13;
   const q = (h >>> 0) % 100;
-  return q < 62 ? 'planet' : q < 86 ? 'station' : 'gate';
+  // gates take whatever planets and stations leave, so the mix can never overflow
+  return q < DEST_MIX.planet ? 'planet'
+    : q < DEST_MIX.planet + DEST_MIX.station ? 'station' : 'gate';
 }
 // Vector-drawn destinations. Stations and gates are machined objects, so they are
 // drawn rather than shaded per pixel — and drawing them means the SAME function
 // serves the 20px chip on the chart and the full-size body at the end of the
 // bore, which is what stops the two from ever drifting apart.
+//
+// The destinations lab lifts this region verbatim and runs it against the live
+// spec tables, so what the lab shows is what the game draws. Nothing in here may
+// reach outside TAU, clamp and its own SPEC.
 function drawStationArt(c, x, y, R, seed) {
-  const rot = seed * 1.7;
+  const P = STATION_SPEC;
+  const rot = seed * P.spin;
   c.save(); c.translate(x, y); c.rotate(rot);
-  c.strokeStyle = 'rgba(196,216,240,0.85)'; c.lineWidth = Math.max(0.6, R * 0.10);
-  c.beginPath(); c.ellipse(0, 0, R * 0.92, R * 0.34, 0, 0, TAU); c.stroke();   // the ring
-  c.strokeStyle = 'rgba(150,176,210,0.55)'; c.lineWidth = Math.max(0.5, R * 0.07);
-  c.beginPath(); c.ellipse(0, 0, R * 0.62, R * 0.22, 0, 0, TAU); c.stroke();   // inner ring
-  c.strokeStyle = 'rgba(206,224,246,0.9)'; c.lineWidth = Math.max(0.6, R * 0.13);
-  c.beginPath(); c.moveTo(0, -R * 0.85); c.lineTo(0, R * 0.85); c.stroke();     // the spine
-  c.fillStyle = 'rgba(120,146,180,0.9)';
-  for (const sy of [-0.62, 0.62]) {                                             // solar wings
-    c.fillRect(-R * 0.78, sy * R - R * 0.07, R * 1.56, R * 0.14);
+  c.strokeStyle = `rgba(${P.ringC},${P.ringO})`; c.lineWidth = Math.max(0.6, R * P.ringW);
+  c.beginPath(); c.ellipse(0, 0, R * P.ringA[0], R * P.ringA[1], 0, 0, TAU); c.stroke();   // the ring
+  c.strokeStyle = `rgba(${P.ring2C},${P.ring2O})`; c.lineWidth = Math.max(0.5, R * P.ring2W);
+  c.beginPath(); c.ellipse(0, 0, R * P.ringB[0], R * P.ringB[1], 0, 0, TAU); c.stroke();   // inner ring
+  c.strokeStyle = `rgba(${P.spineC},${P.spineO})`; c.lineWidth = Math.max(0.6, R * P.spineW);
+  c.beginPath(); c.moveTo(0, -R * P.spine); c.lineTo(0, R * P.spine); c.stroke();          // the spine
+  c.fillStyle = `rgba(${P.wingC},${P.wingO})`;
+  for (const sy of [-P.wingY, P.wingY]) {                                                  // solar wings
+    c.fillRect(-R * P.wingW / 2, sy * R - R * P.wingH / 2, R * P.wingW, R * P.wingH);
   }
-  c.fillStyle = 'rgba(255,214,120,0.95)';                                       // lit windows
-  for (let i = 0; i < 5; i++) {
-    const a2 = (i / 5) * TAU + rot;
-    c.beginPath(); c.arc(Math.cos(a2) * R * 0.92, Math.sin(a2) * R * 0.34, Math.max(0.5, R * 0.075), 0, TAU); c.fill();
+  c.fillStyle = `rgba(${P.winC},${P.winO})`;                                               // lit windows
+  for (let i = 0; i < P.wins; i++) {
+    const a2 = (i / P.wins) * TAU + rot;
+    c.beginPath(); c.arc(Math.cos(a2) * R * P.ringA[0], Math.sin(a2) * R * P.ringA[1], Math.max(0.5, R * P.winR), 0, TAU); c.fill();
   }
   c.restore();
 }
 function drawGateArt(c, x, y, R, t) {
-  const spin = t * 0.35;
+  const P = GATE_SPEC;
+  const spin = t * P.spin;
   c.save(); c.translate(x, y);
-  // the torus: eight segments, so it reads as built rather than as a drawn circle
-  c.strokeStyle = 'rgba(178,200,232,0.9)'; c.lineWidth = Math.max(0.8, R * 0.17);
-  for (let i = 0; i < 8; i++) {
-    const a0 = (i / 8) * TAU + 0.06, a1 = ((i + 1) / 8) * TAU - 0.06;
-    c.beginPath(); c.arc(0, 0, R * 0.86, a0, a1); c.stroke();
+  // the torus: segmented, so it reads as built rather than as a drawn circle
+  c.strokeStyle = `rgba(${P.torusC},${P.torusO})`; c.lineWidth = Math.max(0.8, R * P.torusW);
+  for (let i = 0; i < P.segs; i++) {
+    const a0 = (i / P.segs) * TAU + P.gap, a1 = ((i + 1) / P.segs) * TAU - P.gap;
+    c.beginPath(); c.arc(0, 0, R * P.torusR, a0, a1); c.stroke();
   }
   // the iris: energy standing in the throat, turning
-  const ir = c.createRadialGradient(0, 0, 0, 0, 0, R * 0.72);
-  ir.addColorStop(0, 'rgba(150,242,228,0.42)');
-  ir.addColorStop(0.55, 'rgba(96,224,208,0.20)');
-  ir.addColorStop(1, 'rgba(96,224,208,0)');
+  const ir = c.createRadialGradient(0, 0, 0, 0, 0, R * P.irisR);
+  ir.addColorStop(0, `rgba(${P.irisC0},${P.irisA0})`);
+  ir.addColorStop(P.irisStop, `rgba(${P.irisC1},${P.irisA1})`);
+  ir.addColorStop(1, `rgba(${P.irisC1},0)`);
   c.fillStyle = ir;
-  c.beginPath(); c.arc(0, 0, R * 0.72, 0, TAU); c.fill();
-  c.strokeStyle = 'rgba(180,250,238,0.5)'; c.lineWidth = Math.max(0.5, R * 0.05);
-  for (let i = 0; i < 3; i++) {
-    const a0 = spin + (i / 3) * TAU;
-    c.beginPath(); c.arc(0, 0, R * 0.55, a0, a0 + 1.1); c.stroke();
+  c.beginPath(); c.arc(0, 0, R * P.irisR, 0, TAU); c.fill();
+  c.strokeStyle = `rgba(${P.arcC},${P.arcO})`; c.lineWidth = Math.max(0.5, R * P.arcW);
+  for (let i = 0; i < P.arcs; i++) {
+    const a0 = spin + (i / P.arcs) * TAU;
+    c.beginPath(); c.arc(0, 0, R * P.arcR, a0, a0 + P.arcLen); c.stroke();
   }
   c.restore();
 }
 function drawFieldArt(c, x, y, R, seed) {
   // an asteroid field: a drift of rocks, no silhouette of its own
+  const P = FIELD_SPEC;
   c.save(); c.translate(x, y);
   let h = seed * 9301 + 49297;
   const rnd = () => { h = (h * 9301 + 49297) % 233280; return h / 233280; };
-  for (let i = 0; i < 22; i++) {
-    const a2 = rnd() * TAU, rr = Math.pow(rnd(), 0.6) * R;
-    const px = Math.cos(a2) * rr, py = Math.sin(a2) * rr * 0.55;
-    const sz = Math.max(0.5, R * (0.045 + rnd() * 0.10));
-    c.fillStyle = `rgba(${rnd() < 0.3 ? '188,164,140' : '150,166,190'},${(0.30 + rnd() * 0.5).toFixed(2)})`;
+  for (let i = 0; i < P.rocks; i++) {
+    const a2 = rnd() * TAU, rr = Math.pow(rnd(), P.spread) * R;
+    const px = Math.cos(a2) * rr, py = Math.sin(a2) * rr * P.flatten;
+    const sz = Math.max(0.5, R * (P.szMin + rnd() * P.szVar));
+    c.fillStyle = `rgba(${rnd() < P.warmP ? P.warmC : P.coldC},${(P.aMin + rnd() * P.aVar).toFixed(2)})`;
     c.beginPath(); c.ellipse(px, py, sz, sz * (0.6 + rnd() * 0.4), rnd() * TAU, 0, TAU); c.fill();
   }
   c.restore();
 }
+// <<< DEST-ART
 
 // ---------- THE GALAXY CHART ----------
 // Replaces the isometric city wholesale. The structure that survives is the one
@@ -12277,7 +12350,11 @@ function laneArc(A, B) {
 // random bearings and random depths within that annulus. The band still says
 // exactly what it said before about cover; the walk through it is no longer a
 // parade.
-const BANDS = [[340, 700], [700, 1080], [1080, 1480], [1480, 1900], [1900, 2340]];
+// Deliberately SMALL against the 5200x3100 sheet. Vastness cannot come from a
+// bigger bitmap — two layers at this size are already 123MB — so it comes from
+// the RATIO: the whole patrolled region spans about a fifth of the chart, the
+// lens closes in on one hop, and a run shows roughly 7% of the galaxy.
+const BANDS = [[170, 340], [340, 520], [520, 720], [720, 930], [930, 1150]];
 let SCENERY = [];   // non-mission destinations: the rest of the settled volume
 function buildCity() {
   const rng = mulberry32(0xC17C0DE);
@@ -12372,176 +12449,223 @@ function buildCity() {
     r0: b[0], r1: b[1], name: RING_NAMES[Math.min(i, RING_NAMES.length - 1)]
   }));
 
-  // ---- SCENERY: the settled volume the missions pass through ----
-  // The chart would read as five lonely dots on a spiral without it. These are
-  // real places with no case attached — most of a star system is not your job.
+  // ---- STAR SYSTEMS: what a galaxy is actually made of ----
+  // Not scattered glyphs. A system is ONE star with planets around it, and the
+  // galaxy is hundreds of them — denser along the arms, thinning into the halo.
+  // Drawing them as systems rather than as icons is the whole difference between
+  // a chart that reads as space and one that reads as a diagram of space.
   SCENERY = [];
-  const KINDS = ['planet', 'planet', 'planet', 'station', 'station', 'gate', 'field', 'field'];
-  for (let i = 0; i < 380; i++) {
-    const rad = 210 + Math.pow(rng(), 0.72) * 2450;
-    const p2 = fromPolar(rad, rng() * TAU);
-    if (p2.x < 90 || p2.x > CITY_W - 90 || p2.y < 80 || p2.y > CITY_H - 80) continue;
-    // never crowd a mission relay — the route is the loudest thing on this chart
-    if (pts.some(q => Math.hypot(q.x - p2.x, (q.y - p2.y) * 1.8) < 120)) continue;
-    if (SCENERY.some(q => Math.hypot(q.x - p2.x, (q.y - p2.y) * 1.8) < 78)) continue;
-    const kind = KINDS[rng() * KINDS.length | 0];
-    SCENERY.push({
-      x: p2.x, y: p2.y, kind,
-      V: PLANET_TYPES[rng() * PLANET_TYPES.length | 0],
-      sz: (kind === 'field' ? 34 : kind === 'gate' ? 15 : kind === 'station' ? 13 : 11) * (0.7 + rng() * 0.8),
-      seed: rng() * 100,
-      far: groundR(p2.x, p2.y)
-    });
+  const STAR_CLASS = [
+    { c: '190,214,255', g: '120,170,255', r: 3.4 },  // blue-white
+    { c: '236,244,255', g: '170,200,255', r: 2.8 },  // white
+    { c: '255,244,206', g: '255,214,140', r: 2.6 },  // yellow
+    { c: '255,214,158', g: '255,170,90',  r: 2.3 },  // orange
+    { c: '255,176,140', g: '255,120,70',  r: 2.0 },  // red dwarf
+    { c: '255,176,140', g: '255,120,70',  r: 2.0 }
+  ];
+  // two logarithmic arms, the same squash as everything else on this chart
+  const armAt = (t, arm) => {
+    const a2 = arm * Math.PI + t * 4.4;
+    const rr = 300 + Math.pow(t, 0.88) * 2500;
+    return { a: a2, r: rr, spread: 130 + t * 340 };
+  };
+  const mkSystem = (x, y) => {
+    if (x < 60 || x > CITY_W - 60 || y < 50 || y > CITY_H - 50) return;
+    const far = groundR(x, y);
+    const cls = STAR_CLASS[rng() * STAR_CLASS.length | 0];
+    const np = 1 + (rng() * 5 | 0);
+    const planets = [];
+    let orb = cls.r * 3.2 + rng() * 6;
+    for (let k = 0; k < np; k++) {
+      orb += 5 + rng() * 13;
+      planets.push({ o: orb, a: rng() * TAU, sz: 0.7 + rng() * 1.3, V: PLANET_TYPES[rng() * PLANET_TYPES.length | 0] });
+    }
+    SCENERY.push({ x, y, cls, planets, far, station: rng() < 0.14, seed: rng() * 100 });
+  };
+  for (let arm = 0; arm < 2; arm++) {
+    for (let i = 0; i < 300; i++) {
+      const t = Math.pow(rng(), 0.72);
+      const A2 = armAt(t, arm);
+      const off = ((rng() + rng() + rng() - 1.5) / 1.5) * A2.spread;
+      const ang2 = A2.a + off / Math.max(60, A2.r);
+      const rr = A2.r + off * 0.6;
+      mkSystem(CITY_CORE.x + Math.cos(ang2) * rr, CITY_CORE.y + Math.sin(ang2) * rr * 0.5);
+    }
   }
+  for (let i = 0; i < 260; i++) {           // the halo — sparser, everywhere
+    const rr = 200 + Math.pow(rng(), 0.6) * 2650;
+    const ang2 = rng() * TAU;
+    mkSystem(CITY_CORE.x + Math.cos(ang2) * rr, CITY_CORE.y + Math.sin(ang2) * rr * 0.5);
+  }
+  for (const q of pts) mkSystem(q.x, q.y);  // every relay is a system too
 
-  // ---------- BASE: space, the sun, the cordons, the lane web ----------
+  // ---------- BASE: the galaxy ----------
   cityBase = document.createElement('canvas');
   cityBase.width = CITY_W; cityBase.height = CITY_H;
   withCanvas(cityBase, () => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, CITY_W, CITY_H);
     ctx.lineCap = 'round';
-    ctx.fillStyle = '#01030a'; ctx.fillRect(0, 0, CITY_W, CITY_H);
-    // --- deep space: a dust band across the sheet, then stars concentrated in it
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const bA = -0.30, bc = Math.cos(bA), bs2 = Math.sin(bA);
-    const bandW = CITY_H * 0.34;
-    for (let i = 0; i < 680; i++) {
-      const t2 = (rng() - 0.5) * CITY_W * 1.5;
-      const wob = Math.sin(t2 * 0.0013) * bandW * 0.34;
-      const perp = ((rng() + rng() + rng() - 1.5) / 1.5) * bandW + wob;
-      const bx = CITY_W * 0.5 + bc * t2 - bs2 * perp, by = CITY_H * 0.52 + bs2 * t2 + bc * perp;
-      const q = clamp(1 - Math.abs(perp - wob) / bandW, 0, 1);
-      const br = 60 + rng() * 260;
-      const al = (0.006 + rng() * 0.020) * (0.3 + q);
-      const col = q > 0.6 ? '150,124,88' : q > 0.3 ? '112,92,72' : '72,68,92';
-      const gr2 = ctx.createRadialGradient(bx, by, 0, bx, by, br);
-      gr2.addColorStop(0, `rgba(${col},${al.toFixed(4)})`);
-      gr2.addColorStop(1, `rgba(${col},0)`);
-      ctx.fillStyle = gr2;
-      ctx.beginPath(); ctx.arc(bx, by, br, 0, TAU); ctx.fill();
-    }
-    ctx.restore();
-    const SCOL = ['206,224,255', '255,238,214', '255,208,168', '212,198,255', '188,240,255'];
-    for (let i = 0; i < 5600; i++) {
+    ctx.fillStyle = '#010207'; ctx.fillRect(0, 0, CITY_W, CITY_H);
+    // --- the field stars: thousands, so the sheet is never empty anywhere ---
+    const SCOL = ['206,224,255', '255,242,222', '255,212,172', '214,200,255', '190,240,255'];
+    for (let i = 0; i < 9000; i++) {
       const x2 = rng() * CITY_W, y2 = rng() * CITY_H;
-      const big = rng() < 0.03;
-      const al = big ? 0.4 + rng() * 0.45 : 0.05 + rng() * 0.30;
+      const big = rng() < 0.016;
+      const al = big ? 0.45 + rng() * 0.5 : 0.05 + rng() * 0.26;
       const col = SCOL[rng() * SCOL.length | 0];
       if (big) {
-        const gg = ctx.createRadialGradient(x2, y2, 0, x2, y2, 9);
-        gg.addColorStop(0, `rgba(${col},${(al * 0.4).toFixed(3)})`);
+        const gg = ctx.createRadialGradient(x2, y2, 0, x2, y2, 10);
+        gg.addColorStop(0, `rgba(${col},${(al * 0.42).toFixed(3)})`);
         gg.addColorStop(1, `rgba(${col},0)`);
-        ctx.fillStyle = gg;
-        ctx.beginPath(); ctx.arc(x2, y2, 9, 0, TAU); ctx.fill();
+        ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(x2, y2, 10, 0, TAU); ctx.fill();
       }
       ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
-      ctx.beginPath(); ctx.arc(x2, y2, big ? 1.5 : 0.3 + rng() * 0.7, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(x2, y2, big ? 1.6 : 0.28 + rng() * 0.65, 0, TAU); ctx.fill();
     }
-    // --- THE SUN, and the cordons are its orbits ---
-    isoRadial(0, 1250, ['rgba(255,206,120,0.16)', 'rgba(230,150,60,0.06)', 'rgba(60,30,10,0)']);
-    const sun = ctx.createRadialGradient(CITY_CORE.x, CITY_CORE.y, 0, CITY_CORE.x, CITY_CORE.y, 250);
-    sun.addColorStop(0, 'rgba(255,252,236,1)');
-    sun.addColorStop(0.13, 'rgba(255,226,150,0.95)');
-    sun.addColorStop(0.34, 'rgba(255,170,66,0.45)');
-    sun.addColorStop(0.7, 'rgba(220,110,30,0.14)');
-    sun.addColorStop(1, 'rgba(160,70,20,0)');
-    ctx.fillStyle = sun;
-    ctx.beginPath(); ctx.arc(CITY_CORE.x, CITY_CORE.y, 250, 0, TAU); ctx.fill();
-    // faint orbit hairlines, so the volume reads as a system and not a void
-    ctx.strokeStyle = 'rgba(140,180,240,0.05)'; ctx.lineWidth = 1.2;
-    for (let r2 = 360; r2 < 2500; r2 += 152) { isoEllipse(r2); ctx.stroke(); }
-    // --- the lane web: charted routes between the scenery, faint ---
-    ctx.strokeStyle = 'rgba(90,190,235,0.10)'; ctx.lineWidth = 1.3;
-    for (let i = 0; i < SCENERY.length; i++) {
-      const A2 = SCENERY[i];
-      let best = null, bd = 1e9;
-      for (let j = 0; j < SCENERY.length; j++) {
-        if (j === i) continue;
-        const d = Math.hypot(SCENERY[j].x - A2.x, (SCENERY[j].y - A2.y) * 1.8);
-        if (d < bd && d > 40) { bd = d; best = SCENERY[j]; }
+    // --- the arms: dust and unresolved starlight wound out of the core ---
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let arm = 0; arm < 2; arm++) {
+      for (let i = 0; i < 2400; i++) {
+        const t = Math.pow(rng(), 0.78);
+        const A2 = armAt(t, arm);
+        const off = ((rng() + rng() + rng() - 1.5) / 1.5) * A2.spread;
+        const ang2 = A2.a + off / Math.max(60, A2.r);
+        const rr = A2.r + off * 0.6;
+        const x2 = CITY_CORE.x + Math.cos(ang2) * rr, y2 = CITY_CORE.y + Math.sin(ang2) * rr * 0.5;
+        const q = 1 - Math.min(1, Math.abs(off) / A2.spread);
+        const br = 26 + rng() * 130;
+        // arms run blue-white at the edges where young stars are, warmer inward
+        const col = t < 0.30 ? '206,178,140' : q > 0.55 ? '186,206,255' : '132,150,214';
+        const al = (0.010 + rng() * 0.030) * (0.25 + q) * (1 - t * 0.35);
+        const gr2 = ctx.createRadialGradient(x2, y2, 0, x2, y2, br);
+        gr2.addColorStop(0, `rgba(${col},${al.toFixed(4)})`);
+        gr2.addColorStop(1, `rgba(${col},0)`);
+        ctx.fillStyle = gr2;
+        ctx.beginPath(); ctx.arc(x2, y2, br, 0, TAU); ctx.fill();
       }
-      if (best && bd < 330) {
-        const arc2 = laneArc(A2, best);
-        ctx.beginPath();
-        arc2.forEach((q, k) => k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y));
-        ctx.stroke();
+    }
+    // --- the bulge: the old yellow core every spiral has ---
+    for (const [rad, col, al] of [[1150, '196,168,120', 0.030], [700, '236,214,168', 0.055], [380, '255,244,214', 0.10], [180, '255,252,240', 0.16]]) {
+      const gg = ctx.createRadialGradient(CITY_CORE.x, CITY_CORE.y, 0, CITY_CORE.x, CITY_CORE.y, rad);
+      gg.addColorStop(0, `rgba(${col},${al})`);
+      gg.addColorStop(0.45, `rgba(${col},${(al * 0.45).toFixed(4)})`);
+      gg.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = gg;
+      ctx.save(); ctx.translate(CITY_CORE.x, CITY_CORE.y); ctx.scale(1, 0.5); ctx.translate(-CITY_CORE.x, -CITY_CORE.y);
+      ctx.beginPath(); ctx.arc(CITY_CORE.x, CITY_CORE.y, rad, 0, TAU); ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+    // --- DARK DUST LANES: the feature that stops arms reading as airbrush ---
+    for (let arm = 0; arm < 2; arm++) {
+      for (let i = 0; i < 900; i++) {
+        const t = Math.pow(rng(), 0.8);
+        const A2 = armAt(t, arm);
+        // the lane rides just INSIDE its arm, as real dust does
+        const off = -A2.spread * (0.30 + rng() * 0.45) + (rng() - 0.5) * A2.spread * 0.35;
+        const ang2 = A2.a + off / Math.max(60, A2.r);
+        const rr = A2.r + off * 0.6;
+        const x2 = CITY_CORE.x + Math.cos(ang2) * rr, y2 = CITY_CORE.y + Math.sin(ang2) * rr * 0.5;
+        const br = 24 + rng() * 96;
+        const gg = ctx.createRadialGradient(x2, y2, 0, x2, y2, br);
+        gg.addColorStop(0, `rgba(2,3,10,${(0.10 + rng() * 0.26).toFixed(3)})`);
+        gg.addColorStop(1, 'rgba(2,3,10,0)');
+        ctx.fillStyle = gg;
+        ctx.beginPath(); ctx.arc(x2, y2, br, 0, TAU); ctx.fill();
       }
     }
     cityBloom(cityBase, 5, 0.7);
-    cityFalloff();
-    // ---- the patrol cordons, over the geography: they are the escort picket ----
+    // ---- the patrol cordons, over the galaxy: the escort picket ----
     const ringCol = i => i < 1 ? '126,226,98' : i < 3 ? '255,200,80' : '255,110,110';
     const perimeter = (r, col, a) => {
       ctx.save();
       ctx.strokeStyle = `rgba(${col},${a.toFixed(2)})`;
-      ctx.lineWidth = 3;
-      ctx.setLineDash([26, 16]);
+      ctx.lineWidth = 2.2;
+      ctx.setLineDash([18, 12]);
       isoEllipse(r); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.strokeStyle = `rgba(${col},${(a * 0.28).toFixed(2)})`;
-      ctx.lineWidth = 11;
+      ctx.strokeStyle = `rgba(${col},${(a * 0.26).toFixed(2)})`;
+      ctx.lineWidth = 8;
       isoEllipse(r); ctx.stroke();
-      ctx.fillStyle = `rgba(${col},${(a * 0.9).toFixed(2)})`; // picket stations stud the cordon
-      for (let k = 0; k < 24; k++) {
-        const a2 = k / 24 * TAU;
-        ctx.fillRect(CITY_CORE.x + Math.cos(a2) * r - 2.5, CITY_CORE.y + Math.sin(a2) * r * 0.5 - 2.5, 5, 5);
+      ctx.fillStyle = `rgba(${col},${(a * 0.9).toFixed(2)})`;
+      for (let k = 0; k < 30; k++) {
+        const a2 = k / 30 * TAU;
+        ctx.fillRect(CITY_CORE.x + Math.cos(a2) * r - 2, CITY_CORE.y + Math.sin(a2) * r * 0.5 - 2, 4, 4);
       }
       ctx.restore();
     };
-    if (RINGS.length) perimeter(RINGS[0].r0, '126,226,98', 0.75); // the core wall
+    if (RINGS.length) perimeter(RINGS[0].r0, '126,226,98', 0.75);
     RINGS.forEach((ring2, i) => {
       const col = ringCol(i), q = 1 - i / Math.max(1, RINGS.length);
       perimeter(ring2.r1, col, 0.28 + q * 0.34);
       const lr = (ring2.r0 + ring2.r1) / 2;
-      const lx = CITY_CORE.x - lr * 0.74, ly = CITY_CORE.y - lr * 0.5 * 0.74 - 8;
+      const lx = CITY_CORE.x - lr * 0.74, ly = CITY_CORE.y - lr * 0.5 * 0.74 - 6;
       ctx.textAlign = 'left';
       ctx.fillStyle = `rgba(${col},${(0.45 + q * 0.35).toFixed(2)})`;
-      ctx.font = '700 13px Audiowide, system-ui';
+      ctx.font = '700 11px Audiowide, system-ui';
       ctx.fillText('CORDON 0' + (i + 1) + ' · ' + ring2.name, lx, ly);
       ctx.fillStyle = 'rgba(150,205,255,0.55)';
-      ctx.font = '500 10px Audiowide, system-ui';
-      ctx.fillText('COVER ' + shieldAt(ring2.r1) + '-' + shieldAt(ring2.r0) + '%', lx, ly + 14);
+      ctx.font = '500 9px Audiowide, system-ui';
+      ctx.fillText('COVER ' + shieldAt(ring2.r1) + '-' + shieldAt(ring2.r0) + '%', lx, ly + 12);
     });
     ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(255,214,140,0.85)';
-    ctx.font = '700 12px Audiowide, system-ui';
-    if (RINGS.length) ctx.fillText(CORE_NAME, CITY_CORE.x - RINGS[0].r0 * 0.5, CITY_CORE.y - RINGS[0].r0 * 0.26 - 8);
-    ctx.fillStyle = 'rgba(255,120,120,0.45)';
-    ctx.font = '700 15px Audiowide, system-ui';
-    ctx.fillText('— ' + DARK_ZONE + ' · NO COVER —', CITY_CORE.x - CITY_W * 0.21, CITY_CORE.y - CITY_H * 0.38);
+    ctx.fillStyle = 'rgba(255,222,160,0.9)';
+    ctx.font = '700 11px Audiowide, system-ui';
+    if (RINGS.length) ctx.fillText(CORE_NAME, CITY_CORE.x - RINGS[0].r0 * 0.5, CITY_CORE.y - RINGS[0].r0 * 0.26 - 7);
+    ctx.fillStyle = 'rgba(255,120,120,0.4)';
+    ctx.font = '700 13px Audiowide, system-ui';
+    ctx.fillText('— ' + DARK_ZONE + ' · NO COVER —', CITY_CORE.x - CITY_W * 0.20, CITY_CORE.y - CITY_H * 0.30);
   });
 
-  // ---------- TOP: the destinations themselves, over the route ----------
-  // The live route draws BETWEEN the layers, so lanes ghost behind the bodies
-  // they connect rather than being painted across them.
+  // ---------- TOP: the star systems themselves ----------
   cityTop = document.createElement('canvas');
   cityTop.width = CITY_W; cityTop.height = CITY_H;
   withCanvas(cityTop, () => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, CITY_W, CITY_H);
-    for (const sc of SCENERY) {
-      const fade = clamp(1 - (sc.far - 900) / 2100, 0.22, 1); // the far volume goes quiet
+    for (const sy of SCENERY) {
+      const fade = clamp(1 - (sy.far - 900) / 2400, 0.30, 1);
       ctx.save();
       ctx.globalAlpha = fade;
-      if (sc.kind === 'field') drawFieldArt(ctx, sc.x, sc.y, sc.sz, sc.seed);
-      else if (sc.kind === 'gate') drawGateArt(ctx, sc.x, sc.y, sc.sz, sc.seed);
-      else if (sc.kind === 'station') drawStationArt(ctx, sc.x, sc.y, sc.sz, sc.seed);
-      else {
-        const chip = planetChip(sc.V);
-        if (chip) {
-          const w = chip.S * (sc.sz / chip.R);
-          ctx.drawImage(chip.cv, sc.x - w / 2, sc.y - w / 2, w, w);
-        } else {
-          ctx.fillStyle = `rgba(${sc.V.z},0.7)`;
-          ctx.beginPath(); ctx.arc(sc.x, sc.y, sc.sz, 0, TAU); ctx.fill();
-        }
+      // orbits first, hairline — they are what makes a dot read as a SYSTEM
+      ctx.strokeStyle = 'rgba(150,186,240,0.11)'; ctx.lineWidth = 0.6;
+      for (const pl of sy.planets) {
+        ctx.beginPath(); ctx.ellipse(sy.x, sy.y, pl.o, pl.o * 0.5, 0, 0, TAU); ctx.stroke();
+      }
+      // the planets on them
+      for (const pl of sy.planets) {
+        const px = sy.x + Math.cos(pl.a) * pl.o, py = sy.y + Math.sin(pl.a) * pl.o * 0.5;
+        ctx.fillStyle = `rgba(${pl.V.z},0.85)`;
+        ctx.beginPath(); ctx.arc(px, py, pl.sz, 0, TAU); ctx.fill();
+      }
+      // the star: a glow with a hot point in it, never a drawn disc
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const gg = ctx.createRadialGradient(sy.x, sy.y, 0, sy.x, sy.y, sy.cls.r * 7);
+      gg.addColorStop(0, `rgba(${sy.cls.g},0.55)`);
+      gg.addColorStop(0.35, `rgba(${sy.cls.g},0.16)`);
+      gg.addColorStop(1, `rgba(${sy.cls.g},0)`);
+      ctx.fillStyle = gg;
+      ctx.beginPath(); ctx.arc(sy.x, sy.y, sy.cls.r * 7, 0, TAU); ctx.fill();
+      ctx.fillStyle = `rgba(${sy.cls.c},1)`;
+      ctx.beginPath(); ctx.arc(sy.x, sy.y, sy.cls.r, 0, TAU); ctx.fill();
+      ctx.restore();
+      // an installation off one of the outer orbits, on some systems
+      if (sy.station && sy.planets.length) {
+        const pl = sy.planets[sy.planets.length - 1];
+        const sx3 = sy.x + Math.cos(pl.a + 0.9) * pl.o * 1.15;
+        const sy3 = sy.y + Math.sin(pl.a + 0.9) * pl.o * 1.15 * 0.5;
+        ctx.strokeStyle = 'rgba(190,226,255,0.5)'; ctx.lineWidth = 0.7;
+        ctx.beginPath(); ctx.moveTo(sx3 - 2.4, sy3); ctx.lineTo(sx3 + 2.4, sy3); ctx.stroke();
+        ctx.beginPath(); ctx.arc(sx3, sy3, 1.5, 0, TAU); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,214,140,0.85)';
+        ctx.beginPath(); ctx.arc(sx3, sy3, 0.7, 0, TAU); ctx.fill();
       }
       ctx.restore();
     }
-    cityBloom(cityTop, 4, 0.85);
-    cityFalloff(true);
+    cityBloom(cityTop, 3, 0.9);
   });
 }
 function isoEllipse(r) {
@@ -12723,7 +12847,11 @@ function drawMenuMap() {
   const cbx = (bx0 + bx1) / 2, cby = (by0 + by1) / 2;
   let rMax = 1;
   for (const p2 of seg) rMax = Math.max(rMax, Math.hypot(p2.x - cbx, p2.y - cby));
-  const zt = clamp((R - 58) / rMax, 0.34, 0.7); // a short hop still keeps a city around it
+  // The 0.7 ceiling was sized for the old city, where a run spanned a third of
+  // the sheet. Runs are a fraction of that now, so the lens is allowed much
+  // further in — which is what makes the camera travel between levels and what
+  // keeps the visible slice down to a fraction of the galaxy.
+  const zt = clamp((R - 58) / rMax, 0.34, 2.2);
   const Rz = R / Math.max(mapZoom, 0.01);
   const tx2 = clamp((bx0 + bx1) / 2, Math.min(Rz * 0.8, WW / 2), WW - Math.min(Rz * 0.8, WW / 2));
   const ty2 = clamp((by0 + by1) / 2, Math.min(Rz * 0.7, WH / 2), WH - Math.min(Rz * 0.7, WH / 2));
@@ -14301,7 +14429,7 @@ function frame(now) {
   for (const en of sorted) drawEnemy(en, g);
   for (const gh of inGuide ? [] : ghosts) drawGhost(gh, g); // dead bodies de-rezzing in place
   for (const p of inGuide ? [] : pickups) drawPickup(p, g);
-  if (!inGuide) drawPulseWave(g);
+  if (hw > 0.004) drawPulseWave(g); // a fired pulse is hardware too — it goes with the ring
   drawClearSweep(g);
   if (boss && state !== S.MENU && !inGuide) drawBoss(g);
 

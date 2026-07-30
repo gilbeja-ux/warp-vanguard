@@ -12,6 +12,7 @@
     "dev": "npm run build && node scripts/serve.js",
     "lab": "node scripts/lab.js",
     "lab:seed": "node scripts/lab-seed.js",
+    "lab:dest": "node scripts/dest-lab.js",
     "ios": "npx cap open ios",
     "android": "npx cap open android",
     "sync": "npm run build && npx cap sync",
