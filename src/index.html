@@ -905,13 +905,8 @@ let bgCanvas = null, vignetteCanvas = null, wallTex = null;
 let ringFxCv = null, grainCv = null; // prerendered monolith ring + film-grain tile
 let bgMotes = [], glitchT = 0, glitchY = 0, nextGlitch = 3;
 let litPanels = [], wallSnips = [];
-function randCode() {
-  let s = '';
-  const hex = Math.random() < 0.25;
-  const len = hex ? 4 + (Math.random() * 4 | 0) : 6 + (Math.random() * 9 | 0);
-  for (let j = 0; j < len; j++) s += hex ? '0123456789ABCDEF'[Math.random() * 16 | 0] : (Math.random() < 0.5 ? '0' : '1');
-  return hex ? '0x' + s : s;
-}
+// (randCode is retired with the fiber theme — there is no binary on a lane wall.
+// The wall's motion is carried by streaked starlight and the marker trains below.)
 function buildBackground() {
   // live layer state
   bgMotes = [];
@@ -919,11 +914,13 @@ function buildBackground() {
     bgMotes.push({ x: Math.random() * W, y: Math.random() * H, sp: rand(4, 14), r: rand(0.6, 1.8), ph: rand(0, TAU), white: Math.random() < 0.3 });
   }
   litPanels = [];
-  // code snippets streaming along the tunnel walls (both directions — live traffic)
+  // marker trains streaming along the lane wall: runs of chevrons, the way a
+  // charted corridor is signed. They ride the traffic clock, so they read as
+  // ground rushing past rather than as decoration.
   wallSnips = [];
   for (let i = 0; i < 30; i++) {
     wallSnips.push({
-      a: Math.random() * TAU, z: Math.random(), str: randCode().slice(0, 9),
+      a: Math.random() * TAU, z: Math.random(), n: 4 + (Math.random() * 6 | 0),
       amber: Math.random() < 0.22, sp: rand(0.7, 1.4),
       dir: Math.random() < 0.6 ? -1 : 1 // -1 = incoming (toward player), +1 = outgoing
     });
@@ -945,7 +942,15 @@ function buildBackground() {
   // deep navy base — the void behind the tunnel wall circuitry
   b.fillStyle = '#020510'; b.fillRect(0, 0, W, H);
 
-  // --- the tunnel wall texture: one dense annulus of raw data, stamped at many depths ---
+  // --- the lane wall texture: starlight smeared by transit, stamped at many depths ---
+  //
+  // The one change that turns a cable into a warp lane: the grain runs RADIALLY,
+  // not concentrically. The old wall was hundreds of arc dashes lying ACROSS the
+  // direction of travel — stacked circuitry, unmistakably the inside of a duct.
+  // Every primitive here runs ALONG it instead, so each depth stamp lines its
+  // streaks up with the next and they read as one continuous smear pulled past
+  // the hull. Same annulus, same stamping, same twist per depth: only the grain
+  // rotated 90°.
   const TS = Math.min(1024, Math.round(Math.min(W, H) * 1.7));
   const half = TS / 2;
   wallTex = document.createElement('canvas');
@@ -953,51 +958,54 @@ function buildBackground() {
   const t = wallTex.getContext('2d');
   t.translate(half, half);
   const inR = half * 0.55, outR = half * 0.98;
+  // star colours, not circuit colours: mostly cold, a minority warm, a rare
+  // violet. No amber-heavy mix — amber belonged to the data read.
   const pick = (al) => {
     const r = Math.random();
-    return r < 0.2 ? `rgba(255,185,80,${al})` : r < 0.35 ? `rgba(235,248,255,${al})` : `rgba(80,180,255,${al})`;
+    return r < 0.10 ? `rgba(255,196,130,${al})`   // warm giants
+      : r < 0.16 ? `rgba(200,170,255,${al})`      // rare violet
+      : r < 0.55 ? `rgba(236,246,255,${al})`      // cold white
+      : `rgba(150,205,255,${al})`;                // blue-white
   };
-  // hundreds of broken concentric arc dashes — the stacked circuitry look
-  for (let i = 0; i < 650; i++) {
-    const rr = rand(inR, outR);
-    const a0 = Math.random() * TAU, len = rand(0.03, 0.5);
-    t.strokeStyle = pick((0.1 + Math.random() * 0.4).toFixed(2));
-    t.lineWidth = Math.random() < 0.12 ? rand(2, 3.2) : rand(0.6, 1.6);
-    t.beginPath(); t.arc(0, 0, rr, a0, a0 + len); t.stroke();
-  }
-  // binary strings packed around the band — laid glyph-by-glyph along the arc so
-  // each string curves with the ring (a straight tangent chord reads as flat)
-  t.textAlign = 'center'; t.textBaseline = 'middle';
-  for (let i = 0; i < 170; i++) {
-    const rr = rand(inR, outR), a0 = Math.random() * TAU;
-    const fpx = (7 + Math.random() * 7 | 0), str = randCode();
-    t.font = fpx + 'px monospace';
-    t.fillStyle = pick((0.12 + Math.random() * 0.3).toFixed(2));
-    const dA = (Math.random() < 0.5 ? 1 : -1) * (fpx * 0.72) / rr; // angular step ≈ glyph width / radius
-    let a = a0 - dA * (str.length - 1) / 2;                        // centre the string on a0
-    for (let k = 0; k < str.length; k++, a += dA) {
-      t.save();
-      t.rotate(a); t.translate(rr, 0); t.rotate(Math.PI / 2);
-      t.fillText(str[k], 0, 0);
-      t.restore();
-    }
-  }
-  t.textBaseline = 'alphabetic';
-  // radial ticks
-  for (let i = 0; i < 140; i++) {
-    const rr = rand(inR, outR - 14), a0 = Math.random() * TAU;
-    t.strokeStyle = pick((0.1 + Math.random() * 0.3).toFixed(2));
-    t.lineWidth = 1;
+  // the smear: radial streaks along the direction of travel. A streak is a faint
+  // full-length tail with a brighter head, so it has a direction on its own.
+  for (let i = 0; i < 620; i++) {
+    const a0 = Math.random() * TAU;
+    const r0 = rand(inR, outR - 8);
+    const len = Math.random() < 0.14 ? rand(70, 210) : rand(10, 64); // a few hero smears
+    const r1 = Math.min(outR, r0 + len);
+    const al = 0.10 + Math.random() * 0.34;
     t.save(); t.rotate(a0);
-    t.beginPath(); t.moveTo(rr, 0); t.lineTo(rr + rand(3, 14), 0); t.stroke();
+    const grd = t.createLinearGradient(r0, 0, r1, 0);
+    grd.addColorStop(0, pick('0'));
+    grd.addColorStop(0.35, pick(al.toFixed(2)));
+    grd.addColorStop(1, pick('0'));
+    t.strokeStyle = grd;
+    t.lineWidth = Math.random() < 0.12 ? rand(1.8, 3.0) : rand(0.5, 1.4);
+    t.beginPath(); t.moveTo(r0, 0); t.lineTo(r1, 0); t.stroke();
+    // the head — where the star still resolves to a point before the smear
+    if (len > 40) {
+      t.fillStyle = pick((al * 1.5).toFixed(2));
+      t.beginPath(); t.arc(r1, 0, rand(0.7, 1.6), 0, TAU); t.fill();
+    }
     t.restore();
   }
-  // bright specks and chips
-  for (let i = 0; i < 160; i++) {
+  // point stars: far enough off-axis that transit has not stretched them. These
+  // keep the wall from collapsing into pure lines.
+  for (let i = 0; i < 300; i++) {
     const rr = rand(inR, outR), a0 = Math.random() * TAU;
-    t.fillStyle = pick((0.15 + Math.random() * 0.4).toFixed(2));
+    t.fillStyle = pick((0.12 + Math.random() * 0.42).toFixed(2));
     t.save(); t.rotate(a0);
-    t.fillRect(rr, 0, rand(1.5, 6), rand(1, 2.5));
+    t.beginPath(); t.arc(rr, 0, Math.random() < 0.12 ? rand(1.4, 2.4) : rand(0.4, 1.1), 0, TAU); t.fill();
+    t.restore();
+  }
+  // a sparse dust haze riding the same direction — depth without more hard edges
+  for (let i = 0; i < 110; i++) {
+    const a0 = Math.random() * TAU, r0 = rand(inR, outR - 30);
+    t.save(); t.rotate(a0);
+    t.strokeStyle = pick((0.04 + Math.random() * 0.08).toFixed(2));
+    t.lineWidth = rand(4, 11);
+    t.beginPath(); t.moveTo(r0, 0); t.lineTo(Math.min(outR, r0 + rand(24, 90)), 0); t.stroke();
     t.restore();
   }
   buildRingFx();
@@ -1141,33 +1149,44 @@ function drawLiveBg(dt) {
 }
 // binary / hex snippets racing along the tunnel axis — glyph by glyph, in true perspective,
 // flowing both toward and away from the player like live traffic on the line
+// lane marker trains: runs of chevrons signed along the wall, streaming at the
+// traffic speed. Replaces the binary glyph traffic of the fiber theme — same
+// machinery, same cadence, but a chevron points and a digit does not, so the
+// wall now tells you which way the lane runs.
 function drawWallCode(g, dt) {
-  const spd = state === S.PLAY ? trafficSpeed : 0.2; // glyph traffic rides the shared clock
-  const dz = 0.045; // depth spacing between glyphs — converges with perspective
-  ctx.textAlign = 'center';
+  const spd = state === S.PLAY ? trafficSpeed : 0.2; // marker traffic rides the shared clock
+  const dz = 0.045; // depth spacing between marks — converges with perspective
   for (const c of wallSnips) {
     c.z += dt * spd * c.sp * c.dir;
-    if (c.dir < 0 && c.z < -0.08 - c.str.length * dz) { c.z = 1; c.a = Math.random() * TAU; c.str = randCode().slice(0, 9); }
-    if (c.dir > 0 && c.z > 1) { c.z = -0.05; c.a = Math.random() * TAU; c.str = randCode().slice(0, 9); }
+    if (c.dir < 0 && c.z < -0.08 - c.n * dz) { c.z = 1; c.a = Math.random() * TAU; c.n = 4 + (Math.random() * 6 | 0); }
+    if (c.dir > 0 && c.z > 1) { c.z = -0.05; c.a = Math.random() * TAU; c.n = 4 + (Math.random() * 6 | 0); }
     const cosA = Math.cos(c.a), sinA = Math.sin(c.a);
-    for (let j = 0; j < c.str.length; j++) {
+    for (let j = 0; j < c.n; j++) {
       const zj = c.z + j * dz;
       if (zj > 1 || zj < -0.07) continue;
       const rg = ring(zj, g);
-      const fs = 46 * rg.s;
-      if (fs < 4) continue;
+      const sz = 30 * rg.s;
+      if (sz < 2.5) continue;
       const x = rg.x + cosA * rg.r * 0.985, y = rg.y + sinA * rg.r * 0.985;
-      const al = Math.min(1 - zj, 1.05) * 0.6 * clamp((zj + 0.07) / 0.12, 0, 1); // glyphs slide past and fade, no pop
+      // the head of the train is brightest and it dims down the tail, so the
+      // run reads as travelling rather than as a static row of ticks
+      const lead = 1 - j / c.n * 0.65;
+      const al = Math.min(1 - zj, 1.05) * 0.5 * lead * clamp((zj + 0.07) / 0.12, 0, 1);
+      if (al <= 0.02) continue;
+      const w = Math.min(sz, 11);
       ctx.save();
       ctx.translate(x, y);
-      ctx.rotate(c.a); // baseline runs along the tunnel direction, toward the vanish point
-      ctx.font = Math.min(fs, 17).toFixed(1) + 'px monospace';
-      ctx.fillStyle = c.amber ? `rgba(255,190,85,${al.toFixed(2)})` : `rgba(130,200,255,${al.toFixed(2)})`;
-      ctx.fillText(c.str[j], 0, 0);
+      ctx.rotate(c.a); // the chevron's axis runs along the lane, toward the vanish point
+      ctx.strokeStyle = c.amber ? `rgba(255,200,120,${al.toFixed(2)})` : `rgba(140,215,255,${al.toFixed(2)})`;
+      ctx.lineWidth = Math.max(0.7, w * 0.16);
+      ctx.beginPath();                     // ">" opening against the direction of travel
+      ctx.moveTo(-w * 0.45, -w * 0.42);
+      ctx.lineTo(w * 0.42, 0);
+      ctx.lineTo(-w * 0.45, w * 0.42);
+      ctx.stroke();
       ctx.restore();
     }
   }
-  ctx.textAlign = 'left';
 }
 
 // ---------- levels ----------
@@ -5507,12 +5526,19 @@ function drawLattice(g) {
     ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(fx2, fy2); ctx.lineTo(nx2, ny2); ctx.stroke();
   }
-  // hoops riding toward the viewer in lockstep with the traffic
+  // the FIELD HARMONICS: the hoops that hold the lane open, riding toward the
+  // viewer in lockstep with the traffic. In the fiber theme these were structural
+  // rings of a duct; here they are the containment field, so they carry the lane
+  // carrier's teal and a charge pulse travelling outward along the bore. The
+  // spacing and geometry are untouched — leaks still ride these hoops.
   const off = ((wallDist % HOOP_SPACING) + HOOP_SPACING) % HOOP_SPACING;
   for (let z = SPAWN_Z - off; z > g.hitZ * 0.4; z -= HOOP_SPACING) {
     const rr = ring(z, g);
     const a = clamp((SPAWN_Z - 0.05 - z) / 0.4, 0, 1) * 0.26;
-    ctx.strokeStyle = `rgba(120,200,255,${a.toFixed(2)})`;
+    // a slow charge running down the lane: each hoop brightens as the pulse
+    // passes it, so the field reads as powered rather than as inert scaffolding
+    const pulse = 0.78 + 0.42 * Math.pow(0.5 + 0.5 * Math.sin((z * 3.1 - time * 1.15) * TAU), 3);
+    ctx.strokeStyle = `rgba(96,224,208,${(a * pulse).toFixed(3)})`;
     ctx.lineWidth = Math.max(0.8, rr.r / g.nodeR * 1.5);
     ctx.beginPath(); ctx.arc(g.cx, g.cy, rr.r, 0, TAU); ctx.stroke();
   }
@@ -5654,12 +5680,23 @@ function drawTunnel(g) {
   drawFarGlow(far, vr);
 }
 
-// the far light: a dim RED ember at the very centre of the void, fading
-// red → dark red → red on a strict 2-second loop. Tiny particles emanate from
-// it and die fast — background texture at the edge of perception, not a show.
-// Stateless (each particle is a fixed phase evaluated against the shared
-// clock), so it runs identically in menus, replays and pauses without
-// touching the sim.
+// the far light: the DESTINATION. A lane goes somewhere, so the vanishing point
+// carries a dim gold beacon — where the convoy is headed — pulsing on a strict
+// 2-second loop. It replaced the fiber theme's red ember, which read as a dead
+// cable running off into nothing.
+//
+// Gold on purpose, not cold white: gold is already the frontier/reward/attention
+// token, so it means "the thing you are trying to reach" without competing with
+// the phase language. A cold beacon would have fought blue ⊕ and white ⊖ for
+// exactly the contrast the color rule cannot afford to lose — and it sits at the
+// centre of frame, where every incoming threat is read.
+//
+// Deliberately still dim. The dark pool in front of it stays, so the beacon is a
+// promise at the edge of perception rather than a lamp lighting the bore.
+//
+// Tiny particles drift off it and die fast. Stateless (each particle is a fixed
+// phase evaluated against the shared clock), so it runs identically in menus,
+// replays and pauses without touching the sim.
 const farMotes = [];
 for (let i = 0; i < 16; i++) {
   farMotes.push({
@@ -5669,32 +5706,52 @@ for (let i = 0; i < 16; i++) {
   });
 }
 function drawFarGlow(far, vr) {
-  // 2s loop: sin period 2π/π — full red at the crest, dark red in the trough
+  // 2s loop: sin period 2π/π — a beacon keeps time, so the pulse is regular and
+  // sharper than the old ember's slow fade. Crest is a clear mark, trough never
+  // goes dark: a navigation light does not go out.
   const breath = 0.5 + 0.5 * Math.sin(time * Math.PI);
-  const gr = vr * (0.3 + 0.05 * breath);
+  const beat = Math.pow(breath, 2.2); // sharpened — a pulse, not a sigh
+  const gr = vr * (0.3 + 0.06 * beat);
   const core = ctx.createRadialGradient(far.x, far.y, 0, far.x, far.y, gr);
-  core.addColorStop(0, `rgba(255,60,50,${(0.10 + 0.14 * breath).toFixed(3)})`);
-  core.addColorStop(0.35, `rgba(160,25,25,${(0.05 + 0.07 * breath).toFixed(3)})`);
-  core.addColorStop(1, 'rgba(90,10,15,0)');
+  core.addColorStop(0, `rgba(255,214,120,${(0.09 + 0.15 * beat).toFixed(3)})`);
+  core.addColorStop(0.35, `rgba(190,140,50,${(0.045 + 0.07 * beat).toFixed(3)})`);
+  core.addColorStop(1, 'rgba(90,60,15,0)');
   ctx.fillStyle = core;
   ctx.beginPath(); ctx.arc(far.x, far.y, gr, 0, TAU); ctx.fill();
-  // the ember itself: never black, cycling red ↔ dark red with the loop
-  ctx.fillStyle = `rgba(${Math.round(120 + 135 * breath)},${Math.round(12 + 40 * breath)},${Math.round(14 + 30 * breath)},${(0.35 + 0.35 * breath).toFixed(2)})`;
-  ctx.beginPath(); ctx.arc(far.x, far.y, Math.max(1, vr * 0.05 * (0.8 + 0.2 * breath)), 0, TAU); ctx.fill();
-  // tiny sparks drifting off the ember: born at the light, gone within a
-  // short reach of it — barely-there background motion
+  // the beacon itself: gold, holding a floor between pulses
+  ctx.fillStyle = `rgba(255,${Math.round(198 + 40 * beat)},${Math.round(96 + 90 * beat)},${(0.34 + 0.4 * beat).toFixed(2)})`;
+  ctx.beginPath(); ctx.arc(far.x, far.y, Math.max(1, vr * 0.05 * (0.82 + 0.22 * beat)), 0, TAU); ctx.fill();
+  // the flash: on the crest the beacon throws a brief cross-glint, the way a
+  // distant navigation light catches. Costs two strokes and sells "signal".
+  if (beat > 0.72) {
+    const fl = (beat - 0.72) / 0.28, sp2 = vr * (0.10 + 0.16 * fl);
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,226,164,${(fl * 0.3).toFixed(3)})`;
+    ctx.lineWidth = Math.max(0.6, vr * 0.007);
+    ctx.beginPath();
+    ctx.moveTo(far.x - sp2, far.y); ctx.lineTo(far.x + sp2, far.y);
+    ctx.moveTo(far.x, far.y - sp2 * 0.6); ctx.lineTo(far.x, far.y + sp2 * 0.6);
+    ctx.stroke();
+    ctx.restore();
+  }
+  // motes drifting off the beacon: born at the light, gone within a short reach
+  // of it — barely-there background motion
   for (const m of farMotes) {
-    const k = ((time * m.sp + m.ph) % 1 + 1) % 1;      // 0 = at the ember, 1 = gone
-    const al = (1 - k) * (1 - k) * 0.22 * (0.5 + 0.5 * breath); // dies fast, dimmer in the trough
+    const k = ((time * m.sp + m.ph) % 1 + 1) % 1;      // 0 = at the beacon, 1 = gone
+    const al = (1 - k) * (1 - k) * 0.20 * (0.55 + 0.45 * beat); // dies fast, dimmer between pulses
     if (al < 0.015) continue;
     const rr = vr * 0.05 + k * vr * 0.3;               // a short outward drift
     const mx = far.x + Math.cos(m.a) * rr, my = far.y + Math.sin(m.a) * rr;
-    ctx.fillStyle = `rgba(255,110,90,${al.toFixed(3)})`;
+    ctx.fillStyle = `rgba(255,206,140,${al.toFixed(3)})`;
     ctx.beginPath(); ctx.arc(mx, my, Math.max(0.4, vr * 0.008 * (1 - k * 0.5)), 0, TAU); ctx.fill();
   }
 }
 
-// streaming gold data particles (the "payload" river at tunnel bottom)
+// THE CONVOY: the gold river running along the floor of the lane, behind and
+// below you — the thing you are out here for. It was already this. In the fiber
+// theme it was called the payload river, and its `ord` draw-order thins the
+// river as integrity drops, so ships visibly stop arriving as the escort fails.
+// That mechanic needed no work; it needed a name.
 let streaks = [];
 function initStreaks() {
   streaks = [];
