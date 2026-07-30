@@ -946,20 +946,26 @@ for (let i = 0; i < 3; i++) SKY_BLOBS.push({
 // under one copy the field is bare, and around two and a half the dust and the
 // faint stars come up. So the breath runs BETWEEN those, and the pass lays the
 // copy down as many times as it takes.
-const SKY_BREATH_K = 2.4;    // copies of the sky added at the top of a breath
-const SKY_BREATH_LO = 0.35;  // ...and at the bottom of one
+// Calibrated against real captures, because the arithmetic is misleading here: a
+// backdrop whose base is #020510 is so nearly black that one added copy of it is
+// literally invisible. Screenshots at 0.3 / 2.5 / 7 copies put the readable range
+// far higher than any guess — under two copies nothing happens, and the swell only
+// starts to read around four.
+const SKY_BREATH_K = 5;      // copies of the sky added at the top of a breath
+const SKY_BREATH_LO = 1.2;   // ...and at the bottom of one
 // The floor is high on purpose. With a low one the blobs ARE the effect, and a
 // corner of sky they happen not to be over gets none of the breath at all — which
 // is what the first peak/trough screenshots showed. The floor makes the whole sky
 // breathe; the blobs then make it uneven, which is the part that reads as organic.
 const SKY_BREATH_BASE = 0.62;
 // the common breath: three incommensurate periods around ~7s so it never repeats.
-// OFF during a run. It lands late in the frame, over the lane rather than behind
-// it, so in play it would be adding starlight on top of the traffic — brightening
-// the very thing the colour rule needs dark. The sky is barely visible down a live
-// bore anyway; this belongs to the screens where the sky IS the view.
+// MENUS ONLY, because of where it lands. Composited late it goes over the lane,
+// not behind it — in play that would put starlight on top of the traffic, brighten
+// the very thing the colour rule needs dark; and on the arrival report it would
+// scatter stars across the face of the destination. Those screens have their own
+// life. This belongs to the ones where the sky IS the view.
 const skyBreath = () => {
-  if (state === S.PLAY || state === S.PAUSE || state === S.INFO) return 0;
+  if (state !== S.MENU && state !== S.GUIDE) return 0;
   const s = 0.5 + 0.36 * Math.sin(time * 0.83) + 0.1 * Math.sin(time * 1.41 + 1.2)
     + 0.04 * Math.sin(time * 0.37 + 2.7);
   return SKY_BREATH_LO + (SKY_BREATH_K - SKY_BREATH_LO) * clamp(s, 0, 1);
@@ -12833,6 +12839,7 @@ const BASE_K = 0.5;
 // vertical lines. The base is nothing but radial gradients now, so it was already
 // as soft as a bloom would make it. The pass is gone, with it the 61MB, and
 // cityFalloff/isoRadial went too — both dead once the city did.
+let mapRideT = 0, mapRideSel = -1; // the camera's trip along the selected lane
 let cityBase = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1;
 const mapR = () => menuGeom().R * 0.92; // the lens rim MATCHES the mode wheel — seamless crossfade
 const CITY_W = 5200, CITY_H = 3100;
@@ -12993,6 +13000,7 @@ function levelRouteName(ci, li) {
   return from + ' » ' + destNameAt(ci, li);
 }
 // the route for the level being flown right now
+function levelTitle(i) { return levelRouteName(Math.max(0, CAMPAIGNS.indexOf(CAMP)), i); }
 function curRouteName() {
   const ci = Math.max(0, CAMPAIGNS.indexOf(CAMP));
   return levelRouteName(ci, levelIdx);
@@ -13522,8 +13530,19 @@ function drawMenuMap() {
   // which is what makes a planet on an orbit legible at all.
   const seg = SEGS[mapSel];
   const dsel = IM ? null : relayDest(mapSel);
-  const focus = IM ? seg[seg.length - 1] : relayDestPos(mapSel);
-  // how wide the system around it is — orbits included, so nothing is cropped
+  // RIDE THE LANE. Framing the whole run would push the zoom back out until the
+  // destinations were specks again — the exact problem we just fixed — so instead
+  // the camera flies the lane at close range, end to end and back, dwelling a
+  // moment at each destination. You see where the convoy forms up, the corridor
+  // it takes, and where it delivers, without giving up the scale that makes a
+  // planet on an orbit legible.
+  if (mapRideSel !== mapSel) { mapRideSel = mapSel; mapRideT = 0; }
+  mapRideT += (frameDt || 0.016) * 0.17;            // ~6s each way
+  const ping = mapRideT % 2, raw = ping < 1 ? ping : 2 - ping;
+  const held = clamp((raw - 0.14) / 0.72, 0, 1);    // dwell at both ends
+  const ride = held * held * (3 - 2 * held);        // ease in and out of the run
+  const focus = IM ? seg[seg.length - 1] : polyAt(seg, ride);
+  // zoom so the destination's own system fills a good part of the lens
   let sysR = 40;
   if (dsel) for (const pl of dsel.sys.planets) sysR = Math.max(sysR, pl.o * 1.35);
   const zt = clamp((R - 40) / sysR, 0.34, 6);
@@ -13535,6 +13554,8 @@ function drawMenuMap() {
   // dependent — it arrived in about a third of a second on a 60Hz screen and
   // twice as fast on a 120Hz one.
   {
+    // ~1000ms to settle on a NEW selection; once riding, the target moves with
+    // the camera so this reads as a smooth tracking shot rather than a lag
     const k = 1 - Math.pow(0.02, Math.min(0.05, frameDt || 0.016) / 1.0);
     mapCamX += (tx2 - mapCamX) * k;
     mapCamY += (ty2 - mapCamY) * k;
@@ -13589,9 +13610,30 @@ function drawMenuMap() {
   // The one you are looking at is then repeated over the skyline (LAYER 4), so
   // a dense downtown can never swallow the line you are about to defend.
   ctx.lineCap = 'round';
+  // the chevron train, shared by secured and available lanes: same motion, the
+  // colour is the only thing that says which. Traffic is traffic.
+  const chevrons = (pts2, col, ar) => {
+    let Ltot = 0;
+    for (let i = 1; i < pts2.length; i++) Ltot += Math.hypot(pts2[i].x - pts2[i - 1].x, pts2[i].y - pts2[i - 1].y);
+    if (Ltot < 1) return;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.5;
+    const step = 38, ph2 = (time * 30) % step;
+    for (let d = ph2 + 6; d < Ltot - 4; d += step) {
+      const p0 = polyAt(pts2, d / Ltot), p1 = polyAt(pts2, Math.min(1, (d + 4) / Ltot));
+      const ang = Math.atan2(wy(p1) - wy(p0), wx(p1) - wx(p0)); // screen-space heading
+      const cxs = wx(p0), cys = wy(p0);
+      ctx.beginPath();
+      ctx.moveTo(cxs - Math.cos(ang - 0.55) * ar, cys - Math.sin(ang - 0.55) * ar);
+      ctx.lineTo(cxs, cys);
+      ctx.lineTo(cxs - Math.cos(ang + 0.55) * ar, cys - Math.sin(ang + 0.55) * ar);
+      ctx.stroke();
+    }
+  };
   const drawRun = k => {
     const pts2 = SEGS[k];
     const done = PROG.stars[k] > 0;
+    const lockedRun = k + 1 > PROG.unlocked;
     const trace = () => {
       ctx.beginPath();
       pts2.forEach((p2, pi) => pi ? ctx.lineTo(wx(p2), wy(p2)) : ctx.moveTo(wx(p2), wy(p2)));
@@ -13610,27 +13652,20 @@ function drawMenuMap() {
       } else { // selected: solid green, chevrons marching toward the next relay
         ctx.strokeStyle = 'rgba(126,226,98,0.85)'; ctx.lineWidth = 3; ctx.setLineDash([]);
         trace();
-        let Ltot = 0;
-        for (let i = 1; i < pts2.length; i++) Ltot += Math.hypot(pts2[i].x - pts2[i - 1].x, pts2[i].y - pts2[i - 1].y);
-        ctx.strokeStyle = 'rgba(215,255,185,0.9)';
-        ctx.lineWidth = 1.5;
-        const step = 38, ph2 = (time * 30) % step;
-        for (let d = ph2 + 6; d < Ltot - 4; d += step) {
-          const p0 = polyAt(pts2, d / Ltot), p1 = polyAt(pts2, Math.min(1, (d + 4) / Ltot));
-          const ang = Math.atan2(wy(p1) - wy(p0), wx(p1) - wx(p0)); // screen-space heading
-          const cxs = wx(p0), cys = wy(p0), ar = 4.5;
-          ctx.beginPath();
-          ctx.moveTo(cxs - Math.cos(ang - 0.55) * ar, cys - Math.sin(ang - 0.55) * ar);
-          ctx.lineTo(cxs, cys);
-          ctx.lineTo(cxs - Math.cos(ang + 0.55) * ar, cys - Math.sin(ang + 0.55) * ar);
-          ctx.stroke();
-        }
+        chevrons(pts2, 'rgba(215,255,185,0.9)', 4.5);
       }
-    } else if (!sel) { // unsecured, unfocused: the faintest dashed plan
-      ctx.strokeStyle = 'rgba(110,185,255,0.26)'; ctx.lineWidth = 2;
+    } else if (!sel) {
+      // LOCKED reads as unreachable: a deeper blue, barely there. AVAILABLE reads
+      // as merely not-selected — same cyan family as its chevrons, so the two
+      // states are told apart by value and not by shape alone.
+      ctx.strokeStyle = lockedRun ? 'rgba(48,86,150,0.16)' : 'rgba(110,185,255,0.30)';
+      ctx.lineWidth = lockedRun ? 1.6 : 2;
       ctx.setLineDash([6, 7]); ctx.lineDashOffset = 0;
       trace();
       ctx.setLineDash([]);
+      // available lanes carry traffic too — the corridor is open, it is just not
+      // secured yet. Locked ones carry none: nothing is flying out there.
+      if (!lockedRun) chevrons(pts2, 'rgba(150,225,255,0.42)', 3.4);
     } else { // selected + unsecured: dashed blue, breathing
       const br = 0.5 + 0.5 * Math.sin(time * 2.2); // slow breath
       ctx.strokeStyle = `rgba(120,195,255,${(0.14 + br * 0.2).toFixed(2)})`;
@@ -13642,6 +13677,8 @@ function drawMenuMap() {
       ctx.setLineDash([6, 7]); ctx.lineDashOffset = 0;
       trace();
       ctx.setLineDash([]);
+      // the same marching chevrons the secured lanes get, in cyan
+      chevrons(pts2, 'rgba(198,240,255,0.9)', 4.5);
     }
   };
   for (let k = 0; k < SEGS.length; k++) drawRun(k);
@@ -13736,10 +13773,6 @@ function drawMenuMap() {
     ctx.font = '800 ' + Math.round(r * (num.length > 1 ? 0.6 : 0.75)) + 'px Audiowide, system-ui';
     ctx.fillText(locked ? '·' : num, mx2, py3 + 1);
     ctx.textBaseline = 'alphabetic';
-    if (isBoss) {
-      ctx.fillStyle = 'rgba(212,101,255,0.85)'; ctx.font = '700 7px Audiowide, system-ui';
-      ctx.fillText('CORE', mx2, py3 - r - 5);
-    }
     if (cleared) for (let k = 0; k < 3; k++) star5(mx2 - 11 + k * 11, my2 + dR + 9, 4, k < PROG.stars[i]);
     ctx.textAlign = 'left';
     // the hit box spans plate AND body, so either can be tapped
@@ -13858,7 +13891,7 @@ function drawMapList(ccx, ccy, R, frontier) {
     techRect(rx, ly2, lw2, rh, 6); ctx.stroke();
     // title only — the dossier owns stars and stats
     ctx.fillStyle = locked ? 'rgba(220,240,255,0.3)' : '#f2faff';
-    const nm = lvNum(curLevelNo(i)) + '  ' + LEVELS[i].name;
+    const nm = lvNum(curLevelNo(i)) + '  ' + levelTitle(i);
     ctx.font = '700 ' + fitPx(nm, '700', 10, lw2 - (locked ? 34 : 18), 8) + 'px Audiowide, system-ui';
     ctx.textBaseline = 'middle';
     ctx.fillText(nm, rx + 10, ly2 + rh / 2 + 1);
@@ -13895,11 +13928,11 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
     return;
   }
   ctx.fillStyle = '#f2faff'; ctx.font = '700 12px Audiowide, system-ui';
-  ctx.fillText(L2.name, px2 + 14, py2 + 40);
+  ctx.fillText(levelTitle(li), px2 + 14, py2 + 40);
   for (let k = 0; k < 3; k++) star5(px2 + 22 + k * 20, py2 + 56, 7, k < PROG.stars[li]);
   // fixed rows top-down, deploy pinned to the bottom — nothing overlaps
   ctx.fillStyle = 'rgba(160,215,255,0.8)'; ctx.font = '600 9px Audiowide, system-ui';
-  ctx.fillText((L2.boss ? 'CORE DUEL · ' : '') + 'RUN ' + L2.duration + 's · TRAFFIC ' + Math.round(L2.speed * 100), px2 + 14, py2 + 78);
+  ctx.fillText((L2.boss ? 'WARDEN DUEL · ' : '') + 'RUN ' + L2.duration + 's · TRAFFIC ' + Math.round(L2.speed * 100), px2 + 14, py2 + 78);
   if ((PROG.bests[li] || 0) > 0) {
     ctx.fillStyle = 'rgba(255,210,74,0.85)';
     ctx.fillText('BEST ' + PROG.bests[li].toLocaleString(), px2 + 14, py2 + 92);
@@ -14029,7 +14062,7 @@ function drawEnd(g) {
   // the scene shows through at 0.18, so the data leans harder on its own shadow
   ctx.shadowColor = 'rgba(2,5,12,0.95)'; ctx.shadowBlur = lowFX ? 0 : 9;
   // mode line
-  const modeName = endless ? (daily ? 'DAILY STREAM' : 'ENDLESS STREAM') : qual ? 'QUALIFICATION' : LEVELS[levelIdx].name;
+  const modeName = endless ? (daily ? 'DAILY STREAM' : 'ENDLESS STREAM') : qual ? 'QUALIFICATION' : curRouteName();
   try { ctx.letterSpacing = '3px'; } catch (e) {}
   ctx.fillStyle = 'rgba(140,210,255,0.7)';
   fit('700', 11, 'MISSION REPORT  //  ' + modeName);
