@@ -5768,28 +5768,143 @@ function initStreaks() {
   }
 }
 initStreaks();
+
+// ---------- THE DEEP FIELD: real space outside the lane ----------
+// The lane is a contained corridor, not a sealed pipe, so what lies OUTSIDE it
+// has to be visible through the field wall — and it has to move at the WRONG
+// speed. Distant mass has almost no angular motion, so this layer drifts at a
+// small fraction of the wall's rate and accelerates outward with distance from
+// the axis (true radial parallax: the radius grows geometrically, so a mote
+// near the axis crawls and one near the screen edge sweeps).
+//
+// That mismatch IS the illusion. The wall screams past, the stars barely move,
+// and the corridor reads as a narrow thing threaded through open space rather
+// than as the only thing that exists.
+//
+// Drawn BEFORE the wall, so the wall's sparse strokes veil it instead of hiding
+// it, and the far void pool still swallows everything near the beacon — new
+// motes emerge out of that darkness instead of popping in.
+let deepStars = [], deepRocks = [];
+const DEEP_R0 = 0.16, DEEP_R1 = 1.75; // emerge / recycle radius, in half-min-side units
+const DEEP_PARALLAX = 0.12;           // fraction of the wall's rate — the whole trick, named not buried
+function mkDeepStar() {
+  return {
+    a: Math.random() * TAU,
+    rf: DEEP_R0 + Math.random() * (DEEP_R1 - DEEP_R0),
+    sz: Math.random() < 0.14 ? rand(1.5, 2.6) : rand(0.5, 1.3),
+    al: 0.12 + Math.random() * 0.40,
+    warm: Math.random() < 0.16,
+    sp: rand(0.8, 1.25)
+  };
+}
+function mkDeepRock() {
+  const n = 7 + (Math.random() * 5 | 0), vs = [];
+  for (let i = 0; i < n; i++) vs.push(rand(0.62, 1)); // per-vertex radius jitter — no two alike
+  return {
+    a: Math.random() * TAU,
+    rf: DEEP_R0 + Math.random() * (DEEP_R1 - DEEP_R0),
+    sz: rand(0.012, 0.042),           // fraction of min side
+    al: 0.10 + Math.random() * 0.16,  // faint: far away, and lit by one distant sun
+    spin: Math.random() * TAU, spinSp: rand(-0.09, 0.09),
+    sp: rand(0.7, 1.1), vs
+  };
+}
+function initDeepField() {
+  const nS = lowFX ? 80 : 210, nR = lowFX ? 3 : 9;
+  deepStars = []; deepRocks = [];
+  for (let i = 0; i < nS; i++) deepStars.push(mkDeepStar());
+  for (let i = 0; i < nR; i++) deepRocks.push(mkDeepRock());
+}
+initDeepField();
+function drawDeepField(g, dt) {
+  if (state === S.MENU) return;
+  const SR = Math.min(W, H) * 0.5; // NOT S — that is the state enum, and shadowing it TDZs S.MENU above
+  const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + (warpT / 0.9) * 2.5);
+  ctx.save();
+  // --- rocks first, so stars always pass IN FRONT of them, never behind ---
+  for (const rk of deepRocks) {
+    rk.rf *= 1 + dt * rate * rk.sp;
+    rk.spin += dt * rk.spinSp;
+    if (rk.rf > DEEP_R1) { Object.assign(rk, mkDeepRock()); rk.rf = DEEP_R0; }
+    const px = g.cx + Math.cos(rk.a) * rk.rf * SR, py = g.cy + Math.sin(rk.a) * rk.rf * SR;
+    const rad = Math.min(W, H) * rk.sz * (0.45 + rk.rf * 0.75); // swells as it comes abeam
+    if (px < -rad * 2 || px > W + rad * 2 || py < -rad * 2 || py > H + rad * 2) continue;
+    ctx.save();
+    ctx.translate(px, py); ctx.rotate(rk.spin);
+    ctx.beginPath();
+    for (let i = 0; i < rk.vs.length; i++) {
+      const a2 = i / rk.vs.length * TAU, rr = rad * rk.vs[i];
+      const vx = Math.cos(a2) * rr, vy = Math.sin(a2) * rr;
+      i ? ctx.lineTo(vx, vy) : ctx.moveTo(vx, vy);
+    }
+    ctx.closePath();
+    // a dark mass that occludes the field behind it — then the form is read from
+    // the key light on its lit limb. No outline: DESIGN.md forbids them, and a
+    // stroked rock reads as a sticker instantly.
+    ctx.fillStyle = `rgba(6,9,18,${(rk.al * 2.6).toFixed(3)})`;
+    ctx.fill();
+    const la = LIGHT_A - rk.spin; // the one world key light, in the rock's local frame
+    const lg = ctx.createLinearGradient(Math.cos(la) * rad, Math.sin(la) * rad,
+                                        -Math.cos(la) * rad, -Math.sin(la) * rad);
+    lg.addColorStop(0, `rgba(168,198,230,${rk.al.toFixed(3)})`);
+    lg.addColorStop(0.45, `rgba(90,120,160,${(rk.al * 0.28).toFixed(3)})`);
+    lg.addColorStop(1, 'rgba(40,60,90,0)');
+    ctx.fillStyle = lg;
+    ctx.fill();
+    ctx.restore();
+  }
+  // --- the slow starfield ---
+  for (const st of deepStars) {
+    st.rf *= 1 + dt * rate * st.sp;
+    if (st.rf > DEEP_R1) { Object.assign(st, mkDeepStar()); st.rf = DEEP_R0; }
+    const px = g.cx + Math.cos(st.a) * st.rf * SR, py = g.cy + Math.sin(st.a) * st.rf * SR;
+    if (px < -4 || px > W + 4 || py < -4 || py > H + 4) continue;
+    const near = clamp((st.rf - DEEP_R0) / 0.5, 0, 1); // fades up out of the deep, never pops
+    const al = st.al * (0.45 + 0.55 * near);
+    ctx.fillStyle = st.warm ? `rgba(255,214,170,${al.toFixed(3)})` : `rgba(216,236,255,${al.toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(px, py, st.sz * (0.7 + st.rf * 0.45), 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawStreaks(g, dt) {
-  // a wounded payload is a thinner, dimmer river
+  // a wounded convoy is a thinner, dimmer river
   const riverK = state === S.PLAY ? 0.35 + 0.65 * clamp(integrity / 100, 0, 1) : 1;
+  const spd = state === S.PLAY ? trafficSpeed : 0.4;
+  // the ambient smear is SPEED-COUPLED. A fixed-length streak reads as texture
+  // no matter how fast the lane runs; a streak that STRETCHES with the traffic
+  // reads as velocity. This one number is what makes a fast level feel fast
+  // rather than merely busy.
+  const ambSpan = 0.11 + spd * 0.34;
   for (const st of streaks) {
     const wsp = 1 + (warpT / 0.9) * 5; // warp-dive stretch
-    st.z -= dt * (state === S.PLAY ? trafficSpeed : 0.4) * st.sp * wsp; // the river flows WITH the traffic
+    st.z -= dt * spd * st.sp * wsp; // the river flows WITH the traffic
     if (st.z <= -0.08) { st.z = 1; if (st.gold) st.a = Math.PI / 2 + rand(-0.55, 0.55); }
     if (st.gold && st.ord > riverK) continue;
-    const r1 = ring(st.z, g), r2 = ring(Math.min(st.z + (st.gold ? 0.05 : 0.09) * (1 + (warpT / 0.9) * 3), 1), g);
+    const span = (st.gold ? 0.05 : ambSpan) * (1 + (warpT / 0.9) * 3);
+    const r1 = ring(st.z, g), r2 = ring(Math.min(st.z + span, 1), g);
     const rr1 = st.gold ? r1.r * rand(0.86, 0.99) : r1.r * 0.97;
     const x1 = r1.x + Math.cos(st.a) * rr1, y1 = r1.y + Math.sin(st.a) * rr1;
     const x2 = r2.x + Math.cos(st.a) * r2.r * 0.95, y2 = r2.y + Math.sin(st.a) * r2.r * 0.95;
-    const al = Math.min(1 - st.z, 1.05) * (st.gold ? 0.75 : 0.3) * clamp(1 + st.z / 0.1, 0, 1);
+    const al = Math.min(1 - st.z, 1.05) * (st.gold ? 0.75 : 0.42) * clamp(1 + st.z / 0.1, 0, 1);
     ctx.strokeStyle = st.gold ? `rgba(255,196,88,${al.toFixed(2)})`
       : st.amber ? `rgba(255,185,90,${al.toFixed(2)})` : `rgba(140,215,255,${al.toFixed(2)})`;
-    ctx.lineWidth = st.gold ? lerp(0.5, 2.6, 1 - st.z) : 1;
+    ctx.lineWidth = st.gold ? lerp(0.5, 2.6, 1 - st.z) : lerp(0.55, 1.7, 1 - st.z);
     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     // hot core on the nearest gold particles
     if (st.gold && st.z < 0.35) {
       ctx.strokeStyle = `rgba(255,238,190,${(al * 0.7).toFixed(2)})`;
       ctx.lineWidth = 0.8;
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+    // the LEADING HEAD on a near ambient streak: the point the star still
+    // occupies before the smear behind it. A streak with a head has a direction;
+    // a bare line is ambiguous, and ambiguity is what made the old wall read flat.
+    if (!st.gold && st.z < 0.55) {
+      const hk = (1 - st.z / 0.55);
+      ctx.fillStyle = st.amber ? `rgba(255,228,180,${(al * hk * 0.9).toFixed(2)})`
+        : `rgba(226,244,255,${(al * hk * 0.9).toFixed(2)})`;
+      ctx.beginPath(); ctx.arc(x1, y1, Math.max(0.5, 1.5 * hk), 0, TAU); ctx.fill();
     }
   }
 }
@@ -12432,6 +12547,7 @@ function perfWatch(rawDt) {
     if (perfAcc / perfN > 1 / 42) { // sustained under ~42fps → permanently shed load
       lowFX = true;
       initStreaks();
+      initDeepField();
       wallSnips.length = Math.min(wallSnips.length, 14);
     }
     perfAcc = 0; perfN = 0; perfWin = 0;
@@ -13073,6 +13189,11 @@ function frame(now) {
   drawLiveBg(dt);
 
   const g = geo();
+
+  // open space OUTSIDE the lane, before the wall goes down — the wall's sparse
+  // strokes veil it rather than hide it, so the corridor reads as threaded
+  // through something bigger than itself
+  drawDeepField(g, dt);
 
   // the tunnel fills the whole screen — no clipping, we're inside it
   drawTunnel(g);
