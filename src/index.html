@@ -12948,6 +12948,12 @@ const BASE_K = 0.25;
 //
 // So the diffuse field is accumulated in FLOATS below and handed to the canvas
 // as one finished image. There is nothing left for the rasteriser to dither.
+// Per-row marquee offsets. Only the FOCUSED row scrolls — eight names sliding at
+// once was motion for its own sake, and the number at the head of each row is the
+// thing you scan the column by, so an unfocused row must show it. Offsets are
+// eased rather than snapped, so losing focus walks the name home instead of
+// jumping it.
+let relayScroll = [], relayScrollSel = -1, relayScrollT = 0;
 let mapRideT = 0, mapRideSel = -1; // the camera's trip along the selected lane
 let cityBase = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1;
 const mapR = () => menuGeom().R * 0.92; // the lens rim MATCHES the mode wheel — seamless crossfade
@@ -13523,53 +13529,40 @@ function drawGalaxyOverlay(tf, ccx, ccy, R, labels) {
   }
   const cx2 = tf.ox + CITY_CORE.x * z, cy2 = tf.oy + CITY_CORE.y * z;
   const ell = r => { ctx.beginPath(); ctx.ellipse(cx2, cy2, r * z, r * 0.5 * z, 0, 0, TAU); };
-  // Grey first, risk second. Saturated green/amber/red rings were the loudest
-  // thing on a chart whose subject is the route — the tint now only leans the
-  // grey, which is enough to rank them without competing with the lane.
-  const ringCol = i => i < 1 ? '150,170,158' : i < 3 ? '172,166,142' : '178,150,150';
+  // The risk hues are back — they rank the cordons at a glance and nothing else
+  // on the chart carries that meaning. What made them shout was never the colour
+  // but the INK: a near-solid dash pattern at full strength. Widely spaced dashes
+  // and a much dimmer stroke keep the ranking and give the route the foreground.
+  const ringCol = i => i < 1 ? '126,226,98' : i < 3 ? '255,200,80' : '255,110,110';
   const perimeter = (r, col, a) => {
     ctx.save();
     ctx.strokeStyle = `rgba(${col},${a.toFixed(2)})`;
-    ctx.lineWidth = 2.2;
-    ctx.setLineDash([18, 12]);
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([10, 54]);   // was [18,12] — nearly solid; now mostly gap
     ell(r); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.strokeStyle = `rgba(${col},${(a * 0.26).toFixed(2)})`;
-    ctx.lineWidth = 8;
+    ctx.strokeStyle = `rgba(${col},${(a * 0.13).toFixed(2)})`;
+    ctx.lineWidth = 6;
     ell(r); ctx.stroke();
-    ctx.fillStyle = `rgba(${col},${(a * 0.9).toFixed(2)})`;
-    for (let k = 0; k < 30; k++) {
-      const a2 = k / 30 * TAU;
-      ctx.fillRect(cx2 + Math.cos(a2) * r * z - 2, cy2 + Math.sin(a2) * r * 0.5 * z - 2, 4, 4);
+    // picket stations: fewer and smaller, so the ring reads as a sparse patrol
+    // line rather than a studded band
+    ctx.fillStyle = `rgba(${col},${(a * 0.55).toFixed(2)})`;
+    for (let k = 0; k < 14; k++) {
+      const a2 = k / 14 * TAU;
+      ctx.fillRect(cx2 + Math.cos(a2) * r * z - 1.5, cy2 + Math.sin(a2) * r * 0.5 * z - 1.5, 3, 3);
     }
     ctx.restore();
   };
-  if (RINGS.length) perimeter(RINGS[0].r0, '150,170,158', 0.42);
+  if (RINGS.length) perimeter(RINGS[0].r0, '126,226,98', 0.30);
+  // (The cordon labels are gone — 'CORDON 0N · NAME' and its COVER readout used
+  // to ride each ring and simply got in the way of the route. The dossier already
+  // carries both for the relay you are looking at, which is where a number you
+  // might act on belongs.)
   RINGS.forEach((ring2, i) => {
-    const col = ringCol(i), q = 1 - i / Math.max(1, RINGS.length);
-    perimeter(ring2.r1, col, 0.16 + q * 0.18);
-    if (!labels) return;
-    // The label used to sit at a FIXED point on the ring — upper-left — so riding
-    // the lane simply carried that point out of the lens and the cordon lost its
-    // name mid-journey. It now rides to whichever part of the ring is nearest the
-    // view, which is by definition the part you are looking at, so a cordon that
-    // crosses the lens is always labelled.
-    const lr = (ring2.r0 + ring2.r1) / 2;
-    const towards = Math.atan2((ccy - cy2) / 0.5, ccx - cx2);
-    let lx = cx2 + Math.cos(towards) * lr * z;
-    let ly = cy2 + Math.sin(towards) * lr * 0.5 * z - 8;
-    // nudge it back toward the middle of the lens so the type is never half-cropped
-    const dl = Math.hypot(lx - ccx, ly - ccy);
-    if (dl > R - 70) { const k2 = (R - 70) / dl; lx = ccx + (lx - ccx) * k2; ly = ccy + (ly - ccy) * k2; }
-    if (Math.hypot(cx2 - ccx, cy2 - ccy) - lr * z > R) return; // the ring is nowhere near
-    ctx.textAlign = 'left';
-    ctx.fillStyle = `rgba(${col},${(0.45 + q * 0.35).toFixed(2)})`;
-    ctx.font = '700 12px Audiowide, system-ui';
-    ctx.fillText('CORDON 0' + (i + 1) + ' · ' + ring2.name, lx, ly);
-    ctx.fillStyle = 'rgba(150,205,255,0.55)';
-    ctx.font = '500 10px Audiowide, system-ui';
-    ctx.fillText('COVER ' + shieldAt(ring2.r1) + '-' + shieldAt(ring2.r0) + '%', lx, ly + 13);
+    const q = 1 - i / Math.max(1, RINGS.length);
+    perimeter(ring2.r1, ringCol(i), 0.16 + q * 0.18);
   });
+
   if (labels && RINGS.length) {
     ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(255,222,160,0.9)';
@@ -13780,6 +13773,7 @@ function drawMenuMap() {
   // moment at each destination. You see where the convoy forms up, the corridor
   // it takes, and where it delivers, without giving up the scale that makes a
   // planet on an orbit legible.
+  relayScrollT += Math.min(0.05, frameDt || 0.016);
   if (mapRideSel !== mapSel) { mapRideSel = mapSel; mapRideT = 0; }
   mapRideT += (frameDt || 0.016) * 0.17;            // ~6s each way
   const ping = mapRideT % 2, raw = ping < 1 ? ping : 2 - ping;
@@ -14129,6 +14123,7 @@ function drawMapList(ccx, ccy, R, frontier) {
     // It rests at the start for most of the cycle, so the column reads as still
     // type rather than eight things sliding at once, and each row is phased off
     // its own index so nothing moves in lockstep.
+    if (relayScrollSel !== mapSel) { relayScrollSel = mapSel; relayScrollT = 0; relayScroll = []; }
     const padR = locked ? 34 : 18;
     const boxX = rx + 10, boxW = lw2 - padR - 4;
     ctx.save();
@@ -14136,15 +14131,18 @@ function drawMapList(ccx, ccy, R, frontier) {
     ctx.font = '700 11px Audiowide, system-ui';
     ctx.textBaseline = 'middle';
     const tw = ctx.measureText(nm).width;
-    let ox = 0;
-    if (tw > boxW) {
+    let want = 0;
+    if (sel && tw > boxW) {
       const over = tw - boxW;
-      const per = 4 + over / 26;                 // longer names take longer to read
-      const ph = (time / per + i * 0.31) % 2;    // phased per row
-      const raw = ph < 1 ? ph : 2 - ph;
+      const per = 4 + over / 26;                       // longer names take longer to read
+      const ph = (relayScrollT / per) % 2;             // clock restarts on every focus change,
+      const raw = ph < 1 ? ph : 2 - ph;                // so a name always begins at its head
       const held = clamp((raw - 0.30) / 0.40, 0, 1);   // long dwell at both ends
-      ox = -over * held * held * (3 - 2 * held);
+      want = -over * held * held * (3 - 2 * held);
     }
+    const cur = relayScroll[i] === undefined ? 0 : relayScroll[i];
+    relayScroll[i] = cur + (want - cur) * (1 - Math.pow(0.002, Math.min(0.05, frameDt || 0.016) / 0.30));
+    const ox = relayScroll[i];
     ctx.fillText(nm, boxX + ox, ly2 + rh / 2 + 1);
     ctx.restore();
     ctx.textBaseline = 'alphabetic';
