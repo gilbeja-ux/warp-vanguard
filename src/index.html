@@ -952,31 +952,18 @@ function buildBackground() {
   // Clustered rather than scattered. An even wash of blobs reads as a gradient;
   // three or four centres with fall-off around them read as structure.
   {
+    // Richer than the first pass: more clusters, and the reference palette —
+    // cyan and violet carrying it, warm dust for contrast. Sizes and densities
+    // vary per cluster so no two read the same, and they overlap.
     const neb = [
-      { x: W * 0.17, y: H * 0.34, r: Math.min(W, H) * 0.52, col: '150,112,58', n: 26 },  // warm dust
-      { x: W * 0.30, y: H * 0.74, r: Math.min(W, H) * 0.40, col: '128,96,52', n: 18 },
-      { x: W * 0.72, y: H * 0.58, r: Math.min(W, H) * 0.44, col: '48,132,140', n: 20 },  // cold teal wisp
-      { x: W * 0.86, y: H * 0.22, r: Math.min(W, H) * 0.33, col: '60,110,150', n: 14 }
-    ];
-    b.save();
-    b.globalCompositeOperation = 'lighter';
-    for (const cl2 of neb) {
-      for (let i = 0; i < cl2.n; i++) {
-        // gaussian-ish clustering: two uniforms averaged pull blobs toward centre
-        const ang = Math.random() * TAU;
-        const rad = cl2.r * (Math.random() + Math.random()) * 0.5;
-        const bx = cl2.x + Math.cos(ang) * rad, by = cl2.y + Math.sin(ang) * rad * 0.72;
-        const br = cl2.r * rand(0.16, 0.44);
-        const al = 0.012 + Math.random() * 0.030; // barely there, individually
-        const gr2 = b.createRadialGradient(bx, by, 0, bx, by, br);
-        gr2.addColorStop(0, `rgba(${cl2.col},${al.toFixed(4)})`);
-        gr2.addColorStop(0.5, `rgba(${cl2.col},${(al * 0.42).toFixed(4)})`);
-        gr2.addColorStop(1, `rgba(${cl2.col},0)`);
-        b.fillStyle = gr2;
-        b.beginPath(); b.arc(bx, by, br, 0, TAU); b.fill();
-      }
-    }
-    b.restore();
+      { x: W * 0.15, y: H * 0.30, r: Math.min(W, H) * 0.56, col: '150,112,58', n: 30 },  // warm dust
+      { x: W * 0.32, y: H * 0.72, r: Math.min(W, H) * 0.42, col: '128,96,52', n: 20 },
+      { x: W * 0.24, y: H * 0.52, r: Math.min(W, H) * 0.34, col: '120,70,170', n: 22 },  // violet
+      { x: W * 0.70, y: H * 0.58, r: Math.min(W, H) * 0.48, col: '44,138,150', n: 26 },  // cyan
+      { x: W * 0.84, y: H * 0.26, r: Math.min(W, H) * 0.36, col: '58,104,160', n: 18 },
+      { x: W * 0.60, y: H * 0.14, r: Math.min(W, H) * 0.30, col: '112,60,150', n: 16 },  // violet
+      { x: W * 0.92, y: H * 0.78, r: Math.min(W, H) * 0.32, col: '40,124,132', n: 16 }
+    ];    b.restore();
     // mottling: dark voids punched back through the cloud so it has holes and
     // filaments instead of reading as airbrushed haze
     for (let i = 0; i < 90; i++) {
@@ -988,7 +975,35 @@ function buildBackground() {
       b.fillStyle = gr2;
       b.beginPath(); b.arc(bx, by, br, 0, TAU); b.fill();
     }
-  }
+ 
+    // BACKDROP STARS, baked: dense, clustered rather than uniform, and coloured.
+    // A uniform scatter reads as noise; clumps with empty lanes between them read
+    // as a sky. These sit behind everything and never move — the deep field's
+    // parallax layer passes in front of them, which is what builds the depth order.
+    const SCOL = ['198,222,255', '255,238,214', '255,206,168', '210,196,255', '188,240,255'];
+    for (let c3 = 0; c3 < 26; c3++) {
+      const cx3 = Math.random() * W, cy3 = Math.random() * H;
+      const spread = Math.min(W, H) * rand(0.05, 0.30);
+      const n3 = 8 + (Math.random() * 34 | 0);
+      for (let i = 0; i < n3; i++) {
+        const sx3 = cx3 + (Math.random() + Math.random() - 1) * spread;
+        const sy3 = cy3 + (Math.random() + Math.random() - 1) * spread;
+        if (sx3 < 0 || sx3 > W || sy3 < 0 || sy3 > H) continue;
+        const big = Math.random() < 0.07;
+        const al3 = (big ? 0.35 + Math.random() * 0.45 : 0.08 + Math.random() * 0.34);
+        const col3 = SCOL[Math.random() * SCOL.length | 0];
+        if (big) { // the bright ones carry a little bloom, like the reference
+          const gg = b.createRadialGradient(sx3, sy3, 0, sx3, sy3, rand(3, 7));
+          gg.addColorStop(0, `rgba(${col3},${(al3 * 0.5).toFixed(3)})`);
+          gg.addColorStop(1, `rgba(${col3},0)`);
+          b.fillStyle = gg;
+          b.beginPath(); b.arc(sx3, sy3, 7, 0, TAU); b.fill();
+        }
+        b.fillStyle = `rgba(${col3},${al3.toFixed(3)})`;
+        b.beginPath(); b.arc(sx3, sy3, big ? rand(1.1, 1.9) : rand(0.35, 0.95), 0, TAU); b.fill();
+      }
+    }
+ }
 
   // --- the lane wall texture: starlight smeared by transit, stamped at many depths ---
   //
@@ -5902,71 +5917,110 @@ function drawTunnel(g) {
   drawFarGlow(far, vr);
 }
 
-// the far light: the DESTINATION. A lane goes somewhere, so the vanishing point
-// carries a dim gold beacon — where the convoy is headed — pulsing on a strict
-// 2-second loop. It replaced the fiber theme's red ember, which read as a dead
-// cable running off into nothing.
+// THE DESTINATION WORLD. A lane goes somewhere, and the vanishing point is where.
 //
-// Gold on purpose, not cold white: gold is already the frontier/reward/attention
-// token, so it means "the thing you are trying to reach" without competing with
-// the phase language. A cold beacon would have fought blue ⊕ and white ⊖ for
-// exactly the contrast the color rule cannot afford to lose — and it sits at the
-// centre of frame, where every incoming threat is read.
+// This was a pulsing gold beacon with a cross-glint; it is now a planet, and it
+// GROWS as the run progresses — tied to the same fraction the HUD progress arc
+// draws, so closing on the world and filling the bar are one motion. Capped at
+// 2x its start size, per the brief: it must read as approach, not as arrival.
 //
-// Deliberately still dim. The dark pool in front of it stays, so the beacon is a
-// promise at the edge of perception rather than a lamp lighting the bore.
+// No light rays. A navigation glint said "signal"; a planet is a body, so what
+// sits around it is atmosphere — a soft haze shell and a dusting of glowing grain
+// that boils gently at its limb.
 //
-// Tiny particles drift off it and die fast. Stateless (each particle is a fixed
-// phase evaluated against the shared clock), so it runs identically in menus,
-// replays and pauses without touching the sim.
+// Still deliberately dim, and the dark pool in front of it stays. It is a promise
+// at the edge of perception, not a lamp lighting the bore, and it sits dead centre
+// where every incoming threat is read — so it must never win a contrast fight
+// against the colour rule.
 const farMotes = [];
-for (let i = 0; i < 16; i++) {
+for (let i = 0; i < 34; i++) {
   farMotes.push({
-    a: Math.random() * TAU,               // departure bearing from the centre
-    ph: Math.random(),                    // where in its short life this one starts
-    sp: rand(0.55, 0.95)                  // quick lives: ~1–2s from birth to gone
+    a: Math.random() * TAU,          // bearing around the limb
+    rr: 0.55 + Math.random() * 0.75, // how far out in the haze shell it sits
+    ph: Math.random(),
+    sp: rand(0.10, 0.30),            // slow: this is atmosphere, not sparks
+    sz: rand(0.4, 1.5),
+    warm: Math.random() < 0.3
   });
 }
+// how far along the lane we are — the same expression the HUD progress arc uses,
+// so the world's growth and the bar are literally the same number
+function laneProgress() {
+  if (state !== S.PLAY) return 0;
+  const L = LV || LEVELS[levelIdx];
+  if (boss) return clamp(1 - boss.hp / boss.maxHp, 0, 1);
+  if (endless) return clamp(levelT / 150, 0, 1);
+  return L ? clamp(levelT / L.duration, 0, 1) : 0;
+}
 function drawFarGlow(far, vr) {
-  // 2s loop: sin period 2π/π — a beacon keeps time, so the pulse is regular and
-  // sharper than the old ember's slow fade. Crest is a clear mark, trough never
-  // goes dark: a navigation light does not go out.
-  const breath = 0.5 + 0.5 * Math.sin(time * Math.PI);
-  const beat = Math.pow(breath, 2.2); // sharpened — a pulse, not a sigh
-  const gr = vr * (0.3 + 0.06 * beat);
-  const core = ctx.createRadialGradient(far.x, far.y, 0, far.x, far.y, gr);
-  core.addColorStop(0, `rgba(255,214,120,${(0.09 + 0.15 * beat).toFixed(3)})`);
-  core.addColorStop(0.35, `rgba(190,140,50,${(0.045 + 0.07 * beat).toFixed(3)})`);
-  core.addColorStop(1, 'rgba(90,60,15,0)');
-  ctx.fillStyle = core;
-  ctx.beginPath(); ctx.arc(far.x, far.y, gr, 0, TAU); ctx.fill();
-  // the beacon itself: gold, holding a floor between pulses
-  ctx.fillStyle = `rgba(255,${Math.round(198 + 40 * beat)},${Math.round(96 + 90 * beat)},${(0.34 + 0.4 * beat).toFixed(2)})`;
-  ctx.beginPath(); ctx.arc(far.x, far.y, Math.max(1, vr * 0.05 * (0.82 + 0.22 * beat)), 0, TAU); ctx.fill();
-  // the flash: on the crest the beacon throws a brief cross-glint, the way a
-  // distant navigation light catches. Costs two strokes and sells "signal".
-  if (beat > 0.72) {
-    const fl = (beat - 0.72) / 0.28, sp2 = vr * (0.10 + 0.16 * fl);
-    ctx.save();
-    ctx.strokeStyle = `rgba(255,226,164,${(fl * 0.3).toFixed(3)})`;
-    ctx.lineWidth = Math.max(0.6, vr * 0.007);
+  // 1x at departure, 2x at arrival — never more, so it reads as approach
+  const grow = 1 + laneProgress();
+  const R = Math.max(1.2, vr * 0.052 * grow);
+  // a slow breath, nothing like the old beacon's 2s pulse — a world does not blink
+  const breath = 0.5 + 0.5 * Math.sin(time * 0.7);
+
+  // --- the haze shell: atmosphere, and what replaced the light rays ---
+  const hz = ctx.createRadialGradient(far.x, far.y, R * 0.7, far.x, far.y, R * 5.2);
+  hz.addColorStop(0, `rgba(150,190,240,${(0.085 + 0.02 * breath).toFixed(4)})`);
+  hz.addColorStop(0.35, `rgba(96,140,205,${(0.040 + 0.012 * breath).toFixed(4)})`);
+  hz.addColorStop(1, 'rgba(50,80,150,0)');
+  ctx.fillStyle = hz;
+  ctx.beginPath(); ctx.arc(far.x, far.y, R * 5.2, 0, TAU); ctx.fill();
+
+  // --- the body: a sphere, not a disc ---
+  // The whole trick is the terminator. A centred gradient reads as a coin; a
+  // gradient whose centre is pushed toward the sun reads as a lit sphere, because
+  // the falloff then runs across the surface the way real light does.
+  const la = LIGHT_A;
+  const lx = Math.cos(la), ly = Math.sin(la);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(far.x, far.y, R, 0, TAU); ctx.clip();
+  ctx.fillStyle = 'rgba(9,14,26,0.95)';               // the dark side
+  ctx.fillRect(far.x - R, far.y - R, R * 2, R * 2);
+  const bg2 = ctx.createRadialGradient(
+    far.x + lx * R * 0.62, far.y + ly * R * 0.62, R * 0.05,
+    far.x, far.y, R * 1.45);
+  bg2.addColorStop(0, `rgba(206,214,232,${(0.72 + 0.08 * breath).toFixed(3)})`);
+  bg2.addColorStop(0.30, 'rgba(132,152,190,0.46)');
+  bg2.addColorStop(0.62, 'rgba(62,82,128,0.20)');
+  bg2.addColorStop(1, 'rgba(14,22,44,0)');
+  ctx.fillStyle = bg2;
+  ctx.fillRect(far.x - R, far.y - R, R * 2, R * 2);
+  // a couple of banded shadings so the surface is not a clean gradient
+  ctx.globalAlpha = 0.16;
+  for (let b = 0; b < 3; b++) {
+    const by = far.y + (b - 1) * R * 0.42;
+    ctx.fillStyle = b === 1 ? 'rgba(150,170,205,1)' : 'rgba(40,58,96,1)';
     ctx.beginPath();
-    ctx.moveTo(far.x - sp2, far.y); ctx.lineTo(far.x + sp2, far.y);
-    ctx.moveTo(far.x, far.y - sp2 * 0.6); ctx.lineTo(far.x, far.y + sp2 * 0.6);
-    ctx.stroke();
-    ctx.restore();
+    ctx.ellipse(far.x, by, R * 1.02, R * 0.17, 0, 0, TAU);
+    ctx.fill();
   }
-  // motes drifting off the beacon: born at the light, gone within a short reach
-  // of it — barely-there background motion
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  // the lit limb: a thin bright arc on the sun side, which is what finally sells
+  // the curvature at this size
+  ctx.save();
+  ctx.strokeStyle = `rgba(210,228,255,${(0.30 + 0.10 * breath).toFixed(3)})`;
+  ctx.lineWidth = Math.max(0.6, R * 0.09);
+  ctx.beginPath(); ctx.arc(far.x, far.y, R * 0.97, la - 1.25, la + 1.25); ctx.stroke();
+  ctx.restore();
+
+  // --- glowing grain in the haze: the atmosphere lit from within ---
+  // Stateless — each mote is a fixed phase read against the shared clock — so it
+  // behaves identically in menus, replays and pauses without touching the sim.
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
   for (const m of farMotes) {
-    const k = ((time * m.sp + m.ph) % 1 + 1) % 1;      // 0 = at the beacon, 1 = gone
-    const al = (1 - k) * (1 - k) * 0.20 * (0.55 + 0.45 * beat); // dies fast, dimmer between pulses
-    if (al < 0.015) continue;
-    const rr = vr * 0.05 + k * vr * 0.3;               // a short outward drift
-    const mx = far.x + Math.cos(m.a) * rr, my = far.y + Math.sin(m.a) * rr;
-    ctx.fillStyle = `rgba(255,206,140,${al.toFixed(3)})`;
-    ctx.beginPath(); ctx.arc(mx, my, Math.max(0.4, vr * 0.008 * (1 - k * 0.5)), 0, TAU); ctx.fill();
+    const k = ((time * m.sp + m.ph) % 1 + 1) % 1;
+    const puff = Math.sin(k * Math.PI);              // fades in and out, never pops
+    const al = puff * 0.13 * (0.6 + 0.4 * breath);
+    if (al < 0.008) continue;
+    const rr = R * (m.rr + k * 0.9);
+    const mx = far.x + Math.cos(m.a) * rr, my = far.y + Math.sin(m.a) * rr * 0.92;
+    ctx.fillStyle = m.warm ? `rgba(255,214,170,${al.toFixed(3)})` : `rgba(190,220,255,${al.toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(mx, my, Math.max(0.35, m.sz * (0.5 + grow * 0.35)), 0, TAU); ctx.fill();
   }
+  ctx.restore();
 }
 
 // The projection floor. ring() scales by 1/(1 + z*6), which divides by zero at
@@ -5991,20 +6045,30 @@ const EXIT_Z = -0.02, EXIT_CAP = 0.012;
 // makes them read as light rather than as coloured lines — and only the halo
 // carries the star's actual temperature.
 const STAR_TINTS = [
-  ['110,180,255', '170,214,255'],  // blue-white
-  ['110,180,255', '170,214,255'],  // (weighted: most stars are this)
-  ['140,200,255', '198,228,255'],
+  ['110,180,255', '175,215,255'],  // blue-white
+  ['110,180,255', '175,215,255'],  // (weighted: most stars are this)
+  ['92,206,235', '170,232,250'],   // cyan — heavy in the reference
+  ['92,206,235', '170,232,250'],
+  ['150,120,255', '198,178,255'],  // violet — the other half of the reference
+  ['176,110,240', '214,172,250'],  // purple
   ['255,224,168', '255,240,212'],  // yellow-white
   ['255,188,126', '255,220,178'],  // orange
-  ['255,148,116', '255,198,172'],  // red giant
-  ['198,166,255', '224,204,255']   // violet
+  ['255,148,116', '255,198,172']   // red giant
 ];
 // width + alpha only; colour comes from the star's own tint pair, core white
+// SIX passes, not four, and a much gentler alpha ramp. The reference streaks are
+// translucent RIBBONS of light with heavy bloom, not opaque lines — you can see
+// straight through them to the stars behind. A smooth falloff across many narrow
+// passes gives a soft edge profile; the capsule problem only ever came from ONE
+// wide pass carrying real alpha, which is why the widest here is nearly invisible
+// on its own and only reads as the outermost breath of the glow.
 const LIVE_WARP_PASSES = [
-  [3.4, 0, 0.15],   // outer halo — the star's temperature
-  [2.1, 1, 0.30],
-  [1.2, 1, 0.62],
-  [0.6, 2, 1.00]    // core — white hot, always
+  [6.2, 0, 0.030],  // outermost breath — barely there alone
+  [4.0, 0, 0.055],
+  [2.6, 0, 0.105],
+  [1.7, 1, 0.200],
+  [1.0, 1, 0.400],
+  [0.5, 2, 0.780]   // core — white hot, and still not fully opaque
 ];
 
 // THE CONVOY: the gold river running along the floor of the lane, behind and
@@ -6253,7 +6317,7 @@ function drawStreaks(g, dt) {
     // here is exactly what made them dissolve in front of the viewer
     const al = st.gold
       ? Math.min(1 - zH, 1.05) * 0.75 * clamp(1 + zH / 0.1, 0, 1)
-      : Math.min(1 - zH, 1.05) * 0.52 * st.br;
+      : Math.min(1 - zH, 1.05) * 0.46 * st.br; // translucent: you see stars THROUGH a warp line
     if (st.gold) {
       ctx.strokeStyle = `rgba(255,196,88,${al.toFixed(2)})`;
       ctx.lineWidth = lerp(0.5, 2.6, 1 - zH);
@@ -6266,7 +6330,7 @@ function drawStreaks(g, dt) {
       // capped: without this a hero streak (cal 2.5) at the near end reaches a
       // 15px halo, and anything past ~5px is a capsule again — the exact fault
       // that took three passes to kill. Cap it once, here.
-      const k = Math.min(1.7, lerp(0.6, 1.25, 1 - zH) * st.cal);
+      const k = Math.min(1.55, lerp(0.6, 1.25, 1 - zH) * st.cal);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.lineCap = 'round';
@@ -6313,7 +6377,7 @@ const GAS_COLS = [
   '178,98,112',   // rose
   '70,170,150'    // green-teal
 ];
-let gasWisps = [], laneDebris = [];
+let gasWisps = [];
 function mkGas() {
   return {
     a: Math.random() * TAU, z: Math.random(),
@@ -6325,23 +6389,14 @@ function mkGas() {
     sp: rand(0.5, 0.9)                    // gas LAGS the stars — parallax between layers
   };
 }
-function mkDebris() {
-  const n = 5 + (Math.random() * 4 | 0), vs = [];
-  for (let i = 0; i < n; i++) vs.push(rand(0.45, 1)); // angular: debris is not a planet
-  return {
-    a: Math.random() * TAU, z: Math.random(),
-    rmul: rand(0.28, 1.55),
-    sz: rand(0.004, 0.020),
-    spin: Math.random() * TAU, spinSp: rand(-2.4, 2.4),
-    warm: Math.random() < 0.35,
-    sp: rand(0.88, 1.3), vs
-  };
-}
+// (the debris chunks are GONE. Angular polygons tumbling at the camera read as
+// "weird polygons flying towards me" rather than as rock — at the size and speed
+// they passed there was never enough silhouette to sell them as anything. The
+// lane's texture comes from gas and the starfield instead.)
 function initLaneMedium() {
-  const nG = lowFX ? 6 : 16, nD = lowFX ? 14 : 46;
-  gasWisps = []; laneDebris = [];
+  const nG = lowFX ? 10 : 26; // more gas now that it carries the medium alone
+  gasWisps = [];
   for (let i = 0; i < nG; i++) gasWisps.push(mkGas());
-  for (let i = 0; i < nD; i++) laneDebris.push(mkDebris());
 }
 initLaneMedium();
 function drawLaneMedium(g, dt) {
@@ -6377,40 +6432,6 @@ function drawLaneMedium(g, dt) {
     ctx.restore();
   }
   ctx.restore();
-  // --- debris: chunks tumbling past, lit by the one world key light ---
-  for (const db of laneDebris) {
-    db.z -= dt * spd * db.sp * wsp;
-    db.spin += dt * db.spinSp;
-    if (db.z <= -0.14) { Object.assign(db, mkDebris()); db.z = 1; }
-    const rg = ring(db.z, g);
-    const rad = Math.min(W, H) * db.sz * rg.s * 5.5; // swells as it comes at you
-    if (rad < 0.7) continue;
-    const px = rg.x + Math.cos(db.a) * rg.r * db.rmul;
-    const py = rg.y + Math.sin(db.a) * rg.r * db.rmul;
-    if (px < -rad * 3 || px > W + rad * 3 || py < -rad * 3 || py > H + rad * 3) continue;
-    const al = Math.min(1, (1 - db.z) * 3) * 0.5; // fades in from the deep, never out
-    if (al < 0.01) continue;
-    ctx.save();
-    ctx.translate(px, py); ctx.rotate(db.spin);
-    ctx.beginPath();
-    for (let i = 0; i < db.vs.length; i++) {
-      const a2 = i / db.vs.length * TAU, rr = rad * db.vs[i];
-      const vx = Math.cos(a2) * rr, vy = Math.sin(a2) * rr;
-      i ? ctx.lineTo(vx, vy) : ctx.moveTo(vx, vy);
-    }
-    ctx.closePath();
-    ctx.fillStyle = `rgba(5,8,16,${(al * 0.85).toFixed(3)})`; // occludes what is behind
-    ctx.fill();
-    const la = LIGHT_A - db.spin;
-    const lg = ctx.createLinearGradient(Math.cos(la) * rad, Math.sin(la) * rad,
-                                        -Math.cos(la) * rad, -Math.sin(la) * rad);
-    lg.addColorStop(0, `rgba(${db.warm ? '226,196,158' : '176,204,236'},${(al * 0.8).toFixed(3)})`);
-    lg.addColorStop(0.5, `rgba(${db.warm ? '120,98,74' : '86,116,158'},${(al * 0.22).toFixed(3)})`);
-    lg.addColorStop(1, 'rgba(24,36,58,0)');
-    ctx.fillStyle = lg;
-    ctx.fill();
-    ctx.restore();
-  }
 }
 
 // ---------- enemy bodies: GLITCH, painted ON the wall ----------
