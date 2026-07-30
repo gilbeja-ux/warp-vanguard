@@ -943,67 +943,118 @@ function buildBackground() {
   // the hyperspace references only go blue during the JUMP, and cruise is dark.
   b.fillStyle = '#020510'; b.fillRect(0, 0, W, H);
 
-  // --- NEBULAS: the furthest thing there is ---
-  // Warm gold-brown dust and cold teal wisps, heavily desaturated and mottled.
-  // Baked into the static background on purpose: at that distance nothing moves
-  // perceptibly, so this costs nothing per frame — and the deep field's stars and
-  // wisps parallax in FRONT of it, which is what gives the sky its depth order.
+  // --- THE GALACTIC BAND: the backdrop's whole structure ---
   //
-  // Clustered rather than scattered. An even wash of blobs reads as a gradient;
-  // three or four centres with fall-off around them read as structure.
+  // The references are not scattered nebula clouds. They are the galaxy seen
+  // EDGE-ON: one broad band of warm dust crossing the entire frame on a diagonal,
+  // brightest along its spine, with a dark dust lane cutting through it. That one
+  // structure is what makes a sky read as "somewhere inside a galaxy" instead of
+  // as fog, and scattered blobs can never do it because they have no axis.
+  //
+  // All baked: at this distance nothing moves perceptibly, so it costs nothing per
+  // frame, and the deep field parallaxes in front of it — which is what sets the
+  // sky's depth order.
   {
-    // Richer than the first pass: more clusters, and the reference palette —
-    // cyan and violet carrying it, warm dust for contrast. Sizes and densities
-    // vary per cluster so no two read the same, and they overlap.
-    const neb = [
-      { x: W * 0.15, y: H * 0.30, r: Math.min(W, H) * 0.56, col: '150,112,58', n: 30 },  // warm dust
-      { x: W * 0.32, y: H * 0.72, r: Math.min(W, H) * 0.42, col: '128,96,52', n: 20 },
-      { x: W * 0.24, y: H * 0.52, r: Math.min(W, H) * 0.34, col: '120,70,170', n: 22 },  // violet
-      { x: W * 0.70, y: H * 0.58, r: Math.min(W, H) * 0.48, col: '44,138,150', n: 26 },  // cyan
-      { x: W * 0.84, y: H * 0.26, r: Math.min(W, H) * 0.36, col: '58,104,160', n: 18 },
-      { x: W * 0.60, y: H * 0.14, r: Math.min(W, H) * 0.30, col: '112,60,150', n: 16 },  // violet
-      { x: W * 0.92, y: H * 0.78, r: Math.min(W, H) * 0.32, col: '40,124,132', n: 16 }
-    ];    b.restore();
-    // mottling: dark voids punched back through the cloud so it has holes and
-    // filaments instead of reading as airbrushed haze
-    for (let i = 0; i < 90; i++) {
-      const bx = Math.random() * W, by = Math.random() * H;
-      const br = Math.min(W, H) * rand(0.04, 0.17);
-      const gr2 = b.createRadialGradient(bx, by, 0, bx, by, br);
-      gr2.addColorStop(0, `rgba(2,5,16,${(0.10 + Math.random() * 0.22).toFixed(3)})`);
-      gr2.addColorStop(1, 'rgba(2,5,16,0)');
+    const bandA = -0.44;                          // the plane's tilt across frame
+    const bc = Math.cos(bandA), bs = Math.sin(bandA);
+    const bx0 = W * 0.46, by0 = H * 0.54;         // a point on the spine
+    const bandLen = Math.hypot(W, H) * 1.3;
+    const bandW = Math.min(W, H) * 0.34;          // perpendicular half-width
+    // gaussian-ish: three uniforms averaged, so density really falls off the spine
+    const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+    const onBand = (t2, perp) => ({
+      x: bx0 + bc * t2 - bs * perp,
+      y: by0 + bs * t2 + bc * perp
+    });
+    // the dust itself — warm along the spine, cooling toward the edges
+    b.save();
+    b.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 520; i++) {
+      const t2 = (Math.random() - 0.5) * bandLen;
+      // the spine wanders a little, so the band is not a ruled line
+      const wander = Math.sin(t2 * 0.0016) * bandW * 0.30 + Math.sin(t2 * 0.0041 + 1.7) * bandW * 0.14;
+      const perp = gauss() * bandW + wander;
+      const q = clamp(1 - Math.abs(perp - wander) / bandW, 0, 1); // 1 on the spine
+      const pt = onBand(t2, perp);
+      const br = Math.min(W, H) * rand(0.035, 0.15);
+      // density thins toward the ends of the band, as it does in the reference
+      const along = 1 - Math.min(1, Math.abs(t2) / (bandLen * 0.55)) * 0.55;
+      const al = (0.008 + Math.random() * 0.026) * (0.30 + q * 1.1) * along;
+      if (al < 0.002) continue;
+      const col = q > 0.62 ? '196,158,104'        // hot core of the plane
+        : q > 0.32 ? '158,120,74'                 // mid dust
+        : '96,86,104';                            // cool outskirts
+      const gr2 = b.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, br);
+      gr2.addColorStop(0, `rgba(${col},${al.toFixed(4)})`);
+      gr2.addColorStop(0.45, `rgba(${col},${(al * 0.45).toFixed(4)})`);
+      gr2.addColorStop(1, `rgba(${col},0)`);
       b.fillStyle = gr2;
-      b.beginPath(); b.arc(bx, by, br, 0, TAU); b.fill();
+      b.beginPath(); b.arc(pt.x, pt.y, br, 0, TAU); b.fill();
     }
- 
-    // BACKDROP STARS, baked: dense, clustered rather than uniform, and coloured.
-    // A uniform scatter reads as noise; clumps with empty lanes between them read
-    // as a sky. These sit behind everything and never move — the deep field's
-    // parallax layer passes in front of them, which is what builds the depth order.
-    const SCOL = ['198,222,255', '255,238,214', '255,206,168', '210,196,255', '188,240,255'];
-    for (let c3 = 0; c3 < 26; c3++) {
-      const cx3 = Math.random() * W, cy3 = Math.random() * H;
-      const spread = Math.min(W, H) * rand(0.05, 0.30);
-      const n3 = 8 + (Math.random() * 34 | 0);
-      for (let i = 0; i < n3; i++) {
-        const sx3 = cx3 + (Math.random() + Math.random() - 1) * spread;
-        const sy3 = cy3 + (Math.random() + Math.random() - 1) * spread;
-        if (sx3 < 0 || sx3 > W || sy3 < 0 || sy3 > H) continue;
-        const big = Math.random() < 0.07;
-        const al3 = (big ? 0.35 + Math.random() * 0.45 : 0.08 + Math.random() * 0.34);
-        const col3 = SCOL[Math.random() * SCOL.length | 0];
-        if (big) { // the bright ones carry a little bloom, like the reference
-          const gg = b.createRadialGradient(sx3, sy3, 0, sx3, sy3, rand(3, 7));
-          gg.addColorStop(0, `rgba(${col3},${(al3 * 0.5).toFixed(3)})`);
-          gg.addColorStop(1, `rgba(${col3},0)`);
-          b.fillStyle = gg;
-          b.beginPath(); b.arc(sx3, sy3, 7, 0, TAU); b.fill();
-        }
-        b.fillStyle = `rgba(${col3},${al3.toFixed(3)})`;
-        b.beginPath(); b.arc(sx3, sy3, big ? rand(1.1, 1.9) : rand(0.35, 0.95), 0, TAU); b.fill();
+    // a couple of off-band nebulae for colour relief — the reference has a cold
+    // patch away from the plane, and the lane palette wants some cyan/violet
+    for (const cl2 of [
+      { x: W * 0.12, y: H * 0.16, r: Math.min(W, H) * 0.34, col: '128,58,58', n: 16 },
+      { x: W * 0.80, y: H * 0.84, r: Math.min(W, H) * 0.30, col: '48,120,138', n: 14 },
+      { x: W * 0.68, y: H * 0.10, r: Math.min(W, H) * 0.26, col: '96,62,140', n: 12 }
+    ]) {
+      for (let i = 0; i < cl2.n; i++) {
+        const ang = Math.random() * TAU, rad = cl2.r * (Math.random() + Math.random()) * 0.5;
+        const bx = cl2.x + Math.cos(ang) * rad, by = cl2.y + Math.sin(ang) * rad * 0.78;
+        const br = cl2.r * rand(0.18, 0.46);
+        const al = 0.008 + Math.random() * 0.020;
+        const gr2 = b.createRadialGradient(bx, by, 0, bx, by, br);
+        gr2.addColorStop(0, `rgba(${cl2.col},${al.toFixed(4)})`);
+        gr2.addColorStop(1, `rgba(${cl2.col},0)`);
+        b.fillStyle = gr2;
+        b.beginPath(); b.arc(bx, by, br, 0, TAU); b.fill();
       }
     }
- }
+    b.restore();
+    // THE DARK DUST LANE. The characteristic feature of an edge-on galaxy and the
+    // thing that stops the band reading as an airbrushed smear: an opaque ribbon
+    // of cold dust lying along the plane, eating the light behind it.
+    for (let i = 0; i < 300; i++) {
+      const t2 = (Math.random() - 0.5) * bandLen;
+      const wander = Math.sin(t2 * 0.0016) * bandW * 0.30 + Math.sin(t2 * 0.0041 + 1.7) * bandW * 0.14;
+      const perp = wander + gauss() * bandW * 0.30 + Math.sin(t2 * 0.0027 + 0.6) * bandW * 0.16;
+      const pt = onBand(t2, perp);
+      const br = Math.min(W, H) * rand(0.03, 0.115);
+      const gr2 = b.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, br);
+      gr2.addColorStop(0, `rgba(3,4,12,${(0.10 + Math.random() * 0.26).toFixed(3)})`);
+      gr2.addColorStop(1, 'rgba(3,4,12,0)');
+      b.fillStyle = gr2;
+      b.beginPath(); b.arc(pt.x, pt.y, br, 0, TAU); b.fill();
+    }
+    // BACKDROP STARS, concentrated toward the plane the way real ones are. Dense,
+    // varied in colour and brightness, with bloom on the bright few.
+    const SCOL = ['210,228,255', '255,240,220', '255,208,168', '214,198,255', '190,240,255'];
+    const nStar = 1500;
+    for (let i = 0; i < nStar; i++) {
+      let x3, y3;
+      if (Math.random() < 0.62) {                 // in the plane
+        const t2 = (Math.random() - 0.5) * bandLen;
+        const wander = Math.sin(t2 * 0.0016) * bandW * 0.30 + Math.sin(t2 * 0.0041 + 1.7) * bandW * 0.14;
+        const pt = onBand(t2, wander + gauss() * bandW * 1.25);
+        x3 = pt.x; y3 = pt.y;
+      } else {                                    // the rest of the sky
+        x3 = Math.random() * W; y3 = Math.random() * H;
+      }
+      if (x3 < 0 || x3 > W || y3 < 0 || y3 > H) continue;
+      const big = Math.random() < 0.035;
+      const al3 = big ? 0.45 + Math.random() * 0.45 : 0.06 + Math.random() * 0.34;
+      const col3 = SCOL[Math.random() * SCOL.length | 0];
+      if (big) {                                  // the bright ones bloom
+        const gg = b.createRadialGradient(x3, y3, 0, x3, y3, 8);
+        gg.addColorStop(0, `rgba(${col3},${(al3 * 0.42).toFixed(3)})`);
+        gg.addColorStop(1, `rgba(${col3},0)`);
+        b.fillStyle = gg;
+        b.beginPath(); b.arc(x3, y3, 8, 0, TAU); b.fill();
+      }
+      b.fillStyle = `rgba(${col3},${al3.toFixed(3)})`;
+      b.beginPath(); b.arc(x3, y3, big ? rand(1.0, 1.8) : rand(0.3, 0.85), 0, TAU); b.fill();
+    }
+  }
 
   // --- the lane wall texture: starlight smeared by transit, stamped at many depths ---
   //
@@ -5953,8 +6004,10 @@ function laneProgress() {
   return L ? clamp(levelT / L.duration, 0, 1) : 0;
 }
 function drawFarGlow(far, vr) {
-  // 1x at departure, 2x at arrival — never more, so it reads as approach
-  const grow = 1 + laneProgress();
+  // 1x at departure, 4x at arrival. The first cut capped at 2x and read as barely
+  // moving; at 4x the approach is legible across a run without the world ever
+  // getting large enough to fight the threats that are read over it.
+  const grow = 1 + laneProgress() * 3;
   const R = Math.max(1.2, vr * 0.052 * grow);
   // a slow breath, nothing like the old beacon's 2s pulse — a world does not blink
   const breath = 0.5 + 0.5 * Math.sin(time * 0.7);
@@ -6082,7 +6135,7 @@ function initStreaks() {
   // FEWER warp lines and much heavier ones — the reference reads as a handful of
   // confident streaks with space between them, not a dense hatch. Cutting the
   // count is what lets the space behind them show.
-  const nGold = lowFX ? 90 : 190, nAmbient = lowFX ? 95 : 235;
+  const nGold = lowFX ? 90 : 190, nAmbient = lowFX ? 120 : 300;
   for (let i = 0; i < nGold; i++) {
     streaks.push({
       z: Math.random(),
@@ -6090,24 +6143,31 @@ function initStreaks() {
       gold: true, sp: rand(0.92, 1.12), ord: i / nGold // draw order — the river thins with integrity
     });
   }
-  // WARP STARS. Fewer than before and much heavier, per the reference: a handful
-  // of bright confident lines with space between them beats a dense hatch.
+  // WARP STARS in three classes, because one gauge of line reads as a hatch no
+  // matter how many you draw. FINE lines are thin and crisp, NORMAL is the body of
+  // the field, and BURSTS are the thick soft translucent shafts from the reference
+  // — wide enough to be light rather than line, and transparent enough that other
+  // streaks and the stars behind read straight through them.
   //
-  // Every property is per-star, and rmul is the important one — it is how far off
-  // the axis this star sits. The old cut pinned all of them to 0.97 of the wall
-  // radius, which put every star in a given depth on the SAME circle, and circles
-  // of stars are exactly what space does not have. Spread across the bore's
-  // cross-section (and past its wall) there is no alignment left to see.
+  // Class also picks how many glow passes a star pays for (p0 is where it enters
+  // the pass table), so the fine ones cost three strokes and only the bursts pay
+  // for all six. That is what keeps ~300 live streaks affordable.
+  //
+  // rmul is the important one for realism — each star's own distance from the
+  // axis. Pinning them all to one radius is what used to put every star at a given
+  // depth on the same circle, and space has no circles of stars in it.
   for (let i = 0; i < nAmbient; i++) {
-    const hero = Math.random() < 0.18;
+    const r = Math.random();
+    const cls = r < 0.14 ? 2 : r < 0.52 ? 1 : 0;   // 0 fine · 1 normal · 2 burst
     streaks.push({
       z: Math.random(), a: Math.random() * TAU, gold: false,
       tint: STAR_TINTS[Math.random() * STAR_TINTS.length | 0],
       sp: rand(0.82, 1.14),
-      rmul: rand(0.42, 1.52),                       // own distance from the axis
-      lenK: hero ? rand(1.5, 2.6) : rand(0.5, 1.25), // own smear length
-      cal: hero ? rand(1.6, 2.5) : rand(0.6, 1.25),  // own calibre
-      br: hero ? rand(1.15, 1.6) : rand(0.55, 1.05)  // own brightness
+      rmul: rand(0.40, 1.55),
+      p0: cls === 2 ? 0 : cls === 1 ? 2 : 3,       // burst pays for the wide halo
+      lenK: cls === 2 ? rand(1.7, 3.1) : cls === 1 ? rand(0.9, 1.8) : rand(0.45, 1.0),
+      cal:  cls === 2 ? rand(2.2, 4.2) : cls === 1 ? rand(0.9, 1.7) : rand(0.45, 0.9),
+      br:   cls === 2 ? rand(0.42, 0.72) : cls === 1 ? rand(0.7, 1.15) : rand(0.85, 1.35)
     });
   }
 }
@@ -6327,14 +6387,16 @@ function drawStreaks(g, dt) {
       // outside to white-hot core. Never one wide stroke — that is a capsule, and
       // a capsule reads as a flat surface. Calibre is per-star now, so the field
       // has heavy hero lines and fine ones instead of one uniform gauge.
-      // capped: without this a hero streak (cal 2.5) at the near end reaches a
-      // 15px halo, and anything past ~5px is a capsule again — the exact fault
-      // that took three passes to kill. Cap it once, here.
-      const k = Math.min(1.55, lerp(0.6, 1.25, 1 - zH) * st.cal);
+      // The old 1.55 cap existed because a single wide pass carried real alpha and
+      // turned into a capsule. With six passes and the widest at 0.030 alpha, a
+      // broad stroke is now a breath of glow rather than a surface, so bursts are
+      // allowed to get genuinely wide. Still capped, just far higher.
+      const k = Math.min(3.4, lerp(0.6, 1.25, 1 - zH) * st.cal);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.lineCap = 'round';
-      for (const [w, ci, aMul] of LIVE_WARP_PASSES) {
+      for (let pi = st.p0; pi < LIVE_WARP_PASSES.length; pi++) {
+        const [w, ci, aMul] = LIVE_WARP_PASSES[pi];
         const a2 = al * aMul;
         if (a2 < 0.008) continue;
         ctx.strokeStyle = `rgba(${ci === 2 ? '255,255,255' : st.tint[ci]},${Math.min(1, a2).toFixed(3)})`;
