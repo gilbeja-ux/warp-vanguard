@@ -10,6 +10,8 @@
     "deploy:verifier": "node scripts/build-verifier.js && supabase functions deploy submit-run",
     "build": "node scripts/build.js",
     "dev": "npm run build && node scripts/serve.js",
+    "lab": "node scripts/lab.js",
+    "lab:seed": "node scripts/lab-seed.js",
     "ios": "npx cap open ios",
     "android": "npx cap open android",
     "sync": "npm run build && npx cap sync",

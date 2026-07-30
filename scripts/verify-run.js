@@ -70,6 +70,7 @@ code = code.replace("'use strict';", '') + `
   startLevel, startDaily, startEndless,
   startTrace, stopTrace, startReplay, stopReplay, simStep, markBriefingsSeen, resetCanonical, setViewport, dismissInfo, mutators,
   spawnEnemy, nodes, geo, getState: () => state, getLastRun: () => lastRun,
+  CAMPAIGNS, installCampaign, getCamp: () => CAMP,
   firePulse, getPulse: () => pulseCharge, setPulse: v => { pulseCharge = v; }, PULSE_MAX: () => PULSE_MAX,
   enemies: () => enemies, ring: z => ring(z, geo()),
   setPadHold: (a, b) => { padHold[0] = a; padHold[1] = b; }, introT: () => introT, setResumeHold: v => { resumeHold = v; },
@@ -93,6 +94,16 @@ function verifyRun(run) {
   if (run.mode === 'endless') return { ok: false, reason: 'endless is unseeded — unverifiable' };
   V.resetCanonical(); V.setViewport(run.w || 0, run.h || 0); // canonical baseline + reproduce the run's geometry
   if (Array.isArray(run.mutators)) for (const k of run.mutators) if (k in V.mutators) V.mutators[k] = true; // re-apply the run's own mutators
+  // INSTALL THE RUN'S CAMPAIGN FIRST. levelIdx is an index INTO a campaign, so
+  // without this every board outside campaign 1 was replayed against campaign 1's
+  // level of the same number — a different level entirely, so the score never
+  // reproduced and the run was silently rejected. (The client's own replay path
+  // already did this; the verifier did not.)
+  if (run.mode !== 'daily') {
+    const camp = run.campId ? (V.CAMPAIGNS || []).find(c => c.id === run.campId) : null;
+    if (run.campId && !camp) return { ok: false, reason: 'unknown campaign ' + run.campId };
+    V.installCampaign(camp || V.CAMPAIGNS[0]);
+  }
   warmUp(run.levelIdx);
 
   // reseed to the exact world the run was played in
@@ -144,6 +155,24 @@ function selfTest() {
   line(good.ok && good.recomputed === run.score, `a legit run verifies (recomputed ${good.recomputed} === ${run.score})`);
   line(!tampered.ok, `a tampered score is REJECTED (claimed ${run.score + 5000}, real ${tampered.recomputed})`);
   line(verifyRun({ mode: 'endless', trace: run.trace }).ok === false, 'endless is reported unverifiable');
+
+  // EVERY campaign must verify from a cold start. levelIdx is an index INTO a
+  // campaign, so a verifier that inherits whatever campaign happens to be
+  // installed replays the wrong level for boards 2..N and rejects real scores.
+  for (const camp of V.CAMPAIGNS) {
+    V.installCampaign(camp);
+    V.resetCanonical(); V.setViewport(1280, 720);
+    V.startLevel(3); V.setIntro(999); V.setState(V.S.PLAY);
+    for (let i = 0; i < 8000 && V.getState() !== V.S.END; i++) { V.nodes[0].angle = 0; V.nodes[1].angle = Math.PI; V.simStep(); }
+    const r2 = V.getLastRun();
+    V.installCampaign(V.CAMPAIGNS[0]); // a cold Edge Function starts on the default campaign
+    const v2 = verifyRun(r2);
+    line(v2.ok, `${r2.board} verifies from a cold start (${v2.recomputed} === ${r2.score})`);
+    if (camp === V.CAMPAIGNS[1]) { // and tampering is still caught on a non-default campaign
+      line(!verifyRun({ ...r2, score: r2.score + 5000 }).ok, `${r2.board}: a tampered score is still REJECTED`);
+      line(!verifyRun({ ...r2, campId: 'no-such-campaign' }).ok, 'an unknown campId is REJECTED, not silently defaulted');
+    }
+  }
   console.log(pass ? '\nVERIFIER OK' : '\nVERIFIER FAILED');
   process.exit(pass ? 0 : 1);
 }
@@ -179,5 +208,21 @@ function recordClientRun(levelIdx = 4, w = 1280, h = 720, drive, realIntro = fal
   return run;
 }
 
-module.exports = { verifyRun, recordDemoRun, recordClientRun };
+// record a run on a SPECIFIC campaign's level — the cross-campaign case the
+// verifier used to get wrong. Uses this module's own sim instance, so it stays
+// valid even after another sim (the Edge bundle) overwrites globalThis.__vg.
+function recordCampaignRun(campId, levelIdx = 3) {
+  const camp = V.CAMPAIGNS.find(c => c.id === campId);
+  if (!camp) throw new Error('unknown campaign ' + campId);
+  V.installCampaign(camp);
+  V.resetCanonical(); V.setViewport(1280, 720);
+  V.startLevel(levelIdx); V.setIntro(999); V.setState(V.S.PLAY);
+  for (let i = 0; i < 8000 && V.getState() !== V.S.END; i++) {
+    V.nodes[0].angle = 0; V.nodes[1].angle = Math.PI; V.simStep();
+  }
+  return V.getLastRun();
+}
+const campaignIds = () => V.CAMPAIGNS.map(c => c.id);
+
+module.exports = { verifyRun, recordDemoRun, recordClientRun, recordCampaignRun, campaignIds };
 if (require.main === module && process.argv.includes('--selftest')) selfTest();

@@ -318,6 +318,9 @@ function edApply(now) {
     if (!EDUI.errs.length) {
       installCampaign(ED.clone(EDUI.pkg)); // the scrubber always simulates the EDITED data
       edScrub(EDUI.playhead);
+      // the disc preview is sticky: the scrub above dropped the world back into
+      // PLAY, so put the card back and the plot line rewraps as it is typed
+      if (EDUI.discPreview) edShowDisc();
       // the linter's walk feeds the FILLER lane + wall-relocation verdicts
       try { EDUI.walk = lintWalk(edLv(), EDUI.li); } catch (e) { /* lane goes dark, editing continues */ }
     }
@@ -729,15 +732,36 @@ function edBuildStatic() {
     ED.normalizeBands(lv);
     edApply(true); edRenderBeatList(); edRenderBandIns();
   });
+  // one plot line per mission — the disc has room for a sentence, not a log
   const story = () => {
-    const t = edq('lStoryT').value.trim();
-    const lines = edq('lStoryL').value.split('\n').map(s => s.trim()).filter(Boolean);
-    if (!t && !lines.length) delete edLv().story;
-    else edLv().story = { title: t || 'LOG', lines: lines.length ? lines : ['…'] };
+    const line = edq('lStoryL').value.replace(/\s+/g, ' ').trim().slice(0, 96);
+    if (!line) delete edLv().story;
+    else edLv().story = { line };
+    edDiscInfo();
     edApply();
   };
-  edq('lStoryT').addEventListener('input', story);
   edq('lStoryL').addEventListener('input', story);
+  // ---- the mission disc: art, and private notes ----
+  edq('lArt').addEventListener('click', () => edPickFile('image/*', f => edReadFile(f, uri => {
+    edLv().art = uri;                    // embedded: the package stays self-contained
+    edApply(); edRenderLevel();
+  })));
+  edq('lArtClr').addEventListener('click', () => { delete edLv().art; edApply(); edRenderLevel(); });
+  edq('lArtFile').addEventListener('input', e => {
+    const v = e.target.value.trim();
+    if (!v) delete edLv().art; else edLv().art = v;
+    edDiscInfo(); edApply();
+  });
+  edq('lNotes').addEventListener('input', e => {
+    const v = e.target.value;
+    if (!v.trim()) delete edLv().notes; else edLv().notes = v.slice(0, 4000);
+    edApply();
+  });
+  edq('lDiscPrev').addEventListener('click', () => {
+    EDUI.discPreview = !EDUI.discPreview;
+    if (EDUI.discPreview) edShowDisc(); else edScrub(EDUI.playhead);
+    edDiscInfo();
+  });
   edq('lAddComm').addEventListener('click', () => {
     const lv = edLv();
     if (!lv.comms) lv.comms = [];
@@ -782,6 +806,63 @@ function edPickFile(accept, cb) {
   inp.type = 'file'; inp.accept = accept;
   inp.addEventListener('change', () => { if (inp.files[0]) cb(inp.files[0]); });
   inp.click();
+}
+
+// ---------- the mission disc ----------
+// The preview drives the EMBEDDED GAME into its own S.INFO state, so the panel
+// shows the real renderer rather than a mock that could drift from it. edApply
+// re-asserts it after every edit, so typing the plot line rewraps live.
+function edShowDisc() {
+  if (EDUI.errs.length || !LEVELS[EDUI.li]) return;
+  levelIdx = EDUI.li; LV = LEVELS[EDUI.li];
+  introT = 999; introCd = 0;
+  if (!INFO_CARDS['story' + EDUI.li]) return;
+  showCard('story' + EDUI.li);
+  // the editor holds the sim clock at dt=0, so the card's zoom-in and its
+  // teletype would never advance — backdate the open so it draws fully arrived
+  infoShownAt = time - 6;
+}
+// the readouts under the art and the plot line: what the level actually carries,
+// and where it breaks the budgets the disc renderer enforces
+const EDART_AR = 1.479; // the disc's art box — 1.93R wide by 1.305R tall
+function edDiscInfo() {
+  const lv = edLv();
+  const art = lv.art || '';
+  const ai = edq('lArtInfo');
+  let msg;
+  if (!art) msg = 'no art — the disc falls back to a plate in this level’s tint';
+  else if (/^data:image\//.test(art)) {
+    const kb = Math.round(art.length / 1024);
+    msg = 'embedded, ' + kb + ' KB'
+      + (art.length > 400000 ? ' — OVER the 400 KB package cap, this will not install' : '');
+  } else if (/^[\w-]+\.(webp|png|jpg)$/.test(art)) msg = 'file — expects src/art/disc/' + art;
+  else msg = 'INVALID name — use letters, digits, - and a .webp/.png/.jpg extension';
+  const im = art ? discArtImg(lv) : null;   // null until it decodes; kicks off the load
+  const miss = art && !im && DISCIMG[/^data:image\//.test(art) ? art : 'art/disc/' + art];
+  if (im) {
+    const ar = im.w / im.h;
+    msg += '  ·  ' + im.w + '×' + im.h + '  ·  ' + (Math.abs(ar - EDART_AR) < 0.12
+      ? 'aspect fits the disc box'
+      : 'aspect ' + ar.toFixed(2) + ':1 vs the box’s 1.48:1 — expect a crop');
+    if (im.w < 1000) msg += '  ·  under 1000px wide, soft on a tablet';
+  } else if (miss && miss.err) {
+    msg += '  ·  NOT FOUND — the disc will draw the tint plate';
+  } else if (art) {
+    msg += '  ·  loading…';
+    clearTimeout(EDUI.artT);              // re-read once the image lands, or fails
+    EDUI.artT = setTimeout(edDiscInfo, 400);
+  }
+  ai.textContent = msg;
+  const body = (lv.story && (lv.story.line || (lv.story.lines || []).join(' '))) || '';
+  const n = body.length;
+  edq('lStoryInfo').textContent = !n ? 'no plot line — this mission says nothing on deploy'
+    : n + ' chars · ' + (n > 96 ? 'OVER the 96 limit, this will not install'
+      : n > 58 ? 'long — the type shrinks to hold two rows'
+        : 'fits two rows at full size on the smallest phone');
+  edq('lDiscPrevInfo').textContent = EDUI.discPreview
+    ? 'live — edits rewrap in the stage. Click again to return to the tunnel.'
+    : '';
+  edq('lDiscPrev').classList.toggle('on', !!EDUI.discPreview);
 }
 function edImportText(text) {
   const res = ED.importJSON(text, validateCampaign);
@@ -837,8 +918,15 @@ function edRenderTimeline() {
     const sb = edEl('div', 'storyB', st);
     sb.style.left = '0px';
     sb.style.width = Math.max(46, ED.t2x(3, lv.duration, w)) + 'px';
-    sb.textContent = lv.story.title;
-    sb.title = 'deploy briefing: ' + lv.story.title;
+    const sl = lv.story.line || (lv.story.lines || []).join(' ');
+    sb.textContent = sl;
+    sb.title = 'mission disc: ' + sl + '  (click to edit)';
+    sb.style.cursor = 'pointer';
+    sb.addEventListener('click', () => {
+      edq('secDisc').classList.remove('closed');
+      edq('lStoryL').focus();
+      edq('secDisc').scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
   }
   (lv.comms || []).forEach((cm, i) => {
     const spk = (EDUI.pkg.speakers || []).find(s => s.id === cm.s);
@@ -1065,9 +1153,17 @@ function edRenderLevel() {
     inp.value = lv[k] || 0;
     inp.addEventListener('input', e => { lv[k] = Math.max(0, Math.min(1, +e.target.value || 0)); edApply(); });
   }
-  edq('lStoryT').value = lv.story ? lv.story.title : '';
-  edq('lStoryL').value = lv.story ? lv.story.lines.join('\n') : '';
+  edq('lStoryL').value = lv.story ? (lv.story.line || (lv.story.lines || []).join(' ')) : '';
   edq('lCase').value = lv.caseNote || '';
+  edq('lNotes').value = lv.notes || '';
+  // an embedded keyframe is a 400 KB string — never put that in a text field
+  const embedded = /^data:image\//.test(lv.art || '');
+  edq('lArtFile').value = embedded ? '' : (lv.art || '');
+  edq('lArtFile').disabled = embedded;
+  edq('lArtFile').placeholder = embedded
+    ? 'an uploaded image is embedded — CLEAR it to reference a file instead'
+    : 'investigation-04.webp — a file in src/art/disc/';
+  edDiscInfo();
   // comms
   const cm = edq('lComms');
   cm.innerHTML = '';

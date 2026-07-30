@@ -25,6 +25,7 @@ const expose = `
   S, setState: v => { state = v; }, setIntro: v => { introT = v; introCd = 0; },
   startLevel, startDaily, startEndless, startReplay, stopReplay, simStep, resetCanonical, setViewport, mutators,
   getState: () => state,
+  CAMPAIGNS, installCampaign, campId: () => (CAMP ? CAMP.id : null),
   levelsN: () => (typeof LEVELS !== 'undefined' ? LEVELS.length : -1),
   campN: () => (typeof CAMPAIGNS !== 'undefined' ? CAMPAIGNS.length : -1),
   lvName: () => { try { return (LV && LV.name) || (LEVELS[levelIdx] && LEVELS[levelIdx].name) || null; } catch (e) { return 'ERR:' + e.message; } },
@@ -81,6 +82,15 @@ export function verifyRun(run) {
   __VG.resetCanonical(); // save-state-independent baseline (mutators off, briefings seen)
   __VG.setViewport(run.w | 0, run.h | 0); // reproduce the run's geometry (headless W/H default to 0 → geo() NaN)
   if (Array.isArray(run.mutators)) for (const k of run.mutators) if (k in __VG.mutators) __VG.mutators[k] = true; // re-apply the run's OWN mutators
+  // INSTALL THE RUN'S CAMPAIGN FIRST — levelIdx is an index INTO a campaign, so
+  // without this every board outside campaign 1 was replayed against campaign 1's
+  // level of the same number and silently rejected. A cold Edge Function starts on
+  // the default campaign, so this MUST be set from the run, never inherited.
+  if (run.mode !== 'daily') {
+    const camp = run.campId ? (__VG.CAMPAIGNS || []).find(c => c.id === run.campId) : null;
+    if (run.campId && !camp) return { ok: false, reason: 'unknown campaign ' + run.campId };
+    __VG.installCampaign(camp || __VG.CAMPAIGNS[0]);
+  }
   __warmUp(run.levelIdx | 0);
   if (run.mode === 'daily') {
     const realNow = Date.now;

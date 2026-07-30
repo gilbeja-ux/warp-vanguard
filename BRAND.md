@@ -61,8 +61,17 @@ these tokens.
   planned: `updateMusic` eases the menu track's gain down to 0.12 across the
   1.2s either side of the loop boundary and back up, so the loop crossfades
   through itself instead of hard-cutting. It never touches the opening
-  play-through. Level tracks don't use it — they're sample-accurate Web Audio
+  play-through. Run-pool tracks don't use it — they're sample-accurate Web Audio
   loops with encoder padding trimmed via `loopStart`/`loopEnd`.
+- **Run pool: `src/audio/music/`** — every track in that folder is a candidate
+  for any run, drawn at random from a shuffled bag. FREE FLOW chains them with a
+  4s equal-power crossfade so a long run is scored continuously. **The folder is
+  the source of truth**: `npm run build` generates the list, and a track's title
+  is its filename (uppercased, `_`/`-` → space). Drop a file in to add it; rename
+  it to retitle it. There is no per-track wiring anywhere.
+- **NOW PLAYING** — the title flashes for ~4s under the PAUSE key at the start of
+  a run and at each free-flow crossfade, then clears. Read-only by design: the
+  run is live, so **◀ TRACK ▶** lives in the pause panel where a mistap is free.
 - SFX: a hybrid. Reactive sounds stay synthesized in Web Audio (zaps pitch-ride
   the combo, and falling pitch reads as failure — resolve upward on success).
   Big moments are **recorded one-shots**, decoded once when audio wakes and

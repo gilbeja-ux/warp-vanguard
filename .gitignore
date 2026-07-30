@@ -24,3 +24,6 @@ supabase/functions/submit-run/_sim.mjs
 
 # local-only impeccable state (DESIGN.md + design.json sidecar stay tracked)
 .impeccable/config.local.json
+
+# editor/lab scratch backups
+*.bak

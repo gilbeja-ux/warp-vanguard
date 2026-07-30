@@ -4,7 +4,7 @@
 //   node scripts/build-verifier.js && node scripts/test-verifier-bundle.mjs
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { recordDemoRun } = require('./verify-run.js');
+const { recordDemoRun, recordCampaignRun, campaignIds } = require('./verify-run.js');
 const { verifyRun } = await import('../supabase/functions/submit-run/_sim.mjs');
 
 const run = recordDemoRun(4);
@@ -16,6 +16,16 @@ const good = verifyRun(run);
 line(good.ok && good.recomputed === run.score, `bundle verifies the run (recomputed ${good.recomputed} === ${run.score})`);
 line(!verifyRun({ ...run, score: run.score + 9000 }).ok, `bundle REJECTS a tampered score`);
 line(verifyRun({ ...run, mode: 'endless' }).ok === false, `bundle flags endless unverifiable`);
+
+// EVERY campaign, recorded on the recorder instance and verified by the bundle.
+// This is the case that shipped broken: the bundle inherited whatever campaign
+// was installed, so boards 2..N were replayed against campaign 1 and rejected.
+for (const id of campaignIds()) {
+  const r = recordCampaignRun(id, 3);
+  const v = verifyRun(r);
+  line(v.ok, `bundle verifies ${r.board} (${v.recomputed} === ${r.score})`);
+}
+line(!verifyRun({ ...run, campId: 'no-such-campaign' }).ok, 'bundle REJECTS an unknown campId');
 
 console.log(pass ? '\nBUNDLE OK' : '\nBUNDLE FAILED');
 process.exit(pass ? 0 : 1);

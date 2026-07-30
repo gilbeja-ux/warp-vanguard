@@ -72,7 +72,8 @@ global.window = {
   devicePixelRatio: 1,
   addEventListener() {},
   AudioContext: FakeAC,
-  MUSIC_DATA: { menu: 'menu.mp3', levels: ['l1.mp3', 'l2.mp3', 'l3.mp3'] }
+  // a manifest entry is either a bare url or { file, name } — both shapes ship
+  MUSIC_DATA: { menu: 'menu.mp3', levels: ['l1.mp3', { file: 'l2.mp3', name: 'STEEL AND RAIN' }, 'l3.mp3'] }
 };
 global.getComputedStyle = () => ({ getPropertyValue: () => '0px' });
 global.localStorage = { getItem: () => null, setItem() {} };
@@ -94,8 +95,8 @@ code = code.replace("'use strict';", '') + `
   gearRect: () => menuGearRect, toggles: () => pauseTogglesList,
   enemies: () => enemies,
   stats: () => ({ zaps, misses, score, integrity, combo }),
-  playTrack, updateMusic, settings, progress, perf: () => ({ lowFX }),
-  music: () => ({ src: musicSrc, gain: musicGain, key: currentTrackKey, ac: AC }),
+  playTrack, updateMusic, settings, progress, perf: () => ({ lowFX }), audio,
+  music: () => ({ src: musicSrc, gain: musicGain, key: currentTrackKey, ac: AC, warm: warmKey }),
   bolts: () => bolts, hitStop: () => hitStop, fx, pickups: () => pickups, spawnPickup,
   boss: () => boss, endlessCfg, tut: () => tut, isEndless: () => endless, getLV: () => LV,
   qualStage: () => tut ? QUAL[tut.stage] : null,
@@ -109,6 +110,10 @@ code = code.replace("'use strict';", '') + `
   setLevelT: v => { levelT = v; }, setIntegrity: v => { integrity = v; }, setScore: v => { score = v; },
   setMenuScroll: v => { menuScroll = v; }, tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
   detectBeat, beatQuantize, setBeat: (p, at) => { beatPeriod = p; musicStartAt = at; },
+  pickTrack, trackCount, trackName, skipTrack, prettyTrackName, dropPreload,
+  getRunTrack: () => runTrack, setRunTrack: v => { runTrack = v; }, trackBagLen: () => trackBag.length,
+  nowPlayingName: () => (npT < NP_DUR ? npName : null), announceTrack: nowPlaying,
+  xfade: () => ({ src: xfSrc, gain: xfGain, t: xfT, next: nextTrack, loading: nextLoadKey, srcGain: musicSrcGain }),
   patternQ: () => patternQ, mutators, musicFilterHz: () => musicFilter && musicFilter.frequency.value,
   getPerfects: () => perfects, getScore: () => score, ringAt: z => ring(z, geo()),
   getTime: () => time, resetLoop: t => { last = t; simAcc = 0; }, // fixed-timestep loop probes
@@ -130,7 +135,7 @@ code = code.replace("'use strict';", '') + `
   latches: () => latches, setLatches: v => { latches = v; },
   spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; },
   volley: () => volley, BOSS_CER: () => BOSS_CER, latchFreeArc,
-  bandCfg, lintLevel, lintCampaign, lintWalk, birthFade, getSched: () => sched
+  bandCfg, lintLevel, lintCampaign, lintWalk, levelThreats, birthFade, getSched: () => sched
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -298,6 +303,7 @@ function drawOk(name, setup) {
   catch (err) { console.log('   ' + err.stack.split('\n')[0]); check('draw: ' + name, false); }
 }
 drawOk('play HUD with all enemy types', () => { G.setState(G.S.PLAY); });
+drawOk('play HUD with the NOW PLAYING strip up', () => { G.setState(G.S.PLAY); G.announceTrack(0); });
 drawOk('pause panel', () => { G.setState(G.S.PAUSE); });
 drawOk('end screen', () => { G.setState(G.S.END); });
 drawOk('high-score takeover card', () => { G.setState(G.S.END); G.setEndT(3.2); G.setScore(38800); G.setEndProvisional({ rank: 7, total: 50 }); G.setNameEntry({ board: 'investigation:2' }); });
@@ -941,6 +947,22 @@ G.startEndless(); G.setState(G.S.PLAY);
 check('endless capture is marked unverifiable (unseeded)', G.captureRun(false).verifiable === false && G.captureRun(false).seed === null);
 G.setState(G.S.MENU);
 
+// ================= free flow unlock gate =================
+{ // FREE FLOW opens on level 5 of the FIRST campaign — nothing earlier
+  const seen = G.CAMPAIGNS.filter(p => G.progress.camp[p.id]); // only campaigns the run has touched
+  const snap = seen.map(p => G.progress.camp[p.id].stars.slice());
+  const stars = id => (G.progress.camp[id] || (G.progress.camp[id] = { unlocked: 1, stars: [], bests: [] })).stars;
+  seen.forEach(p => stars(p.id).fill(0));
+  while (stars(G.CAMPAIGNS[0].id).length < 5) stars(G.CAMPAIGNS[0].id).push(0);
+  const flowTile = () => { G.setState(G.S.MENU); G.setMenuScreen('home'); G.frame(16); return G.menuBtns().find(b => b.mode === 'flow'); };
+  check('free flow is locked on a fresh save', !!flowTile() && flowTile().locked);
+  stars(G.CAMPAIGNS[0].id)[3] = 3; // level 4 cleared — still not enough
+  check('clearing level 4 does not open free flow', flowTile().locked);
+  stars(G.CAMPAIGNS[0].id)[4] = 1; // level 5 cleared
+  check('clearing level 5 opens free flow', !flowTile().locked);
+  seen.forEach((p, i) => { const s = stars(p.id); snap[i].forEach((v, k) => { s[k] = v; }); });
+}
+
 // ================= mode select & campaign map =================
 G.setState(G.S.MENU);
 G.setMenuScreen('home');
@@ -982,6 +1004,19 @@ check('selecting a relay arms its deploy key', dep && dep.deploy === 2);
 G.menuTap(dep.x + 5, dep.y + 5, 1);
 flushUI(); // press beat -> warp -> deploy
 check('deploying opens the story log', G.getState() === G.S.INFO && G.getInfoCard() === 'story2');
+{ // the mission disc: art plate + one plot line + the run's own numbers
+  const L = G.getLV();
+  check('a mission carries ONE plot line', typeof G.getInfoCards().story2.line === 'string'
+    && G.getInfoCards().story2.line.length > 0 && G.getInfoCards().story2.line.length <= 96);
+  // DETECTED THREATS is read off lintWalk, so it must match the arrivals the
+  // level will actually make — a barrier counts once, a bonus ride not at all
+  const w = G.lintWalk(L, 2);
+  const hostile = w.arr.filter(r => r.type !== 'strip').length
+    - w.arr.filter(r => r.type === 'line').length / 2 + w.walls.length;
+  check('DETECTED THREATS matches the level timeline', G.levelThreats(L, 2) === hostile && hostile > 0);
+  check('the threat count is cached, not re-walked', G.levelThreats(L, 2) === G.levelThreats(L, 2));
+}
+drawOk('mission disc (art plate fallback + plot line)', () => {});
 G.update(0.5);
 canvasHandlers.pointerdown({ pointerId: 9, clientX: 5, clientY: 5, pointerType: 'touch' });
 G.update(0.15); G.update(0.15); G.update(0.15); // card animates out
@@ -1664,6 +1699,29 @@ G.keys['ArrowUp'] = false;
   const solo = ED.newCampaign();
   check('removeLevel never empties a campaign', ED.removeLevel(solo, 0) === false && solo.levels.length === 1);
   check('comms clamp at the 64-char transmission limit', ED.clampComm('x'.repeat(80)).length === 64);
+  { // mission-disc content: art, the plot line, and the designer's own notes
+    const dc = ED.clone(G.CAMPAIGNS[0]);
+    dc.levels[0].art = 'investigation-01.webp';
+    dc.levels[0].notes = 'reshoot the keyframe — too blue';
+    check('a bundled art file reference validates', G.validateCampaign(dc).length === 0);
+    dc.levels[0].art = 'data:image/webp;base64,' + 'A'.repeat(64);
+    check('an embedded keyframe validates', G.validateCampaign(dc).length === 0);
+    dc.levels[0].art = 'data:image/webp;base64,' + 'A'.repeat(400001);
+    check('an embedded keyframe over the package cap is rejected',
+      G.validateCampaign(dc).some(e => /bad art/.test(e)));
+    dc.levels[0].art = '../../etc/passwd';
+    check('an art name that escapes the art directory is rejected',
+      G.validateCampaign(dc).some(e => /bad art/.test(e)));
+    delete dc.levels[0].art;
+    check('notes ride along and survive an export round-trip',
+      JSON.parse(ED.exportJSON(dc)).levels[0].notes === 'reshoot the keyframe — too blue');
+    dc.levels[0].notes = 'x'.repeat(4001);
+    check('runaway notes are rejected', G.validateCampaign(dc).some(e => /bad notes/.test(e)));
+    dc.levels[0].notes = 'ok';
+    dc.levels[0].story = { line: 'x'.repeat(97) };
+    check('a plot line past the disc budget is rejected',
+      G.validateCampaign(dc).some(e => /story line too long/.test(e)));
+  }
   // wall authoring guard: one carpet per rim window (release..burn-off) —
   // an overlapping window + arc would be golden-angle hopped by the engine
   const wl = ED.newLevel('WALLS'); wl.duration = 60;
@@ -1923,8 +1981,11 @@ G.keys['ArrowUp'] = false;
   G.startLevel(1); G.update(0.05);
   tap(9); G.frame(16); G.update(0.05); // pause + draw builds buttons AND toggles
   const nBtns = G.pauseBtns().length;
-  tap(12); // up: RESUME -> a settings row
-  check('D-pad up climbs from RESUME into the settings rows', G.getGpSel() >= nBtns);
+  tap(12); // up: RESUME -> the TRACK skip keys, the nearest control above the button row
+  check('D-pad up climbs from RESUME onto the TRACK keys',
+    /^trk/.test((G.pauseBtns()[G.getGpSel()] || {}).action || ''));
+  tap(12); // up again: TRACK -> a settings row
+  check('D-pad up climbs from TRACK into the settings rows', G.getGpSel() >= nBtns);
   const hv = G.settings.haptics;
   G.setGpSel(nBtns + G.toggles().findIndex(t => t.key === 'haptics')); G.frame(16);
   tap(0); // A flips the focused toggle
@@ -1946,6 +2007,12 @@ G.keys['ArrowUp'] = false;
 
 // ================= Web Audio music looper =================
 const tick = () => new Promise(r => setImmediate(r));
+// A run's track is no longer started BY startLevel — the soundtrack contract in
+// updateMusic brings it in on the start sequence, after deploy's fade-out has had
+// its second of quiet. So a test that wants a live run take has to run frames.
+async function runMusicUp() {
+  for (let i = 0; i < 6 && !G.music().src; i++) { G.updateMusic(1.1); await tick(); }
+}
 (async () => {
   G.settings.music = true; G.settings.musicVol = 0.5;
   G.playTrack('menu');
@@ -1976,9 +2043,152 @@ const tick = () => new Promise(r => setImmediate(r));
   await tick();
   check('same-key replay is a no-op', G.music().src === sameSrc);
   check('fetched the expected files', fetchLog.includes('menu.mp3') && fetchLog.includes('l2.mp3'));
+
+  // ---- a switch must never open a gap ----
+  // Fetching + decoding a track is a few hundred ms on a laptop and MANY SECONDS
+  // on a phone. The outgoing take has to stay on air for that whole window:
+  // dropping it when the switch was REQUESTED left a restarted level opening on
+  // dead air for as long as the load took.
+  const onAir = G.music().src;
+  const cold = G.music().warm === 2 ? 0 : 2; // a key with no buffer in hand: this switch has to LOAD
+  G.playTrack(cold);                       // requested — nothing decoded yet
+  check('a switch leaves the old take playing while the new one loads',
+    G.music().src === onAir && !onAir.stopped);
+  await tick();
+  check('the handover happens when the new take is ready to start',
+    G.music().src !== onAir && G.music().src.started && onAir.stopped);
+
+  // ================= the soundtrack contract, rule by rule =================
+  // A gesture no longer picks a track at all — game state does, in updateMusic.
+  G.setState(G.S.END);
+  const endSrc = G.music().src, fetchesBefore = fetchLog.length;
+  G.audio();
+  await tick();
+  check('a gesture never switches tracks by itself',
+    G.music().src === endSrc && fetchLog.length === fetchesBefore);
+
+  // rule 2: deploy fades the menu piece out to silence, and holds it there
+  G.setState(G.S.MENU); G.updateMusic(0.05); await tick();
+  G.startLevel(0);
+  check('deploy drops the menu piece', !G.music().src && G.music().key === null);
+  G.updateMusic(0.5);
+  await tick();                       // the run's take finishes warming under the silence
+  check('the deploy fade-out keeps its second of quiet', !G.music().src);
+
+  // rule 3: the run's own track comes in with the start sequence
+  G.updateMusic(0.6); await tick();
+  check('the start sequence brings in the run\'s random track',
+    !!G.music().src && G.music().key === G.getRunTrack() && typeof G.getRunTrack() === 'number');
+  check('the run track is announced when it actually starts', G.nowPlayingName() === G.trackName(G.getRunTrack()));
+
+  // rule 4: the pause card holds the track in place, resume picks it back up
+  const live = G.music().src;
+  G.setState(G.S.PAUSE);
+  for (let i = 0; i < 30; i++) G.updateMusic(0.05);
+  check('pause holds the track where it stands, without dropping it',
+    G.music().src === live && !live.stopped && G.music().gain.gain.value < 0.02 && G.musicRate() < 0.05);
+  G.setState(G.S.PLAY);
+  for (let i = 0; i < 20; i++) G.updateMusic(0.05);
+  check('resuming spools the same take back up',
+    G.music().src === live && !live.stopped && G.music().gain.gain.value > 0.2 && G.musicRate() > 0.9);
+
+  // rule 5: finishing (or failing) a level fades the run's music out for good
+  G.setLevelT(1e9); G.endLevel(true);
+  check('a finished level takes its music with it', !G.music().src && G.music().key === null);
+  for (let i = 0; i < 12; i++) { G.updateMusic(0.1); }
+  await tick();
+  check('the end screen stays quiet', !G.music().src && G.music().key === null);
+
+  // rule 1: every menu plays the menu piece, and it loops by crossfading into itself
+  G.setState(G.S.MENU);
+  G.updateMusic(0.05); await tick();
+  check('back on a menu, the menu piece plays again', G.music().key === 'menu' && !!G.music().src);
+  const menuTake = G.music().src;
+  G.setBeat(0, -5);                   // 8.5s of loop with 3.5s left — inside the overlap window
+  G.updateMusic(0.05);
+  check('the menu piece loops by crossfading into itself',
+    !!G.xfade().src && G.xfade().src === menuTake && G.music().src !== menuTake && G.music().key === 'menu');
+  G.updateMusic(5); G.dropPreload();  // close the overlap, leave the slot clean for what follows
+  G.setState(G.S.PLAY);
   G.settings.music = false; G.updateMusic(0.016);
   check('music toggle silences the gain', G.music().gain.gain.value === 0);
   G.settings.music = true;
+
+  // ---- the run pool: a shuffled bag over src/audio/music/ ----
+  {
+    const n = G.trackCount();
+    check('the run pool is the whole music manifest', n === 3);
+    // THE FILENAME IS THE TITLE — this is what lets the folder be edited freely
+    check('a track titles itself from its filename',
+      G.prettyTrackName('audio/music/Steel_and_Rain.mp3') === 'STEEL AND RAIN' &&
+      G.prettyTrackName('audio/music/Neon%20Sunset.mp3') === 'NEON SUNSET' &&
+      G.prettyTrackName('audio/music/Neon-Run.mp3') === 'NEON RUN');
+    check('an explicit manifest name still overrides the filename', G.trackName(1) === 'STEEL AND RAIN');
+    check('a bare-url entry falls back to its filename', G.trackName(0) === 'L1');
+    while (G.trackBagLen()) G.pickTrack();  // start from a bag boundary
+    const draw = [];
+    for (let i = 0; i < n * 2; i++) draw.push(G.pickTrack());
+    check('a bag hands out every track before any of them repeats',
+      new Set(draw.slice(0, n)).size === n && new Set(draw.slice(n)).size === n);
+    G.playTrack(0); // bag is empty again; whatever is on air must not come straight back
+    check('a refill never redraws the track already on air', G.pickTrack() !== 0);
+  }
+
+  // ---- NOW PLAYING + the pause skip ----
+  {
+    G.startEndless(); G.setState(G.S.PLAY);
+    await runMusicUp();
+    check('a run announces its track', G.nowPlayingName() === G.trackName(G.getRunTrack()));
+    G.update(5); // the strip times out and clears the corner
+    check('the strip gets out of the way on its own', G.nowPlayingName() === null);
+    const before = G.getRunTrack();
+    G.skipTrack(1);
+    await tick();
+    check('the pause skip steps forward through the pool', G.getRunTrack() === (before + 1) % G.trackCount());
+    check('a manual skip re-announces the track', G.nowPlayingName() === G.trackName(G.getRunTrack()));
+    G.skipTrack(-1); await tick();
+    check('and steps back', G.getRunTrack() === before);
+    G.setRunTrack(0); G.skipTrack(-1); await tick();
+    check('stepping back off the first track wraps to the last', G.getRunTrack() === G.trackCount() - 1);
+    G.setState(G.S.PAUSE); G.update(5);
+    check('the strip holds while paused, to confirm a skip on resume', G.nowPlayingName() !== null);
+    G.setState(G.S.MENU); G.playTrack('menu'); await tick();
+    check('the menu track never takes over the strip', G.nowPlayingName() !== 'MIDNIGHT TERMINAL WAIT');
+    // the strip must never caption silence — the regression that a dead dev server
+    // exposed: it used to announce when the fetch went OUT, not when audio started
+    G.setState(G.S.PLAY); G.update(5);
+    const okFetch = global.fetch;
+    global.fetch = () => Promise.reject(new Error('server down'));
+    G.skipTrack(1); await tick(); await tick();
+    check('a track that fails to load is never announced', G.nowPlayingName() === null);
+    global.fetch = okFetch;
+  }
+
+  // ---- FREE FLOW crossfade: the next take rises under the outgoing one ----
+  {
+    G.startEndless(); G.setState(G.S.PLAY);
+    await runMusicUp();                 // the run's own track comes in on the start sequence
+    G.dropPreload();                    // …and those frames armed the standby slot: the seam tests want it empty
+    const outgoing = G.music().src;
+    check('a free-flow run opens on a track from the pool', !!outgoing && typeof G.getRunTrack() === 'number');
+    G.setBeat(0, -6.6);                 // 8.5s of loop, 6.6s spent → 1.9s of track left
+    G.updateMusic(0.016);
+    check('nearing the seam starts decoding the next track', !!G.xfade().next || G.xfade().loading !== null);
+    await tick();                       // the standby take lands
+    G.updateMusic(0.016);
+    const xf = G.xfade();
+    check('the seam opens a crossfade, not a cut', !!xf.src && xf.src === outgoing && G.music().src !== outgoing);
+    check('the outgoing take still carries the mix as the new one rises',
+      xf.gain.gain.value > 0.9 && xf.srcGain.gain.value < 0.1);
+    check('runTrack follows whatever is now on air', G.getRunTrack() === G.music().key);
+    G.updateMusic(2);                   // halfway through the 4s overlap
+    const a = G.xfade().gain.gain.value, b = G.xfade().srcGain.gain.value;
+    check('the overlap holds equal power — no dip at the seam', Math.abs(a * a + b * b - 1) < 1e-6);
+    G.updateMusic(3);                   // past the far end of the overlap
+    check('the outgoing take is stopped once the overlap closes', outgoing.stopped && !G.xfade().src);
+    check('the incoming take owns the bus at full gain', G.music().src.startOffset === 0.5 && G.xfade().srcGain.gain.value === 1);
+    G.setState(G.S.MENU); G.playTrack('menu');
+  }
 
   // ================= leaderboard read client (Supabase) =================
   {

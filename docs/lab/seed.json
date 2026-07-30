@@ -1,0 +1,1389 @@
+{
+  "version": 1,
+  "title": "DATA DEFENDERS — story lab",
+  "budget": {
+    "line": 29,
+    "lines": 4,
+    "discsMax": 3,
+    "name": 28,
+    "comm": 64
+  },
+  "tutorial": {
+    "name": "QUALIFICATION",
+    "beat": "A closed practice line at Data Defenders. No client, no cargo, no case — and no record. Passing it is what makes you the only operator in Meridian with nothing on file.",
+    "scene": "",
+    "discs": [
+      {
+        "title": "",
+        "lines": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "art": ""
+      }
+    ],
+    "notes": "",
+    "status": "empty"
+  },
+  "acts": [
+    {
+      "id": "act1",
+      "act": "ACT I",
+      "title": "THE CONTRACT",
+      "premise": "A new operator is screened across three ordinary contracts, told why, and handed a delivery that matters. The file arrives — and so does a commander with no case number.",
+      "outline": "You are newly certified — no service record, no precinct friends, no debts to anyone in Meridian. Every one of those is a hole in your résumé and every one of them is why you get chosen.\n\nThree contracts for OmniServe, each planting one detail that only makes sense later: the fee clears before you file, he rebooks inside the hour and asks nothing, and clause 6 forbids you to discuss the run with anyone including Data Defenders.\n\nThe offer: Renke tells you certain customer streams have been hit for months — patient, professional, always the same kind of cargo. Not theft. Suppression. He built a file proving it and every attempt to deliver it has been attacked in transit. You were not hired. You were chosen.\n\nThe delivery lands, Reyes opens the channel and names you RUNNER without explaining. The operation begins: staged traffic, clean interceptions, recovered keys — and the keys turn out to be current.\n\nThe answer: Renke’s file was never lost. It arrived four times and was destroyed at the door by something resident in the CID’s own evidence intake.\n\n(The qualification run is NOT one of these eight — it is the separate TUTORIAL mode on the carousel.)",
+      "notes": "",
+      "missions": [
+        {
+          "n": 1,
+          "name": "CAMPUS OUTBOUND",
+          "beat": "First contract, taken because it is work. Routine outbound stream, ordinary taps. PLANT 1: the fee clears before you file.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 40,
+            "speed": 0.34,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 2,
+          "name": "OLD TOWN RELAY",
+          "beat": "Rebooked inside the hour. He asks nothing at all about what was on the line. PLANT 2. The taps have gotten serious.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 50,
+            "speed": 0.4,
+            "introduces": [
+              "doubles",
+              "heavy armor"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 3,
+          "name": "METRO EXCHANGE",
+          "beat": "PLANT 3: clause 6. Volleys placed like something has watched an operator work. → THE OFFER: you were chosen.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 55,
+            "speed": 0.43,
+            "introduces": [
+              "node killers",
+              "burst volleys"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 4,
+          "name": "HARBOR CROSSING",
+          "beat": "The delivery run. Barriers strung to catch the file whole. → THE CONTACT. Reyes: \"You’re RUNNER.\"",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 60,
+            "speed": 0.46,
+            "introduces": [
+              "barrier lines"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 5,
+          "name": "UNDERCITY FIBER",
+          "beat": "First staged stream. TRACE pulls a deployment key off the wreckage — it holds ACTIVE clearance. \"log it, tell no one.\"",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 60,
+            "speed": 0.46,
+            "introduces": [
+              "rim walls"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 6,
+          "name": "FINANCIAL SPINE",
+          "beat": "Keyed taps. A clean interception yields a working key — cut with credentials rotated this morning. THE SIGNATURES BEGIN.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 65,
+            "speed": 0.48,
+            "introduces": [
+              "color-locked taps"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 7,
+          "name": "CID APPROACH",
+          "beat": "TRACE isolates it: the file was never lost in transit. It arrived four times and was destroyed at the door.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 70,
+            "speed": 0.54,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 8,
+          "name": "EVIDENCE INTAKE",
+          "beat": "THE WARDEN. Resident in the CID’s own intake, refusing one class of cargo for years. \"everything i refused was contaminated. i was the filter.\"",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 45,
+            "speed": 0.5,
+            "introduces": [],
+            "boss": "core"
+          }
+        }
+      ],
+      "verdict": {
+        "name": "THE WARDEN",
+        "beat": "The intake is clean, the file is safe, the case can finally move. Nobody builds a thing like that for one file.",
+        "scene": "",
+        "discs": [
+          {
+            "title": "",
+            "lines": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "art": ""
+          }
+        ],
+        "notes": "",
+        "status": "empty"
+      }
+    },
+    {
+      "id": "act2",
+      "act": "ACT II",
+      "title": "THE RING",
+      "premise": "Wardens are everywhere and were never hidden. The taps are not placed — they are issued, by one dispatcher that signs its work. And somebody owns it.",
+      "outline": "Once you know the shape of a warden, TRACE finds more, fast, because they were never hidden. Port authority. The courts. The licensing exchange. Guardians at the junctions that matter, deciding what arrives.\n\nThe signatures give up the rest: taps are dispatched — written, keyed, assigned a lane, deployed. So are the wardens. Six years of it, out of one source, signing itself in a metadata field nobody was meant to read. The Architect.\n\nReyes says the part she has been building to: nobody rents this. Somebody owns it. There is a ring in Meridian — people who know exactly who each other are, in a city that does not know they exist.\n\nAnd it keeps. Intercepted cargo is not destroyed, it is filed. There is an archive.\n\nYou take the Tribunal at the courts junction. The junction is clear for about a day. Then there is another one, cast later, already better.",
+      "notes": "",
+      "missions": [
+        {
+          "n": 9,
+          "name": "PORT AUTHORITY",
+          "beat": "Now that you know the shape of a warden, TRACE finds another. It was never hidden — it has been standing there for years.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 50,
+            "speed": 0.46,
+            "introduces": [
+              "doubles",
+              "heavy armor",
+              "node killers"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 10,
+          "name": "CIVIC RECORDS",
+          "beat": "And another. Meridian has been running on a Grid that answers to somebody else.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 55,
+            "speed": 0.49,
+            "introduces": [
+              "burst volleys"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 11,
+          "name": "LICENSING EXCHANGE",
+          "beat": "Keyed taps at every junction. The signatures start matching across attacks with nothing else in common.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 60,
+            "speed": 0.52,
+            "introduces": [
+              "color-locked taps"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 12,
+          "name": "THE JUNCTIONS",
+          "beat": "They are not placed by hand. They are dispatched — written, keyed, assigned a lane, deployed.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 60,
+            "speed": 0.55,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 13,
+          "name": "DISPATCH LANES",
+          "beat": "One source, six years, and it signs its work. TRACE: \"it has a name for itself. the architect.\"",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 65,
+            "speed": 0.57,
+            "introduces": [
+              "barrier lines",
+              "rim walls"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 14,
+          "name": "THE OLD BUILD",
+          "beat": "REYES: nobody rents this. Somebody owns it. The Ring — and the Grid was hardened around them so long ago it looks like architecture.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 70,
+            "speed": 0.6,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 15,
+          "name": "COLD STORAGE",
+          "beat": "Intercepted cargo is not destroyed. It is filed. There is an archive, and it is still intact.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 75,
+            "speed": 0.63,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 16,
+          "name": "THE TRIBUNAL",
+          "beat": "Three cores at the courts junction. A newer casting than the intake warden, and it does not make the intake warden’s mistake.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 50,
+            "speed": 0.55,
+            "introduces": [],
+            "boss": "triad"
+          }
+        }
+      ],
+      "verdict": {
+        "name": "THE TRIBUNAL",
+        "beat": "A day later the junction has another warden, and it is already better. REYES: \"We stop chasing wardens. We find the thing that writes them.\"",
+        "scene": "",
+        "discs": [
+          {
+            "title": "",
+            "lines": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "art": ""
+          }
+        ],
+        "notes": "",
+        "status": "empty"
+      }
+    },
+    {
+      "id": "act3",
+      "act": "ACT III",
+      "title": "GOING BLIND",
+      "premise": "They remove Renke through channels. You lose your eyes, gain a van, and TRACE stops reading and starts planting.",
+      "outline": "Renke is called to a hearing — customer traffic routed to an off-book contractor, on his authorization, in his own hand. Suspended, marked for termination, access revoked the same afternoon. He is not hurt. He is removed, correctly, by people who never had to break a law.\n\nReyes will not put you in a safe house and says why. A technical van, and one instruction: stay mobile. From here the game runs out of a rain-streaked box in a parking structure with three faces on a screen — one of them dark.\n\nWithout Renke there is no routing, no transit logs, no legitimate cargo to ride. So TRACE stops reading and starts planting: bait data of exactly the kind the Ring reaches for, seeded on live lines. Crude, unauthorized, and it works enormously — volume is what triangulation needs.\n\nAnd the Ring hunts back, with a warden that guards nothing at all. The Seeker sweeps for the shape of an operator working a line, and it has been looking for you since the harbor crossing.",
+      "notes": "",
+      "missions": [
+        {
+          "n": 17,
+          "name": "DARK ROUTE",
+          "beat": "Renke is suspended pending review. No client, no cover, no routing. Reyes puts you somewhere nobody is looking.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 55,
+            "speed": 0.48,
+            "introduces": [
+              "doubles",
+              "heavy armor",
+              "barrier lines",
+              "color-locked taps",
+              "node killers"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 18,
+          "name": "PARKING LEVEL 3",
+          "beat": "The van. Stay mobile — never the same lot twice, never a fixed uplink, never a pattern.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 55,
+            "speed": 0.58,
+            "introduces": [
+              "burst volleys"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 19,
+          "name": "BAIT LINES",
+          "beat": "TRACE stops reading and starts planting. Bait data on live lines. Renke would have refused to sign it.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 60,
+            "speed": 0.5,
+            "introduces": [
+              "rim walls"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 20,
+          "name": "THE BITE",
+          "beat": "It works enormously. Every bite is a keyed tap on a line the Architect had no reason to watch. The count starts climbing.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 60,
+            "speed": 0.6,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 21,
+          "name": "OPEN SWEEP",
+          "beat": "Something is sweeping. Patiently, endlessly, across every line in Meridian, looking for the shape of an operator.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 65,
+            "speed": 0.52,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 22,
+          "name": "UNDER THE BEAM",
+          "beat": "You cannot hide from it and you cannot outrun it. So you go where it is looking.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 70,
+            "speed": 0.63,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 23,
+          "name": "SEARCH PATTERN",
+          "beat": "It has been looking for you since the harbor crossing. Reyes’s decoys are the only reason it has not closed.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 75,
+            "speed": 0.58,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 24,
+          "name": "THE SEEKER",
+          "beat": "A warden that guards nothing. Ride the beam, survive every sweep, and take what is inside it.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 50,
+            "speed": 0.55,
+            "introduces": [],
+            "boss": "spinner"
+          }
+        }
+      ],
+      "verdict": {
+        "name": "THE SEEKER",
+        "beat": "A standing search order, six years old, never cancelled. Two designations — yours, and BLADE’s. REYES: \"…yes. That’s what I meant.\"",
+        "scene": "",
+        "discs": [
+          {
+            "title": "",
+            "lines": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "art": ""
+          }
+        ],
+        "notes": "",
+        "status": "empty"
+      }
+    },
+    {
+      "id": "act4",
+      "act": "ACT IV",
+      "title": "THE FOUNDRY",
+      "premise": "Map the Architect’s reach, find the casting line every warden comes from, and write the antidote from its own handwriting.",
+      "outline": "You know what it is and roughly where. Now find out what it is made of, because you are not going to fight it — you are going to unwrite it, and TRACE needs to know exactly how it is put together.\n\nReconnaissance at speed, under fire. Dispatch lanes. Deployment schedules. The route a warden takes from written to standing. How far it reaches, which is: everywhere, into every junction in the city, continuously, without anyone having asked it to for years.\n\nMeanwhile the decoys thin, Renke’s review date is set, and TRACE is running staging she is not qualified for. Nobody says the word deadline.\n\nAt the bottom of the reach: not a guard. A casting line — where the Architect writes wardens, tests them against the last thing that killed one, and ships. The least defended thing in the game and the most dangerous, because it is producing while you are inside it.",
+      "notes": "",
+      "missions": [
+        {
+          "n": 25,
+          "name": "REACH SURVEY",
+          "beat": "Stop chasing and start mapping. How far does the Architect actually go?",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 45,
+            "speed": 0.52,
+            "introduces": [
+              "doubles",
+              "heavy armor",
+              "barrier lines",
+              "color-locked taps",
+              "node killers"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 26,
+          "name": "DISPATCH ORDER",
+          "beat": "The route a tap takes from written to standing. Every one carries where it came from.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 50,
+            "speed": 0.55,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 27,
+          "name": "CASTING SCHEDULE",
+          "beat": "Wardens are not deployed at random. They are scheduled, and the schedule has a shape.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 55,
+            "speed": 0.58,
+            "introduces": [
+              "rim walls",
+              "burst volleys"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 28,
+          "name": "EVERY JUNCTION",
+          "beat": "The answer to how far it reaches: everywhere, continuously, and nobody has asked it to for years.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 60,
+            "speed": 0.6,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 29,
+          "name": "THE CLOCK",
+          "beat": "Decoys thinning, review date set, TRACE running staging she is not qualified for. Nobody says deadline.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 60,
+            "speed": 0.63,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 30,
+          "name": "THE UNDERLINE",
+          "beat": "Below the dispatch layer there is an older one, and it goes somewhere that is not on any map.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 65,
+            "speed": 0.65,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 31,
+          "name": "THE MOULD",
+          "beat": "Every warden in Meridian shares a structure, because they were all cast from one thing.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 70,
+            "speed": 0.68,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 32,
+          "name": "THE FOUNDRY",
+          "beat": "The casting line itself — producing while you are inside it. Take it and you take the pattern.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 50,
+            "speed": 0.6,
+            "introduces": [],
+            "boss": "triad"
+          }
+        }
+      ],
+      "verdict": {
+        "name": "THE ANTIDOTE",
+        "beat": "TRACE writes it from the pattern and four acts of signatures. It does not fight — it unwrites. \"i can write it. i can’t take it there.\"",
+        "scene": "",
+        "discs": [
+          {
+            "title": "",
+            "lines": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "art": ""
+          }
+        ],
+        "notes": "",
+        "status": "empty"
+      }
+    },
+    {
+      "id": "act5",
+      "act": "ACT V",
+      "title": "THE ARCHIVE",
+      "premise": "Carry the antidote into the oldest segment of the Grid, unwrite the Architect, and bring six years of what it kept out whole.",
+      "outline": "The last act is the first act inverted. Forty missions protecting other people’s cargo on other people’s lines; now you carry one payload of your own into the deepest, oldest, most defended stretch of fiber in Meridian — laid when the city was planned, never opened to anything since.\n\nRenke comes back for it. Still suspended, still under review, and he does it anyway, because a run into that segment needs OmniServe’s transit fabric and he is the only person alive who knows how it is stitched together.\n\nThe signatures are the door. Their defenses stop pretending: walls folding shut in sequence, a channel screaming with everything thrown blind, deep fiber running hot enough to blur, and one narrow threshold with the whole Grid firing into it.\n\nAnd the Architect talks, because it has never in six years been asked to explain itself.",
+      "notes": "",
+      "missions": [
+        {
+          "n": 33,
+          "name": "INJECTION",
+          "beat": "Renke comes back. The antidote goes on the wire, and it only exists once.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 50,
+            "speed": 0.58,
+            "introduces": [
+              "doubles",
+              "heavy armor",
+              "barrier lines",
+              "color-locked taps",
+              "node killers",
+              "rim walls"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 34,
+          "name": "OUTER SEGMENT",
+          "beat": "The Grid stops pretending. No interception, no subtlety — everything swings to kill.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 55,
+            "speed": 0.63,
+            "introduces": [
+              "burst volleys"
+            ],
+            "boss": null
+          }
+        },
+        {
+          "n": 35,
+          "name": "THE DELTA",
+          "beat": "Walls folding shut in sequence, trying to seal the payload into a dead segment.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 60,
+            "speed": 0.66,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 36,
+          "name": "THE SCREAM",
+          "beat": "Everything the Grid owns, thrown blind. This is not defense. This is furniture against a door.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 60,
+            "speed": 0.69,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 37,
+          "name": "LAST RING",
+          "beat": "It falls back and seals the approach — every gate keyed, every lane walled.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 65,
+            "speed": 0.72,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 38,
+          "name": "DEEP FIBER",
+          "beat": "No walls left down here. Just speed, the last thing it has.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 70,
+            "speed": 0.75,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 39,
+          "name": "THE THRESHOLD",
+          "beat": "One narrow gate with the whole city’s infrastructure firing into it.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 75,
+            "speed": 0.78,
+            "introduces": [],
+            "boss": null
+          }
+        },
+        {
+          "n": 40,
+          "name": "THE ARCHITECT",
+          "beat": "Not a fortress — a clerk with six locks. \"you have been arguing with a form.\" Seat the antidote.",
+          "scene": "",
+          "discs": [
+            {
+              "title": "",
+              "lines": [
+                "",
+                "",
+                "",
+                ""
+              ],
+              "art": ""
+            }
+          ],
+          "hint": "",
+          "caseNote": "",
+          "analysis": "",
+          "notes": "",
+          "status": "empty",
+          "tuning": {
+            "duration": 55,
+            "speed": 0.66,
+            "introduces": [],
+            "boss": "core"
+          }
+        }
+      ],
+      "verdict": {
+        "name": "THE ARCHIVE",
+        "beat": "The archive falls open — six years of killed audits and filings that never arrived, each tagged with the order that stopped it. Transfer all of it to Reyes.",
+        "scene": "",
+        "discs": [
+          {
+            "title": "",
+            "lines": [
+              "",
+              "",
+              "",
+              ""
+            ],
+            "art": ""
+          }
+        ],
+        "notes": "",
+        "status": "empty"
+      }
+    }
+  ],
+  "requests": []
+}

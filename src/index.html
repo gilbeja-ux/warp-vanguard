@@ -35,6 +35,7 @@
 <body>
 <canvas id="game"></canvas>
 <script src="campaigns.js"></script>
+<script src="audio/music/tracks.js"></script>
 <script>
 'use strict';
 
@@ -179,10 +180,14 @@ function audio() {
   // during the boot splash its score owns the mix — the menu track would land
   // on top of it; splashAudioTry() picks the take up once the context runs
   if (SPLASH.on) return AC;
-  // (re)start the right track — every audio() call originates from a user gesture
-  playTrack(state === S.PLAY || state === S.PAUSE || state === S.INFO ? runTrack : 'menu');
+  // NO TRACK CHOICE HERE. A gesture unlocks the context and nothing more — what
+  // plays is decided by game state in updateMusic, so the soundtrack can't depend
+  // on which screen a tap happened to land on.
   return AC;
 }
+// a MENU screen for soundtrack purposes: the menu itself, and the field guide
+// when it was opened from the home screen rather than mid-run
+const menuScreenNow = () => state === S.MENU || (state === S.GUIDE && (!guide || guide.from !== 'pause'));
 function tone(freq, dur, type, vol, slideTo, dest, delay, pan) {
   if (simMuted) return;
   const ac = AC; if (!ac || !sfxGain) return;
@@ -304,24 +309,126 @@ function sonarTick(freq, pan) {
   o.connect(g); tail.connect(sfxGain); o.start(); o.stop(ac.currentTime + 0.05);
 }
 // ---------- soundtrack (MUSIC_DATA is injected in a script at the end of this file) ----------
-// menu: Midnight Terminal Wait · L1: Sub Level Three · L2: Steel and Rain · L3: Terminal Velocity
+// menu: Midnight Terminal Wait · runs: a shuffled draw from src/audio/music/
 // Web Audio looper: each track is decoded to a buffer and looped sample-accurately
 // (native <audio loop> always has an audible seam on mp3). Encoder padding is
-// trimmed via loopStart/loopEnd. One decoded track is held in memory at a time.
+// trimmed via loopStart/loopEnd. One decoded track is held in memory at a time —
+// except across a free-flow crossfade, which briefly holds two.
 let musicGain = null, musicSrc = null, musicSrcGain = null, musicFilter = null;
 let musicLift = 1; // max-combo streaks brighten the mix a touch
 let musicStartAt = 0, beatPeriod = 0, musicCut = 16000, musicLoopDur = 0;
 let currentTrackKey = null, musicLoadKey = null;
+// The menu piece is the one track the player returns to over and over, and it is
+// the smallest in the folder — so its decoded buffer is kept for the session.
+// That is what makes leaving a run switch to menu music INSTANTLY instead of
+// after a fetch and a decode.
+let menuBuf = null;
+let musicRetryIn = 0;    // backoff before re-asking for a track whose load died
+let musicHoldFor = 0;    // seconds of quiet still owed to the deploy fade-out before the run's track may come in
+let warmKey = null, warmBuf = null; // the run's take, decoding (or decoded) under the deploy silence
+let runMusicOn = false;  // does the RUN own the bus? false from deploy until the start sequence, and again once it ends
+let holdVol = 1;         // eased 1→0 while the pause card holds the track
 let musicFade = 1; // 0→1 whenever a track starts from silence
 let musicRate = 1; // eased playback rate — slow-mo drags the track down with it
 let replayMusicVol = 1; // eased music multiplier: 0 while a replay is paused / scrubbing / exiting
 const musicVolume = () => settings.music ? settings.musicVol : 0;
 const MUSIC_FADEIN = 2.2; // seconds to fade a track in
 const MUSIC_FADEOUT = 1.0; // seconds the outgoing track takes to bow out on a switch
-const trackUrl = k => k === 'menu' ? window.MUSIC_DATA.menu : window.MUSIC_DATA.levels[k];
+const MUSIC_XFADE = 4.0;  // seconds two takes overlap when free flow chains the next track
+const MUSIC_LEAD = 14;    // seconds before the seam the next track starts fetching + decoding
+// a manifest entry is normally a bare url; { file, name } overrides the title
+function trackEntry(k) {
+  const md = window.MUSIC_DATA;
+  const e = k === 'menu' ? md.menu : md.levels[k];
+  return typeof e === 'string' ? { file: e } : (e || { file: '' });
+}
+const trackUrl = k => encodeURI(trackEntry(k).file); // the folder's filenames carry spaces
+// THE FILENAME IS THE TITLE. src/audio/music/ is the single source of truth:
+// drop a track in, `npm run build` lists it, and its name comes straight off the
+// file — so renaming the mp3 renames the track, with nothing else to keep in sync.
+const NAME_CACHE = {};
+function prettyTrackName(file) {
+  if (NAME_CACHE[file] !== undefined) return NAME_CACHE[file];
+  const base = decodeURIComponent(String(file)).split('/').pop().replace(/\.[a-z0-9]+$/i, '');
+  return (NAME_CACHE[file] = base.replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase());
+}
+function trackName(k) {
+  const e = trackEntry(k);
+  return e.name || (e.file ? prettyTrackName(e.file) : '');
+}
+const trackCount = () => (window.MUSIC_DATA && window.MUSIC_DATA.levels.length) || 1;
+// shuffled bag: every track in the folder plays once before any of them repeats,
+// and a refill never hands back the track that is already on air. Draws from
+// sysRandom, NOT Math.random — campaign/daily reseed Math.random for the sim, and
+// spending from that stream would desync replay verification.
+let trackBag = [];
+function pickTrack() {
+  const n = trackCount();
+  if (!trackBag.length) {
+    trackBag = Array.from({ length: n }, (_, i) => i);
+    for (let i = n - 1; i > 0; i--) { const j = (sysRandom() * (i + 1)) | 0; const t = trackBag[i]; trackBag[i] = trackBag[j]; trackBag[j] = t; }
+    if (n > 1 && trackBag[0] === currentTrackKey) trackBag.push(trackBag.shift()); // no repeat across the seam
+  }
+  return trackBag.shift();
+}
+// ---- free-flow crossfade: two takes alive at once, one rising under the other ----
+// The master musicGain owns volume/duck/lift, so the overlap rides on per-take
+// gains driven per frame (same model as musicFade — no AudioParam ramps, which
+// keeps the headless harness's stub gains honest).
+let xfSrc = null, xfGain = null, xfT = 1;      // the outgoing take, and its 0→1 progress
+let nextTrack = null, nextLoadKey = null, preloadRetryIn = 0; // the decoded take standing by (+ backoff after a failed preload)
+function endCrossfade() {
+  if (xfSrc) { try { xfSrc.stop(); } catch (e) {} try { xfSrc.disconnect(); } catch (e) {} }
+  if (xfGain) { try { xfGain.disconnect(); } catch (e) {} }
+  xfSrc = null; xfGain = null; xfT = 1;
+  if (musicSrcGain) musicSrcGain.gain.value = 1; // whoever is on air owns the bus again
+}
+function dropPreload() { nextTrack = null; nextLoadKey = null; }
+// decode the next track WELL before the seam — a crossfade with nothing to fade
+// into is just a gap, which is the thing this whole path exists to avoid
+function preloadTrack(key) {
+  if (!AC || !window.MUSIC_DATA) return;
+  nextLoadKey = key; nextTrack = null;
+  fetch(trackUrl(key))
+    .then(r => r.arrayBuffer())
+    .then(a => AC.decodeAudioData(a))
+    .then(buf => { if (nextLoadKey === key) { nextTrack = { key, buf }; nextLoadKey = null; } })
+    .catch(() => { if (nextLoadKey === key) { nextLoadKey = null; preloadRetryIn = 3; } });
+}
+function crossfadeTo(key, buf) {
+  if (!AC || !musicFilter) return;
+  endCrossfade();                    // a second seam before the first settled — the older take goes now
+  xfSrc = musicSrc; xfGain = musicSrcGain;
+  const lp = loopPoints(buf);
+  const src = AC.createBufferSource();
+  src.buffer = buf; src.loop = true; src.loopStart = lp.start; src.loopEnd = lp.end;
+  src.playbackRate.value = musicRate;
+  const g = AC.createGain();
+  g.gain.value = xfSrc ? 0 : 1;      // nothing to fade from → straight to full
+  src.connect(g); g.connect(musicFilter);
+  src.start(0, lp.start);
+  musicSrc = src; musicSrcGain = g;
+  musicLoopDur = lp.end - lp.start;
+  musicStartAt = AC.currentTime;
+  currentTrackKey = key; musicLoadKey = null;
+  xfT = xfSrc ? 0 : 1;
+  beatPeriod = detectBeat(buf);      // the new take brings its own tempo grid
+  nowPlaying(key);                   // the seam is the one moment the music changes unasked
+}
+// ---- NOW PLAYING: the track names itself, briefly, and gets out of the way ----
+// Two moments only: a run opening, and a free-flow crossfade. Read-only — the run
+// is live and a stray tap costs integrity, so skipping lives in PAUSE instead.
+let npT = 99, npName = '';
+const NP_DUR = 4.4; // seconds on screen, both fades included
+function nowPlaying(key) {
+  if (key === 'menu' || replaying) return;
+  const n = trackName(key);
+  if (n) { npName = n; npT = 0; }
+}
 function stopMusicSrc(fade) {
   const src = musicSrc, g = musicSrcGain;
   musicSrc = null; musicSrcGain = null;
+  endCrossfade(); dropPreload();     // a hard switch cancels any overlap in flight
   if (!src) return;
   if (fade && AC && g && g.gain.setTargetAtTime) {
     // hand the outgoing source its own exit ramp — the shared musicGain is
@@ -402,6 +509,30 @@ function loopPoints(buf, thr0) {
   while (e > s && Math.abs(d[e]) < thr) e--;
   return { start: s / buf.sampleRate, end: (e + 1) / buf.sampleRate };
 }
+// hand the bus to a buffer that is ALREADY decoded: the outgoing take gets its
+// 1s exit ramp and the incoming one rises under it. The only way a take ever
+// reaches the speakers — whether its buffer came from a fetch, from the menu
+// cache, or from the run's warm-up.
+function startTake(key, buf) {
+  stopMusicSrc(MUSIC_FADEOUT); // NOW: the old take fades out under the new one's fade-in
+  const lp = loopPoints(buf);
+  musicSrc = AC.createBufferSource();
+  musicSrc.buffer = buf;
+  musicSrc.loop = true;
+  musicSrc.loopStart = lp.start; musicSrc.loopEnd = lp.end;
+  musicLoopDur = lp.end - lp.start;
+  musicSrc.playbackRate.value = musicRate;
+  musicSrcGain = AC.createGain(); // per-take handle so a switch can fade THIS take out
+  musicSrc.connect(musicSrcGain); musicSrcGain.connect(musicFilter);
+  musicFade = 0; musicGain.gain.value = 0; // rise from silence
+  musicSrc.start(0, lp.start);
+  musicStartAt = AC.currentTime;
+  beatPeriod = detectBeat(buf); // tempo grid for spawn choreography
+  // announced HERE, not when the fetch went out: the strip names a track that
+  // is genuinely playing, so a dead server or a missing file stays silent
+  // instead of captioning silence.
+  nowPlaying(key);
+}
 function playTrack(key) {
   if (!window.MUSIC_DATA) return;
   initAC(); if (!AC) return;
@@ -413,49 +544,128 @@ function playTrack(key) {
   }
   if (key === currentTrackKey && (musicSrc || musicLoadKey === key)) return;
   currentTrackKey = key; musicLoadKey = key;
-  stopMusicSrc(MUSIC_FADEOUT); // the old track fades out under the new one's fade-in
+  // already decoded? Then there is nothing to wait for — the menu take is cached
+  // for the session, and the run's take was warmed under the deploy silence.
+  const held = key === 'menu' ? menuBuf : key === warmKey ? warmBuf : null;
+  if (held) { warmKey = null; warmBuf = null; musicLoadKey = null; startTake(key, held); return; }
+  // that warm load is still in flight — it is THIS load. Wait for it rather than
+  // opening a second fetch for the same file (musicLoadKey stays set, so the
+  // contract sees a load in progress and the warm callback does the handover).
+  if (key === warmKey) return;
+  // NOTHING is stopped yet. Fetching and decoding a track costs a few hundred ms
+  // on a laptop and MANY SECONDS on a phone, so a take dropped here would leave
+  // the whole load window in dead air — a restarted level opening on silence.
+  // The outgoing take plays until the incoming one is ready to start, and the
+  // handover happens in the callback below, where the crossfade actually is.
   fetch(trackUrl(key))
     .then(r => r.arrayBuffer())
     .then(a => AC.decodeAudioData(a))
     .then(buf => {
-      if (currentTrackKey !== key) return; // switched tracks while decoding
+      if (key === 'menu') menuBuf = buf; // worth keeping whatever happens next: the menu is returned to constantly
+      if (currentTrackKey !== key) return; // a newer switch won the race — and the quiet it wants is deliberate
       musicLoadKey = null;
-      const lp = loopPoints(buf);
-      musicSrc = AC.createBufferSource();
-      musicSrc.buffer = buf;
-      musicSrc.loop = true;
-      musicSrc.loopStart = lp.start; musicSrc.loopEnd = lp.end;
-      musicLoopDur = lp.end - lp.start;
-      musicSrc.playbackRate.value = musicRate;
-      musicSrcGain = AC.createGain(); // per-take handle so a switch can fade THIS take out
-      musicSrc.connect(musicSrcGain); musicSrcGain.connect(musicFilter);
-      musicFade = 0; musicGain.gain.value = 0; // rise from silence
-      musicSrc.start(0, lp.start);
-      musicStartAt = AC.currentTime;
-      beatPeriod = detectBeat(buf); // tempo grid for spawn choreography
+      startTake(key, buf);
     })
     .catch(() => { if (musicLoadKey === key) musicLoadKey = null; });
+}
+// DEPLOY: the menu piece fades out to silence and the run's drawn track starts
+// decoding under that silence, so it is ready to come in on the start sequence
+// instead of arriving late. Nothing plays until then — leaving the menu should
+// sound like leaving the menu, not like a crossfade.
+function armRunMusic() {
+  runMusicOn = false;
+  stopMusicSrc(MUSIC_FADEOUT);
+  currentTrackKey = null; musicLoadKey = null;
+  musicHoldFor = MUSIC_FADEOUT;
+  initAC();          // deploy is a tap — the best moment there is to have a context
+  warmTrack(runTrack); // decode under the silence, so the take lands ON the start sequence
+}
+// the run is over: its track fades out and the end screen is quiet
+function endRunMusic() {
+  runMusicOn = false;
+  stopMusicSrc(MUSIC_FADEOUT);
+  currentTrackKey = null; musicLoadKey = null;
+  warmKey = null; warmBuf = null; // let the run's buffer go
+}
+// Warm the run's take while the deploy fade-out plays. Its own slot, NOT the
+// free-flow standby slot: that one belongs to the seam, and sharing it let the
+// seam swallow a take meant for the top of the run.
+// If the run asks for this track before the decode lands, playTrack leaves the
+// load flagged and this callback performs the handover the moment it can.
+function warmTrack(key) {
+  warmKey = key; warmBuf = null;
+  if (!AC || !window.MUSIC_DATA) return;
+  fetch(trackUrl(key))
+    .then(r => r.arrayBuffer())
+    .then(a => AC.decodeAudioData(a))
+    .then(buf => {
+      if (warmKey !== key) return; // the run moved on
+      warmBuf = buf;
+      if (currentTrackKey === key && musicLoadKey === key && !musicHoldFor) {
+        warmKey = null; warmBuf = null; musicLoadKey = null;
+        startTake(key, buf);
+      }
+    })
+    .catch(() => { if (warmKey === key) { warmKey = null; if (musicLoadKey === key) musicLoadKey = null; } }); // the contract's retry picks it up
 }
 // runs every frame: drives the fade-in, volume, and the slow-mo tape-warp
 function updateMusic(dt) {
   musicFade = Math.min(1, musicFade + (dt || 0) / MUSIC_FADEIN);
-  // long runs deserve variety: endless/daily rotate through all three level
-  // tracks, switching at the loop boundary (each track plays once through)
-  if (endless && state === S.PLAY && musicSrc && musicLoopDur > 0 && AC &&
-      AC.currentTime - musicStartAt > musicLoopDur - 0.12 && typeof runTrack === 'number') {
-    runTrack = (runTrack + 1) % 3;
-    playTrack(runTrack);
-  }
-  // the menu piece is a short composition with an ending, not a loop —
-  // breathe the volume through the seam instead of hard-cutting
-  let seamDuck = 1;
-  if (currentTrackKey === 'menu' && musicSrc && musicLoopDur > 1 && AC) {
-    const elapsed = AC.currentTime - musicStartAt;
-    if (elapsed > musicLoopDur - 1.2) { // never duck the opening play-through
-      const pos = elapsed % musicLoopDur;
-      const edge = Math.min(pos, musicLoopDur - pos);
-      seamDuck = clamp(edge / 1.2, 0.12, 1);
+  // ---- THE SOUNDTRACK CONTRACT ----
+  // Who owns the bus is decided HERE, from game state, every frame — never from
+  // whatever screen a tap happened to land on:
+  //   menus            → the menu piece, crossfading into itself to loop
+  //   deploy → intro   → silence, while the menu piece bows out
+  //   the run          → its own random track, in with the start sequence
+  //   pause            → held, and picks up where it left off on resume
+  //   level over       → silence
+  // Stating it as a target instead of a pile of switch calls is also what makes
+  // it self-healing: a dead fetch, a lost decode race or a 404 leaves the bus
+  // empty for one backoff and then gets asked for again, so a run is never
+  // silently music-less.
+  musicHoldFor = Math.max(0, musicHoldFor - (dt || 0));
+  musicRetryIn = Math.max(0, musicRetryIn - (dt || 0));
+  preloadRetryIn = Math.max(0, preloadRetryIn - (dt || 0));
+  if (!SPLASH.on) {
+    if (menuScreenNow()) runMusicOn = false; // back on a menu → whatever run owned the bus is done
+    const wantKey = menuScreenNow() ? 'menu' : runMusicOn ? runTrack : null;
+    if (wantKey !== null) initAC();          // get the graph up early; a gesture only has to un-suspend it
+    if (wantKey === null) {
+      if (musicSrc || musicLoadKey !== null) { stopMusicSrc(MUSIC_FADEOUT); currentTrackKey = null; musicLoadKey = null; }
+    } else if (AC && !musicHoldFor &&        // the deploy fade-out gets its full second of quiet
+               (currentTrackKey !== wantKey ||
+                (!musicSrc && musicLoadKey === null && !musicRetryIn))) {
+      musicRetryIn = 2.5;
+      playTrack(wantKey);
     }
+  }
+  // the start sequence IS the cue: the moment the run is live, its track comes in
+  if (state === S.PLAY && !runMusicOn) runMusicOn = true;
+  // FREE FLOW outruns its track: draw the next one from the bag, decode it ahead
+  // of the seam, and cross it in under the outgoing take so the music never gaps.
+  if (endless && state === S.PLAY && !replaying && musicSrc && musicLoopDur > 0 && AC &&
+      typeof runTrack === 'number' && currentTrackKey !== 'menu') {
+    const left = musicLoopDur - (AC.currentTime - musicStartAt);
+    if (left < MUSIC_LEAD && !nextTrack && nextLoadKey === null && !preloadRetryIn) preloadTrack(pickTrack());
+    if (left < MUSIC_XFADE && nextTrack) {  // late (a slow decode) just means a later seam, never silence
+      const nt = nextTrack; nextTrack = null;
+      runTrack = nt.key;
+      crossfadeTo(nt.key, nt.buf);
+    }
+  }
+  if (xfSrc && xfGain) { // equal-power overlap — the sum stays level through the seam
+    xfT = Math.min(1, xfT + (dt || 0) / MUSIC_XFADE);
+    const e = xfT * xfT * (3 - 2 * xfT);
+    xfGain.gain.value = Math.cos(e * Math.PI / 2);
+    if (musicSrcGain) musicSrcGain.gain.value = Math.sin(e * Math.PI / 2);
+    if (xfT >= 1) endCrossfade();
+  }
+  // the menu piece is a composition with an ending, not a loop — so it loops by
+  // crossfading INTO ITSELF, the same overlap free flow uses at a seam. Its
+  // buffer is already in hand (menuBuf), so the seam costs nothing.
+  if (currentTrackKey === 'menu' && menuBuf && musicSrc && !xfSrc && AC &&
+      musicLoopDur > MUSIC_XFADE && musicLoopDur - (AC.currentTime - musicStartAt) < MUSIC_XFADE) {
+    crossfadeTo('menu', menuBuf);
   }
   // the tape-warp moment this ease was kept for: the tutorial's TAP-TO-FIRE
   // hold drags the track down to a stop, releasing it spools back up
@@ -465,9 +675,17 @@ function updateMusic(dt) {
   // rolling at normal rate but quiet, and re-seeks it to follow the thumb.
   const replayFrozen = replaying && (replayPaused || replayEnded); // pause, hold-at-end, exit (back sets paused)
   const replayScrubbing = replaying && replayScrub && !replayPaused;
-  const rateTarget = replaying ? (replayFrozen ? 0.0001 : replaySpeed) : (tut && tut.frozen ? 0.0001 : 1);
+  // THE PAUSE HOLD: the pause card freezes the track where it stands (near-zero
+  // rate holds the playhead) and eases it to silence; resuming spools it back up
+  // from that same moment, so a pause never costs the run its place in the music.
+  const held = state === S.PAUSE && !replaying;
+  const rateTarget = replaying ? (replayFrozen ? 0.0001 : replaySpeed) : (held || (tut && tut.frozen) ? 0.0001 : 1);
   musicRate += (rateTarget - musicRate) * Math.min(1, (dt || 0) * (rateTarget < 0.5 ? 2.5 : 5));
   if (musicSrc && musicSrc.playbackRate) musicSrc.playbackRate.value = musicRate;
+  // a frozen playhead doesn't move, so the clock the seam logic measures against
+  // has to stand still with it — otherwise a long pause "spends" the track
+  holdVol += ((held ? 0 : 1) - holdVol) * Math.min(1, (dt || 0) * 6);
+  if (held) musicStartAt += (dt || 0);
   // frozen → fade to silence; scrubbing → duck to a quiet preview; else full
   const musicVolTgt = replayFrozen ? 0 : replayScrubbing ? 0.34 : 1;
   replayMusicVol += (musicVolTgt - replayMusicVol) * Math.min(1, (dt || 0) * 3);
@@ -482,7 +700,7 @@ function updateMusic(dt) {
   const f = musicFade * musicFade * (3 - 2 * musicFade); // smoothstep
   const liftTarget = state === S.PLAY && combo >= 8 ? 1.07 : 1; // hot streaks lift the mix
   musicLift += (liftTarget - musicLift) * Math.min(1, (dt || 0) * 2);
-  musicGain.gain.value = musicVolume() * f * (1 - 0.55 * musicDuck) * seamDuck * musicLift * replayMusicVol;
+  musicGain.gain.value = musicVolume() * f * (1 - 0.55 * musicDuck) * holdVol * musicLift * replayMusicVol;
 }
 // haptics: Capacitor Haptics on device, vibration API on the web, and
 // dual-rumble on a connected controller (padDev is refreshed every poll)
@@ -784,7 +1002,7 @@ function buildBackground() {
   }
   buildRingFx();
 }
-// the node holder ring, reborn as a dark machined monolith (arclab design):
+// the node holder ring, reborn as a dark machined monolith (arc lab design):
 // matte gunmetal under ONE key light — the lit sector glints, the far side
 // dies — with machined hairlines, an engraved index scale, seams and flange
 // bolts. Static, so it prerenders once per resize.
@@ -1249,7 +1467,14 @@ function validateCampaign(p) {
       if (l[k] !== undefined && !(l[k] >= 0 && l[k] <= 1)) errs.push(tag + 'bad ' + k + ' rate');
     // boss finales may pick their intruder; the engine defaults to 'core'
     if (!/^\d{1,3},\d{1,3},\d{1,3}$/.test(l.tint || '')) errs.push(tag + 'bad tint');
-    if (l.story && !(str(l.story.title) && Array.isArray(l.story.lines) && l.story.lines.every(str))) errs.push(tag + 'bad story card');
+    // a mission disc carries ONE plot line. { title, lines[] } is the pre-art
+    // shape and still installs, so older packages and exported UGC keep working
+    if (l.story && !(str(l.story.line) || (Array.isArray(l.story.lines) && l.story.lines.every(str)))) errs.push(tag + 'bad story card');
+    if (l.story && str(l.story.line) && l.story.line.length > 96) errs.push(tag + 'story line too long');
+    // disc art: a bundled file name, or a self-contained data URI for UGC
+    if (l.art !== undefined && !(str(l.art) && (/^data:image\//.test(l.art) ? l.art.length <= 400000 : /^[\w-]+\.(webp|png|jpg)$/.test(l.art)))) errs.push(tag + 'bad art');
+    // author notes: carried with the level, never read by the engine or shown
+    if (l.notes !== undefined && !(typeof l.notes === 'string' && l.notes.length <= 4000)) errs.push(tag + 'bad notes');
     if (i === 0 && p.verdict && !(str(p.verdict.title) && Array.isArray(p.verdict.lines) && p.verdict.lines.every(str))) errs.push('bad verdict card');
     if (i === 0 && p.map && p.map.image !== undefined && !(str(p.map.image) && /^data:image\//.test(p.map.image))) errs.push('bad map image (data:image URI required)');
     if (l.mapPos && !(l.mapPos.x >= 0 && l.mapPos.x <= 1 && l.mapPos.y >= 0 && l.mapPos.y <= 1)) errs.push(tag + 'bad mapPos (0..1)');
@@ -1292,6 +1517,30 @@ function validateCampaign(p) {
 function lintCampaign(p) {
   return (p && Array.isArray(p.levels) ? p.levels : []).map((l, i) => lintLevel(l, i));
 }
+// DETECTED THREATS — the count a mission disc promises. Read off lintWalk, the
+// pure draw-for-draw mirror of the live spawner, so it is the number that
+// actually arrives rather than an estimate off the spawn window. Cached per
+// level: the walk is arithmetic over a 1/60s timeline, cheap but not per-frame.
+const THREATN = {};
+function levelThreats(L, idx) {
+  const key = (CAMP ? CAMP.id : '?') + '#' + idx;
+  if (THREATN[key] !== undefined) return THREATN[key];
+  let n = 0;
+  try {
+    const { arr, walls } = lintWalk(L, idx);
+    const paired = new Set();
+    for (const rec of arr) {
+      if (rec.type === 'strip') continue;          // a bonus ride, not a threat
+      if (rec.type === 'line') {                   // a barrier is ONE threat with two ends
+        if (paired.has(rec)) continue;
+        if (rec.pair) paired.add(rec.pair);
+      }
+      n++;
+    }
+    n += walls.length;                             // a rim wall seizes rail — it counts
+  } catch (e) { n = 0; }
+  return (THREATN[key] = n);
+}
 function installCampaign(p) {
   const errs = validateCampaign(p);
   if (errs.length) { console.error('campaign rejected:', errs); return false; }
@@ -1319,6 +1568,7 @@ function installCampaign(p) {
 let infoCardsReady = false;
 let lintReady = false; // lintLevel leans on consts declared below — first install runs before they exist
 function registerStoryCards() {
+  for (const k of Object.keys(THREATN)) delete THREATN[k]; // the Designer edits levels in place
   for (const k of Object.keys(INFO_CARDS)) if (/^story\d+$/.test(k)) delete INFO_CARDS[k];
   STORY.forEach((st2, i) => { if (st2) INFO_CARDS['story' + i] = st2; });
   if (CAMP && CAMP.verdict) INFO_CARDS.verdict = CAMP.verdict; // the epilogue is the campaign's own
@@ -1330,7 +1580,18 @@ function campaignCleared(id) {
   return !!(c && pk && c.stars[pk.levels.length - 1] > 0);
 }
 const anyCampaignCleared = () => CAMPAIGNS.some(p => campaignCleared(p.id));
-const anyCampaignAt = n => CAMPAIGNS.some(p => (progress.camp[p.id] || {}).unlocked >= n);
+// levels carry ONE continuous number across the whole story — campaign 1 owns
+// 01-08, campaign 2 picks up at 09 — so a level number names exactly one level
+const campBase = ci => CAMPAIGNS.slice(0, Math.max(0, ci)).reduce((n, p) => n + p.levels.length, 0);
+const levelNo = (ci, li) => campBase(ci) + li + 1;
+const curLevelNo = li => levelNo(CAMP ? CAMPAIGNS.indexOf(CAMP) : -1, li);
+const lvNum = n => (n < 10 ? '0' : '') + n;
+// FREE FLOW opens once the fifth level of the first campaign is secured
+const FLOW_UNLOCK_LEVEL = 5;
+function flowUnlocked() {
+  const first = CAMPAIGNS[0], c = first && progress.camp[first.id];
+  return !!(c && c.stars[FLOW_UNLOCK_LEVEL - 1] > 0) || anyCampaignCleared();
+}
 function switchCampaign(i) {
   if (!CAMPAIGNS[i] || CAMPAIGNS[i] === CAMP) return;
   installCampaign(CAMPAIGNS[i]);
@@ -1505,7 +1766,9 @@ let mapLastRowY = 0, mapLastRowH = 0; // last relay row's rect — the reset key
 const HOLD_BOSS = 3;   // seconds to hold the final relay to drop into the boss fight
 const pauseDrag = {};
 
-// ---------- arc nodes: look constants (tuned in src/arclab.html, 2026-07-20) ----------
+// ---------- arc nodes: look constants (tuned in the arc lab, 2026-07-20) ----------
+// The lab was removed once the look was settled — these values ARE the design
+// record now, so tune them here.
 // The node IS a sector of the ring: an energy arc wrapped around the monolith
 // band, bounded by two machined bus-bars. The arc's span IS the zap window.
 const ARCFX = {
@@ -1527,8 +1790,9 @@ const LIGHT_A = -TAU * 0.31;  // world key light for the monolith ring + bus-bar
 const smoothT = t => t * t * (3 - 2 * t);
 const arcGun = l => { l *= ARCFX.metal; return `rgb(${Math.round(l * 0.92)},${Math.round(l * 0.96)},${Math.round(Math.min(255, l * 1.04))})`; };
 const arcHash = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
-// enemy body tuning — the BREACH DECK machined design (enemylab.html),
-// user-blessed 2026-07-21. Parasite-direction knobs live only in the lab.
+// enemy body tuning — the BREACH DECK machined design, user-blessed
+// 2026-07-21 in the enemy lab (since removed; tune these directly). The
+// parasite-direction knobs never made it off the lab bench.
 const ENEMYFX = {
   size: 2.25,    // body scale — 1.5× the old 1.5; big enough to read in the bore without crowding it (2026-07-26)
   squash: 0.36,  // wall foreshortening for on-surface parts
@@ -1537,6 +1801,24 @@ const ENEMYFX = {
   mBeamL: 1.35, mBeamI: 0.60,  // exfil beam length / glow
   mDrill: 1.35, mSpin: 3.50,   // auger length / flute crawl speed
   mCrack: 1.00,  // impact crack reach
+};
+// node killer (void packet) — SIGNAL LOSS. Tuned in the enemy lab, whose
+// "copy values" button emitted this block verbatim — which is why every key
+// still carries the lab's v-prefix. The lab is gone; the prefix is just history.
+const FRAGFX = {
+  vBands: 10,      // horizontal slices the body tears along
+  vHold: 0.45,     // quiet seconds between corruption events
+  vBurst: 0.18,    // how long one event lasts
+  vStep: 14,       // offsets re-roll at this Hz — stepped reads digital, per-frame reads fizzy
+  vTear: 0.35,     // sideways shift of a torn band (× body radius)
+  vTearN: 0.45,    // fraction of bands that tear at full event strength
+  vDrop: 0.18,     // fraction that drop out entirely (the tunnel shows through)
+  vChroma: 0.02,   // rim chromatic split at rest (× radius, with a hard pixel floor)
+  vChromaB: 4.00,  // how far the split widens during an event
+  vChromaI: 0.35,  // fringe strength
+  vFlash: 0.45,    // blown-out sliver left where a band dropped out
+  vScan: 0.50,     // scan sweep crawling the body between events
+  vGlint: 0.70,    // the rim glint — the bait
 };
 const enGun = l => { l *= ENEMYFX.mMetal; return `rgb(${Math.round(l * 0.92)},${Math.round(l * 0.96)},${Math.round(Math.min(255, l * 1.04))})`; };
 
@@ -2939,8 +3221,8 @@ function burst(x, y, color, n, spd) {
 // while a translucent green wash ripples across the wall from the death
 // point: the tunnel healing over where the corruption sat. Both live in
 // (angle, z) wall space, so depth still tells the story.
-// the tuning deck — mirrored 1:1 by the sliders in fxlab.html: tune there,
-// paste the readout back here
+// the tuning deck — once mirrored 1:1 by a slider lab, now the only copy.
+// Tune these numbers directly.
 const DECOMP = {
   rippleR: 0.50, // healed-wash reach along the ring (rad)
   rippleT: 0.60, // wash lifetime (s)
@@ -3411,7 +3693,7 @@ function endTap(x, y) {
         if (qual) { menuScreen = 'camps'; campScroll = campScrollTgt = 0; campPendingSync = null; }
         else menuScreen = endless ? 'flow' : 'map';
         if (!endless && !qual) mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
-        state = S.MENU; fadeT = 0.35; playTrack('menu');
+        state = S.MENU; fadeT = 0.35;
         menuFx = qual ? { kind: 'discOut', t: 0, dur: 0.55, disc: 0 } // the training disc recedes into its slot (reverse of the dive-in)
           : menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, zoom: true }
           : { kind: 'spinIn', t: 0, dur: 0.5, dir: 1, zoom: true };
@@ -3473,8 +3755,8 @@ function startLevel(i, brief) {
   // fixed seed per level: the same drill, every run — endless is the exam
   spawnRng = mulberry32((0x51AB1E + i * 7919) >>> 0);
   resetRun();
-  runTrack = LV.track || 0;
-  playTrack(runTrack);
+  runTrack = pickTrack(); // the soundtrack is drawn fresh; the sim never reads it (campaign spawns are scripted)
+  armRunMusic();
   if (brief && STORY[i]) showCard('story' + i); // the investigation continues
 }
 // QUALIFICATION: the training run — movement, every enemy type, one power-up
@@ -3496,8 +3778,8 @@ function startQualification() {
     [{ node: 1, off: 2.0 }],                         // white: reach the other
     [{ node: 0, a: -2.5 }, { node: 1, a: -0.64 }],   // both at once — FIXED
   ] };                                               // opposite upper sides, always clear apart
-  runTrack = (Math.random() * 3) | 0;
-  playTrack(runTrack);
+  runTrack = pickTrack();
+  armRunMusic();
   // free flow: no greeting disc — boot straight in; the CONTROLS CHECK banner
   // and the marching arrows take it from there
 }
@@ -3513,8 +3795,8 @@ function startEndless() {
   levelIdx = -1; endless = true; qual = false; LV = endlessCfg(0); tut = null;
   spawnRng = Math.random;
   resetRun();
-  runTrack = (Math.random() * 3) | 0;
-  playTrack(runTrack);
+  runTrack = pickTrack();
+  armRunMusic();
 }
 // DAILY STREAM: one seeded endless run per calendar day — same stream for
 // everyone, chase the best, keep the streak alive
@@ -3533,8 +3815,8 @@ function startDaily() {
   levelIdx = -1; endless = true; qual = false; LV = endlessCfg(0); tut = null;
   spawnRng = Math.random; // the daily seed lives on Math.random itself
   resetRun();
-  runTrack = dayN % 3;
-  playTrack(runTrack);
+  runTrack = dayN % trackCount(); // the daily is one shared stream — same day, same opening track for everyone
+  armRunMusic();
 }
 
 // ---------- leaderboard identity of a run ----------
@@ -3682,16 +3964,13 @@ function exitReplay() {
   Math.random = sysRandom;
   if (rc && (!CAMP || CAMP.id !== rc)) { const cp = CAMPAIGNS.find(c => c.id === rc); if (cp) installCampaign(cp); } // back to the player's campaign
   state = S.MENU; menuScreen = 'board'; // back to the leaderboard we launched from
-  // hand off NOW (not next frame): the replay take was faded down during the fly-out,
-  // so its exit ramp starts from that low level and the menu take fades in over it
-  playTrack('menu');
 }
 function replayLevelName() {
   if (!replayMeta) return '';
   if (replayMeta.mode === 'daily') return 'DAILY STREAM';
   if (replayMeta.mode === 'endless') return 'FREE FLOW';
   const ci = CAMP ? CAMPAIGNS.indexOf(CAMP) : -1; // reseed already switched CAMP to the run's campaign
-  return 'CAMPAIGN ' + (ci + 1) + '   |   LEVEL ' + ((replayMeta.levelIdx || 0) + 1);
+  return 'CAMPAIGN ' + (ci + 1) + '   |   LEVEL ' + lvNum(levelNo(ci, replayMeta.levelIdx || 0));
 }
 // seek to an absolute frame. Forward is a cheap continue; backward rewinds to 0
 // and fast-forwards (the sim is stateful — you can't jump without replaying).
@@ -3871,7 +4150,7 @@ function endLevel(win) {
   }
   endSweep = win ? geo().hitZ : -1; // victory: a cleansing wave rolls to the horizon
   beamSound(false, 0); beamActive = false; stripSound(false, 0);
-  musicDuck = 1;
+  endRunMusic();
   endWin = win; endT = 0; endFxStars = 0; endTickT = 0;
   endStars = win && !endless && !qual ? (integrity >= 90 ? 3 : integrity >= 60 ? 2 : 1) : 0;
   if (qual) {
@@ -4335,7 +4614,11 @@ function pollGamepad(dt) {
   if (list && list.length && onMap) {
     // the map is a LIST, not a maze: up/down picks the relay, A deploys,
     // B backs out. Dev keys (BOSS TEST, RESET) stay mouse-only on purpose.
-    const rows = list.filter(b2 => b2.node !== undefined);
+    // relays arrive twice (the lens marker, the left-column row) and the lens
+    // only draws the ones it can see — so key the walk on the RELAY, in order,
+    // and take whichever button represents it
+    const rows = [...new Map(list.filter(b2 => b2.node !== undefined).map(b2 => [b2.node, b2])).values()]
+      .sort((r1, r2) => r1.node - r2.node);
     const step = d => {
       const cur = rows.findIndex(r => r.node === mapSel);
       const nx = rows[clamp((cur < 0 ? 0 : cur) + d, 0, rows.length - 1)];
@@ -5895,6 +6178,130 @@ function drawGhost(gh, g) {
   ctx.globalAlpha = 1;
 }
 
+// the node killer's body: SIGNAL LOSS.
+// The void packet keeps its mass, its light-swallowing halo and its slow rim
+// glint (the glint is what sells the BAIT — a beautiful object you must not
+// touch). What it does now is FAIL: horizontal tear bands displace sideways and
+// drop out entirely, and the rim splits into red/cyan chromatic fringes, which
+// is what finally gives the void an edge you can find at the horizon — being
+// black-on-black in a dark bore was its old weakness.
+// Deliberately CONSTANT with depth: it never escalates as it closes, because
+// escalation reads as "hostile, shoot it" and this one has to stay bait. It is
+// not angrier up close; it is just wrong, the whole way in.
+// Shared by the live body, the field guide specimen and the briefing card, so
+// no surface can show a clean diamond the enemy no longer is. The caller
+// translates to the body centre; everything here is local.
+function voidPacket(pr, rot, ph, seed) {
+  if (pr < 1) return;
+  // corruption clock: events fire often, but `burst` is a STRENGTH rolled once
+  // per event off the STATIC seed, not a flag — most events are a one-band
+  // nudge, a few are a full tear. A fast cadence at one fixed intensity reads
+  // as a blinking light; the variety is what makes it read as a bad signal.
+  // bands need real pixels to read as slices — the level card's traffic legend
+  // draws this at r≈8, where ten of them would be mush. Too small to slice =
+  // no corruption at all, which is also true of a horizon spawn.
+  const bands = Math.max(1, Math.min(lowFX ? 6 : FRAGFX.vBands, Math.floor(pr / 3)));
+  const period = FRAGFX.vHold + FRAGFX.vBurst;
+  const clk = ph * (0.85 + 0.3 * fhash(seed));
+  const ev = Math.floor(clk / period);
+  const burst = bands < 4 ? 0
+    : (clk % period) > FRAGFX.vHold ? 0.28 + 0.72 * fhash(seed * 1.7 + ev * 17.3) : 0;
+  const tk = Math.floor(ph * FRAGFX.vStep); // stepped re-roll
+
+  const diamond = r => {
+    ctx.beginPath();
+    ctx.moveTo(0, -r);
+    ctx.quadraticCurveTo(r * 0.55, -r * 0.55, r, 0);
+    ctx.quadraticCurveTo(r * 0.55, r * 0.55, 0, r);
+    ctx.quadraticCurveTo(-r * 0.55, r * 0.55, -r, 0);
+    ctx.quadraticCurveTo(-r * 0.55, -r * 0.55, 0, -r);
+    ctx.closePath();
+  };
+  // built once in local space and reused by every band — the gradient travels
+  // with a displaced slice, which is what a torn image actually does
+  const fg = ctx.createRadialGradient(0, 0, 0, 0, 0, pr);
+  fg.addColorStop(0, '#0a0c1a');
+  fg.addColorStop(0.55, '#04050d');
+  fg.addColorStop(1, '#010104');
+  // a sub-pixel split vanishes at horizon size, which is exactly where the void
+  // used to disappear — so the fringe has a hard pixel FLOOR. Not an escalation:
+  // the same look, just never allowed to reach zero.
+  const cs = Math.max(Math.min(0.7, pr * 0.08), pr * FRAGFX.vChroma * (1 + burst * (FRAGFX.vChromaB - 1)));
+  const rimW = Math.max(0.8, pr * 0.045);
+  const ext = pr * 1.04;                     // the diamond never reaches past pr
+  const bh = 2 * ext / bands;
+  for (let i = 0; i < bands; i++) {
+    const hTorn = fhash(seed * 7.3 + i * 13.1 + tk * 3.77);
+    const hMag  = fhash(seed * 3.1 + i * 29.3 + tk * 5.13);
+    const hDrop = fhash(seed * 5.9 + i * 41.7 + tk * 2.31);
+    if (hDrop < FRAGFX.vDrop * burst) {        // dropout — the tunnel shows THROUGH the body
+      // a blown-out sliver where the signal died: the only light this thing
+      // ever emits, and what lets an event punch at mid-bore distance
+      if (FRAGFX.vFlash > 0.02 && hMag < 0.55) {
+        ctx.fillStyle = `rgba(170,190,225,${(0.3 * FRAGFX.vFlash * burst).toFixed(2)})`;
+        ctx.fillRect(-pr * 0.9, -ext + i * bh + bh * 0.35, pr * 1.8, Math.max(1, bh * 0.3));
+      }
+      continue;
+    }
+    const dx = hTorn < FRAGFX.vTearN * burst ? (hMag - 0.5) * 2 * FRAGFX.vTear * burst * pr : 0;
+    ctx.save();
+    // the tear is a SCANLINE, so the clip is screen-horizontal — taken before
+    // the body's own slow rotation
+    ctx.beginPath(); ctx.rect(-pr * 2.4, -ext + i * bh, pr * 4.8, bh + 0.6); ctx.clip();
+    ctx.translate(dx, 0);
+    ctx.rotate(rot);
+    diamond(pr);
+    ctx.fillStyle = fg; ctx.fill();
+    diamond(pr * 0.94);
+    ctx.strokeStyle = 'rgba(70,85,120,0.32)'; ctx.lineWidth = Math.max(1.2, pr * 0.09); ctx.stroke();
+    // chromatic aberration on the rim, drawn ADDITIVE: while the two fringes
+    // overlap they sum back into the old pale hairline edge, and as the split
+    // widens they peel apart into red and cyan. One value walks the whole way
+    // from "clean diamond" to "broken transmission".
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineWidth = rimW;
+    for (const [ox, col] of [[-cs, '210,60,80'], [cs, '60,175,220']]) {
+      ctx.save(); ctx.translate(ox, 0);
+      diamond(pr);
+      ctx.strokeStyle = `rgba(${col},${FRAGFX.vChromaI.toFixed(2)})`; ctx.stroke();
+      ctx.restore();
+    }
+    diamond(pr);
+    ctx.strokeStyle = `rgba(120,140,175,${(0.2 + 0.45 * FRAGFX.vChromaI).toFixed(2)})`; ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+  }
+  // finishes that read across the whole body: the nebular sheen deep inside, a
+  // dim scan sweep so it is never fully STILL between events, then the glint
+  ctx.save();
+  ctx.rotate(rot);
+  diamond(pr); ctx.clip();
+  ctx.fillStyle = 'rgba(90,70,160,0.12)';
+  ctx.beginPath(); ctx.ellipse(-pr * 0.25, -pr * 0.2, pr * 0.5, pr * 0.35, 0.6, 0, TAU); ctx.fill();
+  ctx.rotate(-rot);                            // the sweep is screen-horizontal too
+  if (FRAGFX.vScan > 0.02 && !lowFX) {
+    ctx.fillStyle = `rgba(150,170,205,${(0.09 * FRAGFX.vScan).toFixed(3)})`;
+    for (let k = 0; k < 2; k++) {
+      const sy = ((ph * 0.19 + k * 0.5) % 1) * 2.4 * pr - 1.2 * pr;
+      ctx.fillRect(-pr * 1.3, sy, pr * 2.6, Math.max(1, pr * 0.1));
+    }
+  }
+  ctx.restore();
+  if (FRAGFX.vGlint > 0.02) {                  // light caught on the edge — the bait
+    const ga = rot * 3;
+    const gr = pr * (1 - 0.22 * Math.pow(Math.sin(2 * ga), 2));
+    const gx = Math.cos(ga) * gr, gy = Math.sin(ga) * gr;
+    const gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, pr * 0.3);
+    gg.addColorStop(0, `rgba(220,235,255,${(0.7 * FRAGFX.vGlint).toFixed(2)})`);
+    gg.addColorStop(1, 'rgba(220,235,255,0)');
+    ctx.fillStyle = gg;
+    ctx.beginPath(); ctx.arc(gx, gy, pr * 0.3, 0, TAU); ctx.fill();
+  }
+}
+// cheap deterministic hash for the packet's corruption rolls — no RNG stream is
+// touched, so the campaign's spawn sequence can never shift because of an FX draw
+const fhash = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+
 function drawEnemy(en, g) {
   const rg = ring(Math.max(en.z, 0.02), g);
   const x = rg.x + Math.cos(en.angle) * rg.r;
@@ -5948,43 +6355,19 @@ function drawEnemy(en, g) {
     ctx.drawImage(spr, x - size * 1.7, y - size * 1.7, size * 3.4, size * 3.4);
   } else if (en.type === 'frag') {
     // payload packet: a void-black rounded diamond FLOATING in the bore — the
-    // payload rides the stream; only corruption clings to the walls
+    // payload rides the stream; only corruption clings to the walls. It renders
+    // as a failing signal (voidPacket) on a clock that is its own: a STATIC
+    // seed off the spawn angle, and a phase that only ever ACCUMULATES, with no
+    // urgency term — this body is bait and must not escalate as it closes.
+    if (en.fxSeed === undefined) {
+      en.fxSeed = 3 + ((en.angle * 39.7) % 10) * 9.7;
+      en.fxPh = (en.angle * 7.3) % 3;          // stagger the start, no RNG draw
+      en.fxT = time;
+    }
+    en.fxPh += clamp(time - en.fxT, 0, 0.1); en.fxT = time;
     ctx.save();
     ctx.translate(x, y);
-    const pr = size * (1 + Math.sin(en.spin * 2) * 0.06);
-    ctx.rotate(en.spin * 0.3);
-    const diamond = r => {
-      ctx.beginPath();
-      ctx.moveTo(0, -r);
-      ctx.quadraticCurveTo(r * 0.55, -r * 0.55, r, 0);
-      ctx.quadraticCurveTo(r * 0.55, r * 0.55, 0, r);
-      ctx.quadraticCurveTo(-r * 0.55, r * 0.55, -r, 0);
-      ctx.quadraticCurveTo(-r * 0.55, -r * 0.55, 0, -r);
-      ctx.closePath();
-    };
-    // near-featureless black core, the faintest nebular sheen deep inside
-    diamond(pr);
-    const fg = ctx.createRadialGradient(0, 0, 0, 0, 0, pr);
-    fg.addColorStop(0, '#0a0c1a');
-    fg.addColorStop(0.55, '#04050d');
-    fg.addColorStop(1, '#010104');
-    ctx.fillStyle = fg; ctx.fill();
-    ctx.fillStyle = 'rgba(90,70,160,0.12)';
-    ctx.beginPath(); ctx.ellipse(-pr * 0.25, -pr * 0.2, pr * 0.5, pr * 0.35, 0.6, 0, TAU); ctx.fill();
-    // event-horizon rim: dim inner band under a hairline pale edge
-    diamond(pr * 0.94);
-    ctx.strokeStyle = 'rgba(70,85,120,0.5)'; ctx.lineWidth = Math.max(1.5, pr * 0.12); ctx.stroke();
-    diamond(pr);
-    ctx.strokeStyle = 'rgba(185,200,230,0.8)'; ctx.lineWidth = Math.max(0.8, pr * 0.045); ctx.stroke();
-    // a slow glint crawling the rim — light caught on the edge
-    const ga = en.spin * 0.9;
-    const gr = pr * (1 - 0.22 * Math.pow(Math.sin(2 * ga), 2));
-    const gx = Math.cos(ga) * gr, gy = Math.sin(ga) * gr;
-    const gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, pr * 0.3);
-    gg.addColorStop(0, 'rgba(220,235,255,0.7)');
-    gg.addColorStop(1, 'rgba(220,235,255,0)');
-    ctx.fillStyle = gg;
-    ctx.beginPath(); ctx.arc(gx, gy, pr * 0.3, 0, TAU); ctx.fill();
+    voidPacket(size * (1 + Math.sin(en.spin * 2) * 0.06), en.spin * 0.3, en.fxPh, en.fxSeed);
     ctx.restore();
   } else {
     drawNailBreach(en, g, fade, PAL);
@@ -6811,7 +7194,7 @@ function drawNodes(g) {
 // THE NODE: an energy arc wrapped around the monolith band, bounded by two
 // machined bus-bars — a living sector of the ring itself. Its span IS the
 // zap window (ARCFX.span · tolVis), so what glows is exactly what covers.
-// Design + tuning locked in src/arclab.html.
+// Design + tuning were locked in the arc lab; ARCFX above is the record.
 function drawArcNode(n, g, i, rb, fused, bh) {
   const a = n.angle;
   const col = fused ? '160,240,255' : NODE_COLS[i];
@@ -7465,6 +7848,39 @@ function techPanel(x, y, w, h, title) {
 
 // level intro: title card + 3-2-1 countdown in the center while the ring forms
 // — drawn as the frame's last pass so no rim/HUD layer can obscure the text
+// the strip itself: tucked under the PAUSE key in the status corner, clear of
+// the bore and of the intro card's centre column. Three bars keep time off the
+// detected beat grid, so it reads as the soundtrack rather than another callout.
+function drawNowPlaying() {
+  if (npT >= NP_DUR || !npName || replaying) return;
+  const a = Math.min(1, npT / 0.35) * clamp((NP_DUR - npT) / 0.9, 0, 1);
+  if (a <= 0.01) return;
+  const x = 12 + SAFE.l, y = 12 + SAFE.t + 46;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.font = '700 10px Audiowide, system-ui';
+  try { ctx.letterSpacing = '1px'; } catch (e) {}
+  const nw = Math.min(ctx.measureText(npName).width, W * 0.42);
+  const h = 22, w = nw + 34;
+  techRect(x, y, w, h, 6);
+  ctx.fillStyle = 'rgba(6,20,40,0.55)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(120,220,255,0.35)'; ctx.lineWidth = 1;
+  techRect(x, y, w, h, 6); ctx.stroke();
+  // level meter — dead still when the music is off, so the strip never lies
+  const on = settings.music && settings.musicVol > 0;
+  const beat = beatPeriod > 0 ? time / beatPeriod : time * 2.2;
+  for (let i = 0; i < 3; i++) {
+    const lvl = on ? 0.35 + 0.65 * Math.abs(Math.sin((beat + i * 0.27) * Math.PI)) : 0.18;
+    const bh = 10 * lvl;
+    ctx.fillStyle = 'rgba(111,227,255,' + (on ? 0.9 : 0.35) + ')';
+    ctx.fillRect(x + 9 + i * 4, y + h / 2 + 5 - bh, 2.5, bh);
+  }
+  ctx.fillStyle = 'rgba(224,246,255,0.92)';
+  ctx.textAlign = 'left';
+  ctx.fillText(npName, x + 25, y + h / 2 + 4, nw);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.restore();
+}
 function drawIntroCard() {
   const L = LV || LEVELS[levelIdx];
   if (introT < INTRO_DUR + 0.5) {
@@ -7481,7 +7897,7 @@ function drawIntroCard() {
       try { ctx.letterSpacing = '6px'; } catch (e) {}
       const titleMaxW = ringChord(H * 0.30) / scale;
       ctx.fillStyle = 'rgba(200,235,255,0.85)'; ctx.font = '600 13px Audiowide, system-ui';
-      ctx.fillText(endless ? 'SURVIVE' : qual ? 'TRAINING' : 'LEVEL ' + (levelIdx + 1), 0, -34);
+      ctx.fillText(endless ? 'SURVIVE' : qual ? 'TRAINING' : 'LEVEL ' + lvNum(curLevelNo(levelIdx)), 0, -34);
       const tpx = fitPx(L.name, '800', Math.min(W * 0.055, 32), titleMaxW, 15);
       ctx.fillStyle = '#eafaff'; ctx.font = '800 ' + tpx + 'px Audiowide, system-ui';
       ctx.shadowColor = '#5fd7ff'; ctx.shadowBlur = 24;
@@ -8224,23 +8640,11 @@ function drawInfoGlyph(kind, cx, cy, r) {
     ctx.lineTo(-s2 * 0.3, s2); ctx.lineTo(s2 * 0.45, -0.15 * s2); ctx.lineTo(0, -0.15 * s2);
     ctx.closePath(); ctx.fill();
   } else if (kind === 'frag') {
-    const pr = r * 1.05;
-    ctx.rotate(time * 0.25);
-    ctx.beginPath();
-    ctx.moveTo(0, -pr);
-    ctx.quadraticCurveTo(pr * 0.55, -pr * 0.55, pr, 0);
-    ctx.quadraticCurveTo(pr * 0.55, pr * 0.55, 0, pr);
-    ctx.quadraticCurveTo(-pr * 0.55, pr * 0.55, -pr, 0);
-    ctx.quadraticCurveTo(-pr * 0.55, -pr * 0.55, 0, -pr);
-    ctx.closePath();
-    const fg2 = ctx.createRadialGradient(0, 0, 0, 0, 0, pr);
-    fg2.addColorStop(0, '#0a0c1a');
-    fg2.addColorStop(0.55, '#04050d');
-    fg2.addColorStop(1, '#010104');
-    ctx.fillStyle = fg2; ctx.fill();
-    ctx.strokeStyle = 'rgba(185,200,230,0.8)'; ctx.lineWidth = Math.max(1.5, pr * 0.06); ctx.stroke();
-    ctx.fillStyle = 'rgba(90,70,160,0.15)';
-    ctx.beginPath(); ctx.ellipse(-pr * 0.25, -pr * 0.2, pr * 0.5, pr * 0.35, 0.6, 0, TAU); ctx.fill();
+    // the same failing body the bore shows — the card that TEACHES the killer
+    // can't be the one surface still drawing a clean diamond. Its clock is raw
+    // time at a fixed rate, which is safe here: the packet's cadence is
+    // constant by design, so there is no state-dependent rate to leap.
+    voidPacket(r * 1.05, time * 0.25, time, 7.3);
   } else if (kind === 'line') {
     // two taps torn open along a running crack
     const off = r * 1.15;
@@ -8454,49 +8858,160 @@ function drawInfoCard() {
   };
   const isStory = /^story/.test(infoCard);
   ctx.textAlign = 'center';
-  try { ctx.letterSpacing = '3px'; } catch (e) {}
-  const kicker = isStory ? 'CASE FILE // CID-2209' : 'FIELD BRIEFING';
-  ctx.fillStyle = isStory ? 'rgba(255,210,74,0.8)' : 'rgba(140,210,255,0.7)';
-  fit('700', 11, kicker);
-  ctx.fillText(kicker, g.cx, g.cy - R * 0.64);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  drawInfoGlyph(infoCard, g.cx, g.cy - R * 0.33, Math.min(R * 0.16, 40));
-  ctx.fillStyle = '#eafaff';
-  try { ctx.letterSpacing = '2px'; } catch (e) {}
-  fit('800', 22, c.title);
-  ctx.fillText(c.title, g.cx, g.cy + R * 0.06);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  ctx.fillStyle = 'rgba(190,225,255,0.88)';
-  let lf = 15;
-  do { lf--; ctx.font = '500 ' + lf + 'px Audiowide, system-ui'; }
-  while (lf > 8 && Math.max(...c.lines.map(l => ctx.measureText(l).width)) > maxW);
-  if (isStory) { // the log TYPES itself in, teletype ticks under it
-    let budget = Math.max(0, Math.floor((time - infoShownAt - 0.3) * 46));
-    const total = c.lines.reduce((n, l) => n + l.length, 0);
-    const shown = Math.min(budget, total);
-    if (shown !== typeN && shown < total) {
-      if (shown % 2 === 0) tone(1900 + (shown % 5) * 60, 0.012, 'square', 0.022);
-      typeN = shown;
-    }
-    let cursorPlaced = false;
-    c.lines.forEach((ln, i) => {
-      const take = Math.max(0, Math.min(ln.length, budget));
-      budget -= ln.length;
-      let cursor = '';
-      if (!cursorPlaced && take < ln.length) { cursor = '\u258c'; cursorPlaced = true; }
-      ctx.fillText(ln.slice(0, take) + cursor, g.cx, g.cy + R * 0.2 + i * (lf + 3));
-    });
-  } else {
-    c.lines.forEach((ln, i) => ctx.fillText(ln, g.cx, g.cy + R * 0.2 + i * (lf + 3)));
+  if (isStory) drawStoryDisc(c, g, R);
+  else { // FIELD BRIEFING: a threat model, named, with its drill
+    try { ctx.letterSpacing = '3px'; } catch (e) {}
+    ctx.fillStyle = 'rgba(140,210,255,0.7)';
+    fit('700', 11, 'FIELD BRIEFING');
+    ctx.fillText('FIELD BRIEFING', g.cx, g.cy - R * 0.64);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    drawInfoGlyph(infoCard, g.cx, g.cy - R * 0.33, Math.min(R * 0.16, 40));
+    ctx.fillStyle = '#eafaff';
+    try { ctx.letterSpacing = '2px'; } catch (e) {}
+    fit('800', 22, c.title);
+    ctx.fillText(c.title, g.cx, g.cy + R * 0.06);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    ctx.fillStyle = 'rgba(190,225,255,0.88)';
+    const cl = c.lines || [];
+    let lf = 15;
+    do { lf--; ctx.font = '500 ' + lf + 'px Audiowide, system-ui'; }
+    while (lf > 8 && Math.max(0, ...cl.map(l => ctx.measureText(l).width)) > maxW);
+    cl.forEach((ln, i) => ctx.fillText(ln, g.cx, g.cy + R * 0.2 + i * (lf + 3)));
   }
+  // a mission disc spends its middle on art and readings, so the hint sits lower
+  // and quieter — down where the disc has narrowed to little else
+  const tapY = g.cy + R * (isStory ? 0.79 : 0.66);
   ctx.fillStyle = 'rgba(140,230,255,' + (0.5 + Math.sin(time * 4) * 0.3).toFixed(2) + ')';
-  try { ctx.letterSpacing = '3px'; } catch (e) {}
-  fit('700', 12, 'TAP TO CONTINUE');
-  ctx.fillText('TAP TO CONTINUE', g.cx, g.cy + R * 0.66);
-  if (gpSeen) drawPadHint(g.cx + ctx.measureText('TAP TO CONTINUE').width / 2 + 22, g.cy + R * 0.66 - 4, 'A');
+  try { ctx.letterSpacing = isStory ? '2px' : '3px'; } catch (e) {}
+  fit('700', isStory ? 9 : 12, 'TAP TO CONTINUE');
+  ctx.fillText('TAP TO CONTINUE', g.cx, tapY);
+  if (gpSeen) drawPadHint(g.cx + ctx.measureText('TAP TO CONTINUE').width / 2 + 22, tapY - 4, 'A');
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.textAlign = 'left';
   ctx.restore();
+}
+
+// break a sentence to a pixel width under the CURRENT font — returns the rows
+// rather than drawing them, so a caller can size a panel to its own text
+function wrapRows(text, maxW) {
+  const rows = [];
+  let line = '';
+  for (const w of String(text).split(/\s+/)) {
+    if (!w) continue;
+    const test = line ? line + ' ' + w : w;
+    if (line && ctx.measureText(test).width > maxW) { rows.push(line); line = w; }
+    else line = test;
+  }
+  if (line) rows.push(line);
+  return rows;
+}
+
+// ---- the mission disc ----
+// The keyframe fills the disc wall to wall, masked by the disc itself — the same
+// treatment the case-file carousel gives a campaign's map image. The plot line
+// rides a caption bar across the art's lower edge, full disc width. Below the
+// art, two readings of what you're flying into. One thing said per mission; the
+// in-run comms carry the scene from here.
+function drawStoryDisc(c, g, R) {
+  const li = +infoCard.slice(5);
+  const L = LEVELS[li];
+  const Rc = R * 0.965;              // the mask: just inside the border ring
+  const artB = g.cy + R * 0.34;      // the art's bottom edge
+  const half = y => Math.sqrt(Math.max(1, Rc * Rc - y * y)); // the chord, half-width
+  // measure the plot line FIRST — the caption bar is sized by its own wrap, and
+  // its width is the disc's chord at the bar's lowest point, not a panel edge
+  const body = c.line || (c.lines || []).join(' ');
+  let ls = Math.max(10, Math.min(16, Math.round(R * 0.095))), rows = [], tw = 0;
+  for (;;) {
+    ctx.font = '500 ' + ls + 'px Audiowide, system-ui';
+    tw = half(R * 0.34) * 2 - R * 0.16;
+    rows = wrapRows(body, tw);
+    if (rows.length <= 2 || ls <= 9) break;
+    ls--;
+  }
+  const lh = ls + 5, bh = rows.length * lh + 16;
+  const aTop = g.cy - Rc, aH = artB - aTop;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, Rc, 0, TAU); ctx.clip();
+  const im = discArtImg(L);
+  if (im) { // cover-fit the keyframe across the full disc width
+    const s = Math.max(Rc * 2 / im.w, aH / im.h);
+    ctx.drawImage(im.img, g.cx - im.w * s / 2, aTop + aH / 2 - im.h * s / 2, im.w * s, im.h * s);
+  } else { // no keyframe on disk yet — the relay's own tint stands in
+    const tint = (L && L.tint) || '80,160,255';
+    const wg = ctx.createLinearGradient(g.cx, aTop, g.cx, artB);
+    wg.addColorStop(0, 'rgba(' + tint + ',0.34)');
+    wg.addColorStop(1, 'rgba(4,9,20,0.95)');
+    ctx.fillStyle = wg; ctx.fillRect(g.cx - Rc, aTop, Rc * 2, aH);
+    drawInfoGlyph(infoCard, g.cx, aTop + (aH - bh) * 0.5, Math.min(aH * 0.16, 30));
+  }
+  // the grade the ENGINE adds, so 40 authored keyframes read as one show: the
+  // relay's tint, scanlines, a vignette. Art ships clean — see the disc spec.
+  if (L && L.tint) { ctx.fillStyle = 'rgba(' + L.tint + ',0.13)'; ctx.fillRect(g.cx - Rc, aTop, Rc * 2, aH); }
+  ctx.fillStyle = 'rgba(2,6,14,0.22)';
+  for (let sy = aTop + (Math.floor(time * 8) % 3); sy < artB; sy += 3) ctx.fillRect(g.cx - Rc, sy, Rc * 2, 1);
+  const vg = ctx.createRadialGradient(g.cx, aTop + aH * 0.42, aH * 0.3, g.cx, aTop + aH * 0.42, Rc * 1.05);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(2,5,12,0.62)');
+  ctx.fillStyle = vg; ctx.fillRect(g.cx - Rc, aTop, Rc * 2, aH);
+  // the caption bar rides the art's lower edge, full disc width — the mask gives
+  // it curved ends, so it reads as part of the disc rather than a floating panel
+  const bTop = artB - bh;
+  const cg = ctx.createLinearGradient(g.cx, bTop, g.cx, artB);
+  cg.addColorStop(0, 'rgba(3,7,16,0.80)');
+  cg.addColorStop(0.35, 'rgba(3,7,16,0.94)');
+  cg.addColorStop(1, 'rgba(3,7,16,0.94)');
+  ctx.fillStyle = cg; ctx.fillRect(g.cx - Rc, bTop, Rc * 2, bh);
+  ctx.restore();
+  // the art covered the disc's rim — lay the ring and its accent arcs back over
+  ctx.strokeStyle = 'rgba(120,200,255,0.3)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = 'rgba(140,230,255,0.75)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    const a = k / 4 * TAU + Math.PI / 4 + time * 0.15;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, a - 0.22, a + 0.22); ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(140,230,255,0.20)'; ctx.lineWidth = 1; // art meets caption
+  ctx.beginPath();
+  ctx.moveTo(g.cx - half(artB - g.cy), artB - 0.5);
+  ctx.lineTo(g.cx + half(artB - g.cy), artB - 0.5);
+  ctx.stroke();
+  // the line types itself in, teletype ticking under it
+  let budget = Math.max(0, Math.floor((time - infoShownAt - 0.25) * 46));
+  const total = body.length;
+  const shown = Math.min(budget, total);
+  if (shown !== typeN && shown < total) {
+    if (shown % 2 === 0) tone(1900 + (shown % 5) * 60, 0.012, 'square', 0.022);
+    typeN = shown;
+  }
+  ctx.font = '500 ' + ls + 'px Audiowide, system-ui';
+  ctx.fillStyle = 'rgba(222,242,255,0.96)';
+  let cursorPlaced = false;
+  rows.forEach((ln, i) => {
+    const take = Math.max(0, Math.min(ln.length, budget));
+    budget -= ln.length + 1; // the wrap ate a space
+    let cursor = '';
+    if (!cursorPlaced && take < ln.length) { cursor = '▌'; cursorPlaced = true; }
+    ctx.fillText(ln.slice(0, take) + cursor, g.cx, bTop + 9 + ls + i * lh);
+  });
+  if (!L) return;
+  // the readings: the number, its name under it in a quieter size
+  const numY = artB + R * 0.17, labY = numY + R * 0.10;
+  const numPx = Math.max(11, Math.round(R * 0.105));
+  const labPx = Math.max(7, Math.round(R * 0.055));
+  const colX = R * 0.38;
+  const stat = (dx, num, label, col) => {
+    ctx.font = '700 ' + numPx + 'px Audiowide, system-ui';
+    ctx.fillStyle = col;
+    ctx.fillText(num, g.cx + dx, numY);
+    try { ctx.letterSpacing = '0.5px'; } catch (e) {}
+    ctx.font = '700 ' + labPx + 'px Audiowide, system-ui';
+    ctx.fillStyle = 'rgba(146,192,232,0.68)';
+    ctx.fillText(label, g.cx + dx, labY);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+  };
+  stat(-colX, Math.round(L.duration) + 's', 'FIBER LENGTH', 'rgba(230,246,255,0.94)');
+  stat(colX, String(levelThreats(L, li)), 'DETECTED THREATS', 'rgba(255,210,74,0.96)');
 }
 
 // TAP TO FIRE rides the charged pad during the hold
@@ -8812,9 +9327,33 @@ function drawPause() {
     settingRow('SFX',        'sound',     'soundVol', py + 70,  px, pw);
     settingRow('MUSIC',      'music',     'musicVol', py + 108, px, pw);
     settingRow('HAPTICS',    'haptics',   null,       py + 146, px, pw);
-    // live console readout, pure garnish
-    ctx.fillStyle = 'rgba(120,210,255,0.35)'; ctx.font = '9px monospace'; ctx.textAlign = 'left';
-    ctx.fillText('m_fSfxVol = ' + settings.soundVol.toFixed(2) + 'f;', px + 24, py + 184);
+    // TRACK: the run's music, named and skippable — the only place the player can
+    // change it, because here the world is frozen and a mistap costs nothing. (It
+    // took the slot a decorative console readout used to hold.)
+    const trkRow = typeof runTrack === 'number' && trackCount() > 1 ? py + 188 : 0;
+    if (trkRow) {
+      ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(160,225,255,0.95)';
+      try { ctx.letterSpacing = '2px'; } catch (e) {}
+      ctx.font = '700 12px Audiowide, system-ui';
+      ctx.fillText('TRACK', px + 24, trkRow + 4);
+      try { ctx.letterSpacing = '0px'; } catch (e) {}
+      const kw = 30, kh = 24, kx0 = px + 162, kx1 = px + pw - 36 - kw;
+      for (const [kx, glyph] of [[kx0, '◀'], [kx1, '▶']]) {
+        techRect(kx, trkRow - kh / 2, kw, kh, 6);
+        ctx.fillStyle = 'rgba(40,140,210,0.35)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(140,230,255,0.7)'; ctx.lineWidth = 1.5;
+        techRect(kx, trkRow - kh / 2, kw, kh, 6); ctx.stroke();
+        ctx.fillStyle = '#dff6ff'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText(glyph, kx + kw / 2, trkRow + 4);
+      }
+      const nx0 = kx0 + kw + 8, nw = kx1 - 8 - nx0;
+      const nm = trackName(runTrack) || 'TRACK ' + (runTrack + 1);
+      ctx.textAlign = 'center';
+      ctx.font = '700 ' + fitPx(nm, '700', 12, nw, 8) + 'px Audiowide, system-ui';
+      ctx.fillStyle = settings.music ? 'rgba(234,250,255,0.95)' : 'rgba(150,180,210,0.45)';
+      ctx.fillText(nm, nx0 + nw / 2, trkRow + 4);
+      ctx.textAlign = 'left';
+    }
 
     const bh = 44, gap = 12, bw = (pw - 48 - gap * 2) / 3;
     let bx = px + 24; const by = py + ph - bh - 20;
@@ -8823,18 +9362,35 @@ function drawPause() {
       pauseButtonsList.push({ x: bx, y: by, w: bw, h: bh, action, cut: Math.min(12, bh * 0.28) });
       bx += bw + gap;
     });
-    pauseButtonsList.push(gk); // registered LAST so RESUME keeps the pad focus
+    // registered AFTER the three main keys so RESUME keeps the pad focus
+    pauseButtonsList.push(gk);
+    if (trkRow) {
+      const kw = 30, kh = 24;
+      pauseButtonsList.push({ x: px + 162, y: trkRow - kh / 2, w: kw, h: kh, action: 'trkPrev', cut: 6 });
+      pauseButtonsList.push({ x: px + pw - 36 - kw, y: trkRow - kh / 2, w: kw, h: kh, action: 'trkNext', cut: 6 });
+    }
     ctx.restore();
   });
   ctx.textAlign = 'left';
 }
 
+// step the run's soundtrack by hand. Walks the pool in order (not the bag) so
+// ◀/▶ are predictable, and drops any free-flow preload — the seam is now measured
+// from THIS take, not the one the player just left.
+function skipTrack(dir) {
+  const n = trackCount();
+  if (typeof runTrack !== 'number' || n < 2) return;
+  runTrack = ((runTrack + dir) % n + n) % n;
+  dropPreload();
+  playTrack(runTrack);
+}
 function pauseTap(x, y, pid) {
   if (settingsTap(x, y, pid)) return;
   for (const b of pauseButtonsList) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
       pressUI(b);
       if (b.action === 'guide') { enterGuide('pause'); }
+      else if (b.action === 'trkPrev' || b.action === 'trkNext') skipTrack(b.action === 'trkNext' ? 1 : -1);
       else if (b.action === 'resume') { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; }
       else if (b.action === 'restart') { if (qual) startQualification(); else if (daily) startDaily(); else if (endless) startEndless(); else startLevel(levelIdx); }
       else { // QUIT rides the same drive-back the end-screen MENU key uses
@@ -8843,7 +9399,7 @@ function pauseTap(x, y, pid) {
         if (qual) { menuScreen = 'camps'; campScroll = campScrollTgt = 0; campPendingSync = null; }
         else menuScreen = endless ? 'flow' : 'map';
         if (!endless && !qual) mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
-        state = S.MENU; fadeT = 0.35; playTrack('menu');
+        state = S.MENU; fadeT = 0.35;
         menuFx = qual ? { kind: 'discOut', t: 0, dur: 0.55, disc: 0 } // the training disc recedes into its slot (reverse of the dive-in)
           : menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, zoom: true }
           : { kind: 'spinIn', t: 0, dur: 0.5, dir: 1, zoom: true };
@@ -9497,7 +10053,7 @@ function drawMenuHome(ccx, ccy, R) {
   // again. TUTORIAL + LEADERBOARD ride the top corners; CAMPAIGN + FREE FLOW
   // the bottom corners.
   const campDone = anyCampaignCleared();
-  const flowOpen = anyCampaignAt(4) || campDone;
+  const flowOpen = flowUnlocked();
   const r1 = R * 0.92, r0 = R * 0.38;
   // three slices now: LEADERBOARD owns the top, STORY MODE + FREE FLOW the
   // bottom corners (training moved into Story Mode as its lead disc).
@@ -9506,7 +10062,7 @@ function drawMenuHome(ccx, ccy, R) {
       mid: -Math.PI / 2, locked: false, primary: false, col: '255,210,74' },
     { mode: 'campaign', name: 'STORY MODE', glyph: 'C', cap: 'the investigation · ' + LEVELS.length + ' relays',
       mid: Math.PI * 5 / 6, locked: false, primary: !campDone, col: '126,226,98' },
-    { mode: 'flow', name: 'FREE FLOW', glyph: '∞', cap: flowOpen ? 'endless · daily challenge' : 'reach relay 04 to unlock',
+    { mode: 'flow', name: 'FREE FLOW', glyph: '∞', cap: flowOpen ? 'endless · daily challenge' : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock',
       mid: Math.PI / 6, locked: !flowOpen, primary: campDone, col: '120,220,255' }
   ];
   const THIRD = TAU / SECTORS.length; // slice width (name kept for the arc-width math below)
@@ -9757,10 +10313,21 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
       ctx.drawImage(im2.img, 0, clamp((im2.h - sh2) / 2, 0, im2.h), im2.w, Math.min(sh2, im2.h), x - r, y - r, r * 2, mh);
     } else {
       if (!cityBase) buildCity();
-      const sw2 = CITY_W, sh2 = sw2 * (mh / (r * 2));
-      const sy2 = clamp(180 + (i * 167) % 160, 0, CITY_H - sh2);
-      ctx.drawImage(cityBase, 0, sy2, sw2, sh2, x - r, y - r, r * 2, mh);
-      if (cityTop) ctx.drawImage(cityTop, 0, sy2, sw2, sh2, x - r, y - r, r * 2, mh);
+      // each disc previews the stretch of city ITS case works — the inner
+      // cases show the lit core, the late ones the dark out past the rings
+      const ch = CITY_CHAINS[CAMPAIGNS.indexOf(pk)];
+      let cx2 = CITY_W / 2, cy2 = CITY_H / 2, sw2 = CITY_W * 0.55;
+      if (ch && ch.pts.length) {
+        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+        for (const p2 of ch.pts) { x0 = Math.min(x0, p2.x); y0 = Math.min(y0, p2.y); x1 = Math.max(x1, p2.x); y1 = Math.max(y1, p2.y); }
+        cx2 = (x0 + x1) / 2; cy2 = (y0 + y1) / 2;
+        sw2 = clamp((x1 - x0) * 1.25, 620, CITY_W);
+      }
+      const sh2 = sw2 * (mh / (r * 2));
+      const sx2 = clamp(cx2 - sw2 / 2, 0, Math.max(0, CITY_W - sw2));
+      const sy2 = clamp(cy2 - sh2 / 2, 0, Math.max(0, CITY_H - sh2));
+      ctx.drawImage(cityBase, sx2, sy2, sw2, sh2, x - r, y - r, r * 2, mh);
+      if (cityTop) ctx.drawImage(cityTop, sx2, sy2, sw2, sh2, x - r, y - r, r * 2, mh);
     }
   }
   if (real) { // dashed route with relay pips, west to east like the real map
@@ -9831,7 +10398,8 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     ctx.fillText(rateStr, shX + shR + gap, lineY);
     ctx.textAlign = 'center';
     ctx.fillStyle = done ? 'rgba(126,226,98,0.95)' : 'rgba(140,200,240,0.8)';
-    ctx.fillText(done ? 'CASE CLOSED' : 'RELAY ' + Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length, x, sepY + r * 0.62);
+    // a COUNT, not a level id — level numbers run continuously across campaigns
+    ctx.fillText(done ? 'CASE CLOSED' : Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length + ' RELAYS', x, sepY + r * 0.62);
     // short description: the tagline carries the pitch
     ctx.font = '500 ' + Math.max(8, Math.round(r * 0.07)) + 'px Audiowide, system-ui';
     ctx.fillStyle = 'rgba(130,180,225,0.7)';
@@ -9870,8 +10438,10 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
 }
 function drawMenuFlow() {
   const { ccx, ccy, R } = menuGeom();
-  const endlessOpen = anyCampaignCleared();
-  const dailyOpen = anyCampaignAt(4);
+  // both streams ride the same gate as the FREE FLOW key itself — opening the
+  // door onto two locked halves would be a dead end
+  const endlessOpen = flowUnlocked();
+  const dailyOpen = flowUnlocked();
   const r1 = R * 0.92, r0 = R * 0.38;
   const D = progress.daily;
   let rot = 0, wheelAl = 1; // same spin choreography as the mode wheel
@@ -9879,9 +10449,9 @@ function drawMenuFlow() {
   if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = -(menuFx.dir || 1) * 1.5 * Math.pow(1 - q, 2); wheelAl = q; }
   const HALVES = [
     { key: 'endless', glyph: '∞', name: 'ENDLESS STREAM', mid: -Math.PI / 2, locked: !endlessOpen, col: '255,210,74',
-      cap: endlessOpen ? 'procedural · no mercy' + (progress.best > 0 ? ' · BEST ' + progress.best.toLocaleString() : '') : 'clear the campaign to unlock' },
+      cap: endlessOpen ? 'procedural · no mercy' + (progress.best > 0 ? ' · BEST ' + progress.best.toLocaleString() : '') : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock' },
     { key: 'daily', glyph: '◈', name: 'DAILY STREAM', mid: Math.PI / 2, locked: !dailyOpen, col: '140,220,255',
-      cap: dailyOpen ? 'one seeded run per day' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : '') : 'reach relay 04 to unlock' }
+      cap: dailyOpen ? 'one seeded run per day' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : '') : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock' }
   ];
   ctx.save();
   ctx.globalAlpha = wheelAl;
@@ -10030,7 +10600,7 @@ function boardLeftItems() {
     items.push({ kind: 'camp', camp: ci, id: c.id, label: (c.title || 'CAMPAIGN ' + (ci + 1)).toUpperCase(), collapsed });
     // levels ride along even when folded — the animated fold factor collapses them
     (c.levels || []).forEach((lv, li) => items.push({
-      kind: 'level', camp: ci, level: li, campId: c.id, label: (lv.name || 'LEVEL ' + (li + 1)),
+      kind: 'level', camp: ci, level: li, campId: c.id, label: (lv.name || 'LEVEL ' + lvNum(levelNo(ci, li))),
       sel: boardSel.mode === 'campaign' && boardSel.camp === ci && boardSel.level === li,
     }));
   });
@@ -10181,10 +10751,12 @@ function drawMenuBoard() {
         if (f > 0.5) {
           // level index rides the gutter LEFT of the card, right-aligned into a
           // scannable column — kept out of the card so the name's width is untouched
-          const fNum = Math.max(9, Math.round(fLeft * 0.82));
+          const numStr = lvNum(levelNo(it.camp, it.level));
+          const numPad = Math.round(leftRowH * 0.12);
+          const fNum = fitPx(numStr, '700', Math.round(fLeft * 0.82), ind - numPad * 1.5, 8); // two digits still fit the indent
           ctx.textAlign = 'right'; ctx.font = '700 ' + fNum + 'px Audiowide, system-ui';
           ctx.fillStyle = it.sel ? 'rgba(255,255,255,0.85)' : 'rgba(150,195,240,0.6)';
-          ctx.fillText((it.level + 1), cardX - Math.round(leftRowH * 0.12), yy + rh / 2 + fNum * 0.36);
+          ctx.fillText(numStr, cardX - numPad, yy + rh / 2 + fNum * 0.36);
           ctx.textAlign = 'left';
           ctx.fillStyle = it.sel ? '#ffffff' : 'rgba(215,235,252,0.9)'; ctx.font = '700 ' + fLeft + 'px Audiowide, system-ui';
           ctx.fillText(it.label, cardX + 16, yy + rh / 2 + fLeft * 0.36, cw - 32);
@@ -10366,276 +10938,419 @@ function drawMenuBoard() {
 }
 
 // ---------- campaign route map ----------
-// the ring becomes a LENS over an isometric wireframe city — the network's
-// physical geography. The relay list rides the left column, the dossier the
-// right, and selecting a relay glides the lens along the route.
+// the ring becomes a LENS over an isometric neon city — the network's physical
+// geography. The relay list rides the left column, the dossier the right, and
+// selecting a relay glides the lens along the route.
+//
+// The city is a DEFENDED city. A hardened core sits at its heart, wrapped in
+// concentric FIREWALL PERIMETERS, each one thinner than the last. Case 01 runs
+// its lines inside that core; every case after it spirals further out into
+// weaker cover until the last one works in the dark past the final ring —
+// which is exactly why the wire carries more taps the further you go.
 let cityBase = null, cityTop = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1;
 const mapR = () => menuGeom().R * 0.92; // the lens rim MATCHES the mode wheel — seamless crossfade
-const CITY_W = 1600, CITY_H = 980;
-let RELAY_W = [], ROUTE_SEGS = []; // filled by buildCity — relays sit ON cable junctions
-const CITY_A = [], CITY_B = [];
-// harbor: a wavy water band across the sheet — the skyline crowds its north bank
-const harborY = x => CITY_H * 0.60 + Math.sin(x * 0.004) * 34;
-const HARBOR_H = 64;
-// two offscreen layers: BASE (streets, harbor, the buried cable grid) and TOP
-// (the building wireframe). The live route draws between them, so the data
-// infrastructure reads as underground — ghosting through translucent faces.
+const CITY_W = 3400, CITY_H = 2050;
+const CITY_CORE = { x: CITY_W * 0.5, y: CITY_H * 0.5 };
+const ISO_W = 16, ISO_H = 8; // iso tile half-width / half-height
+// the ground is an iso plane: a CIRCLE painted on it reads as a 2:1 ellipse on
+// the sheet, so ground distance counts y at double weight
+const groundR = (x, y) => Math.hypot(x - CITY_CORE.x, (y - CITY_CORE.y) * 2);
+// The firewall perimeters ARE the case bands: RING 01 is the belt case 01
+// works, RING 02 the belt case 02 works, and so on out. buildCity fits each
+// ring to the relays that actually landed there, so the map and the dossier
+// never disagree about how much cover a run still has.
+const RING_NAMES = ['INNER PERIMETER', 'METRO SHELL', 'OUTER GRID', 'THE FRINGE', 'THE DARK'];
+const CORE_NAME = 'HARDENED CORE', DARK_ZONE = 'THE DARK';
+let RINGS = []; // [{ r0, r1, name }] per case band, innermost first
+// shield coverage: total at the core, gone by the far edge. This is the number
+// the dossier quotes — and the reason the traffic thickens as you go out.
+const shieldAt = r => Math.round(100 * clamp(1 - Math.pow(clamp(r / 1450, 0, 1), 1.4), 0, 1));
+// the harbor: a wide channel sweeping the southern districts. Every case wraps
+// far enough around the core to cross it at least once.
+const harborY = x => CITY_H * 0.70 + Math.sin(x * 0.0021) * 92 + Math.sin(x * 0.0049 + 2.1) * 30;
+const HARBOR_H = 120;
+const inHarbor = (x, y, pad) => y > harborY(x) - (pad || 0) && y < harborY(x) + HARBOR_H + (pad || 0);
+// the river: down out of the north, bending west of the financial district and
+// emptying into the harbor. Blocks and relays keep off it; the avenues bridge it.
+const riverX = y => CITY_W * 0.34 + Math.sin(y * 0.0034) * 175 + Math.sin(y * 0.0071 + 1.1) * 55 + (y - CITY_H * 0.5) * 0.28;
+const RIVER_W = 42; // half-width
+const inRiver = (x, y, pad) => y < harborY(x) + HARBOR_H * 0.5 && Math.abs(x - riverX(y)) < RIVER_W + (pad || 0);
+const inWater = (x, y, pad) => inHarbor(x, y, pad) || inRiver(x, y, pad);
+// where each case finally delivers — the terminus past its last relay
+const CITY_TERMS = {
+  'investigation': ['CID', 'POLICE HQ'],
+  'going-deeper': ['IA', 'INTERNAL AFFAIRS'],
+  'signal-lost': ['BCN', 'COAST BEACON'],
+  'the-bait': ['HIVE', 'THE APIARY'],
+  'shutdown': ['SYS', 'ARCHITECT CORE']
+};
+// one chain per campaign: { pts: [...relays, terminus], segs: [...runs] }.
+// The chains are links of ONE spiral, so a case begins exactly where the last
+// one delivered.
+let CITY_CHAINS = [];
+// two offscreen layers: BASE (ground grid, streets, harbor, the perimeters) and
+// TOP (the building wireframe). The live route draws between them, so the data
+// infrastructure reads as underground — ghosting through the towers.
 function buildCity() {
   const rng = mulberry32(0xC17C0DE);
-  const HW = 16, HH = 8; // small tiles = a zoomed-out survey
-  // street bands in the two iso families (slope ±0.5). value v: line y = ±0.5x + 13v
-  const mkBands = (lo, hi) => {
+  const jxy = (a, b) => ({ x: ISO_H * (b - a), y: ISO_H * 0.5 * (a + b) }); // lattice -> px
+  const vAt = (x, y) => ({ a: (y - x / 2) / ISO_H, b: (y + x / 2) / ISO_H }); // px -> lattice
+  const CV = vAt(CITY_CORE.x, CITY_CORE.y);
+  // street bands in the two iso families (slope ±0.5): tight blocks downtown,
+  // long ones out in the sprawl
+  const mkBands = (lo, hi, vc) => {
     const out = [];
-    let v = lo + 2 + rng() * 4;
-    while (v < hi) { out.push({ v: Math.round(v), major: rng() < 0.5 }); v += 5 + rng() * 6; }
+    for (let v = lo; v < hi;) {
+      const d = Math.min(1, Math.abs(v - vc) / 225);
+      const major = rng() < 0.6;
+      out.push({ v: Math.round(v), major, grand: major && rng() < 0.2 });
+      v += 4.8 + d * 4.8 + rng() * 3.3;
+    }
+    let gap = 0; // avenues never bunch: force a trunk at least every third street
+    for (const b of out) { if (b.major) gap = 0; else if (++gap >= 3) { b.major = true; gap = 0; } }
     return out;
   };
-  const bands1 = mkBands(-95, 118); // v1 = r - 2c family (slope +0.5)
-  const bands2 = mkBands(4, 218);   // v2 = r + 2c family (slope -0.5)
+  const bands1 = mkBands(-CITY_W / 2 / ISO_H - 8, CITY_H / ISO_H + 8, CV.a); // v1 = (y - x/2)/ISO_H (slope +0.5)
+  const bands2 = mkBands(-8, (CITY_H + CITY_W / 2) / ISO_H + 8, CV.b);      // v2 = (y + x/2)/ISO_H (slope -0.5)
   const trunks1 = bands1.filter(b => b.major), trunks2 = bands2.filter(b => b.major);
-  const jxy = (a, b) => ({ x: HH * (b - a), y: HH * 0.5 * (a + b) }); // trunk junction -> px
-  // pick 10 route anchors (A, relays 1-8, B) on trunk junctions, west -> east,
-  // serpentining north/south and staying out of the water
+  // relays sit on trunk crossings, on dry land, inside the sheet
   const junc = [];
   for (const t1 of trunks1) for (const t2 of trunks2) {
     const p2 = jxy(t1.v, t2.v);
-    if (p2.x < 70 || p2.x > CITY_W - 70 || p2.y < 90 || p2.y > CITY_H - 70) continue;
-    const hy = harborY(p2.x);
-    if (p2.y > hy - 26 && p2.y < hy + HARBOR_H + 26) continue;
+    if (p2.x < 110 || p2.x > CITY_W - 110 || p2.y < 100 || p2.y > CITY_H - 100) continue;
+    if (inWater(p2.x, p2.y, 20)) continue;
     junc.push({ a: t1.v, b: t2.v, x: p2.x, y: p2.y });
   }
-  // the run starts at OmniServe HQ in the far west and lands at Police HQ
-  // near the city center. Relay i IS anchor i and its level's path runs AWAY
-  // from it. Anchors are chosen by a forward walk that targets a hop length
-  // (|Δa|+|Δb| in street units) that GROWS with the level index, serpentining
-  // north/south — so runs are comparable and later relays are longer hauls.
-  const westJunc = junc.filter(j => j.x < CITY_W * 0.64);
-  westJunc.sort((j1, j2) => j1.x - j2.x);
-  const anchors = [westJunc[Math.floor(rng() * Math.min(4, westJunc.length))]];
-  const used = new Set([anchors[0]]);
-  const usedA = new Set([anchors[0].a]), usedB = new Set([anchors[0].b]);
-  // hop targets in street-units (px ≈ 8.9 × units), growing with the level;
-  // an x-budget spreads the walk across the corridor so it never runs dry
-  const targets = []; let tSum = 0;
-  for (let i = 1; i < 9; i++) { targets.push(26 + i * 4); tSum += 26 + i * 4; }
-  const corridor = CITY_W * 0.62 - anchors[0].x;
-  let acc = 0;
-  for (let i = 1; i < 9; i++) {
-    const prev = anchors[i - 1];
-    const target = targets[i - 1];
-    acc += target;
-    const xGoal = anchors[0].x + corridor * (acc / tSum); // pace along the corridor
-    const wantNorth = i % 2 === 0; // serpentine
-    let best = null, bestScore = 1e9;
-    // relax ladder: 0 = pace windows + fresh trunks · 1 = fresh trunks only
-    // (pace becomes soft) · 2 = anything. Fresh trunks matter most: two relays
-    // on one street force their runs to share it.
-    for (const relax of [0, 1, 2]) {
-      for (const j of westJunc) {
-        if (used.has(j)) continue;
-        if (relax === 0 && (j.x - prev.x < -50 || j.x > xGoal + 190)) continue;
-        if (relax < 2 && (usedA.has(j.a) || usedB.has(j.b))) continue;
-        const hop = Math.abs(j.a - prev.a) + Math.abs(j.b - prev.b);
-        if (relax === 0 && (hop < target * 0.7 || hop > target * 1.5)) continue; // hold the pace
-        let sc = Math.abs(hop - target) * 2 + Math.abs(j.x - xGoal) * 0.06;
-        sc += (wantNorth ? j.y - prev.y : prev.y - j.y) * 0.02;   // serpentine bias
-        if (i === 8) sc += Math.abs(j.y - CITY_H * 0.45) * 0.06;  // Police HQ sits mid-city
-        if (relax === 2) sc += (usedA.has(j.a) ? 200 : 0) + (usedB.has(j.b) ? 200 : 0);
-        if (sc < bestScore) { bestScore = sc; best = j; }
+
+  // ---- THE SPIRAL: one continuous journey outward through the perimeters ----
+  // Relay g sits a little further from the core than relay g-1, and the walk
+  // never doubles back, so difficulty and distance-from-cover rise together.
+  const counts = (CAMPAIGNS.length ? CAMPAIGNS : [{ levels: new Array(8) }]).map(p => p.levels.length);
+  const total = counts.reduce((n, c) => n + c, 0);
+  const R0 = 215, R1 = 1180, dr = (R1 - R0) / total;
+  const used = new Set();
+  const pts = [];
+  let ang = -2.35; // start north-west of the core, then wind anticlockwise out
+  for (let g = 0; g <= total; g++) {
+    const f = g / total;
+    const rad = R0 + (R1 - R0) * f;
+    // a hop of about L world px — longer hauls the further out you work. (A run
+    // then DOG-LEGS along the streets, so it covers roughly twice L on the
+    // ground.) Splitting L between the radial and tangential directions on a
+    // 2:1 ellipse keeps every run about the same size in the lens.
+    const L = 120 + 135 * f;
+    const prev = pts[pts.length - 1];
+    const prevR = prev ? groundR(prev.x, prev.y) : -1e9;
+    const ix = CITY_CORE.x + Math.cos(ang) * rad;
+    const iy = CITY_CORE.y + Math.sin(ang) * rad * 0.5; // iso squash
+    // The SCHEDULE is authoritative: a relay lands on the trunk crossing nearest
+    // its point on the spiral and may stray no further than D from it, so the
+    // harbor or a used street can knock one relay sideways without ever bending
+    // the walk as a whole. Among the candidates, keep a real run's worth of
+    // distance from the last relay and stay off its streets.
+    const D = Math.max(210, L * 0.7);
+    let best = null, bs = 1e9;
+    for (const j of junc) {
+      if (used.has(j)) continue;
+      const d = Math.hypot(j.x - ix, (j.y - iy) * 1.7);
+      if (d > D) continue;
+      let s = d;
+      if (prev) s += Math.max(0, L * 0.8 - Math.hypot(j.x - prev.x, j.y - prev.y)) * 3;
+      for (const q of pts) { // a shared street would force two runs down one avenue
+        if (Math.hypot(q.x - j.x, q.y - j.y) < 520 && (q.a === j.a || q.b === j.b)) s += 70;
       }
-      if (best) break;
+      if (s < bs) { bs = s; best = j; }
     }
-    anchors.push(best);
-    used.add(best); usedA.add(best.a); usedB.add(best.b);
+    if (!best) { // nothing in reach (deep water, a pocket of used crossings): widen
+      bs = 1e9;  // the net, but pay to fall back toward cover. The schedule picks
+                 // the walk up again on the next hop either way.
+      for (const j of junc) {
+        if (used.has(j)) continue;
+        const s = Math.hypot(j.x - ix, (j.y - iy) * 1.7) + Math.max(0, prevR - groundR(j.x, j.y)) * 1.5;
+        if (s < bs) { bs = s; best = j; }
+      }
+    }
+    if (!best) break;
+    used.add(best);
+    pts.push(best);
+    const st = Math.abs(Math.sin(ang)), ct = Math.abs(Math.cos(ang));
+    const perTh = Math.max(60, rad * Math.hypot(st, ct * 0.5)); // |dP/dθ|
+    const perR = Math.hypot(ct, st * 0.5);                      // |dP/dr|
+    ang += Math.sqrt(Math.max(1, L * L - Math.pow(perR * dr, 2))) / perTh;
   }
-  CITY_A.length = 0; CITY_A.push(anchors[0].x, anchors[0].y);
-  CITY_B.length = 0; CITY_B.push(anchors[8].x, anchors[8].y);
-  RELAY_W = anchors.slice(0, 8).map(j => [j.x, j.y]);
-  // route legs ride the trunks; corners land on junctions; a candidate path is
-  // REJECTED if any leg runs straight through another relay's junction
-  const legHits = (fam, at, lo, hi) => anchors.some(j => {
-    const on = fam === 1 ? Math.abs(j.a - at) < 0.8 : Math.abs(j.b - at) < 0.8;
+
+  // ---- cable runs: every hop dog-legs along the avenues ----
+  // A candidate is a list of lattice CORNERS between the two relays. Cornering
+  // in the water or spearing another relay's junction is disqualifying; after
+  // that, the shortest run wins.
+  const corner = (a, b) => ({ a, b, p: jxy(a, b) });
+  const between = (bands, lo, hi, n) => {
+    const pool = bands.filter(t => t.v > Math.min(lo, hi) + 2 && t.v < Math.max(lo, hi) - 2);
+    const out = [];
+    for (let k = 0; k < n && pool.length; k++) out.push(pool[Math.floor(rng() * pool.length)].v);
+    return out;
+  };
+  const spears = (fam, at, lo, hi) => pts.some(j => {
+    const on = Math.abs((fam === 1 ? j.a : j.b) - at) < 0.8;
     const t2 = fam === 1 ? j.b : j.a;
     return on && t2 > Math.min(lo, hi) + 0.8 && t2 < Math.max(lo, hi) - 0.8;
   });
-  // ---- cable runs: greedy build, then relaxation passes so every run can
-  // re-route around the streets the others claimed — exclusive tracks ----
-  const candFor = k => {
-    const A2 = anchors[k], B2 = anchors[k + 1];
-    const candidates = [];
-    candidates.push([{ f: 1, at: A2.a, from: A2.b, to: B2.b }, { f: 2, at: B2.b, from: A2.a, to: B2.a }]);
-    candidates.push([{ f: 2, at: A2.b, from: A2.a, to: B2.a }, { f: 1, at: B2.a, from: A2.b, to: B2.b }]);
-    const lo1 = Math.min(A2.a, B2.a) - 22, hi1 = Math.max(A2.a, B2.a) + 22;
-    const lo2 = Math.min(A2.b, B2.b) - 22, hi2 = Math.max(A2.b, B2.b) + 22;
-    // detour corners may use ANY street (minor bands included) — the cable
-    // follows the road grid, not just the trunk avenues
-    const near1 = bands1.filter(t => t.v > lo1 && t.v < hi1 && t.v !== A2.a && t.v !== B2.a);
-    const near2 = bands2.filter(t => t.v > lo2 && t.v < hi2 && t.v !== A2.b && t.v !== B2.b);
-    for (const t of near2) {
-      candidates.push([
-        { f: 1, at: A2.a, from: A2.b, to: t.v },
-        { f: 2, at: t.v, from: A2.a, to: B2.a },
-        { f: 1, at: B2.a, from: t.v, to: B2.b }
-      ]);
+  const score = (A2, B2, cs) => {
+    let s = 0, a3 = A2.a, b3 = A2.b;
+    for (const c of cs.concat([B2])) {
+      if (c.a !== a3 && c.b !== b3) s += 1e6;               // not a legal leg
+      else if (c.a !== a3) { if (spears(2, b3, a3, c.a)) s += 1e5; s += Math.abs(c.a - a3); }
+      else { if (spears(1, a3, b3, c.b)) s += 1e5; s += Math.abs(c.b - b3); }
+      a3 = c.a; b3 = c.b;
     }
-    for (const t of near1) {
-      candidates.push([
-        { f: 2, at: A2.b, from: A2.a, to: t.v },
-        { f: 1, at: t.v, from: A2.b, to: B2.b },
-        { f: 2, at: B2.b, from: t.v, to: B2.a }
-      ]);
+    let x0 = Math.min(A2.x, B2.x), x1 = Math.max(A2.x, B2.x);
+    let y0 = Math.min(A2.y, B2.y), y1 = Math.max(A2.y, B2.y);
+    for (const c of cs) {
+      if (c.p.x < 60 || c.p.x > CITY_W - 60 || c.p.y < 60 || c.p.y > CITY_H - 60) s += 1e6;
+      if (inWater(c.p.x, c.p.y, 10)) s += 4000;             // no junction box in the water
+      if (pts.some(j => j !== A2 && j !== B2 && Math.abs(j.a - c.a) < 0.8 && Math.abs(j.b - c.b) < 0.8)) s += 1e5;
+      x0 = Math.min(x0, c.p.x); x1 = Math.max(x1, c.p.x);
+      y0 = Math.min(y0, c.p.y); y1 = Math.max(y1, c.p.y);
     }
-    for (const ta of near1) for (const tb of near2) {
-      candidates.push([
-        { f: 1, at: A2.a, from: A2.b, to: tb.v },
-        { f: 2, at: tb.v, from: A2.a, to: ta.v },
-        { f: 1, at: ta.v, from: tb.v, to: B2.b },
-        { f: 2, at: B2.b, from: ta.v, to: B2.a }
-      ]);
-    }
-    // corners must stay inside the sheet
-    const inSheet = c => {
-      let a3 = A2.a, b3 = A2.b;
-      return c.every(l => {
-        if (l.f === 1) b3 = l.to; else a3 = l.to;
-        const p3 = jxy(a3, b3);
-        return p3.x > 60 && p3.x < CITY_W - 60 && p3.y > 70 && p3.y < CITY_H - 60;
-      });
-    };
-    const pool = candidates.filter(inSheet);
-    return pool.length ? pool : candidates;
+    // the lens frames the whole run: a route that sprawls costs zoom, so a
+    // COMPACT one wins ties outright
+    return s + Math.max(x1 - x0, y1 - y0) * 0.3;
   };
-  // scoring: spearing a relay mid-leg or landing a corner on one is
-  // disqualifying; riding a street another run owns nearly so; then shortest
-  const cornerHits = (k, c) => {
-    const A2 = anchors[k], B2 = anchors[k + 1];
-    let a3 = A2.a, b3 = A2.b, n = 0;
-    for (let li2 = 0; li2 < c.length - 1; li2++) {
-      if (c[li2].f === 1) b3 = c[li2].to; else a3 = c[li2].to;
-      for (const j of anchors) {
-        if (j === A2 || j === B2) continue;
-        if (Math.abs(j.a - a3) < 0.8 && Math.abs(j.b - b3) < 0.8) n++;
-      }
-    }
-    return n;
-  };
-  const overlapVs = (c, others) => c.reduce((sum, l) => {
-    for (const u of others) {
-      if (u.f !== l.f || Math.abs(u.at - l.at) >= 0.8) continue;
-      const lo = Math.max(Math.min(l.from, l.to), Math.min(u.from, u.to));
-      const hi = Math.min(Math.max(l.from, l.to), Math.max(u.from, u.to));
-      sum += Math.max(0, hi - lo);
-    }
-    return sum;
-  }, 0);
-  const segScore = (k, c, others) => {
-    const sp = c.reduce((n, l) => n + (legHits(l.f, l.at, l.from, l.to) ? 1 : 0), 0);
-    const len = c.reduce((n, l) => n + Math.abs(l.to - l.from), 0);
-    return (sp + cornerHits(k, c)) * 50000 + overlapVs(c, others) * 600 + len;
-  };
-  const segLegs = [];
-  for (let k = 0; k < 8; k++) { // greedy first pass
-    const others = segLegs.flat();
-    segLegs.push(candFor(k).slice().sort((c1, c2) => segScore(k, c1, others) - segScore(k, c2, others))[0]);
+  const nearest = (bands, v) => bands.reduce((w, t) => Math.abs(t.v - v) < Math.abs(w - v) ? t.v : w, 1e9);
+  const segs = [];
+  for (let k = 0; k + 1 < pts.length; k++) {
+    const A2 = pts[k], B2 = pts[k + 1];
+    const cands = [[corner(A2.a, B2.b)], [corner(B2.a, A2.b)]];
+    for (const t of between(bands2, A2.b, B2.b, 4)) cands.push([corner(A2.a, t), corner(B2.a, t)]);
+    for (const t of between(bands1, A2.a, B2.a, 4)) cands.push([corner(t, A2.b), corner(t, B2.b)]);
+    const ma = nearest(bands1, (A2.a + B2.a) / 2), mb = nearest(bands2, (A2.b + B2.b) / 2);
+    cands.push([corner(A2.a, mb), corner(ma, mb), corner(ma, B2.b)]);
+    cands.push([corner(ma, A2.b), corner(ma, mb), corner(B2.a, mb)]);
+    const win = cands.slice().sort((c1, c2) => score(A2, B2, c1) - score(A2, B2, c2))[0];
+    segs.push([{ x: A2.x, y: A2.y }].concat(win.map(c => c.p), [{ x: B2.x, y: B2.y }]));
   }
-  for (let it = 0; it < 3; it++) { // relaxation: each run re-routes around ALL the others
-    for (let k = 0; k < 8; k++) {
-      const others = segLegs.filter((c, i) => i !== k).flat();
-      const best = candFor(k).slice().sort((c1, c2) => segScore(k, c1, others) - segScore(k, c2, others))[0];
-      if (segScore(k, best, others) < segScore(k, segLegs[k], others)) segLegs[k] = best;
-    }
-  }
-  ROUTE_SEGS = [];
-  for (let k = 0; k < 8; k++) {
-    const A2 = anchors[k], B2 = anchors[k + 1];
-    const pts2 = [{ x: A2.x, y: A2.y }];
-    for (const l of segLegs[k]) pts2.push(l.f === 1 ? jxy(l.at, l.to) : jxy(l.to, l.at));
-    pts2[pts2.length - 1] = { x: B2.x, y: B2.y };
-    ROUTE_SEGS.push(pts2);
-  }
+  CITY_CHAINS = counts.map((n, ci) => {
+    const base = counts.slice(0, ci).reduce((s, v) => s + v, 0);
+    const cp = pts.slice(base, base + n + 1), cs = segs.slice(base, base + n);
+    // a sheet too small to seat every relay would strand a late case — hold the
+    // last junction it did find rather than hand back nothing
+    while (cp.length < n + 1) cp.push(cp[cp.length - 1] || pts[pts.length - 1]);
+    while (cs.length < n) cs.push([cp[cs.length], cp[cs.length + 1]]);
+    return { pts: cp, segs: cs };
+  });
+  // ---- fit a perimeter to each case band ----
+  // A band runs from the midpoint below its relays to the midpoint above them,
+  // so the ellipse the player sees really does enclose the run they are looking
+  // at, and cover falls case by case instead of jittering relay by relay.
+  const mids = CITY_CHAINS.map(ch => {
+    const rs = ch.pts.map(p2 => groundR(p2.x, p2.y)).sort((m, n2) => m - n2);
+    return rs[Math.floor(rs.length / 2)];
+  });
+  RINGS = mids.map((m, i) => ({
+    r0: i ? (mids[i - 1] + m) / 2 : Math.max(120, m * 0.62),
+    r1: i + 1 < mids.length ? (m + mids[i + 1]) / 2 : m * 1.24,
+    name: RING_NAMES[Math.min(i, RING_NAMES.length - 1)]
+  }));
 
-  // ---------- BASE: ground, streets, harbor, cable grid ----------
+  // ---------- BASE: ground grid, streets, harbor, the perimeters ----------
   cityBase = document.createElement('canvas');
   cityBase.width = CITY_W; cityBase.height = CITY_H;
   withCanvas(cityBase, () => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, CITY_W, CITY_H);
     ctx.lineCap = 'butt';
-    // whisper-faint tile lattice for texture
-    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(70,140,220,0.035)';
-    for (let k = -CITY_W * 0.5; k < CITY_H; k += HH * 2) {
+    ctx.fillStyle = '#02060f'; ctx.fillRect(0, 0, CITY_W, CITY_H);
+    // the core burns: a wide cyan haze pooled on the ground under downtown
+    isoRadial(0, 760, ['rgba(24,120,190,0.18)', 'rgba(16,80,150,0.07)', 'rgba(6,20,50,0)']);
+    // the floor grid — the lattice every block is laid on
+    ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(70,190,255,0.07)';
+    for (let k = -CITY_W * 0.5; k < CITY_H; k += ISO_H * 2) {
       ctx.beginPath(); ctx.moveTo(0, k); ctx.lineTo(CITY_W, k + CITY_W * 0.5); ctx.stroke();
     }
-    for (let k = 0; k < CITY_H + CITY_W * 0.5; k += HH * 2) {
+    for (let k = 0; k < CITY_H + CITY_W * 0.5; k += ISO_H * 2) {
       ctx.beginPath(); ctx.moveTo(0, k); ctx.lineTo(CITY_W, k - CITY_W * 0.5); ctx.stroke();
     }
-    // streets: minor thin, major avenues doubled
-    const street = (v, slope, major) => {
-      ctx.strokeStyle = major ? 'rgba(100,185,255,0.30)' : 'rgba(85,160,235,0.16)';
-      ctx.lineWidth = 1;
-      for (const off of major ? [-2.5, 2.5] : [0]) {
-        ctx.beginPath(); ctx.moveTo(0, HH * v + off); ctx.lineTo(CITY_W, HH * v + off + slope * CITY_W); ctx.stroke();
+    // streets, in three tiers. A lane is a LANE: minor roads are a single lit
+    // line, avenues get a roadbed between two curbs, and the grand boulevards
+    // get a wide bed with a dashed median down the middle.
+    const roadRun = (v, slope, off) => { // one line of the family, offset across
+      ctx.moveTo(0, ISO_H * v + off);
+      ctx.lineTo(CITY_W, ISO_H * v + off + slope * CITY_W);
+    };
+    const street = (b, slope) => {
+      const w = b.grand ? 8 : b.major ? 4 : 0;
+      if (w) { // roadbed: a dark surface the block edges read against
+        ctx.beginPath();
+        ctx.moveTo(0, ISO_H * b.v - w); ctx.lineTo(CITY_W, ISO_H * b.v - w + slope * CITY_W);
+        ctx.lineTo(CITY_W, ISO_H * b.v + w + slope * CITY_W); ctx.lineTo(0, ISO_H * b.v + w);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(10,30,58,0.55)'; ctx.fill();
+      }
+      ctx.strokeStyle = b.grand ? 'rgba(150,240,255,0.68)' : b.major ? 'rgba(130,235,255,0.55)' : 'rgba(90,190,250,0.24)';
+      ctx.lineWidth = w ? 1.8 : 1.4;
+      ctx.beginPath();
+      if (w) { roadRun(b.v, slope, -w); roadRun(b.v, slope, w); } else roadRun(b.v, slope, 0);
+      ctx.stroke();
+      if (b.grand) { // median down the middle of the boulevard
+        ctx.strokeStyle = 'rgba(120,215,255,0.34)'; ctx.lineWidth = 1.2;
+        ctx.setLineDash([16, 14]);
+        ctx.beginPath(); roadRun(b.v, slope, 0); ctx.stroke();
+        ctx.setLineDash([]);
       }
     };
-    for (const b of bands1) street(b.v, 0.5, b.major);
-    for (const b of bands2) street(b.v, -0.5, b.major);
-    // harbor: dark water band + ripple lines
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(0, harborY(0));
-    for (let x2 = 0; x2 <= CITY_W; x2 += 32) ctx.lineTo(x2, harborY(x2));
-    for (let x2 = CITY_W; x2 >= 0; x2 -= 32) ctx.lineTo(x2, harborY(x2) + HARBOR_H);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(4,16,36,0.85)'; ctx.fill();
-    ctx.clip();
-    for (let r2 = 0; r2 < 4; r2++) {
-      ctx.strokeStyle = `rgba(90,180,255,${(0.10 + r2 * 0.02).toFixed(2)})`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (let x2 = 0; x2 <= CITY_W; x2 += 26) {
-        const yy = harborY(x2) + 12 + r2 * 14 + Math.sin(x2 * 0.02 + r2 * 2.2) * 3;
-        x2 ? ctx.lineTo(x2, yy) : ctx.moveTo(x2, yy);
-      }
-      ctx.stroke();
-    }
-    ctx.restore();
-    // the data grid: optic cable trunks buried under the avenues — teal, with
-    // junction vaults where trunks cross
+    for (const b of bands1) street(b, 0.5);
+    for (const b of bands2) street(b, -0.5);
+    // the data grid: optic trunks buried under the avenues, with junction vaults
     const cable = (v, slope) => {
-      ctx.strokeStyle = 'rgba(80,230,200,0.30)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([9, 5]);
-      ctx.beginPath(); ctx.moveTo(0, HH * v); ctx.lineTo(CITY_W, HH * v + slope * CITY_W); ctx.stroke();
+      ctx.strokeStyle = 'rgba(80,240,205,0.32)'; ctx.lineWidth = 2;
+      ctx.setLineDash([12, 8]);
+      ctx.beginPath(); ctx.moveTo(0, ISO_H * v); ctx.lineTo(CITY_W, ISO_H * v + slope * CITY_W); ctx.stroke();
       ctx.setLineDash([]);
     };
     for (const t of trunks1) cable(t.v, 0.5);
     for (const t of trunks2) cable(t.v, -0.5);
-    ctx.strokeStyle = 'rgba(80,230,200,0.55)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(80,240,205,0.5)'; ctx.lineWidth = 1.4;
     for (const j of junc) {
       ctx.beginPath();
-      ctx.moveTo(j.x, j.y - 4); ctx.lineTo(j.x + 4, j.y); ctx.lineTo(j.x, j.y + 4); ctx.lineTo(j.x - 4, j.y);
+      ctx.moveTo(j.x, j.y - 5); ctx.lineTo(j.x + 5, j.y); ctx.lineTo(j.x, j.y + 5); ctx.lineTo(j.x - 5, j.y);
       ctx.closePath(); ctx.stroke();
     }
-    // landmarks: little survey tags pinned to the geography
-    const tag = (x2, y2, txt) => {
-      ctx.strokeStyle = 'rgba(140,200,255,0.5)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 + 7, y2 - 7); ctx.lineTo(x2 + 12, y2 - 7); ctx.stroke();
-      ctx.fillStyle = 'rgba(160,215,255,0.6)'; ctx.font = '600 9px Audiowide, system-ui';
-      ctx.textAlign = 'left';
-      ctx.fillText(txt, x2 + 15, y2 - 4);
+    // water: the harbor across the south, the river coming down to meet it.
+    // Both are cut as ONE path, so the avenues can be re-stroked through it in
+    // a single clipped pass — every crossing becomes a bridge for free.
+    const waterPath = () => {
+      ctx.beginPath();
+      ctx.moveTo(0, harborY(0));
+      for (let x2 = 0; x2 <= CITY_W; x2 += 32) ctx.lineTo(x2, harborY(x2));
+      for (let x2 = CITY_W; x2 >= 0; x2 -= 32) ctx.lineTo(x2, harborY(x2) + HARBOR_H);
+      ctx.closePath();
+      const yEnd = y2 => harborY(riverX(y2)) + HARBOR_H * 0.5;
+      let y1 = 0;
+      while (y1 < CITY_H && y1 < yEnd(y1)) y1 += 24;
+      ctx.moveTo(riverX(0) - RIVER_W, 0);
+      for (let y2 = 0; y2 <= y1; y2 += 24) ctx.lineTo(riverX(y2) - RIVER_W, y2);
+      for (let y2 = y1; y2 >= 0; y2 -= 24) ctx.lineTo(riverX(y2) + RIVER_W, y2);
+      ctx.closePath();
     };
-    tag(anchors[0].x, anchors[0].y - 12, 'OMNISERVE HQ');
-    tag(anchors[8].x, anchors[8].y - 12, 'POLICE HQ · CID');
-    tag(CITY_W * 0.50, harborY(CITY_W * 0.50) + 40, 'THE HARBOR');
-    tag(CITY_W * 0.38, harborY(CITY_W * 0.38) - 130, 'FINANCIAL DISTRICT');
-    tag(anchors[1].x + 30, anchors[1].y + 34, 'OLD TOWN');
-    tag(CITY_W * 0.72, CITY_H * 0.80, 'SOUTH SPRAWL');
-    // campus grounds around the two headquarters
-    for (const j of [anchors[0], anchors[8]]) {
-      ctx.strokeStyle = 'rgba(140,220,255,0.35)'; ctx.lineWidth = 1;
-      ctx.setLineDash([5, 4]);
-      ctx.strokeRect(j.x - 22, j.y - 18, 44, 36);
+    ctx.save();
+    waterPath();
+    ctx.fillStyle = 'rgba(5,22,48,0.95)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(110,215,255,0.5)'; ctx.lineWidth = 2; ctx.stroke(); // quays and banks
+    ctx.clip();
+    for (let r2 = 0; r2 < 6; r2++) { // harbor swell
+      ctx.strokeStyle = `rgba(90,195,255,${(0.16 + r2 * 0.03).toFixed(2)})`;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      for (let x2 = 0; x2 <= CITY_W; x2 += 26) {
+        const yy = harborY(x2) + 14 + r2 * 17 + Math.sin(x2 * 0.014 + r2 * 2.2) * 4;
+        x2 ? ctx.lineTo(x2, yy) : ctx.moveTo(x2, yy);
+      }
+      ctx.stroke();
+    }
+    for (let c3 = -1; c3 <= 1; c3++) { // current lines down the river
+      ctx.strokeStyle = `rgba(105,210,255,${(0.34 - Math.abs(c3) * 0.11).toFixed(2)})`;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      for (let y2 = 0; y2 <= CITY_H; y2 += 22) {
+        const xx = riverX(y2) + c3 * RIVER_W * 0.52 + Math.sin(y2 * 0.03 + c3) * 3;
+        y2 ? ctx.lineTo(xx, y2) : ctx.moveTo(xx, y2);
+      }
+      ctx.stroke();
+    }
+    // wharves along the north bank, so the harbor is a working one
+    for (let x2 = 60; x2 < CITY_W; x2 += 150 + rng() * 190) {
+      const hy = harborY(x2), pl = 26 + rng() * 40;
+      ctx.strokeStyle = 'rgba(130,215,255,0.4)'; ctx.lineWidth = 1.4;
+      ctx.strokeRect(x2 - 7, hy, 14, pl);
+      if (rng() < 0.5) { // a hull tied up alongside
+        ctx.strokeStyle = 'rgba(150,230,255,0.34)';
+        ctx.beginPath();
+        ctx.ellipse(x2 + 20, hy + pl * 0.6, 16, 5, 0.25, 0, TAU);
+        ctx.stroke();
+      }
+    }
+    // the crossings: every avenue re-drawn inside the water reads as a bridge
+    ctx.strokeStyle = 'rgba(160,240,255,0.85)'; ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    for (const b of bands1) if (b.major) { roadRun(b.v, 0.5, -(b.grand ? 8 : 4)); roadRun(b.v, 0.5, b.grand ? 8 : 4); }
+    for (const b of bands2) if (b.major) { roadRun(b.v, -0.5, -(b.grand ? 8 : 4)); roadRun(b.v, -0.5, b.grand ? 8 : 4); }
+    ctx.stroke();
+    ctx.restore();
+    cityBloom(cityBase, 5, 0.7);
+    cityFalloff();
+    // ---- the firewall perimeters, drawn OVER the geography: they are the
+    // defense grid, not the streets. Each ring is one case's band, and the
+    // cover it still holds is printed on it.
+    const ringCol = i => i < 1 ? '126,226,98' : i < 3 ? '255,200,80' : '255,110,110';
+    const perimeter = (r, col, a) => {
+      ctx.save();
+      ctx.strokeStyle = `rgba(${col},${a.toFixed(2)})`;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([26, 16]);
+      isoEllipse(r); ctx.stroke();
       ctx.setLineDash([]);
+      ctx.strokeStyle = `rgba(${col},${(a * 0.28).toFixed(2)})`;
+      ctx.lineWidth = 11;
+      isoEllipse(r); ctx.stroke();
+      ctx.fillStyle = `rgba(${col},${(a * 0.9).toFixed(2)})`; // gate towers stud the wall
+      for (let k = 0; k < 24; k++) {
+        const a2 = k / 24 * TAU;
+        ctx.fillRect(CITY_CORE.x + Math.cos(a2) * r - 2.5, CITY_CORE.y + Math.sin(a2) * r * 0.5 - 2.5, 5, 5);
+      }
+      ctx.restore();
+    };
+    if (RINGS.length) perimeter(RINGS[0].r0, '126,226,98', 0.75); // the core wall
+    RINGS.forEach((ring, i) => {
+      const col = ringCol(i), q = 1 - i / Math.max(1, RINGS.length);
+      perimeter(ring.r1, col, 0.28 + q * 0.34);
+      // the band reads its own name and what it is still holding
+      const lr = (ring.r0 + ring.r1) / 2;
+      const lx = CITY_CORE.x - lr * 0.74, ly = CITY_CORE.y - lr * 0.5 * 0.74 - 8;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = `rgba(${col},${(0.45 + q * 0.35).toFixed(2)})`;
+      ctx.font = '700 13px Audiowide, system-ui';
+      ctx.fillText('RING 0' + (i + 1) + ' · ' + ring.name, lx, ly);
+      ctx.fillStyle = 'rgba(150,205,255,0.55)';
+      ctx.font = '500 10px Audiowide, system-ui';
+      ctx.fillText('COVER ' + shieldAt(ring.r1) + '-' + shieldAt(ring.r0) + '%', lx, ly + 14);
+    });
+    ctx.textAlign = 'left';
+    ctx.fillStyle = `rgba(126,226,98,0.75)`;
+    ctx.font = '700 12px Audiowide, system-ui';
+    if (RINGS.length) ctx.fillText(CORE_NAME, CITY_CORE.x - RINGS[0].r0 * 0.5, CITY_CORE.y - RINGS[0].r0 * 0.26 - 8);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,120,120,0.45)';
+    ctx.font = '700 15px Audiowide, system-ui';
+    ctx.fillText('— ' + DARK_ZONE + ' · NO COVER —', CITY_CORE.x - 700, CITY_CORE.y - 760);
+    // landmarks: survey tags pinned to the geography
+    const tag = (x2, y2, txt) => {
+      // a landmark never crowds a relay — the route is the loudest thing here
+      if (pts.some(j => Math.abs(j.x - x2) < 120 && Math.abs(j.y - y2) < 46)) return;
+      ctx.strokeStyle = 'rgba(150,210,255,0.55)'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 + 9, y2 - 9); ctx.lineTo(x2 + 15, y2 - 9); ctx.stroke();
+      ctx.fillStyle = 'rgba(175,225,255,0.72)'; ctx.font = '600 11px Audiowide, system-ui';
+      ctx.textAlign = 'left';
+      ctx.fillText(txt, x2 + 19, y2 - 5);
+    };
+    const at = (ang2, rad2) => ({ x: CITY_CORE.x + Math.cos(ang2) * rad2, y: CITY_CORE.y + Math.sin(ang2) * rad2 * 0.5 });
+    const t1 = at(-2.35, 150); tag(t1.x, t1.y, 'OMNISERVE HQ');
+    tag(CITY_CORE.x + 60, CITY_CORE.y - 40, 'THE SPINE · CORE EXCHANGE');
+    const t3 = at(0.9, 420); tag(t3.x, t3.y, 'FINANCIAL DISTRICT');
+    const t4 = at(2.4, 640); tag(t4.x, t4.y, 'OLD TOWN');
+    const t5 = at(-1.1, 980); tag(t5.x, t5.y, 'METRO EXCHANGE');
+    tag(CITY_W * 0.36, harborY(CITY_W * 0.36) + HARBOR_H + 26, 'THE HARBOR');
+    tag(CITY_W * 0.74, harborY(CITY_W * 0.74) + HARBOR_H + 40, 'SOUTH SPRAWL');
+    const t6 = at(-2.0, 1240); tag(t6.x, t6.y, 'DARKNET EDGE');
+    const t7 = at(2.55, 1180); tag(t7.x, t7.y, 'THE UNDERCITY');
+    // distant lights: the further out, the more the city is just sparks
+    for (let k = 0; k < 900; k++) {
+      const x2 = rng() * CITY_W, y2 = rng() * CITY_H;
+      const gr = groundR(x2, y2);
+      if (gr < 700 || inWater(x2, y2, 0)) continue;
+      const a = clamp((gr - 700) / 1100, 0, 1) * (0.2 + rng() * 0.5);
+      ctx.fillStyle = rng() < 0.12 ? `rgba(255,150,200,${a.toFixed(2)})` : `rgba(190,240,255,${a.toFixed(2)})`;
+      const s = rng() < 0.15 ? 2.5 : 1.5;
+      ctx.fillRect(x2, y2, s, s);
     }
   });
 
@@ -10646,92 +11361,234 @@ function buildCity() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, CITY_W, CITY_H);
     // wMul widens the footprint (slab blocks), lift stacks a tower on a podium
-    const box = (x, y, h, a, wMul, lift) => {
+    const box = (x, y, h, a, col, wMul, lift, bands) => {
       wMul = wMul || 1; lift = lift || 0;
-      const hw = HW * wMul, hh = HH * wMul;
+      const hw = ISO_W * wMul, hh = ISO_H * wMul;
       const y0 = y - lift;
       const N = { x, y: y0 - hh }, E = { x: x + hw, y: y0 }, S2 = { x, y: y0 + hh }, W2 = { x: x - hw, y: y0 };
       const T = { N: { x: N.x, y: N.y - h }, E: { x: E.x, y: E.y - h }, S: { x: S2.x, y: S2.y - h }, W: { x: W2.x, y: W2.y - h } };
-      // pure blueprint: no opaque faces — just a whisper of tint on the roof
-      ctx.fillStyle = 'rgba(70,140,230,0.07)';
+      // pure neon blueprint: no opaque faces — a whisper of tint on the roof
+      ctx.fillStyle = `rgba(${col},0.10)`;
       ctx.beginPath(); ctx.moveTo(T.N.x, T.N.y); ctx.lineTo(T.E.x, T.E.y); ctx.lineTo(T.S.x, T.S.y); ctx.lineTo(T.W.x, T.W.y); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = `rgba(110,195,255,${a.toFixed(2)})`;
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(${col},${a.toFixed(2)})`;
+      ctx.lineWidth = 1.3;
       ctx.beginPath();
       ctx.moveTo(T.N.x, T.N.y); ctx.lineTo(T.E.x, T.E.y); ctx.lineTo(T.S.x, T.S.y); ctx.lineTo(T.W.x, T.W.y); ctx.closePath();
       ctx.moveTo(W2.x, W2.y); ctx.lineTo(T.W.x, T.W.y);
       ctx.moveTo(S2.x, S2.y); ctx.lineTo(T.S.x, T.S.y);
       ctx.moveTo(E.x, E.y); ctx.lineTo(T.E.x, T.E.y);
       ctx.stroke();
+      if (bands && h > 20) { // floor bands ladder up the two lit faces
+        ctx.strokeStyle = `rgba(${col},${(a * 0.4).toFixed(2)})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let fy = 9; fy < h - 5; fy += 8) {
+          ctx.moveTo(W2.x, W2.y - fy); ctx.lineTo(S2.x, S2.y - fy); ctx.lineTo(E.x, E.y - fy);
+        }
+        ctx.stroke();
+      }
+    };
+    // a terrace: two or three small houses in a row down one iso axis. This is
+    // what keeps the sprawl from reading as one repeated cube.
+    const terrace = (x, y, h, col) => {
+      const along = rng() < 0.5 ? 1 : -1;
+      for (let k = -1; k <= 1; k++) {
+        if (rng() < 0.22) continue;
+        box(x + k * ISO_W * 0.56, y + k * ISO_H * 0.56 * along,
+            h * (0.9 + rng() * 0.8), 0.4 + rng() * 0.24, col, 0.26 + rng() * 0.12);
+      }
+    };
+    // a courtyard block: four wings around an open middle
+    const courtyard = (x, y, h, a, col) => {
+      const w = 0.42;
+      for (const [ox, oy] of [[1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+        if (rng() < 0.15) continue;
+        box(x + ox * ISO_W * 0.5, y + oy * ISO_H * 0.5, h * (0.75 + rng() * 0.5), a + rng() * 0.15, col, w);
+      }
     };
     const streetAt = (r2, c2) => {
-      const v1 = r2 - 2 * c2, v2 = r2 + 2 * c2;
-      return bands1.some(b => Math.abs(v1 - b.v) < (b.major ? 2 : 1)) ||
-             bands2.some(b => Math.abs(v2 - b.v) < (b.major ? 2 : 1));
+      const off = r2 % 2; // odd rows sit half a tile east
+      const v1 = r2 - 2 * c2 - off, v2 = r2 + 2 * c2 + off;
+      const clear = b => b.grand ? 3.4 : b.major ? 2.6 : 1.7;
+      return bands1.some(b => Math.abs(v1 - b.v) < clear(b)) ||
+             bands2.some(b => Math.abs(v2 - b.v) < clear(b));
     };
-    const rows2 = Math.ceil(CITY_H / HH) + 2, cols2 = Math.ceil(CITY_W / (HW * 2)) + 2;
+    const rows2 = Math.ceil(CITY_H / ISO_H) + 2, cols2 = Math.ceil(CITY_W / (ISO_W * 2)) + 2;
     const skip = new Set();
     for (let r2 = 0; r2 < rows2; r2++) {
       for (let c2 = 0; c2 < cols2; c2++) {
         if (skip.has(r2 * 1000 + c2)) continue;
-        const bx2 = c2 * HW * 2 + (r2 % 2) * HW, by2 = r2 * HH;
-        const hy = harborY(bx2);
-        if (by2 > hy - 10 && by2 < hy + HARBOR_H + 14) continue; // water
-        if (streetAt(r2, c2)) continue;                          // roads stay open
-        // districts, Hong Kong style: a dense CBD skyline crowds the waterfront's
-        // north bank; the rest falls off through slab housing to low sprawl
-        const dWater = hy - by2; // >0: north of the harbor
-        const cbd = dWater > 0 && dWater < 170;
-        const zone = (Math.sin(bx2 * 0.006) + Math.sin(by2 * 0.009)) * 0.5; // slow district noise
+        const bx2 = c2 * ISO_W * 2 + (r2 % 2) * ISO_W, by2 = r2 * ISO_H;
+        if (inWater(bx2, by2, 12)) continue;    // water
+        if (streetAt(r2, c2)) continue;         // roads stay open
+        // districts fall off from the core: a wall of towers downtown, then
+        // slab housing, then sprawl, then scattered lights in the dark
+        const gr = groundR(bx2, by2);
+        // district noise — three octaves, so parks and towers break up at BLOCK
+        // scale. One long wave would hand the lens a whole screen of nothing.
+        const zone = clamp((Math.sin(bx2 * 0.0068 + 1.3) + Math.sin(by2 * 0.0106)
+                          + Math.sin((bx2 + by2) * 0.0037 + 2.2)) * 0.5, -1, 1);
         let prof;
-        if (cbd) prof = 'cbd';
-        else if (zone > 0.35) prof = 'dense';
-        else if (zone < -0.5) prof = 'park';
-        else prof = zone > -0.1 ? 'mid' : 'low';
-        if (prof === 'cbd') {
-          if (rng() < 0.48) continue;
-          const spire = rng() < 0.22;
-          const h = spire ? 48 + rng() * 34 : 24 + rng() * rng() * 38;
-          if (rng() < 0.3) { // podium + tower
-            box(bx2, by2, 9, 0.3, 1.4);
-            box(bx2, by2, h, spire ? 0.6 : 0.38, 0.7, 9 + HH * 0.4);
-          } else box(bx2, by2, h, spire ? 0.6 : 0.3 + rng() * 0.2);
-          if (h > 48) { // antenna + beacon
-            ctx.strokeStyle = 'rgba(150,225,255,0.7)'; ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(bx2, by2 - HH - h); ctx.lineTo(bx2, by2 - HH - h - 8); ctx.stroke();
-            ctx.fillStyle = 'rgba(255,120,140,0.9)';
-            ctx.fillRect(bx2 - 1, by2 - HH - h - 10, 2, 2);
+        if (gr < 210) prof = 'core';
+        else if (gr < 430) prof = zone < -0.94 ? 'park' : 'cbd';
+        else if (gr < 660) prof = zone < -0.86 ? 'park' : zone > 0.1 ? 'cbd' : 'dense';
+        else if (gr < 910) prof = zone < -0.8 ? 'park' : zone > 0.25 ? 'dense' : 'mid';
+        else if (gr < 1170) prof = zone > 0.35 ? 'mid' : 'low';
+        else prof = 'edge';
+        // a rare hot tower burns magenta against all that cyan
+        const col = rng() < 0.012 ? '255,95,175' : '120,215,255';
+        // BLOCK noise: a second, much tighter field that scales every height in
+        // a cluster together. Without it each lot rolls its own dice and the
+        // skyline comes out as one flat carpet of near-identical boxes.
+        const blk = (Math.sin(bx2 * 0.021 + by2 * 0.017) + Math.sin(bx2 * 0.009 - by2 * 0.028 + 2.1)) * 0.5;
+        const hs = 0.45 + 0.95 * (blk * 0.5 + 0.5); // 0.45x .. 1.4x
+        if (prof === 'core' || prof === 'cbd') {
+          if (rng() < (prof === 'core' ? 0.24 : 0.36)) continue; // plazas and light wells
+          const spire = rng() < (prof === 'core' ? 0.38 : 0.22);
+          const tall = prof === 'core' ? 84 : 52;
+          const h = (spire ? tall + rng() * 76 : 30 + rng() * rng() * tall) * hs;
+          const roll = rng();
+          if (roll < 0.3) {          // setback tower: podium, shaft, crown
+            box(bx2, by2, 11 + rng() * 8, 0.45, col, 1.3 + rng() * 0.35);
+            const mid = h * (0.55 + rng() * 0.2);
+            box(bx2, by2, mid, spire ? 0.95 : 0.62, col, 0.8, 15, true);
+            box(bx2, by2, h - mid, spire ? 0.95 : 0.6, col, 0.52, 15 + mid, true);
+          } else if (roll < 0.42 && c2 + 1 < cols2) { // office slab across two lots
+            skip.add(r2 * 1000 + c2 + 1);
+            box(bx2 + ISO_W, by2, h * 0.5, 0.5 + rng() * 0.2, col, 1.75, 0, true);
+          } else if (roll < 0.52) {  // low-rise infill between the towers
+            box(bx2, by2, 9 + rng() * 12, 0.4 + rng() * 0.2, col, 0.9 + rng() * 0.5);
+          } else box(bx2, by2, h, spire ? 0.95 : 0.52 + rng() * 0.3, col, spire ? 0.7 + rng() * 0.16 : 0.78 + rng() * 0.5, 0, h > 44);
+          if (h > 78) { // antenna + beacon
+            ctx.strokeStyle = 'rgba(170,235,255,0.85)'; ctx.lineWidth = 1.3;
+            ctx.beginPath(); ctx.moveTo(bx2, by2 - ISO_H - h); ctx.lineTo(bx2, by2 - ISO_H - h - 13); ctx.stroke();
+            ctx.fillStyle = 'rgba(255,120,140,0.95)';
+            ctx.fillRect(bx2 - 1.5, by2 - ISO_H - h - 16, 3, 3);
           }
         } else if (prof === 'dense') {
-          if (rng() < 0.46) continue;
-          if (rng() < 0.35 && c2 + 1 < cols2) { // HK residential slab, two tiles wide
+          if (rng() < 0.26) continue;
+          const roll = rng();
+          if (roll < 0.28 && c2 + 1 < cols2) { // residential slab, two lots wide
             skip.add(r2 * 1000 + c2 + 1);
-            box(bx2 + HW, by2, 14 + rng() * 16, 0.3, 1.7);
-          } else box(bx2, by2, 11 + rng() * 15, 0.2 + rng() * 0.15);
+            box(bx2 + ISO_W, by2, (21 + rng() * 28) * hs, 0.52, col, 1.7, 0, true);
+          } else if (roll < 0.42) courtyard(bx2, by2, (14 + rng() * 16) * hs, 0.44, col);
+          else if (roll < 0.54) box(bx2, by2, (40 + rng() * 34) * hs, 0.6, col, 0.6, 0, true); // a tower among the walk-ups
+          else if (roll < 0.66) terrace(bx2, by2, (12 + rng() * 12) * hs, col);
+          else box(bx2, by2, (17 + rng() * 26) * hs, 0.44 + rng() * 0.26, col, 0.85 + rng() * 0.45, 0, true);
         } else if (prof === 'mid') {
-          if (rng() < 0.58) continue;
-          box(bx2, by2, 6 + rng() * 14, 0.16 + rng() * 0.16);
+          if (rng() < 0.3) continue;
+          const roll = rng();
+          if (roll < 0.3) terrace(bx2, by2, (10 + rng() * 11) * hs, col);
+          else if (roll < 0.42) courtyard(bx2, by2, (9 + rng() * 11) * hs, 0.4, col);
+          else if (roll < 0.5) box(bx2, by2, (26 + rng() * 26) * hs, 0.55, col, 0.6, 0, true); // an estate block
+          else box(bx2, by2, (11 + rng() * 23) * hs, 0.42 + rng() * 0.26, col, 0.8 + rng() * 0.5, 0, rng() < 0.3);
         } else if (prof === 'low') {
-          if (rng() < 0.7) continue;
-          box(bx2, by2, 3 + rng() * 7, 0.12 + rng() * 0.12);
-        } else { // park: open ground, a few groves
-          if (rng() < 0.9) continue;
-          ctx.strokeStyle = 'rgba(90,200,170,0.25)'; ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.arc(bx2, by2, 2 + rng() * 2.5, 0, TAU); ctx.stroke();
+          if (rng() < 0.44) continue;
+          if (rng() < 0.55) terrace(bx2, by2, (8 + rng() * 10) * hs, col);
+          else box(bx2, by2, (11 + rng() * 17) * hs, 0.34 + rng() * 0.2, col, 0.6 + rng() * 0.5);
+        } else if (prof === 'edge') { // past the last ring: clumps, ruins, dark lots
+          if (zone < 0.05 || rng() < 0.68) continue;
+          if (rng() < 0.4) terrace(bx2, by2, 6 + rng() * 8, col);
+          else box(bx2, by2, 8 + rng() * 12, 0.24 + rng() * 0.16, col, 0.55 + rng() * 0.6);
+          if (rng() < 0.03) box(bx2, by2, 44 + rng() * 30, 0.5, col, 0.7, 0, true); // a lone mast
+        } else { // park: open ground under a canopy of groves
+          if (rng() < 0.05) { // a lake, with the far bank catching the light
+            ctx.fillStyle = 'rgba(6,26,54,0.9)';
+            ctx.beginPath(); ctx.ellipse(bx2, by2, ISO_W * (0.9 + rng() * 0.7), ISO_H * (0.9 + rng() * 0.7), 0, 0, TAU); ctx.fill();
+            ctx.strokeStyle = 'rgba(105,210,255,0.4)'; ctx.lineWidth = 1.2; ctx.stroke();
+          } else {
+            ctx.strokeStyle = `rgba(90,215,175,${(0.26 + rng() * 0.2).toFixed(2)})`; ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            for (let t2 = 0; t2 < 3; t2++) {
+              if (rng() < 0.62) continue;
+              const tx3 = bx2 + (rng() - 0.5) * ISO_W * 1.7, ty3 = by2 + (rng() - 0.5) * ISO_H * 1.7;
+              const tr3 = 1.6 + rng() * rng() * 6;
+              ctx.moveTo(tx3 + tr3, ty3); ctx.arc(tx3, ty3, tr3, 0, TAU);
+            }
+            ctx.stroke();
+          }
+          if (rng() < 0.05) box(bx2, by2, 9 + rng() * 10, 0.3, '110,225,190', 0.5); // a pavilion
         }
-        // lit windows on anything with height
-        if (rng() < 0.3) {
-          ctx.fillStyle = 'rgba(150,225,255,0.45)';
-          for (let w3 = 0; w3 < 2; w3++) ctx.fillRect(bx2 + (rng() - 0.5) * HW, by2 - rng() * 18, 1.5, 1.5);
+        if (rng() < 0.3) { // lit windows on anything with height
+          ctx.fillStyle = 'rgba(165,235,255,0.5)';
+          for (let w3 = 0; w3 < 2; w3++) ctx.fillRect(bx2 + (rng() - 0.5) * ISO_W, by2 - rng() * 20, 2, 2);
         }
       }
     }
+    cityBloom(cityTop, 4, 0.85);
+    cityFalloff(true);
   });
 }
+// an ellipse on the ground plane — a true circle of radius r seen in iso
+function isoEllipse(r) {
+  ctx.beginPath();
+  ctx.ellipse ? ctx.ellipse(CITY_CORE.x, CITY_CORE.y, r, r * 0.5, 0, 0, TAU)
+              : ctx.arc(CITY_CORE.x, CITY_CORE.y, r, 0, TAU);
+}
+// a radial wash centered on the core, squashed onto the ground plane
+function isoRadial(r0, r1, stops, comp) {
+  ctx.save();
+  ctx.translate(CITY_CORE.x, CITY_CORE.y); ctx.scale(1, 0.5); ctx.translate(-CITY_CORE.x, -CITY_CORE.y);
+  const g = ctx.createRadialGradient(CITY_CORE.x, CITY_CORE.y, r0, CITY_CORE.x, CITY_CORE.y, r1);
+  stops.forEach((s, i) => g.addColorStop(i / (stops.length - 1), s));
+  if (comp) ctx.globalCompositeOperation = comp;
+  ctx.fillStyle = g;
+  ctx.fillRect(-CITY_W, CITY_CORE.y - CITY_H * 2, CITY_W * 3, CITY_H * 4);
+  ctx.restore();
+}
+// neon bloom: composite a blurred copy of the layer back over itself. Without
+// canvas filters (older engines, headless) the layer simply stays crisp.
+function cityBloom(layer, px, amt) {
+  try {
+    if (typeof document === 'undefined') return;
+    const tmp = document.createElement('canvas');
+    tmp.width = CITY_W; tmp.height = CITY_H;
+    const tc = tmp.getContext('2d');
+    if (!tc || !('filter' in tc)) return;
+    tc.drawImage(layer, 0, 0);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = amt;
+    ctx.filter = 'blur(' + px + 'px)';
+    ctx.drawImage(tmp, 0, 0);
+    ctx.restore();
+    tmp.width = tmp.height = 0; // release it now, not whenever the GC feels like it
+  } catch (e) { /* no filters here — the crisp layer stands on its own */ }
+}
+// light falls off with distance from the core: the outskirts fade toward dark.
+// On the building layer that means ERASING the far towers, so they thin out
+// instead of sitting behind a grey wash.
+function cityFalloff(erase) {
+  if (erase) { // towers: the skyline holds through the rings, then breaks up
+    isoRadial(620, 1560, ['rgba(0,0,0,0)', 'rgba(0,0,0,0.14)', 'rgba(0,0,0,0.82)'], 'destination-out');
+  } else {     // ground: the lit street plan gives out well before the buildings do
+    isoRadial(320, 1480, ['rgba(2,6,16,0)', 'rgba(2,6,16,0.5)', 'rgba(2,6,16,0.985)']);
+  }
+}
+// the chain belongs to the CURRENT case — each one works its own band of rings
+function cityChain() {
+  if (!CITY_CHAINS.length) buildCity();
+  const ci = CAMP ? CAMPAIGNS.indexOf(CAMP) : 0;
+  return CITY_CHAINS[Math.max(0, ci)] || CITY_CHAINS[0];
+}
+const citySegs = () => cityChain().segs;
 function relayW(i) {
-  if (!RELAY_W.length) buildCity();
-  const p2 = i < 0 ? CITY_A : i >= LEVELS.length ? CITY_B : RELAY_W[i];
-  return { x: p2[0], y: p2[1] };
+  const ch = cityChain();
+  return ch.pts[clamp(i < 0 ? 0 : i, 0, ch.pts.length - 1)];
+}
+// how much cover a relay still has. The RING is the case's band — a run cannot
+// be better covered than the one before it just because its junction happened
+// to land a street closer in — so the number falls level by level, all the way
+// out to the last case working with no cover at all.
+function relayCover(i) {
+  if (!RINGS.length) buildCity();
+  const ci = clamp(CAMP ? CAMPAIGNS.indexOf(CAMP) : 0, 0, RINGS.length - 1);
+  const band = RINGS[ci], n = Math.max(1, LEVELS.length - 1);
+  return {
+    ring: ci + 1,
+    name: band.name,
+    pct: shieldAt(lerp(band.r0, band.r1, clamp(i, 0, n) / n))
+  };
 }
 // point at parameter t (0..1) along a polyline
 function polyAt(pts2, t) {
@@ -10752,8 +11609,7 @@ function polyAt(pts2, t) {
 // the live camera frames the run's whole bounding box)
 function mapTarget(li) {
   if (campMapImg(CAMP)) return imgPin(li);
-  if (!RELAY_W.length) buildCity();
-  return polyAt(ROUTE_SEGS[li], 0.5);
+  return polyAt(citySegs()[li], 0.5);
 }
 // the shield badge (src/logo.png) — the drawn brand remains the fallback
 // until the file ships alongside the game
@@ -10767,6 +11623,24 @@ function brandLogo() {
     LOGOIMG.img.src = 'logo.png';
   }
   return LOGOIMG.w ? LOGOIMG : null;
+}
+// ---- briefing disc art: one keyframe per mission (docs/DISC-ART-SPEC.md) ----
+// Lazy-decoded on first draw, so boot never waits on 40 images. A level with no
+// art — or one whose image hasn't decoded yet — gets the tint plate instead, so
+// art can land one disc at a time without anything popping in half-drawn.
+const DISCIMG = {}; // decoded per source
+function discArtImg(L) {
+  const src = L && L.art;
+  if (!src || typeof Image === 'undefined') return null;
+  const url = /^data:image\//.test(src) ? src : 'art/disc/' + src;
+  let e2 = DISCIMG[url];
+  if (!e2) {
+    e2 = DISCIMG[url] = { img: new Image(), w: 0, h: 0, err: false };
+    e2.img.onload = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; };
+    e2.img.onerror = () => { e2.err = true; }; // not on disk — the tint plate stands,
+    e2.img.src = url;                          // and the Designer reports the miss
+  }
+  return e2.w ? e2 : null;
 }
 // ---- image maps: a package may bring its OWN world (map.image + mapPos pins) ----
 const MAPIMG = {}; // decoded per campaign id
@@ -10809,7 +11683,7 @@ function drawMenuMap() {
   const IM = campMapImg(CAMP); // image-mode: the package brought its own world
   if (!IM && !cityBase) buildCity();
   const WW = IM ? IM.w : CITY_W, WH = IM ? IM.h : CITY_H;
-  const SEGS = IM ? imgSegs() : ROUTE_SEGS;
+  const SEGS = IM ? imgSegs() : citySegs();
   const RPT = i => IM ? imgPin(i) : relayW(i);
   const frontier = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
   // camera: frame the ENTIRE selected run — center on its bounding box and
@@ -10825,7 +11699,7 @@ function drawMenuMap() {
   const cbx = (bx0 + bx1) / 2, cby = (by0 + by1) / 2;
   let rMax = 1;
   for (const p2 of seg) rMax = Math.max(rMax, Math.hypot(p2.x - cbx, p2.y - cby));
-  const zt = clamp((R - 58) / rMax, 0.3, 1);
+  const zt = clamp((R - 58) / rMax, 0.34, 0.7); // a short hop still keeps a city around it
   const Rz = R / Math.max(mapZoom, 0.01);
   const tx2 = clamp((bx0 + bx1) / 2, Math.min(Rz * 0.8, WW / 2), WW - Math.min(Rz * 0.8, WW / 2));
   const ty2 = clamp((by0 + by1) / 2, Math.min(Rz * 0.7, WH / 2), WH - Math.min(Rz * 0.7, WH / 2));
@@ -10871,19 +11745,18 @@ function drawMenuMap() {
       ctx.fillStyle = 'rgba(4,10,22,0.28)';
       ctx.fillRect(ccx - R, ccy - R, R * 2, R * 2);
     } else {
+      ctx.fillStyle = '#02060f'; // the sheet is bigger than the lens can ever reach
+      ctx.fillRect(ccx - R, ccy - R, R * 2, R * 2);
       ctx.drawImage(cityBase, bx0, by0, bw0, bh0);
-      // the city never ENDS: mirrored continuations above and below the sheet
-      ctx.save();
-      ctx.scale(1, -1);
-      ctx.drawImage(cityBase, bx0, -by0, bw0, bh0);
-      ctx.drawImage(cityBase, bx0, -(by0 + bh0 * 2), bw0, bh0);
-      ctx.restore();
     }
   }
   // LAYER 2: each level's cable run, leading AWAY from its relay —
-  // secured lines flow green with live data, unsecured wait as dashed blue
+  // secured lines flow green with live data, unsecured wait as dashed blue.
+  // The runs are BURIED: they draw under the towers and ghost up through them.
+  // The one you are looking at is then repeated over the skyline (LAYER 4), so
+  // a dense downtown can never swallow the line you are about to defend.
   ctx.lineCap = 'round';
-  for (let k = 0; k < SEGS.length; k++) {
+  const drawRun = k => {
     const pts2 = SEGS[k];
     const done = PROG.stars[k] > 0;
     const trace = () => {
@@ -10893,16 +11766,16 @@ function drawMenuMap() {
     };
     const sel = k === mapSel;
     if (sel) { // the selected run glows under everything above it
-      ctx.strokeStyle = done ? 'rgba(150,255,140,0.20)' : 'rgba(140,210,255,0.20)';
-      ctx.lineWidth = 8; ctx.setLineDash([]);
+      ctx.strokeStyle = done ? 'rgba(150,255,140,0.26)' : 'rgba(140,210,255,0.26)';
+      ctx.lineWidth = 10; ctx.setLineDash([]);
       trace();
     }
     if (done) {
       if (!sel) { // secured but not in focus: a quiet green ghost
-        ctx.strokeStyle = 'rgba(126,226,98,0.16)'; ctx.lineWidth = 1.5; ctx.setLineDash([]);
+        ctx.strokeStyle = 'rgba(126,226,98,0.3)'; ctx.lineWidth = 2; ctx.setLineDash([]);
         trace();
       } else { // selected: solid green, chevrons marching toward the next relay
-        ctx.strokeStyle = 'rgba(126,226,98,0.6)'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
+        ctx.strokeStyle = 'rgba(126,226,98,0.85)'; ctx.lineWidth = 3; ctx.setLineDash([]);
         trace();
         let Ltot = 0;
         for (let i = 1; i < pts2.length; i++) Ltot += Math.hypot(pts2[i].x - pts2[i - 1].x, pts2[i].y - pts2[i - 1].y);
@@ -10921,38 +11794,37 @@ function drawMenuMap() {
         }
       }
     } else if (!sel) { // unsecured, unfocused: the faintest dashed plan
-      ctx.strokeStyle = 'rgba(110,185,255,0.13)'; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(110,185,255,0.26)'; ctx.lineWidth = 2;
       ctx.setLineDash([6, 7]); ctx.lineDashOffset = 0;
       trace();
       ctx.setLineDash([]);
     } else { // selected + unsecured: dashed blue, breathing
       const br = 0.5 + 0.5 * Math.sin(time * 2.2); // slow breath
-      ctx.strokeStyle = `rgba(120,195,255,${(0.10 + br * 0.16).toFixed(2)})`;
-      ctx.lineWidth = 7 + br * 3; // soft halo swells and fades under the dashes
+      ctx.strokeStyle = `rgba(120,195,255,${(0.14 + br * 0.2).toFixed(2)})`;
+      ctx.lineWidth = 9 + br * 4; // soft halo swells and fades under the dashes
       ctx.setLineDash([]);
       trace();
-      ctx.strokeStyle = `rgba(110,185,255,${(0.45 + br * 0.4).toFixed(2)})`;
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = `rgba(150,215,255,${(0.6 + br * 0.4).toFixed(2)})`;
+      ctx.lineWidth = 2.5;
       ctx.setLineDash([6, 7]); ctx.lineDashOffset = 0;
       trace();
       ctx.setLineDash([]);
     }
-  }
+  };
+  for (let k = 0; k < SEGS.length; k++) drawRun(k);
   // LAYER 3: the blueprint wireframe above — transparent, so the buried
   // cables stay readable through the whole city (procedural world only)
   if (!IM) {
     const bx0 = ccx - mapCamX * mapZoom, by0 = ccy - mapCamY * mapZoom;
     const bw0 = CITY_W * mapZoom, bh0 = CITY_H * mapZoom;
     ctx.drawImage(cityTop, bx0, by0, bw0, bh0);
-    ctx.save();
-    ctx.scale(1, -1);
-    ctx.drawImage(cityTop, bx0, -by0, bw0, bh0);
-    ctx.drawImage(cityTop, bx0, -(by0 + bh0 * 2), bw0, bh0);
-    ctx.restore();
+    // LAYER 4: the selected run again, over the skyline — the line in focus
+    drawRun(mapSel);
   }
-  // destination: Police HQ / CID intake — the run's final delivery point
-  // (city lore; image worlds carry only their own pins)
+  // the terminus: where THIS case finally delivers — and where the next one
+  // picks the journey up (city lore; image worlds carry only their own pins)
   if (!IM) {
+    const term = CITY_TERMS[CAMP && CAMP.id] || ['END', 'TERMINUS'];
     const pt = relayW(LEVELS.length);
     const ex2 = wx(pt), ey2 = wy(pt);
     const delivered = PROG.stars[LEVELS.length - 1] > 0;
@@ -10962,10 +11834,10 @@ function drawMenuMap() {
     techRect(ex2 - 13, ey2 - 13, 26, 26, 6); ctx.stroke();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = delivered ? '#c8ffb0' : '#eafaff'; ctx.font = '800 9px Audiowide, system-ui';
-    ctx.fillText('CID', ex2, ey2 + 1);
+    ctx.fillText(term[0], ex2, ey2 + 1);
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = 'rgba(140,200,255,0.75)'; ctx.font = '500 7px Audiowide, system-ui';
-    ctx.fillText('POLICE HQ', ex2, ey2 + 24);
+    ctx.fillText(term[1], ex2, ey2 + 24);
     ctx.textAlign = 'left';
   }
   // relay markers
@@ -10989,8 +11861,9 @@ function drawMenuMap() {
     if (i === mapSel) { ctx.strokeStyle = 'rgba(240,252,255,0.9)'; ctx.lineWidth = 1.5; mapHex(mx2, my2, r + 5); ctx.stroke(); }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = locked ? 'rgba(200,225,255,0.35)' : '#f2faff';
-    ctx.font = '800 ' + Math.round(r * 0.75) + 'px Audiowide, system-ui';
-    ctx.fillText(locked ? '·' : String(i + 1), mx2, my2 + 1);
+    const num = String(curLevelNo(i));
+    ctx.font = '800 ' + Math.round(r * (num.length > 1 ? 0.6 : 0.75)) + 'px Audiowide, system-ui'; // two digits ride smaller inside the hex
+    ctx.fillText(locked ? '·' : num, mx2, my2 + 1);
     ctx.textBaseline = 'alphabetic';
     if (isBoss) {
       ctx.fillStyle = 'rgba(212,101,255,0.85)'; ctx.font = '700 7px Audiowide, system-ui';
@@ -11113,7 +11986,7 @@ function drawMapList(ccx, ccy, R, frontier) {
     techRect(rx, ly2, lw2, rh, 6); ctx.stroke();
     // title only — the dossier owns stars and stats
     ctx.fillStyle = locked ? 'rgba(220,240,255,0.3)' : '#f2faff';
-    const nm = '0' + (i + 1) + '  ' + LEVELS[i].name;
+    const nm = lvNum(curLevelNo(i)) + '  ' + LEVELS[i].name;
     ctx.font = '700 ' + fitPx(nm, '700', 10, lw2 - (locked ? 34 : 18), 8) + 'px Audiowide, system-ui';
     ctx.textBaseline = 'middle';
     ctx.fillText(nm, rx + 10, ly2 + rh / 2 + 1);
@@ -11139,7 +12012,7 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   techRect(px2, py2, pw, ph, 10); ctx.stroke();
   ctx.fillStyle = locked ? 'rgba(220,240,255,0.5)' : 'rgba(140,200,255,0.6)';
   ctx.font = '700 9px Audiowide, system-ui';
-  ctx.fillText('RELAY 0' + (li + 1), px2 + 14, py2 + 20);
+  ctx.fillText('LEVEL ' + lvNum(curLevelNo(li)), px2 + 14, py2 + 20);
   if (locked) {
     ctx.fillStyle = 'rgba(220,240,255,0.55)'; ctx.font = '700 12px Audiowide, system-ui';
     ctx.fillText('ENCRYPTED', px2 + 14, py2 + 44);
@@ -11166,14 +12039,32 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   if (L2.walls) kinds.push('wall');
   if (L2.frags) kinds.push('frag');
   if (L2.boss) kinds.push('boss');
-  ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
-  ctx.fillText('EXPECTED TRAFFIC', px2 + 14, py2 + 110);
-  kinds.forEach((k, ki) => {
-    const col2 = ki % 5, row2 = Math.floor(ki / 5);
-    drawInfoGlyph(k, px2 + 26 + col2 * 26, py2 + 128 + row2 * 26, 8);
-  });
+  // how much of the city's shield still reaches this relay — the cover thins
+  // with every perimeter you leave behind, and the traffic thickens to match
+  if (!campMapImg(CAMP)) {
+    const cov = relayCover(li);
+    const cc = cov.pct > 60 ? '126,226,98' : cov.pct > 30 ? '255,200,80' : '255,110,110';
+    ctx.fillStyle = 'rgba(140,200,255,0.6)'; ctx.font = '500 8px Audiowide, system-ui';
+    ctx.fillText('RING 0' + cov.ring + ' · ' + cov.name, px2 + 14, py2 + 106);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = `rgba(${cc},0.9)`; ctx.font = '600 8px Audiowide, system-ui';
+    ctx.fillText('COVER ' + cov.pct + '%', px2 + pw - 14, py2 + 106);
+    ctx.textAlign = 'left';
+    const bw2 = pw - 28, by3 = py2 + 112;
+    ctx.fillStyle = 'rgba(120,180,255,0.14)'; ctx.fillRect(px2 + 14, by3, bw2, 4);
+    ctx.fillStyle = `rgba(${cc},0.85)`; ctx.fillRect(px2 + 14, by3, bw2 * cov.pct / 100, 4);
+  }
   const dw = pw - 24, dh = 34;
   const dx2 = px2 + 12, dy2 = py2 + ph - dh - 12;
+  // the traffic legend stacks UP from the deploy key, so a short panel squeezes
+  // the gap above it rather than sliding glyphs under the button
+  const gRows = Math.ceil(kinds.length / 5), gy = dy2 - 20 - (gRows - 1) * 26;
+  ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
+  ctx.fillText('EXPECTED TRAFFIC', px2 + 14, gy - 16);
+  kinds.forEach((k, ki) => {
+    const col2 = ki % 5, row2 = Math.floor(ki / 5);
+    drawInfoGlyph(k, px2 + 26 + col2 * 26, gy + row2 * 26, 8);
+  });
   levelKey(dx2, dy2, dw, dh, '▶', 'DEPLOY', -1, false, li === frontier);
   menuButtons.push({ x: dx2, y: dy2, w: dw, h: dh, deploy: li, locked: false });
 }
@@ -11531,6 +12422,9 @@ function pressUI(rect, fn) { // micro-interaction: flash NOW, act on the beat
   buzz(8);
 }
 function tickUI(dt) {
+  // the NOW PLAYING strip holds while paused — skip a track from the pause panel
+  // and the strip is still there to confirm it when the run resumes
+  if (npT < NP_DUR && state !== S.PAUSE) npT += dt;
   if (uiPress) {
     uiPress.t += dt;
     if (uiPress.t >= 0.09 && uiPress.fn) { const f = uiPress.fn; uiPress.fn = null; f(); }
@@ -12443,7 +13337,7 @@ function frame(now) {
 
   // cinematic vignette + color grade (under the HUD so controls stay crisp)
   if (vignetteCanvas) ctx.drawImage(vignetteCanvas, 0, 0, W, H);
-  // film-grain finish (tuned in arclab) — skipped on struggling devices
+  // film-grain finish (ARCFX.grain) — skipped on struggling devices
   if (grainCv && !lowFX && state !== S.MENU) {
     ctx.globalAlpha = 0.05 * ARCFX.grain;
     const gox = (Math.floor(time * 24) * 97) % 256, goy = (Math.floor(time * 24) * 53) % 256;
@@ -12468,7 +13362,7 @@ function frame(now) {
   }
 
   if (state === S.PLAY) {
-    drawHUD(g); drawDials(); drawIntroCard();
+    drawHUD(g); drawDials(); drawIntroCard(); drawNowPlaying();
     if (popLive('pause')) drawPause(); // resume: the panel erases behind its scan
     if (worldFx) ctx.restore(); // end the replay world fly-in (board overlay is NOT zoomed)
     // leaderboard<->player transition: the board rides ON TOP of the (paused)
@@ -12564,14 +13458,14 @@ setTimeout(() => {
 </script>
 <script>
 // ---------- soundtrack manifest ----------
-// menu: Midnight Terminal Wait · L1: Sub Level Three · L2: Steel and Rain · L3: Terminal Velocity
+// The menu has its own piece; it is NOT in the run pool. The pool is whatever
+// sits in src/audio/music/ — window.MUSIC_TRACKS is generated from that folder
+// by scripts/build.js, and each track's title is derived from its filename. So
+// adding music is: drop the file in, `npm run build`. Renaming it retitles it.
+// Nothing here needs editing per track.
 window.MUSIC_DATA = {
   menu: 'audio/Midnight_Terminal_Wait.mp3',
-  levels: [
-    'audio/Sub_Level_Three.mp3',
-    'audio/Steel_and_Rain.mp3',
-    'audio/Terminal_Velocity.mp3'
-  ]
+  levels: window.MUSIC_TRACKS || []
 };
 </script>
 </body>

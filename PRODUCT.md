@@ -57,9 +57,14 @@ bottom-corner dial pads. Sessions are short and repeated. Play works fully
 offline; the only network dependency is the leaderboard work in flight.
 
 Structure the player moves through: a mode wheel (TUTORIAL / CAMPAIGN / FREE
-FLOW) → for campaign, a route map over a blueprint city with a relay list and
-dossier → briefing disc → in-tunnel run → victory report. FREE FLOW (endless +
-daily) unlocks at relay 04.
+FLOW) → for campaign, a route map over an isometric neon city with a relay list
+and dossier → briefing disc → in-tunnel run → victory report. The city is a
+defended city: a hardened core wrapped in firewall perimeters, and the five
+campaigns spiral outward through them, each case working a thinner belt of
+cover than the last — the map's own explanation for why the wire carries more
+taps the further you go. FREE FLOW (endless +
+daily) unlocks once level 05 is complete. Levels are numbered continuously
+across the whole story — campaign 1 owns 01–08, campaign 2 picks up at 09.
 
 ## Capabilities and Constraints
 
@@ -144,8 +149,9 @@ offline entitlement flag; no server for v1. Full plan in
 - All four music tracks are composed by the author (AI-assisted), no licensing
   risk; logged in [CREDITS.md](CREDITS.md). A replacement menu track is still
   owed by the author (spec in BRAND.md).
-- Prototype labs kept in `src/`: `arclab.html`, `enemylab.html`, `ringlab.html`,
-  `zaplab.html`, `fxlab.html`, `soundboard.html`, all sharing `src/labbg.js`.
+- The prototype tuning labs were removed on 2026-07-28 once their looks were
+  settled and locked into the game's `*FX` constant blocks. They live on in git
+  history (`git log -- src/arclab.html`) and new ones get built as needed.
 - Store screenshots, feature graphic, and preview video do **not** exist yet.
   There are no players, reviews, download counts, press, or testimonials —
   future work must not fabricate any.

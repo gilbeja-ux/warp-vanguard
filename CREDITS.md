@@ -1,18 +1,27 @@
 # Credits & Licenses — Data Defender: Dark Fiber
 
 ## Music
-All four soundtrack pieces were composed and produced by the game's author
-(with AI-assisted tools) and are owned by the project. No third-party music
-license is required.
+Every soundtrack piece in this game — the menu theme and **every file in
+`src/audio/music/`** — was composed and produced by the game's author (with
+AI-assisted tools) and is owned by the project. No third-party music license is
+required. That statement covers the folder as a whole, so tracks can be added,
+renamed, or replaced without a per-file entry here.
 
-| Track | File | Use | Length |
-|---|---|---|---|
-| Midnight Terminal Wait | `src/audio/Midnight_Terminal_Wait.mp3` | Menu | 116s |
-| Sub Level Three | `src/audio/Sub_Level_Three.mp3` | Levels (track 1) | 170s |
-| Steel and Rain | `src/audio/Steel_and_Rain.mp3` | Levels (track 2) | 160s |
-| Terminal Velocity | `src/audio/Terminal_Velocity.mp3` | Levels (track 3) | 159s |
+- **Menu:** `src/audio/Midnight_Terminal_Wait.mp3` (116s), wired at `MUSIC_DATA.menu`.
+- **Run pool:** everything in `src/audio/music/`. `npm run build` scans that
+  folder and writes the list to `src/audio/music/tracks.js`; the display title of
+  each track is derived from its filename at runtime. Adding music is a drop-in
+  plus a build — renaming the file renames the track, with nothing to keep in sync.
 
-Endless/daily runs rotate through the three level tracks at loop boundaries.
+Every run draws its opening track at random from the pool — a shuffled bag, so
+all of them play once before any repeats. FREE FLOW (endless and daily) keeps
+drawing for as long as the run lasts: the next track is decoded ~14s ahead of
+the seam and crossfaded in over 4s under the outgoing one, so a long run never
+hears a gap or a hard cut. The daily's *opening* track is derived from the day
+number instead, so everyone shares the same first minutes. The track names itself
+on screen for a few seconds at the start of a run and at each crossfade, and can
+be skipped from the pause panel.
+
 The menu track loops through a 1.2s gain duck at the seam so it crossfades into
 itself rather than hard-cutting.
 

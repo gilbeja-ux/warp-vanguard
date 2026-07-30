@@ -295,6 +295,22 @@ The signature component. Story and instruction arrive as a disc that flies up to
 - **Motion:** Zoom in over 0.28s with an ease-out-back overshoot (`1.70158`), out over 0.18s; the field dims to `rgba(3,6,14,0.45)` unscaled beneath so the dim stays even while the disc flies
 - **Prompt:** `TAP TO CONTINUE` pulses between 20% and 80% cyan at 4rad/s
 
+### The Route Map (the lens on the city)
+
+The campaign map is a circular LENS over one continuous isometric city, sized so no campaign ever sees all of it.
+
+- **Ground:** deep navy sheet, a 1.4px iso floor lattice at 7% cyan, and streets in three tiers — minor roads are one 24% line, avenues get a dark roadbed between two lit curbs, grand boulevards get a wide bed with a dashed median. Dashed teal fiber trunks run under the avenues with diamond vaults where they cross
+- **Water:** a harbor across the south and a river bending down through the districts to meet it, cut as ONE path so a single clipped re-stroke of the avenues turns every crossing into a bridge. Lit banks and quays are what make water read at all — a fill this close to the ground colour is invisible on its own
+- **Skyline:** pure wireframe — no opaque faces, a 10% roof tint only. Lots vary by kind, not just size: setback towers (podium → shaft → crown), two-lot office slabs, courtyard blocks, and terraced rows of three small houses. Density and height fall off from the core (spires downtown → slabs → sprawl → clumps in the dark); about 1% of towers burn magenta against the cyan
+- **Block noise:** a second, much tighter noise field scales every height in a cluster together. Without it each lot rolls its own dice and the skyline comes out as one flat carpet of near-identical boxes — the single biggest difference between "grid of cubes" and "city"
+- **Clearance:** a lot is 32px wide, so blocks are held back 1.7–3.4 street-units from a road. At the old 1-unit clearance downtown swallowed its own streets and the grid stopped reading
+- **Bloom:** each baked layer is composited back over itself blurred (`lighter`), so the whole sheet glows without per-shape shadow work
+- **Falloff:** light dies with distance from the core — the ground plan is wiped out by ~95%, the towers only thinned, so the outskirts read as a city in the dark rather than as empty paper
+- **Perimeters:** one dashed ellipse per campaign band (a ground circle in iso is a 2:1 ellipse), green inside → amber → red at the edge, studded with gate ticks and labelled with the cover it still holds
+- **Runs:** buried — every cable run draws UNDER the skyline and ghosts up through it; the selected run is then repeated OVER the towers so a dense downtown can never swallow the line about to be defended
+
+**The Cover Ladder.** A relay's ring is its CASE's band, not its exact pixel radius. Forty relays over ~1,000px of radius means junction-lattice noise is larger than one hop's worth of outward progress, so per-relay cover would jitter — the dossier would claim level 5 is safer than level 4. Bands are fitted to the relays that actually landed in them, and cover ramps monotonically across each case and hands off to the next: 93% at the first relay of case 01, 2% at the last of case 05.
+
 ### Dial Pad
 
 The player's only control, and the clearest expression of the gauge grammar.
@@ -326,7 +342,19 @@ Its damage state is choreographed: on a node-killer strike the arc **snaps shut*
 
 Threats are harpoons fired into the tunnel from *outside* — a machined plate seated flush on the wall with a graphite auger driving inward. Every one carries: an exfil beam, impact cracks, a soft grounding pool, a two-wave ripple train drawn in angle×radius wall space so it bows along the tunnel's hoops, a key-lit plate with bevel and vents, a type ring that telegraphs its class from spawn, and discrete siphon packets flowing tip-to-plate — stolen energy visibly leaving the stream.
 
+### Enemy Body (Void Packet — the node killer)
+
+The one threat that does not cling to the wall: a void-black rounded diamond floating in the bore, with a *negative* halo that swallows light rather than casting it, and a slow glint crawling its rim. It renders as a **failing video signal** — the body tears along horizontal scanline bands that displace sideways and drop out entirely (the tunnel shows through the hole), while the rim splits into red/cyan chromatic fringes. Corruption events fire roughly twice a second, but each one's severity is rolled off the static seed, so most are a one-band nudge and only a few are a full tear.
+
+Two constraints define it, and both are load-bearing:
+
+**It never escalates with proximity.** Every other body ramps its urgency as it closes; this one is identical at the horizon and at the ring. Escalation reads as "hostile, shoot it," and this enemy's whole design is bait you must let pass. It is not angrier up close — it is just wrong, the whole way in.
+
+**Frequency without a fixed intensity.** A fast cadence at one severity reads as a blinking light. The per-event strength roll is what makes it read as a bad signal instead.
+
 ### Named Rules
+
+**The Aberration Exception.** The killer's chromatic fringe is the one colored rim in the game, and it is not an outline — it is a sub-pixel-to-2px additive artifact that sums back into the old pale hairline while the two fringes overlap. It exists because a black body in a dark bore had no findable silhouette, which is why the split carries a hard pixel floor and may never reach zero. Anything wider or more opaque becomes the rejected cartoon outline.
 
 **The Accumulating Phase Rule.** Effect phases only ever accumulate (`fxPh += dt * rate`). Never multiply raw time by an urgency- or state-dependent rate, and never seed an effect from a value that advances. Both mistakes cause visible phase jumps — they shipped once as a strobing "doubled lines" artifact near the ring.
 
@@ -348,11 +376,11 @@ Threats are harpoons fired into the tunnel from *outside* — a machined plate s
 
 ### Don't:
 
-- **Don't** add a colored rim outline to define a shape. This is the fastest route back to "too cartoony," which has been rejected twice.
+- **Don't** add a colored rim outline to define a shape. This is the fastest route back to "too cartoony," which has been rejected twice. The killer's chromatic fringe is the sole exception and only under **The Aberration Exception** — the first attempt at it was too wide and too strong, and read exactly like the rejected outlines.
 - **Don't** light a circular object uniformly all the way around.
 - **Don't** use flat fills plus saturated glow arcs as a material.
 - **Don't** put gold on a hazard. Amber hazard bars shipped, read as an invitation, and were recolored to Breach Red the same day.
-- **Don't** brighten Null Graphite. The node-killer's calm appearance is the trap.
+- **Don't** brighten Null Graphite. The node-killer's calm appearance is the trap. Its only emitted light is the blown-out sliver left behind a dropped-out band, and that fires with an event, never as a state.
 - **Don't** use a node color (Signal Blue, Arc White) on anything that is not a node or its matching lock.
 - **Don't** add drawn-line electricity to convey energy — use glow plus texture (both zigzag and harmonic-ribbon filaments were rejected).
 - **Don't** add hit-stop or screen shake to routine kills. World flinch reads as bad; kill feedback is burst, rim flash, node recoil, and haptics.
