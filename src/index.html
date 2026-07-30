@@ -901,7 +901,7 @@ const sfx = {
 };
 
 // ---------- background (deep data-space behind the tunnel walls) ----------
-let bgCanvas = null, vignetteCanvas = null, wallTex = null;
+let bgCanvas = null, vignetteCanvas = null, wallTex = null, wallCloud = null;
 let ringFxCv = null, grainCv = null; // prerendered monolith ring + film-grain tile
 let bgMotes = [], glitchT = 0, glitchY = 0, nextGlitch = 3;
 let litPanels = [], wallSnips = [];
@@ -939,8 +939,56 @@ function buildBackground() {
   bgCanvas.width = W * DPR; bgCanvas.height = H * DPR;
   const b = bgCanvas.getContext('2d');
   b.setTransform(DPR, 0, 0, DPR, 0, 0);
-  // deep navy base — the void behind the tunnel wall circuitry
+  // deep navy base — the void the lane is threaded through. It stays near-black:
+  // the hyperspace references only go blue during the JUMP, and cruise is dark.
   b.fillStyle = '#020510'; b.fillRect(0, 0, W, H);
+
+  // --- NEBULAS: the furthest thing there is ---
+  // Warm gold-brown dust and cold teal wisps, heavily desaturated and mottled.
+  // Baked into the static background on purpose: at that distance nothing moves
+  // perceptibly, so this costs nothing per frame — and the deep field's stars and
+  // wisps parallax in FRONT of it, which is what gives the sky its depth order.
+  //
+  // Clustered rather than scattered. An even wash of blobs reads as a gradient;
+  // three or four centres with fall-off around them read as structure.
+  {
+    const neb = [
+      { x: W * 0.17, y: H * 0.34, r: Math.min(W, H) * 0.52, col: '150,112,58', n: 26 },  // warm dust
+      { x: W * 0.30, y: H * 0.74, r: Math.min(W, H) * 0.40, col: '128,96,52', n: 18 },
+      { x: W * 0.72, y: H * 0.58, r: Math.min(W, H) * 0.44, col: '48,132,140', n: 20 },  // cold teal wisp
+      { x: W * 0.86, y: H * 0.22, r: Math.min(W, H) * 0.33, col: '60,110,150', n: 14 }
+    ];
+    b.save();
+    b.globalCompositeOperation = 'lighter';
+    for (const cl2 of neb) {
+      for (let i = 0; i < cl2.n; i++) {
+        // gaussian-ish clustering: two uniforms averaged pull blobs toward centre
+        const ang = Math.random() * TAU;
+        const rad = cl2.r * (Math.random() + Math.random()) * 0.5;
+        const bx = cl2.x + Math.cos(ang) * rad, by = cl2.y + Math.sin(ang) * rad * 0.72;
+        const br = cl2.r * rand(0.16, 0.44);
+        const al = 0.012 + Math.random() * 0.030; // barely there, individually
+        const gr2 = b.createRadialGradient(bx, by, 0, bx, by, br);
+        gr2.addColorStop(0, `rgba(${cl2.col},${al.toFixed(4)})`);
+        gr2.addColorStop(0.5, `rgba(${cl2.col},${(al * 0.42).toFixed(4)})`);
+        gr2.addColorStop(1, `rgba(${cl2.col},0)`);
+        b.fillStyle = gr2;
+        b.beginPath(); b.arc(bx, by, br, 0, TAU); b.fill();
+      }
+    }
+    b.restore();
+    // mottling: dark voids punched back through the cloud so it has holes and
+    // filaments instead of reading as airbrushed haze
+    for (let i = 0; i < 90; i++) {
+      const bx = Math.random() * W, by = Math.random() * H;
+      const br = Math.min(W, H) * rand(0.04, 0.17);
+      const gr2 = b.createRadialGradient(bx, by, 0, bx, by, br);
+      gr2.addColorStop(0, `rgba(2,5,16,${(0.10 + Math.random() * 0.22).toFixed(3)})`);
+      gr2.addColorStop(1, 'rgba(2,5,16,0)');
+      b.fillStyle = gr2;
+      b.beginPath(); b.arc(bx, by, br, 0, TAU); b.fill();
+    }
+  }
 
   // --- the lane wall texture: starlight smeared by transit, stamped at many depths ---
   //
@@ -1007,6 +1055,41 @@ function buildBackground() {
     t.lineWidth = rand(4, 11);
     t.beginPath(); t.moveTo(r0, 0); t.lineTo(Math.min(outR, r0 + rand(24, 90)), 0); t.stroke();
     t.restore();
+  }
+
+  // --- the TURBULENCE layer: roiling plasma in the throat (hyperspace reference) ---
+  // Streaked starlight alone reads as Star Trek warp — clean, fast, empty. The
+  // hyperspace look is VOLUMETRIC: a lane wall that boils. This is a second
+  // texture of soft blobs stretched along the direction of travel, composited
+  // additively over the streaks and stamped with the same depth bands.
+  //
+  // It is DELIBERATELY featureless. drawTunnel's per-band twist is fixed because
+  // "a spinning wall would shear under the leaks" — enemies are painted on the
+  // wall at fixed angles. So the churn cannot come from rotation. It comes from
+  // per-band alpha breathing at different phases (see drawTunnel), which needs a
+  // texture with no trackable features or the shear becomes visible.
+  wallCloud = document.createElement('canvas');
+  wallCloud.width = TS; wallCloud.height = TS;
+  const cl = wallCloud.getContext('2d');
+  cl.translate(half, half);
+  cl.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 190; i++) {
+    const a0 = Math.random() * TAU;
+    const rr = rand(inR * 0.92, outR);
+    const stretch = rand(2.2, 5.5);          // elongated along travel — never round
+    const rad = rand(half * 0.05, half * 0.15);
+    const r2 = Math.random();
+    const col = r2 < 0.16 ? '190,225,255' : r2 < 0.34 ? '120,180,255' : '70,130,225';
+    const al = 0.035 + Math.random() * 0.075;
+    cl.save();
+    cl.rotate(a0); cl.translate(rr, 0); cl.scale(stretch, 1);
+    const bg = cl.createRadialGradient(0, 0, 0, 0, 0, rad);
+    bg.addColorStop(0, `rgba(${col},${al.toFixed(3)})`);
+    bg.addColorStop(0.45, `rgba(${col},${(al * 0.42).toFixed(3)})`);
+    bg.addColorStop(1, `rgba(${col},0)`);
+    cl.fillStyle = bg;
+    cl.beginPath(); cl.arc(0, 0, rad, 0, TAU); cl.fill();
+    cl.restore();
   }
   buildRingFx();
 }
@@ -5631,10 +5714,88 @@ function drawRangeRings(g) {
   ctx.restore();
 }
 
+// LANE FILAMENTS: electrical discharge arcing along the throat, the tendrils
+// that make a hyperspace tunnel read as violent rather than merely fast. Each
+// runs lengthwise from deep to near, jittered laterally so it snakes along the
+// wall, and each lives on a short flicker cycle so the set never looks static.
+//
+// Stateless — every filament is a fixed seed evaluated against the shared clock,
+// so it costs no sim state and behaves identically in replays and pauses.
+const LANE_FILS = [];
+for (let i = 0; i < 9; i++) {
+  LANE_FILS.push({
+    a: Math.random() * TAU,        // where on the wall it sits
+    ph: Math.random(),             // flicker phase
+    rate: rand(0.55, 1.25),        // flicker speed
+    wob: rand(0.5, 1.6),           // how much it snakes
+    seed: Math.random() * 100,
+    warm: Math.random() < 0.18
+  });
+}
+function drawLaneFilaments(g, dive) {
+  if (state === S.MENU) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  const SEG = 9;
+  for (const f of LANE_FILS) {
+    // each filament is alive for a short slice of its cycle, then gone
+    const k = ((time * f.rate + f.ph) % 1 + 1) % 1;
+    if (k > 0.42) continue;                       // dark most of the time
+    const life = Math.sin(k / 0.42 * Math.PI);    // strike in, strike out
+    // DIVE-ONLY. Neither hyperspace reference has arcing tendrils — they were
+    // built from a wrong read of Elite's witchspace interior. They earn their
+    // keep as violence in the 0.9s entry dive and nowhere else.
+    const al = life * (0.015 + 0.5 * dive);
+    if (al < 0.02) continue;
+    const col = f.warm ? '255,206,150' : '150,214,255';
+    for (const [w, mul] of [[3.4, 0.32], [1.5, 0.7], [0.7, 1]]) {
+      ctx.strokeStyle = `rgba(${col},${(al * mul).toFixed(3)})`;
+      ctx.beginPath();
+      for (let s2 = 0; s2 <= SEG; s2++) {
+        const t2 = s2 / SEG;
+        const z = 0.06 + t2 * (SPAWN_Z - 0.1);
+        const rg = ring(z, g);
+        // the snake: a lateral wander that grows toward the near end, where the
+        // wall is closest and the discharge has the most room to move
+        const off = Math.sin(t2 * 5.2 + f.seed + time * 2.3) * 0.055 * f.wob * (1 - t2 * 0.6);
+        const aa = f.a + off;
+        const px = rg.x + Math.cos(aa) * rg.r * 0.99;
+        const py = rg.y + Math.sin(aa) * rg.r * 0.99;
+        s2 ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.lineWidth = Math.max(0.5, w * (0.5 + dive * 0.9));
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function drawTunnel(g) {
-  // the wall is one dense annulus of data, stamped at receding depths —
-  // the inside of a fiber optic line packed with traffic, not clean geometry
+  // the wall is starlight smeared by transit, stamped at receding depths, with a
+  // layer of roiling plasma over it — a lane under load, not clean geometry
   const N = 10;
+  // during the warp dive the throat goes violent: the turbulence multiplies and
+  // the whole wall hots up. warpT is 0.9 on level entry and decays to 0, so the
+  // hyperspace-reference intensity lives HERE, in a 0.9s cinematic beat, instead
+  // of sitting on top of 70 seconds of play where it would eat threat contrast.
+  const dive = clamp(warpT / 0.9, 0, 1);
+  // THE JUMP LIFT. References 1 and 2 (hyperspace entry, Elite's charge) sit on a
+  // lifted BLUE field — that is what gives their streaks something to burn
+  // against. References 3 and 4 (cruise) are near-black. Both are true, of the
+  // same ship, seconds apart, so the field lifts only while the dive is running.
+  //
+  // It is gated rather than dialled down because a permanent lift would put
+  // node-blue (#50aaff) interdictors on a blue ground and cost the colour rule
+  // the contrast it is built on. For 0.9s, with nothing yet to read, it is free.
+  if (dive > 0.01) {
+    const far0 = ring(SPAWN_Z, g);
+    const lift = ctx.createRadialGradient(far0.x, far0.y, 0, far0.x, far0.y, Math.max(W, H) * 0.75);
+    lift.addColorStop(0, `rgba(28,58,120,${(0.50 * dive).toFixed(3)})`);
+    lift.addColorStop(0.45, `rgba(22,48,104,${(0.40 * dive).toFixed(3)})`);
+    lift.addColorStop(1, `rgba(8,18,52,${(0.14 * dive).toFixed(3)})`);
+    ctx.fillStyle = lift;
+    ctx.fillRect(0, 0, W, H);
+  }
   for (let i = N - 1; i >= 0; i--) {
     const z = (((i - tunnelScroll) % N) + N) % N / N;
     const rg = ring(z, g);
@@ -5647,6 +5808,24 @@ function drawTunnel(g) {
     ctx.globalAlpha = a;
     if (wallTex) ctx.drawImage(wallTex, -hs, -hs, hs * 2, hs * 2);
     ctx.restore();
+    // the turbulence, additively over the streaks. The CHURN comes from per-band
+    // alpha breathing on its own phase — not from rotation, which would shear the
+    // leaks off the wall. Each band boils on its own clock, so the throat looks
+    // like it is convecting rather than scrolling.
+    if (wallCloud) {
+      const boil = 0.62 + 0.38 * Math.sin(time * 1.7 + i * 2.1) * Math.sin(time * 0.9 + i * 0.7);
+      const ca = a * (0.55 + 1.9 * dive) * boil;
+      if (ca > 0.012) {
+        const cs = hs * (1 + 0.06 * Math.sin(time * 1.1 + i * 1.3)); // slight swell, sells volume
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.translate(rg.x, rg.y);
+        ctx.rotate(i * 0.55 + 0.9); // fixed offset from the streak band — never time-varying
+        ctx.globalAlpha = Math.min(1, ca);
+        ctx.drawImage(wallCloud, -cs, -cs, cs * 2, cs * 2);
+        ctx.restore();
+      }
+    }
     // the nearest band keeps sliding past the viewer and fades — no pop at the wrap
     if (z > 0.85 && wallTex) {
       const z2 = z - 1;
@@ -5664,6 +5843,8 @@ function drawTunnel(g) {
     }
   }
   ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  drawLaneFilaments(g, dive);
   // the far end is a VOID, not a lamp: the bore runs off into unlit distance.
   // A dark pool swallows the wall bands so nothing reads as "wall" out there —
   // and depth is sold instead by data blips winking somewhere down the line,
@@ -5784,7 +5965,7 @@ initStreaks();
 // Drawn BEFORE the wall, so the wall's sparse strokes veil it instead of hiding
 // it, and the far void pool still swallows everything near the beacon — new
 // motes emerge out of that darkness instead of popping in.
-let deepStars = [], deepRocks = [];
+let deepStars = [], deepRocks = [], deepWisps = [];
 const DEEP_R0 = 0.16, DEEP_R1 = 1.75; // emerge / recycle radius, in half-min-side units
 const DEEP_PARALLAX = 0.12;           // fraction of the wall's rate — the whole trick, named not buried
 function mkDeepStar() {
@@ -5809,17 +5990,36 @@ function mkDeepRock() {
     sp: rand(0.7, 1.1), vs
   };
 }
+// the CRUISE WISP: a long, very faint, motion-blurred star. This is the whole
+// character of the reference's cruise footage — the sky is not points OR streaks,
+// it is dense points with a few long soft smears drifting among them. Faint on
+// purpose: at cruise the blur is barely there, and anything brighter reads as a
+// jump instead of a transit.
+function mkDeepWisp() {
+  return {
+    a: Math.random() * TAU,
+    rf: DEEP_R0 + Math.random() * (DEEP_R1 - DEEP_R0),
+    len: rand(0.10, 0.42),            // in rf units — scales with distance for free
+    al: 0.035 + Math.random() * 0.085,
+    w: rand(0.6, 1.9),
+    warm: Math.random() < 0.10,
+    sp: rand(0.85, 1.2)
+  };
+}
 function initDeepField() {
-  const nS = lowFX ? 80 : 210, nR = lowFX ? 3 : 9;
-  deepStars = []; deepRocks = [];
+  // ref 3's sky is DENSE — the old 210 read as a sparse sprinkle against it
+  const nS = lowFX ? 150 : 430, nR = lowFX ? 3 : 9, nW = lowFX ? 24 : 74;
+  deepStars = []; deepRocks = []; deepWisps = [];
   for (let i = 0; i < nS; i++) deepStars.push(mkDeepStar());
   for (let i = 0; i < nR; i++) deepRocks.push(mkDeepRock());
+  for (let i = 0; i < nW; i++) deepWisps.push(mkDeepWisp());
 }
 initDeepField();
 function drawDeepField(g, dt) {
   if (state === S.MENU) return;
   const SR = Math.min(W, H) * 0.5; // NOT S — that is the state enum, and shadowing it TDZs S.MENU above
-  const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + (warpT / 0.9) * 2.5);
+  const dive = clamp(warpT / 0.9, 0, 1);
+  const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5);
   ctx.save();
   // --- rocks first, so stars always pass IN FRONT of them, never behind ---
   for (const rk of deepRocks) {
@@ -5852,6 +6052,29 @@ function drawDeepField(g, dt) {
     ctx.fillStyle = lg;
     ctx.fill();
     ctx.restore();
+  }
+  // --- the cruise wisps: long soft smears drifting among the points ---
+  // Radial, so they agree with the direction of travel, and longer the further
+  // out they are — which falls out of scaling their length in rf units.
+  for (const wp of deepWisps) {
+    wp.rf *= 1 + dt * rate * wp.sp;
+    if (wp.rf > DEEP_R1) { Object.assign(wp, mkDeepWisp()); wp.rf = DEEP_R0; }
+    const ca = Math.cos(wp.a), sa = Math.sin(wp.a);
+    const r0 = wp.rf * SR, r1 = (wp.rf + wp.len * (0.35 + wp.rf)) * SR;
+    const x0 = g.cx + ca * r0, y0 = g.cy + sa * r0;
+    const x1 = g.cx + ca * r1, y1 = g.cy + sa * r1;
+    if (Math.max(x0, x1) < -8 || Math.min(x0, x1) > W + 8) continue;
+    if (Math.max(y0, y1) < -8 || Math.min(y0, y1) > H + 8) continue;
+    const near = clamp((wp.rf - DEEP_R0) / 0.5, 0, 1);
+    const al = wp.al * (0.35 + 0.65 * near) * (1 + dive * 2.2); // the jump stretches them hot
+    const col = wp.warm ? '255,226,190' : '206,230,255';
+    const grd = ctx.createLinearGradient(x0, y0, x1, y1);
+    grd.addColorStop(0, `rgba(${col},0)`);
+    grd.addColorStop(0.4, `rgba(${col},${al.toFixed(3)})`);
+    grd.addColorStop(1, `rgba(${col},0)`);
+    ctx.strokeStyle = grd;
+    ctx.lineWidth = wp.w * (0.7 + wp.rf * 0.5);
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
   }
   // --- the slow starfield ---
   for (const st of deepStars) {
