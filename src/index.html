@@ -6003,60 +6003,130 @@ function laneProgress() {
   if (endless) return clamp(levelT / 150, 0, 1);
   return L ? clamp(levelT / L.duration, 0, 1) : 0;
 }
+// The world is rendered PER PIXEL, into a cached sprite. Canvas gradients cannot
+// make a sphere: a radial gradient is a flat falloff, and offsetting its centre
+// toward the light only fakes the direction, never the FORM. What reads as 3D is
+// three things a gradient cannot express —
+//
+//   1. real surface normals, so brightness follows N·L and the terminator lands
+//      where the geometry says it does instead of wherever a colour stop sits;
+//   2. limb darkening, because a real sphere dims toward its edge;
+//   3. bands that follow LATITUDE ON A TILTED AXIS. That tilt is the whole trick:
+//      latitude contours on a tilted sphere project as CURVES, which is what tells
+//      the eye it is looking at a ball. On a screen-aligned axis they come out as
+//      flat horizontal stripes and it reads as a painted disc.
+//
+// It is at most ~40px across, so this is a few thousand pixels, and it is cached
+// until the radius changes by a whole pixel — so a run rebuilds it a few dozen
+// times total, not every frame.
+let planetSprite = null, planetSpriteR = -1;
+function buildPlanetSprite(R) {
+  const pad = Math.max(3, Math.round(R * 0.85));   // room for the atmosphere
+  const S = Math.ceil(R * 2 + pad * 2);
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const c = cv.getContext('2d');
+  // Guarded: the headless test harness (and any stubbed 2D context) has no real
+  // ImageData. Fall back to a gradient disc there rather than throwing — it will
+  // never be seen, but drawFarGlow must not be able to take the frame down.
+  const img = c && c.createImageData && c.createImageData(S, S);
+  if (!img || !img.data) return null;
+  const D = img.data;
+  const cx = S / 2, cy = S / 2;
+  // the one world key light, pushed a little toward the viewer so the terminator
+  // falls across the visible face rather than exactly on the limb
+  let lx = Math.cos(LIGHT_A), ly = Math.sin(LIGHT_A), lz = 0.42;
+  const ln = Math.hypot(lx, ly, lz); lx /= ln; ly /= ln; lz /= ln;
+  // the spin axis, deliberately TILTED — see (3) above
+  let ax = 0.27, ay = -0.89, az = 0.36;
+  const an = Math.hypot(ax, ay, az); ax /= an; ay /= an; az /= an;
+  const padN = pad / R;
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const dx = (x - cx) / R, dy = (y - cy) / R;
+      const d2 = dx * dx + dy * dy;
+      const i4 = (y * S + x) * 4;
+      if (d2 <= 1) {
+        const nz = Math.sqrt(1 - d2);
+        const ndl = Math.max(0, dx * lx + dy * ly + nz * lz);
+        const limb = 0.45 + 0.55 * nz;                       // (2)
+        const lat = dx * ax + dy * ay + nz * az;             // (3)
+        const b1 = 0.5 + 0.5 * Math.sin(lat * 8.5);
+        const b2 = 0.5 + 0.5 * Math.sin(lat * 19.0 + 1.4);
+        const b3 = 0.5 + 0.5 * Math.sin(lat * 41.0 + 0.3);
+        const band = b1 * (0.62 + 0.38 * b2) * (0.85 + 0.15 * b3);
+        // warm banded body: pale zones over rust belts
+        const rr = 214 - 74 * band, gg = 184 - 104 * band, bb = 150 - 92 * band;
+        const lit = Math.pow(ndl, 0.85) * limb;              // (1)
+        // a little cool ambient so the night side is a silhouette, not a hole
+        const amb = 0.055;
+        D[i4]     = Math.min(255, rr * lit + 26 * amb * 4);
+        D[i4 + 1] = Math.min(255, gg * lit + 34 * amb * 4);
+        D[i4 + 2] = Math.min(255, bb * lit + 58 * amb * 4);
+        D[i4 + 3] = 255;
+        // atmosphere piling up on the lit limb, brightest where the surface turns away
+        const rim = Math.pow(1 - nz, 2.4) * Math.max(0, ndl) * 210;
+        if (rim > 1) {
+          D[i4]     = Math.min(255, D[i4] + rim * 0.75);
+          D[i4 + 1] = Math.min(255, D[i4 + 1] + rim * 0.86);
+          D[i4 + 2] = Math.min(255, D[i4 + 2] + rim);
+        }
+      } else {
+        // the atmosphere shell outside the disc — only where the sun reaches it
+        const d = Math.sqrt(d2);
+        const t = (d - 1) / padN;
+        if (t >= 1) { D[i4 + 3] = 0; continue; }
+        const fall = Math.exp(-t * 3.6) * (1 - t);
+        const side = Math.max(0, (dx * lx + dy * ly) / d);
+        const a = fall * (0.16 + 0.84 * side) * 175;
+        D[i4] = 140; D[i4 + 1] = 178; D[i4 + 2] = 230;
+        D[i4 + 3] = Math.max(0, Math.min(255, a));
+      }
+    }
+  }
+  c.putImageData(img, 0, 0);
+  return { cv, S, pad };
+}
 function drawFarGlow(far, vr) {
   // 1x at departure, 4x at arrival. The first cut capped at 2x and read as barely
   // moving; at 4x the approach is legible across a run without the world ever
   // getting large enough to fight the threats that are read over it.
   const grow = 1 + laneProgress() * 3;
-  const R = Math.max(1.2, vr * 0.052 * grow);
+  const R = Math.max(2, vr * 0.075 * grow);
   // a slow breath, nothing like the old beacon's 2s pulse — a world does not blink
   const breath = 0.5 + 0.5 * Math.sin(time * 0.7);
 
-  // --- the haze shell: atmosphere, and what replaced the light rays ---
-  const hz = ctx.createRadialGradient(far.x, far.y, R * 0.7, far.x, far.y, R * 5.2);
-  hz.addColorStop(0, `rgba(150,190,240,${(0.085 + 0.02 * breath).toFixed(4)})`);
-  hz.addColorStop(0.35, `rgba(96,140,205,${(0.040 + 0.012 * breath).toFixed(4)})`);
+  // --- the haze shell: what replaced the light rays ---
+  const hz = ctx.createRadialGradient(far.x, far.y, R * 0.8, far.x, far.y, R * 4.6);
+  hz.addColorStop(0, `rgba(150,190,240,${(0.075 + 0.02 * breath).toFixed(4)})`);
+  hz.addColorStop(0.35, `rgba(96,140,205,${(0.034 + 0.012 * breath).toFixed(4)})`);
   hz.addColorStop(1, 'rgba(50,80,150,0)');
   ctx.fillStyle = hz;
-  ctx.beginPath(); ctx.arc(far.x, far.y, R * 5.2, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(far.x, far.y, R * 4.6, 0, TAU); ctx.fill();
 
-  // --- the body: a sphere, not a disc ---
-  // The whole trick is the terminator. A centred gradient reads as a coin; a
-  // gradient whose centre is pushed toward the sun reads as a lit sphere, because
-  // the falloff then runs across the surface the way real light does.
-  const la = LIGHT_A;
-  const lx = Math.cos(la), ly = Math.sin(la);
-  ctx.save();
-  ctx.beginPath(); ctx.arc(far.x, far.y, R, 0, TAU); ctx.clip();
-  ctx.fillStyle = 'rgba(9,14,26,0.95)';               // the dark side
-  ctx.fillRect(far.x - R, far.y - R, R * 2, R * 2);
-  const bg2 = ctx.createRadialGradient(
-    far.x + lx * R * 0.62, far.y + ly * R * 0.62, R * 0.05,
-    far.x, far.y, R * 1.45);
-  bg2.addColorStop(0, `rgba(206,214,232,${(0.72 + 0.08 * breath).toFixed(3)})`);
-  bg2.addColorStop(0.30, 'rgba(132,152,190,0.46)');
-  bg2.addColorStop(0.62, 'rgba(62,82,128,0.20)');
-  bg2.addColorStop(1, 'rgba(14,22,44,0)');
-  ctx.fillStyle = bg2;
-  ctx.fillRect(far.x - R, far.y - R, R * 2, R * 2);
-  // a couple of banded shadings so the surface is not a clean gradient
-  ctx.globalAlpha = 0.16;
-  for (let b = 0; b < 3; b++) {
-    const by = far.y + (b - 1) * R * 0.42;
-    ctx.fillStyle = b === 1 ? 'rgba(150,170,205,1)' : 'rgba(40,58,96,1)';
-    ctx.beginPath();
-    ctx.ellipse(far.x, by, R * 1.02, R * 0.17, 0, 0, TAU);
-    ctx.fill();
+  // --- the body ---
+  const rk = Math.max(2, Math.round(R));
+  if (planetSpriteR !== rk) { planetSprite = buildPlanetSprite(rk); planetSpriteR = rk; }
+  if (planetSprite) {
+    const sp = planetSprite;
+    ctx.drawImage(sp.cv, far.x - sp.S / 2, far.y - sp.S / 2, sp.S, sp.S);
+  } else {
+    // no-ImageData fallback: a lit disc, offset toward the key light
+    const la2 = LIGHT_A;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(far.x, far.y, R, 0, TAU); ctx.clip();
+    ctx.fillStyle = 'rgba(9,14,26,0.95)';
+    ctx.fillRect(far.x - R, far.y - R, R * 2, R * 2);
+    const bg2 = ctx.createRadialGradient(
+      far.x + Math.cos(la2) * R * 0.62, far.y + Math.sin(la2) * R * 0.62, R * 0.05,
+      far.x, far.y, R * 1.45);
+    bg2.addColorStop(0, 'rgba(206,196,176,0.75)');
+    bg2.addColorStop(0.45, 'rgba(132,110,88,0.40)');
+    bg2.addColorStop(1, 'rgba(14,22,44,0)');
+    ctx.fillStyle = bg2;
+    ctx.fillRect(far.x - R, far.y - R, R * 2, R * 2);
+    ctx.restore();
   }
-  ctx.globalAlpha = 1;
-  ctx.restore();
-  // the lit limb: a thin bright arc on the sun side, which is what finally sells
-  // the curvature at this size
-  ctx.save();
-  ctx.strokeStyle = `rgba(210,228,255,${(0.30 + 0.10 * breath).toFixed(3)})`;
-  ctx.lineWidth = Math.max(0.6, R * 0.09);
-  ctx.beginPath(); ctx.arc(far.x, far.y, R * 0.97, la - 1.25, la + 1.25); ctx.stroke();
-  ctx.restore();
 
   // --- glowing grain in the haze: the atmosphere lit from within ---
   // Stateless — each mote is a fixed phase read against the shared clock — so it
@@ -6392,6 +6462,28 @@ function drawStreaks(g, dt) {
       // broad stroke is now a breath of glow rather than a surface, so bursts are
       // allowed to get genuinely wide. Still capped, just far higher.
       const k = Math.min(3.4, lerp(0.6, 1.25, 1 - zH) * st.cal);
+      // THE TAPER — this is what makes a smear a smear.
+      //
+      // Every pass used to be a flat rgba() stroke: uniform alpha from head to
+      // tail, which is a SOLID LINE by construction. No stack of them, however
+      // soft or wide, could ever read as a star's trail, because a trail is
+      // defined by fading out behind the thing making it.
+      //
+      // Each stroke now runs a gradient from the leading end (x1/y1, the star
+      // itself) back to the trailing end (x2/y2, deeper down the bore) where it
+      // reaches zero. One gradient is built per colour the star uses and reused
+      // across the passes that share it, with globalAlpha carrying each pass's
+      // weight — three gradients per star rather than six.
+      const grads = [];
+      const mkGrad = (col) => {
+        const gr = ctx.createLinearGradient(x1, y1, x2, y2);
+        gr.addColorStop(0, `rgba(${col},1)`);       // the star
+        gr.addColorStop(0.12, `rgba(${col},0.92)`);
+        gr.addColorStop(0.42, `rgba(${col},0.42)`); // the trail thinning
+        gr.addColorStop(0.75, `rgba(${col},0.12)`);
+        gr.addColorStop(1, `rgba(${col},0)`);       // gone
+        return gr;
+      };
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.lineCap = 'round';
@@ -6399,10 +6491,13 @@ function drawStreaks(g, dt) {
         const [w, ci, aMul] = LIVE_WARP_PASSES[pi];
         const a2 = al * aMul;
         if (a2 < 0.008) continue;
-        ctx.strokeStyle = `rgba(${ci === 2 ? '255,255,255' : st.tint[ci]},${Math.min(1, a2).toFixed(3)})`;
+        if (!grads[ci]) grads[ci] = mkGrad(ci === 2 ? '255,255,255' : st.tint[ci]);
+        ctx.globalAlpha = Math.min(1, a2);
+        ctx.strokeStyle = grads[ci];
         ctx.lineWidth = w * k;
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
       }
+      ctx.globalAlpha = 1;
       ctx.restore();
     }
     // hot core on the nearest gold particles
