@@ -13311,6 +13311,63 @@ function buildCity() {
 
 }
 
+// A STAR, drawn the way a camera records one.
+//
+// The cartoon version is a filled disc inside a wide even halo — a sticker with a
+// gradient behind it. Three things separate that from a photograph, and none of
+// them is detail:
+//
+//   1. THE FALLOFF IS STEEP. Real glow is roughly a power law: blinding at the
+//      centre, half gone within a fraction of the radius, a long faint skirt after
+//      that. An even gradient over a wide radius reads as a painted circle because
+//      nothing in nature falls off linearly.
+//   2. THE CORE SATURATES TO WHITE. A star's colour lives in its halo; the middle
+//      of any star bright enough to see is clipped white on any sensor. Drawing
+//      the core in the star's own colour is what makes it look like a coloured
+//      dot instead of a light.
+//   3. DIFFRACTION SPIKES. Four thin crossed rays, from the optics rather than the
+//      star. Nothing else says "this is a photograph of space" so cheaply — and
+//      only bright stars get them, which is itself the cue that reads as exposure.
+function drawStarPoint(x, y, coreR, hot, tint, bright) {
+  const gr = coreR * 9;
+  const gg = ctx.createRadialGradient(x, y, 0, x, y, gr);
+  gg.addColorStop(0.00, `rgba(${hot},${(0.95 * bright).toFixed(3)})`);
+  gg.addColorStop(0.05, `rgba(${hot},${(0.55 * bright).toFixed(3)})`);
+  gg.addColorStop(0.13, `rgba(${tint},${(0.22 * bright).toFixed(3)})`);
+  gg.addColorStop(0.30, `rgba(${tint},${(0.065 * bright).toFixed(3)})`);
+  gg.addColorStop(0.62, `rgba(${tint},${(0.016 * bright).toFixed(3)})`);
+  gg.addColorStop(1.00, `rgba(${tint},0)`);
+  ctx.fillStyle = gg;
+  ctx.beginPath(); ctx.arc(x, y, gr, 0, TAU); ctx.fill();
+  // the clipped white core — small, and never a hard-edged disc
+  const cg = ctx.createRadialGradient(x, y, 0, x, y, Math.max(0.7, coreR * 1.5));
+  cg.addColorStop(0, `rgba(255,255,255,${Math.min(1, 0.98 * bright).toFixed(3)})`);
+  cg.addColorStop(0.55, `rgba(${hot},${(0.6 * bright).toFixed(3)})`);
+  cg.addColorStop(1, `rgba(${hot},0)`);
+  ctx.fillStyle = cg;
+  ctx.beginPath(); ctx.arc(x, y, Math.max(0.7, coreR * 1.5), 0, TAU); ctx.fill();
+  // spikes: only where the exposure would blow out
+  if (bright > 0.55 && coreR > 0.9) {
+    const L = coreR * 13, w = Math.max(0.5, coreR * 0.22);
+    ctx.save();
+    ctx.translate(x, y);
+    for (let k = 0; k < 2; k++) {
+      ctx.rotate(k * Math.PI / 2);
+      const sg = ctx.createLinearGradient(-L, 0, L, 0);
+      sg.addColorStop(0, `rgba(${tint},0)`);
+      sg.addColorStop(0.36, `rgba(${tint},${(0.16 * bright).toFixed(3)})`);
+      sg.addColorStop(0.5, `rgba(255,255,255,${(0.5 * bright).toFixed(3)})`);
+      sg.addColorStop(0.64, `rgba(${tint},${(0.16 * bright).toFixed(3)})`);
+      sg.addColorStop(1, `rgba(${tint},0)`);
+      ctx.fillStyle = sg;
+      ctx.beginPath();
+      ctx.moveTo(-L, 0); ctx.lineTo(0, -w); ctx.lineTo(L, 0); ctx.lineTo(0, w);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 // Stars, cordons and labels, drawn LIVE at screen resolution — everything with an
 // EDGE. `tf` maps world to screen (sx = tf.ox + x * tf.z); the map lens and the
 // briefing disc's crop each supply one, so both views share this single pass and
@@ -13325,16 +13382,17 @@ function drawGalaxyOverlay(tf, ccx, ccy, R, labels) {
     const sx = tf.ox + st.x * z, sy = tf.oy + st.y * z;
     if (Math.hypot(sx - ccx, sy - ccy) > R + pad) continue;   // a star has no extent
     if (st.big) {
-      const gg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 10 * z);
-      gg.addColorStop(0, `rgba(${st.c},${(st.a * 0.42).toFixed(3)})`);
-      gg.addColorStop(1, `rgba(${st.c},0)`);
-      ctx.fillStyle = gg;
-      ctx.beginPath(); ctx.arc(sx, sy, 10 * z, 0, TAU); ctx.fill();
+      // the few bright ones get the full treatment, spikes included
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      drawStarPoint(sx, sy, Math.max(0.7, st.r * z * 0.75), st.c, st.c, Math.min(1, st.a * 1.15));
+      ctx.restore();
+    } else {
+      ctx.fillStyle = `rgba(${st.c},${st.a.toFixed(3)})`;
+      // never below a pixel — a sub-pixel star is a grey smear, and a field of
+      // smears is the mush we are getting rid of
+      ctx.beginPath(); ctx.arc(sx, sy, Math.max(0.55, st.r * z), 0, TAU); ctx.fill();
     }
-    ctx.fillStyle = `rgba(${st.c},${st.a.toFixed(3)})`;
-    // never below a pixel — a sub-pixel star is a grey smear, and a field of
-    // smears is the mush we are getting rid of
-    ctx.beginPath(); ctx.arc(sx, sy, Math.max(0.55, st.r * z), 0, TAU); ctx.fill();
   }
   const cx2 = tf.ox + CITY_CORE.x * z, cy2 = tf.oy + CITY_CORE.y * z;
   const ell = r => { ctx.beginPath(); ctx.ellipse(cx2, cy2, r * z, r * 0.5 * z, 0, 0, TAU); };
@@ -13424,17 +13482,8 @@ function drawSystemsLive(wx, wy, z, ccx, ccy, R) {
         ctx.beginPath(); ctx.arc(px, py, Math.max(0.5, pr), 0, TAU); ctx.fill();
       }
     }
-    // the star: a glow with a hot point in it, never a drawn disc
     ctx.globalCompositeOperation = 'lighter';
-    const gr = sy.cls.r * 7 * z;
-    const gg = ctx.createRadialGradient(sx, syy, 0, sx, syy, gr);
-    gg.addColorStop(0, `rgba(${sy.cls.g},0.55)`);
-    gg.addColorStop(0.35, `rgba(${sy.cls.g},0.16)`);
-    gg.addColorStop(1, `rgba(${sy.cls.g},0)`);
-    ctx.fillStyle = gg;
-    ctx.beginPath(); ctx.arc(sx, syy, gr, 0, TAU); ctx.fill();
-    ctx.fillStyle = `rgba(${sy.cls.c},1)`;
-    ctx.beginPath(); ctx.arc(sx, syy, Math.max(0.6, sy.cls.r * z), 0, TAU); ctx.fill();
+    drawStarPoint(sx, syy, Math.max(0.55, sy.cls.r * z * 0.62), sy.cls.c, sy.cls.g, 1);
     ctx.globalCompositeOperation = 'source-over';
     // an installation off an outer orbit, on some systems
     if (sy.station && sy.planets.length) {
