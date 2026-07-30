@@ -62,6 +62,7 @@ function readGame() {
 // One literal, formatted the way the source already writes them: numbers keep
 // their meaning without trailing float noise, arrays stay on one line.
 function lit(v) {
+  if (v === null) return 'null';
   if (Array.isArray(v)) return '[' + v.map(lit).join(', ') + ']';
   if (typeof v === 'string') return "'" + v.replace(/'/g, "\\'") + "'";
   if (typeof v === 'number') {
@@ -75,13 +76,16 @@ function lit(v) {
 // holds without caring how the number was typed.
 function unlit(text) {
   const t = text.trim();
+  if (t === 'null') return 'null';
   if (t[0] === '[') return JSON.stringify(JSON.parse(t));
   if (t[0] === "'") return JSON.stringify(t.slice(1, -1).replace(/\\'/g, "'"));
   return JSON.stringify(Number(t));
 }
 
+// `null` is in the alternation because a station has no iris — the key is present
+// and must still round-trip, it just has nothing in it.
 const KEY_VAL = key =>
-  new RegExp('(\\b' + key + '\\s*:\\s*)(\\[[^\\]]*\\]|\'[^\']*\'|-?\\d*\\.?\\d+)');
+  new RegExp('(\\b' + key + '\\s*:\\s*)(\\[[^\\]]*\\]|\'[^\']*\'|null|-?\\d*\\.?\\d+)');
 
 // Where a line's code ends and its trailing comment begins. Needed twice below,
 // and for the same reason both times: the comments in DEST-DATA are prose, and
@@ -143,15 +147,15 @@ function constSpan(src, name) {
   throw new Error(`${name} never terminates`);
 }
 
-// PLANET_TYPES is an array of one-line entries keyed by id. Each entry is found
-// by its id and patched in place, so reordering or adding worlds by hand outside
-// the lab stays safe.
-function patchPlanetTypes(span, list) {
+// PLANET_TYPES and RING_KINDS are both collections of ONE-LINE entries carrying
+// their own id. Each entry is found by that id and patched in place, so
+// reordering — or adding a world by hand outside the lab — stays safe.
+function patchById(span, entries) {
   let out = span;
-  for (const p of list) {
+  for (const p of entries) {
     const marker = "id: '" + p.id + "'";
     const at = out.indexOf(marker);
-    if (at < 0) throw new Error(`no world with id ${p.id}`);
+    if (at < 0) throw new Error(`no entry with id ${p.id}`);
     const ls = out.lastIndexOf('\n', at) + 1;
     let le = out.indexOf('\n', at);
     if (le < 0) le = out.length;
@@ -160,7 +164,7 @@ function patchPlanetTypes(span, list) {
   return out;
 }
 
-const SINGLES = ['PLANET_STAR', 'PLANET_SHADE', 'STATION_SPEC', 'GATE_SPEC', 'FIELD_SPEC', 'DEST_MIX'];
+const SINGLES = ['PLANET_STAR', 'PLANET_SHADE', 'RING_SHADE', 'DEST_MIX', 'DEST_LIFE'];
 
 function writeGame(payload) {
   const src = readGame();
@@ -173,7 +177,11 @@ function writeGame(payload) {
 
   if (payload.PLANET_TYPES) {
     const s = constSpan(body, 'PLANET_TYPES');
-    body = body.slice(0, s.start) + patchPlanetTypes(body.slice(s.start, s.end), payload.PLANET_TYPES) + body.slice(s.end);
+    body = body.slice(0, s.start) + patchById(body.slice(s.start, s.end), payload.PLANET_TYPES) + body.slice(s.end);
+  }
+  if (payload.RING_KINDS) {
+    const s = constSpan(body, 'RING_KINDS');
+    body = body.slice(0, s.start) + patchById(body.slice(s.start, s.end), Object.values(payload.RING_KINDS)) + body.slice(s.end);
   }
   for (const name of SINGLES) {
     if (!payload[name]) continue;
@@ -208,10 +216,13 @@ http.createServer((req, res) => {
     try {
       const src = readGame();
       return send(res, 200, TYPES['.json'], JSON.stringify({
+        rng: region(src, 'DEST-RNG'),
         data: region(src, 'DEST-DATA'),
         pick: region(src, 'DEST-PICK'),
+        kind: region(src, 'DEST-KIND'),
+        ring: region(src, 'DEST-RING'),
         sprite: region(src, 'DEST-SPRITE'),
-        art: region(src, 'DEST-ART')
+        life: region(src, 'DEST-LIFE')
       }));
     } catch (e) { return send(res, 500, 'text/plain', e.message); }
   }

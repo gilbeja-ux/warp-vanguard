@@ -3966,6 +3966,7 @@ function startEndless() {
 }
 // DAILY STREAM: one seeded endless run per calendar day — same stream for
 // everyone, chase the best, keep the streak alive
+// >>> DEST-RNG
 function mulberry32(a) {
   return function () {
     a |= 0; a = a + 0x6D2B79F5 | 0;
@@ -3974,6 +3975,7 @@ function mulberry32(a) {
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
 }
+// <<< DEST-RNG
 function startDaily() {
   const dayN = Math.floor(Date.now() / 864e5);
   Math.random = mulberry32((dayN * 2654435761) >>> 0);
@@ -6173,35 +6175,27 @@ const PLANET_SHADE = {
   shellSide: 0.16,   // how much shell survives on the unlit side
   shellA: 175        // shell peak alpha
 };
-// Stations are machined, so they are DRAWN, not shaded per pixel — which means
-// one function serves the 20px chip on the chart and the full body at the end of
-// the bore. Every number is a fraction of R so it survives that scale jump.
-const STATION_SPEC = {
-  id: 'STN', n: 'station',
-  spin: 1.7,                                        // seed → fixed rotation
-  ringA: [0.92, 0.34], ringW: 0.10, ringC: '196,216,240', ringO: 0.85, // the habitat ring
-  ringB: [0.62, 0.22], ring2W: 0.07, ring2C: '150,176,210', ring2O: 0.55,
-  spine: 0.85, spineW: 0.13, spineC: '206,224,246', spineO: 0.9,
-  wingY: 0.62, wingW: 1.56, wingH: 0.14, wingC: '120,146,180', wingO: 0.9, // solar wings
-  wins: 5, winR: 0.075, winC: '255,214,120', winO: 0.95  // lit windows riding the ring
+// STATIONS AND GATES. Both are a TORUS — what separates them is proportion and
+// what stands in the throat — so ONE shaded sprite serves both. sq is how hard
+// the tilt squashes the ring, `ring` is the tube's orbit, `tube` its thickness.
+// A gate has an iris and no hub; a station has a pressurised core and lit ports.
+const RING_KINDS = {
+  station: { id: 'STN', n: 'station', sq: 0.40, ring: 0.60, tube: 0.17, metal: [176, 192, 214], spec: 12, hub: 1, win: 1, iris: null },
+  gate:    { id: 'GAT', n: 'gate',    sq: 0.46, ring: 0.74, tube: 0.13, metal: [150, 168, 196], spec: 18, hub: 0, win: 0, iris: [110, 236, 218] }
 };
-// A gate is a torus with energy standing in its throat. The segment gaps are what
-// stop it reading as a plain drawn circle — it has to look built.
-const GATE_SPEC = {
-  id: 'GAT', n: 'gate',
-  segs: 8, gap: 0.06, torusR: 0.86, torusW: 0.17, torusC: '178,200,232', torusO: 0.9,
-  irisR: 0.72, irisC0: '150,242,228', irisA0: 0.42,
-  irisC1: '96,224,208', irisA1: 0.20, irisStop: 0.55,
-  arcs: 3, arcR: 0.55, arcLen: 1.1, arcW: 0.05, arcC: '180,250,238', arcO: 0.5, spin: 0.35
-};
-// Scenery only — you fly THROUGH a field, you never arrive at one, so it is never
-// a mission endpoint. No silhouette of its own: just a drift of rocks.
-const FIELD_SPEC = {
-  id: 'FLD', n: 'field',
-  rocks: 22, spread: 0.6, flatten: 0.55,
-  szMin: 0.045, szVar: 0.10,
-  warmP: 0.3, warmC: '188,164,140', coldC: '150,166,190',
-  aMin: 0.30, aVar: 0.5
+// The torus shading model, shared by both kinds — the ring's equivalent of
+// PLANET_SHADE, and separate for the same reason: these are the dials that move
+// stations and gates TOGETHER.
+const RING_SHADE = {
+  id: 'RSH',
+  lz: 0.55,          // key light pushed toward the viewer, as the worlds do it
+  amb: 0.16,         // how much metal survives where the tube faces away
+  specK: 235,        // highlight strength (its tightness is per-kind, K.spec)
+  winN: 9,           // lit ports spaced around the rim
+  winP: 26,          // how tight each port is — higher is a smaller, harder light
+  winC: [210, 150, 60],
+  irisP: 1.7, irisK: 150, irisA: 26,     // energy in the throat: curve, strength, floor
+  hubR: 0.30, hubAmb: 0.18, hubC: [196, 208, 226]
 };
 // How often each kind turns up as a mission endpoint, out of 100. Gates take
 // whatever planets and stations leave — so these two are the whole dial.
@@ -6224,7 +6218,7 @@ const DEST_LIFE = {
   moonR: 0.15, moonO: [1.5, 2.15], moonPer: [48, 104], moonC: '198,192,180',
   shipN: 4, shipO: 0.9, shipC: '255,230,196', shipPer: [26, 62],
   stnR: 0.085, stnO: [1.2, 1.55], stnPer: [74, 140],
-  twinkle: 0.3, blinkP: 0.08       // deep-sky scintillation depth, and how many are slow blinkers
+  twinkle: 0.34, blinkP: 0.14      // deep-sky scintillation depth, and how many are slow blinkers
 };
 // <<< DEST-DATA
 // >>> DEST-PICK
@@ -6265,10 +6259,10 @@ function planetVariant() {
 // edge, through straight at the viewer across its middle, to inward at its inner
 // edge. Shade that against the same world key light every other body obeys and it
 // stops being a drawing and starts being an object.
-const RING_KINDS = {
-  station: { sq: 0.40, ring: 0.60, tube: 0.17, metal: [176, 192, 214], spec: 12, hub: 1, win: 1, iris: null },
-  gate:    { sq: 0.46, ring: 0.74, tube: 0.13, metal: [150, 168, 196], spec: 18, hub: 0, win: 0, iris: [110, 236, 218] }
-};
+// >>> DEST-RING
+// The lab lifts this region verbatim. It may reach only TAU, LIGHT_A, ctx,
+// RING_KINDS and RING_SHADE — every constant that used to be loose in the loop
+// now lives in RING_SHADE so the lab can drive the shading itself.
 const ringChips = {};
 function buildRingSprite(R, K) {
   const S = Math.ceil(R * 2.3);
@@ -6278,9 +6272,11 @@ function buildRingSprite(R, K) {
   const img = c && c.createImageData && c.createImageData(S, S);
   if (!img || !img.data) return null;              // stubbed context: no ImageData
   const D = img.data, cx = S / 2, cy = S / 2;
-  let lx = Math.cos(LIGHT_A), ly = Math.sin(LIGHT_A), lz = 0.55;
+  const H = RING_SHADE;
+  let lx = Math.cos(LIGHT_A), ly = Math.sin(LIGHT_A), lz = H.lz;
   const ln = Math.hypot(lx, ly, lz); lx /= ln; ly /= ln; lz /= ln;
   const [m0, m1, m2] = K.metal;
+  const [w0, w1, w2] = H.winC, [c0, c1, c2] = H.hubC;
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       const i4 = (y * S + x) * 4;
@@ -6291,26 +6287,26 @@ function buildRingSprite(R, K) {
         const nz = Math.sqrt(1 - q * q);
         const nx = (u / d) * q, ny = (v / d) * q;
         const diff = Math.max(0, nx * lx + ny * ly + nz * lz);
-        const spec = Math.pow(diff, K.spec) * 235;
-        const k2 = 0.16 + 0.84 * diff;
+        const spec = Math.pow(diff, K.spec) * H.specK;
+        const k2 = H.amb + (1 - H.amb) * diff;
         let r8 = m0 * k2 + spec, g8 = m1 * k2 + spec, b8 = m2 * k2 + spec;
         if (K.win) {                                       // lit ports around the rim
           const az = Math.atan2(v, u);
-          const w = Math.pow(Math.max(0, Math.sin(az * 9)), 26) * (1 - Math.abs(q));
-          r8 += w * 210; g8 += w * 150; b8 += w * 60;
+          const w = Math.pow(Math.max(0, Math.sin(az * H.winN)), H.winP) * (1 - Math.abs(q));
+          r8 += w * w0; g8 += w * w1; b8 += w * w2;
         }
         D[i4] = Math.min(255, r8); D[i4 + 1] = Math.min(255, g8); D[i4 + 2] = Math.min(255, b8);
         D[i4 + 3] = 255;
       } else if (K.iris && d < K.ring - K.tube) {          // energy standing in the throat
         const t = d / (K.ring - K.tube);
-        const a = Math.pow(1 - t, 1.7) * 150 + 26;
+        const a = Math.pow(1 - t, H.irisP) * H.irisK + H.irisA;
         D[i4] = K.iris[0]; D[i4 + 1] = K.iris[1]; D[i4 + 2] = K.iris[2];
         D[i4 + 3] = Math.min(255, a);
-      } else if (K.hub && d < 0.30) {                       // the pressurised core
-        const nz2 = Math.sqrt(Math.max(0, 1 - (d / 0.30) * (d / 0.30)));
-        const diff = Math.max(0, (u / 0.30) * lx + (v / 0.30) * ly + nz2 * lz);
-        const k2 = 0.18 + 0.82 * diff;
-        D[i4] = Math.min(255, 196 * k2); D[i4 + 1] = Math.min(255, 208 * k2); D[i4 + 2] = Math.min(255, 226 * k2);
+      } else if (K.hub && d < H.hubR) {                     // the pressurised core
+        const nz2 = Math.sqrt(Math.max(0, 1 - (d / H.hubR) * (d / H.hubR)));
+        const diff = Math.max(0, (u / H.hubR) * lx + (v / H.hubR) * ly + nz2 * lz);
+        const k2 = H.hubAmb + (1 - H.hubAmb) * diff;
+        D[i4] = Math.min(255, c0 * k2); D[i4 + 1] = Math.min(255, c1 * k2); D[i4 + 2] = Math.min(255, c2 * k2);
         D[i4 + 3] = 255;
       } else D[i4 + 3] = 0;
     }
@@ -6329,6 +6325,7 @@ function drawRingBody(x, y, R, kind) {
   ctx.drawImage(chip.cv, x - w / 2, y - w / 2, w, w);
   return true;
 }
+// <<< DEST-RING
 const PLANET_CHIP_R = 24;
 const planetChips = {};
 function planetChip(V) {
@@ -6526,6 +6523,10 @@ function drawFarMotes(far, R, grow, breath, moteK) {
 }
 
 // ---------- WHAT LIVES AT THE DESTINATION ----------
+// >>> DEST-LIFE
+// The lab lifts this whole region so it can stage a real arrival. It may reach
+// only TAU, clamp, time, ctx, mulberry32, LIGHT_A, PLANET_SHADE, DEST_LIFE,
+// destKindFor, drawRingBody, and the CAMP / levelIdx / LV the relay is chosen by.
 //
 // The arrival made the world big; this is what stops it being a poster of a
 // world. Each relay is dealt a HAND from the deck below, off its own hash stream
@@ -6771,6 +6772,7 @@ function drawDestLife(far, R, g, front, la) {
   if (F.moon && orbitAt(F.moon, far, R).front) drawMoon(far, R, la, F, vis);
   if (F.stn && orbitAt(F.stn, far, R).front) drawOrbitStation(far, R, F, vis);
 }
+// <<< DEST-LIFE
 
 // ---------- AMBIENT TRAFFIC: other people are out here ----------
 //
@@ -6789,16 +6791,16 @@ function drawDestLife(far, R, g, front, la) {
 const AMB_SHIPS = [];
 function initAmbTraffic() {
   AMB_SHIPS.length = 0;
-  const n = lowFX ? 3 : 7;
+  const n = lowFX ? 4 : 10;
   for (let i = 0; i < n; i++) {
-    const far2 = Math.random() < 0.6;               // most are distant specks
+    const far2 = Math.random() < 0.55;              // most are distant specks
     AMB_SHIPS.push({
       dir: Math.random() * TAU,
-      off: rand(-0.85, 0.85),                       // how far off centre the course runs
-      per: far2 ? rand(70, 150) : rand(34, 72),     // seconds to cross the frame
+      off: rand(-0.9, 0.9),                         // how far off centre the course runs
+      per: far2 ? rand(55, 120) : rand(28, 60),     // seconds to cross the frame
       ph: Math.random(),
-      sz: far2 ? rand(0.7, 1.1) : rand(1.2, 2.0),
-      al: far2 ? rand(0.20, 0.42) : rand(0.45, 0.8),
+      sz: far2 ? rand(0.9, 1.4) : rand(1.6, 2.6),
+      al: far2 ? rand(0.30, 0.55) : rand(0.6, 0.95),
       warm: Math.random() < 0.35,
       // a convoy reads as INDUSTRY where a single speck reads as an anomaly
       convoy: Math.random() < 0.3 ? 2 + ((Math.random() * 3) | 0) : 0,
@@ -6809,7 +6811,13 @@ function initAmbTraffic() {
 initAmbTraffic();
 function drawAmbTraffic(g) {
   if (!AMB_SHIPS.length) return;
-  const D = Math.hypot(W, H) * 0.62;
+  // TWO different scales, and conflating them is what made the first cut invisible.
+  // ALONG the course, the run has to start and finish well off-frame, so it is
+  // measured in diagonals. ACROSS it, the course must actually intersect the
+  // VISIBLE frame — scaled by the same diagonal, an offset of 0.8 put the whole
+  // crossing off the side of the screen, and six of seven ships never appeared.
+  const D = Math.hypot(W, H) * 0.62;   // along-track: enters and leaves out of frame
+  const P = Math.min(W, H) * 0.42;     // cross-track: the lane stays on screen
   // during play they pull right back: the colour rule owns the lane, and nothing
   // ambient may compete with a threat for the eye
   const k = state === S.PLAY || state === S.PAUSE || state === S.INFO ? 0.35 : 1;
@@ -6827,10 +6835,17 @@ function drawAmbTraffic(g) {
       const lead = t0 - c * s.gap;
       for (let w = 0; w < 3; w++) {                        // hull, then its wake
         const tw = lead - w * 0.022;
-        const x = g.cx + (tw * ca - s.off * sa) * D;
-        const y = g.cy + (tw * sa + s.off * ca) * D;
+        const x = g.cx + tw * ca * D - s.off * sa * P;
+        const y = g.cy + tw * sa * D + s.off * ca * P;
         if (x < -20 || x > W + 20 || y < -20 || y > H + 20) continue;
         const al = base * (c ? 0.6 : 1) * (w ? 0.22 / w : 1);
+        if (!w) { // a running light, not a dot: the glow is what makes it read at this size
+          const gl = ctx.createRadialGradient(x, y, 0, x, y, s.sz * 4);
+          gl.addColorStop(0, `rgba(${col},${(al * 0.5).toFixed(3)})`);
+          gl.addColorStop(1, `rgba(${col},0)`);
+          ctx.fillStyle = gl;
+          ctx.beginPath(); ctx.arc(x, y, s.sz * 4, 0, TAU); ctx.fill();
+        }
         ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
         ctx.beginPath(); ctx.arc(x, y, s.sz * (1 - w * 0.2), 0, TAU); ctx.fill();
       }
@@ -7161,9 +7176,14 @@ function drawDeepField(g, dt) {
     if (px < -4 || px > W + 4 || py < -4 || py > H + 4) continue;
     // fades up out of the deep AND back down before the recycle edge — both ends
     const near = clamp((st.rf - DEEP_R0) / 0.5, 0, 1) * clamp((DEEP_R1 - st.rf) / DEEP_FADE, 0, 1);
+    // PARKED, THE SKY IS THE SHOW. Under way there is a lane full of traffic to
+    // read and a deep twinkle would just be flicker in the corner of the eye, so
+    // the depth scales with how stopped we are — on a menu it runs at full swing,
+    // which is the difference between a backdrop and a night sky.
+    const depth = DEST_LIFE.twinkle * (1 + (1 - laneFlow));
     const tw = st.blink
-      ? 0.25 + 0.75 * Math.pow(0.5 + 0.5 * Math.sin(time * st.tw * 0.35 + st.tp), 4) // long dark, brief return
-      : 1 - DEST_LIFE.twinkle + DEST_LIFE.twinkle * (0.5 + 0.5 * Math.sin(time * st.tw + st.tp));
+      ? 0.12 + 0.88 * Math.pow(0.5 + 0.5 * Math.sin(time * st.tw * 0.35 + st.tp), 4) // long dark, brief return
+      : 1 - depth + depth * (0.5 + 0.5 * Math.sin(time * st.tw + st.tp));
     const al = st.al * (0.45 + 0.55 * near) * tw;
     ctx.fillStyle = st.warm ? `rgba(255,214,170,${al.toFixed(3)})` : `rgba(216,236,255,${al.toFixed(3)})`;
     ctx.beginPath(); ctx.arc(px, py, st.sz * (0.7 + st.rf * 0.45), 0, TAU); ctx.fill();
@@ -11998,6 +12018,10 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
       const sx2 = clamp(cx2 - sw2 / 2, 0, Math.max(0, CITY_W - sw2));
       const sy2 = clamp(cy2 - sh2 / 2, 0, Math.max(0, CITY_H - sh2));
       ctx.drawImage(cityBase, sx2 * BASE_K, sy2 * BASE_K, sw2 * BASE_K, sh2 * BASE_K, x - r, y - r, r * 2, mh);
+      // the disc shares the live overlay, so its crop gets the same sharp stars,
+      // cordons and type the lens does — one pass, no second version to drift
+      { const dz = (r * 2) / sw2;
+        drawGalaxyOverlay({ ox: (x - r) - sx2 * dz, oy: (y - r) - sy2 * dz, z: dz }, x, y, r); }
     }
   }
   if (real) { // dashed route with relay pips, west to east like the real map
@@ -12664,7 +12688,7 @@ let CITY_CHAINS = [];
 // TOP (the building wireframe). The live route draws between them, so the data
 // infrastructure reads as underground — ghosting through the towers.
 // ---------- DESTINATION KINDS ----------
-// >>> DEST-ART
+// >>> DEST-KIND
 // A relay delivers to a place, and places are not all planets. Kind is chosen
 // deterministically from campaign + level, exactly like the planet variant, so
 // the chart and the end of the lane always agree about what is out there.
@@ -12681,14 +12705,7 @@ function destKindFor(campId, lv, isBoss) {
   return q < DEST_MIX.planet ? 'planet'
     : q < DEST_MIX.planet + DEST_MIX.station ? 'station' : 'gate';
 }
-// Vector-drawn destinations. Stations and gates are machined objects, so they are
-// drawn rather than shaded per pixel — and drawing them means the SAME function
-// serves the 20px chip on the chart and the full-size body at the end of the
-// bore, which is what stops the two from ever drifting apart.
-//
-// The destinations lab lifts this region verbatim and runs it against the live
-// spec tables, so what the lab shows is what the game draws. Nothing in here may
-// reach outside TAU, clamp and its own SPEC.
+// <<< DEST-KIND
 // (drawStationArt / drawGateArt / drawFieldArt are RETIRED. They were stroked
 // rings with drawn solar panels and scattered rock ellipses — line art, which at
 // chart scale reads as a doodle beside a shaded planet. Stations and gates are
@@ -12738,6 +12755,14 @@ function laneArc(A, B) {
 // lens closes in on one hop, and a run shows roughly 7% of the galaxy.
 const BANDS = [[170, 340], [340, 520], [520, 720], [720, 930], [930, 1150]];
 let SCENERY = [];   // non-mission destinations: the rest of the settled volume
+// THE SPLIT THAT FIXES THE PIXELATION: bake only what has no EDGE.
+//
+// The lens zooms to 2.2x over a half-res sheet — 4.4x magnification. Smooth
+// gradients survive that invisibly, which is why arms, bulge and dust lanes can
+// still bake. Stars, cordon dashes and type cannot: magnified 4.4x a star is a
+// block and a label is mush. Those are DATA now, drawn live at screen
+// resolution, so they stay sharp at any zoom the lens reaches.
+let GAL_STARS = [];
 function buildCity() {
   const rng = mulberry32(0xC17C0DE);
 
@@ -12880,6 +12905,18 @@ function buildCity() {
     mkSystem(CITY_CORE.x + Math.cos(ang2) * rr, CITY_CORE.y + Math.sin(ang2) * rr * 0.5);
   }
   for (const q of pts) mkSystem(q.x, q.y);  // every relay is a system too
+  // the field: generated once, drawn live
+  GAL_STARS = [];
+  const SCOL = ['206,224,255', '255,242,222', '255,212,172', '214,200,255', '190,240,255'];
+  for (let i = 0; i < 9000; i++) {
+    const big = rng() < 0.016;
+    GAL_STARS.push({
+      x: rng() * CITY_W, y: rng() * CITY_H, big,
+      a: big ? 0.45 + rng() * 0.5 : 0.05 + rng() * 0.26,
+      r: big ? 1.6 : 0.28 + rng() * 0.65,
+      c: SCOL[rng() * SCOL.length | 0]
+    });
+  }
 
   // ---------- BASE: the galaxy ----------
   cityBase = document.createElement('canvas');
@@ -12891,22 +12928,6 @@ function buildCity() {
     ctx.clearRect(0, 0, CITY_W, CITY_H);
     ctx.lineCap = 'round';
     ctx.fillStyle = '#010207'; ctx.fillRect(0, 0, CITY_W, CITY_H);
-    // --- the field stars: thousands, so the sheet is never empty anywhere ---
-    const SCOL = ['206,224,255', '255,242,222', '255,212,172', '214,200,255', '190,240,255'];
-    for (let i = 0; i < 9000; i++) {
-      const x2 = rng() * CITY_W, y2 = rng() * CITY_H;
-      const big = rng() < 0.016;
-      const al = big ? 0.45 + rng() * 0.5 : 0.05 + rng() * 0.26;
-      const col = SCOL[rng() * SCOL.length | 0];
-      if (big) {
-        const gg = ctx.createRadialGradient(x2, y2, 0, x2, y2, 10);
-        gg.addColorStop(0, `rgba(${col},${(al * 0.42).toFixed(3)})`);
-        gg.addColorStop(1, `rgba(${col},0)`);
-        ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(x2, y2, 10, 0, TAU); ctx.fill();
-      }
-      ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
-      ctx.beginPath(); ctx.arc(x2, y2, big ? 1.6 : 0.28 + rng() * 0.65, 0, TAU); ctx.fill();
-    }
     // --- the arms: dust and unresolved starlight wound out of the core ---
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -12961,48 +12982,72 @@ function buildCity() {
       }
     }
     cityBloom(cityBase, 3, 0.7);
-    // ---- the patrol cordons, over the galaxy: the escort picket ----
-    const ringCol = i => i < 1 ? '126,226,98' : i < 3 ? '255,200,80' : '255,110,110';
-    const perimeter = (r, col, a) => {
-      ctx.save();
-      ctx.strokeStyle = `rgba(${col},${a.toFixed(2)})`;
-      ctx.lineWidth = 2.2;
-      ctx.setLineDash([18, 12]);
-      isoEllipse(r); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.strokeStyle = `rgba(${col},${(a * 0.26).toFixed(2)})`;
-      ctx.lineWidth = 8;
-      isoEllipse(r); ctx.stroke();
-      ctx.fillStyle = `rgba(${col},${(a * 0.9).toFixed(2)})`;
-      for (let k = 0; k < 30; k++) {
-        const a2 = k / 30 * TAU;
-        ctx.fillRect(CITY_CORE.x + Math.cos(a2) * r - 2, CITY_CORE.y + Math.sin(a2) * r * 0.5 - 2, 4, 4);
-      }
-      ctx.restore();
-    };
-    if (RINGS.length) perimeter(RINGS[0].r0, '126,226,98', 0.75);
-    RINGS.forEach((ring2, i) => {
-      const col = ringCol(i), q = 1 - i / Math.max(1, RINGS.length);
-      perimeter(ring2.r1, col, 0.28 + q * 0.34);
-      const lr = (ring2.r0 + ring2.r1) / 2;
-      const lx = CITY_CORE.x - lr * 0.74, ly = CITY_CORE.y - lr * 0.5 * 0.74 - 6;
-      ctx.textAlign = 'left';
-      ctx.fillStyle = `rgba(${col},${(0.45 + q * 0.35).toFixed(2)})`;
-      ctx.font = '700 11px Audiowide, system-ui';
-      ctx.fillText('CORDON 0' + (i + 1) + ' · ' + ring2.name, lx, ly);
-      ctx.fillStyle = 'rgba(150,205,255,0.55)';
-      ctx.font = '500 9px Audiowide, system-ui';
-      ctx.fillText('COVER ' + shieldAt(ring2.r1) + '-' + shieldAt(ring2.r0) + '%', lx, ly + 12);
-    });
-    ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(255,222,160,0.9)';
-    ctx.font = '700 11px Audiowide, system-ui';
-    if (RINGS.length) ctx.fillText(CORE_NAME, CITY_CORE.x - RINGS[0].r0 * 0.5, CITY_CORE.y - RINGS[0].r0 * 0.26 - 7);
-    ctx.fillStyle = 'rgba(255,120,120,0.4)';
-    ctx.font = '700 13px Audiowide, system-ui';
-    ctx.fillText('— ' + DARK_ZONE + ' · NO COVER —', CITY_CORE.x - CITY_W * 0.20, CITY_CORE.y - CITY_H * 0.30);
   });
 
+}
+
+// Stars, cordons and labels, drawn LIVE at screen resolution — everything with an
+// EDGE. `tf` maps world to screen (sx = tf.ox + x * tf.z); the map lens and the
+// briefing disc's crop each supply one, so both views share this single pass and
+// cannot drift apart.
+function drawGalaxyOverlay(tf, ccx, ccy, R) {
+  const z = tf.z, pad = 8;
+  for (const st of GAL_STARS) {
+    const sx = tf.ox + st.x * z, sy = tf.oy + st.y * z;
+    if (Math.hypot(sx - ccx, sy - ccy) > R + pad) continue;
+    if (st.big) {
+      const gg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 10 * z);
+      gg.addColorStop(0, `rgba(${st.c},${(st.a * 0.42).toFixed(3)})`);
+      gg.addColorStop(1, `rgba(${st.c},0)`);
+      ctx.fillStyle = gg;
+      ctx.beginPath(); ctx.arc(sx, sy, 10 * z, 0, TAU); ctx.fill();
+    }
+    ctx.fillStyle = `rgba(${st.c},${st.a.toFixed(3)})`;
+    // never below a pixel — a sub-pixel star is a grey smear, and a field of
+    // smears is the mush we are getting rid of
+    ctx.beginPath(); ctx.arc(sx, sy, Math.max(0.55, st.r * z), 0, TAU); ctx.fill();
+  }
+  const cx2 = tf.ox + CITY_CORE.x * z, cy2 = tf.oy + CITY_CORE.y * z;
+  const ell = r => { ctx.beginPath(); ctx.ellipse(cx2, cy2, r * z, r * 0.5 * z, 0, 0, TAU); };
+  const ringCol = i => i < 1 ? '126,226,98' : i < 3 ? '255,200,80' : '255,110,110';
+  const perimeter = (r, col, a) => {
+    ctx.save();
+    ctx.strokeStyle = `rgba(${col},${a.toFixed(2)})`;
+    ctx.lineWidth = 2.2;
+    ctx.setLineDash([18, 12]);
+    ell(r); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = `rgba(${col},${(a * 0.26).toFixed(2)})`;
+    ctx.lineWidth = 8;
+    ell(r); ctx.stroke();
+    ctx.fillStyle = `rgba(${col},${(a * 0.9).toFixed(2)})`;
+    for (let k = 0; k < 30; k++) {
+      const a2 = k / 30 * TAU;
+      ctx.fillRect(cx2 + Math.cos(a2) * r * z - 2, cy2 + Math.sin(a2) * r * 0.5 * z - 2, 4, 4);
+    }
+    ctx.restore();
+  };
+  if (RINGS.length) perimeter(RINGS[0].r0, '126,226,98', 0.75);
+  RINGS.forEach((ring2, i) => {
+    const col = ringCol(i), q = 1 - i / Math.max(1, RINGS.length);
+    perimeter(ring2.r1, col, 0.28 + q * 0.34);
+    const lr = (ring2.r0 + ring2.r1) / 2;
+    const lx = cx2 - lr * 0.74 * z, ly = cy2 - lr * 0.5 * 0.74 * z - 6;
+    if (Math.hypot(lx - ccx, ly - ccy) > R) return;   // label is off the lens
+    ctx.textAlign = 'left';
+    ctx.fillStyle = `rgba(${col},${(0.45 + q * 0.35).toFixed(2)})`;
+    ctx.font = '700 12px Audiowide, system-ui';
+    ctx.fillText('CORDON 0' + (i + 1) + ' · ' + ring2.name, lx, ly);
+    ctx.fillStyle = 'rgba(150,205,255,0.55)';
+    ctx.font = '500 10px Audiowide, system-ui';
+    ctx.fillText('COVER ' + shieldAt(ring2.r1) + '-' + shieldAt(ring2.r0) + '%', lx, ly + 13);
+  });
+  if (RINGS.length) {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,222,160,0.9)';
+    ctx.font = '700 12px Audiowide, system-ui';
+    ctx.fillText(CORE_NAME, cx2 - RINGS[0].r0 * 0.5 * z, cy2 - RINGS[0].r0 * 0.26 * z - 7);
+  }
 }
 
 // The star systems, drawn LIVE and culled to the lens. They used to be baked into
@@ -13371,6 +13416,7 @@ function drawMenuMap() {
   if (!IM) {
     const bx0 = ccx - mapCamX * mapZoom, by0 = ccy - mapCamY * mapZoom;
     const bw0 = CITY_W * mapZoom, bh0 = CITY_H * mapZoom;
+    drawGalaxyOverlay({ ox: ccx - mapCamX * mapZoom, oy: ccy - mapCamY * mapZoom, z: mapZoom }, ccx, ccy, R);
     drawSystemsLive(wx, wy, mapZoom, ccx, ccy, R);
     // LAYER 4: the selected run again, over the skyline — the line in focus
     drawRun(mapSel);
@@ -13942,6 +13988,7 @@ function perfWatch(rawDt) {
       initStreaks();
       initDeepField();
       initLaneMedium();
+      initAmbTraffic();
     }
     perfAcc = 0; perfN = 0; perfWin = 0;
   }
