@@ -8,9 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#03060e">
 <link rel="manifest" href="manifest.webmanifest?v=3">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/df-192.png?v=6">
-<link rel="icon" type="image/png" sizes="512x512" href="icons/df-512.png?v=6">
-<link rel="apple-touch-icon" href="icons/df-mask-192.png?v=6">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/df-192.png?v=7">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/df-512.png?v=7">
+<link rel="apple-touch-icon" href="icons/df-mask-192.png?v=7">
 <title>Warp Overwatch: Lane Vanguards</title>
 <style>
   :root {
@@ -11823,8 +11823,15 @@ function paintMenuStatic() {
   // where the relay list needs the column)
   ctx.textAlign = 'left';
   if (menuScreen === 'flow' || menuScreen === 'map') { // small brand line up top
+    const sm = brandLogoSmall();
+    let bx = 20 + SAFE.l;
+    if (sm) {
+      const bh2 = 26, bw2 = bh2 * (sm.w / sm.h);
+      ctx.drawImage(sm.img, bx, 6 + SAFE.t, bw2, bh2);
+      bx += bw2 + 8;
+    }
     ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
-    ctx.fillText('WARP OVERWATCH · LANE VANGUARDS', 20 + SAFE.l, 24 + SAFE.t);
+    ctx.fillText('WARP OVERWATCH · LANE VANGUARDS', bx, 24 + SAFE.t);
   }
   if (menuScreen === 'map') {
     // the lens mouth: the ring becomes a viewport over the city
@@ -13758,9 +13765,26 @@ function mapTarget(li) {
   if (campMapImg(CAMP)) return imgPin(li);
   return polyAt(citySegs()[li], 0.5);
 }
-// the shield badge (src/logo.png) — the drawn brand remains the fallback
-// until the file ships alongside the game
-let LOGOIMG = null;
+// The full lockup (src/logo.png) and the badge-only mark (src/logo-small.png).
+// The drawn brand stays as the fallback: a missing file must degrade to type, not
+// to nothing.
+//
+// Filenames are lowercase and hyphenated on purpose. They arrived as "Logo.png"
+// and "Logo - Small.png", which resolves fine on macOS because its filesystem is
+// case-insensitive — and 404s on Linux hosting and inside the Android package,
+// where it would have shipped with no brand at all and no error anyone would see
+// in development.
+let LOGOIMG = null, LOGOSM = null;
+function brandLogoSmall() {
+  if (typeof Image === 'undefined') return null;
+  if (!LOGOSM) {
+    LOGOSM = { img: new Image(), w: 0, h: 0 };
+    LOGOSM.img.onload = () => { LOGOSM.w = LOGOSM.img.naturalWidth || 1; LOGOSM.h = LOGOSM.img.naturalHeight || 1; menuCache = null; };
+    LOGOSM.img.onerror = () => {};
+    LOGOSM.img.src = 'logo-small.png';
+  }
+  return LOGOSM.w ? LOGOSM : null;
+}
 function brandLogo() {
   if (typeof Image === 'undefined') return null;
   if (!LOGOIMG) {

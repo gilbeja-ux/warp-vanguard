@@ -43,10 +43,22 @@ now literal instead of metaphorical, and needs no explaining.
   Same shield with the lettering removed and a **wolf mark** over the bore,
   cyan chevrons top and bottom. Icon = badge only, no wordmark.
 
-**OWED ART.** `src/logo.png` and the icon set still carry DATA DEFENDERS
-lettering and the interlocked gold **DD** monogram. Both are retired. The
-monogram is replaced by the wolf mark rather than a WOLV monogram, because four
-letters do not survive a 48px launcher tile and a wolf silhouette does.
+**SHIPPED (2026-07-31).** `src/logo.png` is the full lockup and
+`src/logo-small.png` is the badge-only mark: a gold-rimmed shield over a receding
+warp bore, with a **W** across it. The bore is still the mark, now drawn rather
+than described.
+
+The icon set is generated FROM the badge, not drawn separately, so the launcher
+tile and the menu badge can never diverge:
+
+- `df-192` / `df-512` (`any`) — badge at 94% of the tile, transparent surround.
+- `df-mask-192` / `df-mask-512` (`maskable`) — badge at **62%** on opaque
+  `#03060e`. Launchers crop maskable icons to a circle or squircle, and 62% is
+  what keeps every corner of the shield inside the tightest of those crops.
+
+Regenerate with the snippet in the commit for 2026-07-31 if the badge changes;
+bump the `?v=` on the `<link rel="icon">` tags at the same time or returning
+players keep the old tile.
 
 The old EMP-emitter mark (coil body, twin prongs, live arc) stays retired.
 
