@@ -13329,44 +13329,65 @@ function buildCity() {
 //      star. Nothing else says "this is a photograph of space" so cheaply — and
 //      only bright stars get them, which is itself the cue that reads as exposure.
 function drawStarPoint(x, y, coreR, hot, tint, bright) {
-  const gr = coreR * 9;
-  const gg = ctx.createRadialGradient(x, y, 0, x, y, gr);
-  gg.addColorStop(0.00, `rgba(${hot},${(0.95 * bright).toFixed(3)})`);
-  gg.addColorStop(0.05, `rgba(${hot},${(0.55 * bright).toFixed(3)})`);
-  gg.addColorStop(0.13, `rgba(${tint},${(0.22 * bright).toFixed(3)})`);
-  gg.addColorStop(0.30, `rgba(${tint},${(0.065 * bright).toFixed(3)})`);
-  gg.addColorStop(0.62, `rgba(${tint},${(0.016 * bright).toFixed(3)})`);
-  gg.addColorStop(1.00, `rgba(${tint},0)`);
-  ctx.fillStyle = gg;
-  ctx.beginPath(); ctx.arc(x, y, gr, 0, TAU); ctx.fill();
-  // the clipped white core — small, and never a hard-edged disc
-  const cg = ctx.createRadialGradient(x, y, 0, x, y, Math.max(0.7, coreR * 1.5));
-  cg.addColorStop(0, `rgba(255,255,255,${Math.min(1, 0.98 * bright).toFixed(3)})`);
-  cg.addColorStop(0.55, `rgba(${hot},${(0.6 * bright).toFixed(3)})`);
-  cg.addColorStop(1, `rgba(${hot},0)`);
+  // LAYERED BLOOM. A real bloom is not one gradient — it is a bright tight one
+  // sitting inside progressively wider, fainter ones. One gradient forces a
+  // choice between a hard little dot (steep) and a flat painted circle (shallow);
+  // three nested ones sum to a soft core with a long, gentle tail and never show
+  // an edge anywhere. Radii and alphas fall roughly geometrically, which is what
+  // makes the sum look like light instead of like a stack of circles.
+  for (const [k, a] of [[3.4, 0.40], [9, 0.115], [22, 0.032], [46, 0.011]]) {
+    const r = coreR * k;
+    if (r < 0.8) continue;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const A = a * bright;
+    g.addColorStop(0.00, `rgba(${tint},${A.toFixed(4)})`);
+    g.addColorStop(0.22, `rgba(${tint},${(A * 0.42).toFixed(4)})`);
+    g.addColorStop(0.52, `rgba(${tint},${(A * 0.13).toFixed(4)})`);
+    g.addColorStop(1.00, `rgba(${tint},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  }
+  // the clipped white core: a star's colour lives in its halo, and the middle of
+  // anything bright enough to see is blown out white on any sensor. Soft-edged —
+  // a hard disc here is the single thing that most says "sticker".
+  const cr = Math.max(0.8, coreR * 2.1);
+  const cg = ctx.createRadialGradient(x, y, 0, x, y, cr);
+  cg.addColorStop(0.00, `rgba(255,255,255,${Math.min(1, 0.92 * bright).toFixed(3)})`);
+  cg.addColorStop(0.35, `rgba(${hot},${(0.55 * bright).toFixed(3)})`);
+  cg.addColorStop(0.70, `rgba(${hot},${(0.14 * bright).toFixed(3)})`);
+  cg.addColorStop(1.00, `rgba(${hot},0)`);
   ctx.fillStyle = cg;
-  ctx.beginPath(); ctx.arc(x, y, Math.max(0.7, coreR * 1.5), 0, TAU); ctx.fill();
-  // spikes: only where the exposure would blow out
-  if (bright > 0.55 && coreR > 0.9) {
-    const L = coreR * 13, w = Math.max(0.5, coreR * 0.22);
+  ctx.beginPath(); ctx.arc(x, y, cr, 0, TAU); ctx.fill();
+  // A WHISPER OF FLARE, not four lines. The spikes were opaque hard-edged quads
+  // and read as a decal stuck on the glow. They are barely-there now — a tenth of
+  // the old alpha, shorter, and drawn as two passes so the width itself fades:
+  // a wide soft one under a narrow brighter one. Only the brightest get any, and
+  // that selectivity is what reads as exposure rather than as decoration.
+  if (bright > 0.78 && coreR > 1.1) {
+    const L = coreR * 9;
     ctx.save();
     ctx.translate(x, y);
     for (let k = 0; k < 2; k++) {
       ctx.rotate(k * Math.PI / 2);
-      const sg = ctx.createLinearGradient(-L, 0, L, 0);
-      sg.addColorStop(0, `rgba(${tint},0)`);
-      sg.addColorStop(0.36, `rgba(${tint},${(0.16 * bright).toFixed(3)})`);
-      sg.addColorStop(0.5, `rgba(255,255,255,${(0.5 * bright).toFixed(3)})`);
-      sg.addColorStop(0.64, `rgba(${tint},${(0.16 * bright).toFixed(3)})`);
-      sg.addColorStop(1, `rgba(${tint},0)`);
-      ctx.fillStyle = sg;
-      ctx.beginPath();
-      ctx.moveTo(-L, 0); ctx.lineTo(0, -w); ctx.lineTo(L, 0); ctx.lineTo(0, w);
-      ctx.closePath(); ctx.fill();
+      for (const [wk, ak] of [[0.95, 0.030], [0.34, 0.075]]) {
+        const w = Math.max(0.4, coreR * wk);
+        const sg = ctx.createLinearGradient(-L, 0, L, 0);
+        const A = ak * bright;
+        sg.addColorStop(0.00, `rgba(${tint},0)`);
+        sg.addColorStop(0.30, `rgba(${tint},${(A * 0.35).toFixed(4)})`);
+        sg.addColorStop(0.50, `rgba(255,255,255,${A.toFixed(4)})`);
+        sg.addColorStop(0.70, `rgba(${tint},${(A * 0.35).toFixed(4)})`);
+        sg.addColorStop(1.00, `rgba(${tint},0)`);
+        ctx.fillStyle = sg;
+        ctx.beginPath();
+        ctx.moveTo(-L, 0); ctx.lineTo(0, -w); ctx.lineTo(L, 0); ctx.lineTo(0, w);
+        ctx.closePath(); ctx.fill();
+      }
     }
     ctx.restore();
   }
 }
+
 
 // Stars, cordons and labels, drawn LIVE at screen resolution — everything with an
 // EDGE. `tf` maps world to screen (sx = tf.ox + x * tf.z); the map lens and the
