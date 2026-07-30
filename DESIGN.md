@@ -1,5 +1,5 @@
 ---
-name: "Data Defenders: Dark Fiber"
+name: "Warp Lane: Vanguard Squadron"
 description: A lit bore in dead space — everything is emitted light, machined metal, or void.
 colors:
   signal-blue: "#50aaff"
@@ -109,13 +109,13 @@ components:
     typography: "{typography.label}"
 ---
 
-# Design System: Data Defenders: Dark Fiber
+# Design System: Warp Lane: Vanguard Squadron
 
 ## Overview
 
 **Creative North Star: "The Lit Bore"**
 
-The world is a dead fiber-optic tunnel, and light is the only material in it. Nothing here is a painted surface — every visible thing is either emitting, catching a single key light, or falling away into void. This is not a stylistic preference; it is the hard-won result of four rejected attempts at painted surfaces (checkerboard carpets, rungs, painted decals, filled hazard planes). Painted fills read as mud at every value in this palette. Luminous bars over a faint additive haze read as real. **Never paint a surface in this world. Draw the light it throws.**
+The world is an unlit warp lane, and light is the only material in it. Nothing here is a painted surface — every visible thing is either emitting, catching a single key light, or falling away into void. This is not a stylistic preference; it is the hard-won result of four rejected attempts at painted surfaces (checkerboard carpets, rungs, painted decals, filled hazard planes). Painted fills read as mud at every value in this palette. Luminous bars over a faint additive haze read as real. **Never paint a surface in this world. Draw the light it throws.**
 
 The register is cold, luminous, and machined. Chrome is glass and light over dark metal: translucent navy fills, luminous header bands, corner brackets that hold a panel rather than decorate it. Everything is built rather than styled — a hairline speculars-on-machined-edges discipline that came directly from photographic reference (lens barrels, plasma discharge tubes, Marx generators) after two rounds of work were rejected as "too cartoony." What made cartoons: flat fills, colored rim-outline strokes, uniform lighting all the way around a circle, and saturated glow arcs. What fixed it: one world key light everything obeys, matte near-black metal with contrast only at machined edges, and no outlines anywhere.
 
@@ -135,13 +135,13 @@ A void-dark field carrying six saturated signal colors, each of which means some
 
 ### Primary
 
-- **Signal Blue** (`#50aaff`): Player node 01, and every interface element that refers to it — dial pad gauge, pulse orb, lock sigils, node glyphs. It is this exact blue — not the lighter chrome cyan — because it must match the blue color-locked tap the player is asked to pair it with. That match is a gameplay rule, so the value is load-bearing and not available for aesthetic tuning.
+- **Signal Blue** (`#50aaff`): Emitter ⊕, and every interface element that refers to it — dial pad gauge, pulse orb, lock sigils, emitter glyphs. It is this exact blue — not the lighter chrome cyan — because it must match the ⊕ phase-locked interdictor the player is asked to pair it with. That match is a gameplay rule, so the value is load-bearing and not available for aesthetic tuning.
 - **Arc White** (`#ffffff`): Player node 02. The two nodes are deliberately a hue and an absence of hue rather than two hues, so they stay distinguishable in peripheral vision at speed.
 
 ### Secondary
 
 - **Chrome Cyan** (`#6fe3ff`): The interface's own light — panel strokes, header bands, corner brackets, briefing-disc rims, callout type. Distinct from Signal Blue: cyan is the *console talking to you*, blue is *your equipment in the world*. Never use Chrome Cyan on anything the player can control or must match.
-- **Breach Red** (`#ff3c5a`): Hostile taps, alarms, hazard bars, and the boss's entire livery. The most common threat color and therefore the baseline the player reads everything else against.
+- **Breach Red** (`#ff3c5a`): Unphased interdictors, alarms, hazard bars, and the warden's entire livery. The most common threat color and therefore the baseline the player reads everything else against.
 
 ### Tertiary
 
@@ -154,7 +154,7 @@ A void-dark field carrying six saturated signal colors, each of which means some
 
 - **Bore Void** (`#020510`): The deep navy-black behind the tunnel wall circuitry. The true base of the world.
 - **Hull Black** (`#03060e`): Document and shell background, and the native theme color. A half-step lighter than Bore Void so the canvas reads as a lit object sitting on a darker frame.
-- **Panel Glass** (`#040e1e` at 92% opacity): Console panel fill. Always translucent — the tunnel must remain faintly visible through interface chrome.
+- **Panel Glass** (`#040e1e` at 92% opacity): Console panel fill. Always translucent — the lane must remain faintly visible through interface chrome.
 - **Null Graphite** (`#2b3242`): Node-killer traps and fragments. Deliberately the calmest, least saturated body in the game — it looks harmless, and touching it fries a node for two seconds. The calm is the trap.
 - **Readout Ice** (`#cfeeff`): Panel titles and stamped callouts.
 - **Body Ice** (`#bee1ff` at 88%): Reading copy on discs and cards.
@@ -295,17 +295,17 @@ The signature component. Story and instruction arrive as a disc that flies up to
 - **Motion:** Zoom in over 0.28s with an ease-out-back overshoot (`1.70158`), out over 0.18s; the field dims to `rgba(3,6,14,0.45)` unscaled beneath so the dim stays even while the disc flies
 - **Prompt:** `TAP TO CONTINUE` pulses between 20% and 80% cyan at 4rad/s
 
-### The Route Map (the lens on the city)
+### The Lane Chart (the lens on the network)
 
-The campaign map is a circular LENS over one continuous isometric city, sized so no campaign ever sees all of it.
+The campaign map is a circular LENS over one continuous isometric lane chart, sized so no campaign ever sees all of it.
 
-- **Ground:** deep navy sheet, a 1.4px iso floor lattice at 7% cyan, and streets in three tiers — minor roads are one 24% line, avenues get a dark roadbed between two lit curbs, grand boulevards get a wide bed with a dashed median. Dashed teal fiber trunks run under the avenues with diamond vaults where they cross
+- **Plane:** deep navy sheet, a 1.4px iso survey lattice at 7% cyan, and lanes in three traffic tiers — a minor lane is one 24% line, trunk lanes get a dark corridor between two lit markers, grand trunks get a wide corridor with a dashed centreline. Dashed teal warp-net carrier runs beneath the corridors with diamond junctions where they cross
 - **Water:** a harbor across the south and a river bending down through the districts to meet it, cut as ONE path so a single clipped re-stroke of the avenues turns every crossing into a bridge. Lit banks and quays are what make water read at all — a fill this close to the ground colour is invisible on its own
 - **Skyline:** pure wireframe — no opaque faces, a 10% roof tint only. Lots vary by kind, not just size: setback towers (podium → shaft → crown), two-lot office slabs, courtyard blocks, and terraced rows of three small houses. Density and height fall off from the core (spires downtown → slabs → sprawl → clumps in the dark); about 1% of towers burn magenta against the cyan
-- **Block noise:** a second, much tighter noise field scales every height in a cluster together. Without it each lot rolls its own dice and the skyline comes out as one flat carpet of near-identical boxes — the single biggest difference between "grid of cubes" and "city"
+- **Cluster noise:** a second, much tighter noise field scales every height in a cluster together. Without it each site rolls its own dice and the skyline comes out as one flat carpet of near-identical boxes — the single biggest difference between "grid of cubes" and "inhabited system"
 - **Clearance:** a lot is 32px wide, so blocks are held back 1.7–3.4 street-units from a road. At the old 1-unit clearance downtown swallowed its own streets and the grid stopped reading
 - **Bloom:** each baked layer is composited back over itself blurred (`lighter`), so the whole sheet glows without per-shape shadow work
-- **Falloff:** light dies with distance from the core — the ground plan is wiped out by ~95%, the towers only thinned, so the outskirts read as a city in the dark rather than as empty paper
+- **Falloff:** light dies with distance from the core systems — the plane is wiped out by ~95%, the structures only thinned, so the outer volume reads as settled space gone dark rather than as empty paper
 - **Perimeters:** one dashed ellipse per campaign band (a ground circle in iso is a 2:1 ellipse), green inside → amber → red at the edge, studded with gate ticks and labelled with the cover it still holds
 - **Runs:** buried — every cable run draws UNDER the skyline and ghosts up through it; the selected run is then repeated OVER the towers so a dense downtown can never swallow the line about to be defended
 
@@ -340,7 +340,7 @@ Its damage state is choreographed: on a node-killer strike the arc **snaps shut*
 
 ### Enemy Body (Nail Breach)
 
-Threats are harpoons fired into the tunnel from *outside* — a machined plate seated flush on the wall with a graphite auger driving inward. Every one carries: an exfil beam, impact cracks, a soft grounding pool, a two-wave ripple train drawn in angle×radius wall space so it bows along the tunnel's hoops, a key-lit plate with bevel and vents, a type ring that telegraphs its class from spawn, and discrete siphon packets flowing tip-to-plate — stolen energy visibly leaving the stream.
+Interdictors are harpoons fired into the lane from *outside* — a machined plate seated flush on the lane wall with a graphite auger driving inward. Every one carries: a siphon beam, impact cracks, a soft grounding pool, a two-wave ripple train drawn in angle×radius wall space so it bows along the lane's hoops, a key-lit plate with bevel and vents, a type ring that telegraphs its class from spawn, and discrete drain packets flowing tip-to-plate — lane energy visibly bleeding away. That bleed is the interdiction: enough of it and the convoy drops out of transit.
 
 ### Enemy Body (Void Packet — the node killer)
 

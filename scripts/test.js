@@ -823,7 +823,7 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
 
 // ================= campaign rim walls + bonus ribbon =================
 const quiet = () => { G.setSpawnT(60); G.setIntegrity(100); }; // hold the level script still
-G.startLevel(4); // UNDERCITY FIBER — the wall's home level
+G.startLevel(4); // SUBLANE DRIFT — the wall's home level
 G.enemies().length = 0;
 G.setLatches([{ a: 1.0, span0: 0.5, t: 0, dur: 3, tele: 0.9, arm: 0.4 }]);
 aim(0, 1.0); aim(1, 2.5); // node 0 parked exactly where the wall will bite
@@ -859,7 +859,7 @@ check('an ignored ribbon costs nothing',
 G.startLevel(4);
 let sawWall = false;
 for (let i = 0; i < 1400 && !sawWall; i++) { G.setIntegrity(100); G.update(0.05); sawWall = G.latches().length > 0; }
-check('UNDERCITY FIBER deploys rim walls from its script', sawWall);
+check('SUBLANE DRIFT deploys rim walls from its script', sawWall);
 G.setState(G.S.MENU);
 
 // fixed-timestep determinism: the same seeded level, no input, driven through
@@ -1020,7 +1020,7 @@ drawOk('mission disc (art plate fallback + plot line)', () => {});
 G.update(0.5);
 canvasHandlers.pointerdown({ pointerId: 9, clientX: 5, clientY: 5, pointerType: 'touch' });
 G.update(0.15); G.update(0.15); G.update(0.15); // card animates out
-check('dismissing the log enters the relay', G.getState() === G.S.PLAY && G.getLV().name === 'METRO EXCHANGE');
+check('dismissing the log enters the relay', G.getState() === G.S.PLAY && G.getLV().name === 'TRANSIT EXCHANGE');
 G.setIntro(999);
 {
   let cGuard = 300;
@@ -1487,7 +1487,7 @@ G.keys['ArrowUp'] = false;
   G.progress.wallBriefed = true; G.progress.stripBriefed = true; // no cards mid-test
   const knobs = { tint: '10,20,30', duration: 45, spawnMin: 1.5, spawnMax: 2.3, speed: 0.4,
     doubles: 0, heavies: 0, lines: 0, colors: 0 };
-  // index 4 is a test-only UNDERCITY FIBER twin: its procedural wall pressure
+  // index 4 is a test-only SUBLANE DRIFT twin: its procedural wall pressure
   // (walls: 0.10) converted into 2 scripted wall beats + a lull, with a band
   // densifying the tail — the SHIPPED campaign keeps its original tuning
   const P1 = {
@@ -1507,7 +1507,7 @@ G.keys['ArrowUp'] = false;
         bands: [{ t0: 20, t1: 40, intensity: 3, mix: { doubles: 0.9 } }] },
       { name: 'CLEAN', ...knobs },
       { name: 'PAD', ...knobs },
-      { name: 'UNDERCITY TWIN', tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35,
+      { name: 'SUBLANE TWIN', tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35,
         speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14,
         comms: [{ t: 6, s: 'OMNI', m: 'they are walling the rail.' },
                 { t: 20, s: 'OMNI', m: 'deployment key holds clearance.' },
@@ -1591,7 +1591,7 @@ G.keys['ArrowUp'] = false;
     check('band intensity densifies the stream (2× window, ≥1.5× the spawns)', inB > outB * 1.5 && outB > 5);
   }
 
-  // --- the UNDERCITY twin: scripted walls carry the old procedural pressure ---
+  // --- the SUBLANE twin: scripted walls carry the old procedural pressure ---
   const j4 = journal(4, 60);
   check('undercity twin: both scripted walls land on schedule', j4.latch.length === 2 &&
     Math.abs(j4.latch[0] - 18) <= 0.4 && Math.abs(j4.latch[1] - 38) <= 0.4);
@@ -1646,7 +1646,7 @@ G.keys['ArrowUp'] = false;
   wc.levels[0].name = 'MUTATED';
   wc.levels[0].comms[0].m = 'changed';
   check('clone: edits never leak back into the source package',
-    src.levels[0].name === 'OMNISERVE CAMPUS' && src.levels[0].comms[0].m !== 'changed');
+    src.levels[0].name === 'OMNISERVE YARDS' && src.levels[0].comms[0].m !== 'changed');
   // factories ship valid data
   const np = ED.newCampaign();
   check('new-campaign template passes validateCampaign', G.validateCampaign(np).length === 0);

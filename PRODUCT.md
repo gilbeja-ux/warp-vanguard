@@ -26,20 +26,23 @@ and train hand-eye coordination." ARCS and IMMERSIVE stay dormant behind
 
 ## Product Purpose
 
-DATA DEFENDERS: DARK FIBER is a mobile arcade defense game. The player commands
-two radial nodes around a fiber-optic tunnel bore, intercepting incoming data
-traps so a payload reaches its destination intact. Success means a player keeps
-coming back to beat their own line — clean runs, longer combos, a better place
-on the daily board.
+WARP LANE: VANGUARD SQUADRON is a mobile arcade defense game. The player flies
+point ahead of a freight convoy down its assigned warp lane, commanding two
+radial emitters around the lane's bore and collapsing the interdictors seeded to
+pull the convoy out of transit. Success means a player keeps coming back to beat
+their own line — clean runs, longer combos, a better place on the daily board.
 
 ## Positioning
 
-Two-thumb radial dual-node control on a single shared ring, where **color is
-the rule set, not decoration**: red = either node, blue/white = the matching
-node, purple = both nodes docked, black = node-killer (never touch). A third
-verb, UNITE-VOLLEY, comes from docking both nodes together rather than from a
-new button. Every input the player has is spatial, so difficulty scales by
-what arrives and where, never by adding controls.
+Two-thumb radial dual-emitter control on a single shared ring, where **color is
+the rule set, not decoration**. The emitters run opposed phase, ⊕ and ⊖, and
+every interdictor is cast with a phase lock: red = unphased, either emitter;
+blue/white = locked to that phase; purple = superposed, both emitters docked;
+black = a phase inverter, never touch. A third verb, UNITE-VOLLEY, comes from
+docking both emitters together rather than from a new button — docking
+superposes the phases, which is *why* a docked pair answers purple. Every input
+the player has is spatial, so difficulty scales by what arrives and where, never
+by adding controls.
 
 Two commitments a neighbouring game could not truthfully copy:
 
@@ -57,14 +60,14 @@ bottom-corner dial pads. Sessions are short and repeated. Play works fully
 offline; the only network dependency is the leaderboard work in flight.
 
 Structure the player moves through: a mode wheel (TUTORIAL / CAMPAIGN / FREE
-FLOW) → for campaign, a route map over an isometric neon city with a relay list
-and dossier → briefing disc → in-tunnel run → victory report. The city is a
-defended city: a hardened core wrapped in firewall perimeters, and the five
-campaigns spiral outward through them, each case working a thinner belt of
-cover than the last — the map's own explanation for why the wire carries more
-taps the further you go. FREE FLOW (endless +
-daily) unlocks once level 05 is complete. Levels are numbered continuously
-across the whole story — campaign 1 owns 01–08, campaign 2 picks up at 09.
+FLOW) → for campaign, the lane chart with a relay list and dossier → briefing
+disc → in-lane run → mission report. The chart is a defended volume: the core
+systems wrapped in patrol cordons, and the five campaigns spiral outward through
+them, each case working a thinner belt of escort cover than the last — the
+chart's own explanation for why a lane carries more interdictors the further out
+you work. FREE FLOW (endless + daily) unlocks once level 05 is complete. Levels
+are numbered continuously across the whole story — campaign 1 owns 01–08,
+campaign 2 picks up at 09.
 
 ## Capabilities and Constraints
 
@@ -73,15 +76,16 @@ across the whole story — campaign 1 owns 01–08, campaign 2 picks up at 09.
 - 5 sequential campaigns (`src/campaigns.js`), 8 levels each, difficulty 1–5 on
   a sawtooth curve — each campaign resets its floor below the prior peak, then
   climbs past it. Every campaign owns a signature mechanic and escorts a
-  different *type* of data; the player is always the defender and the color
+  different *kind* of cargo; the player is always the escort and the phase
   polarity never flips.
 - Free-flow tutorial (qualification), endless mode with timed stream surges,
   and a daily run seeded per UTC calendar day — identical stream for every
   player, which makes daily the natural competitive mode.
-- Threat vocabulary: plain taps, doubles, heavies (dual-node only), barrier
-  lines, color-locked taps, frags, node killers, rim walls, burst volleys,
-  optional golden bonus ribbon; five bosses (core, triad, spinner, triad, core).
-- Power-ups: firewall shield, wide arc, auto-zap, pulse injected, chain
+- Threat vocabulary: plain interdictors, doubles, heavies (both emitters only),
+  barrier nets, phase-locked interdictors, frags, emitter killers, rim walls,
+  burst volleys, optional golden bonus ribbon; five wardens (core, triad,
+  spinner, triad, core).
+- Power-ups: deflector shield, wide arc, auto-zap, pulse injected, chain
   overdrive. Slow-mo was removed as useless.
 - Offline play, haptics, auto-pause on app switch, safe-area aware layout, and
   a `lowFX` performance watchdog for low-end devices.
@@ -90,7 +94,9 @@ across the whole story — campaign 1 owns 01–08, campaign 2 picks up at 09.
 
 - Campaign levels are deterministic drills — spawns draw from a seeded
   `spawnRng` and the fairness gate reads a booked-arrival ledger, so player
-  performance cannot alter the script. Tests assert replay equality; anything
+  performance cannot alter the script. The 2026-07-30 theme shift changed no
+  numbers: all 683 difficulty fields in `src/campaigns.js` are byte-identical to
+  the DARK FIBER values. Tests assert replay equality; anything
   that consumes an extra RNG draw shifts the whole sequence and breaks it.
 - The game is one ~11k-line file, `src/index.html`, with a canvas-only
   interface. Everything renders through 2D canvas painters — there is no DOM
@@ -115,22 +121,27 @@ offline entitlement flag; no server for v1. Full plan in
   anti-cheat are unbuilt. LootLocker + replay validation is the chosen
   direction, blocked on a deterministic-sim refactor. Supabase groundwork
   exists under `supabase/`.
-- Final store name is not cleared — "Data Defenders" alone collides with two
-  existing Play Store apps; USPTO TESS + store search still owed.
+- Final store name is not cleared. "Data Defenders" collided with two existing
+  Play Store apps, which is part of why the name changed; USPTO TESS + store
+  search on **WARP LANE** and **VANGUARD** is still owed, separately and as a
+  full lockup.
 - Deferred and explicitly not to be started unasked: user-created levels via
   shareable seed codes, a "play your own music" mode, and the "Data Driver"
   pilot mode.
 
 ## Brand Commitments
 
-- Name: **DATA DEFENDERS: DARK FIBER** — plural, because "we're an elite group,
-  not a single hired gun." Short form DARK FIBER. Tagline *Guard the payload.*
-- Logo is the user's shield badge, loaded from `src/logo.png`. The story voice
-  may still address the player as "defender" (singular); every brand surface is
-  plural.
-- Voice: terse operational radio traffic. Four speakers — OMNI (OmniServe HQ),
-  CID (Cyber Investigations Dept), TRACE (analyst), CORE (the hostile firewall
-  core). Lowercase clipped comms in-level; typewriter case-file logs on
+- Name: **WARP LANE: VANGUARD SQUADRON** — a squadron, because "we're an elite
+  group, not a single hired gun." Short form WARP LANE. Tagline *Clear the lane.*
+  In-world the unit is **WLVS**, spoken "wolves", and comms address the player as
+  *wolf*.
+- Logo is the user's shield badge, loaded from `src/logo.png`; **the badge and
+  icon set are owed art** — both still carry DATA DEFENDERS lettering and the
+  retired DD monogram. The story voice may address the player as "runner"
+  (singular); every brand surface is the squadron.
+- Voice: terse operational radio traffic. Four speakers — OMNI (OmniServe
+  Yards), CID (Convoy Integrity Division), TRACE (analyst), CORE (the hostile
+  warden core). Lowercase clipped comms in-level; typewriter case-file logs on
   briefing discs.
 - The full brand record — tokens, mark, typography, chrome grammar, audio
   direction, store asset specs — lives in [BRAND.md](BRAND.md) and is binding
@@ -144,6 +155,8 @@ offline entitlement flag; no server for v1. Full plan in
 
 - Playable game: `src/index.html` (build with `npm run build`, serve with
   `npm run dev`).
+- The theme shift's full translation record — what changed, what survived
+  verbatim, and what art is owed — is [docs/THEME-SHIFT.md](docs/THEME-SHIFT.md).
 - Complete narrative script for all campaigns in [docs/STORY.md](docs/STORY.md)
   — every case-file log, hint, comm line, and case note in reading order.
 - All four music tracks are composed by the author (AI-assisted), no licensing
@@ -173,8 +186,8 @@ offline entitlement flag; no server for v1. Full plan in
 ## Accessibility & Inclusion
 
 **Decided: color coding is the design and stays.** Red / blue / white / purple
-/ black carry the rule set, and future work should not add redundant non-color
-cues at the cost of the language. Accessibility effort goes elsewhere instead:
+/ black carry the phase rule set, and future work should not add redundant
+non-color cues at the cost of the language. Accessibility effort goes elsewhere instead:
 
 - `lowFX` performance watchdog for low-end Android devices.
 - Haptics (needs verification on a real iOS device).

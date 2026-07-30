@@ -1,6 +1,6 @@
 {
   "appId": "com.datadefenders.game",
-  "appName": "Data Defenders",
+  "appName": "Warp Lane",
   "webDir": "src",
   "server": {
     "androidScheme": "https"

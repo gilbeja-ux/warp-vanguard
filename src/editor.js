@@ -50,7 +50,7 @@ const ED = {
     return {
       id: 'new-campaign', format: 1, title: 'NEW CAMPAIGN', tagline: 'UNTITLED CASE', difficulty: 1,
       story: 'describe the case here.',
-      map: { theme: 'city' },
+      map: { theme: 'chart' },
       speakers: [{ id: 'OMNI', name: 'OmniServe HQ', color: '111,227,255', portrait: { drawn: 'OMNI' } }],
       levels: [ED.newLevel('FIRST RELAY')]
     };
@@ -779,7 +779,7 @@ function edBuildStatic() {
     EDUI.pkg.map = { image: uri };
     edApply(); edPaintMap();
   })));
-  edq('mapImgClr').addEventListener('click', () => { EDUI.pkg.map = { theme: 'city' }; edApply(); edPaintMap(); });
+  edq('mapImgClr').addEventListener('click', () => { EDUI.pkg.map = { theme: 'chart' }; edApply(); edPaintMap(); });
 
   // export / import
   edq('ioDl').addEventListener('click', () => {

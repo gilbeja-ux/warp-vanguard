@@ -11,7 +11,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/df-192.png?v=6">
 <link rel="icon" type="image/png" sizes="512x512" href="icons/df-512.png?v=6">
 <link rel="apple-touch-icon" href="icons/df-mask-192.png?v=6">
-<title>Data Defenders: Dark Fiber</title>
+<title>Warp Lane: Vanguard Squadron</title>
 <style>
   :root {
     --sat: env(safe-area-inset-top, 0px);
@@ -40,7 +40,7 @@
 'use strict';
 
 // ============================================================
-// DATA DEFENDERS: DARK FIBER — dual-thumb radial defense
+// WARP LANE: VANGUARD SQUADRON — dual-thumb radial defense
 // ============================================================
 
 const canvas = document.getElementById('game');
@@ -2604,7 +2604,7 @@ function spawnStrip() {
 const stripAngle = (en, k) => en.angle + en.amp * Math.sin(k * en.frq + en.ph);
 // golden power-up orbs riding the stream; catch one with either node
 const PICKUPS = {
-  shield: { dur: 0,  label: 'FIREWALL SHIELD' }, // absorbs the next breach (one charge)
+  shield: { dur: 0,  label: 'DEFLECTOR SHIELD' }, // absorbs the next breach (one charge)
   wide:   { dur: 10, label: 'WIDE ARC' },
   auto:   { dur: 5,  label: 'AUTO-ZAP' },
   inject: { dur: 0,  label: 'PULSE INJECTED' },  // both purge orbs snap to ready
@@ -2635,7 +2635,7 @@ function spawnPickup(kind) { // beats may pin the kind (skipping the bag)
 const BOSS_DEFS = {
   core: {
     title: 'THE GATEWAY CORE', sub: 'DOCK BOTH NODES AND HOLD — SIX BOLTS CLOSE THE CASE',
-    online: 'FIREWALL CORE ONLINE', down: 'FIREWALL DOWN',
+    online: 'WARDEN CORE ONLINE', down: 'WARDEN DOWN',
     speak: 'the evidence is contaminated. I am the cure.', card: 'boss', brief: 'bossBriefed'
   },
   triad: {
@@ -3938,7 +3938,7 @@ function launchReplay(pkg, meta, hold) {
   simMuted = false;
   // rewind to the top for the real, rendered playback
   replayPaused = false; replaySpeed = 1; replaySeekTo = -1; replayScrub = null; replayEnded = false;
-  replayMeta = { name: (meta && meta.name) || 'OPERATOR', mode: pkg.mode, levelIdx: pkg.levelIdx, final: fin, total: pkg.frames.length };
+  replayMeta = { name: (meta && meta.name) || 'RUNNER', mode: pkg.mode, levelIdx: pkg.levelIdx, final: fin, total: pkg.frames.length };
   reseedReplay();
   if (hold) replayPaused = true; // hold on frame 0 while the enter transition runs
   musicDuck = 1;
@@ -4079,7 +4079,7 @@ function drawReplayChrome() {
   ctx.fillStyle = 'rgba(140,220,255,0.9)'; ctx.font = '700 10px Audiowide, system-ui'; // shrunk so it clears the data-integrity arc
   ctx.fillText(replayLevelName(), xR, 64 + SAFE.t);
   ctx.fillStyle = 'rgba(150,190,225,0.6)'; ctx.font = '600 10px Audiowide, system-ui';
-  ctx.fillText('OPERATOR', xR, 84 + SAFE.t);
+  ctx.fillText('RUNNER', xR, 84 + SAFE.t);
   ctx.fillStyle = '#eaf6ff'; ctx.font = '700 15px Audiowide, system-ui';
   ctx.fillText(('' + replayMeta.name).toUpperCase().slice(0, 16), xR, 102 + SAFE.t);
   ctx.restore(); // end top-right run info
@@ -4202,31 +4202,31 @@ const QUAL = [
 // announces itself in-world for a few seconds and the arrows do the teaching
 const TUT_BANNERS = {
   move:   { title: 'CONTROLS CHECK' },
-  normal: { title: 'NEUTRALIZE DATA TRAPS' },
-  heavy:  { title: 'USE BOTH NODES' },
+  normal: { title: 'CLEAR THE INTERDICTORS' },
+  heavy:  { title: 'USE BOTH EMITTERS' },
   // (line: no banner — the neutral guides + park spots teach it wordlessly)
-  lock:   { title: 'USE THE CORRECT NODE!' },
+  lock:   { title: 'MATCH THE EMITTER PHASE!' },
   volley: { title: 'FIRE AND FORGET' },
   pickup: { title: 'POWER-UP' },
   strip:  { title: 'RIDE TO CHARGE UP' },
   pulse:  { title: 'PULSE READY' },
 };
 const INFO_CARDS = {
-  move:   { title: 'DUAL NODES', lines: ['Left thumb — BLUE. Right — WHITE.', 'Slide the dials to ride the ring.'] },
-  normal: { title: 'DATA TAP', lines: ['Align ANY node as it crosses.', 'Dead center pays ×2.'] },
-  heavy:  { title: 'ARMORED TAP', lines: ['Dock BOTH nodes together', 'to destroy it.'] },
-  line:   { title: 'BARRIER TAPS', lines: ['Cover BOTH ends —', 'one node on each.'] },
-  lock:   { title: 'KEYED TAP', lines: ['Only the MATCHING color', 'breaks it.'] },
-  frag:   { title: 'NODE KILLER', lines: ['Touching it FRIES a node.', 'Let it pass.'] },
-  pickup: { title: 'POWER-UP', lines: ['Golden relays arm powers.', 'Catch one with any node.'] },
-  strip:  { title: 'BONUS STREAM', lines: ['Optional: ride its crossing point.', 'A full ride banks a full PULSE.'] },
+  move:   { title: 'DUAL EMITTERS', lines: ['Left thumb — BLUE ⊕. Right — WHITE ⊖.', 'Slide the dials to ride the ring.'] },
+  normal: { title: 'INTERDICTOR', lines: ['Align ANY emitter as it crosses.', 'Dead center pays ×2.'] },
+  heavy:  { title: 'ARMORED INTERDICTOR', lines: ['Dock BOTH emitters together', 'to collapse it.'] },
+  line:   { title: 'BARRIER NET', lines: ['Cover BOTH ends —', 'one emitter on each.'] },
+  lock:   { title: 'PHASE-LOCKED', lines: ['Only the MATCHING phase', 'collapses it.'] },
+  frag:   { title: 'EMITTER KILLER', lines: ['It INVERTS the emitter that', 'strikes it. Let it pass.'] },
+  pickup: { title: 'POWER-UP', lines: ['Golden relays arm powers.', 'Catch one with any emitter.'] },
+  strip:  { title: 'BONUS RIBBON', lines: ['Optional: ride its crossing point.', 'A full ride banks a full PULSE.'] },
   wall:   { title: 'RIM WALL', lines: ['It seizes part of your rail.', 'Crossing FRIES — go around.'] },
-  done:   { title: 'QUALIFIED', lines: ['The line is yours to guard.', 'Report to OmniServe — the', 'investigation begins at relay 01.'] },
-  verdict: { title: 'LOG 09 — VERDICT', lines: ['The gateway burned. The payload', 'reached the CID intact. Warrants', 'went out within the hour — the', 'buyer wore a badge. Case closed.'] },
+  done:   { title: 'QUALIFIED', lines: ['The lane is yours to clear.', 'Report to OmniServe — the', 'investigation begins at relay 01.'] },
+  verdict: { title: 'LOG 09 — VERDICT', lines: ['The gateway burned. The convoy', 'reached the CID intact. Warrants', 'went out within the hour — the', 'buyer wore a badge. Case closed.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Zaps bank charge in your pads.', 'A glowing orb: TAP to fire.'] },
-  boss:   { title: 'FIREWALL CORE', lines: ['The dials stay YOURS. Dock both', 'nodes and HOLD — the bolt homes on', 'the core. SIX hits close the case.', 'Dodge darts. Mind the latches.'] },
-  bossTriad: { title: 'PRIVATE CORE ×3', lines: ['One machine in three bodies. The', 'bolt hunts the body you AIM at —', 'three bolts each. The walls come', 'fast: dock in the gaps, then fire.'] },
-  bossSpinner: { title: 'THE BEACON', lines: ['Bolts fizzle on its shield. Its', 'sweeping light FRIES a caught node', '— outrun the beam with both. Each', 'survived sweep overloads it once.'] }
+  boss:   { title: 'WARDEN CORE', lines: ['The dials stay YOURS. Dock both', 'emitters and HOLD — the bolt homes', 'on the core. SIX hits close the case.', 'Dodge darts. Mind the latches.'] },
+  bossTriad: { title: 'PRIVATE WARDEN ×3', lines: ['One machine in three bodies. The', 'bolt hunts the body you AIM at —', 'three bolts each. The walls come', 'fast: dock in the gaps, then fire.'] },
+  bossSpinner: { title: 'THE BEACON', lines: ['Bolts fizzle on its shield. Its', 'sweeping light FRIES a caught', 'emitter — outrun it with both. Each', 'survived sweep overloads it once.'] }
 };
 // ---------- the investigation ----------
 // campaign narrative lives in the campaign package (src/campaigns.js):
@@ -7914,7 +7914,7 @@ function drawIntroCard() {
       const stI = t >= INTRO_GATE ? 3 : t >= BOOT_LOCK ? 1 : 0;
       const stStart = [0, BOOT_LOCK, 0, INTRO_GATE][stI];
       const ct = t - stStart;
-      const labels = ['LOCKING ON STREAM', 'ACTIVATING SYSTEMS', '', 'AWAITING OPERATOR'];
+      const labels = ['LOCKING ON LANE', 'ACTIVATING EMITTERS', '', 'AWAITING RUNNER'];
       const ly = H * 0.52;
       ctx.save();
       ctx.globalAlpha = stI === 3 ? 0.8 + Math.sin(time * 2.5) * 0.15 : Math.min(1, ct / 0.06);
@@ -7966,7 +7966,7 @@ function drawIntroCard() {
         ctx.font = '500 11px Audiowide, system-ui';
         ctx.fillText(gpSeen ? 'HOLD BOTH STICKS — OPPOSITE SIDES' : 'PLACE BOTH THUMBS ON THE PADS', W / 2, ly + 32);
       }
-    } else { // CONTROLS ACTIVE — the stream goes live (the CID says godspeed)
+    } else { // CONTROLS ACTIVE — the lane goes live (the CID says godspeed)
       const gt = (t - INTRO_DUR) / 0.6;
       ctx.save();
       ctx.translate(W / 2, H * 0.52);
@@ -9110,7 +9110,7 @@ function drawQualCeremony(t) {
   try { ctx.letterSpacing = '2px'; } catch (e) {}
   ctx.font = '700 ' + Math.max(9, Math.round(fs * 0.32)) + 'px Audiowide, system-ui';
   ctx.fillStyle = 'rgba(150,215,240,' + (al * 0.9).toFixed(2) + ')';
-  ctx.fillText('THE LINE IS YOURS TO GUARD', 0, fs * 0.72);
+  ctx.fillText('THE LANE IS YOURS TO CLEAR', 0, fs * 0.72);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.textAlign = 'left';
   ctx.restore();
@@ -9445,13 +9445,13 @@ function archTapSpec(key, type, lock, cx, cy, r, k) {
 // enclosed, and the bodies read better at full size with their label beneath)
 // the lineup — color IS the guidance, so each caption wears its type's ink
 const GUIDE_ITEMS = [
-  { cap: ['HIT WITH', 'ANY NODE'], col: '255,96,120',
+  { cap: ['HIT WITH', 'ANY EMITTER'], col: '255,96,120',
     draw: (cx, cy, r) => archTapSpec('n1', 'normal', undefined, cx, cy, r, 0.5) },
-  { cap: ['HIT WITH', 'BOTH NODES'], col: '212,101,255',
+  { cap: ['HIT WITH', 'BOTH EMITTERS'], col: '212,101,255',
     draw: (cx, cy, r) => archTapSpec('hv', 'heavy', undefined, cx, cy, r, 0.46) },
-  { cap: ['HIT WITH', 'BLUE NODE'], col: '80,170,255',
+  { cap: ['HIT WITH', 'BLUE ⊕'], col: '80,170,255',
     draw: (cx, cy, r) => archTapSpec('lk0', 'normal', 0, cx, cy, r, 0.5) },
-  { cap: ['HIT WITH', 'WHITE NODE'], col: '235,245,255',
+  { cap: ['HIT WITH', 'WHITE ⊖'], col: '235,245,255',
     draw: (cx, cy, r) => archTapSpec('lk1', 'normal', 1, cx, cy, r, 0.5) },
   { cap: ['DANGER!', 'STEER CLEAR'], col: '160,175,200',
     draw: (cx, cy, r) => archTapSpec('frag', 'frag', undefined, cx, cy, r, 0.95) },
@@ -9773,7 +9773,7 @@ function paintMenuStatic() {
   ctx.textAlign = 'left';
   if (menuScreen === 'flow' || menuScreen === 'map') { // small brand line up top
     ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
-    ctx.fillText('DATA DEFENDERS · DARK FIBER', 20 + SAFE.l, 24 + SAFE.t);
+    ctx.fillText('WARP LANE · VANGUARD SQUADRON', 20 + SAFE.l, 24 + SAFE.t);
   }
   if (menuScreen === 'map') {
     // the lens mouth: the ring becomes a viewport over the city
@@ -10149,7 +10149,7 @@ function drawMenuHome(ccx, ccy, R) {
     try { ctx.letterSpacing = '2px'; } catch (e) {}
     ctx.fillStyle = 'rgba(255,210,74,0.9)';
     ctx.font = '700 ' + Math.max(9, Math.round(R * 0.05)) + 'px Audiowide, system-ui';
-    ctx.fillText('DARK FIBER', ccx, ccy + R * 0.014);
+    ctx.fillText('WLVS', ccx, ccy + R * 0.014);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   }
   ctx.restore();
@@ -10172,11 +10172,11 @@ function drawMenuHome(ccx, ccy, R) {
     try { ctx.letterSpacing = (fs * 0.08).toFixed(1) + 'px'; } catch (e) {}
     ctx.shadowColor = 'rgba(0,10,30,0.85)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
     ctx.fillStyle = '#c6d6ea';
-    for (const t2 of ['DATA', 'DEFEN', 'DERS']) { ctx.fillText(t2, lx, ly); ly += llh; }
+    for (const t2 of ['WARP', 'LANE']) { ctx.fillText(t2, lx, ly); ly += llh; }
     ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     try { ctx.letterSpacing = '3px'; } catch (e) {}
     ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 ' + Math.max(10, fs * 0.42).toFixed(0) + 'px Audiowide, system-ui';
-    ctx.fillText('DARK FIBER', lx + 2, ly + 4);
+    ctx.fillText('VANGUARD SQUADRON', lx + 2, ly + 4);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   }
   ctx.restore();
@@ -10938,15 +10938,15 @@ function drawMenuBoard() {
 }
 
 // ---------- campaign route map ----------
-// the ring becomes a LENS over an isometric neon city — the network's physical
-// geography. The relay list rides the left column, the dossier the right, and
+// the ring becomes a LENS over the LANE CHART — the network seen from above
+// the plane. The relay list rides the left column, the dossier the right, and
 // selecting a relay glides the lens along the route.
 //
-// The city is a DEFENDED city. A hardened core sits at its heart, wrapped in
-// concentric FIREWALL PERIMETERS, each one thinner than the last. Case 01 runs
-// its lines inside that core; every case after it spirals further out into
-// weaker cover until the last one works in the dark past the final ring —
-// which is exactly why the wire carries more taps the further you go.
+// The chart is a DEFENDED volume. The core systems sit at its heart, wrapped in
+// concentric PATROL CORDONS, each one thinner than the last. Case 01 flies its
+// lanes inside that core; every case after it spirals further out into weaker
+// cover until the last one runs dark past the final cordon — which is exactly
+// why a lane carries more interdictors the further out you work.
 let cityBase = null, cityTop = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1;
 const mapR = () => menuGeom().R * 0.92; // the lens rim MATCHES the mode wheel — seamless crossfade
 const CITY_W = 3400, CITY_H = 2050;
@@ -10955,32 +10955,32 @@ const ISO_W = 16, ISO_H = 8; // iso tile half-width / half-height
 // the ground is an iso plane: a CIRCLE painted on it reads as a 2:1 ellipse on
 // the sheet, so ground distance counts y at double weight
 const groundR = (x, y) => Math.hypot(x - CITY_CORE.x, (y - CITY_CORE.y) * 2);
-// The firewall perimeters ARE the case bands: RING 01 is the belt case 01
-// works, RING 02 the belt case 02 works, and so on out. buildCity fits each
-// ring to the relays that actually landed there, so the map and the dossier
-// never disagree about how much cover a run still has.
-const RING_NAMES = ['INNER PERIMETER', 'METRO SHELL', 'OUTER GRID', 'THE FRINGE', 'THE DARK'];
-const CORE_NAME = 'HARDENED CORE', DARK_ZONE = 'THE DARK';
+// The patrol cordons ARE the case bands: CORDON 01 is the belt case 01 works,
+// CORDON 02 the belt case 02 works, and so on out. buildCity fits each cordon
+// to the relays that actually landed there, so the chart and the dossier never
+// disagree about how much escort cover a run still has.
+const RING_NAMES = ['INNER CORDON', 'PATROL SHELL', 'OUTER PICKET', 'THE FRINGE', 'DARK TRANSIT'];
+const CORE_NAME = 'CORE SYSTEMS', DARK_ZONE = 'DARK TRANSIT';
 let RINGS = []; // [{ r0, r1, name }] per case band, innermost first
-// shield coverage: total at the core, gone by the far edge. This is the number
+// escort coverage: total at the core, gone by the far edge. This is the number
 // the dossier quotes — and the reason the traffic thickens as you go out.
 const shieldAt = r => Math.round(100 * clamp(1 - Math.pow(clamp(r / 1450, 0, 1), 1.4), 0, 1));
-// the harbor: a wide channel sweeping the southern districts. Every case wraps
-// far enough around the core to cross it at least once.
+// the drift: a wide dust band sweeping the southern volume. Every case wraps
+// far enough around the core to span it at least once.
 const harborY = x => CITY_H * 0.70 + Math.sin(x * 0.0021) * 92 + Math.sin(x * 0.0049 + 2.1) * 30;
 const HARBOR_H = 120;
 const inHarbor = (x, y, pad) => y > harborY(x) - (pad || 0) && y < harborY(x) + HARBOR_H + (pad || 0);
-// the river: down out of the north, bending west of the financial district and
-// emptying into the harbor. Blocks and relays keep off it; the avenues bridge it.
+// the debris stream: down out of the north, bending west of the trade spine and
+// emptying into the drift. Junctions keep off it; the trunk lanes span it.
 const riverX = y => CITY_W * 0.34 + Math.sin(y * 0.0034) * 175 + Math.sin(y * 0.0071 + 1.1) * 55 + (y - CITY_H * 0.5) * 0.28;
 const RIVER_W = 42; // half-width
 const inRiver = (x, y, pad) => y < harborY(x) + HARBOR_H * 0.5 && Math.abs(x - riverX(y)) < RIVER_W + (pad || 0);
 const inWater = (x, y, pad) => inHarbor(x, y, pad) || inRiver(x, y, pad);
 // where each case finally delivers — the terminus past its last relay
 const CITY_TERMS = {
-  'investigation': ['CID', 'POLICE HQ'],
+  'investigation': ['CID', 'CID INTAKE'],
   'going-deeper': ['IA', 'INTERNAL AFFAIRS'],
-  'signal-lost': ['BCN', 'COAST BEACON'],
+  'signal-lost': ['BCN', 'REACH BEACON'],
   'the-bait': ['HIVE', 'THE APIARY'],
   'shutdown': ['SYS', 'ARCHITECT CORE']
 };
@@ -10996,8 +10996,8 @@ function buildCity() {
   const jxy = (a, b) => ({ x: ISO_H * (b - a), y: ISO_H * 0.5 * (a + b) }); // lattice -> px
   const vAt = (x, y) => ({ a: (y - x / 2) / ISO_H, b: (y + x / 2) / ISO_H }); // px -> lattice
   const CV = vAt(CITY_CORE.x, CITY_CORE.y);
-  // street bands in the two iso families (slope ±0.5): tight blocks downtown,
-  // long ones out in the sprawl
+  // lane bands in the two iso families (slope ±0.5): dense traffic in close,
+  // long empty hauls out in the sprawl
   const mkBands = (lo, hi, vc) => {
     const out = [];
     for (let v = lo; v < hi;) {
@@ -11013,7 +11013,7 @@ function buildCity() {
   const bands1 = mkBands(-CITY_W / 2 / ISO_H - 8, CITY_H / ISO_H + 8, CV.a); // v1 = (y - x/2)/ISO_H (slope +0.5)
   const bands2 = mkBands(-8, (CITY_H + CITY_W / 2) / ISO_H + 8, CV.b);      // v2 = (y + x/2)/ISO_H (slope -0.5)
   const trunks1 = bands1.filter(b => b.major), trunks2 = bands2.filter(b => b.major);
-  // relays sit on trunk crossings, on dry land, inside the sheet
+  // relays sit on trunk-lane crossings, clear of the drift, inside the sheet
   const junc = [];
   for (const t1 of trunks1) for (const t2 of trunks2) {
     const p2 = jxy(t1.v, t2.v);
@@ -11160,9 +11160,9 @@ function buildCity() {
     ctx.clearRect(0, 0, CITY_W, CITY_H);
     ctx.lineCap = 'butt';
     ctx.fillStyle = '#02060f'; ctx.fillRect(0, 0, CITY_W, CITY_H);
-    // the core burns: a wide cyan haze pooled on the ground under downtown
+    // the core burns: a wide cyan haze pooled across the inner systems
     isoRadial(0, 760, ['rgba(24,120,190,0.18)', 'rgba(16,80,150,0.07)', 'rgba(6,20,50,0)']);
-    // the floor grid — the lattice every block is laid on
+    // the survey grid — the lattice the whole chart is plotted on
     ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(70,190,255,0.07)';
     for (let k = -CITY_W * 0.5; k < CITY_H; k += ISO_H * 2) {
       ctx.beginPath(); ctx.moveTo(0, k); ctx.lineTo(CITY_W, k + CITY_W * 0.5); ctx.stroke();
@@ -11170,9 +11170,9 @@ function buildCity() {
     for (let k = 0; k < CITY_H + CITY_W * 0.5; k += ISO_H * 2) {
       ctx.beginPath(); ctx.moveTo(0, k); ctx.lineTo(CITY_W, k - CITY_W * 0.5); ctx.stroke();
     }
-    // streets, in three tiers. A lane is a LANE: minor roads are a single lit
-    // line, avenues get a roadbed between two curbs, and the grand boulevards
-    // get a wide bed with a dashed median down the middle.
+    // lanes, in three tiers by traffic rating: a minor lane is a single lit
+    // line, a trunk lane gets a charted corridor between two markers, and the
+    // grand trunks get a wide corridor with a dashed centreline.
     const roadRun = (v, slope, off) => { // one line of the family, offset across
       ctx.moveTo(0, ISO_H * v + off);
       ctx.lineTo(CITY_W, ISO_H * v + off + slope * CITY_W);
@@ -11200,7 +11200,7 @@ function buildCity() {
     };
     for (const b of bands1) street(b, 0.5);
     for (const b of bands2) street(b, -0.5);
-    // the data grid: optic trunks buried under the avenues, with junction vaults
+    // the warp net: the lanes' own carrier beneath the corridors, with junctions
     const cable = (v, slope) => {
       ctx.strokeStyle = 'rgba(80,240,205,0.32)'; ctx.lineWidth = 2;
       ctx.setLineDash([12, 8]);
@@ -11215,9 +11215,11 @@ function buildCity() {
       ctx.moveTo(j.x, j.y - 5); ctx.lineTo(j.x + 5, j.y); ctx.lineTo(j.x, j.y + 5); ctx.lineTo(j.x - 5, j.y);
       ctx.closePath(); ctx.stroke();
     }
-    // water: the harbor across the south, the river coming down to meet it.
-    // Both are cut as ONE path, so the avenues can be re-stroked through it in
-    // a single clipped pass — every crossing becomes a bridge for free.
+    // the DRIFT: a wide dust band across the south and a debris stream coming
+    // down to meet it. Unnavigable — no lane is charted through it and no
+    // junction is ever sited in it. Both are cut as ONE path, so the trunk
+    // lanes can be re-stroked through it in a single clipped pass, and every
+    // crossing becomes a lit SPAN for free.
     const waterPath = () => {
       ctx.beginPath();
       ctx.moveTo(0, harborY(0));
@@ -11234,11 +11236,11 @@ function buildCity() {
     };
     ctx.save();
     waterPath();
-    ctx.fillStyle = 'rgba(5,22,48,0.95)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(110,215,255,0.5)'; ctx.lineWidth = 2; ctx.stroke(); // quays and banks
+    ctx.fillStyle = 'rgba(13,9,32,0.95)'; ctx.fill();     // dust swallows the starlight
+    ctx.strokeStyle = 'rgba(178,132,255,0.42)'; ctx.lineWidth = 2; ctx.stroke(); // the drift edge
     ctx.clip();
-    for (let r2 = 0; r2 < 6; r2++) { // harbor swell
-      ctx.strokeStyle = `rgba(90,195,255,${(0.16 + r2 * 0.03).toFixed(2)})`;
+    for (let r2 = 0; r2 < 6; r2++) { // dust lanes combed by the drift
+      ctx.strokeStyle = `rgba(168,120,255,${(0.13 + r2 * 0.025).toFixed(2)})`;
       ctx.lineWidth = 1.4;
       ctx.beginPath();
       for (let x2 = 0; x2 <= CITY_W; x2 += 26) {
@@ -11247,8 +11249,8 @@ function buildCity() {
       }
       ctx.stroke();
     }
-    for (let c3 = -1; c3 <= 1; c3++) { // current lines down the river
-      ctx.strokeStyle = `rgba(105,210,255,${(0.34 - Math.abs(c3) * 0.11).toFixed(2)})`;
+    for (let c3 = -1; c3 <= 1; c3++) { // the debris stream, running down into it
+      ctx.strokeStyle = `rgba(185,145,255,${(0.30 - Math.abs(c3) * 0.10).toFixed(2)})`;
       ctx.lineWidth = 1.4;
       ctx.beginPath();
       for (let y2 = 0; y2 <= CITY_H; y2 += 22) {
@@ -11257,19 +11259,26 @@ function buildCity() {
       }
       ctx.stroke();
     }
-    // wharves along the north bank, so the harbor is a working one
-    for (let x2 = 60; x2 < CITY_W; x2 += 150 + rng() * 190) {
-      const hy = harborY(x2), pl = 26 + rng() * 40;
-      ctx.strokeStyle = 'rgba(130,215,255,0.4)'; ctx.lineWidth = 1.4;
-      ctx.strokeRect(x2 - 7, hy, 14, pl);
-      if (rng() < 0.5) { // a hull tied up alongside
-        ctx.strokeStyle = 'rgba(150,230,255,0.34)';
-        ctx.beginPath();
-        ctx.ellipse(x2 + 20, hy + pl * 0.6, 16, 5, 0.25, 0, TAU);
-        ctx.stroke();
-      }
+    // grit suspended in the band — what makes it unnavigable rather than merely dark
+    for (let k = 0; k < 520; k++) {
+      const x2 = rng() * CITY_W, y2 = harborY(x2) + rng() * HARBOR_H;
+      ctx.fillStyle = `rgba(205,175,255,${(0.10 + rng() * 0.26).toFixed(2)})`;
+      ctx.fillRect(x2, y2, rng() < 0.2 ? 2 : 1, 1);
     }
-    // the crossings: every avenue re-drawn inside the water reads as a bridge
+    // hulks adrift in it: whatever tried the crossing and did not finish
+    for (let x2 = 60; x2 < CITY_W; x2 += 150 + rng() * 190) {
+      const hy = harborY(x2) + 12 + rng() * (HARBOR_H - 30), tilt = (rng() - 0.5) * 0.9;
+      const L2 = 13 + rng() * 12;
+      ctx.strokeStyle = `rgba(200,160,255,${(0.26 + rng() * 0.18).toFixed(2)})`;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.ellipse(x2, hy, L2, L2 * 0.3, tilt, 0, TAU); ctx.stroke();
+      ctx.beginPath(); // a snapped spar, so the silhouette reads as wreck not rock
+      ctx.moveTo(x2 - Math.cos(tilt) * L2 * 0.5, hy - Math.sin(tilt) * L2 * 0.5);
+      ctx.lineTo(x2 - Math.cos(tilt) * L2 * 0.5 - Math.sin(tilt) * 9, hy - Math.sin(tilt) * L2 * 0.5 + Math.cos(tilt) * 9);
+      ctx.stroke();
+    }
+    // the SPANS: every trunk lane re-drawn inside the drift, burning brighter —
+    // the charted crossings are the only safe way through
     ctx.strokeStyle = 'rgba(160,240,255,0.85)'; ctx.lineWidth = 2.2;
     ctx.beginPath();
     for (const b of bands1) if (b.major) { roadRun(b.v, 0.5, -(b.grand ? 8 : 4)); roadRun(b.v, 0.5, b.grand ? 8 : 4); }
@@ -11278,9 +11287,9 @@ function buildCity() {
     ctx.restore();
     cityBloom(cityBase, 5, 0.7);
     cityFalloff();
-    // ---- the firewall perimeters, drawn OVER the geography: they are the
-    // defense grid, not the streets. Each ring is one case's band, and the
-    // cover it still holds is printed on it.
+    // ---- the patrol cordons, drawn OVER the geography: they are the escort
+    // picket, not the lanes. Each cordon is one case's band, and the cover it
+    // still holds is printed on it.
     const ringCol = i => i < 1 ? '126,226,98' : i < 3 ? '255,200,80' : '255,110,110';
     const perimeter = (r, col, a) => {
       ctx.save();
@@ -11292,7 +11301,7 @@ function buildCity() {
       ctx.strokeStyle = `rgba(${col},${(a * 0.28).toFixed(2)})`;
       ctx.lineWidth = 11;
       isoEllipse(r); ctx.stroke();
-      ctx.fillStyle = `rgba(${col},${(a * 0.9).toFixed(2)})`; // gate towers stud the wall
+      ctx.fillStyle = `rgba(${col},${(a * 0.9).toFixed(2)})`; // picket stations stud the cordon
       for (let k = 0; k < 24; k++) {
         const a2 = k / 24 * TAU;
         ctx.fillRect(CITY_CORE.x + Math.cos(a2) * r - 2.5, CITY_CORE.y + Math.sin(a2) * r * 0.5 - 2.5, 5, 5);
@@ -11309,7 +11318,7 @@ function buildCity() {
       ctx.textAlign = 'left';
       ctx.fillStyle = `rgba(${col},${(0.45 + q * 0.35).toFixed(2)})`;
       ctx.font = '700 13px Audiowide, system-ui';
-      ctx.fillText('RING 0' + (i + 1) + ' · ' + ring.name, lx, ly);
+      ctx.fillText('CORDON 0' + (i + 1) + ' · ' + ring.name, lx, ly);
       ctx.fillStyle = 'rgba(150,205,255,0.55)';
       ctx.font = '500 10px Audiowide, system-ui';
       ctx.fillText('COVER ' + shieldAt(ring.r1) + '-' + shieldAt(ring.r0) + '%', lx, ly + 14);
@@ -11333,16 +11342,16 @@ function buildCity() {
       ctx.fillText(txt, x2 + 19, y2 - 5);
     };
     const at = (ang2, rad2) => ({ x: CITY_CORE.x + Math.cos(ang2) * rad2, y: CITY_CORE.y + Math.sin(ang2) * rad2 * 0.5 });
-    const t1 = at(-2.35, 150); tag(t1.x, t1.y, 'OMNISERVE HQ');
+    const t1 = at(-2.35, 150); tag(t1.x, t1.y, 'OMNISERVE YARDS');
     tag(CITY_CORE.x + 60, CITY_CORE.y - 40, 'THE SPINE · CORE EXCHANGE');
-    const t3 = at(0.9, 420); tag(t3.x, t3.y, 'FINANCIAL DISTRICT');
-    const t4 = at(2.4, 640); tag(t4.x, t4.y, 'OLD TOWN');
-    const t5 = at(-1.1, 980); tag(t5.x, t5.y, 'METRO EXCHANGE');
-    tag(CITY_W * 0.36, harborY(CITY_W * 0.36) + HARBOR_H + 26, 'THE HARBOR');
-    tag(CITY_W * 0.74, harborY(CITY_W * 0.74) + HARBOR_H + 40, 'SOUTH SPRAWL');
-    const t6 = at(-2.0, 1240); tag(t6.x, t6.y, 'DARKNET EDGE');
-    const t7 = at(2.55, 1180); tag(t7.x, t7.y, 'THE UNDERCITY');
-    // distant lights: the further out, the more the city is just sparks
+    const t3 = at(0.9, 420); tag(t3.x, t3.y, 'TRADE SPINE');
+    const t4 = at(2.4, 640); tag(t4.x, t4.y, 'OLD MOORINGS');
+    const t5 = at(-1.1, 980); tag(t5.x, t5.y, 'TRANSIT EXCHANGE');
+    tag(CITY_W * 0.36, harborY(CITY_W * 0.36) + HARBOR_H + 26, 'THE DRIFT');
+    tag(CITY_W * 0.74, harborY(CITY_W * 0.74) + HARBOR_H + 40, 'OUTER SPRAWL');
+    const t6 = at(-2.0, 1240); tag(t6.x, t6.y, 'THE DARK EDGE');
+    const t7 = at(2.55, 1180); tag(t7.x, t7.y, 'THE SUBLANES');
+    // the far field: the further out, the less there is but stars
     for (let k = 0; k < 900; k++) {
       const x2 = rng() * CITY_W, y2 = rng() * CITY_H;
       const gr = groundR(x2, y2);
@@ -12015,10 +12024,10 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   ctx.fillText('LEVEL ' + lvNum(curLevelNo(li)), px2 + 14, py2 + 20);
   if (locked) {
     ctx.fillStyle = 'rgba(220,240,255,0.55)'; ctx.font = '700 12px Audiowide, system-ui';
-    ctx.fillText('ENCRYPTED', px2 + 14, py2 + 44);
+    ctx.fillText('SEALED', px2 + 14, py2 + 44);
     ctx.fillStyle = 'rgba(160,200,240,0.45)'; ctx.font = '500 9px Audiowide, system-ui';
     ctx.fillText('secure the previous', px2 + 14, py2 + 64);
-    ctx.fillText('relay to decrypt', px2 + 14, py2 + 78);
+    ctx.fillText('relay to unseal', px2 + 14, py2 + 78);
     padlock(px2 + pw / 2, py2 + ph - 40, 9);
     return;
   }
@@ -12045,7 +12054,7 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
     const cov = relayCover(li);
     const cc = cov.pct > 60 ? '126,226,98' : cov.pct > 30 ? '255,200,80' : '255,110,110';
     ctx.fillStyle = 'rgba(140,200,255,0.6)'; ctx.font = '500 8px Audiowide, system-ui';
-    ctx.fillText('RING 0' + cov.ring + ' · ' + cov.name, px2 + 14, py2 + 106);
+    ctx.fillText('CORDON 0' + cov.ring + ' · ' + cov.name, px2 + 14, py2 + 106);
     ctx.textAlign = 'right';
     ctx.fillStyle = `rgba(${cc},0.9)`; ctx.font = '600 8px Audiowide, system-ui';
     ctx.fillText('COVER ' + cov.pct + '%', px2 + pw - 14, py2 + 106);
@@ -12311,7 +12320,7 @@ function drawEnd(g) {
     ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(150,210,255,0.72)';
     try { ctx.letterSpacing = '2px'; } catch (e) {}
     ctx.font = '600 9px Audiowide, system-ui';
-    ctx.fillText('LOG YOUR OPERATOR HANDLE', g.cx, cy0 + 88);
+    ctx.fillText('LOG YOUR RUNNER HANDLE', g.cx, cy0 + 88);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
 
     // the handle field. During the entrance it's a static plate; once settled the
@@ -12633,7 +12642,7 @@ function drawTrans() {
   }
 }
 
-// ---------- boot splash: GB Interactive → data-glitch → DATA DEFENDERS ----------
+// ---------- boot splash: GB Interactive → lane-glitch → WARP LANE ----------
 // The menu runs live underneath from the very first frame; the splash is an
 // opaque curtain staged on top of it. That makes the finale free: the badge
 // materializes exactly where the menu's hub badge lives, then the curtain
