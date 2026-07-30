@@ -918,7 +918,7 @@ function buildBackground() {
   // charted corridor is signed. They ride the traffic clock, so they read as
   // ground rushing past rather than as decoration.
   wallSnips = [];
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 12; i++) {
     wallSnips.push({
       a: Math.random() * TAU, z: Math.random(), n: 4 + (Math.random() * 6 | 0),
       amber: Math.random() < 0.22, sp: rand(0.7, 1.4),
@@ -1015,71 +1015,44 @@ function buildBackground() {
       : r < 0.55 ? `rgba(236,246,255,${al})`      // cold white
       : `rgba(150,205,255,${al})`;                // blue-white
   };
-  // WARP LINES: stars coming at the viewer fast enough to smear into light.
+  // NO WARP LINES IN HERE. This texture is stamped at ten receding depths, which
+  // means anything baked into it appears TEN TIMES — the same angular pattern at
+  // ten radii, marching outward together. That is what read as "organized layers
+  // flying in unity", and it is not tunable: it is what stamping one texture
+  // repeatedly does. Worse, everything baked here is trapped between inR and outR,
+  // so streaks all began and ended at the same radial range and formed visible
+  // rings. Stars are not arranged in rings.
   //
-  // The hard-won rule here: a glowing line is NOT one wide stroke. A wide stroke
-  // is a capsule — square-capped it reads as a rectangle, round-capped it reads
-  // as a rectangle with rounded corners, and either way it reads as a flat
-  // SURFACE sliding past. Both earlier cuts failed on exactly that.
+  // The warp lines are LIVE particles now (see WARP_STARS / drawStreaks). Each one
+  // owns its own angle, depth, length, calibre and radial distance from the axis,
+  // so no two agree about anything and there is no repeated pattern to see.
   //
-  // A glowing line is a STACK of narrow additive strokes running light blue on
-  // the outside to white-hot at the centre. The widest pass here is ~3px; the
-  // brightness comes from the stack and the colour ramp, never from width. Every
-  // pass fades to nothing at both ends, so a streak tapers instead of stopping.
-  const WARP_PASSES = [
-    [2.4, '110,180,255', 0.15],   // outer halo — light blue
-    [1.9, '165,212,255', 0.26],
-    [1.1, '215,238,255', 0.55],
-    [0.5, '255,255,255', 1.00]    // core — white hot
-  ];
-  t.globalCompositeOperation = 'lighter';
-  t.lineCap = 'round';
-  for (let i = 0; i < 860; i++) {
-    const a0 = Math.random() * TAU;
-    const r0 = rand(inR, outR - 8);
-    // longer overall than before: at warp the smear IS the read
-    const len = Math.random() < 0.24 ? rand(95, 275) : rand(20, 95);
-    const r1 = Math.min(outR, r0 + len);
-    const al = 0.13 + Math.random() * 0.40;
-    // calibre is capped hard: 2.4 x 1.5 = 3.6px at the very widest halo. Above
-    // roughly 4px a stroke stops reading as a line and starts reading as a surface,
-    // and that threshold is what both earlier cuts blew through.
-    const wk = Math.random() < 0.13 ? rand(1.15, 1.5) : rand(0.55, 1.05);
-    t.save(); t.rotate(a0);
-    for (const [w, col, aMul] of WARP_PASSES) {
-      const a2 = al * aMul;
-      if (a2 < 0.006) continue;
-      const grd = t.createLinearGradient(r0, 0, r1, 0);
-      grd.addColorStop(0, `rgba(${col},0)`);
-      grd.addColorStop(0.30, `rgba(${col},${a2.toFixed(3)})`);
-      grd.addColorStop(0.62, `rgba(${col},${(a2 * 0.85).toFixed(3)})`);
-      grd.addColorStop(1, `rgba(${col},0)`);
-      t.strokeStyle = grd;
-      t.lineWidth = w * wk;
-      t.beginPath(); t.moveTo(r0, 0); t.lineTo(r1, 0); t.stroke();
-    }
-    // the head: the star still resolving to a point ahead of its own smear
-    if (len > 55) {
-      const hr = 2.0 * wk;
-      const hg = t.createRadialGradient(r1, 0, 0, r1, 0, hr * 3.2);
-      hg.addColorStop(0, `rgba(255,255,255,${Math.min(1, al * 1.5).toFixed(3)})`);
-      hg.addColorStop(0.28, `rgba(200,230,255,${(al * 0.5).toFixed(3)})`);
-      hg.addColorStop(1, 'rgba(110,180,255,0)');
-      t.fillStyle = hg;
-      t.beginPath(); t.arc(r1, 0, hr * 3.2, 0, TAU); t.fill();
-    }
-    t.restore();
-  }
-  t.globalCompositeOperation = 'source-over';
-  // point stars: far enough off-axis that transit has not stretched them. These
-  // keep the wall from collapsing into pure lines.
-  for (let i = 0; i < 300; i++) {
+  // What stays here is only faint SURFACE GRAIN — the bore needs a visible skin
+  // for leaks to read as holes in a surface rather than as sprites floating in it.
+  // Sparse and dim on purpose: the user wants to see space behind it.
+  for (let i = 0; i < 130; i++) {
     const rr = rand(inR, outR), a0 = Math.random() * TAU;
-    t.fillStyle = pick((0.12 + Math.random() * 0.42).toFixed(2));
+    t.fillStyle = pick((0.07 + Math.random() * 0.20).toFixed(2));
     t.save(); t.rotate(a0);
-    t.beginPath(); t.arc(rr, 0, Math.random() < 0.12 ? rand(1.4, 2.4) : rand(0.4, 1.1), 0, TAU); t.fill();
+    t.beginPath(); t.arc(rr, 0, Math.random() < 0.10 ? rand(1.1, 1.9) : rand(0.35, 0.9), 0, TAU); t.fill();
     t.restore();
   }
+  // FEATHER the annulus. The band used to stop dead at inR and outR, and a hard
+  // stop on a circle is a visible arc — "I can see the circle ends". Erase both
+  // edges with radial gradients so the skin fades out instead of ending.
+  t.save();
+  t.globalCompositeOperation = 'destination-out';
+  const outFade = t.createRadialGradient(0, 0, outR * 0.72, 0, 0, outR * 1.02);
+  outFade.addColorStop(0, 'rgba(0,0,0,0)');
+  outFade.addColorStop(1, 'rgba(0,0,0,1)');
+  t.fillStyle = outFade;
+  t.beginPath(); t.arc(0, 0, outR * 1.02, 0, TAU); t.fill();
+  const inFade = t.createRadialGradient(0, 0, inR * 0.55, 0, 0, inR * 1.35);
+  inFade.addColorStop(0, 'rgba(0,0,0,1)');
+  inFade.addColorStop(1, 'rgba(0,0,0,0)');
+  t.fillStyle = inFade;
+  t.beginPath(); t.arc(0, 0, inR * 1.35, 0, TAU); t.fill();
+  t.restore();
   // (the "dust haze" pass is GONE. It was 4–11px wide strokes, which is precisely
   // the calibre that reads as a flat rounded-rectangle sliding through the bore no
   // matter how it is capped. Depth comes from the warp-line stack and the point
@@ -1131,6 +1104,21 @@ function buildBackground() {
     cl.restore();
   }
   cl.restore(); // close the circular clip
+  // feather the haze's own edges for the same reason as the skin's — a soft cloud
+  // that stops dead on a circle still draws a visible arc
+  cl.save();
+  cl.globalCompositeOperation = 'destination-out';
+  const cOut = cl.createRadialGradient(0, 0, outR * 0.70, 0, 0, outR * 1.02);
+  cOut.addColorStop(0, 'rgba(0,0,0,0)');
+  cOut.addColorStop(1, 'rgba(0,0,0,1)');
+  cl.fillStyle = cOut;
+  cl.beginPath(); cl.arc(0, 0, outR * 1.02, 0, TAU); cl.fill();
+  const cIn = cl.createRadialGradient(0, 0, inR * 0.45, 0, 0, inR * 1.35);
+  cIn.addColorStop(0, 'rgba(0,0,0,1)');
+  cIn.addColorStop(1, 'rgba(0,0,0,0)');
+  cl.fillStyle = cIn;
+  cl.beginPath(); cl.arc(0, 0, inR * 1.35, 0, TAU); cl.fill();
+  cl.restore();
   buildRingFx();
 }
 // the node holder ring, reborn as a dark machined monolith (arc lab design):
@@ -5837,7 +5825,10 @@ function drawTunnel(g) {
     ctx.fillRect(0, 0, W, H);
   }
   // one steady haze weight for every band — no per-band phase, no oscillation
-  const cloudK = 0.16 + 1.5 * dive;
+  // the haze is stamped at every depth too, so it carries the same repeat problem
+  // as anything baked. Kept barely-there during play for that reason; it earns its
+  // place only in the dive, where the whole field is meant to go violent.
+  const cloudK = 0.07 + 1.6 * dive;
   for (let i = N - 1; i >= 0; i--) {
     const z = (((i - tunnelScroll) % N) + N) % N / N;
     const rg = ring(z, g);
@@ -5983,10 +5974,10 @@ function drawFarGlow(far, vr) {
 // material. Widest pass is ~2.6px at full calibre — deliberately under the
 // threshold where a stroke starts reading as a surface instead of a line.
 const LIVE_WARP_PASSES = [
-  [2.6, '110,180,255', 0.16],
-  [1.6, '170,214,255', 0.32],
-  [0.9, '220,240,255', 0.66],
-  [0.45, '255,255,255', 1.00]
+  [3.4, '110,180,255', 0.15],   // outer halo — light blue
+  [2.1, '170,214,255', 0.30],
+  [1.2, '220,240,255', 0.62],
+  [0.6, '255,255,255', 1.00]    // core — white hot
 ];
 
 // THE CONVOY: the gold river running along the floor of the lane, behind and
@@ -5997,7 +5988,10 @@ const LIVE_WARP_PASSES = [
 let streaks = [];
 function initStreaks() {
   streaks = [];
-  const nGold = lowFX ? 90 : 190, nAmbient = lowFX ? 50 : 110;
+  // FEWER warp lines and much heavier ones — the reference reads as a handful of
+  // confident streaks with space between them, not a dense hatch. Cutting the
+  // count is what lets the space behind them show.
+  const nGold = lowFX ? 90 : 190, nAmbient = lowFX ? 42 : 88;
   for (let i = 0; i < nGold; i++) {
     streaks.push({
       z: Math.random(),
@@ -6005,8 +5999,25 @@ function initStreaks() {
       gold: true, sp: rand(0.92, 1.12), ord: i / nGold // draw order — the river thins with integrity
     });
   }
+  // WARP STARS. Fewer than before and much heavier, per the reference: a handful
+  // of bright confident lines with space between them beats a dense hatch.
+  //
+  // Every property is per-star, and rmul is the important one — it is how far off
+  // the axis this star sits. The old cut pinned all of them to 0.97 of the wall
+  // radius, which put every star in a given depth on the SAME circle, and circles
+  // of stars are exactly what space does not have. Spread across the bore's
+  // cross-section (and past its wall) there is no alignment left to see.
   for (let i = 0; i < nAmbient; i++) {
-    streaks.push({ z: Math.random(), a: Math.random() * TAU, gold: false, amber: Math.random() < 0.22, sp: rand(0.88, 1.08) });
+    const hero = Math.random() < 0.18;
+    streaks.push({
+      z: Math.random(), a: Math.random() * TAU, gold: false,
+      amber: Math.random() < 0.12,
+      sp: rand(0.82, 1.14),
+      rmul: rand(0.42, 1.52),                       // own distance from the axis
+      lenK: hero ? rand(1.5, 2.6) : rand(0.5, 1.25), // own smear length
+      cal: hero ? rand(1.6, 2.5) : rand(0.6, 1.25),  // own calibre
+      br: hero ? rand(1.15, 1.6) : rand(0.55, 1.05)  // own brightness
+    });
   }
 }
 initStreaks();
@@ -6178,29 +6189,34 @@ function drawStreaks(g, dt) {
     st.z -= dt * spd * st.sp * wsp; // the river flows WITH the traffic
     if (st.z <= -0.08) { st.z = 1; if (st.gold) st.a = Math.PI / 2 + rand(-0.55, 0.55); }
     if (st.gold && st.ord > riverK) continue;
-    const span = (st.gold ? 0.05 : ambSpan) * (1 + (warpT / 0.9) * 3);
+    // per-star length, so no two smears are the same size
+    const span = (st.gold ? 0.05 : ambSpan * st.lenK) * (1 + (warpT / 0.9) * 3);
     const r1 = ring(st.z, g), r2 = ring(Math.min(st.z + span, 1), g);
-    const rr1 = st.gold ? r1.r * rand(0.86, 0.99) : r1.r * 0.97;
+    // rmul is the fix for "stars aligned in circles": each star keeps its OWN
+    // distance from the axis, held across both ends of its smear so the line
+    // still runs true along the direction of travel.
+    const rm = st.gold ? rand(0.86, 0.99) : st.rmul;
+    const rr1 = r1.r * rm;
     const x1 = r1.x + Math.cos(st.a) * rr1, y1 = r1.y + Math.sin(st.a) * rr1;
-    const x2 = r2.x + Math.cos(st.a) * r2.r * 0.95, y2 = r2.y + Math.sin(st.a) * r2.r * 0.95;
-    const al = Math.min(1 - st.z, 1.05) * (st.gold ? 0.75 : 0.42) * clamp(1 + st.z / 0.1, 0, 1);
-    const baseW = st.gold ? lerp(0.5, 2.6, 1 - st.z) : lerp(0.55, 1.7, 1 - st.z);
+    const x2 = r2.x + Math.cos(st.a) * r2.r * rm, y2 = r2.y + Math.sin(st.a) * r2.r * rm;
+    const al = Math.min(1 - st.z, 1.05) * (st.gold ? 0.75 : 0.52 * st.br) * clamp(1 + st.z / 0.1, 0, 1);
     if (st.gold) {
       ctx.strokeStyle = `rgba(255,196,88,${al.toFixed(2)})`;
-      ctx.lineWidth = baseW;
+      ctx.lineWidth = lerp(0.5, 2.6, 1 - st.z);
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     } else {
-      // the live warp lines, same rule as the baked ones: a STACK of narrow
-      // additive strokes, light blue outside to white-hot core. Never one wide
-      // stroke — that is a capsule, and a capsule reads as a flat surface.
-      const k = lerp(0.55, 1.15, 1 - st.z); // near lines carry a touch more calibre
+      // the live warp lines: a STACK of narrow additive strokes, light blue
+      // outside to white-hot core. Never one wide stroke — that is a capsule, and
+      // a capsule reads as a flat surface. Calibre is per-star now, so the field
+      // has heavy hero lines and fine ones instead of one uniform gauge.
+      const k = lerp(0.6, 1.25, 1 - st.z) * st.cal;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.lineCap = 'round';
       for (const [w, col, aMul] of LIVE_WARP_PASSES) {
         const a2 = al * aMul;
         if (a2 < 0.008) continue;
-        ctx.strokeStyle = `rgba(${st.amber ? '255,214,168' : col},${a2.toFixed(3)})`;
+        ctx.strokeStyle = `rgba(${st.amber ? '255,214,168' : col},${Math.min(1, a2).toFixed(3)})`;
         ctx.lineWidth = w * k;
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
       }
@@ -6216,7 +6232,7 @@ function drawStreaks(g, dt) {
     // occupies before the smear behind it. A streak with a head has a direction;
     // a bare line is ambiguous, and ambiguity is what made the old wall read flat.
     if (!st.gold && st.z < 0.55) {
-      const hk = (1 - st.z / 0.55);
+      const hk = (1 - st.z / 0.55) * (st.cal || 1);
       ctx.fillStyle = st.amber ? `rgba(255,228,180,${(al * hk * 0.9).toFixed(2)})`
         : `rgba(226,244,255,${(al * hk * 0.9).toFixed(2)})`;
       ctx.beginPath(); ctx.arc(x1, y1, Math.max(0.5, 1.5 * hk), 0, TAU); ctx.fill();
