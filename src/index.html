@@ -5973,11 +5973,26 @@ function drawFarGlow(far, vr) {
 // WARP_PASSES, so the moving lines and the wall they ride on are the same
 // material. Widest pass is ~2.6px at full calibre — deliberately under the
 // threshold where a stroke starts reading as a surface instead of a line.
+// A real starfield is not one colour. Blue-white dominates, but yellow-whites,
+// oranges and the odd red giant or violet are what stop it reading as a technical
+// diagram of a starfield. The CORE always burns white regardless — that is what
+// makes them read as light rather than as coloured lines — and only the halo
+// carries the star's actual temperature.
+const STAR_TINTS = [
+  ['110,180,255', '170,214,255'],  // blue-white
+  ['110,180,255', '170,214,255'],  // (weighted: most stars are this)
+  ['140,200,255', '198,228,255'],
+  ['255,224,168', '255,240,212'],  // yellow-white
+  ['255,188,126', '255,220,178'],  // orange
+  ['255,148,116', '255,198,172'],  // red giant
+  ['198,166,255', '224,204,255']   // violet
+];
+// width + alpha only; colour comes from the star's own tint pair, core white
 const LIVE_WARP_PASSES = [
-  [3.4, '110,180,255', 0.15],   // outer halo — light blue
-  [2.1, '170,214,255', 0.30],
-  [1.2, '220,240,255', 0.62],
-  [0.6, '255,255,255', 1.00]    // core — white hot
+  [3.4, 0, 0.15],   // outer halo — the star's temperature
+  [2.1, 1, 0.30],
+  [1.2, 1, 0.62],
+  [0.6, 2, 1.00]    // core — white hot, always
 ];
 
 // THE CONVOY: the gold river running along the floor of the lane, behind and
@@ -5991,7 +6006,7 @@ function initStreaks() {
   // FEWER warp lines and much heavier ones — the reference reads as a handful of
   // confident streaks with space between them, not a dense hatch. Cutting the
   // count is what lets the space behind them show.
-  const nGold = lowFX ? 90 : 190, nAmbient = lowFX ? 42 : 88;
+  const nGold = lowFX ? 90 : 190, nAmbient = lowFX ? 95 : 235;
   for (let i = 0; i < nGold; i++) {
     streaks.push({
       z: Math.random(),
@@ -6011,7 +6026,7 @@ function initStreaks() {
     const hero = Math.random() < 0.18;
     streaks.push({
       z: Math.random(), a: Math.random() * TAU, gold: false,
-      amber: Math.random() < 0.12,
+      tint: STAR_TINTS[Math.random() * STAR_TINTS.length | 0],
       sp: rand(0.82, 1.14),
       rmul: rand(0.42, 1.52),                       // own distance from the axis
       lenK: hero ? rand(1.5, 2.6) : rand(0.5, 1.25), // own smear length
@@ -6187,7 +6202,17 @@ function drawStreaks(g, dt) {
   for (const st of streaks) {
     const wsp = 1 + (warpT / 0.9) * 5; // warp-dive stretch
     st.z -= dt * spd * st.sp * wsp; // the river flows WITH the traffic
-    if (st.z <= -0.08) { st.z = 1; if (st.gold) st.a = Math.PI / 2 + rand(-0.55, 0.55); }
+    // Warp lines must FLY PAST, never fade out in front of you. They used to be
+    // recycled at z=-0.08 with an alpha ramp that started dimming them at z=0 —
+    // and a star at low rmul is still well inside the frame at z=0, so it visibly
+    // dissolved a hand's width from the camera. Now they hold full brightness and
+    // keep going: ring() blows the radius up as z goes negative, so they sweep out
+    // through the screen edge under their own steam.
+    //
+    // -0.14 is as far as it is safe to run. ring()'s scale is 1/(1 + z*6), which
+    // blows up at z = -1/6, so anything past about -0.15 divides by ~zero.
+    const gone = st.gold ? -0.08 : -0.14;
+    if (st.z <= gone) { st.z = 1; if (st.gold) st.a = Math.PI / 2 + rand(-0.55, 0.55); }
     if (st.gold && st.ord > riverK) continue;
     // per-star length, so no two smears are the same size
     const span = (st.gold ? 0.05 : ambSpan * st.lenK) * (1 + (warpT / 0.9) * 3);
@@ -6199,7 +6224,11 @@ function drawStreaks(g, dt) {
     const rr1 = r1.r * rm;
     const x1 = r1.x + Math.cos(st.a) * rr1, y1 = r1.y + Math.sin(st.a) * rr1;
     const x2 = r2.x + Math.cos(st.a) * r2.r * rm, y2 = r2.y + Math.sin(st.a) * r2.r * rm;
-    const al = Math.min(1 - st.z, 1.05) * (st.gold ? 0.75 : 0.52 * st.br) * clamp(1 + st.z / 0.1, 0, 1);
+    // no near-fade on the warp lines: the `clamp(1 + z/0.1)` term that used to be
+    // here is exactly what made them dissolve in front of the viewer
+    const al = st.gold
+      ? Math.min(1 - st.z, 1.05) * 0.75 * clamp(1 + st.z / 0.1, 0, 1)
+      : Math.min(1 - st.z, 1.05) * 0.52 * st.br;
     if (st.gold) {
       ctx.strokeStyle = `rgba(255,196,88,${al.toFixed(2)})`;
       ctx.lineWidth = lerp(0.5, 2.6, 1 - st.z);
@@ -6213,10 +6242,10 @@ function drawStreaks(g, dt) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.lineCap = 'round';
-      for (const [w, col, aMul] of LIVE_WARP_PASSES) {
+      for (const [w, ci, aMul] of LIVE_WARP_PASSES) {
         const a2 = al * aMul;
         if (a2 < 0.008) continue;
-        ctx.strokeStyle = `rgba(${st.amber ? '255,214,168' : col},${Math.min(1, a2).toFixed(3)})`;
+        ctx.strokeStyle = `rgba(${ci === 2 ? '255,255,255' : st.tint[ci]},${Math.min(1, a2).toFixed(3)})`;
         ctx.lineWidth = w * k;
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
       }
@@ -6232,11 +6261,127 @@ function drawStreaks(g, dt) {
     // occupies before the smear behind it. A streak with a head has a direction;
     // a bare line is ambiguous, and ambiguity is what made the old wall read flat.
     if (!st.gold && st.z < 0.55) {
-      const hk = (1 - st.z / 0.55) * (st.cal || 1);
-      ctx.fillStyle = st.amber ? `rgba(255,228,180,${(al * hk * 0.9).toFixed(2)})`
-        : `rgba(226,244,255,${(al * hk * 0.9).toFixed(2)})`;
+      const hk = clamp(1 - st.z / 0.55, 0, 1.35) * (st.cal || 1);
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(1, al * hk * 0.95).toFixed(2)})`;
       ctx.beginPath(); ctx.arc(x1, y1, Math.max(0.5, 1.5 * hk), 0, TAU); ctx.fill();
     }
+  }
+}
+
+// ---------- THE LANE MEDIUM: what makes it space instead of a diagram ----------
+// Warp lines alone read as technical — a clean radial hatch, evenly lit, all one
+// material. Real space is filthy: gas you fly through, dust that catches the
+// light, chunks tumbling past close enough to see them turn. This layer is that
+// mess, and it rides the same z axis as everything else so it shares the bore's
+// perspective for free.
+//
+// Both sets fade IN from the deep and never fade out — like the warp lines, they
+// fly past the camera rather than dissolving in front of it.
+const GAS_COLS = [
+  '64,148,190',   // cold teal
+  '148,88,180',   // violet
+  '190,138,78',   // warm dust
+  '82,116,200',   // deep blue
+  '178,98,112',   // rose
+  '70,170,150'    // green-teal
+];
+let gasWisps = [], laneDebris = [];
+function mkGas() {
+  return {
+    a: Math.random() * TAU, z: Math.random(),
+    rmul: rand(0.30, 1.65),
+    sz: rand(0.16, 0.58),                 // radius as a fraction of the ring radius
+    stretch: rand(1.5, 3.4),              // drawn out along travel
+    col: GAS_COLS[Math.random() * GAS_COLS.length | 0],
+    al: 0.020 + Math.random() * 0.055,
+    sp: rand(0.5, 0.9)                    // gas LAGS the stars — parallax between layers
+  };
+}
+function mkDebris() {
+  const n = 5 + (Math.random() * 4 | 0), vs = [];
+  for (let i = 0; i < n; i++) vs.push(rand(0.45, 1)); // angular: debris is not a planet
+  return {
+    a: Math.random() * TAU, z: Math.random(),
+    rmul: rand(0.28, 1.55),
+    sz: rand(0.004, 0.020),
+    spin: Math.random() * TAU, spinSp: rand(-2.4, 2.4),
+    warm: Math.random() < 0.35,
+    sp: rand(0.88, 1.3), vs
+  };
+}
+function initLaneMedium() {
+  const nG = lowFX ? 6 : 16, nD = lowFX ? 14 : 46;
+  gasWisps = []; laneDebris = [];
+  for (let i = 0; i < nG; i++) gasWisps.push(mkGas());
+  for (let i = 0; i < nD; i++) laneDebris.push(mkDebris());
+}
+initLaneMedium();
+function drawLaneMedium(g, dt) {
+  if (state === S.MENU) return;
+  const spd = state === S.PLAY ? trafficSpeed : 0.4;
+  const wsp = 1 + (warpT / 0.9) * 5;
+  const dive = clamp(warpT / 0.9, 0, 1);
+  // --- gas first: everything else moves through it ---
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const gs of gasWisps) {
+    gs.z -= dt * spd * gs.sp * wsp;
+    if (gs.z <= -0.14) { Object.assign(gs, mkGas()); gs.z = 1; }
+    const rg = ring(gs.z, g);
+    const rad = rg.r * gs.sz;
+    if (rad < 2) continue;
+    const px = rg.x + Math.cos(gs.a) * rg.r * gs.rmul;
+    const py = rg.y + Math.sin(gs.a) * rg.r * gs.rmul;
+    const reach = rad * gs.stretch;
+    if (px < -reach || px > W + reach || py < -reach || py > H + reach) continue;
+    const al = gs.al * Math.min(1, (1 - gs.z) * 3.2) * (1 + dive * 1.4); // fades in, never out
+    if (al < 0.002) continue;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(gs.a);              // long axis lies along the direction of travel
+    ctx.scale(gs.stretch, 1);
+    const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, rad);
+    grd.addColorStop(0, `rgba(${gs.col},${al.toFixed(4)})`);
+    grd.addColorStop(0.45, `rgba(${gs.col},${(al * 0.45).toFixed(4)})`);
+    grd.addColorStop(1, `rgba(${gs.col},0)`);
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(0, 0, rad, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+  // --- debris: chunks tumbling past, lit by the one world key light ---
+  for (const db of laneDebris) {
+    db.z -= dt * spd * db.sp * wsp;
+    db.spin += dt * db.spinSp;
+    if (db.z <= -0.14) { Object.assign(db, mkDebris()); db.z = 1; }
+    const rg = ring(db.z, g);
+    const rad = Math.min(W, H) * db.sz * rg.s * 5.5; // swells as it comes at you
+    if (rad < 0.7) continue;
+    const px = rg.x + Math.cos(db.a) * rg.r * db.rmul;
+    const py = rg.y + Math.sin(db.a) * rg.r * db.rmul;
+    if (px < -rad * 3 || px > W + rad * 3 || py < -rad * 3 || py > H + rad * 3) continue;
+    const al = Math.min(1, (1 - db.z) * 3) * 0.5; // fades in from the deep, never out
+    if (al < 0.01) continue;
+    ctx.save();
+    ctx.translate(px, py); ctx.rotate(db.spin);
+    ctx.beginPath();
+    for (let i = 0; i < db.vs.length; i++) {
+      const a2 = i / db.vs.length * TAU, rr = rad * db.vs[i];
+      const vx = Math.cos(a2) * rr, vy = Math.sin(a2) * rr;
+      i ? ctx.lineTo(vx, vy) : ctx.moveTo(vx, vy);
+    }
+    ctx.closePath();
+    ctx.fillStyle = `rgba(5,8,16,${(al * 0.85).toFixed(3)})`; // occludes what is behind
+    ctx.fill();
+    const la = LIGHT_A - db.spin;
+    const lg = ctx.createLinearGradient(Math.cos(la) * rad, Math.sin(la) * rad,
+                                        -Math.cos(la) * rad, -Math.sin(la) * rad);
+    lg.addColorStop(0, `rgba(${db.warm ? '226,196,158' : '176,204,236'},${(al * 0.8).toFixed(3)})`);
+    lg.addColorStop(0.5, `rgba(${db.warm ? '120,98,74' : '86,116,158'},${(al * 0.22).toFixed(3)})`);
+    lg.addColorStop(1, 'rgba(24,36,58,0)');
+    ctx.fillStyle = lg;
+    ctx.fill();
+    ctx.restore();
   }
 }
 
@@ -12879,6 +13024,7 @@ function perfWatch(rawDt) {
       lowFX = true;
       initStreaks();
       initDeepField();
+      initLaneMedium();
       wallSnips.length = Math.min(wallSnips.length, 14);
     }
     perfAcc = 0; perfN = 0; perfWin = 0;
@@ -13532,6 +13678,7 @@ function frame(now) {
   drawRangeRings(g);
   drawSurgeWave(g);
   drawWallCode(g, dt);
+  drawLaneMedium(g, dt); // gas + debris the warp lines fly through
   drawStreaks(g, dt);
   // warm glow rising off the golden river
   const rgl = ctx.createRadialGradient(g.cx, H * 0.95, 0, g.cx, H * 0.95, Math.min(W, H) * 0.75);
