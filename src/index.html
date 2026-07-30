@@ -5684,67 +5684,67 @@ function drawLattice(g) {
   ctx.restore();
 }
 
-// THE WARP FIELD: the energy membrane between the lane and open space — the
-// thing that makes inside and outside two different places instead of one
-// continuous starfield with hoops in it.
+// THE WARP FIELD: a continuous luminous sheath hugging the lane wall — the
+// energy tunnel that highlights the bore against open space. Not arcs, not
+// ribbons, not anything with parts: a single unbroken tube of soft teal glow.
 //
-// It is drawn as slow ribbons of teal energy CIRCULATING the bore: each ribbon
-// is an arc segment at a fixed depth whose angular position drifts with time,
-// some prograde, some retrograde. Circulation is the one motion nothing else in
-// the scene has — everything else translates along the axis — so even faint, it
-// reads immediately as a field with its own behaviour.
+// Built as ONE prerendered annulus sprite (a ring of light with gaussian-soft
+// inner and outer falloff) stamped densely down the bore. The stamps are
+// radially symmetric and featureless, so unlike the wall texture they can
+// overlap at any spacing without forming a repeating pattern, and there is
+// nothing on them to shear under the enemy decals.
 //
-// SAFE TO ROTATE, unlike the wall texture: enemies are painted over these at
-// fixed angles, and a translucent glow sliding UNDER a decal reads as energy
-// behind it, not as the decal shearing. (The wall's own twist must stay fixed
-// because its bright streak pattern would visibly drag the leaks with it.)
-//
-// Stateless — every ribbon is a fixed seed evaluated against the shared clock —
-// so replays, pauses and menus all agree without touching the sim.
-const FIELD_RIBBONS = [];
-for (let i = 0; i < 22; i++) {
-  FIELD_RIBBONS.push({
-    z: 0.06 + (i / 22) * 0.82 + Math.random() * 0.03, // spread down the bore
-    a0: Math.random() * TAU,
-    arc: rand(0.5, 1.7),                 // angular length of the ribbon
-    drift: rand(0.10, 0.34) * (Math.random() < 0.5 ? -1 : 1), // rad/s, both ways
-    wob: rand(0.4, 1.4),                 // slow breathing of its arc length
-    ph: Math.random() * TAU,
-    w: rand(0.5, 1.0),                   // weight within the class
-    warm: Math.random() < 0.14           // a few run gold — energy, not chrome
-  });
+// The life in it comes from EMANATION, not rotation: a slow charge travelling
+// down the tube (a long sine over z sliding with time) and a faint outward
+// breath. Both modulate alpha only — the geometry never moves, so the sheath
+// reads as the lane's own field rather than as an object in the lane.
+let fieldGlowCv = null;
+function buildFieldGlow() {
+  const S = 512, half = S / 2, ringR = half * 0.62;
+  fieldGlowCv = document.createElement('canvas');
+  fieldGlowCv.width = fieldGlowCv.height = S;
+  const c = fieldGlowCv.getContext('2d');
+  const gr = c.createRadialGradient(half, half, ringR * 0.42, half, half, half);
+  // gaussian-ish shoulders: dark core, bright at the wall, long soft outer skirt
+  gr.addColorStop(0.00, 'rgba(96,224,208,0)');
+  gr.addColorStop(0.30, 'rgba(96,224,208,0.02)');
+  gr.addColorStop(0.52, 'rgba(110,230,215,0.14)');
+  gr.addColorStop(0.60, 'rgba(150,242,228,0.30)');   // the wall itself
+  gr.addColorStop(0.68, 'rgba(110,230,215,0.13)');
+  gr.addColorStop(0.85, 'rgba(96,224,208,0.035)');
+  gr.addColorStop(1.00, 'rgba(96,224,208,0)');
+  c.fillStyle = gr;
+  c.fillRect(0, 0, S, S);
+  return ringR / half; // where the bright ring sits, as a fraction of the sprite
 }
+const FIELD_RING_K = 0.62; // must match ringR/half above
 function drawWarpField(g) {
   if (state === S.MENU) return;
+  if (!fieldGlowCv) buildFieldGlow();
   const dive = clamp(warpT / 0.9, 0, 1);
+  const breath = 0.9 + 0.1 * Math.sin(time * 0.55);   // the faint outward breath
   ctx.save();
-  ctx.lineCap = 'round';
   ctx.globalCompositeOperation = 'lighter';
-  for (const f of FIELD_RIBBONS) {
-    const rg = ring(f.z, g);
-    if (rg.r < 8) continue;
-    // depth-graded presence: strongest mid-bore, gone at the horizon fog and
-    // fading before the rim so it never fights the play ring
-    const depthK = clamp((SPAWN_Z - 0.06 - f.z) / 0.3, 0, 1) * clamp((f.z - 0.30) / 0.14, 0.35, 1);
-    const breathe = 0.75 + 0.25 * Math.sin(time * f.wob + f.ph);
-    // The first cut multiplied out to ~0.02 alpha on ~4px arcs — mathematically
-    // present, visually absent. A membrane has to be SEEN to separate anything:
-    // base alpha up ~4x and the band far wider, still translucent enough that
-    // stars read straight through it.
-    const al = (0.17 + 0.30 * dive) * f.w * depthK * breathe;
-    if (al < 0.012) continue;
-    const aMid = f.a0 + time * f.drift;           // the circulation
-    const half = f.arc * (0.8 + 0.2 * breathe) / 2;
-    const col = f.warm ? '255,210,120' : '96,224,208';
-    // three passes: a broad soft aura, the band, and a thin hot filament
-    for (const [wMul, aMul] of [[7.5, 0.16], [3.4, 0.4], [1.1, 1]]) {
-      ctx.strokeStyle = `rgba(${col},${(al * aMul).toFixed(4)})`;
-      ctx.lineWidth = Math.max(1.2, rg.r / g.nodeR * 4.6 * f.w * wMul);
-      ctx.beginPath();
-      ctx.arc(g.cx, g.cy, rg.r, aMid - half, aMid + half);
-      ctx.stroke();
-    }
+  // dense stamps: 26 depths gives full overlap at this falloff, so the tube is
+  // continuous — no visible bands, no ends inside the frame (it runs to the
+  // horizon fog one way and past every screen edge the other)
+  const N = lowFX ? 16 : 26;
+  for (let i = 0; i < N; i++) {
+    const z = SPAWN_Z - 0.03 - (i / (N - 1)) * (SPAWN_Z + 0.10);
+    const rg = ring(z, g);
+    // scale so the sprite's bright ring lands ON the wall radius
+    const sz = rg.r / FIELD_RING_K;
+    if (sz < 6 || rg.r > Math.max(W, H) * 1.8) continue;
+    // the emanation: one long charge sliding down the bore, plus depth grading —
+    // dim into the horizon fog, gentle everywhere else
+    const charge = 0.72 + 0.28 * Math.sin(z * 5.5 - time * 1.35);
+    const depthK = clamp((SPAWN_Z - 0.04 - z) / 0.22, 0, 1);
+    const al = (0.10 + 0.26 * dive) * depthK * charge * breath;
+    if (al < 0.008) continue;
+    ctx.globalAlpha = Math.min(1, al);
+    ctx.drawImage(fieldGlowCv, rg.x - sz, rg.y - sz, sz * 2, sz * 2);
   }
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 
