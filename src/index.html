@@ -13523,7 +13523,10 @@ function drawGalaxyOverlay(tf, ccx, ccy, R, labels) {
   }
   const cx2 = tf.ox + CITY_CORE.x * z, cy2 = tf.oy + CITY_CORE.y * z;
   const ell = r => { ctx.beginPath(); ctx.ellipse(cx2, cy2, r * z, r * 0.5 * z, 0, 0, TAU); };
-  const ringCol = i => i < 1 ? '126,226,98' : i < 3 ? '255,200,80' : '255,110,110';
+  // Grey first, risk second. Saturated green/amber/red rings were the loudest
+  // thing on a chart whose subject is the route — the tint now only leans the
+  // grey, which is enough to rank them without competing with the lane.
+  const ringCol = i => i < 1 ? '150,170,158' : i < 3 ? '172,166,142' : '178,150,150';
   const perimeter = (r, col, a) => {
     ctx.save();
     ctx.strokeStyle = `rgba(${col},${a.toFixed(2)})`;
@@ -13541,14 +13544,24 @@ function drawGalaxyOverlay(tf, ccx, ccy, R, labels) {
     }
     ctx.restore();
   };
-  if (RINGS.length) perimeter(RINGS[0].r0, '126,226,98', 0.75);
+  if (RINGS.length) perimeter(RINGS[0].r0, '150,170,158', 0.42);
   RINGS.forEach((ring2, i) => {
     const col = ringCol(i), q = 1 - i / Math.max(1, RINGS.length);
-    perimeter(ring2.r1, col, 0.28 + q * 0.34);
+    perimeter(ring2.r1, col, 0.16 + q * 0.18);
     if (!labels) return;
+    // The label used to sit at a FIXED point on the ring — upper-left — so riding
+    // the lane simply carried that point out of the lens and the cordon lost its
+    // name mid-journey. It now rides to whichever part of the ring is nearest the
+    // view, which is by definition the part you are looking at, so a cordon that
+    // crosses the lens is always labelled.
     const lr = (ring2.r0 + ring2.r1) / 2;
-    const lx = cx2 - lr * 0.74 * z, ly = cy2 - lr * 0.5 * 0.74 * z - 6;
-    if (Math.hypot(lx - ccx, ly - ccy) > R) return;   // label is off the lens
+    const towards = Math.atan2((ccy - cy2) / 0.5, ccx - cx2);
+    let lx = cx2 + Math.cos(towards) * lr * z;
+    let ly = cy2 + Math.sin(towards) * lr * 0.5 * z - 8;
+    // nudge it back toward the middle of the lens so the type is never half-cropped
+    const dl = Math.hypot(lx - ccx, ly - ccy);
+    if (dl > R - 70) { const k2 = (R - 70) / dl; lx = ccx + (lx - ccx) * k2; ly = ccy + (ly - ccy) * k2; }
+    if (Math.hypot(cx2 - ccx, cy2 - ccy) - lr * z > R) return; // the ring is nowhere near
     ctx.textAlign = 'left';
     ctx.fillStyle = `rgba(${col},${(0.45 + q * 0.35).toFixed(2)})`;
     ctx.font = '700 12px Audiowide, system-ui';
@@ -14109,9 +14122,31 @@ function drawMapList(ccx, ccy, R, frontier) {
     // title only — the dossier owns stars and stats
     ctx.fillStyle = locked ? 'rgba(220,240,255,0.3)' : '#f2faff';
     const nm = lvNum(curLevelNo(i)) + '  ' + levelTitle(i);
-    ctx.font = '700 ' + fitPx(nm, '700', 10, lw2 - (locked ? 34 : 18), 8) + 'px Audiowide, system-ui';
+    // A route name is two place names and an arrow, so it will not fit and there
+    // is no size that makes it fit — shrinking to 8px only made it illegible in a
+    // different way. Clip to the bracket and, if it overruns, MARQUEE it.
+    //
+    // It rests at the start for most of the cycle, so the column reads as still
+    // type rather than eight things sliding at once, and each row is phased off
+    // its own index so nothing moves in lockstep.
+    const padR = locked ? 34 : 18;
+    const boxX = rx + 10, boxW = lw2 - padR - 4;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(boxX - 2, ly2 + 1, boxW + 4, rh - 2); ctx.clip();
+    ctx.font = '700 11px Audiowide, system-ui';
     ctx.textBaseline = 'middle';
-    ctx.fillText(nm, rx + 10, ly2 + rh / 2 + 1);
+    const tw = ctx.measureText(nm).width;
+    let ox = 0;
+    if (tw > boxW) {
+      const over = tw - boxW;
+      const per = 4 + over / 26;                 // longer names take longer to read
+      const ph = (time / per + i * 0.31) % 2;    // phased per row
+      const raw = ph < 1 ? ph : 2 - ph;
+      const held = clamp((raw - 0.30) / 0.40, 0, 1);   // long dwell at both ends
+      ox = -over * held * held * (3 - 2 * held);
+    }
+    ctx.fillText(nm, boxX + ox, ly2 + rh / 2 + 1);
+    ctx.restore();
     ctx.textBaseline = 'alphabetic';
     if (locked) padlock(rx + lw2 - 14, ly2 + rh / 2, 5);
     ctx.restore();
