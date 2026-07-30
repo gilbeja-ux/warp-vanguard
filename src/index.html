@@ -903,7 +903,10 @@ const sfx = {
 // ---------- background (deep data-space behind the tunnel walls) ----------
 let bgCanvas = null, vignetteCanvas = null, wallTex = null, wallCloud = null;
 let ringFxCv = null, grainCv = null; // prerendered monolith ring + film-grain tile
-let bgMotes = [];
+// (the drifting screen motes are GONE with the rest of the fiber theme. Eighteen
+// dots sliding UP the frame on their own blinking cycle made sense as data rising
+// through a feed; against a star field they were the only things in the sky moving
+// in a straight line, and they read as exactly what they were — sprites.)
 // SCINTILLATION, STAR BY STAR.
 //
 // The backdrop bakes ~1500 stars into a canvas, so the first two attempts at this
@@ -927,13 +930,21 @@ let bgMotes = [];
 //     which is what a real bright star does through atmosphere and is the single
 //     most convincing detail in the whole effect
 let liveStars = [];
-// class table: [share, amplitude range, rate range]. Weighted hard toward the
-// subtle end — the effect should be something you notice on the second look.
+// class table: [share, amplitude range, rate range].
+//
+// A star FLARES as well as dims — amplitude runs both ways around its baseline,
+// so at the top of a cycle it is brighter than it was ever painted. That is what
+// makes a field sparkle rather than merely fade; a star that only ever subtracts
+// light reads as something switching off.
+//
+// Rates are seconds, not tens of seconds. Real scintillation is quick — at the
+// first cut's 0.15 rad/s a star took forty seconds to complete one swing, which
+// is not twinkling, it is weather.
 const STAR_CLASS = [
-  [0.10, [0.00, 0.00], [0.0, 0.0]],   // steady: anchors the field
-  [0.55, [0.06, 0.16], [0.5, 1.6]],   // barely there
-  [0.26, [0.18, 0.34], [0.4, 2.4]],   // visible shimmer
-  [0.09, [0.40, 0.72], [0.15, 0.7]]   // slow deep swimmers, the ones you catch
+  [0.08, [0.00, 0.00], [0.0, 0.0]],   // steady: anchors the field
+  [0.34, [0.15, 0.30], [0.9, 2.6]],   // gentle
+  [0.40, [0.32, 0.60], [1.3, 4.4]],   // lively — the body of the field
+  [0.18, [0.62, 0.95], [0.6, 2.2]]    // dramatic: near-out, then hard flare
 ];
 function starClass() {
   let r = Math.random(), i = 0;
@@ -946,11 +957,7 @@ let litPanels = [];
 // The wall's motion is carried by streaked starlight and the marker trains below.)
 function buildBackground() {
   // live layer state
-  bgMotes = [];
   liveStars = [];
-  for (let i = 0; i < 18; i++) {
-    bgMotes.push({ x: Math.random() * W, y: Math.random() * H, sp: rand(4, 14), r: rand(0.6, 1.8), ph: rand(0, TAU), white: Math.random() < 0.3 });
-  }
   litPanels = [];
   // (the chevron marker trains are GONE. Signage painted on a lane wall was a
   // holdover from thinking of the bore as a built structure — a lit corridor with
@@ -1359,42 +1366,40 @@ function buildRingFx() {
 // the live half of the star field — see STAR_CLASS above. Drawn with the backdrop
 // so the sky keeps its depth: everything in the lane still passes IN FRONT of it.
 function drawStarField() {
-  for (const s of liveStars) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter'; // a flare ADDS light; over the band it
+  for (const s of liveStars) {              // has to build on what is already there
     // two incommensurate rates, so a star never repeats its own pattern and no
     // two stars ever agree. amp 0 (the steady class) short-circuits to a constant.
-    const dim = s.amp && s.amp * (0.62 * (0.5 + 0.5 * Math.sin(time * s.r1 + s.p1))
+    const w = s.amp && (0.62 * (0.5 + 0.5 * Math.sin(time * s.r1 + s.p1))
       + 0.38 * (0.5 + 0.5 * Math.sin(time * s.r2 + s.p2)));
-    const al = s.al * (1 - dim);
+    // both ways around the baseline: 1-amp at the bottom, 1+amp at the top
+    const k = 1 - s.amp + 2 * s.amp * w;
+    const al = Math.min(1, s.al * k);
     if (al < 0.006) continue;
     let col = s.col;
     if (s.hue) {
       // the scintillation colour shift: a bright star seen through anything at all
       // splits toward blue as it dims and toward amber as it flares. Tiny numbers —
       // it should never read as a coloured light, only as a star that is burning.
-      const k = Math.sin(time * s.r2 * 1.9 + s.p1) * s.hue;
+      const h = Math.sin(time * s.r2 * 1.9 + s.p1) * s.hue;
       const [r0, g0, b0] = s.rgb;
-      col = clamp(r0 + k, 0, 255).toFixed(0) + ',' + clamp(g0 + k * 0.15, 0, 255).toFixed(0)
-        + ',' + clamp(b0 - k, 0, 255).toFixed(0);
+      col = clamp(r0 + h, 0, 255).toFixed(0) + ',' + clamp(g0 + h * 0.15, 0, 255).toFixed(0)
+        + ',' + clamp(b0 - h, 0, 255).toFixed(0);
     }
-    if (s.big) {                                  // the bright ones bloom
-      const gg = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 8);
+    if (s.big) { // the bright ones bloom — and the bloom SWELLS with the flare,
+      const rr = 8 * (0.55 + 0.75 * k); // which is most of what sells a star flaring
+      const gg = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, rr);
       gg.addColorStop(0, `rgba(${col},${(al * 0.42).toFixed(3)})`);
       gg.addColorStop(1, `rgba(${col},0)`);
       ctx.fillStyle = gg;
-      ctx.beginPath(); ctx.arc(s.x, s.y, 8, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x, s.y, rr, 0, TAU); ctx.fill();
     }
     ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
+    // the core grows a little too: a star at full flare is not the same size dot
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r * (0.8 + 0.35 * k), 0, TAU); ctx.fill();
   }
-}
-function drawLiveBg(dt) {
-  for (const m of bgMotes) {
-    m.y -= m.sp * dt;
-    if (m.y < -4) { m.y = H + 4; m.x = Math.random() * W; }
-    const al = 0.06 + (Math.sin(time * 2 + m.ph) * 0.5 + 0.5) * 0.1;
-    ctx.fillStyle = m.white ? `rgba(255,255,255,${al.toFixed(2)})` : `rgba(120,220,255,${al.toFixed(2)})`;
-    ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, TAU); ctx.fill();
-  }
+  ctx.restore();
 }
 // binary / hex snippets racing along the tunnel axis — glyph by glyph, in true perspective,
 // flowing both toward and away from the player like live traffic on the line
@@ -13235,7 +13240,10 @@ function buildCity() {
   };
   // --- the arms: dust and unresolved starlight wound out of the core ---
   // arms run blue-white at the edges where young stars are, warmer inward
-  const ARM_WARM = [206, 178, 140], ARM_EDGE = [186, 206, 255], ARM_MID = [132, 150, 214];
+  // The inner arms were warm out to t<0.30, which on this radius scale is ~1100px
+  // — again the whole operating region. The warm band is now the innermost tenth
+  // only, and much less yellow: dusty rose rather than sodium.
+  const ARM_WARM = [168, 150, 158], ARM_EDGE = [186, 206, 255], ARM_MID = [132, 150, 214];
   for (let arm = 0; arm < 2; arm++) {
     for (let i = 0; i < 2400; i++) {
       const t = Math.pow(rng(), 0.78);
@@ -13246,13 +13254,25 @@ function buildCity() {
       const x2 = CITY_CORE.x + Math.cos(ang2) * rr, y2 = CITY_CORE.y + Math.sin(ang2) * rr * 0.5;
       const q = 1 - Math.min(1, Math.abs(off) / A2.spread);
       const br = 26 + rng() * 130;
-      const col = t < 0.30 ? ARM_WARM : q > 0.55 ? ARM_EDGE : ARM_MID;
+      const col = t < 0.10 ? ARM_WARM : q > 0.55 ? ARM_EDGE : ARM_MID;
       const al = (0.010 + rng() * 0.030) * (0.25 + q) * (1 - t * 0.35);
       blob(x2, y2, br, 1, col, al);
     }
   }
   // --- the bulge: the old yellow core every spiral has ---
-  for (const [rad, col, al] of [[1150, [196, 168, 120], 0.030], [700, [236, 214, 168], 0.055], [380, [255, 244, 214], 0.10], [180, [255, 252, 240], 0.16]])
+  // THE BULGE, resized and cooled.
+  //
+  // It is not a nebula — it is the old-star core every spiral galaxy has. The
+  // problem was scale, not identity: its outermost shell was 1150px, which is
+  // EXACTLY where the outermost cordon now sits. It had been sized when the bands
+  // reached 2340, and shrinking them never rescaled it, so a core became a fog
+  // laid evenly over the whole patrolled region — a wash the entire game happens
+  // inside of, which is why it read as a haze rather than as a place.
+  //
+  // It now stops inside the first cordon. From LOW ORBIT you see a bright core
+  // nearby; from NO MANS LAND it is a distant glow behind you, which is what a
+  // galactic core should do. Cooled and roughly halved as well.
+  for (const [rad, col, al] of [[520, [96, 122, 176], 0.020], [320, [132, 164, 214], 0.030], [190, [186, 212, 246], 0.052], [95, [226, 240, 255], 0.085]])
     blob(CITY_CORE.x, CITY_CORE.y, rad, 2, col, al, true);
   // --- DARK DUST LANES: the feature that stops arms reading as airbrush ---
   const DUST = [2, 3, 10];
@@ -14908,7 +14928,6 @@ function frame(now) {
   if (worldFx) { ctx.save(); ctx.globalAlpha = worldAlpha; ctx.translate(W / 2, H / 2); ctx.scale(worldZoom, worldZoom); ctx.translate(-W / 2, -H / 2); }
   if (bgCanvas) ctx.drawImage(bgCanvas, 0, 0, W, H);
   drawStarField();  // the half of the backdrop that is allowed to move
-  drawLiveBg(dt);
 
   const g = geo();
 
