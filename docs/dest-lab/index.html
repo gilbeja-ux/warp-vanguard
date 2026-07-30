@@ -144,7 +144,11 @@
     display: flex; align-items: baseline; gap: 12px;
     padding: 16px 22px 0; flex: none;
   }
-  .stage-head h1 { font-family: var(--display); font-size: 15px; letter-spacing: 2px; color: var(--ink); font-weight: 400; }
+  /* The one true step up. Everything else on this page is an instrument label
+     separated by family, colour and tracking rather than by size — but the name
+     of the thing you are tuning has to win outright, and 15px against 13px body
+     was not a step, it was a wobble. */
+  .stage-head h1 { font-family: var(--display); font-size: 20px; letter-spacing: 2px; color: var(--ink); font-weight: 400; }
   .stage-head .code {
     font-family: var(--mono); font-size: 11px; color: #041018; background: var(--cyan);
     padding: 2px 7px; border-radius: 4px; font-weight: 700; letter-spacing: 1px;
