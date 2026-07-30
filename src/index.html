@@ -1015,45 +1015,58 @@ function buildBackground() {
       : r < 0.55 ? `rgba(236,246,255,${al})`      // cold white
       : `rgba(150,205,255,${al})`;                // blue-white
   };
-  // the smear: radial streaks along the direction of travel, each drawn as a
-  // GLOW plus a core. The glow is the whole reason the reference streaks read as
-  // light rather than as scratches — a bare 1px line is a hairline, the same line
-  // bedded in a wide soft halo is a star burning past. Additive, so overlapping
-  // streaks pool into brighter regions instead of flat-stacking.
+  // WARP LINES: stars coming at the viewer fast enough to smear into light.
+  //
+  // The hard-won rule here: a glowing line is NOT one wide stroke. A wide stroke
+  // is a capsule — square-capped it reads as a rectangle, round-capped it reads
+  // as a rectangle with rounded corners, and either way it reads as a flat
+  // SURFACE sliding past. Both earlier cuts failed on exactly that.
+  //
+  // A glowing line is a STACK of narrow additive strokes running light blue on
+  // the outside to white-hot at the centre. The widest pass here is ~3px; the
+  // brightness comes from the stack and the colour ramp, never from width. Every
+  // pass fades to nothing at both ends, so a streak tapers instead of stopping.
+  const WARP_PASSES = [
+    [2.4, '110,180,255', 0.15],   // outer halo — light blue
+    [1.9, '165,212,255', 0.26],
+    [1.1, '215,238,255', 0.55],
+    [0.5, '255,255,255', 1.00]    // core — white hot
+  ];
   t.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 620; i++) {
+  t.lineCap = 'round';
+  for (let i = 0; i < 860; i++) {
     const a0 = Math.random() * TAU;
     const r0 = rand(inR, outR - 8);
-    const len = Math.random() < 0.14 ? rand(70, 210) : rand(10, 64); // a few hero smears
+    // longer overall than before: at warp the smear IS the read
+    const len = Math.random() < 0.24 ? rand(95, 275) : rand(20, 95);
     const r1 = Math.min(outR, r0 + len);
-    const al = 0.10 + Math.random() * 0.34;
-    const core = Math.random() < 0.12 ? rand(1.8, 3.0) : rand(0.5, 1.4);
-    const colA = pick('1').slice(5, -3); // one colour for all passes of this streak
+    const al = 0.13 + Math.random() * 0.40;
+    // calibre is capped hard: 2.4 x 1.5 = 3.6px at the very widest halo. Above
+    // roughly 4px a stroke stops reading as a line and starts reading as a surface,
+    // and that threshold is what both earlier cuts blew through.
+    const wk = Math.random() < 0.13 ? rand(1.15, 1.5) : rand(0.55, 1.05);
     t.save(); t.rotate(a0);
-    // ROUND caps, always. A wide butt-capped stroke is a rectangle — that is
-    // literally what it draws — so a 7.5x-wide glow pass with square ends read as
-    // "wide rectangular surfaces" sliding through the bore. Round caps plus a
-    // narrower halo keep a streak a streak.
-    t.lineCap = 'round';
-    // three passes: halo, bloom, core — widest and faintest first
-    for (const [wMul, aMul] of [[3.4, 0.10], [1.9, 0.24], [1, 1]]) {
+    for (const [w, col, aMul] of WARP_PASSES) {
+      const a2 = al * aMul;
+      if (a2 < 0.006) continue;
       const grd = t.createLinearGradient(r0, 0, r1, 0);
-      grd.addColorStop(0, `rgba(${colA},0)`);
-      grd.addColorStop(0.35, `rgba(${colA},${(al * aMul).toFixed(3)})`);
-      grd.addColorStop(1, `rgba(${colA},0)`);
+      grd.addColorStop(0, `rgba(${col},0)`);
+      grd.addColorStop(0.30, `rgba(${col},${a2.toFixed(3)})`);
+      grd.addColorStop(0.62, `rgba(${col},${(a2 * 0.85).toFixed(3)})`);
+      grd.addColorStop(1, `rgba(${col},0)`);
       t.strokeStyle = grd;
-      t.lineWidth = core * wMul;
+      t.lineWidth = w * wk;
       t.beginPath(); t.moveTo(r0, 0); t.lineTo(r1, 0); t.stroke();
     }
-    // the head — where the star still resolves to a point before the smear
-    if (len > 40) {
-      const hr = rand(0.7, 1.6);
-      const hg = t.createRadialGradient(r1, 0, 0, r1, 0, hr * 4.5);
-      hg.addColorStop(0, `rgba(${colA},${Math.min(1, al * 1.5).toFixed(3)})`);
-      hg.addColorStop(0.3, `rgba(${colA},${(al * 0.5).toFixed(3)})`);
-      hg.addColorStop(1, `rgba(${colA},0)`);
+    // the head: the star still resolving to a point ahead of its own smear
+    if (len > 55) {
+      const hr = 2.0 * wk;
+      const hg = t.createRadialGradient(r1, 0, 0, r1, 0, hr * 3.2);
+      hg.addColorStop(0, `rgba(255,255,255,${Math.min(1, al * 1.5).toFixed(3)})`);
+      hg.addColorStop(0.28, `rgba(200,230,255,${(al * 0.5).toFixed(3)})`);
+      hg.addColorStop(1, 'rgba(110,180,255,0)');
       t.fillStyle = hg;
-      t.beginPath(); t.arc(r1, 0, hr * 4.5, 0, TAU); t.fill();
+      t.beginPath(); t.arc(r1, 0, hr * 3.2, 0, TAU); t.fill();
     }
     t.restore();
   }
@@ -1067,18 +1080,10 @@ function buildBackground() {
     t.beginPath(); t.arc(rr, 0, Math.random() < 0.12 ? rand(1.4, 2.4) : rand(0.4, 1.1), 0, TAU); t.fill();
     t.restore();
   }
-  // a sparse dust haze riding the same direction — depth without more hard edges.
-  // Round caps: at 4–11px wide these are the exact width where a butt cap stops
-  // reading as a smear and starts reading as a little rectangle.
-  t.lineCap = 'round';
-  for (let i = 0; i < 110; i++) {
-    const a0 = Math.random() * TAU, r0 = rand(inR, outR - 30);
-    t.save(); t.rotate(a0);
-    t.strokeStyle = pick((0.04 + Math.random() * 0.08).toFixed(2));
-    t.lineWidth = rand(4, 11);
-    t.beginPath(); t.moveTo(r0, 0); t.lineTo(Math.min(outR, r0 + rand(24, 90)), 0); t.stroke();
-    t.restore();
-  }
+  // (the "dust haze" pass is GONE. It was 4–11px wide strokes, which is precisely
+  // the calibre that reads as a flat rounded-rectangle sliding through the bore no
+  // matter how it is capped. Depth comes from the warp-line stack and the point
+  // stars now; nothing in this texture is wider than about 3px.)
 
   // --- the TURBULENCE layer: roiling plasma in the throat (hyperspace reference) ---
   // Streaked starlight alone reads as Star Trek warp — clean, fast, empty. The
@@ -5973,6 +5978,17 @@ function drawFarGlow(far, vr) {
   }
 }
 
+// the live warp-line stack: same light-blue-to-white ramp as the baked texture's
+// WARP_PASSES, so the moving lines and the wall they ride on are the same
+// material. Widest pass is ~2.6px at full calibre — deliberately under the
+// threshold where a stroke starts reading as a surface instead of a line.
+const LIVE_WARP_PASSES = [
+  [2.6, '110,180,255', 0.16],
+  [1.6, '170,214,255', 0.32],
+  [0.9, '220,240,255', 0.66],
+  [0.45, '255,255,255', 1.00]
+];
+
 // THE CONVOY: the gold river running along the floor of the lane, behind and
 // below you — the thing you are out here for. It was already this. In the fiber
 // theme it was called the payload river, and its `ord` draw-order thins the
@@ -6169,25 +6185,27 @@ function drawStreaks(g, dt) {
     const x2 = r2.x + Math.cos(st.a) * r2.r * 0.95, y2 = r2.y + Math.sin(st.a) * r2.r * 0.95;
     const al = Math.min(1 - st.z, 1.05) * (st.gold ? 0.75 : 0.42) * clamp(1 + st.z / 0.1, 0, 1);
     const baseW = st.gold ? lerp(0.5, 2.6, 1 - st.z) : lerp(0.55, 1.7, 1 - st.z);
-    // GLOW under the core. Same reason as the baked streaks: a bare line is a
-    // scratch, a line in a halo is light. Additive so crossings pool rather than
-    // stack flat, and drawn widest-first so the core lands on top.
-    if (!st.gold) {
-      const col = st.amber ? '255,205,140' : '150,220,255';
+    if (st.gold) {
+      ctx.strokeStyle = `rgba(255,196,88,${al.toFixed(2)})`;
+      ctx.lineWidth = baseW;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    } else {
+      // the live warp lines, same rule as the baked ones: a STACK of narrow
+      // additive strokes, light blue outside to white-hot core. Never one wide
+      // stroke — that is a capsule, and a capsule reads as a flat surface.
+      const k = lerp(0.55, 1.15, 1 - st.z); // near lines carry a touch more calibre
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.lineCap = 'round'; // a wide butt-capped glow IS a rectangle — never that
-      for (const [wMul, aMul] of [[3.2, 0.12], [1.8, 0.28]]) {
-        ctx.strokeStyle = `rgba(${col},${(al * aMul).toFixed(3)})`;
-        ctx.lineWidth = baseW * wMul;
+      ctx.lineCap = 'round';
+      for (const [w, col, aMul] of LIVE_WARP_PASSES) {
+        const a2 = al * aMul;
+        if (a2 < 0.008) continue;
+        ctx.strokeStyle = `rgba(${st.amber ? '255,214,168' : col},${a2.toFixed(3)})`;
+        ctx.lineWidth = w * k;
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
       }
       ctx.restore();
     }
-    ctx.strokeStyle = st.gold ? `rgba(255,196,88,${al.toFixed(2)})`
-      : st.amber ? `rgba(255,185,90,${al.toFixed(2)})` : `rgba(140,215,255,${al.toFixed(2)})`;
-    ctx.lineWidth = baseW;
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     // hot core on the nearest gold particles
     if (st.gold && st.z < 0.35) {
       ctx.strokeStyle = `rgba(255,238,190,${(al * 0.7).toFixed(2)})`;
