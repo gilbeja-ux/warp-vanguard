@@ -1,20 +1,21 @@
-# Brand & Design Tokens — WARP OVERWATCH: LANE VANGUARDS
+# Brand & Design Tokens — WARP VANGUARD
 
 ## Name
-- Full: **WARP OVERWATCH: LANE VANGUARDS**  ·  Short: **WARP OVERWATCH**
-- Unit designation, in-world: **WOLV** — *Warp Overwatch: Lane Vanguards*, spoken
-  as "wolves". It is the squadron's own callsign root, not a marketing mark:
-  comms address the player as **wolf** (`"wolf two, lane is yours."`).
+- **WARP VANGUARD** — one mark, no subtitle. Short enough to need no short form.
+- Unit callsign, in-world: **the wolves**. Not a marketing mark — comms address
+  the player as *wolf* (`"wolf two, lane is yours."`). It used to be justified by
+  an initialism; it no longer needs one, and the bible line below was always the
+  better reason anyway.
 - Tagline: *Clear the lane.*
 - Store subtitle: *Run point. Kill the interdiction. Get the convoy through.*
 - Before store submission: run a USPTO TESS + Play/App Store search on the final
   name. This name was chosen partly *because* "Data Defenders" already collides
   with two existing Play Store apps — do not let the replacement repeat it.
-  Check "Warp Overwatch" and "Vanguard" separately as well as the full lockup.
-  **OVERWATCH IS A HEAVILY ENFORCED MARK** (Blizzard, registered in the game
-  software class). "Warp Overwatch" is a distinct mark and the in-fiction use is
-  a sector role, not a title — but this is the same clearance risk the rename was
-  meant to escape. Clear it before any store listing or paid marketing.
+  Check "Warp Vanguard" and "Vanguard" separately as well as the full lockup.
+  The earlier working title used *Overwatch*, which is a heavily enforced mark
+  (Blizzard, registered in the game software class). Dropping it removes that
+  risk entirely — this name's only exposure is the common word "Vanguard", which
+  is weak on its own and is not the whole mark.
 
 ## The wolves
 The pack is deliberate and the inversion is deliberate. Historically a wolfpack
@@ -34,11 +35,10 @@ point — filling the lower half. **The bore is the mark.** It always was; it is
 now literal instead of metaphorical, and needs no explaining.
 
 - **Full lockup** — `src/logo.png`. The badge carrying its own lettering:
-  WARP large in cyan-chrome, OVERWATCH beneath it, *Lane Vanguards* in gold
-  between two gold rules, over the bore. Menu and marketing surfaces.
+  WARP large in cyan-chrome and VANGUARD in gold beneath it, over the bore. Menu and marketing surfaces.
   Loaded at runtime by `brandLogo()`; the code keeps an Audiowide drawn stack as
   a fallback if the file is missing — that fallback already letters
-  WARP / OVER / WATCH with a LANE VANGUARDS subtitle, and VANGUARDS in the hub.
+  WARP / OVER / WATCH with a WARP VANGUARD subtitle, and VANGUARDS in the hub.
 - **App icon** — `src/icons/*.png` (`any`) and `df-mask-*.png` (`maskable`).
   Same shield with the lettering removed and a **wolf mark** over the bore,
   cyan chevrons top and bottom. Icon = badge only, no wordmark.

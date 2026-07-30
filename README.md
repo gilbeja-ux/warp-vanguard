@@ -1,4 +1,4 @@
-# Warp Overwatch: Lane Vanguards
+# Warp Vanguard
 
 A mobile game for iOS and Android featuring dual-node controls in a fiber-optic tunnel defense gameplay.
 

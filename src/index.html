@@ -8,10 +8,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#03060e">
 <link rel="manifest" href="manifest.webmanifest?v=3">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/df-192.png?v=7">
-<link rel="icon" type="image/png" sizes="512x512" href="icons/df-512.png?v=7">
-<link rel="apple-touch-icon" href="icons/df-mask-192.png?v=7">
-<title>Warp Overwatch: Lane Vanguards</title>
+<link rel="icon" type="image/png" sizes="192x192" href="icons/df-192.png?v=10">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/df-512.png?v=10">
+<link rel="apple-touch-icon" href="icons/df-mask-192.png?v=10">
+<title>Warp Vanguard</title>
 <style>
   :root {
     --sat: env(safe-area-inset-top, 0px);
@@ -40,7 +40,7 @@
 'use strict';
 
 // ============================================================
-// WARP OVERWATCH: LANE VANGUARDS — dual-thumb radial defense
+// WARP VANGUARD — dual-thumb radial defense
 // ============================================================
 
 const canvas = document.getElementById('game');
@@ -11831,7 +11831,7 @@ function paintMenuStatic() {
       bx += bw2 + 8;
     }
     ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
-    ctx.fillText('WARP OVERWATCH · LANE VANGUARDS', bx, 24 + SAFE.t);
+    ctx.fillText('WARP VANGUARD', bx, 24 + SAFE.t);
   }
   if (menuScreen === 'map') {
     // the lens mouth: the ring becomes a viewport over the city
@@ -12207,7 +12207,7 @@ function drawMenuHome(ccx, ccy, R) {
     try { ctx.letterSpacing = '2px'; } catch (e) {}
     ctx.fillStyle = 'rgba(255,210,74,0.9)';
     ctx.font = '700 ' + Math.max(9, Math.round(R * 0.05)) + 'px Audiowide, system-ui';
-    ctx.fillText('VANGUARDS', ccx, ccy + R * 0.014);
+    ctx.fillText('VANGUARD', ccx, ccy + R * 0.014);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   }
   ctx.restore();
@@ -12230,11 +12230,11 @@ function drawMenuHome(ccx, ccy, R) {
     try { ctx.letterSpacing = (fs * 0.08).toFixed(1) + 'px'; } catch (e) {}
     ctx.shadowColor = 'rgba(0,10,30,0.85)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
     ctx.fillStyle = '#c6d6ea';
-    for (const t2 of ['WARP', 'OVER', 'WATCH']) { ctx.fillText(t2, lx, ly); ly += llh; }
+    for (const t2 of ['WARP']) { ctx.fillText(t2, lx, ly); ly += llh; }
     ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     try { ctx.letterSpacing = '3px'; } catch (e) {}
     ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 ' + Math.max(10, fs * 0.42).toFixed(0) + 'px Audiowide, system-ui';
-    ctx.fillText('LANE VANGUARDS', lx + 2, ly + 4);
+    ctx.fillText('VANGUARD', lx + 2, ly + 4);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   }
   ctx.restore();

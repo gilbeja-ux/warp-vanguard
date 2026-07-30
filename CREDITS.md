@@ -1,4 +1,4 @@
-# Credits & Licenses — Warp Overwatch: Lane Vanguards
+# Credits & Licenses — Warp Vanguard
 
 ## Music
 Every soundtrack piece in this game — the menu theme and **every file in

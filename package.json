@@ -1,5 +1,5 @@
 {
-  "name": "warp-overwatch",
+  "name": "warp-vanguard",
   "version": "1.0.0",
   "description": "A mobile game for iOS and Android - dual-emitter warp lane escort game",
   "main": "index.html",
@@ -16,7 +16,8 @@
     "ios": "npx cap open ios",
     "android": "npx cap open android",
     "sync": "npm run build && npx cap sync",
-    "apk": "bash scripts/build-apk.sh"
+    "apk": "bash scripts/build-apk.sh",
+    "icons": "python3 scripts/icons.py"
   },
   "keywords": [
     "game",

@@ -1,4 +1,4 @@
-// WARP OVERWATCH: LANE VANGUARDS — bundled contracts.
+// WARP VANGUARD — bundled contracts.
 //
 // Each campaign is a CONTRACT: a different client, a different cargo, and a
 // stated route across the cordon tiers. They are episodic — no shared
