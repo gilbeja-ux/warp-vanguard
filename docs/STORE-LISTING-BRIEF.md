@@ -15,7 +15,7 @@ is [DESIGN.md](../DESIGN.md); Play asset specs and brand tokens are in
 [BRAND.md](../BRAND.md).
 
 **Mode: Persuade.** Play now, App Store-ready. Title assumed to be
-`Warp Lane: Vanguard Squadron` (28 of Play's 30 characters).
+`Warp Overwatch: Lane Vanguards` (28 of Play's 30 characters).
 
 ---
 
@@ -93,7 +93,7 @@ thumbnailing.
 
 ## 4. Copy
 
-- **Title:** `Warp Lane: Vanguard Squadron`
+- **Title:** `Warp Overwatch: Lane Vanguards`
 - **Short description (80 max):**
   `Command two emitters around a warp lane. Collapse every interdictor. Clear the path.` (83)
   Comprehension first. Alternate, if leading with the differentiator is

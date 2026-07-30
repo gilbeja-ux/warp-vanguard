@@ -1,11 +1,11 @@
-// WARP LANE: VANGUARD SQUADRON — bundled campaign packages.
+// WARP OVERWATCH: LANE VANGUARDS — bundled campaign packages.
 // One self-contained, JSON-shaped object per campaign (no functions): the
 // exact format the Lane Designer exports and future community packages
 // will use. Loaded before the game script; every package still passes
 // validateCampaign() on install. See docs/CMS-ROADMAP.md.
 const CAMPAIGN_PACKAGES = [{
   id: 'investigation', format: 1,
-  title: 'THE INVESTIGATION', tagline: 'OMNISERVE YARDS · CONVOY INTEGRITY DIV', difficulty: 1,
+  title: 'LOW ORBIT', tagline: 'THE INVESTIGATION · OMNISERVE YARDS', difficulty: 1,
   story: 'OmniServe must run one sealed manifest to the CID down a single warp lane. You fly point ahead of the convoy and clear it, relay by relay, while the investigation uncovers who keeps interdicting the evidence.',
   map: { theme: 'chart' }, // procedural lane chart; image maps carry { image, pins }
   speakers: [
@@ -76,7 +76,7 @@ const CAMPAIGN_PACKAGES = [{
 },
 {
   id: 'going-deeper', format: 1,
-  title: 'GOING DEEPER', tagline: 'THE CORRUPTION CASE', difficulty: 2,
+  title: 'MONITORED SECTORS', tagline: 'GOING DEEPER · THE CORRUPTION CASE', difficulty: 2,
   story: 'The gateway burned and a buyer wore a badge — but a badge takes orders. Someone above the arrest is still burning manifests, and every lane you run digs one layer closer to whoever is behind the corruption.',
   map: { theme: 'chart' },
   speakers: [
@@ -155,7 +155,7 @@ const CAMPAIGN_PACKAGES = [{
 },
 {
   id: 'signal-lost', format: 1,
-  title: 'SIGNAL LOST', tagline: 'THE DEAD REACH', difficulty: 3,
+  title: 'DEEP SPACE', tagline: 'SIGNAL LOST · THE DEAD REACH', difficulty: 3,
   story: 'Badge Zero is served — and a whole relay chain out along the reach goes dark overnight. No breach, no ransom, just silence. Its automated defences still run with no master, and something has re-lit the dead beacon at the end of the lane.',
   map: { theme: 'chart' },
   speakers: [
@@ -232,7 +232,7 @@ const CAMPAIGN_PACKAGES = [{
 },
 {
   id: 'the-bait', format: 1,
-  title: 'THE BAIT', tagline: 'FLUSH THE ARCHITECT', difficulty: 4,
+  title: 'OUTLAW TERRITORY', tagline: 'THE BAIT · FLUSH THE ARCHITECT', difficulty: 4,
   story: 'Every dead lane traced back to one hand that never shows itself — the architect who cast the gateway, the blacksite, and the beacon, and never once flew a lane. You cannot trace something that only ever transmits outward. So we stop chasing and start fishing: the cargo you escort now is BAIT, dressed as the evidence he burns for, phased to the locks his hunters cannot resist.',
   map: { theme: 'chart' },
   speakers: [
@@ -311,7 +311,7 @@ const CAMPAIGN_PACKAGES = [{
 },
 {
   id: 'shutdown', format: 1,
-  title: 'SHUTDOWN', tagline: 'UNWRITE THE ARCHITECT', difficulty: 5,
+  title: 'NO MANS LAND', tagline: 'SHUTDOWN · UNWRITE THE ARCHITECT', difficulty: 5,
   story: 'The architect has a core, and now we have its bearing. There is no arrest for something that never existed on paper — only a shutdown. OMNI hands you the last cargo you will ever escort: an antidote, written to unwrite his entire operation. Run it down his lane to his core. He knows it is coming, and everything he has left stands between it and the door.',
   map: { theme: 'chart' },
   speakers: [

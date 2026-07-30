@@ -1,6 +1,6 @@
 {
   "appId": "com.datadefenders.game",
-  "appName": "Warp Lane",
+  "appName": "Warp Overwatch",
   "webDir": "src",
   "server": {
     "androidScheme": "https"

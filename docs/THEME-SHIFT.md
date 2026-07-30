@@ -1,4 +1,4 @@
-# Theme shift — DARK FIBER → VANGUARD SQUADRON
+# Theme shift — DARK FIBER → WARP OVERWATCH
 
 The record of what this branch changes and, more importantly, **what it does not**.
 Written first so the shift stays reviewable and reversible: if the theme is
@@ -132,7 +132,7 @@ Code and copy can carry the theme most of the way. These need the author.
    **DD** monogram does not. Spec in [BRAND.md](../BRAND.md) — a wolf mark over
    the bore, which reads at 48px where four letters would not.
 2. **The full lockup** — `src/logo.png` relettered: WARP LANE large, VANGUARD
-   SQUADRON beneath, *WLVS* between the two gold rules.
+   SQUADRON beneath, *WOLV* between the two gold rules.
 3. **Character plates.** `src/Characters/` holds seven; the cast survives the
    shift intact, so whether they need regenerating is a look question, not a
    story one.

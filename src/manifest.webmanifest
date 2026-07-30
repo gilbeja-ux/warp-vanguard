@@ -1,7 +1,7 @@
 {
-  "name": "Warp Lane: Vanguard Squadron",
-  "short_name": "Warp Lane",
-  "description": "Dual-thumb warp lane escort",
+  "name": "Warp Overwatch: Lane Vanguards",
+  "short_name": "Warp Overwatch",
+  "description": "Dual-thumb warp lane escort — run point, clear the interdictions",
   "display": "fullscreen",
   "orientation": "landscape",
   "background_color": "#03060e",

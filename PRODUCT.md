@@ -26,7 +26,7 @@ and train hand-eye coordination." ARCS and IMMERSIVE stay dormant behind
 
 ## Product Purpose
 
-WARP LANE: VANGUARD SQUADRON is a mobile arcade defense game. The player flies
+WARP OVERWATCH: LANE VANGUARDS is a mobile arcade defense game. The player flies
 point ahead of a freight convoy down its assigned warp lane, commanding two
 radial emitters around the lane's bore and collapsing the interdictors seeded to
 pull the convoy out of transit. Success means a player keeps coming back to beat
@@ -123,7 +123,7 @@ offline entitlement flag; no server for v1. Full plan in
   exists under `supabase/`.
 - Final store name is not cleared. "Data Defenders" collided with two existing
   Play Store apps, which is part of why the name changed; USPTO TESS + store
-  search on **WARP LANE** and **VANGUARD** is still owed, separately and as a
+  search on **WARP OVERWATCH** and **VANGUARD** is still owed, separately and as a
   full lockup.
 - Deferred and explicitly not to be started unasked: user-created levels via
   shareable seed codes, a "play your own music" mode, and the "Data Driver"
@@ -131,9 +131,9 @@ offline entitlement flag; no server for v1. Full plan in
 
 ## Brand Commitments
 
-- Name: **WARP LANE: VANGUARD SQUADRON** — a squadron, because "we're an elite
+- Name: **WARP OVERWATCH: LANE VANGUARDS** — a squadron, because "we're an elite
   group, not a single hired gun." Short form WARP LANE. Tagline *Clear the lane.*
-  In-world the unit is **WLVS**, spoken "wolves", and comms address the player as
+  In-world the unit is **WOLV**, spoken "wolves", and comms address the player as
   *wolf*.
 - Logo is the user's shield badge, loaded from `src/logo.png`; **the badge and
   icon set are owed art** — both still carry DATA DEFENDERS lettering and the

@@ -1,8 +1,8 @@
-# Brand & Design Tokens — WARP LANE: VANGUARD SQUADRON
+# Brand & Design Tokens — WARP OVERWATCH: LANE VANGUARDS
 
 ## Name
-- Full: **WARP LANE: VANGUARD SQUADRON**  ·  Short: **WARP LANE**
-- Unit designation, in-world: **WLVS** — *Warp Lane Vanguard Squadron*, spoken
+- Full: **WARP OVERWATCH: LANE VANGUARDS**  ·  Short: **WARP OVERWATCH**
+- Unit designation, in-world: **WOLV** — *Warp Overwatch: Lane Vanguards*, spoken
   as "wolves". It is the squadron's own callsign root, not a marketing mark:
   comms address the player as **wolf** (`"wolf two, lane is yours."`).
 - Tagline: *Clear the lane.*
@@ -10,7 +10,11 @@
 - Before store submission: run a USPTO TESS + Play/App Store search on the final
   name. This name was chosen partly *because* "Data Defenders" already collides
   with two existing Play Store apps — do not let the replacement repeat it.
-  Check "Warp Lane" and "Vanguard" separately as well as the full lockup.
+  Check "Warp Overwatch" and "Vanguard" separately as well as the full lockup.
+  **OVERWATCH IS A HEAVILY ENFORCED MARK** (Blizzard, registered in the game
+  software class). "Warp Overwatch" is a distinct mark and the in-fiction use is
+  a sector role, not a title — but this is the same clearance risk the rename was
+  meant to escape. Clear it before any store listing or paid marketing.
 
 ## The wolves
 The pack is deliberate and the inversion is deliberate. Historically a wolfpack
@@ -30,18 +34,18 @@ point — filling the lower half. **The bore is the mark.** It always was; it is
 now literal instead of metaphorical, and needs no explaining.
 
 - **Full lockup** — `src/logo.png`. The badge carrying its own lettering:
-  WARP large in cyan-chrome, LANE beneath it, *Vanguard Squadron* in gold
+  WARP large in cyan-chrome, OVERWATCH beneath it, *Lane Vanguards* in gold
   between two gold rules, over the bore. Menu and marketing surfaces.
   Loaded at runtime by `brandLogo()`; the code keeps an Audiowide drawn stack as
-  a fallback if the file is missing — that fallback already letters WARP / LANE
-  with a VANGUARD SQUADRON subtitle, and WLVS in the wheel hub.
+  a fallback if the file is missing — that fallback already letters
+  WARP / OVER / WATCH with a LANE VANGUARDS subtitle, and VANGUARDS in the hub.
 - **App icon** — `src/icons/*.png` (`any`) and `df-mask-*.png` (`maskable`).
   Same shield with the lettering removed and a **wolf mark** over the bore,
   cyan chevrons top and bottom. Icon = badge only, no wordmark.
 
 **OWED ART.** `src/logo.png` and the icon set still carry DATA DEFENDERS
 lettering and the interlocked gold **DD** monogram. Both are retired. The
-monogram is replaced by the wolf mark rather than a WLVS monogram, because four
+monogram is replaced by the wolf mark rather than a WOLV monogram, because four
 letters do not survive a 48px launcher tile and a wolf silhouette does.
 
 The old EMP-emitter mark (coil body, twin prongs, live arc) stays retired.

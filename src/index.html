@@ -11,7 +11,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/df-192.png?v=6">
 <link rel="icon" type="image/png" sizes="512x512" href="icons/df-512.png?v=6">
 <link rel="apple-touch-icon" href="icons/df-mask-192.png?v=6">
-<title>Warp Lane: Vanguard Squadron</title>
+<title>Warp Overwatch: Lane Vanguards</title>
 <style>
   :root {
     --sat: env(safe-area-inset-top, 0px);
@@ -40,7 +40,7 @@
 'use strict';
 
 // ============================================================
-// WARP LANE: VANGUARD SQUADRON — dual-thumb radial defense
+// WARP OVERWATCH: LANE VANGUARDS — dual-thumb radial defense
 // ============================================================
 
 const canvas = document.getElementById('game');
@@ -1896,6 +1896,11 @@ let endFxStars = 0, endTickT = 0; // ceremony bookkeeping (star chimes, count ti
 // whether they've dismissed the offer this run
 let endProvisional = null, nameEntryBtns = [];
 const endBtnAt = () => endWin ? 2.9 : 1.25; // when the buttons arrive (wins ride the sweep first)
+// POWER-DOWN. The run is over, so the weapons are over: the energy arcs and the
+// pulse orbs banked in them bleed off the ring as the ceremony opens, leaving the
+// bare monolith framing the destination. The report is not a moment to be still
+// holding a charge you can no longer spend.
+const endPower = () => state === S.END ? clamp(1 - (endT - 0.15) / 0.6, 0, 1) : 1;
 let endSweep = -1; // victory clear-sweep front (z), -1 when idle
 let pauseBtnRect = null, pauseButtonsList = [], pauseSlidersList = [], pauseTogglesList = [];
 let menuSettings = false, menuGearRect = null, menuSetButtons = [], menuSetPanel = null, menuFsRect = null, menuMutRects = [], menuBackRect = null;
@@ -6097,17 +6102,36 @@ const PLANET_TYPES = [
 const PLANET_STAR = { n: 'star', z: [255, 226, 150], belt: [255, 150, 46], bf: 22.0, ba: 0.7, atmo: [255, 176, 80], ak: 2.6, emis: 1 };
 // Deterministic per campaign + level, so a given relay always shows the same
 // world — it is a place, not a random skin, and a player can recognise it.
-function planetVariant() {
-  if (LV && LV.boss) return PLANET_STAR; // the duel happens at a sun
-  const id = (typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x';
+//
+// Split from planetVariant() so the GALAXY MAP can ask the same question about
+// any relay, not just the one being flown. Map and lane read from one function,
+// so the world on the chart and the world at the end of the bore cannot drift.
+function planetVariantFor(campId, lv, isBoss) {
+  if (isBoss) return PLANET_STAR; // the duel happens at a sun
   let h = 2166136261;
+  const id = campId || 'x';
   for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
-  h ^= levelIdx + 1; h = Math.imul(h, 16777619);
+  h ^= lv + 1; h = Math.imul(h, 16777619);
   // Avalanche before the modulo. Without this, `% 8` reads only the low three
   // bits, which FNV alone does not decorrelate — two campaigns came out with
   // byte-identical destination sequences.
   h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15;
   return PLANET_TYPES[(h >>> 0) % PLANET_TYPES.length];
+}
+function planetVariant() {
+  return planetVariantFor((typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x',
+    levelIdx, !!(LV && LV.boss));
+}
+// Chart-scale worlds: one small sprite per variant, built once and stamped at
+// every relay. Nine sprites cover the whole galaxy map however many relays it
+// shows, and they come off the SAME renderer as the destination at the end of
+// the lane — so the chip on the chart is literally a small picture of the place
+// you are about to fly to.
+const PLANET_CHIP_R = 24;
+const planetChips = {};
+function planetChip(V) {
+  if (!(V.n in planetChips)) planetChips[V.n] = buildPlanetSprite(PLANET_CHIP_R, V);
+  return planetChips[V.n];
 }
 let planetSprite = null, planetSpriteKey = '';
 function buildPlanetSprite(R, V) {
@@ -6238,19 +6262,27 @@ function drawFarGlow(far, vr, g) {
   // --- glowing grain in the haze: the atmosphere lit from within ---
   // Stateless — each mote is a fixed phase read against the shared clock — so it
   // behaves identically in menus, replays and pauses without touching the sim.
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  for (const m of farMotes) {
-    const k = ((time * m.sp + m.ph) % 1 + 1) % 1;
-    const puff = Math.sin(k * Math.PI);              // fades in and out, never pops
-    const al = puff * 0.13 * (0.6 + 0.4 * breath);
-    if (al < 0.008) continue;
-    const rr = R * (m.rr + k * 0.9);
-    const mx = far.x + Math.cos(m.a) * rr, my = far.y + Math.sin(m.a) * rr * 0.92;
-    ctx.fillStyle = m.warm ? `rgba(255,214,170,${al.toFixed(3)})` : `rgba(190,220,255,${al.toFixed(3)})`;
-    ctx.beginPath(); ctx.arc(mx, my, Math.max(0.35, m.sz * (0.5 + grow * 0.35) * (1 + arrive * 2.2)), 0, TAU); ctx.fill();
+  //
+  // GONE ON ARRIVAL. At approach distance this is grain boiling at the limb of a
+  // speck; at arrival the same motes are big rings sailing off a body that now
+  // fills the bore, and they read as debris orbiting the planet. The atmosphere
+  // is sold by the sprite's own limb at that range — the grain is not needed.
+  const moteK = 1 - arrive;
+  if (moteK > 0.02) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const m of farMotes) {
+      const k = ((time * m.sp + m.ph) % 1 + 1) % 1;
+      const puff = Math.sin(k * Math.PI);              // fades in and out, never pops
+      const al = puff * 0.13 * (0.6 + 0.4 * breath) * moteK;
+      if (al < 0.008) continue;
+      const rr = R * (m.rr + k * 0.9);
+      const mx = far.x + Math.cos(m.a) * rr, my = far.y + Math.sin(m.a) * rr * 0.92;
+      ctx.fillStyle = m.warm ? `rgba(255,214,170,${al.toFixed(3)})` : `rgba(190,220,255,${al.toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(mx, my, Math.max(0.35, m.sz * (0.5 + grow * 0.35)), 0, TAU); ctx.fill();
+    }
+    ctx.restore();
   }
-  ctx.restore();
 }
 
 // The projection floor. ring() scales by 1/(1 + z*6), which divides by zero at
@@ -6529,9 +6561,8 @@ function drawStreaks(g, dt) {
   const ambSpan = (0.11 + spd * 0.34) * laneFlow;
   for (const st of streaks) {
     const wsp = 1 + (warpT / 0.9) * 5; // warp-dive stretch
-    // per-star length, so no two smears are the same size (gold keeps a speck
-    // of length at rest so the parked river stays visible)
-    const span = (st.gold ? 0.05 * (0.15 + 0.85 * laneFlow) : ambSpan * st.lenK) * (1 + (warpT / 0.9) * 3);
+    // per-star length, so no two smears are the same size
+    const span = (st.gold ? 0.05 : ambSpan * st.lenK) * (1 + (warpT / 0.9) * 3);
     let dz = dt * spd * st.sp * wsp; // the river flows WITH the traffic
     if (st.z + span < EXIT_Z) dz = Math.min(dz, EXIT_CAP); // never a sub-frame exit
     st.z -= dz;
@@ -6555,7 +6586,10 @@ function drawStreaks(g, dt) {
       if (st.gold) st.a = Math.PI / 2 + rand(-0.55, 0.55);
       continue; // nothing to draw on the frame it respawns
     }
-    if (st.gold && st.ord > riverK) continue;
+    // THE CONVOY ONLY EXISTS UNDER WAY. The gold river is traffic running the
+    // lane with us — parked in a menu there is no convoy to see, so it fades out
+    // with the flow and leaves clean starfield behind.
+    if (st.gold && (st.ord > riverK || laneFlow < 0.02)) continue;
     const zH = Math.max(st.z, Z_FLOOR);
     const zT = Math.max(Math.min(st.z + span, 1), Z_FLOOR);
     const r1 = ring(zH, g), r2 = ring(zT, g);
@@ -6569,7 +6603,7 @@ function drawStreaks(g, dt) {
     // no near-fade on the warp lines: the `clamp(1 + z/0.1)` term that used to be
     // here is exactly what made them dissolve in front of the viewer
     const al = st.gold
-      ? Math.min(1 - zH, 1.05) * 0.75 * clamp(1 + zH / 0.1, 0, 1)
+      ? Math.min(1 - zH, 1.05) * 0.75 * clamp(1 + zH / 0.1, 0, 1) * laneFlow
       : Math.min(1 - zH, 1.05) * 0.46 * st.br; // translucent: you see stars THROUGH a warp line
     if (st.gold) {
       ctx.strokeStyle = `rgba(255,196,88,${al.toFixed(2)})`;
@@ -9767,27 +9801,31 @@ function drawClearSweep(g) {
   grad.addColorStop(1, 'rgba(120,225,150,0.05)');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
-  // secured hoops: calm green rings drifting through the washed zone
-  ctx.lineCap = 'butt';
-  for (let i = 0; i < 5; i++) {
-    const zq = ((i / 5 + time * 0.045) % 1) * zS;
-    if (zq < 0.03) continue;
-    const hr = ring(zq, g);
-    ctx.strokeStyle = `rgba(160,255,170,${(0.10 * (1 - zq / SPAWN_Z)).toFixed(3)})`;
-    ctx.lineWidth = Math.max(0.8, hr.r / g.nodeR * 1.6);
-    ctx.beginPath(); ctx.arc(g.cx, g.cy, hr.r, 0, TAU); ctx.stroke();
-  }
-  // clean-traffic motes: sparse green packets drifting home through the bore
-  ctx.fillStyle = 'rgba(200,255,200,0.75)';
-  for (let i = 0; i < 10; i++) {
-    const zq = ((i * 0.617 + time * 0.06) % 1) * zS;
-    if (zq < 0.05) continue;
-    const mrr = ring(zq, g);
-    const ma = i * 2.399 + time * 0.1;
-    const rr2 = mrr.r * (0.35 + (i % 4) * 0.16);
-    ctx.beginPath();
-    ctx.arc(g.cx + Math.cos(ma) * rr2, g.cy + Math.sin(ma) * rr2, Math.max(0.7, mrr.s * 4), 0, TAU);
-    ctx.fill();
+  // Secured hoops and clean traffic: the lane's own motion, so they leave with
+  // it. Once the ceremony has braked to a stop these were the ONLY things still
+  // moving — rings sailing out of the destination, which reads as debris coming
+  // off the world rather than as a lane running clear.
+  if (laneFlow > 0.01) {
+    ctx.lineCap = 'butt';
+    for (let i = 0; i < 5; i++) {
+      const zq = ((i / 5 + time * 0.045) % 1) * zS;
+      if (zq < 0.03) continue;
+      const hr = ring(zq, g);
+      ctx.strokeStyle = `rgba(160,255,170,${(0.10 * (1 - zq / SPAWN_Z) * laneFlow).toFixed(3)})`;
+      ctx.lineWidth = Math.max(0.8, hr.r / g.nodeR * 1.6);
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, hr.r, 0, TAU); ctx.stroke();
+    }
+    ctx.fillStyle = `rgba(200,255,200,${(0.75 * laneFlow).toFixed(3)})`;
+    for (let i = 0; i < 10; i++) {
+      const zq = ((i * 0.617 + time * 0.06) % 1) * zS;
+      if (zq < 0.05) continue;
+      const mrr = ring(zq, g);
+      const ma = i * 2.399 + time * 0.1;
+      const rr2 = mrr.r * (0.35 + (i % 4) * 0.16);
+      ctx.beginPath();
+      ctx.arc(g.cx + Math.cos(ma) * rr2, g.cy + Math.sin(ma) * rr2, Math.max(0.7, mrr.s * 4), 0, TAU);
+      ctx.fill();
+    }
   }
   if (endSweep < SPAWN_Z) {
     // bright wake trailing right behind the front — fresh wash
@@ -10006,7 +10044,7 @@ function drawStoryDisc(c, g, R) {
     ctx.fillText(label, g.cx + dx, labY);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   };
-  stat(-colX, Math.round(L.duration) + 's', 'FIBER LENGTH', 'rgba(230,246,255,0.94)');
+  stat(-colX, Math.round(L.duration) + 's', 'LANE LENGTH', 'rgba(230,246,255,0.94)');
   stat(colX, String(levelThreats(L, li)), 'DETECTED THREATS', 'rgba(255,210,74,0.96)');
 }
 
@@ -10769,7 +10807,7 @@ function paintMenuStatic() {
   ctx.textAlign = 'left';
   if (menuScreen === 'flow' || menuScreen === 'map') { // small brand line up top
     ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
-    ctx.fillText('WARP LANE · VANGUARD SQUADRON', 20 + SAFE.l, 24 + SAFE.t);
+    ctx.fillText('WARP OVERWATCH · LANE VANGUARDS', 20 + SAFE.l, 24 + SAFE.t);
   }
   if (menuScreen === 'map') {
     // the lens mouth: the ring becomes a viewport over the city
@@ -11145,7 +11183,7 @@ function drawMenuHome(ccx, ccy, R) {
     try { ctx.letterSpacing = '2px'; } catch (e) {}
     ctx.fillStyle = 'rgba(255,210,74,0.9)';
     ctx.font = '700 ' + Math.max(9, Math.round(R * 0.05)) + 'px Audiowide, system-ui';
-    ctx.fillText('WLVS', ccx, ccy + R * 0.014);
+    ctx.fillText('VANGUARDS', ccx, ccy + R * 0.014);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   }
   ctx.restore();
@@ -11168,11 +11206,11 @@ function drawMenuHome(ccx, ccy, R) {
     try { ctx.letterSpacing = (fs * 0.08).toFixed(1) + 'px'; } catch (e) {}
     ctx.shadowColor = 'rgba(0,10,30,0.85)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
     ctx.fillStyle = '#c6d6ea';
-    for (const t2 of ['WARP', 'LANE']) { ctx.fillText(t2, lx, ly); ly += llh; }
+    for (const t2 of ['WARP', 'OVER', 'WATCH']) { ctx.fillText(t2, lx, ly); ly += llh; }
     ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     try { ctx.letterSpacing = '3px'; } catch (e) {}
     ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 ' + Math.max(10, fs * 0.42).toFixed(0) + 'px Audiowide, system-ui';
-    ctx.fillText('VANGUARD SQUADRON', lx + 2, ly + 4);
+    ctx.fillText('LANE VANGUARDS', lx + 2, ly + 4);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   }
   ctx.restore();
@@ -11955,8 +11993,11 @@ const groundR = (x, y) => Math.hypot(x - CITY_CORE.x, (y - CITY_CORE.y) * 2);
 // CORDON 02 the belt case 02 works, and so on out. buildCity fits each cordon
 // to the relays that actually landed there, so the chart and the dossier never
 // disagree about how much escort cover a run still has.
-const RING_NAMES = ['INNER CORDON', 'PATROL SHELL', 'OUTER PICKET', 'THE FRINGE', 'DARK TRANSIT'];
-const CORE_NAME = 'CORE SYSTEMS', DARK_ZONE = 'DARK TRANSIT';
+// The cordon bands ARE the campaigns — band N is the region campaign N works, so
+// the chart and the case list cannot disagree about where you are. Cover falls
+// band by band, which is the map's own account of why the traffic thickens.
+const RING_NAMES = ['LOW ORBIT', 'MONITORED SECTORS', 'DEEP SPACE', 'OUTLAW TERRITORY', 'NO MANS LAND'];
+const CORE_NAME = 'CORE SYSTEMS', DARK_ZONE = 'NO MANS LAND';
 let RINGS = []; // [{ r0, r1, name }] per case band, innermost first
 // escort coverage: total at the core, gone by the far edge. This is the number
 // the dossier quotes — and the reason the traffic thickens as you go out.
@@ -12859,6 +12900,22 @@ function drawMenuMap() {
     mapHex(mx2, my2, r);
     ctx.fillStyle = locked ? 'rgba(10,18,34,0.85)' : cleared ? 'rgba(16,50,72,0.92)' : 'rgba(12,30,55,0.92)';
     ctx.fill();
+    // THE DESTINATION WORLD, on the chart. Same variant function the lane uses,
+    // so this is a small picture of the actual place this relay delivers to.
+    // Clipped to the hex so the marker keeps its silhouette, and dimmed while
+    // locked — you can see a world is out there without being told which.
+    {
+      const V = planetVariantFor((typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x', i, isBoss);
+      const chip = planetChip(V);
+      if (chip) {
+        ctx.save();
+        mapHex(mx2, my2, r * 0.97); ctx.clip();
+        const w = chip.S * (r * 1.02 / chip.R);
+        ctx.globalAlpha = locked ? 0.22 : cleared ? 0.85 : 1;
+        ctx.drawImage(chip.cv, mx2 - w / 2, my2 - w / 2, w, w);
+        ctx.restore();
+      }
+    }
     if (isFrontier) ctx.strokeStyle = `rgba(255,210,74,${(0.7 + Math.sin(time * 4) * 0.3).toFixed(2)})`;
     else ctx.strokeStyle = locked ? 'rgba(120,180,255,0.25)' : isBoss ? 'rgba(212,101,255,0.85)' : 'rgba(111,227,255,0.85)';
     ctx.lineWidth = isFrontier ? 2 : 1.5;
@@ -12868,7 +12925,11 @@ function drawMenuMap() {
     ctx.fillStyle = locked ? 'rgba(200,225,255,0.35)' : '#f2faff';
     const num = String(curLevelNo(i));
     ctx.font = '800 ' + Math.round(r * (num.length > 1 ? 0.6 : 0.75)) + 'px Audiowide, system-ui'; // two digits ride smaller inside the hex
+    // the number sits over a lit planet now, so it carries its own shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,6,16,0.95)'; ctx.shadowBlur = 5;
     ctx.fillText(locked ? '·' : num, mx2, my2 + 1);
+    ctx.restore();
     ctx.textBaseline = 'alphabetic';
     if (isBoss) {
       ctx.fillStyle = 'rgba(212,101,255,0.85)'; ctx.font = '700 7px Audiowide, system-ui';
@@ -13134,7 +13195,7 @@ function drawEnd(g) {
   // the live (now cleared) scene keeps breathing beneath — dim it gently. Wins
   // stay lighter: the destination world is swelling in behind the data and the
   // whole point is to see it arrive.
-  const dimK = endWin && !endless && !qual ? 0.32 : 0.5;
+  const dimK = endWin && !endless && !qual ? 0.18 : 0.5;
   ctx.fillStyle = 'rgba(3,6,14,' + (dimK * (endWin ? ph(0.75, 1.2) : ph(0, 0.45))).toFixed(2) + ')';
   ctx.fillRect(0, 0, W, H);
   if (endWin && endT < 0.35) { // victory flash seals the run
@@ -13159,7 +13220,8 @@ function drawEnd(g) {
   // No report disc. The destination world IS the backdrop — the data floats
   // straight on the scene, carried by a dark shadow instead of a panel.
   ctx.textAlign = 'center';
-  ctx.shadowColor = 'rgba(2,5,12,0.95)'; ctx.shadowBlur = lowFX ? 0 : 7;
+  // the scene shows through at 0.18, so the data leans harder on its own shadow
+  ctx.shadowColor = 'rgba(2,5,12,0.95)'; ctx.shadowBlur = lowFX ? 0 : 9;
   // mode line
   const modeName = endless ? (daily ? 'DAILY STREAM' : 'ENDLESS STREAM') : qual ? 'QUALIFICATION' : LEVELS[levelIdx].name;
   try { ctx.letterSpacing = '3px'; } catch (e) {}
@@ -13373,7 +13435,7 @@ const SIM_DT = 1 / 60, SIM_MAX_SUB = 5;
 let simAcc = 0;
 // ---------- screen transitions + button press feedback ----------
 // glitch: quick chromatic slice cut for menu screens. warp: a dive down the
-// fiber for deploys. The action fires at the covered midpoint.
+// the lane for deploys. The action fires at the covered midpoint.
 let trans = null;   // {mode, t, dur, mid, fired}
 let transSnap = null; // derez: snapshot of the last frame, shredded strip by strip
 let uiPress = null; // {x,y,w,h | sector, t, fn}
@@ -14009,12 +14071,14 @@ function frame(now) {
   drawSurgeWave(g);
   drawLaneMedium(g, dt); // gas + debris the warp lines fly through
   drawStreaks(g, dt);
-  // warm glow rising off the golden river
-  const rgl = ctx.createRadialGradient(g.cx, H * 0.95, 0, g.cx, H * 0.95, Math.min(W, H) * 0.75);
-  rgl.addColorStop(0, 'rgba(255,180,70,0.12)');
-  rgl.addColorStop(1, 'rgba(255,180,70,0)');
-  ctx.fillStyle = rgl;
-  ctx.fillRect(0, 0, W, H);
+  // warm glow rising off the golden river — no convoy, no glow
+  if (laneFlow > 0.01) {
+    const rgl = ctx.createRadialGradient(g.cx, H * 0.95, 0, g.cx, H * 0.95, Math.min(W, H) * 0.75);
+    rgl.addColorStop(0, `rgba(255,180,70,${(0.12 * laneFlow).toFixed(3)})`);
+    rgl.addColorStop(1, 'rgba(255,180,70,0)');
+    ctx.fillStyle = rgl;
+    ctx.fillRect(0, 0, W, H);
+  }
 
   // atmospheric depth fog — mid-distance haze inside the tunnel
   const fogG = ctx.createRadialGradient(g.cx, g.cy, g.nodeR * 0.1, g.cx, g.cy, g.nodeR * 1.4);
@@ -14058,9 +14122,12 @@ function frame(now) {
     ctx.strokeStyle = 'rgba(0,0,0,0.14)'; ctx.lineWidth = bz * 1.6;
     ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, 0, TAU); ctx.stroke();
     if (ringFxCv) ctx.drawImage(ringFxCv, 0, 0, W, H);
-    // warm river light still catches the band's lower outer edge
-    ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bz * ARCFX.bandW * 0.9, Math.PI * 0.28, Math.PI * 0.72);
-    ctx.strokeStyle = 'rgba(255,190,100,0.20)'; ctx.lineWidth = 2; ctx.stroke();
+    // warm river light still catches the band's lower outer edge — and goes out
+    // with the convoy when the lane parks
+    if (laneFlow > 0.01) {
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bz * ARCFX.bandW * 0.9, Math.PI * 0.28, Math.PI * 0.72);
+      ctx.strokeStyle = `rgba(255,190,100,${(0.20 * laneFlow).toFixed(3)})`; ctx.lineWidth = 2; ctx.stroke();
+    }
   }
   if (ringS !== 1) { ctx.restore(); ctx.globalAlpha = 1; }
   // the dock: a rim flare and white/blue shockwaves ring off the lock moment
@@ -14216,13 +14283,20 @@ function frame(now) {
   drawClearSweep(g);
   if (boss && state !== S.MENU && !inGuide) drawBoss(g);
 
-  if (state !== S.MENU && !inGuide) drawNodes(g);
-  if (state !== S.MENU && !inGuide) drawVolley(g);
+  if (state !== S.MENU && !inGuide) {
+    const pw = endPower(); // the ceremony powers the arcs (and their orbs) down
+    if (pw > 0.004) {
+      if (pw < 1) { ctx.save(); ctx.globalAlpha = pw; }
+      drawNodes(g);
+      drawVolley(g);
+      if (pw < 1) ctx.restore();
+    }
+  }
 
   // particles + popups (over everything)
   ctx.lineCap = 'round';
   for (const p of inGuide ? [] : particles) {
-    // data bits: fine streaks along their motion, not blobs — light in fiber
+    // charge fragments: fine streaks along their motion, not blobs — light in transit
     ctx.globalAlpha = clamp(p.life, 0, 1);
     ctx.strokeStyle = p.color;
     ctx.lineWidth = Math.max(0.5, p.size * 0.6);
@@ -14342,7 +14416,9 @@ function frame(now) {
   const grade = ctx.createLinearGradient(0, 0, 0, H);
   grade.addColorStop(0, 'rgba(18,55,110,0.10)');   // cool up top
   grade.addColorStop(0.55, 'rgba(0,0,0,0)');
-  grade.addColorStop(1, 'rgba(255,150,50,0.08)');  // warm river light below
+  // the warm floor is BOUNCE off the convoy, so it leaves with it — parked, the
+  // frame grades cool top to bottom and the lane reads as cold open space
+  grade.addColorStop(1, `rgba(255,150,50,${(0.08 * laneFlow).toFixed(3)})`);
   ctx.fillStyle = grade;
   ctx.fillRect(0, 0, W, H);
 

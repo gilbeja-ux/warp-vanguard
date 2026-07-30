@@ -1,4 +1,4 @@
-# WARP LANE: VANGUARD SQUADRON — Full Story Script
+# WARP OVERWATCH: LANE VANGUARDS — Full Story Script
 
 Every narrative string in the game, in the order a player reads it.
 Edit here for review, then port changes into `src/index.html`:

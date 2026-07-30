@@ -1,5 +1,5 @@
 ---
-name: "Warp Lane: Vanguard Squadron"
+name: "Warp Overwatch: Lane Vanguards"
 description: A lit bore in dead space — everything is emitted light, machined metal, or void.
 colors:
   signal-blue: "#50aaff"
@@ -109,7 +109,7 @@ components:
     typography: "{typography.label}"
 ---
 
-# Design System: Warp Lane: Vanguard Squadron
+# Design System: Warp Overwatch: Lane Vanguards
 
 ## Overview
 

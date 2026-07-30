@@ -1,4 +1,4 @@
-# Release Plan — WARP LANE: VANGUARD SQUADRON
+# Release Plan — WARP OVERWATCH: LANE VANGUARDS
 
 ## Business model (decided 2026-07-14)
 
