@@ -12896,17 +12896,22 @@ const polarOf = p => {
 };
 const fromPolar = (r, a) => ({ x: CITY_CORE.x + Math.cos(a) * r, y: CITY_CORE.y + Math.sin(a) * r * 0.5 });
 function laneArc(A, B) {
-  const pa = polarOf(A), pb = polarOf(B);
-  let da = pb.a - pa.a;
-  while (da > Math.PI) da -= TAU;
-  while (da < -Math.PI) da += TAU;
-  const N = 16, out = [];
+  // STRAIGHT. A warp lane is a charted corridor between two points, not an orbit:
+  // nothing is falling around anything while it flies one. The polar
+  // interpolation that used to be here bent every run into an arc, which read as
+  // orbital mechanics and made two lanes to neighbouring systems curve apart from
+  // each other for no reason a navigator could give.
+  //
+  // Still returned as a polyline so polyAt() can ride it and the chevron spacing
+  // still walks it evenly.
+  const N = 8, out = [];
   for (let i = 0; i <= N; i++) {
-    const t = i / N, e = t * t * (3 - 2 * t);           // ease, so ends meet cleanly
-    out.push(fromPolar(pa.r + (pb.r - pa.r) * e, pa.a + da * t));
+    const t = i / N;
+    out.push({ x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t });
   }
   return out;
 }
+
 // THE CORDONS ARE FIXED STRUCTURE, and relays are scattered INSIDE them.
 //
 // The first cut had this backwards: relays marched around a smooth spiral and the
@@ -13006,7 +13011,12 @@ function buildCity() {
       const rad = b0 + Math.pow(rng(), 0.85) * (b1 - b0);
       const p2 = fromPolar(rad, arcFrom + rng() * arcSpan);
       if (p2.x < 150 || p2.x > CITY_W - 150 || p2.y < 130 || p2.y > CITY_H - 130) continue;
-      if (cand.some(q => Math.hypot(q.x - p2.x, (q.y - p2.y) * 1.8) < (b1 - b0) * 0.62)) continue;
+      // Far enough apart that the SYSTEMS do not touch, not just the stars — and
+      // checked against EVERY relay placed so far, not only this band's. Checking
+      // per-band let the last relay of one band land on top of the first of the
+      // next, which is where the overlapping pairs were coming from. Same y-weight
+      // as the overlap test too; the two used to disagree.
+      if (pts.concat(cand).some(q => Math.hypot(q.x - p2.x, (q.y - p2.y) * 2) < Math.max(120, (b1 - b0) * 0.62))) continue;
       cand.push(p2); k++;
     }
     // ...then WALK them from wherever the last case delivered. Not strictly
@@ -13088,37 +13098,31 @@ function buildCity() {
     const rr = 300 + Math.pow(t, 0.88) * 2500;
     return { a: a2, r: rr, spread: 130 + t * 340 };
   };
-  const mkSystem = (x, y) => {
+  const mkSystem = (x, y, force) => {
     if (x < 60 || x > CITY_W - 60 || y < 50 || y > CITY_H - 50) return;
     const far = groundR(x, y);
     const cls = STAR_CLASS[rng() * STAR_CLASS.length | 0];
-    const np = 1 + (rng() * 5 | 0);
+    // Compact on purpose. Sprawling systems cannot be packed without their
+    // outer orbits crossing, and a band has to hold eight relays plus scenery.
+    const np = 2 + (rng() * 3 | 0);
     const planets = [];
-    let orb = cls.r * 3.2 + rng() * 6;
+    let orb = cls.r * 2.4 + rng() * 4;
     for (let k = 0; k < np; k++) {
-      orb += 5 + rng() * 13;
+      orb += 3.5 + rng() * 5;
       planets.push({ o: orb, a: rng() * TAU, sz: 0.7 + rng() * 1.3, V: PLANET_TYPES[rng() * PLANET_TYPES.length | 0] });
     }
-    const sy = { x, y, cls, planets, far, station: rng() < 0.14, seed: rng() * 100 };
+    // A system's REACH is its outermost orbit, not its star. Two systems whose
+    // reaches overlap draw planets through each other and read as one confused
+    // object — so the test is reach-to-reach, never centre-to-centre.
+    const reach = (planets.length ? planets[planets.length - 1].o : cls.r * 4) * 1.15;
+    if (!force) for (const q of SCENERY) {
+      if (Math.hypot(q.x - x, (q.y - y) * 2) < reach + q.reach + 14) return null;
+    }
+    const sy = { x, y, cls, planets, far, reach, station: rng() < 0.14, seed: rng() * 100 };
     sy.name = sysName(Math.floor(x * 31 + y * 17));
     SCENERY.push(sy);
     return sy;
   };
-  for (let arm = 0; arm < 2; arm++) {
-    for (let i = 0; i < 300; i++) {
-      const t = Math.pow(rng(), 0.72);
-      const A2 = armAt(t, arm);
-      const off = ((rng() + rng() + rng() - 1.5) / 1.5) * A2.spread;
-      const ang2 = A2.a + off / Math.max(60, A2.r);
-      const rr = A2.r + off * 0.6;
-      mkSystem(CITY_CORE.x + Math.cos(ang2) * rr, CITY_CORE.y + Math.sin(ang2) * rr * 0.5);
-    }
-  }
-  for (let i = 0; i < 260; i++) {           // the halo — sparser, everywhere
-    const rr = 200 + Math.pow(rng(), 0.6) * 2650;
-    const ang2 = rng() * TAU;
-    mkSystem(CITY_CORE.x + Math.cos(ang2) * rr, CITY_CORE.y + Math.sin(ang2) * rr * 0.5);
-  }
   // Every relay is a system, and one body inside it is the destination.
   //
   // The destination rides ON THE POINT rather than in a side table keyed by the
@@ -13127,7 +13131,9 @@ function buildCity() {
   // systems entirely. Chains are slices of these same point objects, so hanging
   // the data here means every view agrees by construction.
   for (let g = 0; g < pts.length; g++) {
-    const sy = mkSystem(pts[g].x, pts[g].y);
+    // force: a relay's system is mandatory, so it is placed before any scenery
+    // and never rejected for overlap — the scenery packs around it instead
+    const sy = mkSystem(pts[g].x, pts[g].y, true);
     if (!sy) continue;
     // which campaign and level this global point belongs to
     let ci = 0, li = g;
@@ -13149,6 +13155,21 @@ function buildCity() {
         : ' ' + ROMAN[Math.min(slot, ROMAN.length - 1)]);
     }
     sy.relay = g;
+  }
+  for (let arm = 0; arm < 2; arm++) {
+    for (let i = 0; i < 300; i++) {
+      const t = Math.pow(rng(), 0.72);
+      const A2 = armAt(t, arm);
+      const off = ((rng() + rng() + rng() - 1.5) / 1.5) * A2.spread;
+      const ang2 = A2.a + off / Math.max(60, A2.r);
+      const rr = A2.r + off * 0.6;
+      mkSystem(CITY_CORE.x + Math.cos(ang2) * rr, CITY_CORE.y + Math.sin(ang2) * rr * 0.5);
+    }
+  }
+  for (let i = 0; i < 260; i++) {           // the halo — sparser, everywhere
+    const rr = 200 + Math.pow(rng(), 0.6) * 2650;
+    const ang2 = rng() * TAU;
+    mkSystem(CITY_CORE.x + Math.cos(ang2) * rr, CITY_CORE.y + Math.sin(ang2) * rr * 0.5);
   }
   // Now the lanes: destination to destination. Leaving them on system centres was
   // why the routes did not move when the destinations did.
@@ -13697,25 +13718,11 @@ function drawMenuMap() {
     // LAYER 4: the selected run again, over the skyline — the line in focus
     drawRun(mapSel);
   }
-  // the terminus: where THIS case finally delivers — and where the next one
-  // picks the journey up (city lore; image worlds carry only their own pins)
-  if (!IM) {
-    const term = ['\u25b8', destNameAt(Math.max(0, CAMPAIGNS.indexOf(CAMP)), LEVELS.length - 1)];
-    const pt = relayW(LEVELS.length);
-    const ex2 = wx(pt), ey2 = wy(pt);
-    const delivered = PROG.stars[LEVELS.length - 1] > 0;
-    techRect(ex2 - 13, ey2 - 13, 26, 26, 6);
-    ctx.fillStyle = 'rgba(8,24,46,0.92)'; ctx.fill();
-    ctx.strokeStyle = delivered ? 'rgba(126,226,98,0.9)' : 'rgba(140,220,255,0.8)'; ctx.lineWidth = 1.5;
-    techRect(ex2 - 13, ey2 - 13, 26, 26, 6); ctx.stroke();
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = delivered ? '#c8ffb0' : '#eafaff'; ctx.font = '800 9px Audiowide, system-ui';
-    ctx.fillText(term[0], ex2, ey2 + 1);
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = 'rgba(140,200,255,0.75)'; ctx.font = '500 7px Audiowide, system-ui';
-    ctx.fillText(term[1], ex2, ey2 + 24);
-    ctx.textAlign = 'left';
-  }
+  // (The terminus marker is GONE. It drew a bordered box — green once delivered
+  // — at relayW(LEVELS.length), which for every campaign but the last IS the next
+  // campaign's first system. So a green CITY_TERMS badge sat directly on top of a
+  // star. The run already ends at its final destination, and that destination has
+  // its own marker and its own name.)
   // relay markers: the DESTINATION itself, with its numbered plate riding above
   // it. The plate keeps its original panel background — a number burned over a
   // lit world was hard to read AND hid the thing it was labelling — so the body
