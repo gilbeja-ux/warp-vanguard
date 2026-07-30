@@ -13,7 +13,7 @@ Edit here for review, then port changes into `src/index.html`:
 All narrative now lives in ONE campaign package object (`const INVESTIGATION`,
 ~line 660) — the same format the Tunnel Designer will export.
 
-Speakers: **OMNI** = Meridian Haulage (corporate, blue) · **CID** = Cyber
+Speakers: **HAUL** = Meridian Haulage (corporate, blue) · **CMD** = Cyber
 Investigations Dept (white) · **TRACE** = Lane Command's tracer analyst (green) ·
 **CORE** = the Command Gateway warden core (purple).
 
@@ -34,9 +34,9 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 *Hint: (none — first level)*
 
 **Comms**
-- `t=6` **OMNI**: convoy formed up. lane clearance nominal.
-- `t=16` **CID**: copy. evidence intake is open.
-- `t=28` **OMNI**: then who else is in this lane?
+- `t=6` **HAUL**: convoy formed up. lane clearance nominal.
+- `t=16` **CMD**: copy. evidence intake is open.
+- `t=28` **HAUL**: then who else is in this lane?
 
 **Report** — CASE NOTE: interdictor marks logged. someone is watching.
 
@@ -52,8 +52,8 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 
 **Comms**
 - `t=6` **TRACE**: interdictor marks match. one dispatcher.
-- `t=20` **CID**: we are being watched. keep hauling.
-- `t=36` **OMNI**: the manifests? someone knows.
+- `t=20` **CMD**: we are being watched. keep hauling.
+- `t=36` **HAUL**: the manifests? someone knows.
 
 **Report** — CASE NOTE: one dispatcher confirmed. Lane Command opens a file.
 
@@ -68,9 +68,9 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 *Hint: NEW THREAT: burst deployments — threats arrive in volleys*
 
 **Comms**
-- `t=6` **CID**: black charges are emitter killers. do not touch.
-- `t=22` **OMNI**: who mines a lane with traffic still in it?
-- `t=36` **CID**: someone who knows how we escort it.
+- `t=6` **CMD**: black charges are emitter killers. do not touch.
+- `t=22` **HAUL**: who mines a lane with traffic still in it?
+- `t=36` **CMD**: someone who knows how we escort it.
 
 **Report** — CASE NOTE: recovered emitter killers are factory-made.
 
@@ -86,8 +86,8 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 
 **Comms**
 - `t=6` **TRACE**: barrier debris drifting the whole crossing.
-- `t=20` **OMNI**: a net that wide needs a crew and money.
-- `t=36` **CID**: or a badge.
+- `t=20` **HAUL**: a net that wide needs a crew and money.
+- `t=36` **CMD**: or a badge.
 
 **Report** — CASE NOTE: a net that wide takes resources. or a badge.
 
@@ -97,14 +97,14 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 > They chain their traps now — walls
 > of them, sealing whole sections of
 > the rail. We traced the deployment
-> key: it holds CID clearance.
+> key: it holds Lane Command clearance.
 
 *Hint: NEW THREAT: rim walls — the rail closes, route around*
 
 **Comms**
-- `t=6` **CID**: they are walling the rail. reroute.
+- `t=6` **CMD**: they are walling the rail. reroute.
 - `t=20` **TRACE**: deployment key holds active clearance.
-- `t=34` **CID**: log it. tell no one.
+- `t=34` **CMD**: log it. tell no one.
 
 **Report** — CASE NOTE: the wall deployment key holds active clearance.
 
@@ -114,14 +114,14 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 > Phase locks — cut with CURRENT keys,
 > rotated this very morning. Whoever
 > hunts this line holds live clearance.
-> OMNI or CID. Trust no one.
+> HAUL or CMD. Trust no one.
 
 *Hint: NEW THREAT: phase-locked threats — match the emitter*
 
 **Comms**
-- `t=6` **CID**: rotate every clearance. now.
+- `t=6` **CMD**: rotate every clearance. now.
 - `t=20` **TRACE**: locks cut with keys rotated TODAY.
-- `t=36` **OMNI**: inside. it is someone inside.
+- `t=36` **HAUL**: inside. it is someone inside.
 
 **Report** — CASE NOTE: keys rotated TODAY. the leak is inside.
 
@@ -137,8 +137,8 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 
 **Comms**
 - `t=6` **TRACE**: signature isolated: COMMAND GATEWAY warden.
-- `t=20` **OMNI**: the receiver is the thief.
-- `t=36` **CID**: …purge authorized. deliver it.
+- `t=20` **HAUL**: the receiver is the thief.
+- `t=36` **CMD**: …purge authorized. deliver it.
 
 **Report** — CASE NOTE: signature match — COMMAND GATEWAY. purge authorized.
 
@@ -154,9 +154,9 @@ relay, while the investigation uncovers who is trying to burn the evidence.
 
 **Comms**
 - `t=4` **CORE**: the manifest is contaminated. I am the cure.
-- `t=16` **CID**: burn it out, runner. close the case.
+- `t=16` **CMD**: burn it out, runner. close the case.
 
-**Mid-duel comm** — `on kill` **CID**: core down. bring it home, runner.
+**Mid-duel comm** — `on kill` **CMD**: warden down. bring it home, runner.
 
 **LOG 09 — VERDICT** *(epilogue card, after the core dies)*
 > The gateway burned. The convoy
@@ -206,9 +206,9 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 *Hint: volume over trickery — ride the lane, keep the combo*
 
 **Comms**
-- `t=6` **CID**: the vault lane is live. hold it.
+- `t=6` **CMD**: the vault lane is live. hold it.
 - `t=20` **TRACE**: these interdictors know our sealed manifests.
-- `t=36` **OMNI**: sealed means six people. count them.
+- `t=36` **HAUL**: sealed means six people. count them.
 
 **Report** — CASE NOTE: the scrub list matches SEALED manifests. six suspects.
 
@@ -224,8 +224,8 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 
 **Comms**
 - `t=6` **TRACE**: pulling duty rosters off the loop.
-- `t=22` **CID**: four of the six were on watch. narrow it.
-- `t=38` **OMNI**: and two of them signed the gateway PO.
+- `t=22` **CMD**: four of the six were on watch. narrow it.
+- `t=38` **HAUL**: and two of them signed the gateway PO.
 
 **Report** — CASE NOTE: two signatures on the gateway purchase order.
 
@@ -240,9 +240,9 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 *Hint: phase locks in the flood — glance, match, keep moving*
 
 **Comms**
-- `t=6` **CID**: IA is compromised. assume everything leaks.
+- `t=6` **CMD**: IA is compromised. assume everything leaks.
 - `t=22` **TRACE**: keys cut from an IA terminal. inside again.
-- `t=38` **CID**: clean hands. dirty terminal. noted.
+- `t=38` **CMD**: clean hands. dirty terminal. noted.
 
 **Report** — CASE NOTE: the IA leak runs through ONE terminal. logged.
 
@@ -257,9 +257,9 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 *Hint: burst volleys — the flood comes in waves now*
 
 **Comms**
-- `t=6` **OMNI**: eleven shells, one registered drawer.
+- `t=6` **HAUL**: eleven shells, one registered drawer.
 - `t=24` **TRACE**: volley pattern says: hiding ONE charge.
-- `t=40` **CID**: find the charge they protect. follow it.
+- `t=40` **CMD**: find the charge they protect. follow it.
 
 **Report** — CASE NOTE: one transfer matters. the rest is smoke.
 
@@ -274,9 +274,9 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 *Hint: walls in the current — reroute without losing the beat*
 
 **Comms**
-- `t=6` **CID**: they wall the rail on every wash cycle.
+- `t=6` **CMD**: they wall the rail on every wash cycle.
 - `t=24` **TRACE**: mixer output pings a BLACKSITE relay.
-- `t=40` **OMNI**: a blacksite. of course it is.
+- `t=40` **HAUL**: a blacksite. of course it is.
 
 **Report** — CASE NOTE: the wash empties into a blacksite relay.
 
@@ -292,8 +292,8 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 
 **Comms**
 - `t=6` **TRACE**: this hardware matches the gateway spec.
-- `t=26` **CID**: same foundry. same mark. same hand.
-- `t=44` **OMNI**: the paymaster built BOTH. find him.
+- `t=26` **CMD**: same foundry. same mark. same hand.
+- `t=44` **HAUL**: the paymaster built BOTH. find him.
 
 **Report** — CASE NOTE: gateway and blacksite share one paymaster.
 
@@ -308,9 +308,9 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 *Hint: his ledger floods the lane — survive the torrent*
 
 **Comms**
-- `t=6` **CID**: a retired clearance signing live invoices.
+- `t=6` **CMD**: a retired clearance signing live invoices.
 - `t=28` **TRACE**: ledger sync begins. hold the intercept.
-- `t=48` **OMNI**: he knows we are reading. he is proud.
+- `t=48` **HAUL**: he knows we are reading. he is proud.
 
 **Report** — CASE NOTE: the ledger names every buyer. one clearance signs.
 
@@ -326,7 +326,7 @@ Premise: The gateway burned and a buyer wore a badge — but a badge takes order
 
 **Comms**
 - `t=4` **CORE**: my maker is untouchable. so am I.
-- `t=16` **CID**: three heads, one snake. take them all.
+- `t=16` **CMD**: three heads, one snake. take them all.
 
 **Report** — CASE CLOSED: badge zero indicted. the ladder is ash.
 
@@ -354,9 +354,9 @@ Premise: Badge Zero is served — and a whole relay chain out along the reach go
 *Hint: a dead lane — every interdictor here was left ON PURPOSE*
 
 **Comms**
-- `t=6` **CID**: the reach is dark. all of it.
+- `t=6` **CMD**: the reach is dark. all of it.
 - `t=22` **TRACE**: defences live, crews gone. eerie.
-- `t=40` **OMNI**: who mines a lane nobody flies?
+- `t=40` **HAUL**: who mines a lane nobody flies?
 
 **Report** — CASE NOTE: the reach went dark on a SCHEDULE. planned silence.
 
@@ -372,8 +372,8 @@ Premise: Badge Zero is served — and a whole relay chain out along the reach go
 
 **Comms**
 - `t=6` **TRACE**: traffic with no sender. recorded loops.
-- `t=24` **OMNI**: a dead lane that will not die.
-- `t=44` **CID**: ride it. see where it drains.
+- `t=24` **HAUL**: a dead lane that will not die.
+- `t=44` **CMD**: ride it. see where it drains.
 
 **Report** — CASE NOTE: the ghost traffic drains toward the old beacon hub.
 
@@ -388,9 +388,9 @@ Premise: Badge Zero is served — and a whole relay chain out along the reach go
 *Hint: shoal water — phase-locked reefs and sealed pairs, read before you steer*
 
 **Comms**
-- `t=6` **CID**: old keys, still turning. mind the phases.
+- `t=6` **CMD**: old keys, still turning. mind the phases.
 - `t=20` **TRACE**: these locks predate badge zero. YEARS old.
-- `t=38` **OMNI**: then who has been winding them?
+- `t=38` **HAUL**: then who has been winding them?
 
 **Report** — CASE NOTE: the shoal locks are OLDER than the corruption case.
 
@@ -405,8 +405,8 @@ Premise: Badge Zero is served — and a whole relay chain out along the reach go
 *Hint: riptide — do not fight the pace, become it*
 
 **Comms**
-- `t=6` **OMNI**: flow rate doubled. tripled. keep up.
-- `t=30` **CID**: steady hands. it wants you rushed.
+- `t=6` **HAUL**: flow rate doubled. tripled. keep up.
+- `t=30` **CMD**: steady hands. it wants you rushed.
 
 **Report** — CASE NOTE: the drain pulls harder the closer we get.
 
@@ -422,8 +422,8 @@ Premise: Badge Zero is served — and a whole relay chain out along the reach go
 
 **Comms**
 - `t=6` **TRACE**: wall scars on every hulk out here.
-- `t=20` **CID**: this is a training ground. WAS.
-- `t=46` **OMNI**: so the beacon had a teacher once.
+- `t=20` **CMD**: this is a training ground. WAS.
+- `t=46` **HAUL**: so the beacon had a teacher once.
 
 **Report** — CASE NOTE: the hulks are practice targets. YEARS of drills.
 
@@ -438,7 +438,7 @@ Premise: Badge Zero is served — and a whole relay chain out along the reach go
 *Hint: undertow — the fastest water on the dead reach*
 
 **Comms**
-- `t=6` **CID**: it reads us as we ride. shield nothing.
+- `t=6` **CMD**: it reads us as we ride. shield nothing.
 - `t=38` **TRACE**: copies of OUR traffic in the drain.
 
 **Report** — CASE NOTE: the beacon has been listening since relay one.
@@ -454,9 +454,9 @@ Premise: Badge Zero is served — and a whole relay chain out along the reach go
 *Hint: the narrows: every trick on the reach, then open water*
 
 **Comms**
-- `t=6` **OMNI**: it is WAITING for us now.
+- `t=6` **HAUL**: it is WAITING for us now.
 - `t=26` **TRACE**: signal ahead. clean. an invitation.
-- `t=54` **CID**: accept it. emitters hot.
+- `t=54` **CMD**: accept it. emitters hot.
 
 **Report** — CASE NOTE: it let us through. it wanted an audience.
 
@@ -472,7 +472,7 @@ Premise: Badge Zero is served — and a whole relay chain out along the reach go
 
 **Comms**
 - `t=4` **CORE**: i kept the light on. where were you?
-- `t=16` **CID**: ride the beam, runner. let it spend itself.
+- `t=16` **CMD**: ride the beam, runner. let it spend itself.
 
 **Report** — CASE CLOSED: the light is out. the reach sleeps quiet.
 

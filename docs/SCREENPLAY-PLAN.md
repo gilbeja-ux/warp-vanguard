@@ -48,7 +48,7 @@ and the order we build it. The writing itself lives in `docs/SCREENPLAY.md`.
   she says out loud (`docs/IDENTITY-SETUP.md` already stores one).
 - The client: name, company, what he is actually shipping.
 - The reach: name.
-- Whether **OMNI** and **TRACE** survive as speakers, or collapse into
+- Whether **HAUL** and **TRACE** survive as speakers, or collapse into
   client + commander.
 
 ---

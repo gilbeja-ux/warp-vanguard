@@ -12844,8 +12844,8 @@ const shieldAt = r => Math.round(100 * clamp(1 - Math.pow(clamp(r / BANDS[BANDS.
 // star chart the equivalent is scenery — asteroid fields, placed as destinations
 // like everything else, rather than a river you route around.)
 // where each case finally delivers — the terminus past its last relay
-// (CITY_TERMS is gone. It hardcoded CID / POLICE HQ / INTERNAL AFFAIRS — Data
-// Defenders' own places, on a star chart. A campaign's terminus is simply the
+// (CITY_TERMS is gone. It hardcoded the old game's police and precinct places
+// onto a star chart. A campaign's terminus is simply the
 // last destination it delivers to, and that already has a name.)
 // one chain per campaign: { pts: [...relays, terminus], segs: [...runs] }.
 // The chains are links of ONE spiral, so a case begins exactly where the last

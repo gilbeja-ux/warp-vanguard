@@ -18,7 +18,7 @@ loses no plot.
 |---|---|---|
 | **CMD** — the handler | In-run barks | Direction, reaction. Never plot. |
 | **CORE** — the intruder | Boss fights only | Taunts. Already wired at [index.html:2711](../src/index.html#L2711). |
-| **OMNI**, **TRACE** | Discs + case notes only | Exposition, the case. |
+| **HAUL**, **TRACE** | Discs + case notes only | Exposition, the case. |
 
 ---
 

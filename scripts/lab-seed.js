@@ -56,7 +56,7 @@ const ACTS = [
       { name: 'HARBOR CROSSING', beat: 'The delivery run. Barriers strung to catch the file whole. → THE CONTACT. Reyes: "You’re RUNNER."' },
       { name: 'SUBLANE DRIFT', beat: 'First staged convoy. TRACE pulls a deployment key off the wreckage — it holds ACTIVE clearance. "log it, tell no one."' },
       { name: 'TRADE SPINE', beat: 'Phase-locked interdictors. A clean interception yields a working key — cut with credentials rotated this morning. THE SIGNATURES BEGIN.' },
-      { name: 'CID APPROACH', beat: 'TRACE isolates it: the file was never lost in transit. It arrived four times and was destroyed at the door.' },
+      { name: 'COMMAND APPROACH', beat: 'TRACE isolates it: the file was never lost in transit. It arrived four times and was destroyed at the door.' },
       { name: 'EVIDENCE INTAKE', beat: 'THE WARDEN. Resident in Lane Command’s own intake, refusing one class of cargo for years. "everything i refused was contaminated. i was the filter."' }
     ]
   },

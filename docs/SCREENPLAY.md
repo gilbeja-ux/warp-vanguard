@@ -519,9 +519,9 @@ threshold with the whole Reach's infrastructure firing into it.
 **The Dispatcher.** Not a fortress. A clerk with six locks, and it has never in six
 years been asked to explain itself, so at the end it will not stop talking.
 
-> **ARCHITECT:** *i did not choose what to refuse. i was told what was contaminated.*
-> **ARCHITECT:** *nobody has read my reports since the second year.*
-> **ARCHITECT:** *you have been arguing with a form.*
+> **DISPATCHER:** *i did not choose what to refuse. i was told what was contaminated.*
+> **DISPATCHER:** *nobody has read my reports since the second year.*
+> **DISPATCHER:** *you have been arguing with a form.*
 
 Seat the antidote. It unwrites itself in its own hand, dispatch by dispatch, all
 the way back to the first one — and every warden still standing in Meridian goes

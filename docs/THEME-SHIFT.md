@@ -20,10 +20,12 @@ Three things make the swap close to free:
    hoop-and-spoke tunnel *is* a warp lane, and it needed a paragraph of
    explanation to be a fiber-optic cable. The most expensive art in the game
    gets more legible for zero work.
-2. **`CID` survives as an acronym.** Cyber Investigations Department becomes
-   **Lane Command**. Same three letters, same institutional
-   register, same role — the authority that receives evidence and cannot trust
-   its own building. 71 occurrences in source need no edit.
+2. **The institution kept its shape, then lost its name.** Cyber Investigations
+   Department first became Convoy Integrity Division — same three letters, so 71
+   occurrences needed no edit at all — and was later renamed outright to **Lane
+   Command** (speaker id `CMD`) when the last Data Defenders place-names were
+   stripped. The role never moved: the authority that receives the evidence and
+   cannot trust its own building.
 3. **The engine's nouns were already spatial.** `bore`, `tunnel`, `ring`,
    `relay`, `rail`, `node`, `arc` — every one of them reads *better* in a warp
    lane than in a cable. The identifiers do not move.
