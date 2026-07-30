@@ -1909,6 +1909,14 @@ let warpT = 0;                // warp-dive into a fresh level
 // before it stops; a severed stream halts hard. Purely visual: enemy z-motion
 // is sim-side and never touches this.
 let laneFlow = 0;
+// RUN VISIBILITY. laneExit() only covers the campaign-WIN arrival, and laneFlow
+// only stops the motion — so leaving a run by any other path (a loss, a quit,
+// dismissing the report) left the lane's entities frozen on screen behind the
+// menu: interdictor plates, their glows, ghosts and pickups sitting under the
+// contract carousel as residue. This fades everything the RUN owns once we are
+// back in the menu, and the arrays are cleared at the end of the fade so nothing
+// lingers off-screen either.
+let runVis = 1;
 let musicDuck = 0;            // music dips under the end ceremony
 let fadeT = 0;                // universal screen-stitch fade
 const BOOT_LOCK = 1.5;        // the ring rides the tunnel in and docks at this moment
@@ -5062,6 +5070,14 @@ function update(dt) {
   // The win brake is timed to the destination swell (~0.55–2.85s of endT) so the
   // lane glides to rest right as the world settles into view.
   const flowTgt = (state === S.PLAY || state === S.PAUSE || state === S.INFO) ? 1 : 0;
+  // ~0.45s to clear once the menu takes over; instant back to 1 on the way in,
+  // because a run must never fade UP over the player
+  const runTgt = state === S.MENU ? 0 : 1;
+  runVis = runTgt > runVis ? 1 : Math.max(0, runVis - dt / 0.45);
+  if (runVis <= 0 && enemies.length + ghosts.length + pickups.length + particles.length) {
+    enemies.length = ghosts.length = pickups.length = particles.length = 0;
+    popups.length = 0; rimFX.length = 0; latches.length = 0; killStreaks.length = 0;
+  }
   if (laneFlow < flowTgt) laneFlow = Math.min(flowTgt, laneFlow + dt / 0.5);
   else if (laneFlow > flowTgt)
     laneFlow = Math.max(flowTgt, laneFlow - dt / (state === S.END ? (endWin ? 2.6 : 1.0) : 0.45));
@@ -15345,11 +15361,13 @@ function frame(now) {
   }
 
   // traps render over the ring — missed ones fly past the player and fade
-  const sorted = inGuide ? [] : enemies.slice().sort((a, b) => b.z - a.z);
+  const sorted = (inGuide || runVis <= 0.004) ? [] : enemies.slice().sort((a, b) => b.z - a.z);
+  if (runVis < 1) { ctx.save(); ctx.globalAlpha *= runVis; }
   for (const en of sorted) if (en.lineLead) drawLineBeam(en, g); // beams sit under the traps
   for (const en of sorted) drawEnemy(en, g);
-  for (const gh of inGuide ? [] : ghosts) drawGhost(gh, g); // dead bodies de-rezzing in place
-  for (const p of inGuide ? [] : pickups) drawPickup(p, g);
+  for (const gh of (inGuide || runVis <= 0.004) ? [] : ghosts) drawGhost(gh, g); // dead bodies de-rezzing in place
+  for (const p of (inGuide || runVis <= 0.004) ? [] : pickups) drawPickup(p, g);
+  if (runVis < 1) ctx.restore();
   if (hw > 0.004) drawPulseWave(g); // a fired pulse is hardware too — it goes with the ring
   drawClearSweep(g);
   if (boss && state !== S.MENU && !inGuide) drawBoss(g);
