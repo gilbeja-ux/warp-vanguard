@@ -10,7 +10,15 @@ const { verifyRun } = await import('../supabase/functions/submit-run/_sim.mjs');
 const run = recordDemoRun(4);
 let pass = true;
 const line = (ok, msg) => { console.log((ok ? 'PASS  ' : 'FAIL  ') + msg); if (!ok) pass = false; };
-line(run && run.trace && run.trace.length > 0 && run.score > 0, `recorded a run (score ${run && run.score}, ${run && run.trace && run.trace.length} frames)`);
+// The demo run parks both nodes at fixed angles and lets the level kill it, so
+// what it proves is that a run RECORDS and that the bundle agrees about it —
+// including agreeing on a zero. It used to score by luck: the old scripted comms
+// created lulls that held arrivals back long enough for a parked node to catch
+// something. Removing the comms removed the lulls, so it now dies early with
+// nothing intercepted, which is a fine thing to verify and a bad thing to assert
+// a score on. Non-zero scoring is covered properly by the five campaign runs
+// below, which recompute 100-700 apiece.
+line(run && run.trace && run.trace.length > 0 && run.score >= 0, `recorded a run (score ${run && run.score}, ${run && run.trace && run.trace.length} frames)`);
 
 const good = verifyRun(run);
 line(good.ok && good.recomputed === run.score, `bundle verifies the run (recomputed ${good.recomputed} === ${run.score})`);

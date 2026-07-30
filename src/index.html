@@ -14417,7 +14417,7 @@ function drawEnd(g) {
 
   // banner slams in
   const tPop = 1 + 0.22 * (1 - ph(T.panel0, T.panel0 + 0.3));
-  const banner = endless ? 'STREAM SEVERED' : qual ? (endWin ? 'QUALIFIED' : 'TRAINING ABORTED') : endWin ? 'LANE CLEARED' : 'PAYLOAD CORRUPTED';
+  const banner = endless ? 'STREAM SEVERED' : qual ? (endWin ? 'QUALIFIED' : 'TRAINING ABORTED') : endWin ? 'LANE CLEARED' : 'WARP LANE UNSTABLE';
   ctx.save();
   ctx.translate(g.cx, g.cy - R * 0.38);
   ctx.scale(tPop, tPop);

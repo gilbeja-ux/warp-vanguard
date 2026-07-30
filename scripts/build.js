@@ -36,3 +36,24 @@ if (!tracks.length) console.warn('! no audio in src/audio/music/ — runs will h
 console.log('✓ Build directory ready');
 console.log('✓ Assets available at', assetDir);
 console.log('✓ Run pool: ' + tracks.length + ' track(s)' + (prev === out ? ' (unchanged)' : ' → src/audio/music/tracks.js'));
+
+// ---- verifier staleness guard ----
+// The leaderboard verifier is a BUNDLE of the sim, deployed separately. If the
+// sim or the campaign data moves and the bundle is not rebuilt and redeployed,
+// the server replays every submission against the old rules and rejects them
+// all — "verification failed [900 vs 26200]" — which looks like a scoring bug
+// and is not one. Nothing in the game surfaces the mismatch, so the build does.
+{
+  const repo = path.join(__dirname, '..');
+  const simPath = path.join(repo, 'supabase', 'functions', 'submit-run', '_sim.mjs');
+  if (fs.existsSync(simPath)) {
+    const built = fs.statSync(simPath).mtimeMs;
+    const stale = ['src/index.html', 'src/campaigns.js']
+      .filter(f => fs.existsSync(path.join(repo, f)) && fs.statSync(path.join(repo, f)).mtimeMs > built);
+    if (stale.length) {
+      console.warn('\n! VERIFIER IS STALE — ' + stale.join(' and ') + ' changed after the bundle was built.');
+      console.warn('  Leaderboard submissions will be REJECTED until you run:');
+      console.warn('    npm run build:verifier && npm run deploy:verifier\n');
+    }
+  }
+}
