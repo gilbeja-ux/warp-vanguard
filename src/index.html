@@ -904,7 +904,7 @@ const sfx = {
 let bgCanvas = null, vignetteCanvas = null, wallTex = null, wallCloud = null;
 let ringFxCv = null, grainCv = null; // prerendered monolith ring + film-grain tile
 let bgMotes = [], glitchT = 0, glitchY = 0, nextGlitch = 3;
-let litPanels = [], wallSnips = [];
+let litPanels = [];
 // (randCode is retired with the fiber theme — there is no binary on a lane wall.
 // The wall's motion is carried by streaked starlight and the marker trains below.)
 function buildBackground() {
@@ -914,17 +914,10 @@ function buildBackground() {
     bgMotes.push({ x: Math.random() * W, y: Math.random() * H, sp: rand(4, 14), r: rand(0.6, 1.8), ph: rand(0, TAU), white: Math.random() < 0.3 });
   }
   litPanels = [];
-  // marker trains streaming along the lane wall: runs of chevrons, the way a
-  // charted corridor is signed. They ride the traffic clock, so they read as
-  // ground rushing past rather than as decoration.
-  wallSnips = [];
-  for (let i = 0; i < 12; i++) {
-    wallSnips.push({
-      a: Math.random() * TAU, z: Math.random(), n: 4 + (Math.random() * 6 | 0),
-      amber: Math.random() < 0.22, sp: rand(0.7, 1.4),
-      dir: Math.random() < 0.6 ? -1 : 1 // -1 = incoming (toward player), +1 = outgoing
-    });
-  }
+  // (the chevron marker trains are GONE. Signage painted on a lane wall was a
+  // holdover from thinking of the bore as a built structure — a lit corridor with
+  // markings. It is open space with a containment field in it, and the chevrons
+  // read as exactly what they were: graphics stuck to nothing.)
   // vignette cache
   vignetteCanvas = document.createElement('canvas');
   vignetteCanvas.width = W * DPR; vignetteCanvas.height = H * DPR;
@@ -1326,46 +1319,6 @@ function drawLiveBg(dt) {
 }
 // binary / hex snippets racing along the tunnel axis — glyph by glyph, in true perspective,
 // flowing both toward and away from the player like live traffic on the line
-// lane marker trains: runs of chevrons signed along the wall, streaming at the
-// traffic speed. Replaces the binary glyph traffic of the fiber theme — same
-// machinery, same cadence, but a chevron points and a digit does not, so the
-// wall now tells you which way the lane runs.
-function drawWallCode(g, dt) {
-  const spd = state === S.PLAY ? trafficSpeed : 0.2; // marker traffic rides the shared clock
-  const dz = 0.045; // depth spacing between marks — converges with perspective
-  for (const c of wallSnips) {
-    c.z += dt * spd * c.sp * c.dir;
-    if (c.dir < 0 && c.z < -0.08 - c.n * dz) { c.z = 1; c.a = Math.random() * TAU; c.n = 4 + (Math.random() * 6 | 0); }
-    if (c.dir > 0 && c.z > 1) { c.z = -0.05; c.a = Math.random() * TAU; c.n = 4 + (Math.random() * 6 | 0); }
-    const cosA = Math.cos(c.a), sinA = Math.sin(c.a);
-    for (let j = 0; j < c.n; j++) {
-      const zj = c.z + j * dz;
-      if (zj > 1 || zj < -0.07) continue;
-      const rg = ring(zj, g);
-      const sz = 30 * rg.s;
-      if (sz < 2.5) continue;
-      const x = rg.x + cosA * rg.r * 0.985, y = rg.y + sinA * rg.r * 0.985;
-      // the head of the train is brightest and it dims down the tail, so the
-      // run reads as travelling rather than as a static row of ticks
-      const lead = 1 - j / c.n * 0.65;
-      const al = Math.min(1 - zj, 1.05) * 0.5 * lead * clamp((zj + 0.07) / 0.12, 0, 1);
-      if (al <= 0.02) continue;
-      const w = Math.min(sz, 11);
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(c.a); // the chevron's axis runs along the lane, toward the vanish point
-      ctx.strokeStyle = c.amber ? `rgba(255,200,120,${al.toFixed(2)})` : `rgba(140,215,255,${al.toFixed(2)})`;
-      ctx.lineWidth = Math.max(0.7, w * 0.16);
-      ctx.beginPath();                     // ">" opening against the direction of travel
-      ctx.moveTo(-w * 0.45, -w * 0.42);
-      ctx.lineTo(w * 0.42, 0);
-      ctx.lineTo(-w * 0.45, w * 0.42);
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-}
-
 // ---------- levels ----------
 // ---------- campaign packages ----------
 // A campaign is ONE self-contained, JSON-shaped object (no functions) — the
@@ -6227,13 +6180,22 @@ const STAR_TINTS = [
 // passes gives a soft edge profile; the capsule problem only ever came from ONE
 // wide pass carrying real alpha, which is why the widest here is nearly invisible
 // on its own and only reads as the outermost breath of the glow.
+// EIGHT passes now. The two new entries at the top are very wide and almost
+// transparent — they are what a broad shaft of light actually is: not a fat line,
+// but a wide soft falloff whose centre happens to be bright. Only the widest class
+// pays for them.
+//
+// A wide stroke is only a capsule when it carries real alpha. At 0.010 a 100px
+// stroke is a breath; what makes it read is dozens of them overlapping additively.
 const LIVE_WARP_PASSES = [
-  [6.2, 0, 0.030],  // outermost breath — barely there alone
-  [4.0, 0, 0.055],
-  [2.6, 0, 0.105],
-  [1.7, 1, 0.200],
-  [1.0, 1, 0.400],
-  [0.5, 2, 0.780]   // core — white hot, and still not fully opaque
+  [13.0, 0, 0.010],  // outermost — shafts only, essentially invisible alone
+  [9.0,  0, 0.018],
+  [6.2,  0, 0.030],
+  [4.0,  0, 0.055],
+  [2.6,  0, 0.105],
+  [1.7,  1, 0.200],
+  [1.0,  1, 0.400],
+  [0.5,  2, 0.780]   // core — white hot, still not fully opaque
 ];
 
 // THE CONVOY: the gold river running along the floor of the lane, behind and
@@ -6270,16 +6232,19 @@ function initStreaks() {
   // depth on the same circle, and space has no circles of stars in it.
   for (let i = 0; i < nAmbient; i++) {
     const r = Math.random();
-    const cls = r < 0.14 ? 2 : r < 0.52 ? 1 : 0;   // 0 fine · 1 normal · 2 burst
+    // 0 fine · 1 normal · 2 burst · 3 SHAFT (broad soft columns of light)
+    const cls = r < 0.075 ? 3 : r < 0.20 ? 2 : r < 0.56 ? 1 : 0;
     streaks.push({
       z: Math.random(), a: Math.random() * TAU, gold: false,
       tint: STAR_TINTS[Math.random() * STAR_TINTS.length | 0],
       sp: rand(0.82, 1.14),
       rmul: rand(0.40, 1.55),
-      p0: cls === 2 ? 0 : cls === 1 ? 2 : 3,       // burst pays for the wide halo
-      lenK: cls === 2 ? rand(1.7, 3.1) : cls === 1 ? rand(0.9, 1.8) : rand(0.45, 1.0),
-      cal:  cls === 2 ? rand(2.2, 4.2) : cls === 1 ? rand(0.9, 1.7) : rand(0.45, 0.9),
-      br:   cls === 2 ? rand(0.42, 0.72) : cls === 1 ? rand(0.7, 1.15) : rand(0.85, 1.35)
+      // p0 is where a star enters the pass table, so only shafts pay for the two
+      // widest passes and fine lines cost three strokes instead of eight
+      p0:   cls === 3 ? 0 : cls === 2 ? 2 : cls === 1 ? 4 : 5,
+      lenK: cls === 3 ? rand(2.2, 3.8) : cls === 2 ? rand(1.7, 3.1) : cls === 1 ? rand(0.9, 1.8) : rand(0.45, 1.0),
+      cal:  cls === 3 ? rand(4.5, 9.0) : cls === 2 ? rand(2.2, 4.2) : cls === 1 ? rand(0.9, 1.7) : rand(0.45, 0.9),
+      br:   cls === 3 ? rand(0.30, 0.55) : cls === 2 ? rand(0.42, 0.72) : cls === 1 ? rand(0.7, 1.15) : rand(0.85, 1.35)
     });
   }
 }
@@ -6499,11 +6464,11 @@ function drawStreaks(g, dt) {
       // outside to white-hot core. Never one wide stroke — that is a capsule, and
       // a capsule reads as a flat surface. Calibre is per-star now, so the field
       // has heavy hero lines and fine ones instead of one uniform gauge.
-      // The old 1.55 cap existed because a single wide pass carried real alpha and
-      // turned into a capsule. With six passes and the widest at 0.030 alpha, a
-      // broad stroke is now a breath of glow rather than a surface, so bursts are
-      // allowed to get genuinely wide. Still capped, just far higher.
-      const k = Math.min(3.4, lerp(0.6, 1.25, 1 - zH) * st.cal);
+      // The original 1.55 cap existed because a single wide pass carried real
+      // alpha and turned into a capsule. With eight passes and the widest at 0.010
+      // alpha, a broad stroke is a breath of glow rather than a surface, so shafts
+      // are allowed to get genuinely wide. Still capped, just far higher.
+      const k = Math.min(9, lerp(0.6, 1.25, 1 - zH) * st.cal);
       // THE TAPER — this is what makes a smear a smear.
       //
       // Every pass used to be a flat rgba() stroke: uniform alpha from head to
@@ -13265,7 +13230,6 @@ function perfWatch(rawDt) {
       initStreaks();
       initDeepField();
       initLaneMedium();
-      wallSnips.length = Math.min(wallSnips.length, 14);
     }
     perfAcc = 0; perfN = 0; perfWin = 0;
   }
@@ -13917,7 +13881,6 @@ function frame(now) {
   drawLattice(g);
   drawRangeRings(g);
   drawSurgeWave(g);
-  drawWallCode(g, dt);
   drawLaneMedium(g, dt); // gas + debris the warp lines fly through
   drawStreaks(g, dt);
   // warm glow rising off the golden river
