@@ -5664,8 +5664,14 @@ function drawLattice(g) {
   // carrier's teal and a charge pulse travelling outward along the bore. The
   // spacing and geometry are untouched — leaks still ride these hoops.
   const off = ((wallDist % HOOP_SPACING) + HOOP_SPACING) % HOOP_SPACING;
-  for (let z = SPAWN_Z - off; z > g.hitZ * 0.4; z -= HOOP_SPACING) {
+  // The hoops run all the way to the projection floor, NOT to hitZ*0.4. The old
+  // bound cut them at z=0.10, where a hoop's radius is still comfortably inside
+  // the frame — so each ring visibly evaporated mid-screen instead of passing
+  // the camera. Same disease the warp lines had, same cure: past the floor the
+  // radius has blown far outside every screen edge, so the recycle is invisible.
+  for (let z = SPAWN_Z - off; z > -0.155; z -= HOOP_SPACING) {
     const rr = ring(z, g);
+    if (rr.r > Math.max(W, H) * 1.6) continue; // already past every edge — skip the stroke
     const a = clamp((SPAWN_Z - 0.05 - z) / 0.4, 0, 1) * 0.26;
     // a slow charge running down the lane: each hoop brightens as the pulse
     // passes it, so the field reads as powered rather than as inert scaffolding
@@ -5721,15 +5727,19 @@ function drawWarpField(g) {
     // fading before the rim so it never fights the play ring
     const depthK = clamp((SPAWN_Z - 0.06 - f.z) / 0.3, 0, 1) * clamp((f.z - 0.30) / 0.14, 0.35, 1);
     const breathe = 0.75 + 0.25 * Math.sin(time * f.wob + f.ph);
-    const al = (0.045 + 0.11 * dive) * f.w * depthK * breathe;
-    if (al < 0.006) continue;
+    // The first cut multiplied out to ~0.02 alpha on ~4px arcs — mathematically
+    // present, visually absent. A membrane has to be SEEN to separate anything:
+    // base alpha up ~4x and the band far wider, still translucent enough that
+    // stars read straight through it.
+    const al = (0.17 + 0.30 * dive) * f.w * depthK * breathe;
+    if (al < 0.012) continue;
     const aMid = f.a0 + time * f.drift;           // the circulation
     const half = f.arc * (0.8 + 0.2 * breathe) / 2;
     const col = f.warm ? '255,210,120' : '96,224,208';
-    // two passes: a wide soft band and a thin brighter filament inside it
-    for (const [wMul, aMul] of [[3.2, 0.5], [1.1, 1]]) {
+    // three passes: a broad soft aura, the band, and a thin hot filament
+    for (const [wMul, aMul] of [[7.5, 0.16], [3.4, 0.4], [1.1, 1]]) {
       ctx.strokeStyle = `rgba(${col},${(al * aMul).toFixed(4)})`;
-      ctx.lineWidth = Math.max(1, rg.r / g.nodeR * 3.4 * f.w * wMul);
+      ctx.lineWidth = Math.max(1.2, rg.r / g.nodeR * 4.6 * f.w * wMul);
       ctx.beginPath();
       ctx.arc(g.cx, g.cy, rg.r, aMid - half, aMid + half);
       ctx.stroke();
@@ -5981,7 +5991,7 @@ function drawTunnel(g) {
   dark.addColorStop(1, 'rgba(4,8,18,0)');
   ctx.fillStyle = dark;
   ctx.beginPath(); ctx.arc(far.x, far.y, vr, 0, TAU); ctx.fill();
-  drawFarGlow(far, vr);
+  drawFarGlow(far, vr, g);
 }
 
 // THE DESTINATION WORLD. A lane goes somewhere, and the vanishing point is where.
@@ -6147,12 +6157,22 @@ function buildPlanetSprite(R, V) {
   c.putImageData(img, 0, 0);
   return { cv, S, R };
 }
-function drawFarGlow(far, vr) {
+function drawFarGlow(far, vr, g) {
   // 1x at departure, 4x at arrival. laneProgress() is LATCHED and monotonic, so
   // the world never shrinks mid-run and never snaps back when the level ends —
   // it holds its arrival size for whatever the end sequence wants to do with it.
   const grow = 1 + laneProgress() * 3;
-  const R = Math.max(2, vr * 0.075 * grow);
+  // ARRIVAL. A campaign win IS reaching the destination, so the ceremony finishes
+  // the journey for real: the world closes the last of the distance and swells to
+  // meet the ring, and the mission report lands on top of it. Losses, endless and
+  // qualification never arrive — their world holds at whatever approach it made.
+  const arriving = state === S.END && endWin && !endless && !qual;
+  let arrive = 0;
+  if (arriving) {
+    const q = clamp((endT - 0.55) / 2.3, 0, 1); // rides in with the clear-sweep
+    arrive = 1 - Math.pow(1 - q, 3);            // fast closing, gentle settle
+  }
+  const R = Math.max(2, vr * 0.075 * grow) * (1 - arrive) + g.nodeR * 0.52 * arrive;
   const V = planetVariant();
   const breath = 0.5 + 0.5 * Math.sin(time * 0.7);
 
@@ -6165,7 +6185,14 @@ function drawFarGlow(far, vr) {
   ctx.beginPath(); ctx.arc(far.x, far.y, R * 4.6, 0, TAU); ctx.fill();
 
   // --- the body: one sprite, scaled continuously. No rebuild while it grows. ---
-  if (planetSpriteKey !== V.n) { planetSprite = buildPlanetSprite(PLANET_REF_R, V); planetSpriteKey = V.n; }
+  // The one exception is arrival: the approach sprite upscaled 2x+ goes soft, so
+  // the first ceremony frame rebuilds it at double resolution — a single hitch,
+  // masked by the victory flash, instead of a blurry close-up for the whole report.
+  const spriteKey = V.n + (arriving ? '@hi' : '');
+  if (planetSpriteKey !== spriteKey) {
+    planetSprite = buildPlanetSprite(arriving ? PLANET_REF_R * 2 : PLANET_REF_R, V);
+    planetSpriteKey = spriteKey;
+  }
   if (planetSprite) {
     const w = planetSprite.S * (R / planetSprite.R);
     ctx.drawImage(planetSprite.cv, far.x - w / 2, far.y - w / 2, w, w);
@@ -6197,7 +6224,7 @@ function drawFarGlow(far, vr) {
     const rr = R * (m.rr + k * 0.9);
     const mx = far.x + Math.cos(m.a) * rr, my = far.y + Math.sin(m.a) * rr * 0.92;
     ctx.fillStyle = m.warm ? `rgba(255,214,170,${al.toFixed(3)})` : `rgba(190,220,255,${al.toFixed(3)})`;
-    ctx.beginPath(); ctx.arc(mx, my, Math.max(0.35, m.sz * (0.5 + grow * 0.35)), 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(mx, my, Math.max(0.35, m.sz * (0.5 + grow * 0.35) * (1 + arrive * 2.2)), 0, TAU); ctx.fill();
   }
   ctx.restore();
 }
@@ -13073,8 +13100,11 @@ function drawEnd(g) {
     : { panel0: 0.05, panel1: 0.40, cnt0: 0.35, cnt1: 1.00, stars: 99,   stats: 1.0 };
   const btnAt = endBtnAt();
 
-  // the live (now cleared) scene keeps breathing beneath — dim it gently
-  ctx.fillStyle = 'rgba(3,6,14,' + (0.5 * (endWin ? ph(0.75, 1.2) : ph(0, 0.45))).toFixed(2) + ')';
+  // the live (now cleared) scene keeps breathing beneath — dim it gently. Wins
+  // stay lighter: the destination world is swelling in behind the data and the
+  // whole point is to see it arrive.
+  const dimK = endWin && !endless && !qual ? 0.32 : 0.5;
+  ctx.fillStyle = 'rgba(3,6,14,' + (dimK * (endWin ? ph(0.75, 1.2) : ph(0, 0.45))).toFixed(2) + ')';
   ctx.fillRect(0, 0, W, H);
   if (endWin && endT < 0.35) { // victory flash seals the run
     ctx.fillStyle = 'rgba(126,226,98,' + (0.28 * (1 - endT / 0.35)).toFixed(2) + ')';
@@ -13086,7 +13116,6 @@ function drawEnd(g) {
   const R = g.nodeR * 0.94;
   const maxW = g.nodeR * 2 * 0.62;
   const endCol = endless ? '#ffb340' : endWin ? '#69e05c' : '#ff4a5e';
-  const endColRgb = endless ? '255,179,64' : endWin ? '105,224,92' : '255,74,94';
   const fit = (weight, px2, text) => {
     let fs = px2 + 1;
     do { fs--; ctx.font = weight + ' ' + fs + 'px Audiowide, system-ui'; }
@@ -13096,22 +13125,10 @@ function drawEnd(g) {
 
   ctx.save();
   ctx.globalAlpha = pA;
-  // the report lives INSIDE the ring
-  const bg = ctx.createRadialGradient(g.cx, g.cy, R * 0.25, g.cx, g.cy, R);
-  bg.addColorStop(0, 'rgba(6,11,24,0.93)');
-  bg.addColorStop(0.82, 'rgba(5,9,20,0.88)');
-  bg.addColorStop(1, 'rgba(5,9,20,0)');
-  ctx.fillStyle = bg;
-  ctx.beginPath(); ctx.arc(g.cx, g.cy, R, 0, TAU); ctx.fill();
-  ctx.strokeStyle = `rgba(${endColRgb},0.35)`; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = `rgba(${endColRgb},0.8)`; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
-  for (let k = 0; k < 4; k++) {
-    const a = k / 4 * TAU + Math.PI / 4 + time * 0.12;
-    ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, a - 0.22, a + 0.22); ctx.stroke();
-  }
-
+  // No report disc. The destination world IS the backdrop — the data floats
+  // straight on the scene, carried by a dark shadow instead of a panel.
   ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(2,5,12,0.95)'; ctx.shadowBlur = lowFX ? 0 : 7;
   // mode line
   const modeName = endless ? (daily ? 'DAILY STREAM' : 'ENDLESS STREAM') : qual ? 'QUALIFICATION' : LEVELS[levelIdx].name;
   try { ctx.letterSpacing = '3px'; } catch (e) {}
@@ -13158,7 +13175,7 @@ function drawEnd(g) {
 
   // stats + best reveal after the count settles
   ctx.globalAlpha = pA * ph(T.stats, T.stats + 0.3);
-  ctx.fillStyle = 'rgba(140,210,255,0.65)'; ctx.font = '11px monospace';
+  ctx.fillStyle = 'rgba(150,215,255,0.85)'; ctx.font = '11px monospace';
   ctx.fillText('intercepted ' + zaps + '   //   perfect ' + perfects, g.cx, g.cy + R * 0.36);
   ctx.fillText('missed ' + misses + '   //   integrity ' + Math.round(integrity) + '%', g.cx, g.cy + R * 0.36 + 17);
   const bestVal = endless ? (daily ? (progress.daily && progress.daily.best) : progress.best) : PROG.bests[levelIdx];
@@ -13180,6 +13197,7 @@ function drawEnd(g) {
   // buttons live OUTSIDE the ring, in the side margins. While the high-score card
   // is up they're GATED: drawn locked (the takeover scrim dims them) and NOT
   // registered as hit targets, so Continue waits until the player saves or skips.
+  ctx.shadowBlur = 0; // the data's floating shadow stops here — keys shade themselves
   const bA = ph(btnAt, btnAt + 0.4);
   if (bA > 0.001) {
     ctx.globalAlpha = pA * bA;
