@@ -22,7 +22,7 @@ const CHROME = '/Users/gilbeja/.cache/puppeteer/chrome/mac_arm-151.0.7922.47/chr
     window.frame = function (now) {
       real(now); n++;
       if (n % 5 === 0) rows.push([+skyBreath().toFixed(2), bright()]);
-      if (rows.length >= 100) {
+      if (rows.length >= 40) {
         window.frame = real;
         resolve({ rows, calls: window.__calls, alphaRange: [Math.min(...window.__alphas).toFixed(2), Math.max(...window.__alphas).toFixed(2)], frames: n });
       }

@@ -9751,10 +9751,12 @@ function drawIntroCard() {
       const titleMaxW = ringChord(H * 0.30) / scale;
       ctx.fillStyle = 'rgba(200,235,255,0.85)'; ctx.font = '600 13px Audiowide, system-ui';
       ctx.fillText(endless ? 'SURVIVE' : qual ? 'TRAINING' : 'LEVEL ' + lvNum(curLevelNo(levelIdx)), 0, -34);
-      const tpx = fitPx(L.name, '800', Math.min(W * 0.055, 32), titleMaxW, 15);
+      // the level IS its route: where the convoy forms up, and where it delivers
+      const lname = curRouteName();
+      const tpx = fitPx(lname, '800', Math.min(W * 0.055, 32), titleMaxW, 15);
       ctx.fillStyle = '#eafaff'; ctx.font = '800 ' + tpx + 'px Audiowide, system-ui';
       ctx.shadowColor = '#5fd7ff'; ctx.shadowBlur = 24;
-      ctx.fillText(L.name, 0, 0);
+      ctx.fillText(lname, 0, 0);
       ctx.shadowBlur = 0;
       try { ctx.letterSpacing = '0px'; } catch (e) {}
       if (L.hint) {
@@ -12468,7 +12470,7 @@ function boardLeftItems() {
     items.push({ kind: 'camp', camp: ci, id: c.id, label: (c.title || 'CAMPAIGN ' + (ci + 1)).toUpperCase(), collapsed });
     // levels ride along even when folded — the animated fold factor collapses them
     (c.levels || []).forEach((lv, li) => items.push({
-      kind: 'level', camp: ci, level: li, campId: c.id, label: (lv.name || 'LEVEL ' + lvNum(levelNo(ci, li))),
+      kind: 'level', camp: ci, level: li, campId: c.id, label: levelRouteName(ci, li),
       sel: boardSel.mode === 'campaign' && boardSel.camp === ci && boardSel.level === li,
     }));
   });
@@ -12964,29 +12966,36 @@ function sysName(seed) {
 // A destination is a BODY IN a system, never a system itself. It is either one of
 // the planets on an orbit or the star at the centre — and if it is the star, the
 // star is what a star looks like, never a planet wearing a sun's job.
-let RELAY_SYS = [];
-function relayDest(i) { return RELAY_SYS[i] || null; }
+function relayDest(i) { const p2 = relayW(i); return p2 && p2.sys ? p2 : null; }
 function relayDestPos(i) {
-  const d = RELAY_SYS[i];
-  if (!d) return relayW(i);
-  if (d.slot < 0) return { x: d.sys.x, y: d.sys.y };
-  const pl = d.sys.planets[d.slot];
-  return { x: d.sys.x + Math.cos(pl.a) * pl.o, y: d.sys.y + Math.sin(pl.a) * pl.o * 0.5 };
+  const p2 = relayW(i);
+  return (p2 && p2.dx !== undefined) ? { x: p2.dx, y: p2.dy } : p2;
 }
 function relayDestName(i) {
-  const d = RELAY_SYS[i];
-  if (!d) return 'UNCHARTED';
-  if (d.slot < 0) return d.sys.name;                       // the star itself
-  const k = destKindFor((typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x', i, false);
-  if (k === 'station') return d.sys.name + ' STATION';
-  if (k === 'gate') return d.sys.name + ' GATE';
-  return d.sys.name + ' ' + ROMAN[Math.min(d.slot, ROMAN.length - 1)];
+  const p2 = relayW(i);
+  return (p2 && p2.dname) || 'UNCHARTED';
+}
+// Named for ANY relay, not just the one on screen, so the campaign list and the
+// briefing disc can both ask.
+function destNameAt(ci, li) {
+  if (!CITY_CHAINS.length) buildCity();
+  const ch = CITY_CHAINS[clamp(ci, 0, CITY_CHAINS.length - 1)];
+  const p2 = ch && ch.pts[clamp(li, 0, ch.pts.length - 1)];
+  return (p2 && p2.dname) || 'UNCHARTED';
 }
 // The level's name is the ROUTE it flies: where the convoy forms up, and where it
 // is going. A relay is a leg, and a leg has two ends.
-function levelRouteName(i) {
-  const from = i > 0 ? relayDestName(i - 1) : ((CAMP && CAMP.origin) || 'OMNISERVE YARDS');
-  return from + ' » ' + relayDestName(i);
+function levelRouteName(ci, li) {
+  if (!CITY_CHAINS.length) buildCity();
+  const from = li > 0 ? destNameAt(ci, li - 1)
+    : ci > 0 ? destNameAt(ci - 1, (CAMPAIGNS[ci - 1] && CAMPAIGNS[ci - 1].levels.length - 1) || 0)
+    : 'OMNISERVE YARDS';
+  return from + ' » ' + destNameAt(ci, li);
+}
+// the route for the level being flown right now
+function curRouteName() {
+  const ci = Math.max(0, CAMPAIGNS.indexOf(CAMP));
+  return levelRouteName(ci, levelIdx);
 }
 function buildCity() {
   const rng = mulberry32(0xC17C0DE);
@@ -13066,15 +13075,10 @@ function buildCity() {
     const pl = polarOf(last);
     pts.push(fromPolar(Math.min(BANDS[BANDS.length - 1][1] + 190, CITY_W * 0.46), pl.a + 0.22));
   }
-  const segs = [];
-  for (let k = 0; k + 1 < pts.length; k++) segs.push(laneArc(pts[k], pts[k + 1]));
-  CITY_CHAINS = counts.map((n, ci) => {
-    const base = counts.slice(0, ci).reduce((s2, v) => s2 + v, 0);
-    const cp = pts.slice(base, base + n + 1), cs = segs.slice(base, base + n);
-    while (cp.length < n + 1) cp.push(cp[cp.length - 1] || pts[pts.length - 1]);
-    while (cs.length < n) cs.push([cp[cs.length], cp[cs.length + 1]]);
-    return { pts: cp, segs: cs };
-  });
+  // (segs are built AFTER the destinations exist — see below — because a lane
+  // joins the bodies a convoy actually flies between, not the middles of the
+  // systems that happen to contain them.)
+  let segs = [];
   // cordons come straight from the band table — they are the structure the relays
   // were placed inside, not a fit after the fact
   RINGS = BANDS.slice(0, Math.max(1, counts.length)).map((b, i) => ({
@@ -13132,18 +13136,52 @@ function buildCity() {
     const ang2 = rng() * TAU;
     mkSystem(CITY_CORE.x + Math.cos(ang2) * rr, CITY_CORE.y + Math.sin(ang2) * rr * 0.5);
   }
-  // every relay is a system, and one body inside it is the destination
-  RELAY_SYS = [];
-  for (let i = 0; i < pts.length; i++) {
-    const sy = mkSystem(pts[i].x, pts[i].y);
+  // Every relay is a system, and one body inside it is the destination.
+  //
+  // The destination rides ON THE POINT rather than in a side table keyed by the
+  // global index. The first cut used RELAY_SYS[globalIndex] while relayW() indexes
+  // the CURRENT campaign's chain — so campaigns 2-5 read another campaign's
+  // systems entirely. Chains are slices of these same point objects, so hanging
+  // the data here means every view agrees by construction.
+  for (let g = 0; g < pts.length; g++) {
+    const sy = mkSystem(pts[g].x, pts[g].y);
     if (!sy) continue;
-    const campId = (CAMPAIGNS.length && CAMP && CAMP.id) || 'x';
-    const isBoss = !!(LEVELS[i] && LEVELS[i].boss);
+    // which campaign and level this global point belongs to
+    let ci = 0, li = g;
+    while (ci < counts.length - 1 && li >= counts[ci]) { li -= counts[ci]; ci++; }
+    const camp = CAMPAIGNS[ci];
+    const lv = camp && camp.levels && camp.levels[li];
+    const boss = !!(lv && lv.boss);
+    const campId = (camp && camp.id) || 'x';
     // a boss duel happens AT the star; everything else orbits one
-    const slot = isBoss ? -1 : (Math.abs(Math.floor(pts[i].x * 13 + pts[i].y * 7)) % sy.planets.length);
-    RELAY_SYS[i] = { sys: sy, slot };
-    sy.relay = i;
+    const slot = boss ? -1 : (Math.abs(Math.floor(pts[g].x * 13 + pts[g].y * 7)) % sy.planets.length);
+    pts[g].sys = sy; pts[g].slot = slot; pts[g].campId = campId; pts[g].li = li; pts[g].boss = boss;
+    if (slot < 0) { pts[g].dx = sy.x; pts[g].dy = sy.y; pts[g].dname = sy.name; }
+    else {
+      const pl = sy.planets[slot];
+      pts[g].dx = sy.x + Math.cos(pl.a) * pl.o;
+      pts[g].dy = sy.y + Math.sin(pl.a) * pl.o * 0.5;
+      const k = destKindFor(campId, li, false);
+      pts[g].dname = sy.name + (k === 'station' ? ' STATION' : k === 'gate' ? ' GATE'
+        : ' ' + ROMAN[Math.min(slot, ROMAN.length - 1)]);
+    }
+    sy.relay = g;
   }
+  // Now the lanes: destination to destination. Leaving them on system centres was
+  // why the routes did not move when the destinations did.
+  segs = [];
+  for (let k = 0; k + 1 < pts.length; k++) {
+    const A2 = { x: pts[k].dx !== undefined ? pts[k].dx : pts[k].x, y: pts[k].dy !== undefined ? pts[k].dy : pts[k].y };
+    const B2 = { x: pts[k + 1].dx !== undefined ? pts[k + 1].dx : pts[k + 1].x, y: pts[k + 1].dy !== undefined ? pts[k + 1].dy : pts[k + 1].y };
+    segs.push(laneArc(A2, B2));
+  }
+  CITY_CHAINS = counts.map((n, ci) => {
+    const base = counts.slice(0, ci).reduce((s2, v) => s2 + v, 0);
+    const cp = pts.slice(base, base + n + 1), cs = segs.slice(base, base + n);
+    while (cp.length < n + 1) cp.push(cp[cp.length - 1] || pts[pts.length - 1]);
+    while (cs.length < n) cs.push([cp[cs.length], cp[cs.length + 1]]);
+    return { pts: cp, segs: cs };
+  });
   // the field: generated once, drawn live
   GAL_STARS = [];
   const SCOL = ['206,224,255', '255,242,222', '255,212,172', '214,200,255', '190,240,255'];
