@@ -1015,29 +1015,49 @@ function buildBackground() {
       : r < 0.55 ? `rgba(236,246,255,${al})`      // cold white
       : `rgba(150,205,255,${al})`;                // blue-white
   };
-  // the smear: radial streaks along the direction of travel. A streak is a faint
-  // full-length tail with a brighter head, so it has a direction on its own.
+  // the smear: radial streaks along the direction of travel, each drawn as a
+  // GLOW plus a core. The glow is the whole reason the reference streaks read as
+  // light rather than as scratches — a bare 1px line is a hairline, the same line
+  // bedded in a wide soft halo is a star burning past. Additive, so overlapping
+  // streaks pool into brighter regions instead of flat-stacking.
+  t.globalCompositeOperation = 'lighter';
   for (let i = 0; i < 620; i++) {
     const a0 = Math.random() * TAU;
     const r0 = rand(inR, outR - 8);
     const len = Math.random() < 0.14 ? rand(70, 210) : rand(10, 64); // a few hero smears
     const r1 = Math.min(outR, r0 + len);
     const al = 0.10 + Math.random() * 0.34;
+    const core = Math.random() < 0.12 ? rand(1.8, 3.0) : rand(0.5, 1.4);
+    const colA = pick('1').slice(5, -3); // one colour for all passes of this streak
     t.save(); t.rotate(a0);
-    const grd = t.createLinearGradient(r0, 0, r1, 0);
-    grd.addColorStop(0, pick('0'));
-    grd.addColorStop(0.35, pick(al.toFixed(2)));
-    grd.addColorStop(1, pick('0'));
-    t.strokeStyle = grd;
-    t.lineWidth = Math.random() < 0.12 ? rand(1.8, 3.0) : rand(0.5, 1.4);
-    t.beginPath(); t.moveTo(r0, 0); t.lineTo(r1, 0); t.stroke();
+    // ROUND caps, always. A wide butt-capped stroke is a rectangle — that is
+    // literally what it draws — so a 7.5x-wide glow pass with square ends read as
+    // "wide rectangular surfaces" sliding through the bore. Round caps plus a
+    // narrower halo keep a streak a streak.
+    t.lineCap = 'round';
+    // three passes: halo, bloom, core — widest and faintest first
+    for (const [wMul, aMul] of [[3.4, 0.10], [1.9, 0.24], [1, 1]]) {
+      const grd = t.createLinearGradient(r0, 0, r1, 0);
+      grd.addColorStop(0, `rgba(${colA},0)`);
+      grd.addColorStop(0.35, `rgba(${colA},${(al * aMul).toFixed(3)})`);
+      grd.addColorStop(1, `rgba(${colA},0)`);
+      t.strokeStyle = grd;
+      t.lineWidth = core * wMul;
+      t.beginPath(); t.moveTo(r0, 0); t.lineTo(r1, 0); t.stroke();
+    }
     // the head — where the star still resolves to a point before the smear
     if (len > 40) {
-      t.fillStyle = pick((al * 1.5).toFixed(2));
-      t.beginPath(); t.arc(r1, 0, rand(0.7, 1.6), 0, TAU); t.fill();
+      const hr = rand(0.7, 1.6);
+      const hg = t.createRadialGradient(r1, 0, 0, r1, 0, hr * 4.5);
+      hg.addColorStop(0, `rgba(${colA},${Math.min(1, al * 1.5).toFixed(3)})`);
+      hg.addColorStop(0.3, `rgba(${colA},${(al * 0.5).toFixed(3)})`);
+      hg.addColorStop(1, `rgba(${colA},0)`);
+      t.fillStyle = hg;
+      t.beginPath(); t.arc(r1, 0, hr * 4.5, 0, TAU); t.fill();
     }
     t.restore();
   }
+  t.globalCompositeOperation = 'source-over';
   // point stars: far enough off-axis that transit has not stretched them. These
   // keep the wall from collapsing into pure lines.
   for (let i = 0; i < 300; i++) {
@@ -1047,7 +1067,10 @@ function buildBackground() {
     t.beginPath(); t.arc(rr, 0, Math.random() < 0.12 ? rand(1.4, 2.4) : rand(0.4, 1.1), 0, TAU); t.fill();
     t.restore();
   }
-  // a sparse dust haze riding the same direction — depth without more hard edges
+  // a sparse dust haze riding the same direction — depth without more hard edges.
+  // Round caps: at 4–11px wide these are the exact width where a butt cap stops
+  // reading as a smear and starts reading as a little rectangle.
+  t.lineCap = 'round';
   for (let i = 0; i < 110; i++) {
     const a0 = Math.random() * TAU, r0 = rand(inR, outR - 30);
     t.save(); t.rotate(a0);
@@ -1073,11 +1096,22 @@ function buildBackground() {
   const cl = wallCloud.getContext('2d');
   cl.translate(half, half);
   cl.globalCompositeOperation = 'lighter';
+  // A circular clip, because this is a SQUARE canvas holding a round wall. Blobs
+  // stretched radially used to run off the sheet and get chopped by its corners,
+  // and a chopped soft blob is a hard straight edge — the other half of the
+  // "moving rectangles". Extents are constrained below as well, so this is only
+  // insurance; if it ever does bite, it bites along the wall's own curve.
+  cl.save();
+  cl.beginPath(); cl.arc(0, 0, half * 0.995, 0, TAU); cl.clip();
   for (let i = 0; i < 190; i++) {
     const a0 = Math.random() * TAU;
-    const rr = rand(inR * 0.92, outR);
-    const stretch = rand(2.2, 5.5);          // elongated along travel — never round
-    const rad = rand(half * 0.05, half * 0.15);
+    const stretch = rand(1.6, 3.0);          // elongated along travel — never round
+    const rad = rand(half * 0.05, half * 0.11);
+    // keep the whole ellipse on the sheet: its radial reach is rad*stretch
+    const reach = rad * stretch;
+    const hi = outR - reach;
+    const lo = Math.min(inR * 0.92, hi);
+    const rr = hi > lo ? rand(lo, hi) : lo;
     const r2 = Math.random();
     const col = r2 < 0.16 ? '190,225,255' : r2 < 0.34 ? '120,180,255' : '70,130,225';
     const al = 0.035 + Math.random() * 0.075;
@@ -1091,6 +1125,7 @@ function buildBackground() {
     cl.beginPath(); cl.arc(0, 0, rad, 0, TAU); cl.fill();
     cl.restore();
   }
+  cl.restore(); // close the circular clip
   buildRingFx();
 }
 // the node holder ring, reborn as a dark machined monolith (arc lab design):
@@ -5796,6 +5831,8 @@ function drawTunnel(g) {
     ctx.fillStyle = lift;
     ctx.fillRect(0, 0, W, H);
   }
+  // one steady haze weight for every band — no per-band phase, no oscillation
+  const cloudK = 0.16 + 1.5 * dive;
   for (let i = N - 1; i >= 0; i--) {
     const z = (((i - tunnelScroll) % N) + N) % N / N;
     const rg = ring(z, g);
@@ -5808,23 +5845,19 @@ function drawTunnel(g) {
     ctx.globalAlpha = a;
     if (wallTex) ctx.drawImage(wallTex, -hs, -hs, hs * 2, hs * 2);
     ctx.restore();
-    // the turbulence, additively over the streaks. The CHURN comes from per-band
-    // alpha breathing on its own phase — not from rotation, which would shear the
-    // leaks off the wall. Each band boils on its own clock, so the throat looks
-    // like it is convecting rather than scrolling.
-    if (wallCloud) {
-      const boil = 0.62 + 0.38 * Math.sin(time * 1.7 + i * 2.1) * Math.sin(time * 0.9 + i * 0.7);
-      const ca = a * (0.55 + 1.9 * dive) * boil;
-      if (ca > 0.012) {
-        const cs = hs * (1 + 0.06 * Math.sin(time * 1.1 + i * 1.3)); // slight swell, sells volume
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.translate(rg.x, rg.y);
-        ctx.rotate(i * 0.55 + 0.9); // fixed offset from the streak band — never time-varying
-        ctx.globalAlpha = Math.min(1, ca);
-        ctx.drawImage(wallCloud, -cs, -cs, cs * 2, cs * 2);
-        ctx.restore();
-      }
+    // a STEADY haze over the streaks. An earlier cut breathed each band's alpha
+    // on its own phase to fake convection, and it read as blinking — which is the
+    // one thing a wall must never do. There is no time term here at all now: the
+    // motion comes from the bands' own depth travel, and the glow lives on the
+    // lines themselves. Faint during play, blooming only in the dive.
+    if (wallCloud && cloudK > 0.004) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.translate(rg.x, rg.y);
+      ctx.rotate(i * 0.55 + 0.9); // fixed offset from the streak band — never time-varying
+      ctx.globalAlpha = Math.min(1, a * cloudK);
+      ctx.drawImage(wallCloud, -hs, -hs, hs * 2, hs * 2);
+      ctx.restore();
     }
     // the nearest band keeps sliding past the viewer and fades — no pop at the wrap
     if (z > 0.85 && wallTex) {
@@ -5839,6 +5872,18 @@ function drawTunnel(g) {
         ctx.globalAlpha = a2;
         ctx.drawImage(wallTex, -hs2, -hs2, hs2 * 2, hs2 * 2);
         ctx.restore();
+        // the haze rides the wrap band TOO. Leaving it off here was why the effect
+        // "disappeared close to your eyes": the streak texture kept travelling past
+        // the viewer while its haze cut out from under it.
+        if (wallCloud && cloudK > 0.004) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.translate(rg2.x, rg2.y);
+          ctx.rotate(i * 0.55 + 0.9);
+          ctx.globalAlpha = Math.min(1, a2 * cloudK);
+          ctx.drawImage(wallCloud, -hs2, -hs2, hs2 * 2, hs2 * 2);
+          ctx.restore();
+        }
       }
     }
   }
@@ -5966,7 +6011,13 @@ initStreaks();
 // it, and the far void pool still swallows everything near the beacon — new
 // motes emerge out of that darkness instead of popping in.
 let deepStars = [], deepRocks = [], deepWisps = [];
-const DEEP_R0 = 0.16, DEEP_R1 = 1.75; // emerge / recycle radius, in half-min-side units
+// Emerge / recycle radius, in half-min-side units. R1 must clear the SCREEN
+// CORNERS or motes wink out in plain sight: the corner sits at
+// hypot(W/2, H/2) / (min(W,H)/2), which is ~2.04 on 16:9 and worse on wider
+// aspects. 1.75 put the recycle boundary inside the visible frame. Everything
+// also fades out approaching it — clearing the corner is the belt, the fade is
+// the braces, and nothing in this layer may ever pop.
+const DEEP_R0 = 0.16, DEEP_R1 = 2.6, DEEP_FADE = 0.55;
 const DEEP_PARALLAX = 0.12;           // fraction of the wall's rate — the whole trick, named not buried
 function mkDeepStar() {
   return {
@@ -5978,16 +6029,22 @@ function mkDeepStar() {
     sp: rand(0.8, 1.25)
   };
 }
+// ROUND worlds, not angular rocks. The first cut built these as 7–12 vertex
+// jittered polygons, which read as chunky faceted shapes rather than as bodies —
+// wrong silhouette entirely. A distant world is a disc with a terminator on it,
+// and the only thing that sells its scale is that the lit limb agrees with the
+// one world key light everything else obeys.
 function mkDeepRock() {
-  const n = 7 + (Math.random() * 5 | 0), vs = [];
-  for (let i = 0; i < n; i++) vs.push(rand(0.62, 1)); // per-vertex radius jitter — no two alike
   return {
     a: Math.random() * TAU,
     rf: DEEP_R0 + Math.random() * (DEEP_R1 - DEEP_R0),
-    sz: rand(0.012, 0.042),           // fraction of min side
+    sz: rand(0.014, 0.048),           // fraction of min side
     al: 0.10 + Math.random() * 0.16,  // faint: far away, and lit by one distant sun
-    spin: Math.random() * TAU, spinSp: rand(-0.09, 0.09),
-    sp: rand(0.7, 1.1), vs
+    squash: rand(0.94, 1),            // barely oblate — a body, not an egg
+    tilt: Math.random() * TAU,        // which way the oblateness lies
+    phase: rand(0.25, 0.95),          // how much of the disc the sun has
+    warm: Math.random() < 0.3,
+    sp: rand(0.7, 1.1)
   };
 }
 // the CRUISE WISP: a long, very faint, motion-blurred star. This is the whole
@@ -6021,34 +6078,34 @@ function drawDeepField(g, dt) {
   const dive = clamp(warpT / 0.9, 0, 1);
   const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5);
   ctx.save();
-  // --- rocks first, so stars always pass IN FRONT of them, never behind ---
+  // --- worlds first, so stars always pass IN FRONT of them, never behind ---
   for (const rk of deepRocks) {
     rk.rf *= 1 + dt * rate * rk.sp;
-    rk.spin += dt * rk.spinSp;
     if (rk.rf > DEEP_R1) { Object.assign(rk, mkDeepRock()); rk.rf = DEEP_R0; }
     const px = g.cx + Math.cos(rk.a) * rk.rf * SR, py = g.cy + Math.sin(rk.a) * rk.rf * SR;
     const rad = Math.min(W, H) * rk.sz * (0.45 + rk.rf * 0.75); // swells as it comes abeam
+    const rkEdge = clamp((DEEP_R1 - rk.rf) / DEEP_FADE, 0, 1) * clamp((rk.rf - DEEP_R0) / 0.30, 0, 1);
+    if (rkEdge <= 0.01) continue; // faded both ends — never a pop, never a snap
     if (px < -rad * 2 || px > W + rad * 2 || py < -rad * 2 || py > H + rad * 2) continue;
+    const al = rk.al * rkEdge;
     ctx.save();
-    ctx.translate(px, py); ctx.rotate(rk.spin);
-    ctx.beginPath();
-    for (let i = 0; i < rk.vs.length; i++) {
-      const a2 = i / rk.vs.length * TAU, rr = rad * rk.vs[i];
-      const vx = Math.cos(a2) * rr, vy = Math.sin(a2) * rr;
-      i ? ctx.lineTo(vx, vy) : ctx.moveTo(vx, vy);
-    }
-    ctx.closePath();
-    // a dark mass that occludes the field behind it — then the form is read from
-    // the key light on its lit limb. No outline: DESIGN.md forbids them, and a
-    // stroked rock reads as a sticker instantly.
-    ctx.fillStyle = `rgba(6,9,18,${(rk.al * 2.6).toFixed(3)})`;
+    ctx.translate(px, py); ctx.rotate(rk.tilt);
+    ctx.scale(1, rk.squash); // barely oblate — a body, not an egg, and never faceted
+    ctx.beginPath(); ctx.arc(0, 0, rad, 0, TAU);
+    // a dark mass that occludes the field behind it, then the form is read purely
+    // from the terminator. No outline: DESIGN.md forbids them, and a stroked body
+    // reads as a sticker instantly.
+    ctx.fillStyle = `rgba(6,9,18,${(al * 2.6).toFixed(3)})`;
     ctx.fill();
-    const la = LIGHT_A - rk.spin; // the one world key light, in the rock's local frame
-    const lg = ctx.createLinearGradient(Math.cos(la) * rad, Math.sin(la) * rad,
-                                        -Math.cos(la) * rad, -Math.sin(la) * rad);
-    lg.addColorStop(0, `rgba(168,198,230,${rk.al.toFixed(3)})`);
-    lg.addColorStop(0.45, `rgba(90,120,160,${(rk.al * 0.28).toFixed(3)})`);
-    lg.addColorStop(1, 'rgba(40,60,90,0)');
+    // the lit limb. Offsetting the gradient's centre toward the sun is what makes
+    // a flat disc read as a SPHERE — a centred gradient reads as a coin.
+    const la = LIGHT_A - rk.tilt;
+    const lx = Math.cos(la), ly = Math.sin(la);
+    const lg = ctx.createRadialGradient(lx * rad * 0.72, ly * rad * 0.72, 0, 0, 0, rad * 1.5);
+    const warm = rk.warm;
+    lg.addColorStop(0, `rgba(${warm ? '214,186,150' : '168,198,230'},${(al * rk.phase).toFixed(3)})`);
+    lg.addColorStop(0.42, `rgba(${warm ? '132,108,84' : '90,120,160'},${(al * 0.26).toFixed(3)})`);
+    lg.addColorStop(1, 'rgba(30,44,70,0)');
     ctx.fillStyle = lg;
     ctx.fill();
     ctx.restore();
@@ -6065,7 +6122,7 @@ function drawDeepField(g, dt) {
     const x1 = g.cx + ca * r1, y1 = g.cy + sa * r1;
     if (Math.max(x0, x1) < -8 || Math.min(x0, x1) > W + 8) continue;
     if (Math.max(y0, y1) < -8 || Math.min(y0, y1) > H + 8) continue;
-    const near = clamp((wp.rf - DEEP_R0) / 0.5, 0, 1);
+    const near = clamp((wp.rf - DEEP_R0) / 0.5, 0, 1) * clamp((DEEP_R1 - wp.rf) / DEEP_FADE, 0, 1);
     const al = wp.al * (0.35 + 0.65 * near) * (1 + dive * 2.2); // the jump stretches them hot
     const col = wp.warm ? '255,226,190' : '206,230,255';
     const grd = ctx.createLinearGradient(x0, y0, x1, y1);
@@ -6082,7 +6139,8 @@ function drawDeepField(g, dt) {
     if (st.rf > DEEP_R1) { Object.assign(st, mkDeepStar()); st.rf = DEEP_R0; }
     const px = g.cx + Math.cos(st.a) * st.rf * SR, py = g.cy + Math.sin(st.a) * st.rf * SR;
     if (px < -4 || px > W + 4 || py < -4 || py > H + 4) continue;
-    const near = clamp((st.rf - DEEP_R0) / 0.5, 0, 1); // fades up out of the deep, never pops
+    // fades up out of the deep AND back down before the recycle edge — both ends
+    const near = clamp((st.rf - DEEP_R0) / 0.5, 0, 1) * clamp((DEEP_R1 - st.rf) / DEEP_FADE, 0, 1);
     const al = st.al * (0.45 + 0.55 * near);
     ctx.fillStyle = st.warm ? `rgba(255,214,170,${al.toFixed(3)})` : `rgba(216,236,255,${al.toFixed(3)})`;
     ctx.beginPath(); ctx.arc(px, py, st.sz * (0.7 + st.rf * 0.45), 0, TAU); ctx.fill();
@@ -6110,9 +6168,25 @@ function drawStreaks(g, dt) {
     const x1 = r1.x + Math.cos(st.a) * rr1, y1 = r1.y + Math.sin(st.a) * rr1;
     const x2 = r2.x + Math.cos(st.a) * r2.r * 0.95, y2 = r2.y + Math.sin(st.a) * r2.r * 0.95;
     const al = Math.min(1 - st.z, 1.05) * (st.gold ? 0.75 : 0.42) * clamp(1 + st.z / 0.1, 0, 1);
+    const baseW = st.gold ? lerp(0.5, 2.6, 1 - st.z) : lerp(0.55, 1.7, 1 - st.z);
+    // GLOW under the core. Same reason as the baked streaks: a bare line is a
+    // scratch, a line in a halo is light. Additive so crossings pool rather than
+    // stack flat, and drawn widest-first so the core lands on top.
+    if (!st.gold) {
+      const col = st.amber ? '255,205,140' : '150,220,255';
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round'; // a wide butt-capped glow IS a rectangle — never that
+      for (const [wMul, aMul] of [[3.2, 0.12], [1.8, 0.28]]) {
+        ctx.strokeStyle = `rgba(${col},${(al * aMul).toFixed(3)})`;
+        ctx.lineWidth = baseW * wMul;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      }
+      ctx.restore();
+    }
     ctx.strokeStyle = st.gold ? `rgba(255,196,88,${al.toFixed(2)})`
       : st.amber ? `rgba(255,185,90,${al.toFixed(2)})` : `rgba(140,215,255,${al.toFixed(2)})`;
-    ctx.lineWidth = st.gold ? lerp(0.5, 2.6, 1 - st.z) : lerp(0.55, 1.7, 1 - st.z);
+    ctx.lineWidth = baseW;
     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     // hot core on the nearest gold particles
     if (st.gold && st.z < 0.35) {
