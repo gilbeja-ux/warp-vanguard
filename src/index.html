@@ -1818,6 +1818,13 @@ let hitStop = 0;              // brief slow-mo after a zap
 let rimFX = [];               // reactive rim lighting: {a, t, col}
 let resumeHold = 0, resumeDigit = 0; // 3-2-1 after unpausing
 let warpT = 0;                // warp-dive into a fresh level
+// LANE FLOW — the master "are we moving" gate over every visual motion source
+// (wall bands, hoops, warp lines, gas, deep parallax). Menus sit PARKED in open
+// space: the warp begins only when a run does, and the end ceremony brakes the
+// lane to a standstill — a win coasts through the destination's arrival swell
+// before it stops; a severed stream halts hard. Purely visual: enemy z-motion
+// is sim-side and never touches this.
+let laneFlow = 0;
 let musicDuck = 0;            // music dips under the end ceremony
 let fadeT = 0;                // universal screen-stitch fade
 const BOOT_LOCK = 1.5;        // the ring rides the tunnel in and docks at this moment
@@ -4940,9 +4947,16 @@ function update(dt) {
   updateMusic(dt);
   warpT = Math.max(0, warpT - dt);
   const warp2 = warpT / 0.9;
+  // laneFlow: spool up fast on launch (under the warp dive); brake down slow.
+  // The win brake is timed to the destination swell (~0.55–2.85s of endT) so the
+  // lane glides to rest right as the world settles into view.
+  const flowTgt = (state === S.PLAY || state === S.PAUSE || state === S.INFO) ? 1 : 0;
+  if (laneFlow < flowTgt) laneFlow = Math.min(flowTgt, laneFlow + dt / 0.5);
+  else if (laneFlow > flowTgt)
+    laneFlow = Math.max(flowTgt, laneFlow - dt / (state === S.END ? (endWin ? 2.6 : 1.0) : 0.45));
   // the wall streams at EXACTLY the traffic speed — leaks stay glued to it
   // (the tutorial's TAP-TO-FIRE hold stops the whole bore, wall included)
-  const flowMul = tut && tut.frozen ? 0 : 1;
+  const flowMul = (tut && tut.frozen ? 0 : 1) * laneFlow;
   tunnelScroll = (tunnelScroll + dt * (state === S.PLAY ? trafficSpeed * 10 : 0.5) * (1 + warp2 * 4) * flowMul) % 10;
   wallDist += dt * (state === S.PLAY ? trafficSpeed : 0.05) * (1 + warp2 * 4) * flowMul;
   shake = Math.max(0, shake - dt * 3);
@@ -5699,47 +5713,57 @@ function drawLattice(g) {
 // breath. Both modulate alpha only — the geometry never moves, so the sheath
 // reads as the lane's own field rather than as an object in the lane.
 let fieldGlowCv = null;
+// The bright ring must land EXACTLY on the wall radius or the sheath floats free
+// of the bore. The first cut ran its gradient from ringR*0.42 to half, so a stop
+// written at "0.60" actually landed at 0.704 while the draw code scaled for 0.62 —
+// the glow was painted 14% outside the wall, which is why it read as absent.
+// The gradient now spans 0 -> half, so a stop IS its fraction, and FIELD_RING_K
+// is that same number. Change one, change the other.
+const FIELD_RING_K = 0.62;
 function buildFieldGlow() {
-  const S = 512, half = S / 2, ringR = half * 0.62;
+  const S = 512, half = S / 2;
   fieldGlowCv = document.createElement('canvas');
   fieldGlowCv.width = fieldGlowCv.height = S;
   const c = fieldGlowCv.getContext('2d');
-  const gr = c.createRadialGradient(half, half, ringR * 0.42, half, half, half);
-  // gaussian-ish shoulders: dark core, bright at the wall, long soft outer skirt
+  const gr = c.createRadialGradient(half, half, 0, half, half, half);
   gr.addColorStop(0.00, 'rgba(96,224,208,0)');
-  gr.addColorStop(0.30, 'rgba(96,224,208,0.02)');
-  gr.addColorStop(0.52, 'rgba(110,230,215,0.14)');
-  gr.addColorStop(0.60, 'rgba(150,242,228,0.30)');   // the wall itself
-  gr.addColorStop(0.68, 'rgba(110,230,215,0.13)');
-  gr.addColorStop(0.85, 'rgba(96,224,208,0.035)');
+  gr.addColorStop(0.34, 'rgba(96,224,208,0.015)');
+  gr.addColorStop(0.50, 'rgba(110,230,215,0.10)');
+  gr.addColorStop(0.58, 'rgba(150,242,228,0.30)');
+  gr.addColorStop(0.62, 'rgba(196,252,242,0.42)');   // the wall itself — the hot line
+  gr.addColorStop(0.67, 'rgba(150,242,228,0.26)');
+  gr.addColorStop(0.78, 'rgba(96,224,208,0.075)');
   gr.addColorStop(1.00, 'rgba(96,224,208,0)');
   c.fillStyle = gr;
   c.fillRect(0, 0, S, S);
-  return ringR / half; // where the bright ring sits, as a fraction of the sprite
 }
-const FIELD_RING_K = 0.62; // must match ringR/half above
 function drawWarpField(g) {
   if (state === S.MENU) return;
   if (!fieldGlowCv) buildFieldGlow();
   const dive = clamp(warpT / 0.9, 0, 1);
-  const breath = 0.9 + 0.1 * Math.sin(time * 0.55);   // the faint outward breath
+  // ORGANIC VISIBILITY. A single sine is a metronome — the eye learns it in two
+  // cycles and stops reading it as alive. Three incommensurate periods (11.3s,
+  // 4.7s, 2.9s) never line up, so the field swells and thins on no schedule at
+  // all, which is what makes it read as something behaving rather than pulsing.
+  const swell = 0.55
+    + 0.28 * Math.sin(time * 0.556)
+    + 0.12 * Math.sin(time * 1.337 + 1.9)
+    + 0.05 * Math.sin(time * 2.168 + 0.4);
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  // dense stamps: 26 depths gives full overlap at this falloff, so the tube is
-  // continuous — no visible bands, no ends inside the frame (it runs to the
-  // horizon fog one way and past every screen edge the other)
   const N = lowFX ? 16 : 26;
   for (let i = 0; i < N; i++) {
     const z = SPAWN_Z - 0.03 - (i / (N - 1)) * (SPAWN_Z + 0.10);
     const rg = ring(z, g);
-    // scale so the sprite's bright ring lands ON the wall radius
     const sz = rg.r / FIELD_RING_K;
     if (sz < 6 || rg.r > Math.max(W, H) * 1.8) continue;
-    // the emanation: one long charge sliding down the bore, plus depth grading —
-    // dim into the horizon fog, gentle everywhere else
-    const charge = 0.72 + 0.28 * Math.sin(z * 5.5 - time * 1.35);
+    // two charges running the tube at different rates and directions, so the
+    // brightness crawling along it never repeats either
+    const charge = 0.62
+      + 0.26 * Math.sin(z * 5.5 - time * 1.35)
+      + 0.12 * Math.sin(z * 11.2 + time * 0.81);
     const depthK = clamp((SPAWN_Z - 0.04 - z) / 0.22, 0, 1);
-    const al = (0.10 + 0.26 * dive) * depthK * charge * breath;
+    const al = (0.30 + 0.42 * dive) * depthK * charge * swell;
     if (al < 0.008) continue;
     ctx.globalAlpha = Math.min(1, al);
     ctx.drawImage(fieldGlowCv, rg.x - sz, rg.y - sz, sz * 2, sz * 2);
@@ -6419,7 +6443,7 @@ function drawDeepField(g, dt) {
   if (state === S.MENU) return;
   const SR = Math.min(W, H) * 0.5; // NOT S — that is the state enum, and shadowing it TDZs S.MENU above
   const dive = clamp(warpT / 0.9, 0, 1);
-  const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5);
+  const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5) * laneFlow;
   ctx.save();
   // --- worlds first, so stars always pass IN FRONT of them, never behind ---
   for (const rk of deepRocks) {
@@ -6466,7 +6490,8 @@ function drawDeepField(g, dt) {
     if (Math.max(x0, x1) < -8 || Math.min(x0, x1) > W + 8) continue;
     if (Math.max(y0, y1) < -8 || Math.min(y0, y1) > H + 8) continue;
     const near = clamp((wp.rf - DEEP_R0) / 0.5, 0, 1) * clamp((DEEP_R1 - wp.rf) / DEEP_FADE, 0, 1);
-    const al = wp.al * (0.35 + 0.65 * near) * (1 + dive * 2.2); // the jump stretches them hot
+    // × laneFlow: a wisp is a motion smear — a parked lane must not hang them
+    const al = wp.al * (0.35 + 0.65 * near) * (1 + dive * 2.2) * laneFlow;
     const col = wp.warm ? '255,226,190' : '206,230,255';
     const grd = ctx.createLinearGradient(x0, y0, x1, y1);
     grd.addColorStop(0, `rgba(${col},0)`);
@@ -6494,16 +6519,19 @@ function drawDeepField(g, dt) {
 function drawStreaks(g, dt) {
   // a wounded convoy is a thinner, dimmer river
   const riverK = state === S.PLAY ? 0.35 + 0.65 * clamp(integrity / 100, 0, 1) : 1;
-  const spd = state === S.PLAY ? trafficSpeed : 0.4;
+  const spd = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow;
   // the ambient smear is SPEED-COUPLED. A fixed-length streak reads as texture
   // no matter how fast the lane runs; a streak that STRETCHES with the traffic
   // reads as velocity. This one number is what makes a fast level feel fast
-  // rather than merely busy.
-  const ambSpan = 0.11 + spd * 0.34;
+  // rather than merely busy — and it is what lands the STOP: as laneFlow brakes,
+  // every smear collapses back into the star making it, which is precisely what
+  // dropping out of warp looks like. Parked (menus), the field is still points.
+  const ambSpan = (0.11 + spd * 0.34) * laneFlow;
   for (const st of streaks) {
     const wsp = 1 + (warpT / 0.9) * 5; // warp-dive stretch
-    // per-star length, so no two smears are the same size
-    const span = (st.gold ? 0.05 : ambSpan * st.lenK) * (1 + (warpT / 0.9) * 3);
+    // per-star length, so no two smears are the same size (gold keeps a speck
+    // of length at rest so the parked river stays visible)
+    const span = (st.gold ? 0.05 * (0.15 + 0.85 * laneFlow) : ambSpan * st.lenK) * (1 + (warpT / 0.9) * 3);
     let dz = dt * spd * st.sp * wsp; // the river flows WITH the traffic
     if (st.z + span < EXIT_Z) dz = Math.min(dz, EXIT_CAP); // never a sub-frame exit
     st.z -= dz;
@@ -6609,8 +6637,11 @@ function drawStreaks(g, dt) {
     // soft ribbon reads as a snowball stuck to it. And it scales with sqrt of
     // calibre, capped: calibre is a WIDTH property, and a shaft nine strokes wide
     // does not have a head nine times bigger, it has a slightly stronger glow.
-    if (!st.gold && zH < 0.55) {
-      const hk = clamp(1 - zH / 0.55, 0, 1) * Math.min(2, Math.sqrt(st.cal || 1));
+    // At speed only near streaks carry a head; parked, the reach opens to the
+    // whole bore so the becalmed lane reads as a field of still stars, not a void.
+    const headZ = 0.55 + 0.45 * (1 - laneFlow);
+    if (!st.gold && zH < headZ) {
+      const hk = clamp(1 - zH / headZ, 0, 1) * Math.min(2, Math.sqrt(st.cal || 1));
       const ha = Math.min(1, al * hk * 0.9);
       if (ha > 0.01) {
         const hr = Math.max(1.2, 2.6 * hk);
@@ -6669,7 +6700,7 @@ function initLaneMedium() {
 initLaneMedium();
 function drawLaneMedium(g, dt) {
   if (state === S.MENU) return;
-  const spd = state === S.PLAY ? trafficSpeed : 0.4;
+  const spd = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow;
   const wsp = 1 + (warpT / 0.9) * 5;
   const dive = clamp(warpT / 0.9, 0, 1);
   // --- gas first: everything else moves through it ---
