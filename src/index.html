@@ -5674,6 +5674,67 @@ function drawLattice(g) {
     ctx.lineWidth = Math.max(0.8, rr.r / g.nodeR * 1.5);
     ctx.beginPath(); ctx.arc(g.cx, g.cy, rr.r, 0, TAU); ctx.stroke();
   }
+  drawWarpField(g);
+  ctx.restore();
+}
+
+// THE WARP FIELD: the energy membrane between the lane and open space — the
+// thing that makes inside and outside two different places instead of one
+// continuous starfield with hoops in it.
+//
+// It is drawn as slow ribbons of teal energy CIRCULATING the bore: each ribbon
+// is an arc segment at a fixed depth whose angular position drifts with time,
+// some prograde, some retrograde. Circulation is the one motion nothing else in
+// the scene has — everything else translates along the axis — so even faint, it
+// reads immediately as a field with its own behaviour.
+//
+// SAFE TO ROTATE, unlike the wall texture: enemies are painted over these at
+// fixed angles, and a translucent glow sliding UNDER a decal reads as energy
+// behind it, not as the decal shearing. (The wall's own twist must stay fixed
+// because its bright streak pattern would visibly drag the leaks with it.)
+//
+// Stateless — every ribbon is a fixed seed evaluated against the shared clock —
+// so replays, pauses and menus all agree without touching the sim.
+const FIELD_RIBBONS = [];
+for (let i = 0; i < 22; i++) {
+  FIELD_RIBBONS.push({
+    z: 0.06 + (i / 22) * 0.82 + Math.random() * 0.03, // spread down the bore
+    a0: Math.random() * TAU,
+    arc: rand(0.5, 1.7),                 // angular length of the ribbon
+    drift: rand(0.10, 0.34) * (Math.random() < 0.5 ? -1 : 1), // rad/s, both ways
+    wob: rand(0.4, 1.4),                 // slow breathing of its arc length
+    ph: Math.random() * TAU,
+    w: rand(0.5, 1.0),                   // weight within the class
+    warm: Math.random() < 0.14           // a few run gold — energy, not chrome
+  });
+}
+function drawWarpField(g) {
+  if (state === S.MENU) return;
+  const dive = clamp(warpT / 0.9, 0, 1);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.globalCompositeOperation = 'lighter';
+  for (const f of FIELD_RIBBONS) {
+    const rg = ring(f.z, g);
+    if (rg.r < 8) continue;
+    // depth-graded presence: strongest mid-bore, gone at the horizon fog and
+    // fading before the rim so it never fights the play ring
+    const depthK = clamp((SPAWN_Z - 0.06 - f.z) / 0.3, 0, 1) * clamp((f.z - 0.30) / 0.14, 0.35, 1);
+    const breathe = 0.75 + 0.25 * Math.sin(time * f.wob + f.ph);
+    const al = (0.045 + 0.11 * dive) * f.w * depthK * breathe;
+    if (al < 0.006) continue;
+    const aMid = f.a0 + time * f.drift;           // the circulation
+    const half = f.arc * (0.8 + 0.2 * breathe) / 2;
+    const col = f.warm ? '255,210,120' : '96,224,208';
+    // two passes: a wide soft band and a thin brighter filament inside it
+    for (const [wMul, aMul] of [[3.2, 0.5], [1.1, 1]]) {
+      ctx.strokeStyle = `rgba(${col},${(al * aMul).toFixed(4)})`;
+      ctx.lineWidth = Math.max(1, rg.r / g.nodeR * 3.4 * f.w * wMul);
+      ctx.beginPath();
+      ctx.arc(g.cx, g.cy, rg.r, aMid - half, aMid + half);
+      ctx.stroke();
+    }
+  }
   ctx.restore();
 }
 
@@ -6516,10 +6577,26 @@ function drawStreaks(g, dt) {
     // the LEADING HEAD on a near ambient streak: the point the star still
     // occupies before the smear behind it. A streak with a head has a direction;
     // a bare line is ambiguous, and ambiguity is what made the old wall read flat.
+    //
+    // It is a GRADIENT, never a filled disc — a hard-edged circle at the end of a
+    // soft ribbon reads as a snowball stuck to it. And it scales with sqrt of
+    // calibre, capped: calibre is a WIDTH property, and a shaft nine strokes wide
+    // does not have a head nine times bigger, it has a slightly stronger glow.
     if (!st.gold && zH < 0.55) {
-      const hk = clamp(1 - zH / 0.55, 0, 1.35) * (st.cal || 1);
-      ctx.fillStyle = `rgba(255,255,255,${Math.min(1, al * hk * 0.95).toFixed(2)})`;
-      ctx.beginPath(); ctx.arc(x1, y1, Math.max(0.5, 1.5 * hk), 0, TAU); ctx.fill();
+      const hk = clamp(1 - zH / 0.55, 0, 1) * Math.min(2, Math.sqrt(st.cal || 1));
+      const ha = Math.min(1, al * hk * 0.9);
+      if (ha > 0.01) {
+        const hr = Math.max(1.2, 2.6 * hk);
+        const hg = ctx.createRadialGradient(x1, y1, 0, x1, y1, hr);
+        hg.addColorStop(0, `rgba(255,255,255,${ha.toFixed(3)})`);
+        hg.addColorStop(0.35, `rgba(${st.tint[1]},${(ha * 0.4).toFixed(3)})`);
+        hg.addColorStop(1, `rgba(${st.tint[0]},0)`);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = hg;
+        ctx.beginPath(); ctx.arc(x1, y1, hr, 0, TAU); ctx.fill();
+        ctx.restore();
+      }
     }
   }
 }
