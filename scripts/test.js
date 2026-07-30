@@ -1028,7 +1028,7 @@ G.setIntro(999);
 {
   let cGuard = 300;
   while (cGuard-- > 0 && !G.commCur()) { G.setIntegrity(100); G.update(0.05); }
-  check('story comms tick over the campaign line', !!G.commCur());
+  check('the handler barks over the campaign line', !!G.commCur());
 }
 
 // ================= endless mode =================
@@ -1254,20 +1254,24 @@ check('nodes finished materializing', G.nodes[0].formedFx === true && G.nodes[1]
 // level 1) so transmissions play over calm stretches
 G.startLevel(0);
 const hzL = G.geo().hitZ;
-const arrived = new Set(); let lullBreaks = 0;
-for (let i = 0; i < 500; i++) { // 25s covers the first two comm windows
-  G.update(0.05);
-  G.setIntegrity(100); // ride out un-zapped breaches
-  for (const e2 of G.enemies()) {
-    if (!arrived.has(e2) && e2.z <= hzL) {
-      arrived.add(e2);
-      const lt = G.getLevelT();
-      if ((lt > 6 && lt < 9.2) || (lt > 16 && lt < 19.2)) lullBreaks++;
-    }
+// The comm-lull windows are gone with the scripted comms they protected. What
+// replaces them as the thing worth guarding is the bark system's first rule:
+// barks are DRAW-ONLY. Campaign levels reseed Math.random as the sim RNG, so a
+// bark that consumed a draw would desync every replay. Running the same level
+// twice from the same seed must produce an identical arrival timeline.
+const timeline = () => {
+  G.startLevel(2, false);
+  const seen = new Set(), out = [];
+  for (let i = 0; i < 500; i++) {
+    G.update(0.05);
+    G.setIntegrity(100);
+    for (const e2 of G.enemies()) if (!seen.has(e2) && e2.z <= hzL) { seen.add(e2); out.push(G.getLevelT().toFixed(2)); }
   }
-}
-check('story lull: no arrivals land while a transmission plays', lullBreaks === 0);
-check('story lull: the drill still spawns around the windows', arrived.size >= 4);
+  return out.join('|');
+};
+const runA = timeline(), runB = timeline();
+check('barks are draw-only: the arrival timeline is identical run to run', runA === runB && runA.length > 0);
+check('the drill still spawns through the run', runA.split('|').length >= 4);
 
 // ================= control scheme =================
 function pdown(id, x, y) { canvasHandlers.pointerdown({ pointerId: id, clientX: x, clientY: y, pointerType: 'touch' }); }
@@ -1480,9 +1484,9 @@ G.keys['ArrowUp'] = false;
   G.installCampaign(G.CAMPAIGNS[1]);
   check('campaign #2: 8 levels, boss finale, own progress, own verdict',
     G.getLevels().length === 8 && G.getLevels()[7].boss === true &&
-    G.getProg().unlocked === 1 && G.getInfoCards().verdict.title === 'LOG 18 — THE LADDER');
+    G.getProg().unlocked === 1 && G.getInfoCards().verdict.title === 'CONTRACT 02 — CHARTED');
   G.installCampaign(G.CAMPAIGNS[0]);
-  check('back on campaign #1 its verdict is restored', G.getInfoCards().verdict.title === 'LOG 09 — VERDICT');
+  check('back on campaign #1 its verdict is restored', G.getInfoCards().verdict.title === 'CONTRACT 01 — DELIVERED');
 }
 
 // ================= beats + bands + fairness linter (Phase 1) =================
@@ -1647,9 +1651,9 @@ G.keys['ArrowUp'] = false;
   const src = G.CAMPAIGNS[0];
   const wc = ED.clone(src);
   wc.levels[0].name = 'MUTATED';
-  wc.levels[0].comms[0].m = 'changed';
+  wc.levels[0].story.line = 'changed';   // comms are gone; the brief line is the deep field now
   check('clone: edits never leak back into the source package',
-    src.levels[0].name === 'MERIDIAN HAULAGE' && src.levels[0].comms[0].m !== 'changed');
+    src.levels[0].name === 'MERIDIAN HAULAGE' && src.levels[0].story.line !== 'changed');
   // factories ship valid data
   const np = ED.newCampaign();
   check('new-campaign template passes validateCampaign', G.validateCampaign(np).length === 0);

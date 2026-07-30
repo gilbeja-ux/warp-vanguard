@@ -3976,6 +3976,7 @@ function resetRun() {
   // inbound from second zero (natural speed — first CONTACT comes at travel time)
   levelT = 0; spawnT = 0.01;
   lanePlanetProg = 0; // the destination starts far away again
+  resetBarks();
   commNext = 0; commCur = null; commT = 0;
   surgeLevel = 0; surgeCount = -1; surgeWaveZ = -1;
   integrity = mutators.oneLife ? 25 : 100;
@@ -5178,13 +5179,8 @@ function update(dt) {
   fx.auto = Math.max(0, fx.auto - dt);
   fx.chain = Math.max(0, fx.chain - dt);
   tolVis += ((fx.wide > 0 ? 1.36 : 1) - tolVis) * Math.min(1, dt * 6);
-  // intercepted transmissions: the investigation chatters over the line at
-  // scripted times — deterministic levels keep them in sync with the action
-  if (!endless && !qual && !tut && levelIdx >= 0 && !boss) {
-    const cl = COMMS[levelIdx] || [];
-    if (commNext < cl.length && levelT >= cl[commNext].t) { commCur = cl[commNext++]; commT = 0; }
-  }
-  if (commCur) { commT += dt; if (commT > 6) commCur = null; }
+  updateBarks(dt);
+  if (commCur) { commT += dt; if (commT > barkHold) commCur = null; }
   let sdt = dt;
   if (hitStop > 0) { hitStop = Math.max(0, hitStop - dt); sdt *= 0.12; }
   if (tut && tut.frozen) sdt = 0; // the TAP-TO-FIRE hold: the world stands still
@@ -7571,6 +7567,126 @@ function drawLaneMedium(g, dt) {
     ctx.restore();
   }
   ctx.restore();
+}
+
+
+// ---------- THE HANDLER'S BARKS ----------
+// Replaces 113 lines of scripted chatter that fired on a fixed clock. The lane
+// channel stops carrying story and starts carrying REACTION: the handler comments
+// on what just happened, or says nothing at all.
+//
+// Two rules here are correctness, not taste, and both come from the same fact —
+// campaign levels reseed Math.random with mulberry32, so Math.random IS the sim
+// RNG and the replay verifier reruns it:
+//
+//   1. DRAW-ONLY. Nothing in here may touch sim state or advance any RNG. Every
+//      trigger is a POLL of state that already exists; no spawner is hooked, so
+//      the sim cannot tell whether barks are on.
+//   2. VARIANT CHOICE IS A COUNTER, NOT A ROLL. BARKS[id][n++ % len]. A roll here
+//      would desync every replay and invalidate leaderboard submissions.
+//
+// Beyond that: never queue (a stale bark comments on something that stopped being
+// true), priority interrupts, and silence is fine — a quiet run is a clean run.
+const BARKS = {
+  deploy:      ['lane is yours, runner.', "clock's running. keep it clean.",
+                "we're live. eyes up.", 'corridor is hot. go.'],
+  firstHeavy:  ['armor inbound. both emitters.', "that one's plated. hold the bolt.",
+                "heavy. you'll need the pair."],
+  firstLine:   ['barrier strung. take an end each.', 'pair job. split the emitters.',
+                'two ends, two emitters.'],
+  firstWall:   ['wall forming. reroute.', "they're sealing the rail. move.",
+                'clamp coming down. get off it.'],
+  firstFrag:   ["black charge. don't touch it.", 'emitter killer on the rail. steer.',
+                'that one bites. go around.'],
+  ribbon:      ['clean current. ride it.', 'gold on the lane. take it.',
+                'free charge. go get it.'],
+  pickup:      ['good grab.', "that'll hold.", 'logged.', 'useful.'],
+  streak:      ["you're ahead of them.", 'nice line.', 'keep that rhythm.',
+                "they can't place a hit."],
+  cleanHalf:   ["halfway. nothing's through.", "convoy's intact. stay on it.",
+                'clean so far. hold it.'],
+  nodeLost:    ["emitter's down. hold what's left.", "we're one short. tighten up.",
+                "lost one. don't lose the lane."],
+  lastStretch: ["final stretch. they'll throw everything.",
+                "almost home. don't ease off.", 'last leg. finish it.'],
+  bossOpen:    ["that's the core. six hits.", 'there it is. dock and hold.'],
+  bossLow:     ["it's failing. finish it.", 'one more. put it down.'],
+  win:         ["lane's clear. good work.", 'convoy delivered. logged.'],
+  loss:        ["lane's gone. we'll re-run it.", 'they got through. again.']
+};
+// pri 1 = highest · cd = per-trigger cooldown · once = at most once per run
+const BARK_CFG = {
+  deploy:      { pri: 5, cd: 0,  once: 1 },
+  firstHeavy:  { pri: 3, cd: 8,  once: 1 },
+  firstLine:   { pri: 3, cd: 8,  once: 1 },
+  firstWall:   { pri: 2, cd: 8,  once: 1 },
+  firstFrag:   { pri: 2, cd: 8,  once: 1 },
+  ribbon:      { pri: 4, cd: 12, once: 1 },
+  pickup:      { pri: 6, cd: 20, once: 0 },
+  streak:      { pri: 4, cd: 25, once: 0 },
+  cleanHalf:   { pri: 5, cd: 0,  once: 1 },
+  nodeLost:    { pri: 1, cd: 6,  once: 0 },
+  lastStretch: { pri: 4, cd: 0,  once: 1 },
+  bossOpen:    { pri: 1, cd: 0,  once: 1 },
+  bossLow:     { pri: 1, cd: 0,  once: 1 },
+  win:         { pri: 1, cd: 0,  once: 1 },
+  loss:        { pri: 1, cd: 0,  once: 1 }
+};
+const barkHold = 4;              // reactive lines go stale fast
+let barkN = {}, barkAt = {}, barkFired = {}, barkGlobal = 0, barkPri = 9, barkSeen = {};
+function resetBarks() { barkN = {}; barkAt = {}; barkFired = {}; barkGlobal = 0; barkPri = 9; barkSeen = {}; }
+function bark(id) {
+  const cfg = BARK_CFG[id]; if (!cfg) return;
+  if (cfg.once && barkFired[id]) return;
+  if (barkGlobal > 0) return;                       // global 7s floor
+  if ((barkAt[id] || -99) + (cfg.cd || 0) > levelT) return;
+  // priority interrupts: equal or lower is DROPPED, never queued
+  if (commCur && cfg.pri >= barkPri) return;
+  const pool = (CAMP && CAMP.barks && CAMP.barks[id]) || BARKS[id];
+  if (!pool || !pool.length) return;
+  const n = (barkN[id] = (barkN[id] || 0) + 1) - 1;
+  commCur = { s: 'CMD', m: pool[n % pool.length] };  // counter, never a roll
+  commT = 0; barkPri = cfg.pri; barkGlobal = 7;
+  barkAt[id] = levelT; barkFired[id] = 1;
+}
+// Everything below is a POLL. No spawner is hooked and no sim value is written,
+// so the run plays out identically whether or not anyone is listening.
+function updateBarks(dt) {
+  if (barkGlobal > 0) barkGlobal = Math.max(0, barkGlobal - dt);
+  if (!commCur) barkPri = 9;
+  if (state !== S.PLAY || tut) return;
+  const L = LV || LEVELS[levelIdx];
+  if (boss) {
+    bark('bossOpen');
+    if (boss.hp <= 1) bark('bossLow');
+    return;                                          // the warden owns the channel
+  }
+  if (levelT > 1.5) bark('deploy');
+  // first-of-kind: read the live wave rather than hooking the spawner
+  for (const e of enemies) {
+    if (e.dead || e.resolved) continue;
+    if (e.type === 'heavy') bark('firstHeavy');
+    else if (e.type === 'frag') bark('firstFrag');
+    else if (e.type === 'line') bark('firstLine');
+    else if (e.type === 'strip') bark('ribbon');
+  }
+  // a rim wall is live when the ring has a seized arc — read the enemy list for
+  // the wall type rather than hooking the beat that schedules it
+  for (const e of enemies) if (!e.dead && e.type === 'wall') { bark('firstWall'); break; }
+  if (combo >= 10) bark('streak');
+  if (integrity < 100 && !barkSeen.hurt) { barkSeen.hurt = 1; }
+  if (barkSeen.hurt && integrity < barkSeen.lastInt) bark('nodeLost');
+  barkSeen.lastInt = integrity;
+  // a power-up landing shows up as an effect timer or a shield charge appearing —
+  // no counter needs to be added to the sim to notice it
+  const armed = (fx.wide > 0 ? 1 : 0) + (fx.auto > 0 ? 2 : 0) + (fx.chain > 0 ? 4 : 0) + (shieldCharge > 0 ? 8 : 0);
+  if (armed && armed !== barkSeen.armed) bark('pickup');
+  barkSeen.armed = armed;
+  if (!endless && L && L.duration) {
+    const f = levelT / L.duration;
+    if (f > 0.5 && integrity >= 100) bark('cleanHalf');
+    if (f > 0.85) bark('lastStretch');
+  }
 }
 
 // ---------- enemy bodies: GLITCH, painted ON the wall ----------
@@ -12992,73 +13108,47 @@ function buildCity() {
   const pts = [];
   let prev = null;
   for (let ci = 0; ci < counts.length; ci++) {
-    const n = counts[ci], [b0, b1] = bandOf(ci);
-    // Each case works a REGION of its band, not the whole circumference. Scatter
-    // over a full 2π and the tour is forced to cross the map to collect
-    // stragglers — greedy leaves one behind and the hop can be diametric, which
-    // the lens then has to zoom right out to frame. A wandering sector of 130–215°
-    // keeps every hop bounded while staying just as unarranged inside itself, and
-    // it means consecutive campaigns occupy different parts of the sky.
-    //
-    // The sector opens near where the last case delivered, so the journey stays
-    // continuous outward instead of teleporting between bands.
+    const n = counts[ci];
+    // A CONTRACT SPANS TIERS. Campaign N no longer sits inside cordon N: it flies
+    // the route its brief states, so the cargo run really does start in safe space
+    // and end in tier 3, and the delegation really does cross all five cordons.
+    // Relay k advances along that span, so the run reads outward as a journey —
+    // but its BEARING stays random inside the sector, which is what keeps it from
+    // becoming the parade we removed.
+    const camp = CAMPAIGNS[ci];
+    const T = (camp && camp.tiers) || [ci + 1, ci + 1];
+    const t0 = clamp(T[0] - 1, 0, BANDS.length - 1), t1 = clamp(T[1] - 1, 0, BANDS.length - 1);
+    const b0 = BANDS[t0][0], b1 = BANDS[t1][1];
+    const radAt = k => {
+      const f = n > 1 ? k / (n - 1) : 0;
+      const tf = t0 + f * (t1 - t0);
+      const bi = Math.min(BANDS.length - 1, Math.floor(tf)), frac = tf - bi;
+      const [c0, c1] = BANDS[bi];
+      // sit inside the tier this leg belongs to, with a little slack either way
+      return clamp(c0 + frac * (c1 - c0) + (rng() - 0.5) * (c1 - c0) * 0.5, b0, b1);
+    };
+    // Each contract works a SECTOR of the sky, opening near where the last one
+    // finished, so consecutive contracts do not all pile onto the same bearing.
     const arcSpan = 2.3 + rng() * 1.45;
     const arcFrom = (prev ? polarOf(prev).a : -2.35) - arcSpan * (0.25 + rng() * 0.5);
     const cand = [];
-    for (let k = 0, guard = 0; k < n && guard < 4000; guard++) {
-      const rad = b0 + Math.pow(rng(), 0.85) * (b1 - b0);
-      const p2 = fromPolar(rad, arcFrom + rng() * arcSpan);
-      if (p2.x < 150 || p2.x > CITY_W - 150 || p2.y < 130 || p2.y > CITY_H - 130) continue;
-      // Far enough apart that the SYSTEMS do not touch, not just the stars — and
-      // checked against EVERY relay placed so far, not only this band's. Checking
-      // per-band let the last relay of one band land on top of the first of the
-      // next, which is where the overlapping pairs were coming from. Same y-weight
-      // as the overlap test too; the two used to disagree.
-      if (pts.concat(cand).some(q => Math.hypot(q.x - p2.x, (q.y - p2.y) * 2) < Math.max(120, (b1 - b0) * 0.62))) continue;
-      cand.push(p2); k++;
-    }
-    // ...then WALK them from wherever the last case delivered. Not strictly
-    // nearest-first: strict greedy still trends into a local sweep, which is the
-    // look we are getting rid of. It picks among the nearest THREE with a bias
-    // toward the closest, so the tour stays plausible — no absurd cross-band
-    // jumps — while doubling back often enough to read as a route somebody
-    // actually flew rather than a swept arc.
-    const start = prev || fromPolar(b0, -2.35);
-    let cur = start;
-    const tour = [];
-    while (cand.length) {
-      const order = cand
-        .map((q, j) => ({ j, d: Math.hypot(q.x - cur.x, (q.y - cur.y) * 1.8) }))
-        .sort((m, n2) => m.d - n2.d);
-      cur = cand.splice(order[Math.floor(rng() * rng() * Math.min(3, order.length))].j, 1)[0];
-      tour.push(cur);
-    }
-    // 2-OPT. Greedy strands whichever relay it walked away from, and picking it up
-    // at the end can mean a hop clear across the sector — which matters because the
-    // lens frames each run, so one wild hop is one level zoomed absurdly far out.
-    // Reversing crossed sub-paths fixes both that and the lanes visibly crossing
-    // each other, WITHOUT flattening the tour into a sweep: the points are still
-    // scattered, this only stops the path doubling back over itself to reach them.
-    {
-      const D = (A2, B2) => Math.hypot(A2.x - B2.x, (A2.y - B2.y) * 1.8);
-      const path = [start].concat(tour);
-      for (let pass = 0; pass < 6; pass++) {
-        let moved = false;
-        for (let a2 = 1; a2 < path.length - 1; a2++) {
-          for (let b2 = a2 + 1; b2 < path.length; b2++) {
-            const before = D(path[a2 - 1], path[a2]) + (b2 + 1 < path.length ? D(path[b2], path[b2 + 1]) : 0);
-            const after = D(path[a2 - 1], path[b2]) + (b2 + 1 < path.length ? D(path[a2], path[b2 + 1]) : 0);
-            if (after < before - 0.5) {
-              for (let x2 = a2, y2 = b2; x2 < y2; x2++, y2--) { const t2 = path[x2]; path[x2] = path[y2]; path[y2] = t2; }
-              moved = true;
-            }
-          }
-        }
-        if (!moved) break;
+    for (let k = 0; k < n; k++) {
+      let placed = null;
+      for (let guard = 0; guard < 900 && !placed; guard++) {
+        const p2 = fromPolar(radAt(k), arcFrom + rng() * arcSpan);
+        if (p2.x < 150 || p2.x > CITY_W - 150 || p2.y < 130 || p2.y > CITY_H - 130) continue;
+        // far enough apart that the SYSTEMS do not touch, checked against every
+        // relay placed so far rather than only this contract's
+        if (pts.concat(cand).some(q => Math.hypot(q.x - p2.x, (q.y - p2.y) * 2) < 120)) continue;
+        placed = p2;
       }
-      for (let k = 1; k < path.length; k++) pts.push(path[k]);
-      prev = path[path.length - 1];
+      if (placed) cand.push(placed);
     }
+    // A contract's legs are FLOWN IN ORDER — the brief says where it starts and
+    // where it ends, so there is no tour to optimise. The greedy walk and the
+    // 2-opt pass that used to reorder them are gone with the one-band model they
+    // existed to serve.
+    for (const c of cand) { pts.push(c); prev = c; }
   }
   // the final terminus: where the last case delivers, just past the last cordon
   {
