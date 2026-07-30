@@ -903,7 +903,7 @@ const sfx = {
 // ---------- background (deep data-space behind the tunnel walls) ----------
 let bgCanvas = null, vignetteCanvas = null, wallTex = null, wallCloud = null;
 let ringFxCv = null, grainCv = null; // prerendered monolith ring + film-grain tile
-let bgMotes = [], glitchT = 0, glitchY = 0, nextGlitch = 3;
+let bgMotes = [];
 let litPanels = [];
 // (randCode is retired with the fiber theme — there is no binary on a lane wall.
 // The wall's motion is carried by streaked starlight and the marker trains below.)
@@ -1298,7 +1298,9 @@ function buildRingFx() {
     gc.putImageData(im, 0, 0);
   } else grainCv = null;
 }
-// animated background layer: drifting motes + rare glitch scanlines (kept subtle)
+// animated background layer: drifting motes. (The periodic glitch scanlines are
+// GONE — a signal artefact belongs to a screen showing a fiber feed, and this is
+// a window onto open space. Nothing tears across a window.)
 function drawLiveBg(dt) {
   for (const m of bgMotes) {
     m.y -= m.sp * dt;
@@ -1306,15 +1308,6 @@ function drawLiveBg(dt) {
     const al = 0.06 + (Math.sin(time * 2 + m.ph) * 0.5 + 0.5) * 0.1;
     ctx.fillStyle = m.white ? `rgba(255,255,255,${al.toFixed(2)})` : `rgba(120,220,255,${al.toFixed(2)})`;
     ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, TAU); ctx.fill();
-  }
-  nextGlitch -= dt;
-  if (nextGlitch <= 0) { glitchT = 0.12; glitchY = Math.random() * H; nextGlitch = rand(2.5, 6.5); }
-  if (glitchT > 0) {
-    glitchT -= dt;
-    ctx.fillStyle = 'rgba(90,220,255,0.05)';
-    ctx.fillRect(0, glitchY, W, 3);
-    ctx.fillStyle = 'rgba(255,140,40,0.05)';
-    ctx.fillRect(0, glitchY + 7, W, 2);
   }
 }
 // binary / hex snippets racing along the tunnel axis — glyph by glyph, in true perspective,
@@ -4304,6 +4297,14 @@ function dismissInfo() { if (state === S.INFO && !infoOutAt) infoOutAt = time; }
 
 function endLevel(win) {
   const frames = stopTrace(); // close the recording started in resetRun
+  // THE BORE EMPTIES WITH THE RUN. Belt-and-braces behind the spawn windows: a
+  // win already requires enemies.length === 0, but anything else still in
+  // transit — a drop nobody took, a clamp carpet mid-feed — would ride out the
+  // whole ceremony hanging in open space next to the destination. It goes here,
+  // on the frame the run ends, under the victory flash. (Replays too: they play
+  // the same finish.) A failed run keeps its traps — you are still in the lane.
+  pickups = []; latches = [];
+  if (win) enemies = [];
   // watching a replay: the run reached its end. NO submit, NO progress writes,
   // and NO end screen — but DO play the finish beat (the victory clear-sweep +
   // sound) so the replay ends like the real level. The frame loop then holds on
@@ -5118,8 +5119,16 @@ function update(dt) {
     for (const q of patternQ) q.t -= dt;
     while (patternQ.length && patternQ[0].t <= 0) spawnEnemy(patternQ.shift().angle);
   }
-  if (!inIntro) pickupT -= sdt;
-  if (!tut && pickupT <= 0) { pickupT = srand(20, 32); if (!mutators.noPickups) spawnPickup(); }
+  // NOTHING LAUNCHES THAT CANNOT LAND. A pickup needs a full transit to reach the
+  // ring, and the filler's clock ran right up to the final second — so a drop
+  // released at the end was still out in the bore when the lane was already
+  // cleared, and it hung there in the mission report as litter. The window now
+  // shuts a whole transit (plus a beat to actually go and take it) before the
+  // run's distance runs out. Endless has no end to run out of; authored pickup
+  // beats keep their own timing, which is the designer's call.
+  const dropWindow = endless || levelT < L.duration - travelTime() - 2;
+  if (!inIntro && dropWindow) pickupT -= sdt;
+  if (!tut && dropWindow && pickupT <= 0) { pickupT = srand(20, 32); if (!mutators.noPickups) spawnPickup(); }
   // golden bonus streams ride in on their own clock, once the campaign has
   // taught them (level 5+) — free flow gets them throughout. None spawn near
   // a level's end: a ribbon must have time to be ridden AND spent
@@ -6116,18 +6125,88 @@ function laneProgress() {
 // time the radius crossed a whole pixel, which meant the world grew in 26 discrete
 // 1px jumps across a level — the "choppy" growth. Scaling a single sprite is
 // continuous, and costs one drawImage.
+// >>> DEST-DATA
+// EVERY tunable number for every destination, in one block. The destinations lab
+// (`npm run lab:dest`) reads this region, drives it live, and writes it straight
+// back — so the lab is not a mock-up of the destinations, it IS them.
+//
+// Two rules for anything living between the markers: it must be pure data (a
+// statement with logic in it will be eaten on the next round-trip), and every
+// entry needs a three-letter `id` — that is the handle the lab shows and the one
+// to say out loud when asking for a change ("SUN's rim is too hot").
 const PLANET_REF_R = 104;
+// Per-world skin. z = base surface, belt = band colour, bf = how many bands fit
+// on the sphere, ba = how hard they read, atmo = air colour, ak = how much air.
 const PLANET_TYPES = [
-  { n: 'tan giant',   z: [214, 184, 150], belt: [140, 80, 58],   bf: 8.5,  ba: 1.00, atmo: [140, 178, 230], ak: 1.0 },
-  { n: 'ice world',   z: [228, 242, 252], belt: [148, 186, 218], bf: 5.5,  ba: 0.55, atmo: [170, 215, 255], ak: 1.2 },
-  { n: 'rust desert', z: [202, 142, 96],  belt: [118, 62, 42],   bf: 14.0, ba: 0.85, atmo: [220, 150, 110], ak: 0.7 },
-  { n: 'ocean',       z: [92, 152, 216],  belt: [34, 74, 146],   bf: 6.0,  ba: 0.80, atmo: [130, 190, 255], ak: 1.5 },
-  { n: 'verdant',     z: [152, 192, 132], belt: [64, 104, 76],   bf: 9.0,  ba: 0.80, atmo: [160, 220, 180], ak: 1.1 },
-  { n: 'violet giant',z: [192, 166, 226], belt: [106, 66, 148],  bf: 11.0, ba: 0.95, atmo: [190, 160, 255], ak: 1.0 },
-  { n: 'pale rock',   z: [196, 192, 184], belt: [104, 100, 96],  bf: 17.0, ba: 0.60, atmo: [150, 165, 190], ak: 0.5 },
-  { n: 'molten',      z: [64, 42, 40],    belt: [255, 126, 52],  bf: 12.0, ba: 1.00, atmo: [255, 140, 80],  ak: 1.2, glow: 1 }
+  { id: 'TAN', n: 'tan giant',   z: [214, 184, 150], belt: [140, 80, 58],   bf: 8.5,  ba: 1.00, atmo: [140, 178, 230], ak: 1.0 },
+  { id: 'ICE', n: 'ice world',   z: [228, 242, 252], belt: [148, 186, 218], bf: 5.5,  ba: 0.55, atmo: [170, 215, 255], ak: 1.2 },
+  { id: 'RST', n: 'rust desert', z: [202, 142, 96],  belt: [118, 62, 42],   bf: 14.0, ba: 0.85, atmo: [220, 150, 110], ak: 0.7 },
+  { id: 'OCN', n: 'ocean',       z: [92, 152, 216],  belt: [34, 74, 146],   bf: 6.0,  ba: 0.80, atmo: [130, 190, 255], ak: 1.5 },
+  { id: 'VRD', n: 'verdant',     z: [152, 192, 132], belt: [64, 104, 76],   bf: 9.0,  ba: 0.80, atmo: [160, 220, 180], ak: 1.1 },
+  { id: 'VIO', n: 'violet giant',z: [192, 166, 226], belt: [106, 66, 148],  bf: 11.0, ba: 0.95, atmo: [190, 160, 255], ak: 1.0 },
+  { id: 'PAL', n: 'pale rock',   z: [196, 192, 184], belt: [104, 100, 96],  bf: 17.0, ba: 0.60, atmo: [150, 165, 190], ak: 0.5 },
+  { id: 'MLT', n: 'molten',      z: [64, 42, 40],    belt: [255, 126, 52],  bf: 12.0, ba: 1.00, atmo: [255, 140, 80],  ak: 1.2, glow: 1 }
 ];
-const PLANET_STAR = { n: 'star', z: [255, 226, 150], belt: [255, 150, 46], bf: 22.0, ba: 0.7, atmo: [255, 176, 80], ak: 2.6, emis: 1 };
+// The boss sun. Same renderer, but emis kills the night side — it makes its own
+// light, so there is no terminator to place.
+const PLANET_STAR = { id: 'SUN', n: 'star', z: [255, 226, 150], belt: [255, 150, 46], bf: 22.0, ba: 0.7, atmo: [255, 176, 80], ak: 2.6, emis: 1 };
+// The shading model itself — shared by every world above, which is why it is a
+// separate table. Move a dial here and all nine change together; that is the
+// point. These were loose magic numbers inside the pixel loop until the lab
+// needed to reach them.
+const PLANET_SHADE = {
+  id: 'SHD',
+  lz: 0.42,          // key light pushed toward the viewer, so the terminator crosses the visible face
+  limbK: 0.55,       // limb darkening depth — 0 is a flat disc, 1 is a black rim
+  litP: 0.85,        // N·L falloff curve; lower = flatter, more washed
+  amb: 0.22,         // night-side fill, so the dark half is not a hole
+  ambTint: [26, 34, 58],  // what colour that fill is — cold, because the fill light is starlight
+  emisBase: 0.72,    // a star's floor brightness (emis worlds skip N·L entirely)
+  tilt: [0.27, -0.89, 0.36], // THE SPIN AXIS. Tilted on purpose: latitude bands on a
+                     // tilted sphere project as curves, and that curve is the single
+                     // strongest cue that this is a ball and not a painted circle.
+  h2: 2.24, h2p: 1.4, h2m: 0.38,  // 2nd band harmonic: rate, phase, how much it modulates
+  h3: 4.8,  h3p: 0.3, h3m: 0.15,  // 3rd, finer
+  glowK: 150,        // how hard `glow` belts emit regardless of the light (molten)
+  rimP: 2.4, rimK: 210,           // atmosphere piling up on the limb: curve, strength
+  shellFall: 3.6, shellFallEmis: 2.2, // outer air shell falloff (tighter for worlds than stars)
+  shellSide: 0.16,   // how much shell survives on the unlit side
+  shellA: 175        // shell peak alpha
+};
+// Stations are machined, so they are DRAWN, not shaded per pixel — which means
+// one function serves the 20px chip on the chart and the full body at the end of
+// the bore. Every number is a fraction of R so it survives that scale jump.
+const STATION_SPEC = {
+  id: 'STN', n: 'station',
+  spin: 1.7,                                        // seed → fixed rotation
+  ringA: [0.92, 0.34], ringW: 0.10, ringC: '196,216,240', ringO: 0.85, // the habitat ring
+  ringB: [0.62, 0.22], ring2W: 0.07, ring2C: '150,176,210', ring2O: 0.55,
+  spine: 0.85, spineW: 0.13, spineC: '206,224,246', spineO: 0.9,
+  wingY: 0.62, wingW: 1.56, wingH: 0.14, wingC: '120,146,180', wingO: 0.9, // solar wings
+  wins: 5, winR: 0.075, winC: '255,214,120', winO: 0.95  // lit windows riding the ring
+};
+// A gate is a torus with energy standing in its throat. The segment gaps are what
+// stop it reading as a plain drawn circle — it has to look built.
+const GATE_SPEC = {
+  id: 'GAT', n: 'gate',
+  segs: 8, gap: 0.06, torusR: 0.86, torusW: 0.17, torusC: '178,200,232', torusO: 0.9,
+  irisR: 0.72, irisC0: '150,242,228', irisA0: 0.42,
+  irisC1: '96,224,208', irisA1: 0.20, irisStop: 0.55,
+  arcs: 3, arcR: 0.55, arcLen: 1.1, arcW: 0.05, arcC: '180,250,238', arcO: 0.5, spin: 0.35
+};
+// Scenery only — you fly THROUGH a field, you never arrive at one, so it is never
+// a mission endpoint. No silhouette of its own: just a drift of rocks.
+const FIELD_SPEC = {
+  id: 'FLD', n: 'field',
+  rocks: 22, spread: 0.6, flatten: 0.55,
+  szMin: 0.045, szVar: 0.10,
+  warmP: 0.3, warmC: '188,164,140', coldC: '150,166,190',
+  aMin: 0.30, aVar: 0.5
+};
+// How often each kind turns up as a mission endpoint, out of 100. Gates take
+// whatever planets and stations leave — so these two are the whole dial.
+const DEST_MIX = { id: 'MIX', planet: 62, station: 24 };
+// <<< DEST-DATA
 // Deterministic per campaign + level, so a given relay always shows the same
 // world — it is a place, not a random skin, and a player can recognise it.
 //
@@ -6175,14 +6254,19 @@ function buildPlanetSprite(R, V) {
   if (!img || !img.data) return null;
   const D = img.data;
   const cx = S / 2, cy = S / 2;
+  // Every constant in this loop comes from PLANET_SHADE, so the destinations lab
+  // can drive the shading model itself and not just the eight skins.
+  const H = PLANET_SHADE;
   // the one world key light, pushed a little toward the viewer so the terminator
   // falls across the visible face rather than exactly on the limb
-  let lx = Math.cos(LIGHT_A), ly = Math.sin(LIGHT_A), lz = 0.42;
+  let lx = Math.cos(LIGHT_A), ly = Math.sin(LIGHT_A), lz = H.lz;
   const ln = Math.hypot(lx, ly, lz); lx /= ln; ly /= ln; lz /= ln;
   // the spin axis, deliberately TILTED — see (3) above
-  let ax = 0.27, ay = -0.89, az = 0.36;
+  let [ax, ay, az] = H.tilt;
   const an = Math.hypot(ax, ay, az); ax /= an; ay /= an; az /= an;
   const padN = pad / R;
+  const limb0 = 1 - H.limbK, h2b = 1 - H.h2m, h3b = 1 - H.h3m;
+  const [am0, am1, am2] = H.ambTint;
   const [z0, z1, z2] = V.z, [e0, e1, e2] = V.belt, [t0, t1, t2] = V.atmo;
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
@@ -6191,28 +6275,29 @@ function buildPlanetSprite(R, V) {
       const i4 = (y * S + x) * 4;
       if (d2 <= 1) {
         const nz = Math.sqrt(1 - d2);
-        const limb = 0.45 + 0.55 * nz;                        // (2)
+        const limb = limb0 + H.limbK * nz;                    // (2)
         const lat = dx * ax + dy * ay + nz * az;              // (3)
         const b1 = 0.5 + 0.5 * Math.sin(lat * V.bf);
-        const b2 = 0.5 + 0.5 * Math.sin(lat * V.bf * 2.24 + 1.4);
-        const b3 = 0.5 + 0.5 * Math.sin(lat * V.bf * 4.8 + 0.3);
-        const band = clamp((b1 * (0.62 + 0.38 * b2) * (0.85 + 0.15 * b3)) * V.ba, 0, 1);
+        const b2 = 0.5 + 0.5 * Math.sin(lat * V.bf * H.h2 + H.h2p);
+        const b3 = 0.5 + 0.5 * Math.sin(lat * V.bf * H.h3 + H.h3p);
+        const band = clamp((b1 * (h2b + H.h2m * b2) * (h3b + H.h3m * b3)) * V.ba, 0, 1);
         const rr = z0 + (e0 - z0) * band, gg = z1 + (e1 - z1) * band, bb = z2 + (e2 - z2) * band;
         // a star has no night side — it makes its own light
-        const lit = V.emis ? (0.72 + 0.28 * nz) : Math.pow(Math.max(0, dx * lx + dy * ly + nz * lz), 0.85) * limb;
-        const amb = V.emis ? 0 : 0.22;
-        D[i4]     = Math.min(255, rr * lit + 26 * amb);
-        D[i4 + 1] = Math.min(255, gg * lit + 34 * amb);
-        D[i4 + 2] = Math.min(255, bb * lit + 58 * amb);
+        const lit = V.emis ? (H.emisBase + (1 - H.emisBase) * nz)
+          : Math.pow(Math.max(0, dx * lx + dy * ly + nz * lz), H.litP) * limb;
+        const amb = V.emis ? 0 : H.amb;
+        D[i4]     = Math.min(255, rr * lit + am0 * amb);
+        D[i4 + 1] = Math.min(255, gg * lit + am1 * amb);
+        D[i4 + 2] = Math.min(255, bb * lit + am2 * amb);
         D[i4 + 3] = 255;
         // molten belts and stars emit regardless of the light
         if (V.glow) {
-          const em = band * band * 150;
+          const em = band * band * H.glowK;
           D[i4] = Math.min(255, D[i4] + em); D[i4 + 1] = Math.min(255, D[i4 + 1] + em * 0.42); D[i4 + 2] = Math.min(255, D[i4 + 2] + em * 0.12);
         }
         // atmosphere piling up on the limb, brightest where the surface turns away
         const ndl2 = V.emis ? 1 : Math.max(0, dx * lx + dy * ly + nz * lz);
-        const rim = Math.pow(1 - nz, 2.4) * ndl2 * 210 * V.ak;
+        const rim = Math.pow(1 - nz, H.rimP) * ndl2 * H.rimK * V.ak;
         if (rim > 1) {
           D[i4]     = Math.min(255, D[i4] + rim * (t0 / 255));
           D[i4 + 1] = Math.min(255, D[i4 + 1] + rim * (t1 / 255));
@@ -6223,10 +6308,10 @@ function buildPlanetSprite(R, V) {
         const d = Math.sqrt(d2);
         const t = (d - 1) / padN;
         if (t >= 1) { D[i4 + 3] = 0; continue; }
-        const fall = Math.exp(-t * (V.emis ? 2.2 : 3.6)) * (1 - t);
+        const fall = Math.exp(-t * (V.emis ? H.shellFallEmis : H.shellFall)) * (1 - t);
         const side = V.emis ? 1 : Math.max(0, (dx * lx + dy * ly) / d);
         D[i4] = t0; D[i4 + 1] = t1; D[i4 + 2] = t2;
-        D[i4 + 3] = Math.max(0, Math.min(255, fall * (0.16 + 0.84 * side) * 175 * V.ak));
+        D[i4 + 3] = Math.max(0, Math.min(255, fall * (H.shellSide + (1 - H.shellSide) * side) * H.shellA * V.ak));
       }
     }
   }
@@ -12041,7 +12126,7 @@ function drawMenuBoard() {
 // why a lane carries more interdictors the further out you work.
 let cityBase = null, cityTop = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1;
 const mapR = () => menuGeom().R * 0.92; // the lens rim MATCHES the mode wheel — seamless crossfade
-const CITY_W = 3400, CITY_H = 2050;
+const CITY_W = 5200, CITY_H = 3100;
 const CITY_CORE = { x: CITY_W * 0.5, y: CITY_H * 0.5 };
 // the ground is an iso plane: a CIRCLE painted on it reads as a 2:1 ellipse on
 // the sheet, so ground distance counts y at double weight
@@ -12058,7 +12143,7 @@ const CORE_NAME = 'CORE SYSTEMS', DARK_ZONE = 'NO MANS LAND';
 let RINGS = []; // [{ r0, r1, name }] per case band, innermost first
 // escort coverage: total at the core, gone by the far edge. This is the number
 // the dossier quotes — and the reason the traffic thickens as you go out.
-const shieldAt = r => Math.round(100 * clamp(1 - Math.pow(clamp(r / 1450, 0, 1), 1.4), 0, 1));
+const shieldAt = r => Math.round(100 * clamp(1 - Math.pow(clamp(r / BANDS[BANDS.length - 1][1], 0, 1), 1.4), 0, 1));
 // (the drift, the harbor and the debris stream are GONE with the city they
 // belonged to. A dust band cutting the sheet made sense on a ground plane; on a
 // star chart the equivalent is scenery — asteroid fields, placed as destinations
@@ -12183,27 +12268,94 @@ function laneArc(A, B) {
   }
   return out;
 }
+// THE CORDONS ARE FIXED STRUCTURE, and relays are scattered INSIDE them.
+//
+// The first cut had this backwards: relays marched around a smooth spiral and the
+// cordons were then fitted to wherever they landed. That is why the chart read as
+// organised — a clockwise procession with rings drawn around it. Now the bands are
+// declared up front, campaign N owns band N, and its relays are scattered at
+// random bearings and random depths within that annulus. The band still says
+// exactly what it said before about cover; the walk through it is no longer a
+// parade.
+const BANDS = [[340, 700], [700, 1080], [1080, 1480], [1480, 1900], [1900, 2340]];
 let SCENERY = [];   // non-mission destinations: the rest of the settled volume
 function buildCity() {
   const rng = mulberry32(0xC17C0DE);
 
-  // ---- THE SPIRAL: one continuous journey outward through the cordons ----
-  // Relay g sits further from the sun than relay g-1 and the walk never doubles
-  // back, so difficulty and distance-from-cover rise together.
+  // ---- placement: scattered inside each cordon, then walked ----
   const counts = (CAMPAIGNS.length ? CAMPAIGNS : [{ levels: new Array(8) }]).map(p => p.levels.length);
-  const total = counts.reduce((n, c) => n + c, 0);
-  const R0 = 215, R1 = 1180;
+  const bandOf = ci => BANDS[Math.min(ci, BANDS.length - 1)];
   const pts = [];
-  let ang = -2.35;                       // start north-west of the sun, wind out
-  for (let g = 0; g <= total; g++) {
-    const f = g / total;
-    const rad = R0 + (R1 - R0) * f + (rng() - 0.5) * 46;
-    const p2 = fromPolar(rad, ang + (rng() - 0.5) * 0.07);
-    p2.x = clamp(p2.x, 120, CITY_W - 120);
-    p2.y = clamp(p2.y, 110, CITY_H - 110);
-    pts.push(p2);
-    const L = 150 + 150 * f;             // longer hauls the further out you work
-    ang += L / Math.max(70, rad * 0.82);
+  let prev = null;
+  for (let ci = 0; ci < counts.length; ci++) {
+    const n = counts[ci], [b0, b1] = bandOf(ci);
+    // Each case works a REGION of its band, not the whole circumference. Scatter
+    // over a full 2π and the tour is forced to cross the map to collect
+    // stragglers — greedy leaves one behind and the hop can be diametric, which
+    // the lens then has to zoom right out to frame. A wandering sector of 130–215°
+    // keeps every hop bounded while staying just as unarranged inside itself, and
+    // it means consecutive campaigns occupy different parts of the sky.
+    //
+    // The sector opens near where the last case delivered, so the journey stays
+    // continuous outward instead of teleporting between bands.
+    const arcSpan = 2.3 + rng() * 1.45;
+    const arcFrom = (prev ? polarOf(prev).a : -2.35) - arcSpan * (0.25 + rng() * 0.5);
+    const cand = [];
+    for (let k = 0, guard = 0; k < n && guard < 4000; guard++) {
+      const rad = b0 + Math.pow(rng(), 0.85) * (b1 - b0);
+      const p2 = fromPolar(rad, arcFrom + rng() * arcSpan);
+      if (p2.x < 150 || p2.x > CITY_W - 150 || p2.y < 130 || p2.y > CITY_H - 130) continue;
+      if (cand.some(q => Math.hypot(q.x - p2.x, (q.y - p2.y) * 1.8) < (b1 - b0) * 0.62)) continue;
+      cand.push(p2); k++;
+    }
+    // ...then WALK them from wherever the last case delivered. Not strictly
+    // nearest-first: strict greedy still trends into a local sweep, which is the
+    // look we are getting rid of. It picks among the nearest THREE with a bias
+    // toward the closest, so the tour stays plausible — no absurd cross-band
+    // jumps — while doubling back often enough to read as a route somebody
+    // actually flew rather than a swept arc.
+    const start = prev || fromPolar(b0, -2.35);
+    let cur = start;
+    const tour = [];
+    while (cand.length) {
+      const order = cand
+        .map((q, j) => ({ j, d: Math.hypot(q.x - cur.x, (q.y - cur.y) * 1.8) }))
+        .sort((m, n2) => m.d - n2.d);
+      cur = cand.splice(order[Math.floor(rng() * rng() * Math.min(3, order.length))].j, 1)[0];
+      tour.push(cur);
+    }
+    // 2-OPT. Greedy strands whichever relay it walked away from, and picking it up
+    // at the end can mean a hop clear across the sector — which matters because the
+    // lens frames each run, so one wild hop is one level zoomed absurdly far out.
+    // Reversing crossed sub-paths fixes both that and the lanes visibly crossing
+    // each other, WITHOUT flattening the tour into a sweep: the points are still
+    // scattered, this only stops the path doubling back over itself to reach them.
+    {
+      const D = (A2, B2) => Math.hypot(A2.x - B2.x, (A2.y - B2.y) * 1.8);
+      const path = [start].concat(tour);
+      for (let pass = 0; pass < 6; pass++) {
+        let moved = false;
+        for (let a2 = 1; a2 < path.length - 1; a2++) {
+          for (let b2 = a2 + 1; b2 < path.length; b2++) {
+            const before = D(path[a2 - 1], path[a2]) + (b2 + 1 < path.length ? D(path[b2], path[b2 + 1]) : 0);
+            const after = D(path[a2 - 1], path[b2]) + (b2 + 1 < path.length ? D(path[a2], path[b2 + 1]) : 0);
+            if (after < before - 0.5) {
+              for (let x2 = a2, y2 = b2; x2 < y2; x2++, y2--) { const t2 = path[x2]; path[x2] = path[y2]; path[y2] = t2; }
+              moved = true;
+            }
+          }
+        }
+        if (!moved) break;
+      }
+      for (let k = 1; k < path.length; k++) pts.push(path[k]);
+      prev = path[path.length - 1];
+    }
+  }
+  // the final terminus: where the last case delivers, just past the last cordon
+  {
+    const last = prev || fromPolar(BANDS[0][0], -2.35);
+    const pl = polarOf(last);
+    pts.push(fromPolar(Math.min(BANDS[BANDS.length - 1][1] + 190, CITY_W * 0.46), pl.a + 0.22));
   }
   const segs = [];
   for (let k = 0; k + 1 < pts.length; k++) segs.push(laneArc(pts[k], pts[k + 1]));
@@ -12214,15 +12366,10 @@ function buildCity() {
     while (cs.length < n) cs.push([cp[cs.length], cp[cs.length + 1]]);
     return { pts: cp, segs: cs };
   });
-  // ---- fit a cordon to each case band ----
-  const mids = CITY_CHAINS.map(ch => {
-    const rs = ch.pts.map(p2 => groundR(p2.x, p2.y)).sort((m, n2) => m - n2);
-    return rs[Math.floor(rs.length / 2)];
-  });
-  RINGS = mids.map((m, i) => ({
-    r0: i ? (mids[i - 1] + m) / 2 : Math.max(120, m * 0.62),
-    r1: i + 1 < mids.length ? (m + mids[i + 1]) / 2 : m * 1.24,
-    name: RING_NAMES[Math.min(i, RING_NAMES.length - 1)]
+  // cordons come straight from the band table — they are the structure the relays
+  // were placed inside, not a fit after the fact
+  RINGS = BANDS.slice(0, Math.max(1, counts.length)).map((b, i) => ({
+    r0: b[0], r1: b[1], name: RING_NAMES[Math.min(i, RING_NAMES.length - 1)]
   }));
 
   // ---- SCENERY: the settled volume the missions pass through ----
@@ -12230,13 +12377,13 @@ function buildCity() {
   // real places with no case attached — most of a star system is not your job.
   SCENERY = [];
   const KINDS = ['planet', 'planet', 'planet', 'station', 'station', 'gate', 'field', 'field'];
-  for (let i = 0; i < 74; i++) {
-    const rad = 170 + Math.pow(rng(), 0.72) * 1500;
+  for (let i = 0; i < 380; i++) {
+    const rad = 210 + Math.pow(rng(), 0.72) * 2450;
     const p2 = fromPolar(rad, rng() * TAU);
     if (p2.x < 90 || p2.x > CITY_W - 90 || p2.y < 80 || p2.y > CITY_H - 80) continue;
     // never crowd a mission relay — the route is the loudest thing on this chart
-    if (pts.some(q => Math.hypot(q.x - p2.x, (q.y - p2.y) * 1.8) < 130)) continue;
-    if (SCENERY.some(q => Math.hypot(q.x - p2.x, (q.y - p2.y) * 1.8) < 105)) continue;
+    if (pts.some(q => Math.hypot(q.x - p2.x, (q.y - p2.y) * 1.8) < 120)) continue;
+    if (SCENERY.some(q => Math.hypot(q.x - p2.x, (q.y - p2.y) * 1.8) < 78)) continue;
     const kind = KINDS[rng() * KINDS.length | 0];
     SCENERY.push({
       x: p2.x, y: p2.y, kind,
@@ -12260,7 +12407,7 @@ function buildCity() {
     ctx.globalCompositeOperation = 'lighter';
     const bA = -0.30, bc = Math.cos(bA), bs2 = Math.sin(bA);
     const bandW = CITY_H * 0.34;
-    for (let i = 0; i < 420; i++) {
+    for (let i = 0; i < 680; i++) {
       const t2 = (rng() - 0.5) * CITY_W * 1.5;
       const wob = Math.sin(t2 * 0.0013) * bandW * 0.34;
       const perp = ((rng() + rng() + rng() - 1.5) / 1.5) * bandW + wob;
@@ -12277,7 +12424,7 @@ function buildCity() {
     }
     ctx.restore();
     const SCOL = ['206,224,255', '255,238,214', '255,208,168', '212,198,255', '188,240,255'];
-    for (let i = 0; i < 2600; i++) {
+    for (let i = 0; i < 5600; i++) {
       const x2 = rng() * CITY_W, y2 = rng() * CITY_H;
       const big = rng() < 0.03;
       const al = big ? 0.4 + rng() * 0.45 : 0.05 + rng() * 0.30;
@@ -12293,18 +12440,18 @@ function buildCity() {
       ctx.beginPath(); ctx.arc(x2, y2, big ? 1.5 : 0.3 + rng() * 0.7, 0, TAU); ctx.fill();
     }
     // --- THE SUN, and the cordons are its orbits ---
-    isoRadial(0, 900, ['rgba(255,206,120,0.16)', 'rgba(230,150,60,0.06)', 'rgba(60,30,10,0)']);
-    const sun = ctx.createRadialGradient(CITY_CORE.x, CITY_CORE.y, 0, CITY_CORE.x, CITY_CORE.y, 190);
+    isoRadial(0, 1250, ['rgba(255,206,120,0.16)', 'rgba(230,150,60,0.06)', 'rgba(60,30,10,0)']);
+    const sun = ctx.createRadialGradient(CITY_CORE.x, CITY_CORE.y, 0, CITY_CORE.x, CITY_CORE.y, 250);
     sun.addColorStop(0, 'rgba(255,252,236,1)');
     sun.addColorStop(0.13, 'rgba(255,226,150,0.95)');
     sun.addColorStop(0.34, 'rgba(255,170,66,0.45)');
     sun.addColorStop(0.7, 'rgba(220,110,30,0.14)');
     sun.addColorStop(1, 'rgba(160,70,20,0)');
     ctx.fillStyle = sun;
-    ctx.beginPath(); ctx.arc(CITY_CORE.x, CITY_CORE.y, 190, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(CITY_CORE.x, CITY_CORE.y, 250, 0, TAU); ctx.fill();
     // faint orbit hairlines, so the volume reads as a system and not a void
     ctx.strokeStyle = 'rgba(140,180,240,0.05)'; ctx.lineWidth = 1.2;
-    for (let r2 = 300; r2 < 1700; r2 += 118) { isoEllipse(r2); ctx.stroke(); }
+    for (let r2 = 360; r2 < 2500; r2 += 152) { isoEllipse(r2); ctx.stroke(); }
     // --- the lane web: charted routes between the scenery, faint ---
     ctx.strokeStyle = 'rgba(90,190,235,0.10)'; ctx.lineWidth = 1.3;
     for (let i = 0; i < SCENERY.length; i++) {
@@ -12315,7 +12462,7 @@ function buildCity() {
         const d = Math.hypot(SCENERY[j].x - A2.x, (SCENERY[j].y - A2.y) * 1.8);
         if (d < bd && d > 40) { bd = d; best = SCENERY[j]; }
       }
-      if (best && bd < 420) {
+      if (best && bd < 330) {
         const arc2 = laneArc(A2, best);
         ctx.beginPath();
         arc2.forEach((q, k) => k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y));
@@ -12363,7 +12510,7 @@ function buildCity() {
     if (RINGS.length) ctx.fillText(CORE_NAME, CITY_CORE.x - RINGS[0].r0 * 0.5, CITY_CORE.y - RINGS[0].r0 * 0.26 - 8);
     ctx.fillStyle = 'rgba(255,120,120,0.45)';
     ctx.font = '700 15px Audiowide, system-ui';
-    ctx.fillText('— ' + DARK_ZONE + ' · NO COVER —', CITY_CORE.x - 700, CITY_CORE.y - 760);
+    ctx.fillText('— ' + DARK_ZONE + ' · NO COVER —', CITY_CORE.x - CITY_W * 0.21, CITY_CORE.y - CITY_H * 0.38);
   });
 
   // ---------- TOP: the destinations themselves, over the route ----------
@@ -12375,7 +12522,7 @@ function buildCity() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, CITY_W, CITY_H);
     for (const sc of SCENERY) {
-      const fade = clamp(1 - (sc.far - 700) / 1400, 0.22, 1); // the far volume goes quiet
+      const fade = clamp(1 - (sc.far - 900) / 2100, 0.22, 1); // the far volume goes quiet
       ctx.save();
       ctx.globalAlpha = fade;
       if (sc.kind === 'field') drawFieldArt(ctx, sc.x, sc.y, sc.sz, sc.seed);
@@ -13961,13 +14108,22 @@ function frame(now) {
       ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, a2 - 0.09, a2 + 0.09); ctx.stroke();
     }
   }
-  if (ringS !== 1) {
-    ctx.save();
-    ctx.translate(g.cx, g.cy); ctx.scale(ringS, ringS); ctx.translate(-g.cx, -g.cy);
-    ctx.globalAlpha = 0.35 + 0.65 * clamp(introT / BOOT_LOCK, 0, 1); // condenses out of the eye
-  }
-  if (state !== S.MENU && state !== S.GUIDE) { // the PHYSICAL ring exists only in the game — menus
-    // and the Archive stay open so the boot's ring arrival lands with real contrast
+  // THE RING LEAVES TOO. It arrived by flying INTO the lane on the boot; the
+  // arrival is that in reverse — it blows out past the eye on the same
+  // accelerating law as the corridor, and nothing is left framing the world.
+  const rExit = laneExit();
+  const ringOutS = 1 + rExit * rExit * 3.6, ringOutA = 1 - rExit;
+  if (state !== S.MENU && state !== S.GUIDE && ringOutA > 0.004) {
+    // the PHYSICAL ring exists only in the game — menus and the Archive stay
+    // open so the boot's ring arrival lands with real contrast
+    const sc = ringS * ringOutS;
+    const al = (ringS !== 1 ? 0.35 + 0.65 * clamp(introT / BOOT_LOCK, 0, 1) : 1) * ringOutA;
+    const xf = sc !== 1 || al < 1;
+    if (xf) {
+      ctx.save();
+      ctx.translate(g.cx, g.cy); ctx.scale(sc, sc); ctx.translate(-g.cx, -g.cy);
+      ctx.globalAlpha = al; // condenses out of the eye on the boot, drains on the way out
+    }
     // soft occlusion shadow behind the band, then the prerendered monolith
     ctx.strokeStyle = 'rgba(0,0,0,0.14)'; ctx.lineWidth = bz * 1.6;
     ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, 0, TAU); ctx.stroke();
@@ -13978,8 +14134,8 @@ function frame(now) {
       ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bz * ARCFX.bandW * 0.9, Math.PI * 0.28, Math.PI * 0.72);
       ctx.strokeStyle = `rgba(255,190,100,${(0.20 * laneFlow).toFixed(3)})`; ctx.lineWidth = 2; ctx.stroke();
     }
+    if (xf) { ctx.restore(); ctx.globalAlpha = 1; }
   }
-  if (ringS !== 1) { ctx.restore(); ctx.globalAlpha = 1; }
   // the dock: a rim flare and white/blue shockwaves ring off the lock moment
   if (bootRing) {
     const lp = introT - BOOT_LOCK;
@@ -14016,9 +14172,14 @@ function frame(now) {
   // decay while the sim is in PLAY, so at the report they hang on the rim
   // forever — the last few hits frozen as bright arcs, and a banked shield still
   // bathing the whole ring in charge. The ceremony fades the lot out.
-  const hw = endPower();
+  //
+  // And it is ZERO wherever the physical ring itself isn't drawn. The band FX
+  // are lighting ON that hardware: in a menu or the Archive there is no ring to
+  // light, so a run's last hits were floating in the middle of the case-file
+  // chooser as bare arcs. Nothing on the band outlives the ring it sits on.
+  const hw = state === S.MENU || inGuide ? 0 : endPower();
   // reactive rim: zaps and misses light the segment they happened on
-  for (const fx2 of inGuide || hw <= 0.004 ? [] : rimFX) {
+  for (const fx2 of hw <= 0.004 ? [] : rimFX) {
     const al = Math.min(1, (fx2.t / 0.45) * 0.85) * hw;
     ctx.strokeStyle = 'rgba(' + fx2.col + ',' + al.toFixed(2) + ')';
     ctx.lineWidth = bz * 0.7;
@@ -14032,11 +14193,11 @@ function frame(now) {
   }
   if (hw > 0.004) {
     if (hw < 1) { ctx.save(); ctx.globalAlpha = hw; }
-    if (!inGuide) drawLatches(g, bz);
-    if (state !== S.MENU && !inGuide) drawArrivalPings(g);
+    drawLatches(g, bz);
+    drawArrivalPings(g);
     if (hw < 1) ctx.restore();
   }
-  if (shieldCharge > 0 && state !== S.MENU && !inGuide && hw > 0.004) {
+  if (shieldCharge > 0 && hw > 0.004) {
     // FIREWALL SHIELD: the monolith ITSELF runs hot — the whole band bathes
     // in charge, both machined lips light up, filaments crawl the full
     // circle and twin charge sectors circulate. Unmissable: the ring is
@@ -14102,7 +14263,7 @@ function frame(now) {
     }
     ctx.restore();
   }
-  if (shieldFlashT > 0 && state !== S.MENU && !inGuide) {
+  if (shieldFlashT > 0 && hw > 0.004) {
     // the catch: the sheath drains around the collar INTO the breach point,
     // brightening as it concentrates, and cracks white where it lands
     const shBh = Math.min(W, H) * 0.055 * ARCFX.bandW;
