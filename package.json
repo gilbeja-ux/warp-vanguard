@@ -19,7 +19,8 @@
     "apk": "bash scripts/build-apk.sh",
     "icons": "python3 scripts/icons.py",
     "verifier:status": "node scripts/verifier-status.js",
-    "hooks:install": "git config core.hooksPath .githooks && echo \"git hooks active (.githooks/)\""
+    "hooks:install": "git config core.hooksPath .githooks && echo \"git hooks active (.githooks/)\"",
+    "lab:tune": "node scripts/tuning-board.js"
   },
   "keywords": [
     "game",
