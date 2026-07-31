@@ -72,17 +72,17 @@ async function loadGame(files) {
 // Painters read W/H/DPR/ctx as globals. They are `let` in 00-core.js, which puts
 // them in the shared global lexical scope — this script can borrow them, draw,
 // and hand them back. `ctx` is documented as rebindable for exactly this.
-function withStage(cv, draw) {
+function withStage(cv, draw, dt) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const w = cv.clientWidth || 480, h = cv.clientHeight || 300;
-  cv.width = w * dpr; cv.height = h * dpr;
+  if (cv.width !== Math.round(w * dpr)) { cv.width = w * dpr; cv.height = h * dpr; }
   const c2 = cv.getContext('2d');
   const keep = { ctx, W, H, DPR };   // hand the game back exactly what it had
   try {
     ctx = c2; W = w; H = h; DPR = dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    draw(geo());
+    withWorld(() => draw(geo(), dt));
     return null;
   } catch (e) {
     return e;
@@ -91,56 +91,112 @@ function withStage(cv, draw) {
   }
 }
 
+// A RUNNING world, borrowed for the length of one draw.
+//
+// This is what was missing. The painters are gated on run state — laneFlow
+// multiplies EVERY streak, runVis fades the whole run out, drawNodes reads
+// introT, and the destination only grows once laneProgress climbs. Drawn in the
+// menu's parked world the painters were behaving perfectly and correctly drawing
+// almost nothing, which reads as "the preview is broken".
+function withWorld(fn) {
+  const keep = { state, laneFlow, runVis, introT, time, warpT, levelT, lanePlanetProg, endSweep, endT, endWin, tolVis };
+  try {
+    state = S.PLAY;
+    laneFlow = 1; runVis = 1; tolVis = 1;
+    introT = 999;                 // past the boot gate: hardware is up
+    warpT = 0;                    // not mid-dive
+    endSweep = -1; endT = 0; endWin = false;
+    lanePlanetProg = WORLD.progress;
+    time = WORLD.t;
+    fn();
+  } finally {
+    state = keep.state; laneFlow = keep.laneFlow; runVis = keep.runVis; introT = keep.introT;
+    time = keep.time; warpT = keep.warpT; levelT = keep.levelT; lanePlanetProg = keep.lanePlanetProg;
+    endSweep = keep.endSweep; endT = keep.endT; endWin = keep.endWin; tolVis = keep.tolVis;
+  }
+}
+
+// The preview clock. Streaks, the deep field and the lane medium are MOTION —
+// a still frame of them says nothing about what you just changed, so previews
+// run continuously while one is on screen and stop when it is not.
+const WORLD = { t: 0, progress: 0.55, raf: 0, last: 0, bodies: null };
+
+function startLoop() {
+  if (WORLD.raf) return;
+  WORLD.last = performance.now();
+  const tick = (now) => {
+    WORLD.raf = 0;
+    const dt = Math.min(0.05, (now - WORLD.last) / 1000);
+    WORLD.last = now;
+    WORLD.t += dt;
+    drawPreview(dt);
+    if (currentDriver()) WORLD.raf = requestAnimationFrame(tick);
+  };
+  WORLD.raf = requestAnimationFrame(tick);
+}
+function stopLoop() { if (WORLD.raf) cancelAnimationFrame(WORLD.raf); WORLD.raf = 0; }
+
 // ---------------------------------------------------------------------------
-// PREVIEW DRIVERS. Each sets up only the state its painter needs, then calls the
-// painter. They are deliberately thin: any logic here is logic that could drift.
+// PREVIEW DRIVERS. Each enters the game WHERE THE GAME ENTERS IT — the wrapper
+// that works out the arguments, never the inner painter. Reaching past a wrapper
+// is what put a NaN into a gradient and took the arcs preview down.
 const DRIVERS = {
-  // Call drawNodes, NOT drawArcNode. drawArcNode's signature is
-  // (n, g, i, rb, fused, bh) and drawNodes is what works out the last four —
-  // reaching past it left `bh` undefined, which made a coordinate NaN and a real
-  // canvas throw. Always enter a painter where the game enters it.
-  arcs(g) {
+  // drawTunnel already paints the destination at the end of the bore
+  // (it calls drawFarGlow itself), so "the lane" and "the world at the end of
+  // it" are the same preview seen at different progress.
+  lane(g, dt) {
+    drawStarField();
+    drawDeepField(g, dt);
     drawTunnel(g);
-    nodes[0].angle = -Math.PI * 0.75;
-    nodes[1].angle = -Math.PI * 0.25;
+    drawLaneMedium(g, dt);
+    drawStreaks(g, dt);
+  },
+  arcs(g, dt) {
+    DRIVERS.lane(g, dt);
+    nodes[0].angle = -Math.PI * 0.72 + Math.sin(WORLD.t * 0.6) * 0.25;
+    nodes[1].angle = -Math.PI * 0.28 + Math.cos(WORLD.t * 0.5) * 0.25;
     drawNodes(g);
   },
-  // Bodies come from the game's OWN spawnEnemy, not from a hand-made object
-  // literal. A painter reads fields a literal will not have, and inventing one
-  // is how a lab starts lying — the same mistake that got the old labs deleted.
-  enemies(g) {
-    drawTunnel(g);
-    const kinds = ['normal', 'double', 'heavy', 'frag'];
+  // Bodies come from the game's OWN spawnEnemy, not a hand-made literal — a
+  // painter reads fields a literal will not have, and inventing one is how the
+  // old labs started lying. Spawned once, then flown down the bore on a loop.
+  enemies(g, dt) {
+    DRIVERS.lane(g, dt);
     const keep = enemies.slice();
-    enemies.length = 0;
     try {
-      kinds.forEach((k, i) => {
-        const e = spawnEnemy((i / kinds.length) * Math.PI * 2 - Math.PI / 2, k);
-        if (e) e.z = 0.30;
-      });
-      for (const e of enemies) drawEnemy(e, g);
+      if (!WORLD.bodies) {
+        enemies.length = 0;
+        ['normal', 'double', 'heavy', 'frag'].forEach((k, i) => {
+          const e = spawnEnemy((i / 4) * Math.PI * 2 - Math.PI / 2, k);
+          if (e) e.z = 0.2 + i * 0.18;
+        });
+        WORLD.bodies = enemies.slice();
+      }
+      for (const e of WORLD.bodies) {
+        e.z -= dt * 0.06;
+        if (e.z < 0.08) e.z = 0.95;
+      }
+      enemies.length = 0;
+      for (const e of WORLD.bodies) enemies.push(e);
+      for (const e of WORLD.bodies) drawEnemy(e, g);
     } finally {
       enemies.length = 0;
       for (const e of keep) enemies.push(e);
     }
   },
-  streaks(g) {
-    drawStarField();
-    drawDeepField(g, 1 / 60);
-    drawTunnel(g);
-    drawStreaks(g, 1 / 60);
-  },
-  planet(g) {
-    drawStarField();
-    drawTunnel(g);
-    if (typeof drawDestination === 'function') drawDestination(g);
-    else if (typeof drawFarGlow === 'function') drawFarGlow({ x: g.cx, y: g.cy }, 90, g);
-  },
-  hud(g) {
-    drawTunnel(g);
-    if (typeof drawHUD === 'function') drawHUD(g);
+  streaks(g, dt) { DRIVERS.lane(g, dt); },
+  planet(g, dt) { DRIVERS.lane(g, dt); },
+  hud(g, dt) {
+    DRIVERS.lane(g, dt);
+    drawNodes(g);
+    drawHUD(g);
   },
 };
+
+function currentDriver() {
+  const g = state.groups.find(x => x.id === state.current);
+  return g && DRIVERS[g.preview] ? DRIVERS[g.preview] : null;
+}
 
 // ---------------------------------------------------------------------------
 // Live value application. Writing straight into the loaded game's constant is
@@ -318,14 +374,15 @@ function renderGroup() {
 }
 
 // ---------------------------------------------------------------------------
-function schedulePreview() {
-  if (state.raf) return;
-  state.raf = requestAnimationFrame(() => { state.raf = 0; drawPreview(); });
-}
+// the loop already redraws every frame; this only matters if it is not running
+function schedulePreview() { if (!WORLD.raf) drawPreview(); }
+
+const PVNOTE = 'drawn by the game’s own painters — src/game/*.js, loaded here';
 
 function renderPreview() {
   const g = state.groups.find(x => x.id === state.current);
   const aside = $('#preview');
+  stopLoop();
   aside.textContent = '';
   if (!g) return;
   aside.appendChild(el('div', 'pvhead', 'Preview'));
@@ -339,22 +396,27 @@ function renderPreview() {
   const cv = el('canvas'); cv.id = 'stage';
   stage.appendChild(cv);
   aside.appendChild(stage);
-  aside.appendChild(el('p', 'pvnote', 'drawn by the game’s own painters — src/game/*.js, loaded here'));
-  drawPreview();
+  aside.appendChild(el('p', 'pvnote', PVNOTE));
+  if (!state.loaded) {
+    $('#preview .pvnote').classList.add('err');
+    $('#preview .pvnote').textContent = 'the game did not load — previews unavailable';
+    return;
+  }
+  WORLD.bodies = null;   // each group gets fresh bodies rather than the last one's
+  startLoop();
 }
 
-function drawPreview() {
-  const g = state.groups.find(x => x.id === state.current);
+function drawPreview(dt) {
+  const drv = currentDriver();
   const cv = $('#stage');
-  if (!g || !cv || !state.loaded || !DRIVERS[g.preview]) return;
-  const err = withStage(cv, DRIVERS[g.preview]);
+  if (!drv || !cv || !state.loaded) return;
+  const err = withStage(cv, drv, dt || 1 / 60);
   const note = $('#preview .pvnote');
   if (note) {
     note.classList.toggle('err', !!err);
-    note.textContent = err
-      ? 'preview failed: ' + err.message
-      : 'drawn by the game’s own painters — src/game/*.js, loaded here';
+    note.textContent = err ? 'preview failed: ' + err.message : PVNOTE;
   }
+  if (err) stopLoop();   // a broken painter must not spin at 60fps throwing
 }
 
 // ---------------------------------------------------------------------------
@@ -409,7 +471,12 @@ async function boot(reloadOnly) {
 
 $('#commit').onclick = commit;
 $('#revert').onclick = () => {
-  state.pending.clear(); syncHeader();
+  // Put the ORIGINAL values back into the loaded game first. Clearing the
+  // pending list alone left the preview showing edits that no longer existed
+  // anywhere — the dials said one thing and the canvas another.
+  for (const p of state.pending.values()) applyLive(p.constName, p.key, p.from);
+  state.pending.clear();
+  syncHeader();
   toast('Reverted — nothing had been written yet.');
   boot(true);
 };
