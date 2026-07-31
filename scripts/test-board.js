@@ -69,11 +69,27 @@ const sandbox = {
     querySelector: (s) => nodes[s] || null,
     createElement: mkEl,
     head: { appendChild(s) { LOADED.push(s.src); if (s.onload) setImmediate(s.onload); } },
+    querySelectorAll: () => [],
     getElementById: () => CANVAS,
-    body: { appendChild() {} }, addEventListener() {}, documentElement: {}, hidden: false,
+    // the board injects the game as inline <script> nodes; the game is already
+    // in this context, so record and no-op rather than double-executing it
+    body: { appendChild(n) { LOADED.push('inline:' + String(n._text || '').length); } },
+    addEventListener() {}, documentElement: {}, hidden: false,
     fonts: { load: () => Promise.resolve() },
   },
-  window: { addEventListener() {}, devicePixelRatio: 1, innerWidth: 960, innerHeight: 600 },
+  window: { addEventListener() {}, devicePixelRatio: 1, innerWidth: 960, innerHeight: 600, isSecureContext: false },
+  navigator: { userAgent: 'node', getGamepads: () => [], serviceWorker: { register: () => Promise.reject(new Error('off')) } },
+  screen: {}, location: { search: '', href: 'http://localhost/' },
+  AudioContext: function () { return { state: 'running', destination: {}, currentTime: 0,
+    createGain: () => ({ gain: { value: 1, setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, disconnect() {} }),
+    createBufferSource: () => ({ buffer: null, loop: false, playbackRate: { value: 1 }, connect() {}, disconnect() {}, start() {}, stop() {} }),
+    createBiquadFilter: () => ({ type: '', frequency: { value: 0 }, Q: { value: 1 }, connect() {}, disconnect() {} }),
+    createOscillator: () => ({ type: '', frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, start() {}, stop() {} }),
+    decodeAudioData: () => Promise.resolve({ sampleRate: 1000, length: 10, duration: 1, getChannelData: () => new Float32Array(10) }),
+    resume: () => Promise.resolve(), suspend: () => Promise.resolve() }; },
+  localStorage: { getItem: () => null, setItem() {}, removeItem() {}, clear() {} },
+  getComputedStyle: () => ({ getPropertyValue: () => '0px' }),
+  Image: function () { this.onload = null; },
   performance: { now: () => 0 },
   requestAnimationFrame: () => 0, cancelAnimationFrame: () => {},
   setTimeout, clearTimeout, setImmediate,
@@ -97,7 +113,7 @@ const ctx = vm.createContext(sandbox);
 // The board loads the game itself in the browser; here the game is already in the
 // context, so the injected <script> tags just resolve.
 for (const pre of ['campaigns.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, 'src', pre), 'utf8'), ctx, { filename: pre });
-for (const f of gameFileNames(ROOT).filter(f => f !== '99-boot.js')) {
+for (const f of gameFileNames(ROOT)) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8'), ctx, { filename: f });
 }
 
@@ -124,8 +140,7 @@ for (const fn of new Set(Object.values(SUBJECT_OF))) {
 
 let boardErr = null;
 process.on('uncaughtException', e => { boardErr = e; });
-const boardSrc = fs.readFileSync(path.join(ROOT, 'docs', 'tuning', 'board.js'), 'utf8')
-  .replace('const DRIVERS = {', 'const DRIVERS = globalThis.__DRIVERS = {');
+const boardSrc = fs.readFileSync(path.join(ROOT, 'docs', 'tuning', 'board.js'), 'utf8');
 try { vm.runInContext(boardSrc, ctx, { filename: 'board.js' }); }
 catch (e) { boardErr = e; }
 
@@ -140,38 +155,28 @@ setTimeout(() => {
   if (dialsText && dialsText.includes('Loading the game')) fail.push('#dials still says "Loading the game…" — boot never finished');
   if (!nodes['#dials'].children.length) fail.push('renderGroup produced no content');
 
-  // Every preview painted with its own default controls — the board's OWN
-  // drivers, lifted from board.js rather than re-typed here. A copy is exactly
-  // how the deleted labs drifted from the game.
-  const names = vm.runInContext('Object.keys(__DRIVERS || {})', ctx);
-  for (const name of names) {
-    paint.n = 0;
-    for (const k of Object.keys(SUBJ)) delete SUBJ[k];
-    try {
-      for (let fr = 0; fr < 3; fr++) {
-        vm.runInContext(`W=960;H=600;DPR=1;{
-          const d = __DRIVERS[${JSON.stringify(name)}];
-          const C = {}; for (const c of (d.controls || [])) C[c.id] = c.value;
-          state = S.PLAY; laneFlow = 1; runVis = 1; tolVis = 1; introT = 999; warpT = 0;
-          endSweep = -1; endT = 0; endWin = false; time = ${(fr + 1) * 0.4};
-          lanePlanetProg = (d.world && d.world.progress) || 0.5;
-          trafficSpeed = (d.world && d.world.speed) || 0.4;
-          d.draw(geo(), 1 / 60, C);
-        }`, ctx, { filename: 'driver:' + name });
-      }
-      // "It did not throw" is not "it drew something". drawEnemy returns before
-      // painting when a body's birth fade is zero, which is exactly how bodies
-      // stayed invisible while every harness reported success. So each preview
-      // is run AGAIN with its backdrop toggles off: what is left is the subject,
-      // and the subject has to paint.
-      const want = SUBJECT_OF[name];
-      const drew = want ? (SUBJ[want] || 0) : null;
-      if (want && drew <= 0) fail.push(`preview "${name}" never painted its subject — ${want}() contributed 0 strokes`);
-      console.log(`  preview ${name.padEnd(9)} ok   ${String(paint.n).padStart(6)} calls · ${want}() drew ${drew}`);
-    } catch (e) {
-      fail.push(`preview "${name}" throws: ${e.message}`);
-    }
-  }
+  // THE PREVIEW IS THE GAME NOW, so what has to be true is that the game boots
+  // into the stage and paints. The old per-driver checks are gone with the
+  // drivers — there is nothing bespoke left to verify, which was the point.
+  const wired = vm.runInContext("typeof (window.EDITOR_DRIVE || globalThis.EDITOR_DRIVE) === 'function'", ctx);
+  if (!wired) fail.push('EDITOR_DRIVE was never installed — the board cannot hold the clock');
+
+  // drive a real scene and require the game's own frame() to paint it
+  paint.n = 0;
+  for (const k of Object.keys(SUBJ)) delete SUBJ[k];
+  try {
+    vm.runInContext(`
+      installCampaign(CAMPAIGNS[0]);
+      startLevel(0); introT = 999; introCd = 0; state = S.PLAY;
+      W = 960; H = 600; DPR = 1;
+      for (let i = 0; i < 20; i++) simStep();
+      frame(16); frame(32); frame(48);
+    `, ctx, { filename: 'scene' });
+  } catch (e) { fail.push('a real scene does not run: ' + e.message); }
+  const painters = Object.entries(SUBJ).filter(([, n]) => n > 0);
+  if (paint.n < 500) fail.push(`the live scene barely painted (${paint.n} canvas calls)`);
+  console.log(`live scene painted        : ${paint.n} canvas calls`);
+  console.log(`  via ${painters.map(([k, n]) => k + '=' + n).join(', ') || '(none of the tracked painters)'}`);
 
   console.log(`subsystem buttons rendered : ${navButtons.length}`);
   console.log(`dial panel children        : ${nodes['#dials'].children.length}`);

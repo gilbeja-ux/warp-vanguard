@@ -42,308 +42,95 @@ const UI = {
 // Load the real game, in order, minus its boot file. 99-boot.js ends with
 // resize() and requestAnimationFrame(frame) — loading it would start an actual
 // game underneath the board. Every painter lives in the files before it.
-async function loadGame(files, scalars) {
-  // UNFREEZING THE SCALARS. Tuning values like DEEP_PARALLAX and PLANET_REF_R are
-  // declared `const`, so a slider for them could change the source on Commit but
-  // could never move the preview — half the board's dials did nothing at all.
-  //
-  // So the board rewrites `const NAME =` to `let NAME =` for exactly the names
-  // the registry offers as dials, as it loads. It is the ONLY edit made to what
-  // the board runs; it changes a binding's mutability and never a value, and the
-  // files on disk are untouched. Everything else is the game verbatim.
+// ---------------------------------------------------------------------------
+// THE PREVIEW IS A RUNNING GAME.
+//
+// Not a driver written for the board — an actual run, booted into the stage
+// canvas and held on a leash. This is the same trick src/editor.js uses to embed
+// the game in the Lane Designer, and it is here for the reason that tool exists:
+// every preview bug on this board came from inventing a scene instead of running
+// one. Bodies with no birth age. A ring that lived inside frame(). Enemies flying
+// backwards because a hand-rolled loop counted depth the wrong way. None of that
+// is possible now, because nothing is hand-rolled — the game draws itself.
+//
+// The one hook is EDITOR_DRIVE, which the game's own frame() already consults:
+// return 0 and the world freezes (draw only), return dt*k and it runs at k speed.
+const SCENE = { camp: 0, level: 0, playing: true, speed: 1, booted: false };
+
+async function bootGame(files, scalars) {
+  const stage = document.querySelector('.stage');
+  // the preview pane IS the game's window — resize() sizes off these
+  Object.defineProperty(window, 'innerWidth', { get: () => stage.clientWidth, configurable: true });
+  Object.defineProperty(window, 'innerHeight', { get: () => stage.clientHeight, configurable: true });
+  // never register the game's service worker from a tool (stale-cache hazard)
+  try {
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: { register: () => Promise.reject(new Error('tuning board: sw disabled')) }, configurable: true,
+    });
+  } catch (e) {}
+
+  // the clock leash, read by frame() in 99-boot.js
+  window.EDITOR_DRIVE = (dt) => {
+    if (!SCENE.playing) return 0;         // frozen: the world holds, drawing continues
+    integrity = 100;                      // a tuning preview never flatlines mid-look
+    return dt * SCENE.speed;
+  };
+
+  // UNFREEZING THE SCALARS. Tuning values like DEEP_PARALLAX are `const`, so
+  // their dials could never move the running game. The board rewrites
+  // `const NAME =` to `let NAME =` for exactly the names it offers, as it loads.
+  // It is the only edit made to what runs; it changes a binding, never a value.
   const unfreeze = new RegExp('^const (' + (scalars || []).join('|') + ')\\s*=', 'gm');
+  for (const f of ['campaigns.js', 'audio/music/tracks.js']) {
+    await inject(await (await fetch('/' + f)).text(), f);
+  }
   for (const f of files) {
-    if (f === '99-boot.js') continue;
     let text = await (await fetch('/game/' + f)).text();
     if (scalars && scalars.length) text = text.replace(unfreeze, 'let $1 =');
-    await new Promise((res, rej) => {
-      const s = document.createElement('script');
-      // a Blob keeps the file's identity in stack traces, so an error still
-      // names the game file rather than a data: URL
-      s.src = URL.createObjectURL(new Blob([text + '\n//# sourceURL=/game/' + f], { type: 'text/javascript' }));
-      s.async = false;
-      s.onload = () => { URL.revokeObjectURL(s.src); res(); };
-      s.onerror = () => rej(new Error('failed to load ' + f));
-      document.head.appendChild(s);
-    });
+    await inject(text, 'game/' + f);
   }
+  // index.html still carries the soundtrack manifest inline — the game needs it
+  const shell = await (await fetch('/shell')).text().catch(() => '');
+  for (const m of shell.matchAll(/<script>([\s\S]*?)<\/script>/g)) await inject(m[1], 'shell');
+
+  // a tool session must never touch the real save, or make noise
+  try { saveState = () => {}; } catch (e) {}
+  try { settings.sound = false; settings.music = false; settings.haptics = false; } catch (e) {}
+  try { progress.tutorialDone = progress.bossBriefed = progress.stripBriefed = progress.wallBriefed = true; } catch (e) {}
+
   UI.loaded = true;
-
-  // A script that THROWS still fires onload, so "it loaded" is not "it ran".
-  // Check a sentinel global from each end of the chain and name the file that
-  // failed, rather than letting the first preview report a bare ReferenceError.
-  const SENTINELS = [
-    ['00-core.js', 'ctx'], ['40-state.js', 'warpT'], ['41-geometry.js', 'geo'],
-    ['80-tunnel.js', 'drawTunnel'], ['83-deepfield.js', 'drawStreaks'], ['90-hud.js', 'drawHUD'],
-  ];
-  const dead = SENTINELS.filter(([, g]) => {
-    try { return eval('typeof ' + g) === 'undefined'; } catch (e) { return true; }
-  });
-  if (dead.length) {
-    UI.loaded = false;
-    throw new Error('these files loaded but did not run: ' + dead.map(([f]) => f).join(', ')
-      + ' — check the browser console for the SyntaxError');
-  }
+  SCENE.booted = true;
 }
 
-// Painters read W/H/DPR/ctx as globals. They are `let` in 00-core.js, which puts
-// them in the shared global lexical scope — this script can borrow them, draw,
-// and hand them back. `ctx` is documented as rebindable for exactly this.
-function withStage(cv, draw, dt) {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const w = cv.clientWidth || 480, h = cv.clientHeight || 300;
-  if (cv.width !== Math.round(w * dpr)) { cv.width = w * dpr; cv.height = h * dpr; }
-  const c2 = cv.getContext('2d');
-  const keep = { ctx, W, H, DPR };   // hand the game back exactly what it had
-  try {
-    ctx = c2; W = w; H = h; DPR = dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    withWorld(() => draw(geo(), dt));
-    return null;
-  } catch (e) {
-    return e;
-  } finally {
-    try { ctx = keep.ctx; W = keep.W; H = keep.H; DPR = keep.DPR; } catch (e) {}
-  }
+// executes synchronously, in order, in this page's global scope — the same way
+// the editor injects it, and the reason the game's globals are reachable here
+function inject(src, name) {
+  const s = document.createElement('script');
+  s.textContent = src + '\n//# sourceURL=/' + name;
+  document.body.appendChild(s);
+  return Promise.resolve();
 }
 
-// A RUNNING world, borrowed for the length of one draw.
-//
-// This is what was missing. The painters are gated on run state — laneFlow
-// multiplies EVERY streak, runVis fades the whole run out, drawNodes reads
-// introT, and the destination only grows once laneProgress climbs. Drawn in the
-// menu's parked world the painters were behaving perfectly and correctly drawing
-// almost nothing, which reads as "the preview is broken".
-function withWorld(fn) {
-  const keep = { state, laneFlow, runVis, introT, time, warpT, levelT, lanePlanetProg, endSweep, endT, endWin, tolVis, trafficSpeed };
+// Put the running game into a named scene. startLevel is the game's own entry
+// point, so what plays is what ships.
+function playScene(campIdx, levelIdx2) {
+  if (!SCENE.booted) return;
   try {
+    const camp = CAMPAIGNS[campIdx] || CAMPAIGNS[0];
+    if (camp && (!CAMP || CAMP.id !== camp.id)) installCampaign(camp);
+    SCENE.camp = campIdx;
+    SCENE.level = Math.min(levelIdx2, (LEVELS || []).length - 1);
+    startLevel(SCENE.level);
+    introT = 999; introCd = 0;   // skip the boot ceremony — a preview is already deployed
     state = S.PLAY;
-    laneFlow = 1; runVis = 1; tolVis = 1;
-    introT = 999;                 // past the boot gate: hardware is up
-    warpT = 0;                    // not mid-dive
-    endSweep = -1; endT = 0; endWin = false;
-    lanePlanetProg = WORLD.progress;
-    trafficSpeed = WORLD.speed;
-    time = WORLD.t;
-    fn();
-  } finally {
-    state = keep.state; laneFlow = keep.laneFlow; runVis = keep.runVis; introT = keep.introT;
-    time = keep.time; warpT = keep.warpT; levelT = keep.levelT; lanePlanetProg = keep.lanePlanetProg;
-    endSweep = keep.endSweep; endT = keep.endT; endWin = keep.endWin; tolVis = keep.tolVis;
-    trafficSpeed = keep.trafficSpeed;
-  }
+  } catch (e) { note('scene failed: ' + e.message, true); }
 }
 
-// The preview clock. Streaks, the deep field and the lane medium are MOTION —
-// a still frame of them says nothing about what you just changed, so previews
-// run continuously while one is on screen and stop when it is not.
-const WORLD = { t: 0, progress: 0.55, speed: 0.4, raf: 0, last: 0, bodies: null, bodiesKey: null, ctl: {} };
-
-// The preview clock. Streaks, the deep field and the de-rez are MOTION — a still
-// frame of them says nothing about the value you just moved — so a mounted
-// preview runs continuously and stops the moment it is not on screen.
-function startLoop() {
-  if (WORLD.raf) return;
-  WORLD.last = performance.now();
-  const tick = (now) => {
-    WORLD.raf = 0;
-    const dt = Math.min(0.05, (now - WORLD.last) / 1000);
-    WORLD.last = now;
-    WORLD.t += dt;
-    drawPreview(dt);
-    if (currentDriver()) WORLD.raf = requestAnimationFrame(tick);
-  };
-  WORLD.raf = requestAnimationFrame(tick);
-}
-function stopLoop() { if (WORLD.raf) cancelAnimationFrame(WORLD.raf); WORLD.raf = 0; }
-
-// Each preview needs its SUBJECT framed, not a generic view of the lane with the
-// thing you are tuning somewhere in it. Deep field wants the lane running fast;
-// planets want the world arrived and large; bodies want to sit at the ring where
-// they are biggest. This is the difference between a preview and a screenshot.
-// ---------------------------------------------------------------------------
-// PREVIEW DRIVERS.
-//
-// Each one SHOWS THE THING ITS PANEL ADJUSTS, at a size you can judge, with
-// whatever controls that subject needs to be testable — a body scale, an
-// approach speed, a trigger for a one-shot animation. A preview you cannot drive
-// is a screenshot.
-//
-// Every driver enters the game WHERE THE GAME ENTERS IT: drawNodes rather than
-// drawArcNode, spawnEnemy rather than an object literal, decompile() rather than
-// a hand-built ghost. Reaching past a wrapper is what put a NaN in a gradient.
-const DRIVERS = {
-  arcs: {
-    world: { progress: 0.35, speed: 0.45 },
-    controls: [
-      { id: 'sweep', label: 'node sweep', min: 0, max: 1, step: 0.01, value: 0.35 },
-      { id: 'dip', label: 'discharge dip', min: 0, max: 1, step: 0.01, value: 0 },
-      { id: 'ring', label: 'show ring', type: 'toggle', value: 1 },
-      { id: 'lane', label: 'show lane', type: 'toggle', value: 1 },
-    ],
-    draw(g, dt, C) {
-      if (C.lane) lane(g, dt); else backdrop(g, dt);
-      if (C.ring) drawHolderRing(g);
-      nodes[0].angle = -Math.PI * 0.72 + Math.sin(WORLD.t * 0.6) * C.sweep;
-      nodes[1].angle = -Math.PI * 0.28 + Math.cos(WORLD.t * 0.5) * C.sweep;
-      nodes[0].dip = nodes[1].dip = C.dip;
-      drawNodes(g);
-    },
-  },
-
-  enemies: {
-    world: { progress: 0.30, speed: 0.30 },
-    controls: [
-      { id: 'kind', label: 'body', type: 'pick', options: ['all', 'normal', 'line', 'heavy', 'frag', 'strip'], value: 'all' },
-      { id: 'scale', label: 'body scale', min: 0.5, max: 4, step: 0.05, value: 2.2 },
-      { id: 'depth', label: 'depth', min: 0.1, max: 1, step: 0.01, value: 0.34 },
-      { id: 'approach', label: 'fly in', type: 'toggle', value: 0 },
-      { id: 'ring', label: 'show ring', type: 'toggle', value: 1 },
-      { id: 'lane', label: 'show lane', type: 'toggle', value: 1 },
-    ],
-    draw(g, dt, C) {
-      if (C.lane) lane(g, dt); else backdrop(g, dt);
-      if (C.ring) drawHolderRing(g);
-      const kinds = C.kind === 'all' ? ['normal', 'line', 'heavy', 'frag'] : [C.kind];
-      const keep = enemies.slice();
-      try {
-        if (!WORLD.bodies || WORLD.bodiesKey !== C.kind) {
-          enemies.length = 0;
-          kinds.forEach((k, i) => {
-            const e = spawnEnemy((i / kinds.length) * Math.PI * 2 - Math.PI / 2, k);
-            if (e) e.__i = i / kinds.length;
-          });
-          WORLD.bodies = enemies.slice();
-          WORLD.bodiesKey = C.kind;
-        }
-        for (const e of WORLD.bodies) {
-          e.sizeMul = C.scale;                       // the painter's own scale hook
-          // AGE IS WHY BODIES WERE INVISIBLE. drawEnemy multiplies its alpha by
-          // birthFade(en) = age/0.35 and returns outright below 0.005, and `age`
-          // is advanced by the sim — which a preview does not run. Spawned bodies
-          // sat there fully formed at zero opacity. The preview owns the clock
-          // here, so it ages them itself.
-          e.age = (e.age || 0) + dt;
-          // z is DEPTH: the lane runs toward the player, so an approaching body's
-          // z falls. Counting it up flew them backwards out of the bore.
-          e.z = C.approach
-            ? 0.95 - ((WORLD.t * 0.12 + e.__i) % 1) * 0.85
-            : C.depth;
-          if (C.approach && e.z > 0.92) e.age = 0;   // fresh at the horizon: re-show the birth
-        }
-        enemies.length = 0;
-        for (const e of WORLD.bodies) enemies.push(e);
-        for (const e of WORLD.bodies) drawEnemy(e, g);
-      } finally { enemies.length = 0; for (const e of keep) enemies.push(e); }
-    },
-  },
-
-  decomp: {
-    world: { progress: 0.30, speed: 0.25 },
-    controls: [
-      { id: 'kind', label: 'body', type: 'pick', options: ['normal', 'line', 'heavy', 'frag'], value: 'normal' },
-      { id: 'scale', label: 'body scale', min: 0.5, max: 4, step: 0.05, value: 2.4 },
-      { id: 'rate', label: 'replay every', min: 0.4, max: 4, step: 0.1, value: 1.4, unit: 's' },
-      { id: 'ring', label: 'show ring', type: 'toggle', value: 1 },
-      { id: 'lane', label: 'show lane', type: 'toggle', value: 0 },
-    ],
-    draw(g, dt, C) {
-      if (C.lane) lane(g, dt); else backdrop(g, dt);
-      if (C.ring) drawHolderRing(g);
-      // Ghosts come from the game's own decompile(), so what you are watching is
-      // the real de-rez, not a re-creation of it.
-      const keep = ghosts.slice();
-      try {
-        WORLD.killT = (WORLD.killT || 0) - dt;
-        if (WORLD.killT <= 0) {
-          WORLD.killT = C.rate;
-          ghosts.length = 0;
-          const e = spawnEnemy(-Math.PI / 2, C.kind);
-          if (e) { e.sizeMul = C.scale; e.age = 1; decompile(-Math.PI / 2, g.hitZ * 1.15, e, 1); }
-          const born = ghosts.slice();
-          enemies.length = 0;
-          WORLD.ghosts = born;
-        }
-        ghosts.length = 0;
-        for (const gh of (WORLD.ghosts || [])) { gh.t += dt; if (gh.t < DECOMP.glitchT) ghosts.push(gh); }
-        for (const gh of ghosts) drawGhost(gh, g);
-      } finally { ghosts.length = 0; for (const gh of keep) ghosts.push(gh); }
-    },
-  },
-
-  streaks: {
-    world: { progress: 0.20, speed: 1.15 },
-    controls: [
-      { id: 'speed', label: 'lane speed', min: 0, max: 3, step: 0.05, value: 1.15 },
-      { id: 'flow', label: 'lane flow', min: 0, max: 1, step: 0.01, value: 1 },
-      { id: 'dive', label: 'warp dive', min: 0, max: 0.9, step: 0.01, value: 0 },
-      { id: 'tunnel', label: 'show tunnel', type: 'toggle', value: 1 },
-    ],
-    draw(g, dt, C) {
-      WORLD.speed = C.speed; laneFlow = C.flow; warpT = C.dive;
-      drawStarField();
-      drawDeepField(g, dt);
-      if (C.tunnel) drawTunnel(g);
-      drawLaneMedium(g, dt);
-      drawStreaks(g, dt);
-    },
-  },
-
-  planet: {
-    world: { progress: 1, speed: 0.25 },
-    controls: [
-      { id: 'progress', label: 'arrival', min: 0, max: 1, step: 0.01, value: 1 },
-      { id: 'level', label: 'world', type: 'pick', options: ['0', '1', '2', '3', '4', '5', '6', '7'], value: '3' },
-      { id: 'tunnel', label: 'show tunnel', type: 'toggle', value: 1 },
-    ],
-    draw(g, dt, C) {
-      WORLD.progress = C.progress;
-      lanePlanetProg = C.progress;
-      levelIdx = +C.level;
-      drawStarField();
-      drawDeepField(g, dt);
-      if (C.tunnel) drawTunnel(g); else drawFarGlow(ring(SPAWN_Z, g), g.nodeR, g);
-    },
-  },
-
-  hud: {
-    world: { progress: 0.55, speed: 0.4 },
-    controls: [
-      { id: 'integrity', label: 'integrity', min: 0, max: 100, step: 1, value: 62 },
-      { id: 'combo', label: 'combo', min: 0, max: 10, step: 1, value: 4 },
-      { id: 'score', label: 'score', min: 0, max: 60000, step: 100, value: 12500 },
-    ],
-    draw(g, dt, C) {
-      lane(g, dt);
-      integrity = C.integrity; combo = C.combo; score = C.score;
-      drawHolderRing(g);
-      drawNodes(g);
-      drawHUD(g);
-    },
-  },
-};
-
-// shared backdrops — the lane, or just the space it runs through
-function lane(g, dt) {
-  drawStarField();
-  drawDeepField(g, dt);
-  drawTunnel(g);
-  drawLaneMedium(g, dt);
-  drawStreaks(g, dt);
-}
-function backdrop(g, dt) { drawStarField(); drawDeepField(g, dt); }
-
-function currentDriver() {
-  const g = UI.groups.find(x => x.id === UI.current);
-  return g && DRIVERS[g.preview] ? DRIVERS[g.preview] : null;
-}
-
-// live control values for the mounted preview, keyed by control id
-function ctlValues(drv) {
-  const out = {};
-  for (const c of drv.controls || []) out[c.id] = WORLD.ctl[c.id] !== undefined ? WORLD.ctl[c.id] : c.value;
-  return out;
+function sceneName() {
+  try {
+    const c = CAMPAIGNS[SCENE.camp], lv = (LEVELS || [])[SCENE.level];
+    return `${(c && c.title) || 'campaign'} · ${(lv && lv.name) || 'level ' + (SCENE.level + 1)}`;
+  } catch (e) { return 'no scene'; }
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +140,7 @@ function ctlValues(drv) {
 function applyLive(constName, key, value) {
   try {
     if (key == null) {
-      // a scalar: assignable because loadGame unfroze it to `let`
+      // a scalar: assignable because bootGame unfroze it to `let`
       eval(constName + ' = ' + JSON.stringify(value));
       return true;
     }
@@ -518,110 +305,91 @@ function renderGroup() {
 }
 
 // ---------------------------------------------------------------------------
-// the loop already redraws every frame; this only matters if it is not running
-function schedulePreview() { if (!WORLD.raf) drawPreview(); }
+// The game owns its own rAF loop, so a changed dial shows up on the very next
+// frame with nothing for the board to schedule. This exists only so callers
+// need not care.
+function schedulePreview() {}
 
-const PVNOTE = 'drawn by the game’s own painters — src/game/*.js, loaded here';
+function note(msg, bad) {
+  const n = $('#pvinfo');
+  if (!n) return;
+  n.textContent = msg;
+  n.className = 'pvnote' + (bad ? ' err' : '');
+}
 
+// The preview panel: what scene is running, and the controls to drive it. These
+// are the SAME verbs the game already has — pick a lane, play, freeze, change
+// speed — not a vocabulary invented for this tool.
 function renderPreview() {
   const g = UI.groups.find(x => x.id === UI.current);
-  const aside = $('#preview');
-  stopLoop();
-  aside.textContent = '';
-  if (!g) return;
-  aside.appendChild(el('div', 'pvhead', 'Preview'));
-  if (!DRIVERS[g.preview]) {
-    aside.appendChild(el('p', 'empty',
-      'No canvas preview for this group — these values are timings and rules, not a look. '
-      + 'The numbers are still live and Commit still writes them.'));
-    return;
-  }
-  const stage = el('div', 'stage');
-  const cv = el('canvas'); cv.id = 'stage';
-  stage.appendChild(cv);
-  aside.appendChild(stage);
-  aside.appendChild(el('p', 'pvnote', PVNOTE));
-  if (!UI.loaded) {
-    const n = $('#preview .pvnote');
-    if (n) { n.classList.add('err'); n.textContent = 'the game did not load — previews unavailable'; }
-    return;
-  }
-  const drv = DRIVERS[g.preview];
-  const w = drv.world || {};
-  WORLD.progress = w.progress != null ? w.progress : 0.55;
-  WORLD.speed = w.speed != null ? w.speed : 0.4;
-  WORLD.bodies = null; WORLD.bodiesKey = null; WORLD.ghosts = null; WORLD.killT = 0;
-  WORLD.ctl = {};
-  for (const c of drv.controls || []) WORLD.ctl[c.id] = c.value;
-  aside.appendChild(controlStrip(drv));
-  startLoop();
-}
+  const ctl = $('#pvctl');
+  if (!ctl) return;
+  ctl.textContent = '';
+  if (!UI.loaded) { note('the game did not load — dials still write, previews will not', true); return; }
 
-// The controls a SUBJECT needs to be testable — scale it, drive it, freeze it,
-// trigger the one-shot. Separate from the dials on the left, which change the
-// game; nothing here is ever written to source.
-function controlStrip(drv) {
+  // a panel may name the scene that shows its subject best
+  if (g && g.scene && !SCENE.pinned) {
+    const c = CAMPAIGNS.findIndex(x => x.id === g.scene.camp);
+    playScene(c < 0 ? 0 : c, g.scene.level || 0);
+  }
+  note(sceneName());
+
   const box = el('div', 'pvctl');
-  if (!drv.controls || !drv.controls.length) return box;
-  box.appendChild(el('div', 'pvhead', 'Preview controls'));
-  for (const c of drv.controls) {
-    const row = el('div', 'ctl');
-    row.appendChild(el('label', null, c.label));
-    const val = el('span', 'val', c.type === 'toggle' ? (c.value ? 'on' : 'off') : String(c.value) + (c.unit || ''));
-    row.appendChild(val);
-    const line = el('div', 'row');
+  box.appendChild(el('div', 'pvhead', 'Scene'));
 
-    if (c.type === 'toggle') {
-      const b = el('button', 'pill' + (c.value ? ' on' : ''), c.value ? 'on' : 'off');
-      b.onclick = () => {
-        const next = WORLD.ctl[c.id] ? 0 : 1;
-        WORLD.ctl[c.id] = next;
-        b.textContent = next ? 'on' : 'off'; val.textContent = next ? 'on' : 'off';
-        b.classList.toggle('on', !!next);
-        schedulePreview();
-      };
-      line.appendChild(b);
-    } else if (c.type === 'pick') {
-      for (const opt of c.options) {
-        const b = el('button', 'pill' + (opt === c.value ? ' on' : ''), opt);
-        b.onclick = () => {
-          WORLD.ctl[c.id] = opt;
-          WORLD.bodies = null; WORLD.bodiesKey = null;   // the subject changed
-          [...line.children].forEach(x => x.classList.toggle('on', x === b));
-          val.textContent = opt;
-          schedulePreview();
-        };
-        line.appendChild(b);
-      }
-    } else {
-      const r = el('input');
-      r.type = 'range'; r.min = c.min; r.max = c.max; r.step = c.step; r.value = c.value;
-      r.setAttribute('aria-label', c.label);
-      r.oninput = () => {
-        WORLD.ctl[c.id] = Number(r.value);
-        val.textContent = r.value + (c.unit || '');
-        schedulePreview();
-      };
-      line.appendChild(r);
-    }
-    row.appendChild(line);
-    box.appendChild(row);
-  }
-  return box;
-}
+  // campaign, by title
+  const campRow = el('div', 'ctl');
+  campRow.appendChild(el('label', null, 'contract'));
+  campRow.appendChild(el('span'));
+  const campLine = el('div', 'row');
+  (CAMPAIGNS || []).forEach((c, i) => {
+    const b = el('button', 'pill' + (i === SCENE.camp ? ' on' : ''), c.title || c.id);
+    b.onclick = () => { SCENE.pinned = true; playScene(i, 0); renderPreview(); };
+    campLine.appendChild(b);
+  });
+  campRow.appendChild(campLine);
+  box.appendChild(campRow);
 
-function drawPreview(dt) {
-  const drv = currentDriver();
-  const cv = $('#stage');
-  if (!drv || !cv || !UI.loaded) return;
-  const C = ctlValues(drv);
-  const err = withStage(cv, (g, d) => drv.draw(g, d, C), dt || 1 / 60);
-  const note = $('#preview .pvnote');
-  if (note) {
-    note.classList.toggle('err', !!err);
-    note.textContent = err ? 'preview failed: ' + err.message : PVNOTE;
+  // level, by NAME — the game's own names, never an index
+  const lvRow = el('div', 'ctl');
+  lvRow.appendChild(el('label', null, 'lane'));
+  lvRow.appendChild(el('span'));
+  const lvLine = el('div', 'row');
+  (LEVELS || []).forEach((lv, i) => {
+    const b = el('button', 'pill' + (i === SCENE.level ? ' on' : ''), lv.name || 'lane ' + (i + 1));
+    b.onclick = () => { SCENE.pinned = true; playScene(SCENE.camp, i); renderPreview(); };
+    lvLine.appendChild(b);
+  });
+  lvRow.appendChild(lvLine);
+  box.appendChild(lvRow);
+
+  // transport
+  box.appendChild(el('div', 'pvhead', 'Playback'));
+  const tr = el('div', 'ctl');
+  tr.appendChild(el('label', null, 'transport'));
+  tr.appendChild(el('span'));
+  const trLine = el('div', 'row');
+  const playBtn = el('button', 'pill' + (SCENE.playing ? ' on' : ''), SCENE.playing ? 'pause' : 'play');
+  playBtn.onclick = () => {
+    SCENE.playing = !SCENE.playing;
+    playBtn.textContent = SCENE.playing ? 'pause' : 'play';
+    playBtn.classList.toggle('on', SCENE.playing);
+  };
+  trLine.appendChild(playBtn);
+  const again = el('button', 'pill', 'restart');
+  again.onclick = () => playScene(SCENE.camp, SCENE.level);
+  trLine.appendChild(again);
+  for (const sp of [0.25, 0.5, 1, 2, 4]) {
+    const b = el('button', 'pill' + (sp === SCENE.speed ? ' on' : ''), sp + '\u00d7');
+    b.onclick = () => {
+      SCENE.speed = sp;
+      [...trLine.children].forEach(x => { if (x.textContent.endsWith('\u00d7')) x.classList.toggle('on', x === b); });
+    };
+    trLine.appendChild(b);
   }
-  if (err) stopLoop();   // a broken painter must not spin at 60fps throwing
+  tr.appendChild(trLine);
+  box.appendChild(tr);
+  ctl.appendChild(box);
 }
 
 // ---------------------------------------------------------------------------
@@ -666,7 +434,7 @@ async function boot(reloadOnly) {
   ])));
   if (!UI.current) UI.current = UI.groups[0] && UI.groups[0].id;
   if (!UI.loaded && !reloadOnly) {
-    try { await loadGame(data.gameFiles); }
+    try { await bootGame(data.gameFiles, data.scalars); }
     catch (e) { toast('The game did not load: ' + e.message + ' — dials still work, previews will not.', true); }
   }
   renderNav();

@@ -143,7 +143,7 @@
   aside { background:var(--bore); box-shadow:inset 1px 0 0 var(--edge); padding:26px 28px 60px; }
   .pvhead { font-size:9px; letter-spacing:2px; color:var(--dimmer); text-transform:uppercase; margin-bottom:12px; }
   .stage { width:100%; aspect-ratio:16/10; background:var(--bore); border-radius:12px; overflow:hidden; box-shadow:0 8px 28px -14px var(--shade), inset 0 0 0 1px var(--edge); }
-  .stage canvas { width:100%; height:100%; display:block; }
+  .stage canvas { width:100%; height:100%; display:block; pointer-events:none; }
   .pvnote { font-family:var(--mono); font-size:10px; line-height:1.6; color:var(--dimmer); margin-top:14px; }
   /* Preview controls drive the SUBJECT, never the game — kept visually apart
      from the dials on the left so there is no doubt which ones Commit writes. */
@@ -188,15 +188,19 @@
 <main>
   <nav id="nav"><div class="navhead">Subsystems</div></nav>
   <section class="dials" id="dials"><p class="empty">Loading the game…</p></section>
-  <aside id="preview"></aside>
+  <aside id="preview">
+    <div class="pvhead">Preview — the live game</div>
+    <!-- The game boots INTO this canvas. It is not a mock-up of a scene and not
+         a driver written for the board: it is a real run, sized to this stage,
+         with its clock on a leash. -->
+    <div class="stage"><canvas id="game"></canvas></div>
+    <div id="pvinfo"></div>
+    <div id="pvctl"></div>
+  </aside>
 </main>
 
 <div class="toast" id="toast"></div>
 
-<!-- The canvas src/game/00-core.js binds to. Previews borrow the real painters
-     by repointing `ctx` at their own surface — the same trick the game uses to
-     bake sprites — so there is never a second copy of a painter to drift. -->
-<canvas id="game" width="16" height="16" style="position:fixed;left:-9999px;top:0"></canvas>
 
 <script src="/campaigns.js"></script>
 <script src="board.js"></script>

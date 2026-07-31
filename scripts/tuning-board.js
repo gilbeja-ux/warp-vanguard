@@ -64,12 +64,11 @@ const REGISTRY = [
     blurb: 'What a bright star looks like when it flares. The halo curve itself is STAR_HALO in '
       + 'the source (a shape, not a dial); these are its reach, its peak, and the refraction streak.',
     consts: ['STARFX'] },
-  { id: 'planets', title: 'Planets', preview: 'planet', file: '80-tunnel.js',
-    blurb: 'The pixel shader at the end of the lane. PLANET_SHADE is the palette per world type.',
-    consts: ['PLANET_REF_R', 'PLANET_CHIP_R', 'PLANET_STAR', 'DEST_MIX'] },
-  { id: 'rings', title: 'Ringed worlds', preview: 'planet', file: '80-tunnel.js',
-    blurb: 'Ring systems and their shading.',
-    consts: ['RING_REF_R', 'FIELD_RING_K'] },
+  { id: 'dest', title: 'Destinations', preview: 'lane', file: '80-tunnel.js',
+    blurb: 'What sits at the end of the lane. The game has eighteen named worlds plus '
+      + 'stations and gates, and which one you get is decided by the contract and the lane — '
+      + 'so pick a lane below and the real destination for it comes up.',
+    consts: ['PLANET_REF_R', 'PLANET_CHIP_R', 'PLANET_STAR', 'DEST_MIX', 'RING_REF_R', 'FIELD_RING_K'] },
   { id: 'hud', title: 'HUD & briefing', preview: 'hud', file: '91-briefing.js',
     blurb: 'The holographic kit and the briefing card palette.',
     consts: ['INFO_PAL', 'POP_STRIPS'] },
@@ -168,6 +167,12 @@ const server = http.createServer((req, res) => {
   if (urlPath === '/api/simid') {
     try { return send(res, 200, 'text/plain', require('./lib/sim-id.js').simId(root)); }
     catch (e) { return send(res, 500, 'text/plain', e.message); }
+  }
+
+  // the game's own index.html, so the board can lift the inline soundtrack
+  // manifest out of it exactly as the editor does
+  if (urlPath === '/shell') {
+    return send(res, 200, TYPES['.html'], fs.readFileSync(path.join(srcDir, 'index.html'), 'utf8'));
   }
 
   if (urlPath === '/api/tuning') {
