@@ -145,6 +145,21 @@
   .stage { width:100%; aspect-ratio:16/10; background:var(--bore); border-radius:12px; overflow:hidden; box-shadow:0 8px 28px -14px var(--shade), inset 0 0 0 1px var(--edge); }
   .stage canvas { width:100%; height:100%; display:block; }
   .pvnote { font-family:var(--mono); font-size:10px; line-height:1.6; color:var(--dimmer); margin-top:14px; }
+  /* Preview controls drive the SUBJECT, never the game — kept visually apart
+     from the dials on the left so there is no doubt which ones Commit writes. */
+  .pvctl { margin-top:22px; padding-top:6px; box-shadow:inset 0 1px 0 var(--edge); }
+  .pvctl .pvhead { margin:14px 0 6px; }
+  .ctl { display:grid; grid-template-columns:1fr auto; gap:2px 12px; align-items:center; padding:8px 0; }
+  .ctl label { font-size:12px; letter-spacing:.6px; color:var(--dim); }
+  .ctl .val { font-family:var(--mono); font-size:10px; color:var(--body); text-align:right; }
+  .ctl .row { grid-column:1 / -1; display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:2px; }
+  .pill {
+    font-family:var(--mono); font-size:10px; letter-spacing:.5px; text-transform:none;
+    height:24px; padding:0 10px; border-radius:8px;
+    background:var(--wash); color:var(--dim); box-shadow:inset 0 0 0 1px var(--edge);
+  }
+  .pill:hover:not(:disabled) { background:rgba(111,227,255,.12); color:var(--body); }
+  .pill.on { background:rgba(111,227,255,.16); color:var(--cyan); box-shadow:inset 0 0 0 1px var(--edge-lit); }
   .pvnote.err { color:var(--red); }
   .empty { font-size:12px; line-height:1.6; color:var(--dim); }
 

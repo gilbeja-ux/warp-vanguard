@@ -45,7 +45,7 @@ const REGISTRY = [
   { id: 'enemies', title: 'Enemy bodies', preview: 'enemies', file: '41-geometry.js',
     blurb: 'The glitch look, painted ON the wall. ENEMYFX covers the body, FRAGFX the node-killer.',
     consts: ['ENEMYFX', 'FRAGFX'] },
-  { id: 'decomp', title: 'Decompile / death', preview: 'enemies', file: '52-bosses.js',
+  { id: 'decomp', title: 'Decompile / death', preview: 'decomp', file: '52-bosses.js',
     blurb: 'How a body comes apart when it dies.',
     consts: ['DECOMP'] },
   { id: 'warp', title: 'Warp lane & streaks', preview: 'streaks', file: '82-destinations.js',

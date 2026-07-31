@@ -15,6 +15,29 @@ const { gameFileNames } = require('./lib/game-source.js');
 const { buildPayload } = require('./tuning-board.js');
 
 // --- a DOM stub with just enough behaviour for the board to build its UI ---
+// A REAL canvas refuses non-finite coordinates. The permissive stub used
+// elsewhere swallows NaN, which is how a broken preview once passed headlessly
+// and then died in Chrome. This one fails where Chrome fails.
+const STRICT = new Set(['createLinearGradient', 'createRadialGradient', 'arc', 'arcTo', 'ellipse',
+  'moveTo', 'lineTo', 'rect', 'fillRect', 'strokeRect', 'clearRect', 'quadraticCurveTo',
+  'bezierCurveTo', 'translate', 'scale', 'rotate', 'setTransform', 'drawImage', 'roundRect']);
+const paint = { n: 0 };
+const grad = { addColorStop() {} };
+const CTX2D = new Proxy({}, {
+  get: (t, k) => {
+    if (k === 'canvas') return { width: 0, height: 0 };
+    if (k === 'createImageData') return (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) });
+    return (...a) => {
+      paint.n++;
+      if (STRICT.has(k)) for (let i = 0; i < a.length; i++) {
+        if (typeof a[i] === 'number' && !Number.isFinite(a[i])) throw new TypeError(`${k}: argument ${i} is ${a[i]}`);
+      }
+      return String(k).startsWith('create') ? grad : (k === 'measureText' ? { width: 10 } : undefined);
+    };
+  },
+  set: () => true,
+});
+
 function mkEl(tag) {
   const n = {
     tagName: tag, children: [], attrs: {}, style: {}, className: '', _text: '',
@@ -23,7 +46,7 @@ function mkEl(tag) {
       contains(c) { return this._s.has(c); } },
     appendChild(c) { this.children.push(c); return c; },
     setAttribute(k, v) { this.attrs[k] = v; },
-    getContext: () => null,
+    getContext: () => CTX2D,
     addEventListener() {},
     get textContent() { return this._text; },
     set textContent(v) { this._text = v; if (v === '') this.children.length = 0; },
@@ -32,7 +55,8 @@ function mkEl(tag) {
   return n;
 }
 const nodes = {};
-for (const id of ['nav', 'dials', 'preview', 'toast', 'simid', 'dirty', 'commit', 'revert']) nodes['#' + id] = mkEl('div');
+for (const id of ['nav', 'dials', 'preview', 'toast', 'simid', 'dirty', 'commit', 'revert', 'stage']) nodes['#' + id] = mkEl('div');
+nodes['#preview .pvnote'] = mkEl('p');
 nodes['#commit'].disabled = false;
 nodes['#revert'].disabled = false;
 
@@ -77,7 +101,9 @@ for (const f of gameFileNames(ROOT).filter(f => f !== '99-boot.js')) {
 
 let boardErr = null;
 process.on('uncaughtException', e => { boardErr = e; });
-try { vm.runInContext(fs.readFileSync(path.join(ROOT, 'docs', 'tuning', 'board.js'), 'utf8'), ctx, { filename: 'board.js' }); }
+const boardSrc = fs.readFileSync(path.join(ROOT, 'docs', 'tuning', 'board.js'), 'utf8')
+  .replace('const DRIVERS = {', 'const DRIVERS = globalThis.__DRIVERS = {');
+try { vm.runInContext(boardSrc, ctx, { filename: 'board.js' }); }
 catch (e) { boardErr = e; }
 
 setTimeout(() => {
@@ -90,6 +116,30 @@ setTimeout(() => {
   const dialsText = nodes['#dials']._text;
   if (dialsText && dialsText.includes('Loading the game')) fail.push('#dials still says "Loading the game…" — boot never finished');
   if (!nodes['#dials'].children.length) fail.push('renderGroup produced no content');
+
+  // Every preview painted with its own default controls — the board's OWN
+  // drivers, lifted from board.js rather than re-typed here. A copy is exactly
+  // how the deleted labs drifted from the game.
+  const names = vm.runInContext('Object.keys(__DRIVERS || {})', ctx);
+  for (const name of names) {
+    paint.n = 0;
+    try {
+      for (let fr = 0; fr < 3; fr++) {
+        vm.runInContext(`W=960;H=600;DPR=1;{
+          const d = __DRIVERS[${JSON.stringify(name)}];
+          const C = {}; for (const c of (d.controls || [])) C[c.id] = c.value;
+          state = S.PLAY; laneFlow = 1; runVis = 1; tolVis = 1; introT = 999; warpT = 0;
+          endSweep = -1; endT = 0; endWin = false; time = ${(fr + 1) * 0.4};
+          lanePlanetProg = (d.world && d.world.progress) || 0.5;
+          trafficSpeed = (d.world && d.world.speed) || 0.4;
+          d.draw(geo(), 1 / 60, C);
+        }`, ctx, { filename: 'driver:' + name });
+      }
+      console.log(`  preview ${name.padEnd(9)} ok   ${paint.n} canvas calls`);
+    } catch (e) {
+      fail.push(`preview "${name}" throws: ${e.message}`);
+    }
+  }
 
   console.log(`subsystem buttons rendered : ${navButtons.length}`);
   console.log(`dial panel children        : ${nodes['#dials'].children.length}`);

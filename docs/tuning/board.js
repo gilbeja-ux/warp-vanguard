@@ -138,20 +138,11 @@ function withWorld(fn) {
 // The preview clock. Streaks, the deep field and the lane medium are MOTION —
 // a still frame of them says nothing about what you just changed, so previews
 // run continuously while one is on screen and stop when it is not.
-const WORLD = { t: 0, progress: 0.55, speed: 0.4, raf: 0, last: 0, bodies: null };
+const WORLD = { t: 0, progress: 0.55, speed: 0.4, raf: 0, last: 0, bodies: null, bodiesKey: null, ctl: {} };
 
-// Each preview needs its SUBJECT framed, not a generic view of the lane with the
-// thing you are tuning somewhere in it. Deep field wants the lane running fast;
-// planets want the world arrived and large; bodies want to sit at the ring where
-// they are biggest. This is the difference between a preview and a screenshot.
-const FRAME = {
-  arcs:    { progress: 0.35, speed: 0.45 },
-  enemies: { progress: 0.30, speed: 0.30 },
-  streaks: { progress: 0.20, speed: 1.15 },   // fast, so the smears are smears
-  planet:  { progress: 1.00, speed: 0.25 },   // arrived: the world at full size
-  hud:     { progress: 0.55, speed: 0.40 },
-};
-
+// The preview clock. Streaks, the deep field and the de-rez are MOTION — a still
+// frame of them says nothing about the value you just moved — so a mounted
+// preview runs continuously and stops the moment it is not on screen.
 function startLoop() {
   if (WORLD.raf) return;
   WORLD.last = performance.now();
@@ -167,70 +158,176 @@ function startLoop() {
 }
 function stopLoop() { if (WORLD.raf) cancelAnimationFrame(WORLD.raf); WORLD.raf = 0; }
 
+// Each preview needs its SUBJECT framed, not a generic view of the lane with the
+// thing you are tuning somewhere in it. Deep field wants the lane running fast;
+// planets want the world arrived and large; bodies want to sit at the ring where
+// they are biggest. This is the difference between a preview and a screenshot.
 // ---------------------------------------------------------------------------
-// PREVIEW DRIVERS. Each enters the game WHERE THE GAME ENTERS IT — the wrapper
-// that works out the arguments, never the inner painter. Reaching past a wrapper
-// is what put a NaN into a gradient and took the arcs preview down.
+// PREVIEW DRIVERS.
+//
+// Each one SHOWS THE THING ITS PANEL ADJUSTS, at a size you can judge, with
+// whatever controls that subject needs to be testable — a body scale, an
+// approach speed, a trigger for a one-shot animation. A preview you cannot drive
+// is a screenshot.
+//
+// Every driver enters the game WHERE THE GAME ENTERS IT: drawNodes rather than
+// drawArcNode, spawnEnemy rather than an object literal, decompile() rather than
+// a hand-built ghost. Reaching past a wrapper is what put a NaN in a gradient.
 const DRIVERS = {
-  // drawTunnel already paints the destination at the end of the bore
-  // (it calls drawFarGlow itself), so "the lane" and "the world at the end of
-  // it" are the same preview seen at different progress.
-  lane(g, dt) {
-    drawStarField();
-    drawDeepField(g, dt);
-    drawTunnel(g);
-    drawLaneMedium(g, dt);
-    drawStreaks(g, dt);
+  arcs: {
+    world: { progress: 0.35, speed: 0.45 },
+    controls: [
+      { id: 'sweep', label: 'node sweep', min: 0, max: 1, step: 0.01, value: 0.35 },
+      { id: 'dip', label: 'discharge dip', min: 0, max: 1, step: 0.01, value: 0 },
+      { id: 'lane', label: 'show lane', type: 'toggle', value: 1 },
+    ],
+    draw(g, dt, C) {
+      if (C.lane) lane(g, dt); else backdrop(g, dt);
+      nodes[0].angle = -Math.PI * 0.72 + Math.sin(WORLD.t * 0.6) * C.sweep;
+      nodes[1].angle = -Math.PI * 0.28 + Math.cos(WORLD.t * 0.5) * C.sweep;
+      nodes[0].dip = nodes[1].dip = C.dip;
+      drawNodes(g);
+    },
   },
-  arcs(g, dt) {
-    DRIVERS.lane(g, dt);
-    nodes[0].angle = -Math.PI * 0.72 + Math.sin(WORLD.t * 0.6) * 0.25;
-    nodes[1].angle = -Math.PI * 0.28 + Math.cos(WORLD.t * 0.5) * 0.25;
-    drawNodes(g);
-  },
-  // Bodies come from the game's OWN spawnEnemy, not a hand-made literal — a
-  // painter reads fields a literal will not have, and inventing one is how the
-  // old labs started lying. Spawned once, then flown down the bore on a loop.
-  enemies(g, dt) {
-    DRIVERS.lane(g, dt);
-    const keep = enemies.slice();
-    try {
-      if (!WORLD.bodies) {
+
+  enemies: {
+    world: { progress: 0.30, speed: 0.30 },
+    controls: [
+      { id: 'kind', label: 'body', type: 'pick', options: ['all', 'normal', 'line', 'heavy', 'frag', 'strip'], value: 'all' },
+      { id: 'scale', label: 'body scale', min: 0.5, max: 4, step: 0.05, value: 2.2 },
+      { id: 'depth', label: 'depth', min: 0.1, max: 1, step: 0.01, value: 0.34 },
+      { id: 'approach', label: 'fly in', type: 'toggle', value: 0 },
+      { id: 'lane', label: 'show lane', type: 'toggle', value: 1 },
+    ],
+    draw(g, dt, C) {
+      if (C.lane) lane(g, dt); else backdrop(g, dt);
+      const kinds = C.kind === 'all' ? ['normal', 'line', 'heavy', 'frag'] : [C.kind];
+      const keep = enemies.slice();
+      try {
+        if (!WORLD.bodies || WORLD.bodiesKey !== C.kind) {
+          enemies.length = 0;
+          kinds.forEach((k, i) => {
+            const e = spawnEnemy((i / kinds.length) * Math.PI * 2 - Math.PI / 2, k);
+            if (e) e.__i = i / kinds.length;
+          });
+          WORLD.bodies = enemies.slice();
+          WORLD.bodiesKey = C.kind;
+        }
+        for (const e of WORLD.bodies) {
+          e.sizeMul = C.scale;                       // the painter's own scale hook
+          e.z = C.approach
+            ? ((WORLD.t * 0.12 + e.__i) % 1) * 0.9 + 0.1   // loop down the bore
+            : C.depth;
+        }
         enemies.length = 0;
-        const KINDS = ['normal', 'double', 'heavy', 'frag'];
-        KINDS.forEach((k, i) => {
-          // evenly round the ring, so none hides behind another
-          const e = spawnEnemy((i / KINDS.length) * Math.PI * 2 - Math.PI / 2, k);
-          if (e) { e.z = g.hitZ * 1.25; e.__phase = i / KINDS.length; }
-        });
-        WORLD.bodies = enemies.slice();
-      }
-      // hold them at the ring — that is where a body is biggest and where its
-      // look is actually decided — and just breathe the depth a little so the
-      // motion in the art still reads
-      for (const e of WORLD.bodies) {
-        e.z = g.hitZ * (1.25 + 0.35 * (0.5 + 0.5 * Math.sin(WORLD.t * 0.7 + e.__phase * 6.28)));
-      }
-      enemies.length = 0;
-      for (const e of WORLD.bodies) enemies.push(e);
-      for (const e of WORLD.bodies) drawEnemy(e, g);
-    } finally {
-      enemies.length = 0;
-      for (const e of keep) enemies.push(e);
-    }
+        for (const e of WORLD.bodies) enemies.push(e);
+        for (const e of WORLD.bodies) drawEnemy(e, g);
+      } finally { enemies.length = 0; for (const e of keep) enemies.push(e); }
+    },
   },
-  streaks(g, dt) { DRIVERS.lane(g, dt); },
-  planet(g, dt) { DRIVERS.lane(g, dt); },
-  hud(g, dt) {
-    DRIVERS.lane(g, dt);
-    drawNodes(g);
-    drawHUD(g);
+
+  decomp: {
+    world: { progress: 0.30, speed: 0.25 },
+    controls: [
+      { id: 'kind', label: 'body', type: 'pick', options: ['normal', 'line', 'heavy', 'frag'], value: 'normal' },
+      { id: 'scale', label: 'body scale', min: 0.5, max: 4, step: 0.05, value: 2.4 },
+      { id: 'rate', label: 'replay every', min: 0.4, max: 4, step: 0.1, value: 1.4, unit: 's' },
+      { id: 'lane', label: 'show lane', type: 'toggle', value: 0 },
+    ],
+    draw(g, dt, C) {
+      if (C.lane) lane(g, dt); else backdrop(g, dt);
+      // Ghosts come from the game's own decompile(), so what you are watching is
+      // the real de-rez, not a re-creation of it.
+      const keep = ghosts.slice();
+      try {
+        WORLD.killT = (WORLD.killT || 0) - dt;
+        if (WORLD.killT <= 0) {
+          WORLD.killT = C.rate;
+          ghosts.length = 0;
+          const e = spawnEnemy(-Math.PI / 2, C.kind);
+          if (e) { e.sizeMul = C.scale; decompile(-Math.PI / 2, g.hitZ * 1.15, e, 1); }
+          const born = ghosts.slice();
+          enemies.length = 0;
+          WORLD.ghosts = born;
+        }
+        ghosts.length = 0;
+        for (const gh of (WORLD.ghosts || [])) { gh.t += dt; if (gh.t < DECOMP.glitchT) ghosts.push(gh); }
+        for (const gh of ghosts) drawGhost(gh, g);
+      } finally { ghosts.length = 0; for (const gh of keep) ghosts.push(gh); }
+    },
+  },
+
+  streaks: {
+    world: { progress: 0.20, speed: 1.15 },
+    controls: [
+      { id: 'speed', label: 'lane speed', min: 0, max: 3, step: 0.05, value: 1.15 },
+      { id: 'flow', label: 'lane flow', min: 0, max: 1, step: 0.01, value: 1 },
+      { id: 'dive', label: 'warp dive', min: 0, max: 0.9, step: 0.01, value: 0 },
+      { id: 'tunnel', label: 'show tunnel', type: 'toggle', value: 1 },
+    ],
+    draw(g, dt, C) {
+      WORLD.speed = C.speed; laneFlow = C.flow; warpT = C.dive;
+      drawStarField();
+      drawDeepField(g, dt);
+      if (C.tunnel) drawTunnel(g);
+      drawLaneMedium(g, dt);
+      drawStreaks(g, dt);
+    },
+  },
+
+  planet: {
+    world: { progress: 1, speed: 0.25 },
+    controls: [
+      { id: 'progress', label: 'arrival', min: 0, max: 1, step: 0.01, value: 1 },
+      { id: 'level', label: 'world', type: 'pick', options: ['0', '1', '2', '3', '4', '5', '6', '7'], value: '3' },
+      { id: 'tunnel', label: 'show tunnel', type: 'toggle', value: 1 },
+    ],
+    draw(g, dt, C) {
+      WORLD.progress = C.progress;
+      lanePlanetProg = C.progress;
+      levelIdx = +C.level;
+      drawStarField();
+      drawDeepField(g, dt);
+      if (C.tunnel) drawTunnel(g); else drawFarGlow(ring(SPAWN_Z, g), g.nodeR, g);
+    },
+  },
+
+  hud: {
+    world: { progress: 0.55, speed: 0.4 },
+    controls: [
+      { id: 'integrity', label: 'integrity', min: 0, max: 100, step: 1, value: 62 },
+      { id: 'combo', label: 'combo', min: 0, max: 10, step: 1, value: 4 },
+      { id: 'score', label: 'score', min: 0, max: 60000, step: 100, value: 12500 },
+    ],
+    draw(g, dt, C) {
+      lane(g, dt);
+      integrity = C.integrity; combo = C.combo; score = C.score;
+      drawNodes(g);
+      drawHUD(g);
+    },
   },
 };
+
+// shared backdrops — the lane, or just the space it runs through
+function lane(g, dt) {
+  drawStarField();
+  drawDeepField(g, dt);
+  drawTunnel(g);
+  drawLaneMedium(g, dt);
+  drawStreaks(g, dt);
+}
+function backdrop(g, dt) { drawStarField(); drawDeepField(g, dt); }
 
 function currentDriver() {
   const g = UI.groups.find(x => x.id === UI.current);
   return g && DRIVERS[g.preview] ? DRIVERS[g.preview] : null;
+}
+
+// live control values for the mounted preview, keyed by control id
+function ctlValues(drv) {
+  const out = {};
+  for (const c of drv.controls || []) out[c.id] = WORLD.ctl[c.id] !== undefined ? WORLD.ctl[c.id] : c.value;
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -433,18 +530,76 @@ function renderPreview() {
     if (n) { n.classList.add('err'); n.textContent = 'the game did not load — previews unavailable'; }
     return;
   }
-  const fr = FRAME[g.preview] || {};
-  WORLD.progress = fr.progress != null ? fr.progress : 0.55;
-  WORLD.speed = fr.speed != null ? fr.speed : 0.4;
-  WORLD.bodies = null;   // each group gets fresh bodies rather than the last one's
+  const drv = DRIVERS[g.preview];
+  const w = drv.world || {};
+  WORLD.progress = w.progress != null ? w.progress : 0.55;
+  WORLD.speed = w.speed != null ? w.speed : 0.4;
+  WORLD.bodies = null; WORLD.bodiesKey = null; WORLD.ghosts = null; WORLD.killT = 0;
+  WORLD.ctl = {};
+  for (const c of drv.controls || []) WORLD.ctl[c.id] = c.value;
+  aside.appendChild(controlStrip(drv));
   startLoop();
+}
+
+// The controls a SUBJECT needs to be testable — scale it, drive it, freeze it,
+// trigger the one-shot. Separate from the dials on the left, which change the
+// game; nothing here is ever written to source.
+function controlStrip(drv) {
+  const box = el('div', 'pvctl');
+  if (!drv.controls || !drv.controls.length) return box;
+  box.appendChild(el('div', 'pvhead', 'Preview controls'));
+  for (const c of drv.controls) {
+    const row = el('div', 'ctl');
+    row.appendChild(el('label', null, c.label));
+    const val = el('span', 'val', c.type === 'toggle' ? (c.value ? 'on' : 'off') : String(c.value) + (c.unit || ''));
+    row.appendChild(val);
+    const line = el('div', 'row');
+
+    if (c.type === 'toggle') {
+      const b = el('button', 'pill' + (c.value ? ' on' : ''), c.value ? 'on' : 'off');
+      b.onclick = () => {
+        const next = WORLD.ctl[c.id] ? 0 : 1;
+        WORLD.ctl[c.id] = next;
+        b.textContent = next ? 'on' : 'off'; val.textContent = next ? 'on' : 'off';
+        b.classList.toggle('on', !!next);
+        schedulePreview();
+      };
+      line.appendChild(b);
+    } else if (c.type === 'pick') {
+      for (const opt of c.options) {
+        const b = el('button', 'pill' + (opt === c.value ? ' on' : ''), opt);
+        b.onclick = () => {
+          WORLD.ctl[c.id] = opt;
+          WORLD.bodies = null; WORLD.bodiesKey = null;   // the subject changed
+          [...line.children].forEach(x => x.classList.toggle('on', x === b));
+          val.textContent = opt;
+          schedulePreview();
+        };
+        line.appendChild(b);
+      }
+    } else {
+      const r = el('input');
+      r.type = 'range'; r.min = c.min; r.max = c.max; r.step = c.step; r.value = c.value;
+      r.setAttribute('aria-label', c.label);
+      r.oninput = () => {
+        WORLD.ctl[c.id] = Number(r.value);
+        val.textContent = r.value + (c.unit || '');
+        schedulePreview();
+      };
+      line.appendChild(r);
+    }
+    row.appendChild(line);
+    box.appendChild(row);
+  }
+  return box;
 }
 
 function drawPreview(dt) {
   const drv = currentDriver();
   const cv = $('#stage');
   if (!drv || !cv || !UI.loaded) return;
-  const err = withStage(cv, drv, dt || 1 / 60);
+  const C = ctlValues(drv);
+  const err = withStage(cv, (g, d) => drv.draw(g, d, C), dt || 1 / 60);
   const note = $('#preview .pvnote');
   if (note) {
     note.classList.toggle('err', !!err);
