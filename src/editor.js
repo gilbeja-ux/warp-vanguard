@@ -246,10 +246,16 @@ function edReadFile(file, cb) {
 // ---------- boot: embed the real game ----------
 async function edBoot() {
   const stage = edq('edStage');
+  // The game is authored as ordered files in src/game/ and loaded by index.html
+  // as ordered <script src> tags. This used to lift the ONE inline <script> out
+  // of index.html; after the split that block is just the soundtrack manifest, so
+  // the editor booted with no game in it at all. Load the manifest's files, in
+  // its order, then whatever inline blocks index.html still carries.
   const html = await (await fetch('index.html')).text();
-  // same trick as scripts/test.js: lift every inline script (game + soundtrack
-  // manifest) out of the page and run them here, in page order
-  const blocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+  const manifest = await (await fetch('game/manifest.json')).json();
+  const files = await Promise.all(manifest.files.map(f => fetch('game/' + f.file).then(r => r.text())));
+  const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+  const blocks = [...files, ...inline];
   // the preview pane IS the game's window — resize() sizes off these
   Object.defineProperty(window, 'innerWidth', { get: () => stage.clientWidth, configurable: true });
   Object.defineProperty(window, 'innerHeight', { get: () => stage.clientHeight, configurable: true });

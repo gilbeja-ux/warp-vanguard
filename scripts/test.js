@@ -2318,6 +2318,25 @@ async function runMusicUp() {
       check('the tuning board declares no name the game already uses'
         + (shadowed.length ? ' — clashes: ' + shadowed.join(', ') : ''), shadowed.length === 0);
     }
+
+    // EVERY TOOL THAT EMBEDS THE GAME MUST STILL FIND IT. The split broke two
+    // of them silently — dest-lab read regions out of index.html, and the Lane
+    // Designer lifted the game from index.html's inline <script>, which after
+    // the split is just the 12-line soundtrack manifest. Both still booted. So
+    // the editor's own block-gathering is reproduced here and has to contain a
+    // recognisable piece of the game.
+    const edSrc = fs.readFileSync(path.join(ROOT, 'src', 'editor.js'), 'utf8');
+    if (edSrc.includes('game/manifest.json')) {
+      const shell = fs.readFileSync(path.join(ROOT, 'src', 'index.html'), 'utf8');
+      const blocks = [
+        ...manifestFiles.map(f => fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8')),
+        ...[...shell.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]),
+      ];
+      check('the Lane Designer still embeds a real game (frame + update present)',
+        blocks.some(b => b.includes('function frame(')) && blocks.some(b => b.includes('function update(')));
+    } else {
+      check('the Lane Designer loads the game from the manifest, not an inline script', false);
+    }
   }
 
   console.log(failures === 0 ? '\nALL TESTS PASSED' : '\n' + failures + ' FAILURES');
