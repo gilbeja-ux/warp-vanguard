@@ -52,10 +52,15 @@ const sandbox = {
   performance: { now: () => 0 },
   requestAnimationFrame: () => 0, cancelAnimationFrame: () => {},
   setTimeout, clearTimeout, setImmediate,
+  Blob: function (parts) { this.parts = parts; },
+  URL: { createObjectURL: () => 'blob:stub', revokeObjectURL() {} },
   fetch: (url) => Promise.resolve({
     ok: true,
     json: () => Promise.resolve(payload),
-    text: () => Promise.resolve(url.includes('simid') ? 'deadbeef' : '{}'),
+    // game files are already in this context; the board only needs their text
+    // to exist so its const->let unfreeze pass has something to run on
+    text: () => Promise.resolve(url.includes('simid') ? 'deadbeef'
+      : url.startsWith('/game/') ? fs.readFileSync(path.join(ROOT, 'src', url.slice(1)), 'utf8') : '{}'),
   }),
 };
 const CANVAS = mkEl('canvas');

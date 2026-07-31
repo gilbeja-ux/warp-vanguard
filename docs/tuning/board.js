@@ -42,14 +42,27 @@ const UI = {
 // Load the real game, in order, minus its boot file. 99-boot.js ends with
 // resize() and requestAnimationFrame(frame) — loading it would start an actual
 // game underneath the board. Every painter lives in the files before it.
-async function loadGame(files) {
+async function loadGame(files, scalars) {
+  // UNFREEZING THE SCALARS. Tuning values like DEEP_PARALLAX and PLANET_REF_R are
+  // declared `const`, so a slider for them could change the source on Commit but
+  // could never move the preview — half the board's dials did nothing at all.
+  //
+  // So the board rewrites `const NAME =` to `let NAME =` for exactly the names
+  // the registry offers as dials, as it loads. It is the ONLY edit made to what
+  // the board runs; it changes a binding's mutability and never a value, and the
+  // files on disk are untouched. Everything else is the game verbatim.
+  const unfreeze = new RegExp('^const (' + (scalars || []).join('|') + ')\\s*=', 'gm');
   for (const f of files) {
     if (f === '99-boot.js') continue;
+    let text = await (await fetch('/game/' + f)).text();
+    if (scalars && scalars.length) text = text.replace(unfreeze, 'let $1 =');
     await new Promise((res, rej) => {
       const s = document.createElement('script');
-      s.src = '/game/' + f;
+      // a Blob keeps the file's identity in stack traces, so an error still
+      // names the game file rather than a data: URL
+      s.src = URL.createObjectURL(new Blob([text + '\n//# sourceURL=/game/' + f], { type: 'text/javascript' }));
       s.async = false;
-      s.onload = res;
+      s.onload = () => { URL.revokeObjectURL(s.src); res(); };
       s.onerror = () => rej(new Error('failed to load ' + f));
       document.head.appendChild(s);
     });
@@ -103,7 +116,7 @@ function withStage(cv, draw, dt) {
 // menu's parked world the painters were behaving perfectly and correctly drawing
 // almost nothing, which reads as "the preview is broken".
 function withWorld(fn) {
-  const keep = { state, laneFlow, runVis, introT, time, warpT, levelT, lanePlanetProg, endSweep, endT, endWin, tolVis };
+  const keep = { state, laneFlow, runVis, introT, time, warpT, levelT, lanePlanetProg, endSweep, endT, endWin, tolVis, trafficSpeed };
   try {
     state = S.PLAY;
     laneFlow = 1; runVis = 1; tolVis = 1;
@@ -111,19 +124,33 @@ function withWorld(fn) {
     warpT = 0;                    // not mid-dive
     endSweep = -1; endT = 0; endWin = false;
     lanePlanetProg = WORLD.progress;
+    trafficSpeed = WORLD.speed;
     time = WORLD.t;
     fn();
   } finally {
     state = keep.state; laneFlow = keep.laneFlow; runVis = keep.runVis; introT = keep.introT;
     time = keep.time; warpT = keep.warpT; levelT = keep.levelT; lanePlanetProg = keep.lanePlanetProg;
     endSweep = keep.endSweep; endT = keep.endT; endWin = keep.endWin; tolVis = keep.tolVis;
+    trafficSpeed = keep.trafficSpeed;
   }
 }
 
 // The preview clock. Streaks, the deep field and the lane medium are MOTION —
 // a still frame of them says nothing about what you just changed, so previews
 // run continuously while one is on screen and stop when it is not.
-const WORLD = { t: 0, progress: 0.55, raf: 0, last: 0, bodies: null };
+const WORLD = { t: 0, progress: 0.55, speed: 0.4, raf: 0, last: 0, bodies: null };
+
+// Each preview needs its SUBJECT framed, not a generic view of the lane with the
+// thing you are tuning somewhere in it. Deep field wants the lane running fast;
+// planets want the world arrived and large; bodies want to sit at the ring where
+// they are biggest. This is the difference between a preview and a screenshot.
+const FRAME = {
+  arcs:    { progress: 0.35, speed: 0.45 },
+  enemies: { progress: 0.30, speed: 0.30 },
+  streaks: { progress: 0.20, speed: 1.15 },   // fast, so the smears are smears
+  planet:  { progress: 1.00, speed: 0.25 },   // arrived: the world at full size
+  hud:     { progress: 0.55, speed: 0.40 },
+};
 
 function startLoop() {
   if (WORLD.raf) return;
@@ -170,15 +197,19 @@ const DRIVERS = {
     try {
       if (!WORLD.bodies) {
         enemies.length = 0;
-        ['normal', 'double', 'heavy', 'frag'].forEach((k, i) => {
-          const e = spawnEnemy((i / 4) * Math.PI * 2 - Math.PI / 2, k);
-          if (e) e.z = 0.2 + i * 0.18;
+        const KINDS = ['normal', 'double', 'heavy', 'frag'];
+        KINDS.forEach((k, i) => {
+          // evenly round the ring, so none hides behind another
+          const e = spawnEnemy((i / KINDS.length) * Math.PI * 2 - Math.PI / 2, k);
+          if (e) { e.z = g.hitZ * 1.25; e.__phase = i / KINDS.length; }
         });
         WORLD.bodies = enemies.slice();
       }
+      // hold them at the ring — that is where a body is biggest and where its
+      // look is actually decided — and just breathe the depth a little so the
+      // motion in the art still reads
       for (const e of WORLD.bodies) {
-        e.z -= dt * 0.06;
-        if (e.z < 0.08) e.z = 0.95;
+        e.z = g.hitZ * (1.25 + 0.35 * (0.5 + 0.5 * Math.sin(WORLD.t * 0.7 + e.__phase * 6.28)));
       }
       enemies.length = 0;
       for (const e of WORLD.bodies) enemies.push(e);
@@ -208,12 +239,12 @@ function currentDriver() {
 // reads, so what you see is what Commit will write.
 function applyLive(constName, key, value) {
   try {
-    const target = window[constName] !== undefined ? window[constName] : eval(constName);
     if (key == null) {
-      // scalar consts are `const`, so they cannot be reassigned at runtime;
-      // the preview for these is necessarily static and Commit is the only path
-      return false;
+      // a scalar: assignable because loadGame unfroze it to `let`
+      eval(constName + ' = ' + JSON.stringify(value));
+      return true;
     }
+    const target = eval(constName);
     if (target && typeof target === 'object') { target[key] = value; return true; }
   } catch (e) {}
   return false;
@@ -358,10 +389,6 @@ function renderGroup() {
       box.appendChild(el('p', 'empty', 'not found in source: ' + c.error));
     } else if (c.kind === 'number') {
       numberDial(box, g, c, null, { value: c.value, sim: c.simAffecting });
-      // a scalar const cannot be rebound at runtime, so say so rather than
-      // letting the preview look broken
-      const note = el('p', 'pvnote', 'scalar const — preview updates after Commit + reload');
-      box.appendChild(note);
     } else if (c.kind === 'object') {
       const dials = Object.entries(c.value);
       if (!dials.length) box.appendChild(el('p', 'empty', 'no plain literals in this table'));
@@ -402,10 +429,13 @@ function renderPreview() {
   aside.appendChild(stage);
   aside.appendChild(el('p', 'pvnote', PVNOTE));
   if (!UI.loaded) {
-    $('#preview .pvnote').classList.add('err');
-    $('#preview .pvnote').textContent = 'the game did not load — previews unavailable';
+    const n = $('#preview .pvnote');
+    if (n) { n.classList.add('err'); n.textContent = 'the game did not load — previews unavailable'; }
     return;
   }
+  const fr = FRAME[g.preview] || {};
+  WORLD.progress = fr.progress != null ? fr.progress : 0.55;
+  WORLD.speed = fr.speed != null ? fr.speed : 0.4;
   WORLD.bodies = null;   // each group gets fresh bodies rather than the last one's
   startLoop();
 }

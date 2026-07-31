@@ -162,9 +162,17 @@ const server = http.createServer((req, res) => {
 
   if (urlPath === '/api/tuning') {
     try {
+      const groups = buildPayload();
+      // Scalar tuning values are declared `const`, so the loaded game cannot be
+      // re-bound at runtime and their dials would move nothing. The board
+      // unfreezes exactly these names to `let` as it loads the source — see
+      // loadGame(). It is the only edit the board makes to what it runs, it
+      // changes a binding and never a value, and the game files stay untouched.
+      const scalars = groups.flatMap(g => g.values.filter(v => v.kind === 'number').map(v => v.name));
       return send(res, 200, TYPES['.json'], JSON.stringify({
-        groups: buildPayload(),
+        groups,
         gameFiles: gameFileNames(root),
+        scalars: [...new Set(scalars)],
       }));
     } catch (e) { return send(res, 500, 'text/plain', e.message); }
   }
