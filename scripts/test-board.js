@@ -61,6 +61,7 @@ nodes['#commit'].disabled = false;
 nodes['#revert'].disabled = false;
 
 const payload = { groups: buildPayload(), gameFiles: gameFileNames(ROOT) };
+const SUBJ = {};
 
 const sandbox = {
   console,
@@ -76,6 +77,7 @@ const sandbox = {
   performance: { now: () => 0 },
   requestAnimationFrame: () => 0, cancelAnimationFrame: () => {},
   setTimeout, clearTimeout, setImmediate,
+  __paint: null, __subj: null,   // filled in below, so the vm can measure one painter
   Blob: function (parts) { this.parts = parts; },
   URL: { createObjectURL: () => 'blob:stub', revokeObjectURL() {} },
   fetch: (url) => Promise.resolve({
@@ -97,6 +99,27 @@ const ctx = vm.createContext(sandbox);
 for (const pre of ['campaigns.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, 'src', pre), 'utf8'), ctx, { filename: pre });
 for (const f of gameFileNames(ROOT).filter(f => f !== '99-boot.js')) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8'), ctx, { filename: f });
+}
+
+// WRAP THE PAINTER EACH PREVIEW EXISTS TO SHOW. Counting total canvas calls is
+// useless as a check: a preview whose subject is invisible still paints a
+// starfield and looks busy. That is exactly how bodies with a zero birth fade
+// passed — drawEnemy returned before its first stroke and nothing noticed.
+// So each driver is tied to the ONE painter it is there to show, and that
+// painter has to contribute strokes of its own.
+sandbox.__paint = paint;
+sandbox.__subj = SUBJ;
+const SUBJECT_OF = { arcs: 'drawNodes', enemies: 'drawEnemy', decomp: 'drawGhost',
+  streaks: 'drawStreaks', planet: 'drawFarGlow', hud: 'drawHUD' };
+for (const fn of new Set(Object.values(SUBJECT_OF))) {
+  vm.runInContext(`{
+    const _orig = ${fn};
+    ${fn} = function (...a) {
+      const before = __paint.n;
+      try { return _orig.apply(this, a); }
+      finally { __subj[${JSON.stringify(fn)}] = (__subj[${JSON.stringify(fn)}] || 0) + (__paint.n - before); }
+    };
+  }`, ctx, { filename: 'wrap:' + fn });
 }
 
 let boardErr = null;
@@ -123,6 +146,7 @@ setTimeout(() => {
   const names = vm.runInContext('Object.keys(__DRIVERS || {})', ctx);
   for (const name of names) {
     paint.n = 0;
+    for (const k of Object.keys(SUBJ)) delete SUBJ[k];
     try {
       for (let fr = 0; fr < 3; fr++) {
         vm.runInContext(`W=960;H=600;DPR=1;{
@@ -135,7 +159,15 @@ setTimeout(() => {
           d.draw(geo(), 1 / 60, C);
         }`, ctx, { filename: 'driver:' + name });
       }
-      console.log(`  preview ${name.padEnd(9)} ok   ${paint.n} canvas calls`);
+      // "It did not throw" is not "it drew something". drawEnemy returns before
+      // painting when a body's birth fade is zero, which is exactly how bodies
+      // stayed invisible while every harness reported success. So each preview
+      // is run AGAIN with its backdrop toggles off: what is left is the subject,
+      // and the subject has to paint.
+      const want = SUBJECT_OF[name];
+      const drew = want ? (SUBJ[want] || 0) : null;
+      if (want && drew <= 0) fail.push(`preview "${name}" never painted its subject — ${want}() contributed 0 strokes`);
+      console.log(`  preview ${name.padEnd(9)} ok   ${String(paint.n).padStart(6)} calls · ${want}() drew ${drew}`);
     } catch (e) {
       fail.push(`preview "${name}" throws: ${e.message}`);
     }

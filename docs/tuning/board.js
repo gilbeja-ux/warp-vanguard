@@ -215,9 +215,16 @@ const DRIVERS = {
         }
         for (const e of WORLD.bodies) {
           e.sizeMul = C.scale;                       // the painter's own scale hook
+          // AGE IS WHY BODIES WERE INVISIBLE. drawEnemy multiplies its alpha by
+          // birthFade(en) = age/0.35 and returns outright below 0.005, and `age`
+          // is advanced by the sim — which a preview does not run. Spawned bodies
+          // sat there fully formed at zero opacity. The preview owns the clock
+          // here, so it ages them itself.
+          e.age = (e.age || 0) + dt;
           e.z = C.approach
             ? ((WORLD.t * 0.12 + e.__i) % 1) * 0.9 + 0.1   // loop down the bore
             : C.depth;
+          if (C.approach && e.z > 0.92) e.age = 0;   // re-show the birth on each lap
         }
         enemies.length = 0;
         for (const e of WORLD.bodies) enemies.push(e);
@@ -245,7 +252,7 @@ const DRIVERS = {
           WORLD.killT = C.rate;
           ghosts.length = 0;
           const e = spawnEnemy(-Math.PI / 2, C.kind);
-          if (e) { e.sizeMul = C.scale; decompile(-Math.PI / 2, g.hitZ * 1.15, e, 1); }
+          if (e) { e.sizeMul = C.scale; e.age = 1; decompile(-Math.PI / 2, g.hitZ * 1.15, e, 1); }
           const born = ghosts.slice();
           enemies.length = 0;
           WORLD.ghosts = born;
