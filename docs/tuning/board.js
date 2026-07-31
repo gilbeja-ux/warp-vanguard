@@ -14,6 +14,15 @@
 //    pending edit. Source is only touched by Commit, which swaps literals in
 //    place and leaves every comment standing.
 
+// SCOPED IN AN IIFE, DELIBERATELY. This page loads the real game into the same
+// document, and a classic script's top-level `const`/`let` land in the shared
+// global lexical scope. `const state` here collided with `let state` in
+// 40-state.js — a duplicate global binding is a SyntaxError, so that whole file
+// silently failed to execute and every later preview died on a missing global
+// with no clue which file was to blame. Declaring nothing globally makes that
+// class of bug impossible. Assignments to the game's own `ctx`/`W`/`H`/`DPR`
+// still work from in here: those are writes to an outer binding, not declarations.
+(function () {
 const $ = (s, r = document) => r.querySelector(s);
 const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
 
@@ -42,6 +51,22 @@ async function loadGame(files) {
     });
   }
   state.loaded = true;
+
+  // A script that THROWS still fires onload, so "it loaded" is not "it ran".
+  // Check a sentinel global from each end of the chain and name the file that
+  // failed, rather than letting the first preview report a bare ReferenceError.
+  const SENTINELS = [
+    ['00-core.js', 'ctx'], ['40-state.js', 'warpT'], ['41-geometry.js', 'geo'],
+    ['80-tunnel.js', 'drawTunnel'], ['83-deepfield.js', 'drawStreaks'], ['90-hud.js', 'drawHUD'],
+  ];
+  const dead = SENTINELS.filter(([, g]) => {
+    try { return eval('typeof ' + g) === 'undefined'; } catch (e) { return true; }
+  });
+  if (dead.length) {
+    state.loaded = false;
+    throw new Error('these files loaded but did not run: ' + dead.map(([f]) => f).join(', ')
+      + ' — check the browser console for the SyntaxError');
+  }
 }
 
 // Painters read W/H/DPR/ctx as globals. They are `let` in 00-core.js, which puts
@@ -383,3 +408,4 @@ window.addEventListener('resize', () => schedulePreview());
 
 fetch('/api/simid').then(r => r.ok ? r.text() : '').then(t => { if (t) $('#simid').textContent = t; }).catch(() => {});
 boot();
+})();
