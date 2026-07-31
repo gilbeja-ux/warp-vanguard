@@ -17,7 +17,7 @@
 // SCOPED IN AN IIFE, DELIBERATELY. This page loads the real game into the same
 // document, and a classic script's top-level `const`/`let` land in the shared
 // global lexical scope. `const state` here collided with `let state` in
-// 40-state.js — a duplicate global binding is a SyntaxError, so that whole file
+// 40-UI.js — a duplicate global binding is a SyntaxError, so that whole file
 // silently failed to execute and every later preview died on a missing global
 // with no clue which file was to blame. Declaring nothing globally makes that
 // class of bug impossible. Assignments to the game's own `ctx`/`W`/`H`/`DPR`
@@ -26,7 +26,11 @@
 const $ = (s, r = document) => r.querySelector(s);
 const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
 
-const state = {
+// Named UI, not `state`. The game has a global `state` (the run's mode) and this
+// file shares its scope; calling this one `state` shadowed the game's and made
+// `state = S.PLAY` in withWorld throw "Assignment to constant variable" — the
+// board was assigning to its own const. Nothing here may take a game global's name.
+const UI = {
   groups: [],
   current: null,
   pending: new Map(),   // "file::CONST::key" -> {file, constName, key, from, to}
@@ -50,20 +54,20 @@ async function loadGame(files) {
       document.head.appendChild(s);
     });
   }
-  state.loaded = true;
+  UI.loaded = true;
 
   // A script that THROWS still fires onload, so "it loaded" is not "it ran".
   // Check a sentinel global from each end of the chain and name the file that
   // failed, rather than letting the first preview report a bare ReferenceError.
   const SENTINELS = [
-    ['00-core.js', 'ctx'], ['40-state.js', 'warpT'], ['41-geometry.js', 'geo'],
+    ['00-core.js', 'ctx'], ['40-UI.js', 'warpT'], ['41-geometry.js', 'geo'],
     ['80-tunnel.js', 'drawTunnel'], ['83-deepfield.js', 'drawStreaks'], ['90-hud.js', 'drawHUD'],
   ];
   const dead = SENTINELS.filter(([, g]) => {
     try { return eval('typeof ' + g) === 'undefined'; } catch (e) { return true; }
   });
   if (dead.length) {
-    state.loaded = false;
+    UI.loaded = false;
     throw new Error('these files loaded but did not run: ' + dead.map(([f]) => f).join(', ')
       + ' — check the browser console for the SyntaxError');
   }
@@ -194,7 +198,7 @@ const DRIVERS = {
 };
 
 function currentDriver() {
-  const g = state.groups.find(x => x.id === state.current);
+  const g = UI.groups.find(x => x.id === UI.current);
   return g && DRIVERS[g.preview] ? DRIVERS[g.preview] : null;
 }
 
@@ -219,14 +223,14 @@ function pendKey(file, constName, key) { return `${file}::${constName}::${key ==
 
 function setPending(file, constName, key, from, to) {
   const k = pendKey(file, constName, key);
-  if (JSON.stringify(from) === JSON.stringify(to)) state.pending.delete(k);
-  else state.pending.set(k, { file, constName, key, from, to });
+  if (JSON.stringify(from) === JSON.stringify(to)) UI.pending.delete(k);
+  else UI.pending.set(k, { file, constName, key, from, to });
   syncHeader();
   renderNav();
 }
 
 function syncHeader() {
-  const n = state.pending.size;
+  const n = UI.pending.size;
   const d = $('#dirty');
   d.textContent = n === 0 ? 'no changes' : n === 1 ? '1 change pending' : `${n} changes pending`;
   d.classList.toggle('on', n > 0);
@@ -247,15 +251,15 @@ function renderNav() {
   const nav = $('#nav');
   nav.textContent = '';
   nav.appendChild(el('div', 'navhead', 'Subsystems'));
-  for (const g of state.groups) {
+  for (const g of UI.groups) {
     const b = el('button', 'grp');
-    b.setAttribute('aria-current', String(state.current === g.id));
+    b.setAttribute('aria-current', String(UI.current === g.id));
     b.appendChild(el('span', null, g.title));
     if (g.simAffecting) b.appendChild(el('span', 'sim', 'sim'));
     const n = [...state.pending.values()].filter(p => g.consts.includes(p.constName)).length;
     const tag = el('span', 'n' + (n ? ' on' : ''), n ? String(n) : String(g.values.length));
     b.appendChild(tag);
-    b.onclick = () => { state.current = g.id; renderNav(); renderGroup(); };
+    b.onclick = () => { UI.current = g.id; renderNav(); renderGroup(); };
     nav.appendChild(b);
   }
 }
@@ -326,7 +330,7 @@ function colorDial(host, g, c, key, spec) {
 }
 
 function renderGroup() {
-  const g = state.groups.find(x => x.id === state.current);
+  const g = UI.groups.find(x => x.id === UI.current);
   const host = $('#dials');
   host.textContent = '';
   if (!g) { host.appendChild(el('p', 'empty', 'Pick a subsystem.')); return; }
@@ -359,9 +363,9 @@ function renderGroup() {
       const note = el('p', 'pvnote', 'scalar const — preview updates after Commit + reload');
       box.appendChild(note);
     } else if (c.kind === 'object') {
-      const keys = Object.entries(c.value);
-      if (!keys.length) box.appendChild(el('p', 'empty', 'no plain literals in this table'));
-      for (const [key, spec] of keys) {
+      const dials = Object.entries(c.value);
+      if (!dials.length) box.appendChild(el('p', 'empty', 'no plain literals in this table'));
+      for (const [key, spec] of dials) {
         if (spec.type === 'number') numberDial(box, g, c, key, spec);
         else if (spec.type === 'string') colorDial(box, g, c, key, spec);
       }
@@ -380,7 +384,7 @@ function schedulePreview() { if (!WORLD.raf) drawPreview(); }
 const PVNOTE = 'drawn by the game’s own painters — src/game/*.js, loaded here';
 
 function renderPreview() {
-  const g = state.groups.find(x => x.id === state.current);
+  const g = UI.groups.find(x => x.id === UI.current);
   const aside = $('#preview');
   stopLoop();
   aside.textContent = '';
@@ -397,7 +401,7 @@ function renderPreview() {
   stage.appendChild(cv);
   aside.appendChild(stage);
   aside.appendChild(el('p', 'pvnote', PVNOTE));
-  if (!state.loaded) {
+  if (!UI.loaded) {
     $('#preview .pvnote').classList.add('err');
     $('#preview .pvnote').textContent = 'the game did not load — previews unavailable';
     return;
@@ -409,7 +413,7 @@ function renderPreview() {
 function drawPreview(dt) {
   const drv = currentDriver();
   const cv = $('#stage');
-  if (!drv || !cv || !state.loaded) return;
+  if (!drv || !cv || !UI.loaded) return;
   const err = withStage(cv, drv, dt || 1 / 60);
   const note = $('#preview .pvnote');
   if (note) {
@@ -431,7 +435,7 @@ function toast(msg, bad) {
 
 async function commit() {
   const byFile = {};
-  for (const p of state.pending.values()) {
+  for (const p of UI.pending.values()) {
     byFile[p.file] = byFile[p.file] || {};
     if (p.key == null) byFile[p.file][p.constName] = p.to;
     else {
@@ -443,7 +447,7 @@ async function commit() {
   const text = await res.text();
   if (!res.ok) return toast('Commit failed — ' + text, true);
   const out = JSON.parse(text);
-  state.pending.clear();
+  UI.pending.clear();
   syncHeader();
   toast(out.simTouched
     ? 'Written. The sim changed — run npm run deploy:verifier before submitting scores.'
@@ -454,13 +458,13 @@ async function commit() {
 // ---------------------------------------------------------------------------
 async function boot(reloadOnly) {
   const data = await (await fetch('/api/tuning')).json();
-  state.groups = data.groups;
-  SIM_KEYS = new Set(state.groups.flatMap(g => g.values.flatMap(v => [
+  UI.groups = data.groups;
+  SIM_KEYS = new Set(UI.groups.flatMap(g => g.values.flatMap(v => [
     ...(v.simAffecting ? [v.name] : []),
     ...(v.kind === 'object' ? Object.entries(v.value).filter(([, sp]) => sp.sim).map(([k]) => v.name + '.' + k) : []),
   ])));
-  if (!state.current) state.current = state.groups[0] && state.groups[0].id;
-  if (!state.loaded && !reloadOnly) {
+  if (!UI.current) UI.current = UI.groups[0] && UI.groups[0].id;
+  if (!UI.loaded && !reloadOnly) {
     try { await loadGame(data.gameFiles); }
     catch (e) { toast('The game did not load: ' + e.message + ' — dials still work, previews will not.', true); }
   }
@@ -474,8 +478,8 @@ $('#revert').onclick = () => {
   // Put the ORIGINAL values back into the loaded game first. Clearing the
   // pending list alone left the preview showing edits that no longer existed
   // anywhere — the dials said one thing and the canvas another.
-  for (const p of state.pending.values()) applyLive(p.constName, p.key, p.from);
-  state.pending.clear();
+  for (const p of UI.pending.values()) applyLive(p.constName, p.key, p.from);
+  UI.pending.clear();
   syncHeader();
   toast('Reverted — nothing had been written yet.');
   boot(true);

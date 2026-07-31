@@ -2297,6 +2297,27 @@ async function runMusicUp() {
     const straddling = names.filter(n => opens[n] !== closes[n]);
     check(`every lab region opens and closes in one file (${names.length} regions)`,
       straddling.length === 0 && names.length > 0);
+
+    // The tuning board loads the real game into its own page, so the two share
+    // one global lexical scope. A name used by both is a live grenade: as a
+    // top-level `const` it made 40-state.js die with a SyntaxError, and once
+    // scoped it shadowed the game's `state` so withWorld assigned to the board's
+    // own const instead. Both cost a debugging round. Neither can recur if no
+    // board declaration is allowed to take a game global's name.
+    const boardPath = path.join(ROOT, 'docs', 'tuning', 'board.js');
+    if (fs.existsSync(boardPath)) {
+      const decl = /^\s*(?:const|let|var|function|async function)\s+([A-Za-z_$][\w$]*)/gm;
+      const boardNames = new Set([...fs.readFileSync(boardPath, 'utf8').matchAll(decl)].map(m => m[1]));
+      const gameNames = new Set();
+      for (const f of manifestFiles) {
+        for (const m of fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8').matchAll(decl)) {
+          if (/^(?:const|let|var|function|async function)/.test(m[0])) gameNames.add(m[1]);
+        }
+      }
+      const shadowed = [...boardNames].filter(n => gameNames.has(n));
+      check('the tuning board declares no name the game already uses'
+        + (shadowed.length ? ' — clashes: ' + shadowed.join(', ') : ''), shadowed.length === 0);
+    }
   }
 
   console.log(failures === 0 ? '\nALL TESTS PASSED' : '\n' + failures + ' FAILURES');
