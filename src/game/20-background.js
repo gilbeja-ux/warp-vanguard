@@ -68,6 +68,26 @@ const GATE_T = 0.22, GATE_1 = 0.50;
 // this buys is the other half of the effect — amplitude alone cannot make a
 // twinkle visible on a field that is already near its ceiling.
 const STAR_REST = 0.62;
+// WHAT A BRIGHT STAR LOOKS LIKE UP CLOSE. The bloom used to be one number in the
+// draw loop: an 8px disc at 0.42 alpha with a linear falloff, which is a small
+// bright coin with an edge you can find. These are the dials for the scattered
+// version — reach, peak, and the refraction streak that only shows at full flare.
+const STARFX = {
+  bloomR: 13,        // how far the halo reaches, in px at rest flare
+  bloomA: 0.30,      // its peak alpha at the core. Under half the LIGHT of the
+                     // disc it replaced once the falloff below is integrated
+  spike: 0.24,       // refraction streak strength (0 kills it entirely)
+  spikeW: 1.1,       // and how fine that streak is
+  // How far it runs, in halo radii. Past about 2 it stops being a star and starts
+  // being a lens flare. (Last key, comment above it on purpose: the tuning board
+  // reads `key: literal` pairs and a trailing comment on the final line hides it.)
+  spikeR: 1.7
+};
+// The halo's falloff, as [stop, weight]. Kept out of the loop because it is a
+// CURVE, not a dial: an exponential shoulder that puts most of the light in the
+// inner quarter and lets the rest trail to nothing well inside the radius, so the
+// gradient can never present an edge.
+const STAR_HALO = [[0, 1], [0.10, 0.62], [0.24, 0.30], [0.44, 0.11], [0.70, 0.028], [1, 0]];
 function starClass() {
   let r = Math.random(), i = 0;
   for (; i < STAR_CLASS.length - 1; i++) { if (r < STAR_CLASS[i][0]) break; r -= STAR_CLASS[i][0]; }
@@ -534,12 +554,48 @@ function drawStarField() {
         + ',' + clamp(b0 - h, 0, 255).toFixed(0);
     }
     if (s.big) { // the bright ones bloom — and the bloom SWELLS with the flare,
-      const rr = 8 * (0.55 + 0.75 * k); // which is most of what sells a star flaring
+      const F = STARFX;                 // which is most of what sells a star flaring
+      const rr = F.bloomR * (0.55 + 0.75 * k);
       const gg = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, rr);
-      gg.addColorStop(0, `rgba(${col},${(al * 0.42).toFixed(3)})`);
-      gg.addColorStop(1, `rgba(${col},0)`);
+      const a0 = al * F.bloomA;
+      // SIX STOPS, not two. A two-stop gradient falls off in a straight line, and
+      // a straight line has an end: the halo held a visible alpha right up to its
+      // radius and then stopped, which is the hard rim. Scattered light does not
+      // do that — it drops fast out of the core and then trails away to nothing.
+      // The stops below are an exponential-ish curve, so nearly all the light sits
+      // in the inner quarter and the outer half is a breath that reaches zero
+      // before the edge does. Wider AND fainter than the disc it replaces: the
+      // reach is what makes it read as scatter, the low peak is what stops it
+      // reading as a lamp.
+      for (const [p, w] of STAR_HALO) gg.addColorStop(p, `rgba(${col},${(a0 * w).toFixed(4)})`);
       ctx.fillStyle = gg;
       ctx.beginPath(); ctx.arc(s.x, s.y, rr, 0, TAU); ctx.fill();
+      // REFRACTION. A bright point seen through anything — atmosphere, a canopy,
+      // a lens — throws light along an axis, and that streak is most of what says
+      // "burning" rather than "dot". Two soft strokes, gated on the flare so they
+      // arrive with the scintillation and are gone between bursts: nothing until
+      // the star is genuinely brighter than it was painted, and capped there, or a
+      // dramatic-class swing grows the streak without end.
+      //
+      // Uneven arms on purpose — the vertical is shorter, which reads as
+      // refraction where an even cross reads as a sparkle stamped on the sky. Each
+      // arm gets a gradient over ITS OWN length, so both reach zero exactly where
+      // the stroke stops; one gradient shared across both would end the short arm
+      // at a third of its alpha, which is the same hard edge this is fixing.
+      const sk = F.spike * al * clamp(k - 1, 0, 1);
+      if (sk > 0.004) {
+        ctx.lineWidth = F.spikeW;
+        for (const [dx, dy, m] of [[1, 0, 1], [0, 1, 0.62]]) {
+          const L = rr * F.spikeR * m;
+          const x0 = s.x - dx * L, y0 = s.y - dy * L, x1 = s.x + dx * L, y1 = s.y + dy * L;
+          const lg = ctx.createLinearGradient(x0, y0, x1, y1);
+          lg.addColorStop(0, `rgba(${col},0)`);
+          lg.addColorStop(0.5, `rgba(${col},${(sk * m).toFixed(4)})`);
+          lg.addColorStop(1, `rgba(${col},0)`);
+          ctx.strokeStyle = lg;
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        }
+      }
     }
     ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
     // the core grows a little too: a star at full flare is not the same size dot

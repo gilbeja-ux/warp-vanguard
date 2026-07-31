@@ -123,7 +123,8 @@ function drawFarMotes(far, R, grow, breath, moteK) {
 // >>> DEST-LIFE
 // The lab lifts this whole region so it can stage a real arrival. It may reach
 // only TAU, clamp, time, ctx, mulberry32, LIGHT_A, PLANET_SHADE, DEST_LIFE,
-// destKindFor, drawRingBody, and the CAMP / levelIdx / LV the relay is chosen by.
+// destKindFor, drawRingBody, PLANET_TYPES, buildPlanetSprite, and the
+// CAMP / levelIdx / LV the relay is chosen by.
 //
 // The arrival made the world big; this is what stops it being a poster of a
 // world. Each relay is dealt a HAND from the deck below, off its own hash stream
@@ -135,6 +136,26 @@ function drawFarMotes(far, R, grow, breath, moteK) {
 // night side to light and no poles to hang aurora on, so it can only be dealt
 // the things that live in ORBIT around it.
 const DEST_DECK = ['lights', 'aurora', 'moon', 'traffic', 'station'];
+// A MOON IS A WORLD TOO, and for a long time it was the last hand-painted body in
+// the game: a dark disc with a highlight airbrushed onto it, hanging in a frame
+// where the destination beside it is shaded per pixel. At arrival size that is the
+// most obvious fake object on screen, because the eye has a real one to compare it
+// against six inches away.
+//
+// So it is dealt a real skin and built by the same renderer as everything else.
+// THREE skins, not eighteen: a moon is bare rock or ice, and a small fixed set is
+// what lets every one of them be warmed ahead of a run instead of shaded during
+// one — the same bargain the deep field's hand makes.
+const MOON_TYPES = ['PAL', 'BAS', 'ICE'].map(id => PLANET_TYPES.find(p => p.id === id)).filter(Boolean);
+// A moon reaches ~0.18 of the destination's radius, and the destination fills the
+// bore on arrival — so this is the size it is actually stamped at, on the frame
+// where anything soft would be caught.
+const MOON_REF_R = 80;
+const moonSprites = {};
+function moonSprite(V) {
+  if (!(V.n in moonSprites)) moonSprites[V.n] = buildPlanetSprite(MOON_REF_R, V);
+  return moonSprites[V.n];
+}
 let destLifeKey = '', destLifeVal = null;
 function destinationLife() {
   const campId = (typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x';
@@ -199,7 +220,10 @@ function destinationLife() {
     aurora: { col: rnd() < 0.62 ? L.auroraC : L.auroraC2, k: rr(0.7, 1.25), ph: rnd() * TAU },
     moon: has.moon ? {
       orb: rr(L.moonO[0], L.moonO[1]), sq: rr(0.16, 0.46), tilt: rr(-0.8, 0.8),
-      ph: rnd() * TAU, sz: L.moonR * rr(0.62, 1.18), warm: rnd() < 0.4
+      // ONE draw off the stream, exactly as the warm/cold tint it replaced took —
+      // so every other value this relay was ever dealt comes out unchanged and a
+      // place you have been to still has its own moon in its own orbit.
+      ph: rnd() * TAU, sz: L.moonR * rr(0.62, 1.18), V: MOON_TYPES[(rnd() * MOON_TYPES.length) | 0]
     } : null,
     stn: has.station ? {
       orb: rr(L.stnO[0], L.stnO[1]), sq: rr(0.12, 0.4), tilt: rr(-0.8, 0.8),
@@ -312,18 +336,27 @@ function drawAurora(far, R, F, vis) {
 function drawMoon(far, R, la, F, vis) {
   const p = orbitAt(F.moon, far, R);
   const mr = Math.max(1.5, R * F.moon.sz);
-  const [lx, ly] = lightVec(la);
+  const sp = F.moon.V && moonSprite(F.moon.V);
   ctx.save();
   ctx.globalAlpha = vis;
-  ctx.beginPath(); ctx.arc(p.x, p.y, mr, 0, TAU);
-  ctx.fillStyle = 'rgba(6,9,18,0.96)';               // occludes what it passes over
-  ctx.fill();
-  const lg = ctx.createRadialGradient(p.x + lx * mr * 0.7, p.y + ly * mr * 0.7, 0, p.x, p.y, mr * 1.5);
-  lg.addColorStop(0, `rgba(${F.moon.warm ? '224,200,172' : DEST_LIFE.moonC},0.95)`);
-  lg.addColorStop(0.45, `rgba(${F.moon.warm ? '128,108,90' : '112,116,120'},0.3)`);
-  lg.addColorStop(1, 'rgba(20,28,44,0)');
-  ctx.fillStyle = lg;
-  ctx.fill();
+  if (sp) {
+    const w = sp.S * (mr / sp.R);                    // the canvas carries its air pad — scale it whole
+    ctx.drawImage(sp.cv, p.x - w / 2, p.y - w / 2, w, w);
+  } else {
+    // no-ImageData fallback: the painted body this replaced, kept for the headless
+    // harness. A dark disc that occludes what it passes over, and one gradient
+    // offset toward the sun so it is at least a sphere rather than a coin.
+    const [lx, ly] = lightVec(la);
+    ctx.beginPath(); ctx.arc(p.x, p.y, mr, 0, TAU);
+    ctx.fillStyle = 'rgba(6,9,18,0.96)';
+    ctx.fill();
+    const lg = ctx.createRadialGradient(p.x + lx * mr * 0.7, p.y + ly * mr * 0.7, 0, p.x, p.y, mr * 1.5);
+    lg.addColorStop(0, `rgba(${DEST_LIFE.moonC},0.95)`);
+    lg.addColorStop(0.45, 'rgba(112,116,120,0.3)');
+    lg.addColorStop(1, 'rgba(20,28,44,0)');
+    ctx.fillStyle = lg;
+    ctx.fill();
+  }
   ctx.restore();
 }
 // TRAFFIC: ships leaving. A world with departures off it is a world with
@@ -555,6 +588,22 @@ const LIVE_WARP_PASSES = [
 // theme it was called the payload river, and its `ord` draw-order thins the
 // river as integrity drops, so ships visibly stop arriving as the escort fails.
 // That mechanic needed no work; it needed a name.
+//
+// THE SHAPE OF THE CHANNEL, on dials. A wider, soft-banked river was tried here
+// and did not read as an improvement in the lane, so these defaults ARE the
+// original narrow strip — but they are numbers now instead of literals buried in
+// two files, and the tuning board drives all three live (Warp lane & streaks).
+//
+//   spread · half-width of the channel, radians either side of straight down
+//   bias   · 0 spreads ships evenly across it; 1 crowds them into mid-channel and
+//            thins them toward the banks, which is the shape of a current
+//   bank   · how hard the edges fade out: alpha × (1 − bank · off²). At 0 the
+//            river has two hard ends, which is what it has always had
+const RIVER = { spread: 0.55, bias: 0, bank: 0 };
+// Where in the channel a ship runs, as a unit offset from mid-channel. TWO draws
+// whatever the bias is set to, so moving the dial never shifts the random stream
+// under a seeded run.
+const riverOff = () => (rand(-1, 1) + rand(-1, 1) * RIVER.bias) / (1 + RIVER.bias);
 let streaks = [];
 function initStreaks() {
   streaks = [];
@@ -565,7 +614,9 @@ function initStreaks() {
   for (let i = 0; i < nGold; i++) {
     streaks.push({
       z: Math.random(),
-      a: Math.PI / 2 + rand(-0.55, 0.55),          // biased to bottom
+      // a place in the river, not an angle: drawStreaks turns it into one every
+      // frame, so RIVER.spread moves the whole convoy while you drag it
+      off: riverOff(),
       gold: true, sp: rand(0.92, 1.12), ord: i / nGold // draw order — the river thins with integrity
     });
   }

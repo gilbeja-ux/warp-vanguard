@@ -461,7 +461,9 @@ function updatePickups(dt, sdt, L, g, covers, ringXY) {
           sfx.pick(); sfx.shieldUp(); // shared pickup sparkle, then the collar charge
         } else if (p.kind === 'inject') { // both purge orbs snap to ready
           pulseCharge = [PULSE_MAX, PULSE_MAX];
-          sfx.heal();
+          // the pickup sparkle every other relay gets, then both coils arming.
+          // It played heal() alone before, which is the sound of being repaired.
+          sfx.pick(); sfx.pulseArmed();
         } else {
           fx[p.kind] = PICKUPS[p.kind].dur;
           sfx.pick();
@@ -552,7 +554,9 @@ function updateEnemy(en, C) {
           : Math.abs(angDiff(nodes[0].angle, aEnd)) < Math.abs(angDiff(nodes[1].angle, aEnd)) ? 0 : 1;
         pulseCharge[ni] = PULSE_MAX; // the ride banks a full pulse — tutorial included
         popup(hp.x, hp.y, 'PULSE CHARGED +' + pts, '#ffe9b0');
-        sfx.perfect();
+        // traced() above resolves the ride; this says what the ride BOUGHT, on the
+        // pad that now owns it — the generic sparkle it played said neither
+        sfx.pulseArmed(Math.cos(nodes[ni].angle) * 0.7);
         buzz(30);
       }
     }
@@ -654,11 +658,13 @@ function updateEnemy(en, C) {
         for (const fi of fed) {
           if (pulseCharge[fi] >= PULSE_MAX) continue;
           pulseCharge[fi] = Math.min(PULSE_MAX, pulseCharge[fi] + Math.min(combo, 5));
+          // panned to the pad that banked it, so a zap tells you WHICH orb it fed
+          const pan = Math.cos(nodes[fi].angle) * 0.7;
           if (pulseCharge[fi] >= PULSE_MAX) {
             popup(W / 2, H * 0.35, (fi === 0 ? 'BLUE' : 'WHITE') + ' PULSE CHARGED — TAP ITS CORE', '#8fe0ff');
-            sfx.heal();
+            sfx.pulseArmed(pan);
             buzz(15);
-          }
+          } else sfx.pulseBank(pulseCharge[fi] / PULSE_MAX, pan); // filling: a tick that climbs
         }
       }
       // max-combo streaks knit the payload back together

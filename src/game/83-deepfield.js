@@ -39,42 +39,67 @@ function mkDeepStar() {
     tw: rand(0.35, 2.6), tp: Math.random() * TAU, blink: Math.random() < DEST_LIFE.blinkP
   };
 }
-// ROUND worlds, not angular rocks. The first cut built these as 7–12 vertex
-// jittered polygons, which read as chunky faceted shapes rather than as bodies —
-// wrong silhouette entirely. A distant world is a disc with a terminator on it,
-// and the only thing that sells its scale is that the lit limb agrees with the
-// one world key light everything else obeys.
-// The far bodies are DISTANT WORLDS, and two things stopped them reading that
-// way. They grew to a third of the screen before recycling — a world that big is
-// something you are arriving at, which fights the destination for the same job —
-// and every one was the same dark disc with the same lit limb, so nine bodies
-// read as one asset repeated nine times. They are smaller and further now, and
-// each one is drawn from a palette with its own character: some ringed, some
-// banded, all at their own albedo and phase.
-const DEEP_PAL = [
-  ['214,186,150', '132,108,84'],   // ochre dust
-  ['168,198,230', '90,120,160'],   // cold blue
-  ['206,150,116', '120,72,54'],    // rust
-  ['186,206,198', '92,116,112'],   // pale jade
-  ['196,176,214', '104,86,132'],   // violet
-  ['222,214,198', '116,112,104'],  // bare rock
-  ['160,196,182', '78,108,100']    // sea green
-];
+// THE FAR BODIES ARE DESTINATIONS, not paintings of them.
+//
+// They used to be drawn right here: a dark disc, a gradient for the lit limb, a
+// couple of stroked arcs for a ring, a few straight lines for bands. Every dial in
+// it was a guess at what the real renderer already computes, and the result read
+// as what it was — a cartoon planet parked next to a per-pixel shaded one. The eye
+// catches that instantly, because the two objects disagree about what a sphere is.
+//
+// So a deep-sky world is now dealt from PLANET_TYPES and built by
+// buildPlanetSprite, exactly like the world at the end of the bore, only small and
+// far and dim. Terrain, cloud, ring shadows, atmosphere on the limb, and above all
+// the ONE key light — all of it comes free, and every body in the frame is finally
+// the same kind of object lit by the same sun.
+//
+// The deck is every skin EXCEPT the swarms: an asteroid field is 296 rocks, and at
+// the size a deep body gets here its smallest land under a pixel, so it arrives as
+// grain rather than as a place.
+const DEEP_WORLDS = PLANET_TYPES.filter(p => !p.field);
+// THE SKY'S HAND: a few skins, dealt once and held for the session.
+//
+// Not a free pick out of the whole deck every time a body recycles, and the reason
+// is COST, not taste. Each skin is a per-pixel sprite, and a ringed world takes
+// ~20ms to shade even at this size. Dealt freely, a body drifting off the edge
+// could hand the very next frame a fresh 20ms build in the middle of a run. Dealt
+// from a hand of four, warmed one per frame on the way in (see drawDeepField), a
+// recycle can only ever hit the cache.
+//
+// It reads better too: four bodies drawn from four skins is one region of space,
+// where a body that came back as a different world every time it wrapped was a
+// slideshow of the catalogue.
+let deepHand = null;
+function dealDeepHand() {
+  if (deepHand) return deepHand;   // held across re-inits — a perf shed must never re-deal
+  const deck = DEEP_WORLDS.slice();
+  deepHand = [];
+  for (let i = 0; i < 4 && deck.length; i++) deepHand.push(deck.splice((Math.random() * deck.length) | 0, 1)[0]);
+  return deepHand;
+}
+// THE WARM QUEUE: every small-body sprite a later frame can ask for — this
+// session's deep hand, and the three skins a destination's moon can be dealt. The
+// moons belong here and not in their own region because the cost is the same
+// cost: a body shaded during a run is a dropped frame, and the only free place to
+// pay for one is the home screen.
+let warmJobs = null, warmN = 0;
 function mkDeepRock() {
   const big = Math.random() < 0.25;  // a couple of nearer ones, the rest far off
+  const hand = dealDeepHand();
   return {
     a: Math.random() * TAU,
     rf: DEEP_R0 + Math.random() * (DEEP_R1 - DEEP_R0),
-    sz: big ? rand(0.021, 0.032) : rand(0.008, 0.019), // fraction of min side
-    al: 0.07 + Math.random() * 0.23,  // faint: far away, and lit by one distant sun
-    squash: rand(0.94, 1),            // barely oblate — a body, not an egg
-    tilt: Math.random() * TAU,        // which way the oblateness lies
-    phase: rand(0.25, 0.95),          // how much of the disc the sun has
-    pal: DEEP_PAL[(Math.random() * DEEP_PAL.length) | 0],
-    // a ring system is the strongest silhouette a distant body can have — one in
-    // five carries one, tilted its own way, so the sky has landmarks in it
-    ring: Math.random() < 0.2 ? { tilt: rand(-0.9, 0.9), sq: rand(0.14, 0.34), r0: rand(1.35, 1.55), r1: rand(1.9, 2.4) } : null,
-    bands: Math.random() < 0.35 ? rand(2, 4) | 0 : 0,
+    // SMALLER than the painted ones were. A real world holds up at this size where
+    // a gradient disc never did, and the destination has to stay the biggest thing
+    // in the sky — anything out here that rivals it is competing for its job.
+    sz: big ? rand(0.013, 0.021) : rand(0.006, 0.012),  // fraction of min side
+    // Dimmed by distance, but NOT to a ghost. Under about 0.4 a world stops
+    // occluding the void behind it and starts reading as a transparency laid over
+    // the backdrop — which is the exact failure the painted discs had. The nearer
+    // ones carry more of it, and that difference is the other half of the distance
+    // cue the size is already making.
+    al: (big ? 0.48 : 0.34) + Math.random() * 0.20,
+    V: hand[(Math.random() * hand.length) | 0],
     sp: rand(0.7, 1.1)
   };
 }
@@ -96,7 +121,10 @@ function mkDeepWisp() {
 }
 function initDeepField() {
   // ref 3's sky is DENSE — the old 210 read as a sparse sprinkle against it
-  const nS = lowFX ? 150 : 430, nR = lowFX ? 3 : 9, nW = lowFX ? 24 : 74;
+  // FEWER WORLDS. Nine bodies in a sky is a solar system seen from inside it, and
+  // it made the frame busy in the one layer that is supposed to be empty distance.
+  // Four means the frame usually holds one or two, and each one is an event.
+  const nS = lowFX ? 150 : 430, nR = lowFX ? 2 : 4, nW = lowFX ? 24 : 74;
   deepStars = []; deepRocks = []; deepWisps = [];
   for (let i = 0; i < nS; i++) deepStars.push(mkDeepStar());
   for (let i = 0; i < nR; i++) deepRocks.push(mkDeepRock());
@@ -110,9 +138,8 @@ initDeepField();
 // motion smears, take themselves out. What is left is a sky, and it is stars.
 //
 // THE WORLDS DO NOT SURVIVE THE MENUS. Parked, they hang dead still in frame, and
-// a motionless disc with a painted terminator behind a menu card reads as a decal
-// stuck on the wallpaper — the parallax was the only thing selling it as a body
-// with distance behind it. They go for the meta screens and come back with the
+// a motionless world behind a menu card reads as a decal stuck on the wallpaper —
+// the parallax was the only thing selling it as a body with distance behind it. They go for the meta screens and come back with the
 // lane. Faded rather than cut: the home screen is one continuous shot out of the
 // run, and a planet vanishing between two frames is worse than the planet. Stars
 // stay — a point of light needs no parallax to be believed.
@@ -121,6 +148,13 @@ function drawDeepField(g, dt) {
   const dive = clamp(warpT / 0.9, 0, 1);
   const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5) * laneFlow;
   ctx.save();
+  // ONE SKIN WARMED PER FRAME, until the queue is empty. Building them all where
+  // the hand is dealt would put the cost on the page load, ahead of the first
+  // paint; building each where it is first drawn can put one in the middle of a
+  // run. A handful of early frames on the home screen is where it is free.
+  if (!warmJobs) warmJobs = dealDeepHand().map(V => () => deepWorld(V))
+    .concat(MOON_TYPES.map(V => () => moonSprite(V)));
+  if (warmN < warmJobs.length) warmJobs[warmN++]();
   worldVis += clamp(dt / 0.5, 0, 1) * ((state === S.MENU || state === S.GUIDE ? 0 : 1) - worldVis);
   // --- worlds first, so stars always pass IN FRONT of them, never behind ---
   if (worldVis > 0.004) for (const rk of deepRocks) {
@@ -132,61 +166,28 @@ function drawDeepField(g, dt) {
     if (rkEdge <= 0.01) continue; // faded both ends — never a pop, never a snap
     if (px < -rad * 3 || px > W + rad * 3 || py < -rad * 3 || py > H + rad * 3) continue;
     const al = rk.al * rkEdge * worldVis;
-    const [lit, mid] = rk.pal;
-    // the ring's BACK half goes down first, so the body occludes it — that
-    // overlap is the entire reason a ring reads as a ring and not as a halo
-    if (rk.ring) {
-      const rg3 = rk.ring;
-      ctx.save();
-      ctx.translate(px, py); ctx.rotate(rk.tilt + rg3.tilt); ctx.scale(1, rg3.sq);
-      ctx.strokeStyle = `rgba(${mid},${(al * 0.5).toFixed(3)})`;
-      ctx.lineWidth = rad * (rg3.r1 - rg3.r0) / rg3.sq * 0.34;
-      ctx.beginPath(); ctx.arc(0, 0, rad * (rg3.r0 + rg3.r1) / 2, Math.PI, TAU); ctx.stroke();
-      ctx.restore();
-    }
+    // ONE globalAlpha over a fully shaded sprite. The old code faded a dozen
+    // hand-mixed colours independently, which is how a body ended up with a lit
+    // limb brighter than its own daylight side. Dimming the finished world instead
+    // is also what distance actually does to it.
+    const sp = deepWorld(rk.V);
     ctx.save();
-    ctx.translate(px, py); ctx.rotate(rk.tilt);
-    ctx.scale(1, rk.squash); // barely oblate — a body, not an egg, and never faceted
-    ctx.beginPath(); ctx.arc(0, 0, rad, 0, TAU);
-    // a dark mass that occludes the field behind it, then the form is read purely
-    // from the terminator. No outline: DESIGN.md forbids them, and a stroked body
-    // reads as a sticker instantly.
-    ctx.fillStyle = `rgba(6,9,18,${(al * 2.6).toFixed(3)})`;
-    ctx.fill();
-    // the lit limb. Offsetting the gradient's centre toward the sun is what makes
-    // a flat disc read as a SPHERE — a centred gradient reads as a coin.
-    const la = LIGHT_A - rk.tilt;
-    const lx = Math.cos(la), ly = Math.sin(la);
-    const lg = ctx.createRadialGradient(lx * rad * 0.72, ly * rad * 0.72, 0, 0, 0, rad * 1.5);
-    lg.addColorStop(0, `rgba(${lit},${(al * rk.phase).toFixed(3)})`);
-    lg.addColorStop(0.42, `rgba(${mid},${(al * 0.26).toFixed(3)})`);
-    lg.addColorStop(1, 'rgba(30,44,70,0)');
-    ctx.fillStyle = lg;
-    ctx.fill();
-    // latitude banding on the gas giants — clipped to the disc, running across
-    // the lit face only, so it never turns into a striped coin on the night side
-    if (rk.bands && rad > 6) {
-      ctx.save();
-      ctx.clip();
-      ctx.strokeStyle = `rgba(${mid},${(al * 0.5).toFixed(3)})`;
-      for (let b2 = 0; b2 < rk.bands; b2++) {
-        const yy = (b2 + 0.7) / (rk.bands + 0.4) * 2 * rad - rad;
-        ctx.lineWidth = rad * 0.13;
-        ctx.beginPath(); ctx.moveTo(-rad, yy); ctx.lineTo(rad, yy); ctx.stroke();
-      }
-      ctx.restore();
+    ctx.globalAlpha = al;
+    if (sp) {
+      const w = sp.S * (rad / sp.R);   // the canvas carries ring + air pad — scale it whole
+      ctx.drawImage(sp.cv, px - w / 2, py - w / 2, w, w);
+    } else {
+      // no-ImageData fallback, same one drawFarGlow keeps: a disc lit off the world
+      // key light. Never seen outside the headless harness, and the deep field must
+      // not be able to take a frame down.
+      const lg = ctx.createRadialGradient(
+        px + Math.cos(LIGHT_A) * rad * 0.62, py + Math.sin(LIGHT_A) * rad * 0.62, 0, px, py, rad * 1.45);
+      lg.addColorStop(0, `rgba(${rk.V.z},0.85)`);
+      lg.addColorStop(1, 'rgba(14,22,44,0)');
+      ctx.fillStyle = lg;
+      ctx.beginPath(); ctx.arc(px, py, rad, 0, TAU); ctx.fill();
     }
     ctx.restore();
-    // ...and the FRONT half over the top
-    if (rk.ring) {
-      const rg3 = rk.ring;
-      ctx.save();
-      ctx.translate(px, py); ctx.rotate(rk.tilt + rg3.tilt); ctx.scale(1, rg3.sq);
-      ctx.strokeStyle = `rgba(${lit},${(al * 0.62).toFixed(3)})`;
-      ctx.lineWidth = rad * (rg3.r1 - rg3.r0) / rg3.sq * 0.34;
-      ctx.beginPath(); ctx.arc(0, 0, rad * (rg3.r0 + rg3.r1) / 2, 0, Math.PI); ctx.stroke();
-      ctx.restore();
-    }
   }
   // --- the cruise wisps: long soft smears drifting among the points ---
   // Radial, so they agree with the direction of travel, and longer the further
@@ -269,9 +270,13 @@ function drawStreaks(g, dt) {
     // what flying out of frame actually looks like.
     if (st.z + span <= Z_FLOOR) {
       st.z = 1;
-      if (st.gold) st.a = Math.PI / 2 + rand(-0.55, 0.55);
+      if (st.gold) st.off = riverOff();
       continue; // nothing to draw on the frame it respawns
     }
+    // the convoy's angle is DERIVED, every frame, from where in the channel this
+    // ship runs — that is what makes the board's spread dial move the whole river
+    // instead of only the ships that happen to recycle while you are dragging it
+    if (st.gold) st.a = Math.PI / 2 + st.off * RIVER.spread;
     // THE CONVOY ONLY EXISTS UNDER WAY. The gold river is traffic running the
     // lane with us — parked in a menu there is no convoy to see, so it fades out
     // with the flow and leaves clean starfield behind.
@@ -286,10 +291,14 @@ function drawStreaks(g, dt) {
     const rr1 = r1.r * rm;
     const x1 = r1.x + Math.cos(st.a) * rr1, y1 = r1.y + Math.sin(st.a) * rr1;
     const x2 = r2.x + Math.cos(st.a) * r2.r * rm, y2 = r2.y + Math.sin(st.a) * r2.r * rm;
+    // THE BANKS, at RIVER.bank. Off by default — the river has always ended where
+    // it ends. Wound up, alpha falls with the SQUARE of the distance from
+    // mid-channel, so the middle keeps full weight and only the outer third dims.
+    const bank = st.gold ? Math.max(0, 1 - RIVER.bank * st.off * st.off) : 1;
     // no near-fade on the warp lines: the `clamp(1 + z/0.1)` term that used to be
     // here is exactly what made them dissolve in front of the viewer
     const al = st.gold
-      ? Math.min(1 - zH, 1.05) * 0.75 * clamp(1 + zH / 0.1, 0, 1) * laneFlow
+      ? Math.min(1 - zH, 1.05) * 0.75 * clamp(1 + zH / 0.1, 0, 1) * laneFlow * bank
       : Math.min(1 - zH, 1.05) * 0.46 * st.br; // translucent: you see stars THROUGH a warp line
     if (st.gold) {
       ctx.strokeStyle = `rgba(255,196,88,${al.toFixed(2)})`;

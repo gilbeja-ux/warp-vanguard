@@ -1018,6 +1018,20 @@ function planetChip(V) {
   if (!(V.n in planetChips)) planetChips[V.n] = buildPlanetSprite(PLANET_CHIP_R, V);
   return planetChips[V.n];
 }
+// DEEP-SKY worlds: the same renderer again, at the size a body a long way off the
+// lane actually subtends. It gets its OWN reference radius rather than reusing the
+// chart chip, because a chip is 24px and the deep field draws these at twice that
+// on a retina screen — an upscaled chip goes to mush, and mush is exactly what a
+// hand-painted disc looked like. Built lazily, one per skin, so the sky only pays
+// for the worlds it actually deals.
+// 52 is the largest a deep body gets in device pixels on a desktop retina frame,
+// so the common case is a 1:1 stamp with no resampling at all.
+const DEEP_WORLD_R = 52;
+const deepWorlds = {};
+function deepWorld(V) {
+  if (!(V.n in deepWorlds)) deepWorlds[V.n] = buildPlanetSprite(DEEP_WORLD_R, V);
+  return deepWorlds[V.n];
+}
 let planetSprite = null, planetSpriteKey = '';
 // Stations and gates are CACHED SPRITES, for the same reason planets are: nothing
 // in drawRingBody varies with time, so redrawing it every frame buys nothing and
