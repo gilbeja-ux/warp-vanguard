@@ -5,22 +5,24 @@
 //   npm run lab:dest   →   http://localhost:8011
 //
 // This is not a mock-up of the destinations. The lab lifts three marked regions
-// out of src/index.html — the data tables, the planet pixel shader, and the
+// out of the game's own source — the data tables, the planet pixel shader, and
 // vector art — and runs them in the browser exactly as the game does. What you
 // see is the game's own renderer; what you move is the game's own numbers.
 //
 // Writing back is SURGICAL. It never regenerates the block: it finds each key's
 // literal inside the DEST-DATA region and swaps only that literal, so every
 // comment, every alignment and every line of reasoning in that region survives a
-// round-trip. src/index.html.bak holds the previous version after each write.
+// round-trip. A .bak beside the file holds the previous version after each write.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+const { gameSource, gameFileNames } = require('./lib/game-source.js');
+
 const root = path.join(__dirname, '..');
 const labDir = path.join(root, 'docs', 'dest-lab');
 const fontDir = path.join(root, 'src', 'fonts');
-const gamePath = path.join(root, 'src', 'index.html');
+const gameDir = path.join(root, 'src', 'game');
 const workPath = path.join(labDir, 'dest-tuning.json'); // the working copy, for crash recovery
 const port = process.env.PORT || 8011;
 
@@ -48,13 +50,34 @@ function region(src, name) {
   const open = src.indexOf('// >>> ' + name);
   const close = src.indexOf('// <<< ' + name);
   if (open < 0 || close < 0 || close < open) {
-    throw new Error(`src/index.html has no intact ${name} region — did the markers get edited out?`);
+    throw new Error(`the game has no intact ${name} region — did the markers get edited out?`);
   }
   return src.slice(src.indexOf('\n', open) + 1, close);
 }
 
+// The game is authored as ordered files in src/game/ now, so a region is READ
+// out of the concatenation — that way the lab finds it wherever it lives, and a
+// region is never half-missing just because a file boundary moved.
 function readGame() {
-  return fs.readFileSync(gamePath, 'utf8');
+  return gameSource(root);
+}
+
+// ...but it is WRITTEN back to the one file that actually holds it. Writing the
+// whole concatenation over a single file would flatten the entire game into it.
+// A marked region must live inside ONE file for this to work; scripts/test.js
+// asserts exactly that, so a future split can't quietly cut one in half again.
+function fileWithRegion(name) {
+  for (const f of gameFileNames(root)) {
+    const p = path.join(gameDir, f);
+    const text = fs.readFileSync(p, 'utf8');
+    if (text.includes('// >>> ' + name)) {
+      if (!text.includes('// <<< ' + name)) {
+        throw new Error(`${name} opens in src/game/${f} but does not close there — the region spans files`);
+      }
+      return p;
+    }
+  }
+  throw new Error(`no file in src/game/ holds the ${name} region`);
 }
 
 // ---------- writing the game ----------
@@ -167,7 +190,10 @@ function patchById(span, entries) {
 const SINGLES = ['PLANET_STAR', 'PLANET_SHADE', 'RING_SHADE', 'DEST_MIX', 'DEST_LIFE'];
 
 function writeGame(payload) {
-  const src = readGame();
+  // every value the lab commits lives in DEST-DATA, so that is the only file
+  // this touches — read it on its own, patch it, put it back
+  const gamePath = fileWithRegion('DEST-DATA');
+  const src = fs.readFileSync(gamePath, 'utf8');
   const open = src.indexOf('// >>> DEST-DATA');
   const close = src.indexOf('// <<< DEST-DATA');
   if (open < 0 || close < 0) throw new Error('no intact DEST-DATA region');
@@ -276,7 +302,7 @@ const server = http.createServer((req, res) => {
     }
   }
 
-  // the commit: values go back into src/index.html
+  // the commit: values go back into the game file that holds DEST-DATA
   if (urlPath === '/api/apply' && req.method === 'POST') {
     let body = '';
     req.on('data', c => { body += c; if (body.length > 4e6) req.destroy(); });
@@ -284,7 +310,7 @@ const server = http.createServer((req, res) => {
       try {
         writeGame(JSON.parse(body));
         try { fs.existsSync(workPath) && fs.unlinkSync(workPath); } catch (e) {}
-        console.log('wrote DEST-DATA → src/index.html (previous kept at src/index.html.bak)');
+        console.log('wrote DEST-DATA → ' + path.relative(root, fileWithRegion('DEST-DATA')) + ' (previous kept alongside as .bak)');
         send(res, 200, TYPES['.json'], '{"ok":true}');
       } catch (e) { send(res, 400, 'text/plain', e.message); }
     });
@@ -311,6 +337,6 @@ const server = http.createServer((req, res) => {
 if (require.main === module) {
   server.listen(port, '127.0.0.1', () => {
     console.log(`Destinations lab on http://localhost:${port}`);
-    console.log(`Reading and writing src/index.html between the DEST-DATA markers`);
+    console.log('Reading regions from src/game/*.js; writing DEST-DATA back to ' + path.relative(root, fileWithRegion('DEST-DATA')));
   });
 }

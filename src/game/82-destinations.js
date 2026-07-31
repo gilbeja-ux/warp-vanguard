@@ -1,4 +1,124 @@
 'use strict';
+function drawFarGlow(far, vr, g) {
+  // 1x at departure, 4x at arrival. laneProgress() is LATCHED and monotonic, so
+  // the world never shrinks mid-run and never snaps back when the level ends —
+  // it holds its arrival size for whatever the end sequence wants to do with it.
+  const grow = 1 + laneProgress() * 3;
+  // ARRIVAL. A campaign win IS reaching the destination, so the ceremony finishes
+  // the journey for real: the world closes the last of the distance and swells to
+  // meet the ring, and the mission report lands on top of it. Losses, endless and
+  // qualification never arrive — their world holds at whatever approach it made.
+  const arriving = state === S.END && endWin && !endless && !qual;
+  let arrive = 0;
+  if (arriving) {
+    const q = clamp((endT - 0.55) / 2.3, 0, 1); // rides in with the clear-sweep
+    arrive = 1 - Math.pow(1 - q, 3);            // fast closing, gentle settle
+  }
+  const R = Math.max(2, vr * 0.075 * grow) * (1 - arrive) + g.nodeR * 0.52 * arrive;
+  const V = planetVariant();
+  const breath = 0.5 + 0.5 * Math.sin(time * 0.7);
+
+  // --- the haze shell: what replaced the light rays ---
+  const hz = ctx.createRadialGradient(far.x, far.y, R * 0.8, far.x, far.y, R * 4.6);
+  hz.addColorStop(0, `rgba(${V.atmo},${(0.075 + 0.02 * breath).toFixed(4)})`);
+  hz.addColorStop(0.35, `rgba(${V.atmo},${(0.034 + 0.012 * breath).toFixed(4)})`);
+  hz.addColorStop(1, `rgba(${V.atmo},0)`);
+  ctx.fillStyle = hz;
+  ctx.beginPath(); ctx.arc(far.x, far.y, R * 4.6, 0, TAU); ctx.fill();
+
+  // --- the body ---
+  // Stations and gates are machined objects, so they are DRAWN rather than shaded
+  // per pixel — and by the same two functions the chart uses, so the thing at the
+  // end of the bore is the thing the map promised, only larger.
+  const kind = destKindFor((typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x',
+    levelIdx, !!(LV && LV.boss));
+  if (kind === 'station' || kind === 'gate') {
+    const laS = destLightA();
+    drawDestLife(far, R, g, false, laS); // whatever is round the back, first
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    const rs = ringSpriteFor(kind, kind === 'station'
+      ? stationCoreFor((typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x', levelIdx)
+      : null);
+    if (rs) {
+      const w = rs.S * (R * (kind === 'gate' ? 1.25 : 1.15) / rs.R);
+      ctx.drawImage(rs.cv, far.x - w / 2, far.y - w / 2, w, w);
+    } else {
+      drawRingBody(far.x, far.y, R * (kind === 'gate' ? 1.25 : 1.15), kind);
+    }
+    ctx.restore();
+    drawDestLife(far, R, g, true, laS);
+    if (1 - arrive > 0.02) drawFarMotes(far, R, grow, breath, 1 - arrive);
+    return;
+  }
+  // A planet is one sprite, scaled continuously — no rebuild while it grows. The
+  // one exception is arrival: the approach sprite upscaled 2x+ goes soft, so the
+  // first ceremony frame rebuilds it at double resolution — a single hitch, masked
+  // by the victory flash, instead of a blurry close-up for the whole report.
+  const spriteKey = V.n + (arriving ? '@hi' : '');
+  if (planetSpriteKey !== spriteKey) {
+    planetSprite = buildPlanetSprite(arriving ? PLANET_REF_R * 2 : PLANET_REF_R, V);
+    planetSpriteKey = spriteKey;
+  }
+  const la = V.emis ? LIGHT_A : destLightA(); // a star has no terminator to creep
+  // A swarm has no surface, so nothing that lives ON a world belongs on it — no
+  // cities, no aurora, no creeping terminator across a single face, and no moon
+  // in orbit around a cloud of rubble. Each rock in buildFieldSprite carries its
+  // own terminator already.
+  const swarm = !!V.field;
+  if (!swarm) drawDestLife(far, R, g, false, la);   // far half of every orbit, occluded by the body
+  if (planetSprite) {
+    const w = planetSprite.S * (R / planetSprite.R);
+    ctx.drawImage(planetSprite.cv, far.x - w / 2, far.y - w / 2, w, w);
+  } else {
+    // no-ImageData fallback: a lit disc, offset toward the key light
+    ctx.save();
+    ctx.beginPath(); ctx.arc(far.x, far.y, R, 0, TAU); ctx.clip();
+    ctx.fillStyle = 'rgba(9,14,26,0.95)';
+    ctx.fillRect(far.x - R, far.y - R, R * 2, R * 2);
+    const bg2 = ctx.createRadialGradient(
+      far.x + Math.cos(LIGHT_A) * R * 0.62, far.y + Math.sin(LIGHT_A) * R * 0.62, R * 0.05,
+      far.x, far.y, R * 1.45);
+    bg2.addColorStop(0, `rgba(${V.z},0.75)`);
+    bg2.addColorStop(1, 'rgba(14,22,44,0)');
+    ctx.fillStyle = bg2;
+    ctx.fillRect(far.x - R, far.y - R, R * 2, R * 2);
+    ctx.restore();
+  }
+  // the sun creeps across the face — the shadow goes ON the body, then everything
+  // that lives here goes over the top, lit by that same drifted vector
+  if (!V.emis && !swarm) drawTerminatorCreep(far, R, clamp((R / g.nodeR - DEST_LIFE.vis0) / DEST_LIFE.vis1, 0, 1), la);
+  if (!swarm) drawDestLife(far, R, g, true, la);
+  // --- glowing grain in the haze: the atmosphere lit from within ---
+  drawFarMotes(far, R, grow, breath, 1 - arrive);
+}
+// Stateless — each mote is a fixed phase read against the shared clock — so it
+// behaves identically in menus, replays and pauses without touching the sim.
+//
+// FADES OUT ON ARRIVAL (moteK). At approach distance this is grain boiling at the
+// limb of a speck; at arrival the same motes are big rings sailing off a body that
+// now fills the bore, and they read as debris orbiting the planet. The atmosphere
+// is sold by the sprite's own limb at that range — the grain is not needed.
+//
+// Extracted so the station and gate destinations can share it: they get the same
+// dust in their haze as a world does, without duplicating the loop.
+function drawFarMotes(far, R, grow, breath, moteK) {
+  if (moteK <= 0.02) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const m of farMotes) {
+    const k = ((time * m.sp + m.ph) % 1 + 1) % 1;
+    const puff = Math.sin(k * Math.PI);              // fades in and out, never pops
+    const al = puff * 0.13 * (0.6 + 0.4 * breath) * moteK;
+    if (al < 0.008) continue;
+    const rr = R * (m.rr + k * 0.9);
+    const mx = far.x + Math.cos(m.a) * rr, my = far.y + Math.sin(m.a) * rr * 0.92;
+    ctx.fillStyle = m.warm ? `rgba(255,214,170,${al.toFixed(3)})` : `rgba(190,220,255,${al.toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(mx, my, Math.max(0.35, m.sz * (0.5 + grow * 0.35)), 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
 // ---------- WHAT LIVES AT THE DESTINATION ----------
 // >>> DEST-LIFE
 // The lab lifts this whole region so it can stage a real arrival. It may reach

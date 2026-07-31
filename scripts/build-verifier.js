@@ -20,6 +20,7 @@ const campaigns = fs.readFileSync(path.join(root, 'src', 'campaigns.js'), 'utf8'
 // ordered <script src> tags; this is the same source concatenated back into one
 // string, byte-identical to the single inline <script> it replaced.
 const game = require('./lib/game-source.js').gameSource(root);
+const SIM_ID = require('./lib/sim-id.js').simId(root);
 
 // the minimal surface the verifier drives, exposed on globalThis by the sim
 const expose = `
@@ -111,12 +112,16 @@ export function verifyRun(run) {
   return { ok: s.score === run.score, recomputed: s.score, expected: run.score, integrity: s.integrity, steps,
     zaps: s.zaps, misses: s.misses, perfects: s.perfects, maxCombo: s.maxCombo, comboSec: s.comboSec };
 }
+// The fingerprint of the source this bundle was cut from. The whole point is to
+// make "is the deployed verifier stale?" answerable in one request instead of
+// inferred from rejected scores — see scripts/verifier-status.js.
+export const SIM_ID = ${JSON.stringify(SIM_ID)};
 // health check: confirm the sim loads + installs campaigns + runs in this runtime.
 export function _diag() {
-  if (!__VG) return { loadError: globalThis.__loadErr || 'V undefined (sim exposed no __vg)' };
+  if (!__VG) return { simId: SIM_ID, loadError: globalThis.__loadErr || 'V undefined (sim exposed no __vg)' };
   __VG.resetCanonical(); __VG.setViewport(800, 450);
   __VG.startLevel(4); __VG.setIntro(999); __VG.setState(__VG.S.PLAY);
-  const info = { levels: __VG.levelsN(), campaigns: __VG.campN(), lvName: __VG.lvName() };
+  const info = { simId: SIM_ID, levels: __VG.levelsN(), campaigns: __VG.campN(), lvName: __VG.lvName() };
   for (let i = 0; i < 300; i++) __VG.simStep();
   info.noInput = __VG.stats();
   return info;
@@ -124,6 +129,7 @@ export function _diag() {
 `;
 
 const bundle = header + gameCode + footer;
+console.log('  sim id: ' + SIM_ID);
 const outDir = path.join(root, 'supabase', 'functions', 'submit-run');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, '_sim.mjs'), bundle);

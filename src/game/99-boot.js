@@ -668,7 +668,7 @@ function frame(now) {
   prof('laneMedium');
   drawLaneMedium(g, dt); // gas + debris the warp lines fly through
   prof('streaks');
-  drawStreaks(g, dt);
+  if (!abl('streaks')) drawStreaks(g, dt);
   prof('ring');
   // warm glow rising off the golden river — no convoy, no glow
   if (laneFlow > 0.01) {

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Refuse to push a sim the deployed leaderboard verifier does not know about.
+#
+# Rationale lives in scripts/verifier-status.js: a stale verifier rejects every
+# real score and surfaces as a scoring bug. It has happened twice. Push is the
+# right gate — it is where "this is real now" happens, and it is rare enough that
+# one network round-trip costs nothing.
+#
+# Enable once:  npm run hooks:install
+# Bypass:       git push --no-verify
+set -uo pipefail
+
+# only worth checking when the thing the verifier simulates has moved
+if git diff --quiet "@{push}" HEAD -- src/game src/campaigns.js 2>/dev/null; then
+  exit 0
+fi
+
+echo "sim changed since the last push — checking the deployed verifier…"
+if node scripts/verifier-status.js; then
+  exit 0
+fi
+
+cat <<'MSG'
+
+  Push BLOCKED: the deployed verifier is stale.
+  Fix it first (or use --no-verify if you know the deploy is coming later):
+
+      npm run deploy:verifier
+
+MSG
+exit 1

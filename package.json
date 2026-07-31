@@ -17,7 +17,9 @@
     "android": "npx cap open android",
     "sync": "npm run build && npx cap sync",
     "apk": "bash scripts/build-apk.sh",
-    "icons": "python3 scripts/icons.py"
+    "icons": "python3 scripts/icons.py",
+    "verifier:status": "node scripts/verifier-status.js",
+    "hooks:install": "git config core.hooksPath .githooks && echo \"git hooks active (.githooks/)\""
   },
   "keywords": [
     "game",

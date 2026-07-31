@@ -1,3 +1,33 @@
+# Keeping the leaderboard verifier in sync
+
+The server re-simulates every submitted run to verify its score, using a **bundle
+of the sim deployed separately** from the game. If the sim changes and that
+bundle is not redeployed, the server replays your runs against the old rules and
+rejects all of them — which shows up in-game as
+
+```
+REJECTED 400: verification failed [48320 vs 52620]
+```
+
+That reads as a scoring bug. It is not one, and it has cost two debugging
+sessions. So the sim now carries a fingerprint:
+
+```bash
+npm run verifier:status     # local id vs deployed id — one number each
+npm run deploy:verifier     # rebuild the bundle and ship it
+```
+
+Install the git hook once and a push that changes `src/game/` or
+`src/campaigns.js` will check the deployed verifier for you:
+
+```bash
+npm run hooks:install       # sets core.hooksPath to .githooks/
+```
+
+`git push --no-verify` bypasses it when the deploy is deliberately coming later.
+
+---
+
 # Building the Android app (offline APK)
 
 Warp Lane ships as a [Capacitor](https://capacitorjs.com) app: the web game

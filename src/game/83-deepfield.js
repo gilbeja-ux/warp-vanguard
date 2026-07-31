@@ -330,11 +330,13 @@ function drawStreaks(g, dt) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.lineCap = 'round';
-      for (let pi = st.p0; pi < LIVE_WARP_PASSES.length; pi++) {
+      const pi0 = abl('passes') ? LIVE_WARP_PASSES.length - 1 : st.p0;
+      for (let pi = pi0; pi < LIVE_WARP_PASSES.length; pi++) {
         const [w, ci, aMul] = LIVE_WARP_PASSES[pi];
         const a2 = al * aMul;
         if (a2 < 0.008) continue;
-        if (!grads[ci]) grads[ci] = mkGrad(ci === 2 ? '255,255,255' : st.tint[ci]);
+        const col = ci === 2 ? '255,255,255' : st.tint[ci];
+        if (!grads[ci]) grads[ci] = abl('grad') ? `rgba(${col},1)` : mkGrad(col);
         ctx.globalAlpha = Math.min(1, a2);
         ctx.strokeStyle = grads[ci];
         ctx.lineWidth = w * k;
@@ -360,7 +362,7 @@ function drawStreaks(g, dt) {
     // At speed only near streaks carry a head; parked, the reach opens to the
     // whole bore so the becalmed lane reads as a field of still stars, not a void.
     const headZ = 0.55 + 0.45 * (1 - laneFlow);
-    if (!st.gold && zH < headZ) {
+    if (!st.gold && zH < headZ && !abl('heads')) {
       const hk = clamp(1 - zH / headZ, 0, 1) * Math.min(2, Math.sqrt(st.cal || 1));
       // parked, these ARE the sky — so they scintillate like it. At speed they are
       // smears, where a twinkle would just read as flicker, so it fades in with the

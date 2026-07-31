@@ -79,15 +79,11 @@
     },
     {
       "file": "80-tunnel.js",
-      "describes": "lattice, warp field, the bore, planets"
-    },
-    {
-      "file": "81-asteroids.js",
-      "describes": "the asteroid field"
+      "describes": "lattice, warp field, the bore, planets and asteroid sprites (holds the DEST-* lab regions)"
     },
     {
       "file": "82-destinations.js",
-      "describes": "destinations and ambient traffic"
+      "describes": "far glow, destinations and ambient traffic"
     },
     {
       "file": "83-deepfield.js",

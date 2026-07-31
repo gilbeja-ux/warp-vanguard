@@ -2282,6 +2282,21 @@ async function runMusicUp() {
     check('every game file after the first declares its own strict mode',
       manifestFiles.slice(1).every(f =>
         fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8').startsWith("'use strict';\n")));
+
+    // The labs lift `// >>> NAME` … `// <<< NAME` regions out of the game and
+    // write them back, so a region MUST live inside one file. The first split
+    // cut DEST-SPRITE across two and broke the destinations lab silently — the
+    // lab still booted, and only failed when you asked it for that region.
+    const opens = {}, closes = {};
+    for (const f of manifestFiles) {
+      const text = fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8');
+      for (const m of text.matchAll(/^\/\/ >>> (\S+)/gm)) opens[m[1]] = f;
+      for (const m of text.matchAll(/^\/\/ <<< (\S+)/gm)) closes[m[1]] = f;
+    }
+    const names = [...new Set([...Object.keys(opens), ...Object.keys(closes)])];
+    const straddling = names.filter(n => opens[n] !== closes[n]);
+    check(`every lab region opens and closes in one file (${names.length} regions)`,
+      straddling.length === 0 && names.length > 0);
   }
 
   console.log(failures === 0 ? '\nALL TESTS PASSED' : '\n' + failures + ' FAILURES');

@@ -96,8 +96,28 @@ function drawProfiler() {
   ctx.restore();
 }
 
-// ?prof=1 turns it on at boot. Wrapped because the headless harnesses have no
-// location, and the editor page has one that never carries the flag.
+// ---------- ABLATIONS (measurement only — they change what you see) ----------
+// A phase timer says WHERE the time goes; it cannot say what you would get back
+// by changing something. For that you turn a suspect off and re-measure. These
+// exist so an optimisation is chosen from evidence rather than from a plausible
+// story about which canvas call is expensive — the headless profile already
+// pointed at the wrong thing once.
+//
+//   ?abl=heads    the per-star head glow (a radial gradient + additive arc each)
+//   ?abl=grad     the tapered stroke gradients — flat rgba instead
+//   ?abl=passes   one stroke pass per star instead of up to eight
+//   ?abl=streaks  drawStreaks not called at all — the upper bound on any win
+//
+// Comma-separate to stack them. None of this touches the seeded sim stream
+// (drawStreaks uses rand(), which is Math.random, never srand()), so an ablated
+// run still simulates and verifies identically — it just looks wrong.
+const ABL = new Set();
+function abl(k) { return ABL.has(k); }
+
 try {
-  if (typeof location !== 'undefined' && /[?&]prof=1/.test(location.search)) profToggle(true);
+  if (typeof location !== 'undefined') {
+    if (/[?&]prof=1/.test(location.search)) profToggle(true);
+    const m = /[?&]abl=([a-z,]+)/.exec(location.search);
+    if (m) for (const k of m[1].split(',')) ABL.add(k);
+  }
 } catch (e) {}
