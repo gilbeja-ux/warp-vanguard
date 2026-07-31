@@ -17,7 +17,7 @@
 // SCOPED IN AN IIFE, DELIBERATELY. This page loads the real game into the same
 // document, and a classic script's top-level `const`/`let` land in the shared
 // global lexical scope. `const state` here collided with `let state` in
-// 40-UI.js — a duplicate global binding is a SyntaxError, so that whole file
+// 40-state.js — a duplicate global binding is a SyntaxError, so that whole file
 // silently failed to execute and every later preview died on a missing global
 // with no clue which file was to blame. Declaring nothing globally makes that
 // class of bug impossible. Assignments to the game's own `ctx`/`W`/`H`/`DPR`
@@ -60,7 +60,7 @@ async function loadGame(files) {
   // Check a sentinel global from each end of the chain and name the file that
   // failed, rather than letting the first preview report a bare ReferenceError.
   const SENTINELS = [
-    ['00-core.js', 'ctx'], ['40-UI.js', 'warpT'], ['41-geometry.js', 'geo'],
+    ['00-core.js', 'ctx'], ['40-state.js', 'warpT'], ['41-geometry.js', 'geo'],
     ['80-tunnel.js', 'drawTunnel'], ['83-deepfield.js', 'drawStreaks'], ['90-hud.js', 'drawHUD'],
   ];
   const dead = SENTINELS.filter(([, g]) => {
@@ -236,7 +236,7 @@ function syncHeader() {
   d.classList.toggle('on', n > 0);
   // per-KEY too: ARCFX.span is art everywhere except that it is also the zap
   // tolerance, so a const-level check alone would miss the one that matters most
-  const sim = [...state.pending.values()].some(p =>
+  const sim = [...UI.pending.values()].some(p =>
     SIM_KEYS.has(p.constName) || (p.key != null && SIM_KEYS.has(p.constName + '.' + p.key)));
   $('#commit').disabled = n === 0;
   $('#revert').disabled = n === 0;
@@ -256,7 +256,7 @@ function renderNav() {
     b.setAttribute('aria-current', String(UI.current === g.id));
     b.appendChild(el('span', null, g.title));
     if (g.simAffecting) b.appendChild(el('span', 'sim', 'sim'));
-    const n = [...state.pending.values()].filter(p => g.consts.includes(p.constName)).length;
+    const n = [...UI.pending.values()].filter(p => g.consts.includes(p.constName)).length;
     const tag = el('span', 'n' + (n ? ' on' : ''), n ? String(n) : String(g.values.length));
     b.appendChild(tag);
     b.onclick = () => { UI.current = g.id; renderNav(); renderGroup(); };

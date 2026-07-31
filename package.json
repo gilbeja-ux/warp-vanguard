@@ -5,7 +5,7 @@
   "main": "index.html",
   "scripts": {
     "start": "npm run build",
-    "test": "node scripts/test.js",
+    "test": "node scripts/test.js && node scripts/test-board.js",
     "build:verifier": "node scripts/build-verifier.js",
     "deploy:verifier": "node scripts/build-verifier.js && supabase functions deploy submit-run",
     "build": "node scripts/build.js",
@@ -20,7 +20,8 @@
     "icons": "python3 scripts/icons.py",
     "verifier:status": "node scripts/verifier-status.js",
     "hooks:install": "git config core.hooksPath .githooks && echo \"git hooks active (.githooks/)\"",
-    "lab:tune": "node scripts/tuning-board.js"
+    "lab:tune": "node scripts/tuning-board.js",
+    "test:board": "node scripts/test-board.js"
   },
   "keywords": [
     "game",
