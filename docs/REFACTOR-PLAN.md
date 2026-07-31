@@ -56,14 +56,22 @@ The server-side anti-cheat verifier **inlines the entire game script** into a
 headlessly to recompute a submitted run's score. Supabase's edge runtime blocks
 `eval`, so the game must be inlined as literal module source.
 
+> **Updated 2026-07-31.** Point 1 below was wrong, and the split disproved it.
+> The verifier needs the game as **one string**, which is not the same as one
+> `<script>` — it now gets that string from `scripts/lib/game-source.js`, which
+> concatenates `src/game/*.js` in manifest order. Points 2 and 3 still hold.
+> `build-verifier.js` no longer reads `index.html` at all.
+
 Consequences, which are non-negotiable unless we rewrite the anti-cheat build:
 
-1. The game must remain **one inline `<script>`** in `index.html`.
-2. It must keep working with **592 shared top-level globals** and no imports.
-3. It must stay **strict-mode safe** (it already is — `'use strict'` at line 40).
+1. ~~The game must remain **one inline `<script>`** in `index.html`.~~ It must
+   remain **reconstructible as one ordered string**, with no imports.
+2. It must keep working with **~730 shared top-level globals** and no imports.
+3. It must stay **strict-mode safe** (it is — every file declares `'use strict'`).
 
-This is why the plan below is *build-time concatenation*, not ES modules. We
-change how the code is **authored**, and emit a byte-identical runtime artifact.
+This is why the split is *ordered classic script tags*, not ES modules. We change
+how the code is **authored and loaded**, and the string the verifier sees is
+byte-identical to what it saw before.
 
 ---
 
@@ -125,7 +133,46 @@ whether or not Step 2 ever happens.
 
 ---
 
-### Step 2 — Split authoring into `src/game/*.js`, concatenate at build
+### ~~Step 2 — Split authoring into `src/game/*.js`~~ — **DONE, 2026-07-31**
+
+Shipped, but **not the way this section proposed.** The plan below assumed the
+game had to stay one inline `<script>` emitted by a build step. It doesn't.
+
+**What actually shipped:** `index.html` is an 83-line shell that loads 31 ordered
+`<script src="game/*.js">` tags. There is no build step and no generated
+artifact — the files on disk are the files the browser runs. `scripts/lib/game-source.js`
+concatenates them from `src/game/manifest.json` for the three consumers that need
+one string (`test.js`, `build-verifier.js`, `verify-run.js`).
+
+**Why the constraint below turned out not to bind:** the risk of separate tags is
+that concatenation hoists function declarations across the whole script while
+separate tags do not. Measured before committing: **26 top-level executable
+statements, zero eager forward references.** And `campaigns.js` already loaded as
+its own tag, including over `file://`.
+
+**How it was proven, both mechanically:**
+
+1. **Byte-identity** — the concatenation of `src/game/*.js` is byte-for-byte
+   equal to the `<script>` body of the last pre-split commit (857,375 bytes), so
+   the verifier bundle rebuilt *byte-identical* too. Zero behaviour change, not
+   as a hope but as a diff.
+2. **Load order** — all 31 files were run as separate scripts in a shared VM
+   context (which reproduces classic-script semantics: function declarations on
+   the shared global, top-level `let`/`const` in the shared global lexical
+   scope). All 31 load clean.
+
+Three permanent assertions in `test.js` now stop the pieces drifting: tag order
+in `index.html` must equal manifest order, every file in `src/game/` must be in
+the manifest, and every file after the first must declare its own `'use strict'`
+(strict mode is per-script for classic tags).
+
+Each file opens with a `'use strict';` prologue that `game-source.js` strips back
+off when concatenating — that stripping is what keeps the byte-identity check
+honest.
+
+<details>
+<summary>The original build-time-concatenation proposal (superseded)</summary>
+
 
 **This is the structural centerpiece.** Author the game as ordered files;
 `build.js` concatenates them into the single `<script>` in `index.html`.
@@ -181,6 +228,8 @@ saying so, and the build must run before `dev`/`sync`/`apk` (it already does for
 `dev` and `sync`; `apk` should be checked).
 
 **Verify:** byte-identity diff + `npm test` + one real playthrough.
+
+</details>
 
 ---
 
@@ -257,9 +306,21 @@ than assumed. Visual A/B on the real device for anything touching draw.
 |---|---|---|---|---|
 | 0 · Repo hygiene | Low but free | None | — | **done** 2026-07-28 |
 | 1 · Tuning surface | **High** | Low | — | open |
-| 2 · File split | **High** | Low (byte-identity guard) | — | open |
+| 2 · File split | **High** | Low (byte-identity guard) | — | **done** 2026-07-31 (as script tags) |
 | 3 · Labs | Medium | Low | — | **resolved by deletion** 2026-07-28 |
-| 4 · Perf | Low today, preventative | Medium (verifier trim) | Step 2 | open |
+| 4 · Perf | Low today, preventative | Medium (verifier trim) | Step 2 | see note below |
+
+**Step 4 correction, 2026-07-31.** The verifier-bundle trim was measured and is
+**not worth doing**. Its premise was that ~7,000 lines of render code in the
+bundle cost the server something per submission. They don't: verification drives
+`simStep` and never draws, so a stub-side optimisation moved verification 6.4ms →
+6.7ms (nothing) and cold load 22ms → 22ms (nothing). The only cost render code
+carries there is bundle parse time, already inside that 22ms. Dropped.
+
+What *is* real, from a CPU profile of the suite: `drawStreaks`, `drawStarField`
+and `blob` are per-frame and together ~20% of headless CPU; `clamp` has 268 call
+sites. But a headless profile measures JS arithmetic against a stubbed `ctx`, not
+rasterisation — **profile on the real device before changing any of it.**
 
 Steps 1 and 2 are the ones I'd actually argue for. Step 4 is honest maintenance
 with no current payoff — worth queueing, not worth rushing.

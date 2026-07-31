@@ -61,9 +61,9 @@ global.screen = {};
 
 // ---------- load the real sim ----------
 const root = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'src', 'index.html'), 'utf8');
 const campaigns = fs.readFileSync(path.join(root, 'src', 'campaigns.js'), 'utf8');
-let code = campaigns + '\n' + html.match(/<script>([\s\S]*?)<\/script>/)[1];
+// campaigns.js loads before the game files in the page — mirror that order here
+let code = campaigns + '\n' + require('./lib/game-source.js').gameSource(root);
 code = code.replace("'use strict';", '') + `
 ;globalThis.__vg = {
   S, setState: v => { state = v; }, setIntro: v => { introT = v; introCd = 0; },

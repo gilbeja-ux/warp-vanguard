@@ -31,8 +31,8 @@ import os, re, sys, glob
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
 ICONS = os.path.join(SRC, 'icons')
-BADGE = os.path.join(SRC, 'logo-small.png')
-LOCKUP = os.path.join(SRC, 'logo.png')
+BADGE = os.path.join(SRC, 'logo-small.webp')
+LOCKUP = os.path.join(SRC, 'logo.webp')
 BG = (3, 6, 14, 255)          # manifest background_color, #03060e
 
 # `any` nearly fills its tile; `maskable` sits inside the circular safe zone
@@ -43,17 +43,23 @@ SIZES = [(192, 0.94, False, 'df-192.png'),
 
 
 def adopt(target, *patterns):
-    """Rename whatever the art was actually called into the name the game loads."""
+    """Turn whatever the art was actually called into the file the game loads.
+
+    The game ships WebP (lossless — same pixels, a third less weight), but art
+    arrives as PNG, so a dropped PNG is CONVERTED here rather than renamed. The
+    original is left alone: it is the thing to re-drop if this ever needs redoing,
+    and it must not sit in src/ afterwards or Capacitor packages both copies.
+    """
     if os.path.exists(target):
         return False
     for pat in patterns:
-        for hit in glob.glob(os.path.join(SRC, pat)):
+        for hit in sorted(glob.glob(os.path.join(SRC, pat))):
             if os.path.abspath(hit) == os.path.abspath(target):
                 continue
-            tmp = target + '.tmp'          # two steps: a case-only rename is a
-            os.rename(hit, tmp)            # no-op on a case-insensitive volume
-            os.rename(tmp, target)
-            print(f'  adopted {os.path.basename(hit)} -> {os.path.basename(target)}')
+            from PIL import Image
+            Image.open(hit).convert('RGBA').save(target, 'WEBP', lossless=True, exact=True, quality=100)
+            print(f'  adopted {os.path.basename(hit)} -> {os.path.basename(target)} (lossless webp)')
+            print(f'  NOTE: {os.path.basename(hit)} is still in src/ — move it out, it ships otherwise')
             return True
     return False
 

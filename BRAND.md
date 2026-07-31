@@ -34,7 +34,7 @@ warp bore — concentric hoops and radial spokes converging on a bright vanishin
 point — filling the lower half. **The bore is the mark.** It always was; it is
 now literal instead of metaphorical, and needs no explaining.
 
-- **Full lockup** — `src/logo.png`. The badge carrying its own lettering:
+- **Full lockup** — `src/logo.webp`. The badge carrying its own lettering:
   WARP large in cyan-chrome and VANGUARD in gold beneath it, over the bore. Menu and marketing surfaces.
   Loaded at runtime by `brandLogo()`; the code keeps an Audiowide drawn stack as
   a fallback if the file is missing — that fallback already letters
@@ -43,8 +43,8 @@ now literal instead of metaphorical, and needs no explaining.
   Same shield with the lettering removed and a **wolf mark** over the bore,
   cyan chevrons top and bottom. Icon = badge only, no wordmark.
 
-**SHIPPED (2026-07-31).** `src/logo.png` is the full lockup and
-`src/logo-small.png` is the badge-only mark: a gold-rimmed shield over a receding
+**SHIPPED (2026-07-31).** `src/logo.webp` is the full lockup and
+`src/logo-small.webp` is the badge-only mark: a gold-rimmed shield over a receding
 warp bore, with a **W** across it. The bore is still the mark, now drawn rather
 than described.
 

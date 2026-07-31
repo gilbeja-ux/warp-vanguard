@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-// Headless test harness: stubs the DOM, evals the real game script from
-// src/index.html, and exercises game logic, rendering paths, and audio.
+// Headless test harness: stubs the DOM, evals the real game code from
+// src/game/*.js, and exercises game logic, rendering paths, and audio.
 // Run with `npm test`.
 const fs = require('fs');
 const path = require('path');
-const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
-const campaigns = fs.readFileSync(path.join(__dirname, '..', 'src', 'campaigns.js'), 'utf8');
-// campaigns.js loads before the game script in the page — mirror that here
-let code = campaigns + '\n' + html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const ROOT = path.join(__dirname, '..');
+const { gameSource, gameFileNames } = require('./lib/game-source.js');
+const campaigns = fs.readFileSync(path.join(ROOT, 'src', 'campaigns.js'), 'utf8');
+// campaigns.js loads before the game files in the page — mirror that here
+let code = campaigns + '\n' + gameSource(ROOT);
 
 // --- DOM stubs ---
 const grad = { addColorStop() {} };
@@ -2260,6 +2261,27 @@ async function runMusicUp() {
     global.fetch = async () => { throw new Error('offline'); };
     check('leaderboard reads fail soft to null when offline', (await G.lbTop('endless')) === null);
     global.fetch = realFetch;
+  }
+
+  // ================= the split's guard rails =================
+  // The game is authored as ordered files and loaded by the page as ordered
+  // <script src> tags. Three things must stay in lockstep or the browser runs
+  // something different from what this suite and the verifier bundle test:
+  // the manifest order, the tag order in index.html, and the folder contents.
+  // A drift here is silent — the page just quietly runs stale or partial code.
+  {
+    const manifestFiles = gameFileNames(ROOT);
+    const shell = fs.readFileSync(path.join(ROOT, 'src', 'index.html'), 'utf8');
+    const tagged = [...shell.matchAll(/<script src="game\/([^"]+)"><\/script>/g)].map(m => m[1]);
+    const onDisk = fs.readdirSync(path.join(ROOT, 'src', 'game')).filter(f => f.endsWith('.js')).sort();
+
+    check('index.html loads exactly the manifest files, in manifest order',
+      tagged.join(',') === manifestFiles.join(','));
+    check('every file in src/game/ is in the manifest (none silently unloaded)',
+      onDisk.join(',') === [...manifestFiles].sort().join(','));
+    check('every game file after the first declares its own strict mode',
+      manifestFiles.slice(1).every(f =>
+        fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8').startsWith("'use strict';\n")));
   }
 
   console.log(failures === 0 ? '\nALL TESTS PASSED' : '\n' + failures + ' FAILURES');

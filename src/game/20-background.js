@@ -1,0 +1,551 @@
+'use strict';
+// ---------- background (deep data-space behind the tunnel walls) ----------
+let bgCanvas = null, vignetteCanvas = null, wallTex = null, wallCloud = null;
+let ringFxCv = null, grainCv = null; // prerendered monolith ring + film-grain tile
+// (the drifting screen motes are GONE with the rest of the fiber theme. Eighteen
+// dots sliding UP the frame on their own blinking cycle made sense as data rising
+// through a feed; against a star field they were the only things in the sky moving
+// in a straight line, and they read as exactly what they were — sprites.)
+// SCINTILLATION, STAR BY STAR.
+//
+// The backdrop bakes ~1500 stars into a canvas, so the first two attempts at this
+// were invisible: anything drawn live on top is a rounding error against a static
+// field that size. The third attempt fixed the visibility by modulating a COPY of
+// the whole sky — and that is exactly what made it wrong. A sky where every star
+// brightens and dims on the same clock is not a sky, it is a dimmer switch.
+//
+// So: a share of the backdrop is held OUT of the bake and drawn live, at the same
+// positions, in the same colours, with the same distribution — and each of those
+// stars gets its own rate, its own phase, and its own amplitude. Nothing is
+// synchronised with anything. Drawn in place, under the lane, so the depth order
+// of the sky is untouched.
+//
+// What makes it read as sky rather than as blinking lights:
+//   · two incommensurate rates per star, so no star ever repeats its own pattern
+//   · amplitude by class — most barely move, a few really swim, a handful sit
+//     dead still (bright planets do not twinkle, and having some anchors is what
+//     makes the movement in the others read as movement)
+//   · A GATE, which is the whole timing of the thing: a star is not permitted to
+//     scintillate continuously. Every one carries two very slow, incommensurate
+//     gate waves, and it only twinkles while their PRODUCT is open — roughly an
+//     eighth of the time, at intervals that never repeat. A sky where every star
+//     is always shimmering is a screensaver; the effect only reads as atmosphere
+//     when most of the field is dead still and the movement wanders around it.
+//   · the brightest ones shift COLOUR slightly as they scintillate, warm to cool,
+//     which is what a real bright star does through atmosphere and is the single
+//     most convincing detail in the whole effect
+let liveStars = [];
+// class table: [share, amplitude range, rate range].
+//
+// A star FLARES as well as dims — amplitude runs both ways around its baseline,
+// so at the top of a cycle it is brighter than it was ever painted. That is what
+// makes a field sparkle rather than merely fade; a star that only ever subtracts
+// light reads as something switching off.
+//
+// Rates are seconds, not tens of seconds. Real scintillation is quick — at the
+// first cut's 0.15 rad/s a star took forty seconds to complete one swing, which
+// is not twinkling, it is weather.
+// Amplitudes above 1 are deliberate and are the point of the whole rebalance: a
+// star at amp 1.2 goes fully OUT at the bottom of its swing and comes back to
+// well over its painted brightness at the top. That is a star scintillating.
+// Anything under ~0.5 is a dimmer being nudged, which is what a dark sky full of
+// gently-breathing dots looked like — present in the code, invisible on a phone.
+const STAR_CLASS = [
+  [0.18, [0.00, 0.00], [0.0, 0.0]],   // steady: the anchors the movement is read against
+  [0.36, [0.30, 0.55], [0.9, 2.6]],   // gentle — the body of the field
+  [0.32, [0.60, 1.00], [1.3, 4.4]],   // lively: down to nothing, back to full
+  [0.14, [1.05, 1.55], [0.6, 2.2]]    // dramatic: hard out, hard flare over the painted level
+];
+// GATE. Two slow waves per star, multiplied: open only where both happen to be
+// high. Periods of 50–140s and no common factor, so a star's bursts never land
+// on a schedule and no two stars agree about when to have one. Below GATE_T it
+// is dead still; by GATE_1 it is at full class amplitude, smoothstepped between
+// so a burst arrives and leaves rather than switching on. These two numbers are
+// the density dial: ~30% of a star's life inside a burst, so roughly a quarter
+// of the field is working at any moment and the rest is holding still.
+const GATE_T = 0.22, GATE_1 = 0.50;
+// how bright the sky sits when nothing is happening (see the bake). The headroom
+// this buys is the other half of the effect — amplitude alone cannot make a
+// twinkle visible on a field that is already near its ceiling.
+const STAR_REST = 0.62;
+function starClass() {
+  let r = Math.random(), i = 0;
+  for (; i < STAR_CLASS.length - 1; i++) { if (r < STAR_CLASS[i][0]) break; r -= STAR_CLASS[i][0]; }
+  const [, amp, rate] = STAR_CLASS[i];
+  return {
+    amp: rand(amp[0], amp[1]), r1: rand(rate[0], rate[1]) || 0.001, r2: rand(rate[0], rate[1]) * 1.7 + 0.11,
+    g1: rand(0.045, 0.105), g2: rand(0.058, 0.130), gp1: Math.random() * TAU, gp2: Math.random() * TAU
+  };
+}
+let litPanels = [];
+// (randCode is retired with the fiber theme — there is no binary on a lane wall.
+// The wall's motion is carried by streaked starlight and the marker trains below.)
+function buildBackground() {
+  // live layer state
+  liveStars = [];
+  litPanels = [];
+  // (the chevron marker trains are GONE. Signage painted on a lane wall was a
+  // holdover from thinking of the bore as a built structure — a lit corridor with
+  // markings. It is open space with a containment field in it, and the chevrons
+  // read as exactly what they were: graphics stuck to nothing.)
+  // vignette cache
+  vignetteCanvas = document.createElement('canvas');
+  vignetteCanvas.width = W * DPR; vignetteCanvas.height = H * DPR;
+  const v = vignetteCanvas.getContext('2d');
+  v.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const vg = v.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.42, W / 2, H / 2, Math.max(W, H) * 0.72);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,0.38)');
+  v.fillStyle = vg; v.fillRect(0, 0, W, H);
+
+  bgCanvas = document.createElement('canvas');
+  bgCanvas.width = W * DPR; bgCanvas.height = H * DPR;
+  const b = bgCanvas.getContext('2d');
+  b.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // deep navy base — the void the lane is threaded through. It stays near-black:
+  // the hyperspace references only go blue during the JUMP, and cruise is dark.
+  b.fillStyle = '#020510'; b.fillRect(0, 0, W, H);
+
+  // --- THE GALACTIC BAND: the backdrop's whole structure ---
+  //
+  // The references are not scattered nebula clouds. They are the galaxy seen
+  // EDGE-ON: one broad band of warm dust crossing the entire frame on a diagonal,
+  // brightest along its spine, with a dark dust lane cutting through it. That one
+  // structure is what makes a sky read as "somewhere inside a galaxy" instead of
+  // as fog, and scattered blobs can never do it because they have no axis.
+  //
+  // All baked: at this distance nothing moves perceptibly, so it costs nothing per
+  // frame, and the deep field parallaxes in front of it — which is what sets the
+  // sky's depth order.
+  {
+    const bandA = -0.44;                          // the plane's tilt across frame
+    const bc = Math.cos(bandA), bs = Math.sin(bandA);
+    const bx0 = W * 0.46, by0 = H * 0.54;         // a point on the spine
+    const bandLen = Math.hypot(W, H) * 1.3;
+    const bandW = Math.min(W, H) * 0.34;          // perpendicular half-width
+    // gaussian-ish: three uniforms averaged, so density really falls off the spine
+    const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+    const onBand = (t2, perp) => ({
+      x: bx0 + bc * t2 - bs * perp,
+      y: by0 + bs * t2 + bc * perp
+    });
+    // the dust itself — warm along the spine, cooling toward the edges
+    b.save();
+    b.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 520; i++) {
+      const t2 = (Math.random() - 0.5) * bandLen;
+      // the spine wanders a little, so the band is not a ruled line
+      const wander = Math.sin(t2 * 0.0016) * bandW * 0.30 + Math.sin(t2 * 0.0041 + 1.7) * bandW * 0.14;
+      const perp = gauss() * bandW + wander;
+      const q = clamp(1 - Math.abs(perp - wander) / bandW, 0, 1); // 1 on the spine
+      const pt = onBand(t2, perp);
+      const br = Math.min(W, H) * rand(0.035, 0.15);
+      // density thins toward the ends of the band, as it does in the reference
+      const along = 1 - Math.min(1, Math.abs(t2) / (bandLen * 0.55)) * 0.55;
+      const al = (0.008 + Math.random() * 0.026) * (0.30 + q * 1.1) * along;
+      if (al < 0.002) continue;
+      const col = q > 0.62 ? '196,158,104'        // hot core of the plane
+        : q > 0.32 ? '158,120,74'                 // mid dust
+        : '96,86,104';                            // cool outskirts
+      const gr2 = b.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, br);
+      gr2.addColorStop(0, `rgba(${col},${al.toFixed(4)})`);
+      gr2.addColorStop(0.45, `rgba(${col},${(al * 0.45).toFixed(4)})`);
+      gr2.addColorStop(1, `rgba(${col},0)`);
+      b.fillStyle = gr2;
+      b.beginPath(); b.arc(pt.x, pt.y, br, 0, TAU); b.fill();
+    }
+    // a couple of off-band nebulae for colour relief — the reference has a cold
+    // patch away from the plane, and the lane palette wants some cyan/violet
+    for (const cl2 of [
+      { x: W * 0.12, y: H * 0.16, r: Math.min(W, H) * 0.34, col: '128,58,58', n: 16 },
+      { x: W * 0.80, y: H * 0.84, r: Math.min(W, H) * 0.30, col: '48,120,138', n: 14 },
+      { x: W * 0.68, y: H * 0.10, r: Math.min(W, H) * 0.26, col: '96,62,140', n: 12 }
+    ]) {
+      for (let i = 0; i < cl2.n; i++) {
+        const ang = Math.random() * TAU, rad = cl2.r * (Math.random() + Math.random()) * 0.5;
+        const bx = cl2.x + Math.cos(ang) * rad, by = cl2.y + Math.sin(ang) * rad * 0.78;
+        const br = cl2.r * rand(0.18, 0.46);
+        const al = 0.008 + Math.random() * 0.020;
+        const gr2 = b.createRadialGradient(bx, by, 0, bx, by, br);
+        gr2.addColorStop(0, `rgba(${cl2.col},${al.toFixed(4)})`);
+        gr2.addColorStop(1, `rgba(${cl2.col},0)`);
+        b.fillStyle = gr2;
+        b.beginPath(); b.arc(bx, by, br, 0, TAU); b.fill();
+      }
+    }
+    b.restore();
+    // THE DARK DUST LANE. The characteristic feature of an edge-on galaxy and the
+    // thing that stops the band reading as an airbrushed smear: an opaque ribbon
+    // of cold dust lying along the plane, eating the light behind it.
+    for (let i = 0; i < 300; i++) {
+      const t2 = (Math.random() - 0.5) * bandLen;
+      const wander = Math.sin(t2 * 0.0016) * bandW * 0.30 + Math.sin(t2 * 0.0041 + 1.7) * bandW * 0.14;
+      const perp = wander + gauss() * bandW * 0.30 + Math.sin(t2 * 0.0027 + 0.6) * bandW * 0.16;
+      const pt = onBand(t2, perp);
+      const br = Math.min(W, H) * rand(0.03, 0.115);
+      const gr2 = b.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, br);
+      gr2.addColorStop(0, `rgba(3,4,12,${(0.10 + Math.random() * 0.26).toFixed(3)})`);
+      gr2.addColorStop(1, 'rgba(3,4,12,0)');
+      b.fillStyle = gr2;
+      b.beginPath(); b.arc(pt.x, pt.y, br, 0, TAU); b.fill();
+    }
+    // BACKDROP STARS, concentrated toward the plane the way real ones are. Dense,
+    // varied in colour and brightness, with bloom on the bright few.
+    const SCOL = ['210,228,255', '255,240,220', '255,208,168', '214,198,255', '190,240,255'];
+    const nStar = 1500;
+    for (let i = 0; i < nStar; i++) {
+      let x3, y3;
+      if (Math.random() < 0.62) {                 // in the plane
+        const t2 = (Math.random() - 0.5) * bandLen;
+        const wander = Math.sin(t2 * 0.0016) * bandW * 0.30 + Math.sin(t2 * 0.0041 + 1.7) * bandW * 0.14;
+        const pt = onBand(t2, wander + gauss() * bandW * 1.25);
+        x3 = pt.x; y3 = pt.y;
+      } else {                                    // the rest of the sky
+        x3 = Math.random() * W; y3 = Math.random() * H;
+      }
+      if (x3 < 0 || x3 > W || y3 < 0 || y3 > H) continue;
+      const big = Math.random() < 0.035;
+      // × STAR_REST. The resting sky is turned DOWN so a flare has somewhere to
+      // go: contrast is a ratio, and against a field already painted at 0.9 the
+      // brightest scintillation available is a 10% lift nobody can see. Applied
+      // to the whole field, baked and live alike, so the two populations still
+      // match while a gated star is idle — the difference has to appear when it
+      // twinkles, never as a permanent dimmer on a third of the stars.
+      const al3 = (big ? 0.45 + Math.random() * 0.45 : 0.06 + Math.random() * 0.34) * STAR_REST;
+      const col3 = SCOL[Math.random() * SCOL.length | 0];
+      // HELD OUT OF THE BAKE. Every bright star goes live (they are the ones the
+      // eye tracks, and there are only ~50 of them) plus a third of the faint
+      // field — enough that the movement is everywhere without paying for 1500
+      // arcs a frame. The rest stay painted, and are the still sky behind it.
+      if (!lowFX && (big || Math.random() < 0.34)) {
+        const cl = starClass();
+        liveStars.push({
+          x: x3, y: y3, col: col3, rgb: col3.split(',').map(Number), al: al3, big,
+          r: big ? rand(1.0, 1.8) : rand(0.3, 0.85),
+          // bright stars swing less, in proportion — and this factor keeps their
+          // amplitude under 1 whatever class they draw, so a big star always has
+          // some light left at the bottom. A faint dot winking fully out is
+          // scintillation; the brightest star on screen doing it is a dead pixel.
+          amp: cl.amp * (big ? 0.55 : 1),
+          r1: cl.r1, r2: cl.r2, p1: Math.random() * TAU, p2: Math.random() * TAU,
+          g1: cl.g1, g2: cl.g2, gp1: cl.gp1, gp2: cl.gp2, // when it is allowed to twinkle at all
+          // only the bright few carry the colour shift — on a 0.5px dot it is
+          // invisible, and it is what makes a real star read as burning
+          hue: big ? rand(10, 26) : 0
+        });
+        continue;
+      }
+      if (big) {                                  // the bright ones bloom
+        const gg = b.createRadialGradient(x3, y3, 0, x3, y3, 8);
+        gg.addColorStop(0, `rgba(${col3},${(al3 * 0.42).toFixed(3)})`);
+        gg.addColorStop(1, `rgba(${col3},0)`);
+        b.fillStyle = gg;
+        b.beginPath(); b.arc(x3, y3, 8, 0, TAU); b.fill();
+      }
+      b.fillStyle = `rgba(${col3},${al3.toFixed(3)})`;
+      b.beginPath(); b.arc(x3, y3, big ? rand(1.0, 1.8) : rand(0.3, 0.85), 0, TAU); b.fill();
+    }
+  }
+
+  // --- the lane wall texture: starlight smeared by transit, stamped at many depths ---
+  //
+  // The one change that turns a cable into a warp lane: the grain runs RADIALLY,
+  // not concentrically. The old wall was hundreds of arc dashes lying ACROSS the
+  // direction of travel — stacked circuitry, unmistakably the inside of a duct.
+  // Every primitive here runs ALONG it instead, so each depth stamp lines its
+  // streaks up with the next and they read as one continuous smear pulled past
+  // the hull. Same annulus, same stamping, same twist per depth: only the grain
+  // rotated 90°.
+  const TS = Math.min(1024, Math.round(Math.min(W, H) * 1.7));
+  const half = TS / 2;
+  wallTex = document.createElement('canvas');
+  wallTex.width = TS; wallTex.height = TS;
+  const t = wallTex.getContext('2d');
+  t.translate(half, half);
+  const inR = half * 0.55, outR = half * 0.98;
+  // star colours, not circuit colours: mostly cold, a minority warm, a rare
+  // violet. No amber-heavy mix — amber belonged to the data read.
+  const pick = (al) => {
+    const r = Math.random();
+    return r < 0.10 ? `rgba(255,196,130,${al})`   // warm giants
+      : r < 0.16 ? `rgba(200,170,255,${al})`      // rare violet
+      : r < 0.55 ? `rgba(236,246,255,${al})`      // cold white
+      : `rgba(150,205,255,${al})`;                // blue-white
+  };
+  // NO WARP LINES IN HERE. This texture is stamped at ten receding depths, which
+  // means anything baked into it appears TEN TIMES — the same angular pattern at
+  // ten radii, marching outward together. That is what read as "organized layers
+  // flying in unity", and it is not tunable: it is what stamping one texture
+  // repeatedly does. Worse, everything baked here is trapped between inR and outR,
+  // so streaks all began and ended at the same radial range and formed visible
+  // rings. Stars are not arranged in rings.
+  //
+  // The warp lines are LIVE particles now (see WARP_STARS / drawStreaks). Each one
+  // owns its own angle, depth, length, calibre and radial distance from the axis,
+  // so no two agree about anything and there is no repeated pattern to see.
+  //
+  // What stays here is only faint SURFACE GRAIN — the bore needs a visible skin
+  // for leaks to read as holes in a surface rather than as sprites floating in it.
+  // Sparse and dim on purpose: the user wants to see space behind it.
+  for (let i = 0; i < 130; i++) {
+    const rr = rand(inR, outR), a0 = Math.random() * TAU;
+    t.fillStyle = pick((0.07 + Math.random() * 0.20).toFixed(2));
+    t.save(); t.rotate(a0);
+    t.beginPath(); t.arc(rr, 0, Math.random() < 0.10 ? rand(1.1, 1.9) : rand(0.35, 0.9), 0, TAU); t.fill();
+    t.restore();
+  }
+  // FEATHER the annulus. The band used to stop dead at inR and outR, and a hard
+  // stop on a circle is a visible arc — "I can see the circle ends". Erase both
+  // edges with radial gradients so the skin fades out instead of ending.
+  t.save();
+  t.globalCompositeOperation = 'destination-out';
+  const outFade = t.createRadialGradient(0, 0, outR * 0.72, 0, 0, outR * 1.02);
+  outFade.addColorStop(0, 'rgba(0,0,0,0)');
+  outFade.addColorStop(1, 'rgba(0,0,0,1)');
+  t.fillStyle = outFade;
+  t.beginPath(); t.arc(0, 0, outR * 1.02, 0, TAU); t.fill();
+  const inFade = t.createRadialGradient(0, 0, inR * 0.55, 0, 0, inR * 1.35);
+  inFade.addColorStop(0, 'rgba(0,0,0,1)');
+  inFade.addColorStop(1, 'rgba(0,0,0,0)');
+  t.fillStyle = inFade;
+  t.beginPath(); t.arc(0, 0, inR * 1.35, 0, TAU); t.fill();
+  t.restore();
+  // (the "dust haze" pass is GONE. It was 4–11px wide strokes, which is precisely
+  // the calibre that reads as a flat rounded-rectangle sliding through the bore no
+  // matter how it is capped. Depth comes from the warp-line stack and the point
+  // stars now; nothing in this texture is wider than about 3px.)
+
+  // --- the TURBULENCE layer: roiling plasma in the throat (hyperspace reference) ---
+  // Streaked starlight alone reads as Star Trek warp — clean, fast, empty. The
+  // hyperspace look is VOLUMETRIC: a lane wall that boils. This is a second
+  // texture of soft blobs stretched along the direction of travel, composited
+  // additively over the streaks and stamped with the same depth bands.
+  //
+  // It is DELIBERATELY featureless. drawTunnel's per-band twist is fixed because
+  // "a spinning wall would shear under the leaks" — enemies are painted on the
+  // wall at fixed angles. So the churn cannot come from rotation. It comes from
+  // per-band alpha breathing at different phases (see drawTunnel), which needs a
+  // texture with no trackable features or the shear becomes visible.
+  wallCloud = document.createElement('canvas');
+  wallCloud.width = TS; wallCloud.height = TS;
+  const cl = wallCloud.getContext('2d');
+  cl.translate(half, half);
+  cl.globalCompositeOperation = 'lighter';
+  // A circular clip, because this is a SQUARE canvas holding a round wall. Blobs
+  // stretched radially used to run off the sheet and get chopped by its corners,
+  // and a chopped soft blob is a hard straight edge — the other half of the
+  // "moving rectangles". Extents are constrained below as well, so this is only
+  // insurance; if it ever does bite, it bites along the wall's own curve.
+  cl.save();
+  cl.beginPath(); cl.arc(0, 0, half * 0.995, 0, TAU); cl.clip();
+  for (let i = 0; i < 190; i++) {
+    const a0 = Math.random() * TAU;
+    const stretch = rand(1.6, 3.0);          // elongated along travel — never round
+    const rad = rand(half * 0.05, half * 0.11);
+    // keep the whole ellipse on the sheet: its radial reach is rad*stretch
+    const reach = rad * stretch;
+    const hi = outR - reach;
+    const lo = Math.min(inR * 0.92, hi);
+    const rr = hi > lo ? rand(lo, hi) : lo;
+    const r2 = Math.random();
+    const col = r2 < 0.16 ? '190,225,255' : r2 < 0.34 ? '120,180,255' : '70,130,225';
+    const al = 0.035 + Math.random() * 0.075;
+    cl.save();
+    cl.rotate(a0); cl.translate(rr, 0); cl.scale(stretch, 1);
+    const bg = cl.createRadialGradient(0, 0, 0, 0, 0, rad);
+    bg.addColorStop(0, `rgba(${col},${al.toFixed(3)})`);
+    bg.addColorStop(0.45, `rgba(${col},${(al * 0.42).toFixed(3)})`);
+    bg.addColorStop(1, `rgba(${col},0)`);
+    cl.fillStyle = bg;
+    cl.beginPath(); cl.arc(0, 0, rad, 0, TAU); cl.fill();
+    cl.restore();
+  }
+  cl.restore(); // close the circular clip
+  // feather the haze's own edges for the same reason as the skin's — a soft cloud
+  // that stops dead on a circle still draws a visible arc
+  cl.save();
+  cl.globalCompositeOperation = 'destination-out';
+  const cOut = cl.createRadialGradient(0, 0, outR * 0.70, 0, 0, outR * 1.02);
+  cOut.addColorStop(0, 'rgba(0,0,0,0)');
+  cOut.addColorStop(1, 'rgba(0,0,0,1)');
+  cl.fillStyle = cOut;
+  cl.beginPath(); cl.arc(0, 0, outR * 1.02, 0, TAU); cl.fill();
+  const cIn = cl.createRadialGradient(0, 0, inR * 0.45, 0, 0, inR * 1.35);
+  cIn.addColorStop(0, 'rgba(0,0,0,1)');
+  cIn.addColorStop(1, 'rgba(0,0,0,0)');
+  cl.fillStyle = cIn;
+  cl.beginPath(); cl.arc(0, 0, inR * 1.35, 0, TAU); cl.fill();
+  cl.restore();
+  buildRingFx();
+}
+// the node holder ring, reborn as a dark machined monolith (arc lab design):
+// matte gunmetal under ONE key light — the lit sector glints, the far side
+// dies — with machined hairlines, an engraved index scale, seams and flange
+// bolts. Static, so it prerenders once per resize.
+function buildRingFx() {
+  const nodeR = Math.min(W, H) * 0.44, cx = W / 2, cy = H / 2;
+  const bh = Math.min(W, H) * 0.055 * ARCFX.bandW;
+  const Rin = nodeR - bh, Rout = nodeR + bh;
+  ringFxCv = document.createElement('canvas');
+  ringFxCv.width = W * DPR; ringFxCv.height = H * DPR;
+  const c = ringFxCv.getContext('2d');
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const hairline = (r, base, lit) => { // faint full ring + a glint in the lit sector
+    c.lineWidth = 1;
+    c.strokeStyle = `rgba(225,235,250,${base.toFixed(3)})`;
+    c.beginPath(); c.arc(cx, cy, r, 0, TAU); c.stroke();
+    for (const [al, sp] of [[lit, 1.15], [lit * 0.5, 1.95]]) {
+      c.strokeStyle = `rgba(225,235,250,${al.toFixed(3)})`;
+      c.beginPath(); c.arc(cx, cy, r, LIGHT_A - sp, LIGHT_A + sp); c.stroke();
+    }
+  };
+  // torus value structure: dark edges, a modest crown
+  const rg = c.createRadialGradient(cx, cy, Rin, cx, cy, Rout);
+  rg.addColorStop(0,    'rgb(3,5,9)');
+  rg.addColorStop(0.07, arcGun(19));
+  rg.addColorStop(0.32, arcGun(35));
+  rg.addColorStop(0.46, arcGun(45));
+  rg.addColorStop(0.62, arcGun(29));
+  rg.addColorStop(0.9,  arcGun(11));
+  rg.addColorStop(1,    'rgb(2,3,6)');
+  c.lineWidth = bh * 2;
+  c.strokeStyle = rg;
+  c.beginPath(); c.arc(cx, cy, nodeR, 0, TAU); c.stroke();
+  // key-light wash + bore bounce ambient, clipped to the band
+  c.save();
+  c.beginPath(); c.arc(cx, cy, Rout, 0, TAU); c.arc(cx, cy, Rin, 0, TAU, true); c.clip();
+  const kl = c.createLinearGradient(cx + Math.cos(LIGHT_A) * nodeR, cy + Math.sin(LIGHT_A) * nodeR,
+    cx - Math.cos(LIGHT_A) * nodeR, cy - Math.sin(LIGHT_A) * nodeR);
+  kl.addColorStop(0, `rgba(215,228,250,${(0.13 * ARCFX.metal).toFixed(3)})`);
+  kl.addColorStop(0.45, 'rgba(215,228,250,0)');
+  kl.addColorStop(0.55, 'rgba(0,0,0,0)');
+  kl.addColorStop(1, 'rgba(0,0,0,0.30)');
+  c.fillStyle = kl; c.fillRect(0, 0, W, H);
+  const bb = c.createRadialGradient(cx, cy, Rin, cx, cy, Rin + bh * 0.8);
+  bb.addColorStop(0, 'rgba(100,170,230,0.07)');
+  bb.addColorStop(1, 'rgba(100,170,230,0)');
+  c.fillStyle = bb; c.fillRect(0, 0, W, H);
+  // brushed grain (whisper-quiet at low sheen) + radial machining marks
+  for (let i = 0; i < 180; i++) {
+    const a0 = i / 180 * TAU, a1 = (i + 1.15) / 180 * TAU;
+    const key = Math.pow(0.5 + 0.5 * Math.cos((a0 + a1) / 2 - LIGHT_A), 2.5);
+    const grain = arcHash(i) - 0.5;
+    const al = ARCFX.sheen * key * (0.05 + Math.max(0, grain) * 0.07);
+    const dk = ARCFX.sheen * Math.max(0, -grain) * 0.10;
+    c.lineWidth = bh * 2;
+    if (al > 0.004) { c.strokeStyle = `rgba(225,235,255,${al.toFixed(3)})`; c.beginPath(); c.arc(cx, cy, nodeR, a0, a1); c.stroke(); }
+    if (dk > 0.004) { c.strokeStyle = `rgba(0,0,0,${dk.toFixed(3)})`; c.beginPath(); c.arc(cx, cy, nodeR, a0, a1); c.stroke(); }
+  }
+  for (let i = 0; i < 240; i++) {
+    const a = arcHash(i + 500) * TAU, len = 0.25 + arcHash(i + 900) * 0.6;
+    const key = 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.cos(a - LIGHT_A), 2);
+    const r0 = Rin + arcHash(i + 700) * (1 - len) * bh * 2, r1 = r0 + len * bh * 0.5;
+    c.strokeStyle = arcHash(i + 300) > 0.5 ? `rgba(255,255,255,${(0.02 * key).toFixed(3)})` : 'rgba(0,0,0,0.05)';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+    c.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+    c.stroke();
+  }
+  c.restore();
+  // machined hairlines + engraved index scale + seams with flange bolts
+  hairline(Rin + 0.8, 0.10, 0.22 * ARCFX.metal);
+  hairline(nodeR - bh * 0.34, 0.035, 0.10 * ARCFX.metal);
+  hairline(nodeR + bh * 0.34, 0.035, 0.12 * ARCFX.metal);
+  hairline(Rout - bh * 0.16, 0.04, 0.14 * ARCFX.metal);
+  c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 1.2;
+  c.beginPath(); c.arc(cx, cy, Rout - 0.6, 0, TAU); c.stroke();
+  for (let dg = 0; dg < 360; dg += 3) {
+    const a = dg * TAU / 360, major = dg % 30 === 0;
+    const r1 = Rout - bh * 0.08, r0 = r1 - (major ? bh * 0.22 : bh * 0.1);
+    c.strokeStyle = `rgba(190,205,225,${major ? 0.16 : 0.07})`;
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+    c.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+    c.stroke();
+  }
+  for (let i = 0; i < 4; i++) {
+    const a = i * TAU / 4 + TAU / 8, ca = Math.cos(a), sa = Math.sin(a);
+    const key = 0.3 + 0.7 * Math.pow(0.5 + 0.5 * Math.cos(a - LIGHT_A), 2);
+    c.lineWidth = 1;
+    c.strokeStyle = 'rgba(0,0,0,0.4)';
+    c.beginPath(); c.moveTo(cx + ca * Rin, cy + sa * Rin); c.lineTo(cx + ca * Rout, cy + sa * Rout); c.stroke();
+    c.strokeStyle = `rgba(255,255,255,${(0.05 * key).toFixed(3)})`;
+    c.beginPath(); c.moveTo(cx + ca * Rin - sa, cy + sa * Rin + ca); c.lineTo(cx + ca * Rout - sa, cy + sa * Rout + ca); c.stroke();
+    for (const off of [-0.028, 0.028]) {
+      const ba = a + off, br = nodeR + bh * 0.62;
+      const bx = cx + Math.cos(ba) * br, by = cy + Math.sin(ba) * br;
+      c.fillStyle = arcGun(26 * key + 8);
+      c.beginPath(); c.arc(bx, by, bh * 0.055, 0, TAU); c.fill();
+      c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 0.8;
+      c.beginPath(); c.arc(bx, by, bh * 0.055, 0, TAU); c.stroke();
+    }
+  }
+  // film-grain tile for the photographic finish (guarded for the test stub)
+  grainCv = document.createElement('canvas');
+  grainCv.width = grainCv.height = 256;
+  const gc = grainCv.getContext('2d');
+  const im = gc.createImageData && gc.createImageData(256, 256);
+  if (im && im.data) {
+    for (let i = 0; i < im.data.length; i += 4) {
+      const v = 118 + (Math.random() - 0.5) * 255;
+      im.data[i] = im.data[i + 1] = im.data[i + 2] = v;
+      im.data[i + 3] = 255;
+    }
+    gc.putImageData(im, 0, 0);
+  } else grainCv = null;
+}
+// animated background layer: drifting motes. (The periodic glitch scanlines are
+// GONE — a signal artefact belongs to a screen showing a fiber feed, and this is
+// a window onto open space. Nothing tears across a window.)
+// the live half of the star field — see STAR_CLASS above. Drawn with the backdrop
+// so the sky keeps its depth: everything in the lane still passes IN FRONT of it.
+function drawStarField() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter'; // a flare ADDS light; over the band it
+  for (const s of liveStars) {              // has to build on what is already there
+    // THE GATE FIRST: most of the time this is 0 and the star is simply painted,
+    // costing one multiply to find out. What survives is a field where a scatter
+    // of stars is shimmering and the rest of the sky is holding still.
+    let amp = s.amp;
+    if (amp) {
+      const gu = (0.5 + 0.5 * Math.sin(time * s.g1 + s.gp1))
+        * (0.5 + 0.5 * Math.sin(time * s.g2 + s.gp2));
+      const gx = clamp((gu - GATE_T) / (GATE_1 - GATE_T), 0, 1);
+      amp *= gx * gx * (3 - 2 * gx);        // smoothstep: bursts fade in and out
+    }
+    // two incommensurate rates, so a star never repeats its own pattern and no
+    // two stars ever agree. amp 0 (steady class, or a shut gate) → a constant.
+    const w = amp && (0.62 * (0.5 + 0.5 * Math.sin(time * s.r1 + s.p1))
+      + 0.38 * (0.5 + 0.5 * Math.sin(time * s.r2 + s.p2)));
+    // both ways around the baseline: 1-amp at the bottom, 1+amp at the top
+    const k = 1 - amp + 2 * amp * w;
+    const al = Math.min(1, s.al * k);
+    if (al < 0.006) continue;
+    let col = s.col;
+    if (s.hue) {
+      // the scintillation colour shift: a bright star seen through anything at all
+      // splits toward blue as it dims and toward amber as it flares. Tiny numbers —
+      // it should never read as a coloured light, only as a star that is burning.
+      const h = Math.sin(time * s.r2 * 1.9 + s.p1) * s.hue;
+      const [r0, g0, b0] = s.rgb;
+      col = clamp(r0 + h, 0, 255).toFixed(0) + ',' + clamp(g0 + h * 0.15, 0, 255).toFixed(0)
+        + ',' + clamp(b0 - h, 0, 255).toFixed(0);
+    }
+    if (s.big) { // the bright ones bloom — and the bloom SWELLS with the flare,
+      const rr = 8 * (0.55 + 0.75 * k); // which is most of what sells a star flaring
+      const gg = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, rr);
+      gg.addColorStop(0, `rgba(${col},${(al * 0.42).toFixed(3)})`);
+      gg.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = gg;
+      ctx.beginPath(); ctx.arc(s.x, s.y, rr, 0, TAU); ctx.fill();
+    }
+    ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
+    // the core grows a little too: a star at full flare is not the same size dot
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r * (0.8 + 0.35 * k), 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+// binary / hex snippets racing along the tunnel axis — glyph by glyph, in true perspective,
+// flowing both toward and away from the player like live traffic on the line

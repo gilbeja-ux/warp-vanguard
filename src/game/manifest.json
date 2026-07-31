@@ -1,0 +1,133 @@
+{
+  "_comment": "Load order for the game script. index.html lists these as <script src> in this exact order, and scripts/lib/game-source.js concatenates them in it. Order is load-bearing: change it only if you have checked the top-level execution order.",
+  "files": [
+    {
+      "file": "00-core.js",
+      "describes": "canvas, DOM overlay layer, shared utils"
+    },
+    {
+      "file": "10-audio.js",
+      "describes": "Web Audio graph and the synthesised sfx"
+    },
+    {
+      "file": "11-music.js",
+      "describes": "soundtrack: pool, crossfade, NOW PLAYING"
+    },
+    {
+      "file": "12-sfx.js",
+      "describes": "decoded audio/sfx/* one-shots"
+    },
+    {
+      "file": "20-background.js",
+      "describes": "the deep data-space behind the lane walls"
+    },
+    {
+      "file": "30-campaigns.js",
+      "describes": "campaign package registry"
+    },
+    {
+      "file": "31-leaderboard.js",
+      "describes": "identity, Supabase client, score submission"
+    },
+    {
+      "file": "32-save.js",
+      "describes": "operator handle and persisted progress"
+    },
+    {
+      "file": "33-loader.js",
+      "describes": "installCampaign \u2014 builds LEVELS from a package"
+    },
+    {
+      "file": "40-state.js",
+      "describes": "run state and the run trace (record/replay)"
+    },
+    {
+      "file": "41-geometry.js",
+      "describes": "arc look constants, bore geometry, sprite skins"
+    },
+    {
+      "file": "50-enemies.js",
+      "describes": "enemy kinds, spawn fairness, beat scheduling"
+    },
+    {
+      "file": "51-linter.js",
+      "describes": "the fairness linter and the reachability law"
+    },
+    {
+      "file": "52-bosses.js",
+      "describes": "bosses, the triad, the beacon, particles"
+    },
+    {
+      "file": "60-input.js",
+      "describes": "pointer/key input and menu hit areas"
+    },
+    {
+      "file": "61-replay.js",
+      "describes": "run identity and watching another run"
+    },
+    {
+      "file": "70-update.js",
+      "describes": "qualification curriculum and the investigation"
+    },
+    {
+      "file": "71-gamepad.js",
+      "describes": "gamepad support and on-screen pad hints"
+    },
+    {
+      "file": "72-tick.js",
+      "describes": "update(dt) \u2014 the fixed-timestep sim tick"
+    },
+    {
+      "file": "80-tunnel.js",
+      "describes": "lattice, warp field, the bore, planets"
+    },
+    {
+      "file": "81-asteroids.js",
+      "describes": "the asteroid field"
+    },
+    {
+      "file": "82-destinations.js",
+      "describes": "destinations and ambient traffic"
+    },
+    {
+      "file": "83-deepfield.js",
+      "describes": "deep field, lane medium, handler barks"
+    },
+    {
+      "file": "85-enemy-art.js",
+      "describes": "the glitch enemy bodies, painted on the wall"
+    },
+    {
+      "file": "90-hud.js",
+      "describes": "the holographic HUD kit"
+    },
+    {
+      "file": "91-briefing.js",
+      "describes": "briefing card, mission disc, popup glitch-build"
+    },
+    {
+      "file": "92-guide.js",
+      "describes": "the field guide (S.GUIDE)"
+    },
+    {
+      "file": "93-board.js",
+      "describes": "the leaderboard screen"
+    },
+    {
+      "file": "94-galaxy.js",
+      "describes": "route map, marquee, destinations, galaxy chart"
+    },
+    {
+      "file": "95-menu.js",
+      "describes": "disc art, image maps, menu, settings, end screen"
+    },
+    {
+      "file": "98-profiler.js",
+      "describes": "dev-only frame profiler (?prof=1) \u2014 inert when off"
+    },
+    {
+      "file": "99-boot.js",
+      "describes": "perf watchdog, main loop, transitions, boot splash"
+    }
+  ]
+}

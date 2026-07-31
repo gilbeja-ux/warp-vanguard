@@ -36,7 +36,7 @@
   }
   // both logos decoded before the clock starts (real time, cache-warming the
   // game's own Image loads); virtual time can't skip past real network
-  for (const f of ['icons/GB-logo-hollow.png', 'logo.png']) {
+  for (const f of ['icons/GB-logo-hollow.png', 'logo.webp']) {
     try { await createImageBitmap(await (await fetch(f)).blob()); } catch (e) {}
   }
   await new Promise(r => setTimeout(r, 60)); // a few task turns for the game's onloads
@@ -48,7 +48,7 @@
       for (const f of list) { fired++; try { f(t); } catch (e) { window.__err += e.message + '; '; } }
     }
   };
-  // two-stage: the first menu frame kicks off logo.png's lazy Image load,
+  // two-stage: the first menu frame kicks off logo.webp's lazy Image load,
   // which needs REAL event-loop turns to complete before we crank on
   crank(Math.min(100, target));
   await new Promise(r => setTimeout(r, 400));

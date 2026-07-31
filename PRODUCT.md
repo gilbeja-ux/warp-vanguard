@@ -135,7 +135,7 @@ offline entitlement flag; no server for v1. Full plan in
   group, not a single hired gun." Short form WARP LANE. Tagline *Clear the lane.*
   In-world the unit is **the wolves**, spoken "wolves", and comms address the player as
   *wolf*.
-- Logo is the user's shield badge, loaded from `src/logo.png`; **the badge and
+- Logo is the user's shield badge, loaded from `src/logo.webp`; **the badge and
   icon set are owed art** — both still carry DATA DEFENDERS lettering and the
   retired DD monogram. The story voice may address the player as "runner"
   (singular); every brand surface is the squadron.

@@ -48,10 +48,17 @@ console.log('✓ Run pool: ' + tracks.length + ' track(s)' + (prev === out ? ' (
   const simPath = path.join(repo, 'supabase', 'functions', 'submit-run', '_sim.mjs');
   if (fs.existsSync(simPath)) {
     const built = fs.statSync(simPath).mtimeMs;
-    const stale = ['src/index.html', 'src/campaigns.js']
+    const gameDir = path.join(repo, 'src', 'game');
+    const watched = ['src/campaigns.js'].concat(
+      fs.existsSync(gameDir)
+        ? fs.readdirSync(gameDir).filter(f => f.endsWith('.js')).map(f => 'src/game/' + f)
+        : []
+    );
+    const stale = watched
       .filter(f => fs.existsSync(path.join(repo, f)) && fs.statSync(path.join(repo, f)).mtimeMs > built);
     if (stale.length) {
-      console.warn('\n! VERIFIER IS STALE — ' + stale.join(' and ') + ' changed after the bundle was built.');
+      const named = stale.length > 3 ? stale.slice(0, 3).join(', ') + ' and ' + (stale.length - 3) + ' more' : stale.join(' and ');
+      console.warn('\n! VERIFIER IS STALE — ' + named + ' changed after the bundle was built.');
       console.warn('  Leaderboard submissions will be REJECTED until you run:');
       console.warn('    npm run build:verifier && npm run deploy:verifier\n');
     }

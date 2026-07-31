@@ -2,8 +2,8 @@
 /*
  * Bundles the REAL game sim + the run verifier into ONE self-contained ES module
  * that runs in Deno (the Supabase Edge Function) AND Node (for testing). The
- * Edge Function can't read our repo's index.html at deploy time, so we INLINE the
- * game <script> as real module source (Supabase's edge runtime blocks eval, so we
+ * Edge Function can't read our repo's src/game/ at deploy time, so we INLINE the
+ * game source as real module source (Supabase's edge runtime blocks eval, so we
  * can't load it from a string). The game code is strict-mode safe (checked).
  *
  * Output: supabase/functions/submit-run/_sim.mjs  (generated — do not edit)
@@ -15,9 +15,11 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'src', 'index.html'), 'utf8');
 const campaigns = fs.readFileSync(path.join(root, 'src', 'campaigns.js'), 'utf8');
-const game = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+// The game is authored as ordered files in src/game/ and loaded by the page as
+// ordered <script src> tags; this is the same source concatenated back into one
+// string, byte-identical to the single inline <script> it replaced.
+const game = require('./lib/game-source.js').gameSource(root);
 
 // the minimal surface the verifier drives, exposed on globalThis by the sim
 const expose = `
