@@ -296,37 +296,111 @@ const INK4 = getComputedStyle(document.documentElement).getPropertyValue('--ink-
    lab from inventing fields the writer would then fail to find. */
 const DIALS = {
   world: {
-    z:    ['surface colour', 'rgb'],
-    belt: ['band colour', 'rgb'],
-    bf:   ['band count', 0.5, 32, 0.1],
-    ba:   ['band strength', 0, 1, 0.01],
-    atmo: ['air colour', 'rgb'],
-    ak:   ['air amount', 0, 3, 0.05],
-    glow: ['belt emission', 0, 2, 0.05],
-    emis: ['self-lit', 0, 1, 0.05]
+    z:     ['surface colour (LAND on a solid world)', 'rgb'],
+    belt:  ['band colour (SEA on a land world)', 'rgb'],
+    bf:    ['band count', 0.5, 32, 0.1],
+    ba:    ['band strength (climate tint on solid worlds)', 0, 1, 0.01],
+    atmo:  ['air colour', 'rgb'],
+    ak:    ['air amount', 0, 3, 0.05],
+    glow:  ['belt emission', 0, 2, 0.05],
+    emis:  ['self-lit', 0, 1, 0.05],
+    // Per-world terrain. Each one overrides the same dial in SHD, so a world can
+    // be pulled away from the shared model without moving the other eight.
+    terr:  ['surface model', 'enum', ['land', 'rock', 'ice', 'lava', 'dune']],
+    seed:  ['which world this is', 0, 512, 1],
+    sea:   ['how much of it is water', 0, 1, 0.01],
+    terrF: ['feature scale (low = bigger)', 0.5, 12, 0.05],
+    mtn:   ['mountain height', 0, 1, 0.01],
+    arid:  ['equatorial desert', 0, 1, 0.01],
+    cap:   ['ice caps start at |lat|', 0.3, 1, 0.01],
+    cloud: ['cloud opacity', 0, 1, 0.01],
+    cratF: ['crater density', 1, 20, 0.1],
+    cratD: ['crater depth', 0, 1, 0.01],
+    lavaLvl: ['melt coverage (high = thinner cracks)', 0.3, 1, 0.005],
+    lavaK: ['melt glow', 0, 3, 0.05],
+    bump:  ['relief strength', 0, 0.2, 0.002],
+    // Two worlds are not a shaded ball at all.
+    ring:   ['ring inner, outer (radii)', 'vec'],
+    ringC:  ['ring colour', 'rgb'],
+    ringA:  ['ring opacity', 0, 1, 0.01],
+    field:  ['rocks in the swarm', 0, 300, 1],
+    fieldR: ['how wide the swarm spreads', 0.2, 2, 0.01],
+    fieldSq:['how flat the swarm is', 0.1, 1, 0.01]
   },
   ring: {
-    sq:    ['tilt squash', 0.05, 1, 0.01],
-    ring:  ['tube orbit', 0.2, 1, 0.01],
-    tube:  ['tube thickness', 0.01, 0.4, 0.005],
-    metal: ['hull colour', 'rgb'],
-    hub:   ['has a core', 0, 1, 1],
-    win:   ['has lit ports', 0, 1, 1],
-    iris:  ['throat colour', 'rgb']
+    // The ring is an ANNULUS now: an outer radius, a radial width and a
+    // thickness out of the plane. Those three are the whole silhouette.
+    ring:   ['outer radius', 0.2, 1, 0.01],
+    band:   ['radial width, of the radius', 0.05, 0.6, 0.01],
+    hgt:    ['thickness out of the plane', 0.02, 0.8, 0.01],
+    sq:     ['tilt squash', 0.05, 1, 0.01],
+    metal:  ['hull colour', 'rgb'],
+    hub:    ['has a core', 0, 1, 1],
+    win:    ['has lit ports and windows', 0, 1, 1],
+    iris:   ['throat colour', 'rgb'],
+    dock:   ['has a docking mouth', 0, 1, 1],
+    spokes: ['struts to the core', 0, 1, 1],
+    inner:  ['has a second ring', 0, 1, 1],
+    panels: ['has solar arrays', 0, 1, 1],
+    mast:   ['has a comms tower', 0, 1, 1],
+    core:   ['which core it is built round', 'enum', ['DRM', 'SPH', 'SPN', 'CLS', 'STK']]
+  },
+  core: {
+    shape: ['silhouette', 'enum', ['drum', 'sphere', 'spindle', 'cluster', 'stack']],
+    h:     ['height, in core radii', 0.3, 3, 0.05],
+    w:     ['width, in core radii', 0.3, 2, 0.05],
+    seg:   ['decks or collars', 1, 8, 1],
+    port:  ['lit ports', 0, 12, 1]
   },
   RING_SHADE: {
-    hi:    ['lit limb gain', 1, 3, 0.01],
-    amb:   ['dark side floor', 0, 1, 0.01],
-    farK:  ['far half dimming', 0, 1, 0.01],
-    specK: ['highlight alpha', 0, 1, 0.01],
-    specW: ['highlight width', 0, 1, 0.01],
-    specA: ['highlight sweep', 0, 3.14, 0.01],
-    winN:  ['lit ports', 0, 24, 1],
-    winA:  ['port brightness', 0, 1, 0.01],
-    winC:  ['port colour', 'rgb'],
-    irisA: ['throat energy', 0, 1, 0.01],
-    hubR:  ['core radius', 0, 0.5, 0.005],
-    hubC:  ['core colour', 'rgb']
+    amb:        ['dark-face floor (keep above ~0.15)', 0, 1, 0.01],
+    topAmb:     ['top plate floor', 0, 1, 0.01],
+    topLit:     ['top plate light', 0, 1.5, 0.01],
+    innerFaceK: ['far side inner wall brightness', 0, 1, 0.01],
+    facetN:     ['armour plates round the ring', 6, 80, 1],
+    seamA:      ['how hard the plate joins read', 0, 1, 0.01],
+    seamW:      ['and how wide', 0, 0.02, 0.0005],
+    shadowK:    ['core shadow darkness', 0, 1, 0.01],
+    shadowW:    ['core shadow width, in core radii', 0.2, 3, 0.05],
+    hubR:       ['core size, of the ring radius', 0.05, 0.8, 0.01],
+    hubC:       ['core colour', 'rgb'],
+    hubH:       ['core height vs its radius', 0.2, 3, 0.05],
+    hubEdge:    ['lit rim on the core cap', 0, 1, 0.01],
+    hubWinN:    ['lit ports on the core', 0, 12, 1],
+    dockAt:     ['where the docking mouth sits, 0..1', 0, 1, 0.01],
+    dockN:      ['how many plates wide it is', 1, 8, 1],
+    dockC:      ['bay light colour', 'rgb'],
+    dockA:      ['bay light brightness', 0, 1, 0.01],
+    dockGlow:   ['how far it spills onto the hull', 0, 1, 0.01],
+    winC:       ['window colour', 'rgb'],
+    winA:       ['window brightness', 0, 1, 0.01],
+    winW:       ['window width, of the radius', 0.005, 0.12, 0.002],
+    winH:       ['window height, of the thickness', 0.05, 0.9, 0.01],
+    winRow:     ['where the window rows sit', 0, 1, 0.01],
+    winGap:     ['spacing between rows', 0.02, 0.6, 0.01],
+    innerWinK:  ['far side window brightness', 0, 1, 0.01],
+    lampK:      ['how far a light halo reaches', 1, 10, 0.1],
+    spokeN:     ['struts to the core', 0, 12, 1],
+    spokeP:     ['where the first strut sits', 0, 6.28, 0.01],
+    spokeW:     ['strut thickness', 0, 0.1, 0.002],
+    panelP:     ['where the array booms leave', 0, 6.28, 0.01],
+    panelD:     ['boom reach, in ring radii', 0.5, 2.5, 0.01],
+    panelW:     ['array half-length', 0.02, 0.6, 0.01],
+    panelH:     ['array half-width', 0.01, 0.4, 0.005],
+    panelN:     ['cells along the array', 1, 20, 1],
+    panelC:     ['array colour', 'rgb'],
+    panelA:     ['array opacity', 0, 1, 0.01],
+    panelSpec:  ['sheen off the array glass', 0, 1, 0.01],
+    boomW:      ['boom thickness', 0, 0.06, 0.001],
+    mastH:      ['comms tower height', 0, 1.5, 0.01],
+    mastW:      ['comms tower thickness', 0, 0.06, 0.001],
+    mastN:      ['cross-members up the tower', 0, 10, 1],
+    beaconN:    ['running lights', 0, 40, 1],
+    beaconP:    ['where the first one sits', 0, 6.28, 0.01],
+    beaconR:    ['running light size', 0.001, 0.05, 0.001],
+    beaconC:    ['running light colour', 'rgb'],
+    beaconA:    ['running light brightness', 0, 1, 0.01],
+    irisA:      ['energy in a gate throat', 0, 1, 0.01]
   },
   DEST_LIFE: {
     n0:        ['features dealt, fewest', 0, 5, 1],
@@ -376,7 +450,44 @@ const DIALS = {
     shellFall:     ['air shell falloff', 0.5, 10, 0.05],
     shellFallEmis: ['star shell falloff', 0.5, 10, 0.05],
     shellSide:     ['shell on the dark side', 0, 1, 0.01],
-    shellA:        ['shell peak alpha', 0, 255, 1]
+    shellA:        ['shell peak alpha', 0, 255, 1],
+    // ---- terrain, shared. Every one of these is overridable per world; what is
+    // set here is what a world uses when it does not say otherwise.
+    terrF:         ['feature scale (low = bigger)', 0.5, 12, 0.05],
+    terrOct:       ['terrain detail passes', 1, 6, 1],
+    terrGain:      ['detail falloff', 0.2, 0.8, 0.01],
+    terrLac:       ['detail step', 1.4, 3, 0.05],
+    seaLvl:        ['sea level', 0, 1, 0.01],
+    shoreW:        ['width of the shallows', 0, 0.15, 0.002],
+    mtnLvl:        ['bare rock above', 0, 1.5, 0.01],
+    mtnK:          ['mountain height', 0, 1, 0.01],
+    snowLvl:       ['snow above', 0, 1.5, 0.01],
+    snowLat:       ['snowline drop toward the poles', 0, 1, 0.01],
+    aridK:         ['equatorial desert', 0, 1, 0.01],
+    bumpK:         ['relief strength', 0, 0.2, 0.002],
+    cratF:         ['crater density', 1, 20, 0.1],
+    cratD:         ['crater depth', 0, 1, 0.01],
+    cratRim:       ['crater rim height', 0, 0.5, 0.005],
+    capLat:        ['ice caps start at |lat|', 0.3, 1, 0.01],
+    capW:          ['cap edge softness', 0.01, 0.4, 0.005],
+    capJit:        ['cap edge raggedness', 0, 0.5, 0.005],
+    cloudF:        ['cloud scale', 0.5, 12, 0.05],
+    cloudLvl:      ['cloud coverage (low = more)', 0, 1, 0.01],
+    cloudA:        ['cloud opacity', 0, 1, 0.01],
+    seaSpec:       ['sea glint strength', 0, 1, 0.01],
+    seaSpecP:      ['sea glint tightness', 2, 80, 1],
+    lavaF:         ['fissure scale', 0.5, 10, 0.05],
+    lavaBranch:    ['finer rift network', 0, 1, 0.01],
+    lavaLvl:       ['melt coverage (high = thinner cracks)', 0.3, 1, 0.005],
+    lavaW:         ['melt line width', 0.005, 0.2, 0.002],
+    lavaHalo:      ['heated ground either side', 0.01, 0.5, 0.005],
+    lavaK:         ['melt glow', 0, 3, 0.05],
+    duneF:         ['dune scale', 0.5, 14, 0.05],
+    duneA:         ['dune stretch along the wind', 0.05, 1, 0.01],
+    ringShadow:    ['ring shadow darkness', 0, 1, 0.01],
+    rockMin:       ['smallest rock in a swarm', 0.004, 0.1, 0.002],
+    rockMax:       ['largest rock in a swarm', 0.02, 0.5, 0.005],
+    rockBump:      ['how lumpy a rock is lit', 0, 2, 0.02]
   },
   DEST_MIX: {
     planet:  ['planets per 100 relays', 0, 100, 1],
@@ -406,6 +517,8 @@ function railItems() {
   out.push({ g: 'BUILT', id: G.RING_SHADE.id, n: 'shared torus shading' });
   out.push({ id: G.RING_KINDS.station.id, n: G.RING_KINDS.station.n });
   out.push({ id: G.RING_KINDS.gate.id, n: G.RING_KINDS.gate.n });
+  out.push({ g: 'CORES', id: G.CORE_KINDS[0].id, n: G.CORE_KINDS[0].n });
+  G.CORE_KINDS.slice(1).forEach(c => out.push({ id: c.id, n: c.n }));
   out.push({ g: 'THE PLACE', id: G.DEST_LIFE.id, n: 'what lives there' });
   out.push({ id: G.DEST_MIX.id, n: 'kind mix' });
   return out;
@@ -448,6 +561,12 @@ function target(id) {
   for (const k of ['station', 'gate']) {
     if (G.RING_KINDS[k].id === id)
       return { live: G.RING_KINDS[k], base: DEFAULTS.RING_KINDS[k], dials: DIALS.ring, name: G.RING_KINDS[k].n, ringKind: k };
+  for (let i = 0; i < G.CORE_KINDS.length; i++)
+    if (G.CORE_KINDS[i].id === id)
+      // A core has no silhouette of its own — it is only ever seen inside a
+      // station, so that is what the stage draws. Same reason the SHD tab shows
+      // worlds rather than an abstract swatch.
+      return { live: G.CORE_KINDS[i], base: DEFAULTS.CORE_KINDS[i], dials: DIALS.core, name: G.CORE_KINDS[i].n, ringKind: 'station', core: G.CORE_KINDS[i].id };
   }
   const i = G.PLANET_TYPES.findIndex(p => p.id === id);
   if (i >= 0) return { live: G.PLANET_TYPES[i], base: DEFAULTS.PLANET_TYPES[i], dials: DIALS.world, name: G.PLANET_TYPES[i].n };
@@ -559,6 +678,25 @@ function dialFor(t, key) {
     return wrap;
   }
 
+  if (kind === 'enum') {
+    // A dial whose value is a NAME, not a magnitude. It needs a picker, because
+    // the generic slider below would happily write 0.37 into it — which is how
+    // dragging `terr` turned a world into a textured mess instead of changing
+    // its surface model. Anything nameable belongs here, not on a range input.
+    const sel = document.createElement('select');
+    sel.className = 'trip';
+    for (const opt of ['(none)', ...meta[2]]) {
+      const o = document.createElement('option');
+      o.value = opt === '(none)' ? '' : opt; o.textContent = opt;
+      sel.appendChild(o);
+    }
+    sel.value = t.live[key] || '';
+    sel.onchange = () => { t.live[key] = sel.value; touched(); flagEdited(); };
+    wrap.appendChild(sel);
+    flagEdited();
+    return wrap;
+  }
+
   if (kind === 'vec') {
     // a small tuple (an axis, an ellipse) — three or two plain numbers, no slider
     const row = document.createElement('div');
@@ -604,6 +742,7 @@ function touched() {
   dirty = allChanges().length > 0;
   setState(dirty ? 'dirty' : 'ok',
     dirty ? allChanges().length + ' change' + (allChanges().length === 1 ? '' : 's') + ' not yet in the game'
+          : staleWork ? 'showing the game — an older saved session was set aside'
           : 'in sync with the game');
   markRail();
   draw();
@@ -617,7 +756,7 @@ function setState(s, txt) {
 function payload() {
   return {
     PLANET_TYPES: G.PLANET_TYPES, PLANET_STAR: G.PLANET_STAR, PLANET_SHADE: G.PLANET_SHADE,
-    RING_KINDS: G.RING_KINDS, RING_SHADE: G.RING_SHADE,
+    RING_KINDS: G.RING_KINDS, CORE_KINDS: G.CORE_KINDS, RING_SHADE: G.RING_SHADE,
     DEST_MIX: G.DEST_MIX, DEST_LIFE: G.DEST_LIFE
   };
 }
@@ -635,10 +774,16 @@ function sprite(V, R) {
   if (!spriteCache.has(k)) spriteCache.set(k, G.buildPlanetSprite(R, V));
   return spriteCache.get(k);
 }
-function blit(c, V, R, x, y) {
+function blit(c, V, R, x, y, max) {
   const s = sprite(V, R);
   if (!s) return;
-  c.drawImage(s.cv, x - s.S / 2, y - s.S / 2);
+  // A ringed world's sprite is nearly twice as wide as a plain one's, because the
+  // ring lives in the same image. Drawn at natural size it overflows its cell and
+  // the ring reads as CUT — which it never is: the game draws the whole sprite,
+  // scaled, onto an unclipped canvas. Scaling to fit here means the preview
+  // cannot tell a lie about the art that the game does not tell.
+  const w = max && s.S > max ? max : s.S;
+  c.drawImage(s.cv, x - w / 2, y - w / 2, w, w);
 }
 // Any destination, at any radius, on any context — one entry point, so the
 // contact sheet and the hero cannot disagree about how a thing is drawn.
@@ -646,11 +791,17 @@ function blit(c, V, R, x, y) {
 // The ring art draws through the game's module-level `ctx`, so the context is
 // handed to the sandbox rather than passed as an argument. That is the game's
 // own shape and the lab bends to it, not the other way round.
-function drawDest(c, id, R, x, y, t) {
+function drawDest(c, id, R, x, y, t, max) {
   const T = target(id);
-  if (T && T.ringKind) { G.set({ ctx: c, time: t }); return G.drawRingBody(x, y, R, T.ringKind); }
+  if (T && T.ringKind) {
+    // which core this station is built round — the tab picks it, so a core tab
+    // shows its own core rather than whatever the table happens to lead with
+    if (T.ringKind === 'station') G.RING_KINDS.station.core = T.core || G.RING_KINDS.station.core;
+    G.set({ ctx: c, time: t });
+    return G.drawRingBody(x, y, R, T.ringKind);
+  }
   const V = id === 'SUN' ? G.PLANET_STAR : G.PLANET_TYPES.find(p => p.id === id);
-  if (V) blit(c, V, R, x, y);
+  if (V) blit(c, V, R, x, y, max);
 }
 function cv(w, h) {
   const el = document.createElement('canvas');
@@ -661,6 +812,10 @@ function cv(w, h) {
   c.scale(dpr, dpr);
   return { el, c, w, h };
 }
+
+// Ceilings for the grown canvases — past these the art is scaled to fit rather
+// than cropped, because the stage column is only so wide. Nothing is ever cut.
+const HERO_MAX = 760, SCALE_MAX = 230;
 
 let stageDraw = () => {};
 function select(id) {
@@ -691,10 +846,31 @@ function buildStage() {
 }
 
 /* one destination, at the sizes it is actually seen at */
+// How much room a destination actually needs at radius R, in pixels. A star's
+// corona and a ringed world's ring both reach far past the body, and the sprite
+// already knows exactly how far — so ask it rather than guessing a square.
+function footprint(id, R) {
+  const V = id === 'SUN' ? G.PLANET_STAR : G.PLANET_TYPES.find(p => p.id === id);
+  const s = V && sprite(V, R);
+  return s ? Math.ceil(s.S) : Math.ceil(R * 2.6);
+}
+// Grow a preview canvas to hold its art at FULL SIZE. Sizing the canvas to the
+// art instead of squeezing the art into the canvas is what keeps the body
+// exactly R pixels across in every cell — so the three scale cells still compare
+// honestly, and a star is shown whole at the size the game draws it, rather than
+// cropped by a fixed square or shrunk to fit one.
+function grow(holder, cvRef, id, R, cap) {
+  const need = Math.max(110, Math.min(cap, footprint(id, R)));
+  if (need === cvRef.w) return cvRef;
+  const next = cv(need, need);
+  holder.replaceChild(next.el, cvRef.el);
+  return next;
+}
+
 function bodyStage(st) {
   const hero = document.createElement('div');
   hero.className = 'hero';
-  const big = cv(420, 420);
+  let big = cv(420, 420);
   hero.appendChild(big.el);
   st.appendChild(hero);
 
@@ -712,12 +888,13 @@ function bodyStage(st) {
     cap.textContent = label;
     w.append(s.el, cap);
     strip.appendChild(w);
-    return { s, R };
+    return { s, R, holder: w };
   });
   st.appendChild(strip);
 
   stageDraw = t => {
     const R = cur === 'FLD' ? 150 : 130;
+    big = grow(hero, big, cur, R, HERO_MAX);
     big.c.clearRect(0, 0, big.w, big.h);
     // the haze the game puts around every body, so a colour is judged in air
     const V = cur === 'SUN' ? G.PLANET_STAR : G.PLANET_TYPES.find(p => p.id === cur);
@@ -728,10 +905,12 @@ function bodyStage(st) {
       big.c.fillStyle = hz;
       big.c.fillRect(0, 0, big.w, big.h);
     }
-    drawDest(big.c, cur, R, big.w / 2, big.h / 2, t);
-    for (const { s, R: r } of small) {
-      s.c.clearRect(0, 0, s.w, s.h);
-      drawDest(s.c, cur, r, s.w / 2, s.h / 2, t);
+    drawDest(big.c, cur, R, big.w / 2, big.h / 2, t, Math.min(big.w, big.h));
+    for (let i = 0; i < small.length; i++) {
+      const it = small[i];
+      it.s = grow(it.holder, it.s, cur, it.R, SCALE_MAX);
+      it.s.c.clearRect(0, 0, it.s.w, it.s.h);
+      drawDest(it.s.c, cur, it.R, it.s.w / 2, it.s.h / 2, t, Math.min(it.s.w, it.s.h));
     }
   };
 }
@@ -761,7 +940,7 @@ function sheetStage(st) {
   stageDraw = t => {
     for (const { s, id } of cells) {
       s.c.clearRect(0, 0, s.w, s.h);
-      drawDest(s.c, id, 38, s.w / 2, s.h / 2, t);
+      drawDest(s.c, id, 38, s.w / 2, s.h / 2, t, Math.min(s.w, s.h));
     }
   };
 }
@@ -848,7 +1027,7 @@ function arrivalStage(st) {
 
     G.drawDestLife(far, R, geo, false, la);        // whatever is round the back
     if (kind === 'planet') {
-      blit(c, V, R, fx, fy);
+      blit(c, V, R, fx, fy, Math.min(big.w, big.h));
       G.drawTerminatorCreep(far, R, clamp01((R / geo.nodeR - G.DEST_LIFE.vis0) / G.DEST_LIFE.vis1), la);
     } else {
       G.drawRingBody(fx, fy, R * (kind === 'gate' ? 1.25 : 1.15), kind);
@@ -1002,7 +1181,7 @@ function fail(msg) {
       ${src.life}
       return {
         PLANET_REF_R, PLANET_TYPES, PLANET_STAR, PLANET_SHADE,
-        RING_KINDS, RING_SHADE, DEST_MIX, DEST_LIFE,
+        RING_KINDS, CORE_KINDS, RING_SHADE, DEST_MIX, DEST_LIFE,
         planetVariantFor, buildPlanetSprite, destKindFor, drawRingBody,
         drawDestLife, drawTerminatorCreep, destinationLife, destLightA, orbitAt,
         set(o) {
@@ -1022,13 +1201,35 @@ function fail(msg) {
   }
 
   DEFAULTS = clone(payload());
+  let staleWork = null;
 
   // a working copy from a previous session, if the tab was closed mid-tune
   try {
-    const w = await (await fetch('/api/work')).json();
+    const res = await (await fetch('/api/work')).json();
+    // A working copy saved against an OLDER game file is not restored — it is
+    // set aside. Replaying it silently is what makes a session's worth of work
+    // look like it never happened: the lab shows the restored old values and
+    // every later edit to the game file appears to have done nothing.
+    if (res && res.stale && res.data) {
+      staleWork = res.data;
+    }
+    const w = res && !res.stale ? res.data : null;
     if (w) for (const k of Object.keys(w)) {
-      if (Array.isArray(w[k])) w[k].forEach((v, i) => G[k][i] && Object.assign(G[k][i], v));
-      else Object.assign(G[k], w[k]);
+      if (Array.isArray(w[k])) {
+        // BY ID, never by index — the same rule the writer already follows.
+        // The world table grows and reorders; a working copy saved before it did
+        // would otherwise pour one world's dials into whatever now sits at that
+        // slot, and because `id` and `n` came along for the ride the victim was
+        // RENAMED into a copy of the donor. Two identical 'ICE' rows in the rail
+        // was that, exactly: a nine-entry copy replayed onto an eighteen-entry
+        // table put the old ICE at index 7, on top of verdant.
+        for (const v of w[k]) {
+          if (!v || v.id == null) continue;
+          const t = G[k].find(o => o.id === v.id);
+          if (!t) continue;                       // a world that no longer exists
+          for (const kk of Object.keys(v)) if (kk !== 'id' && kk !== 'n') t[kk] = v[kk];
+        }
+      } else Object.assign(G[k], w[k]);
     }
   } catch (e) {}
 

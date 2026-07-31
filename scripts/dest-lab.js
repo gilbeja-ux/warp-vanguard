@@ -179,6 +179,10 @@ function writeGame(payload) {
     const s = constSpan(body, 'PLANET_TYPES');
     body = body.slice(0, s.start) + patchById(body.slice(s.start, s.end), payload.PLANET_TYPES) + body.slice(s.end);
   }
+  if (payload.CORE_KINDS) {
+    const s = constSpan(body, 'CORE_KINDS');
+    body = body.slice(0, s.start) + patchById(body.slice(s.start, s.end), payload.CORE_KINDS) + body.slice(s.end);
+  }
   if (payload.RING_KINDS) {
     const s = constSpan(body, 'RING_KINDS');
     body = body.slice(0, s.start) + patchById(body.slice(s.start, s.end), Object.values(payload.RING_KINDS)) + body.slice(s.end);
@@ -208,7 +212,7 @@ function writeGame(payload) {
 // patches without eating comments) can be checked without standing a server up
 module.exports = { region, readGame, writeGame };
 
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   const urlPath = decodeURIComponent(req.url.split('?')[0]);
 
   // the three regions, straight out of the game
@@ -229,18 +233,38 @@ http.createServer((req, res) => {
   }
 
   // the working copy — autosaved every edit so a closed tab loses nothing
+  // A fingerprint of the tables the working copy was saved AGAINST. Without it a
+  // crash-recovery copy silently replays old values over a game file that has
+  // moved on — which looks exactly like "my changes did nothing", because the lab
+  // is faithfully showing values it restored over the top of them.
+  const dataHash = () => {
+    const src = readGame();
+    const open = src.indexOf('// >>> DEST-DATA'), close = src.indexOf('// <<< DEST-DATA');
+    const body = open < 0 || close < 0 ? src : src.slice(open, close);
+    let h1 = 0x811c9dc5;
+    for (let i = 0; i < body.length; i++) { h1 ^= body.charCodeAt(i); h1 = Math.imul(h1, 16777619); }
+    return (h1 >>> 0).toString(36);
+  };
   if (urlPath === '/api/work') {
     if (req.method === 'GET') {
       if (!fs.existsSync(workPath)) return send(res, 200, TYPES['.json'], 'null');
-      return send(res, 200, TYPES['.json'], fs.readFileSync(workPath, 'utf8'));
+      const raw = fs.readFileSync(workPath, 'utf8');
+      let saved = null;
+      try { saved = JSON.parse(raw); } catch (e) {}
+      // Anything without a matching fingerprint is STALE and is handed back
+      // flagged rather than applied. The lab then says so instead of quietly
+      // overwriting newer work.
+      const stale = !saved || saved.hash !== dataHash();
+      return send(res, 200, TYPES['.json'],
+        JSON.stringify({ stale, data: saved && saved.data ? saved.data : (stale ? null : saved) }));
     }
     if (req.method === 'PUT') {
       let body = '';
       req.on('data', c => { body += c; if (body.length > 4e6) req.destroy(); });
       req.on('end', () => {
         try {
-          JSON.parse(body);
-          fs.writeFileSync(workPath, body);
+          const data = JSON.parse(body);
+          fs.writeFileSync(workPath, JSON.stringify({ hash: dataHash(), data }));
           send(res, 200, TYPES['.json'], '{"ok":true}');
         } catch (e) { send(res, 400, 'text/plain', e.message); }
       });
@@ -279,7 +303,14 @@ http.createServer((req, res) => {
     if (err) return send(res, 404, 'text/plain', 'Not found');
     send(res, 200, TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream', buf);
   });
-}).listen(port, '127.0.0.1', () => {
-  console.log(`Destinations lab on http://localhost:${port}`);
-  console.log(`Reading and writing src/index.html between the DEST-DATA markers`);
 });
+
+// Only LISTEN when run as a command. Requiring this file is how the round-trip
+// above gets checked, and a require that seizes port 8011 either fails outright
+// or — worse — takes the port from the lab the author has open in a tab.
+if (require.main === module) {
+  server.listen(port, '127.0.0.1', () => {
+    console.log(`Destinations lab on http://localhost:${port}`);
+    console.log(`Reading and writing src/index.html between the DEST-DATA markers`);
+  });
+}

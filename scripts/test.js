@@ -11,16 +11,58 @@ let code = campaigns + '\n' + html.match(/<script>([\s\S]*?)<\/script>/)[1];
 
 // --- DOM stubs ---
 const grad = { addColorStop() {} };
-const ctxStub = new Proxy({}, {
-  get: (t, k) => {
-    if (k === 'canvas') return canvasStub;
-    // createImageData must hand back a REAL buffer — the galaxy bake writes its
-    // pixels into one, and a gradient stub has nothing to write to
-    if (k === 'createImageData') return (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) });
-    return (...a) => (String(k).startsWith('create') ? grad : (k === 'measureText' ? { width: 10 } : undefined));
-  },
+// The draw code touches ctx tens of millions of times a run, so the stub's shape
+// is load-bearing for suite speed. A bare Proxy costs a trap on EVERY property
+// access — it was a quarter of the suite's runtime. So the canvas 2D surface is
+// spelled out as real own methods (fast monomorphic lookup, inlinable no-ops),
+// with the Proxy demoted to the PROTOTYPE as a safety net: anything not listed
+// still resolves to a no-op instead of throwing, so an unlisted call can never
+// fail a run — on the server verifier that would mean rejecting a real score.
+// Return values mirror the old Proxy exactly: only create* hands back a shape.
+const ctxStub = {
+  // createImageData must hand back a REAL buffer — the galaxy bake writes its
+  // pixels into one, and a gradient stub has nothing to write to
+  createImageData: (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }),
+  createLinearGradient: () => grad,
+  createRadialGradient: () => grad,
+  createConicGradient: () => grad,
+  createPattern: () => grad,
+  measureText: () => ({ width: 10 }),
+};
+// the pure no-ops: every remaining CanvasRenderingContext2D method the game can
+// reach. All return undefined, exactly as the old stub did.
+for (const m of [
+  'arc', 'arcTo', 'beginPath', 'bezierCurveTo', 'clearRect', 'clip', 'closePath',
+  'drawImage', 'ellipse', 'fill', 'fillRect', 'fillText', 'getImageData',
+  'getLineDash', 'getTransform', 'isPointInPath', 'isPointInStroke', 'lineTo',
+  'moveTo', 'putImageData', 'quadraticCurveTo', 'rect', 'reset', 'resetTransform',
+  'restore', 'rotate', 'roundRect', 'save', 'scale', 'setLineDash', 'setTransform',
+  'stroke', 'strokeRect', 'strokeText', 'transform', 'translate',
+]) ctxStub[m] = () => undefined;
+// Style properties are NOT plain slots. The old Proxy swallowed every write and
+// answered every read with a function, and the game reads some back —
+// `ctx.globalAlpha *= x` appears 7 times, `const prevAlign = ctx.textAlign` more.
+// A plain slot would make those reads 0 instead of a function, quietly changing
+// what the SERVER VERIFIER computes. Accessors reproduce the old semantics
+// exactly (read → no-op fn, write → discarded) without a proxy trap.
+const noop = () => undefined;
+for (const p of [
+  'fillStyle', 'strokeStyle', 'font', 'filter', 'globalAlpha', 'lineWidth',
+  'globalCompositeOperation', 'lineCap', 'lineJoin', 'lineDashOffset',
+  'letterSpacing', 'shadowBlur', 'shadowColor', 'shadowOffsetX', 'shadowOffsetY',
+  'textAlign', 'textBaseline', 'imageSmoothingEnabled', 'miterLimit',
+]) Object.defineProperty(ctxStub, p, { get: () => noop, set: noop, configurable: true });
+// The safety net goes on LAST, as the prototype: anything not spelled out above
+// still resolves to a no-op instead of throwing, so an unlisted canvas call can
+// never fail a run — on the server verifier that would mean rejecting a real
+// score. It must be attached after the own properties are installed: its `set`
+// trap would otherwise swallow every assignment made through the prototype chain
+// and leave the stub empty.
+Object.setPrototypeOf(ctxStub, new Proxy({}, {
+  get: (t, k) => (k === 'canvas' ? canvasStub
+    : (typeof k === 'string' && k.startsWith('create') ? () => grad : () => undefined)),
   set: () => true
-});
+}));
 const canvasHandlers = {};
 const canvasStub = {
   width: 0, height: 0, style: {},
