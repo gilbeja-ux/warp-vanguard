@@ -95,25 +95,34 @@ function withStage(cv, draw) {
 // PREVIEW DRIVERS. Each sets up only the state its painter needs, then calls the
 // painter. They are deliberately thin: any logic here is logic that could drift.
 const DRIVERS = {
+  // Call drawNodes, NOT drawArcNode. drawArcNode's signature is
+  // (n, g, i, rb, fused, bh) and drawNodes is what works out the last four —
+  // reaching past it left `bh` undefined, which made a coordinate NaN and a real
+  // canvas throw. Always enter a painter where the game enters it.
   arcs(g) {
     drawTunnel(g);
-    if (typeof nodes !== 'undefined' && nodes[0]) {
-      nodes[0].angle = -Math.PI * 0.75;
-      nodes[1].angle = -Math.PI * 0.25;
-      for (const n of nodes) drawArcNode(n, g);
-    }
+    nodes[0].angle = -Math.PI * 0.75;
+    nodes[1].angle = -Math.PI * 0.25;
+    drawNodes(g);
   },
+  // Bodies come from the game's OWN spawnEnemy, not from a hand-made object
+  // literal. A painter reads fields a literal will not have, and inventing one
+  // is how a lab starts lying — the same mistake that got the old labs deleted.
   enemies(g) {
     drawTunnel(g);
     const kinds = ['normal', 'double', 'heavy', 'frag'];
-    kinds.forEach((k, i) => {
-      const e = {
-        type: k === 'normal' ? 'normal' : k, angle: (i / kinds.length) * Math.PI * 2 - Math.PI / 2,
-        z: 0.30, lock: k === 'heavy' ? undefined : (i % 2 ? 0 : undefined),
-        hp: 1, len: 0.1, q: 0, seed: i * 97,
-      };
-      try { drawEnemy(e, g); } catch (err) { /* a kind this build does not paint */ }
-    });
+    const keep = enemies.slice();
+    enemies.length = 0;
+    try {
+      kinds.forEach((k, i) => {
+        const e = spawnEnemy((i / kinds.length) * Math.PI * 2 - Math.PI / 2, k);
+        if (e) e.z = 0.30;
+      });
+      for (const e of enemies) drawEnemy(e, g);
+    } finally {
+      enemies.length = 0;
+      for (const e of keep) enemies.push(e);
+    }
   },
   streaks(g) {
     drawStarField();
