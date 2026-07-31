@@ -467,7 +467,7 @@ function resetRun() {
   boss = null; burstQ = null; patternQ = []; hitStop = 0;
   heat = 0; overheat = false; beamActive = false; beamSound(false, 0); stripSound(false, 0);
   introT = 0; introCd = -1; introStage = -1; introLatch = false; padHold = [false, false]; gatePip = 0;
-  rimFX = []; latches = []; killStreaks = []; resumeHold = 0; warpT = 0.9; fadeT = 0.35;
+  rimFX = []; latches = []; killStreaks = []; resumeHold = 0; warpT = WARP_DIVE; fadeT = 0.35;
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; }
   fx.wide = fx.auto = fx.chain = 0; shieldCharge = DEV_SHIELD ? 1 : 0; pickupT = srand(16, 24); pickupBag = [];
   ribbonT = srand(11, 15); // first golden ribbon EARLY — its pulse should serve the whole run

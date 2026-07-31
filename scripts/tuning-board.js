@@ -49,11 +49,21 @@ const REGISTRY = [
     blurb: 'How a body comes apart when it dies.',
     consts: ['DECOMP'] },
   { id: 'warp', title: 'Warp lane & streaks', preview: 'streaks', file: '82-destinations.js',
-    blurb: 'The speed effect. Counts live in initStreaks; these are the pass table and floor.',
-    consts: ['Z_FLOOR', 'WAKE_T'] },
+    blurb: 'The speed effect, and the gold convoy river on the floor of the bore. '
+      + 'RIVER is live — spread moves the whole convoy while you drag it. Counts still live in initStreaks.',
+    consts: ['RIVER', 'Z_FLOOR', 'WAKE_T'] },
+  { id: 'dive', title: 'Warp dive (level entry)', preview: 'streaks', file: '40-state.js',
+    blurb: 'The fly-IN at the start of a lane — NOT the arrival. WARP_DIVE seconds of it, '
+      + 'during which the tunnel hots up and every streak stretches to five times its length. '
+      + 'Set it to 0 to enter a lane already at speed.',
+    consts: ['WARP_DIVE'] },
   { id: 'deep', title: 'Deep field', preview: 'streaks', file: '83-deepfield.js',
     blurb: 'Open space outside the lane, and how much of the wall rate it parallaxes at.',
     consts: ['DEEP_PARALLAX'] },
+  { id: 'sky', title: 'Star bloom', preview: 'streaks', file: '20-background.js',
+    blurb: 'What a bright star looks like when it flares. The halo curve itself is STAR_HALO in '
+      + 'the source (a shape, not a dial); these are its reach, its peak, and the refraction streak.',
+    consts: ['STARFX'] },
   { id: 'planets', title: 'Planets', preview: 'planet', file: '80-tunnel.js',
     blurb: 'The pixel shader at the end of the lane. PLANET_SHADE is the palette per world type.',
     consts: ['PLANET_REF_R', 'PLANET_CHIP_R', 'PLANET_STAR', 'DEST_MIX'] },

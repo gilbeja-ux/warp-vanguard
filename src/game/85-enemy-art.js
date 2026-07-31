@@ -1423,6 +1423,96 @@ function drawBeam(g) {
   }
 }
 
+
+// THE NODE HOLDER RING — the physical hardware the arcs are mounted on: the
+// matte black plate, its boot fly-in, its exit, and the dock flare.
+//
+// Lifted out of frame() so it can be drawn WITHOUT booting a game. The tuning
+// board loads every file except 99-boot.js (whose top level starts a run), and
+// this lived inside frame() — so a preview of the arcs or of a body painted ON
+// the ring had no ring under it. Returns the band half-unit the caller needs.
+function drawHolderRing(g) {
+  // node holder ring: thick matte black like the mock, with faked soft shadow for depth
+  const bz = Math.min(W, H) * 0.055;
+  // boot: the ring launches from the operator's own viewpoint and flies INTO
+  // the tunnel, braking into the dock — perspective-true (the same 1/(1+6z)
+  // law as the traffic), so it reads as deploying hardware, not a UI transition
+  const bootRing = (state === S.PLAY || state === S.PAUSE) && introT < INTRO_DUR + 1;
+  const ringS = bootRingS(g);
+  if (bootRing && introT < BOOT_LOCK) {
+    const p = clamp(introT / BOOT_LOCK, 0, 1);
+    // dock markers wait at the rim: hairline target circle + four braces
+    const ba = 0.5 + 0.4 * p;
+    ctx.setLineDash([3, 9]);
+    ctx.strokeStyle = `rgba(160,220,255,${(ba * 0.35).toFixed(2)})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = `rgba(160,220,255,${(ba * 0.8).toFixed(2)})`;
+    for (let k = 0; k < 4; k++) {
+      const a2 = k * Math.PI / 2 + Math.PI / 4;
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, a2 - 0.09, a2 + 0.09); ctx.stroke();
+    }
+  }
+  // THE RING LEAVES TOO. It arrived by flying INTO the lane on the boot; the
+  // arrival is that in reverse — it blows out past the eye on the same
+  // accelerating law as the corridor, and nothing is left framing the world.
+  const rExit = laneExit();
+  const ringOutS = 1 + rExit * rExit * 3.6, ringOutA = 1 - rExit;
+  if (state !== S.MENU && state !== S.GUIDE && ringOutA > 0.004) {
+    // the PHYSICAL ring exists only in the game — menus and the Archive stay
+    // open so the boot's ring arrival lands with real contrast
+    const sc = ringS * ringOutS;
+    const al = (ringS !== 1 ? 0.35 + 0.65 * clamp(introT / BOOT_LOCK, 0, 1) : 1) * ringOutA;
+    const xf = sc !== 1 || al < 1;
+    if (xf) {
+      ctx.save();
+      ctx.translate(g.cx, g.cy); ctx.scale(sc, sc); ctx.translate(-g.cx, -g.cy);
+      ctx.globalAlpha = al; // condenses out of the eye on the boot, drains on the way out
+    }
+    // soft occlusion shadow behind the band, then the prerendered monolith
+    ctx.strokeStyle = 'rgba(0,0,0,0.14)'; ctx.lineWidth = bz * 1.6;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, 0, TAU); ctx.stroke();
+    if (ringFxCv) ctx.drawImage(ringFxCv, 0, 0, W, H);
+    // warm river light still catches the band's lower outer edge — and goes out
+    // with the convoy when the lane parks
+    if (laneFlow > 0.01) {
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bz * ARCFX.bandW * 0.9, Math.PI * 0.28, Math.PI * 0.72);
+      ctx.strokeStyle = `rgba(255,190,100,${(0.20 * laneFlow).toFixed(3)})`; ctx.lineWidth = 2; ctx.stroke();
+    }
+    if (xf) { ctx.restore(); ctx.globalAlpha = 1; }
+  }
+  // the dock: a rim flare and white/blue shockwaves ring off the lock moment
+  if (bootRing) {
+    const lp = introT - BOOT_LOCK;
+    if (lp >= 0 && lp < 0.85) {
+      ctx.save(); ctx.lineCap = 'butt';
+      const flare = clamp(1 - lp / 0.25, 0, 1);
+      if (flare > 0) {
+        ctx.strokeStyle = `rgba(235,250,255,${(flare * 0.85).toFixed(2)})`;
+        ctx.lineWidth = bz * 0.5;
+        ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, 0, TAU); ctx.stroke();
+      }
+      for (const [dly, col, dir, spread] of [
+        [0, '235,250,255', 1, 0.5],    // white pulse out
+        [0.12, '111,227,255', 1, 0.5], // blue pulse chasing it
+        [0.06, '111,227,255', -1, 0.3] // faint blue pulse collapsing inward
+      ]) {
+        const q = (lp - dly) / 0.6;
+        if (q <= 0 || q >= 1) continue;
+        const e2 = 1 - Math.pow(1 - q, 2);
+        ctx.strokeStyle = `rgba(${col},${((1 - q) * (dir > 0 ? 0.6 : 0.35)).toFixed(2)})`;
+        ctx.lineWidth = 2.5 * (1 - q) + 0.5;
+        ctx.beginPath();
+        ctx.arc(g.cx, g.cy, g.nodeR * (1 + dir * e2 * spread), 0, TAU);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+  return bz;
+}
 function drawNodes(g) {
   const bzn = Math.min(W, H) * 0.055;
   const bh = bzn * ARCFX.bandW;                   // the monolith band's half-width

@@ -179,10 +179,12 @@ const DRIVERS = {
     controls: [
       { id: 'sweep', label: 'node sweep', min: 0, max: 1, step: 0.01, value: 0.35 },
       { id: 'dip', label: 'discharge dip', min: 0, max: 1, step: 0.01, value: 0 },
+      { id: 'ring', label: 'show ring', type: 'toggle', value: 1 },
       { id: 'lane', label: 'show lane', type: 'toggle', value: 1 },
     ],
     draw(g, dt, C) {
       if (C.lane) lane(g, dt); else backdrop(g, dt);
+      if (C.ring) drawHolderRing(g);
       nodes[0].angle = -Math.PI * 0.72 + Math.sin(WORLD.t * 0.6) * C.sweep;
       nodes[1].angle = -Math.PI * 0.28 + Math.cos(WORLD.t * 0.5) * C.sweep;
       nodes[0].dip = nodes[1].dip = C.dip;
@@ -197,10 +199,12 @@ const DRIVERS = {
       { id: 'scale', label: 'body scale', min: 0.5, max: 4, step: 0.05, value: 2.2 },
       { id: 'depth', label: 'depth', min: 0.1, max: 1, step: 0.01, value: 0.34 },
       { id: 'approach', label: 'fly in', type: 'toggle', value: 0 },
+      { id: 'ring', label: 'show ring', type: 'toggle', value: 1 },
       { id: 'lane', label: 'show lane', type: 'toggle', value: 1 },
     ],
     draw(g, dt, C) {
       if (C.lane) lane(g, dt); else backdrop(g, dt);
+      if (C.ring) drawHolderRing(g);
       const kinds = C.kind === 'all' ? ['normal', 'line', 'heavy', 'frag'] : [C.kind];
       const keep = enemies.slice();
       try {
@@ -221,10 +225,12 @@ const DRIVERS = {
           // sat there fully formed at zero opacity. The preview owns the clock
           // here, so it ages them itself.
           e.age = (e.age || 0) + dt;
+          // z is DEPTH: the lane runs toward the player, so an approaching body's
+          // z falls. Counting it up flew them backwards out of the bore.
           e.z = C.approach
-            ? ((WORLD.t * 0.12 + e.__i) % 1) * 0.9 + 0.1   // loop down the bore
+            ? 0.95 - ((WORLD.t * 0.12 + e.__i) % 1) * 0.85
             : C.depth;
-          if (C.approach && e.z > 0.92) e.age = 0;   // re-show the birth on each lap
+          if (C.approach && e.z > 0.92) e.age = 0;   // fresh at the horizon: re-show the birth
         }
         enemies.length = 0;
         for (const e of WORLD.bodies) enemies.push(e);
@@ -239,10 +245,12 @@ const DRIVERS = {
       { id: 'kind', label: 'body', type: 'pick', options: ['normal', 'line', 'heavy', 'frag'], value: 'normal' },
       { id: 'scale', label: 'body scale', min: 0.5, max: 4, step: 0.05, value: 2.4 },
       { id: 'rate', label: 'replay every', min: 0.4, max: 4, step: 0.1, value: 1.4, unit: 's' },
+      { id: 'ring', label: 'show ring', type: 'toggle', value: 1 },
       { id: 'lane', label: 'show lane', type: 'toggle', value: 0 },
     ],
     draw(g, dt, C) {
       if (C.lane) lane(g, dt); else backdrop(g, dt);
+      if (C.ring) drawHolderRing(g);
       // Ghosts come from the game's own decompile(), so what you are watching is
       // the real de-rez, not a re-creation of it.
       const keep = ghosts.slice();
@@ -309,6 +317,7 @@ const DRIVERS = {
     draw(g, dt, C) {
       lane(g, dt);
       integrity = C.integrity; combo = C.combo; score = C.score;
+      drawHolderRing(g);
       drawNodes(g);
       drawHUD(g);
     },

@@ -42,7 +42,12 @@ let lowFX = false, perfAcc = 0, perfN = 0, perfWin = 0; // perf watchdog state
 let hitStop = 0;              // brief slow-mo after a zap
 let rimFX = [];               // reactive rim lighting: {a, t, col}
 let resumeHold = 0, resumeDigit = 0; // 3-2-1 after unpausing
-let warpT = 0;                // warp-dive into a fresh level
+// THE WARP DIVE: the fly-IN at the start of a level, not the end. Set to
+// WARP_DIVE on entering a lane and decayed to 0 by update(); while it burns, the
+// tunnel hots up and every warp streak stretches (see drawStreaks). Nothing in
+// it touches scoring — it is pure arrival.
+const WARP_DIVE = 0.9;        // seconds of dive; 0 enters the lane already at speed
+let warpT = 0;                // live countdown of the above
 // LANE FLOW — the master "are we moving" gate over every visual motion source
 // (wall bands, hoops, warp lines, gas, deep parallax). Menus sit PARKED in open
 // space: the warp begins only when a run does, and the end ceremony brakes the
