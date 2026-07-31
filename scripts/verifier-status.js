@@ -24,9 +24,10 @@ const KEY = 'sb_publishable_B3MngfknmPrLc-uo0ho11A_Jnmphekl';
 
   let deployed = null, why = null;
   try {
-    // the function's GET route runs _diag(), which reports the id its bundle
-    // was cut from — a full sim load, so this also proves the bundle still boots
-    const res = await fetch(BASE + '/functions/v1/submit-run', {
+    // ?diag=1 runs _diag(), which reports the id its bundle was cut from — and
+    // does it by loading and stepping the sim, so a pass also proves the deployed
+    // bundle still boots in the edge runtime
+    const res = await fetch(BASE + '/functions/v1/submit-run?diag=1', {
       method: 'GET',
       headers: { apikey: KEY, Authorization: 'Bearer ' + KEY },
     });
