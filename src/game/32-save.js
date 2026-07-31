@@ -47,7 +47,11 @@ async function lbProvisional(board, score, zaps = 0, perfects = 0) {
 }
 
 // ---------- persistence ----------
-const STORE_KEY = 'dataDefenders.v1';
+const STORE_KEY = 'warpVanguard.v1';
+// pre-rename key (2026-07-31). loadState() moves a save across once and deletes
+// the old entry, so nothing is left behind; drop both lines once every device
+// you care about has booted the renamed build at least once.
+const LEGACY_STORE_KEY = 'dataDefenders.v1';
 // pre-campaign saves kept flat stars/bests/unlocked — fold them into campaign #1
 function migrateSaveShape(dp) {
   if (dp.stars && !dp.camp) {
@@ -65,7 +69,12 @@ function saveState() {
 }
 (function loadState() {
   try {
-    const d = JSON.parse(localStorage.getItem(STORE_KEY));
+    let raw = localStorage.getItem(STORE_KEY);
+    if (raw === null) {
+      raw = localStorage.getItem(LEGACY_STORE_KEY);
+      if (raw !== null) localStorage.removeItem(LEGACY_STORE_KEY);
+    }
+    const d = JSON.parse(raw);
     if (d) {
       if (d.progress) {
         Object.assign(progress, migrateSaveShape(d.progress));

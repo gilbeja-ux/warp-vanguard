@@ -61,14 +61,14 @@ npm run apk
 ```
 
 This runs `scripts/build-apk.sh`, which syncs `src/` into the native project,
-compiles a debug APK, and copies it to `~/Desktop/DataDefenders.apk`.
+compiles a debug APK, and copies it to `~/Desktop/WarpVanguard.apk`.
 
 ## Install on a phone
 
 - **File transfer:** send the APK to the phone (Drive, email, USB), tap it,
   allow "install unknown apps" for the opening app, then Install.
 - **USB cable:** enable USB debugging, then
-  `adb install -r ~/Desktop/DataDefenders.apk`.
+  `adb install -r ~/Desktop/WarpVanguard.apk`.
 
 The debug build is stably signed, so it never expires — good for a permanent
 personal copy. It just can't be published to the Play Store without a release

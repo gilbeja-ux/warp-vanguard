@@ -35,7 +35,7 @@ and the order we build it. The writing itself lives in `docs/SCREENPLAY.md`.
 | **Beat placement** | The reveal ladder (ordinary → rebooked → chosen → commander) lands inside **Campaign 1's first four missions**. C2–C5 carry the flush-out and the head of the snake. |
 | **Client** | One client, straight with you. He rebooks you deliberately — the rebooking *is* the tell. |
 | **Evidence loop** | Real, not fictional: destroyed enemy counts (already tracked) feed a **TRACE ANALYSIS** line on the victory report. The gameplay verb produces the story beat. |
-| **In-run voice** | The channel changes hands. M1–M4 it is **DEFENDERS DISPATCH** — bored, procedural, contractual. From M5 the same slot is **the commander**. The tonal switch does the storytelling for free. |
+| **In-run voice** | The channel changes hands. M1–M4 it is **LANE AUTHORITY DISPATCH** — bored, procedural, contractual. From M5 the same slot is **the commander**. The tonal switch does the storytelling for free. |
 | **Setting** | One named reach, near-future. Its harbor, old moorings, trade spine and sublanes are the existing level names — they already read as one chart. |
 | **Tone** | It comes for you. Mid-game they stop attacking the line and start attacking the operator. |
 | **Structure** | Straight chronology, mission 1 to 40, present tense. |
@@ -45,7 +45,8 @@ and the order we build it. The writing itself lives in `docs/SCREENPLAY.md`.
 
 - The commander: name, rank, and what is wrong with her.
 - The operator: callsign — and whether the leaderboard handle becomes the name
-  she says out loud (`docs/IDENTITY-SETUP.md` already stores one).
+  she says out loud (the game already mints one: `Vanguard-XXXXXX`, see
+  `src/game/31-leaderboard.js`).
 - The client: name, company, what he is actually shipping.
 - The reach: name.
 - Whether **HAUL** and **TRACE** survive as speakers, or collapse into

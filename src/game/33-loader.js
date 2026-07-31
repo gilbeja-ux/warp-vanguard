@@ -154,7 +154,7 @@ function switchCampaign(i) {
   progress.lastCamp = CAMPAIGNS[i].id;
   saveState();
 }
-// The Story Mode carousel leads with a DEFENDER TRAINING disc, then the real
+// The Story Mode carousel leads with a VANGUARD TRAINING disc, then the real
 // campaigns, then any teasers. A carousel index maps to a disc descriptor via
 // discAt(); a campaign index maps to its carousel slot via discOfCamp().
 const TRAIN_DISCS = 1;

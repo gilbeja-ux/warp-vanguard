@@ -1021,7 +1021,7 @@ const cTile = G.menuBtns().find(b => b.mode === 'campaign');
 flushUI(); // press beat -> spin -> screen switch
 check('campaign tile opens the case-file carousel (multiple campaigns shipped)', G.getMenuScreen() === 'camps');
 flushUI(); G.setCampScroll(1); G.frame(16); // center the row
-{ // discs: a Defender Training disc leads the carousel, then every real campaign,
+{ // discs: a Vanguard Training disc leads the carousel, then every real campaign,
   // each reachable with its own SYNC key (its carousel index); no teasers left
   const TRAIN = 1; // the training disc occupies carousel slot 0; campaigns follow
   const totalDiscs = TRAIN + G.CAMPAIGNS.length;

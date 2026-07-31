@@ -8,7 +8,7 @@ _Investigation done 2026-07-23. Question scoped: what would it take to add leade
 
 ## 1. What already exists (the good news)
 
-Every number you'd want to rank is already computed and persisted locally in one `localStorage` blob (`STORE_KEY = 'dataDefenders.v1'`, [index.html:940](../src/index.html#L940)). Saved via `saveState()` ([953](../src/index.html#L953)) as `{ progress, settings, mutators }`; loaded + shape-migrated on boot (`migrateSaveShape` [942](../src/index.html#L942)).
+Every number you'd want to rank is already computed and persisted locally in one `localStorage` blob (`STORE_KEY = 'warpVanguard.v1'`, [32-save.js](../src/game/32-save.js)). Saved via `saveState()` ([953](../src/index.html#L953)) as `{ progress, settings, mutators }`; loaded + shape-migrated on boot (`migrateSaveShape` [942](../src/index.html#L942)).
 
 `progress` shape (default [937](../src/index.html#L937)):
 ```js

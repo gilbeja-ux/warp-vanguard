@@ -40,7 +40,7 @@ _Companion to [LEADERBOARDS-RESEARCH.md](LEADERBOARDS-RESEARCH.md). Decisions: *
 On the `tutorial-streamline` branch, all covered by `npm test` — and all **provider-agnostic**, so the Supabase switch changed none of it:
 
 - **Fixed-timestep sim** — a run's outcome is a pure function of seed + inputs, proven frame-rate-independent by a regression test. The prerequisite for both replay *validation* and the replay *player*.
-- **Player identity** — `identity = { id, autoName, name, provider, email, token, refresh, uid }` in the save blob; a stable `id` + `Defender-<random>` label are minted on first boot (`ensureIdentity()`). Anonymous session + Google/Apple/email sign-in, unique-name claim, sign-out, and delete are all wired (see Step 2).
+- **Player identity** — `identity = { id, autoName, name, provider, email, token, refresh, uid }` in the save blob; a stable `id` + `Vanguard-<random>` label are minted on first boot (`ensureIdentity()`). Anonymous session + Google/Apple/email sign-in, unique-name claim, sign-out, and delete are all wired (see Step 2).
 - **Run capture** — `captureRun()` builds `lastRun`, the submission payload: `{ board, mode, seed, score, timeSec, maxCombo, integrity, misses, perfects, zaps, mutators, verifiable, playerId, playerName, at }`. Called automatically in `endLevel()`.
 - **Board keys** — `boardKey()`: `<campId>:<levelIdx>` (e.g. `investigation:2`), `endless`, or `daily`. These are the `board` values in the `runs` table.
 - **The schema** — [supabase/schema.sql](../supabase/schema.sql): the `runs` table, RLS write-lockdown, `leaderboard_top` / `leaderboard_rank` / `leaderboard_provisional_rank` reads (all listing-gated by the `profiles` join), the `profiles` table + `check_name_available` / `claim_name` / `delete_my_data` identity RPCs, and the `submit_verified_run` write path.
@@ -64,29 +64,29 @@ Give me the **Project URL** and **anon key** and I can wire the client's read/di
 
 ## Step 2 — Identity (built — this is the spec + the config you must do)
 
-> **Doing the setup?** Follow the click-by-click runbook: [IDENTITY-SETUP.md](IDENTITY-SETUP.md). The rest of this section is the design spec behind it.
+> **Note.** The click-by-click runbook that used to live here (`IDENTITY-SETUP.md`) was deleted on 2026-07-31 — it documented the cancelled sign-in flow and the retired `com.datadefenders.game` bundle ID. What follows is the design spec only; see the banners above for what actually shipped.
 
 **The model (decided & implemented).** Two tiers:
 
-- **Anonymous = the default.** Every player is `Defender-<random>` (a cosmetic local label — never enforced-unique; the auth uid is the real identity). They play freely, see boards, and get a *provisional* rank ("you'd be #N"), but are **not publicly listed**.
+- **Anonymous = the default.** Every player is `Vanguard-<random>` (a cosmetic local label — never enforced-unique; the auth uid is the real identity). They play freely, see boards, and get a *provisional* rank ("you'd be #N"), but are **not publicly listed**.
 - **Signed-in = listed.** After Google / Apple / email sign-in, a player claims a **unique, case-insensitive operator name** and gets a durable listed row. Only named players appear on boards — the `profiles` join in `leaderboard_top`/`_rank` is the single listing gate.
 
 The "sign in to claim rank #N" prompt on the END screen is the conversion hook; the top-right **operator button** (next to the gear, home screen) opens the panel any time.
 
 **What's already coded (client, `src/index.html`):**
 - Auto-name minting, `displayName()` / `isSignedIn()`, the operator panel (name field + Google/Apple/email + sign out + delete), the END-screen tease, provisional rank, and all auth calls (raw GoTrue REST — no supabase-js, matching the existing style).
-- OAuth returns via URL hash on web and via the `datadefenders://auth` deep link on native (`initAuthDeepLink`).
+- OAuth returns via URL hash on web and via the `warpvanguard://auth` deep link on native (`initAuthDeepLink`).
 
 **What YOU must configure in Supabase (Authentication → Providers / URL Configuration):**
 1. **Anonymous** — enable. (Zero-friction play + the verifier's write identity.)
 2. **Email** — enable; set the OTP template to send a **6-digit code** (the client uses `verify` with `type: 'email'`, not magic-link click-through).
 3. **Google** — enable; paste the OAuth client ID/secret from Google Cloud Console.
 4. **Apple** — enable; add the Services ID + key (needs a paid Apple Developer account; required once you ship on iOS, and the App Store *requires* it wherever you offer Google/email).
-5. **Redirect URLs** — add every return target: your web origin(s), and the native scheme `datadefenders://auth`.
+5. **Redirect URLs** — add every return target: your web origin(s), and the native scheme `warpvanguard://auth`.
 
 **Native deep link (for the APK/IPA OAuth return)** — register the custom scheme + add the `@capacitor/app` plugin:
-- Android: an `intent-filter` for scheme `datadefenders` host `auth` in `AndroidManifest.xml`.
-- iOS: a `CFBundleURLTypes` entry for `datadefenders` in `Info.plist`.
+- Android: an `intent-filter` for scheme `warpvanguard` host `auth` in `AndroidManifest.xml`.
+- iOS: a `CFBundleURLTypes` entry for `warpvanguard` in `Info.plist`.
 - (Email OTP needs none of this — it's redirect-free, so it works on all three targets immediately. Test with email first.)
 
 > **Same-uid caveat (raw-REST tradeoff).** Sign-in mints a *fresh* session; on **native** the app isn't reloaded so the just-played run resubmits under the new uid and appears instantly. On **web**, the OAuth redirect reloads the page and the in-memory run is lost, so the player is listed from their *next* run. Making OAuth link in-place (same uid, anon runs light up automatically) is the one thing that wants supabase-js's `linkIdentity` — a deliberate future upgrade, noted in the code.

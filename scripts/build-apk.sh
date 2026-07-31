@@ -23,7 +23,7 @@ cd android
 ./gradlew assembleDebug
 
 APK="$ROOT/android/app/build/outputs/apk/debug/app-debug.apk"
-DEST="$HOME/Desktop/DataDefenders.apk"
+DEST="$HOME/Desktop/WarpVanguard.apk"
 cp "$APK" "$DEST"
 echo ""
 echo "✓ APK built: $APK"

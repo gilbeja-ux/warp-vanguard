@@ -39,14 +39,14 @@ npm run android     # Open Android project in Android Studio
 ### Project Structure
 
 ```
-data-defenders/
+warp-vanguard/
 ├── src/                    # Web game source
 │   └── index.html         # Main game file
 ├── assets/
 │   └── audio/             # Game soundtrack (MP3s)
 ├── scripts/
 │   └── build.js           # Build script
-├── knowledge/             # Project documentation
+├── docs/                  # Project documentation
 └── capacitor.config.json  # Capacitor configuration
 ```
 

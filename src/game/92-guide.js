@@ -806,7 +806,7 @@ function drawMenuCamps(ccx, ccy, R) {
   let uniT = Math.round(R2 * 0.17);
   for (let i = 0; i < total; i++) {
     const d = discAt(i);
-    const t2 = d.kind === 'train' ? 'DEFENDER TRAINING' : d.kind === 'camp' ? d.pk.title : CAMPS_SOON[d.si];
+    const t2 = d.kind === 'train' ? 'VANGUARD TRAINING' : d.kind === 'camp' ? d.pk.title : CAMPS_SOON[d.si];
     uniT = Math.min(uniT, fitPx(t2, 800, Math.round(R2 * 0.17), R2 * 1.5, 10));
   }
   let zx = 0, zy = 0, zr = 0; // the zooming disc draws LAST, over its siblings
@@ -864,7 +864,7 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
   const real = d.kind === 'camp';   // a real case file (training + teasers are not)
   const solid = real || train;      // gets the lit bore + border; teasers stay dim
   const pk = real ? d.pk : null;
-  const title = train ? 'DEFENDER TRAINING' : real ? pk.title : CAMPS_SOON[d.si];
+  const title = train ? 'VANGUARD TRAINING' : real ? pk.title : CAMPS_SOON[d.si];
   const cp = real ? (progress.camp[pk.id] || { unlocked: 1, stars: [] }) : null;
   const done = train ? progress.tutorialDone : real && campaignCleared(pk.id);
   const active = real && pk === CAMP;

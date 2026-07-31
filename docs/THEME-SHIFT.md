@@ -110,9 +110,10 @@ identifier with consequences.
 
 | | Why |
 |---|---|
-| `capacitor.config.json` → `appId: com.datadefenders.game` | The permanent Play Store identity. `appName` was changed; the **appId was not**, because it cannot be changed after first publish and picking the replacement is the author's call. Nothing is published yet, so it is still free to change — decide it before the first store upload. |
-| `docs/IDENTITY-SETUP.md` | Marked **SUPERSEDED (2026-07-25)** — those accounts were cancelled. It is a historical record of a flow that no longer exists, including the `com.datadefenders.game` bundle ID. Rewriting it would falsify the record. |
-| `knowledge/README.md`, `knowledge/data-defenders-src.html` | A point-in-time snapshot from 2026-07-05. A stale snapshot retitled is still stale. |
+| ~~`capacitor.config.json` → `appId: com.datadefenders.game`~~ | **Resolved 2026-07-31** — changed to `com.warpvanguard.game` before first publish, while it was still free. Also updated in the Android project (`build.gradle` `applicationId` + `namespace`, `strings.xml`, and the `com/datadefenders/` → `com/warpvanguard/` package directory). This identity is now frozen: it cannot change after the first store upload. |
+| ~~`docs/IDENTITY-SETUP.md`~~ | **Deleted 2026-07-31.** It documented the cancelled sign-in flow and the retired `com.datadefenders.game` bundle ID — dead on both counts, so it was removed rather than rewritten. |
+| ~~`knowledge/README.md`, `knowledge/data-defenders-src.html`~~ | **Deleted 2026-07-31.** A 2026-07-05 snapshot of a single-file build that no longer exists. |
+| `PRODUCT.md`, `BRAND.md`, this file | Kept. Here the old name is the *subject* of a true statement — why the name changed, that the badge art still carries DATA DEFENDERS lettering, and the rename mapping itself. Rewriting these would make them false. |
 
 ## Not landed here, on purpose
 

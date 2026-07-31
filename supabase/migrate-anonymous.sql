@@ -11,7 +11,8 @@
 --
 -- The board buffer is 100 (client shows 50). Old anonymous rows that were hidden
 -- before (no profile) become visible with whatever name they were submitted under
--- ('Defender-XXXX' or blank → the client renders blank as 'ANON'). Wipe the board
+-- ('Defender-XXXX' for rows submitted before the 2026-07-31 rename, 'Vanguard-XXXX'
+-- after, or blank → the client renders blank as 'ANON'). Wipe the board
 -- afterwards if you want a clean slate.
 
 -- ---------------------------------------------------------------------------

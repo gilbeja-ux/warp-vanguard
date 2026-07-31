@@ -6,7 +6,7 @@ const CHROME = '/Users/gilbeja/.cache/puppeteer/chrome/mac_arm-151.0.7922.47/chr
   const b = await puppeteer.launch({ executablePath: CHROME, headless: 'new', args: ['--allow-file-access-from-files','--use-gl=swiftshader'] });
   const p = await b.newPage();
   await p.setViewport({ width: 1280, height: 800, deviceScaleFactor: 1 });
-  await p.goto('file:///Users/gilbeja/vsCode/data-defenders/src/index.html', { waitUntil: 'load' });
+  await p.goto('file://' + __dirname + '/src/index.html', { waitUntil: 'load' });
   await p.waitForFunction('document.querySelector("canvas").width > 0');
   await new Promise(r => setTimeout(r, 6000));
   const r = await p.evaluate(() => {

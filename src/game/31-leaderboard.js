@@ -1,7 +1,7 @@
 'use strict';
 // ---------- player identity ----------
 // Anonymous, arcade-style. `id` is a stable per-device handle minted once.
-// `autoName` is the throwaway "Defender-XXXXXX" label a player wears until they
+// `autoName` is the throwaway "Vanguard-XXXXXX" label a player wears until they
 // type a handle. `name` is the FREE-TYPED arcade handle they enter on a high
 // score (no sign-in, no uniqueness — moderated at submit time). `token`/`refresh`
 // /`uid` hold the anonymous Supabase session (the server-verified player_id).
@@ -10,7 +10,7 @@ const identity = { id: '', autoName: '', name: '', service: '', token: '' };
 function ensureIdentity() {
   if (!identity.id) {
     identity.id = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID()
-      : 'dd-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36);
+      : 'wv-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36);
   }
   if (!identity.autoName) {
     // 6 hex chars ≈ 16M labels — collisions are harmless (uid is the real key)
@@ -19,13 +19,13 @@ function ensureIdentity() {
       const b = new Uint8Array(3); crypto.getRandomValues(b);
       s = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
     } else s = Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
-    identity.autoName = 'Defender-' + s.toUpperCase();
+    identity.autoName = 'Vanguard-' + s.toUpperCase();
   }
   return identity.id;
 }
 // what the player is CALLED: their claimed name if they have one, else the auto
 // label. Signed-in status = they linked a real provider (not anonymous).
-const displayName = () => identity.name || identity.autoName || 'Defender';
+const displayName = () => identity.name || identity.autoName || 'Vanguard';
 
 // ---------- leaderboard client (Supabase) ----------
 // The client ONLY READS boards. The publishable key is meant to ship (it's in

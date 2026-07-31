@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "title": "DATA DEFENDERS — story lab",
+  "title": "WARP VANGUARD — story lab",
   "budget": {
     "line": 29,
     "lines": 4,
@@ -10,8 +10,8 @@
   },
   "tutorial": {
     "name": "QUALIFICATION",
-    "beat": "A closed practice line at Data Defenders. No client, no cargo, no case — and no record. Passing it is what makes you qualified to work the grid.",
-    "scene": "INT. CERTIFICATION BAY, DATA DEFENDERS — DAY\n\nA short practice bore, capped at both ends. No cargo on it. The strip\nlight is the kind that makes everyone look the same.\n\nAn automated voice tells you where to put your hands. It does not\nintroduce itself and it does not congratulate you.\n\n        ...NODE 01 ONLINE. NODE 02 ONLINE.\n        ...INTERCEPT ON THE RING. HOLD FOR ARMOUR.\n        ...QUALIFICATION RUN. THIS RUN IS NOT RECORDED.\n\nYou pass.\n\nThey issue a designation and nothing else. No score, no ranking, no\nfile. Whatever you did in there stays in there — which is standard, and\ndull, and the single most important fact about you.\n\nIn nine days a man who has been looking for exactly one thing will go\nthrough the certification register looking for an operator with no\nhistory.\n\nHe will find one.",
+    "beat": "A closed practice line at the Lane Authority. No client, no cargo, no case — and no record. Passing it is what makes you qualified to work the grid.",
+    "scene": "INT. CERTIFICATION BAY, LANE AUTHORITY — DAY\n\nA short practice bore, capped at both ends. No cargo on it. The strip\nlight is the kind that makes everyone look the same.\n\nAn automated voice tells you where to put your hands. It does not\nintroduce itself and it does not congratulate you.\n\n        ...NODE 01 ONLINE. NODE 02 ONLINE.\n        ...INTERCEPT ON THE RING. HOLD FOR ARMOUR.\n        ...QUALIFICATION RUN. THIS RUN IS NOT RECORDED.\n\nYou pass.\n\nThey issue a designation and nothing else. No score, no ranking, no\nfile. Whatever you did in there stays in there — which is standard, and\ndull, and the single most important fact about you.\n\nIn nine days a man who has been looking for exactly one thing will go\nthrough the certification register looking for an operator with no\nhistory.\n\nHe will find one.",
     "discs": [
       {
         "title": "CRASH COURSE",
@@ -21,7 +21,7 @@
           "your field training.",
           ""
         ],
-        "art": "Wide 2.39:1. A Data Defenders certification bay: a short practice bore capped at both ends, lit by flat institutional strip light with no colour in it. One empty operator chair facing the ring. No cargo on the line, no insignia, no observers — a scoreboard panel on the wall is blank and switched off.\n\nHeavy blacks, hard rim light on the ring's machined edge, palette limited to cold grey-blue with one weak green status glow. Reads at thumbnail as a small chair silhouetted against a lit circle.\n\nMood: a room that processes people and does not remember them."
+        "art": "Wide 2.39:1. A Lane Authority certification bay: a short practice bore capped at both ends, lit by flat institutional strip light with no colour in it. One empty operator chair facing the ring. No cargo on the line, no insignia, no observers — a scoreboard panel on the wall is blank and switched off.\n\nHeavy blacks, hard rim light on the ring's machined edge, palette limited to cold grey-blue with one weak green status glow. Reads at thumbnail as a small chair silhouetted against a lit circle.\n\nMood: a room that processes people and does not remember them."
       }
     ],
     "notes": "No LOG number and no case note on purpose — nothing about this run is filed. That is the premise of the whole game stated once, quietly, before the player knows it matters.",
@@ -40,7 +40,7 @@
           "n": 1,
           "name": "YARDS OUTBOUND",
           "beat": "First contract, taken because it is work. Routine outbound convoy, ordinary interdictors. PLANT 1: the fee clears before you file.",
-          "scene": "INT. RENTED CARREL, DATA DEFENDERS FIELD OFFICE — NIGHT\n\nThe board posts at 22:40. One line, no detail, the way they all read:\n\n        MERIDIAN HAULAGE — OUTBOUND, CAMPUS → CITY ARCHIVE\n        RATE: HOURLY · CLEARANCE: STANDARD\n\nNobody bids on institutional records at that hour. Records do not get\nhit. That is the whole reason the rate is what it is.\n\nYou take it because your designation is nine days old and nothing else\nhas posted.\n\nThe run is unremarkable. Ordinary taps, ordinary spacing, the kind of\ntraffic any certified operator clears without thinking about it.\n\nYou file at 04:12.\n\nThe fee cleared at 03:58.\n\nYou notice. Then you stop noticing, because a client who pays early is\nnot a problem anyone has ever had.",
+          "scene": "INT. RENTED CARREL, LANE AUTHORITY FIELD OFFICE — NIGHT\n\nThe board posts at 22:40. One line, no detail, the way they all read:\n\n        MERIDIAN HAULAGE — OUTBOUND, CAMPUS → CITY ARCHIVE\n        RATE: HOURLY · CLEARANCE: STANDARD\n\nNobody bids on institutional records at that hour. Records do not get\nhit. That is the whole reason the rate is what it is.\n\nYou take it because your designation is nine days old and nothing else\nhas posted.\n\nThe run is unremarkable. Ordinary taps, ordinary spacing, the kind of\ntraffic any certified operator clears without thinking about it.\n\nYou file at 04:12.\n\nThe fee cleared at 03:58.\n\nYou notice. Then you stop noticing, because a client who pays early is\nnot a problem anyone has ever had.",
           "discs": [
             {
               "title": "LOG 01 — FIRST RUN",
@@ -50,7 +50,7 @@
                 "",
                 "Gotta start somewhere..."
               ],
-              "art": "Wide 2.39:1. Night. A rented operator carrel in a Data Defenders field office — narrow booth, one screen, a foam cup. Through the window behind it, Meridian's campus district in rain: glass towers, and a long low Meridian Haulage block with its sign dark.\n\nThe operator seen from behind, small, a silhouette against the screen glow. Palette: cold blue-grey city, one warm amber pool from the desk lamp, everything else black. Hard rim light along the booth's machined edge, no outlines.\n\nReads at thumbnail as one lit rectangle with a figure in it. Mood: ordinary night shift, nothing at stake."
+              "art": "Wide 2.39:1. Night. A rented operator carrel in a Lane Authority field office — narrow booth, one screen, a foam cup. Through the window behind it, Meridian's campus district in rain: glass towers, and a long low Meridian Haulage block with its sign dark.\n\nThe operator seen from behind, small, a silhouette against the screen glow. Palette: cold blue-grey city, one warm amber pool from the desk lamp, everything else black. Hard rim light along the booth's machined edge, no outlines.\n\nReads at thumbnail as one lit rectangle with a figure in it. Mood: ordinary night shift, nothing at stake."
             }
           ],
           "hint": "",
