@@ -15,7 +15,7 @@ cd "$ROOT"
 # Copy the latest web assets from src/ into the native project.
 npx cap sync android
 
-# Regenerate the launcher icon (cyan-outlined shield = stable build marker).
+# Regenerate the launcher icon (bare shield at every mipmap density).
 python3 scripts/make-icons.py
 
 # Compile the debug APK.

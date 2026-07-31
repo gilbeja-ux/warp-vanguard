@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """Generate the Android launcher icon from src/icons/df-512.png.
 
-The stable app gets a crisp CYAN OUTLINE traced around the shield so it is
-instantly distinguishable on the home screen from the dev / PWA icon (which
-has no outline). Emits every mipmap density for both the adaptive-icon
-foreground and the legacy square/round icons, and sets the adaptive
-background to the game's theme navy.
+The shield is drawn bare. It used to carry a cyan outline so the stable
+installed build could be told apart from the dev / PWA icon on the home
+screen; that marker is retired, and both now show the same shield. Emits
+every mipmap density for both the adaptive-icon foreground and the legacy
+square/round icons, and sets the adaptive background to the game's theme
+navy.
 
 Run: python3 scripts/make-icons.py   (idempotent; safe to re-run each build)
 """
 import os
-from PIL import Image, ImageFilter, ImageDraw
+from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src", "icons", "df-512.png")
 RES = os.path.join(ROOT, "android", "app", "src", "main", "res")
 
 NAVY = (3, 6, 14, 255)          # #03060e — matches manifest theme_color
-OUTLINE = (0, 255, 255, 255)    # #00ffff cyan stable-build marker
 MASTER = 512
 
 # Adaptive foreground canvas sizes (108dp base) and legacy icon sizes (48dp base)
@@ -41,22 +41,6 @@ def load_shield(target_frac):
     return canvas
 
 
-def outlined(shield, thickness):
-    """Return shield composited over a cyan outline traced around its
-    alpha silhouette."""
-    alpha = shield.getchannel("A")
-    # Dilate the silhouette: MaxFilter grows it by `thickness`px, then a
-    # small blur keeps the edge anti-aliased.
-    k = thickness * 2 + 1
-    grown = alpha.filter(ImageFilter.MaxFilter(k)).filter(ImageFilter.GaussianBlur(1.2))
-    halo = Image.new("RGBA", shield.size, (0, 0, 0, 0))
-    halo.putalpha(grown)
-    halo_cyan = Image.new("RGBA", shield.size, OUTLINE)
-    halo_cyan.putalpha(grown)
-    out = Image.alpha_composite(halo_cyan, shield)  # shield on top of cyan halo
-    return out
-
-
 def rounded_mask(size, radius):
     m = Image.new("L", (size, size), 0)
     ImageDraw.Draw(m).rounded_rectangle([0, 0, size - 1, size - 1], radius=radius, fill=255)
@@ -78,21 +62,20 @@ def save_each(master, sizes, name):
 
 
 def main():
-    # --- Adaptive foreground: shield + outline, kept inside the ~66% safe zone
-    fg_master = outlined(load_shield(0.55), thickness=11)
-    save_each(fg_master, FG, "ic_launcher_foreground.png")
+    # --- Adaptive foreground: bare shield, kept inside the ~66% safe zone
+    save_each(load_shield(0.55), FG, "ic_launcher_foreground.png")
 
-    # --- Legacy square icon: navy rounded background + outlined shield
+    # --- Legacy square icon: navy rounded background + shield
     sq = Image.new("RGBA", (MASTER, MASTER), (0, 0, 0, 0))
     bg = Image.new("RGBA", (MASTER, MASTER), NAVY)
     sq.paste(bg, (0, 0), rounded_mask(MASTER, int(MASTER * 0.16)))
-    sq = Image.alpha_composite(sq, outlined(load_shield(0.66), thickness=12))
+    sq = Image.alpha_composite(sq, load_shield(0.66))
     save_each(sq, LEGACY, "ic_launcher.png")
 
-    # --- Legacy round icon: navy circle + outlined shield
+    # --- Legacy round icon: navy circle + shield
     rd = Image.new("RGBA", (MASTER, MASTER), (0, 0, 0, 0))
     rd.paste(bg, (0, 0), circle_mask(MASTER))
-    rd = Image.alpha_composite(rd, outlined(load_shield(0.62), thickness=12))
+    rd = Image.alpha_composite(rd, load_shield(0.62))
     save_each(rd, LEGACY, "ic_launcher_round.png")
 
     # --- Adaptive background color -> theme navy
@@ -100,7 +83,7 @@ def main():
         f.write('<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
                 '    <color name="ic_launcher_background">#03060E</color>\n</resources>\n')
 
-    print("✓ launcher icons generated with cyan outline")
+    print("✓ launcher icons generated")
 
 
 if __name__ == "__main__":
