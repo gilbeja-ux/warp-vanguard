@@ -361,16 +361,25 @@ function paintMenuStatic() {
   // block logo — stacked DATA / DEFE / NDER, top-left (small brand on the map,
   // where the relay list needs the column)
   ctx.textAlign = 'left';
+  // ON THE MAP THE HEADER IS ONE LOCKUP, not a badge with a caption dropped
+  // under it: the badge stands as tall as BOTH lines, and the contract name
+  // starts where the game name starts. headX carries that shared left edge down
+  // to the title below, so the two can never drift apart — the badge is free to
+  // change size and the alignment follows it.
+  const twoLine = menuScreen === 'map';
+  let headX = 20 + SAFE.l;
   if (menuScreen === 'flow' || menuScreen === 'map') { // small brand line up top
     const sm = brandLogoSmall();
-    let bx = 20 + SAFE.l;
     if (sm) {
-      const bh2 = 26, bw2 = bh2 * (sm.w / sm.h);
-      ctx.drawImage(sm.img, bx, 6 + SAFE.t, bw2, bh2);
-      bx += bw2 + 8;
+      // one line: optically centred on the brand baseline. two: centred on the
+      // PAIR, so it spans the cap of the game name to the baseline of the
+      // contract, and still clears the rule at y=56.
+      const bh2 = twoLine ? 40 : 26, bw2 = bh2 * (sm.w / sm.h);
+      ctx.drawImage(sm.img, headX, (twoLine ? 10 : 6) + SAFE.t, bw2, bh2);
+      headX += bw2 + 8;
     }
     ctx.fillStyle = 'rgba(198,214,234,0.7)'; ctx.font = '900 12px Audiowide, system-ui';
-    ctx.fillText('WARP VANGUARD', bx, 24 + SAFE.t);
+    ctx.fillText('WARP VANGUARD', headX, 24 + SAFE.t);
   }
   if (menuScreen === 'map') {
     // the lens mouth: the ring becomes a viewport over the city
@@ -386,7 +395,7 @@ function paintMenuStatic() {
     const tlx = 10 + SAFE.l * 0.6;
     ctx.fillStyle = '#f2faff'; ctx.font = '700 13px Audiowide, system-ui';
     try { ctx.letterSpacing = '2px'; } catch (e) {}
-    ctx.fillText(CAMP.title, tlx, 46 + SAFE.t); // brand line sits above
+    ctx.fillText(CAMP.title, headX, 46 + SAFE.t); // shares the brand line's left edge
     try { ctx.letterSpacing = '0px'; } catch (e) {}
     { // separator: from the left edge all the way to the rim
       const sy = 56 + SAFE.t, dy2 = ccy - sy;

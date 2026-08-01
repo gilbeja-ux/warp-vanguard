@@ -71,6 +71,24 @@
   };
 
   crank(4);                       // let boot run once
+  // ?screen=map|flow stages a MENU instead of a run — the level-select header
+  // and the mode wheel are static furniture, so they only need the screen set
+  // and a repaint (menuCache = null forces paintMenuStatic to run again).
+  const screen = Q.get('screen');
+  if (screen) {
+    poke(`SPLASH.on = false;
+          try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
+          state = S.MENU; menuScreen = '${screen}'; menuCache = null;`);
+    crank(30);
+    await new Promise(r => setTimeout(r, 400)); // the badge is a real Image load
+    poke('menuCache = null;');                  // repaint now that it decoded
+    crank(6);
+    const cnv0 = document.getElementById('game');
+    await fetch('/shot?name=' + encodeURIComponent(name) + '&meta=' + encodeURIComponent('screen=' + screen + ' err=' + (window.__err || 'none')),
+      { method: 'POST', body: cnv0.toDataURL('image/png') });
+    document.title = 'READY screen=' + screen + ' err=' + (window.__err || 'none');
+    return;
+  }
   poke(`SPLASH.on = false;
         try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
         startLevel(Math.min(${lvl}, (LEVELS || []).length - 1));
