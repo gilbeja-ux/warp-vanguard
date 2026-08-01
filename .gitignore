@@ -27,3 +27,8 @@ supabase/functions/submit-run/_sim.mjs
 
 # editor/lab scratch backups
 *.bak
+
+# one-off debug probes: written to answer one question, then done. They kept
+# landing in the repo root because nothing stopped them (scratch-cap.js and
+# scratch-tw.js both shipped by accident). Scratch work belongs outside the repo.
+scratch-*.js
