@@ -659,7 +659,8 @@ function frame(now) {
     ctx.drawImage(cv, skyW - off, 0, skyW, H);
     if (alpha !== undefined) ctx.globalAlpha = 1;
   };
-  stripPan(skyStruct, SKY_L.struct);   // band, nebulae, dust — the far wall
+  stripPan(skyStruct, SKY_L.struct);   // band and dust — the far wall
+  stripPan(skyClouds, SKY_L.clouds);   // the nebulae, one plane nearer
   stripPan(bgCanvas, SKY_L.bake);      // the dense baked star field
   // the denser sky the meta screens get, over the structure and under
   // everything else. Its live half is drawn inside drawStarField on the
