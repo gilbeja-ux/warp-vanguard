@@ -79,7 +79,7 @@
     poke(`SPLASH.on = false;
           try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
           state = S.MENU; menuScreen = '${screen}'; menuCache = null;`);
-    crank(30);
+    crank(120);                                 // menuSkyVis eases over ~0.5s — let it arrive
     await new Promise(r => setTimeout(r, 400)); // the badge is a real Image load
     poke('menuCache = null;');                  // repaint now that it decoded
     crank(6);

@@ -2,6 +2,23 @@
 // ---------- background (deep data-space behind the tunnel walls) ----------
 let bgCanvas = null, vignetteCanvas = null, wallTex = null, wallCloud = null;
 let ringFxCv = null, grainCv = null; // prerendered monolith ring + film-grain tile
+// A DENSER SKY FOR THE SCREENS THAT ARE MOSTLY SKY.
+//
+// On a menu the backdrop IS the picture — the bore is not there to fill the middle
+// and the eye has nothing to do but read the star field. In the lane the same sky
+// is peripheral, mostly behind a wall, and every live star there is per-frame work
+// competing with the run.
+//
+// So the extra population is its own layer: baked into its own sheet and held in
+// its own live array, drawn only for the meta screens. The lane pays nothing for
+// it. It is placed by the same pass as the main field, off the same galactic band,
+// so it is more of the same sky rather than a second sky laid over the first.
+let menuSky = null, menuStars = [];
+// Eased, never switched. The home screen is one continuous shot out of a run, and
+// half a sky appearing between two frames is exactly the pop drawDeepField's
+// worldVis was written to avoid — this is that idea, inverted.
+let menuSkyVis = 0;
+const MENU_STARS = 2200;   // on top of the 1500 everywhere
 // (the drifting screen motes are GONE with the rest of the fiber theme. Eighteen
 // dots sliding UP the frame on their own blinking cycle made sense as data rising
 // through a feed; against a star field they were the only things in the sky moving
@@ -134,6 +151,7 @@ let litPanels = [];
 function buildBackground() {
   // live layer state
   liveStars = [];
+  menuStars = [];
   litPanels = [];
   // (the chevron marker trains are GONE. Signage painted on a lane wall was a
   // holdover from thinking of the bore as a built structure — a lit corridor with
@@ -156,6 +174,12 @@ function buildBackground() {
   // deep navy base — the void the lane is threaded through. It stays near-black:
   // the hyperspace references only go blue during the JUMP, and cruise is dark.
   b.fillStyle = '#020510'; b.fillRect(0, 0, W, H);
+  // the menu layer's sheet: TRANSPARENT, not navy — it composites over the sky
+  // above rather than replacing it, so it must carry stars and nothing else.
+  menuSky = document.createElement('canvas');
+  menuSky.width = W * DPR; menuSky.height = H * DPR;
+  const mb = menuSky.getContext('2d');
+  if (mb) mb.setTransform(DPR, 0, 0, DPR, 0, 0);
 
   // --- THE GALACTIC BAND: the backdrop's whole structure ---
   //
@@ -243,7 +267,12 @@ function buildBackground() {
     // BACKDROP STARS, concentrated toward the plane the way real ones are. Dense,
     // varied in colour and brightness, with bloom on the bright few.
     const SCOL = ['210,228,255', '255,240,220', '255,208,168', '214,198,255', '190,240,255'];
-    const nStar = 1500;
+    // ONE pass, run twice. The sky the lane sees, then the extra layer the menus
+    // get — same band, same falloff off the spine, same colour and brightness
+    // distribution, so the denser sky is MORE OF THIS SKY and not a second one
+    // sprinkled over it. `tgt` is the sheet it bakes into, `liveArr` the array its
+    // held-out share goes live in.
+    const emitStars = (nStar, tgt, liveArr) => {
     for (let i = 0; i < nStar; i++) {
       let x3, y3;
       if (Math.random() < 0.62) {                 // in the plane
@@ -270,7 +299,7 @@ function buildBackground() {
       // arcs a frame. The rest stay painted, and are the still sky behind it.
       if (!lowFX && (big || Math.random() < 0.34)) {
         const cl = starClass();
-        liveStars.push({
+        liveArr.push({
           x: x3, y: y3, col: col3, rgb: col3.split(',').map(Number), al: al3, big,
           r: big ? rand(1.0, 1.8) : rand(0.3, 0.85),
           // bright stars swing less, in proportion — and this factor keeps their
@@ -288,15 +317,26 @@ function buildBackground() {
         continue;
       }
       if (big) {                                  // the bright ones bloom
-        const gg = b.createRadialGradient(x3, y3, 0, x3, y3, 8);
-        gg.addColorStop(0, `rgba(${col3},${(al3 * 0.42).toFixed(3)})`);
-        gg.addColorStop(1, `rgba(${col3},0)`);
-        b.fillStyle = gg;
-        b.beginPath(); b.arc(x3, y3, 8, 0, TAU); b.fill();
+        // On STAR_HALO, like every other bloom in the sky. This path only runs
+        // under lowFX — with the effects on, every big star goes live above — and
+        // it used to be the two-stop gradient the live draw abandoned, so the one
+        // build that can least afford a hard-edged coin was the only one still
+        // baking them.
+        const gg = tgt.createRadialGradient(x3, y3, 0, x3, y3, STARFX.bloomR);
+        const a0 = al3 * STARFX.bloomA;
+        for (const [p, w] of STAR_HALO) gg.addColorStop(p, `rgba(${col3},${(a0 * w).toFixed(4)})`);
+        tgt.fillStyle = gg;
+        tgt.beginPath(); tgt.arc(x3, y3, STARFX.bloomR, 0, TAU); tgt.fill();
       }
-      b.fillStyle = `rgba(${col3},${al3.toFixed(3)})`;
-      b.beginPath(); b.arc(x3, y3, big ? rand(1.0, 1.8) : rand(0.3, 0.85), 0, TAU); b.fill();
+      tgt.fillStyle = `rgba(${col3},${al3.toFixed(3)})`;
+      tgt.beginPath(); tgt.arc(x3, y3, big ? rand(1.0, 1.8) : rand(0.3, 0.85), 0, TAU); tgt.fill();
     }
+    };
+    emitStars(1500, b, liveStars);
+    // The menu layer is baked and held even under lowFX — the sheet costs one
+    // blit and the live share simply comes out empty there, exactly as the main
+    // field's does.
+    if (mb) emitStars(MENU_STARS, mb, menuStars);
   }
 
   // --- the lane wall texture: starlight smeared by transit, stamped at many depths ---
@@ -553,11 +593,26 @@ function buildRingFx() {
 // a window onto open space. Nothing tears across a window.)
 // the live half of the star field — see STAR_CLASS above. Drawn with the backdrop
 // so the sky keeps its depth: everything in the lane still passes IN FRONT of it.
+// eased toward 1 on the screens that are mostly sky. Mirrors drawDeepField's
+// worldVis, which fades the far WORLDS out over the same half second — the two
+// run in opposite directions on purpose: the menus lose the planets and gain the
+// stars, so neither transition is a cut.
+function tickMenuSky(dt) {
+  const want = (state === S.MENU || state === S.GUIDE) ? 1 : 0;
+  menuSkyVis += clamp(dt / 0.5, 0, 1) * (want - menuSkyVis);
+}
 function drawStarField() {
   const bdt = typeof frameDt === 'number' ? frameDt : 0; // bursts advance on frame time, not wall time
+  tickMenuSky(bdt);
   ctx.save();
   ctx.globalCompositeOperation = 'lighter'; // a flare ADDS light; over the band it
-  for (const s of liveStars) {              // has to build on what is already there
+  drawLiveStars(liveStars, 1, bdt);         // has to build on what is already there
+  // the menus' extra field, riding the same fade as its baked sheet
+  if (menuSkyVis > 0.004) drawLiveStars(menuStars, menuSkyVis, bdt);
+  ctx.restore();
+}
+function drawLiveStars(arr, vis, bdt) {
+  for (const s of arr) {
     // THE GATE FIRST: most of the time this is 0 and the star is simply painted,
     // costing one multiply to find out. What survives is a field where a scatter
     // of stars is shimmering and the rest of the sky is holding still.
@@ -588,7 +643,9 @@ function drawStarField() {
       + 0.38 * (0.5 + 0.5 * Math.sin(s.bph * s.rr2 + s.p2)));
     // both ways around the baseline: 1-amp at the bottom, 1+amp at the top
     const k = 1 - amp + 2 * amp * w;
-    const al = Math.min(1, s.al * k);
+    // × vis: the menu field's live half fades with its own baked sheet, so the
+    // two halves of that layer arrive and leave together
+    const al = Math.min(1, s.al * k * vis);
     if (al < 0.006) continue;
     let col = s.col;
     if (s.hue) {
@@ -648,7 +705,6 @@ function drawStarField() {
     // the core grows a little too: a star at full flare is not the same size dot
     ctx.beginPath(); ctx.arc(s.x, s.y, s.r * (0.8 + 0.35 * k), 0, TAU); ctx.fill();
   }
-  ctx.restore();
 }
 // binary / hex snippets racing along the tunnel axis — glyph by glyph, in true perspective,
 // flowing both toward and away from the player like live traffic on the line
