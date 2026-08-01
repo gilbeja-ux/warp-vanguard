@@ -1,20 +1,57 @@
 'use strict';
+// HOW MUCH OF THE APPROACH THE LANE ITSELF CARRIES.
+//
+// The world has two sizes that matter: the speck it starts as, and the size it
+// settles at under the mission report. `full` is how far along that span the
+// FLIGHT gets you, so the arrival ceremony only ever covers what is left.
+//
+//   full: 0.21  the shipped behaviour — the lane does about 4x and the ceremony
+//               does the remaining 5x in 2.3 seconds
+//   full: 1     the lane does all of it; the ceremony has no growing left to do
+//               and the world is already report-sized when the tunnel goes
+//
+// `curve` shapes the span: 1 tracks lane progress linearly, higher values hold
+// the world small for longer and then rush it in near the end (closer to how a
+// real approach reads, since apparent size goes as 1/distance).
+//
+// Both are overridable per-load for side-by-side testing without a rebuild:
+//   ?destgrow=0.21   what the game shipped
+//   ?destgrow=1      the lane carries the whole approach
+//   ?destcurve=2.5   same endpoint, held back until late
+const DEST_APPROACH = {
+  full: 1,
+  curve: 1
+};
+if (typeof location !== 'undefined') {
+  const qg = /[?&]destgrow=([\d.]+)/.exec(location.search);
+  if (qg) DEST_APPROACH.full = clamp(parseFloat(qg[1]), 0, 1);
+  const qc = /[?&]destcurve=([\d.]+)/.exec(location.search);
+  if (qc) DEST_APPROACH.curve = Math.max(0.1, parseFloat(qc[1]));
+}
 function drawFarGlow(far, vr, g) {
-  // 1x at departure, 4x at arrival. laneProgress() is LATCHED and monotonic, so
-  // the world never shrinks mid-run and never snaps back when the level ends —
-  // it holds its arrival size for whatever the end sequence wants to do with it.
-  const grow = 1 + laneProgress() * 3;
+  // laneProgress() is LATCHED and monotonic, so the world never shrinks mid-run
+  // and never snaps back when the level ends — it holds its arrival size for
+  // whatever the end sequence wants to do with it.
+  const R0 = vr * 0.075;        // the speck at the vanishing point on departure
+  const R1 = g.nodeR * 0.52;    // the size it settles at under the mission report
+  const flightR = R0 + (R1 * DEST_APPROACH.full - R0)
+    * Math.pow(laneProgress(), DEST_APPROACH.curve);
   // ARRIVAL. A campaign win IS reaching the destination, so the ceremony finishes
   // the journey for real: the world closes the last of the distance and swells to
   // meet the ring, and the mission report lands on top of it. Losses, endless and
   // qualification never arrive — their world holds at whatever approach it made.
+  // At full:1 there is nothing left to close, so this blend is a no-op by design.
   const arriving = state === S.END && endWin && !endless && !qual;
   let arrive = 0;
   if (arriving) {
     const q = clamp((endT - 0.55) / 2.3, 0, 1); // rides in with the clear-sweep
     arrive = 1 - Math.pow(1 - q, 3);            // fast closing, gentle settle
   }
-  const R = Math.max(2, vr * 0.075 * grow) * (1 - arrive) + g.nodeR * 0.52 * arrive;
+  const R = Math.max(2, flightR) * (1 - arrive) + R1 * arrive;
+  // Motes are grain at the limb of a distant body, and they were sized off a term
+  // that topped out at 4x. Left on that ceiling: letting them ride a 19x approach
+  // turns atmospheric grain into boulders.
+  const grow = Math.min(4, flightR / R0);
   const V = planetVariant();
   const breath = 0.5 + 0.5 * Math.sin(time * 0.7);
 
@@ -52,12 +89,20 @@ function drawFarGlow(far, vr, g) {
     return;
   }
   // A planet is one sprite, scaled continuously — no rebuild while it grows. The
-  // one exception is arrival: the approach sprite upscaled 2x+ goes soft, so the
-  // first ceremony frame rebuilds it at double resolution — a single hitch, masked
-  // by the victory flash, instead of a blurry close-up for the whole report.
-  const spriteKey = V.n + (arriving ? '@hi' : '');
+  // exception is size: the approach sprite upscaled 2x+ goes soft, so past that
+  // it is built at double resolution instead.
+  //
+  // The trigger is the biggest radius this run will REACH, not the current one,
+  // which matters once the lane carries the approach: a threshold on the live R
+  // would rebuild mid-flight and hitch in the middle of play. Peak is known on
+  // frame one, so the sprite is built once, at the resolution it will need. At
+  // the shipped full:0.21 the flight never gets near the threshold and this is
+  // the old arrival-only rebuild, masked by the victory flash, unchanged.
+  const peakR = Math.max(R, R1 * DEST_APPROACH.full);
+  const hiRes = arriving || peakR > PLANET_REF_R * 1.15;
+  const spriteKey = V.n + (hiRes ? '@hi' : '');
   if (planetSpriteKey !== spriteKey) {
-    planetSprite = buildPlanetSprite(arriving ? PLANET_REF_R * 2 : PLANET_REF_R, V);
+    planetSprite = buildPlanetSprite(hiRes ? PLANET_REF_R * 2 : PLANET_REF_R, V);
     planetSpriteKey = spriteKey;
   }
   const la = V.emis ? LIGHT_A : destLightA(); // a star has no terminator to creep

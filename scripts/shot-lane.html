@@ -1,0 +1,101 @@
+<!doctype html>
+<!-- Lane screenshot harness (dev only, not shipped: scripts/, not src/).
+     Sibling of shot-splash.html, but it stages a RUN rather than the splash:
+     it boots the real game, plays it far enough that the bore has traffic in
+     it, then pins laneProgress() to a chosen value and hands back the frame.
+
+     Serve the REPO ROOT and open:
+       /scripts/shot-lane.html?p=0.6&destgrow=1&camp=0&level=2&warm=420
+
+       p         laneProgress to pin (0..1)
+       warm      frames of real play before pinning (enemies need time to fly in)
+       camp/lvl  which scene
+       destgrow  / destcurve — read by the game's own DEST_APPROACH, since the
+                 game scripts are injected into THIS page and share its search
+
+     document.title flips to "READY …" once the frame has been POSTed. -->
+<html>
+<head>
+<meta charset="utf-8">
+<base href="../src/">
+<title>staging…</title>
+<style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+(async () => {
+  const Q = new URLSearchParams(location.search);
+  const prog = parseFloat(Q.get('p') || '0.6');
+  const warm = parseInt(Q.get('warm') || '420', 10);
+  const camp = parseInt(Q.get('camp') || '0', 10);
+  const lvl = parseInt(Q.get('level') || '2', 10);
+  const name = Q.get('name') || ('p' + prog);
+
+  window.__err = '';
+  window.onerror = (m, s, l) => { window.__err += m + ' @' + l + '; '; };
+  // we own the clock: capture rAF callbacks instead of scheduling them
+  let cbs = [], fired = 0;
+  window.requestAnimationFrame = f => cbs.push(f);
+  // no audio — a live AudioContext locks the game's clock to WALL time and
+  // would ignore the crank below (learned in shot-splash)
+  window.AudioContext = undefined; window.webkitAudioContext = undefined;
+
+  // The game is ordered topic files now, not one inline block, so take the
+  // manifest's order rather than scraping index.html.
+  const files = ['campaigns.js', 'audio/music/tracks.js'];
+  const man = await (await fetch('game/manifest.json')).json();
+  for (const f of man.files) files.push('game/' + f.file);
+  for (const f of files) {
+    const src = await (await fetch(f)).text();
+    const s = document.createElement('script');
+    s.textContent = src + '\n//# sourceURL=/' + f;
+    document.body.appendChild(s); // executes synchronously
+  }
+  await new Promise(r => setTimeout(r, 80)); // a few task turns for the game's onloads
+
+  let t = 0;
+  const crank = n => {
+    for (let i = 0; i < n; i++) {
+      t += 1000 / 60;
+      const list = cbs; cbs = [];
+      for (const f of list) { fired++; try { f(t); } catch (e) { window.__err += e.message + '; '; } }
+    }
+  };
+  // a later <script> shares the injected game's scope, which is the only way to
+  // reach its module-level `let`s (the tuning board uses the same trick)
+  const poke = code => {
+    const s = document.createElement('script');
+    s.textContent = code;
+    document.body.appendChild(s);
+  };
+
+  crank(4);                       // let boot run once
+  poke(`SPLASH.on = false;
+        try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
+        startLevel(Math.min(${lvl}, (LEVELS || []).length - 1));
+        introT = 999; introCd = 0;
+        state = S.PLAY;`);
+  // Nobody is holding the pad, so a straight crank loses the run and hands back
+  // the mission report instead of a lane. Integrity is topped up in slices to
+  // keep it in S.PLAY while the bore fills with real traffic.
+  for (let i = 0; i < 8; i++) {
+    poke('integrity = 100; state = S.PLAY;');
+    crank(Math.ceil(warm / 8));
+  }
+  poke('integrity = 100; state = S.PLAY;');
+
+  // laneProgress() is latched and monotonic and only ever RAISES from levelT, so
+  // writing the latch straight is enough — the next frame will not pull it back.
+  poke(`lanePlanetProg = ${prog};`);
+  crank(1);
+
+  const cnv = document.getElementById('game');
+  const meta = `p=${prog} grow=${Q.get('destgrow') || 'default'} frames=${fired} err=${window.__err || 'none'}`;
+  await fetch('/shot?name=' + encodeURIComponent(name) + '&meta=' + encodeURIComponent(meta),
+    { method: 'POST', body: cnv.toDataURL('image/png') });
+  document.title = 'READY ' + meta;
+})();
+</script>
+</body>
+</html>
