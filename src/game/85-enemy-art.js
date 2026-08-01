@@ -1986,19 +1986,63 @@ function drawPulseOrbs(g) {
       fg2.addColorStop(1, `rgba(${col},${(0.72 + fx2.bank * 0.25).toFixed(2)})`);
       ctx.fillStyle = fg2;
       ctx.fillRect(d.x - vr, surf, vr * 2, d.y + vr - surf + 1);
-      // the meniscus: the lit surface line — it flashes white as a bank lands
-      // and burns steadily once the vessel is full
-      if (!ready || fx2.fire > 0.01) {
-        ctx.fillStyle = `rgba(255,255,255,${(0.30 + 0.55 * fx2.bank + 0.5 * fx2.fire).toFixed(2)})`;
-        ctx.fillRect(d.x - vr, surf - 1.25, vr * 2, 2.5);
-      } else {
-        // full: the whole vessel runs white-hot at the core
+      // full: the glow bed the filaments ride on — same layering as the arc,
+      // where the soft wash sits UNDER the electricity, never instead of it
+      if (ready && fx2.fire <= 0.01) {
         const hot = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, vr);
-        hot.addColorStop(0, `rgba(255,255,255,${(0.75 + 0.15 * Math.sin(time * 6 + i)).toFixed(2)})`);
-        hot.addColorStop(0.55, `rgba(${col},0.35)`);
+        hot.addColorStop(0, `rgba(255,255,255,${(0.50 + 0.12 * Math.sin(time * 6 + i)).toFixed(2)})`);
+        hot.addColorStop(0.55, `rgba(${col},0.32)`);
         hot.addColorStop(1, `rgba(${col},0)`);
         ctx.fillStyle = hot;
         ctx.fillRect(d.x - vr, d.y - vr, vr * 2, vr * 2);
+      }
+      // THE ARC ITSELF, banked: the same live filaments that crawl bar-to-bar
+      // between the emitter's machined bus-bars crawl wall-to-wall in the
+      // pool — Gil's unification: the vessel holds the very energy the arc is
+      // made of, so charging the pulse LOOKS like bottling the weapon you
+      // fight with. Same grammar as drawArcNode's filaments: sin(qπ) pinch so
+      // every strand meets the walls cleanly, a per-filament frequency so no
+      // two agree, one white-hot lead, jitter that spikes when a bank lands.
+      {
+        const top2 = ready ? d.y - vr * 0.86 : surf + 2;
+        const depth2 = d.y + vr - top2;
+        if (depth2 > 5) {
+          const NF2 = lowFX ? 2 : (ready ? 5 : 3);
+          const Lv = (0.45 + 0.55 * vis) * (1 + fx2.bank * 0.8) * (ready ? 1.2 : 1);
+          ctx.lineCap = 'round';
+          for (let f = 0; f < NF2; f++) {
+            const hot2 = f === 0 && (ready || fx2.bank > 0.3);
+            // each strand owns a lane in the pool, drifting slowly within it
+            const ly = top2 + depth2 * ((f + 0.5) / NF2)
+              + Math.sin(time * (1.3 + f * 0.7) + f * 2.1 + i * 1.7) * depth2 * 0.07;
+            const dy2 = ly - d.y;
+            const hw2 = Math.sqrt(Math.max(0, vr * vr - dy2 * dy2)) - 1.5;
+            if (hw2 < 3) continue;
+            ctx.strokeStyle = hot2
+              ? `rgba(255,255,255,${clamp(0.55 * Lv, 0, 1).toFixed(2)})`
+              : `rgba(${col},${clamp((0.30 + 0.22 * Math.random()) * Lv, 0, 0.9).toFixed(2)})`;
+            ctx.lineWidth = hot2 ? 1.4 : 1.1;
+            ctx.beginPath();
+            const SEG2 = 10;
+            for (let k = 0; k <= SEG2; k++) {
+              const q = k / SEG2;
+              const pinch = Math.sin(q * Math.PI);  // strands meet the walls cleanly
+              const frq = 6 + f * 2.6;              // each strand owns its waveform
+              const wob = Math.sin(q * 9 * frq / 7 + time * (5 + f * 1.7) + f * 2.3 + i * 2.1)
+                * vr * 0.13 * pinch
+                + (Math.random() - 0.5) * vr * 0.05 * pinch * (1 + fx2.bank * 2);
+              const px2 = d.x - hw2 + hw2 * 2 * q, py2 = ly + wob;
+              k ? ctx.lineTo(px2, py2) : ctx.moveTo(px2, py2);
+            }
+            ctx.stroke();
+          }
+        }
+      }
+      // the meniscus: the lit surface line — it flashes white as a bank lands
+      // and stays the pool's ceiling while the arc boils under it
+      if (!ready || fx2.fire > 0.01) {
+        ctx.fillStyle = `rgba(255,255,255,${(0.30 + 0.55 * fx2.bank + 0.5 * fx2.fire).toFixed(2)})`;
+        ctx.fillRect(d.x - vr, surf - 1.25, vr * 2, 2.5);
       }
       ctx.restore();
     }
