@@ -582,7 +582,7 @@ function drawEnd(g) {
   // the scene shows through at 0.18, so the data leans harder on its own shadow
   ctx.shadowColor = 'rgba(2,5,12,0.95)'; ctx.shadowBlur = lowFX ? 0 : 9;
   // mode line
-  const modeName = endless ? (daily ? 'DAILY STREAM' : 'ENDLESS STREAM') : qual ? 'QUALIFICATION' : curRouteName();
+  const modeName = endless ? (daily ? 'DAILY LANE' : 'ENDLESS LANE') : qual ? 'QUALIFICATION' : curRouteName();
   try { ctx.letterSpacing = '3px'; } catch (e) {}
   ctx.fillStyle = 'rgba(140,210,255,0.7)';
   fit('700', 11, 'MISSION REPORT  //  ' + modeName);
@@ -591,7 +591,7 @@ function drawEnd(g) {
 
   // banner slams in
   const tPop = 1 + 0.22 * (1 - ph(T.panel0, T.panel0 + 0.3));
-  const banner = endless ? 'STREAM SEVERED' : qual ? (endWin ? 'QUALIFIED' : 'TRAINING ABORTED') : endWin ? 'LANE CLEARED' : 'WARP LANE UNSTABLE';
+  const banner = endless ? 'LANE COLLAPSED' : qual ? (endWin ? 'QUALIFIED' : 'TRAINING ABORTED') : endWin ? 'LANE CLEARED' : 'WARP LANE UNSTABLE';
   ctx.save();
   ctx.translate(g.cx, g.cy - R * 0.38);
   ctx.scale(tPop, tPop);

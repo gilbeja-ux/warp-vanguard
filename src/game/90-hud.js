@@ -170,7 +170,7 @@ function drawIntroCard() {
         subT = t; // live readout — never flash-stamps
       } else if (stI === 1) {
         if (t >= BOOT_ON) { sub = 'ALL SYSTEMS — ONLINE'; subT = BOOT_ON; }
-        else if (t >= BOOT_LOCK + 0.3) { sub = 'CHARGING NODES + CONSOLES'; subT = BOOT_LOCK + 0.3; }
+        else if (t >= BOOT_LOCK + 0.3) { sub = 'CHARGING EMITTERS + CONSOLES'; subT = BOOT_LOCK + 0.3; }
         else sub = 'DOCK CONFIRMED';
       }
       if (sub) {

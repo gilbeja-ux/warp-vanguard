@@ -1,6 +1,6 @@
 // Network-first service worker: always serves fresh files while online (no
 // stale-cache surprises during development), falls back to cache offline.
-const CACHE = 'dark-fiber-v2';
+const CACHE = 'warp-vanguard-v1';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(
   caches.keys()

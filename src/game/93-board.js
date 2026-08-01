@@ -36,7 +36,7 @@ function boardPick(mode, camp, level) {
 function boardLeftItems() {
   const items = [
     { kind: 'mode', mode: 'endless', label: 'FREE FLOW', sel: boardSel.mode === 'endless' },
-    { kind: 'mode', mode: 'daily', label: 'DAILY STREAM', sel: boardSel.mode === 'daily' },
+    { kind: 'mode', mode: 'daily', label: 'DAILY LANE', sel: boardSel.mode === 'daily' },
   ];
   CAMPAIGNS.forEach((c, ci) => {
     const collapsed = !!boardCollapsed[c.id];

@@ -4,7 +4,7 @@
 // the death ceremony and the verdict — bossKind picks which machine shows up
 const BOSS_DEFS = {
   core: {
-    title: 'THE GATEWAY CORE', sub: 'DOCK BOTH NODES AND HOLD — SIX BOLTS CLOSE THE CASE',
+    title: 'THE GATEWAY CORE', sub: 'DOCK BOTH EMITTERS AND HOLD — SIX BOLTS CLOSE THE CASE',
     online: 'WARDEN CORE ONLINE', down: 'WARDEN DOWN',
     speak: 'the evidence is contaminated. I am the cure.', card: 'boss', brief: 'bossBriefed'
   },
@@ -537,7 +537,7 @@ function updateSpinnerFight(dt, g) {
         n.deadT = 2;
         const px2 = g.cx + Math.cos(n.angle) * railR, py2 = g.cy + Math.sin(n.angle) * railR;
         burst(px2, py2, '#ff9a3c', 22, 4);
-        popup(px2, py2 - 24, 'NODE FRIED', '#ffb478');
+        popup(px2, py2 - 24, 'EMITTER FRIED', '#ffb478');
         sfx.fry(Math.cos(n.angle) * 0.6);
         redFlash = Math.max(redFlash, 0.5);
         shake = Math.min(shake + 0.5, 1);
@@ -624,7 +624,7 @@ function lastKillBeat(justKilled) {
   if (enemies.some(e => e !== justKilled && e !== justKilled.partner
       && !e.dead && !e.resolved && !e.failed && e.type !== 'strip')) return;
   hitStop = Math.min(hitStop + 0.5, 0.5);
-  popup(W / 2, H * 0.36, 'LINE SECURED', '#7ee262');
+  popup(W / 2, H * 0.36, 'LANE SECURED', '#7ee262');
   tone(784, 0.18, 'triangle', 0.1, 1046);
   tone(1046, 0.22, 'triangle', 0.08, 1568, null, 0.12);
   buzz([20, 30, 60]);

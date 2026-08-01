@@ -134,7 +134,7 @@ function drawGuide(g) {
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   // foot: the tip fills the safe width, but never shouts over the guidance it
   // supports — the captions ARE the page. The dismiss hint tucks under it.
-  const TIP = 'TIP: DOCK BOTH NODES TOGETHER TO FIRE A SHOT';
+  const TIP = 'TIP: DOCK BOTH EMITTERS TOGETHER TO FIRE A SHOT';
   try { ctx.letterSpacing = '2px'; } catch (e) {}
   const tipPx = fitPx(TIP, '700', Math.round(Math.min(U * 0.06, capFs * 1.35)), W - mL - mR, 9);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
@@ -984,7 +984,7 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     ctx.textAlign = 'center';
     ctx.fillStyle = done ? 'rgba(126,226,98,0.95)' : 'rgba(140,200,240,0.8)';
     // a COUNT, not a level id — level numbers run continuously across campaigns
-    ctx.fillText(done ? 'CASE CLOSED' : Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length + ' RELAYS', x, sepY + r * 0.62);
+    ctx.fillText(done ? 'CONTRACT CLOSED' : Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length + ' RELAYS', x, sepY + r * 0.62);
     // short description: the tagline carries the pitch
     ctx.font = '500 ' + Math.max(8, Math.round(r * 0.07)) + 'px Audiowide, system-ui';
     ctx.fillStyle = 'rgba(130,180,225,0.7)';
@@ -1023,7 +1023,7 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
 }
 function drawMenuFlow() {
   const { ccx, ccy, R } = menuGeom();
-  // both streams ride the same gate as the FREE FLOW key itself — opening the
+  // both lanes ride the same gate as the FREE FLOW key itself — opening the
   // door onto two locked halves would be a dead end
   const endlessOpen = flowUnlocked();
   const dailyOpen = flowUnlocked();
@@ -1033,9 +1033,9 @@ function drawMenuFlow() {
   if (menuFx && menuFx.kind === 'spinOut') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = (menuFx.dir || 1) * q * q * 1.5; wheelAl = 1 - q; }
   if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = -(menuFx.dir || 1) * 1.5 * Math.pow(1 - q, 2); wheelAl = q; }
   const HALVES = [
-    { key: 'endless', glyph: '∞', name: 'ENDLESS STREAM', mid: -Math.PI / 2, locked: !endlessOpen, col: '255,210,74',
+    { key: 'endless', glyph: '∞', name: 'ENDLESS LANE', mid: -Math.PI / 2, locked: !endlessOpen, col: '255,210,74',
       cap: endlessOpen ? 'procedural · no mercy' + (progress.best > 0 ? ' · BEST ' + progress.best.toLocaleString() : '') : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock' },
-    { key: 'daily', glyph: '◈', name: 'DAILY STREAM', mid: Math.PI / 2, locked: !dailyOpen, col: '140,220,255',
+    { key: 'daily', glyph: '◈', name: 'DAILY LANE', mid: Math.PI / 2, locked: !dailyOpen, col: '140,220,255',
       cap: dailyOpen ? 'one seeded run per day' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : '') : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock' }
   ];
   ctx.save();
@@ -1087,7 +1087,7 @@ function drawMenuFlow() {
   // device knows the reward exists.
   {
     const mutsOpen = anyCampaignCleared();
-    const MUTS = [['oneLife', '1 LIFE', '×2'], ['fast', 'FAST STREAM', '×1.5'], ['noPickups', 'NO PICKUPS', '×1.3']];
+    const MUTS = [['oneLife', '1 LIFE', '×2'], ['fast', 'FAST LANE', '×1.5'], ['noPickups', 'NO PICKUPS', '×1.3']];
     // relay-key sizing: as tall as the map's level keys, as wide as the wheel allows
     const mx = 26 + SAFE.l, mh = 34, mgap = 9;
     const mw = clamp(ccx - r1 - mx - 16, 128, 240);

@@ -10,7 +10,7 @@ const SFX_FILES = {
   pick:   ['audio/sfx/power-up.wav', 0.8],
   pulse:  ['audio/sfx/pulse.mp3', 1.0],
   volley: ['audio/sfx/volley.mp3', 0.9],
-  shutdown: ['audio/sfx/shutdown.mp3', 0.9],   // a node fried by a killer/wall
+  shutdown: ['audio/sfx/shutdown.mp3', 0.9],   // an emitter fried by a killer/wall
   restart:  ['audio/sfx/restarting.mp3', 0.9], // that node rebooting back online
   startup:  ['audio/sfx/startup1.mp3', 0.9], // boot sequence as the ring locks in (cut at 2s)
   fail:   ['audio/sfx/failed.mp3', 1.0],
@@ -157,7 +157,7 @@ const sfx = {
     tone(2637, 0.5, 'sine', 0.04, null, null, 0.56);
     tone(330, 0.8, 'sine', 0.07, null, null, 0.56);
   },
-  traced() { // stream held to the end — resolve the rising trace tone
+  traced() { // ribbon ridden to the end — resolve the rising trace tone
     tone(880, 0.09, 'sine', 0.12, 1047);
     tone(1319, 0.14, 'sine', 0.10, 1760, null, 0.07);
     tone(2637, 0.10, 'triangle', 0.05, 3136, null, 0.13);

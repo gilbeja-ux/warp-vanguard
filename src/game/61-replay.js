@@ -147,7 +147,7 @@ function exitReplay() {
 }
 function replayLevelName() {
   if (!replayMeta) return '';
-  if (replayMeta.mode === 'daily') return 'DAILY STREAM';
+  if (replayMeta.mode === 'daily') return 'DAILY LANE';
   if (replayMeta.mode === 'endless') return 'FREE FLOW';
   const ci = CAMP ? CAMPAIGNS.indexOf(CAMP) : -1; // reseed already switched CAMP to the run's campaign
   return 'CAMPAIGN ' + (ci + 1) + '   |   LEVEL ' + lvNum(levelNo(ci, replayMeta.levelIdx || 0));

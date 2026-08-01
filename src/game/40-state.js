@@ -52,7 +52,7 @@ let warpT = 0;                // live countdown of the above
 // (wall bands, hoops, warp lines, gas, deep parallax). Menus sit PARKED in open
 // space: the warp begins only when a run does, and the end ceremony brakes the
 // lane to a standstill — a win coasts through the destination's arrival swell
-// before it stops; a severed stream halts hard. Purely visual: enemy z-motion
+// before it stops; a collapsed lane halts hard. Purely visual: enemy z-motion
 // is sim-side and never touches this.
 let laneFlow = 0;
 // RUN VISIBILITY. laneExit() only covers the campaign-WIN arrival, and laneFlow
@@ -89,7 +89,7 @@ let shieldUpA = 0;    // where the shield pickup was caught (the spread's origin
 const DEV_SHIELD = typeof location !== 'undefined' && /[?&]shield/.test(location.search);
 let killStreaks = []; // kill streaks: reprogrammed packets tracing home
 let pickups = [], pickupT = 20;
-let ribbonT = 30; // bonus stream cadence — golden ribbons on levels 5+ / endless
+let ribbonT = 30; // bonus ribbon cadence — golden ribbons on levels 5+ / endless
 let tut = null;               // tutorial controller (level 1, first run)
 let boss = null;              // firewall core (levels with boss: true)
 const BOSS_CER = 3.4;         // arrival ceremony length — the core emerges before it fights
@@ -143,7 +143,7 @@ const endPower = () => state === S.END ? clamp(1 - (endT - 0.15) / 0.6, 0, 1) : 
 // leaves: the wall bands, field hoops, seams and sheath all blow outward through
 // the frame and fade, and what is left is open space with the destination in it.
 // No structure, no wash, no fog — the world is the reward and nothing overlays it.
-// (Only a true arrival opens up. A severed stream or a failed run is still IN the
+// (Only a true arrival opens up. A collapsed lane or a failed run is still IN the
 // lane, and its report keeps the corridor around it.)
 const laneExit = () => state === S.END && endWin && !endless && !qual
   ? clamp((endT - 0.35) / 1.8, 0, 1) : 0;

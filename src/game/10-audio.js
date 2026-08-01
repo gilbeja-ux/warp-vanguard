@@ -122,7 +122,7 @@ function ambient(on) {
     setTimeout(() => { try { an.src.stop(); an.hum.stop(); an.lfo.stop(); } catch (e) {} }, 1600);
   }
 }
-// the stream-trace drone: a rolling tone that climbs as the ribbon is ridden
+// the ribbon-ride drone: a rolling tone that climbs as the ribbon is ridden
 // head to tail — resolve with sfx.traced() on completion
 let stripOsc = null;
 function stripSound(on, prog) {

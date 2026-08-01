@@ -67,6 +67,46 @@ Not translated. Already correct.
 | suppression of records | **suppression of cargo** | The Ring stops shipments, not filings. Same crime, physical goods. |
 | evidence in transit | **manifests and cargo in transit** | |
 
+## Second pass — in-run copy (2026-08-01)
+
+The first pass themed the story, the menus and the map. It missed the strings
+that only appear *while you are flying*, because nobody reads those in a diff —
+you have to be losing a run to see them. Found by sweeping quoted literals for
+old-theme nouns rather than by reading files.
+
+| Was | Now | Why |
+|---|---|---|
+| `DATA STOLEN` | **`STABILITY LOST`** | The health bar is warp-lane stability. Four of these collapse the lane. |
+| `INTEGRITY RESTORED` | **`STABILITY RESTORED`** | Same gauge; the two halves were using different nouns for it. |
+| `NODE ONLINE / FRIED / REBOOTING`, `DOCK BOTH NODES`, `CHARGING NODES` | **`EMITTER …`** | The *node (player-facing) → emitter* rule above. Engine identifier `node` untouched. |
+| `LINE SECURED` | **`LANE SECURED`** | A fiber line became a warp lane. |
+| `CASE CLOSED` *(campaign picker)* | **`CONTRACT CLOSED`** | The picker says CONTRACT everywhere else. |
+| `DAILY / ENDLESS / FAST STREAM` | **`DAILY / ENDLESS / FAST LANE`** | Mode branding. Leaderboard keys are `'daily'` / `'endless'` and did not move. |
+| `STREAM SURGE` | **`LANE SURGE`** | |
+| `STREAM SEVERED` | **`LANE COLLAPSED`** | The endless failure banner, now the end state that `STABILITY LOST` leads to. |
+| `STREAM LOST` | **`PULSE MISSED`** | Fires when a bonus ribbon crossing ends unridden. Named for what you lost, in the vocabulary of the card that taught it: *"A full ride banks a full PULSE."* |
+| `STAY ON THE STREAM — AGAIN` | **`RIDE IT ALL THE WAY — AGAIN`** | The tutorial retry. Says what to do instead of naming a thing. |
+| `sw.js` cache `dark-fiber-v2` | **`warp-vanguard-v1`** | Network-first, so the rename just drops the stale cache. |
+
+**Checked and deliberately left:**
+
+- **`TAP TO CONTINUE`, `TAP to fire`, `TAP ITS CORE`** — the input gesture, not the
+  old *a tap* hostile. Renaming these to *interdictor* would be a mistranslation.
+- **`TRACE`** — the analyst. The word is a handle, not the ribbon mechanic.
+- **`SIX BOLTS CLOSE THE CASE`, `Case closed.`, `the evidence is contaminated`** — the
+  investigation survives the theme shift. Only *evidence in transit* became cargo.
+  The boss subtitle was briefly changed to CONTRACT and put back: it has to agree
+  with the boss card and the verdict log, which both say *case*.
+- **`dataDefenders.v1`** — the migration shim's legacy key, load-bearing until every
+  device has booted the renamed build once.
+- **`FREE FLOW`** — predates the shift, survived it, and reads fine in a lane
+  setting. Kept on purpose, not by oversight. It stays the parent of DAILY LANE
+  and ENDLESS LANE.
+- **`node` in `51-linter.js`** — developer-facing fairness diagnostics, not player copy.
+- **"random stream", "side stream"** in the RNG — a programming term, never the fiction.
+
+`src/campaigns.js` was swept and is clean; the first pass got all of it.
+
 ## The color fiction
 
 The one thing the data theme supplied for free and this one has to state. Chosen

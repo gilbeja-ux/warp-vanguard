@@ -167,7 +167,7 @@ function update(dt) {
       n.formAt = introT; // replay the materialize pop — the lens re-forms
       const p2 = nodeXY(n);
       burst(p2.x, p2.y, n === nodes[0] ? NODE_HEX[0] : NODE_HEX[1], 20, 4);
-      popup(p2.x, p2.y - 22, 'NODE ONLINE', '#8fe0ff');
+      popup(p2.x, p2.y - 22, 'EMITTER ONLINE', '#8fe0ff');
       if (!sampleBufs.restart) sfx.heal(); // synth stand-in when samples are absent
       buzz(15);
     }
@@ -205,7 +205,7 @@ function update(dt) {
     if (surge !== surgeLevel) {
       surgeLevel = surge; surgeCount = -1;
       if (surge > 0 && surge <= 6) {
-        popup(W / 2, H * 0.26, 'STREAM SURGE' + (surge === 6 ? ' — MAX' : ''), '#ff9a3c');
+        popup(W / 2, H * 0.26, 'LANE SURGE' + (surge === 6 ? ' — MAX' : ''), '#ff9a3c');
         surgeWaveZ = SPAWN_Z; // the surge rides in from the deep
         sfx.speedUp();
         buzz(20);
@@ -272,7 +272,7 @@ function update(dt) {
 function introStageChange(dt, introPrev, inIntro, stageNow) {
   if (stageNow !== introStage && introT < INTRO_DUR + 1) {
     introStage = stageNow;
-    if (stageNow === 0) { // LOCKING ON STREAM: approach rumble + rangefinder pips closing in
+    if (stageNow === 0) { // LOCKING ON LANE: approach rumble + rangefinder pips closing in
       // the startup take runs from the top of the boot, pre-cut to length
       bootSample = playSample('startup');
       if (!bootSample) {
@@ -358,7 +358,7 @@ function updateLatches(dt, inIntro, ringXY, nodeXY) {
         if (fused) nodes[1].deadT = 2;
         const p2 = nodeXY(nodes[i]);
         burst(p2.x, p2.y, '#ff9a3c', 22, 4);
-        popup(p2.x, p2.y - 24, fused ? 'CANNON FRIED' : 'NODE FRIED', '#ffb478');
+        popup(p2.x, p2.y - 24, fused ? 'CANNON FRIED' : 'EMITTER FRIED', '#ffb478');
         sfx.fry(Math.cos(nodes[i].angle) * 0.6);
         redFlash = Math.max(redFlash, 0.5);
         shake = Math.min(shake + 0.5, 1);
@@ -522,19 +522,19 @@ function updateEnemy(en, C) {
         }
       } else if ((en.offT = (en.offT || 0) + sdt) < 0.18) {
         // forgiveness window: a brief slip (or the crossing's first frames)
-        // doesn't break the stream — staying off it does
-      } else if (en.tut) { // practice stream: no penalty, run the drill again
+        // doesn't break the escort — staying off it does
+      } else if (en.tut) { // practice run: no penalty, run the drill again
         if (tut) { tut.retry = en.tut; tut.t = 0; }
         en.dead = true;
         const hp = ringXY(aReq);
-        popup(hp.x, hp.y, 'STAY ON THE STREAM — AGAIN', '#ff9a3c');
+        popup(hp.x, hp.y, 'RIDE IT ALL THE WAY — AGAIN', '#ff9a3c');
         sfx.miss();
       } else {
         // the bonus fizzles — a missed opportunity, never a wound
         en.failed = true;
         const hp = ringXY(aReq);
         burst(hp.x, hp.y, '#ffd24a', 8, 2.5);
-        popup(hp.x, hp.y, 'STREAM LOST', 'rgba(255,225,160,0.85)');
+        popup(hp.x, hp.y, 'PULSE MISSED', 'rgba(255,225,160,0.85)');
         tone(520, 0.14, 'sine', 0.05, 390);
       }
     }
@@ -590,7 +590,7 @@ function updateEnemy(en, C) {
           if (!shieldAbsorb(fx2, fy)) {
             // the trap fries every node that touched it — 2s forced reboot
             for (const n of nodes) if (covers(n, en.angle)) n.deadT = 2;
-            popup(fx2, fy, 'NODE FRIED — REBOOTING', '#ff4a5e');
+            popup(fx2, fy, 'EMITTER FRIED — REBOOTING', '#ff4a5e');
             redFlash = 1; shake = Math.min(shake + 0.6, 1);
             sfx.fry(Math.cos(en.angle) * 0.7);
             buzz([40, 40, 60]);
@@ -674,7 +674,7 @@ function updateEnemy(en, C) {
         if (comboHeal >= 5) {
           comboHeal = 0;
           integrity = Math.min(cap, integrity + 25);
-          popup(ex, ey - 26, 'INTEGRITY RESTORED', '#8fc7ff');
+          popup(ex, ey - 26, 'STABILITY RESTORED', '#8fc7ff');
           rimFX.push({ a: en.angle, t: 0.6, col: '143,199,255' });
           sfx.heal();
           buzz(12);
@@ -750,9 +750,9 @@ function updateEnemy(en, C) {
       } else {
         misses++; combo = 0; comboHeal = 0;
         if (!shieldAbsorb(ex, ey, en.angle)) {
-          integrity = Math.max(0, integrity - 25); // 4 mistakes = corrupted payload
+          integrity = Math.max(0, integrity - 25); // 4 mistakes = the lane goes unstable
           burst(ex, ey, '#ff4a5e', 20, 3);
-          popup(ex, ey, 'DATA STOLEN', '#ff4a5e');
+          popup(ex, ey, 'STABILITY LOST', '#ff4a5e');
           redFlash = 1; shake = Math.min(shake + 0.6, 1);
           rimFX.push({ a: en.angle, t: 0.55, col: '255,74,94' });
           sfx.miss(Math.cos(en.angle) * 0.7);

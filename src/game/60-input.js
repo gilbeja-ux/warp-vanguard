@@ -533,7 +533,7 @@ function startEndless() {
   runTrack = pickTrack();
   armRunMusic();
 }
-// DAILY STREAM: one seeded endless run per calendar day — same stream for
+// DAILY LANE: one seeded endless run per calendar day — same lane for
 // everyone, chase the best, keep the streak alive
 // >>> DEST-RNG
 function mulberry32(a) {

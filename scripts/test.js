@@ -1084,7 +1084,7 @@ check('endless key appears unlocked after clearing the campaign', !!eBtn && !eBt
   G.menuTap(sc.cx + Math.cos(ma) * mr, sc.cy + Math.sin(ma) * mr, 1); }
 flushUI();
 G.setIntro(999);
-check('tapping the endless key starts an endless run', G.getState() === G.S.PLAY && G.isEndless() && G.getLV().name === 'ENDLESS STREAM');
+check('tapping the endless key starts an endless run', G.getState() === G.S.PLAY && G.isEndless() && G.getLV().name === 'ENDLESS LANE');
 G.setScore(1234);
 G.setIntegrity(0);
 G.update(0.01);
@@ -1100,7 +1100,7 @@ check('daily key appears unlocked', !!dBtn && !dBtn.locked);
   G.menuTap(sc.cx + Math.cos(ma) * mr, sc.cy + Math.sin(ma) * mr, 1); }
 flushUI();
 G.setIntro(999);
-check('tapping it starts the seeded daily run', G.getState() === G.S.PLAY && G.isDaily() && G.getLV().name === 'DAILY STREAM');
+check('tapping it starts the seeded daily run', G.getState() === G.S.PLAY && G.isDaily() && G.getLV().name === 'DAILY LANE');
 G.setScore(777);
 G.setIntegrity(0);
 G.update(0.01);

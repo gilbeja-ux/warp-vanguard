@@ -16,7 +16,7 @@ const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
 function endlessCfg(t) {
   const k = clamp(t / 150, 0, 1); // fully spiced after 2.5 minutes
   return {
-    name: daily ? 'DAILY STREAM' : 'ENDLESS STREAM', duration: Infinity, endless: true,
+    name: daily ? 'DAILY LANE' : 'ENDLESS LANE', duration: Infinity, endless: true,
     spawnMin: ramp(1.4, 0.55, k), spawnMax: ramp(2.2, 1.1, k),
     // speed climbs in announced SURGE steps every 100s, hard-capped at 6
     speed: Math.min(0.38 + Math.floor(t / 100) * 0.035, 0.38 + 6 * 0.035),
