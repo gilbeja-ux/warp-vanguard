@@ -74,6 +74,19 @@
   // ?screen=map|flow stages a MENU instead of a run — the level-select header
   // and the mode wheel are static furniture, so they only need the screen set
   // and a repaint (menuCache = null forces paintMenuStatic to run again).
+  // ?dump=1: instead of a PNG, hash the star layout into the title — the direct
+  // test of "is the sky the same sky on every load", immune to render noise.
+  if (Q.get('dump')) {
+    poke(`(() => {
+      let h = 2166136261;
+      const mix = v => { h ^= Math.round(v * 10); h = Math.imul(h, 16777619) >>> 0; };
+      for (const s of liveStars) { mix(s.x); mix(s.y); mix(s.al * 1000); }
+      for (const s of menuStars) { mix(s.x); mix(s.y); }
+      for (const s of deepStars) { mix(s.a * 1000); mix(s.rf * 1000); }
+      document.title = 'DUMP ' + h.toString(16) + ' n=' + (liveStars.length + menuStars.length + deepStars.length);
+    })();`);
+    return;
+  }
   const screen = Q.get('screen');
   if (screen) {
     poke(`SPLASH.on = false;

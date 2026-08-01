@@ -19,6 +19,40 @@ let menuSky = null, menuStars = [];
 // worldVis was written to avoid — this is that idea, inverted.
 let menuSkyVis = 0;
 const MENU_STARS = 2200;   // on top of the 1500 everywhere
+// THE SKY IS A PLACE, NOT A ROLL OF WALLPAPER. Every load and every device
+// rotation used to deal a brand-new sky — buildBackground re-ran its scatter
+// straight off Math.random. Baked once per session would still be wrong; the
+// game's own rule (relays, moons, city lights) is that a place looks the same
+// every time you come back. One fixed seed, swapped in around the build, and
+// the sky is the same sky tonight, tomorrow, and after a rotation.
+const SKY_SEED = 0x57A22;
+// THE SKY TURNS. A camera looking down the bore cannot yaw or pitch — the
+// vanishing point carries the destination, the bore mouth and every enemy's
+// screen anchor, so swinging it would break the game's geometry. But ROLL about
+// the line of sight is a genuine rigid rotation of the celestial sphere around
+// the camera that keeps that point fixed — and it is also just what a ship in
+// long transit does. The universe wheels slowly around the lane; the lane holds.
+//
+// Everything OUTSIDE the hull rides it: both baked sheets, the live stars, the
+// deep field. Nothing inside does — the bore, the ring, the HUD are the ship's
+// frame, and the live stars' refraction spikes stay screen-aligned on purpose
+// (the streak lives in the canopy, not in the star).
+//
+// To make room for the turn, the sheets are SQUARE, sized to the screen
+// diagonal, and populated across the inscribed disc — a point farther from
+// centre than half the diagonal can never enter the frame at any angle, so the
+// disc is exactly the sky that exists. Counts scale by the disc-to-screen area
+// ratio to keep the density the eye actually sees unchanged.
+//
+// One revolution per SKY_REV seconds, overridable per-load for taste tests:
+// ?skyroll=300 spins it in five minutes, ?skyroll=0 parks it.
+let SKY_REV = 1500;                    // 25 minutes — alive, never a pinwheel
+if (typeof location !== 'undefined') {
+  const q = /[?&]skyroll=([\d.]+)/.exec(location.search);
+  if (q) SKY_REV = parseFloat(q[1]);
+}
+let skyRollA = 0;                      // advanced on frameDt in frame()
+let skySheet = 0;                      // sheet side, set by the bake
 // (the drifting screen motes are GONE with the rest of the fiber theme. Eighteen
 // dots sliding UP the frame on their own blinking cycle made sense as data rising
 // through a feed; against a star field they were the only things in the sky moving
@@ -149,6 +183,19 @@ let litPanels = [];
 // (randCode is retired with the fiber theme — there is no binary on a lane wall.
 // The wall's motion is carried by streaked starlight and the marker trains below.)
 function buildBackground() {
+  // the seed swap: everything scattered in here draws through Math.random — rand,
+  // gauss, starClass, all of it — so replacing the source for the build's duration
+  // pins the whole sky without threading an rng through thirty call sites. The
+  // finally puts the real one back even if a context is refused mid-bake.
+  const sysRandom = Math.random;
+  Math.random = mulberry32(SKY_SEED);
+  try {
+    buildBackgroundSeeded();
+  } finally {
+    Math.random = sysRandom;
+  }
+}
+function buildBackgroundSeeded() {
   // live layer state
   liveStars = [];
   menuStars = [];
@@ -167,19 +214,31 @@ function buildBackground() {
   vg.addColorStop(1, 'rgba(0,0,0,0.38)');
   v.fillStyle = vg; v.fillRect(0, 0, W, H);
 
+  // SQUARE, DIAGONAL-SIDED, DISC-POPULATED — see the SKY_REV comment up top. ox/oy
+  // shift the old screen-space composition into sheet space so that at roll 0 the
+  // frame shows exactly the sky it always showed; the disc's extra area is more of
+  // the same sky waiting outside the corners. Sheet DPR is capped: two sheets at a
+  // phone's DPR 3 is real memory, and starlight does not carry text-grade edges.
+  const skyS = Math.ceil(Math.hypot(W, H)) + 4;
+  const ox = (skyS - W) / 2, oy = (skyS - H) / 2;
+  const scx = skyS / 2, scy = skyS / 2;
+  // how much more sky the disc holds than the frame — scatter counts ride it
+  const AREA_K = (Math.PI * scx * scx) / (W * H);
+  const SKY_DPR = Math.min(DPR, 2);
+  skySheet = skyS;
   bgCanvas = document.createElement('canvas');
-  bgCanvas.width = W * DPR; bgCanvas.height = H * DPR;
+  bgCanvas.width = skyS * SKY_DPR; bgCanvas.height = skyS * SKY_DPR;
   const b = bgCanvas.getContext('2d');
-  b.setTransform(DPR, 0, 0, DPR, 0, 0);
+  b.setTransform(SKY_DPR, 0, 0, SKY_DPR, 0, 0);
   // deep navy base — the void the lane is threaded through. It stays near-black:
   // the hyperspace references only go blue during the JUMP, and cruise is dark.
-  b.fillStyle = '#020510'; b.fillRect(0, 0, W, H);
+  b.fillStyle = '#020510'; b.fillRect(0, 0, skyS, skyS);
   // the menu layer's sheet: TRANSPARENT, not navy — it composites over the sky
   // above rather than replacing it, so it must carry stars and nothing else.
   menuSky = document.createElement('canvas');
-  menuSky.width = W * DPR; menuSky.height = H * DPR;
+  menuSky.width = skyS * SKY_DPR; menuSky.height = skyS * SKY_DPR;
   const mb = menuSky.getContext('2d');
-  if (mb) mb.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (mb) mb.setTransform(SKY_DPR, 0, 0, SKY_DPR, 0, 0);
 
   // --- THE GALACTIC BAND: the backdrop's whole structure ---
   //
@@ -195,8 +254,8 @@ function buildBackground() {
   {
     const bandA = -0.44;                          // the plane's tilt across frame
     const bc = Math.cos(bandA), bs = Math.sin(bandA);
-    const bx0 = W * 0.46, by0 = H * 0.54;         // a point on the spine
-    const bandLen = Math.hypot(W, H) * 1.3;
+    const bx0 = ox + W * 0.46, by0 = oy + H * 0.54; // a point on the spine, in sheet space
+    const bandLen = skyS * 1.6;                   // runs the whole disc, not just the frame
     const bandW = Math.min(W, H) * 0.34;          // perpendicular half-width
     // gaussian-ish: three uniforms averaged, so density really falls off the spine
     const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
@@ -207,7 +266,7 @@ function buildBackground() {
     // the dust itself — warm along the spine, cooling toward the edges
     b.save();
     b.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 520; i++) {
+    for (let i = 0; i < Math.round(520 * AREA_K); i++) {
       const t2 = (Math.random() - 0.5) * bandLen;
       // the spine wanders a little, so the band is not a ruled line
       const wander = Math.sin(t2 * 0.0016) * bandW * 0.30 + Math.sin(t2 * 0.0041 + 1.7) * bandW * 0.14;
@@ -232,9 +291,12 @@ function buildBackground() {
     // a couple of off-band nebulae for colour relief — the reference has a cold
     // patch away from the plane, and the lane palette wants some cyan/violet
     for (const cl2 of [
-      { x: W * 0.12, y: H * 0.16, r: Math.min(W, H) * 0.34, col: '128,58,58', n: 16 },
-      { x: W * 0.80, y: H * 0.84, r: Math.min(W, H) * 0.30, col: '48,120,138', n: 14 },
-      { x: W * 0.68, y: H * 0.10, r: Math.min(W, H) * 0.26, col: '96,62,140', n: 12 }
+      { x: ox + W * 0.12, y: oy + H * 0.16, r: Math.min(W, H) * 0.34, col: '128,58,58', n: 16 },
+      { x: ox + W * 0.80, y: oy + H * 0.84, r: Math.min(W, H) * 0.30, col: '48,120,138', n: 14 },
+      { x: ox + W * 0.68, y: oy + H * 0.10, r: Math.min(W, H) * 0.26, col: '96,62,140', n: 12 },
+      // a fourth, parked OUTSIDE the frame at roll 0 — the turn should bring
+      // something into view that was not on screen when the night began
+      { x: ox + W * 0.30, y: oy - Math.min(W, H) * 0.22, r: Math.min(W, H) * 0.30, col: '58,96,128', n: 12 }
     ]) {
       for (let i = 0; i < cl2.n; i++) {
         const ang = Math.random() * TAU, rad = cl2.r * (Math.random() + Math.random()) * 0.5;
@@ -252,7 +314,7 @@ function buildBackground() {
     // THE DARK DUST LANE. The characteristic feature of an edge-on galaxy and the
     // thing that stops the band reading as an airbrushed smear: an opaque ribbon
     // of cold dust lying along the plane, eating the light behind it.
-    for (let i = 0; i < 300; i++) {
+    for (let i = 0; i < Math.round(300 * AREA_K); i++) {
       const t2 = (Math.random() - 0.5) * bandLen;
       const wander = Math.sin(t2 * 0.0016) * bandW * 0.30 + Math.sin(t2 * 0.0041 + 1.7) * bandW * 0.14;
       const perp = wander + gauss() * bandW * 0.30 + Math.sin(t2 * 0.0027 + 0.6) * bandW * 0.16;
@@ -281,9 +343,11 @@ function buildBackground() {
         const pt = onBand(t2, wander + gauss() * bandW * 1.25);
         x3 = pt.x; y3 = pt.y;
       } else {                                    // the rest of the sky
-        x3 = Math.random() * W; y3 = Math.random() * H;
+        x3 = Math.random() * skyS; y3 = Math.random() * skyS;
       }
-      if (x3 < 0 || x3 > W || y3 < 0 || y3 > H) continue;
+      // the DISC is the whole sky: outside it a point can never enter the frame
+      // at any roll, so nothing is spent there
+      if (Math.hypot(x3 - scx, y3 - scy) > scx) continue;
       const big = Math.random() < 0.035;
       // × STAR_REST. The resting sky is turned DOWN so a flare has somewhere to
       // go: contrast is a ratio, and against a field already painted at 0.9 the
@@ -300,7 +364,11 @@ function buildBackground() {
       if (!lowFX && (big || Math.random() < 0.34)) {
         const cl = starClass();
         liveArr.push({
-          x: x3, y: y3, col: col3, rgb: col3.split(',').map(Number), al: al3, big,
+          // CENTRE-RELATIVE, because a live star lives on the turning sky: the
+          // draw rotates these through skyRollA each frame and culls what lands
+          // off screen, so the disc's extra population costs a rotate and a
+          // bounds test, never an arc.
+          x: x3 - scx, y: y3 - scy, col: col3, rgb: col3.split(',').map(Number), al: al3, big,
           r: big ? rand(1.0, 1.8) : rand(0.3, 0.85),
           // bright stars swing less, in proportion — and this factor keeps their
           // amplitude under 1 whatever class they draw, so a big star always has
@@ -332,11 +400,11 @@ function buildBackground() {
       tgt.beginPath(); tgt.arc(x3, y3, big ? rand(1.0, 1.8) : rand(0.3, 0.85), 0, TAU); tgt.fill();
     }
     };
-    emitStars(1500, b, liveStars);
+    emitStars(Math.round(1500 * AREA_K), b, liveStars);
     // The menu layer is baked and held even under lowFX — the sheet costs one
     // blit and the live share simply comes out empty there, exactly as the main
     // field's does.
-    if (mb) emitStars(MENU_STARS, mb, menuStars);
+    if (mb) emitStars(Math.round(MENU_STARS * AREA_K), mb, menuStars);
   }
 
   // --- the lane wall texture: starlight smeared by transit, stamped at many depths ---
@@ -612,7 +680,13 @@ function drawStarField() {
   ctx.restore();
 }
 function drawLiveStars(arr, vis, bdt) {
+  // the sky's turn, computed once — every star pays four multiplies and a bounds
+  // test to ride it, and only the ones on screen pay for their arcs
+  const rc = Math.cos(skyRollA), rs = Math.sin(skyRollA);
+  const hw = W / 2, hh = H / 2, M = STARFX.bloomR * 2.5; // margin: a bloom is wider than its star
   for (const s of arr) {
+    const sx = hw + s.x * rc - s.y * rs, sy = hh + s.x * rs + s.y * rc;
+    if (sx < -M || sx > W + M || sy < -M || sy > H + M) continue;
     // THE GATE FIRST: most of the time this is 0 and the star is simply painted,
     // costing one multiply to find out. What survives is a field where a scatter
     // of stars is shimmering and the rest of the sky is holding still.
@@ -660,7 +734,7 @@ function drawLiveStars(arr, vis, bdt) {
     if (s.big) { // the bright ones bloom — and the bloom SWELLS with the flare,
       const F = STARFX;                 // which is most of what sells a star flaring
       const rr = F.bloomR * (0.55 + 0.75 * k);
-      const gg = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, rr);
+      const gg = ctx.createRadialGradient(sx, sy, 0, sx, sy, rr);
       const a0 = al * F.bloomA;
       // SIX STOPS, not two. A two-stop gradient falls off in a straight line, and
       // a straight line has an end: the halo held a visible alpha right up to its
@@ -673,7 +747,7 @@ function drawLiveStars(arr, vis, bdt) {
       // reading as a lamp.
       for (const [p, w] of STAR_HALO) gg.addColorStop(p, `rgba(${col},${(a0 * w).toFixed(4)})`);
       ctx.fillStyle = gg;
-      ctx.beginPath(); ctx.arc(s.x, s.y, rr, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx, sy, rr, 0, TAU); ctx.fill();
       // REFRACTION. A bright point seen through anything — atmosphere, a canopy,
       // a lens — throws light along an axis, and that streak is most of what says
       // "burning" rather than "dot". Two soft strokes, gated on the flare so they
@@ -689,9 +763,11 @@ function drawLiveStars(arr, vis, bdt) {
       const sk = F.spike * al * clamp(k - 1, 0, 1);
       if (sk > 0.004) {
         ctx.lineWidth = F.spikeW;
+        // screen-aligned even as the sky turns: the streak is thrown by the
+        // canopy the star is seen THROUGH, and the canopy is the ship's
         for (const [dx, dy, m] of [[1, 0, 1], [0, 1, 0.62]]) {
           const L = rr * F.spikeR * m;
-          const x0 = s.x - dx * L, y0 = s.y - dy * L, x1 = s.x + dx * L, y1 = s.y + dy * L;
+          const x0 = sx - dx * L, y0 = sy - dy * L, x1 = sx + dx * L, y1 = sy + dy * L;
           const lg = ctx.createLinearGradient(x0, y0, x1, y1);
           lg.addColorStop(0, `rgba(${col},0)`);
           lg.addColorStop(0.5, `rgba(${col},${(sk * m).toFixed(4)})`);
@@ -703,7 +779,7 @@ function drawLiveStars(arr, vis, bdt) {
     }
     ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
     // the core grows a little too: a star at full flare is not the same size dot
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r * (0.8 + 0.35 * k), 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx, sy, s.r * (0.8 + 0.35 * k), 0, TAU); ctx.fill();
   }
 }
 // binary / hex snippets racing along the tunnel axis — glyph by glyph, in true perspective,

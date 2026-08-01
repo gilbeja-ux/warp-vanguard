@@ -646,13 +646,21 @@ function frame(now) {
   }
   const worldFx = !!replayXfer;
   if (worldFx) { ctx.save(); ctx.globalAlpha = worldAlpha; ctx.translate(W / 2, H / 2); ctx.scale(worldZoom, worldZoom); ctx.translate(-W / 2, -H / 2); }
-  if (bgCanvas) ctx.drawImage(bgCanvas, 0, 0, W, H);
-  // the denser sky the meta screens get, over the navy and under everything else.
-  // Its live half is drawn inside drawStarField on the same fade.
-  if (menuSky && menuSkyVis > 0.004) {
+  // THE SKY TURNS — see SKY_REV. The roll advances on the UI clock (never the
+  // sim's), and both sheets ride one rotation about the screen centre. The
+  // vignette stays put below: it is the canopy's own darkening, ship-frame.
+  if (SKY_REV > 0) skyRollA = (skyRollA + frameDt * (TAU / SKY_REV)) % TAU;
+  if (bgCanvas) {
     ctx.save();
-    ctx.globalAlpha = menuSkyVis;
-    ctx.drawImage(menuSky, 0, 0, W, H);
+    ctx.translate(W / 2, H / 2);
+    ctx.rotate(skyRollA);
+    ctx.drawImage(bgCanvas, -skySheet / 2, -skySheet / 2, skySheet, skySheet);
+    // the denser sky the meta screens get, over the navy and under everything
+    // else. Its live half is drawn inside drawStarField on the same fade.
+    if (menuSky && menuSkyVis > 0.004) {
+      ctx.globalAlpha = menuSkyVis;
+      ctx.drawImage(menuSky, -skySheet / 2, -skySheet / 2, skySheet, skySheet);
+    }
     ctx.restore();
   }
   prof('starField');

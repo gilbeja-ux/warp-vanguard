@@ -163,9 +163,19 @@ function initDeepField() {
   // Four means the frame usually holds one or two, and each one is an event.
   const nS = lowFX ? 150 : 430, nR = lowFX ? 2 : 4, nW = lowFX ? 24 : 74;
   deepStars = []; deepRocks = []; deepWisps = [];
-  for (let i = 0; i < nS; i++) deepStars.push(mkDeepStar());
-  for (let i = 0; i < nR; i++) deepRocks.push(mkDeepRock());
-  for (let i = 0; i < nW; i++) deepWisps.push(mkDeepWisp());
+  // SEEDED, same trick and same reason as buildBackground: this is the sky the
+  // home screen opens on, and it must be the same sky every load. The layer
+  // drifts and recycles off the live clock during play, so two long sessions
+  // diverge — but they diverge from the same opening deal.
+  const sysRandom = Math.random;
+  Math.random = mulberry32(SKY_SEED ^ 0xDEEF);
+  try {
+    for (let i = 0; i < nS; i++) deepStars.push(mkDeepStar());
+    for (let i = 0; i < nR; i++) deepRocks.push(mkDeepRock());
+    for (let i = 0; i < nW; i++) deepWisps.push(mkDeepWisp());
+  } finally {
+    Math.random = sysRandom;
+  }
 }
 initDeepField();
 // THE SKY IS DRAWN EVERYWHERE, INCLUDING MENUS. It used to bail on S.MENU, from
@@ -197,7 +207,7 @@ function drawDeepField(g, dt) {
   if (worldVis > 0.004) for (const rk of deepRocks) {
     rk.rf *= 1 + dt * rate * rk.sp;
     if (rk.rf > DEEP_R1) { Object.assign(rk, mkDeepRock()); rk.rf = DEEP_R0; }
-    const px = g.cx + Math.cos(rk.a) * rk.rf * SR, py = g.cy + Math.sin(rk.a) * rk.rf * SR;
+    const px = g.cx + Math.cos(rk.a + skyRollA) * rk.rf * SR, py = g.cy + Math.sin(rk.a + skyRollA) * rk.rf * SR;
     const rad = Math.min(W, H) * rk.sz * (0.5 + rk.rf * 0.34); // swells as it comes abeam
     const rkEdge = clamp((DEEP_R1 - rk.rf) / DEEP_FADE, 0, 1) * clamp((rk.rf - DEEP_R0) / 0.30, 0, 1);
     if (rkEdge <= 0.01) continue; // faded both ends — never a pop, never a snap
@@ -232,7 +242,7 @@ function drawDeepField(g, dt) {
   for (const wp of deepWisps) {
     wp.rf *= 1 + dt * rate * wp.sp;
     if (wp.rf > DEEP_R1) { Object.assign(wp, mkDeepWisp()); wp.rf = DEEP_R0; }
-    const ca = Math.cos(wp.a), sa = Math.sin(wp.a);
+    const ca = Math.cos(wp.a + skyRollA), sa = Math.sin(wp.a + skyRollA);
     const r0 = wp.rf * SR, r1 = (wp.rf + wp.len * (0.35 + wp.rf)) * SR;
     const x0 = g.cx + ca * r0, y0 = g.cy + sa * r0;
     const x1 = g.cx + ca * r1, y1 = g.cy + sa * r1;
@@ -255,7 +265,10 @@ function drawDeepField(g, dt) {
   for (const st of deepStars) {
     st.rf *= 1 + dt * rate * st.sp;
     if (st.rf > DEEP_R1) { Object.assign(st, mkDeepStar()); st.rf = DEEP_R0; }
-    const px = g.cx + Math.cos(st.a) * st.rf * SR, py = g.cy + Math.sin(st.a) * st.rf * SR;
+    // + skyRollA: this layer is OUTSIDE the hull, so it rides the sky's turn —
+    // the parallax drift and the roll compose, which is exactly what a window
+    // full of space does from a ship that is both moving and slowly rotating
+    const px = g.cx + Math.cos(st.a + skyRollA) * st.rf * SR, py = g.cy + Math.sin(st.a + skyRollA) * st.rf * SR;
     if (px < -4 || px > W + 4 || py < -4 || py > H + 4) continue;
     // fades up out of the deep AND back down before the recycle edge — both ends
     const near = clamp((st.rf - DEEP_R0) / 0.5, 0, 1) * clamp((DEEP_R1 - st.rf) / DEEP_FADE, 0, 1);
