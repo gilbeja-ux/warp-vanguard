@@ -1928,8 +1928,7 @@ function drawPulseOrbs(g) {
     const d = dialCenter(i === 0 ? 'L' : 'R');
     const col = NODE_COLS[i];
     const ready = frac >= 1;
-    const vr = d.r * 0.30;               // the vessel — sized to the tap target, not the charge
-    // READY: the energy wants out. Everything here lives OUTSIDE the vessel,
+    // READY: the energy wants out. Everything here lives OUTSIDE the meter,
     // around the pad, and everything is soft light under pressure.
     if (ready) {
       const bz2 = Math.min(W, H) * 0.055;
@@ -1967,113 +1966,64 @@ function drawPulseOrbs(g) {
       ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(d.x, d.y, d.r * (1.02 + k2 * 0.26), 0, TAU); ctx.stroke();
     }
-    // THE VESSEL SHELL — always on screen, empty included. An empty circle
-    // waiting at the pad core is how the button teaches itself.
-    ctx.fillStyle = 'rgba(3,6,14,0.72)';
-    ctx.beginPath(); ctx.arc(d.x, d.y, vr, 0, TAU); ctx.fill();
-    ctx.strokeStyle = ready
-      ? `rgba(255,255,255,${(0.75 + 0.2 * Math.sin(time * 6 + i)).toFixed(2)})`
-      : `rgba(${col},${(0.25 + 0.45 * vis + 0.3 * fx2.bank).toFixed(2)})`;
-    ctx.lineWidth = ready ? 2.5 : 1.5;
-    ctx.beginPath(); ctx.arc(d.x, d.y, vr, 0, TAU); ctx.stroke();
-    // THE FILL — a mass of the emitter's energy GROWING from the centre until
-    // it presses the button's glass. Take three, Gil's spec: the bottom-up
-    // liquid and the strand port both read wrong here; what a charge coil
-    // holds is a body of energy, and a body SIMMERS — soft writhing edge,
-    // heat wandering inside it, and now and then a streak snapping off.
-    if (vis > 0.02) {
-      // pow eases the early charge into view — the first zap should be seen
-      const br = (vr - 1.5) * Math.pow(vis, 0.75) * (1 + fx2.bank * 0.10);
-      ctx.save();
-      ctx.beginPath(); ctx.arc(d.x, d.y, vr - 0.75, 0, TAU); ctx.clip();
-      // the body: an amoeba, not a disc. Three slow harmonics writhe the edge
-      // on incommensurate rates; pressed against the glass (vis high) the
-      // writhe flattens, because the container is winning.
-      const wobA = 0.075 * (1 - 0.55 * vis) + 0.02;
+    // THE BAR, back by request — the ring meter was the right readout all
+    // along; it was just thin and it jumped. Now it is THICK, the track is
+    // visible from the first frame (the empty gauge is how the button teaches
+    // itself), and the sweep chases the true level through fx2.vis — every
+    // bank is a pour along the arc, not a step. A glowing tip rides the
+    // leading edge, because the growing end IS the thing to watch.
+    const rm = d.r * 0.44;
+    const lw = Math.max(7, d.r * 0.085);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = `rgba(${col},0.22)`;
+    ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.arc(d.x, d.y, rm, 0, TAU); ctx.stroke();
+    if (vis > 0.004) {
+      const a1 = -Math.PI / 2 + vis * TAU;
+      ctx.strokeStyle = `rgba(${col},${(ready ? 0.95 : 0.62 + 0.28 * fx2.bank).toFixed(2)})`;
+      ctx.lineWidth = lw + fx2.bank * 3;
+      ctx.beginPath(); ctx.arc(d.x, d.y, rm, -Math.PI / 2, a1); ctx.stroke();
+      // the tip: a hot head on the leading edge — white while a bank lands,
+      // the emitter's colour between
+      const tg2 = ctx.createRadialGradient(
+        d.x + Math.cos(a1) * rm, d.y + Math.sin(a1) * rm, 0,
+        d.x + Math.cos(a1) * rm, d.y + Math.sin(a1) * rm, lw * (1.3 + fx2.bank * 0.8));
+      tg2.addColorStop(0, `rgba(255,255,255,${(0.5 + 0.45 * fx2.bank).toFixed(2)})`);
+      tg2.addColorStop(0.4, `rgba(${col},${(0.35 + 0.3 * fx2.bank).toFixed(2)})`);
+      tg2.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = tg2;
       ctx.beginPath();
-      for (let k = 0; k <= 30; k++) {
-        const a = k / 30 * TAU;
-        const wr = br * (1
-          + wobA * Math.sin(3 * a + time * 1.3 + i * 2.1)
-          + wobA * 0.7 * Math.sin(5 * a - time * 1.7 + i)
-          + wobA * 0.45 * Math.sin(8 * a + time * 2.3));
-        k ? ctx.lineTo(d.x + Math.cos(a) * wr, d.y + Math.sin(a) * wr)
-          : ctx.moveTo(d.x + Math.cos(a) * wr, d.y + Math.sin(a) * wr);
-      }
-      ctx.closePath();
-      const body = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, Math.max(1, br));
-      const heart = ready ? 0.62 + 0.12 * Math.sin(time * 6 + i) : 0.18 + 0.38 * vis + 0.3 * fx2.bank;
-      body.addColorStop(0, `rgba(255,255,255,${clamp(heart + fx2.fire * 0.4, 0, 1).toFixed(2)})`);
-      body.addColorStop(0.45, `rgba(${col},${(0.55 + 0.2 * vis).toFixed(2)})`);
-      body.addColorStop(0.85, `rgba(${col},${(0.30 + 0.15 * vis).toFixed(2)})`);
-      body.addColorStop(1, `rgba(${col},0.04)`);
-      ctx.fillStyle = body;
+      ctx.arc(d.x + Math.cos(a1) * rm, d.y + Math.sin(a1) * rm, lw * (1.3 + fx2.bank * 0.8), 0, TAU);
       ctx.fill();
-      // SIMMER: two hot spots wandering inside the mass on slow lissajous
-      // paths, brightening and dimming out of step — heat moving through a
-      // body, not lights blinking on one
-      if (br > 5) {
-        ctx.globalCompositeOperation = 'lighter';
-        for (let k = 0; k < 2; k++) {
-          const sx2 = d.x + Math.sin(time * (0.7 + k * 0.31) + k * 2.6 + i) * br * 0.45;
-          const sy2 = d.y + Math.sin(time * (0.53 + k * 0.4) + k * 1.3 + i * 2) * br * 0.45;
-          const sal = (0.10 + 0.08 * Math.sin(time * (1.9 + k) + k * 3)) * (0.5 + 0.5 * vis);
-          if (sal < 0.02) continue;
-          const sg2 = ctx.createRadialGradient(sx2, sy2, 0, sx2, sy2, br * 0.5);
-          sg2.addColorStop(0, `rgba(255,255,255,${sal.toFixed(3)})`);
-          sg2.addColorStop(1, 'rgba(255,255,255,0)');
-          ctx.fillStyle = sg2;
-          ctx.beginPath(); ctx.arc(sx2, sy2, br * 0.5, 0, TAU); ctx.fill();
-        }
-        // STREAKS: every so often one snaps off the mass toward the glass —
-        // stateless slots on incommensurate periods (the farMotes pattern), a
-        // fresh direction each cycle off the cycle NUMBER, so a pause or a
-        // replay never desyncs them. More of them, and quicker, as it fills.
-        const NS = ready ? 4 : 2;
-        for (let k = 0; k < NS; k++) {
-          const per = 0.9 + arcHash(k * 17 + i * 31) * 1.4;
-          const tt = time / per + arcHash(k * 7 + i * 13);
-          const u = tt % 1;
-          const win = 0.16;                        // the snap is brief — most of a cycle is quiet
-          if (u > win) continue;
-          const p = u / win;
-          const cyc = Math.floor(tt);
-          const sa3 = arcHash(cyc * 13 + k * 29 + i * 7) * TAU;
-          const r0 = br * 0.55;
-          const head = r0 + (vr - r0 - 1) * p;
-          const tail = Math.max(r0, head - br * (0.45 - 0.25 * p));
-          const salpha = Math.sin(p * Math.PI) * (0.5 + 0.4 * vis);
-          const lg2 = ctx.createLinearGradient(
-            d.x + Math.cos(sa3) * tail, d.y + Math.sin(sa3) * tail,
-            d.x + Math.cos(sa3) * head, d.y + Math.sin(sa3) * head);
-          lg2.addColorStop(0, `rgba(${col},0)`);
-          lg2.addColorStop(1, `rgba(255,255,255,${salpha.toFixed(2)})`);
-          ctx.strokeStyle = lg2;
-          ctx.lineWidth = 1.3;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(d.x + Math.cos(sa3) * tail, d.y + Math.sin(sa3) * tail);
-          ctx.lineTo(d.x + Math.cos(sa3) * head, d.y + Math.sin(sa3) * head);
-          ctx.stroke();
-        }
-      }
-      ctx.restore();
     }
-    // THE BANK RIPPLE — kept from the last pass (Gil liked the heartbeat):
-    // a ring swallowed into the vessel as the kick decays
+    // READY: a compact core lights at the centre — the thing the tutorial
+    // says to tap. Small on purpose; the meter and the straining pad carry
+    // the state, the core is the target.
+    if ((ready || fx2.fire > 0.01) && !(frac <= 0.02 && fx2.fire <= 0.01)) {
+      const cq = ready ? 1 : fx2.fire;
+      const cr = d.r * 0.11 * (1 + 0.1 * Math.sin(time * 6 + i)) * cq;
+      const cg2 = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, cr * 2.6);
+      cg2.addColorStop(0, `rgba(255,255,255,${(0.95 * cq).toFixed(2)})`);
+      cg2.addColorStop(0.4, `rgba(${col},${(0.6 * cq).toFixed(2)})`);
+      cg2.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = cg2;
+      ctx.beginPath(); ctx.arc(d.x, d.y, cr * 2.6, 0, TAU); ctx.fill();
+    }
+    // THE BANK RIPPLE — the heartbeat, kept: a ring swallowed into the meter
+    // as the kick decays
     if (fx2.bank > 0.01) {
       const q = fx2.bank;
       ctx.strokeStyle = `rgba(${col},${(0.65 * (1 - q * 0.4)).toFixed(2)})`;
       ctx.lineWidth = 2 + 2.5 * q;
-      ctx.beginPath(); ctx.arc(d.x, d.y, vr * (1.1 + q * 2.2), 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(d.x, d.y, rm * (1.05 + q * 0.9), 0, TAU); ctx.stroke();
     }
-    // THE SEND-OFF: one bright ring carries the energy off toward the bore
-    // while the drain above empties the vessel on the same clock
+    // THE SEND-OFF: the meter unwinds on the fire clock (vis rides it above)
+    // while one bright ring carries the energy off toward the bore
     if (fx2.fire > 0.01 && frac <= 0.02) {
       const q = fx2.fire;
       ctx.strokeStyle = `rgba(${col},${(0.7 * q).toFixed(2)})`;
       ctx.lineWidth = 2.5 + 2 * q;
-      ctx.beginPath(); ctx.arc(d.x, d.y, vr * (1.1 + (1 - q) * 3.4), 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(d.x, d.y, rm * (0.5 + (1 - q) * 1.6), 0, TAU); ctx.stroke();
     }
   }
 }
@@ -2213,17 +2163,24 @@ function drawDials() {
         if (tut) drawDialComet(i);
       }
     }
-    // radar blips: live enemy positions — angle matches the tunnel, radius = how close they are
+    // radar blips: live enemy positions — angle matches the tunnel, radius =
+    // how far along the APPROACH. The old mapping clamped z to [0,1], but an
+    // enemy spawns at z 2.1 — so for most of its flight the blip sat frozen
+    // near the centre, then "launched" outward in the last stretch, which is
+    // exactly the broken read Gil caught. blipQ is the whole journey, spawn
+    // to ring, so a blip moves from the moment its enemy does.
+    const blipQ = z => clamp((SPAWN_Z - z) / (SPAWN_Z - 0.25), 0, 1);
     const blipXY = en => {
-      const rr = d.r * (1 - clamp(en.z, 0, 1) * 0.85);
+      const rr = d.r * (0.10 + 0.80 * blipQ(en.z));
       return { x: d.x + Math.cos(en.angle) * rr, y: d.y + Math.sin(en.angle) * rr };
     };
     for (const en of enemies) {
       if (en.dead || en.resolved) continue;
+      const q3 = blipQ(en.z);
       const { x: bx, y: by } = blipXY(en);
-      const bs = (2.5 + (1 - en.z) * 4) * (en.type === 'heavy' ? 1.5 : 1);
-      const urgent = en.z < 0.35 && Math.sin(time * 10) > 0; // blink when close
-      const al = urgent || en.z >= 0.35 ? 0.95 : 0.4;
+      const bs = (2 + q3 * 4.5) * (en.type === 'heavy' ? 1.5 : 1);
+      const urgent = q3 > 0.82 && Math.sin(time * 10) > 0; // blink when close
+      const al = urgent || q3 <= 0.82 ? 0.45 + 0.5 * q3 : 0.4;
       // barrier pairs show their wall on the radar too
       if (en.lineLead && en.partner && !en.partner.dead) {
         const p2 = blipXY(en.partner);
@@ -2241,12 +2198,12 @@ function drawDials() {
         : `rgba(220,50,50,${al})`;
       ctx.fillRect(bx - bs / 2, by - bs / 2, bs, bs);
     }
-    // golden pickup blips
+    // golden pickup blips — same journey mapping as the hostiles
     for (const p of pickups) {
       if (p.done) continue;
       const { x: gx, y: gy } = blipXY(p);
       ctx.fillStyle = 'rgba(255,210,74,0.9)';
-      ctx.beginPath(); ctx.arc(gx, gy, 2.5 + (1 - p.z) * 2, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(gx, gy, 2 + blipQ(p.z) * 2.5, 0, TAU); ctx.fill();
     }
     // the firewall core: oversized blinking blip at its tunnel position
     if (boss) {
