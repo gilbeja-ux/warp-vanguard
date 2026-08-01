@@ -127,6 +127,7 @@ let CITY_CHAINS = [];
 // at one — so they are never a mission endpoint.
 function destKindFor(campId, lv, isBoss) {
   if (isBoss) return 'star';                 // the duel happens at a sun
+  if (namedDestFor(campId, lv)) return 'planet'; // a named world IS its relay's destination
   let h = 0x811c9dc5;
   const id = (campId || 'x') + '#' + lv;
   for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }

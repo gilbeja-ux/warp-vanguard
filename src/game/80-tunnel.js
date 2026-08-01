@@ -501,8 +501,37 @@ const PLANET_TYPES = [
   { id: 'VOL', n: 'volcanic',    z: [58, 50, 48],    belt: [255, 122, 40],  bf: 9.0,  ba: 0.14, atmo: [255, 130, 70],  ak: 0.55, terr: 'lava', seed: 152, terrF: 2.4, lavaLvl: 0.90, lavaK: 1.05, bump: 0.045 },
   { id: 'ICE', n: 'ice world',   z: [228, 242, 252], belt: [140, 180, 214], bf: 5.5,  ba: 0.20, atmo: [170, 215, 255], ak: 1.2, terr: 'ice',  seed: 97, terrF: 2.9, cap: 0.72, bump: 0.060 },
   { id: 'AST', n: 'asteroid field', z: [166, 156, 144], belt: [44, 48, 62], bf: 6.0,  ba: 0.20, atmo: [140, 160, 190], ak: 0.4, field: 296, fieldR: 2, fieldSq: 0.58, seed: 85 },
-  { id: 'MLT', n: 'molten',      z: [64, 42, 40],    belt: [255, 126, 52],  bf: 12.0, ba: 1.00, atmo: [255, 140, 80],  ak: 1.2, glow: 1 }
+  { id: 'MLT', n: 'molten',      z: [64, 42, 40],    belt: [255, 126, 52],  bf: 12.0, ba: 1.00, atmo: [255, 140, 80],  ak: 1.2, glow: 1 },
+  // ---- NAMED WORLDS ----
+  // Hand-placed destinations, pinned to a relay through DEST_NAMED below. The
+  // `named` flag keeps them out of every random deal: the hash draws only from
+  // the anonymous catalogue above (PLANET_DEAL), so adding one can never
+  // reshuffle which world an existing relay shows — the mistake this flag
+  // exists to make impossible is `% PLANET_TYPES.length` growing by one and
+  // silently re-dealing the whole galaxy. They stay in PLANET_TYPES so the
+  // destinations lab picks them up like any other skin.
+  //
+  // IRENA (Gil's): a violet lava world — dark purple crust, purple melt in the
+  // fissures (on a `lava` world `z` is the CRUST and `belt` is the MELT), and
+  // an atmosphere thick enough to read as a gas shroud (ak up with GRE, the
+  // other shrouded world). `ownMoon` and `gasCloud` are honoured by
+  // destinationLife: she always keeps her moon, and she is the only world
+  // wearing a gas cloud.
+  { id: 'IRN', n: 'Irena', z: [88, 60, 110], belt: [214, 98, 255], bf: 9.0, ba: 0.14, atmo: [198, 130, 255], ak: 2.1, terr: 'lava', seed: 173, terrF: 2.5, lavaLvl: 0.955, lavaK: 1.4, bump: 0.045, named: 1, ownMoon: 1, gasCloud: 1 }
 ];
+// the anonymous deal: every world the hash may hand a relay. Named worlds are
+// appended after the anonymous ones, so the dealt indices never move.
+const PLANET_DEAL = PLANET_TYPES.filter(p => !p.named);
+// WHERE THE NAMED WORLDS LIVE — 'campaignId#levelIdx' -> type id. A named
+// destination also forces its relay's KIND to 'planet' (see destKindFor).
+// Irena sits at LAUNDRY LANE, Gil's pick — the hash had dealt THE SURVEY two
+// oceans back to back at relays 04 and 05, so pinning her here also breaks
+// that repeat.
+const DEST_NAMED = { 'going-deeper#4': 'IRN' };
+function namedDestFor(campId, lv) {
+  const id = DEST_NAMED[(campId || 'x') + '#' + lv];
+  return id ? PLANET_TYPES.find(p => p.id === id) : null;
+}
 // The boss sun. Same renderer, but emis kills the night side — it makes its own
 // light, so there is no terminator to place.
 const PLANET_STAR = { id: 'SUN', n: 'star', z: [255, 226, 150], belt: [245, 245, 245], bf: 17.1, ba: 0.12, atmo: [255, 200, 82], ak: 2.15, emis: 1 };
@@ -667,6 +696,8 @@ const DEST_LIFE = {
 // so the world on the chart and the world at the end of the bore cannot drift.
 function planetVariantFor(campId, lv, isBoss) {
   if (isBoss) return PLANET_STAR; // the duel happens at a sun
+  const named = namedDestFor(campId, lv);
+  if (named) return named;        // a named world outranks the deal
   let h = 2166136261;
   const id = campId || 'x';
   for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -675,7 +706,9 @@ function planetVariantFor(campId, lv, isBoss) {
   // bits, which FNV alone does not decorrelate — two campaigns came out with
   // byte-identical destination sequences.
   h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15;
-  return PLANET_TYPES[(h >>> 0) % PLANET_TYPES.length];
+  // % PLANET_DEAL.length, never PLANET_TYPES.length — the deal must not grow
+  // when a named world is added, or every relay in the galaxy re-rolls.
+  return PLANET_DEAL[(h >>> 0) % PLANET_DEAL.length];
 }
 // Which core this station is built round. Same shape of hash as the planet
 // picker, and seeded differently, so the two never correlate — a relay that draws

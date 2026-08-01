@@ -93,7 +93,9 @@ function mkDeepStar() {
 // The deck is every skin EXCEPT the swarms: an asteroid field is 296 rocks, and at
 // the size a deep body gets here its smallest land under a pixel, so it arrives as
 // grain rather than as a place.
-const DEEP_WORLDS = PLANET_TYPES.filter(p => !p.field);
+// !named too: a named world is a specific PLACE, and a copy of it drifting
+// anonymously through the deep field would say the opposite
+const DEEP_WORLDS = PLANET_TYPES.filter(p => !p.field && !p.named);
 // THE SKY'S HAND: a few skins, dealt once and held for the session.
 //
 // Not a free pick out of the whole deck every time a body recycles, and the reason

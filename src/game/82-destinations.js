@@ -224,6 +224,15 @@ function destinationLife() {
   const n = Math.min(deck.length, L.n0 + ((rnd() * (L.n1 - L.n0 + 1)) | 0));
   const has = {};
   for (let i = 0; i < n; i++) has[deck[i]] = true;
+  // A NAMED WORLD KEEPS ITS PROMISES. Irena always has her moon and always
+  // wears her gas cloud — forced AFTER the deal, so the rnd stream up to here
+  // is untouched and every other relay's hand comes out exactly as before.
+  // 'gas' is not in DEST_DECK on purpose: no anonymous world can draw it.
+  const named = namedDestFor(campId, levelIdx);
+  if (named) {
+    if (named.ownMoon) has.moon = true;
+    if (named.gasCloud) has.gas = true;
+  }
   // CITY LIGHTS come in clusters, because civilisation does: coasts and valleys,
   // not an even sprinkle. Unit-disc coordinates, so they scale with the approach.
   const lights = [];
@@ -272,7 +281,27 @@ function destinationLife() {
     stn: has.station ? {
       orb: rr(L.stnO[0], L.stnO[1]), sq: rr(0.12, 0.4), tilt: rr(-0.8, 0.8),
       ph: rnd() * TAU, seed: rnd() * 20
-    } : null
+    } : null,
+    // THE GAS CLOUD — Irena's alone. A bank of soft violet puffs clustered on
+    // one flank of the world, most hanging behind it, a few crossing in front.
+    // Drawn LAST in the rnd stream, so a world gaining or losing the cloud can
+    // never move anyone else's moon. Positions in units of R, like everything
+    // here, so the bank rides the approach for free.
+    gas: has.gas ? (() => {
+      const flank = rnd() * TAU;
+      const puffs = [];
+      const many = 6 + ((rnd() * 3) | 0);
+      for (let i = 0; i < many; i++) {
+        const a = flank + rr(-0.85, 0.85), d = rr(1.15, 1.95);
+        puffs.push({
+          x: Math.cos(a) * d, y: Math.sin(a) * d * 0.7,
+          r: rr(0.5, 1.05), al: rr(0.05, 0.11),
+          deep: rnd() < 0.5,          // half carry the darker violet
+          front: rnd() < 0.3          // and a few drift across the face
+        });
+      }
+      return { puffs };
+    })() : null
   };
   return destLifeVal;
 }
@@ -393,12 +422,39 @@ function drawOrbitStation(far, R, F, vis) {
 // The two passes. Everything on a far-half orbit goes down BEFORE the body so the
 // body occludes it; everything else goes over the top. `vis` ramps the whole
 // layer in with the approach — at a speck's size this detail is only noise.
+// THE GAS CLOUD. A bank of violet vapour hanging off one flank of the world —
+// Irena's signature, dealt to no one else. Soft radial puffs on the nebula
+// recipe, composited 'lighter' so overlapping puffs bank up the way vapour
+// does; two violets, not one, because a single tint reads as a stain where a
+// mix reads as depth inside the cloud. The puffs breathe very slowly against
+// the shared clock — vapour is the one thing at this distance that plausibly
+// MOVES, and even so it only breathes, never travels.
+function drawGasCloud(far, R, F, vis, front) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const p of F.gas.puffs) {
+    if (!!p.front !== front) continue;
+    const breath = 0.8 + 0.2 * Math.sin(time * 0.11 + p.x * 7);
+    const al = p.al * vis * breath * (front ? 0.55 : 1); // crossing wisps run thinner
+    if (al < 0.004) continue;
+    const px = far.x + p.x * R, py = far.y + p.y * R, pr = Math.max(2, p.r * R);
+    const col = p.deep ? '150,90,220' : '204,140,255';
+    const gg = ctx.createRadialGradient(px, py, 0, px, py, pr);
+    gg.addColorStop(0, `rgba(${col},${al.toFixed(4)})`);
+    gg.addColorStop(0.55, `rgba(${col},${(al * 0.4).toFixed(4)})`);
+    gg.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = gg;
+    ctx.beginPath(); ctx.arc(px, py, pr, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
 function drawDestLife(far, R, g, front, la) {
   const L = DEST_LIFE;
   const vis = clamp((R / g.nodeR - L.vis0) / L.vis1, 0, 1);
   if (vis <= 0.01) return;
   const F = destinationLife();
   if (!front) {
+    if (F.gas) drawGasCloud(far, R, F, vis, false); // the bank sits behind everything
     if (F.moon && !orbitAt(F.moon, far, R).front) drawMoon(far, R, la, F, vis);
     if (F.stn && !orbitAt(F.stn, far, R).front) drawOrbitStation(far, R, F, vis);
     if (F.ships.length) drawShips(far, R, F, vis, true);
@@ -408,6 +464,7 @@ function drawDestLife(far, R, g, front, la) {
   if (F.ships.length) drawShips(far, R, F, vis, false);
   if (F.moon && orbitAt(F.moon, far, R).front) drawMoon(far, R, la, F, vis);
   if (F.stn && orbitAt(F.stn, far, R).front) drawOrbitStation(far, R, F, vis);
+  if (F.gas) drawGasCloud(far, R, F, vis, true);   // stray wisps cross the face last
 }
 // <<< DEST-LIFE
 
