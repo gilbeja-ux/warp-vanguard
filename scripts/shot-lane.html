@@ -119,6 +119,12 @@
   // laneProgress() is latched and monotonic and only ever RAISES from levelT, so
   // writing the latch straight is enough — the next frame will not pull it back.
   poke(`lanePlanetProg = ${prog};`);
+  // ?pulse=1 arms both pads (ready state); ?pulse=0.6 stages a partial bank
+  if (Q.get('pulse')) {
+    const pf = parseFloat(Q.get('pulse'));
+    poke(`pulseCharge = [Math.round(PULSE_MAX * ${pf}), Math.round(PULSE_MAX * ${pf})];`);
+    crank(20); // let the ready energize breathe in before the frame is taken
+  }
   crank(1);
 
   const cnv = document.getElementById('game');

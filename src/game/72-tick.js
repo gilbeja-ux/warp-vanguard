@@ -461,6 +461,7 @@ function updatePickups(dt, sdt, L, g, covers, ringXY) {
           sfx.pick(); sfx.shieldUp(); // shared pickup sparkle, then the collar charge
         } else if (p.kind === 'inject') { // both purge orbs snap to ready
           pulseCharge = [PULSE_MAX, PULSE_MAX];
+          pulseFx[0].bank = pulseFx[1].bank = 1; // both pads swallow at once
           // the pickup sparkle every other relay gets, then both coils arming.
           // It played heal() alone before, which is the sound of being repaired.
           sfx.pick(); sfx.pulseArmed();
@@ -553,6 +554,7 @@ function updateEnemy(en, C) {
         const ni = en.traceNode !== undefined ? en.traceNode
           : Math.abs(angDiff(nodes[0].angle, aEnd)) < Math.abs(angDiff(nodes[1].angle, aEnd)) ? 0 : 1;
         pulseCharge[ni] = PULSE_MAX; // the ride banks a full pulse — tutorial included
+        pulseFx[ni].bank = 1;        // a whole pulse landing is the biggest swallow there is
         popup(hp.x, hp.y, 'PULSE CHARGED +' + pts, '#ffe9b0');
         // traced() above resolves the ride; this says what the ride BOUGHT, on the
         // pad that now owns it — the generic sparkle it played said neither
@@ -658,6 +660,7 @@ function updateEnemy(en, C) {
         for (const fi of fed) {
           if (pulseCharge[fi] >= PULSE_MAX) continue;
           pulseCharge[fi] = Math.min(PULSE_MAX, pulseCharge[fi] + Math.min(combo, 5));
+          pulseFx[fi].bank = 1; // the orb visibly swallows what just landed
           // panned to the pad that banked it, so a zap tells you WHICH orb it fed
           const pan = Math.cos(nodes[fi].angle) * 0.7;
           if (pulseCharge[fi] >= PULSE_MAX) {

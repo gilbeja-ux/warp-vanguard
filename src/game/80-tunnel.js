@@ -517,7 +517,7 @@ const PLANET_TYPES = [
   // other shrouded world). `ownMoon` and `gasCloud` are honoured by
   // destinationLife: she always keeps her moon, and she is the only world
   // wearing a gas cloud.
-  { id: 'IRN', n: 'Irena', z: [88, 60, 110], belt: [214, 98, 255], bf: 9.0, ba: 0.14, atmo: [198, 130, 255], ak: 2.1, terr: 'lava', seed: 173, terrF: 2.5, lavaLvl: 0.955, lavaK: 1.4, bump: 0.045, named: 1, ownMoon: 1, gasCloud: 1 }
+  { id: 'IRN', n: 'Irena', z: [88, 60, 110], belt: [214, 98, 255], bf: 9.0, ba: 0.14, atmo: [198, 130, 255], ak: 2.1, terr: 'lava', seed: 239, terrF: 3.2, lavaLvl: 0.94, lavaK: 1.4, bump: 0.045, named: 1, ownMoon: 1, gasCloud: 1 }
 ];
 // the anonymous deal: every world the hash may hand a relay. Named worlds are
 // appended after the anonymous ones, so the dealt indices never move.

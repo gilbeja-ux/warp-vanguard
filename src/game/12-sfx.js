@@ -9,6 +9,7 @@ const SFX_FILES = {
   miss2:  ['audio/sfx/miss2.wav', 0.9],
   pick:   ['audio/sfx/power-up.wav', 0.8],
   pulse:  ['audio/sfx/pulse.mp3', 1.0],
+  pulseArm: ['audio/sfx/pulse_charge.mp3', 0.9], // an orb reaching full — ready to fire
   volley: ['audio/sfx/volley.mp3', 0.9],
   shutdown: ['audio/sfx/shutdown.mp3', 0.9],   // an emitter fried by a killer/wall
   restart:  ['audio/sfx/restarting.mp3', 0.9], // that node rebooting back online
@@ -116,22 +117,20 @@ const sfx = {
     crackle(0.55, 500, 3400, 1.2, 1.5);
     tone(2637, 0.25, 'sine', 0.05, 3520, null, 0.12);
   },
-  // THE PURGE CHARGING — the half of the mechanic that had no voice at all. The
-  // roster has a take for FIRING a pulse and the shared power-up sparkle, and
-  // nothing for banking one or for an orb reaching full: charging was silent and
-  // arming borrowed the integrity-heal chime, which says "you were repaired"
-  // rather than "a weapon is ready". Both are synth for now — when takes turn up,
-  // add them to SFX_FILES and open each voice with a playSample() line exactly as
-  // the ones above do, and the synth drops back to covering the load.
+  // THE PURGE CHARGING. Banking is still synth — a tick that climbs is pitch
+  // logic no take can carry, since the frequency IS the fill readout. Arming has
+  // its take now (pulse_charge.mp3, Gil's), panned to the pad that owns the orb
+  // so which side is armed is audible before you look; the synth coil below
+  // covers it until the sample decodes, per the house fallback rule.
   pulseBank(frac, pan) { // a zap banked into an orb: a tick that climbs as it fills
     const f = 300 + 520 * clamp(frac, 0, 1);
     tone(f, 0.055, 'triangle', 0.045, f * 1.5, null, 0, pan);
     tone(f * 2, 0.040, 'sine', 0.022, f * 3, null, 0, pan);
   },
-  // Deliberately nothing like heal(): a low coil topping out, then an octave snap
-  // and a shimmer over it. Panned to the pad that owns the orb, so which side is
-  // armed is audible before you look.
   pulseArmed(pan) {
+    if (playSample('pulseArm', 1, pan)) return;
+    // fallback: a low coil topping out, then an octave snap and a shimmer —
+    // deliberately nothing like heal(), which says "repaired", not "armed"
     tone(110, 0.26, 'sawtooth', 0.075, 220, null, 0, pan);
     tone(440, 0.18, 'square', 0.055, 660, null, 0.10, pan);
     tone(880, 0.22, 'triangle', 0.065, 1320, null, 0.10, pan);

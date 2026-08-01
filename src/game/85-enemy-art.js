@@ -1836,10 +1836,21 @@ function drawVolley(g) {
   }
 }
 
+// PAD FEEDBACK STATE — render-only, decayed on the UI clock inside
+// drawPulseOrbs, so the sim, the trace and the verifier never see it.
+//   bank  1 -> 0   a kick each time charge lands: the orb flashes and an
+//                  inward ripple is swallowed — energy ARRIVING
+//   fire  1 -> 0   the send-off: the orb collapses and a ring leaves,
+//                  instead of the old cut from full orb to nothing
+//   r          the orb radius captured at the moment of firing, so the
+//                  collapse animates the orb that was actually on screen
+let pulseFx = [{ bank: 0, fire: 0, r: 0 }, { bank: 0, fire: 0, r: 0 }];
 // a ready orb tapped: unleash that node's wave from the ring into the deep
 function firePulse(i) {
   if (traceRec) traceFireQ.push(i); // record the tap; on replay traceApply re-fires it
   pulseCharge[i] = 0;
+  pulseFx[i].fire = 1;
+  pulseFx[i].r = dialCenter(i === 0 ? 'L' : 'R').r * 0.36; // the full orb's visual size
   pulseWaves.push({ z: geo().hitZ, kills: 0, i, col: i === 0 ? NODE_COLS[0] : '240,248,255' });
   shake = Math.min(shake + 0.7, 1);
   sfx.pulseFire();
@@ -1885,17 +1896,91 @@ function drawPulseWave(g) {
   }
 }
 // per-node charge orbs in the pad cores — a progress ring while banking,
-// full bloom + breathing + pings when ready to fire
+// full bloom + breathing + pings when ready to fire.
+//
+// Three feedback beats live here now, all render-only:
+//   · BANK KICK — each landed charge flashes the orb and swallows an inward
+//     ripple. The orb growing continuously never read as an event; energy
+//     arriving in packets does.
+//   · READY ENERGIZE — the whole pad band glows and scintillates in its
+//     emitter's colour, the monolith's own energized language (glow + grain
+//     texture, never added linework — the lesson the shield taught twice).
+//   · FIRE COLLAPSE — the orb leaves through an animation. It used to cut
+//     from full bloom to nothing between two frames, which is a pop, and the
+//     one place the game popped was the player's own most powerful moment.
 function drawPulseOrbs(g) {
   if (boss) return; // the duel owns the pads
+  const fdt = typeof frameDt === 'number' ? frameDt : 0;
   for (let i = 0; i < 2; i++) {
+    const fx2 = pulseFx[i];
+    fx2.bank = Math.max(0, fx2.bank - fdt / 0.32);
+    fx2.fire = Math.max(0, fx2.fire - fdt / 0.34);
     const frac = clamp(pulseCharge[i] / PULSE_MAX, 0, 1);
-    if (frac <= 0.02) continue;
     const d = dialCenter(i === 0 ? 'L' : 'R');
     const col = NODE_COLS[i];
+    // THE SEND-OFF, drawn even at zero charge — it is the zero-charge frame's
+    // whole job. The meter unwinds with the collapse, the core condenses, and
+    // one bright ring carries the energy off the pad toward the bore.
+    if (frac <= 0.02) {
+      if (fx2.fire > 0.01) {
+        const q = fx2.fire, r0 = fx2.r;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = `rgba(${col},${(0.85 * q).toFixed(2)})`;
+        ctx.lineWidth = 5 * q;
+        ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.44, -Math.PI / 2, -Math.PI / 2 + q * TAU); ctx.stroke();
+        ctx.fillStyle = `rgba(255,255,255,${(0.9 * q).toFixed(2)})`;
+        ctx.beginPath(); ctx.arc(d.x, d.y, Math.max(0.5, r0 * 0.5 * q), 0, TAU); ctx.fill();
+        const ring0 = r0 * (1.1 + (1 - q) * 3.2);
+        ctx.strokeStyle = `rgba(${col},${(0.7 * q).toFixed(2)})`;
+        ctx.lineWidth = 2.5 + 2 * q;
+        ctx.beginPath(); ctx.arc(d.x, d.y, ring0, 0, TAU); ctx.stroke();
+      }
+      continue;
+    }
     const ready = frac >= 1;
     const pu = ready ? 1 + Math.sin(time * 6 + i) * 0.14 : 1;
-    const r = d.r * (0.12 + frac * 0.24) * pu;
+    // the bank kick rides the orb's own size — a swell that settles, not a blink
+    const r = d.r * (0.12 + frac * 0.24) * pu * (1 + fx2.bank * 0.30);
+    // READY: the pad band itself energizes — wash + breathing aura + the film
+    // grain boiling through it, all in this emitter's colour and clipped to the
+    // band annulus, so it reads as the pad's own metal carrying charge.
+    if (ready) {
+      const bz2 = Math.min(W, H) * 0.055;
+      const breath2 = 0.72 + 0.28 * Math.sin(time * 2.6 + i * 1.7);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r + bz2 * 0.62, 0, TAU);
+      ctx.arc(d.x, d.y, Math.max(1, d.r - bz2 * 0.62), 0, TAU, true);
+      ctx.clip();
+      const wash = ctx.createRadialGradient(d.x, d.y, Math.max(1, d.r - bz2), d.x, d.y, d.r + bz2);
+      wash.addColorStop(0, `rgba(${col},0)`);
+      wash.addColorStop(0.5, `rgba(${col},${(0.14 * breath2).toFixed(3)})`);
+      wash.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = wash;
+      ctx.fillRect(d.x - d.r - bz2, d.y - d.r - bz2, (d.r + bz2) * 2, (d.r + bz2) * 2);
+      if (grainCv && !lowFX) {
+        // scintillation: the grain tile at two speeds and scales, composited
+        // additive — the glow sparkles like charge boiling in the metal. The
+        // offsets JUMP (floor), never slide: sliding grain reads as a texture
+        // moving over the pad, jumping grain reads as the boil itself — same
+        // recipe as the armed shield's band.
+        ctx.globalCompositeOperation = 'lighter';
+        // the shield's effective levels — its table reads 0.10/0.07 but runs
+        // through a ×1.7 brightness factor; copying the table without the
+        // factor made the boil invisible, verified on a cropped frame
+        const x0 = d.x - d.r - bz2, y0 = d.y - d.r - bz2, span = (d.r + bz2) * 2;
+        for (const [spd, sc, al] of [[41, 1, 0.12], [67, 0.6, 0.08]]) {
+          ctx.globalAlpha = al * breath2;
+          const ox2 = (Math.floor(time * spd) * 97 + i * 131) % 256, oy2 = (Math.floor(time * spd) * 53) % 256;
+          const ts = 256 * sc;
+          for (let yy = y0 - oy2 * sc; yy < y0 + span; yy += ts)
+            for (let xx = x0 - ox2 * sc; xx < x0 + span; xx += ts)
+              ctx.drawImage(grainCv, xx, yy, ts, ts);
+        }
+      }
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
     // charge progress ring — reads at a glance how full the bank is
     ctx.lineCap = 'round';
     ctx.strokeStyle = `rgba(${col},0.25)`;
@@ -1913,6 +1998,15 @@ function drawPulseOrbs(g) {
     ctx.beginPath(); ctx.arc(d.x, d.y, r * 2.4, 0, TAU); ctx.fill();
     ctx.fillStyle = ready ? '#ffffff' : `rgba(${col},0.9)`;
     ctx.beginPath(); ctx.arc(d.x, d.y, r * 0.5, 0, TAU); ctx.fill();
+    // THE BANK RIPPLE: a ring swallowed INTO the orb as the kick decays —
+    // inward, because the energy is arriving; the ready state's pings run
+    // outward, because there it is straining to leave
+    if (fx2.bank > 0.01) {
+      const q = fx2.bank;
+      ctx.strokeStyle = `rgba(${col},${(0.65 * (1 - q * 0.4)).toFixed(2)})`;
+      ctx.lineWidth = 2 + 2.5 * q;
+      ctx.beginPath(); ctx.arc(d.x, d.y, r * (1.15 + q * 2.6), 0, TAU); ctx.stroke();
+    }
     // orbiting charge motes while banking; radiant spikes when ready
     if (!ready) {
       for (let k = 0; k < 3; k++) {
