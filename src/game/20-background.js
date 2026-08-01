@@ -55,7 +55,7 @@ const SKY_SEED = 0x57A22;
 //
 // One full circuit of the near layer per SKY_ORBIT seconds. ?skyorbit=60
 // spins it fast for a taste test, ?skyorbit=0 parks it.
-let SKY_ORBIT = 600;                   // 10 minutes — a drift you feel, not watch
+let SKY_ORBIT = 420;                   // 7 minutes — felt within seconds of looking
 if (typeof location !== 'undefined') {
   const q = /[?&]skyorbit=([\d.]+)/.exec(location.search);
   if (q) SKY_ORBIT = parseFloat(q[1]);
