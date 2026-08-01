@@ -63,22 +63,34 @@ const STAR_CLASS = [
 // so a burst arrives and leaves rather than switching on. These two numbers are
 // the density dial: ~30% of a star's life inside a burst, so roughly a quarter
 // of the field is working at any moment and the rest is holding still.
-const GATE_T = 0.22;
-// HOW MANY TIMES A STAR BLINKS IN ONE BURST.
+const GATE_T = 0.10;
+// HOW A STAR BLINKS: IN PAIRS, OVER AND OVER, NOT IN TRAINS.
 //
-// The gate decides WHEN a star is allowed to scintillate; it used to also decide
-// for how long, and that was the bug. An open window is tens of seconds wide and
-// the star swung at its class rate for every one of them — ten or fifteen visible
-// flashes in a row, which is not a star through atmosphere, it is a blinking
-// light. Real scintillation arrives as a short flurry and is gone.
+// The gate decides WHEN a star may scintillate; it used to also decide for how
+// long, and that was the bug. An open window is tens of seconds wide and the star
+// swung at its class rate for every one of them — measured at 4.6 flashes per
+// window on the slowest class and 24 on the fastest, peaking at 33 in a row. That
+// is not a star through atmosphere, it is a blinking light.
 //
-// So the gate is now only the TRIGGER, and the burst measures itself: the phase
-// below accumulates only while the gate is open, the envelope carries it in and
-// out over exactly this many swings, and then the star settles and stays settled
-// until the gate shuts and rearms it. One burst, two blinks, however long the
-// window happens to be.
+// The first fix went too far the other way: ONE pair per open window left a star
+// blinking twice every ninety seconds, which dropped the field from ~40% of stars
+// working at any instant to ~5% — visibly nothing. The pair is the right unit; it
+// just has to REPEAT while the window is open.
+//
+// So the burst cycles: STAR_BLINKS swings, a rest, and again, for as long as the
+// gate holds. The rest is what makes two flashes read as a PAIR rather than as
+// the beginning of a train — at 1.0 it is twice the interval between the pair's
+// own two flashes, which is the ratio the eye groups on. Any shorter and the
+// pairs run together into the train this is fixing.
+//
+// GATE_T pays for the rest. Half the cycle is now silent, so the threshold drops
+// to keep the field as busy as it was: 0.10 opens ~55% of a star's life against
+// the old 0.22's ~40%, and 55% × 50% duty lands at ~27% of the field working —
+// the same order as the ~40% it replaces, with every event a clean double.
 const STAR_BLINKS = 2;
 const BURST_PH = STAR_BLINKS * TAU;
+const BLINK_GAP = 1.0;                      // rest between doubles, in burst lengths
+const CYCLE_PH = BURST_PH * (1 + BLINK_GAP);
 // how bright the sky sits when nothing is happening (see the bake). The headroom
 // this buys is the other half of the effect — amplitude alone cannot make a
 // twinkle visible on a field that is already near its ceiling.
@@ -559,11 +571,13 @@ function drawStarField() {
         // the gate is closed, or the star resumes mid-swing wherever the wall
         // clock happens to have carried it.
         s.bph += bdt * s.r1;
-        const q = s.bph / BURST_PH;
-        // sin(πq) is the burst's own envelope — in from nothing, out to nothing,
-        // across exactly STAR_BLINKS swings. Past that the star is spent and
-        // holds still even though the gate is still open.
-        amp = q >= 1 ? 0 : amp * Math.sin(Math.PI * q);
+        // where we are in ONE double-then-rest cycle. It wraps, so the pair
+        // repeats for as long as the gate holds it open.
+        const c = s.bph % CYCLE_PH;
+        // sin(πq) is the pair's own envelope — in from nothing, out to nothing,
+        // across exactly STAR_BLINKS swings. Past that the star rests, and the
+        // rest is what makes the two flashes group as a pair.
+        amp = c >= BURST_PH ? 0 : amp * Math.sin(Math.PI * (c / BURST_PH));
       }
     }
     // two incommensurate rates, so a star never repeats its own pattern and no
