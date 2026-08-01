@@ -24,6 +24,43 @@ let worldVis = 1; // the far worlds are a LANE feature — they fade off the men
 // the braces, and nothing in this layer may ever pop.
 const DEEP_R0 = 0.16, DEEP_R1 = 2.6, DEEP_FADE = 0.55;
 const DEEP_PARALLAX = 0.12;           // fraction of the wall's rate — the whole trick, named not buried
+// A STAR IS A POINT PLUS SCATTER, NEVER A FILLED DISC.
+//
+// This layer drew one flat arc per star at its full radius. That is fine while
+// the radius is under a pixel or so, and it stops being fine the moment it is
+// not: parallax carries a near star out to r≈2.6, and the biggest ones were
+// landing as ~5px hard-edged grey coins sitting in a sky where every other star
+// is a point. It is the same failure STAR_HALO was written to cure for the
+// backdrop's bright stars, and the cure is the same — the core stays a POINT and
+// everything past it is scattered light on that identical curve, so the two
+// fields agree about what a star is.
+//
+// The halo is a PRERENDERED SPRITE, not a gradient. There are 430 of these and
+// createRadialGradient per star per frame is the reason the backdrop only ever
+// blooms its ~50 brightest; blitting one cached sprite costs a drawImage and
+// scales to the whole field.
+const DEEP_CORE = 1.1;                // the hard point never grows past this
+const DEEP_BLOOM = 3.2;               // halo reach, in core radii
+const DEEP_BLOOM_A = 0.5;             // its peak alpha, before the star's own
+const deepHaloCv = {};
+function deepHalo(col) {
+  if (deepHaloCv[col] !== undefined) return deepHaloCv[col];
+  let cv = null;
+  if (typeof document !== 'undefined') {
+    const S = 64, h = S / 2;
+    cv = document.createElement('canvas');
+    cv.width = cv.height = S;
+    const c = cv.getContext('2d');
+    if (c) {
+      const gg = c.createRadialGradient(h, h, 0, h, h, h);
+      for (const [p, w] of STAR_HALO) gg.addColorStop(p, `rgba(${col},${w.toFixed(4)})`);
+      c.fillStyle = gg;
+      c.fillRect(0, 0, S, S);
+    } else cv = null;
+  }
+  deepHaloCv[col] = cv;
+  return cv;
+}
 function mkDeepStar() {
   return {
     a: Math.random() * TAU,
@@ -214,6 +251,7 @@ function drawDeepField(g, dt) {
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
   }
   // --- the slow starfield ---
+  const baseAl = ctx.globalAlpha; // the halo blit borrows globalAlpha and must give it back
   for (const st of deepStars) {
     st.rf *= 1 + dt * rate * st.sp;
     if (st.rf > DEEP_R1) { Object.assign(st, mkDeepStar()); st.rf = DEEP_R0; }
@@ -229,8 +267,21 @@ function drawDeepField(g, dt) {
       ? 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(time * st.tw * 0.22 + st.tp), 6) // long dim, brief return
       : 1 - depth + depth * (0.5 + 0.5 * Math.sin(time * st.tw + st.tp));
     const al = st.al * (0.45 + 0.55 * near) * tw;
-    ctx.fillStyle = st.warm ? `rgba(255,214,170,${al.toFixed(3)})` : `rgba(216,236,255,${al.toFixed(3)})`;
-    ctx.beginPath(); ctx.arc(px, py, st.sz * (0.7 + st.rf * 0.45), 0, TAU); ctx.fill();
+    const col = st.warm ? '255,214,170' : '216,236,255';
+    const R = st.sz * (0.7 + st.rf * 0.45);
+    // past a point-sized core the rest of the light becomes scatter, so the star
+    // grows by reaching further rather than by widening into a coin
+    if (R > DEEP_CORE) {
+      const hc = deepHalo(col);
+      if (hc) {
+        const rr = R * DEEP_BLOOM;
+        ctx.globalAlpha = baseAl * Math.min(1, al * DEEP_BLOOM_A);
+        ctx.drawImage(hc, px - rr, py - rr, rr * 2, rr * 2);
+        ctx.globalAlpha = baseAl;
+      }
+    }
+    ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(px, py, Math.min(R, DEEP_CORE), 0, TAU); ctx.fill();
   }
   ctx.restore();
 }

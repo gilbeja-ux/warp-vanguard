@@ -63,7 +63,22 @@ const STAR_CLASS = [
 // so a burst arrives and leaves rather than switching on. These two numbers are
 // the density dial: ~30% of a star's life inside a burst, so roughly a quarter
 // of the field is working at any moment and the rest is holding still.
-const GATE_T = 0.22, GATE_1 = 0.50;
+const GATE_T = 0.22;
+// HOW MANY TIMES A STAR BLINKS IN ONE BURST.
+//
+// The gate decides WHEN a star is allowed to scintillate; it used to also decide
+// for how long, and that was the bug. An open window is tens of seconds wide and
+// the star swung at its class rate for every one of them — ten or fifteen visible
+// flashes in a row, which is not a star through atmosphere, it is a blinking
+// light. Real scintillation arrives as a short flurry and is gone.
+//
+// So the gate is now only the TRIGGER, and the burst measures itself: the phase
+// below accumulates only while the gate is open, the envelope carries it in and
+// out over exactly this many swings, and then the star settles and stays settled
+// until the gate shuts and rearms it. One burst, two blinks, however long the
+// window happens to be.
+const STAR_BLINKS = 2;
+const BURST_PH = STAR_BLINKS * TAU;
 // how bright the sky sits when nothing is happening (see the bake). The headroom
 // this buys is the other half of the effect — amplitude alone cannot make a
 // twinkle visible on a field that is already near its ceiling.
@@ -92,8 +107,12 @@ function starClass() {
   let r = Math.random(), i = 0;
   for (; i < STAR_CLASS.length - 1; i++) { if (r < STAR_CLASS[i][0]) break; r -= STAR_CLASS[i][0]; }
   const [, amp, rate] = STAR_CLASS[i];
+  const r1 = rand(rate[0], rate[1]) || 0.001, r2 = rand(rate[0], rate[1]) * 1.7 + 0.11;
   return {
-    amp: rand(amp[0], amp[1]), r1: rand(rate[0], rate[1]) || 0.001, r2: rand(rate[0], rate[1]) * 1.7 + 0.11,
+    amp: rand(amp[0], amp[1]), r1, r2,
+    // the second rate as a RATIO of the first, because the burst clock counts in
+    // swings of r1 — this is what keeps the two incommensurate inside one burst
+    rr2: r2 / r1,
     g1: rand(0.045, 0.105), g2: rand(0.058, 0.130), gp1: Math.random() * TAU, gp2: Math.random() * TAU
   };
 }
@@ -247,7 +266,8 @@ function buildBackground() {
           // some light left at the bottom. A faint dot winking fully out is
           // scintillation; the brightest star on screen doing it is a dead pixel.
           amp: cl.amp * (big ? 0.55 : 1),
-          r1: cl.r1, r2: cl.r2, p1: Math.random() * TAU, p2: Math.random() * TAU,
+          r1: cl.r1, r2: cl.r2, rr2: cl.rr2, bph: 0, // bph: burst phase, see STAR_BLINKS
+          p1: Math.random() * TAU, p2: Math.random() * TAU,
           g1: cl.g1, g2: cl.g2, gp1: cl.gp1, gp2: cl.gp2, // when it is allowed to twinkle at all
           // only the bright few carry the colour shift — on a 0.5px dot it is
           // invisible, and it is what makes a real star read as burning
@@ -522,6 +542,7 @@ function buildRingFx() {
 // the live half of the star field — see STAR_CLASS above. Drawn with the backdrop
 // so the sky keeps its depth: everything in the lane still passes IN FRONT of it.
 function drawStarField() {
+  const bdt = typeof frameDt === 'number' ? frameDt : 0; // bursts advance on frame time, not wall time
   ctx.save();
   ctx.globalCompositeOperation = 'lighter'; // a flare ADDS light; over the band it
   for (const s of liveStars) {              // has to build on what is already there
@@ -532,13 +553,25 @@ function drawStarField() {
     if (amp) {
       const gu = (0.5 + 0.5 * Math.sin(time * s.g1 + s.gp1))
         * (0.5 + 0.5 * Math.sin(time * s.g2 + s.gp2));
-      const gx = clamp((gu - GATE_T) / (GATE_1 - GATE_T), 0, 1);
-      amp *= gx * gx * (3 - 2 * gx);        // smoothstep: bursts fade in and out
+      if (gu <= GATE_T) { s.bph = 0; amp = 0; } // shut: rearmed for the next burst
+      else {
+        // ACCUMULATED, never time × rate: the phase has to stop advancing while
+        // the gate is closed, or the star resumes mid-swing wherever the wall
+        // clock happens to have carried it.
+        s.bph += bdt * s.r1;
+        const q = s.bph / BURST_PH;
+        // sin(πq) is the burst's own envelope — in from nothing, out to nothing,
+        // across exactly STAR_BLINKS swings. Past that the star is spent and
+        // holds still even though the gate is still open.
+        amp = q >= 1 ? 0 : amp * Math.sin(Math.PI * q);
+      }
     }
     // two incommensurate rates, so a star never repeats its own pattern and no
-    // two stars ever agree. amp 0 (steady class, or a shut gate) → a constant.
-    const w = amp && (0.62 * (0.5 + 0.5 * Math.sin(time * s.r1 + s.p1))
-      + 0.38 * (0.5 + 0.5 * Math.sin(time * s.r2 + s.p2)));
+    // two stars ever agree — driven by the burst phase now, so the second rate
+    // stays incommensurate WITHIN a burst rather than across the wall clock.
+    // amp 0 (steady class, shut gate, or a spent burst) → a constant.
+    const w = amp && (0.62 * (0.5 + 0.5 * Math.sin(s.bph + s.p1))
+      + 0.38 * (0.5 + 0.5 * Math.sin(s.bph * s.rr2 + s.p2)));
     // both ways around the baseline: 1-amp at the bottom, 1+amp at the top
     const k = 1 - amp + 2 * amp * w;
     const al = Math.min(1, s.al * k);
