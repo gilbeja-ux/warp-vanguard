@@ -646,23 +646,25 @@ function frame(now) {
   }
   const worldFx = !!replayXfer;
   if (worldFx) { ctx.save(); ctx.globalAlpha = worldAlpha; ctx.translate(W / 2, H / 2); ctx.scale(worldZoom, worldZoom); ctx.translate(-W / 2, -H / 2); }
-  // THE SKY TURNS — see SKY_REV. The roll advances on the UI clock (never the
-  // sim's), and both sheets ride one rotation about the screen centre. The
-  // vignette stays put below: it is the canopy's own darkening, ship-frame.
-  if (SKY_REV > 0) skyRollA = (skyRollA + frameDt * (TAU / SKY_REV)) % TAU;
-  if (bgCanvas) {
-    ctx.save();
-    ctx.translate(W / 2, H / 2);
-    ctx.rotate(skyRollA);
-    ctx.drawImage(bgCanvas, -skySheet / 2, -skySheet / 2, skySheet, skySheet);
-    // the denser sky the meta screens get, over the navy and under everything
-    // else. Its live half is drawn inside drawStarField on the same fade.
-    if (menuSky && menuSkyVis > 0.004) {
-      ctx.globalAlpha = menuSkyVis;
-      ctx.drawImage(menuSky, -skySheet / 2, -skySheet / 2, skySheet, skySheet);
-    }
-    ctx.restore();
-  }
+  // THE STARS ORBIT — see SKY_ORBIT. The pan advances on the UI clock (never
+  // the sim's), and each strip slides at its own layer rate, drawn twice so the
+  // wrap seam crosses the frame without a gap. The vignette stays put below:
+  // it is the canopy's own darkening, ship-frame.
+  if (SKY_ORBIT > 0) skyPan += frameDt * (skyW / SKY_ORBIT);
+  const stripPan = (cv, rate, alpha) => {
+    if (!cv) return;
+    const off = (skyPan * rate) % skyW;
+    if (alpha !== undefined) ctx.globalAlpha = alpha;
+    ctx.drawImage(cv, -off, 0, skyW, H);
+    ctx.drawImage(cv, skyW - off, 0, skyW, H);
+    if (alpha !== undefined) ctx.globalAlpha = 1;
+  };
+  stripPan(skyStruct, SKY_L.struct);   // band, nebulae, dust — the far wall
+  stripPan(bgCanvas, SKY_L.bake);      // the dense baked star field
+  // the denser sky the meta screens get, over the structure and under
+  // everything else. Its live half is drawn inside drawStarField on the
+  // same fade.
+  if (menuSkyVis > 0.004) stripPan(menuSky, SKY_L.bake, menuSkyVis);
   prof('starField');
   drawStarField();  // the half of the backdrop that is allowed to move
 

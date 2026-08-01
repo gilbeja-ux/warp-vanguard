@@ -637,7 +637,7 @@ const DEST_MIX = { id: 'MIX', planet: 62, station: 24 };
 // are the things that make it a PLACE. Every arrival gets a creeping terminator
 // and a scintillating sky — those are the world and the void behaving, and both
 // are free. The rest is a HAND dealt per relay: one arrival has a moon and a
-// station over it, the next has aurora and traffic, and the player learns the
+// station over it, the next has cities and traffic, and the player learns the
 // difference. Dealt from the relay's own seed, so a place keeps its life forever.
 const DEST_LIFE = {
   id: 'LIF',
@@ -647,7 +647,6 @@ const DEST_LIFE = {
   nightK: 0.44,                    // how much darker the creeping shadow makes the night limb
   clus0: 7, clusN: 5, perClus: 9,  // city-light clusters, and lights per cluster
   lightsO: 0.62, lightsC: '255,206,140',
-  auroraO: 0.55, auroraW: 3, auroraC: '120,255,190', auroraC2: '160,190,255',
   // moon and station carry no period: they are PARKED where their seed puts them.
   // Nothing that big moves in the time you spend looking at a score.
   moonR: 0.15, moonO: [1.5, 2.15], moonC: '198,192,180',

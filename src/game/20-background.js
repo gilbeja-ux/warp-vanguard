@@ -26,33 +26,45 @@ const MENU_STARS = 2200;   // on top of the 1500 everywhere
 // every time you come back. One fixed seed, swapped in around the build, and
 // the sky is the same sky tonight, tomorrow, and after a rotation.
 const SKY_SEED = 0x57A22;
-// THE SKY TURNS. A camera looking down the bore cannot yaw or pitch — the
-// vanishing point carries the destination, the bore mouth and every enemy's
-// screen anchor, so swinging it would break the game's geometry. But ROLL about
-// the line of sight is a genuine rigid rotation of the celestial sphere around
-// the camera that keeps that point fixed — and it is also just what a ship in
-// long transit does. The universe wheels slowly around the lane; the lane holds.
+// THE STARS ORBIT THE SQUADRON. The first cut of "make it feel alive" was a
+// roll about the view axis, and Gil read it exactly right: that is US pitching,
+// not the galaxy moving. What he asked for is the camera slowly sweeping left
+// through a full circuit — the sky streaming past sideways, WITH PARALLAX:
+// stars nearer the lane sweep faster than the deep field behind them.
 //
-// Everything OUTSIDE the hull rides it: both baked sheets, the live stars, the
-// deep field. Nothing inside does — the bore, the ring, the HUD are the ship's
-// frame, and the live stars' refraction spikes stay screen-aligned on purpose
-// (the streak lives in the canopy, not in the star).
+// A pure rotation has no parallax — every distance turns at the same angular
+// rate. Depth-split drift is the signature of a camera moving along a CURVE,
+// and that is the fiction that makes this honest: the chart has always drawn
+// warp lanes as arcs. A convoy riding an arc sees exactly this out the canopy.
+// The bore stays centred because you always look ALONG the lane; the galaxy
+// slides past because the lane is bending through it.
 //
-// To make room for the turn, the sheets are SQUARE, sized to the screen
-// diagonal, and populated across the inscribed disc — a point farther from
-// centre than half the diagonal can never enter the frame at any angle, so the
-// disc is exactly the sky that exists. Counts scale by the disc-to-screen area
-// ratio to keep the density the eye actually sees unchanged.
+// So the sky is a stack of horizontal drift layers, each a wrapping strip
+// SKY_WS screens wide, each with its own rate — near fast, far slow:
 //
-// One revolution per SKY_REV seconds, overridable per-load for taste tests:
-// ?skyroll=300 spins it in five minutes, ?skyroll=0 parks it.
-let SKY_REV = 1500;                    // 25 minutes — alive, never a pinwheel
+//   deep-field stars   1.5   the nearest loose stars, in front of everything
+//   live bright stars  1.0   the stars the eye actually tracks
+//   live faint stars   0.7   the dimmer half of the moving population
+//   baked star strip   0.55  the dense still field behind them
+//   structure strip    0.35  the galactic band, nebulae, dust — the far wall
+//
+// Everything outside the hull drifts; nothing inside does. The bore, the ring,
+// the HUD, the vignette and the lane's own traffic are the ship's frame, and
+// the refraction spikes stay screen-aligned because the streak lives in the
+// canopy, not in the star.
+//
+// One full circuit of the near layer per SKY_ORBIT seconds. ?skyorbit=60
+// spins it fast for a taste test, ?skyorbit=0 parks it.
+let SKY_ORBIT = 600;                   // 10 minutes — a drift you feel, not watch
 if (typeof location !== 'undefined') {
-  const q = /[?&]skyroll=([\d.]+)/.exec(location.search);
-  if (q) SKY_REV = parseFloat(q[1]);
+  const q = /[?&]skyorbit=([\d.]+)/.exec(location.search);
+  if (q) SKY_ORBIT = parseFloat(q[1]);
 }
-let skyRollA = 0;                      // advanced on frameDt in frame()
-let skySheet = 0;                      // sheet side, set by the bake
+const SKY_WS = 1.6;                    // strip width, in screens — what exists beyond the frame
+const SKY_L = { struct: 0.35, bake: 0.55, faint: 0.7, bright: 1.0, deep: 1.5 };
+let skyPan = 0;                        // near-layer pan in px — advanced on frameDt in frame()
+let skyStruct = null;                  // the far structure strip (band, nebulae, dust)
+let skyW = 0;                          // strip width in px, set by the bake
 // (the drifting screen motes are GONE with the rest of the fiber theme. Eighteen
 // dots sliding UP the frame on their own blinking cycle made sense as data rising
 // through a feed; against a star field they were the only things in the sky moving
@@ -214,117 +226,136 @@ function buildBackgroundSeeded() {
   vg.addColorStop(1, 'rgba(0,0,0,0.38)');
   v.fillStyle = vg; v.fillRect(0, 0, W, H);
 
-  // SQUARE, DIAGONAL-SIDED, DISC-POPULATED — see the SKY_REV comment up top. ox/oy
-  // shift the old screen-space composition into sheet space so that at roll 0 the
-  // frame shows exactly the sky it always showed; the disc's extra area is more of
-  // the same sky waiting outside the corners. Sheet DPR is capped: two sheets at a
-  // phone's DPR 3 is real memory, and starlight does not carry text-grade edges.
-  const skyS = Math.ceil(Math.hypot(W, H)) + 4;
-  const ox = (skyS - W) / 2, oy = (skyS - H) / 2;
-  const scx = skyS / 2, scy = skyS / 2;
-  // how much more sky the disc holds than the frame — scatter counts ride it
-  const AREA_K = (Math.PI * scx * scx) / (W * H);
+  // THE STRIPS — see the SKY_ORBIT comment up top. Each is SKY_WS screens wide
+  // and exactly one wrap period: everything on a strip comes round once per
+  // circuit of its layer. The extra 0.6 screens are the sky that is genuinely
+  // off-frame at any moment, so the drift keeps bringing in things that were
+  // not on screen when the night began — and the wrap seam always sits in it,
+  // off-screen, where a jump cannot pop.
+  //
+  // Resolution by content: the structure strip is soft blobs with no edge
+  // anywhere, so it bakes at DPR 1 and upscales invisibly — that single choice
+  // is most of this feature's memory budget. The star strips carry point cores
+  // and cap at DPR 2: two wide sheets at a phone's DPR 3 is real memory, and
+  // starlight does not carry text-grade edges.
+  const sw = Math.ceil(W * SKY_WS);
+  skyW = sw;
+  const AREA_K = SKY_WS;               // strips hold SKY_WS screens of sky — counts ride along
   const SKY_DPR = Math.min(DPR, 2);
-  skySheet = skyS;
-  bgCanvas = document.createElement('canvas');
-  bgCanvas.width = skyS * SKY_DPR; bgCanvas.height = skyS * SKY_DPR;
-  const b = bgCanvas.getContext('2d');
-  b.setTransform(SKY_DPR, 0, 0, SKY_DPR, 0, 0);
+  skyStruct = document.createElement('canvas');
+  skyStruct.width = sw; skyStruct.height = H;
+  const sb = skyStruct.getContext('2d');
   // deep navy base — the void the lane is threaded through. It stays near-black:
   // the hyperspace references only go blue during the JUMP, and cruise is dark.
-  b.fillStyle = '#020510'; b.fillRect(0, 0, skyS, skyS);
-  // the menu layer's sheet: TRANSPARENT, not navy — it composites over the sky
-  // above rather than replacing it, so it must carry stars and nothing else.
+  // It lives on the structure strip, the layer that always covers the frame.
+  sb.fillStyle = '#020510'; sb.fillRect(0, 0, sw, H);
+  bgCanvas = document.createElement('canvas');
+  bgCanvas.width = sw * SKY_DPR; bgCanvas.height = H * SKY_DPR;
+  const b = bgCanvas.getContext('2d');
+  b.setTransform(SKY_DPR, 0, 0, SKY_DPR, 0, 0);
+  // the menu layer's sheet: TRANSPARENT, like the star strip — they composite
+  // over the structure rather than replacing it, so they carry stars and
+  // nothing else.
   menuSky = document.createElement('canvas');
-  menuSky.width = skyS * SKY_DPR; menuSky.height = skyS * SKY_DPR;
+  menuSky.width = sw * SKY_DPR; menuSky.height = H * SKY_DPR;
   const mb = menuSky.getContext('2d');
   if (mb) mb.setTransform(SKY_DPR, 0, 0, SKY_DPR, 0, 0);
+  // SEAMLESS OR NOTHING: a wrapping strip shows its left and right edges butted
+  // together, so any feature near an edge must also be stamped one period away.
+  // Every scatter site below asks this helper where to stamp.
+  const wrapXs = (x, r) => {
+    const xs = [x];
+    if (x < r) xs.push(x + sw);
+    else if (x > sw - r) xs.push(x - sw);
+    return xs;
+  };
 
   // --- THE GALACTIC BAND: the backdrop's whole structure ---
   //
   // The references are not scattered nebula clouds. They are the galaxy seen
-  // EDGE-ON: one broad band of warm dust crossing the entire frame on a diagonal,
-  // brightest along its spine, with a dark dust lane cutting through it. That one
-  // structure is what makes a sky read as "somewhere inside a galaxy" instead of
-  // as fog, and scattered blobs can never do it because they have no axis.
+  // EDGE-ON: one broad band of warm dust crossing the entire frame, brightest
+  // along its spine, with a dark dust lane cutting through it. That one
+  // structure is what makes a sky read as "somewhere inside a galaxy" instead
+  // of as fog, and scattered blobs can never do it because they have no axis.
   //
-  // All baked: at this distance nothing moves perceptibly, so it costs nothing per
-  // frame, and the deep field parallaxes in front of it — which is what sets the
-  // sky's depth order.
+  // ON A WRAPPING STRIP THE SPINE IS A SINUSOID, and this is not a workaround —
+  // it is the projection actually being asked for. The strip is a slice of
+  // cylinder around the camera, the galactic plane is a great circle around the
+  // observer, and a great circle in cylindrical projection IS a sine wave. One
+  // period per circuit, so the seam cannot show, and the old straight diagonal
+  // turns out to have been the approximation. The wander harmonics ride integer
+  // multiples of the same period for the same reason.
+  //
+  // All baked: at this distance nothing moves except the drift itself, so it
+  // costs two blits per frame, and the deep field parallaxes in front of it —
+  // which is what sets the sky's depth order.
   {
-    const bandA = -0.44;                          // the plane's tilt across frame
-    const bc = Math.cos(bandA), bs = Math.sin(bandA);
-    const bx0 = ox + W * 0.46, by0 = oy + H * 0.54; // a point on the spine, in sheet space
-    const bandLen = skyS * 1.6;                   // runs the whole disc, not just the frame
     const bandW = Math.min(W, H) * 0.34;          // perpendicular half-width
+    const spine = t => H * 0.52 - H * 0.26 * Math.sin(TAU * t / sw + 0.9);
+    const wander = t => Math.sin(TAU * 3 * t / sw + 1.7) * bandW * 0.24
+      + Math.sin(TAU * 7 * t / sw + 0.6) * bandW * 0.12;
     // gaussian-ish: three uniforms averaged, so density really falls off the spine
     const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
-    const onBand = (t2, perp) => ({
-      x: bx0 + bc * t2 - bs * perp,
-      y: by0 + bs * t2 + bc * perp
-    });
+    const onBand = (t2, perp) => ({ x: t2, y: spine(t2) + perp });
+    // one soft blob, stamped once per wrap image its radius demands — every
+    // scatter in the structure goes through here, so the seam cannot exist
+    const blob = (x, y, br, col, al, midStop) => {
+      for (const bx of wrapXs(x, br)) {
+        const gr2 = sb.createRadialGradient(bx, y, 0, bx, y, br);
+        gr2.addColorStop(0, `rgba(${col},${al.toFixed(4)})`);
+        if (midStop) gr2.addColorStop(0.45, `rgba(${col},${(al * 0.45).toFixed(4)})`);
+        gr2.addColorStop(1, `rgba(${col},0)`);
+        sb.fillStyle = gr2;
+        sb.beginPath(); sb.arc(bx, y, br, 0, TAU); sb.fill();
+      }
+    };
     // the dust itself — warm along the spine, cooling toward the edges
-    b.save();
-    b.globalCompositeOperation = 'lighter';
+    sb.save();
+    sb.globalCompositeOperation = 'lighter';
     for (let i = 0; i < Math.round(520 * AREA_K); i++) {
-      const t2 = (Math.random() - 0.5) * bandLen;
-      // the spine wanders a little, so the band is not a ruled line
-      const wander = Math.sin(t2 * 0.0016) * bandW * 0.30 + Math.sin(t2 * 0.0041 + 1.7) * bandW * 0.14;
-      const perp = gauss() * bandW + wander;
-      const q = clamp(1 - Math.abs(perp - wander) / bandW, 0, 1); // 1 on the spine
+      const t2 = Math.random() * sw;
+      const wan = wander(t2);
+      const perp = gauss() * bandW + wan;
+      const q = clamp(1 - Math.abs(perp - wan) / bandW, 0, 1); // 1 on the spine
       const pt = onBand(t2, perp);
       const br = Math.min(W, H) * rand(0.035, 0.15);
-      // density thins toward the ends of the band, as it does in the reference
-      const along = 1 - Math.min(1, Math.abs(t2) / (bandLen * 0.55)) * 0.55;
+      // the band breathes along its length — a ring has no ends to thin toward,
+      // so the old ends-fade becomes a periodic swell, seam-safe like the spine
+      const along = 0.72 + 0.28 * Math.sin(TAU * 2 * t2 / sw + 2.2);
       const al = (0.008 + Math.random() * 0.026) * (0.30 + q * 1.1) * along;
       if (al < 0.002) continue;
       const col = q > 0.62 ? '196,158,104'        // hot core of the plane
         : q > 0.32 ? '158,120,74'                 // mid dust
         : '96,86,104';                            // cool outskirts
-      const gr2 = b.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, br);
-      gr2.addColorStop(0, `rgba(${col},${al.toFixed(4)})`);
-      gr2.addColorStop(0.45, `rgba(${col},${(al * 0.45).toFixed(4)})`);
-      gr2.addColorStop(1, `rgba(${col},0)`);
-      b.fillStyle = gr2;
-      b.beginPath(); b.arc(pt.x, pt.y, br, 0, TAU); b.fill();
+      blob(pt.x, pt.y, br, col, al, true);
     }
-    // a couple of off-band nebulae for colour relief — the reference has a cold
-    // patch away from the plane, and the lane palette wants some cyan/violet
+    // off-band nebulae for colour relief — the reference has a cold patch away
+    // from the plane, and the lane palette wants some cyan/violet. Spread over
+    // the whole circuit, so the drift keeps trading them in and out of frame —
+    // the fourth exists because a 1.6-screen sky deserves one more landmark
+    // than a 1-screen sky carried.
     for (const cl2 of [
-      { x: ox + W * 0.12, y: oy + H * 0.16, r: Math.min(W, H) * 0.34, col: '128,58,58', n: 16 },
-      { x: ox + W * 0.80, y: oy + H * 0.84, r: Math.min(W, H) * 0.30, col: '48,120,138', n: 14 },
-      { x: ox + W * 0.68, y: oy + H * 0.10, r: Math.min(W, H) * 0.26, col: '96,62,140', n: 12 },
-      // a fourth, parked OUTSIDE the frame at roll 0 — the turn should bring
-      // something into view that was not on screen when the night began
-      { x: ox + W * 0.30, y: oy - Math.min(W, H) * 0.22, r: Math.min(W, H) * 0.30, col: '58,96,128', n: 12 }
+      { x: sw * 0.08, y: H * 0.16, r: Math.min(W, H) * 0.34, col: '128,58,58', n: 16 },
+      { x: sw * 0.50, y: H * 0.84, r: Math.min(W, H) * 0.30, col: '48,120,138', n: 14 },
+      { x: sw * 0.43, y: H * 0.10, r: Math.min(W, H) * 0.26, col: '96,62,140', n: 12 },
+      { x: sw * 0.82, y: H * 0.30, r: Math.min(W, H) * 0.30, col: '58,96,128', n: 12 }
     ]) {
       for (let i = 0; i < cl2.n; i++) {
         const ang = Math.random() * TAU, rad = cl2.r * (Math.random() + Math.random()) * 0.5;
         const bx = cl2.x + Math.cos(ang) * rad, by = cl2.y + Math.sin(ang) * rad * 0.78;
-        const br = cl2.r * rand(0.18, 0.46);
-        const al = 0.008 + Math.random() * 0.020;
-        const gr2 = b.createRadialGradient(bx, by, 0, bx, by, br);
-        gr2.addColorStop(0, `rgba(${cl2.col},${al.toFixed(4)})`);
-        gr2.addColorStop(1, `rgba(${cl2.col},0)`);
-        b.fillStyle = gr2;
-        b.beginPath(); b.arc(bx, by, br, 0, TAU); b.fill();
+        blob(bx, by, cl2.r * rand(0.18, 0.46), cl2.col, 0.008 + Math.random() * 0.020, false);
       }
     }
-    b.restore();
+    sb.restore();
     // THE DARK DUST LANE. The characteristic feature of an edge-on galaxy and the
     // thing that stops the band reading as an airbrushed smear: an opaque ribbon
     // of cold dust lying along the plane, eating the light behind it.
     for (let i = 0; i < Math.round(300 * AREA_K); i++) {
-      const t2 = (Math.random() - 0.5) * bandLen;
-      const wander = Math.sin(t2 * 0.0016) * bandW * 0.30 + Math.sin(t2 * 0.0041 + 1.7) * bandW * 0.14;
-      const perp = wander + gauss() * bandW * 0.30 + Math.sin(t2 * 0.0027 + 0.6) * bandW * 0.16;
+      const t2 = Math.random() * sw;
+      const wan = wander(t2);
+      const perp = wan + gauss() * bandW * 0.30 + Math.sin(TAU * 5 * t2 / sw + 0.6) * bandW * 0.16;
       const pt = onBand(t2, perp);
-      const br = Math.min(W, H) * rand(0.03, 0.115);
-      const gr2 = b.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, br);
-      gr2.addColorStop(0, `rgba(3,4,12,${(0.10 + Math.random() * 0.26).toFixed(3)})`);
-      gr2.addColorStop(1, 'rgba(3,4,12,0)');
-      b.fillStyle = gr2;
-      b.beginPath(); b.arc(pt.x, pt.y, br, 0, TAU); b.fill();
+      blob(pt.x, pt.y, Math.min(W, H) * rand(0.03, 0.115), '3,4,12', 0.10 + Math.random() * 0.26, false);
     }
     // BACKDROP STARS, concentrated toward the plane the way real ones are. Dense,
     // varied in colour and brightness, with bloom on the bright few.
@@ -338,16 +369,13 @@ function buildBackgroundSeeded() {
     for (let i = 0; i < nStar; i++) {
       let x3, y3;
       if (Math.random() < 0.62) {                 // in the plane
-        const t2 = (Math.random() - 0.5) * bandLen;
-        const wander = Math.sin(t2 * 0.0016) * bandW * 0.30 + Math.sin(t2 * 0.0041 + 1.7) * bandW * 0.14;
-        const pt = onBand(t2, wander + gauss() * bandW * 1.25);
-        x3 = pt.x; y3 = pt.y;
+        const t2 = Math.random() * sw;
+        const pt = onBand(t2, wander(t2) + gauss() * bandW * 1.25);
+        x3 = ((pt.x % sw) + sw) % sw; y3 = pt.y;
       } else {                                    // the rest of the sky
-        x3 = Math.random() * skyS; y3 = Math.random() * skyS;
+        x3 = Math.random() * sw; y3 = Math.random() * H;
       }
-      // the DISC is the whole sky: outside it a point can never enter the frame
-      // at any roll, so nothing is spent there
-      if (Math.hypot(x3 - scx, y3 - scy) > scx) continue;
+      if (y3 < -2 || y3 > H + 2) continue;        // the band's spine dips off-frame
       const big = Math.random() < 0.035;
       // × STAR_REST. The resting sky is turned DOWN so a flare has somewhere to
       // go: contrast is a ratio, and against a field already painted at 0.9 the
@@ -364,11 +392,17 @@ function buildBackgroundSeeded() {
       if (!lowFX && (big || Math.random() < 0.34)) {
         const cl = starClass();
         liveArr.push({
-          // CENTRE-RELATIVE, because a live star lives on the turning sky: the
-          // draw rotates these through skyRollA each frame and culls what lands
-          // off screen, so the disc's extra population costs a rotate and a
-          // bounds test, never an arc.
-          x: x3 - scx, y: y3 - scy, col: col3, rgb: col3.split(',').map(Number), al: al3, big,
+          // STRIP COORDINATES, because a live star lives on the drifting sky:
+          // the draw slides x by skyPan × the star's own rate, wraps it at the
+          // strip, and culls what lands off screen — the strip's extra
+          // population costs an add and a bounds test, never an arc.
+          //
+          // The rate IS the star's distance. Every bright star is near (rate
+          // 1.0); the faint ones split between near and far, so two dim stars
+          // side by side can shear past each other — which is the parallax
+          // read the whole orbit exists for.
+          x: x3, y: y3, rate: big || Math.random() < 0.45 ? SKY_L.bright : SKY_L.faint,
+          col: col3, rgb: col3.split(',').map(Number), al: al3, big,
           r: big ? rand(1.0, 1.8) : rand(0.3, 0.85),
           // bright stars swing less, in proportion — and this factor keeps their
           // amplitude under 1 whatever class they draw, so a big star always has
@@ -384,20 +418,23 @@ function buildBackgroundSeeded() {
         });
         continue;
       }
-      if (big) {                                  // the bright ones bloom
-        // On STAR_HALO, like every other bloom in the sky. This path only runs
-        // under lowFX — with the effects on, every big star goes live above — and
-        // it used to be the two-stop gradient the live draw abandoned, so the one
-        // build that can least afford a hard-edged coin was the only one still
-        // baking them.
-        const gg = tgt.createRadialGradient(x3, y3, 0, x3, y3, STARFX.bloomR);
-        const a0 = al3 * STARFX.bloomA;
-        for (const [p, w] of STAR_HALO) gg.addColorStop(p, `rgba(${col3},${(a0 * w).toFixed(4)})`);
-        tgt.fillStyle = gg;
-        tgt.beginPath(); tgt.arc(x3, y3, STARFX.bloomR, 0, TAU); tgt.fill();
+      const coreR = big ? rand(1.0, 1.8) : rand(0.3, 0.85);
+      for (const xs of wrapXs(x3, big ? STARFX.bloomR : 2)) {
+        if (big) {                                // the bright ones bloom
+          // On STAR_HALO, like every other bloom in the sky. This path only
+          // runs under lowFX — with the effects on, every big star goes live
+          // above — and it used to be the two-stop gradient the live draw
+          // abandoned, so the one build that can least afford a hard-edged coin
+          // was the only one still baking them.
+          const gg = tgt.createRadialGradient(xs, y3, 0, xs, y3, STARFX.bloomR);
+          const a0 = al3 * STARFX.bloomA;
+          for (const [p, w] of STAR_HALO) gg.addColorStop(p, `rgba(${col3},${(a0 * w).toFixed(4)})`);
+          tgt.fillStyle = gg;
+          tgt.beginPath(); tgt.arc(xs, y3, STARFX.bloomR, 0, TAU); tgt.fill();
+        }
+        tgt.fillStyle = `rgba(${col3},${al3.toFixed(3)})`;
+        tgt.beginPath(); tgt.arc(xs, y3, coreR, 0, TAU); tgt.fill();
       }
-      tgt.fillStyle = `rgba(${col3},${al3.toFixed(3)})`;
-      tgt.beginPath(); tgt.arc(x3, y3, big ? rand(1.0, 1.8) : rand(0.3, 0.85), 0, TAU); tgt.fill();
     }
     };
     emitStars(Math.round(1500 * AREA_K), b, liveStars);
@@ -680,13 +717,17 @@ function drawStarField() {
   ctx.restore();
 }
 function drawLiveStars(arr, vis, bdt) {
-  // the sky's turn, computed once — every star pays four multiplies and a bounds
-  // test to ride it, and only the ones on screen pay for their arcs
-  const rc = Math.cos(skyRollA), rs = Math.sin(skyRollA);
-  const hw = W / 2, hh = H / 2, M = STARFX.bloomR * 2.5; // margin: a bloom is wider than its star
+  // the sky's drift — every star pays an add, a wrap and a bounds test to ride
+  // it, and only the ones on screen pay for their arcs. A star approaching the
+  // wrap is pulled to the negative side so its bloom leads it in over the left
+  // edge; nothing may ever pop, and a bloom appearing half-formed is a pop.
+  const M = STARFX.bloomR * 2.5;      // margin: a bloom is wider than its star
   for (const s of arr) {
-    const sx = hw + s.x * rc - s.y * rs, sy = hh + s.x * rs + s.y * rc;
-    if (sx < -M || sx > W + M || sy < -M || sy > H + M) continue;
+    let sx = (s.x + skyPan * s.rate) % skyW;
+    if (sx < 0) sx += skyW;
+    if (sx > skyW - M) sx -= skyW;
+    if (sx > W + M) continue;
+    const sy = s.y;
     // THE GATE FIRST: most of the time this is 0 and the star is simply painted,
     // costing one multiply to find out. What survives is a field where a scatter
     // of stars is shimmering and the rest of the sky is holding still.

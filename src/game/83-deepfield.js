@@ -194,6 +194,16 @@ function drawDeepField(g, dt) {
   const SR = Math.min(W, H) * 0.5; // NOT S — that is the state enum, and shadowing it TDZs S.MENU above
   const dive = clamp(warpT / 0.9, 0, 1);
   const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5) * laneFlow;
+  // THE ORBIT DRIFT, nearest-layer edition. The pads hang the wrap span past
+  // both screen edges so the modulo jump always happens off-frame — a body
+  // exits one side, crosses its pad unseen, and re-enters the other. Rocks get
+  // a deep pad because a world plus its halo is wide; stars need a sliver.
+  const STAR_PAD = 48, ROCK_PAD = Math.min(W, H) * 0.30;
+  const deepPan = skyPan * SKY_L.deep;
+  const wrapPan = (x, pad) => {
+    const p = pad === undefined ? STAR_PAD : pad, span = W + 2 * p;
+    return ((x + p) % span + span) % span - p;
+  };
   ctx.save();
   // ONE SKIN WARMED PER FRAME, until the queue is empty. Building them all where
   // the hand is dealt would put the cost on the page load, ahead of the first
@@ -207,7 +217,9 @@ function drawDeepField(g, dt) {
   if (worldVis > 0.004) for (const rk of deepRocks) {
     rk.rf *= 1 + dt * rate * rk.sp;
     if (rk.rf > DEEP_R1) { Object.assign(rk, mkDeepRock()); rk.rf = DEEP_R0; }
-    const px = g.cx + Math.cos(rk.a + skyRollA) * rk.rf * SR, py = g.cy + Math.sin(rk.a + skyRollA) * rk.rf * SR;
+    // worlds drift slower than the loose stars — they are bigger and farther,
+    // and the rate split between them IS the depth read
+    const px = wrapPan(g.cx + Math.cos(rk.a) * rk.rf * SR + skyPan * 0.6, ROCK_PAD), py = g.cy + Math.sin(rk.a) * rk.rf * SR;
     const rad = Math.min(W, H) * rk.sz * (0.5 + rk.rf * 0.34); // swells as it comes abeam
     const rkEdge = clamp((DEEP_R1 - rk.rf) / DEEP_FADE, 0, 1) * clamp((rk.rf - DEEP_R0) / 0.30, 0, 1);
     if (rkEdge <= 0.01) continue; // faded both ends — never a pop, never a snap
@@ -242,7 +254,7 @@ function drawDeepField(g, dt) {
   for (const wp of deepWisps) {
     wp.rf *= 1 + dt * rate * wp.sp;
     if (wp.rf > DEEP_R1) { Object.assign(wp, mkDeepWisp()); wp.rf = DEEP_R0; }
-    const ca = Math.cos(wp.a + skyRollA), sa = Math.sin(wp.a + skyRollA);
+    const ca = Math.cos(wp.a), sa = Math.sin(wp.a); // wisps are transit smears — the lane's own motion owns them
     const r0 = wp.rf * SR, r1 = (wp.rf + wp.len * (0.35 + wp.rf)) * SR;
     const x0 = g.cx + ca * r0, y0 = g.cy + sa * r0;
     const x1 = g.cx + ca * r1, y1 = g.cy + sa * r1;
@@ -265,10 +277,12 @@ function drawDeepField(g, dt) {
   for (const st of deepStars) {
     st.rf *= 1 + dt * rate * st.sp;
     if (st.rf > DEEP_R1) { Object.assign(st, mkDeepStar()); st.rf = DEEP_R0; }
-    // + skyRollA: this layer is OUTSIDE the hull, so it rides the sky's turn —
-    // the parallax drift and the roll compose, which is exactly what a window
-    // full of space does from a ship that is both moving and slowly rotating
-    const px = g.cx + Math.cos(st.a + skyRollA) * st.rf * SR, py = g.cy + Math.sin(st.a + skyRollA) * st.rf * SR;
+    // deepPan: this layer is the NEAREST loose sky, so it drifts fastest — the
+    // radial travel-parallax and the orbit drift compose, which is exactly what
+    // a window full of space does from a ship that is both moving and turning.
+    // The wrap span hangs past both screen edges, so the jump always lands
+    // off-frame — a star exits right, crosses the pad unseen, re-enters left.
+    const px = wrapPan(g.cx + Math.cos(st.a) * st.rf * SR + deepPan), py = g.cy + Math.sin(st.a) * st.rf * SR;
     if (px < -4 || px > W + 4 || py < -4 || py > H + 4) continue;
     // fades up out of the deep AND back down before the recycle edge — both ends
     const near = clamp((st.rf - DEEP_R0) / 0.5, 0, 1) * clamp((DEEP_R1 - st.rf) / DEEP_FADE, 0, 1);

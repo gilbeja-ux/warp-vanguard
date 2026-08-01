@@ -107,7 +107,7 @@ function drawFarGlow(far, vr, g) {
   }
   const la = V.emis ? LIGHT_A : destLightA(); // a star has no terminator to creep
   // A swarm has no surface, so nothing that lives ON a world belongs on it — no
-  // cities, no aurora, no creeping terminator across a single face, and no moon
+  // cities, no creeping terminator across a single face, and no moon
   // in orbit around a cloud of rubble. Each rock in buildFieldSprite carries its
   // own terminator already.
   const swarm = !!V.field;
@@ -178,9 +178,9 @@ function drawFarMotes(far, R, grow, breath, moteK) {
 // moon in the same orbit and the same cities in the same valleys next time.
 //
 // The deck is filtered by what the destination physically IS — a gate has no
-// night side to light and no poles to hang aurora on, so it can only be dealt
-// the things that live in ORBIT around it.
-const DEST_DECK = ['lights', 'aurora', 'moon', 'traffic', 'station'];
+// night side to light, so it can only be dealt the things that live in ORBIT
+// around it.
+const DEST_DECK = ['lights', 'moon', 'traffic', 'station'];
 // A MOON IS A WORLD TOO, and for a long time it was the last hand-painted body in
 // the game: a dark disc with a highlight airbrushed onto it, hanging in a frame
 // where the destination beside it is shaded per pixel. At arrival size that is the
@@ -214,9 +214,9 @@ function destinationLife() {
   h ^= h >>> 16; h = Math.imul(h, 0x7feb352d); h ^= h >>> 15;
   const rnd = mulberry32(h >>> 0);
   const rr = (a, b) => a + rnd() * (b - a);
-  // only a lit rock has cities and poles; a star's face is all day
+  // only a lit rock has a night side to light; a star's face is all day
   const surface = kind === 'planet';
-  const deck = DEST_DECK.filter(f => surface || (f !== 'lights' && f !== 'aurora'));
+  const deck = DEST_DECK.filter(f => surface || f !== 'lights');
   for (let i = deck.length - 1; i > 0; i--) { // seeded shuffle, then cut the top n
     const j = (rnd() * (i + 1)) | 0;
     const tmp = deck[i]; deck[i] = deck[j]; deck[j] = tmp;
@@ -262,7 +262,6 @@ function destinationLife() {
   destLifeKey = key;
   destLifeVal = {
     kind, surface, has, lights, ships,
-    aurora: { col: rnd() < 0.62 ? L.auroraC : L.auroraC2, k: rr(0.7, 1.25), ph: rnd() * TAU },
     moon: has.moon ? {
       orb: rr(L.moonO[0], L.moonO[1]), sq: rr(0.16, 0.46), tilt: rr(-0.8, 0.8),
       // ONE draw off the stream, exactly as the warm/cold tint it replaced took —
@@ -342,40 +341,6 @@ function drawCityLights(far, R, la, F, vis) {
   }
   ctx.restore();
 }
-// AURORA. Hung on the projected pole of the SAME tilted axis the sprite bands
-// follow, so it sits where the world's geometry says the pole is. Foreshortened
-// along the radius out to the limb, clipped to the disc, and breathing on
-// incommensurate periods so it never reads as a pulsing light.
-function drawAurora(far, R, F, vis) {
-  const L = DEST_LIFE;
-  let [ax, ay, az] = PLANET_SHADE.tilt;
-  const an = Math.hypot(ax, ay, az); ax /= an; ay /= an; az /= an;
-  ctx.save();
-  ctx.beginPath(); ctx.arc(far.x, far.y, R * 0.995, 0, TAU); ctx.clip();
-  ctx.globalCompositeOperation = 'lighter';
-  for (const s of [1, -1]) {
-    const facing = az * s;
-    if (facing < -0.05) continue;                    // that pole is round the back
-    const px = far.x + ax * R * s, py = far.y + ay * R * s;
-    const swell = 0.62 + 0.2 * Math.sin(time * 0.37 + F.aurora.ph)
-      + 0.12 * Math.sin(time * 0.83 + F.aurora.ph * 2)
-      + 0.06 * Math.sin(time * 1.51);
-    ctx.save();
-    ctx.translate(px, py);
-    ctx.rotate(Math.atan2(py - far.y, px - far.x));  // x now points out to the limb
-    ctx.scale(0.34 + 0.55 * Math.abs(facing), 1);    // foreshortened toward the edge
-    for (let b = 0; b < L.auroraW; b++) {
-      const rad = R * (0.085 + b * 0.05) * (1 + 0.07 * Math.sin(time * (0.6 + b * 0.29) + b * 2));
-      const al = L.auroraO * F.aurora.k * swell * vis * (1 - b * 0.24) * (s > 0 ? 1 : 0.45);
-      if (al < 0.012) continue;
-      ctx.strokeStyle = `rgba(${F.aurora.col},${al.toFixed(3)})`;
-      ctx.lineWidth = R * 0.03 * (1 + b * 0.3);
-      ctx.beginPath(); ctx.arc(0, 0, rad, 0, TAU); ctx.stroke();
-    }
-    ctx.restore();
-  }
-  ctx.restore();
-}
 // A MOON. Same key light as its primary, so it hangs in the same sun — and it
 // is the one feature that gives the frame a clock: you can watch it move.
 function drawMoon(far, R, la, F, vis) {
@@ -440,7 +405,6 @@ function drawDestLife(far, R, g, front, la) {
     return;
   }
   if (F.has.lights && F.lights.length) drawCityLights(far, R, la, F, vis);
-  if (F.has.aurora) drawAurora(far, R, F, vis);
   if (F.ships.length) drawShips(far, R, F, vis, false);
   if (F.moon && orbitAt(F.moon, far, R).front) drawMoon(far, R, la, F, vis);
   if (F.stn && orbitAt(F.stn, far, R).front) drawOrbitStation(far, R, F, vis);
