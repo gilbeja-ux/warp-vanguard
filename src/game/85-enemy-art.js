@@ -1976,73 +1976,86 @@ function drawPulseOrbs(g) {
       : `rgba(${col},${(0.25 + 0.45 * vis + 0.3 * fx2.bank).toFixed(2)})`;
     ctx.lineWidth = ready ? 2.5 : 1.5;
     ctx.beginPath(); ctx.arc(d.x, d.y, vr, 0, TAU); ctx.stroke();
-    // THE FILL — energy pooling from the bottom, in this emitter's colour
-    if (vis > 0.004) {
-      const surf = d.y + vr - 2 * vr * Math.min(1, vis + fx2.bank * 0.03); // bank overshoot: the pour splashes
+    // THE FILL — a mass of the emitter's energy GROWING from the centre until
+    // it presses the button's glass. Take three, Gil's spec: the bottom-up
+    // liquid and the strand port both read wrong here; what a charge coil
+    // holds is a body of energy, and a body SIMMERS — soft writhing edge,
+    // heat wandering inside it, and now and then a streak snapping off.
+    if (vis > 0.02) {
+      // pow eases the early charge into view — the first zap should be seen
+      const br = (vr - 1.5) * Math.pow(vis, 0.75) * (1 + fx2.bank * 0.10);
       ctx.save();
       ctx.beginPath(); ctx.arc(d.x, d.y, vr - 0.75, 0, TAU); ctx.clip();
-      const fg2 = ctx.createLinearGradient(0, d.y + vr, 0, surf);
-      fg2.addColorStop(0, `rgba(${col},0.38)`);
-      fg2.addColorStop(1, `rgba(${col},${(0.72 + fx2.bank * 0.25).toFixed(2)})`);
-      ctx.fillStyle = fg2;
-      ctx.fillRect(d.x - vr, surf, vr * 2, d.y + vr - surf + 1);
-      // full: the glow bed the filaments ride on — same layering as the arc,
-      // where the soft wash sits UNDER the electricity, never instead of it
-      if (ready && fx2.fire <= 0.01) {
-        const hot = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, vr);
-        hot.addColorStop(0, `rgba(255,255,255,${(0.50 + 0.12 * Math.sin(time * 6 + i)).toFixed(2)})`);
-        hot.addColorStop(0.55, `rgba(${col},0.32)`);
-        hot.addColorStop(1, `rgba(${col},0)`);
-        ctx.fillStyle = hot;
-        ctx.fillRect(d.x - vr, d.y - vr, vr * 2, vr * 2);
+      // the body: an amoeba, not a disc. Three slow harmonics writhe the edge
+      // on incommensurate rates; pressed against the glass (vis high) the
+      // writhe flattens, because the container is winning.
+      const wobA = 0.075 * (1 - 0.55 * vis) + 0.02;
+      ctx.beginPath();
+      for (let k = 0; k <= 30; k++) {
+        const a = k / 30 * TAU;
+        const wr = br * (1
+          + wobA * Math.sin(3 * a + time * 1.3 + i * 2.1)
+          + wobA * 0.7 * Math.sin(5 * a - time * 1.7 + i)
+          + wobA * 0.45 * Math.sin(8 * a + time * 2.3));
+        k ? ctx.lineTo(d.x + Math.cos(a) * wr, d.y + Math.sin(a) * wr)
+          : ctx.moveTo(d.x + Math.cos(a) * wr, d.y + Math.sin(a) * wr);
       }
-      // THE ARC ITSELF, banked: the same live filaments that crawl bar-to-bar
-      // between the emitter's machined bus-bars crawl wall-to-wall in the
-      // pool — Gil's unification: the vessel holds the very energy the arc is
-      // made of, so charging the pulse LOOKS like bottling the weapon you
-      // fight with. Same grammar as drawArcNode's filaments: sin(qπ) pinch so
-      // every strand meets the walls cleanly, a per-filament frequency so no
-      // two agree, one white-hot lead, jitter that spikes when a bank lands.
-      {
-        const top2 = ready ? d.y - vr * 0.86 : surf + 2;
-        const depth2 = d.y + vr - top2;
-        if (depth2 > 5) {
-          const NF2 = lowFX ? 2 : (ready ? 5 : 3);
-          const Lv = (0.45 + 0.55 * vis) * (1 + fx2.bank * 0.8) * (ready ? 1.2 : 1);
-          ctx.lineCap = 'round';
-          for (let f = 0; f < NF2; f++) {
-            const hot2 = f === 0 && (ready || fx2.bank > 0.3);
-            // each strand owns a lane in the pool, drifting slowly within it
-            const ly = top2 + depth2 * ((f + 0.5) / NF2)
-              + Math.sin(time * (1.3 + f * 0.7) + f * 2.1 + i * 1.7) * depth2 * 0.07;
-            const dy2 = ly - d.y;
-            const hw2 = Math.sqrt(Math.max(0, vr * vr - dy2 * dy2)) - 1.5;
-            if (hw2 < 3) continue;
-            ctx.strokeStyle = hot2
-              ? `rgba(255,255,255,${clamp(0.55 * Lv, 0, 1).toFixed(2)})`
-              : `rgba(${col},${clamp((0.30 + 0.22 * Math.random()) * Lv, 0, 0.9).toFixed(2)})`;
-            ctx.lineWidth = hot2 ? 1.4 : 1.1;
-            ctx.beginPath();
-            const SEG2 = 10;
-            for (let k = 0; k <= SEG2; k++) {
-              const q = k / SEG2;
-              const pinch = Math.sin(q * Math.PI);  // strands meet the walls cleanly
-              const frq = 6 + f * 2.6;              // each strand owns its waveform
-              const wob = Math.sin(q * 9 * frq / 7 + time * (5 + f * 1.7) + f * 2.3 + i * 2.1)
-                * vr * 0.13 * pinch
-                + (Math.random() - 0.5) * vr * 0.05 * pinch * (1 + fx2.bank * 2);
-              const px2 = d.x - hw2 + hw2 * 2 * q, py2 = ly + wob;
-              k ? ctx.lineTo(px2, py2) : ctx.moveTo(px2, py2);
-            }
-            ctx.stroke();
-          }
+      ctx.closePath();
+      const body = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, Math.max(1, br));
+      const heart = ready ? 0.62 + 0.12 * Math.sin(time * 6 + i) : 0.18 + 0.38 * vis + 0.3 * fx2.bank;
+      body.addColorStop(0, `rgba(255,255,255,${clamp(heart + fx2.fire * 0.4, 0, 1).toFixed(2)})`);
+      body.addColorStop(0.45, `rgba(${col},${(0.55 + 0.2 * vis).toFixed(2)})`);
+      body.addColorStop(0.85, `rgba(${col},${(0.30 + 0.15 * vis).toFixed(2)})`);
+      body.addColorStop(1, `rgba(${col},0.04)`);
+      ctx.fillStyle = body;
+      ctx.fill();
+      // SIMMER: two hot spots wandering inside the mass on slow lissajous
+      // paths, brightening and dimming out of step — heat moving through a
+      // body, not lights blinking on one
+      if (br > 5) {
+        ctx.globalCompositeOperation = 'lighter';
+        for (let k = 0; k < 2; k++) {
+          const sx2 = d.x + Math.sin(time * (0.7 + k * 0.31) + k * 2.6 + i) * br * 0.45;
+          const sy2 = d.y + Math.sin(time * (0.53 + k * 0.4) + k * 1.3 + i * 2) * br * 0.45;
+          const sal = (0.10 + 0.08 * Math.sin(time * (1.9 + k) + k * 3)) * (0.5 + 0.5 * vis);
+          if (sal < 0.02) continue;
+          const sg2 = ctx.createRadialGradient(sx2, sy2, 0, sx2, sy2, br * 0.5);
+          sg2.addColorStop(0, `rgba(255,255,255,${sal.toFixed(3)})`);
+          sg2.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = sg2;
+          ctx.beginPath(); ctx.arc(sx2, sy2, br * 0.5, 0, TAU); ctx.fill();
         }
-      }
-      // the meniscus: the lit surface line — it flashes white as a bank lands
-      // and stays the pool's ceiling while the arc boils under it
-      if (!ready || fx2.fire > 0.01) {
-        ctx.fillStyle = `rgba(255,255,255,${(0.30 + 0.55 * fx2.bank + 0.5 * fx2.fire).toFixed(2)})`;
-        ctx.fillRect(d.x - vr, surf - 1.25, vr * 2, 2.5);
+        // STREAKS: every so often one snaps off the mass toward the glass —
+        // stateless slots on incommensurate periods (the farMotes pattern), a
+        // fresh direction each cycle off the cycle NUMBER, so a pause or a
+        // replay never desyncs them. More of them, and quicker, as it fills.
+        const NS = ready ? 4 : 2;
+        for (let k = 0; k < NS; k++) {
+          const per = 0.9 + arcHash(k * 17 + i * 31) * 1.4;
+          const tt = time / per + arcHash(k * 7 + i * 13);
+          const u = tt % 1;
+          const win = 0.16;                        // the snap is brief — most of a cycle is quiet
+          if (u > win) continue;
+          const p = u / win;
+          const cyc = Math.floor(tt);
+          const sa3 = arcHash(cyc * 13 + k * 29 + i * 7) * TAU;
+          const r0 = br * 0.55;
+          const head = r0 + (vr - r0 - 1) * p;
+          const tail = Math.max(r0, head - br * (0.45 - 0.25 * p));
+          const salpha = Math.sin(p * Math.PI) * (0.5 + 0.4 * vis);
+          const lg2 = ctx.createLinearGradient(
+            d.x + Math.cos(sa3) * tail, d.y + Math.sin(sa3) * tail,
+            d.x + Math.cos(sa3) * head, d.y + Math.sin(sa3) * head);
+          lg2.addColorStop(0, `rgba(${col},0)`);
+          lg2.addColorStop(1, `rgba(255,255,255,${salpha.toFixed(2)})`);
+          ctx.strokeStyle = lg2;
+          ctx.lineWidth = 1.3;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(d.x + Math.cos(sa3) * tail, d.y + Math.sin(sa3) * tail);
+          ctx.lineTo(d.x + Math.cos(sa3) * head, d.y + Math.sin(sa3) * head);
+          ctx.stroke();
+        }
       }
       ctx.restore();
     }
