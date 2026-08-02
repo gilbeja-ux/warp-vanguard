@@ -1066,7 +1066,9 @@ drawOk('mission disc (art plate fallback + plot line)', () => {});
 G.update(0.5);
 canvasHandlers.pointerdown({ pointerId: 9, clientX: 5, clientY: 5, pointerType: 'touch' });
 G.update(0.15); G.update(0.15); G.update(0.15); // card animates out
-check('dismissing the log enters the relay', G.getState() === G.S.PLAY && G.getLV().name === 'TRANSIT EXCHANGE');
+// the relay we SELECTED, not a name typed in here — level names are authoring
+// labels and get rewritten; what this test is about is landing on relay 2
+check('dismissing the log enters the relay', G.getState() === G.S.PLAY && G.getLV() === G.getLevels()[2]);
 G.setIntro(999);
 {
   let cGuard = 300;
@@ -1476,7 +1478,7 @@ G.keys['ArrowUp'] = false;
   const mini = () => ({
     id: 'test-camp', format: 1, title: 'TEST CAMPAIGN',
     speakers: [{ id: 'OMNI', color: '1,2,3' }],
-    levels: [{ name: 'ALPHA', tint: '10,20,30', duration: 30, spawnMin: 1, spawnMax: 2, speed: 0.4,
+    levels: [{ tint: '10,20,30', duration: 30, spawnMin: 1, spawnMax: 2, speed: 0.4,
       comms: [{ t: 5, s: 'OMNI', m: 'hello' }], story: { title: 'LOG X', lines: ['a line'] }, caseNote: 'note' }]
   });
   check('validator passes a well-formed package', G.validateCampaign(mini()).length === 0);
@@ -1493,7 +1495,7 @@ G.keys['ArrowUp'] = false;
   check('installCampaign refuses an invalid package', G.installCampaign(p) === false && G.getCamp().id === 'investigation');
   const star1 = G.getProg().stars[1];
   check('a valid package installs and switches the views', G.installCampaign(mini()) === true &&
-    G.getCamp().id === 'test-camp' && G.getLevels().length === 1 && G.getLevels()[0].name === 'ALPHA');
+    G.getCamp().id === 'test-camp' && G.getLevels().length === 1 && G.getLevels()[0].tint === '10,20,30');
   check('fresh campaign gets fresh progress', G.getProg().unlocked === 1 && G.getProg().stars.length === 1);
   check('story cards re-registered for the new campaign',
     G.getInfoCards().story0.title === 'LOG X' && !G.getInfoCards().story1);
@@ -1675,6 +1677,32 @@ G.keys['ArrowUp'] = false;
     has({ ...lintBase, comms: [{ t: 10, s: 'OMNI', m: 'x' }], beats: [{ t: 11, kind: 'enemy', type: 'normal' }] }, 'comm-overlap'));
   check('lint: a clean level yields no findings', G.lintLevel(lintBase, 0).length === 0);
   check('lint: the shipped campaign is warning-free', G.lintCampaign(G.CAMPAIGNS[0]).every(li => li.length === 0));
+}
+
+// ================= the contracts say what the game shows =================
+// Two failures this guards, both of which sat in the shipped packages unseen
+// because neither one has a screen that would have shown it wrong.
+{
+  // 1. NO SECOND NAME. A relay is named by the route it flies, generated from
+  //    the chart. A `name` on a level is a label no screen reads, so it drifts
+  //    silently — the bundled contracts carried a corrupt-badge investigation's
+  //    level names inside a survey campaign for months.
+  const named = G.CAMPAIGNS.flatMap((c, ci) =>
+    c.levels.map((l, li) => (l.name === undefined ? null : c.id + ' L' + (li + 1))).filter(Boolean));
+  check('no bundled level carries a name (the route IS the name)'
+    + (named.length ? ' — ' + named.join(', ') : ''), named.length === 0);
+
+  // 2. EVERY RELAY BRIEFS. The last level's story line had been written after
+  //    the levels array closed, so it landed on the PACKAGE — which cost every
+  //    contract its finale briefing AND overwrote the campaign's own prose,
+  //    because the later `story:` key wins in an object literal.
+  const noBrief = G.CAMPAIGNS.flatMap(c =>
+    c.levels.map((l, li) => (l.story && typeof l.story.line === 'string' ? null : c.id + ' L' + (li + 1))).filter(Boolean));
+  check('every bundled relay has its own briefing line'
+    + (noBrief.length ? ' — missing on ' + noBrief.join(', ') : ''), noBrief.length === 0);
+  const badProse = G.CAMPAIGNS.filter(c => typeof c.story !== 'string' || !c.story.length).map(c => c.id);
+  check('every contract keeps its briefing prose'
+    + (badProse.length ? ' — clobbered on ' + badProse.join(', ') : ''), badProse.length === 0);
 
   // purity: linting mid-run must not advance the live seeded stream
   G.installCampaign(G.CAMPAIGNS[0]);
@@ -1692,11 +1720,12 @@ G.keys['ArrowUp'] = false;
   check('editor.js evals headless and exposes the ED namespace', !!ED && typeof ED.addBeat === 'function');
   // clone isolation: the editor always works on a deep copy
   const src = G.CAMPAIGNS[0];
+  const dur0 = src.levels[0].duration;   // a field the engine actually reads
   const wc = ED.clone(src);
-  wc.levels[0].name = 'MUTATED';
+  wc.levels[0].duration = dur0 + 17;
   wc.levels[0].story.line = 'changed';   // comms are gone; the brief line is the deep field now
   check('clone: edits never leak back into the source package',
-    src.levels[0].name === 'MERIDIAN HAULAGE' && src.levels[0].story.line !== 'changed');
+    src.levels[0].duration === dur0 && wc.levels[0].duration !== dur0 && src.levels[0].story.line !== 'changed');
   // factories ship valid data
   const np = ED.newCampaign();
   check('new-campaign template passes validateCampaign', G.validateCampaign(np).length === 0);
@@ -1742,9 +1771,10 @@ G.keys['ArrowUp'] = false;
   check('import returns the parsed package when it validates', !okImp.errors && okImp.pkg.id === np.id);
   // level ops
   const mv = ED.clone(G.CAMPAIGNS[0]);
-  const n0 = mv.levels[0].name;
+  const t0 = mv.levels[0].tint;          // levels have no name — identify by live data
+  check('the fixture levels are distinguishable', mv.levels[2].tint !== t0);
   ED.moveLevel(mv, 0, 2);
-  check('moveLevel reorders and stays valid', mv.levels[2].name === n0 && G.validateCampaign(mv).length === 0);
+  check('moveLevel reorders and stays valid', mv.levels[2].tint === t0 && G.validateCampaign(mv).length === 0);
   check('moveLevel refuses out-of-range targets', ED.moveLevel(mv, 0, 99) === 0);
   const solo = ED.newCampaign();
   check('removeLevel never empties a campaign', ED.removeLevel(solo, 0) === false && solo.levels.length === 1);

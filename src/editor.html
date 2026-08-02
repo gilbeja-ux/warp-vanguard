@@ -195,7 +195,11 @@
   <div class="sec" id="secLevel">
     <h2>LEVEL</h2>
     <div class="body">
-      <div class="row"><label>name</label><input id="lName" style="flex:1" maxlength="28"></div>
+      <!-- A relay is named by the ROUTE it flies, and that name is generated
+           from the chart, not authored. Read-only on purpose: an editable box
+           here would be a second name that no screen in the game shows. -->
+      <div class="row"><label>route</label><input id="lRoute" style="flex:1" readonly
+           title="Generated from the systems the chart places for this contract. This is the name the player reads."></div>
       <div class="row"><label>hint</label><input id="lHint" style="flex:1"></div>
       <div class="row"><label>tint</label><input id="lTint" type="color"><span id="lTintTxt" class="hintNote"></span>
         <label style="min-width:0">track</label>

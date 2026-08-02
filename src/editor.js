@@ -37,9 +37,12 @@ const ED = {
   },
 
   // ---------- factories ----------
-  newLevel(name) {
+  // No `name`. A relay is named by the route it flies, and that is generated
+  // from the chart — see edRouteName(). A field here would be a second label
+  // that nothing displays, which is exactly what this format just shed.
+  newLevel() {
     return {
-      name: name || 'NEW RELAY', tint: '80,160,255', duration: 45,
+      tint: '80,160,255', duration: 45,
       spawnMin: 1.2, spawnMax: 2.0, speed: 0.4,
       doubles: 0, heavies: 0, lines: 0, colors: 0, frags: 0, track: 0,
       story: { title: 'LOG — NEW RELAY', lines: ['edit this briefing'] },
@@ -52,7 +55,7 @@ const ED = {
       story: 'describe the case here.',
       map: { theme: 'chart' },
       speakers: [{ id: 'OMNI', name: 'Meridian Haulage', color: '111,227,255', portrait: { drawn: 'OMNI' } }],
-      levels: [ED.newLevel('FIRST RELAY')]
+      levels: [ED.newLevel()]
     };
   },
   makeBeat(tool, t, angle) {
@@ -159,7 +162,7 @@ const ED = {
 
   // ---------- level ops ----------
   addLevel(pkg, i) {
-    const l = ED.newLevel('RELAY ' + (pkg.levels.length + 1));
+    const l = ED.newLevel();
     pkg.levels.splice(i === undefined ? pkg.levels.length : i, 0, l);
     return l;
   },
@@ -720,8 +723,6 @@ function edBuildStatic() {
     if (v === undefined) delete edLv()[key]; else edLv()[key] = v;
     edApply();
   });
-  lBind('lName', 'name');
-  edq('lName').addEventListener('change', () => edRenderCampaign()); // the levels list shows names
   lBind('lHint', 'hint', v => v || undefined);
   lBind('lTint', 'tint', v => { const t = ED.hexToTint(v); edq('lTintTxt').textContent = t; return t; });
   lBind('lTrack', 'track', v => +v, 'change');
@@ -1110,7 +1111,7 @@ function edRenderCampaign(srcIdx) {
   p.levels.forEach((l, i) => {
     const row = edEl('div', 'row click' + (i === EDUI.li ? ' sel' : ''), ll);
     const nm = edEl('span', '', row);
-    nm.textContent = (i + 1) + '. ' + l.name + (l.boss ? ' ◆' : '');
+    nm.textContent = (i + 1) + '. ' + edRouteName(i) + (l.boss ? ' ◆' : '');
     nm.style.flex = '1';
     row.addEventListener('click', () => edSelectLevel(i));
     const up = edEl('button', 'xbtn', row); up.textContent = '▲';
@@ -1136,9 +1137,21 @@ function edRenderCampaign(srcIdx) {
     });
   });
 }
+// What the PLAYER reads for this relay. The game generates it from the chart —
+// levelRouteName(campaignIndex, level) — so the Designer shows the same string
+// rather than an authored label that would only ever disagree with it. Falls
+// back to the bare number if the chart has not been built yet (a fresh package
+// the galaxy has never placed).
+function edRouteName(li) {
+  try {
+    const n = levelRouteName(EDUI.srcIdx || 0, li);
+    if (n) return n;
+  } catch (e) { /* no chart yet */ }
+  return 'RELAY ' + String(li + 1).padStart(2, '0');
+}
 function edRenderLevel() {
   const lv = edLv();
-  edq('lName').value = lv.name || '';
+  edq('lRoute').value = edRouteName(EDUI.li);
   edq('lHint').value = lv.hint || '';
   edq('lTint').value = ED.tintToHex(lv.tint);
   edq('lTintTxt').textContent = lv.tint;
@@ -1369,7 +1382,7 @@ function edRenderLint() {
   all.forEach((li2, i) => {
     if (i === EDUI.li || !li2.length) return;
     const row = edEl('div', 'lintRow', el);
-    row.innerHTML = 'L' + (i + 1) + ' ' + EDUI.pkg.levels[i].name + ': <b>' + li2.length + '</b> finding' + (li2.length > 1 ? 's' : '');
+    row.innerHTML = 'L' + (i + 1) + ' ' + edRouteName(i) + ': <b>' + li2.length + '</b> finding' + (li2.length > 1 ? 's' : '');
     row.addEventListener('click', () => edSelectLevel(i));
   });
 }

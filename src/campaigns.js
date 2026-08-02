@@ -8,6 +8,24 @@
 //
 // No `comms`. In-run voice is reactive barks (see docs/IN-RUN-VOICE.md), not
 // scripted chatter on a clock.
+//
+// A LEVEL'S `name` IS NOT WHAT THE PLAYER READS. The menu, the HUD and the
+// leaderboard all show levelRouteName() — "FROM » TO", built from the systems
+// the galaxy generator places for that contract's relays. A relay is a leg, and
+// a leg is named by its two ends. `name` is an AUTHORING label: the loader
+// length-checks it and the Lane Designer edits it, and nothing else reads it.
+//
+// So these names are set to the destination each leg delivers to — the "TO" end
+// of the route the game shows — because a label that disagrees with the game is
+// how this file ended up carrying a corrupt-badge investigation ('EVIDENCE
+// VAULT', 'BADGE ZERO') inside a contract about a deep range survey, invisibly,
+// for as long as it took someone to open the Designer.
+//
+// They are a SNAPSHOT, not a binding: buildCity() derives the systems from a
+// fixed seed and the level counts, so changing how many relays a contract has
+// moves every destination after it and these labels go stale again. They cost
+// nothing when they do — no player sees them — but re-snapshot if it matters.
+//
 // One self-contained, JSON-shaped object per campaign (no functions): the
 // exact format the Lane Designer exports and future community packages
 // will use. Loaded before the game script; every package still passes
@@ -24,32 +42,32 @@ const CAMPAIGN_PACKAGES = [{
     { id: 'WARD', name: 'the interdiction', color: '212,101,255', portrait: { drawn: 'WARD' } }
   ],
   levels: [
-    { name: 'MERIDIAN HAULAGE', tint: '80,160,255', duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0,
+    { tint: '80,160,255', duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0,
       story: { line: 'Bonded freight, eight legs, one hold.' } },
-    { name: 'OLD MOORINGS', tint: '255,170,90', duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
+    { tint: '255,170,90', duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
       hint: 'NEW THREAT: heavy armor — dock both emitters and HOLD',
       story: { line: 'Second leg. The consortium is watching the clock.' } },
-    { name: 'TRANSIT EXCHANGE', tint: '110,230,200', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
+    { tint: '110,230,200', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
       hint: 'NEW THREAT: burst deployments — threats arrive in volleys',
       story: { line: 'Past the inner picket. Cover starts thinning.' } },
-    { name: 'HARBOR CROSSING', tint: '70,205,235', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
+    { tint: '70,205,235', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
       hint: 'NEW THREAT: barrier lines — one emitter on each end',
       story: { line: 'Cordon 02. Not all the traffic here is traffic.' } },
-    { name: 'SUBLANE DRIFT', tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35, speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, walls: 0.10, track: 1,
+    { tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35, speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, walls: 0.10, track: 1,
       hint: 'NEW THREAT: rim walls — the rail closes, route around',
       story: { line: 'The hold is worth more than the ship carrying it.' } },
-    { name: 'TRADE SPINE', tint: '255,205,80', duration: 65, spawnMin: 0.68, spawnMax: 1.25, speed: 0.48, doubles: 0.42, heavies: 0.18, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 2,
+    { tint: '255,205,80', duration: 65, spawnMin: 0.68, spawnMax: 1.25, speed: 0.48, doubles: 0.42, heavies: 0.18, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 2,
       hint: 'NEW THREAT: phase-locked threats — match the emitter',
       story: { line: 'A tier-3 market ahead, and everyone who wants the cargo.' } },
-    { name: 'THE DARK EDGE', tint: '255,70,100', duration: 70, spawnMin: 0.58, spawnMax: 1.10, speed: 0.54, doubles: 0.48, heavies: 0.22, lines: 0.22, colors: 0.36, frags: 0.20, walls: 0.15, track: 0, bursts: true,
+    { tint: '255,70,100', duration: 70, spawnMin: 0.58, spawnMax: 1.10, speed: 0.54, doubles: 0.48, heavies: 0.22, lines: 0.22, colors: 0.36, frags: 0.20, walls: 0.15, track: 0, bursts: true,
       hint: 'ALL THREATS ACTIVE — maximum traffic',
       story: { line: 'Last stretch before the exchange.' } },
-    { name: 'COMMAND GATEWAY', tint: '212,101,255', duration: 45, spawnMin: 0.80, spawnMax: 1.40, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,
-      hint: 'THE WARDEN CORE AWAITS — six bolts close the case' }
+    { tint: '212,101,255', duration: 45, spawnMin: 0.80, spawnMax: 1.40, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,
+      hint: 'THE WARDEN CORE AWAITS — six bolts close the case',
+      story: { line: 'The buyer is waiting. Nothing gets through you.' } }
   ],
   verdict: { title: 'CONTRACT 01 — DELIVERED', lines: [
-    'Eight legs, one hold, nothing lost.', 'The consortium paid on arrival and', 'asked no questions about the wreckage', 'we left in the lane behind us.'] },
-      story: { line: 'The buyer is waiting. Nothing gets through you.' } },
+    'Eight legs, one hold, nothing lost.', 'The consortium paid on arrival and', 'asked no questions about the wreckage', 'we left in the lane behind us.'] } },
 {
   id: 'going-deeper', format: 1,
   title: 'THE SURVEY', tagline: 'DEEP RANGE EXPEDITION · TIER 1 → 4', difficulty: 2,
@@ -62,40 +80,40 @@ const CAMPAIGN_PACKAGES = [{
     { id: 'WARD', name: 'the interdiction', color: '212,101,255', portrait: { drawn: 'WARD' } }
   ],
   levels: [
-    { name: 'EVIDENCE VAULT', tint: '96,180,255', duration: 50, spawnMin: 0.75, spawnMax: 1.30, speed: 0.46, doubles: 0.45, heavies: 0.08, lines: 0.00, colors: 0.00, frags: 0.08, track: 1,
+    { tint: '96,180,255', duration: 50, spawnMin: 0.75, spawnMax: 1.30, speed: 0.46, doubles: 0.45, heavies: 0.08, lines: 0.00, colors: 0.00, frags: 0.08, track: 1,
       hint: 'volume over trickery — ride the lane, keep the combo',
       bands: [{ t0: 28, t1: 44, intensity: 1.5 }],
       story: { line: 'Instruments, not guns. They fly, we clear.' } },
-    { name: 'PATROL LOOP', tint: '255,160,80', duration: 55, spawnMin: 0.68, spawnMax: 1.20, speed: 0.49, doubles: 0.50, heavies: 0.10, lines: 0.00, colors: 0.00, frags: 0.10, track: 2, bursts: true,
+    { tint: '255,160,80', duration: 55, spawnMin: 0.68, spawnMax: 1.20, speed: 0.49, doubles: 0.50, heavies: 0.10, lines: 0.00, colors: 0.00, frags: 0.10, track: 2, bursts: true,
       hint: 'the loop runs HOT — pure traffic, find your rhythm',
       bands: [{ t0: 16, t1: 32, intensity: 1.5 }, { t0: 44, t1: 53, intensity: 1.8 }],
       story: { line: 'Charting a lane nobody has flown in forty years.' } },
-    { name: 'INTERNAL AFFAIRS', tint: '120,230,190', duration: 60, spawnMin: 0.62, spawnMax: 1.10, speed: 0.52, doubles: 0.50, heavies: 0.10, lines: 0.00, colors: 0.15, frags: 0.12, track: 0,
+    { tint: '120,230,190', duration: 60, spawnMin: 0.62, spawnMax: 1.10, speed: 0.52, doubles: 0.50, heavies: 0.10, lines: 0.00, colors: 0.15, frags: 0.12, track: 0,
       hint: 'phase locks in the flood — glance, match, keep moving',
       bands: [{ t0: 30, t1: 48, intensity: 1.6 }],
       story: { line: 'They want readings. They do not want us on any register.' } },
-    { name: 'SHELL EXCHANGE', tint: '255,205,90', duration: 60, spawnMin: 0.58, spawnMax: 1.00, speed: 0.55, doubles: 0.55, heavies: 0.12, lines: 0.00, colors: 0.15, frags: 0.12, track: 1, bursts: true,
+    { tint: '255,205,90', duration: 60, spawnMin: 0.58, spawnMax: 1.00, speed: 0.55, doubles: 0.55, heavies: 0.12, lines: 0.00, colors: 0.15, frags: 0.12, track: 1, bursts: true,
       hint: 'burst volleys — the flood comes in waves now',
       bands: [{ t0: 24, t1: 42, intensity: 1.7, mix: { doubles: 0.6 } }],
       story: { line: 'Past the patrol shell. The charts stop being reliable.' } },
-    { name: 'LAUNDRY LANE', tint: '150,120,255', duration: 65, spawnMin: 0.55, spawnMax: 0.95, speed: 0.57, doubles: 0.55, heavies: 0.10, lines: 0.08, colors: 0.18, frags: 0.14, walls: 0.06, track: 2,
+    { tint: '150,120,255', duration: 65, spawnMin: 0.55, spawnMax: 0.95, speed: 0.57, doubles: 0.55, heavies: 0.10, lines: 0.08, colors: 0.18, frags: 0.14, walls: 0.06, track: 2,
       hint: 'walls in the current — reroute without losing the beat',
       bands: [{ t0: 28, t1: 46, intensity: 1.6 }],
       story: { line: 'Deep space. None of this was on the last survey.' } },
-    { name: 'BLACKSITE RELAY', tint: '255,90,110', duration: 70, spawnMin: 0.50, spawnMax: 0.90, speed: 0.60, doubles: 0.60, heavies: 0.14, lines: 0.08, colors: 0.18, frags: 0.16, walls: 0.08, track: 0, bursts: true,
+    { tint: '255,90,110', duration: 70, spawnMin: 0.50, spawnMax: 0.90, speed: 0.60, doubles: 0.60, heavies: 0.14, lines: 0.08, colors: 0.18, frags: 0.16, walls: 0.08, track: 0, bursts: true,
       hint: 'blacksite pace — the fastest lane yet',
       bands: [{ t0: 26, t1: 44, intensity: 1.8 }, { t0: 56, t1: 66, intensity: 2.0 }],
       story: { line: 'They are recording everything out here. Including us.' } },
-    { name: 'THE PAYMASTER', tint: '255,70,160', duration: 75, spawnMin: 0.48, spawnMax: 0.85, speed: 0.63, doubles: 0.60, heavies: 0.15, lines: 0.10, colors: 0.20, frags: 0.18, walls: 0.08, track: 1, bursts: true,
+    { tint: '255,70,160', duration: 75, spawnMin: 0.48, spawnMax: 0.85, speed: 0.63, doubles: 0.60, heavies: 0.15, lines: 0.10, colors: 0.20, frags: 0.18, walls: 0.08, track: 1, bursts: true,
       hint: 'his ledger floods the lane — survive the torrent',
       bands: [{ t0: 18, t1: 38, intensity: 1.7 }, { t0: 52, t1: 70, intensity: 2.1, mix: { doubles: 0.65 } }],
       story: { line: 'Tier 4. The expedition before this one filed no report.' } },
-    { name: 'BADGE ZERO', tint: '212,101,255', duration: 50, spawnMin: 0.70, spawnMax: 1.25, speed: 0.55, doubles: 0.45, heavies: 0.16, lines: 0.10, colors: 0.22, frags: 0.14, walls: 0.08, track: 2, boss: true, bossKind: 'triad',
-      hint: 'his private warden is THREE — shield, shredder, alibi. break each' }
+    { tint: '212,101,255', duration: 50, spawnMin: 0.70, spawnMax: 1.25, speed: 0.55, doubles: 0.45, heavies: 0.16, lines: 0.10, colors: 0.22, frags: 0.14, walls: 0.08, track: 2, boss: true, bossKind: 'triad',
+      hint: 'his private warden is THREE — shield, shredder, alibi. break each',
+      story: { line: 'Final reading, then we take them home.' } }
   ],
   verdict: { title: 'CONTRACT 02 — CHARTED', lines: [
-    'They got their readings and we got', 'them home. Four of those lanes had', 'not been flown since the survey', 'before this one never came back.'] },
-      story: { line: 'Final reading, then we take them home.' } },
+    'They got their readings and we got', 'them home. Four of those lanes had', 'not been flown since the survey', 'before this one never came back.'] } },
 {
   id: 'signal-lost', format: 1,
   title: 'THE COLLECTOR', tagline: 'A LONE TRADER · TIER 2 → 4', difficulty: 3,
@@ -108,40 +126,40 @@ const CAMPAIGN_PACKAGES = [{
     { id: 'WARD', name: 'the interdiction', color: '212,101,255', portrait: { drawn: 'WARD' } }
   ],
   levels: [
-    { name: 'DEAD HARBOR', tint: '80,200,215', duration: 55, spawnMin: 1.00, spawnMax: 1.65, speed: 0.48, doubles: 0.30, heavies: 0.18, lines: 0.30, colors: 0.35, frags: 0.10, track: 0,
+    { tint: '80,200,215', duration: 55, spawnMin: 1.00, spawnMax: 1.65, speed: 0.48, doubles: 0.30, heavies: 0.18, lines: 0.30, colors: 0.35, frags: 0.10, track: 0,
       hint: 'a dead lane — every interdictor here was left ON PURPOSE',
       story: { line: 'One trader, one hold, no manifest.' } },
-    { name: 'GHOST CURRENT', tint: '110,225,170', duration: 55, spawnMin: 0.60, spawnMax: 1.00, speed: 0.58, doubles: 0.60, heavies: 0.06, lines: 0.00, colors: 0.00, frags: 0.10, track: 1, bursts: true,
+    { tint: '110,225,170', duration: 55, spawnMin: 0.60, spawnMax: 1.00, speed: 0.58, doubles: 0.60, heavies: 0.06, lines: 0.00, colors: 0.00, frags: 0.10, track: 1, bursts: true,
       hint: 'the current still runs — fast, blind, and full',
       bands: [{ t0: 15, t1: 30, intensity: 1.7 }, { t0: 40, t1: 52, intensity: 1.9 }],
       story: { line: 'She pays in advance and flies at odd hours.' } },
-    { name: 'CIPHER SHOALS', tint: '255,190,110', duration: 60, spawnMin: 0.95, spawnMax: 1.50, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.28, colors: 0.45, frags: 0.14, walls: 0.12, track: 2,
+    { tint: '255,190,110', duration: 60, spawnMin: 0.95, spawnMax: 1.50, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.28, colors: 0.45, frags: 0.14, walls: 0.12, track: 2,
       hint: 'shoal water — phase-locked reefs and sealed pairs, read before you steer',
       beats: [{ t: 26, kind: 'wall' }, { t: 35, kind: 'strip' }, { t: 46, kind: 'wall' }],
       story: { line: 'No escort on any register. Officially we are not here.' } },
-    { name: 'RIPTIDE', tint: '120,160,255', duration: 60, spawnMin: 0.55, spawnMax: 0.92, speed: 0.60, doubles: 0.65, heavies: 0.05, lines: 0.00, colors: 0.00, frags: 0.12, track: 0, bursts: true,
+    { tint: '120,160,255', duration: 60, spawnMin: 0.55, spawnMax: 0.92, speed: 0.60, doubles: 0.65, heavies: 0.05, lines: 0.00, colors: 0.00, frags: 0.12, track: 0, bursts: true,
       hint: 'riptide — do not fight the pace, become it',
       bands: [{ t0: 12, t1: 28, intensity: 1.8 }, { t0: 36, t1: 54, intensity: 2.0, mix: { doubles: 0.7 } }],
       story: { line: 'Whatever is in the crates, somebody else wants it.' } },
-    { name: 'THE SHALLOWS', tint: '150,230,120', duration: 65, spawnMin: 0.90, spawnMax: 1.42, speed: 0.52, doubles: 0.35, heavies: 0.22, lines: 0.30, colors: 0.40, frags: 0.16, walls: 0.18, track: 1,
+    { tint: '150,230,120', duration: 65, spawnMin: 0.90, spawnMax: 1.42, speed: 0.52, doubles: 0.35, heavies: 0.22, lines: 0.30, colors: 0.40, frags: 0.16, walls: 0.18, track: 1,
       hint: 'the rail closes in shallow water — plan two moves ahead',
       beats: [{ t: 24, kind: 'wall' }, { t: 40, kind: 'lull', dur: 5 }, { t: 52, kind: 'wall' }],
       story: { line: 'Outlaw territory. Her kind of market.' } },
-    { name: 'UNDERTOW', tint: '255,120,140', duration: 70, spawnMin: 0.50, spawnMax: 0.86, speed: 0.63, doubles: 0.65, heavies: 0.12, lines: 0.00, colors: 0.00, frags: 0.18, track: 2, bursts: true,
+    { tint: '255,120,140', duration: 70, spawnMin: 0.50, spawnMax: 0.86, speed: 0.63, doubles: 0.65, heavies: 0.12, lines: 0.00, colors: 0.00, frags: 0.18, track: 2, bursts: true,
       hint: 'undertow — the fastest water on the dead reach',
       bands: [{ t0: 14, t1: 34, intensity: 1.8 }, { t0: 46, t1: 64, intensity: 2.2 }],
       story: { line: 'She has flown this route before. Alone.' } },
-    { name: 'THE NARROWS', tint: '210,140,255', duration: 75, spawnMin: 0.58, spawnMax: 0.98, speed: 0.58, doubles: 0.50, heavies: 0.22, lines: 0.26, colors: 0.40, frags: 0.20, walls: 0.18, track: 0, bursts: true,
+    { tint: '210,140,255', duration: 75, spawnMin: 0.58, spawnMax: 0.98, speed: 0.58, doubles: 0.50, heavies: 0.22, lines: 0.26, colors: 0.40, frags: 0.20, walls: 0.18, track: 0, bursts: true,
       hint: 'the narrows: every trick on the reach, then open water',
       beats: [{ t: 31, kind: 'wall' }, { t: 44, kind: 'wall' }, { t: 62, kind: 'strip' }],
       bands: [{ t0: 34, t1: 48, intensity: 1.9 }],
       story: { line: 'A tier-4 berth with no name on it.' } },
-    { name: 'THE BEACON', tint: '255,230,120', duration: 50, spawnMin: 0.80, spawnMax: 1.40, speed: 0.55, doubles: 0.35, heavies: 0.18, lines: 0.20, colors: 0.30, frags: 0.14, walls: 0.10, track: 1, boss: true, bossKind: 'spinner',
-      hint: 'ride the light — survive every sweep and the beacon burns itself out' }
+    { tint: '255,230,120', duration: 50, spawnMin: 0.80, spawnMax: 1.40, speed: 0.55, doubles: 0.35, heavies: 0.18, lines: 0.20, colors: 0.30, frags: 0.14, walls: 0.10, track: 1, boss: true, bossKind: 'spinner',
+      hint: 'ride the light — survive every sweep and the beacon burns itself out',
+      story: { line: 'Last leg. Then she is gone, and so are we.' } }
   ],
   verdict: { title: 'CONTRACT 03 — CLEARED', lines: [
-    'She unloaded at a berth with no name', 'on it and was gone inside the hour.', 'The fee cleared before we docked.', 'We still do not know what we escorted.'] },
-      story: { line: 'Last leg. Then she is gone, and so are we.' } },
+    'She unloaded at a berth with no name', 'on it and was gone inside the hour.', 'The fee cleared before we docked.', 'We still do not know what we escorted.'] } },
 {
   id: 'the-bait', format: 1,
   title: 'SILENT PICKET', tagline: 'NAVY FLOTILLA · TIER 4 → 5', difficulty: 4,
@@ -154,40 +172,40 @@ const CAMPAIGN_PACKAGES = [{
     { id: 'WARD', name: 'the interdiction', color: '212,101,255', portrait: { drawn: 'WARD' } }
   ],
   levels: [
-    { name: 'DECOY RELAY', tint: '255,190,90', duration: 45, spawnMin: 0.90, spawnMax: 1.45, speed: 0.52, doubles: 0.35, heavies: 0.12, lines: 0.10, colors: 0.35, frags: 0.10, track: 0,
+    { tint: '255,190,90', duration: 45, spawnMin: 0.90, spawnMax: 1.45, speed: 0.52, doubles: 0.35, heavies: 0.12, lines: 0.10, colors: 0.35, frags: 0.10, track: 0,
       hint: 'the cargo is BAIT now — dress it in his phases, make him bite',
       story: { line: 'Flotilla running dark. We are their sweep.' } },
-    { name: 'HONEYLANE', tint: '126,200,110', duration: 50, spawnMin: 0.80, spawnMax: 1.32, speed: 0.55, doubles: 0.40, heavies: 0.14, lines: 0.12, colors: 0.45, frags: 0.12, track: 1,
+    { tint: '126,200,110', duration: 50, spawnMin: 0.80, spawnMax: 1.32, speed: 0.55, doubles: 0.40, heavies: 0.14, lines: 0.12, colors: 0.45, frags: 0.12, track: 1,
       hint: 'match the bait to the mark — wrong phase, no bite',
       bands: [{ t0: 26, t1: 44, intensity: 1.5 }],
       story: { line: 'No active scan. Nothing out here announces us.' } },
-    { name: 'MIRROR VAULT', tint: '90,200,235', duration: 55, spawnMin: 0.70, spawnMax: 1.18, speed: 0.58, doubles: 0.45, heavies: 0.14, lines: 0.14, colors: 0.50, frags: 0.12, walls: 0.06, track: 2, bursts: true,
+    { tint: '90,200,235', duration: 55, spawnMin: 0.70, spawnMax: 1.18, speed: 0.58, doubles: 0.45, heavies: 0.14, lines: 0.14, colors: 0.50, frags: 0.12, walls: 0.06, track: 2, bursts: true,
       hint: 'the bite comes in volleys now — hold your phases steady',
       bands: [{ t0: 18, t1: 36, intensity: 1.6 }],
       beats: [{ t: 30, kind: 'strip' }],
       story: { line: 'The picket does not hold itself.' } },
-    { name: 'CHUM RUN', tint: '255,150,70', duration: 60, spawnMin: 0.62, spawnMax: 1.05, speed: 0.60, doubles: 0.50, heavies: 0.16, lines: 0.16, colors: 0.45, frags: 0.14, walls: 0.08, track: 0, bursts: true,
+    { tint: '255,150,70', duration: 60, spawnMin: 0.62, spawnMax: 1.05, speed: 0.60, doubles: 0.50, heavies: 0.16, lines: 0.16, colors: 0.45, frags: 0.14, walls: 0.08, track: 0, bursts: true,
       hint: 'blood in the water — the whole pack answers at once',
       bands: [{ t0: 22, t1: 40, intensity: 1.7, mix: { colors: 0.6 } }],
       story: { line: 'Edge of the charted lanes.' } },
-    { name: 'TRACEBACK', tint: '120,160,255', duration: 60, spawnMin: 0.56, spawnMax: 0.96, speed: 0.63, doubles: 0.50, heavies: 0.18, lines: 0.18, colors: 0.50, frags: 0.16, walls: 0.10, track: 1,
+    { tint: '120,160,255', duration: 60, spawnMin: 0.56, spawnMax: 0.96, speed: 0.63, doubles: 0.50, heavies: 0.18, lines: 0.18, colors: 0.50, frags: 0.16, walls: 0.10, track: 1,
       hint: 'follow the bite home — phase-locked traffic all the way down',
       bands: [{ t0: 28, t1: 48, intensity: 1.7 }],
       story: { line: 'Past here the lanes are claimed, not charted.' } },
-    { name: 'THE APIARY', tint: '255,205,90', duration: 65, spawnMin: 0.52, spawnMax: 0.90, speed: 0.65, doubles: 0.55, heavies: 0.18, lines: 0.20, colors: 0.55, frags: 0.18, walls: 0.12, track: 2, bursts: true,
+    { tint: '255,205,90', duration: 65, spawnMin: 0.52, spawnMax: 0.90, speed: 0.65, doubles: 0.55, heavies: 0.18, lines: 0.20, colors: 0.55, frags: 0.18, walls: 0.12, track: 2, bursts: true,
       hint: 'the nest — every phase at once, and it is awake',
       bands: [{ t0: 20, t1: 38, intensity: 1.8 }, { t0: 50, t1: 63, intensity: 2.0, mix: { colors: 0.65 } }],
       story: { line: 'Something has been shadowing the formation.' } },
-    { name: 'OPEN LANE', tint: '255,90,110', duration: 70, spawnMin: 0.48, spawnMax: 0.82, speed: 0.68, doubles: 0.58, heavies: 0.22, lines: 0.22, colors: 0.50, frags: 0.20, walls: 0.15, track: 0, bursts: true,
+    { tint: '255,90,110', duration: 70, spawnMin: 0.48, spawnMax: 0.82, speed: 0.68, doubles: 0.58, heavies: 0.22, lines: 0.22, colors: 0.50, frags: 0.20, walls: 0.15, track: 0, bursts: true,
       hint: 'he has committed everything — this is the whole swarm',
       bands: [{ t0: 16, t1: 36, intensity: 1.9 }, { t0: 50, t1: 68, intensity: 2.1, mix: { colors: 0.6, doubles: 0.65 } }],
       story: { line: 'The near edge of no man’s land.' } },
-    { name: 'THE HUNTER', tint: '212,120,255', duration: 50, spawnMin: 0.72, spawnMax: 1.28, speed: 0.60, doubles: 0.45, heavies: 0.20, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 1, boss: true, bossKind: 'triad',
-      hint: 'his hunter-warden is THREE — the nose, the jaws, the ghost' }
+    { tint: '212,120,255', duration: 50, spawnMin: 0.72, spawnMax: 1.28, speed: 0.60, doubles: 0.45, heavies: 0.20, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 1, boss: true, bossKind: 'triad',
+      hint: 'his hunter-warden is THREE — the nose, the jaws, the ghost',
+      story: { line: 'Hold the picket. The flotilla never lights up.' } }
   ],
   verdict: { title: 'CONTRACT 04 — RELIEVED', lines: [
-    'The flotilla held its patrol and never', 'lit a single active scan. Whatever was', 'waiting on that picket met us first,', 'which was the entire point of hiring us.'] },
-      story: { line: 'Hold the picket. The flotilla never lights up.' } },
+    'The flotilla held its patrol and never', 'lit a single active scan. Whatever was', 'waiting on that picket met us first,', 'which was the entire point of hiring us.'] } },
 {
   id: 'shutdown', format: 1,
   title: 'THE DELEGATION', tagline: 'FEDERATION PRESIDENT · TIER 1 → 5', difficulty: 5,
@@ -200,39 +218,39 @@ const CAMPAIGN_PACKAGES = [{
     { id: 'WARD', name: 'the interdiction', color: '212,101,255', portrait: { drawn: 'WARD' } }
   ],
   levels: [
-    { name: 'INJECTION POINT', tint: '96,180,255', duration: 50, spawnMin: 0.72, spawnMax: 1.20, speed: 0.58, doubles: 0.50, heavies: 0.15, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 0,
+    { tint: '96,180,255', duration: 50, spawnMin: 0.72, spawnMax: 1.20, speed: 0.58, doubles: 0.50, heavies: 0.15, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 0,
       hint: 'you escort the antidote now — get it into his lane and hold on',
       story: { line: 'The president, in the open, route filed in advance.' } },
-    { name: 'THE GAUNTLET', tint: '255,160,80', duration: 55, spawnMin: 0.60, spawnMax: 1.02, speed: 0.63, doubles: 0.55, heavies: 0.16, lines: 0.22, colors: 0.32, frags: 0.16, walls: 0.12, track: 1, bursts: true,
+    { tint: '255,160,80', duration: 55, spawnMin: 0.60, spawnMax: 1.02, speed: 0.63, doubles: 0.55, heavies: 0.16, lines: 0.22, colors: 0.32, frags: 0.16, walls: 0.12, track: 1, bursts: true,
       hint: 'his outer cordon throws everything — do not slow the convoy',
       bands: [{ t0: 18, t1: 36, intensity: 1.7 }],
       story: { line: 'A state visit cannot be flown in secret.' } },
-    { name: 'CORDON DELTA', tint: '120,230,190', duration: 60, spawnMin: 0.54, spawnMax: 0.92, speed: 0.66, doubles: 0.55, heavies: 0.18, lines: 0.26, colors: 0.35, frags: 0.18, walls: 0.18, track: 2,
+    { tint: '120,230,190', duration: 60, spawnMin: 0.54, spawnMax: 0.92, speed: 0.66, doubles: 0.55, heavies: 0.18, lines: 0.26, colors: 0.35, frags: 0.18, walls: 0.18, track: 2,
       hint: 'walls stacked on walls — thread the convoy through, do not clip it',
       beats: [{ t: 20, kind: 'wall' }, { t: 40, kind: 'wall' }, { t: 50, kind: 'strip' }],
       bands: [{ t0: 28, t1: 48, intensity: 1.7 }],
       story: { line: 'Everyone who objects knows exactly where she will be.' } },
-    { name: 'THE SCREAMING LANE', tint: '255,205,90', duration: 60, spawnMin: 0.50, spawnMax: 0.86, speed: 0.69, doubles: 0.60, heavies: 0.20, lines: 0.24, colors: 0.38, frags: 0.20, walls: 0.16, track: 0, bursts: true,
+    { tint: '255,205,90', duration: 60, spawnMin: 0.50, spawnMax: 0.86, speed: 0.69, doubles: 0.60, heavies: 0.20, lines: 0.24, colors: 0.38, frags: 0.20, walls: 0.16, track: 0, bursts: true,
       hint: 'pure panic traffic — become the pace or drown in it',
       bands: [{ t0: 14, t1: 32, intensity: 1.9 }, { t0: 42, t1: 58, intensity: 2.1, mix: { doubles: 0.7 } }],
       story: { line: 'Cordon 02, and the escort is already thinner than it should be.' } },
-    { name: 'QUARANTINE', tint: '150,120,255', duration: 65, spawnMin: 0.46, spawnMax: 0.80, speed: 0.72, doubles: 0.60, heavies: 0.20, lines: 0.28, colors: 0.40, frags: 0.22, walls: 0.20, track: 1, bursts: true,
+    { tint: '150,120,255', duration: 65, spawnMin: 0.46, spawnMax: 0.80, speed: 0.72, doubles: 0.60, heavies: 0.20, lines: 0.28, colors: 0.40, frags: 0.22, walls: 0.20, track: 1, bursts: true,
       hint: 'he seals every gate — keyed, walled, doubled. read fast',
       bands: [{ t0: 20, t1: 40, intensity: 1.9 }, { t0: 50, t1: 63, intensity: 2.2, mix: { colors: 0.55 } }],
       beats: [{ t: 34, kind: 'wall' }, { t: 48, kind: 'wall' }],
       story: { line: 'Deep space. Half the objections come from inside the Federation.' } },
-    { name: 'DEEP TRANSIT', tint: '255,90,110', duration: 70, spawnMin: 0.44, spawnMax: 0.76, speed: 0.75, doubles: 0.62, heavies: 0.22, lines: 0.26, colors: 0.42, frags: 0.22, walls: 0.20, track: 2, bursts: true,
+    { tint: '255,90,110', duration: 70, spawnMin: 0.44, spawnMax: 0.76, speed: 0.75, doubles: 0.62, heavies: 0.22, lines: 0.26, colors: 0.42, frags: 0.22, walls: 0.20, track: 2, bursts: true,
       hint: 'the fastest water on any lane — do not fight it, ride it',
       bands: [{ t0: 16, t1: 36, intensity: 2.0 }, { t0: 48, t1: 68, intensity: 2.2, mix: { doubles: 0.7, colors: 0.55 } }],
       story: { line: 'Outlaw territory. No cover worth the name.' } },
-    { name: 'THE THRESHOLD', tint: '255,70,160', duration: 75, spawnMin: 0.42, spawnMax: 0.72, speed: 0.78, doubles: 0.65, heavies: 0.25, lines: 0.28, colors: 0.45, frags: 0.25, walls: 0.22, track: 0, bursts: true,
+    { tint: '255,70,160', duration: 75, spawnMin: 0.42, spawnMax: 0.72, speed: 0.78, doubles: 0.65, heavies: 0.25, lines: 0.28, colors: 0.45, frags: 0.25, walls: 0.22, track: 0, bursts: true,
       hint: 'everything he has, all at once, at full speed — the last door',
       bands: [{ t0: 18, t1: 38, intensity: 2.0 }, { t0: 52, t1: 72, intensity: 2.3, mix: { colors: 0.6, doubles: 0.72 } }],
       beats: [{ t: 31, kind: 'wall' }, { t: 62, kind: 'wall' }],
       story: { line: 'No man’s land. The accession world is on the far side.' } },
-    { name: 'THE DISPATCHER', tint: '212,101,255', duration: 55, spawnMin: 0.68, spawnMax: 1.22, speed: 0.66, doubles: 0.50, heavies: 0.22, lines: 0.20, colors: 0.40, frags: 0.20, walls: 0.14, track: 1, boss: true, bossKind: 'core',
-      hint: 'THE DISPATCHER — six injections seat the antidote and shut it down' }
+    { tint: '212,101,255', duration: 55, spawnMin: 0.68, spawnMax: 1.22, speed: 0.66, doubles: 0.50, heavies: 0.22, lines: 0.20, colors: 0.40, frags: 0.20, walls: 0.14, track: 1, boss: true, bossKind: 'core',
+      hint: 'THE DISPATCHER — six injections seat the antidote and shut it down',
+      story: { line: 'Last cordon. She signs on the other side of this lane.' } }
   ],
   verdict: { title: 'CONTRACT 05 — SIGNED', lines: [
-    'She crossed all five cordons and put', 'her name on it. The lane behind her was', 'the most contested stretch of space', 'anyone has flown this decade.'] },
-      story: { line: 'Last cordon. She signs on the other side of this lane.' } }];
+    'She crossed all five cordons and put', 'her name on it. The lane behind her was', 'the most contested stretch of space', 'anyone has flown this decade.'] } }];

@@ -15,7 +15,15 @@ function validateCampaign(p) {
   const spk = new Set((p.speakers || []).map(s => s.id));
   p.levels.forEach((l, i) => {
     const tag = 'level ' + (i + 1) + ': ';
-    if (!str(l.name) || l.name.length > 28) errs.push(tag + 'bad name');
+    // NO `name` CHECK, because there is no such field. A relay is named by the
+    // ROUTE it flies — levelRouteName() builds "FROM » TO" out of the systems
+    // the chart places for this contract — and that is what the menu, the HUD
+    // and the leaderboard all show. Demanding a name here made packages carry a
+    // second, competing label that nothing ever read: the bundled contracts sat
+    // for months with a corrupt-badge investigation's level names inside a
+    // survey campaign, invisible because no screen displays them. A package
+    // that still carries one is accepted and ignored, so exported UGC and older
+    // packages keep installing.
     if (!(l.duration > 0 && l.duration <= 600)) errs.push(tag + 'bad duration');
     if (!(l.speed > 0 && l.speed <= 2)) errs.push(tag + 'bad speed');
     if (!(l.spawnMin > 0 && l.spawnMax >= l.spawnMin)) errs.push(tag + 'bad spawn window');
