@@ -549,41 +549,9 @@ function drawHUD(g) {
       ctx.globalAlpha = 1;
     }
     if (st.card === 'done') drawQualCeremony(tut.t);
-    { // stage banner: the drill announces itself from the CENTER of the bore,
-      // wrapped into a narrow stack so it never spans across the traffic —
-      // shown ONCE per stage and held until the next stage takes over
-      const bn = TUT_BANNERS[st.card];
-      if (bn && !tut.frozen) {
-        const wrapB = (s, max) => {
-          const out = []; let cur = '';
-          for (const w of s.split(' ')) {
-            if (cur && (cur + ' ' + w).length > max) { out.push(cur); cur = w; }
-            else cur = cur ? cur + ' ' + w : w;
-          }
-          if (cur) out.push(cur);
-          return out;
-        };
-        const al = clamp(tut.t / 0.25, 0, 1);
-        const uB = Math.min(W, H), bx = W / 2;
-        const tl = wrapB(bn.title, 11);
-        const px1 = Math.round(uB * 0.036); // ~15% smaller than the 0.042 first cut
-        const lh1 = px1 * 1.2;
-        let by = H / 2 - tl.length * lh1 / 2 + lh1 / 2;
-        ctx.save();
-        ctx.globalAlpha = al;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-        ctx.font = '700 ' + px1 + 'px Audiowide, system-ui';
-        for (const ln of tl) {
-          ctx.strokeStyle = 'rgba(2,4,12,0.8)'; ctx.lineWidth = 6;
-          ctx.strokeText(ln, bx, by);
-          ctx.fillStyle = 'rgba(191,234,255,0.97)';
-          ctx.fillText(ln, bx, by);
-          by += lh1;
-        }
-        ctx.restore();
-        ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-      }
-    }
+    // (No stage banner. Each drill used to announce itself in a stack of text
+    // across the CENTER of the bore — the one place the traffic comes from. The
+    // labels that ride the traps say the same thing where the eye already is.)
     const nn = a => Math.abs(angDiff(nodes[0].angle, a)) < Math.abs(angDiff(nodes[1].angle, a)) ? nodes[0] : nodes[1];
     const ten = enemies.find(e => e.tut && !e.dead && !e.resolved);
     if (st.card === 'move' && tut.aim.targets) {
@@ -633,6 +601,7 @@ function drawHUD(g) {
       if (ten.type === 'heavy') { // both arrows converge on a half-blue/half-white dock spot
         drawGuideArc(nodes[0], ten.angle); drawGuideArc(nodes[1], ten.angle);
         drawDockSpot(ten.angle);
+        drawRideLabel('USE BOTH EMITTERS', ten, '#8fe0ff'); // the armor drill, in words
       }
       else if (ten.type === 'line') {
         // EITHER node may take EITHER end — everything guides in neutral cyan
@@ -654,19 +623,28 @@ function drawHUD(g) {
       else if (ten.tut === 'volley') { // dock BOTH on the column's lane — one shot, whole column
         drawGuideArc(nodes[0], ten.angle); drawGuideArc(nodes[1], ten.angle);
         drawDockSpot(ten.angle);
+        drawRideLabel('USE BOTH EMITTERS', ten, '#8fe0ff');
       }
       else if (ten.lock !== undefined) drawGuideArc(nodes[ten.lock], ten.angle);
       // killers wear a landing signal — the drill is DODGE, the label says so
       else if (ten.type === 'frag') {
         drawKillerSignal(ten);
-        drawRideLabel('STEER CLEAR!', ten, '#ffb066'); // from spawn, clears the title
+        drawRideLabel('DANGER! AVOID!', ten, '#ffb066'); // rides it from spawn
       }
       else drawGuideArc(nn(ten.angle), ten.angle);
       if (st.card === 'normal' && ten.type === 'normal' && ten.lock === undefined) {
-        // the tooltip tracks the trap's ANGLE from the moment it spawns, but
-        // is held at a minimum radius so a dead-center (deep) enemy's label
-        // never lands on the stage title holding the bore center
+        // the tooltip tracks the trap's ANGLE from the moment it spawns, held
+        // at a minimum radius so a deep (near-center) trap's label still reads
+        // against the bore instead of collapsing onto the axis
         drawRideLabel('INTERCEPT', ten, '#ffb0c0');
+      }
+      if (ten.type === 'strip') {
+        // the ribbon MEANDERS, so its base angle is not where it meets the rail
+        // — the label rides the live crossing point, the spot you must hold
+        const gS2 = geo();
+        const kX = clamp(gS2.hitZ - ten.z, 0, ten.len);
+        drawRideLabel('RIDE TO CHARGE UP',
+          { angle: stripAngle(ten, kX), z: Math.max(ten.z, gS2.hitZ) }, '#ffd24a');
       }
       if (ten.type === 'strip' && ten.tracing) {
         // the ribbon FEEDS the orb: ride progress winds a gold meter around
@@ -687,7 +665,7 @@ function drawHUD(g) {
     for (const lt of latches) { // the practice clamp warns from its landing arc
       const gL = geo();
       const rrL = gL.nodeR - Math.min(W, H) * 0.11;
-      drawTutText('STEER CLEAR!', gL.cx + Math.cos(lt.a) * rrL, gL.cy + Math.sin(lt.a) * rrL,
+      drawTutText('DANGER! AVOID!', gL.cx + Math.cos(lt.a) * rrL, gL.cy + Math.sin(lt.a) * rrL,
         '#ffb066', Math.round(Math.min(W, H) * 0.028));
     }
     if (st.card === 'move') { // emphasize the dials — the ghost hints which way to drag

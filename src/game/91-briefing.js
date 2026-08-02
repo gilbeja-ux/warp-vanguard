@@ -482,7 +482,7 @@ function drawStoryDisc(c, g, R) {
 // TAP TO FIRE rides the charged pad during the hold
 // a tutorial label that rides an enemy's ANGLE but stays clear of the bore
 // center: placed just outside the body, but never nearer than minR to the
-// axis, so a deep (near-center) enemy's label can't collide with the title
+// axis, so a deep (near-center) enemy's label doesn't pile onto it
 function drawRideLabel(text, en, col) {
   const g2 = geo();
   const rg2 = ring(Math.max(en.z, 0.02), g2);
@@ -494,6 +494,11 @@ function drawRideLabel(text, en, col) {
 function drawTutText(text, x, y, col, px) { // one pulsing outlined line
   ctx.save();
   ctx.font = '700 ' + px + 'px Audiowide, system-ui';
+  // a long label on a trap out at the 3 or 9 o'clock rim would run off the
+  // edge — hold it inside the safe area, the way the pulse prompt does
+  const halfT = ctx.measureText(text).width / 2 + 6;
+  x = clamp(x, SAFE.l + halfT, W - SAFE.r - halfT);
+  y = clamp(y, SAFE.t + px, H - SAFE.b - px);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
   ctx.globalAlpha = 0.8 + Math.sin(time * 5) * 0.2;
   ctx.strokeStyle = 'rgba(2,4,12,0.85)'; ctx.lineWidth = 4;

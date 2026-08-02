@@ -397,7 +397,8 @@ function clearOfWalls(a, extra) {
 }
 
 function spawnWall(forcedA, force, teleOverride) { // beats may pin the arc; force = verbatim, no hops
-  if (!progress.wallBriefed && !tut && !tracePlay) showCard('wall'); // first encounter, mid-run briefing (never during a replay)
+  // (No first-encounter disc. Training already drills the rim wall, and the
+  // carpet telegraphs itself — a card here just stopped the run to repeat it.)
   let a = forcedA !== undefined ? forcedA : spawnRng() * TAU;
   const g2 = geo();
   const trav = travelTime(); // the carpet is world traffic: horizon to rim at stream speed
@@ -424,7 +425,8 @@ function spawnWall(forcedA, force, teleOverride) { // beats may pin the arc; for
 // node ON its crossing point head to tail and that node's pulse orb snaps to
 // full charge; breaking off just fizzles the bonus, never wounds you.
 function spawnStrip() {
-  if (!progress.stripBriefed && !tut && !tracePlay) showCard('strip'); // first encounter, mid-run briefing (never during a replay)
+  // (No first-encounter disc either — the ribbon is optional and training
+  // already teaches the ride. See spawnWall.)
   const en = spawnEnemy(undefined, 'strip');
   en.angle = clearOfWalls(en.angle, 0.5); // the ride meanders — its amplitude joins the reachability bound
   en.len = srand(0.5, 0.85);                             // depth extent of the ribbon

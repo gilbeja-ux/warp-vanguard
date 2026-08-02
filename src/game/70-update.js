@@ -18,19 +18,9 @@ const QUAL = [
   { card: 'pulse',  queue: ['pulse'] },        // ...which this volley spends
   { card: 'done' }
 ];
-// free-flow stage banners: the tutorial never stops the run — each drill
-// announces itself in-world for a few seconds and the arrows do the teaching
-const TUT_BANNERS = {
-  move:   { title: 'CONTROLS CHECK' },
-  normal: { title: 'CLEAR THE INTERDICTORS' },
-  heavy:  { title: 'USE BOTH EMITTERS' },
-  // (line: no banner — the neutral guides + park spots teach it wordlessly)
-  lock:   { title: 'MATCH THE EMITTER PHASE!' },
-  volley: { title: 'FIRE AND FORGET' },
-  pickup: { title: 'POWER-UP' },
-  strip:  { title: 'RIDE TO CHARGE UP' },
-  pulse:  { title: 'PULSE READY' },
-};
+// the tutorial never stops the run: the arrows, dock spots and riding labels do
+// ALL the teaching. (The per-stage banners are gone — they stacked text over the
+// bore center, which is exactly where the traffic arrives from.)
 const INFO_CARDS = {
   move:   { title: 'DUAL EMITTERS', lines: ['Left thumb — BLUE ⊕. Right — WHITE ⊖.', 'Slide the dials to ride the ring.'] },
   normal: { title: 'INTERDICTOR', lines: ['Align ANY emitter as it crosses.', 'Dead center pays ×2.'] },
@@ -126,7 +116,7 @@ function qualSpawn(kind) {
   } else en = spawnEnemy(undefined, kind); // normal | heavy | frag
   en.tut = kind;
   en.drift = 0;
-  // killers are pure dodge drills — the STEER CLEAR label states the
+  // killers are pure dodge drills — the DANGER! AVOID! label states the
   // consequence instead of making the pupil feel the fry
 }
 function advanceQual() {
@@ -151,10 +141,10 @@ function advanceQual() {
     buzz([30, 40, 90]);
     return;
   }
-  // free flow: no disc stop — the stage banner announces the drill in-world
+  // free flow: no disc stop — the hazard itself announces the drill, labelled
   tut.queue = (QUAL[tut.stage].queue || []).slice();
   sfx.tick();
-  // pre-spawned drills: the hazard is already inbound as the banner reads
+  // pre-spawned drills: the hazard is already inbound as the stage opens
   if (c === 'volley' || c === 'pulse') { tut.queue = []; qualSpawn(c); }
 }
 const AIM_HOLD = 0.3; // seconds a node must sit on a target to lock it in
