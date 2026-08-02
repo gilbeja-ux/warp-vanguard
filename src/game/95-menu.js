@@ -307,8 +307,9 @@ function drawMenuMap() {
     ctx.textBaseline = 'alphabetic';
     if (cleared) for (let k = 0; k < 3; k++) star5(mx2 - 11 + k * 11, my2 + dR + 9, 4, k < PROG.stars[i]);
     ctx.textAlign = 'left';
-    // the hit box spans plate AND body, so either can be tapped
-    menuButtons.push({ x: mx2 - 22, y: py3 - 20, w: 44, h: (my2 + dR + 12) - (py3 - 20), node: i, locked: false });
+    // the hit box spans plate AND body, so either can be tapped. A SEALED relay
+    // is not a destination you can look at — selection stops at the frontier.
+    menuButtons.push({ x: mx2 - 22, y: py3 - 20, w: 44, h: (my2 + dR + 12) - (py3 - 20), node: i, locked });
   }
   // lens optics: an inner vignette. The rotating radar needle is GONE — it swept
   // a bright wedge across everything twice a minute and there is nothing on this
@@ -429,7 +430,7 @@ function drawMapList(ccx, ccy, R, frontier) {
     ctx.textBaseline = 'alphabetic';
     if (locked) padlock(rx + lw2 - 14, ly2 + rh / 2, 5);
     ctx.restore();
-    menuButtons.push({ x: rx, y: ly2, w: lw2, h: rh, node: i, locked: false });
+    menuButtons.push({ x: rx, y: ly2, w: lw2, h: rh, node: i, locked });
     if (i === rows - 1) { mapLastRowY = ly2; mapLastRowH = rh; } // the reset key aligns to this
     ly2 += rh + gap2;
   }

@@ -215,7 +215,9 @@ function pollGamepad(dt) {
     // relays arrive twice (the lens marker, the left-column row) and the lens
     // only draws the ones it can see — so key the walk on the RELAY, in order,
     // and take whichever button represents it
-    const rows = [...new Map(list.filter(b2 => b2.node !== undefined).map(b2 => [b2.node, b2])).values()]
+    // ...and only the UNLOCKED ones: the walk stops at the frontier, exactly
+    // where a tap does, so the stick can't wander into sealed relays
+    const rows = [...new Map(list.filter(b2 => b2.node !== undefined && !b2.locked).map(b2 => [b2.node, b2])).values()]
       .sort((r1, r2) => r1.node - r2.node);
     const step = d => {
       const cur = rows.findIndex(r => r.node === mapSel);
