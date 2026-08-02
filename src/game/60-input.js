@@ -79,7 +79,28 @@ canvas.addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch') tryLockLandscape();
   if (SPLASH.on) { splashTap(); return; } // the splash eats the tap — unlock or skip
   const P = evPos(e);
+  // ?padtest: the diagnostic panel doubles as the WebHID grant button — the
+  // permission prompt may only open inside a user gesture, and this click is
+  // that gesture. ONLY while nothing is granted yet, though: the panel sits
+  // over the menu's own bottom-left UI, and a permanent whole-panel click
+  // zone was re-arming the full-blast test burst on ordinary menu taps —
+  // "random vibrations", straight from the diagnostic itself. Once a device
+  // is adopted, plain clicks fall through to the game; SHIFT-click re-runs
+  // the burst (WebHID is desktop-only, so a keyboard is always there).
+  if (PAD_TEST && padTestRect && P.x > padTestRect.x && P.x < padTestRect.x + padTestRect.w &&
+      P.y > padTestRect.y && P.y < padTestRect.y + padTestRect.h &&
+      (e.shiftKey || (typeof hidDev !== 'undefined' && !hidDev))) {
+    padTestClick();
+    return;
+  }
   if (state === S.INFO) {
+    // the PAUSE key works over the mission disc — the one tap here that does
+    // something other than dismiss. Every tap used to feed the dismiss branch,
+    // so the button drew as a button and acted as more disc.
+    if (!infoOutAt && pauseBtnRect && P.x > pauseBtnRect.x - 8 && P.x < pauseBtnRect.x + pauseBtnRect.w + 8 &&
+        P.y > pauseBtnRect.y - 8 && P.y < pauseBtnRect.y + pauseBtnRect.h + 8) {
+      pressUI(pauseBtnRect); pausedFromInfo = true; state = S.PAUSE; return;
+    }
     if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); }
     return;
   }
@@ -271,7 +292,12 @@ window.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
     if (state === S.PLAY) { state = S.PAUSE; sfx.tick(); }
-    else if (state === S.PAUSE) { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; sfx.tick(); }
+    else if (state === S.INFO && !infoOutAt) { pausedFromInfo = true; state = S.PAUSE; sfx.tick(); }
+    else if (state === S.PAUSE) {
+      if (pausedFromInfo) { pausedFromInfo = false; state = S.INFO; }
+      else { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; }
+      sfx.tick();
+    }
   }
 });
 window.addEventListener('keyup', e => { keys[e.key] = false; });

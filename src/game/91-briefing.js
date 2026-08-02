@@ -861,9 +861,15 @@ function pauseTap(x, y, pid) {
       pressUI(b);
       if (b.action === 'guide') { enterGuide('pause'); }
       else if (b.action === 'trkPrev' || b.action === 'trkNext') skipTrack(b.action === 'trkNext' ? 1 : -1);
-      else if (b.action === 'resume') { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; }
-      else if (b.action === 'restart') { if (qual) startQualification(); else if (daily) startDaily(); else if (endless) startEndless(); else startLevel(levelIdx); }
+      else if (b.action === 'resume') {
+        // paused over the mission disc: hand the briefing back, no count-in —
+        // the world under it was never running
+        if (pausedFromInfo) { pausedFromInfo = false; state = S.INFO; }
+        else { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; }
+      }
+      else if (b.action === 'restart') { pausedFromInfo = false; if (qual) startQualification(); else if (daily) startDaily(); else if (endless) startEndless(); else startLevel(levelIdx); }
       else { // QUIT rides the same drive-back the end-screen MENU key uses
+        pausedFromInfo = false;
         daily = false; Math.random = sysRandom;
         // training lives in Story Mode now → zoom back out onto its disc
         if (qual) { menuScreen = 'camps'; campScroll = campScrollTgt = 0; campPendingSync = null; }

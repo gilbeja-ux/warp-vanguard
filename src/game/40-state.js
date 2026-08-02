@@ -152,6 +152,9 @@ const laneExit = () => state === S.END && endWin && !endless && !qual
 const laneExitZ = () => { const e = laneExit(); return e * e * (SPAWN_Z + 0.3); };
 let endSweep = -1; // victory clear-sweep front (z), -1 when idle
 let pauseBtnRect = null, pauseButtonsList = [], pauseSlidersList = [], pauseTogglesList = [];
+// pausing OVER the mission disc remembers the disc: resume returns to the
+// briefing, never into a run the player hasn't armed yet
+let pausedFromInfo = false;
 let menuSettings = false, menuGearRect = null, menuSetButtons = [], menuSetPanel = null, menuFsRect = null, menuMutRects = [], menuBackRect = null;
 let menuGuideRect = null; // the home screen's ? key — opens the field guide
 let guide = null; // FIELD GUIDE (S.GUIDE): open-page state (from + in/out clocks)
