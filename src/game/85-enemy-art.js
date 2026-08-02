@@ -1713,22 +1713,28 @@ function drawArcNode(n, g, i, rb, fused, bh) {
     const wt = { x: g.cx + Math.cos(ea) * g.nodeR, y: g.cy + Math.sin(ea) * g.nodeR };
     if (se < 0) n.tipA = wt; else n.tipB = wt;
   }
-  // collapsed: a weak amber ember arcs across the sliver of a gap, sputtering
+  // collapsed: a weak amber ember arcs across the gap, sputtering. It rides the
+  // BAND rather than the chord — walked in ANGLE from bar to bar at the rail's
+  // own radius, so as the bars part during the reboot the ember bends with the
+  // ring instead of cutting a straight line across the bore.
   if (rb > 0.1 && rb < 0.88) {
     if (Math.random() < 0.55) {
       ctx.strokeStyle = `rgba(255,180,120,${rand(0.25, 0.55).toFixed(2)})`;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(n.tipA.x, n.tipA.y);
-      for (let q = 1; q < 4; q++) {
-        const t2 = q / 4;
-        ctx.lineTo(lerp(n.tipA.x, n.tipB.x, t2) + rand(-2, 2), lerp(n.tipA.y, n.tipB.y, t2) + rand(-2, 2));
+      const EQ = 6; // enough segments that a wide gap still reads as a curve
+      for (let q = 0; q <= EQ; q++) {
+        const t2 = q / EQ;
+        const ang = ea0 + (ea1 - ea0) * t2;
+        const jit = q && q < EQ ? rand(-2, 2) : 0; // the ends stay welded to the electrodes
+        const rr4 = g.nodeR + jit;
+        const ex = g.cx + Math.cos(ang) * rr4, ey = g.cy + Math.sin(ang) * rr4;
+        q ? ctx.lineTo(ex, ey) : ctx.moveTo(ex, ey);
       }
-      ctx.lineTo(n.tipB.x, n.tipB.y);
       ctx.stroke();
     }
     if (state === S.PLAY && Math.random() < 0.2) particles.push({
-      x: (n.tipA.x + n.tipB.x) / 2 + rand(-3, 3), y: (n.tipA.y + n.tipB.y) / 2 + rand(-3, 3),
+      x: g.cx + Math.cos(a) * g.nodeR + rand(-3, 3), y: g.cy + Math.sin(a) * g.nodeR + rand(-3, 3),
       vx: rand(-0.8, 0.8), vy: rand(-0.8, 0.8), life: rand(0.2, 0.45), decay: 2.6,
       color: '#ffb478', size: rand(0.8, 1.5) });
   }
