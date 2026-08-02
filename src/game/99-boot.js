@@ -8,6 +8,7 @@ function perfWatch(rawDt) {
       lowFX = true;
       initStreaks();
       initDeepField();
+      initWarpSky();
       initLaneMedium();
       initAmbTraffic();
     }
@@ -646,11 +647,13 @@ function frame(now) {
   }
   const worldFx = !!replayXfer;
   if (worldFx) { ctx.save(); ctx.globalAlpha = worldAlpha; ctx.translate(W / 2, H / 2); ctx.scale(worldZoom, worldZoom); ctx.translate(-W / 2, -H / 2); }
-  // THE STARS ORBIT — see SKY_ORBIT. The pan advances on the UI clock (never
-  // the sim's), and each strip slides at its own layer rate, drawn twice so the
-  // wrap seam crosses the frame without a gap. The vignette stays put below:
-  // it is the canopy's own darkening, ship-frame.
-  if (SKY_ORBIT > 0) skyPan += frameDt * (skyW / SKY_ORBIT);
+  // THE SKY HOLDS ITS BEARINGS. The strips are the FAR field — the band, the
+  // nebulae, the baked star sheets — and under forward flight nothing that far
+  // away moves: the travel lives in the warp blanket, which now cruises at
+  // every throttle (see 20-background's header). skyPan is pinned at zero; the
+  // strip machinery stays because the sheets were baked seam-disciplined on it
+  // and the deep field keys its (now zero) offsets off the same variable. The
+  // vignette stays put below: it is the canopy's own darkening, ship-frame.
   const stripPan = (cv, rate, alpha) => {
     if (!cv) return;
     const off = (skyPan * rate) % skyW;
@@ -661,7 +664,12 @@ function frame(now) {
   };
   stripPan(skyStruct, SKY_L.struct);   // band and dust — the far wall
   stripPan(skyClouds, SKY_L.clouds);   // the nebulae, one plane nearer
-  stripPan(bgCanvas, SKY_L.bake);      // the dense baked star field
+  // the dense baked star field, and the only sheet that gives way under the lane's
+  // own sky: a painted star CANNOT come at you, so at speed it steps back to
+  // WARP_SKY and becomes the unreachable blanket the blanket is flown against.
+  // The band and its dust stay at full — at this distance nothing moves, which is
+  // exactly the claim a galaxy that never shifts is making.
+  stripPan(bgCanvas, SKY_L.bake, 1 - laneFlow * (1 - WARP_SKY));
   // the denser sky the meta screens get, over the structure and under
   // everything else. Its live half is drawn inside drawStarField on the
   // same fade.
@@ -752,6 +760,20 @@ function frame(now) {
   drawPostChain(rawDt, worldFx, g);
 
   ctx.restore();
+  // THE STATION BAKE, on the menu's time. Gil's call: the sprites get built
+  // while the player is picking a contract, never during a run and never behind
+  // a loading bar. The budget is small enough that a frame it lands on still
+  // makes 60, and it only shrinks if that frame was already long — the menu is
+  // the one place in the game with spare milliseconds, but it is still the
+  // player's first impression, so it must never be the thing that drops one.
+  if (state === S.MENU || state === S.GUIDE) {
+    // Budget off THIS FRAME'S OWN WORK, not off rawDt. rawDt is the wall clock
+    // between frames, which at 60fps is 16.7ms of mostly vsync wait — subtracting
+    // it from a budget leaves a negative number every single frame, and the bake
+    // never gets a slice.
+    const used = performance.now() - now;
+    s3Pump(Math.max(S3D_LIGHT.bakeMin, Math.min(S3D_LIGHT.bakeMs, 11 - used)));
+  }
   if (profOn()) { profFrame(performance.now() - now); drawProfiler(); }
   requestAnimationFrame(frame);
 }
