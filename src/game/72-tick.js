@@ -11,6 +11,7 @@ function update(dt) {
   }
   time += dt;
   updateMusic(dt);
+  tickPadRumble(); // the controller's hold channel rides the charge
   warpT = Math.max(0, warpT - dt);
   const warp2 = warpT / 0.9;
   // laneFlow: spool up fast on launch (under the warp dive); brake down slow.
@@ -208,7 +209,8 @@ function update(dt) {
         popup(W / 2, H * 0.26, 'LANE SURGE' + (surge === 6 ? ' — MAX' : ''), '#ff9a3c');
         surgeWaveZ = SPAWN_Z; // the surge rides in from the deep
         sfx.speedUp();
-        buzz(20);
+        buzz(20, { strong: 0, weak: 0 }); // WORLD telegraph — phone only. The lane
+        // announcing itself through the pad read as a random rumble.
       }
     }
   }
@@ -344,7 +346,7 @@ function updateLatches(dt, inIntro, ringXY, nodeXY) {
         popup(hp2.x, hp2.y - 20, 'RAIL LATCHED', '#ffb478');
         tone(140, 0.3, 'sawtooth', 0.12, 70);
         crackle(0.3, 2400, 500, 4, 0.6);
-        buzz(25);
+        buzz(25, { strong: 0, weak: 0 }); // WORLD telegraph — phone only
       }
     }
     const lt2 = lt.t - lt.tele;
@@ -362,7 +364,7 @@ function updateLatches(dt, inIntro, ringXY, nodeXY) {
         sfx.fry(Math.cos(nodes[i].angle) * 0.6);
         redFlash = Math.max(redFlash, 0.5);
         shake = Math.min(shake + 0.5, 1);
-        buzz([40, 30, 60]);
+        buzz([40, 30, 60], { side: i, strong: 1, weak: 0.7 }); // THAT trigger burns
       }
     }
   }
@@ -415,7 +417,7 @@ function updateVolley(dt, docked, g) {
         tone(150, 0.3, 'sawtooth', 0.13, 60);
         crackle(0.3, 2600, 500, 3, 0.7);
         shake = Math.min(shake + 0.5, 1);
-        buzz([30, 30, 50]);
+        buzz([30, 30, 50], { strong: 0, weak: 0 }); // WORLD telegraph — phone only
         break; // the bolt died on the trap
       }
       // volley kills pay a flat bounty — no combo, no zap credit, no pulse
@@ -428,7 +430,8 @@ function updateVolley(dt, docked, g) {
       if (en.tut) popup(vx, vy - 30, 'NEUTRALIZED', '#7ee262'); // the label's verb, answered
       rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
       const volleyZapSampled = sfx.zap(1, Math.cos(en.angle) * 0.6);
-      buzz(en.type === 'heavy' ? 25 : 12);
+      buzz(en.type === 'heavy' ? 25 : 12, en.type === 'heavy'
+        ? { strong: 0.7, weak: 0.4 } : { strong: 0.18, weak: 0.45 });
       spawnKillStreak(en.angle, en.z);
       lastKillBeat(en);
       if (en.type === 'heavy') { // armor stops the bolt; reds it punches through
@@ -559,7 +562,7 @@ function updateEnemy(en, C) {
         // traced() above resolves the ride; this says what the ride BOUGHT, on the
         // pad that now owns it — the generic sparkle it played said neither
         sfx.pulseArmed(Math.cos(nodes[ni].angle) * 0.7);
-        buzz(30);
+        buzz(30, { side: ni, strong: 0.55, weak: 0.85 }); // the pad that now owns it
       }
     }
     // the ribbon lights up in the tracing node's color, fading in and out
@@ -744,7 +747,14 @@ function updateEnemy(en, C) {
       // synth-era accents — the recorded hit stands alone
       if (!zapSampled && en.type === 'heavy') tone(110, 0.2, 'square', 0.13, 60); // armor thump
       if (!zapSampled && en.lock !== undefined) tone(1568, 0.12, 'triangle', 0.09, 1976); // key chime
-      buzz(en.type === 'normal' ? 18 : 30);
+      { // the hand that zapped feels the kill — a clean red is a crack in the
+        // light motor, armor collapsing is the heavy one. Solo zaps name their
+        // trigger; a pair job (line, heavy) kicks both hands.
+        const zside = boltPairs.length === 1 ? (boltPairs[0][0] === nodes[0] ? 0 : 1) : undefined;
+        buzz(en.type === 'normal' ? 18 : 30, en.type === 'normal'
+          ? { side: zside, strong: 0.30, weak: 0.55 }
+          : { side: zside, strong: 0.85, weak: 0.45 });
+      }
     } else {
       en.resolved = true; // slips past the ring and flies by the player
       if (en.partner) en.partner.resolved = true; // the pair fails as one
@@ -759,7 +769,7 @@ function updateEnemy(en, C) {
           redFlash = 1; shake = Math.min(shake + 0.6, 1);
           rimFX.push({ a: en.angle, t: 0.55, col: '255,74,94' });
           sfx.miss(Math.cos(en.angle) * 0.7);
-          buzz([40, 40, 60]);
+          buzz([40, 40, 60], { strong: 1, weak: 0.3 }); // dread is the heavy motor alone
         }
       }
     }

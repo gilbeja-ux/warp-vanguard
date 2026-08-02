@@ -1767,7 +1767,11 @@ function fireVolley(g) {
     crackle(0.22, 2400, 400, 2, 0.6);   // discharge
     tone(90, 0.15, 'sine', 0.14, 55);   // sub kick
   }
-  buzz([15, 10, 25]);
+  // both hands held the dock — both feel the snap. Unless the lane is EMPTY:
+  // parked nodes auto-dock and auto-fire forever, and a volley into nothing is
+  // scenery — the pad mutes (fx zeros), the phone keeps its familiar tick.
+  buzz([15, 10, 25], (boss || enemies.some(e => !e.dead && !e.resolved))
+    ? { strong: 0.5, weak: 0.9 } : { strong: 0, weak: 0 });
 }
 // charge halo + the bolt comet riding the bore
 function drawVolley(g) {
@@ -1859,7 +1863,7 @@ function firePulse(i) {
   pulseWaves.push({ z: geo().hitZ, kills: 0, i, col: i === 0 ? NODE_COLS[0] : '240,248,255' });
   shake = Math.min(shake + 0.7, 1);
   sfx.pulseFire();
-  buzz([30, 30, 90]);
+  buzz([30, 30, 90], { side: i, strong: 0.9, weak: 0.6 }); // the firing hand's trigger
   if (tut && tut.spawned === 'pulse' && !tut.fired) { // the hold releases
     tut.fired = true; tut.frozen = false; tut.t = 0;
     tone(90, 0.5, 'sine', 0.08, 660); // tape-warp back up: the run breathes again

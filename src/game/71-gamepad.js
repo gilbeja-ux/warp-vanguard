@@ -7,6 +7,7 @@
 let padPrev = { a: false, b: false, y: false, start: false, lt: false, rt: false, stick: false };
 let gpSel = 0, gpNav = false; // menu focus index + "a controller drives the menus"
 let gpStickDir = ''; // last stick step direction — a NEW direction steps again
+let gpStickOn = false, gpStickHeld = 0, gpStickGo = false; // menu-stick hysteresis + sustain — see menuStick()
 let gpSeen = false; // a controller has spoken — show button hints, arm the stick gate
 let gpSig = ''; // screen signature — focus snaps to the primary key on arrival
 function gpSyncFocus(list) { // → true when focus just snapped to a fresh screen
@@ -178,6 +179,27 @@ function pollGamepad(dt) {
     const x = gp.axes[i * 2], y = gp.axes[i * 2 + 1];
     return Math.hypot(x, y) > 0.45 ? Math.atan2(y, x) : null;
   };
+  // MENU STICK, WITH HYSTERESIS. A twenty-year-old pot flickering across one
+  // threshold reads as a stream of fresh deflections, and every one stepped
+  // the focus and ticked the pad — the "silent rumbling" in the menus. Engage
+  // HIGH, release LOW: noise inside the band changes nothing. Gameplay keeps
+  // stick()'s tighter deadzone — a run wants the response, menus want calm.
+  // MENU STICK: the ANGLE reports from raw deflection immediately — the
+  // arrival latches below need continuity from the very first frame — but
+  // ACTING gates on gpStickGo, which takes hysteresis (engage 0.62, release
+  // 0.38) AND sustain (four frames ≈ 66ms). A worn pot can spike past any
+  // single threshold for a frame — that was the "very very tiny random
+  // movement" — but it cannot HOLD a deflection the way a thumb does.
+  const menuStick = () => {
+    const m0 = Math.hypot(gp.axes[0], gp.axes[1]);
+    const m1 = gp.axes.length >= 4 ? Math.hypot(gp.axes[2], gp.axes[3]) : 0;
+    const m = Math.max(m0, m1);
+    if (m >= (gpStickOn ? 0.38 : 0.62)) gpStickHeld++; else gpStickHeld = 0;
+    gpStickOn = gpStickOn ? m >= 0.38 : gpStickHeld >= 4;
+    gpStickGo = gpStickOn;
+    if (m < 0.45) return null;
+    return m0 >= m1 ? Math.atan2(gp.axes[1], gp.axes[0]) : Math.atan2(gp.axes[3], gp.axes[2]);
+  };
   if (SPLASH.on) { // any button skips the intro (a pad press can't unlock audio anyway — just fly)
     const anyBtn = gp.buttons.some(b2 => b2 && b2.pressed);
     if (anyBtn && !padPrev.any) { gpSeen = true; if (SPLASH.t >= 0.3) splashEnd(true); }
@@ -196,7 +218,12 @@ function pollGamepad(dt) {
   const start = press(9);
   if (start && !padPrev.start) {
     if (state === S.PLAY) { state = S.PAUSE; sfx.tick(); } // any time — boot sequence included
-    else if (state === S.PAUSE) { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; sfx.tick(); }
+    else if (state === S.INFO && !infoOutAt) { pausedFromInfo = true; state = S.PAUSE; sfx.tick(); } // over the mission disc too
+    else if (state === S.PAUSE) {
+      if (pausedFromInfo) { pausedFromInfo = false; state = S.INFO; } // back to the briefing, no count-in
+      else { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; }
+      sfx.tick();
+    }
     else if (state === S.GUIDE) closeGuide();
     else if (state === S.MENU && !menuConfirm && !menuFx) { menuSettings = !menuSettings; sfx.tick(); } // START: the settings panel
   }
@@ -230,10 +257,10 @@ function pollGamepad(dt) {
       padPrev[key] = dn;
     }
     padPrev.d14 = press(14); padPrev.d15 = press(15); // eaten — no sideways ghosts
-    const sy = stick(0) !== null ? stick(0) : stick(1);
+    const sy = menuStick();
     const hadY = padPrev.stick;
     padPrev.stick = sy !== null;
-    if (sy !== null && Math.abs(Math.sin(sy)) > 0.6) { // a NEW direction steps again
+    if (sy !== null && gpStickGo && Math.abs(Math.sin(sy)) > 0.6) { // a NEW direction steps again
       const d = Math.sign(Math.sin(sy)) > 0 ? 1 : -1;
       if (!hadY || gpStickDir !== 'm' + d) { step(d); gpStickDir = 'm' + d; }
     } else if (sy === null) gpStickDir = '';
@@ -250,10 +277,10 @@ function pollGamepad(dt) {
       padPrev[key] = dn;
     }
     padPrev.d12 = press(12); padPrev.d13 = press(13);
-    const sx2 = stick(0) !== null ? stick(0) : stick(1);
+    const sx2 = menuStick();
     const hadX = padPrev.stick;
     padPrev.stick = sx2 !== null;
-    if (sx2 !== null && Math.abs(Math.cos(sx2)) > 0.6) { // a NEW direction slides again
+    if (sx2 !== null && gpStickGo && Math.abs(Math.cos(sx2)) > 0.6) { // a NEW direction slides again
       const d2 = Math.cos(sx2) > 0 ? 1 : -1;
       if (!hadX || gpStickDir !== 'c' + d2) {
         campScrollTgt = clamp(campScrollTgt + d2, 0, totalD - 1); campPendingSync = null; sfx.tick();
@@ -291,10 +318,20 @@ function pollGamepad(dt) {
     }
     // the analog stick navigates too: on the wheel it POINTS at a slice,
     // elsewhere a fresh deflection acts as one D-pad step
-    const sa = stick(0) !== null ? stick(0) : stick(1);
+    const sa = menuStick();
     const hadStick = padPrev.stick;
     padPrev.stick = sa !== null;
-    if (sa !== null) {
+    if (sa !== null && !gpStickGo) {
+      // deflected but not yet ENGAGED (the sustain window). If the screen just
+      // arrived, this is a stick still held from gameplay — latch its direction
+      // now, silently, so engagement three frames later reads as HELD, never as
+      // a fresh push. That latch is what keeps pause opening on RESUME with a
+      // thumb still on the dials.
+      if (fresh) {
+        const dxF = Math.abs(Math.cos(sa)) > Math.abs(Math.sin(sa)) ? Math.sign(Math.cos(sa)) : 0;
+        gpStickDir = 'g' + dxF + ':' + (dxF ? 0 : Math.sign(Math.sin(sa)));
+      }
+    } else if (sa !== null) {
       let pointed = -1;
       list.forEach((b, i) => {
         if (!b.sector) return;
@@ -375,3 +412,151 @@ function pollGamepad(dt) {
 // the SIM steps in fixed SIM_DT chunks (see frame()) so a run's outcome is a
 // pure function of seed + inputs — the prerequisite for server-side replay
 // verification. UI feedback + input polling stay on the raw clock in frame().
+// ---------- PAD DIAGNOSTIC (?padtest) ----------
+// "I feel nothing" has four different causes and the player cannot tell them
+// apart: the pad never reached the browser, the pad has no actuator here, the
+// actuator rejects, or the game's own gates are shut. This overlay answers
+// which — it lists every gamepad slot as the browser reports it, fires a hard
+// test effect at EVERY detected pad once a second (bypassing settings.haptics
+// and padDev on purpose — it tests the wire, not the game), and prints what
+// the promise actually resolved to. Dev-only: costs nothing without the param.
+const PAD_TEST = typeof location !== 'undefined' && /[?&]padtest/.test(location.search);
+let padTestLog = [], padTestAt = 0, padTestN = 0;
+let padTestBurst = 0; // the test fire is a BURST, and it arms ONLY by explicit
+                      // action — the grant click or a SHIFT-click. It used to
+                      // arm itself at page load, which meant eight unprompted
+                      // shots into the menu on every reload: the exact haunting
+                      // this diagnostic exists to catch, caused by it. A
+                      // diagnostic must be silent until asked.
+function padTestNote(msg) {
+  padTestLog.unshift({ t: time, msg });
+  if (padTestLog.length > 7) padTestLog.length = 7;
+}
+function padTestFire() {
+  if (padTestBurst <= 0 || time - padTestAt < 1.0) return;
+  padTestAt = time;
+  padTestBurst--;
+  let pads = [];
+  try { pads = Array.from(navigator.getGamepads()).filter(p => p); } catch (e) {}
+  if (!pads.length) return;
+  const n = padTestN++;
+  for (const p of pads) {
+    const act = p.vibrationActuator;
+    const ha = p.hapticActuators && p.hapticActuators[0];
+    try {
+      if (act && act.playEffect) {
+        // rotate through the vocabulary: strong motor, weak motor, triggers
+        const kind = n % 3 === 2 && act.effects && act.effects.indexOf('trigger-rumble') >= 0
+          ? 'trigger-rumble' : 'dual-rumble';
+        const fx = kind === 'trigger-rumble'
+          ? { duration: 500, strongMagnitude: 0.3, weakMagnitude: 0.3, leftTrigger: 1, rightTrigger: 1 }
+          : n % 3 === 0 ? { duration: 500, strongMagnitude: 1, weakMagnitude: 0 }
+          : { duration: 500, strongMagnitude: 0, weakMagnitude: 1 };
+        const tag = kind === 'trigger-rumble' ? 'triggers' : n % 3 === 0 ? 'STRONG motor' : 'weak motor';
+        act.playEffect(kind, fx)
+          .then(r => padTestNote('#' + p.index + ' ' + tag + ' → ' + r))
+          .catch(e => padTestNote('#' + p.index + ' ' + tag + ' → REJECTED: ' + (e && e.message || e)));
+      } else if (ha && ha.pulse) {
+        Promise.resolve(ha.pulse(1, 500))
+          .then(r => padTestNote('#' + p.index + ' pulse() → ' + r))
+          .catch(e => padTestNote('#' + p.index + ' pulse() → REJECTED: ' + (e && e.message || e)));
+      } else padTestNote('#' + p.index + ' has NO actuator in this browser');
+    } catch (e) { padTestNote('#' + p.index + ' THREW: ' + (e && e.message || e)); }
+  }
+  // the WebHID side-door, if granted: full blast both motors, its own send
+  // path and its own log line — this is the wire the RumblePad answers on
+  if (typeof hidDev !== 'undefined' && hidDev && hidDev.opened) {
+    if (hidRumble(1, 1, 500)) padTestNote('webhid ' + (hidFmt ? hidFmt.name : '?') + ' → sent (feel it?)');
+  }
+}
+let padTestRect = null; // the panel IS the grant button — clicks route here
+function padTestClick() { // grant on first click; later clicks re-run the burst
+  if (typeof hidDev !== 'undefined' && hidDev) { padTestBurst = 8; padTestNote('test burst re-armed'); }
+  else hidRumbleRequest();
+}
+function drawPadTest() {
+  padTestFire();
+  const lines = [];
+  let pads = [];
+  try { pads = Array.from(navigator.getGamepads()).filter(p => p); } catch (e) {}
+  { // THE VERDICT — one line, plain language, so nobody has to assemble the
+    // answer out of five status fields. Everything below it is evidence.
+    const pads0 = pads;
+    const hidOn = typeof hidDev !== 'undefined' && hidDev && hidDev.opened;
+    const anyAct = pads0.some(p2 => p2.vibrationActuator || (p2.hapticActuators && p2.hapticActuators.length));
+    lines.push(typeof HID_OFF !== 'undefined' && HID_OFF
+      ? '>> SILENT ON PURPOSE: ?nohid is in the URL. Remove it.'
+      : !pads0.length ? '>> NO PAD SEEN — press a button on the controller'
+      : hidOn ? '>> READY: rumble goes out over WebHID (' + (hidFmt ? hidFmt.name : '?')
+        + ') — ' + (typeof hidMonN !== 'undefined' ? hidMonN : 0) + ' sends so far'
+      : typeof hidKnown !== 'undefined' && hidKnown
+        ? '>> BLOCKED: pad granted but NOT OPEN — another tab of this game holds it'
+      : anyAct ? '>> READY: rumble goes out over the Gamepad API'
+      : navigator.hid ? '>> ACTION NEEDED: this pad has no Chrome rumble driver. CLICK THIS PANEL to grant WebHID.'
+      : '>> NO PATH: no actuator, and this browser has no WebHID');
+  }
+  lines.push('PAD DIAGNOSTIC — ' + (padTestBurst > 0
+    ? 'test burst: ' + padTestBurst + ' shot' + (padTestBurst === 1 ? '' : 's') + ' left'
+    : 'test idle — SHIFT-click panel to fire a test burst'));
+  if (!pads.length) {
+    lines.push('no gamepad exposed. PRESS ANY BUTTON ON THE PAD —');
+    lines.push('browsers hide controllers until they speak. If it stays');
+    lines.push('empty: pairing/driver, not the game.');
+  }
+  for (const p of pads) {
+    const act = p.vibrationActuator;
+    // "no actuator" is the EXPECTED state for any pad Chrome has no rumble
+    // driver for — which is why WebHID exists. It used to render in the error
+    // colour and read as the fault; it is a routing fact, not a problem.
+    const hidOn = typeof hidDev !== 'undefined' && hidDev && hidDev.opened;
+    const vib = act
+      ? 'vib: ' + (act.effects && act.effects.length ? act.effects.join('+') : (act.type || 'dual-rumble'))
+      : p.hapticActuators && p.hapticActuators.length ? 'vib: pulse (FF-style)'
+      : hidOn ? 'vib: none via Gamepad API — WebHID is driving it (fine)'
+      : 'vib: none via Gamepad API';
+    lines.push('#' + p.index + ' "' + String(p.id).slice(0, 44) + '"');
+    lines.push('   ' + (p.mapping || 'no mapping') + ' · ' + p.axes.length + ' axes · '
+      + p.buttons.length + ' keys · ' + vib);
+    // live inputs: phantom axis drift and noisy buttons show up RIGHT HERE —
+    // if these dance while the pad lies untouched, the pad is talking, not us
+    lines.push('   ax ' + p.axes.map(a2 => (a2 < 0 ? '' : '+') + a2.toFixed(2)).join(' ')
+      + ' · down: ' + p.buttons.map((b2, i2) => b2.pressed ? i2 : null).filter(v => v !== null).join(',') || 'none');
+  }
+  lines.push('game gates: haptics ' + (settings.haptics ? 'ON' : 'OFF — flip it in settings!')
+    + ' · padDev ' + (padDev ? 'locked #' + padDev.index : 'none'));
+  lines.push(typeof HID_OFF !== 'undefined' && HID_OFF
+    ? 'webhid: DISABLED BY ?nohid — drop that param from the URL for rumble'
+    : typeof hidDev !== 'undefined' && hidDev
+    ? 'webhid: ' + (hidFmt ? hidFmt.name : hidDev.productName) + (hidDev.opened ? ' (open)' : ' (NOT open)')
+    : typeof hidKnown !== 'undefined' && hidKnown
+    ? 'webhid: granted but NOT OPEN — another tab of this game is holding it'
+    : navigator.hid ? 'webhid: none — CLICK THIS PANEL to grant a RumblePad-class pad'
+    : 'webhid: unavailable in this browser');
+  if (typeof hidDev !== 'undefined' && hidDev)
+    lines.push('SHIFT-click panel re-runs the burst · ?hidswap '
+      + (typeof HID_SWAP !== 'undefined' && HID_SWAP ? 'ON' : 'off')
+      + ' · ?nohid ' + (typeof HID_OFF !== 'undefined' && HID_OFF ? 'ON — we send NOTHING' : 'off')
+      + ' · report ?hidfmt=' + (typeof HID_FMT_I !== 'undefined' ? HID_FMT_I : '?') + ' of 0-4');
+  lines.push('game buzz: ' + buzzMonN + ' total · last ' + (buzzMonLast || 'none')
+    + (buzzMonN ? ' · ' + Math.min(999, time - buzzMonAt).toFixed(1) + 's ago' : ''));
+  if (typeof hidMonN !== 'undefined') lines.push('hid sends: ' + hidMonN
+    + (hidMonN ? ' · last ' + Math.min(999, time - hidMonAt).toFixed(1) + 's ago' : '')
+    + ' — if the pad pulses while this holds still, it is not us');
+  for (const l of padTestLog) lines.push((time - l.t).toFixed(0) + 's  ' + l.msg);
+  ctx.save();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const x = 14 + SAFE.l, y0 = H - 16 - lines.length * 13;
+  padTestRect = { x: x - 8, y: y0 - 14, w: 470, h: lines.length * 13 + 20 };
+  ctx.fillStyle = 'rgba(2,8,18,0.82)';
+  ctx.fillRect(x - 8, y0 - 14, 470, lines.length * 13 + 20);
+  ctx.font = '11px ui-monospace, Menlo, monospace';
+  ctx.textAlign = 'left';
+  lines.forEach((l, i) => {
+    ctx.fillStyle = /REJECTED|THREW|FAILED|BLOCKED|NO PAD|NO PATH|SILENT ON PURPOSE/.test(l) ? '#ff8091'
+      : /ACTION NEEDED/.test(l) ? '#ffd24a'
+      : />> READY|→ complete|→ preempted|reclaimed|adopted/.test(l) ? '#8deda1'
+      : 'rgba(200,230,255,0.9)';
+    ctx.fillText(l, x, y0 + i * 13);
+  });
+  ctx.restore();
+}

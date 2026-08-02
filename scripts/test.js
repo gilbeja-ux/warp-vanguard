@@ -200,7 +200,9 @@ function check(name, cond) {
 }
 function aim(i, a) { G.nodes[i].angle = a; }
 // tap through an INFO disc (boss/story briefings — the tutorial no longer uses them)
-function dismiss() { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 7, clientX: 5, clientY: 5, pointerType: 'touch' }); G.update(0.15); G.update(0.15); G.update(0.15); }
+// dismiss taps land mid-screen: (5,5) is INSIDE the pause button's padded
+// hitbox, and pause works over the discs now — that tap would pause, not dismiss
+function dismiss() { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 7, clientX: 400, clientY: 300, pointerType: 'touch' }); G.update(0.15); G.update(0.15); G.update(0.15); }
 function flushUI() { for (let i = 0; i < 16; i++) G.update(0.05); } // press beat + transition midpoint
 function cross(en) { // place at the ring and step one tick
   // (exactly hitZ so the hit check fires even when hit-stop slows the clock)
@@ -648,7 +650,7 @@ check('campaign completion recorded', G.getProg().stars[7] > 0);
 // ================= TEMP boss-test shortcut =================
 G.startBossTest();
 G.update(0.05);
-if (G.getState() === G.S.INFO) { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 8, clientX: 5, clientY: 5, pointerType: 'touch' }); G.update(0.15); G.update(0.15); G.update(0.15); }
+if (G.getState() === G.S.INFO) { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 8, clientX: 400, clientY: 300, pointerType: 'touch' }); G.update(0.15); G.update(0.15); G.update(0.15); }
 G.update(0.05);
 check('BOSS TEST key drops straight into the duel', !!G.boss());
 G.boss().introT = 99; // skip the ceremony for the shortcut check
@@ -1063,8 +1065,22 @@ check('deploying opens the story log', G.getState() === G.S.INFO && G.getInfoCar
   check('the threat count is cached, not re-walked', G.levelThreats(L, 2) === G.levelThreats(L, 2));
 }
 drawOk('mission disc (art plate fallback + plot line)', () => {});
+{ // PAUSE WORKS OVER THE MISSION DISC — and resume returns TO the disc.
+  // This shipped broken because every tap fed the dismiss branch; the old
+  // dismiss() helper even leaned on the bug by tapping inside the button.
+  G.update(0.5);
+  G.frame(16); // draw builds pauseBtnRect
+  canvasHandlers.pointerdown({ pointerId: 11, clientX: 20, clientY: 20, pointerType: 'touch' });
+  check('the pause button works over the mission disc', G.getState() === G.S.PAUSE);
+  G.frame(16); // draw builds pauseButtonsList
+  const rh0 = G.getResumeHold();
+  const rb = G.pauseBtns().find(b => b.action === 'resume');
+  G.pauseTap(rb.x + 5, rb.y + 5, 12);
+  check('resume hands the briefing back, no count-in',
+    G.getState() === G.S.INFO && G.getResumeHold() === rh0);
+}
 G.update(0.5);
-canvasHandlers.pointerdown({ pointerId: 9, clientX: 5, clientY: 5, pointerType: 'touch' });
+canvasHandlers.pointerdown({ pointerId: 9, clientX: 400, clientY: 300, pointerType: 'touch' });
 G.update(0.15); G.update(0.15); G.update(0.15); // card animates out
 // the relay we SELECTED, not a name typed in here — level names are authoring
 // labels and get rewritten; what this test is about is landing on relay 2

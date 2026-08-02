@@ -96,7 +96,7 @@ function killTriadCore(c) {
   hitStop = Math.min(hitStop + 0.18, 0.22);
   tone(60, 0.4, 'sine', 0.2, 35);
   crackle(0.4, 2200, 300, 3, 0.9);
-  buzz([60, 40, 90]);
+  buzz([60, 40, 90], { strong: 1, weak: 0.8 }); // a core going down is the whole pad
 }
 // a homing volley bolt reached its core
 function bossVolleyHit(sh) {
@@ -132,7 +132,7 @@ function bossVolleyHit(sh) {
   hitStop = Math.min(hitStop + 0.1, 0.14);
   tone(70, 0.3, 'sine', 0.2, 40);
   crackle(0.35, 2000, 300, 2, 0.8);
-  buzz([40, 30, 60]);
+  buzz([40, 30, 60], { strong: 0.9, weak: 0.5 });
   if (b.kind === 'core' && b.hp === 3 && !b.phase2) {
     b.phase2 = true;
     b.tapT = 1.2;
@@ -178,7 +178,7 @@ function updateBossDeath(dt, g) {
     burst(b.sx, b.sy, '#ff9a3c', 30, 7);
     sfx.bossDown();
     shake = 1;
-    buzz([80, 40, 120]);
+    buzz([80, 40, 120], { strong: 1, weak: 1 }); // the kill
   }
   if (b.dying > 3.2) { // the case closes — verdict, then the report
     boss = null;
@@ -331,7 +331,7 @@ function updateBossFight(dt, g) {
     if (!b.cer1) { b.cer1 = true; tone(30, 2.6, 'sine', 0.16, 55); crackle(2.4, 60, 260, 1, 0.35); }
     if (!b.cer2 && b.introT > 1.5) { // the eye ignites; it speaks
       b.cer2 = true;
-      sfx.bossOnline(); buzz([40, 60, 90]);
+      sfx.bossOnline(); buzz([40, 60, 90], { strong: 0.7, weak: 0.9 }); // arrival: presence, not pain
       commCur = { s: 'CORE', m: bd.speak }; commT = 0;
     }
     if (b.introT >= BOSS_CER) {

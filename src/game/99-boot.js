@@ -774,6 +774,7 @@ function frame(now) {
     const used = performance.now() - now;
     s3Pump(Math.max(S3D_LIGHT.bakeMin, Math.min(S3D_LIGHT.bakeMs, 11 - used)));
   }
+  if (PAD_TEST) drawPadTest(); // ?padtest — the controller diagnostic, over everything
   if (profOn()) { profFrame(performance.now() - now); drawProfiler(); }
   requestAnimationFrame(frame);
 }

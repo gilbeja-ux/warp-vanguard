@@ -27,6 +27,10 @@ const MUSIC_FADEIN = 2.2; // seconds to fade a track in
 const MUSIC_FADEOUT = 1.0; // seconds the outgoing track takes to bow out on a switch
 const MUSIC_XFADE = 4.0;  // seconds two takes overlap when free flow chains the next track
 const MUSIC_LEAD = 14;    // seconds before the seam the next track starts fetching + decoding
+// how long a menu take may be and still be held decoded for the session — see
+// the cache site below. 120s ≈ 45 MB, which is a fair price for an instant
+// return; past that the memory outweighs the convenience.
+const MENU_CACHE_MAX = 120;
 // a manifest entry is normally a bare url; { file, name } overrides the title
 function trackEntry(k) {
   const md = window.MUSIC_DATA;
@@ -252,7 +256,14 @@ function playTrack(key) {
     .then(r => r.arrayBuffer())
     .then(a => AC.decodeAudioData(a))
     .then(buf => {
-      if (key === 'menu') menuBuf = buf; // worth keeping whatever happens next: the menu is returned to constantly
+      // THE SESSION CACHE, WITH A CEILING. Holding the menu take decoded is
+      // what makes leaving a run switch music instantly — but a decoded buffer
+      // is raw float32 PCM, so the cost is duration, not file size: ~10 MB per
+      // MINUTE per channel pair. A three-minute menu piece parks ~80 MB for the
+      // whole session, on top of the run's own take. Short pieces still get the
+      // instant return; a long one is re-decoded on the way back, which is off
+      // the main thread and hidden under the menu transition anyway.
+      if (key === 'menu' && buf.duration <= MENU_CACHE_MAX) menuBuf = buf;
       if (currentTrackKey !== key) return; // a newer switch won the race — and the quiet it wants is deliberate
       musicLoadKey = null;
       startTake(key, buf);
@@ -393,10 +404,295 @@ function updateMusic(dt) {
   musicLift += (liftTarget - musicLift) * Math.min(1, (dt || 0) * 2);
   musicGain.gain.value = musicVolume() * f * (1 - 0.55 * musicDuck) * holdVol * musicLift * replayMusicVol;
 }
-// haptics: Capacitor Haptics on device, vibration API on the web, and
-// dual-rumble on a connected controller (padDev is refreshed every poll)
+// haptics: Capacitor Haptics on device, vibration API on the web, and the
+// controller in step — see padRumble for the force-feedback design.
 let padDev = null;
-function buzz(pattern) {
+// FORCE FEEDBACK, DESIGNED RATHER THAN DERIVED. A pad has two voices the phone
+// does not: a heavy motor that says IMPACT and a light one that says TICK —
+// and on Xbox pads under Chromium, motors in the TRIGGERS themselves. fx
+// (optional) is the design channel the important events pass:
+//   strong / weak  explicit motor mix 0..1. Omitted, both derive from the
+//                  mobile pattern's length as they always did — with one
+//                  refinement: a pattern under 18ms is a UI tick, and a tick
+//                  is the light motor only. The old floor made every tap in a
+//                  menu thump like a landing.
+//   side           0|1 — the emitter that acted. Where trigger rumble exists
+//                  (act.effects lists it), the kick lands in THAT trigger:
+//                  the hand that zapped feels it. Everywhere else the side
+//                  folds back into plain dual-rumble, gracefully.
+// Firefox exposes a different door to the same motor (hapticActuators.pulse)
+// — the old code found the actuator and then required playEffect of it, so
+// Firefox pads sat silent while looking supported.
+let padHoldAt = 0; // the hold channel's refresh clock — see tickPadRumble
+let padFxUntil = 0, padFxMag = 0; // the running effect's window — strongest wins
+// ?hidswap: flips which byte drives which motor on the WebHID path — the A/B
+// for a unit whose motors are wired opposite to the Linux driver's claim
+const HID_SWAP = typeof location !== 'undefined' && /[?&]hidswap/.test(location.search);
+// ?nohid — the WebHID path off entirely, so a mystery rumble can be ATTRIBUTED
+// rather than argued about: if the pad still pulses with this on, nothing this
+// game sends is reaching its motors and the hardware is talking to itself.
+const HID_OFF = typeof location !== 'undefined' && /[?&]nohid/.test(location.search);
+// ---------- WEBHID RUMBLE: motors the Gamepad API refuses to see ----------
+// Chrome attaches vibrationActuator only to pads its own driver recognises;
+// everything else — the RumblePad 2 on the desk — is a plain HID device with
+// perfectly good motors behind an output report. WebHID reaches them. The
+// grant is a one-time click on the ?padtest panel (a user gesture is
+// mandatory); after that getDevices() re-adopts the pad silently every boot.
+// Desktop-Chromium only by nature, which is exactly where the problem lives —
+// phones rumble through Capacitor and never come this way.
+const HID_RUMBLE = [
+  // Per-device report formats, taken from the Linux hid-lg drivers — the one
+  // place this hardware is still documented. make(strong, weak) → bytes.
+  { vendorId: 0x046d, products: [0xc218, 0xc219], name: 'RumblePad 2',
+    // hid-lg2ff.c: 7 bytes, 0x51 preamble, strong at [2], weak at [4].
+    // SET-AND-HOLD — the motors run until zeroed, so every send arms a stop.
+    // lo: where this motor actually starts responding. Design magnitudes are
+    // written for hardware with a curve; this one has a cliff at ~30%, so the
+    // whole 0..1 design range remaps onto lo..1 — a 0.3 crack lands at ~0.5,
+    // which the mass can actually express, instead of under its own threshold.
+    // Raised 0.30 → 0.52 off Gil's bench: at 0.30 the mid-weight events (a
+    // clean zap designs at 0.30, landing on 130/255) were audible but barely
+    // felt. This motor's useful range is the TOP HALF of its scale, so the
+    // whole design range now remaps there — a light crack lands at ~176/255
+    // and the heavy events still cap at full.
+    lo: 0.52,
+    make: (s, w) => hidFmtBytes(Math.round(s * 255), Math.round(w * 255)) }
+];
+// ?hidfmt=N — WALK THE CANDIDATE REPORTS. The layout above is the Linux
+// driver's, and it is right for the units that driver was written against;
+// this hardware shipped in revisions, and a report the pad does not recognise
+// is silently ignored — which looks exactly like a dead motor. Rather than
+// guess again, every plausible variant is numbered and reachable:
+//   0  0x51 preamble, motors at [2] and [4]   (hid-lg2ff — the default)
+//   1  0x51 with the 0x80 enable byte set
+//   2  motors adjacent at [2][3]
+//   3  8-byte frame, motors at [1][2]
+//   4  0x42 preamble (older Logitech FF)
+// Try them with ?padtest&hidfmt=1, then 2, 3, 4 — the SHIFT-click burst gives
+// each one a full-blast shot. Whichever moves the pad is the answer, and it
+// becomes the default with one number.
+const HID_FMTS = [
+  (s, w) => [0x51, 0x00, s, 0x00, w, 0x00, 0x00],
+  (s, w) => [0x51, 0x80, s, 0x00, w, 0x00, 0x00],
+  (s, w) => [0x51, 0x00, s, w, 0x00, 0x00, 0x00],
+  (s, w) => [0x00, s, w, 0x00, 0x00, 0x00, 0x00, 0x00],
+  (s, w) => [0x42, 0x00, s, 0x00, w, 0x00, 0x00]
+];
+let HID_FMT_I = 0;
+if (typeof location !== 'undefined') {
+  const qf = /[?&]hidfmt=(\d+)/.exec(location.search);
+  if (qf) HID_FMT_I = clamp(parseInt(qf[1], 10) || 0, 0, HID_FMTS.length - 1);
+}
+const hidFmtBytes = (s, w) => HID_FMTS[HID_FMT_I](s, w);
+let hidDev = null, hidFmt = null, hidRid = 0, hidOffTimer = 0, hidStopSeq = 0;
+// A STOP THAT IS DROPPED LEAVES THE MOTOR RUNNING FOREVER. These motors are
+// set-and-hold: the stop is not a courtesy, it is the second half of every
+// effect — and it was one un-caught async sendReport, so a single USB hiccup
+// (or a rejected write) meant a pad humming until the tab closed. The door is
+// closed THREE times over ~650ms now, and a zero on an already-stopped motor
+// costs nothing, so repeating is free. A new effect invalidates the chain by
+// sequence, which is what keeps this from stuttering a live rumble.
+function hidSendStop(times) {
+  const seq = ++hidStopSeq;
+  const fire = n => {
+    if (seq !== hidStopSeq || !hidDev || !hidDev.opened || !hidFmt) return;
+    try { hidDev.sendReport(hidRid, new Uint8Array(hidFmt.make(0, 0))).catch(() => {}); } catch (e) {}
+    if (n > 1) setTimeout(() => fire(n - 1), 220);
+  };
+  fire(times || 3);
+}
+let hidMonN = 0, hidMonAt = -999; // every report that leaves for the pad — the
+                                  // ?padtest monitor's ground truth. If the pad
+                                  // pulses while this holds still, it is not us.
+function hidRumbleAdopt(d, armTest) {
+  const f = HID_RUMBLE.find(e => e.vendorId === d.vendorId && e.products.indexOf(d.productId) >= 0);
+  if (!f) return false;
+  // the output report id, off the device's own descriptor — 0 when unnumbered
+  let rid = 0;
+  try {
+    for (const c of d.collections || []) {
+      if (c.outputReports && c.outputReports.length) { rid = c.outputReports[0].reportId || 0; break; }
+    }
+  } catch (e) {}
+  const done = () => { hidDev = d; hidFmt = f; hidRid = rid;
+    if (typeof padTestNote === 'function') padTestNote('webhid: adopted ' + f.name);
+    // only an EXPLICIT grant earns a test burst — the silent boot re-adoption
+    // must stay silent, or every reload buzzes the menu unprompted
+    if (armTest && typeof padTestBurst !== 'undefined') padTestBurst = 8; };
+  // REMEMBER IT EITHER WAY. A device can be granted and still refuse to open —
+  // most often because ANOTHER TAB of this game already holds it, since WebHID
+  // hands a device to one page at a time. Holding the reference lets the rumble
+  // path retry later instead of going permanently silent on the one reload that
+  // happened to lose the race.
+  hidKnown = d; hidKnownFmt = f; hidKnownRid = rid;
+  if (d.opened) done();
+  else d.open().then(done).catch(e => {
+    if (typeof padTestNote === 'function') padTestNote('webhid open FAILED (another tab holding it?): ' + (e && e.message || e));
+  });
+  return true;
+}
+// ...and the retry itself, throttled: the moment the other tab lets go, the
+// next effect reclaims the pad. Cheap enough to sit in the rumble path.
+let hidKnown = null, hidKnownFmt = null, hidKnownRid = 0, hidReopenAt = -999;
+function hidReopen() {
+  if (!hidKnown || hidKnown.opened || time - hidReopenAt < 2) return;
+  hidReopenAt = time;
+  try {
+    hidKnown.open().then(() => {
+      hidDev = hidKnown; hidFmt = hidKnownFmt; hidRid = hidKnownRid;
+      if (typeof padTestNote === 'function') padTestNote('webhid: reclaimed the pad');
+    }).catch(() => {});
+  } catch (e) {}
+}
+function hidRumbleInit() { // re-adopt anything granted in an earlier session
+  try { navigator.hid.getDevices().then(list => { for (const d of list) hidRumbleAdopt(d); }); } catch (e) {}
+}
+if (typeof navigator !== 'undefined' && navigator.hid) setTimeout(hidRumbleInit, 0);
+function hidRumbleRequest() { // MUST run inside a user gesture — the padtest panel click
+  try {
+    navigator.hid.requestDevice({ filters: HID_RUMBLE.map(f => ({ vendorId: f.vendorId })) })
+      .then(list => {
+        if (!list.length && typeof padTestNote === 'function') padTestNote('webhid: nothing granted');
+        for (const d of list) hidRumbleAdopt(d, true); // granted by hand → prove the wire now
+      })
+      .catch(e => { if (typeof padTestNote === 'function') padTestNote('webhid request FAILED: ' + (e && e.message || e)); });
+  } catch (e) {}
+}
+function hidRumble(strong, weak, ms) {
+  if (HID_OFF) return false;
+  if (!hidDev || !hidDev.opened || !hidFmt) { hidReopen(); return false; }
+  // MOTOR FLOOR. A 2005 eccentric-mass motor has a threshold, not a curve:
+  // under it the pad hums audibly without actually rumbling, and a stream of
+  // sub-threshold sends blurs every designed event into one continuous drone.
+  // Below the floor a motor gets ZERO, and an effect that is all floor is not
+  // sent at all — silence is part of the design.
+  if (strong < 0.12) strong = 0;
+  if (weak < 0.12) weak = 0;
+  if (!strong && !weak) return true; // handled: deliberately quiet
+  if (HID_SWAP) { const t2 = strong; strong = weak; weak = t2; }
+  const lo = hidFmt.lo || 0;         // ...and what survives the floor is lifted
+  if (strong) strong = lo + strong * (1 - lo);   // onto the motor's live range
+  if (weak) weak = lo + weak * (1 - lo);
+  hidMonN++; hidMonAt = time;
+  try {
+    hidDev.sendReport(hidRid, new Uint8Array(hidFmt.make(clamp(strong, 0, 1), clamp(weak, 0, 1))))
+      .catch(e => { if (typeof padTestNote === 'function') padTestNote('webhid send FAILED: ' + (e && e.message || e)); });
+    // set-and-hold hardware: every effect arms its own stop, and a fresh send
+    // re-arms it — which is exactly how the hold channel sustains
+    clearTimeout(hidOffTimer);
+    hidStopSeq++; // this effect owns the motors — abandon any stop chain in flight
+    hidOffTimer = setTimeout(() => hidSendStop(3),
+      Math.max(ms || 120, 90)); // an eccentric mass needs ~90ms to even spin up
+    return true;
+  } catch (e) { return false; }
+}
+function padRumble(pattern, fx) {
+  // THE PAD SPEAKS ONLY WHERE THE GAME IS. An ALLOWLIST, not a blocklist:
+  // any state this list doesn't name — menus, the guide, whatever gets built
+  // next year — is silent on the controller by default. Phone ticks are a tap
+  // answering a tap; a controller humming outside a run reads as a fault.
+  // The pad test path bypasses this by design.
+  if (state !== S.PLAY && state !== S.PAUSE && state !== S.INFO && state !== S.END) return;
+  try {
+    const dur = Array.isArray(pattern) ? pattern.reduce((a, b) => a + b, 0) : pattern;
+    const D = clamp(dur * 1.6, 40, 400);
+    const mag = clamp(dur / 90, 0.25, 1);
+    const tick = dur < 18;
+    const strong = fx && fx.strong !== undefined ? fx.strong : (tick ? 0 : mag);
+    const weak = fx && fx.weak !== undefined ? fx.weak : (tick ? 0.35 : mag * 0.6);
+    // ONE EFFECT AT A TIME, STRONGEST WINS. playEffect and sendReport REPLACE
+    // whatever is running — so a light combo tick landing mid-fry was cutting
+    // the fry off at the knees, and a busy fight blurred into whichever event
+    // happened LAST ("I feel maybe 10% of these"). A weaker effect inside a
+    // stronger one's window is dropped, not queued — by the time the window
+    // opens it would be stale news.
+    const fmag = Math.max(strong, weak);
+    if (fmag < 0.03) return; // a pad-muted event (fx zeros) — never claims the window
+    if (time < padFxUntil && fmag < padFxMag * 0.7) return;
+    padFxUntil = time + D / 1000; padFxMag = fmag;
+    // a one-shot owns the motors for a beat — the hold channel yields, or a
+    // charge refresh 10ms later would erase the very kick the event earned
+    padHoldAt = time + 0.10;
+    const act = padDev && padDev.vibrationActuator;
+    if (act && act.playEffect) {
+      if (fx && fx.side !== undefined && act.effects && act.effects.indexOf('trigger-rumble') >= 0) {
+        act.playEffect('trigger-rumble', {
+          duration: D,
+          strongMagnitude: strong * 0.45, weakMagnitude: weak * 0.45, // the body still feels it
+          leftTrigger: fx.side === 0 ? Math.max(strong, weak) : 0,
+          rightTrigger: fx.side === 1 ? Math.max(strong, weak) : 0
+        });
+      } else act.playEffect('dual-rumble', { duration: D, strongMagnitude: strong, weakMagnitude: weak });
+    } else if (!hidRumble(strong, weak, D)) { // pads Chrome has no motors for
+      const ha = padDev && padDev.hapticActuators && padDev.hapticActuators[0];
+      if (ha && ha.pulse) ha.pulse(clamp(Math.max(strong, weak), 0, 1), D);
+    }
+  } catch (e) {}
+}
+// THE HOLD CHANNEL: continuous feedback for a continuous state — the charge
+// building between docked emitters, which is also the boss duel's hold. Each
+// playEffect REPLACES the last, so a short effect refreshed on a throttle IS
+// a sustain — and the swell rising with the charge is the pad telling the
+// hands what the glass vessel is telling the eyes.
+// THE HARD OFF. Set-and-hold motors trust a stop timer; a stop that loses a
+// race — or a motor driver aging out of spec, which a 2005 pad has earned —
+// leaves the pad humming into the menus. Leaving the run now always slams the
+// door: HID motors zeroed, the Gamepad API actuator reset, the priority
+// window cleared. Runs regardless of the haptics setting — OFF must mean off.
+function padRumbleStop() {
+  clearTimeout(hidOffTimer);
+  hidSendStop(4); // leaving a run: knock four times, and mean it
+  try { const act = padDev && padDev.vibrationActuator; if (act && act.reset) act.reset(); } catch (e) {}
+  padFxUntil = 0; padFxMag = 0;
+}
+let padWasRun = false, padIdleAt = -999;
+function tickPadRumble() {
+  const inRun = state === S.PLAY || state === S.PAUSE || state === S.INFO || state === S.END;
+  if (padWasRun && !inRun) padRumbleStop(); // the door slams on the way out, every path
+  padWasRun = inRun;
+  // THE MENU WATCHDOG. One stop can be missed; a stop repeated every two
+  // seconds cannot. Set-and-hold motors have no other way to be *sure* they
+  // are idle, and the report costs a handful of bytes on a screen doing
+  // nothing else. It also settles the question for good: with an all-stop
+  // landing every two seconds, any pulse that still survives is the hardware
+  // generating it on its own, because nothing we sent could still be alive.
+  // Runs regardless of the haptics setting — silence is not an effect.
+  if (!inRun) {
+    if (time - padIdleAt > 2) { padIdleAt = time; hidSendStop(1); }
+    return;
+  }
+  if (!settings.haptics || state !== S.PLAY) return;
+  if (typeof volley === 'undefined' || !(volley.charge > 0.02)) return;
+  // an EMPTY lane charges too (parked nodes auto-dock) — that perpetual cycle
+  // is scenery, not an event, and feeding it to the pad was a metronome
+  if (!boss && !enemies.some(e => !e.dead && !e.resolved)) return;
+  if (time - padHoldAt < 0.07) return;
+  if (time < padFxUntil) return; // never talk over a designed one-shot
+  padHoldAt = time;
+  const q = clamp(volley.charge / 0.5, 0, 1);
+  // QUADRATIC, AND LATE. Docked emitters are half of normal play, so a swell
+  // that starts at first contact is a motor that never stops — on hardware
+  // with a binary-ish threshold (the RumblePad) it read as constant-on. The
+  // hold is silent for the first third of the charge and climbs hard after:
+  // it announces the RELEASE, not the docking.
+  const k = Math.max(0, q - 0.35) / 0.65;
+  const strong = k * k * 0.6, weak = k * k * 0.3;
+  if (strong < 0.03) return;
+  try {
+    const act = padDev && padDev.vibrationActuator;
+    if (act && act.playEffect) act.playEffect('dual-rumble', { duration: 130, strongMagnitude: strong, weakMagnitude: weak });
+    else if (!hidRumble(strong, weak, 160)) { // refresh outruns the stop — that IS the sustain
+      const ha = padDev && padDev.hapticActuators && padDev.hapticActuators[0];
+      if (ha && ha.pulse) ha.pulse(strong, 130);
+    }
+  } catch (e) {}
+}
+let buzzMonN = 0, buzzMonAt = -999, buzzMonLast = ''; // the ?padtest monitor reads these
+function buzz(pattern, fx) {
+  buzzMonN++; buzzMonAt = time;
+  buzzMonLast = (Array.isArray(pattern) ? '[' + pattern.join(',') + ']' : String(pattern))
+    + (fx ? ' s' + (fx.strong !== undefined ? fx.strong : '·') + ' w' + (fx.weak !== undefined ? fx.weak : '·')
+      + (fx.side !== undefined ? ' side' + fx.side : '') : '');
   if (!settings.haptics) return;
   const cap = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics;
   try {
@@ -405,14 +701,7 @@ function buzz(pattern) {
       else cap.impact({ style: pattern >= 30 ? 'Heavy' : pattern >= 20 ? 'Medium' : 'Light' });
     } else if (navigator.vibrate) navigator.vibrate(pattern);
   } catch (e) {}
-  try { // the controller rumbles in step: longer patterns hit harder
-    const act = padDev && (padDev.vibrationActuator || (padDev.hapticActuators && padDev.hapticActuators[0]));
-    if (act && act.playEffect) {
-      const dur = Array.isArray(pattern) ? pattern.reduce((a, b) => a + b, 0) : pattern;
-      const mag = clamp(dur / 90, 0.25, 1);
-      act.playEffect('dual-rumble', { duration: clamp(dur * 1.6, 40, 400), strongMagnitude: mag, weakMagnitude: mag * 0.6 });
-    }
-  } catch (e) {}
+  padRumble(pattern, fx);
 }
 // continuous ray-cannon drone — pitch rises with heat
 let beamOscs = null;
