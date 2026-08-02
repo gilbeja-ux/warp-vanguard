@@ -172,47 +172,59 @@ function drawMenuMap() {
       ctx.stroke();
     }
   };
+  // ---- the marker sizes, shared by the lanes and the relay markers below ----
+  const nr = Math.min(W, H) * 0.03;
+  const dR = Math.max(3.5, nr * 0.30);   // the destination reticle radius
+  // THE HIGHLIGHT CIRCLE — big enough that the body it rings stays readable
+  // inside it. At 1.7×dR it sat right on the planet's limb and the selection
+  // read as a lid on the thing being selected.
+  const selR = dR * 2.7;
+  // A lane STOPS where a highlight circle would begin — at BOTH ends, the far
+  // end wearing a phantom circle of the same size — so no line ever touches a
+  // destination body. Trimmed in world units off the live zoom, and the
+  // chevron trains ride the trimmed line, so no traffic drives over a planet.
+  const trimPoly = (pts2, dw) => {
+    let tot = 0;
+    for (let i = 1; i < pts2.length; i++) tot += Math.hypot(pts2[i].x - pts2[i - 1].x, pts2[i].y - pts2[i - 1].y);
+    if (tot <= dw * 2.2) return null;    // the whole leg is inside the circles
+    const t0 = dw / tot, t1 = 1 - dw / tot;
+    const out = [polyAt(pts2, t0)];
+    let acc = 0;
+    for (let i = 1; i < pts2.length - 1; i++) {
+      acc += Math.hypot(pts2[i].x - pts2[i - 1].x, pts2[i].y - pts2[i - 1].y);
+      const q = acc / tot;
+      if (q > t0 && q < t1) out.push(pts2[i]);
+    }
+    out.push(polyAt(pts2, t1));
+    return out;
+  };
+  // ONE LANE ON THE CHART. Every run used to draw — green ghosts for the
+  // secured legs, dashed cyan for the available, near-nothing for the locked —
+  // and the web of lines read as clutter over the systems. Only the leg in
+  // FOCUS draws now: the chart shows the route you are choosing, and the
+  // numbered plates carry "where else there is". drawRun keeps its k so both
+  // call sites (the buried pass and the over-the-skyline pass) stay one code.
   const drawRun = k => {
-    const pts2 = SEGS[k];
     const done = PROG.stars[k] > 0;
-    const lockedRun = k + 1 > PROG.unlocked;
+    const pts2 = trimPoly(SEGS[k], (selR + 3) / mapZoom);
+    if (!pts2) return;                   // zoomed out past the leg itself
     const trace = () => {
       ctx.beginPath();
       pts2.forEach((p2, pi) => pi ? ctx.lineTo(wx(p2), wy(p2)) : ctx.moveTo(wx(p2), wy(p2)));
       ctx.stroke();
     };
-    const sel = k === mapSel;
-    if (sel) { // the selected run glows under everything above it
-      ctx.strokeStyle = done ? 'rgba(150,255,140,0.26)' : 'rgba(140,210,255,0.26)';
-      ctx.lineWidth = 10; ctx.setLineDash([]);
+    // the run glows under everything above it
+    ctx.strokeStyle = done ? 'rgba(150,255,140,0.26)' : 'rgba(140,210,255,0.26)';
+    ctx.lineWidth = 10; ctx.setLineDash([]);
+    trace();
+    if (done) { // secured: solid green, chevrons marching toward the next relay
+      ctx.strokeStyle = 'rgba(126,226,98,0.85)'; ctx.lineWidth = 3;
       trace();
-    }
-    if (done) {
-      if (!sel) { // secured but not in focus: a quiet green ghost
-        ctx.strokeStyle = 'rgba(126,226,98,0.3)'; ctx.lineWidth = 2; ctx.setLineDash([]);
-        trace();
-      } else { // selected: solid green, chevrons marching toward the next relay
-        ctx.strokeStyle = 'rgba(126,226,98,0.85)'; ctx.lineWidth = 3; ctx.setLineDash([]);
-        trace();
-        chevrons(pts2, 'rgba(215,255,185,0.9)', 4.5);
-      }
-    } else if (!sel) {
-      // LOCKED reads as unreachable: a deeper blue, barely there. AVAILABLE reads
-      // as merely not-selected — same cyan family as its chevrons, so the two
-      // states are told apart by value and not by shape alone.
-      ctx.strokeStyle = lockedRun ? 'rgba(48,86,150,0.16)' : 'rgba(110,185,255,0.30)';
-      ctx.lineWidth = lockedRun ? 1.6 : 2;
-      ctx.setLineDash([6, 7]); ctx.lineDashOffset = 0;
-      trace();
-      ctx.setLineDash([]);
-      // available lanes carry traffic too — the corridor is open, it is just not
-      // secured yet. Locked ones carry none: nothing is flying out there.
-      if (!lockedRun) chevrons(pts2, 'rgba(150,225,255,0.42)', 3.4);
-    } else { // selected + unsecured: dashed blue, breathing
+      chevrons(pts2, 'rgba(215,255,185,0.9)', 4.5);
+    } else { // unsecured: dashed blue, breathing
       const br = 0.5 + 0.5 * Math.sin(time * 2.2); // slow breath
       ctx.strokeStyle = `rgba(120,195,255,${(0.14 + br * 0.2).toFixed(2)})`;
       ctx.lineWidth = 9 + br * 4; // soft halo swells and fades under the dashes
-      ctx.setLineDash([]);
       trace();
       ctx.strokeStyle = `rgba(150,215,255,${(0.6 + br * 0.4).toFixed(2)})`;
       ctx.lineWidth = 2.5;
@@ -223,7 +235,7 @@ function drawMenuMap() {
       chevrons(pts2, 'rgba(198,240,255,0.9)', 4.5);
     }
   };
-  for (let k = 0; k < SEGS.length; k++) drawRun(k);
+  drawRun(mapSel);
   // LAYER 3: the blueprint wireframe above — transparent, so the buried
   // cables stay readable through the whole city (procedural world only)
   if (!IM) {
@@ -234,6 +246,16 @@ function drawMenuMap() {
     // LAYER 4: the selected run again, over the skyline — the line in focus
     drawRun(mapSel);
   }
+  // THE FAR END WEARS THE CIRCLE TOO: the leg runs ring to ring, delivery
+  // marked like departure. Skipped when the final seg is a degenerate stub
+  // (the last relay of the last contract has nowhere further to point).
+  {
+    const sg = SEGS[mapSel], fin = sg[sg.length - 1];
+    if (Math.hypot(fin.x - sg[0].x, fin.y - sg[0].y) > 4) {
+      ctx.strokeStyle = 'rgba(240,252,255,0.9)'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(wx(fin), wy(fin), selR, 0, TAU); ctx.stroke();
+    }
+  }
   // (The terminus marker is GONE. It drew a bordered box — green once delivered
   // — at relayW(LEVELS.length), which for every campaign but the last IS the next
   // campaign's first system. So a green CITY_TERMS badge sat directly on top of a
@@ -242,8 +264,8 @@ function drawMenuMap() {
   // relay markers: the DESTINATION itself, with its numbered plate riding above
   // it. The plate keeps its original panel background — a number burned over a
   // lit world was hard to read AND hid the thing it was labelling — so the body
-  // sits clear below and a short leader points down at it.
-  const nr = Math.min(W, H) * 0.03;
+  // sits clear below and a short leader points down at it. (nr / dR / selR are
+  // hoisted above drawRun — the lanes trim against the same circle.)
   for (let i = 0; i < LEVELS.length; i++) {
     // Cull on the DESTINATION, which is where the marker actually draws — the
     // system centre can sit well outside the lens while the planet it holds is
@@ -266,50 +288,53 @@ function drawMenuMap() {
     // enough to read it.
     const dp = relayDestPos(i);
     const mx2 = wx(dp), my2 = wy(dp);
-    const dR = Math.max(3.5, nr * 0.30);
-    ctx.save();
-    ctx.globalAlpha = locked ? 0.4 : 1;
-    ctx.strokeStyle = locked ? 'rgba(150,190,240,0.5)'
-      : isBoss ? 'rgba(212,101,255,0.95)' : 'rgba(126,226,98,0.95)';
-    ctx.lineWidth = 1.3;
-    // an open reticle, so the body it marks stays visible inside it
-    for (let k = 0; k < 4; k++) {
-      const a2 = k * (TAU / 4) + TAU / 8;
-      ctx.beginPath();
-      ctx.arc(mx2, my2, dR, a2 - 0.42, a2 + 0.42);
-      ctx.stroke();
-    }
-    ctx.restore();
+    // (the reticle is GONE — four broken arcs hugging every body read as a
+    // target lock on the whole chart. The circle, the plate and its leader
+    // carry the marking now, and the body stands unadorned.)
     if (isFrontier || i === mapSel) {
+      // at selR — held clear of the body, the lane ends where this begins
       ctx.strokeStyle = i === mapSel ? 'rgba(240,252,255,0.9)'
         : `rgba(255,210,74,${(0.7 + Math.sin(time * 4) * 0.3).toFixed(2)})`;
       ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.arc(mx2, my2, dR * 1.7, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(mx2, my2, selR, 0, TAU); ctx.stroke();
     }
     // ---- the numbered plate, riding above ----
-    const py3 = my2 - dR - nr * 0.95;
+    // ...above the HIGHLIGHT CIRCLE, whether this relay wears one or not, so
+    // every plate sits at the same height and none of them lids its circle.
+    // THE SELECTED PLATE OWNS THE COLUMN: everything else dims to less than
+    // half, so the eye finds the level being chosen without reading a number.
+    const selP = i === mapSel;
     const r = nr * 0.72;
+    const py3 = my2 - selR - r - 6;
+    ctx.save();
+    ctx.globalAlpha = selP ? 1 : 0.42;
     mapHex(mx2, py3, r);
     ctx.fillStyle = locked ? 'rgba(10,18,34,0.85)' : cleared ? 'rgba(16,50,72,0.92)' : 'rgba(12,30,55,0.92)';
     ctx.fill();
     if (isFrontier) ctx.strokeStyle = `rgba(255,210,74,${(0.7 + Math.sin(time * 4) * 0.3).toFixed(2)})`;
+    else if (selP) ctx.strokeStyle = 'rgba(240,252,255,0.95)'; // the circle's own white
     else ctx.strokeStyle = locked ? 'rgba(120,180,255,0.25)' : isBoss ? 'rgba(212,101,255,0.85)' : 'rgba(111,227,255,0.85)';
-    ctx.lineWidth = isFrontier ? 2 : 1.5;
+    ctx.lineWidth = isFrontier || selP ? 2 : 1.5;
     mapHex(mx2, py3, r); ctx.stroke();
     ctx.strokeStyle = locked ? 'rgba(120,180,255,0.20)' : 'rgba(111,227,255,0.45)';
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(mx2, py3 + r); ctx.lineTo(mx2, my2 - dR * 1.05); ctx.stroke();
+    // the leader stops at the circle's rim — real or phantom, nothing crosses it
+    ctx.beginPath(); ctx.moveTo(mx2, py3 + r); ctx.lineTo(mx2, my2 - selR * 1.02); ctx.stroke();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = locked ? 'rgba(200,225,255,0.35)' : '#f2faff';
     const num = String(curLevelNo(i));
     ctx.font = '800 ' + Math.round(r * (num.length > 1 ? 0.6 : 0.75)) + 'px Audiowide, system-ui';
     ctx.fillText(locked ? '·' : num, mx2, py3 + 1);
     ctx.textBaseline = 'alphabetic';
-    if (cleared) for (let k = 0; k < 3; k++) star5(mx2 - 11 + k * 11, my2 + dR + 9, 4, k < PROG.stars[i]);
+    // the shield rating crowns the plate — it used to sit under the body, where
+    // it crowded the world and the lane both
+    if (cleared) for (let k = 0; k < 3; k++) star5(mx2 - 14 + k * 14, py3 - r - 9, 5.5, k < PROG.stars[i]);
+    ctx.restore(); // the selected-plate spotlight ends with the plate column
     ctx.textAlign = 'left';
-    // the hit box spans plate AND body, so either can be tapped. A SEALED relay
-    // is not a destination you can look at — selection stops at the frontier.
-    menuButtons.push({ x: mx2 - 22, y: py3 - 20, w: 44, h: (my2 + dR + 12) - (py3 - 20), node: i, locked });
+    // the hit box spans shields, plate AND body, so any of them can be tapped.
+    // A SEALED relay is not a destination you can look at — selection stops at
+    // the frontier.
+    menuButtons.push({ x: mx2 - 22, y: py3 - r - 18, w: 44, h: (my2 + dR + 12) - (py3 - r - 18), node: i, locked });
   }
   // lens optics: an inner vignette. The rotating radar needle is GONE — it swept
   // a bright wedge across everything twice a minute and there is nothing on this

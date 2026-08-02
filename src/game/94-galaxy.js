@@ -280,28 +280,62 @@ function buildCity() {
       // sit inside the tier this leg belongs to, with a little slack either way
       return clamp(c0 + frac * (c1 - c0) + (rng() - 0.5) * (c1 - c0) * 0.5, b0, b1);
     };
-    // Each contract works a SECTOR of the sky, opening near where the last one
-    // finished, so consecutive contracts do not all pile onto the same bearing.
-    const arcSpan = 2.3 + rng() * 1.45;
-    const arcFrom = (prev ? polarOf(prev).a : -2.35) - arcSpan * (0.25 + rng() * 0.5);
-    const cand = [];
+    // A ROUTE IS WALKED, NOT SCATTERED. Relays used to land at a random bearing
+    // anywhere in a wide sector, so a leg regularly crossed half the chart
+    // while its level lasted fifty seconds. Each relay now STEPS from the one
+    // before it, and the step is the level's own duration mapped to world
+    // units — the lane on the chart resembles the flight it stands for.
+    // Radius still advances through the contract's stated tiers (radAt, above
+    // — that fiction is load-bearing); only the BEARING is solved, swept one
+    // way so the whole ladder works around the core contract by contract.
+    // Where the tiers demand more radius than the duration buys — a delegation
+    // crossing every cordon, a boss leg diving back toward the core for the
+    // next contract — the radial distance wins and the leg is as short as the
+    // band structure allows.
+    const legLen = d => 30 + (d || 55) * 1.6;
     for (let k = 0; k < n; k++) {
-      let placed = null;
-      for (let guard = 0; guard < 900 && !placed; guard++) {
-        const p2 = fromPolar(radAt(k), arcFrom + rng() * arcSpan);
-        if (p2.x < 150 || p2.x > CITY_W - 150 || p2.y < 130 || p2.y > CITY_H - 130) continue;
-        // far enough apart that the SYSTEMS do not touch, checked against every
-        // relay placed so far rather than only this contract's
-        if (pts.concat(cand).some(q => Math.hypot(q.x - p2.x, (q.y - p2.y) * 2) < 120)) continue;
-        placed = p2;
+      const r = radAt(k);
+      if (!prev) { // the very first relay of the whole chart
+        const p2 = fromPolar(r, -2.35 + (rng() - 0.5) * 0.3);
+        pts.push(p2); prev = p2;
+        continue;
       }
-      if (placed) cand.push(placed);
+      // the leg this step creates is the lane DRAWN for the level before it:
+      // seg[k-1] runs relay k-1 → relay k, and a campaign boundary hands the
+      // boss leg to the next contract's first system
+      const lv = k > 0 ? camp && camp.levels[k - 1]
+        : CAMPAIGNS[ci - 1] && CAMPAIGNS[ci - 1].levels[CAMPAIGNS[ci - 1].levels.length - 1];
+      const L = legLen(lv && lv.duration);
+      const pa = polarOf(prev).a;
+      const at = da => fromPolar(r, pa + da);
+      const dist = da => { const q = at(da); return Math.hypot(q.x - prev.x, q.y - prev.y); };
+      // solve the sweep for the chord. The radial jump may already spend the
+      // whole budget — then the bearing barely moves — otherwise bisect on the
+      // squashed plane, where a closed form is not worth having.
+      let da = 0.025 + rng() * 0.03;
+      if (dist(da) < L) {
+        let lo = da, hi = 0.35;
+        while (dist(hi) < L && hi < 2.2) hi += 0.25;
+        for (let b = 0; b < 22; b++) {
+          const mid = (lo + hi) / 2;
+          if (dist(mid) < L) lo = mid; else hi = mid;
+        }
+        da = (lo + hi) / 2 + (rng() - 0.5) * 0.04;
+      }
+      // hold the frame and keep the SYSTEMS apart — extend the sweep until
+      // clear, and ALWAYS place: a dropped relay would tear the chain, which
+      // is exactly what the old 900-guard scatter could silently do.
+      let best = at(da), bestSep = -1;
+      for (let t = 0; t < 40; t++) {
+        const c2 = at(da + t * 0.09);
+        if (c2.x < 150 || c2.x > CITY_W - 150 || c2.y < 130 || c2.y > CITY_H - 130) continue;
+        let sep = 1e9;
+        for (const q of pts) sep = Math.min(sep, Math.hypot(q.x - c2.x, (q.y - c2.y) * 2));
+        if (sep >= 120) { best = c2; break; }
+        if (sep > bestSep) { bestSep = sep; best = c2; }
+      }
+      pts.push(best); prev = best;
     }
-    // A contract's legs are FLOWN IN ORDER — the brief says where it starts and
-    // where it ends, so there is no tour to optimise. The greedy walk and the
-    // 2-opt pass that used to reorder them are gone with the one-band model they
-    // existed to serve.
-    for (const c of cand) { pts.push(c); prev = c; }
   }
   // the final terminus: where the last case delivers, just past the last cordon
   {
@@ -430,16 +464,20 @@ function buildCity() {
     while (cs.length < n) cs.push([cp[cs.length], cp[cs.length + 1]]);
     return { pts: cp, segs: cs };
   });
-  // the field: generated once, drawn live
+  // the field: generated once, drawn live. Colours deal from the sky's ONE
+  // weighted table (STAR_COLS/starColI, 20-background) — the chart had its own
+  // copy dealt uniformly, so a fifth of its brights were lavender and a fifth
+  // peach, which is confetti, not a field. And no two bright stars share a
+  // size any more: 1.6 for every one of them was the other half of the candy —
+  // the bloom rides r, so varying r is what makes them read as a population.
   GAL_STARS = [];
-  const SCOL = ['206,224,255', '255,242,222', '255,212,172', '214,200,255', '190,240,255'];
   for (let i = 0; i < 9000; i++) {
     const big = rng() < 0.016;
     GAL_STARS.push({
       x: rng() * CITY_W, y: rng() * CITY_H, big,
       a: big ? 0.45 + rng() * 0.5 : 0.05 + rng() * 0.26,
-      r: big ? 1.6 : 0.28 + rng() * 0.65,
-      c: SCOL[rng() * SCOL.length | 0]
+      r: big ? 0.9 + rng() * 0.9 : 0.28 + rng() * 0.65,
+      c: STAR_COLS[starColI(rng)]
     });
   }
 
