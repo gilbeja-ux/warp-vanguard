@@ -340,7 +340,12 @@ function levelKey(x, y, w, h, num, name, stars, locked, primary) {
 // geometry shared by the static menu layer and the live level keys
 function menuGeom() {
   const ccx = W / 2, ccy = H / 2;
-  const R = Math.min(H * 0.52, W * 0.30);
+  // H·0.52 made the outer disc 104% of the screen tall — cut top and bottom
+  // on anything wider than ~1.73:1, which is every phone and half the desktop
+  // windows. 0.47 keeps the whole circle inside the frame with a breath of
+  // margin, and every screen that shares this geometry (the map lens, the
+  // free-flow wheel, the leaderboard) follows from this one number.
+  const R = Math.min(H * 0.47, W * 0.30);
   const bw = Math.min(R * 1.4, W * 0.42), bh = 46, gap = 13;
   const items = LEVELS.length + 4; // + qualification, endless, daily, and the TEMP boss-test key
   const listY = ccy - R + 52;
@@ -407,12 +412,15 @@ function paintMenuStatic() {
       ctx.beginPath(); ctx.moveTo(tlx, sy); ctx.lineTo(endX, sy); ctx.stroke();
     }
   } else {
-    // tunnel disc — a dark mouth in the center that makes the mode keys pop
-    const dg = ctx.createRadialGradient(ccx, ccy, R * 0.2, ccx, ccy, R);
+    // tunnel disc — a dark mouth in the center that makes the mode keys pop.
+    // The rim rides JUST beyond the wedges (they end at 0.92R): an outer circle
+    // is a frame for the buttons it holds, not a horizon of its own.
+    const dR = R * 0.96;
+    const dg = ctx.createRadialGradient(ccx, ccy, dR * 0.2, ccx, ccy, dR);
     dg.addColorStop(0, 'rgba(2,5,12,0.78)');
     dg.addColorStop(0.85, 'rgba(3,8,18,0.62)');
     dg.addColorStop(1, 'rgba(4,10,22,0.55)');
-    ctx.beginPath(); ctx.arc(ccx, ccy, R, 0, TAU);
+    ctx.beginPath(); ctx.arc(ccx, ccy, dR, 0, TAU);
     ctx.fillStyle = dg; ctx.fill();
     ctx.strokeStyle = 'rgba(100,190,255,0.14)'; ctx.lineWidth = 1.5; ctx.stroke();
     // no headers over the wheels — the hub names the screen
@@ -809,7 +817,14 @@ function drawMenuCamps(ccx, ccy, R) {
   const tfs = Math.max(14, Math.round(Math.min(H * 0.045, W * 0.032, (ccy - R2) * 0.42)));
   ctx.font = '800 ' + tfs + 'px Audiowide, system-ui';
   ctx.fillStyle = 'rgba(207,232,255,' + (0.92 * rowAl * (1 - zq)).toFixed(2) + ')';
-  ctx.fillText('CHOOSE A CONTRACT', ccx, ccy - R2 - 30);
+  // CENTRED IN ITS OWN BAND — the strip between the top of the frame and the
+  // top of the discs. It used to hang a fixed 30px off the disc tops, which is
+  // not a position but a leftover: on a short screen it crowded the row, on a
+  // tall one it stranded halfway up with all the air above it. Baseline MIDDLE
+  // so the two gaps read optically equal rather than off a font's ascent.
+  ctx.textBaseline = 'middle';
+  ctx.fillText('CHOOSE A CONTRACT', ccx, SAFE.t + (ccy - R2 - SAFE.t) * 0.5);
+  ctx.textBaseline = 'alphabetic';
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   // every disc titles at ONE size: the tightest fit across the whole row
   let uniT = Math.round(R2 * 0.17);
