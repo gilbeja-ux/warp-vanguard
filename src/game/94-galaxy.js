@@ -126,7 +126,12 @@ let CITY_CHAINS = [];
 // Asteroid fields are scenery only — you fly THROUGH a field, you do not arrive
 // at one — so they are never a mission endpoint.
 function destKindFor(campId, lv, isBoss) {
-  if (isBoss) return 'star';                 // the duel happens at a sun
+  // A CONTRACT'S ENDPOINT OUTRANKS EVERYTHING, the boss star included: you fight
+  // the interdictor at the gates of the place you were escorting the convoy to,
+  // which is a better arrival than an anonymous sun. One relay per campaign.
+  const fin = typeof s3FinalFor === 'function' && s3FinalFor(campId, lv);
+  if (fin) return s3build(fin).kind;
+  if (isBoss) return 'star';                 // every other duel happens at a sun
   if (namedDestFor(campId, lv)) return 'planet'; // a named world IS its relay's destination
   let h = 0x811c9dc5;
   const id = (campId || 'x') + '#' + lv;
@@ -138,11 +143,12 @@ function destKindFor(campId, lv, isBoss) {
     : q < DEST_MIX.planet + DEST_MIX.station ? 'station' : 'gate';
 }
 // <<< DEST-KIND
-// (drawStationArt / drawGateArt / drawFieldArt are RETIRED. They were stroked
-// rings with drawn solar panels and scattered rock ellipses — line art, which at
-// chart scale reads as a doodle beside a shaded planet. Stations and gates are
-// shaded vector tori now (drawRingBody in DEST-RING), and asteroid fields are
-// gone with the scenery model that needed them: a galaxy is star systems.)
+// (drawStationArt / drawGateArt / drawFieldArt are RETIRED, and so is the shaded
+// vector torus that replaced them. Both were line art, which at chart scale reads
+// as a doodle beside a shaded planet. Stations and gates are the BUILT sprites
+// now — s3draw, off the same bake the destination uses, so the chip on the chart
+// is a small picture of the place you fly to. Asteroid fields are gone with the
+// scenery model that needed them: a galaxy is star systems.)
 
 // ---------- THE GALAXY CHART ----------
 // Replaces the isometric city wholesale. The structure that survives is the one
@@ -749,7 +755,16 @@ function drawSystemsLive(wx, wy, z, ccx, ccy, R) {
       const o = pl.o * 1.15 * z;
       if (o > 4) {
         const ix = sx + Math.cos(pl.a + 0.9) * o, iy = syy + Math.sin(pl.a + 0.9) * o * 0.5;
-        drawRingBody(ix, iy, Math.max(1.2, 1.9 * z), 'station');
+        {
+          // A decorative installation in a background system, not a relay — so
+          // its build comes off the SYSTEM's own seed, and it is the same one
+          // every time the chart is opened. No lamps: at three pixels a halo IS
+          // the chip.
+          const cr = Math.max(1.2, 1.9 * z);
+          const st = S3D_BUILDS.filter(b => b.kind === 'station');
+          const bid = st[Math.abs(Math.floor(sy.seed * 7)) % st.length].id;
+          s3draw(ix, iy, cr, bid, 1, true);
+        }
       }
     }
     ctx.restore();

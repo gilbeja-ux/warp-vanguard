@@ -32,3 +32,8 @@ supabase/functions/submit-run/_sim.mjs
 # landing in the repo root because nothing stopped them (scratch-cap.js and
 # scratch-tw.js both shipped by accident). Scratch work belongs outside the repo.
 scratch-*.js
+
+# lab crash-recovery working copies — session state, never source. The tracked
+# copy of dest-tuning.json was how "my change did nothing" happened three times.
+docs/dest-lab/dest-tuning.json
+*.stale-bak

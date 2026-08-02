@@ -1,0 +1,41 @@
+<!doctype html><meta charset="utf-8"><title>hero2</title>
+<style>html,body{margin:0;background:#04060c}canvas{display:block}</style>
+<canvas id="c"></canvas>
+<script>
+const TAU = Math.PI * 2;
+const lerp = (a,b,t)=>a+(b-a)*t;
+const clamp = (v,a,b)=>v<a?a:v>b?b:v;
+let lowFX = false, time = 0, ctx = null;
+const CAMPAIGNS = ['investigation','going-deeper','signal-lost','the-bait','shutdown'].map(id=>({id,levels:new Array(8)}));
+</script>
+<script src="dials.js"></script>
+<script src="file:///Users/gilbeja/vsCode/warp-vanguard/src/game/81-station3d.js"></script>
+<script>
+const Q = new URLSearchParams(location.search);
+const MODE = Q.get('mode') || 'hero';
+const cv = document.getElementById('c');
+function stars(w,h,seed){ let s=seed; const r=()=>((s=Math.imul(s^s>>>15,2246822507))>>>0)/4294967296;
+  for(let i=0;i<w*h/900;i++){const x=r()*w,y=r()*h,a=Math.pow(r(),2.4)*0.8+0.03;
+    ctx.fillStyle='rgba(210,225,255,'+a.toFixed(3)+')';ctx.beginPath();ctx.arc(x,y,r()*0.9+0.25,0,TAU);ctx.fill();}}
+time = parseFloat(Q.get('t')||'1.35');
+if (MODE === 'hero') {
+  const S = 860; cv.width=S; cv.height=S; ctx=cv.getContext('2d');
+  ctx.fillStyle='#04060c'; ctx.fillRect(0,0,S,S); stars(S,S,771+(Q.get('m')||'').length*37);
+  s3Queue = [Q.get('m')];
+  let g=0; while (s3Pump(4000) && g++<600) {}
+  s3draw(S/2, S/2, S*0.40, Q.get('m'), 1);
+} else {
+  const SZ=[360,200,110,56,26,12], PAD=26, IDS=['TRUSS','FORT','SPINE','PORT','GATE'];
+  const LW=SZ.reduce((a,b)=>a+b+PAD,PAD);
+  cv.width=LW; cv.height=400*IDS.length; ctx=cv.getContext('2d');
+  ctx.fillStyle='#04060c'; ctx.fillRect(0,0,cv.width,cv.height); stars(cv.width,cv.height,4211);
+  let g=0; while (s3Pump(2000) && g++<4000) {}
+  IDS.forEach((id,row)=>{ let x=PAD; const cy=row*400+200;
+    for (const S of SZ){ s3draw(x+S/2, cy, S*0.40, id, 1, S<20); x+=S+PAD; }
+    ctx.font='600 13px ui-monospace,Menlo,monospace'; ctx.fillStyle='rgba(170,192,225,0.8)';
+    ctx.fillText(s3build(id).n.toUpperCase(), PAD, row*400+30); });
+  ctx.font='600 11px ui-monospace,Menlo,monospace'; ctx.fillStyle='rgba(140,165,200,0.75)';
+  let x=PAD; for(const S of SZ){ ctx.fillText(S+'px', x, cv.height-10); x+=S+PAD; }
+}
+window.__done = true;
+</script>

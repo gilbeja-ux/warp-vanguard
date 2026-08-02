@@ -191,8 +191,11 @@ function drawSurgeWave(g) {
 }
 
 function drawRangeRings(g) {
-  // each hostile projects a depth line onto the tunnel at its front edge —
-  // brightest at the body, fading as it wraps around the bore
+  // each hostile projects a depth line onto the tunnel THROUGH ITS CENTER —
+  // brightest at the body, fading as it wraps around the bore.
+  // It used to ride the front edge (z - 0.055), which projects to a LARGER
+  // radius than the body: the line sat in front of the trap it belonged to and
+  // read as misaligned. The band is a depth read — it has to cut the body.
   if (state !== S.PLAY && state !== S.PAUSE && state !== S.INFO) return;
   if (boss && boss.mergeT >= 1) return; // the duel has its own instrumentation
   ctx.save();
@@ -200,8 +203,7 @@ function drawRangeRings(g) {
   for (const en of enemies) {
     const ri = rangeInfo(en, g);
     if (!ri) continue;
-    const mul = en.sizeMul || 1;
-    const rr = ring(Math.max(en.z - 0.055 * mul, 0.02), g).r;
+    const rr = ring(Math.max(en.z, 0.02), g).r;
     const a0 = en.type === 'strip' ? stripAngle(en, 0) : en.angle;
     ctx.lineWidth = Math.max(1.1, rr / g.nodeR * 2.1);
     const segs = 16, span = Math.PI;
@@ -593,72 +595,6 @@ const PLANET_SHADE = {
   duneF: 5.5,        // dune scale on a `dune` world
   duneA: 0.22        // dune anisotropy — how far the wind stretches them
 };
-// STATIONS AND GATES. Both are a TORUS — what separates them is proportion and
-// what stands in the throat — so ONE shaded sprite serves both. sq is how hard
-// the tilt squashes the ring, `ring` is the tube's orbit, `tube` its thickness.
-// A gate has an iris and no hub; a station has a pressurised core and lit ports.
-const RING_KINDS = {
-  // `ring` outer radius · `band` how much of it is ring (radial width) ·
-  // `hgt` thickness out of the plane · `sq` how far the plane is tilted.
-  // A Coriolis-class station is SHORT AND FAT: the armour is a quarter of the
-  // radius and nearly as thick as it is wide, which is what makes it read as a
-  // fortress rather than a hoop.
-  station: { id: 'STN', n: 'station', sq: 0.46, ring: 1, band: 0.26, hgt: 0.30, metal: [126, 134, 148], hub: 1, win: 1, iris: null, spokes: 1, inner: 0, panels: 1, mast: 1, dock: 1, core: 'DRM' },
-  gate:    { id: 'GAT', n: 'gate',    sq: 0.50, ring: 0.86, band: 0.16, hgt: 0.14, metal: [110, 122, 142], hub: 0, win: 0, iris: [110, 236, 218], spokes: 0, inner: 0, panels: 0, mast: 0, dock: 0, core: 'DRM' }
-};
-// THE CORE, in five designs. The centre was one drum, which meant every station
-// in the game had the same middle — and the middle is the part the eye lands on.
-// Picked deterministically off the relay, exactly like a planet's variant, so a
-// station you have docked at keeps its own shape forever.
-//
-// `shape` chooses the silhouette; everything else is proportion, so a design can
-// be re-dialled without touching the drawing.
-const CORE_KINDS = [
-  { id: 'DRM', n: 'drum',     shape: 'drum',    h: 1.35, w: 1.00, seg: 2, port: 5 },
-  { id: 'SPH', n: 'sphere',   shape: 'sphere',  h: 1.00, w: 1.10, seg: 1, port: 6 },
-  { id: 'SPN', n: 'spindle',  shape: 'spindle', h: 2.10, w: 0.86, seg: 2, port: 4 },
-  { id: 'CLS', n: 'cluster',  shape: 'cluster', h: 1.05, w: 1.20, seg: 1, port: 3 },
-  { id: 'STK', n: 'stack',    shape: 'stack',   h: 1.90, w: 0.92, seg: 4, port: 4 }
-];
-// The torus shading model, shared by both kinds — the ring's equivalent of
-// PLANET_SHADE, and separate for the same reason: these are the dials that move
-// stations and gates TOGETHER.
-const RING_SHADE = {
-  id: 'RSH',
-  amb: 0.19,         // how much metal survives on a face turned from the sun. A
-                     // FLOOR against the void, not a taste dial: below about 0.15
-                     // the dark side falls under the background and the station
-                     // loses half its silhouette against space.
-  topAmb: 0.30,      // the top plate never faces the sun squarely — this is its floor
-  topLit: 0.72,      // and how much it catches
-  innerFaceK: 0.62,  // the far side's inner wall, lit mostly by its own bounce
-  facetN: 26,        // armour plates round the ring
-  seamA: 0.55,       // how hard the joins between plates read
-  seamW: 0.004,      // and how wide
-  shadowK: 0.42,     // how dark the core's cast shadow lands on a plate
-  shadowW: 1.25,     // the shadow's width, in core radii
-  hubR: 0.29,        // the core, as a fraction of the ring's outer radius
-  hubC: [118, 126, 142],
-  hubH: 1.05, hubEdge: 0.22, hubWinN: 5,
-  dockAt: 0.25,      // where round the ring the docking mouth sits, 0..1
-  dockN: 2,          // how many plates wide it is
-  dockC: [255, 196, 118],
-  dockA: 0.80,       // the bay light behind the slot
-  dockGlow: 0.15,    // how far that light spills onto the hull
-  winC: [255, 206, 120],
-  winA: 0.62,        // lit ports at the point facing the sun
-  winW: 0.030, winH: 0.30,   // a window on the inner wall: fraction of radius, of thickness
-  winRow: 0.34, winGap: 0.22,// where the rows sit up the wall, and their spacing
-  innerWinK: 0.85,   // how bright the far side's windows read
-  lampK: 3.0,        // how far a light's halo reaches past its core
-  spokeN: 4, spokeP: 0.5, spokeW: 0.026,
-  panelP: 1.15, panelD: 1.10, panelW: 0.12, panelH: 0.055, panelN: 3,
-  panelC: [26, 42, 74], panelA: 0.92, panelSpec: 0.35, boomW: 0.012,
-  mastH: 0.40, mastW: 0.014, mastN: 4,
-  beaconN: 16, beaconP: 0.2, beaconR: 0.007,
-  beaconC: [255, 92, 78], beaconA: 0.72,
-  irisA: 0.42        // energy standing in a gate's throat
-};
 // How often each kind turns up as a mission endpoint, out of 100. Gates take
 // whatever planets and stations leave — so these two are the whole dial.
 const DEST_MIX = { id: 'MIX', planet: 62, station: 24 };
@@ -686,6 +622,114 @@ const DEST_LIFE = {
   // gated stars carry the twinkling — if this one breathes as well, the two
   // fields cross-fade against each other and the sky reads as noise.)
 };
+// The dials, lifted by the destinations lab. Everything the look depends on
+// lives here so the lab can drive the render without touching the geometry.
+const S3D_LIGHT = {
+  id: 'S3L',
+  el: 0.56,          // camera elevation over the ring plane. The steep 3/4: low
+                     // enough to see the top faces, high enough to read structure
+  dist: 9,           // camera distance in station radii — mild perspective only
+  lx: -0.80, ly: -0.26, lz: 0.46,
+                     // THE SUN, and it is deliberately GRAZING. Relief is only
+                     // visible where something can cast onto something else, and
+                     // a key light down the view axis hides every shadow behind
+                     // the thing that cast it.
+  sun: 2.55, sunG: 0.95, sunB: 0.855,  // key colour: white, a shade warm
+  skyR: 0.052, skyG: 0.070, skyB: 0.125,  // ambient from above — cold starlight
+  gndR: 0.012, gndG: 0.013, gndB: 0.020,  // and from below: the void, nearly nothing
+  filR: 0.075, filG: 0.098, filB: 0.155,  // a dim cold bounce from the far side, so
+                                          // the unlit half still turns and the
+                                          // silhouette survives
+  filX: 0.62, filY: 0.55, filZ: -0.30,
+  shadowFloor: 0.012, // vacuum shadows are HARD; almost nothing bounces into them
+  aoK: 1.25,         // how hard the crevice occlusion bites
+  aoR: 0.075,        // and how far it reaches, in station radii
+  rimK: 0.055,       // star field wrapping the silhouette
+  bloom: 0.5,
+  exposure: 0.5,
+  // LAMPS AS ACTUAL LIGHTS. Baked into the hull around each one, with inverse
+  // square falloff — a running light that does not touch the metal beside it is
+  // a sticker, however nicely the halo is drawn.
+  lampK: 1.54,       // the radiance a lamp lays on hull it is touching. This is a
+                     // CEILING, not a scale: a bare 1/d^2 goes to infinity at the
+                     // fitting, and what that looks like is a pink smear rather
+                     // than a light.
+  lampR: 0.31,       // its reach, in station radii — a running light lights the
+                     // plate it is bolted to and the one next to it, nothing more
+  lampRef: 0.30,     // the knee, as a fraction of the reach: inside this the term
+                     // levels off, outside it falls away as 1/d^2
+  // ...and the live half: the soft falloff drawn over the sprite each frame.
+  haloR: 4.0,        // halo radius in lamp radii
+  haloA: 0.30,       // and its peak. Running lights are SMALL; the temptation is
+                     // to make them glow, and a rim of twenty glowing dots stops
+                     // being hardware and becomes a string of fairy lights.
+  coreA: 0.85,       // the bright centre
+  // REFRACTION. A bright point seen through anything at all does not stay a
+  // point: it throws a faint chromatic skirt and a diffraction cross. Both are
+  // small on purpose — they read as optics, and at any strength above this they
+  // read as a lens flare filter.
+  chroma: 0.20,      // how far the skirt separates warm centre from cold edge
+  spike: 0.13,       // diffraction cross strength
+  spikeL: 2.1,       // and its length, in halo radii
+  detail: 0.35,         // how much hardware every build carries. The mesh build is
+                     // the one step that cannot be sliced, so this is the only
+                     // lever on the single longest frame the bake causes.
+  detailLow: 0.55,   // ...and what that becomes when the device asked for lowFX
+  bakeMs: 8,         // the slice the bake gets on a frame with room to spare
+  bakeMin: 3,        // ...and the slice it gets on one WITHOUT. This floor is not
+                     // politeness, it is correctness: budgeting purely on spare
+                     // time means a device slow enough to have none never bakes
+                     // at all, and its stations stay the old vector art forever.
+  spikeMin: 1.7      // ...and only the genuinely bright ones throw one. Every
+                     // lamp wearing a cross is the look of a lens filter, not of
+                     // a bright light seen through one.
+};
+// HOW A LIGHT ON A HULL ACTUALLY BEHAVES. Four behaviours, all taken from real
+// vehicle lighting, because "blinking" without a model reads as a fault rather
+// than as a running light. Each returns 0..1 for a time and a phase.
+//
+// The rates are all SLOW. The lane's rule has always been that stillness says
+// place and motion says animation — a station that flickers competes with the
+// enemies for the same attention.
+const S3D_LAMPS = {
+  id: 'S3B',
+  steadyK: 0.10, steadyP: 0.55,   // a steady light still breathes a little
+  beaconP: 3.9, beaconD: 4.2,     // slow pulse: period, and how hard it dwells dark
+  strobeP: 2.8, strobeW: 0.055, strobeGap: 0.16,  // double flash: period, flash width, spacing
+  slowP: 5.6, slowOff: 0.13       // long on, brief off
+};
+// THE THROAT. The gate's aperture is baked like everything else — and a baked
+// field is a photograph of one: the filaments the shader draws in cylindrical
+// noise are the field's standing STRUCTURE, and structure alone reads as a
+// painted disc no matter how good it looks. This is the half that moves.
+//
+// Drawn over the sprite each frame, through the mask the bake writes for every
+// `fx` surface, so the near half of the ring occludes it exactly as it occludes
+// the baked field. Stateless: every streak is a fixed seed read against the
+// shared clock, so it behaves the same in a run, a replay and a paused menu.
+//
+// Two things, and they do different jobs. STREAKS are the energy being drawn
+// down the throat — they say the gate is running. GRAIN is the film the whole
+// thing is shot on: a still image of a bright surface reads as artwork, and a
+// surface that boils very slightly reads as photographed.
+const S3D_WARP = {
+  id: 'WRP',
+  minPx: 10,        // under this the gate is a speck on the chart — skip the layer
+  streaks: 8,      // filaments falling into the aperture
+  streakW: 1.2,     // their width, in sprite pixels at full size
+  len: 0.18,        // how much of the aperture radius one filament spans
+  speed: 2,      // how fast they fall inward — SLOW. The lane is already busy
+  swirl: 0.55,      // and how far they twist on the way down
+  bright: 0.2,     // filament peak
+  core: 0.2,       // the standing glow where they all arrive
+  pulse: 0.20,      // the throat breathes: depth...
+  pulseP: 3.4,      // ...and period, seconds
+  grain: 0.075,      // film grain over the aperture
+  grainPx: 2,       // its size in sprite pixels
+  grainFps: 21,     // and how often it reshuffles. Film runs at 24; grain that
+                    // changes every frame reads as video noise instead
+  col: '150,240,255'  // the field's own cyan, a touch paler than the emitters
+};
 // <<< DEST-DATA
 // >>> DEST-PICK
 // Deterministic per campaign + level, so a given relay always shows the same
@@ -710,17 +754,6 @@ function planetVariantFor(campId, lv, isBoss) {
   // when a named world is added, or every relay in the galaxy re-rolls.
   return PLANET_DEAL[(h >>> 0) % PLANET_DEAL.length];
 }
-// Which core this station is built round. Same shape of hash as the planet
-// picker, and seeded differently, so the two never correlate — a relay that draws
-// the third planet must not also always draw the third core.
-function stationCoreFor(campId, lv) {
-  let h = 0x811c9dc5;
-  const id = (campId || 'x') + '#core';
-  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
-  h ^= lv + 1; h = Math.imul(h, 16777619);
-  h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15;
-  return CORE_KINDS[(h >>> 0) % CORE_KINDS.length].id;
-}
 // <<< DEST-PICK
 function planetVariant() {
   return planetVariantFor((typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x',
@@ -731,319 +764,6 @@ function planetVariant() {
 // shows, and they come off the SAME renderer as the destination at the end of
 // the lane — so the chip on the chart is literally a small picture of the place
 // you are about to fly to.
-// STATIONS AND GATES, rendered per pixel like the worlds are.
-//
-// They were vector line art before — stroked rings with drawn solar panels — and
-// at 20px that reads as a doodle next to a shaded planet, which is exactly the
-// "kids drawings" problem. A ring is a TORUS, and a torus has a surface normal
-// like anything else: the tube's normal swings from pointing outward at its outer
-// edge, through straight at the viewer across its middle, to inward at its inner
-// edge. Shade that against the same world key light every other body obeys and it
-// stops being a drawing and starts being an object.
-// >>> DEST-RING
-// The lab lifts this region verbatim. It may reach only TAU, LIGHT_A, ctx,
-// RING_KINDS, CORE_KINDS and RING_SHADE — every constant lives in RING_SHADE so
-// the lab can drive the shading without touching the drawing.
-//
-// VECTOR ART, deliberately. A pixel shader would be easy here and it is the wrong
-// choice: the lab edits SHAPES, and you cannot drag a handle on a pixel loop.
-// Everything below is paths and gradients, so the geometry stays editable.
-//
-// What stops it reading as a doodle is not detail, it is DEPTH — three things
-// flat strokes never had:
-//
-//   1. The ring is drawn in TWO HALVES with the hub and iris between them, so the
-//      near half genuinely occludes the far half. That single ordering does more
-//      for solidity than any amount of added linework.
-//   2. The tube is shaded by a gradient laid along the KEY LIGHT AXIS, not filled
-//      with a flat colour, so it turns from lit to dark across its circumference
-//      the way a real torus does.
-//   3. A specular arc rides only the lit quadrant, which is what says "metal"
-//      rather than "line".
-// The five cores, lifted out of drawRingBody so the ring body stays readable.
-// Still inside DEST-RING: the lab lifts the whole region, and a core is no use
-// without the station it sits in.
-function drawStationCore(x, y, R, K, H, tone, lamp, P, hubP) {
-  const C = CORE_KINDS.find(c => c.id === (K.core || 'DRM')) || CORE_KINDS[0];
-  const lx = Math.cos(LIGHT_A);
-  const hr = hubP * C.w, hh = hubP * C.h, ey = hr * K.sq;
-  const shade = (u) => {
-    const k = H.amb + (1 - H.amb) * Math.max(0, Math.cos((u - lx) * 1.35));
-    return `rgb(${H.hubC[0] * k | 0},${H.hubC[1] * k | 0},${H.hubC[2] * k | 0})`;
-  };
-  const across = (x0, y0, w) => {
-    const g = ctx.createLinearGradient(x0 - w, y0, x0 + w, y0);
-    g.addColorStop(0, shade(-1)); g.addColorStop(0.5, shade(0)); g.addColorStop(1, shade(1));
-    return g;
-  };
-  const drum = (cx2, cy2, w, ht) => {
-    const e = w * K.sq;
-    ctx.fillStyle = across(cx2, cy2, w);
-    ctx.beginPath();
-    ctx.moveTo(cx2 - w, cy2 - ht * 0.5);
-    ctx.lineTo(cx2 - w, cy2 + ht * 0.5);
-    ctx.ellipse(cx2, cy2 + ht * 0.5, w, e, 0, Math.PI, 0, true);
-    ctx.lineTo(cx2 + w, cy2 - ht * 0.5);
-    ctx.closePath(); ctx.fill();
-    const cap = ctx.createLinearGradient(cx2 - w, cy2, cx2 + w, cy2);
-    cap.addColorStop(0, shade(-0.4)); cap.addColorStop(1, shade(1));
-    ctx.fillStyle = cap;
-    ctx.beginPath(); ctx.ellipse(cx2, cy2 - ht * 0.5, w, e, 0, 0, TAU); ctx.fill();
-    ctx.strokeStyle = `rgba(255,255,255,${H.hubEdge})`;
-    ctx.lineWidth = Math.max(0.3, w * 0.06);
-    ctx.beginPath(); ctx.ellipse(cx2, cy2 - ht * 0.5, w, e, 0, 0, TAU); ctx.stroke();
-  };
-  if (C.shape === 'drum') {
-    drum(x, y, hr, hh);
-    ctx.strokeStyle = `rgba(${H.hubC[0] * 0.45 | 0},${H.hubC[1] * 0.45 | 0},${H.hubC[2] * 0.45 | 0},0.9)`;
-    ctx.lineWidth = Math.max(0.3, hr * 0.05);
-    for (let i = 0; i < C.seg; i++) {
-      const f = -0.15 + 0.33 * (i / Math.max(1, C.seg - 1 || 1));
-      ctx.beginPath(); ctx.ellipse(x, y + hh * f, hr, ey, 0, 0, Math.PI); ctx.stroke();
-    }
-  } else if (C.shape === 'sphere') {
-    const ly2 = Math.sin(LIGHT_A);
-    const sg = ctx.createRadialGradient(x + lx * hr * 0.55, y + ly2 * hr * 0.55, hr * 0.05, x, y, hr * 1.25);
-    sg.addColorStop(0, shade(1)); sg.addColorStop(0.5, shade(0.1)); sg.addColorStop(1, shade(-1));
-    ctx.fillStyle = sg;
-    ctx.beginPath(); ctx.arc(x, y, hr, 0, TAU); ctx.fill();
-    const la2 = Math.atan2(ly2, lx);
-    ctx.strokeStyle = `rgba(255,255,255,${H.hubEdge * 0.8})`;
-    ctx.lineWidth = Math.max(0.3, hr * 0.07);
-    ctx.beginPath(); ctx.arc(x, y, hr * 0.97, la2 - 1.0, la2 + 1.0); ctx.stroke();
-    ctx.strokeStyle = `rgba(${H.hubC[0] * 0.45 | 0},${H.hubC[1] * 0.45 | 0},${H.hubC[2] * 0.45 | 0},0.9)`;
-    ctx.beginPath(); ctx.ellipse(x, y, hr, hr * K.sq * 0.5, 0, 0, TAU); ctx.stroke();
-  } else if (C.shape === 'spindle') {
-    ctx.fillStyle = across(x, y, hr);
-    ctx.beginPath();
-    ctx.moveTo(x, y - hh * 0.5);
-    ctx.quadraticCurveTo(x - hr * 1.35, y, x, y + hh * 0.5);
-    ctx.quadraticCurveTo(x + hr * 1.35, y, x, y - hh * 0.5);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = `rgba(${H.hubC[0] * 0.5 | 0},${H.hubC[1] * 0.5 | 0},${H.hubC[2] * 0.5 | 0},0.9)`;
-    ctx.lineWidth = Math.max(0.3, hr * 0.08);
-    for (const f of [-0.16, 0.16]) {
-      ctx.beginPath(); ctx.ellipse(x, y + hh * f, hr * 0.92, hr * 0.92 * K.sq, 0, 0, Math.PI); ctx.stroke();
-    }
-  } else if (C.shape === 'cluster') {
-    const off = [[-0.62, 0.10], [0.62, 0.10], [0, -0.30]];
-    off.sort((p, q) => p[1] - q[1]);
-    for (const [ox, oy] of off) drum(x + ox * hr, y + oy * hr, hr * 0.56, hh * 0.78);
-  } else {
-    const n = Math.max(2, C.seg);
-    for (let i = n - 1; i >= 0; i--) {
-      const t = i / (n - 1) - 0.5;
-      drum(x, y + t * hh * 1.02, hr * (0.70 + 0.30 * (1 - Math.abs(t) * 1.4)), hh * 0.24);
-    }
-  }
-  for (let i = 0; i < C.port; i++) {
-    const u = -0.7 + 1.4 * (i / Math.max(1, C.port - 1));
-    const face = 0.3 + 0.7 * Math.max(0, Math.cos((u - lx) * 1.35));
-    lamp(x + u * hr, y - hh * 0.06, Math.max(0.3, hr * 0.06), H.winC, H.winA * face * 0.75);
-  }
-}
-
-function drawRingBody(x, y, R, kind) {
-  const K = RING_KINDS[kind] || RING_KINDS.station;
-  const H = RING_SHADE;
-  // ---- AN EXTRUDED ARMOUR RING, NOT A TUBE ----
-  // The habitat hoop this replaced was a stroked ellipse: one curve, however
-  // cleverly shaded. A Coriolis-class station is a SOLID — an annulus with real
-  // radial width and real thickness — and the thing that makes it read as one is
-  // that you see different FACES of it depending on where you look. On the near
-  // side the outer wall; on the far side the inner wall, with its windows facing
-  // you across the middle. No amount of gradient on a curve can do that.
-  //
-  // Everything is built in the ring's own plane and projected, so the facets, the
-  // walls, the docking mouth and the shadows all agree about one geometry.
-  const rOut = R * K.ring, rIn = rOut * (1 - K.band), hz = R * K.hgt * 0.5;
-  const sq = K.sq;
-  const lx = Math.cos(LIGHT_A), ly = Math.sin(LIGHT_A);
-  const Lpx = lx, Lpy = ly / (sq || 1);
-  const Ln = Math.hypot(Lpx, Lpy) || 1, Lx = Lpx / Ln, Ly = Lpy / Ln;
-  const [m0, m1, m2] = K.metal;
-  // plane polar + out-of-plane height -> screen
-  const P = (r, a, z) => [x + r * Math.cos(a), y + r * Math.sin(a) * sq - z];
-  const tone = (k) => `rgb(${Math.min(255, m0 * k) | 0},${Math.min(255, m1 * k) | 0},${Math.min(255, m2 * k) | 0})`;
-  const quad = (p0, p1, p2, p3, fill) => {
-    ctx.beginPath();
-    ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]);
-    ctx.lineTo(p2[0], p2[1]); ctx.lineTo(p3[0], p3[1]); ctx.closePath();
-    ctx.fillStyle = fill; ctx.fill();
-  };
-  const N = Math.max(6, H.facetN | 0);
-  const dock0 = Math.round(H.dockAt * N) % N, dockN = Math.max(1, H.dockN | 0);
-  const isDock = (i) => { const d = (i - dock0 + N) % N; return d < dockN; };
-  // A LAMP IS NOT A DOT: a bright core inside an additive halo that falls off.
-  const lamp = (px, py, r, col, a) => {
-    const g = ctx.createRadialGradient(px, py, 0, px, py, r * H.lampK);
-    g.addColorStop(0, `rgba(${col},${(a * 0.55).toFixed(3)})`);
-    g.addColorStop(0.35, `rgba(${col},${(a * 0.16).toFixed(3)})`);
-    g.addColorStop(1, `rgba(${col},0)`);
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, r * H.lampK, 0, TAU); ctx.fill();
-    ctx.restore();
-    ctx.fillStyle = `rgba(${col},${a})`;
-    ctx.beginPath(); ctx.arc(px, py, r, 0, TAU); ctx.fill();
-  };
-  // the core blocks the sun: a facet is in shadow when it sits behind the core
-  // along the light line, which in the plane is one dot product and one cross.
-  const hubP = rOut * H.hubR / K.ring;
-  const inShadow = (am) => {
-    const px = Math.cos(am), py = Math.sin(am);
-    if (px * Lx + py * Ly > 0) return 1;
-    const perp = Math.abs(px * Ly - py * Lx) * rOut;
-    return perp < hubP * H.shadowW ? H.shadowK : 1;
-  };
-  const face = (i) => {
-    const a0 = (i / N) * TAU, a1 = ((i + 1) / N) * TAU, am = (a0 + a1) * 0.5;
-    return { a0, a1, am, nd: Math.cos(am) * Lx + Math.sin(am) * Ly, near: Math.sin(am) > 0 };
-  };
-  // one facet: its top plate, then whichever wall this side of the ring shows
-  const drawFacet = (f) => {
-    const sh = inShadow(f.am);
-    const kTop = (H.topAmb + (1 - H.topAmb) * H.topLit) * (0.86 + 0.28 * Math.max(0, f.nd)) * sh;
-    quad(P(rIn, f.a0, hz), P(rOut, f.a0, hz), P(rOut, f.a1, hz), P(rIn, f.a1, hz), tone(kTop));
-    if (f.near) {
-      if (isDock(0) && false) return;
-      const kW = (H.amb + (1 - H.amb) * Math.max(0, f.nd)) * sh;
-      quad(P(rOut, f.a0, hz), P(rOut, f.a1, hz), P(rOut, f.a1, -hz), P(rOut, f.a0, -hz), tone(kW));
-    } else {
-      // the far side shows its INNER wall — the surface the station lives on, so
-      // this is where the windows go, facing the viewer across the middle
-      const kI = (H.amb + (1 - H.amb) * Math.max(0, -f.nd)) * H.innerFaceK * sh;
-      quad(P(rIn, f.a0, hz), P(rIn, f.a1, hz), P(rIn, f.a1, -hz), P(rIn, f.a0, -hz), tone(kI));
-      if (K.win) {
-        const wy = H.winRow;
-        for (let r2 = 0; r2 < 2; r2++) {
-          const zz = hz * (wy - r2 * H.winGap * 2);
-          const p = P(rIn, f.am, zz);
-          const lit = 0.55 + 0.45 * ((i2 => (i2 * 2654435761 >>> 0) / 4294967296)(Math.round(f.am * 997) + r2 * 31));
-          ctx.fillStyle = `rgba(${H.winC},${(H.winA * lit * H.innerWinK).toFixed(3)})`;
-          ctx.fillRect(p[0] - rOut * H.winW * 0.5, p[1] - hz * H.winH * 0.5, rOut * H.winW, hz * H.winH);
-        }
-      }
-    }
-    // seams between plates — the ring is BUILT, and armour shows its joins
-    ctx.strokeStyle = `rgba(6,10,18,${H.seamA})`;
-    ctx.lineWidth = Math.max(0.3, R * H.seamW);
-    ctx.beginPath();
-    let p = P(rIn, f.a0, hz), q = P(rOut, f.a0, hz);
-    ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]);
-    if (f.near) { const s = P(rOut, f.a0, -hz); ctx.lineTo(s[0], s[1]); }
-    else { const s = P(rIn, f.a0, -hz); ctx.moveTo(p[0], p[1]); ctx.lineTo(s[0], s[1]); }
-    ctx.stroke();
-  };
-  // THE DOCKING MOUTH. The signature of the whole class: a slot cut through the
-  // outer armour with the bay lit behind it. It is drawn as a recess — dark
-  // shoulders, a bright throat, a lit lip — because a flat bright rectangle on
-  // the hull reads as a sticker, and this has to read as a way IN.
-  const drawDock = () => {
-    const a0 = (dock0 / N) * TAU, a1 = ((dock0 + dockN) / N) * TAU;
-    if (Math.sin((a0 + a1) * 0.5) <= 0) return;          // only when it faces us
-    const o = rOut * 1.002;
-    quad(P(o, a0, hz * 0.72), P(o, a1, hz * 0.72), P(o, a1, -hz * 0.72), P(o, a0, -hz * 0.72), 'rgba(4,7,14,0.96)');
-    const c = P(o, (a0 + a1) * 0.5, 0);
-    const g = ctx.createRadialGradient(c[0], c[1], 0, c[0], c[1], rOut * H.dockGlow);
-    g.addColorStop(0, `rgba(${H.dockC},${H.dockA})`);
-    g.addColorStop(0.45, `rgba(${H.dockC},${(H.dockA * 0.22).toFixed(3)})`);
-    g.addColorStop(1, `rgba(${H.dockC},0)`);
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c[0], c[1], rOut * H.dockGlow, 0, TAU); ctx.fill();
-    ctx.restore();
-    quad(P(o, a0 + (a1 - a0) * 0.30, hz * 0.30), P(o, a1 - (a1 - a0) * 0.30, hz * 0.30),
-         P(o, a1 - (a1 - a0) * 0.30, -hz * 0.30), P(o, a0 + (a1 - a0) * 0.30, -hz * 0.30),
-         `rgba(${H.dockC},${H.dockA})`);
-    ctx.strokeStyle = `rgba(${H.dockC},0.85)`;           // the lit lip round the slot
-    ctx.lineWidth = Math.max(0.4, R * 0.006);
-    ctx.beginPath();
-    let p = P(o, a0, hz * 0.72);
-    ctx.moveTo(p[0], p[1]);
-    for (const [aa, zz] of [[a1, hz * 0.72], [a1, -hz * 0.72], [a0, -hz * 0.72], [a0, hz * 0.72]]) {
-      const s = P(o, aa, zz); ctx.lineTo(s[0], s[1]);
-    }
-    ctx.stroke();
-  };
-  ctx.save();
-  ctx.lineJoin = 'bevel';
-  const faces = [];
-  for (let i = 0; i < N; i++) faces.push(face(i));
-  // ---- 1. the far half, painted back to front ----
-  faces.filter(f => !f.near).sort((p, q) => q.am % TAU - p.am % TAU).forEach(drawFacet);
-  // ---- 2. what lives inside the ring ----
-  if (K.iris) {
-    const ir = ctx.createRadialGradient(x, y, 0, x, y, rIn * 0.96);
-    ir.addColorStop(0, `rgba(${K.iris},${H.irisA})`);
-    ir.addColorStop(0.55, `rgba(${K.iris},${(H.irisA * 0.42).toFixed(3)})`);
-    ir.addColorStop(1, `rgba(${K.iris},0)`);
-    ctx.fillStyle = ir;
-    ctx.beginPath(); ctx.ellipse(x, y, rIn * 0.96, rIn * 0.96 * sq, 0, 0, TAU); ctx.fill();
-  }
-  if (K.spokes) {
-    ctx.strokeStyle = tone(H.amb + (1 - H.amb) * 0.55);
-    ctx.lineWidth = Math.max(0.6, R * H.spokeW);
-    ctx.beginPath();
-    for (let i = 0; i < H.spokeN; i++) {
-      const a = H.spokeP + (i / H.spokeN) * TAU;
-      const p = P(hubP * 0.9, a, 0), q = P(rIn, a, 0);
-      ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]);
-    }
-    ctx.stroke();
-  }
-  if (K.panels) {
-    for (let w = 0; w < 2; w++) {
-      const a = H.panelP + w * Math.PI, ca = Math.cos(a), sa2 = Math.sin(a);
-      ctx.strokeStyle = tone(H.amb + (1 - H.amb) * 0.5);
-      ctx.lineWidth = Math.max(0.5, R * H.boomW);
-      const b0 = P(hubP, a, 0), b1 = P(rOut * H.panelD, a, 0);
-      ctx.beginPath(); ctx.moveTo(b0[0], b0[1]); ctx.lineTo(b1[0], b1[1]); ctx.stroke();
-      const hw = rOut * H.panelW, hh = rOut * H.panelH;
-      const cx2 = Math.cos(a) * rOut * (H.panelD + H.panelW), cy2 = Math.sin(a) * rOut * (H.panelD + H.panelW);
-      const pq = (u, v) => [x + cx2 + ca * u - sa2 * v, y + (cy2 + sa2 * u + ca * v) * sq];
-      const faceK = 0.35 + 0.65 * Math.max(0, ca * Lx + sa2 * Ly);
-      const pc = H.panelC, sheen = Math.round(180 * faceK * H.panelSpec);
-      quad(pq(-hw, -hh), pq(hw, -hh), pq(hw, hh), pq(-hw, hh),
-        `rgba(${Math.min(255, pc[0] + sheen)},${Math.min(255, pc[1] + sheen)},${Math.min(255, pc[2] + sheen)},${H.panelA})`);
-      ctx.beginPath();
-      for (let i = 1; i < H.panelN; i++) {
-        const u = -hw + 2 * hw * (i / H.panelN);
-        const a2 = pq(u, -hh), b2 = pq(u, hh);
-        ctx.moveTo(a2[0], a2[1]); ctx.lineTo(b2[0], b2[1]);
-      }
-      ctx.strokeStyle = 'rgba(8,14,26,0.9)'; ctx.lineWidth = Math.max(0.3, R * 0.004);
-      ctx.stroke();
-    }
-  }
-  if (K.hub) drawStationCore(x, y, R, K, H, tone, lamp, P, hubP);
-  if (K.mast) {
-    const mh = R * H.mastH, mw = R * H.mastW * 2.4;
-    ctx.strokeStyle = tone(H.amb + (1 - H.amb) * 0.7);
-    ctx.lineWidth = Math.max(0.5, R * H.mastW);
-    ctx.beginPath();
-    ctx.moveTo(x - mw * 0.5, y); ctx.lineTo(x - mw * 0.22, y - mh);
-    ctx.moveTo(x + mw * 0.5, y); ctx.lineTo(x + mw * 0.22, y - mh);
-    for (let i = 1; i <= H.mastN; i++) {
-      const t = i / (H.mastN + 1), yy = y - mh * t, w2 = mw * (0.5 - 0.28 * t);
-      ctx.moveTo(x - w2, yy); ctx.lineTo(x + w2, yy);
-    }
-    ctx.stroke();
-    lamp(x, y - mh, Math.max(0.5, R * 0.018), H.beaconC, H.beaconA);
-  }
-  // ---- 3. the near half, over everything, then the way in ----
-  faces.filter(f => f.near).sort((p, q) => Math.sin(p.am) - Math.sin(q.am)).forEach(drawFacet);
-  if (K.dock) drawDock();
-  // ---- 4. running lights, on the top plate's outer edge where a hull carries them
-  if (K.win) {
-    for (let i = 0; i < H.beaconN; i++) {
-      const a = H.beaconP + (i / H.beaconN) * TAU;
-      const p = P(rOut * 0.985, a, hz);
-      lamp(p[0], p[1], Math.max(0.3, R * H.beaconR), H.beaconC, H.beaconA);
-    }
-  }
-  ctx.restore();
-  return true;
-}
-// <<< DEST-RING
 const PLANET_CHIP_R = 24;
 const planetChips = {};
 function planetChip(V) {
@@ -1065,47 +785,6 @@ function deepWorld(V) {
   return deepWorlds[V.n];
 }
 let planetSprite = null, planetSpriteKey = '';
-// Stations and gates are CACHED SPRITES, for the same reason planets are: nothing
-// in drawRingBody varies with time, so redrawing it every frame buys nothing and
-// costs ~1.9ms — a ninth of the frame — now that the tube is a stack of shaded
-// strokes rather than one flat band. Built once at a reference radius and scaled,
-// so the approach still grows smoothly.
-//
-// The cache lives HERE and not inside the DEST-RING region on purpose: the region
-// stays a pure draw function, so the lab keeps redrawing live as dials move.
-const RING_REF_R = 108;
-// How far this kind actually reaches, in body radii, ASKED OF THE DIALS rather
-// than guessed. A hardcoded pad is how "it is cut in the game but not in the lab"
-// bugs start: the lab draws live on an unclipped canvas, so it would never show
-// the clipping that a fixed canvas here would introduce the moment someone winds
-// the array booms out.
-function ringReach(kind) {
-  const K = RING_KINDS[kind] || RING_KINDS.station, H = RING_SHADE;
-  // The ring is an annulus with thickness now, not a stroked tube — its reach is
-  // simply its outer radius, plus whatever the arrays and the mast stick out past
-  // it. Reading a field that no longer exists gave NaN here, and a NaN canvas
-  // size is a station that silently fails to build in the game while the lab,
-  // which draws live and never asks, looks perfectly fine.
-  let r = K.ring + K.hgt;
-  if (K.panels) r = Math.max(r, K.ring * (H.panelD + 2 * H.panelW));
-  if (K.mast) r = Math.max(r, H.mastH + H.mastW * 4);
-  return r * 1.08;                       // margin for stroke widths and beacons
-}
-let ringSprites = {};
-function ringSpriteFor(kind, core) {
-  const key = kind + ':' + (core || '-');
-  if (ringSprites[key]) return ringSprites[key];
-  if (core) RING_KINDS[kind].core = core;   // the region reads it off the kind
-  const S = Math.ceil(RING_REF_R * ringReach(kind) * 2);
-  const cv2 = document.createElement('canvas');
-  cv2.width = cv2.height = S;
-  const c2 = cv2.getContext('2d');
-  if (!c2) return null;
-  const keep = ctx;
-  ctx = c2;                       // the region draws through the module-level ctx
-  try { drawRingBody(S / 2, S / 2, RING_REF_R, kind); } finally { ctx = keep; }
-  return (ringSprites[key] = { cv: cv2, S, R: RING_REF_R });
-}
 // >>> DEST-SPRITE
 // The lab lifts this function verbatim and runs it against the live tables, so a
 // dial moved in the lab is shaded by the game's own pixel loop. It may reach only

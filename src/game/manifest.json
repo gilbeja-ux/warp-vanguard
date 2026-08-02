@@ -35,7 +35,7 @@
     },
     {
       "file": "33-loader.js",
-      "describes": "installCampaign \u2014 builds LEVELS from a package"
+      "describes": "installCampaign — builds LEVELS from a package"
     },
     {
       "file": "40-state.js",
@@ -75,11 +75,15 @@
     },
     {
       "file": "72-tick.js",
-      "describes": "update(dt) \u2014 the fixed-timestep sim tick"
+      "describes": "update(dt) — the fixed-timestep sim tick"
     },
     {
       "file": "80-tunnel.js",
       "describes": "lattice, warp field, the bore, planets and asteroid sprites (holds the DEST-* lab regions)"
+    },
+    {
+      "file": "81-station3d.js",
+      "describes": "the baked 3D stations and gates (holds the DEST-S3D lab regions)"
     },
     {
       "file": "82-destinations.js",
@@ -119,7 +123,7 @@
     },
     {
       "file": "98-profiler.js",
-      "describes": "dev-only frame profiler (?prof=1) \u2014 inert when off"
+      "describes": "dev-only frame profiler (?prof=1) — inert when off"
     },
     {
       "file": "99-boot.js",

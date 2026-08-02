@@ -62,6 +62,25 @@ function readGame() {
   return gameSource(root);
 }
 
+// The CONTRACTS, as the game actually ships them. The lab used to carry its own
+// hardcoded list of campaign ids and assume eight levels each, which is how it
+// ended up labelling relays with internal slugs long after the contracts were
+// renamed. Read the real packages instead: ids, titles and level names, so a
+// relay in the lab is named the way a relay in the game is.
+//
+// src/campaigns.js is a plain declaration with no dependencies, so it evaluates
+// in a bare Function — no game globals, no DOM.
+function readCampaigns() {
+  const text = fs.readFileSync(path.join(root, 'src', 'campaigns.js'), 'utf8');
+  const box = {};
+  new Function('out', '"use strict";' + text + ';out.p = CAMPAIGN_PACKAGES;')(box);
+  return (box.p || []).map(c => ({
+    id: c.id,
+    title: c.title || c.id,
+    levels: (c.levels || []).map(l => (l && l.name) || '')
+  }));
+}
+
 // ...but it is WRITTEN back to the one file that actually holds it. Writing the
 // whole concatenation over a single file would flatten the entire game into it.
 // A marked region must live inside ONE file for this to work; scripts/test.js
@@ -170,7 +189,7 @@ function constSpan(src, name) {
   throw new Error(`${name} never terminates`);
 }
 
-// PLANET_TYPES and RING_KINDS are both collections of ONE-LINE entries carrying
+// PLANET_TYPES is a collection of ONE-LINE entries carrying
 // their own id. Each entry is found by that id and patched in place, so
 // reordering — or adding a world by hand outside the lab — stays safe.
 function patchById(span, entries) {
@@ -187,7 +206,8 @@ function patchById(span, entries) {
   return out;
 }
 
-const SINGLES = ['PLANET_STAR', 'PLANET_SHADE', 'RING_SHADE', 'DEST_MIX', 'DEST_LIFE'];
+const SINGLES = ['PLANET_STAR', 'PLANET_SHADE', 'DEST_MIX', 'DEST_LIFE',
+  'S3D_LIGHT', 'S3D_LAMPS', 'S3D_WARP'];
 
 function writeGame(payload) {
   // every value the lab commits lives in DEST-DATA, so that is the only file
@@ -204,14 +224,6 @@ function writeGame(payload) {
   if (payload.PLANET_TYPES) {
     const s = constSpan(body, 'PLANET_TYPES');
     body = body.slice(0, s.start) + patchById(body.slice(s.start, s.end), payload.PLANET_TYPES) + body.slice(s.end);
-  }
-  if (payload.CORE_KINDS) {
-    const s = constSpan(body, 'CORE_KINDS');
-    body = body.slice(0, s.start) + patchById(body.slice(s.start, s.end), payload.CORE_KINDS) + body.slice(s.end);
-  }
-  if (payload.RING_KINDS) {
-    const s = constSpan(body, 'RING_KINDS');
-    body = body.slice(0, s.start) + patchById(body.slice(s.start, s.end), Object.values(payload.RING_KINDS)) + body.slice(s.end);
   }
   for (const name of SINGLES) {
     if (!payload[name]) continue;
@@ -250,12 +262,19 @@ const server = http.createServer((req, res) => {
         data: region(src, 'DEST-DATA'),
         pick: region(src, 'DEST-PICK'),
         kind: region(src, 'DEST-KIND'),
-        ring: region(src, 'DEST-RING'),
         sprite: region(src, 'DEST-SPRITE'),
         wake: region(src, 'DEST-WAKE'),
-        life: region(src, 'DEST-LIFE')
+        life: region(src, 'DEST-LIFE'),
+        s3d: region(src, 'DEST-S3D'),
+        s3dpick: region(src, 'DEST-S3D-PICK')
       }));
     } catch (e) { return send(res, 500, 'text/plain', e.message); }
+  }
+
+  // the contracts, for naming relays the way the game names them
+  if (urlPath === '/api/campaigns') {
+    try { return send(res, 200, TYPES['.json'], JSON.stringify(readCampaigns())); }
+    catch (e) { return send(res, 500, 'text/plain', e.message); }
   }
 
   // the working copy — autosaved every edit so a closed tab loses nothing

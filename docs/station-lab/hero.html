@@ -1,0 +1,78 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>hero</title>
+<style>html,body{margin:0;background:#04060c}canvas{display:block}</style>
+<canvas id="c"></canvas>
+<script src="r3d.js"></script>
+<script src="models.js"></script>
+<script>
+const TAU = Math.PI * 2;
+const NAMES = Object.keys(ARCHETYPES);
+const WHICH = new URLSearchParams(location.search).get('m');
+const MODE = new URLSearchParams(location.search).get('mode') || 'hero';
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+
+function stars(w, h, seed) {
+  let s = seed;
+  const r = () => ((s = Math.imul(s ^ s >>> 15, 2246822507)) >>> 0) / 4294967296;
+  for (let i = 0; i < w * h / 900; i++) {
+    const x = r() * w, y = r() * h, a = Math.pow(r(), 2.4) * 0.8 + 0.03;
+    ctx.fillStyle = 'rgba(210,225,255,' + a.toFixed(3) + ')';
+    ctx.beginPath(); ctx.arc(x, y, r() * 0.9 + 0.25, 0, TAU); ctx.fill();
+  }
+}
+function lamps(res, ox, oy, k) {
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const L of res.lamps) {
+    const b = 0.55 + 0.45 * Math.sin(L.ph * 2.1), a = 0.9 * b * k;
+    const R = L.r * k;
+    const g = ctx.createRadialGradient(ox + L.x * k, oy + L.y * k, 0, ox + L.x * k, oy + L.y * k, R * 5);
+    g.addColorStop(0, 'rgba(' + L.c + ',' + (a * 0.6).toFixed(3) + ')');
+    g.addColorStop(0.35, 'rgba(' + L.c + ',' + (a * 0.14).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(' + L.c + ',0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ox + L.x * k, oy + L.y * k, R * 5, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(' + L.c + ',' + a.toFixed(3) + ')';
+    ctx.beginPath(); ctx.arc(ox + L.x * k, oy + L.y * k, Math.max(0.4, R), 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+const SC = { 'truss disc': 0.40, 'fortress ring': 0.40, 'spine & torus': 0.255, 'port & piers': 0.305, 'gate': 0.41 };
+
+if (MODE === 'hero') {
+  const S = 860;
+  cv.width = S; cv.height = S;
+  ctx.fillStyle = '#04060c'; ctx.fillRect(0, 0, S, S); stars(S, S, 771 + NAMES.indexOf(WHICH) * 31);
+  const M = new Mesh();
+  ARCHETYPES[WHICH](M, 1000 + NAMES.indexOf(WHICH) * 977);
+  const res = render(M, { w: S, h: S, ss: 2, scale: S * SC[WHICH], dist: 9 });
+  ctx.drawImage(res.cv, 0, 0);
+  lamps(res, 0, 0, 1);
+} else {
+  // THE SCALE LADDER: the same station at every size the game actually stamps it,
+  // from the arrival that fills the bore down to a chart chip.
+  const SIZES = [360, 200, 110, 56, 26, 12];
+  const PAD = 26, LW = SIZES.reduce((a, b) => a + b + PAD, PAD);
+  cv.width = LW; cv.height = 400 * NAMES.length;
+  ctx.fillStyle = '#04060c'; ctx.fillRect(0, 0, cv.width, cv.height); stars(cv.width, cv.height, 4211);
+  NAMES.forEach((name, row) => {
+    const M = new Mesh();
+    ARCHETYPES[name](M, 1000 + row * 977);
+    let x = PAD;
+    const cy = row * 400 + 200;
+    for (const S of SIZES) {
+      const res = render(M, { w: S, h: S, ss: S > 120 ? 2 : 3, scale: S * SC[name], dist: 9 });
+      ctx.drawImage(res.cv, x, cy - S / 2);
+      lamps(res, x, cy - S / 2, 1);
+      x += S + PAD;
+    }
+    ctx.font = '600 13px ui-monospace,Menlo,monospace';
+    ctx.fillStyle = 'rgba(170,192,225,0.8)';
+    ctx.fillText(name.toUpperCase(), PAD, row * 400 + 30);
+  });
+  ctx.font = '600 11px ui-monospace,Menlo,monospace';
+  ctx.fillStyle = 'rgba(140,165,200,0.75)';
+  let x = PAD;
+  for (const S of SIZES) { ctx.fillText(S + 'px', x, cv.height - 10); x += S + PAD; }
+}
+window.__done = true;
+</script>

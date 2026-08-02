@@ -72,18 +72,10 @@ function drawFarGlow(far, vr, g) {
   if (kind === 'station' || kind === 'gate') {
     const laS = destLightA();
     drawDestLife(far, R, g, false, laS); // whatever is round the back, first
-    ctx.save();
-    ctx.globalAlpha = 0.92;
-    const rs = ringSpriteFor(kind, kind === 'station'
-      ? stationCoreFor((typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x', levelIdx)
-      : null);
-    if (rs) {
-      const w = rs.S * (R * (kind === 'gate' ? 1.25 : 1.15) / rs.R);
-      ctx.drawImage(rs.cv, far.x - w / 2, far.y - w / 2, w, w);
-    } else {
-      drawRingBody(far.x, far.y, R * (kind === 'gate' ? 1.25 : 1.15), kind);
-    }
-    ctx.restore();
+    const campId = (typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x';
+    // ONE renderer. s3draw always puts something down — the baked build, or its
+    // own placeholder mass while the bake is still working through the queue.
+    s3draw(far.x, far.y, R * 1.02, s3BuildFor(campId, levelIdx, kind), 0.96);
     drawDestLife(far, R, g, true, laS);
     if (1 - arrive > 0.02) drawFarMotes(far, R, grow, breath, 1 - arrive);
     return;
@@ -168,7 +160,7 @@ function drawFarMotes(far, R, grow, breath, moteK) {
 // >>> DEST-LIFE
 // The lab lifts this whole region so it can stage a real arrival. It may reach
 // only TAU, clamp, time, ctx, mulberry32, LIGHT_A, PLANET_SHADE, DEST_LIFE,
-// destKindFor, drawRingBody, PLANET_TYPES, buildPlanetSprite, and the
+// destKindFor, s3draw, s3BuildFor, PLANET_TYPES, buildPlanetSprite, and the
 // CAMP / levelIdx / LV the relay is chosen by.
 //
 // The arrival made the world big; this is what stops it being a poster of a
@@ -280,7 +272,13 @@ function destinationLife() {
     } : null,
     stn: has.station ? {
       orb: rr(L.stnO[0], L.stnO[1]), sq: rr(0.12, 0.4), tilt: rr(-0.8, 0.8),
-      ph: rnd() * TAU, seed: rnd() * 20
+      // `seed` was already the last draw this hand took, so reading a build off
+      // it costs the stream nothing and every relay keeps the moon it had.
+      ph: rnd() * TAU, seed: rnd() * 20,
+      build: (() => {
+        const st = S3D_BUILDS.filter(b => b.kind === 'station');
+        return st[(Math.abs(Math.round(h)) + levelIdx) % st.length].id;
+      })()
     } : null,
     // THE GAS CLOUD — Irena's alone. A bank of soft violet puffs clustered on
     // one flank of the world, most hanging behind it, a few crossing in front.
@@ -414,10 +412,11 @@ function drawShips(far, R, F, vis, back) {
 // destinations use, just small and on an orbit. It says the place is worked.
 function drawOrbitStation(far, R, F, vis) {
   const p = orbitAt(F.stn, far, R);
-  ctx.save();
-  ctx.globalAlpha = vis * 0.92;
-  drawRingBody(p.x, p.y, Math.max(3, R * DEST_LIFE.stnR), 'station');
-  ctx.restore();
+  const rr = Math.max(3, R * DEST_LIFE.stnR);
+  // The SAME builds that stand at the end of a lane, small and in orbit — so the
+  // thing hanging over a world is a place you could fly to, not a different
+  // species of object drawn by a different renderer.
+  s3draw(p.x, p.y, rr, F.stn.build || 'FORT', vis * 0.94, rr < 9);
 }
 // The two passes. Everything on a far-half orbit goes down BEFORE the body so the
 // body occludes it; everything else goes over the top. `vis` ramps the whole

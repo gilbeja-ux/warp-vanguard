@@ -257,8 +257,8 @@
   <div class="state" id="state" data-s="ok"><i class="dot"></i><span id="stateTxt">in sync with the game</span></div>
   <div class="spacer"></div>
   <button id="btnBrief" title="Copy a plain-text list of what you changed, ready to paste into a chat">Copy brief</button>
-  <button id="btnRevert" title="Throw away every change and reload from src/index.html">Revert all</button>
-  <button id="btnApply" class="go" title="Write these values back into src/index.html">Write to game</button>
+  <button id="btnRevert" title="Throw away every change and reload from the game source">Revert all</button>
+  <button id="btnApply" class="go" title="Write these values back into src/game/80-tunnel.js (DEST-DATA)">Write to game</button>
 </header>
 
 <nav id="rail"></nav>
@@ -269,11 +269,14 @@
 'use strict';
 
 /* ─────────────────────────────────────────────────────────────────────────
-   The lab does not own a renderer. It lifts four marked regions out of
-   src/index.html — the data tables, the deterministic pick, the planet pixel
-   shader and the vector art — and evaluates them here. Every pixel on this
-   page therefore comes off the game's own code. If the game changes, the lab
-   changes with it; there is nothing to keep in sync by hand.
+   The lab does not own a renderer. It lifts the marked regions out of the
+   game's own source in src/game/ — the data tables, the deterministic pick,
+   the planet pixel shader, the built stations and what lives at a destination
+   — and evaluates them here. Every pixel on this page therefore comes off the
+   game's own code. If the game changes, the lab changes with it; there is
+   nothing to keep in sync by hand. (The regions are READ out of the whole
+   concatenation and WRITTEN back to the one file that holds them, so a file
+   boundary can move without the lab noticing.)
    ───────────────────────────────────────────────────────────────────────── */
 
 let G = null;          // the evaluated game regions
@@ -327,80 +330,77 @@ const DIALS = {
     fieldR: ['how wide the swarm spreads', 0.2, 2, 0.01],
     fieldSq:['how flat the swarm is', 0.1, 1, 0.01]
   },
-  ring: {
-    // The ring is an ANNULUS now: an outer radius, a radial width and a
-    // thickness out of the plane. Those three are the whole silhouette.
-    ring:   ['outer radius', 0.2, 1, 0.01],
-    band:   ['radial width, of the radius', 0.05, 0.6, 0.01],
-    hgt:    ['thickness out of the plane', 0.02, 0.8, 0.01],
-    sq:     ['tilt squash', 0.05, 1, 0.01],
-    metal:  ['hull colour', 'rgb'],
-    hub:    ['has a core', 0, 1, 1],
-    win:    ['has lit ports and windows', 0, 1, 1],
-    iris:   ['throat colour', 'rgb'],
-    dock:   ['has a docking mouth', 0, 1, 1],
-    spokes: ['struts to the core', 0, 1, 1],
-    inner:  ['has a second ring', 0, 1, 1],
-    panels: ['has solar arrays', 0, 1, 1],
-    mast:   ['has a comms tower', 0, 1, 1],
-    core:   ['which core it is built round', 'enum', ['DRM', 'SPH', 'SPN', 'CLS', 'STK']]
+  // ── the built stations ──────────────────────────────────────────────
+  // Geometry is code; these are the things that decide how it READS. The light
+  // dials move all five builds at once, which is the point of them being here.
+  S3D_LIGHT: {
+    el:     ['camera elevation over the ring plane', 0.15, 1.2, 0.01],
+    dist:   ['camera distance (lower = more perspective)', 3, 24, 0.5],
+    lx:     ['sun X', -1, 1, 0.02],
+    ly:     ['sun Y', -1, 1, 0.02],
+    lz:     ['sun Z (low = grazing, and grazing is what shows relief)', -1, 1, 0.02],
+    sun:    ['key strength', 0, 6, 0.05],
+    sunG:   ['key green (warmth)', 0.6, 1.2, 0.01],
+    sunB:   ['key blue (warmth)', 0.5, 1.2, 0.01],
+    skyR:   ['ambient from above · red', 0, 0.4, 0.002],
+    skyG:   ['ambient from above · green', 0, 0.4, 0.002],
+    skyB:   ['ambient from above · blue', 0, 0.4, 0.002],
+    gndR:   ['ambient from below · red', 0, 0.2, 0.002],
+    gndG:   ['ambient from below · green', 0, 0.2, 0.002],
+    gndB:   ['ambient from below · blue', 0, 0.2, 0.002],
+    filR:   ['cold fill · red', 0, 0.5, 0.005],
+    filG:   ['cold fill · green', 0, 0.5, 0.005],
+    filB:   ['cold fill · blue', 0, 0.5, 0.005],
+    filX:   ['fill direction X', -1, 1, 0.02],
+    filY:   ['fill direction Y', -1, 1, 0.02],
+    filZ:   ['fill direction Z', -1, 1, 0.02],
+    shadowFloor: ['how much light survives inside a shadow', 0, 0.3, 0.002],
+    aoK:    ['crevice occlusion strength', 0, 3, 0.05],
+    aoR:    ['crevice occlusion reach (station radii)', 0.01, 0.3, 0.005],
+    rimK:   ['star field wrapping the silhouette', 0, 0.4, 0.005],
+    bloom:  ['bloom off the lit windows', 0, 3, 0.02],
+    exposure: ['exposure', 0.1, 2, 0.02],
+    lampK:  ['how hard a lamp lights its own hull', 0, 2, 0.02],
+    lampR:  ['lamp reach (station radii)', 0.02, 0.5, 0.005],
+    lampRef:['lamp knee — inside this the falloff levels off', 0.05, 1, 0.01],
+    haloR:  ['halo radius, in lamp radii', 1, 12, 0.1],
+    haloA:  ['halo peak', 0, 1.5, 0.01],
+    coreA:  ['the bright centre', 0, 1.5, 0.01],
+    chroma: ['refraction: the cold skirt outside the warm centre', 0, 1, 0.01],
+    spike:  ['refraction: diffraction cross', 0, 1, 0.01],
+    spikeL: ['cross length, in halo radii', 0.5, 8, 0.1],
+    spikeMin: ['only lamps this many pixels across throw one', 0, 6, 0.1],
+    detail:  ['how much hardware every build carries', 0.2, 1.6, 0.05],
+    detailLow: ['...and what that becomes on a lowFX device', 0.2, 1, 0.05],
+    bakeMs:  ['bake slice on a frame with room to spare (ms)', 1, 16, 0.5],
+    bakeMin: ['...and the slice it gets on one without (ms)', 0, 8, 0.5]
   },
-  core: {
-    shape: ['silhouette', 'enum', ['drum', 'sphere', 'spindle', 'cluster', 'stack']],
-    h:     ['height, in core radii', 0.3, 3, 0.05],
-    w:     ['width, in core radii', 0.3, 2, 0.05],
-    seg:   ['decks or collars', 1, 8, 1],
-    port:  ['lit ports', 0, 12, 1]
+  S3D_WARP: {
+    minPx:    ['skip the layer under this many pixels', 0, 40, 1],
+    streaks:  ['filaments falling down the throat', 0, 48, 1],
+    streakW:  ['filament width, sprite pixels', 0.4, 6, 0.1],
+    len:      ['how far one filament reaches, in aperture radii', 0.05, 1, 0.01],
+    speed:    ['how fast they fall', 0.02, 2, 0.02],
+    swirl:    ['how far they twist on the way down', 0, 3, 0.05],
+    bright:   ['filament peak', 0, 1.5, 0.01],
+    core:     ['the standing glow they fall into', 0, 1, 0.01],
+    pulse:    ['how deep the throat breathes', 0, 1, 0.01],
+    pulseP:   ['...and its period, seconds', 0.4, 12, 0.1],
+    grain:    ['film grain over the aperture', 0, 0.6, 0.005],
+    grainPx:  ['grain size, sprite pixels', 1, 8, 0.5],
+    grainFps: ['how often the grain reshuffles (film is 24)', 1, 30, 1],
+    col:      ['field colour', 'rgbs']
   },
-  RING_SHADE: {
-    amb:        ['dark-face floor (keep above ~0.15)', 0, 1, 0.01],
-    topAmb:     ['top plate floor', 0, 1, 0.01],
-    topLit:     ['top plate light', 0, 1.5, 0.01],
-    innerFaceK: ['far side inner wall brightness', 0, 1, 0.01],
-    facetN:     ['armour plates round the ring', 6, 80, 1],
-    seamA:      ['how hard the plate joins read', 0, 1, 0.01],
-    seamW:      ['and how wide', 0, 0.02, 0.0005],
-    shadowK:    ['core shadow darkness', 0, 1, 0.01],
-    shadowW:    ['core shadow width, in core radii', 0.2, 3, 0.05],
-    hubR:       ['core size, of the ring radius', 0.05, 0.8, 0.01],
-    hubC:       ['core colour', 'rgb'],
-    hubH:       ['core height vs its radius', 0.2, 3, 0.05],
-    hubEdge:    ['lit rim on the core cap', 0, 1, 0.01],
-    hubWinN:    ['lit ports on the core', 0, 12, 1],
-    dockAt:     ['where the docking mouth sits, 0..1', 0, 1, 0.01],
-    dockN:      ['how many plates wide it is', 1, 8, 1],
-    dockC:      ['bay light colour', 'rgb'],
-    dockA:      ['bay light brightness', 0, 1, 0.01],
-    dockGlow:   ['how far it spills onto the hull', 0, 1, 0.01],
-    winC:       ['window colour', 'rgb'],
-    winA:       ['window brightness', 0, 1, 0.01],
-    winW:       ['window width, of the radius', 0.005, 0.12, 0.002],
-    winH:       ['window height, of the thickness', 0.05, 0.9, 0.01],
-    winRow:     ['where the window rows sit', 0, 1, 0.01],
-    winGap:     ['spacing between rows', 0.02, 0.6, 0.01],
-    innerWinK:  ['far side window brightness', 0, 1, 0.01],
-    lampK:      ['how far a light halo reaches', 1, 10, 0.1],
-    spokeN:     ['struts to the core', 0, 12, 1],
-    spokeP:     ['where the first strut sits', 0, 6.28, 0.01],
-    spokeW:     ['strut thickness', 0, 0.1, 0.002],
-    panelP:     ['where the array booms leave', 0, 6.28, 0.01],
-    panelD:     ['boom reach, in ring radii', 0.5, 2.5, 0.01],
-    panelW:     ['array half-length', 0.02, 0.6, 0.01],
-    panelH:     ['array half-width', 0.01, 0.4, 0.005],
-    panelN:     ['cells along the array', 1, 20, 1],
-    panelC:     ['array colour', 'rgb'],
-    panelA:     ['array opacity', 0, 1, 0.01],
-    panelSpec:  ['sheen off the array glass', 0, 1, 0.01],
-    boomW:      ['boom thickness', 0, 0.06, 0.001],
-    mastH:      ['comms tower height', 0, 1.5, 0.01],
-    mastW:      ['comms tower thickness', 0, 0.06, 0.001],
-    mastN:      ['cross-members up the tower', 0, 10, 1],
-    beaconN:    ['running lights', 0, 40, 1],
-    beaconP:    ['where the first one sits', 0, 6.28, 0.01],
-    beaconR:    ['running light size', 0.001, 0.05, 0.001],
-    beaconC:    ['running light colour', 'rgb'],
-    beaconA:    ['running light brightness', 0, 1, 0.01],
-    irisA:      ['energy in a gate throat', 0, 1, 0.01]
+  S3D_LAMPS: {
+    steadyK:  ['a steady light still breathes: how much', 0, 0.5, 0.005],
+    steadyP:  ['...and how fast', 0.05, 3, 0.05],
+    beaconP:  ['beacon period, seconds', 0.5, 12, 0.1],
+    beaconD:  ['beacon dwell — higher holds it dark longer', 1, 10, 0.1],
+    strobeP:  ['strobe period, seconds', 0.5, 10, 0.1],
+    strobeW:  ['strobe flash width, as a fraction of the period', 0.005, 0.3, 0.005],
+    strobeGap:['gap between the two flashes', 0.02, 0.5, 0.005],
+    slowP:    ['slow light period, seconds', 0.5, 14, 0.1],
+    slowOff:  ['...and how much of it is dark', 0.02, 0.6, 0.005]
   },
   DEST_LIFE: {
     n0:        ['features dealt, fewest', 0, 5, 1],
@@ -495,7 +495,10 @@ const DIALS = {
    moved without knowing what the thing is for. */
 const NOTES = {
   ALL: 'Every destination the game can put at the end of a lane, at chart scale. Click one to tune it.',
-  SHD: 'The shading model shared by all nine worlds. Move a dial here and every world changes together — that is the point of it being separate.',
+  SHD: 'The shading model shared by every world in the table. Move a dial here and every world changes together — that is the point of it being separate.',
+  S3L: 'Light and material for the five BUILT stations. These move all of them together — a station is geometry now, so this is where its look actually lives. The single biggest dial here is sun Z: low is grazing, and grazing is what makes relief visible.',
+  WRP: 'The only part of a built destination that MOVES. The aperture is baked like the rest of the gate, so what the bake gives you is the field\u2019s standing structure \u2014 a photograph of energy. This is the live half: filaments falling down the throat, and the film grain that stops a bright surface reading as artwork. It is composited through a mask of the baked field, so the near half of the ring occludes it for free.',
+  S3B: 'How the running lights behave. Four models, all taken from real vehicle lighting: a steady light that breathes, a slow beacon, a double-flash strobe, and a long-on light. Keep them SLOW — the lane is already busy.',
   RSH: 'The torus shading shared by stations and gates. The ring equivalent of SHD: these dials move both kinds at once.',
   STN: 'A crewed station: a torus with a pressurised core and lit ports. Drawn in two halves so the near side genuinely occludes the far side.',
   GAT: 'A jump gate. Same torus, different proportion, and energy standing in the throat instead of a hub.',
@@ -510,11 +513,10 @@ function railItems() {
   out.push({ g: 'WORLDS', id: 'SHD', n: 'shared shading' });
   G.PLANET_TYPES.forEach(p => out.push({ id: p.id, n: p.n }));
   out.push({ id: G.PLANET_STAR.id, n: G.PLANET_STAR.n + ' (boss)' });
-  out.push({ g: 'BUILT', id: G.RING_SHADE.id, n: 'shared torus shading' });
-  out.push({ id: G.RING_KINDS.station.id, n: G.RING_KINDS.station.n });
-  out.push({ id: G.RING_KINDS.gate.id, n: G.RING_KINDS.gate.n });
-  out.push({ g: 'CORES', id: G.CORE_KINDS[0].id, n: G.CORE_KINDS[0].n });
-  G.CORE_KINDS.slice(1).forEach(c => out.push({ id: c.id, n: c.n }));
+  out.push({ g: 'STATIONS 3D', id: G.S3D_LIGHT.id, n: 'light & material' });
+  out.push({ id: G.S3D_LAMPS.id, n: 'how lights blink' });
+  out.push({ id: G.S3D_WARP.id, n: 'the gate throat' });
+  G.S3D_BUILDS.forEach(b => out.push({ id: 'B:' + b.id, n: b.n }));
   out.push({ g: 'THE PLACE', id: G.DEST_LIFE.id, n: 'what lives there' });
   out.push({ id: G.DEST_MIX.id, n: 'kind mix' });
   return out;
@@ -550,19 +552,18 @@ function markRail() {
 /* ── which table does an ID point at ─────────────────────────────────── */
 function target(id) {
   if (id === 'SHD') return { live: G.PLANET_SHADE, base: DEFAULTS.PLANET_SHADE, dials: DIALS.PLANET_SHADE, name: 'shared world shading' };
-  if (id === 'RSH') return { live: G.RING_SHADE, base: DEFAULTS.RING_SHADE, dials: DIALS.RING_SHADE, name: 'shared torus shading' };
   if (id === 'SUN') return { live: G.PLANET_STAR, base: DEFAULTS.PLANET_STAR, dials: DIALS.world, name: G.PLANET_STAR.n };
   if (id === 'MIX') return { live: G.DEST_MIX, base: DEFAULTS.DEST_MIX, dials: DIALS.DEST_MIX, name: 'kind mix' };
   if (id === 'LIF') return { live: G.DEST_LIFE, base: DEFAULTS.DEST_LIFE, dials: DIALS.DEST_LIFE, name: 'what lives there' };
-  for (const k of ['station', 'gate']) {
-    if (G.RING_KINDS[k].id === id)
-      return { live: G.RING_KINDS[k], base: DEFAULTS.RING_KINDS[k], dials: DIALS.ring, name: G.RING_KINDS[k].n, ringKind: k };
-  for (let i = 0; i < G.CORE_KINDS.length; i++)
-    if (G.CORE_KINDS[i].id === id)
-      // A core has no silhouette of its own — it is only ever seen inside a
-      // station, so that is what the stage draws. Same reason the SHD tab shows
-      // worlds rather than an abstract swatch.
-      return { live: G.CORE_KINDS[i], base: DEFAULTS.CORE_KINDS[i], dials: DIALS.core, name: G.CORE_KINDS[i].n, ringKind: 'station', core: G.CORE_KINDS[i].id };
+  if (id === 'S3L') return { live: G.S3D_LIGHT, base: DEFAULTS.S3D_LIGHT, dials: DIALS.S3D_LIGHT, name: 'built-station light & material', s3: 'FORT' };
+  if (id === 'S3B') return { live: G.S3D_LAMPS, base: DEFAULTS.S3D_LAMPS, dials: DIALS.S3D_LAMPS, name: 'how the lights blink', s3: 'PORT' };
+  if (id === 'WRP') return { live: G.S3D_WARP, base: DEFAULTS.S3D_WARP, dials: DIALS.S3D_WARP, name: 'the gate throat', s3: 'GATE' };
+  if (id.slice(0, 2) === 'B:') {
+    // A build has no dials of its own — its geometry is code, not a table — so
+    // the tab shows the shared light dials and draws THAT build: you tune what
+    // is shared while looking at the one you care about.
+    const b = G.S3D_BUILDS.find(x => x.id === id.slice(2));
+    if (b) return { live: G.S3D_LIGHT, base: DEFAULTS.S3D_LIGHT, dials: DIALS.S3D_LIGHT, name: b.n, s3: b.id };
   }
   const i = G.PLANET_TYPES.findIndex(p => p.id === id);
   if (i >= 0) return { live: G.PLANET_TYPES[i], base: DEFAULTS.PLANET_TYPES[i], dials: DIALS.world, name: G.PLANET_TYPES[i].n };
@@ -618,7 +619,7 @@ function buildDials() {
   h.className = 'hint';
   h.innerHTML = 'Every number here is a fraction of the body radius, so it holds at both the 20px chart chip and the full-size arrival. Say <code>' +
     cur + '</code> in chat to point me at this one.';
-  if (cur === 'SHD') h.innerHTML = 'These are shared by all nine worlds. Say <code>SHD</code> in chat to point me at them.';
+  if (cur === 'SHD') h.innerHTML = 'These are shared by every world in the table. Say <code>SHD</code> in chat to point me at them.';
   box.appendChild(h);
 }
 
@@ -735,6 +736,10 @@ function touched() {
   // the dealt hand is memoised per relay, so a DEST_LIFE dial would otherwise
   // not show until the relay changed
   if (G && G.resetLife) G.resetLife();
+  // ...and the sandbox bakes its OWN station sprites for the ones in orbit.
+  // That cache never dropped, so light and detail dials moved the destination
+  // while the station orbiting it kept the look it was first baked with.
+  if (G && G.resetS3) G.resetS3();
   dirty = allChanges().length > 0;
   setState(dirty ? 'dirty' : 'ok',
     dirty ? allChanges().length + ' change' + (allChanges().length === 1 ? '' : 's') + ' not yet in the game'
@@ -752,8 +757,8 @@ function setState(s, txt) {
 function payload() {
   return {
     PLANET_TYPES: G.PLANET_TYPES, PLANET_STAR: G.PLANET_STAR, PLANET_SHADE: G.PLANET_SHADE,
-    RING_KINDS: G.RING_KINDS, CORE_KINDS: G.CORE_KINDS, RING_SHADE: G.RING_SHADE,
-    DEST_MIX: G.DEST_MIX, DEST_LIFE: G.DEST_LIFE
+    DEST_MIX: G.DEST_MIX, DEST_LIFE: G.DEST_LIFE,
+    S3D_LIGHT: G.S3D_LIGHT, S3D_LAMPS: G.S3D_LAMPS, S3D_WARP: G.S3D_WARP
   };
 }
 function saveWork() {
@@ -787,15 +792,63 @@ function blit(c, V, R, x, y, max) {
 // The ring art draws through the game's module-level `ctx`, so the context is
 // handed to the sandbox rather than passed as an argument. That is the game's
 // own shape and the lab bends to it, not the other way round.
+// The built stations are BAKED, not drawn, so the lab caches a sprite per build
+// per revision and rebuilds only when a dial actually moves. It bakes at half
+// the game's supersample so a dial drag stays answerable; the game's own bake is
+// the one that ships.
+const s3Cache = new Map();
+let s3Rev = -1;
+function s3lab(id) {
+  if (s3Rev !== rev) { s3Cache.clear(); s3Rev = rev; }
+  if (!s3Cache.has(id)) {
+    const b = G.s3build(id), M = new G.S3Mesh();
+    b.fn(M, 4801 + id.charCodeAt(0) * 131);
+    const REF = 300;
+    s3Cache.set(id, G.s3render(M, { w: REF, h: REF, ss: 1, scale: REF * b.cam }));
+  }
+  return s3Cache.get(id);
+}
+function drawS3(c, id, R, x, y, t) {
+  const sp = s3lab(id);
+  if (!sp) return false;
+  const H = G.S3D_LIGHT, w = sp.S * (R / sp.R), k = w / sp.S;
+  c.drawImage(sp.cv, x - w / 2, y - w / 2, w, w);
+  G.s3warp(c, sp, x, y, w, 1, t);   // the gate's throat, live
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  for (const L of sp.lamps) {
+    const b = G.s3lamp(L.k, t, L.ph);
+    if (b < 0.03) continue;
+    const px = x + (L.x - sp.S * 0.5) * k, py = y + (L.y - sp.S * 0.5) * k;
+    const r = Math.max(0.35, L.r * k), RR = r * H.haloR;
+    const g = c.createRadialGradient(px, py, 0, px, py, RR);
+    g.addColorStop(0, 'rgba(' + L.c + ',' + (H.haloA * b).toFixed(3) + ')');
+    g.addColorStop(0.16, 'rgba(' + L.c + ',' + (H.haloA * b * 0.26).toFixed(3) + ')');
+    g.addColorStop(0.48, 'rgba(' + L.c + ',' + (H.haloA * b * 0.055).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(' + L.c + ',0)');
+    c.fillStyle = g; c.beginPath(); c.arc(px, py, RR, 0, Math.PI * 2); c.fill();
+    if (H.spike > 0.01 && r >= H.spikeMin) {
+      const len = RR * H.spikeL, sa = (H.spike * b * 0.30).toFixed(3);
+      for (const vert of [0, 1]) {
+        const gg = vert ? c.createLinearGradient(px, py - len, px, py + len)
+                        : c.createLinearGradient(px - len, py, px + len, py);
+        gg.addColorStop(0, 'rgba(' + L.c + ',0)');
+        gg.addColorStop(0.5, 'rgba(' + L.c + ',' + sa + ')');
+        gg.addColorStop(1, 'rgba(' + L.c + ',0)');
+        c.fillStyle = gg;
+        if (vert) c.fillRect(px - r * 0.30, py - len, r * 0.60, len * 2);
+        else c.fillRect(px - len, py - r * 0.30, len * 2, r * 0.60);
+      }
+    }
+    c.fillStyle = 'rgba(' + L.c + ',' + (H.coreA * b).toFixed(3) + ')';
+    c.beginPath(); c.arc(px, py, r, 0, Math.PI * 2); c.fill();
+  }
+  c.restore();
+  return true;
+}
 function drawDest(c, id, R, x, y, t, max) {
   const T = target(id);
-  if (T && T.ringKind) {
-    // which core this station is built round — the tab picks it, so a core tab
-    // shows its own core rather than whatever the table happens to lead with
-    if (T.ringKind === 'station') G.RING_KINDS.station.core = T.core || G.RING_KINDS.station.core;
-    G.set({ ctx: c, time: t });
-    return G.drawRingBody(x, y, R, T.ringKind);
-  }
+  if (T && T.s3) return drawS3(c, T.s3, R, x, y, t);
   const V = id === 'SUN' ? G.PLANET_STAR : G.PLANET_TYPES.find(p => p.id === id);
   if (V) blit(c, V, R, x, y, max);
 }
@@ -889,7 +942,8 @@ function bodyStage(st) {
   st.appendChild(strip);
 
   stageDraw = t => {
-    const R = cur === 'FLD' ? 150 : 130;
+    // a swarm has no disc — it needs the extra room its rocks scatter into
+    const R = (V0 => V0 && V0.field)(G.PLANET_TYPES.find(p => p.id === cur)) ? 150 : 130;
     big = grow(hero, big, cur, R, HERO_MAX);
     big.c.clearRect(0, 0, big.w, big.h);
     // the haze the game puts around every body, so a colour is judged in air
@@ -916,16 +970,20 @@ function bodyStage(st) {
 function sheetStage(st) {
   const sheet = document.createElement('div');
   sheet.className = 'sheet';
+  // Worlds, the boss star, and then every BUILT destination — the four station
+  // builds and the gate. 'STN' and 'GAT' used to sit here as one station and one
+  // gate, because there was only ever one of each; a build has replaced both, and
+  // there are five of them, so the sheet shows the five.
   const ids = cur === 'SHD'
     ? G.PLANET_TYPES.map(p => p.id).concat(['SUN'])
-    : G.PLANET_TYPES.map(p => p.id).concat(['SUN', 'STN', 'GAT']);
+    : G.PLANET_TYPES.map(p => p.id).concat(['SUN'], G.S3D_BUILDS.map(b => 'B:' + b.id));
   const cells = ids.map(id => {
     const t = target(id);
     const s = cv(110, 110);
     const el = document.createElement('div');
     el.className = 'cell';
     el.innerHTML = '<b></b><span></span>';
-    el.querySelector('b').textContent = id;
+    el.querySelector('b').textContent = id.slice(0, 2) === 'B:' ? id.slice(2) : id;
     el.querySelector('span').textContent = t ? t.name : '';
     el.insertBefore(s.el, el.firstChild);
     el.onclick = () => select(id);
@@ -966,10 +1024,13 @@ function arrivalStage(st) {
   let campI = 0, lv = 0, approach = 0.55;
   const relayLabel = document.createElement('span');
   relayLabel.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--ink-4);letter-spacing:1px';
+  // walk relay by relay across the WHOLE ladder, using each contract's real
+  // length — the old walk assumed eight everywhere and would have skipped or
+  // repeated relays the moment one campaign was a different size
   const step = (d) => {
     lv += d;
-    while (lv < 0) { lv += 8; campI = (campI + CAMPS.length - 1) % CAMPS.length; }
-    while (lv > 7) { lv -= 8; campI = (campI + 1) % CAMPS.length; }
+    while (lv < 0) { campI = (campI + CAMPS.length - 1) % CAMPS.length; lv += CAMPS[campI].levels.length; }
+    while (lv > CAMPS[campI].levels.length - 1) { lv -= CAMPS[campI].levels.length; campI = (campI + 1) % CAMPS.length; }
     G.resetLife();
     render();
   };
@@ -994,14 +1055,14 @@ function arrivalStage(st) {
   st.appendChild(strip);
 
   function render() {
-    const camp = CAMPS[campI];
-    const kind = G.destKindFor(camp, lv, false);
-    relayLabel.textContent = camp + ' · level ' + (lv + 1) + ' · ' + kind;
+    const c0 = CAMPS[campI];
+    const kind = G.destKindFor(c0.id, lv, false);
+    relayLabel.textContent = campTitle(c0) + ' · ' + relayName(c0, lv) + ' · ' + kind;
     scrubLbl.textContent = 'approach ' + Math.round(approach * 100) + '%';
   }
 
   stageDraw = t => {
-    const camp = CAMPS[campI];
+    const camp = CAMPS[campI].id;
     const c = big.c;
     c.clearRect(0, 0, big.w, big.h);
     G.set({ ctx: c, time: t, CAMP: { id: camp }, levelIdx: lv, LV: { boss: false } });
@@ -1026,7 +1087,9 @@ function arrivalStage(st) {
       blit(c, V, R, fx, fy, Math.min(big.w, big.h));
       G.drawTerminatorCreep(far, R, clamp01((R / geo.nodeR - G.DEST_LIFE.vis0) / G.DEST_LIFE.vis1), la);
     } else {
-      G.drawRingBody(fx, fy, R * (kind === 'gate' ? 1.25 : 1.15), kind);
+      // a station or a gate: the same build the game stands there, off the same
+      // bake — so the staged arrival shows the actual destination, not a stand-in
+      drawS3(c, G.s3BuildFor(camp, lv, kind), R * 1.02, fx, fy, t);
     }
     G.drawDestLife(far, R, geo, true, la);         // and everything over the top
 
@@ -1041,8 +1104,15 @@ function arrivalStage(st) {
 }
 const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
 
-/* the distribution, and what it actually produces across the campaign ladder */
-const CAMPS = ['investigation', 'going-deeper', 'signal-lost', 'the-bait', 'shutdown'];
+/* THE CONTRACTS, read off src/campaigns.js at boot — never a list typed in here.
+   A hardcoded copy is how this lab ended up labelling relays with internal slugs
+   ('investigation', 'the-bait') years after the contracts were named and renamed.
+   Each entry is { id, title, levels: [name, …] }, and the level COUNT is real
+   too, so a contract that grows or shrinks walks correctly. */
+let CAMPS = [];
+const campTitle = c => c.title || c.id;
+// "05 SUBLANE DRIFT" — the number a player sees, and the name on the brief
+const relayName = (c, lv) => String(lv + 1).padStart(2, '0') + ' ' + (c.levels[lv] || '—');
 function mixStage(st) {
   const hero = document.createElement('div');
   hero.className = 'hero';
@@ -1070,19 +1140,21 @@ function mixStage(st) {
     // the real sequence, straight off the game's own picker — the honest answer
     // to "what will a player actually see", which a percentage cannot give
     ladder.innerHTML = '';
-    for (const camp of CAMPS) {
+    for (const c0 of CAMPS) {
       const row = document.createElement('div');
       row.className = 'row';
       const nm = document.createElement('div');
-      nm.className = 'cn'; nm.textContent = camp;
+      nm.className = 'cn'; nm.textContent = campTitle(c0);
+      nm.title = c0.id;                              // the slug, for when it is the slug you need
       row.appendChild(nm);
-      for (let lv = 0; lv < 8; lv++) {
-        const isBoss = lv === 7;
-        const kind = G.destKindFor(camp, lv, isBoss);
+      const n = c0.levels.length;
+      for (let lv = 0; lv < n; lv++) {
+        const isBoss = lv === n - 1;                 // the LAST relay is the duel, whatever the length
+        const kind = G.destKindFor(c0.id, lv, isBoss);
         const k = document.createElement('div');
         k.className = 'k k-' + kind;
-        k.textContent = kind === 'planet' ? G.planetVariantFor(camp, lv, false).id : kind.slice(0, 3).toUpperCase();
-        k.title = camp + ' level ' + (lv + 1) + ' — ' + kind;
+        k.textContent = kind === 'planet' ? G.planetVariantFor(c0.id, lv, false).id : kind.slice(0, 3).toUpperCase();
+        k.title = campTitle(c0) + ' · ' + relayName(c0, lv) + ' — ' + kind;
         row.appendChild(k);
       }
       ladder.appendChild(row);
@@ -1114,14 +1186,14 @@ $('#btnBrief').onclick = async () => {
 };
 
 $('#btnRevert').onclick = async () => {
-  if (dirty && !confirm('Throw away ' + allChanges().length + ' change(s) and reload from src/index.html?')) return;
+  if (dirty && !confirm('Throw away ' + allChanges().length + ' change(s) and reload from the game source?')) return;
   await fetch('/api/work', { method: 'DELETE' });
   location.reload();
 };
 
 $('#btnApply').onclick = async () => {
   if (!dirty) return;
-  setState('busy', 'writing src/index.html…');
+  setState('busy', 'writing DEST-DATA back into the game…');
   try {
     const r = await fetch('/api/apply', { method: 'POST', body: JSON.stringify(payload()) });
     if (!r.ok) throw new Error(await r.text());
@@ -1155,6 +1227,37 @@ function fail(msg) {
     src = await r.json();
   } catch (e) { return fail(String(e.message || e)); }
 
+  // A STALE SERVER is its own failure, and it has to say so. This page is static
+  // and re-read on every load, but scripts/dest-lab.js is a node process that
+  // read its own source once at startup — so adding a region to the lab leaves a
+  // running server handing back a payload with that region simply missing.
+  // Interpolating `undefined` into the scope below then fails as "X is not
+  // defined", which reads like a bug in the game and is not one.
+  const NEED = ['rng', 'data', 'pick', 'kind', 'sprite', 'wake', 'life', 's3d', 's3dpick'];
+  const missing = NEED.filter(k => typeof src[k] !== 'string');
+  if (missing.length) {
+    return fail('The lab SERVER is running older code than this page.\n\n' +
+      'It did not send: ' + missing.join(', ') + '\n\n' +
+      'Restart it — node re-reads scripts/dest-lab.js only at startup:\n\n' +
+      '    npm run lab:dest');
+  }
+
+  // the real contracts. Same stale-server story as the regions above: an older
+  // node process has no /api/campaigns, and a lab guessing campaign names is
+  // exactly the thing this replaced.
+  try {
+    const r = await fetch('/api/campaigns');
+    if (!r.ok) throw new Error(await r.text());
+    CAMPS = await r.json();
+    if (!Array.isArray(CAMPS) || !CAMPS.length) throw new Error('no contracts in src/campaigns.js');
+  } catch (e) {
+    return fail('The lab SERVER could not hand over the contracts (/api/campaigns):\n\n' +
+      String(e.message || e) + '\n\n' +
+      'If it 404s, the server is older than this page. Restart it — node re-reads\n' +
+      'scripts/dest-lab.js only at startup:\n\n' +
+      '    npm run lab:dest');
+  }
+
   // The game's own regions, in a scope holding only what they are allowed to
   // reach. If one of them ever grabs another game global, it fails loudly here
   // rather than drawing something subtly wrong.
@@ -1166,19 +1269,75 @@ function fail(msg) {
       // The game's module-level mutables the lifted regions read. They are LET,
       // not arguments, because the game's own code reads them as free variables —
       // the lab hands them in through set() rather than rewriting the regions.
-      let ctx = null, time = 0, CAMP = { id: 'investigation' }, levelIdx = 0, LV = null;
+      let ctx = null, time = 0, CAMP = { id: ${JSON.stringify(CAMPS[0].id)} }, levelIdx = 0, LV = null;
       ${src.rng}
       ${src.data}
       ${src.pick}
       ${src.kind}
-      ${src.ring}
       ${src.sprite}
       ${src.wake}
       ${src.life}
+      // the built stations: the renderer and the five builds, plus the mapping
+      // from a campaign to the place its contract ends at
+      const lerp = (a, b, t) => a + (b - a) * t;
+      let lowFX = false;
+      // the real ids and the real lengths — s3FinalFor asks "is this the LAST
+      // relay", so a guessed length puts a contract's endpoint on the wrong one
+      const CAMPAIGNS = ${JSON.stringify(CAMPS.map(c => ({ id: c.id, levels: c.levels.map(() => 0) })))};
+      ${src.s3d}
+      ${src.s3dpick}
+      // s3draw ITSELF is not in a lifted region — in the game it is backed by the
+      // menu bake, a frame budget and a mip chain, none of which exist here. But
+      // the lifted DEST-LIFE region calls it to put stations in orbit around a
+      // world, so the scope has to answer. This is the lab's answer: build the
+      // thing on demand, cache it, draw it. Same geometry, same shader, same
+      // lamps — only the scheduling differs, and the lab has no schedule.
+      const _s3lab = {};
+      function s3draw(x, y, R, id, alpha, noLamps) {
+        let sp = _s3lab[id];
+        if (sp === undefined) {
+          try {
+            const b = s3build(id), M = new S3Mesh();
+            b.fn(M, 4801 + id.charCodeAt(0) * 131);
+            sp = s3render(M, { w: 300, h: 300, ss: 1, scale: 300 * b.cam });
+          } catch (e) { sp = null; }
+          _s3lab[id] = sp;
+        }
+        if (!sp) return false;
+        const w = sp.S * (R / sp.R), k = w / sp.S, H = S3D_LIGHT;
+        ctx.save();
+        if (alpha !== undefined && alpha < 1) ctx.globalAlpha = alpha;
+        ctx.drawImage(sp.cv, x - w / 2, y - w / 2, w, w);
+        ctx.restore();
+        if (!noLamps) s3warp(ctx, sp, x, y, w, alpha === undefined ? 1 : alpha, time);
+        if (!noLamps) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          for (const L of sp.lamps) {
+            const b2 = s3lamp(L.k, time, L.ph) * (alpha === undefined ? 1 : alpha);
+            if (b2 < 0.03) continue;
+            const px = x + (L.x - sp.S * 0.5) * k, py = y + (L.y - sp.S * 0.5) * k;
+            const r = Math.max(0.35, L.r * k), RR = r * H.haloR;
+            const g = ctx.createRadialGradient(px, py, 0, px, py, RR);
+            g.addColorStop(0, 'rgba(' + L.c + ',' + (H.haloA * b2).toFixed(3) + ')');
+            g.addColorStop(0.16, 'rgba(' + L.c + ',' + (H.haloA * b2 * 0.26).toFixed(3) + ')');
+            g.addColorStop(0.48, 'rgba(' + L.c + ',' + (H.haloA * b2 * 0.055).toFixed(3) + ')');
+            g.addColorStop(1, 'rgba(' + L.c + ',0)');
+            ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(px, py, RR, 0, TAU); ctx.fill();
+            ctx.fillStyle = 'rgba(' + L.c + ',' + (H.coreA * b2).toFixed(3) + ')';
+            ctx.beginPath(); ctx.arc(px, py, r, 0, TAU); ctx.fill();
+          }
+          ctx.restore();
+        }
+        return true;
+      }
       return {
         PLANET_REF_R, PLANET_TYPES, PLANET_STAR, PLANET_SHADE,
-        RING_KINDS, CORE_KINDS, RING_SHADE, DEST_MIX, DEST_LIFE,
-        planetVariantFor, buildPlanetSprite, destKindFor, drawRingBody,
+        DEST_MIX, DEST_LIFE,
+        S3D_LIGHT, S3D_LAMPS, S3D_WARP, S3D_BUILDS, S3D_FINAL,
+        S3Mesh, s3render, s3lamp, s3build, s3FinalFor, s3BuildFor, s3warp,
+        planetVariantFor, buildPlanetSprite, destKindFor,
         drawDestLife, drawTerminatorCreep, destinationLife, destLightA, orbitAt,
         set(o) {
           if (o.ctx !== undefined) ctx = o.ctx;
@@ -1189,11 +1348,13 @@ function fail(msg) {
         },
         // the dealt hand is memoised inside the region; this is the only handle
         // on that cache, and the lab must drop it whenever a dial or relay moves
-        resetLife() { destLifeKey = ''; destLifeVal = null; }
+        resetLife() { destLifeKey = ''; destLifeVal = null; },
+        // same for the sprites this scope bakes for stations in orbit
+        resetS3() { for (const k of Object.keys(_s3lab)) delete _s3lab[k]; }
       };
     `)();
   } catch (e) {
-    return fail('The marked regions in src/index.html did not evaluate:\n\n' + (e.message || e));
+    return fail('The marked regions in src/game/ did not evaluate:\n\n' + (e.message || e));
   }
 
   DEFAULTS = clone(payload());
