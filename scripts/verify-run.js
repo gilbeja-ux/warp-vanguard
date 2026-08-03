@@ -139,10 +139,27 @@ function selfTest() {
   V.resetCanonical(); V.setViewport(800, 450);
   warmUp(LVL);
   // record via the REAL lifecycle: resetRun starts the trace, endLevel finalizes
-  // it into lastRun. Park nodes on two arcs to kill seeded traffic — no manual
-  // spawns, everything comes from (seed, input).
+  // it into lastRun. No manual spawns — everything comes from (seed, input).
+  //
+  // TRACK THE TRAFFIC; DO NOT PARK ON A GUESS. This held both nodes at 0 and PI,
+  // which scored 100 when it was written and 0 by 2026-08-03. Nothing broke in the
+  // sim: level 4's hostiles now arrive at 4.57, 3.48, 0.49, 1.55 … and the zap
+  // tolerance is about +/-0.31 rad, so two fixed angles intercepted nothing,
+  // integrity bled out in five misses, and `score > 0` failed on a run that had
+  // simply never hit anything. The assertion was right — the AIM was a hostage to
+  // level content, and it was silently wrong for 15 commits.
+  //
+  // Aiming at whatever is closest keeps the run purely seed+input driven (the trace
+  // records the resulting angles either way, so replay is untouched) and it scores
+  // ~17k instead of 100, which exercises far more of the scoring path.
   V.startLevel(LVL); V.setIntro(999); V.setState(V.S.PLAY);
-  for (let i = 0; i < 4000 && V.getState() !== V.S.END; i++) { V.nodes[0].angle = 0; V.nodes[1].angle = Math.PI; V.simStep(); }
+  for (let i = 0; i < 4000 && V.getState() !== V.S.END; i++) {
+    const live = V.enemies().filter(e => !e.dead).sort((a, b) => a.z - b.z);
+    if (live[0]) V.nodes[0].angle = live[0].angle;
+    if (live[1]) V.nodes[1].angle = live[1].angle;
+    else if (live[0]) V.nodes[1].angle = live[0].angle + Math.PI;
+    V.simStep();
+  }
   const run = V.getLastRun(); // the actual submission payload: { mode, levelIdx, seed, score, trace, ... }
 
   let pass = true;

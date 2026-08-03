@@ -266,6 +266,13 @@ function drawDeepField(g, dt) {
     // × laneFlow: a wisp is a motion smear — a parked lane must not hang them
     const al = wp.al * (0.35 + 0.65 * near) * (1 + dive * 2.2) * laneFlow;
     const col = wp.warm ? '255,226,190' : '206,230,255';
+    // PER-WISP GRADIENT, KEPT. The streak taper's unit-space trick was applied here
+    // too and reverted after measuring: 74 gradients a frame is not enough to read
+    // on device (deepField+traffic moved 1.72 -> 1.74ms, i.e. nothing), where the
+    // streaks' 726 a frame is worth 36%. It also needed a width floor, because a
+    // sub-pixel pen antialiases differently under a transform (4/255 at lineWidth
+    // 0.8, 1/255 at 1.4) — and wisp widths run 0.5-2.75px, so the floor excluded
+    // most of them anyway. Not worth a branch and a cache for an unmeasurable gain.
     const grd = ctx.createLinearGradient(x0, y0, x1, y1);
     grd.addColorStop(0, `rgba(${col},0)`);
     grd.addColorStop(0.4, `rgba(${col},${al.toFixed(3)})`);
@@ -313,6 +320,50 @@ function drawDeepField(g, dt) {
     ctx.beginPath(); ctx.arc(px, py, Math.min(R, DEEP_CORE), 0, TAU); ctx.fill();
   }
   ctx.restore();
+}
+
+// ---------- THE TAPER, BUILT ONCE INSTEAD OF 726 TIMES A FRAME ----------
+// Measured on device (OPPO CPH2581, Android 16, 2026-08-03): drawStreaks was 42.5%
+// of the frame, and ablating ONLY its gradient construction (?abl=grad) bought
+// -24.8% — statistically the same as deleting the whole streak field (-26.9%).
+// So the eight additive stroke passes and all that fill are nearly free on a mobile
+// GPU; the entire bill was building 726 CanvasGradients per frame, each with five
+// addColorStop()s fed a freshly-allocated rgba() string the backend must CSS-parse.
+//
+// The fix rests on one fact: a CanvasGradient resolves its coordinates in the user
+// space IN EFFECT WHEN IT IS PAINTED, not when it was created. So the taper need
+// not know where the streak is — build it once from (0,0) to (1,0) and let the
+// transform carry it onto the segment. One gradient per colour, for the life of
+// the process, and the profile is byte-for-byte the profile that was there before.
+//
+// ctx is rebindable (withCanvas swaps it for the offscreen bakes and the labs), and
+// a gradient belongs to the context that made it — so the cache is dropped if the
+// context underneath it changes.
+let streakGrads = {};
+let streakGradCtx = null;
+function streakTaper(col) {
+  if (streakGradCtx !== ctx) { streakGradCtx = ctx; streakGrads = {}; }
+  const hit = streakGrads[col];
+  if (hit) return hit;
+  const gr = ctx.createLinearGradient(0, 0, 1, 0);
+  gr.addColorStop(0, `rgba(${col},1)`);       // the star
+  gr.addColorStop(0.12, `rgba(${col},0.92)`);
+  gr.addColorStop(0.42, `rgba(${col},0.42)`); // the trail thinning
+  gr.addColorStop(0.75, `rgba(${col},0.12)`);
+  gr.addColorStop(1, `rgba(${col},0)`);       // gone
+  streakGrads[col] = gr;
+  return gr;
+}
+// The original, still needed below a couple of pixels of length — see the note at
+// the call site for why that case cannot go through the transform.
+function streakTaperAt(col, x1, y1, x2, y2) {
+  const gr = ctx.createLinearGradient(x1, y1, x2, y2);
+  gr.addColorStop(0, `rgba(${col},1)`);
+  gr.addColorStop(0.12, `rgba(${col},0.92)`);
+  gr.addColorStop(0.42, `rgba(${col},0.42)`);
+  gr.addColorStop(0.75, `rgba(${col},0.12)`);
+  gr.addColorStop(1, `rgba(${col},0)`);
+  return gr;
 }
 
 function drawStreaks(g, dt) {
@@ -406,30 +457,53 @@ function drawStreaks(g, dt) {
       // reaches zero. One gradient is built per colour the star uses and reused
       // across the passes that share it, with globalAlpha carrying each pass's
       // weight — three gradients per star rather than six.
-      const grads = [];
-      const mkGrad = (col) => {
-        const gr = ctx.createLinearGradient(x1, y1, x2, y2);
-        gr.addColorStop(0, `rgba(${col},1)`);       // the star
-        gr.addColorStop(0.12, `rgba(${col},0.92)`);
-        gr.addColorStop(0.42, `rgba(${col},0.42)`); // the trail thinning
-        gr.addColorStop(0.75, `rgba(${col},0.12)`);
-        gr.addColorStop(1, `rgba(${col},0)`);       // gone
-        return gr;
-      };
+      const dx = x2 - x1, dy = y2 - y1;
+      const len = Math.hypot(dx, dy);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.lineCap = 'round';
+      // UNIT SPACE ABOVE A COUPLE OF PIXELS, THE OLD PATH BELOW IT.
+      //
+      // [dx, dy; -dy, dx] is a pure rotation times a UNIFORM scale of len — its
+      // determinant is len². Uniform is the whole point: a non-uniform map would
+      // give an elliptical pen and elliptical round caps, and the smear would stop
+      // matching. lineWidth is divided by len so len × (w·k/len) lands back on
+      // exactly the w·k it was before. transform(), never setTransform() — the
+      // ambient DPR matrix, the shake translate and the replay world-zoom all live
+      // in the current transform and must be composed with, not replaced.
+      //
+      // The floor exists because of the PARKED case, not for safety margin: on a
+      // menu laneFlow → 0, so ambSpan → 0 and every smear collapses to a
+      // sub-pixel segment under a pen up to a hundred wide. The five stops then
+      // compress into less than a pixel and the painted result is a lopsided dot —
+      // which IS the parked look, and reproducing it through the transform would
+      // ask the rasteriser for a hundred-thousand-pixel pen. Play is where the
+      // measured 24.8% lives, and in play every smear is far past this floor.
+      // ?abl=nounit forces the pre-2026-08-03 path — a real gradient rebuilt per
+      // streak per frame — so the cached-vs-rebuilt delta can be measured
+      // INTERLEAVED against the current code in one session. Comparing across two
+      // sessions cannot separate the win from the phone warming up, and on this
+      // hardware the drift is the same order as the win.
+      const unit = len >= 2 && !abl('grad') && !abl('nounit');
+      if (unit) ctx.transform(dx, dy, -dy, dx, x1, y1);
+      const grads = unit ? null : [];
       const pi0 = abl('passes') ? LIVE_WARP_PASSES.length - 1 : st.p0;
       for (let pi = pi0; pi < LIVE_WARP_PASSES.length; pi++) {
         const [w, ci, aMul] = LIVE_WARP_PASSES[pi];
         const a2 = al * aMul;
         if (a2 < 0.008) continue;
         const col = ci === 2 ? '255,255,255' : st.tint[ci];
-        if (!grads[ci]) grads[ci] = abl('grad') ? `rgba(${col},1)` : mkGrad(col);
         ctx.globalAlpha = Math.min(1, a2);
-        ctx.strokeStyle = grads[ci];
-        ctx.lineWidth = w * k;
-        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        if (unit) {
+          ctx.strokeStyle = streakTaper(col);
+          ctx.lineWidth = (w * k) / len;
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(1, 0); ctx.stroke();
+        } else {
+          if (!grads[ci]) grads[ci] = abl('grad') ? `rgba(${col},1)` : streakTaperAt(col, x1, y1, x2, y2);
+          ctx.strokeStyle = grads[ci];
+          ctx.lineWidth = w * k;
+          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        }
       }
       ctx.globalAlpha = 1;
       ctx.restore();
@@ -459,6 +533,16 @@ function drawStreaks(g, dt) {
       const tw = 1 - (1 - laneFlow) * 0.4 * (0.5 + 0.5 * Math.sin(time * (1.1 + st.rmul) + st.a * 7.3));
       const ha = Math.min(1, al * hk * 0.9 * tw);
       if (ha > 0.01) {
+        // LEFT AS A PER-STAR GRADIENT, DELIBERATELY. A baked sprite was built and
+        // measured on device (2026-08-03) and reverted: interleaved against this
+        // path it came out 0.15ms apart — inside the run-to-run spread, and
+        // actually SLOWER in two reps of three. The earlier -7.1% from ?abl=heads
+        // was the cost of the head's composite fill, which a sprite still pays;
+        // only the gradient construction goes away, and unlike the taper below
+        // there is one of these per star rather than three. So the sprite bought
+        // nothing measurable while shifting pixels by up to 3/255 and adding 147KB
+        // of bakes. If heads ever need to get cheaper, the lever is drawing fewer
+        // or smaller ones — which changes the look and is a design decision.
         const hr = Math.max(1.2, 2.6 * hk);
         const hg = ctx.createRadialGradient(x1, y1, 0, x1, y1, hr);
         hg.addColorStop(0, `rgba(255,255,255,${ha.toFixed(3)})`);

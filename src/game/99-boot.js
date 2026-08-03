@@ -583,6 +583,12 @@ function drawSplash(rawDt) {
   ctx.restore();
 }
 
+// Depth-sorted draw order, reused across frames. Render-only: the sim never reads
+// it, and the comparator is the one that was inline here before.
+const drawOrder = [];
+const EMPTY_DRAW = [];
+const byDepth = (a, b) => b.z - a.z;
+
 function frame(now) {
   const rawDt = (now - last) / 1000;
   let dt = clamp(rawDt, 0, 0.05); // clock can step backwards (timer quirks) — never simulate in reverse
@@ -735,7 +741,12 @@ function frame(now) {
   prof('bandFX');
   drawBandFX(now, g, bz, hw);
   prof('enemies');
-  const sorted = (inGuide || runVis <= 0.004) ? [] : enemies.slice().sort((a, b) => b.z - a.z);
+  // Reused scratch buffer + a hoisted comparator: this ran `enemies.slice().sort(
+  // (a,b) => ...)` every rendered frame, allocating an array and a fresh closure
+  // each time. Depth order is unchanged — same comparator, same input order.
+  let sorted = drawOrder;
+  if (inGuide || runVis <= 0.004) sorted = EMPTY_DRAW;
+  else { drawOrder.length = 0; for (const en of enemies) drawOrder.push(en); drawOrder.sort(byDepth); }
   if (runVis < 1) { ctx.save(); ctx.globalAlpha *= runVis; }
   for (const en of sorted) if (en.lineLead) drawLineBeam(en, g); // beams sit under the traps
   for (const en of sorted) drawEnemy(en, g);

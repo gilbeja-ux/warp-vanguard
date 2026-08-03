@@ -37,3 +37,8 @@ scratch-*.js
 # copy of dest-tuning.json was how "my change did nothing" happened three times.
 docs/dest-lab/dest-tuning.json
 *.stale-bak
+
+# scripts/bench.js sample dumps — one CSV per run, thousands of rows, and only
+# meaningful next to the device and thermal state that produced them. The numbers
+# worth keeping go in the commit message or a doc, not in the repo as data.
+bench-results/

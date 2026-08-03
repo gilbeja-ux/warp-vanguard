@@ -107,6 +107,20 @@ function drawProfiler() {
 //   ?abl=grad     the tapered stroke gradients — flat rgba instead
 //   ?abl=passes   one stroke pass per star instead of up to eight
 //   ?abl=streaks  drawStreaks not called at all — the upper bound on any win
+//   ?abl=nounit   rebuild the taper gradient per streak per frame, as the code did
+//                 before 2026-08-03 — an A/B for the cached unit-space taper. This
+//                 one is not an ablation so much as a TIME MACHINE: it exists
+//                 because comparing two sessions cannot separate a win from the
+//                 phone warming up, and on real hardware the drift is the same
+//                 order as the win. Interleave it against the baseline instead.
+//
+// A WARNING, learned the hard way (2026-08-03). An ablation that lightens the frame
+// can stop the perfWatch latch from tripping, and lowFX is worth ~40% — MORE than
+// most single ablations. So an unpinned ?abl= run can come back SLOWER than
+// baseline while measuring nothing but the watchdog. scripts/bench.js pins the tier
+// at runtime for exactly this reason; if you measure by hand, watch warpStars drop
+// 750 -> 230 and know that any number spanning that moment is two quality levels
+// averaged together.
 //
 // Comma-separate to stack them. None of this touches the seeded sim stream
 // (drawStreaks uses rand(), which is Math.random, never srand()), so an ablated
