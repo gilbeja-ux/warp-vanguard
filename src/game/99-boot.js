@@ -681,7 +681,11 @@ function frame(now) {
   sfxFade += (sfxFadeTgt - sfxFade) * Math.min(1, rawDt * sfxFadeRate);
   if (sfxGain) sfxGain.gain.value = sfxBusGain();
   if (state !== S.PLAY) stripSound(false, 0); // pause/menus never hold the drone
-  ambient(state === S.PLAY); // the tunnel bed breathes only during play
+  // The engine bed runs for exactly as long as the lane does, and one call per frame
+  // is what makes that true of EVERY exit — win, loss, quit, pause into a menu. On a
+  // collapsed lane it cuts hard (the second argument): nothing arrived, so the engine
+  // stops rather than coasting away under the report.
+  ambient(state === S.PLAY, state === S.END && !endWin);
   prof('bg');
 
   ctx.save();

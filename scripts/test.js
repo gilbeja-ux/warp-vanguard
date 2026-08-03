@@ -142,6 +142,9 @@ code = code.replace("'use strict';", '') + `
   enemies: () => enemies,
   stats: () => ({ zaps, misses, score, integrity, combo }),
   playTrack, updateMusic, settings, progress, perf: () => ({ lowFX, perfCalm, perfTrips }), audio,
+  // the warp trilogy: the engine bed's live nodes, the sample registry, and the dials
+  warpAudio: () => ({ bed: warpBed, synth: ambNodes, bufs: Object.keys(sampleBufs), EXIT_STING }),
+  ambient, playSample, sfx2: sfx, WARP_SPOOL: () => WARP_SPOOL, laneFlow: () => laneFlow,
   music: () => ({ src: musicSrc, gain: musicGain, key: currentTrackKey, ac: AC, warm: warmKey }),
   bolts: () => bolts, hitStop: () => hitStop, fx, pickups: () => pickups, spawnPickup,
   boss: () => boss, endlessCfg, tut: () => tut, isEndless: () => endless, getLV: () => LV,
@@ -2505,6 +2508,60 @@ async function runMusicUp() {
     check('the outgoing take is stopped once the overlap closes', outgoing.stopped && !G.xfade().src);
     check('the incoming take owns the bus at full gain', G.music().src.startOffset === 0.5 && G.xfade().srcGain.gain.value === 1);
     G.setState(G.S.MENU); G.playTrack('menu');
+  }
+
+  // ================= the warp trilogy: in, through, out =================
+  // Three recorded takes replacing what used to be a synth bed and a bare sting:
+  // warp-in on the beat the lane engages, in-warp looped under the whole run, and
+  // exit-warp on an arrival with the victory sting rising through its tail.
+  {
+    check('all three warp takes are registered and decoded',
+      ['warpIn', 'inWarp', 'exitWarp'].every(k => G.warpAudio().bufs.includes(k)));
+
+    // THE ENGINE BED. One call per frame drives it, so every exit takes it with it.
+    G.setState(G.S.MENU); G.ambient(false);
+    check('parked in a menu, no engine is running', !G.warpAudio().bed && !G.warpAudio().synth);
+    G.ambient(true);
+    const bed = G.warpAudio().bed;
+    check('a live lane runs the RECORDED bed, not the synth', !!bed && !G.warpAudio().synth);
+    check('and it loops, inside the take\'s audible region so no lap ticks',
+      bed.src.loop === true && bed.src.loopEnd > bed.src.loopStart);
+    G.ambient(true);
+    check('holding the lane does not stack a second bed', G.warpAudio().bed === bed);
+    G.ambient(false);
+    check('leaving the lane releases it', !G.warpAudio().bed && bed.src !== undefined);
+
+    // A COLLAPSED LANE CUTS HARD; an arrival lets the engine fall away. Both end up
+    // silent — what differs is the time constant, so assert the call is accepted and
+    // the bed is released either way rather than pretending to hear a fade.
+    G.ambient(true); G.ambient(false, true);
+    check('a collapsed lane cuts the bed too (fast path)', !G.warpAudio().bed);
+
+    // THE ARRIVAL. exit-warp plays, and the sting is SCHEDULED into its tail rather
+    // than queued after it — 4.96s of silence before the fanfare read as a stall.
+    check('the sting is scheduled inside the drop, not after it',
+      G.warpAudio().EXIT_STING > 0 && G.warpAudio().EXIT_STING < 4.96);
+    check('the arrival cue plays without throwing', (() => { try { G.sfx2.arrive(); return true; } catch (e) { return false; } })());
+  }
+
+  // THE SPOOL-UP. The lane leaves a standstill and takes WARP_SPOOL to reach full
+  // warp, matched to the length of warp-in.mp3 so the sound and the acceleration are
+  // one event. It is purely visual — the fixed-timestep tests above hold it to that.
+  // Driven by STATE alone, not by startLevel — laneFlow only reads state, and
+  // startLevel would arm run music and pull the soundtrack tests below off their
+  // footing (it did exactly that once).
+  {
+    const stateBefore = G.getState();
+    check('the spool-up is long enough to be seen (>= 2s)', G.WARP_SPOOL() >= 2);
+    G.setState(G.S.MENU); G.update(1); // park the lane
+    check('a parked lane is at a standstill', G.laneFlow() === 0);
+    G.setState(G.S.PLAY);
+    G.update(0.5);
+    const half = G.laneFlow();
+    check(`half a second in, the lane is still winding up (${half.toFixed(2)} of full)`, half > 0 && half < 0.5);
+    G.update(G.WARP_SPOOL());
+    check('and it reaches full warp once the spool-up is done', G.laneFlow() === 1);
+    G.setState(stateBefore);
   }
 
   // ================= leaderboard read client (Supabase) =================

@@ -15,9 +15,16 @@ const SFX_FILES = {
   restart:  ['audio/sfx/restarting.mp3', 0.9], // that node rebooting back online
   startup:  ['audio/sfx/startup1.mp3', 0.9], // boot sequence as the ring locks in (cut at 2s)
   fail:   ['audio/sfx/failed.mp3', 1.0],
-  win:    ['audio/sfx/win.mp3', 1.0]
+  win:    ['audio/sfx/win.mp3', 1.0],
+  // ---- the warp trilogy: entering the lane, riding it, leaving it ----
+  warpIn:   ['audio/sfx/warp-in.mp3', 0.9],   // 2.44s — the spool-up, on the GODSPEED beat
+  inWarp:   ['audio/sfx/in-warp.mp3', 0.34],  // 8.93s — LOOPED under the whole run (see ambient())
+  exitWarp: ['audio/sfx/exit-warp.mp3', 0.95] // 4.96s — dropping out of warp on a win
   // splash2.mp3 (8.1s) scores the boot splash — it has its own player there
 };
+// how far into the 4.96s exit-warp take the victory sting rises. Sitting it in the
+// drop's tail is what makes the two read as one arrival instead of a queue.
+const EXIT_STING = 2.2;
 const sampleBufs = {}, sampleTrim = {}; // audible [start,end] per take — encoder silence mapped out
 let samplesLoading = false;
 function loadSamples() {
@@ -145,6 +152,16 @@ const sfx = {
     crackle(0.7, 1200, 90, 1.4, 2.6);
     tone(90, 0.9, 'sine', 0.16, 30);
     crackle(0.4, 4000, 600, 4, 1.2, 0.15);
+  },
+  // THE ARRIVAL: dropping out of warp, with the victory sting rising through its
+  // tail. The exit take is nearly five seconds long, and holding the sting until it
+  // finished left a gap that read as the game having stalled — so the sting comes in
+  // at EXIT_STING, part-way down the drop, and the two land as one event rather than
+  // as two cues queued up. Falls back to the bare sting if the take hasn't decoded.
+  arrive() {
+    if (!playSample('exitWarp')) { this.win(); return; }
+    // the recorded sting can be scheduled; the synth one can't, so it gets a timer
+    if (!playSample('win', 1, 0, 1, EXIT_STING)) setTimeout(() => sfx.win(), EXIT_STING * 1000);
   },
   win()  { // level secured: rising fanfare into a held bright chord
     if (playSample('win')) return;

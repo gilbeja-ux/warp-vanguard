@@ -170,6 +170,11 @@ const endPower = () => state === S.END ? clamp(1 - (endT - 0.15) / 0.6, 0, 1) : 
 //   flash · the white bloom at the instant of the drop
 //   shock · how long the bow wave takes to cross the frame and go past you
 const WARP_COLLAPSE = { at: 0.12, dur: 0.72, brake: 0.40, flash: 0.30, shock: 0.55 };
+// …and the other end of it: how long the lane takes to get from a dead stop to full
+// warp when a run engages. Matched to warp-in.mp3 (2.44s), which plays on the same
+// beat, so the sound and the acceleration are one event. Was 0.5s, which was over
+// before the eye had found the motion. Purely visual — see the note in 72-tick.
+const WARP_SPOOL = 2.4;
 // THE LANE LETS GO. Arriving means the corridor is behind you, so on a win it
 // leaves: the wall bands, field hoops, seams and sheath all blow outward through
 // the frame and fade, and what is left is open space with the destination in it.

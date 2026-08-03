@@ -346,7 +346,7 @@ function endLevel(win) {
   // and NO end screen — but DO play the finish beat (the victory clear-sweep +
   // sound) so the replay ends like the real level. The frame loop then holds on
   // the final frame (play button becomes restart); the viewer leaves via BACK.
-  if (replaying) { endWin = win; endDropT = win ? 0 : -1; if (win) sfx.win(); else sfx.fail(); return; }
+  if (replaying) { endWin = win; endDropT = win ? 0 : -1; if (win) sfx.arrive(); else sfx.fail(); return; }
   if (boardKey()) { captureRun(win); lastRun.trace = frames; lbSubmit(lastRun); } // capture, attach trace, submit (async, fire-and-forget)
   // did this score make the visible board (top 50)? If so, pop the 80s arcade
   // name-entry card on the END screen — every qualifying run, pre-filled with the
@@ -386,7 +386,7 @@ function endLevel(win) {
     endNewBest = score > (PROG.bests[levelIdx] || 0);
     PROG.bests[levelIdx] = Math.max(PROG.bests[levelIdx] || 0, score);
     saveState();
-    sfx.win();
+    sfx.arrive();   // dropping out of warp, the sting rising through its tail
   } else { endNewBest = false; sfx.fail(); }
   Math.random = sysRandom; // run over — hand real randomness back to the END screen + menus
   state = S.END;

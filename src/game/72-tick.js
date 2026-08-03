@@ -14,8 +14,19 @@ function update(dt) {
   tickPadRumble(); // the controller's hold channel rides the charge
   warpT = Math.max(0, warpT - dt);
   const warp2 = warpT / 0.9;
-  // laneFlow: spool up fast on launch (under the warp dive); brake down slow —
-  // EXCEPT on an arrival, which is the opposite of a glide.
+  // laneFlow: SPOOL UP from a dead stop on launch; brake down slow — EXCEPT on an
+  // arrival, which is the opposite of a glide.
+  //
+  // The spool-up used to take 0.5s, which is not a spool-up: the lane was simply at
+  // speed by the time you looked at it, and the standstill it started from was never
+  // on screen long enough to be a standstill. WARP_SPOOL stretches it to the length
+  // of the warp-in take that now plays over it, so the whole acceleration is
+  // something you watch — the streaks draw out of their own stars, the wall bands
+  // pick up, the bore opens — rather than a state the game is already in.
+  //
+  // It stays PURELY VISUAL. Nothing in scoring, spawning or hit resolution reads
+  // laneFlow (only the painters do), so lengthening it cannot change a run's
+  // outcome — the fixed-timestep tests hold it to that.
   //
   // This one number is the drop-out of warp. drawStreaks scales every smear by
   // laneFlow, so braking it collapses all 300 warp lines back into the points
@@ -31,7 +42,7 @@ function update(dt) {
     enemies.length = ghosts.length = pickups.length = particles.length = 0;
     popups.length = 0; rimFX.length = 0; latches.length = 0; killStreaks.length = 0;
   }
-  if (laneFlow < flowTgt) laneFlow = Math.min(flowTgt, laneFlow + dt / 0.5);
+  if (laneFlow < flowTgt) laneFlow = Math.min(flowTgt, laneFlow + dt / WARP_SPOOL);
   else if (laneFlow > flowTgt)
     laneFlow = Math.max(flowTgt, laneFlow - dt / (state === S.END ? (endWin ? WARP_COLLAPSE.brake : 1.0) : 0.45));
   // the wall streams at EXACTLY the traffic speed — leaks stay glued to it
@@ -301,6 +312,11 @@ function introStageChange(dt, introPrev, inIntro, stageNow) {
       }
       buzz(35);
     } else if (stageNow === 4) { // GODSPEED: squelch open, terse double ack, engage
+      // THE SPOOL-UP. This is the beat the lane actually starts moving on, so the
+      // warp-in take goes here rather than at the top of the boot — its 2.44s runs
+      // out exactly as WARP_SPOOL finishes bringing laneFlow to full, and you hear
+      // the ship wind up while you watch it happen.
+      playSample('warpIn');
       crackle(0.07, 1300, 2700, 2, 0.4);
       tone(740, 0.05, 'square', 0.09, null, null, 0.08);
       tone(740, 0.05, 'square', 0.09, null, null, 0.17);

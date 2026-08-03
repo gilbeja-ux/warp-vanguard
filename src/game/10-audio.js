@@ -90,12 +90,65 @@ function crackle(dur, f0, f1, q, vol, delay, pan) {
   src.connect(bp); bp.connect(g); tail === g ? g.connect(sfxGain) : tail.connect(sfxGain);
   src.start(t0); src.stop(t0 + dur);
 }
-// the tunnel's own voice: a low filtered-noise bed + sub hum, breathing
-// slowly — barely there, but silence feels dead without it
+// THE ENGINE BED — the tunnel's own voice, held for the length of a run.
+//
+// in-warp.mp3 is the engine now: a recorded 8.9s bed on a seamless loop, sitting
+// well down in the mix so it reads as the ship rather than as a sound effect. The
+// synth bed below (filtered noise + a 55Hz sub, breathing on a slow LFO) is kept
+// as the FALLBACK for the window before the sample has decoded — the same
+// arrangement every other recorded cue in the game uses, so a slow first load
+// degrades to the old voice instead of to silence.
+//
+// One entry point, called once per frame from frame() with `state === S.PLAY`, so
+// leaving the lane by ANY route — win, loss, quit, pause into a menu — takes the
+// engine with it. `fast` cuts it hard instead of easing: a collapsed lane halts,
+// it does not coast.
 let ambNodes = null;
-function ambient(on) {
-  const ac = AC; if (!ac || !sfxGain || !ac.createBuffer) return;
-  if (on && !ambNodes) {
+let warpBed = null; // { src, g } — the looping in-warp take, when it is the voice
+function ambient(on, fast) {
+  // createBuffer is NOT required here any more, only by the synth fallback below —
+  // the recorded bed just needs a source and a gain. Gating the whole function on it
+  // meant a context without it (the headless harness) silently had no engine at all.
+  const ac = AC; if (!ac || !sfxGain) return;
+  const buf = sampleBufs && sampleBufs.inWarp;
+  // SILENCE THE SYNTH whenever it should not be running — either the lane is over,
+  // or the recording has finished decoding mid-run and is taking the bed off it.
+  // Handled first, and NOT by recursing: the recorded path returns early, so a
+  // recursive hand-over would leave the synth playing under it forever.
+  if (ambNodes && (!on || buf)) {
+    const an = ambNodes; ambNodes = null;
+    an.g.gain.setTargetAtTime ? an.g.gain.setTargetAtTime(0.0001, ac.currentTime, fast ? 0.12 : 0.4) : (an.g.gain.value = 0);
+    setTimeout(() => { try { an.src.stop(); an.hum.stop(); an.lfo.stop(); } catch (e) {} }, fast ? 500 : 1600);
+  }
+  // --- preferred: the recorded engine, looped ---
+  if (on && buf && !warpBed && !simMuted) {
+    const src = ac.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    // loop INSIDE the audible region: the take's own encoder padding would tick
+    // once per lap, which on a bed you hear for a whole run is the one artefact
+    // that would make it unusable
+    const tr = sampleTrim && sampleTrim.inWarp;
+    if (tr && src.loopStart !== undefined) { src.loopStart = tr.start; src.loopEnd = tr.end; }
+    const g = ac.createGain();
+    const lvl = SFX_FILES.inWarp[1];
+    g.gain.value = 0.0001;
+    src.connect(g); g.connect(sfxGain);
+    src.start(0, tr ? tr.start : 0);
+    // rise with the lane rather than snapping on — the spool-up is 2.4s of picture
+    if (g.gain.setTargetAtTime) g.gain.setTargetAtTime(lvl, ac.currentTime, 0.8);
+    else g.gain.value = lvl;
+    warpBed = { src, g };
+  }
+  if (!on && warpBed) {
+    const wb = warpBed; warpBed = null;
+    const tc = fast ? 0.12 : 0.55;
+    if (wb.g.gain.setTargetAtTime) wb.g.gain.setTargetAtTime(0.0001, ac.currentTime, tc);
+    else wb.g.gain.value = 0;
+    setTimeout(() => { try { wb.src.stop(); } catch (e) {} }, fast ? 500 : 2200);
+  }
+  if (buf) return;                            // the recording owns the bed
+  // --- fallback: the original synth voice, until the sample lands ---
+  if (on && !ambNodes && ac.createBuffer) {
     if (!noiseBuf) {
       noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
       const d = noiseBuf.getChannelData(0);
@@ -116,11 +169,7 @@ function ambient(on) {
     else g.gain.value = 0.025;
     ambNodes = { src, hum, lfo, g };
   }
-  if (!on && ambNodes) {
-    const an = ambNodes; ambNodes = null;
-    an.g.gain.setTargetAtTime ? an.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.4) : (an.g.gain.value = 0);
-    setTimeout(() => { try { an.src.stop(); an.hum.stop(); an.lfo.stop(); } catch (e) {} }, 1600);
-  }
+  // (the synth's stop is handled at the top, so it also fires on hand-over)
 }
 // the ribbon-ride drone: a rolling tone that climbs as the ribbon is ridden
 // head to tail — resolve with sfx.traced() on completion
