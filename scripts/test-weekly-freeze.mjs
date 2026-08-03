@@ -4,7 +4,15 @@
 // week it likes. So this asks the live function to file a run onto a PAST week and
 // insists it refuses, then files the same run onto the live week and insists it lands.
 //
-// Run: node scripts/test-weekly-freeze.mjs
+// ⚠️ THIS TEST WRITES TO THE PRODUCTION LADDER. It has to: a freeze check that only
+// ever rejects would pass by rejecting everything, so it must also prove the live week
+// still accepts a score. It therefore leaves one row per run, named FREEZETEST, and
+// recordWeeklyRun deliberately plays badly so that row lands at 0 at the bottom of the
+// field rather than at the top of a live ladder. Clear them from the SQL editor with:
+//
+//   delete from public.runs where player_name = 'FREEZETEST';
+//
+// Run: node scripts/test-weekly-freeze.mjs   (or npm run test:freeze)
 import { createRequire } from 'module';
 const realFetch = globalThis.fetch.bind(globalThis);
 const realPerf = globalThis.performance;

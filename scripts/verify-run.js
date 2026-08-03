@@ -293,15 +293,20 @@ function recordCampaignRun(campId, levelIdx = 3) {
 const campaignIds = () => V.CAMPAIGNS.map(c => c.id);
 
 // record a genuine run on the LIVE ranked week — the payload scripts/test-weekly-freeze.mjs
-// then tries to file onto other weeks. One node tracks the nearest hostile and the other
-// stays parked: a weekly lane is endless and only ends when integrity runs out, so
-// covering it perfectly would never finish and never produce a lastRun to submit.
+// then tries to file onto other weeks.
+//
+// DELIBERATELY A BAD RUN. That test has to submit to the live week for real (a check
+// that only ever rejects would pass by rejecting everything), so it leaves a row on a
+// production board. The score is recomputed server-side from the trace and cannot be
+// faked, so the only way to keep a bot off the top of a live ladder is to genuinely
+// play badly: park both nodes, intercept nothing, bleed out in seconds. The row lands
+// at 0 at the bottom of the field instead of squatting at #1, and it finishes fast.
+// Scoring itself is covered by the selftest above, which verifies a 50k run exactly.
 function recordWeeklyRun(w = 1280, h = 720) {
   V.resetCanonical(); V.setViewport(w, h);
   V.startWeekly(); V.setIntro(999); V.setState(V.S.PLAY);
   for (let i = 0; i < 40000 && V.getState() !== V.S.END; i++) {
-    const live = V.enemies().filter(e => !e.dead).sort((a, b) => a.z - b.z);
-    if (live[0]) V.nodes[0].angle = live[0].angle;
+    V.nodes[0].angle = 0; V.nodes[1].angle = Math.PI; // cover nothing on purpose
     V.simStep();
   }
   return V.getLastRun();
