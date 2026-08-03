@@ -141,7 +141,7 @@ code = code.replace("'use strict';", '') + `
   gearRect: () => menuGearRect, toggles: () => pauseTogglesList,
   enemies: () => enemies,
   stats: () => ({ zaps, misses, score, integrity, combo }),
-  playTrack, updateMusic, settings, progress, perf: () => ({ lowFX }), audio,
+  playTrack, updateMusic, settings, progress, perf: () => ({ lowFX, perfCalm, perfTrips }), audio,
   music: () => ({ src: musicSrc, gain: musicGain, key: currentTrackKey, ac: AC, warm: warmKey }),
   bolts: () => bolts, hitStop: () => hitStop, fx, pickups: () => pickups, spawnPickup,
   boss: () => boss, endlessCfg, tut: () => tut, isEndless: () => endless, getLV: () => LV,
@@ -158,6 +158,23 @@ code = code.replace("'use strict';", '') + `
   detectBeat, beatQuantize, setBeat: (p, at) => { beatPeriod = p; musicStartAt = at; },
   pickTrack, trackCount, trackName, skipTrack, prettyTrackName, dropPreload,
   setMenuBuf: v => { menuBuf = v; }, getMenuBuf: () => menuBuf, MENU_CACHE_MAX: () => MENU_CACHE_MAX,
+  fieldSizes: () => ({ warp: warpStars.length, streaks: streaks.length, deep: deepStars.length, gas: gasWisps.length }),
+  // let the watchdog tests jump the accumulator instead of paying ~1600 rendered
+  // frames to earn each 2s window — the accumulation itself is plain addition and is
+  // already covered by the trip test; what needs testing is the comparison and the
+  // menu gate. PERF_CALM is exported so the tests bind to the real threshold.
+  // Clears the in-flight window: without that, the next window closes on an average
+  // still polluted by the trip test's 40ms frames and reads as not-calm. The third
+  // argument seeds perfWin, so a test can close a window in two frames instead of
+  // the ~130 it takes to accumulate 2s at a calm frame rate — each harness frame
+  // renders ~48k stubbed canvas calls, so that is seconds of suite time.
+  // (No backticks in here: this whole block lives inside a template literal.)
+  setPerfCalm: (calm, trips, win) => {
+    perfCalm = calm;
+    if (trips !== undefined) perfTrips = trips;
+    perfAcc = 0; perfN = 0; perfWin = win === undefined ? 0 : win;
+  },
+  PERF_CALM: () => PERF_CALM,
   getRunTrack: () => runTrack, setRunTrack: v => { runTrack = v; }, trackBagLen: () => trackBag.length,
   nowPlayingName: () => (npT < NP_DUR ? npName : null), announceTrack: nowPlaying,
   xfade: () => ({ src: xfSrc, gain: xfGain, t: xfT, next: nextTrack, loading: nextLoadKey, srcGain: musicSrcGain }),
@@ -409,6 +426,47 @@ G.setState(G.S.MENU);
 G.update(6); // past the watchdog's startup grace period
 for (let i = 0; i < 80; i++) G.frame(100000 + i * 40); // sustained 25fps
 check('perf watchdog trips lowFX after sustained slow frames', G.perf().lowFX === true);
+check('a trip is counted, so a relapse is harder to recover from', G.perf().perfTrips === 1);
+
+// AND IT MUST BE ABLE TO COME BACK. This was a one-way latch: one bad two-second
+// window and the sky stayed thin, the grain stayed off and the panel bloom stayed
+// off for the entire session. Recovery is gated on a MENU on purpose — the field
+// rebuilds consume Math.random, and in daily mode spawnRng IS Math.random, so doing
+// it mid-run would deal that player a different lane.
+{
+  let t = 200000;
+  const K = G.PERF_CALM();
+  // Close one CALM window: park perfWin just under 2s, then feed two ~62fps frames
+  // (under PERF_RAISE, so the window counts as calm). The first frame after a clock
+  // jump is discarded by the watchdog's own gap guard, the second closes the window.
+  const calmWindow = (calm, trips) => {
+    G.setPerfCalm(calm, trips, 1.99);
+    G.frame(t); t += 16;
+    G.frame(t); t += 16;
+  };
+
+  G.setState(G.S.PAUSE);          // a non-menu state: inert, and must NOT restore
+  calmWindow(K - 1, 1);           // reaches the bar — but not on a menu
+  check('calm frames off a menu do not restore detail', G.perf().lowFX === true);
+  check('...but the calm windows are being counted', G.perf().perfCalm >= K);
+
+  G.setState(G.S.MENU);
+  calmWindow(K - 1, 1);           // same bar, now somewhere it is allowed to act
+  check('back on a menu, sustained calm frames restore full detail', G.perf().lowFX === false);
+  // and the populations really did grow back, not just the flag
+  check('restoring rebuilds the fields it thinned', G.fieldSizes().warp > 500 && G.fieldSizes().streaks > 400);
+
+  // A RELAPSE RAISES THE BAR. Without this the watchdog would ping-pong: trip in a
+  // run, restore on the menu, trip again next run, forever — so a device that simply
+  // cannot carry the full look would flicker between the two instead of settling.
+  G.setPerfCalm(0, 1, 0);
+  for (let i = 0; i < 60; i++) G.frame(t + i * 40); t += 60 * 40;   // 25fps → relapse
+  check('a relapse trips again and is counted', G.perf().lowFX === true && G.perf().perfTrips === 2);
+  calmWindow(K, 2);               // the bar that sufficed for one trip
+  check('after a relapse, the calm window that used to be enough is not', G.perf().lowFX === true);
+  calmWindow(K * 2 - 1, 2);       // one short of the doubled bar
+  check('sustained calm still wins it back eventually', G.perf().lowFX === false);
+}
 
 // ================= zap juice =================
 G.startLevel(1);
@@ -914,18 +972,33 @@ G.setState(G.S.MENU);
 // fixed-timestep determinism: the same seeded level, no input, driven through
 // the real frame() at two different frame rates must land on an identical sim
 // state — the property server-side replay verification depends on.
-function runFramerate(fps, targetSec) {
+// DRIVEN TO A STEP TARGET, NOT A WALL-CLOCK ONE. This used to loop until
+// `getTime() - t0 < targetSec`, which compares a float against a global sim clock
+// that only ever grows — so as `time` accumulated over the suite, `time - t0` lost
+// precision and the exit could land either side of the boundary, taking one extra
+// frame and reporting 901 steps against 900. That is a loop-termination artifact,
+// not a sim difference (the outcome checks below agreed throughout), but it made
+// the tripwire fire on any change that merely added frames to an earlier test —
+// which is precisely the tripwire you least want crying wolf.
+//
+// Stopping on the step count instead makes both runs cover an identical sim length
+// by construction, which is the property worth comparing anyway.
+function runFramerate(fps, targetSteps) {
   G.startLevel(4); G.setState(G.S.PLAY); // seeded spawns; resetRun zeroes score/integrity/misses
   G.resetLoop(0);
   const t0 = G.getTime(), stepMs = 1000 / fps;
-  let i = 0;
-  while (G.getTime() - t0 < targetSec && i < 200000) { i++; G.rawFrame(i * stepMs); }
+  const stepsSoFar = () => Math.round((G.getTime() - t0) * 60);
+  let frames = 0;
+  while (stepsSoFar() < targetSteps && frames < 200000) { frames++; G.rawFrame(frames * stepMs); }
   const s = G.stats();
-  return { steps: Math.round((G.getTime() - t0) * 60), score: s.score, integrity: s.integrity, misses: s.misses, zaps: s.zaps };
+  return { steps: stepsSoFar(), frames, score: s.score, integrity: s.integrity, misses: s.misses, zaps: s.zaps };
 }
 {
-  const a = runFramerate(60, 15), b = runFramerate(144, 15); // long enough that traffic reaches the ring
-  check('fixed-timestep: 60fps and 144fps step the sim the same number of times', a.steps === b.steps);
+  const a = runFramerate(60, 900), b = runFramerate(144, 900); // 900 steps = 15s, long enough that traffic reaches the ring
+  check('fixed-timestep: 60fps and 144fps step the sim the same number of times',
+    a.steps === b.steps && a.steps === 900);
+  // …and they really did run at different rates, so the check above is not vacuous
+  check('fixed-timestep: the two runs genuinely differ in frame count', b.frames > a.frames * 2);
   check('fixed-timestep: the run actually processed traffic (non-trivial signature)', a.integrity < 100 || a.misses > 0);
   check('fixed-timestep: sim outcome is frame-rate independent (score/integrity/misses agree)',
     a.score === b.score && a.integrity === b.integrity && a.misses === b.misses);

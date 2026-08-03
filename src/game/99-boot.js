@@ -1,18 +1,64 @@
 'use strict';
-// ---------- perf watchdog: shed visual load if the frame rate slips ----------
+// ---------- perf watchdog: shed visual load if the frame rate slips, and give it
+// back once the device has shown it can carry it ----------
+// The two directions are deliberately asymmetric. Dropping detail is urgent and
+// happens anywhere: a device drowning mid-run needs relief on the spot. Restoring it
+// is not urgent at all, so it is fussy — several consecutive calm windows AND a
+// menu. This used to be a one-way latch (`if (lowFX …) return`), which meant one bad
+// two-second window bought a permanently thinner sky, no film grain and no panel
+// bloom for the whole session, with no path back short of restarting the app. A
+// player who trips it while a boss is on screen should not still be looking at the
+// reduced game twenty minutes later.
+//
+// WHY RECOVERY IS MENU-ONLY, and it is not politeness. initStreaks and friends
+// consume Math.random, and startDaily points spawnRng AT Math.random — so rebuilding
+// a field mid-run would deal a daily player a different lane. Between runs endLevel
+// has already restored sysRandom, so a rebuild there cannot touch a seeded stream.
+// (The drop has always carried that hazard; recovery declines to add a second one.)
+//
+// And it does not need slicing: the five rebuilds together measure 0.9ms on a
+// desktop and about 4.5ms on a mid-tier phone — median of seven, 2026-08-03 — which
+// is a fraction of a frame, on the one screen where s3Pump is already handed 3-8ms
+// of slack. Budgeting it would be machinery in service of a cost that isn't there.
+const PERF_DROP = 1 / 42;   // sustained worse than this and detail goes
+const PERF_RAISE = 1 / 57;  // sustained better than this and it may come back
+const PERF_CALM = 3;        // calm 2s windows needed to restore — x perfTrips, so
+                            // each relapse raises the bar and a weak device settles
+
+function setLowFX(on) {
+  if (lowFX === on) return;
+  lowFX = on;
+  // the populations are read off lowFX at build time, so they all get rebuilt
+  initStreaks();
+  initDeepField();
+  initWarpSky();
+  initLaneMedium();
+  initAmbTraffic();
+}
+
 function perfWatch(rawDt) {
-  if (lowFX || time < 5 || rawDt > 0.5) return; // ignore startup jank + tab-switch gaps
+  // ignore startup jank, tab-switch gaps, and a clock that stepped BACKWARDS.
+  // frame() already guards the sim against reverse time (see the clamp on dt), but
+  // this accumulator did not: one negative delta drove perfWin far below zero and
+  // the watchdog then went blind for as long as it took to climb back, unable to
+  // either shed load or restore it. It never showed up before because the old
+  // one-way latch stopped reading this function the moment it fired.
+  if (time < 5 || rawDt > 0.5 || rawDt <= 0) return;
   perfAcc += rawDt; perfN++; perfWin += rawDt;
-  if (perfWin >= 2) { // ~2s rolling window
-    if (perfAcc / perfN > 1 / 42) { // sustained under ~42fps → permanently shed load
-      lowFX = true;
-      initStreaks();
-      initDeepField();
-      initWarpSky();
-      initLaneMedium();
-      initAmbTraffic();
-    }
-    perfAcc = 0; perfN = 0; perfWin = 0;
+  if (perfWin < 2) return;             // ~2s rolling window
+  const avg = perfAcc / perfN;
+  perfAcc = 0; perfN = 0; perfWin = 0;
+  if (!lowFX) {
+    if (avg > PERF_DROP) { setLowFX(true); perfTrips++; perfCalm = 0; }
+    return;
+  }
+  if (avg > PERF_RAISE) { perfCalm = 0; return; } // not calm enough — start over
+  perfCalm++;
+  // max(1, …) so a lowFX forced from outside the watchdog (a dev flag, the bench's
+  // tier pin) still needs a real calm window rather than restoring on the first one
+  if (perfCalm >= PERF_CALM * Math.max(1, perfTrips) && (state === S.MENU || state === S.GUIDE)) {
+    setLowFX(false);
+    perfCalm = 0;
   }
 }
 

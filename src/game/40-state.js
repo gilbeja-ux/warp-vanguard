@@ -38,7 +38,10 @@ let shake = 0, redFlash = 0, tunnelScroll = 0, wallDist = 0, time = 0;
 let trafficSpeed = 0.4; // THE shared motion clock: everything on/in the wall moves at this z-speed
 const sysRandom = Math.random; // daily mode swaps in a seeded PRNG for the run
 let daily = false;
-let lowFX = false, perfAcc = 0, perfN = 0, perfWin = 0; // perf watchdog state
+// perf watchdog state. perfCalm counts consecutive calm windows toward putting the
+// detail back; perfTrips makes each successive relapse harder to recover from, so a
+// device that genuinely cannot carry the full look settles instead of oscillating.
+let lowFX = false, perfAcc = 0, perfN = 0, perfWin = 0, perfCalm = 0, perfTrips = 0;
 let hitStop = 0;              // brief slow-mo after a zap
 let rimFX = [];               // reactive rim lighting: {a, t, col}
 let resumeHold = 0, resumeDigit = 0; // 3-2-1 after unpausing

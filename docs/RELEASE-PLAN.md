@@ -30,7 +30,11 @@
 - [ ] Orientation lock via `@capacitor/screen-orientation` (native plugin —
       iOS ignores `screen.orientation.lock()` from the web layer)
 - [ ] Device test pass on low-end Android (verify the `lowFX` perf watchdog
-      trips well)
+      trips well — and now that it is two-way, that it also gives the detail BACK
+      on the menu after a calm spell, and that a device which genuinely cannot
+      carry the full look settles instead of flickering between the two. The
+      escalating bar, `PERF_CALM × perfTrips`, is what should make it settle.)
+      `scripts/bench.js --target=phone --pin=none` shows the latch live.
 - [ ] Verify haptics on a real iOS device (`@capacitor/haptics` needs
       `npm install && npm run sync` + native build)
 - [ ] Google Play Billing plugin + entitlement flag + demo gating at relay 04
