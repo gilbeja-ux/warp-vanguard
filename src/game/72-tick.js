@@ -12,7 +12,27 @@ function update(dt) {
   time += dt;
   updateMusic(dt);
   tickPadRumble(); // the controller's hold channel rides the charge
-  warpT = Math.max(0, warpT - dt);
+
+  // A BRIEFING DISC HOLDS THE WARP.
+  //
+  // The boot ceremony was already safe behind a card: the `state !== S.PLAY` return
+  // further down is ahead of the intro block, so the ring lock-on and the power ramp
+  // cannot run during S.INFO. But these two lines sit ABOVE that return and did run —
+  // laneFlow spooled all the way to full warp, because S.INFO counted as flowing, and
+  // the warp dive burned off. So by the time the disc was released the lane was
+  // already at speed and the acceleration had happened behind the card.
+  //
+  // Held here instead, so releasing the disc is the moment the warp begins — sound and
+  // picture together, out of the same slow drift the menu sits in, arriving on the same
+  // beat the ring locks onto the lane.
+  //
+  // Scoped to the PRE-RUN card (`introT < INTRO_DUR`). A mid-run briefing — a first
+  // wall, a boss arrival — is already in the lane at speed, and braking to a
+  // standstill and re-spooling 2.4s each time one appeared would be far worse than
+  // letting it fly.
+  const discHold = state === S.INFO && introT < INTRO_DUR;
+
+  if (!discHold) warpT = Math.max(0, warpT - dt);
   const warp2 = warpT / 0.9;
   // laneFlow: SPOOL UP from a dead stop on launch; brake down slow — EXCEPT on an
   // arrival, which is the opposite of a glide.
@@ -33,7 +53,11 @@ function update(dt) {
   // that were making them. Over 2.6s that read as the lane politely winding
   // down; over WARP_COLLAPSE.brake it reads as the stars stopping, which is the
   // thing itself. A loss still winds down slowly — nothing has arrived.
-  const flowTgt = (state === S.PLAY || state === S.PAUSE || state === S.INFO) ? 1 : 0;
+  // discHold parks the lane behind a pre-run briefing: until the card is released the
+  // ship is drifting in open space exactly as it does on the menu, and the warp is
+  // still ahead of you rather than behind.
+  const flowTgt = discHold ? 0
+    : (state === S.PLAY || state === S.PAUSE || state === S.INFO) ? 1 : 0;
   // ~0.45s to clear once the menu takes over; instant back to 1 on the way in,
   // because a run must never fade UP over the player
   const runTgt = state === S.MENU ? 0 : 1;
@@ -93,6 +117,8 @@ function update(dt) {
   // check, then the level waits for BOTH thumbs before godspeed
   if (introT >= INTRO_GATE && introT < INTRO_DUR && padHold[0] && padHold[1]) introLatch = true;
   const introPrev = introT;
+  // (no disc guard needed here: the `state !== S.PLAY` return above already makes this
+  // block unreachable while a card is up — verified, not assumed)
   if (introT < INTRO_GATE) introT += dt;
   else if (introT >= INTRO_DUR || introLatch) introT += dt;
   // (else: holding at the gate, waiting for hands)
@@ -291,6 +317,12 @@ function introStageChange(dt, introPrev, inIntro, stageNow) {
   if (stageNow !== introStage && introT < INTRO_DUR + 1) {
     introStage = stageNow;
     if (stageNow === 0) { // LOCKING ON LANE: approach rumble + rangefinder pips closing in
+      // THE WARP ENGAGES HERE, on the same beat the ring locks onto the lane — not at
+      // GODSPEED. This stage now fires the instant a briefing disc is released (see
+      // discHold), so the take, the ring lock-on and the acceleration out of the
+      // menu's slow drift all begin together. warp-in is 2.44s and WARP_SPOOL is 2.4s,
+      // so the lane reaches full warp just as the boot hands over control.
+      playSample('warpIn');
       // the startup take runs from the top of the boot, pre-cut to length
       bootSample = playSample('startup');
       if (!bootSample) {
@@ -312,11 +344,6 @@ function introStageChange(dt, introPrev, inIntro, stageNow) {
       }
       buzz(35);
     } else if (stageNow === 4) { // GODSPEED: squelch open, terse double ack, engage
-      // THE SPOOL-UP. This is the beat the lane actually starts moving on, so the
-      // warp-in take goes here rather than at the top of the boot — its 2.44s runs
-      // out exactly as WARP_SPOOL finishes bringing laneFlow to full, and you hear
-      // the ship wind up while you watch it happen.
-      playSample('warpIn');
       crackle(0.07, 1300, 2700, 2, 0.4);
       tone(740, 0.05, 'square', 0.09, null, null, 0.08);
       tone(740, 0.05, 'square', 0.09, null, null, 0.17);

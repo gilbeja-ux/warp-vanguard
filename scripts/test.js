@@ -195,7 +195,7 @@ code = code.replace("'use strict';", '') + `
   boardKeyFor, boardPick, openBoard, boardLeftItems, weekLadder, getBoardSel: () => boardSel, setBoardData: v => { boardData = v; }, // board screen
   setNameEntry: v => { nameEntry = v; }, setEndProvisional: v => { endProvisional = v; }, // high-score name card
   getMaxCombo: () => maxCombo, endLevel,
-  simStep, startTrace, stopTrace, startReplay, stopReplay, // run-trace record/replay
+  simStep, startTrace, stopTrace, startReplay, stopReplay, dismissInfo, // run-trace record/replay
   rawFrame: now => frame(now), // the real frame() incl. the accumulator (G.frame is the same)
   getIntro: () => introT, setIntro: v => { introT = v; introCd = 0; }, getLevelT: () => levelT, setEndT: v => { endT = v; },
   startQualification, getInfoCard: () => infoCard, isQual: () => qual,
@@ -2542,6 +2542,33 @@ async function runMusicUp() {
     check('the sting is scheduled inside the drop, not after it',
       G.warpAudio().EXIT_STING > 0 && G.warpAudio().EXIT_STING < 4.96);
     check('the arrival cue plays without throwing', (() => { try { G.sfx2.arrive(); return true; } catch (e) { return false; } })());
+  }
+
+  // A BRIEFING DISC HOLDS THE WARP. The opening used to spool to full speed behind the
+  // card — laneFlow counted S.INFO as flowing and the warp dive decayed, both above the
+  // `state !== S.PLAY` return — so releasing the disc dropped you into a lane already at
+  // speed with the acceleration already spent. Easy to regress by adding anything else
+  // above that return, hence the guard.
+  {
+    // rawStartLevel, not G.startLevel: the suite's wrapper calls setIntro(999) to skip
+    // the boot for gameplay tests, which is exactly the ceremony under examination here
+    rawStartLevel(0, true);
+    check('a level with a briefing opens on the card, not in the lane', G.getState() === G.S.INFO);
+    check('the boot clock has not started', G.getIntro() === 0);
+    // laneFlow BRAKES to a standstill rather than snapping to one — arriving from the
+    // menu it is already 0, but arriving straight from another run it has to wind down.
+    // Either way it must never climb while the card is up.
+    const flowAtCard = G.laneFlow();
+    for (let i = 0; i < 120; i++) G.update(1 / 60);   // two seconds of reading
+    check('the lane never speeds up behind the card', G.laneFlow() <= flowAtCard);
+    check('two seconds behind the disc and the lane is STILL parked (menu drift)',
+      G.laneFlow() === 0 && G.getIntro() === 0);
+    check('and the warp dive has not been spent behind it', G.getWarpT() > 0);
+    G.dismissInfo();
+    for (let i = 0; i < 30; i++) G.update(1 / 60);    // half a second past release
+    check('releasing the disc is what starts the warp', G.getState() === G.S.PLAY && G.laneFlow() > 0);
+    check('…and the ring lock-on begins on the same beat', G.getIntro() > 0.1);
+    check('the lane is still winding up half a second in, not already there', G.laneFlow() < 0.5);
   }
 
   // THE SPOOL-UP. The lane leaves a standstill and takes WARP_SPOOL to reach full
