@@ -7,6 +7,18 @@ let spawnRng = Math.random;
 const srand = (a, b) => a + spawnRng() * (b - a);
 const schance = p => spawnRng() < p;
 const scripted = () => !endless && !qual; // campaign levels replay a fixed script
+// A run that will be REPLAY-VERIFIED must not read the music clock. The server
+// re-simulates with no AudioContext at all, so anything keyed off AC.currentTime
+// puts the two simulations on different rails — and worse, the beat-volley test
+// consumes spawnRng() inside a condition gated on `musicSrc`, so even WHETHER the
+// spawn stream advances differed between the player and the verifier.
+//
+// scripted() already excluded campaign for the neighbouring reason (music phase
+// varies run to run, and a drill must land the same arrivals every time). Daily is
+// verifiable too and was never excluded, which is half of why daily could not
+// verify. Free-flow endless keeps its beat choreography: it is unseeded and
+// trust-only, so nothing re-simulates it.
+const beatFree = () => scripted() || daily;
 // enemy types:
 //   'normal' — any node zaps it
 //   'heavy'  — must be covered by BOTH nodes at the same time

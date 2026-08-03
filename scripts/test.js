@@ -156,6 +156,12 @@ code = code.replace("'use strict';", '') + `
   setLevelT: v => { levelT = v; }, setIntegrity: v => { integrity = v; }, setScore: v => { score = v; },
   setMenuScroll: v => { menuScroll = v; }, tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
   detectBeat, beatQuantize, setBeat: (p, at) => { beatPeriod = p; musicStartAt = at; },
+  // swap beatQuantize for a spy. The harness cannot catch a run that WRONGLY reads
+  // the music clock by comparing outcomes — FakeAC.currentTime is frozen at 0 and
+  // musicSrc never resolves, so every beat-dependent path is inert here, which is
+  // precisely how daily's dependency on it survived. So test the invariant instead:
+  // a verifiable mode must never consult it at all.
+  setBeatQuantize: fn => { beatQuantize = fn; }, getBeatQuantize: () => beatQuantize,
   pickTrack, trackCount, trackName, skipTrack, prettyTrackName, dropPreload,
   setMenuBuf: v => { menuBuf = v; }, getMenuBuf: () => menuBuf, MENU_CACHE_MAX: () => MENU_CACHE_MAX,
   fieldSizes: () => ({ warp: warpStars.length, streaks: streaks.length, deep: deepStars.length, gas: gasWisps.length }),
@@ -983,15 +989,40 @@ G.setState(G.S.MENU);
 //
 // Stopping on the step count instead makes both runs cover an identical sim length
 // by construction, which is the property worth comparing anyway.
+// THE SPAWN SIGNATURE: every hostile the run ever dealt, in order, by type and
+// angle. This is what a frame-rate-invariance test actually needs to compare.
+// Comparing score/integrity/misses looked adequate and is not: with no input every
+// hostile is missed, so the run always ends at integrity 0 with score 0 — an outcome
+// identical whether the seeded stream dealt the right traffic or completely
+// different traffic. Reverting either daily fault in isolation still "passed" it.
+// (Same blind spot the verifier's own self-test had: an assertion that cannot see
+// the thing it is guarding.)
+//
+// Sampling is rate-independent because it keys on object IDENTITY — each hostile is
+// recorded once, the frame it first appears, however many frames that takes.
+function spawnSigWatcher() {
+  const seen = new WeakSet(), sig = [];
+  return {
+    sample: () => { for (const e of G.enemies()) if (!seen.has(e)) { seen.add(e); sig.push(e.type + '@' + Number(e.angle).toFixed(5)); } },
+    sig: () => sig,
+  };
+}
+
+// A FIXED FRAME COUNT PER RATE, so both runs feed the accumulator exactly the same
+// total wall time — frames x (1000/fps) is the same number of milliseconds at every
+// rate. Neither a wall-clock nor a step-count exit condition can do that: `time`
+// advances more slowly than steps/60 whenever hit-stop is scaling dt, so a loop
+// watching either one can overshoot by a step on one rate and not the other, and
+// report a mismatch while the sim outcome is in fact identical. The sim length is
+// now the same by arithmetic rather than by a float comparison.
 function runFramerate(fps, targetSteps) {
   G.startLevel(4); G.setState(G.S.PLAY); // seeded spawns; resetRun zeroes score/integrity/misses
   G.resetLoop(0);
   const t0 = G.getTime(), stepMs = 1000 / fps;
-  const stepsSoFar = () => Math.round((G.getTime() - t0) * 60);
-  let frames = 0;
-  while (stepsSoFar() < targetSteps && frames < 200000) { frames++; G.rawFrame(frames * stepMs); }
+  const frames = Math.round(targetSteps * (fps / 60));
+  for (let i = 1; i <= frames; i++) G.rawFrame(i * stepMs);
   const s = G.stats();
-  return { steps: stepsSoFar(), frames, score: s.score, integrity: s.integrity, misses: s.misses, zaps: s.zaps };
+  return { steps: Math.round((G.getTime() - t0) * 60), frames, score: s.score, integrity: s.integrity, misses: s.misses, zaps: s.zaps };
 }
 {
   const a = runFramerate(60, 900), b = runFramerate(144, 900); // 900 steps = 15s, long enough that traffic reaches the ring
@@ -1003,6 +1034,76 @@ function runFramerate(fps, targetSteps) {
   check('fixed-timestep: sim outcome is frame-rate independent (score/integrity/misses agree)',
     a.score === b.score && a.integrity === b.integrity && a.misses === b.misses);
 }
+
+// AND THE SAME GUARANTEE FOR DAILY, whose absence is why daily could not verify for
+// as long as it has existed. Campaign had this test; daily never did. Two faults hid
+// behind that gap: startDaily pointed spawnRng at Math.random itself, which the
+// RENDER path consumes ~481 times a frame, and daily reached beatQuantize, which
+// reads AC.currentTime. Both put the player and the server on different lanes. This
+// test fails on either one, because rendering more frames per sim step is exactly
+// what a higher frame rate does.
+function runDailyFramerate(fps, targetSteps) {
+  const realNow = Date.now;
+  Date.now = () => 20000 * 864e5;        // pin the day so both runs draw the same lane
+  try { G.startDaily(); } finally { Date.now = realNow; }
+  G.setIntro(999); G.setState(G.S.PLAY);
+  G.resetLoop(0);
+  const t0 = G.getTime(), stepMs = 1000 / fps;
+  const frames = Math.round(targetSteps * (fps / 60));   // identical wall time per rate
+  const w = spawnSigWatcher();
+  for (let i = 1; i <= frames; i++) { G.rawFrame(i * stepMs); w.sample(); }
+  const s = G.stats();
+  return { steps: Math.round((G.getTime() - t0) * 60), frames, sig: w.sig(),
+    score: s.score, integrity: s.integrity, misses: s.misses, zaps: s.zaps };
+}
+{
+  const a = runDailyFramerate(60, 600), b = runDailyFramerate(144, 600);
+  // Within one step, not exactly equal. Both runs feed the accumulator the identical
+  // total wall time, but at 144fps the residue can finish a hair under SIM_DT so the
+  // last step does not fire — float arithmetic, not a sim difference. Exact step
+  // parity over a wall-clock window is not the property that protects the
+  // leaderboard anyway: verification replays a trace step by step, so it always uses
+  // the recorded step count. The guarantee is the OUTCOME check below.
+  check(`daily: 60fps and 144fps advance the sim the same length (${a.steps} vs ${b.steps} steps, ${a.frames}/${b.frames} frames)`,
+    Math.abs(a.steps - b.steps) <= 1);
+  check('daily: the two runs genuinely differ in frame count', b.frames > a.frames * 2);
+  check(`daily: the run actually dealt traffic (${a.sig.length} hostiles)`, a.sig.length >= 4);
+  // THE GUARANTEE. Identical seed, identical (absent) input, different frame rate =>
+  // the same lane, hostile for hostile. Fails on either daily fault on its own.
+  check('daily: the lane is frame-rate independent — the render path cannot move it',
+    a.sig.join('|') === b.sig.join('|'));
+  check('daily: sim outcome is frame-rate independent (score/integrity/misses agree)',
+    a.score === b.score && a.integrity === b.integrity && a.misses === b.misses && a.zaps === b.zaps);
+}
+
+// A VERIFIABLE MODE MUST NEVER CONSULT THE MUSIC CLOCK. beatQuantize reads
+// AC.currentTime, and the server re-simulates with no AudioContext at all — so any
+// mode whose runs get replay-checked has to stay away from it entirely. Structural,
+// because it cannot be observed by outcome here: the audio stub's clock is frozen at
+// 0 and musicSrc never resolves, which is exactly why daily's dependency on it went
+// unnoticed for as long as daily has existed.
+{
+  const realBQ = G.getBeatQuantize();
+  let calls = 0;
+  G.setBeatQuantize((...args) => { calls++; return realBQ(...args); });
+  try {
+    const realNow = Date.now;
+    Date.now = () => 20000 * 864e5;
+    try { G.startDaily(); } finally { Date.now = realNow; }
+    G.setIntro(999); G.setState(G.S.PLAY);
+    for (let i = 0; i < 400; i++) G.simStep();
+    check(`daily never consults the music clock (${calls} beatQuantize calls)`, calls === 0);
+
+    calls = 0;
+    G.startEndless(); G.setIntro(999); G.setState(G.S.PLAY);
+    for (let i = 0; i < 400; i++) G.simStep();
+    // free flow keeps its beat choreography: unseeded, trust-only, nothing re-sims it
+    check(`free-flow endless still does (${calls} calls) — so the check above is not vacuous`, calls > 0);
+  } finally {
+    G.setBeatQuantize(realBQ);
+  }
+}
+G.setState(G.S.MENU);
 G.setState(G.S.MENU);
 
 // ================= run-trace record → replay round-trip =================

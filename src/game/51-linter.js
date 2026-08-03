@@ -335,12 +335,15 @@ function trySpawn(dt) {
     }
     const L = bandCfg(LV || LEVELS[levelIdx], levelT); // bands may retune the knobs mid-level
     sched = sched.filter(s => s.t1 > levelT - 1.5); // drop long-past bookings
-    // scripted levels skip beat-quantize: music phase varies run to run, and
-    // the drill must land the same arrivals every time
+    // verifiable runs skip beat-quantize: music phase varies run to run, the drill
+    // must land the same arrivals every time, and the server re-simulates with no
+    // audio clock to read. See beatFree() — campaign and DAILY both qualify.
     const delay = srand(L.spawnMin, L.spawnMax);
-    spawnT = scripted() ? delay : beatQuantize(delay, travelTime());
-    // beat-choreographed volley? (procedural runs only — it reads the music clock)
-    if (!scripted() && beatPeriod && musicSrc && !patternQ.length && spawnRng() < 0.2) {
+    spawnT = beatFree() ? delay : beatQuantize(delay, travelTime());
+    // beat-choreographed volley? (free-flow endless only — it reads the music clock,
+    // and note spawnRng() is consumed INSIDE this condition, so a mode that must
+    // reproduce cannot be allowed anywhere near it)
+    if (!beatFree() && beatPeriod && musicSrc && !patternQ.length && spawnRng() < 0.2) {
       const pat = PATTERNS[(spawnRng() * PATTERNS.length) | 0];
       const base = spawnRng() * TAU;
       const trav = travelTime();

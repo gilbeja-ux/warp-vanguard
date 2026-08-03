@@ -173,6 +173,48 @@ function selfTest() {
   line(!tampered.ok, `a tampered score is REJECTED (claimed ${run.score + 5000}, real ${tampered.recomputed})`);
   line(verifyRun({ mode: 'endless', trace: run.trace }).ok === false, 'endless is reported unverifiable');
 
+  // DAILY MUST VERIFY TOO, and until 2026-08-03 it could not. It is submitted with
+  // verifiable:true, so every daily score was being replay-checked against a lane
+  // the player never played, for two reasons: startDaily pointed spawnRng at
+  // Math.random itself — which the RENDER path consumes hundreds of times a frame,
+  // and the server draws nothing — and daily reached beatQuantize, which reads
+  // AC.currentTime on a server that has no audio at all.
+  //
+  // ⚠️ WHAT THIS BLOCK CANNOT SEE, so nobody mistakes it for the guard: this harness
+  // never draws. Record and replay both run bare simStep(), so both sides are
+  // server-shaped and agree with each other even when the client would diverge — a
+  // reverted spawnRng fix still passes here (with a different score, which is the
+  // tell). That blindness is structural and is exactly why the fault survived. The
+  // tests that actually catch it live in scripts/test.js, which drives the real
+  // frame() and therefore renders: the daily lane-signature comparison across frame
+  // rates, and the beatQuantize spy. This block proves the remaining, separate
+  // thing — that a daily run is verifiable end to end at all.
+  {
+    const realNow = Date.now;
+    Date.now = () => 20000 * 864e5;              // a fixed day, so the record is reproducible
+    try {
+      V.resetCanonical(); V.setViewport(800, 450);
+      V.startDaily(); V.setIntro(999); V.setState(V.S.PLAY);
+      // ONE node tracking, one parked. A daily is endless: it only finishes when
+      // integrity runs out, so aiming both nodes perfectly would keep it alive
+      // forever and endLevel would never fire, leaving lastRun stale and traceless.
+      // Half-covering the lane scores real points AND still bleeds out.
+      for (let i = 0; i < 40000 && V.getState() !== V.S.END; i++) {
+        const live = V.enemies().filter(e => !e.dead).sort((a2, b2) => a2.z - b2.z);
+        if (live[0]) V.nodes[0].angle = live[0].angle;
+        V.simStep();
+      }
+      const dr = V.getLastRun();
+      const ok = !!dr && dr.mode === 'daily' && dr.verifiable === true && !!dr.trace && dr.trace.length > 0;
+      line(ok, `recorded a daily run (mode ${dr && dr.mode}, score ${dr && dr.score}, ${dr && dr.trace ? dr.trace.length : 'NO'} frames)`);
+      if (!ok) { console.log('FAIL  daily run never finished — cannot verify it'); pass = false; }
+      const dv = verifyRun(dr);
+      line(dv.ok && dv.recomputed === dr.score,
+        `a daily run VERIFIES (recomputed ${dv.recomputed} === ${dr.score})`);
+      line(!verifyRun({ ...dr, score: dr.score + 5000 }).ok, 'a tampered daily score is REJECTED');
+    } finally { Date.now = realNow; }
+  }
+
   // EVERY campaign must verify from a cold start. levelIdx is an index INTO a
   // campaign, so a verifier that inherits whatever campaign happens to be
   // installed replays the wrong level for boards 2..N and rejects real scores.

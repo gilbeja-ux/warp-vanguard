@@ -576,7 +576,14 @@ function startDaily() {
   Math.random = mulberry32((dayN * 2654435761) >>> 0);
   daily = true;
   levelIdx = -1; endless = true; qual = false; LV = endlessCfg(0); tut = null;
-  spawnRng = Math.random; // the daily seed lives on Math.random itself
+  // TWO STREAMS, exactly as campaign does above. This used to read
+  // `spawnRng = Math.random` — the same function object — so the daily seed and the
+  // spawn script shared one generator. Draw code consumes Math.random (measured: 481
+  // calls per rendered frame), and the server verifier re-simulates without drawing
+  // anything at all, so the two ran the spawn stream to completely different places
+  // and every daily submission was checked against a lane the player never saw.
+  // A run is only verifiable if the spawn script cannot hear the renderer.
+  spawnRng = mulberry32((dayN * 2246822519 + 0x51AB1E) >>> 0);
   resetRun();
   runTrack = dayN % trackCount(); // the daily is one shared stream — same day, same opening track for everyone
   armRunMusic();
