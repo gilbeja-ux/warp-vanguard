@@ -762,6 +762,14 @@ const S3D_WARP = {
   core: 0.2,       // the standing glow where they all arrive
   pulse: 0.20,      // the throat breathes: depth...
   pulseP: 3.4,      // ...and period, seconds
+  // THE LANE, COMING OUT OF THE MOUTH. A warp gate should look like it is holding a
+  // corridor open, not like a lit ring — so a little of the lane leans out of the
+  // aperture toward you, breathing on the same pulse as the throat behind it. Drawn
+  // OUTSIDE the bake's mask (it has to reach past the hardware to read at all), in
+  // the throat's own colour, so it is plainly the same energy.
+  lane: 0.55,       // brightness of the spill
+  laneLen: 0.85,    // how far past the aperture it reaches, in aperture radii
+  laneRays: 5,      // faint shafts through the spill — the corridor's walls
   grain: 0.075,      // film grain over the aperture
   grainPx: 2,       // its size in sprite pixels
   grainFps: 21,     // and how often it reshuffles. Film runs at 24; grain that

@@ -122,6 +122,47 @@ class S3Mesh {
   // coordinates so the game can draw it live and blink it — which is the whole
   // reason the station reads as occupied rather than as a photograph of one.
   lamp(p, c, r, ph, kind) { this.lamps.push({ p, c, r, ph: ph || 0, k: kind || 'steady' }); }
+  // STAND A BUILD UP. Rotating about X after the fact is what lets a ring built in
+  // the XY plane read as a PORTAL rather than as a hoop lying on a table: the bake's
+  // camera sits 32° above that plane (S3D_LIGHT.el), so an XY ring projects to a
+  // squashed horizontal ellipse, while an XZ one stands almost square to the lens
+  // with its mouth toward the viewer.
+  //
+  // Positions AND NORMALS AND LAMPS. Rotating positions alone would leave every
+  // surface lit as though it still faced the old way — the shading would slide off
+  // the geometry — and leave the blinking lamps hanging where the hull used to be.
+  rotX(a) {
+    const c = Math.cos(a), s = Math.sin(a);
+    for (const A of [this.P, this.N]) {
+      for (let i = 0; i < A.length; i += 3) {
+        const y = A[i + 1], z = A[i + 2];
+        A[i + 1] = y * c - z * s; A[i + 2] = y * s + z * c;
+      }
+    }
+    for (const L of this.lamps) {
+      const y = L.p[1], z = L.p[2];
+      L.p = [L.p[0], y * c - z * s, y * s + z * c];
+    }
+    return this;
+  }
+  // …and YAW, for pointing a stood-up gate somewhere other than straight at the lens.
+  // Applied after rotX, so a gate's mouth swings from facing the camera round to
+  // facing left or right — which is the axis a per-location facing would move.
+  // Costs nothing until a build declares it.
+  rotZ(a) {
+    const c = Math.cos(a), s = Math.sin(a);
+    for (const A of [this.P, this.N]) {
+      for (let i = 0; i < A.length; i += 3) {
+        const x = A[i], y = A[i + 1];
+        A[i] = x * c - y * s; A[i + 1] = x * s + y * c;
+      }
+    }
+    for (const L of this.lamps) {
+      const x = L.p[0], y = L.p[1];
+      L.p = [x * c - y * s, x * s + y * c, L.p[2]];
+    }
+    return this;
+  }
 }
 
 // ---------------------------------------------------------------- primitives
@@ -761,7 +802,11 @@ const S3D_BUILDS = [
   { id: 'FORT',  n: 'fortress ring', kind: 'station', cam: 0.40,  fn: s3_fortress },
   { id: 'SPINE', n: 'spine & torus', kind: 'station', cam: 0.255, fn: s3_spine },
   { id: 'PORT',  n: 'port & piers',  kind: 'station', cam: 0.305, fn: s3_port },
-  { id: 'GATE',  n: 'gate',          kind: 'gate',    cam: 0.41,  fn: s3_gate }
+  // rotX: a gate is a PORTAL, so it stands square to the lens with its mouth facing
+  // the viewer, instead of lying flat as a hoop seen from above. -90° about X takes
+  // the ring's plane from XY to XZ and points its aperture down +Y, which is the
+  // direction the camera looks FROM (see s3renderSteps: V = -d).
+  { id: 'GATE',  n: 'gate',          kind: 'gate',    cam: 0.41,  fn: s3_gate, rotX: -Math.PI / 2 }
 ];
 
 // ---------------------------------------------------------------- the render
@@ -1237,6 +1282,65 @@ function s3grainTiles() {
 // Draw the live throat for a sprite that has one, at the size it is on screen.
 // `c` and `t` are passed rather than read off the module so the lab can drive
 // this on its own canvas and its own clock.
+// THE LANE LEANING OUT OF THE MOUTH.
+//
+// s3warp paints the throat THROUGH the bake's mask, which is exactly right for
+// something living inside the aperture and wrong for this: a corridor that stops at
+// the hardware isn't coming out of anywhere. So this one draws unmasked, on the game
+// canvas, over the ring — because it is in front of it.
+//
+// The gate now stands square to the lens, so its axis points very nearly AT the
+// camera and the spill is foreshortened to almost nothing: end-on, a corridor reads
+// as a bloom with the corridor's walls in it, not as a beam. Hence a bloom plus a
+// few faint shafts. When gates start facing left and right (see rotZ on the registry)
+// the same axis maths gives a real beam instead, and only `ax`/`ay` change.
+function s3lane(c, sp, x, y, w, alpha, t) {
+  const F = typeof S3D_WARP === 'undefined' ? null : S3D_WARP;
+  if (!F || !sp || !sp.field || !(w >= F.minPx) || !(F.lane > 0.002)) return;
+  const R = (sp.R / sp.S) * w * 0.85;                 // aperture radius, on screen
+  if (!(R > 1)) return;
+  const breath = 1 + F.pulse * Math.sin(t * (6.2831853 / Math.max(0.2, F.pulseP)));
+  const reach = R * F.laneLen * breath;
+  const a = F.lane * breath * (alpha === undefined ? 1 : alpha);
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  // the spill itself: brightest at the mouth, gone by the time it has come a
+  // gate-and-a-bit toward you
+  const gl = c.createRadialGradient(x, y, R * 0.10, x, y, R + reach);
+  gl.addColorStop(0, 'rgba(' + F.col + ',' + (a * 0.85).toFixed(3) + ')');
+  gl.addColorStop(0.42, 'rgba(' + F.col + ',' + (a * 0.32).toFixed(3) + ')');
+  gl.addColorStop(1, 'rgba(' + F.col + ',0)');
+  c.fillStyle = gl;
+  c.beginPath(); c.arc(x, y, R + reach, 0, 6.2831853); c.fill();
+  // …and the corridor itself, as RINGS RIDING OUT OF THE MOUTH. Radial spokes were
+  // the first attempt and they read as clock hands: end-on, a corridor is not spokes,
+  // it is hoops — which is exactly how the game draws its lane everywhere else. Each
+  // ring is born at the aperture and swells outward as it comes at you, fading as it
+  // goes, so the mouth reads as exhaling rather than as a lit decal.
+  //
+  // Squashed on the same axis as the aperture, so the hoops sit in the mouth's plane
+  // instead of floating in front of it.
+  const NR = Math.max(0, Math.round(F.laneRays));
+  if (NR) {
+    const sq = Math.max(0.12, sp.apUp ? Math.cos(S3D_LIGHT.el) : Math.sin(S3D_LIGHT.el));
+    c.save();
+    c.translate(x, y);
+    c.scale(1, sq);
+    for (let i = 0; i < NR; i++) {
+      // evenly spaced in phase so the mouth pulses steadily rather than in clumps
+      const q = ((t * 0.42 + i / NR) % 1 + 1) % 1;
+      const rr = R * (0.55 + q * (0.45 + F.laneLen));
+      const fade = Math.sin(q * Math.PI);          // in at the mouth, out at the end
+      if (fade < 0.02) continue;
+      c.strokeStyle = 'rgba(' + F.col + ',' + (a * 0.55 * fade).toFixed(3) + ')';
+      c.lineWidth = Math.max(0.8, R * 0.055 * (0.5 + fade));
+      c.beginPath(); c.arc(0, 0, rr, 0, 6.2831853); c.stroke();
+    }
+    c.restore();
+  }
+  c.restore();
+}
+
 function s3warp(c, sp, x, y, w, alpha, t) {
   const F = typeof S3D_WARP === 'undefined' ? null : S3D_WARP;
   if (!F || !sp || !sp.field || !(w >= F.minPx)) return;
@@ -1257,9 +1361,13 @@ function s3warp(c, sp, x, y, w, alpha, t) {
   g.globalCompositeOperation = 'source-over';
   g.clearRect(0, 0, n, n);
   const cx = n / 2, cy = n / 2;
-  // the aperture lies in the ring plane, so on screen it is a circle squashed by
-  // the camera elevation. Draw in circle space; the mask trims the overshoot.
-  const sq = Math.max(0.12, Math.sin(S3D_LIGHT.el));
+  // The aperture is a circle seen at an angle, so on screen it is an ellipse. WHICH
+  // ellipse depends on how the gate stands: a flat gate's mouth lies in the camera's
+  // ground plane and squashes by sin(el); an upright one faces the lens and squashes
+  // by cos(el) — nearly round. sp.apUp is recorded at bake time from the same
+  // registry flag that did the rotating, so the two cannot drift apart.
+  // Draw in circle space; the mask trims the overshoot.
+  const sq = Math.max(0.12, sp.apUp ? Math.cos(S3D_LIGHT.el) : Math.sin(S3D_LIGHT.el));
   const R = sp.R * k * 0.85;
   const breath = 1 + F.pulse * Math.sin(t * (6.2831853 / Math.max(0.2, F.pulseP)));
   g.save();
@@ -1434,7 +1542,15 @@ function s3Pump(budget) {
       // lever on its cost is how much of it there is.
       const keep = S3D_LIGHT.detail;
       if (slow) S3D_LIGHT.detail = (keep === undefined ? 1 : keep) * S3D_LIGHT.detailLow;
-      try { B.fn(M, 4801 + id.charCodeAt(0) * 131); }
+      try {
+        B.fn(M, 4801 + id.charCodeAt(0) * 131);
+        // …then stand it up if the build asks to. Declared per build rather than
+        // baked into the builder's coordinates: s3_gate describes a ring in the XY
+        // plane in the same terms every other ring here uses, and one rotation at
+        // the end is far less to get wrong than swapping axes across sixty calls.
+        if (B.rotX) M.rotX(B.rotX);
+        if (B.rotZ) M.rotZ(B.rotZ);   // yaw last: swing the stood-up mouth off-axis
+      }
       catch (e) { S3D_LIGHT.detail = keep; s3Sprites[id] = 'fail'; continue; }
       S3D_LIGHT.detail = keep;
       s3Job = { id, it: s3renderSteps(M, { w: ref, h: ref, ss, scale: ref * B.cam }) };
@@ -1448,7 +1564,19 @@ function s3Pump(budget) {
     catch (e) { s3Sprites[s3Job.id] = 'fail'; s3Job = null; continue; }
     if (r.done) {
       const v = r.value;
-      if (v && v.cv) { v.mips = s3mips(v.cv); s3Sprites[s3Job.id] = v; }
+      if (v && v.cv) {
+        v.mips = s3mips(v.cv);
+        // THE APERTURE'S SCREEN SHAPE, recorded here so the live throat layer cannot
+        // disagree with the geometry it is painting over. A gate built flat has its
+        // mouth in the XY plane, which the camera sees from S3D_LIGHT.el above — so
+        // it projects to an ellipse squashed by sin(el). Stand the gate upright and
+        // the mouth moves to XZ, facing the lens, and the squash becomes cos(el):
+        // nearly a circle. s3warp used to hardcode sin(el), which was right only for
+        // as long as every gate lay flat.
+        const B2 = s3build(s3Job.id);
+        v.apUp = !!(B2 && B2.rotX);
+        s3Sprites[s3Job.id] = v;
+      }
       else { s3Sprites[s3Job.id] = 'fail'; s3Blocked = true; s3Job = null; return false; }
       s3Job = null;
     }
@@ -1570,6 +1698,8 @@ function s3draw(x, y, R, id, alpha, noLamps) {
   // a gate's throat is alive — the same call that skips lamps skips this, since
   // both are the "this is a chip on a chart" case
   if (!noLamps) s3warp(ctx, sp, x, y, w, alpha === undefined ? 1 : alpha, time);
+  // the lane leaning out of the mouth, over the hardware because it is in front of it
+  if (!noLamps) s3lane(ctx, sp, x, y, w, alpha === undefined ? 1 : alpha, time);
   if (!noLamps) s3drawLamps(sp, x, y, w / sp.S, alpha === undefined ? 1 : alpha);
   return true;
 }
