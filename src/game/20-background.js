@@ -822,7 +822,7 @@ if (typeof location !== 'undefined') {
 }
 let warpStars = [];
 // SYSRANDOM, NOT MATH.RANDOM, EVERYWHERE BELOW — the one rule this layer cannot
-// break. Campaign and daily reseed Math.random for the sim, and in daily
+// break. Campaign and weekly reseed Math.random for the sim, and in weekly
 // `spawnRng = Math.random` outright: the day's seed lives on Math.random itself.
 // This field recycles a couple of hundred stars a second AT DRAW TIME, so a
 // backdrop rolling on that stream would deal the player a different level on a

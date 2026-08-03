@@ -11,7 +11,7 @@
  *
  *   verifyRun(run) -> { ok, recomputed, expected, integrity, steps, reason }
  *
- * run = { mode:'campaign'|'daily'|'endless', levelIdx, seed, score, trace }
+ * run = { mode:'campaign'|'weekly'|'endless', levelIdx, seed, score, trace }
  *
  * Endless is unseeded → unverifiable (returns ok:false, reason).
  * Self-test:  node scripts/verify-run.js --selftest
@@ -67,7 +67,7 @@ let code = campaigns + '\n' + require('./lib/game-source.js').gameSource(root);
 code = code.replace("'use strict';", '') + `
 ;globalThis.__vg = {
   S, setState: v => { state = v; }, setIntro: v => { introT = v; introCd = 0; },
-  startLevel, startDaily, startEndless,
+  startLevel, startWeekly, startEndless,
   startTrace, stopTrace, startReplay, stopReplay, simStep, markBriefingsSeen, resetCanonical, setViewport, dismissInfo, mutators,
   spawnEnemy, nodes, geo, getState: () => state, getLastRun: () => lastRun,
   CAMPAIGNS, installCampaign, getCamp: () => CAMP,
@@ -99,18 +99,19 @@ function verifyRun(run) {
   // level of the same number — a different level entirely, so the score never
   // reproduced and the run was silently rejected. (The client's own replay path
   // already did this; the verifier did not.)
-  if (run.mode !== 'daily') {
+  if (run.mode !== 'weekly') {
     const camp = run.campId ? (V.CAMPAIGNS || []).find(c => c.id === run.campId) : null;
     if (run.campId && !camp) return { ok: false, reason: 'unknown campaign ' + run.campId };
     V.installCampaign(camp || V.CAMPAIGNS[0]);
   }
   warmUp(run.levelIdx);
 
-  // reseed to the exact world the run was played in
-  if (run.mode === 'daily') {
-    const realNow = Date.now;
-    Date.now = () => run.seed * 864e5;   // pin startDaily's day-seed to the run's day
-    try { V.startDaily(); } finally { Date.now = realNow; }
+  // reseed to the exact world the run was played in. The week index IS the seed and
+  // startWeekly takes it directly, so there is no clock to pin — the old daily path
+  // had to override Date.now to reach the right day, which meant the verifier's
+  // answer depended on its own wall clock. It no longer does.
+  if (run.mode === 'weekly') {
+    V.startWeekly(run.seed | 0);
   } else {
     V.startLevel(run.levelIdx | 0);      // campaign: fixed per-level seed
   }
@@ -173,11 +174,11 @@ function selfTest() {
   line(!tampered.ok, `a tampered score is REJECTED (claimed ${run.score + 5000}, real ${tampered.recomputed})`);
   line(verifyRun({ mode: 'endless', trace: run.trace }).ok === false, 'endless is reported unverifiable');
 
-  // DAILY MUST VERIFY TOO, and until 2026-08-03 it could not. It is submitted with
-  // verifiable:true, so every daily score was being replay-checked against a lane
-  // the player never played, for two reasons: startDaily pointed spawnRng at
+  // WEEKLY MUST VERIFY TOO, and until 2026-08-03 it could not. It is submitted with
+  // verifiable:true, so every weekly score was being replay-checked against a lane
+  // the player never played, for two reasons: startWeekly pointed spawnRng at
   // Math.random itself — which the RENDER path consumes hundreds of times a frame,
-  // and the server draws nothing — and daily reached beatQuantize, which reads
+  // and the server draws nothing — and weekly reached beatQuantize, which reads
   // AC.currentTime on a server that has no audio at all.
   //
   // ⚠️ WHAT THIS BLOCK CANNOT SEE, so nobody mistakes it for the guard: this harness
@@ -186,16 +187,20 @@ function selfTest() {
   // reverted spawnRng fix still passes here (with a different score, which is the
   // tell). That blindness is structural and is exactly why the fault survived. The
   // tests that actually catch it live in scripts/test.js, which drives the real
-  // frame() and therefore renders: the daily lane-signature comparison across frame
+  // frame() and therefore renders: the weekly lane-signature comparison across frame
   // rates, and the beatQuantize spy. This block proves the remaining, separate
-  // thing — that a daily run is verifiable end to end at all.
+  // thing — that a weekly run is verifiable end to end at all.
+  // THE LIVE WEEK, not a pinned one. A finished week is deliberately unranked —
+  // boardKey() returns null for it — so endLevel never captures a run and there
+  // would be nothing to verify. Recording the current week is therefore the only way
+  // to exercise the real path, and it costs nothing in reproducibility: the record
+  // and the verify happen in the same process, and the assertion is that they AGREE,
+  // not that they hit a fixed number.
   {
-    const realNow = Date.now;
-    Date.now = () => 20000 * 864e5;              // a fixed day, so the record is reproducible
-    try {
+    {
       V.resetCanonical(); V.setViewport(800, 450);
-      V.startDaily(); V.setIntro(999); V.setState(V.S.PLAY);
-      // ONE node tracking, one parked. A daily is endless: it only finishes when
+      V.startWeekly(); V.setIntro(999); V.setState(V.S.PLAY);
+      // ONE node tracking, one parked. A weekly is endless: it only finishes when
       // integrity runs out, so aiming both nodes perfectly would keep it alive
       // forever and endLevel would never fire, leaving lastRun stale and traceless.
       // Half-covering the lane scores real points AND still bleeds out.
@@ -205,14 +210,18 @@ function selfTest() {
         V.simStep();
       }
       const dr = V.getLastRun();
-      const ok = !!dr && dr.mode === 'daily' && dr.verifiable === true && !!dr.trace && dr.trace.length > 0;
-      line(ok, `recorded a daily run (mode ${dr && dr.mode}, score ${dr && dr.score}, ${dr && dr.trace ? dr.trace.length : 'NO'} frames)`);
-      if (!ok) { console.log('FAIL  daily run never finished — cannot verify it'); pass = false; }
+      const ok = !!dr && dr.mode === 'weekly' && dr.verifiable === true && !!dr.trace && dr.trace.length > 0;
+      line(ok, `recorded a weekly run (mode ${dr && dr.mode}, score ${dr && dr.score}, ${dr && dr.trace ? dr.trace.length : 'NO'} frames)`);
+      if (!ok) { console.log('FAIL  weekly run never finished — cannot verify it'); pass = false; }
       const dv = verifyRun(dr);
       line(dv.ok && dv.recomputed === dr.score,
-        `a daily run VERIFIES (recomputed ${dv.recomputed} === ${dr.score})`);
-      line(!verifyRun({ ...dr, score: dr.score + 5000 }).ok, 'a tampered daily score is REJECTED');
-    } finally { Date.now = realNow; }
+        `a weekly run VERIFIES (recomputed ${dv.recomputed} === ${dr.score})`);
+      line(!verifyRun({ ...dr, score: dr.score + 5000 }).ok, 'a tampered weekly score is REJECTED');
+      // the board a weekly run files under carries its week, so a finished week can
+      // never be confused with the live one
+      line(/^weekly:-?\d+$/.test(String(dr && dr.board)),
+        `a weekly run files under its own week's board (${dr && dr.board})`);
+    }
   }
 
   // EVERY campaign must verify from a cold start. levelIdx is an index INTO a
@@ -283,5 +292,20 @@ function recordCampaignRun(campId, levelIdx = 3) {
 }
 const campaignIds = () => V.CAMPAIGNS.map(c => c.id);
 
-module.exports = { verifyRun, recordDemoRun, recordClientRun, recordCampaignRun, campaignIds };
+// record a genuine run on the LIVE ranked week — the payload scripts/test-weekly-freeze.mjs
+// then tries to file onto other weeks. One node tracks the nearest hostile and the other
+// stays parked: a weekly lane is endless and only ends when integrity runs out, so
+// covering it perfectly would never finish and never produce a lastRun to submit.
+function recordWeeklyRun(w = 1280, h = 720) {
+  V.resetCanonical(); V.setViewport(w, h);
+  V.startWeekly(); V.setIntro(999); V.setState(V.S.PLAY);
+  for (let i = 0; i < 40000 && V.getState() !== V.S.END; i++) {
+    const live = V.enemies().filter(e => !e.dead).sort((a, b) => a.z - b.z);
+    if (live[0]) V.nodes[0].angle = live[0].angle;
+    V.simStep();
+  }
+  return V.getLastRun();
+}
+
+module.exports = { verifyRun, recordDemoRun, recordClientRun, recordCampaignRun, recordWeeklyRun, campaignIds };
 if (require.main === module && process.argv.includes('--selftest')) selfTest();

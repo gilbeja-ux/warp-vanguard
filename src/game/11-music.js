@@ -60,7 +60,7 @@ function trackName(k) {
 const trackCount = () => (window.MUSIC_DATA && window.MUSIC_DATA.levels.length) || 1;
 // shuffled bag: every track in the folder plays once before any of them repeats,
 // and a refill never hands back the track that is already on air. Draws from
-// sysRandom, NOT Math.random — campaign/daily reseed Math.random for the sim, and
+// sysRandom, NOT Math.random — campaign/weekly reseed Math.random for the sim, and
 // spending from that stream would desync replay verification.
 let trackBag = [];
 function pickTrack() {

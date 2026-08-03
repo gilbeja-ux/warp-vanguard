@@ -16,7 +16,7 @@ const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
 function endlessCfg(t) {
   const k = clamp(t / 150, 0, 1); // fully spiced after 2.5 minutes
   return {
-    name: daily ? 'DAILY LANE' : 'ENDLESS LANE', duration: Infinity, endless: true,
+    name: weekly ? 'WEEKLY LANE' : 'ENDLESS LANE', duration: Infinity, endless: true,
     spawnMin: ramp(1.4, 0.55, k), spawnMax: ramp(2.2, 1.1, k),
     // speed climbs in announced SURGE steps every 100s, hard-capped at 6
     speed: Math.min(0.38 + Math.floor(t / 100) * 0.035, 0.38 + 6 * 0.035),
@@ -47,4 +47,4 @@ function bandCfg(level, t) {
 }
 // campaign progress lives per campaign id under progress.camp; the flat
 // pre-CMS fields (stars/bests/unlocked) migrate into camp.investigation
-const progress = { camp: {}, tutorialDone: false, bossBriefed: false, triadBriefed: false, spinnerBriefed: false, stripBriefed: false, wallBriefed: false, best: 0, daily: { last: 0, streak: 0, best: 0 } };
+const progress = { camp: {}, tutorialDone: false, bossBriefed: false, triadBriefed: false, spinnerBriefed: false, stripBriefed: false, wallBriefed: false, best: 0, weekly: { last: 0, streak: 0, best: 0 } };

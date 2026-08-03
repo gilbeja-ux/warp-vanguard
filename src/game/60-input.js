@@ -418,13 +418,14 @@ function menuTap(x, y, pid) {
       else if (b.mode === 'board') pressUI(b, () => openBoard('home'));
       else if (b.node !== undefined) { mapSel = b.node; sfx.tick(); }
       else if (b.deploy !== undefined) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: () => startLevel(b.deploy, true) }; tone(70, 0.45, 'sine', 0.12, 260); });
-      else if (b.daily) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startDaily }; tone(70, 0.45, 'sine', 0.12, 260); });
+      else if (b.weekly) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startWeekly }; tone(70, 0.45, 'sine', 0.12, 260); });
       else if (b.endless) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startEndless }; tone(70, 0.45, 'sine', 0.12, 260); });
       // leaderboard screen controls
       else if (b.boardLeft) pressUI(b, () => { // left list: pick a board or fold a campaign
         const it = b.boardLeft;
         if (it.kind === 'camp') { boardCollapsed[it.id] = !boardCollapsed[it.id]; sfx.tick(); }
         else if (it.kind === 'mode') boardPick(it.mode);
+        else if (it.kind === 'week') boardPick('weekly', it.week);
         else boardPick('campaign', it.camp, it.level);
       });
       else if (b.boardRow) pressUI(b, () => { boardSelRank = b.boardRow; sfx.tick(); }); // select an entry → details
@@ -443,7 +444,7 @@ function endTap(x, y) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
       closeNameEntry(); // leaving END dismisses the high-score card + its DOM field
       if (b.action === 'retry') pressUI(b, () => startTrans('derez', () => {
-        if (daily) startDaily(); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx);
+        if (weekly) startWeekly(); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx);
         warpT = 0; // a re-sync doesn't travel — no warp dive on the way back in
       }));
       else if (b.action === 'next') pressUI(b, () => startTrans('warp', () => startLevel(levelIdx + 1, true)));
@@ -508,9 +509,9 @@ function startLevel(i, brief) {
   // seed BOTH random streams so a campaign run is FULLY reproducible — the
   // prerequisite for server-side replay verification. spawnRng drives the spawn
   // script; Math.random drives everything else the sim touches (e.g. wall-avoid
-  // jitter). Daily already seeds Math.random this way; campaign now matches.
+  // jitter). The weekly ladder seeds the same way.
   // sysRandom is restored in endLevel so menus keep their real variety.
-  daily = false; Math.random = mulberry32((0x5EED1E + i * 40507) >>> 0);
+  weekly = false; Math.random = mulberry32((0x5EED1E + i * 40507) >>> 0);
   levelIdx = i; endless = false; qual = false; LV = LEVELS[i];
   tut = null;
   // fixed seed per level: the same drill, every run — endless is the exam
@@ -522,7 +523,7 @@ function startLevel(i, brief) {
 }
 // QUALIFICATION: the training run — movement, every enemy type, one power-up
 function startQualification() {
-  daily = false; Math.random = sysRandom;
+  weekly = false; Math.random = sysRandom;
   levelIdx = -1; endless = false; qual = true; spawnRng = Math.random;
   LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.40,
          doubles: 0, heavies: 0, lines: 0, colors: 0, frags: 0 };
@@ -552,15 +553,25 @@ function startBossTest() {
   introT = 999; introCd = 0;                   // skip the countdown
 }
 function startEndless() {
-  daily = false; Math.random = sysRandom;
+  weekly = false; Math.random = sysRandom;
   levelIdx = -1; endless = true; qual = false; LV = endlessCfg(0); tut = null;
   spawnRng = Math.random;
   resetRun();
   runTrack = pickTrack();
   armRunMusic();
 }
-// DAILY LANE: one seeded endless run per calendar day — same lane for
-// everyone, chase the best, keep the streak alive
+// WEEKLY LANE: one seeded endless lane per Mon–Sun week. Everyone on Earth flies
+// the same lane for seven days, which is the point — a week is long enough to learn
+// it, and to come back and beat your own row several times. When the week closes its
+// board freezes for good (the Edge Function refuses anything that is not the current
+// week), so a name that ends up on it stays there.
+//
+// It replaced a per-DAY lane. A day was too short to master a procedural lane and
+// too easy to miss entirely; a week gives the same shared-seed fairness with room to
+// actually compete in it.
+//
+// `w` selects the week, defaulting to the live one. A past week can be replayed for
+// practice — see weeklyLive(), which is what gates submission.
 // >>> DEST-RNG
 function mulberry32(a) {
   return function () {
@@ -571,20 +582,25 @@ function mulberry32(a) {
   };
 }
 // <<< DEST-RNG
-function startDaily() {
-  const dayN = Math.floor(Date.now() / 864e5);
-  Math.random = mulberry32((dayN * 2654435761) >>> 0);
-  daily = true;
+function startWeekly(w) {
+  const weekN = (w === undefined || w === null) ? weekNow() : (w | 0);
+  weeklyIdx = weekN;
+  Math.random = mulberry32((weekN * 2654435761) >>> 0);
+  weekly = true;
   levelIdx = -1; endless = true; qual = false; LV = endlessCfg(0); tut = null;
   // TWO STREAMS, exactly as campaign does above. This used to read
-  // `spawnRng = Math.random` — the same function object — so the daily seed and the
+  // `spawnRng = Math.random` — the same function object — so the weekly seed and the
   // spawn script shared one generator. Draw code consumes Math.random (measured: 481
   // calls per rendered frame), and the server verifier re-simulates without drawing
   // anything at all, so the two ran the spawn stream to completely different places
-  // and every daily submission was checked against a lane the player never saw.
+  // and every weekly submission was checked against a lane the player never saw.
   // A run is only verifiable if the spawn script cannot hear the renderer.
-  spawnRng = mulberry32((dayN * 2246822519 + 0x51AB1E) >>> 0);
+  spawnRng = mulberry32((weekN * 2246822519 + 0x51AB1E) >>> 0);
   resetRun();
-  runTrack = dayN % trackCount(); // the daily is one shared stream — same day, same opening track for everyone
+  runTrack = ((weekN % trackCount()) + trackCount()) % trackCount(); // one shared stream: same week, same opening track for everyone
   armRunMusic();
 }
+// Is the week being played still open? Only the live week accepts a score. A past
+// week is a practice lane — the client hides the submit path and the Edge Function
+// refuses it regardless of what a modified client sends.
+const weeklyLive = () => weekly && weeklyIdx === weekNow();

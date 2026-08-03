@@ -41,7 +41,7 @@ second, later decision and the listing should not fight for it.
 
 - Skill-fairness is absolute — nothing purchasable moves a score. No
   consumables, no ads, no pay-per-campaign.
-- The daily run is the same seeded lane for every player, worldwide, that day.
+- The ranked week is the same seeded lane for every player, worldwide, all week.
 - Every level is 100% completable. Difficulty rises; impossibility never.
 - Real scope: 5 campaigns, 40 relays, 5 distinct bosses (verified against
   `src/campaigns.js`).
@@ -72,7 +72,7 @@ All landscape 16:9, matching the game's locked orientation.
 | 4 | Lane chart: patrol cordons, green cleared routes flowing, dossier open. | `5 CAMPAIGNS. 40 RELAYS.` |
 | 5 | Briefing disc mid-typewriter, case-file kicker in gold. | `EVERY RELAY IS A CASE FILE.` |
 | 6 | Rim wall crossing the bore with the golden ribbon riding it. | `ROUTE AROUND. RIDE THE GOLD.` |
-| 7 | Daily leaderboard. | `SAME LANE. EVERY PLAYER. EVERY DAY.` |
+| 7 | Weekly leaderboard. | `SAME LANE. EVERY PLAYER. ALL WEEK.` |
 
 **Focal moment: shot 1.** It appears beside the icon in search results and
 carries more weight than the other six combined. It must show both nodes, the
@@ -99,7 +99,7 @@ thumbnailing.
   Comprehension first. Alternate, if leading with the differentiator is
   preferred: `Two thumbs. One warp lane. Nothing you can buy will move your score.` (68)
 - **Full description (4000 max):** six blocks — the hook; the loop in three
-  sentences; the third verb (unite-volley); scope (campaigns, endless, daily);
+  sentences; the third verb (unite-volley); scope (campaigns, endless, the ranked week);
   the fairness promise stated plainly as a *refusal* list; then an honest
   paywall disclosure naming the relay-04 seam.
 

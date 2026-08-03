@@ -30,7 +30,7 @@ WARP VANGUARD is a mobile arcade defense game. The player flies
 point ahead of a freight convoy down its assigned warp lane, commanding two
 radial emitters around the lane's bore and collapsing the interdictors seeded to
 pull the convoy out of transit. Success means a player keeps coming back to beat
-their own line — clean runs, longer combos, a better place on the daily board.
+their own line — clean runs, longer combos, a better place on this week's board.
 
 ## Positioning
 
@@ -65,7 +65,7 @@ disc → in-lane run → mission report. The chart is a defended volume: the cor
 systems wrapped in patrol cordons, and the five campaigns spiral outward through
 them, each case working a thinner belt of escort cover than the last — the
 chart's own explanation for why a lane carries more interdictors the further out
-you work. FREE FLOW (endless + daily) unlocks once level 05 is complete. Levels
+you work. FREE FLOW (endless + the ranked week) unlocks once level 05 is complete. Levels
 are numbered continuously across the whole story — campaign 1 owns 01–08,
 campaign 2 picks up at 09.
 
@@ -79,8 +79,10 @@ campaign 2 picks up at 09.
   different *kind* of cargo; the player is always the escort and the phase
   polarity never flips.
 - Free-flow tutorial (qualification), endless mode with timed stream surges,
-  and a daily run seeded per UTC calendar day — identical stream for every
-  player, which makes daily the natural competitive mode.
+  and a RANKED WEEK seeded per Mon–Sun week (UTC) — an identical stream for
+  every player for seven days, which is long enough to learn the lane and keep
+  coming back at your own row. When the week closes its board freezes for good, so
+  a name that lands on it stays there; the next week opens a new board above it.
 - Threat vocabulary: plain interdictors, doubles, heavies (both emitters only),
   barrier nets, phase-locked interdictors, frags, emitter killers, rim walls,
   burst volleys, optional golden bonus ribbon; five wardens (core, triad,

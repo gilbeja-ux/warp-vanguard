@@ -337,7 +337,7 @@ function trySpawn(dt) {
     sched = sched.filter(s => s.t1 > levelT - 1.5); // drop long-past bookings
     // verifiable runs skip beat-quantize: music phase varies run to run, the drill
     // must land the same arrivals every time, and the server re-simulates with no
-    // audio clock to read. See beatFree() — campaign and DAILY both qualify.
+    // audio clock to read. See beatFree() — campaign and WEEKLY both qualify.
     const delay = srand(L.spawnMin, L.spawnMax);
     spawnT = beatFree() ? delay : beatQuantize(delay, travelTime());
     // beat-choreographed volley? (free-flow endless only — it reads the music clock,

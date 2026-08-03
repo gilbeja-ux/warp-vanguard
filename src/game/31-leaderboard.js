@@ -37,9 +37,14 @@ const LEADERBOARD = {
   key: 'sb_publishable_B3MngfknmPrLc-uo0ho11A_Jnmphekl',
   enabled: true
 };
-// the 'daily' board is keyed per UTC day (matches captureRun's daily seed); all
-// other boards ignore day.
-const lbDay = board => board === 'daily' ? Math.floor(Date.now() / 864e5) : null;
+// NO BOARD USES THE `day` COLUMN ANY MORE. It existed for the daily lane, which
+// shared one 'daily' board partitioned per UTC day. The weekly ladder puts the week
+// index in the board KEY instead ('weekly:2953'), so each week is a board in its own
+// right — which is what gives it its own top-100 field, its own ranking, and a
+// permanence a shared board could not offer. Kept as a function because every RPC
+// still takes p_day, and the column still exists for the boards recorded under the
+// old scheme.
+const lbDay = () => null;
 // each board SHOWS the top 50 (the server keeps 100 — the 51-100 buffer backfills
 // a removal). A run at rank ≤ LB_SHOW made the cut → it earns the name-entry card.
 const LB_SHOW = 50;

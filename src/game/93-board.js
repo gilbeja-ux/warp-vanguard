@@ -3,10 +3,20 @@
 // key for the currently-selected board — matches boardKey() the runs are stored under
 function boardKeyFor() {
   if (boardSel.mode === 'endless') return 'endless';
-  if (boardSel.mode === 'daily') return 'daily';
+  if (boardSel.mode === 'weekly') return 'weekly:' + boardSel.week;
   const c = CAMPAIGNS[boardSel.camp] || CAMPAIGNS[0];
   return (c ? c.id : 'campaign') + ':' + boardSel.level;
 }
+// HOW MANY PAST WEEKS THE LADDER LISTS. The ladder only began when weekly boards
+// did, so listing back past that would advertise weeks that never existed. This is
+// the week the feature shipped; the list runs from the live week back to it, newest
+// first, and grows by one row every Monday.
+const WEEK_LADDER_FIRST = 2953; // 3–9 AUG, 2026
+const weekLadder = () => {
+  const now = weekNow(), out = [];
+  for (let w = now; w >= WEEK_LADDER_FIRST; w--) out.push(w);
+  return out;
+};
 // kick off the async fetch for the current selection; a newer request drops stale replies
 function loadBoard() {
   const key = boardKeyFor(), req = ++boardReqId;
@@ -30,14 +40,27 @@ function openBoard(from) {
 function boardPick(mode, camp, level) {
   boardSel.mode = mode;
   if (mode === 'campaign') { boardSel.camp = camp; boardSel.level = level; }
+  if (mode === 'weekly') boardSel.week = (camp === undefined || camp === null) ? weekNow() : camp;
   loadBoard();
 }
-// the left column: Free Flow, Daily Stream, then each campaign (collapsible) + its levels
+// the left column: Free Flow, then the WEEKLY LADDER newest-first, then each
+// campaign (collapsible) + its levels.
+//
+// The ladder is the competitive spine of the game now. Every Monday the live week
+// closes, keeps its field for good, and a new week appears above it — so the list
+// grows downward through history and a name that lands on a finished week stays
+// there. The live week is marked; the rest are closed and say so.
 function boardLeftItems() {
   const items = [
     { kind: 'mode', mode: 'endless', label: 'FREE FLOW', sel: boardSel.mode === 'endless' },
-    { kind: 'mode', mode: 'daily', label: 'DAILY LANE', sel: boardSel.mode === 'daily' },
   ];
+  const live = weekNow();
+  for (const w of weekLadder()) {
+    items.push({
+      kind: 'week', week: w, label: weekLabel(w), live: w === live,
+      sel: boardSel.mode === 'weekly' && boardSel.week === w,
+    });
+  }
   CAMPAIGNS.forEach((c, ci) => {
     const collapsed = !!boardCollapsed[c.id];
     items.push({ kind: 'camp', camp: ci, id: c.id, label: (c.title || 'CAMPAIGN ' + (ci + 1)).toUpperCase(), collapsed });
@@ -192,6 +215,25 @@ function drawMenuBoard() {
         card(cardX, yy, cw, leftRowH, !!it.sel);
         ctx.fillStyle = it.sel ? '#ffffff' : 'rgba(215,235,252,0.9)'; ctx.font = '700 ' + fLeft + 'px Audiowide, system-ui';
         drawMarquee('bl' + it.mode, it.label, cardX + 16, yy + leftRowH / 2 + fLeft * 0.36, cw - 32, it.sel ? marqueeK() : null);
+        menuButtons.push({ x: cardX, y: yy, w: cw, h: leftRowH, boardLeft: it });
+      } else if (it.kind === 'week') {
+        // A LADDER RUNG. The live week wears the warm accent every live thing in the
+        // game wears; a closed week is cool and carries a lock pip, because the whole
+        // promise of the ladder is that a finished board cannot move again.
+        card(cardX, yy, cw, leftRowH, !!it.sel);
+        const cy2 = yy + leftRowH / 2;
+        const pipR = Math.max(2.5, leftRowH * 0.09), pipX = cardX + 16 + pipR;
+        ctx.beginPath(); ctx.arc(pipX, cy2, pipR, 0, TAU);
+        ctx.fillStyle = it.live ? '#ffd24a' : 'rgba(120,165,215,0.55)';
+        ctx.fill();
+        if (it.live) { // a soft corona: this is the one you can still change
+          ctx.beginPath(); ctx.arc(pipX, cy2, pipR * 2.1, 0, TAU);
+          ctx.fillStyle = 'rgba(255,210,74,0.16)'; ctx.fill();
+        }
+        const labX2 = pipX + pipR + 12;
+        ctx.fillStyle = it.sel ? '#ffffff' : it.live ? '#ffe9a8' : 'rgba(190,215,240,0.82)';
+        ctx.font = '700 ' + fLeft + 'px Audiowide, system-ui';
+        drawMarquee('blw' + it.week, it.label, labX2, cy2 + fLeft * 0.36, cw - (labX2 - cardX) - 16, it.sel ? marqueeK() : null);
         menuButtons.push({ x: cardX, y: yy, w: cw, h: leftRowH, boardLeft: it });
       } else {
         card(cardX, yy, cw, rh, !!it.sel);

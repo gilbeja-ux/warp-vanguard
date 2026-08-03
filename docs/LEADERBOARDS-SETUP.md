@@ -42,7 +42,7 @@ On the `tutorial-streamline` branch, all covered by `npm test` — and all **pro
 - **Fixed-timestep sim** — a run's outcome is a pure function of seed + inputs, proven frame-rate-independent by a regression test. The prerequisite for both replay *validation* and the replay *player*.
 - **Player identity** — `identity = { id, autoName, name, provider, email, token, refresh, uid }` in the save blob; a stable `id` + `Vanguard-<random>` label are minted on first boot (`ensureIdentity()`). Anonymous session + Google/Apple/email sign-in, unique-name claim, sign-out, and delete are all wired (see Step 2).
 - **Run capture** — `captureRun()` builds `lastRun`, the submission payload: `{ board, mode, seed, score, timeSec, maxCombo, integrity, misses, perfects, zaps, mutators, verifiable, playerId, playerName, at }`. Called automatically in `endLevel()`.
-- **Board keys** — `boardKey()`: `<campId>:<levelIdx>` (e.g. `investigation:2`), `endless`, or `daily`. These are the `board` values in the `runs` table.
+- **Board keys** — `boardKey()`: `<campId>:<levelIdx>` (e.g. `investigation:2`), `endless`, or `weekly:<weekIndex>` — one board per Mon–Sun ranked week, so a closed week keeps its field for good. These are the `board` values in the `runs` table.
 - **The schema** — [supabase/schema.sql](../supabase/schema.sql): the `runs` table, RLS write-lockdown, `leaderboard_top` / `leaderboard_rank` / `leaderboard_provisional_rank` reads (all listing-gated by the `profiles` join), the `profiles` table + `check_name_available` / `claim_name` / `delete_my_data` identity RPCs, and the `submit_verified_run` write path.
 
 **Not built yet (next):** input-trace recording (phase 3), the Edge Function verifier + `delete-account` function (phase 4), the board UI (phase 5), the replay player (phase 6), and — optional — supabase-js `linkIdentity` so OAuth keeps the same uid (see Step 2 caveat).
@@ -114,7 +114,7 @@ This is the piece that makes replay validation real — it replays a submitted r
 client run ends
   → client calls the `submit-run` Edge Function with { run, trace } (authed)
   → function replays the headless sim at run.seed + trace, recomputes the score
-  → if it matches (campaign/daily):  upload trace to Storage → submit_verified_run(..., verified=true, trace_id)
+  → if it matches (campaign/weekly):  upload trace to Storage → submit_verified_run(..., verified=true, trace_id)
      if endless (unseeded):          apply sanity caps only    → submit_verified_run(..., verified=false, trace_id)
      else: reject (cheating / desync)
   → returns the accepted rank
@@ -122,7 +122,7 @@ client run ends
 
 What you provide: nothing extra — Edge Functions ship with Supabase. I'll set the **service_role key** as a function secret (`supabase secrets set`), never in code. I build the function + a **headless sim entry point** that reuses the exact `update()` we made deterministic (imported into the function — no re-implementation, so the replay can't drift from the game). All score writes flow through here; the client never writes directly.
 
-> **Endless = trust-only, labeled.** Unseeded → unverifiable, so its rows are `verified=false` and the UI tags them "unverified." Campaign + daily are `verified=true`.
+> **Endless = trust-only, labeled.** Unseeded → unverifiable, so its rows are `verified=false` and the UI tags them "unverified." Campaign + weekly are `verified=true`.
 
 ---
 
@@ -131,7 +131,7 @@ What you provide: nothing extra — Edge Functions ship with Supabase. I'll set 
 Verification already replays a run's trace against the deterministic sim; the replay player points that **same trace** at the *renderer* instead of running headless. One trace, two consumers — the spectator replay is almost free.
 
 - **Transport maps onto the fixed-timestep accumulator:** speed = how many `SIM_DT` steps per rendered frame (2× = two/frame, 0.5× = one every other frame, pause = zero), via the existing `EDITOR_DRIVE`-style clock hook with trace inputs injected in place of live input.
-- **Full scrubber from day one.** Seed + trace determine every frame, so seeking to any timestamp = re-simulate forward to that step. Headless (draw stripped) the sim runs far faster than real-time, so re-simming a bounded campaign/daily run to any point is milliseconds — instant. (The sim is forward-only; there's no *backward* step, but seeking never needs one.)
+- **Full scrubber from day one.** Seed + trace determine every frame, so seeking to any timestamp = re-simulate forward to that step. Headless (draw stripped) the sim runs far faster than real-time, so re-simming a bounded campaign/weekly run to any point is milliseconds — instant. (The sim is forward-only; there's no *backward* step, but seeking never needs one.)
 - **Snapshots are only an optimization** — cache full sim state every ~5s so smooth *live-dragging* on very long endless runs re-sims from the nearest snapshot instead of from 0. Not needed for click-to-seek.
 
 This is **phase 6**.
@@ -145,7 +145,7 @@ After Steps 1–3 (project + schema + `traces` bucket) and sending me the **Proj
 1. **Client Supabase module** — a `LEADERBOARD` config block (URL + anon key) + anonymous Auth + **read/display** (`leaderboard_top` / `leaderboard_rank`). Works immediately; no verifier needed to *show* boards.
 2. **Phase 3** — input-trace recording against the fixed-timestep loop, designed for **both** verification and replay.
 3. **Phase 4** — the `submit-run` Edge Function + headless sim entry + trace upload.
-4. **Phase 5** — submit-through-verifier + the per-level/per-mode leaderboard screens (daily as flagship).
+4. **Phase 5** — submit-through-verifier + the per-level/per-mode leaderboard screens (the ranked week as flagship).
 5. **Phase 6** — the replay player (trace fetch → deterministic playback → transport + scrubber).
 
 **Your move:** create the Supabase project, run `supabase/schema.sql`, add the `traces` bucket, enable anonymous auth, and send me the Project URL + anon key. Then I start on the client module.

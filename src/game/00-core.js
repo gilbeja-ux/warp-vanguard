@@ -100,5 +100,37 @@ const BUILD = (() => {
 })();
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// ---------- WEEKS: the unit the ranked ladder runs on ----------
+// A week is Monday to Sunday, UTC, and a WEEK INDEX is the only thing the ranked
+// seed and its board key are derived from — so the lane is identical for everyone
+// on Earth for seven days, and the server can recompute which week a submission
+// belongs to without trusting the client.
+//
+// Epoch day 0 (1970-01-01) was a THURSDAY, so the Monday that opens week 0 is day
+// -3. That is the whole reason for the +3 before the divide, and the reason not to
+// "simplify" it away. Sanity: 2026-08-03 is a Monday and opens its week.
+//
+// Every week is exactly 7 days. Month-anchored blocks (1-7, 8-14, …) were
+// considered and rejected: they end the month with a 3-day block — 1 day in a
+// non-leap February — and a ranked ladder where some rounds are a fifth the length
+// of others is not a ladder.
+const WEEK_MON_OFFSET = 3;
+const weekOf = ms => Math.floor((Math.floor(ms / 864e5) + WEEK_MON_OFFSET) / 7);
+const weekNow = () => weekOf(Date.now());
+const weekStartMs = w => (w * 7 - WEEK_MON_OFFSET) * 864e5;
+const weekEndMs = w => weekStartMs(w + 1) - 1;
+const MON3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+// "3–9 AUG, 2026" · "31 AUG – 6 SEP, 2026" across a month · and both years spelled
+// out across a new year, because "28 DEC – 3 JAN, 2027" reads as if December were
+// 2027 and the ladder is meant to be a permanent record.
+function weekLabel(w) {
+  const a = new Date(weekStartMs(w)), b = new Date(weekStartMs(w) + 6 * 864e5);
+  const am = a.getUTCMonth(), bm = b.getUTCMonth();
+  const ay = a.getUTCFullYear(), by = b.getUTCFullYear();
+  if (ay !== by) return a.getUTCDate() + ' ' + MON3[am] + ' ' + ay + ' – ' + b.getUTCDate() + ' ' + MON3[bm] + ' ' + by;
+  if (am === bm) return a.getUTCDate() + '–' + b.getUTCDate() + ' ' + MON3[bm] + ', ' + by;
+  return a.getUTCDate() + ' ' + MON3[am] + ' – ' + b.getUTCDate() + ' ' + MON3[bm] + ', ' + by;
+}
 function angDiff(a, b) { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; }
 const rand = (a, b) => a + Math.random() * (b - a);

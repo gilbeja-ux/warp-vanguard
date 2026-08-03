@@ -26,7 +26,7 @@ const SIM_ID = require('./lib/sim-id.js').simId(root);
 const expose = `
 ;globalThis.__vg = {
   S, setState: v => { state = v; }, setIntro: v => { introT = v; introCd = 0; },
-  startLevel, startDaily, startEndless, startReplay, stopReplay, simStep, resetCanonical, setViewport, mutators,
+  startLevel, startWeekly, startEndless, startReplay, stopReplay, simStep, resetCanonical, setViewport, mutators,
   getState: () => state,
   CAMPAIGNS, installCampaign, campId: () => (CAMP ? CAMP.id : null),
   levelsN: () => (typeof LEVELS !== 'undefined' ? LEVELS.length : -1),
@@ -89,16 +89,18 @@ export function verifyRun(run) {
   // without this every board outside campaign 1 was replayed against campaign 1's
   // level of the same number and silently rejected. A cold Edge Function starts on
   // the default campaign, so this MUST be set from the run, never inherited.
-  if (run.mode !== 'daily') {
+  if (run.mode !== 'weekly') {
     const camp = run.campId ? (__VG.CAMPAIGNS || []).find(c => c.id === run.campId) : null;
     if (run.campId && !camp) return { ok: false, reason: 'unknown campaign ' + run.campId };
     __VG.installCampaign(camp || __VG.CAMPAIGNS[0]);
   }
   __warmUp(run.levelIdx | 0);
-  if (run.mode === 'daily') {
-    const realNow = Date.now;
-    Date.now = () => run.seed * 864e5;
-    try { __VG.startDaily(); } finally { Date.now = realNow; }
+  if (run.mode === 'weekly') {
+    // the week index IS the seed, and startWeekly takes it — so the bundle no longer
+    // overrides Date.now to reach the right lane. Whether that week is still OPEN is a
+    // separate question, answered by boardKeyFor in index.ts, which is the trust
+    // boundary; this only has to reproduce the lane the run claims.
+    __VG.startWeekly(run.seed | 0);
   } else {
     __VG.startLevel(run.levelIdx | 0);
   }

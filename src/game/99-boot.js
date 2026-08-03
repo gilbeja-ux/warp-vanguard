@@ -11,8 +11,8 @@
 // reduced game twenty minutes later.
 //
 // WHY RECOVERY IS MENU-ONLY, and it is not politeness. initStreaks and friends
-// consume Math.random, and startDaily points spawnRng AT Math.random — so rebuilding
-// a field mid-run would deal a daily player a different lane. Between runs endLevel
+// consume Math.random, and startWeekly points spawnRng AT Math.random — so rebuilding
+// a field mid-run would deal a weekly player a different lane. Between runs endLevel
 // has already restored sysRandom, so a rebuild there cannot touch a seeded stream.
 // (The drop has always carried that hazard; recovery declines to add a second one.)
 //

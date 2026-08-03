@@ -47,7 +47,7 @@ const KEY = 'sb_publishable_B3MngfknmPrLc-uo0ho11A_Jnmphekl';
   }
   process.stdout.write('STALE — the server is simulating a different game.\n');
   if (why) process.stdout.write('  ' + why + '\n');
-  process.stdout.write('  Every campaign/daily submission will be REJECTED until you run:\n');
+  process.stdout.write('  Every campaign/weekly submission will be REJECTED until you run:\n');
   process.stdout.write('    npm run deploy:verifier\n');
   process.exit(1);
 })();

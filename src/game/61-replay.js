@@ -1,36 +1,59 @@
 'use strict';
 // ---------- leaderboard identity of a run ----------
-// boardKey names the leaderboard a run belongs to — one per campaign level and
-// one per free-flow mode. Daily is per-calendar-day (shared seed → the fair,
-// competitive surface). Qualification/tutorial runs are unranked → null.
+// boardKey names the leaderboard a run belongs to — one per campaign level, one per
+// free-flow mode, and ONE PER WEEK for the ranked ladder. Qualification/tutorial
+// runs are unranked → null.
+//
+// Each week is its own board rather than one 'weekly' board partitioned by a `day`
+// column, and that is what makes the ladder work: the server's top-100 eviction and
+// its ranking are already per-board, so a finished week keeps its own field
+// untouched forever, and a new week arrives as a new board instead of displacing
+// anyone. The week index is in the key, so nothing has to be passed alongside it.
 function boardKey() {
   if (qual || levelIdx === -1 && !endless) return null;
-  if (daily) return 'daily'; // one board; the daily seed is pinned per row by the `day` column (UTC day)
+  // A FINISHED WEEK IS UNRANKED, and saying so here rather than at the submit call
+  // is what makes it airtight: every downstream path — the submit, the "you made the
+  // top 50" name card, the rank lookup — already treats a null board as unranked, so
+  // replaying last week for practice cannot file a score by any route.
+  if (weekly) return weeklyLive() ? 'weekly:' + weeklyIdx : null;
   if (endless) return 'endless';
   return (CAMP ? CAMP.id : 'campaign') + ':' + levelIdx;
 }
+// the week index out of a 'weekly:<n>' key, or null for any other board
+const weekOfBoard = key => {
+  const m = /^weekly:(-?\d+)$/.exec(String(key || ''));
+  return m ? (m[1] | 0) : null;
+};
 // A run's own id — the board's ROW identity. Every finished run gets a fresh
 // one, so a player can hold SEVERAL rows on a board (each a different record);
 // a rename re-submit carries the SAME runId, so it renames that row instead of
-// filing the run twice. sysRandom, not Math.random: daily swaps in a seeded PRNG
+// filing the run twice. sysRandom, not Math.random: weekly swaps in a seeded PRNG
 // during the run and doesn't hand it back until the end of endLevel.
 function newRunId() {
   return (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID()
     : 'r-' + Date.now().toString(36) + '-' + Math.floor(sysRandom() * 1e9).toString(36);
 }
 // captureRun snapshots everything a leaderboard submission needs. The `seed`
-// pins the run to a reproducible stream (level index for campaigns, day number
-// for daily); endless is unseeded → `seed:null` and `verifiable:false`, so it
-// can only ever be a trust board unless it's reseeded. mutators alter scoring,
+// pins the run to a reproducible stream (level index for campaigns, WEEK INDEX for
+// the weekly ladder); endless is unseeded → `seed:null` and `verifiable:false`, so
+// it can only ever be a trust board unless it's reseeded. mutators alter scoring,
 // so they're recorded — a ranked board locks or filters on them. The input
 // trace (phase 3) attaches here later as `run.trace` for replay verification.
 function captureRun(win) {
-  const mode = daily ? 'daily' : endless ? 'endless' : 'campaign';
+  const mode = weekly ? 'weekly' : endless ? 'endless' : 'campaign';
   const active = Object.keys(mutators).filter(k => mutators[k] === true);
   lastRun = {
-    runId: newRunId(),
+    // ONE ROW PER PLAYER ON A WEEKLY BOARD. run_id is part of the row key, so a
+    // fresh id per run is what lets a player hold several rows on a campaign board —
+    // arcade-style, every record standing on its own. A week is far too long for
+    // that: one strong player would fill the top 50 with their own attempts. The
+    // empty run_id collapses all of a player's weekly runs onto a single row, and
+    // submit_verified_run's upsert only moves that row on a genuine
+    // (score, zaps, perfects) improvement — so more tries improve YOUR line and
+    // nobody else's, which is the whole point of giving people a week.
+    runId: weekly ? '' : newRunId(),
     board: boardKey(), mode, win,
-    seed: daily ? Math.floor(Date.now() / 864e5) : mode === 'campaign' ? levelIdx : null,
+    seed: weekly ? weeklyIdx : mode === 'campaign' ? levelIdx : null,
     campId: CAMP ? CAMP.id : null, levelIdx: mode === 'campaign' ? levelIdx : null,
     score, timeSec: Math.round(levelT * 1000) / 1000, maxCombo, comboSec: Math.round(maxComboSec * 10) / 10,
     integrity, misses, perfects, zaps,
@@ -90,7 +113,7 @@ let replayCtrls = { back: null, pause: null, play: null, slow: null, fast: null 
 // level config matches. Used to launch AND to rewind on a scrub.
 function reseedReplay(seeking) {
   const p = replayPkg;
-  if (p.mode === 'daily') startDaily();
+  if (p.mode === 'weekly') startWeekly(p.seed);
   else {
     if (p.campId && (!CAMP || CAMP.id !== p.campId)) { const cp = CAMPAIGNS.find(c => c.id === p.campId); if (cp) installCampaign(cp); }
     startLevel(Number.isInteger(p.levelIdx) ? p.levelIdx : 0); // campaign: fixed per-level seed
@@ -147,7 +170,7 @@ function exitReplay() {
 }
 function replayLevelName() {
   if (!replayMeta) return '';
-  if (replayMeta.mode === 'daily') return 'DAILY LANE';
+  if (replayMeta.mode === 'weekly') return 'WEEK ' + weekLabel(replayMeta.seed | 0);
   if (replayMeta.mode === 'endless') return 'FREE FLOW';
   const ci = CAMP ? CAMPAIGNS.indexOf(CAMP) : -1; // reseed already switched CAMP to the run's campaign
   return 'CAMPAIGN ' + (ci + 1) + '   |   LEVEL ' + lvNum(levelNo(ci, replayMeta.levelIdx || 0));
@@ -345,12 +368,14 @@ function endLevel(win) {
     sfx.win();
   } else if (endless) {
     progress.best = Math.max(progress.best || 0, score);
-    if (daily) {
+    if (weekly) {
       Math.random = sysRandom;
-      const dayN = Math.floor(Date.now() / 864e5);
-      const D = progress.daily || (progress.daily = { last: 0, streak: 0, best: 0 });
-      if (D.last !== dayN) D.streak = dayN === D.last + 1 ? (D.streak || 0) + 1 : 1;
-      D.last = dayN;
+      const wk = weeklyIdx;
+      const D = progress.weekly || (progress.weekly = { last: 0, streak: 0, best: 0 });
+      // consecutive WEEKS now, not days — and only the live week counts toward it,
+      // so grinding old lanes for practice cannot inflate a streak
+      if (weeklyLive() && D.last !== wk) D.streak = wk === D.last + 1 ? (D.streak || 0) + 1 : 1;
+      if (weeklyLive()) D.last = wk;
       D.best = Math.max(D.best || 0, score);
     }
     saveState();

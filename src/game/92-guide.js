@@ -347,7 +347,7 @@ function menuGeom() {
   // free-flow wheel, the leaderboard) follows from this one number.
   const R = Math.min(H * 0.47, W * 0.30);
   const bw = Math.min(R * 1.4, W * 0.42), bh = 46, gap = 13;
-  const items = LEVELS.length + 4; // + qualification, endless, daily, and the TEMP boss-test key
+  const items = LEVELS.length + 4; // + qualification, endless, weekly, and the TEMP boss-test key
   const listY = ccy - R + 52;
   const contentH = items * (bh + gap) - gap;
   const viewH = H - listY - 6;
@@ -668,7 +668,7 @@ function drawMenuHome(ccx, ccy, R) {
       mid: -Math.PI / 2, locked: false, primary: false, col: '255,210,74' },
     { mode: 'campaign', name: 'CONTRACTS', glyph: 'C', cap: 'five clients · ' + LEVELS.length + ' relays each',
       mid: Math.PI * 5 / 6, locked: false, primary: !campDone, col: '126,226,98' },
-    { mode: 'flow', name: 'FREE FLOW', glyph: '∞', cap: flowOpen ? 'endless · daily challenge' : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock',
+    { mode: 'flow', name: 'FREE FLOW', glyph: '∞', cap: flowOpen ? 'endless · the ranked week' : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock',
       mid: Math.PI / 6, locked: !flowOpen, primary: campDone, col: '120,220,255' }
   ];
   const THIRD = TAU / SECTORS.length; // slice width (name kept for the arc-width math below)
@@ -1050,17 +1050,17 @@ function drawMenuFlow() {
   // both lanes ride the same gate as the FREE FLOW key itself — opening the
   // door onto two locked halves would be a dead end
   const endlessOpen = flowUnlocked();
-  const dailyOpen = flowUnlocked();
+  const weeklyOpen = flowUnlocked();
   const r1 = R * 0.92, r0 = R * 0.38;
-  const D = progress.daily;
+  const D = progress.weekly;
   let rot = 0, wheelAl = 1; // same spin choreography as the mode wheel
   if (menuFx && menuFx.kind === 'spinOut') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = (menuFx.dir || 1) * q * q * 1.5; wheelAl = 1 - q; }
   if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = -(menuFx.dir || 1) * 1.5 * Math.pow(1 - q, 2); wheelAl = q; }
   const HALVES = [
     { key: 'endless', glyph: '∞', name: 'ENDLESS LANE', mid: -Math.PI / 2, locked: !endlessOpen, col: '255,210,74',
       cap: endlessOpen ? 'procedural · no mercy' + (progress.best > 0 ? ' · BEST ' + progress.best.toLocaleString() : '') : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock' },
-    { key: 'daily', glyph: '◈', name: 'DAILY LANE', mid: Math.PI / 2, locked: !dailyOpen, col: '140,220,255',
-      cap: dailyOpen ? 'one seeded run per day' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : '') : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock' }
+    { key: 'weekly', glyph: '◈', name: 'WEEKLY LANE', mid: Math.PI / 2, locked: !weeklyOpen, col: '140,220,255',
+      cap: weeklyOpen ? 'one seeded lane all week' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : '') : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock' }
   ];
   ctx.save();
   ctx.globalAlpha = wheelAl;
@@ -1091,7 +1091,7 @@ function drawMenuFlow() {
     arcText(hv.cap, ccx, ccy, r0 + R * 0.075, mid, Math.max(8, Math.round(R * 0.04)),
       hv.locked ? 'rgba(140,170,200,0.4)' : 'rgba(160,215,255,0.75)', '500', Math.PI * 0.9);
     menuButtons.push({ sector: { cx: ccx, cy: ccy, r0, r1, a0: hv.mid - Math.PI / 2 + 0.03, a1: hv.mid + Math.PI / 2 - 0.03 },
-      endless: hv.key === 'endless', daily: hv.key === 'daily', locked: hv.locked });
+      endless: hv.key === 'endless', weekly: hv.key === 'weekly', locked: hv.locked });
   }
   // hub
   ctx.beginPath(); ctx.arc(ccx, ccy, r0 - R * 0.03, 0, TAU);

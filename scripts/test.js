@@ -159,7 +159,7 @@ code = code.replace("'use strict';", '') + `
   // swap beatQuantize for a spy. The harness cannot catch a run that WRONGLY reads
   // the music clock by comparing outcomes — FakeAC.currentTime is frozen at 0 and
   // musicSrc never resolves, so every beat-dependent path is inert here, which is
-  // precisely how daily's dependency on it survived. So test the invariant instead:
+  // precisely how weekly's dependency on it survived. So test the invariant instead:
   // a verifiable mode must never consult it at all.
   setBeatQuantize: fn => { beatQuantize = fn; }, getBeatQuantize: () => beatQuantize,
   pickTrack, trackCount, trackName, skipTrack, prettyTrackName, dropPreload,
@@ -189,7 +189,7 @@ code = code.replace("'use strict';", '') + `
   getTime: () => time, resetLoop: t => { last = t; simAcc = 0; }, // fixed-timestep loop probes
   getIdentity: () => identity, boardKey, captureRun, getLastRun: () => lastRun, // leaderboard capture
   lbTop, lbRank, lbDay, LEADERBOARD, // leaderboard read client (Supabase)
-  boardKeyFor, boardPick, openBoard, getBoardSel: () => boardSel, setBoardData: v => { boardData = v; }, // board screen
+  boardKeyFor, boardPick, openBoard, boardLeftItems, weekLadder, getBoardSel: () => boardSel, setBoardData: v => { boardData = v; }, // board screen
   setNameEntry: v => { nameEntry = v; }, setEndProvisional: v => { endProvisional = v; }, // high-score name card
   getMaxCombo: () => maxCombo, endLevel,
   simStep, startTrace, stopTrace, startReplay, stopReplay, // run-trace record/replay
@@ -198,7 +198,8 @@ code = code.replace("'use strict';", '') + `
   startQualification, getInfoCard: () => infoCard, isQual: () => qual,
   keys, setBeamAim: (x, y) => { beamAim.x = x; beamAim.y = y; }, getHeat: () => heat, isOverheat: () => overheat, startBossTest,
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
-  stripAngle, startDaily, isDaily: () => daily, getPulse: () => pulseCharge,
+  stripAngle, startWeekly, isWeekly: () => weekly, weeklyIdx: () => weeklyIdx, weeklyLive,
+  weekNow, weekOf, weekLabel, weekStartMs, weekOfBoard, getPulse: () => pulseCharge,
   getShield: () => shieldCharge, setShield: v => { shieldCharge = v; },
   setMenuScreen: v => { menuScreen = v; }, getMenuScreen: () => menuScreen, commCur: () => commCur,
   setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length,
@@ -400,8 +401,22 @@ drawOk('leaderboard: endless tab', () => { G.getBoardSel().mode = 'endless'; });
   G.boardPick('campaign', 0, 1);
   check('board: boardPick selects a campaign level', G.getBoardSel().mode === 'campaign' && G.getBoardSel().camp === 0 && G.getBoardSel().level === 1);
   check('board: boardKeyFor matches the campaign boardKey scheme', G.boardKeyFor() === G.CAMPAIGNS[0].id + ':1');
-  G.boardPick('daily');
-  check('board: daily key is a single board', G.boardKeyFor() === 'daily');
+  // THE LADDER: one board per week, newest first, and browsing history is just
+  // moving the selected week index.
+  G.boardPick('weekly');
+  check('board: picking the ladder defaults to the live week',
+    G.getBoardSel().week === G.weekNow() && G.boardKeyFor() === 'weekly:' + G.weekNow());
+  G.boardPick('weekly', G.weekNow() - 2);
+  check('board: an older rung reads its own week\'s board', G.boardKeyFor() === 'weekly:' + (G.weekNow() - 2));
+  const rungs = G.boardLeftItems().filter(i => i.kind === 'week');
+  check(`board: the ladder lists weeks newest-first (${rungs.length} rung(s))`,
+    rungs.length >= 1 && rungs[0].week === G.weekNow() &&
+    rungs.every((r, i) => i === 0 || rungs[i - 1].week === r.week + 1));
+  check('board: exactly one rung is marked live, and it is the newest',
+    rungs.filter(r => r.live).length === 1 && rungs[0].live === true);
+  check('board: every rung is labelled by its date range',
+    rungs.every(r => /^\d{1,2}(–\d{1,2} [A-Z]{3}, \d{4}| [A-Z]{3} (\d{4} )?– \d{1,2} [A-Z]{3},? ?\d{4})$/.test(r.label)));
+  G.boardPick('weekly');
 }
 G.setMenuScreen('home'); G.setState(G.S.MENU);
 
@@ -437,7 +452,7 @@ check('a trip is counted, so a relapse is harder to recover from', G.perf().perf
 // AND IT MUST BE ABLE TO COME BACK. This was a one-way latch: one bad two-second
 // window and the sky stayed thin, the grain stayed off and the panel bloom stayed
 // off for the entire session. Recovery is gated on a MENU on purpose — the field
-// rebuilds consume Math.random, and in daily mode spawnRng IS Math.random, so doing
+// rebuilds consume Math.random, and in weekly mode spawnRng IS Math.random, so doing
 // it mid-run would deal that player a different lane.
 {
   let t = 200000;
@@ -994,7 +1009,7 @@ G.setState(G.S.MENU);
 // Comparing score/integrity/misses looked adequate and is not: with no input every
 // hostile is missed, so the run always ends at integrity 0 with score 0 — an outcome
 // identical whether the seeded stream dealt the right traffic or completely
-// different traffic. Reverting either daily fault in isolation still "passed" it.
+// different traffic. Reverting either weekly fault in isolation still "passed" it.
 // (Same blind spot the verifier's own self-test had: an assertion that cannot see
 // the thing it is guarding.)
 //
@@ -1035,17 +1050,17 @@ function runFramerate(fps, targetSteps) {
     a.score === b.score && a.integrity === b.integrity && a.misses === b.misses);
 }
 
-// AND THE SAME GUARANTEE FOR DAILY, whose absence is why daily could not verify for
-// as long as it has existed. Campaign had this test; daily never did. Two faults hid
-// behind that gap: startDaily pointed spawnRng at Math.random itself, which the
-// RENDER path consumes ~481 times a frame, and daily reached beatQuantize, which
+// AND THE SAME GUARANTEE FOR WEEKLY, whose absence is why weekly could not verify for
+// as long as it has existed. Campaign had this test; weekly never did. Two faults hid
+// behind that gap: startWeekly pointed spawnRng at Math.random itself, which the
+// RENDER path consumes ~481 times a frame, and weekly reached beatQuantize, which
 // reads AC.currentTime. Both put the player and the server on different lanes. This
 // test fails on either one, because rendering more frames per sim step is exactly
 // what a higher frame rate does.
 function runDailyFramerate(fps, targetSteps) {
   const realNow = Date.now;
   Date.now = () => 20000 * 864e5;        // pin the day so both runs draw the same lane
-  try { G.startDaily(); } finally { Date.now = realNow; }
+  try { G.startWeekly(); } finally { Date.now = realNow; }
   G.setIntro(999); G.setState(G.S.PLAY);
   G.resetLoop(0);
   const t0 = G.getTime(), stepMs = 1000 / fps;
@@ -1064,15 +1079,15 @@ function runDailyFramerate(fps, targetSteps) {
   // parity over a wall-clock window is not the property that protects the
   // leaderboard anyway: verification replays a trace step by step, so it always uses
   // the recorded step count. The guarantee is the OUTCOME check below.
-  check(`daily: 60fps and 144fps advance the sim the same length (${a.steps} vs ${b.steps} steps, ${a.frames}/${b.frames} frames)`,
+  check(`weekly: 60fps and 144fps advance the sim the same length (${a.steps} vs ${b.steps} steps, ${a.frames}/${b.frames} frames)`,
     Math.abs(a.steps - b.steps) <= 1);
-  check('daily: the two runs genuinely differ in frame count', b.frames > a.frames * 2);
-  check(`daily: the run actually dealt traffic (${a.sig.length} hostiles)`, a.sig.length >= 4);
+  check('weekly: the two runs genuinely differ in frame count', b.frames > a.frames * 2);
+  check(`weekly: the run actually dealt traffic (${a.sig.length} hostiles)`, a.sig.length >= 4);
   // THE GUARANTEE. Identical seed, identical (absent) input, different frame rate =>
-  // the same lane, hostile for hostile. Fails on either daily fault on its own.
-  check('daily: the lane is frame-rate independent — the render path cannot move it',
+  // the same lane, hostile for hostile. Fails on either weekly fault on its own.
+  check('weekly: the lane is frame-rate independent — the render path cannot move it',
     a.sig.join('|') === b.sig.join('|'));
-  check('daily: sim outcome is frame-rate independent (score/integrity/misses agree)',
+  check('weekly: sim outcome is frame-rate independent (score/integrity/misses agree)',
     a.score === b.score && a.integrity === b.integrity && a.misses === b.misses && a.zaps === b.zaps);
 }
 
@@ -1080,8 +1095,8 @@ function runDailyFramerate(fps, targetSteps) {
 // AC.currentTime, and the server re-simulates with no AudioContext at all — so any
 // mode whose runs get replay-checked has to stay away from it entirely. Structural,
 // because it cannot be observed by outcome here: the audio stub's clock is frozen at
-// 0 and musicSrc never resolves, which is exactly why daily's dependency on it went
-// unnoticed for as long as daily has existed.
+// 0 and musicSrc never resolves, which is exactly why weekly's dependency on it went
+// unnoticed for as long as weekly has existed.
 {
   const realBQ = G.getBeatQuantize();
   let calls = 0;
@@ -1089,10 +1104,10 @@ function runDailyFramerate(fps, targetSteps) {
   try {
     const realNow = Date.now;
     Date.now = () => 20000 * 864e5;
-    try { G.startDaily(); } finally { Date.now = realNow; }
+    try { G.startWeekly(); } finally { Date.now = realNow; }
     G.setIntro(999); G.setState(G.S.PLAY);
     for (let i = 0; i < 400; i++) G.simStep();
-    check(`daily never consults the music clock (${calls} beatQuantize calls)`, calls === 0);
+    check(`weekly never consults the music clock (${calls} beatQuantize calls)`, calls === 0);
 
     calls = 0;
     G.startEndless(); G.setIntro(999); G.setState(G.S.PLAY);
@@ -1155,8 +1170,18 @@ G.startLevel(2);
 check('board key names the campaign level', G.boardKey() === G.getCamp().id + ':2');
 G.startEndless();
 check('board key for endless is a single shared board', G.boardKey() === 'endless');
-G.startDaily();
-check('board key for daily is a single daily-reset board', G.boardKey() === 'daily');
+// EACH WEEK IS ITS OWN BOARD, so a finished week keeps its field forever and a new
+// week arrives as a new board instead of displacing anyone. The week index is in the
+// key, so the server needs nothing passed alongside it.
+G.startWeekly();
+check('board key for the live week carries its week index',
+  G.boardKey() === 'weekly:' + G.weekNow() && /^weekly:-?\d+$/.test(G.boardKey()));
+// …and a FINISHED week is unranked, which is what makes practising it unable to file
+// a score by any route: submit, name-entry and rank lookup all treat null as unranked
+G.startWeekly(G.weekNow() - 1);
+check('board key for a past week is null — a practice lane files nothing', G.boardKey() === null);
+check('a past week still loads its own lane', G.isWeekly() === true && G.weeklyIdx() === G.weekNow() - 1);
+G.startWeekly();
 // captureRun snapshots the submission payload
 G.startLevel(2); G.setState(G.S.PLAY); G.setScore(4200); G.setLevelT(31.5);
 const run = G.captureRun(true);
@@ -1283,22 +1308,22 @@ G.setIntegrity(0);
 G.update(0.01);
 check('endless defeat records the best score', G.getState() === G.S.END && G.progress.best === 1234);
 
-// ================= daily stream =================
+// ================= weekly stream =================
 G.setState(G.S.MENU);
 G.setMenuScreen('flow');
 G.frame(16);
-const dBtn = G.menuBtns().find(b => b.daily);
-check('daily key appears unlocked', !!dBtn && !dBtn.locked);
+const dBtn = G.menuBtns().find(b => b.weekly);
+check('weekly key appears unlocked', !!dBtn && !dBtn.locked);
 { const sc = dBtn.sector, ma = (sc.a0 + sc.a1) / 2, mr = (sc.r0 + sc.r1) / 2;
   G.menuTap(sc.cx + Math.cos(ma) * mr, sc.cy + Math.sin(ma) * mr, 1); }
 flushUI();
 G.setIntro(999);
-check('tapping it starts the seeded daily run', G.getState() === G.S.PLAY && G.isDaily() && G.getLV().name === 'DAILY LANE');
+check('tapping it starts the seeded weekly run', G.getState() === G.S.PLAY && G.isWeekly() && G.getLV().name === 'WEEKLY LANE');
 G.setScore(777);
 G.setIntegrity(0);
 G.update(0.01);
-check('daily defeat records the daily best and streak', G.getState() === G.S.END &&
-  G.progress.daily.best === 777 && G.progress.daily.streak >= 1 && Math.random !== undefined);
+check('weekly defeat records the weekly best and streak', G.getState() === G.S.END &&
+  G.progress.weekly.best === 777 && G.progress.weekly.streak >= 1 && Math.random !== undefined);
 
 // ================= qualification =================
 // the FREE-FLOW curriculum: no briefing discs — stage banners + in-world
@@ -2495,9 +2520,11 @@ async function runMusicUp() {
     check('lbTop passes board + limit, null day for a campaign board', lastBody.p_board === 'investigation:2' && lastBody.p_limit === 10 && lastBody.p_day === null);
     check('lbTop ships the publishable key, not a secret', String(lastHeaders.apikey).startsWith('sb_publishable_'));
     check('lbTop parses the ranked rows', Array.isArray(top) && top[0].score === 5000);
-    check('lbDay keys daily per UTC day, null elsewhere', typeof G.lbDay('daily') === 'number' && G.lbDay('endless') === null);
-    await G.lbTop('daily');
-    check('a daily read sends a numeric day', typeof lastBody.p_day === 'number');
+    // no board uses the `day` column any more — the week rides in the board KEY
+    check('lbDay is null for every board now', G.lbDay('weekly:2953') === null && G.lbDay('endless') === null);
+    await G.lbTop('weekly:2953');
+    check('a weekly read names the week in the board key, with a null day',
+      lastBody.p_board === 'weekly:2953' && lastBody.p_day === null);
     await G.lbRank('endless', 'me');
     check('lbRank hits leaderboard_rank with the player id', lastUrl.endsWith('/rest/v1/rpc/leaderboard_rank') && lastBody.p_player === 'me');
     global.fetch = async () => { throw new Error('offline'); };
@@ -2559,6 +2586,39 @@ async function runMusicUp() {
       const shadowed = [...boardNames].filter(n => gameNames.has(n));
       check('the tuning board declares no name the game already uses'
         + (shadowed.length ? ' — clashes: ' + shadowed.join(', ') : ''), shadowed.length === 0);
+    }
+
+    // THE TWO COPIES OF weekOf MUST AGREE, FOREVER. The Edge Function computes the
+    // live week from its OWN clock — that is what makes a closed week closed, since a
+    // client's claim about which week it played is not trusted. But it therefore
+    // cannot import the game's copy: it is the trust boundary and has to answer
+    // "what week is it" without loading the sim. So the formula is duplicated, and a
+    // silent divergence between the two would either reject every honest submission
+    // or accept runs onto the wrong week's board. Lift the server's arrow straight out
+    // of the TypeScript and check it against the game's across a decade.
+    {
+      const ts = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'submit-run', 'index.ts'), 'utf8');
+      const m = /const weekOf = \(ms: number\) =>\s*([^;]+);/.exec(ts);
+      check('the Edge Function still defines its own weekOf', !!m);
+      if (m) {
+        const serverWeekOf = new Function('ms', 'return ' + m[1] + ';');
+        let drift = 0, checked = 0;
+        for (let d = -3650; d <= 3650; d += 1) {           // ±10 years, every day
+          const ms = d * 864e5 + 43200000;                  // midday, to avoid ambiguity
+          checked++;
+          if (serverWeekOf(ms) !== G.weekOf(ms)) drift++;
+        }
+        check(`client and server weekOf agree on all ${checked} days of a 20-year span (drift ${drift})`, drift === 0);
+        // and the boundary itself lands on Monday 00:00 UTC on both sides
+        const monday = Date.UTC(2026, 7, 3), sundayEnd = monday - 1;
+        check('both agree the week flips at Monday 00:00 UTC',
+          serverWeekOf(monday) === G.weekOf(monday) &&
+          serverWeekOf(sundayEnd) === G.weekOf(sundayEnd) &&
+          serverWeekOf(monday) === serverWeekOf(sundayEnd) + 1);
+      }
+      // the freeze itself: the server must key a weekly run off ITS clock, not the run's
+      check('the Edge Function refuses a weekly run whose seed is not the live week',
+        /run\.seed !== live/.test(ts) && /weekOf\(Date\.now\(\)\)/.test(ts));
     }
 
     // EVERY TOOL THAT EMBEDS THE GAME MUST STILL FIND IT. The split broke two

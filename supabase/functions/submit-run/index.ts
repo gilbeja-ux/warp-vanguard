@@ -1,12 +1,12 @@
 // Supabase Edge Function: submit-run
 // The ONLY path a score enters the leaderboard. It verifies the run by replaying
-// its input trace headless against the seed (campaign/daily), then writes the
+// its input trace headless against the seed (campaign/weekly), then writes the
 // score with the service role. The client CANNOT write directly (RLS).
 //
 //   client → POST { run, name } with the player's auth JWT
 //   → verify JWT → player_id (server-trusted, never from the body)
 //   → verifyRun replays the trace, recomputes the score
-//   → campaign/daily: score must match → upload trace to Storage, write verified=true
+//   → campaign/weekly: score must match → upload trace to Storage, write verified=true
 //   → endless: unseeded → sanity-cap only, write verified=false ("unverified" badge)
 //
 // Deploy:  supabase functions deploy submit-run
@@ -86,11 +86,28 @@ function jwtSub(token: string): string | null {
   } catch { return null; }
 }
 
+// THE WEEK, COMPUTED HERE, FROM THIS CLOCK. Mon–Sun, UTC. Epoch day 0 was a
+// Thursday, so week 0 opens on day -3 — hence the +3. Must stay identical to weekOf()
+// in src/game/00-core.js; it is duplicated rather than imported because this file is
+// the trust boundary and has to be able to answer "what week is it" without loading
+// the game.
+const weekOf = (ms: number) => Math.floor((Math.floor(ms / 864e5) + 3) / 7);
+
 // rebuild the board key from the VERIFIED run params — never trust the client's
 // string (else a level-0 run could be filed under a hard board).
+//
+// A WEEKLY RUN CAN ONLY EVER LAND ON THE LIVE WEEK. The ladder's whole promise is
+// that a closed week is closed for good, so the week is taken from the SERVER's clock
+// and the run's claimed seed must match it. A client that replays an old lane — or
+// simply lies about which week it played — files nothing: no late entry, no rewriting
+// a finished board, no backdating a name onto a week that has already been won.
 function boardKeyFor(run: any): string | null {
   if (run.mode === "endless") return "endless";
-  if (run.mode === "daily") return "daily";
+  if (run.mode === "weekly") {
+    const live = weekOf(Date.now());
+    if (!Number.isInteger(run.seed) || run.seed !== live) return null; // closed or bogus week
+    return `weekly:${live}`;
+  }
   if (run.mode === "campaign" && typeof run.campId === "string" && Number.isInteger(run.levelIdx))
     return `${run.campId}:${run.levelIdx}`;
   return null;
@@ -133,9 +150,11 @@ Deno.serve(async (req) => {
   // campaign seed must equal the level it claims (the seed IS the level index)
   if (run.mode === "campaign" && run.seed !== run.levelIdx) return json({ error: "seed/level mismatch" }, 400);
 
-  const day = run.mode === "daily" ? run.seed : null;
+  // the `day` column belonged to the daily lane; the weekly ladder carries its week
+  // in the board KEY instead, so every board now writes a NULL day
+  const day = null;
 
-  // 3) verify (campaign/daily) or sanity-cap (endless)
+  // 3) verify (campaign/weekly) or sanity-cap (endless)
   let verified = false;
   let score = run.score;
   let traceId: string | null = null;

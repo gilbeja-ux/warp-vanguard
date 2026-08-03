@@ -36,8 +36,13 @@ let enemies = [], particles = [], popups = [];
 let ghosts = [], ripples = []; // the decompile: de-rezzing bodies + healed-wall washes
 let shake = 0, redFlash = 0, tunnelScroll = 0, wallDist = 0, time = 0;
 let trafficSpeed = 0.4; // THE shared motion clock: everything on/in the wall moves at this z-speed
-const sysRandom = Math.random; // daily mode swaps in a seeded PRNG for the run
-let daily = false;
+const sysRandom = Math.random; // weekly mode swaps in a seeded PRNG for the run
+let weekly = false;
+// WHICH week is loaded — a Mon–Sun index (see weekOf in 00-core). It is the run's
+// seed, its board key, and the thing that decides whether a score can still be
+// filed: only the live week accepts one, so a finished board can never move again.
+// -1 = no weekly lane loaded.
+let weeklyIdx = -1;
 // perf watchdog state. perfCalm counts consecutive calm windows toward putting the
 // detail back; perfTrips makes each successive relapse harder to recover from, so a
 // device that genuinely cannot carry the full look settles instead of oscillating.
@@ -113,7 +118,10 @@ let menuScroll = 0, menuPtr = null; // level-list scrolling
 let menuScreen = 'home'; // 'home' (mode select) | 'map' (campaign route) | 'flow' (free flow) | 'board' (leaderboard)
 let mapListScroll = 0;   // relay column scroll (arc scrollbar rides the rim)
 // dedicated leaderboard screen: internal mode/level navigation + async board data
-let boardSel = { mode: null, camp: 0, level: 0 }; // which board is on screen (null = none picked yet)
+// which board is on screen (mode null = none picked yet). `week` is the Mon–Sun index
+// of the selected ladder rung — a board key in its own right, so browsing history is
+// just moving this number.
+let boardSel = { mode: null, camp: 0, level: 0, week: -1 };
 let boardSelRank = 1;      // the entry whose details show on the right
 let boardCollapsed = {};   // campId -> true when its level list is folded on the left
 let boardFoldV = {};       // campId -> animated fold value 0..1 (eases toward open/closed)

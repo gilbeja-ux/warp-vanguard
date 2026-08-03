@@ -608,7 +608,7 @@ function drawEnd(g) {
   // the scene shows through at 0.18, so the data leans harder on its own shadow
   ctx.shadowColor = 'rgba(2,5,12,0.95)'; ctx.shadowBlur = lowFX ? 0 : 9;
   // mode line
-  const modeName = endless ? (daily ? 'DAILY LANE' : 'ENDLESS LANE') : qual ? 'QUALIFICATION' : curRouteName();
+  const modeName = endless ? (weekly ? 'WEEKLY LANE' : 'ENDLESS LANE') : qual ? 'QUALIFICATION' : curRouteName();
   try { ctx.letterSpacing = '3px'; } catch (e) {}
   ctx.fillStyle = 'rgba(140,210,255,0.7)';
   fit('700', 11, 'MISSION REPORT  //  ' + modeName);
@@ -656,7 +656,7 @@ function drawEnd(g) {
   ctx.fillStyle = 'rgba(150,215,255,0.85)'; ctx.font = '11px monospace';
   ctx.fillText('intercepted ' + zaps + '   //   perfect ' + perfects, g.cx, g.cy + R * 0.36);
   ctx.fillText('missed ' + misses + '   //   integrity ' + Math.round(integrity) + '%', g.cx, g.cy + R * 0.36 + 17);
-  const bestVal = endless ? (daily ? (progress.daily && progress.daily.best) : progress.best) : PROG.bests[levelIdx];
+  const bestVal = endless ? (weekly ? (progress.weekly && progress.weekly.best) : progress.best) : PROG.bests[levelIdx];
   const isNew = endless ? (score >= (bestVal || 0) && score > 0) : endNewBest;
   if ((endless || (!qual && (endWin || (bestVal || 0) > 0))) && bestVal !== undefined) {
     ctx.fillStyle = isNew ? '#ffd24a' : 'rgba(255,210,74,0.7)';

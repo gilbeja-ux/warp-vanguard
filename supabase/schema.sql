@@ -5,9 +5,21 @@
 --
 -- Model: ONE table. A "board" is just a `board` value — there is nothing to
 -- pre-create (unlike LootLocker's 42 boards). Campaign boards are
--- '<campId>:<levelIdx>' (e.g. 'investigation:0'), plus 'endless' and 'daily'.
--- Daily is per-UTC-day via the `day` column (floor(epoch/86400)); every other
--- board leaves `day` NULL. Keys match boardKey() in src/index.html exactly.
+-- '<campId>:<levelIdx>' (e.g. 'investigation:0'), plus 'endless' and one board per
+-- WEEK of the ranked ladder: 'weekly:<weekIndex>', a Mon–Sun index (see weekOf()).
+-- Keys match boardKey() in src/game/61-replay.js exactly.
+--
+-- A WEEK IS ITS OWN BOARD, deliberately. The predecessor was a single 'daily' board
+-- partitioned by the `day` column, which meant every day shared one field, one
+-- top-100 cap and one ranking. Giving each week its own board key means a finished
+-- week keeps its own field untouched forever and a new week arrives beside it rather
+-- than displacing anyone — which is the entire promise of the ladder: get on a
+-- week's board and your name stays on it. Nothing expires it, and the Edge Function
+-- refuses any submission whose week is not the live one.
+--
+-- `day` is therefore LEGACY: nothing writes it any more (every board writes NULL).
+-- It stays because the coalesce(day,-1) unique key and the RPC signatures are built
+-- on it, and dropping a column is not worth a migration for zero gain.
 
 create extension if not exists "pgcrypto"; -- gen_random_uuid()
 

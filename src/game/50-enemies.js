@@ -2,7 +2,7 @@
 // ---------- enemies ----------
 // The spawn path draws from its OWN random stream. Campaign levels seed it per
 // level, so every level is a fixed, learnable drill that repeats exactly —
-// training for the real thing (endless/daily, which stay procedural).
+// training for the real thing (endless/weekly, which stay procedural).
 let spawnRng = Math.random;
 const srand = (a, b) => a + spawnRng() * (b - a);
 const schance = p => spawnRng() < p;
@@ -14,11 +14,11 @@ const scripted = () => !endless && !qual; // campaign levels replay a fixed scri
 // spawn stream advances differed between the player and the verifier.
 //
 // scripted() already excluded campaign for the neighbouring reason (music phase
-// varies run to run, and a drill must land the same arrivals every time). Daily is
-// verifiable too and was never excluded, which is half of why daily could not
+// varies run to run, and a drill must land the same arrivals every time). Weekly is
+// verifiable too and was never excluded, which is half of why weekly could not
 // verify. Free-flow endless keeps its beat choreography: it is unseeded and
 // trust-only, so nothing re-simulates it.
-const beatFree = () => scripted() || daily;
+const beatFree = () => scripted() || weekly;
 // enemy types:
 //   'normal' — any node zaps it
 //   'heavy'  — must be covered by BOTH nodes at the same time
