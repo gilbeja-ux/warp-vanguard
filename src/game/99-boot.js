@@ -672,9 +672,9 @@ function frame(now) {
     // a frozen replay (paused / scrubbing / held-at-end / exiting) doesn't step the
     // sim, so updateMusic never runs — tick it here so the pause/exit fades ease on
     if (replaying && (replayPaused || replayScrub || replayEnded)) updateMusic(rawDt);
-    // roll the victory clear-sweep frame-side while a replay plays/holds its finish
+    // run the drop-out clock frame-side while a replay plays/holds its finish
     // (the sim's S.END advance never runs during a replay)
-    if (replaying && endWin && endSweep >= 0 && endSweep < SPAWN_Z + 0.4) endSweep += dt * 2.1;
+    if (replaying && endWin && endDropT >= 0 && endDropT < 8) endDropT += dt;
   }
   // ease the sfx bus toward its target (real clock: fades even while the replay
   // is paused/scrubbing) — smooths the replay enter + scrub-knob mute/unmute
@@ -800,7 +800,7 @@ function frame(now) {
   for (const p of (inGuide || runVis <= 0.004) ? [] : pickups) drawPickup(p, g);
   if (runVis < 1) ctx.restore();
   if (hw > 0.004) drawPulseWave(g); // a fired pulse is hardware too — it goes with the ring
-  drawClearSweep(g);
+  drawWarpCollapse(g);
   if (boss && state !== S.MENU && !inGuide) drawBoss(g);
 
   if (state !== S.MENU && !inGuide && hw > 0.004) { // the arcs and their orbs, same fade

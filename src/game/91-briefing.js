@@ -208,80 +208,82 @@ function drawInfoGlyph(kind, cx, cy, r) {
   }
   ctx.restore();
 }
-// victory sweep: a cleansing wave rolls from the ring to the horizon and the
-// whole tunnel settles into a "cleared" calm behind it
-function drawClearSweep(g) {
-  if ((state !== S.END && !replaying) || !endWin || endSweep < 0) return;
-  // The wash is the beat that says CLEAR, and then it gets out of the way: it
-  // rolls out over the first second and leaves with the corridor, so the report
-  // ends up on open space and the destination rather than under a green filter.
-  const exitK = 1 - laneExit();
-  if (exitK <= 0.004) return;
-  ctx.save();
-  ctx.globalAlpha = exitK;
-  const zS = Math.min(endSweep, SPAWN_Z);
-  const rg = ring(zS, g);
-  const washT = clamp((endSweep - g.hitZ) / (SPAWN_Z - g.hitZ), 0, 1);
-  // the WASH: everything behind the front stays green — the line is secure.
-  // Breathes very slightly so it reads as a live field, not a color filter.
-  const br = 1 + Math.sin(time * 1.6) * 0.06;
-  const grad = ctx.createRadialGradient(g.cx, g.cy, Math.max(1, rg.r), g.cx, g.cy, Math.max(W, H) * 0.8);
-  grad.addColorStop(0, `rgba(126,226,98,${(0.24 * br * (0.6 + washT * 0.4)).toFixed(3)})`);
-  grad.addColorStop(0.45, `rgba(120,225,150,${(0.13 * br).toFixed(3)})`);
-  grad.addColorStop(1, 'rgba(120,225,150,0.05)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-  // Secured hoops and clean traffic: the lane's own motion, so they leave with
-  // it. Once the ceremony has braked to a stop these were the ONLY things still
-  // moving — rings sailing out of the destination, which reads as debris coming
-  // off the world rather than as a lane running clear.
-  if (laneFlow > 0.01) {
-    ctx.lineCap = 'butt';
-    for (let i = 0; i < 5; i++) {
-      const zq = ((i / 5 + time * 0.045) % 1) * zS;
-      if (zq < 0.03) continue;
-      const hr = ring(zq, g);
-      ctx.strokeStyle = `rgba(160,255,170,${(0.10 * (1 - zq / SPAWN_Z) * laneFlow).toFixed(3)})`;
-      ctx.lineWidth = Math.max(0.8, hr.r / g.nodeR * 1.6);
-      ctx.beginPath(); ctx.arc(g.cx, g.cy, hr.r, 0, TAU); ctx.stroke();
-    }
-    ctx.fillStyle = `rgba(200,255,200,${(0.75 * laneFlow).toFixed(3)})`;
-    for (let i = 0; i < 10; i++) {
-      const zq = ((i * 0.617 + time * 0.06) % 1) * zS;
-      if (zq < 0.05) continue;
-      const mrr = ring(zq, g);
-      const ma = i * 2.399 + time * 0.1;
-      const rr2 = mrr.r * (0.35 + (i % 4) * 0.16);
-      ctx.beginPath();
-      ctx.arc(g.cx + Math.cos(ma) * rr2, g.cy + Math.sin(ma) * rr2, Math.max(0.7, mrr.s * 4), 0, TAU);
-      ctx.fill();
-    }
+// DROPPING OUT OF WARP.
+//
+// What was here: a green wave rolling from the ring to the horizon, and a green
+// wash filling everything behind it. It said CLEAR — the lane is secure — which
+// is a statement about the LEVEL, delivered as a colour filter over the moment
+// the player is meant to be looking at the world they just reached. It also ran
+// for over two seconds, so the arrival was spent underneath it.
+//
+// This says ARRIVED instead, and it is the same event the rest of the ceremony
+// is already performing rather than a layer on top of it. Three things land
+// together on WARP_COLLAPSE's clock and none of them is drawn here:
+//
+//   · every warp line collapses back into its star  (laneFlow brake, drawStreaks)
+//   · the corridor blows outward past the camera    (laneExit, drawTunnel)
+//   · the destination closes the last of its approach (drawFarGlow)
+//
+// What IS drawn here is the punctuation those three need to read as one impact:
+// the flash at the instant of the drop, and the bow wave the lane had been
+// holding in front of it going past you. Blue-white, because that is what the
+// lane is made of — a green arrival would be the only green in the frame.
+function drawWarpCollapse(g) {
+  if ((state !== S.END && !replaying) || !endWin || endDropT < 0) return;
+  const C = WARP_COLLAPSE;
+  // Everything here is on the SAME offset as laneExit(). Without it the flash
+  // fired the instant the run ended and was most of the way gone before the lane
+  // had begun to let go — punctuation arriving ahead of its sentence.
+  const t = endDropT - C.at;
+  if (t < 0) return;
+  // THE FLASH. No attack — it is already at full on the frame it appears, because
+  // an impact that fades IN is not an impact. All of it is gone in a third of a
+  // second, which is the whole difference between a flash and a filter.
+  const f = clamp(t / C.flash, 0, 1);
+  if (f < 1) {
+    const a = Math.pow(1 - f, 2.2);
+    const rr = Math.max(1, g.nodeR * (0.30 + f * 2.4));
+    const gl = ctx.createRadialGradient(g.cx, g.cy, 0, g.cx, g.cy, rr);
+    gl.addColorStop(0, `rgba(238,249,255,${(0.80 * a).toFixed(3)})`);
+    gl.addColorStop(0.32, `rgba(152,206,255,${(0.28 * a).toFixed(3)})`);
+    gl.addColorStop(1, 'rgba(92,150,255,0)');
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = gl;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
   }
-  if (endSweep < SPAWN_Z) {
-    // bright wake trailing right behind the front — fresh wash
-    for (let k = 1; k <= 4; k++) {
-      const zw = zS - k * 0.09;
-      if (zw <= 0.02) continue;
-      const wr = ring(zw, g);
-      ctx.strokeStyle = `rgba(150,240,140,${(0.30 * (1 - k / 5)).toFixed(2)})`;
-      ctx.lineWidth = Math.max(1.5, 10 * wr.s * 3 * (1 - k / 6));
-      ctx.beginPath(); ctx.arc(g.cx, g.cy, wr.r, 0, TAU); ctx.stroke();
-    }
-    // the wavefront itself
+  // THE SHOCK. It runs OUTWARD and off the edge of the frame — past you — which
+  // is the direction that reads as having arrived somewhere. The old wave ran the
+  // other way, toward the horizon, which reads as something LEAVING; that was
+  // right for a wave that meant "the lane ahead is clear" and wrong for one that
+  // means "you are out". It accelerates the whole way, so it never appears to
+  // settle into the frame.
+  const s = clamp(t / C.shock, 0, 1);
+  if (s < 1) {
+    const e = 1 - Math.pow(1 - s, 3);
+    const r = g.nodeR * 0.06 + e * Math.max(W, H) * 0.95;
+    const a = Math.pow(1 - s, 1.6);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
-    for (const [w2, col] of [
-      [22, 'rgba(126,226,98,0.30)'],
-      [8, 'rgba(126,226,98,0.65)'],
-      [3, 'rgba(240,255,235,0.95)']
+    // three passes, widest and faintest first — the same soft-edge profile the
+    // warp lines are built from, so the wave is made of the lane's own material
+    for (const [w2, col, k] of [
+      [26, '120,190,255', 0.16],
+      [9, '190,225,255', 0.34],
+      [2.5, '245,252,255', 0.80]
     ]) {
-      ctx.lineWidth = Math.max(1, w2 * rg.s * 3);
-      ctx.strokeStyle = col;
-      ctx.beginPath(); ctx.arc(g.cx, g.cy, rg.r, 0, TAU); ctx.stroke();
+      ctx.lineWidth = Math.max(0.8, w2 * (0.4 + (1 - s) * 0.9));
+      ctx.strokeStyle = `rgba(${col},${(k * a).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, r, 0, TAU); ctx.stroke();
     }
+    ctx.restore();
   }
-  ctx.restore();
 }
-
+// (the green wash, its secured hoops, its clean-traffic motes and its wavefront
+// are all gone with it — about 60 lines of ring and gradient work per frame that
+// the arrival is better without)
 function drawInfoCard() {
   const c = INFO_CARDS[infoCard];
   if (!c) return;

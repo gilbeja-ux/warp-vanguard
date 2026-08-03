@@ -144,12 +144,32 @@ let endFxStars = 0, endTickT = 0; // ceremony bookkeeping (star chimes, count ti
 // post-run sign-in tease: where an unlisted (anonymous) player WOULD rank, and
 // whether they've dismissed the offer this run
 let endProvisional = null, nameEntryBtns = [];
-const endBtnAt = () => endWin ? 2.9 : 1.25; // when the buttons arrive (wins ride the sweep first)
+// When the buttons arrive. A win used to hold them to 2.9s because that is how
+// long the old green sweep took to roll to the horizon. The drop is over in under
+// a second now, so 2.9 was a second and a half of nothing happening.
+const endBtnAt = () => endWin ? 1.9 : 1.25;
 // POWER-DOWN. The run is over, so the weapons are over: the energy arcs and the
 // pulse orbs banked in them bleed off the ring as the ceremony opens, leaving the
 // bare monolith framing the destination. The report is not a moment to be still
 // holding a charge you can no longer spend.
 const endPower = () => state === S.END ? clamp(1 - (endT - 0.15) / 0.6, 0, 1) : 1;
+// DROPPING OUT OF WARP. The whole arrival is ONE event on ONE clock: the lane
+// lets go, the warp smears snap back into the stars making them, the shock the
+// corridor was holding goes past the camera, and the destination closes the last
+// of its distance. Anything on a different clock reads as a sequence of effects
+// rather than as a thing happening.
+//
+//   at    · when it starts, in seconds after the run ends. Enough of a beat for
+//           the last kill to land and no more
+//   dur   · how long the drop takes. This is the number to move if the arrival
+//           feels slow — it drives the lane's departure AND the world's swell
+//   brake · how long laneFlow takes to reach 0. It is what collapses every warp
+//           line back to a point (see drawStreaks), so it IS the drop-out, and
+//           it wants to be shorter than `dur` so the stars stop before the
+//           corridor has finished leaving
+//   flash · the white bloom at the instant of the drop
+//   shock · how long the bow wave takes to cross the frame and go past you
+const WARP_COLLAPSE = { at: 0.12, dur: 0.72, brake: 0.40, flash: 0.30, shock: 0.55 };
 // THE LANE LETS GO. Arriving means the corridor is behind you, so on a win it
 // leaves: the wall bands, field hoops, seams and sheath all blow outward through
 // the frame and fade, and what is left is open space with the destination in it.
@@ -157,11 +177,16 @@ const endPower = () => state === S.END ? clamp(1 - (endT - 0.15) / 0.6, 0, 1) : 
 // (Only a true arrival opens up. A collapsed lane or a failed run is still IN the
 // lane, and its report keeps the corridor around it.)
 const laneExit = () => state === S.END && endWin && !endless && !qual
-  ? clamp((endT - 0.35) / 1.8, 0, 1) : 0;
+  ? clamp((endT - WARP_COLLAPSE.at) / WARP_COLLAPSE.dur, 0, 1) : 0;
 // how far the whole corridor has slid past the eye, in z. Accelerating: the lane
 // releases slowly and then goes all at once, which is what letting go looks like.
 const laneExitZ = () => { const e = laneExit(); return e * e * (SPAWN_Z + 0.3); };
-let endSweep = -1; // victory clear-sweep front (z), -1 when idle
+// SECONDS SINCE THE DROP, -1 when idle. It used to be `endSweep`, a z position:
+// the front of a green wave rolling from the ring to the horizon. Nothing needs a
+// z any more — the wave is gone — but the ceremony still needs a clock that runs
+// in a REPLAY as well as a live run, which endT does not. So the variable stayed
+// and became what it was really being used as.
+let endDropT = -1;
 let pauseBtnRect = null, pauseButtonsList = [], pauseSlidersList = [], pauseTogglesList = [];
 // pausing OVER the mission disc remembers the disc: resume returns to the
 // briefing, never into a run the player hasn't armed yet

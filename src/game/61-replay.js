@@ -120,7 +120,7 @@ function reseedReplay(seeking) {
   }
   introT = 999; introCd = 0;            // dive straight in — no boot ceremony
   if (seeking) { warpT = 0; fadeT = 0; } // a scrub rewind rebuilds from frame 0 — no fly-in each drag
-  endSweep = -1; endWin = false;         // clear any finished-run sweep from a prior pass
+  endDropT = -1; endWin = false;         // clear any finished-run drop from a prior pass
   state = S.PLAY;
   startReplay(p.frames);                // tracePlay on, recording off
 }
@@ -346,7 +346,7 @@ function endLevel(win) {
   // and NO end screen — but DO play the finish beat (the victory clear-sweep +
   // sound) so the replay ends like the real level. The frame loop then holds on
   // the final frame (play button becomes restart); the viewer leaves via BACK.
-  if (replaying) { endWin = win; endSweep = win ? geo().hitZ : -1; if (win) sfx.win(); else sfx.fail(); return; }
+  if (replaying) { endWin = win; endDropT = win ? 0 : -1; if (win) sfx.win(); else sfx.fail(); return; }
   if (boardKey()) { captureRun(win); lastRun.trace = frames; lbSubmit(lastRun); } // capture, attach trace, submit (async, fire-and-forget)
   // did this score make the visible board (top 50)? If so, pop the 80s arcade
   // name-entry card on the END screen — every qualifying run, pre-filled with the
@@ -359,7 +359,7 @@ function endLevel(win) {
       if (r && r.rank <= LB_SHOW && state === S.END) { nameEntry = { board: bk }; nameEntryDraft = identity.name || ''; }
     });
   }
-  endSweep = win ? geo().hitZ : -1; // victory: a cleansing wave rolls to the horizon
+  endDropT = win ? 0 : -1;            // victory: the lane drops out of warp
   beamSound(false, 0); beamActive = false; stripSound(false, 0);
   endRunMusic();
   endWin = win; endT = 0; endFxStars = 0; endTickT = 0;

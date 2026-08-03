@@ -14,9 +14,14 @@ function update(dt) {
   tickPadRumble(); // the controller's hold channel rides the charge
   warpT = Math.max(0, warpT - dt);
   const warp2 = warpT / 0.9;
-  // laneFlow: spool up fast on launch (under the warp dive); brake down slow.
-  // The win brake is timed to the destination swell (~0.55–2.85s of endT) so the
-  // lane glides to rest right as the world settles into view.
+  // laneFlow: spool up fast on launch (under the warp dive); brake down slow —
+  // EXCEPT on an arrival, which is the opposite of a glide.
+  //
+  // This one number is the drop-out of warp. drawStreaks scales every smear by
+  // laneFlow, so braking it collapses all 300 warp lines back into the points
+  // that were making them. Over 2.6s that read as the lane politely winding
+  // down; over WARP_COLLAPSE.brake it reads as the stars stopping, which is the
+  // thing itself. A loss still winds down slowly — nothing has arrived.
   const flowTgt = (state === S.PLAY || state === S.PAUSE || state === S.INFO) ? 1 : 0;
   // ~0.45s to clear once the menu takes over; instant back to 1 on the way in,
   // because a run must never fade UP over the player
@@ -28,7 +33,7 @@ function update(dt) {
   }
   if (laneFlow < flowTgt) laneFlow = Math.min(flowTgt, laneFlow + dt / 0.5);
   else if (laneFlow > flowTgt)
-    laneFlow = Math.max(flowTgt, laneFlow - dt / (state === S.END ? (endWin ? 2.6 : 1.0) : 0.45));
+    laneFlow = Math.max(flowTgt, laneFlow - dt / (state === S.END ? (endWin ? WARP_COLLAPSE.brake : 1.0) : 0.45));
   // the wall streams at EXACTLY the traffic speed — leaks stay glued to it
   // (the tutorial's TAP-TO-FIRE hold stops the whole bore, wall included)
   const flowMul = (tut && tut.frozen ? 0 : 1) * laneFlow;
@@ -59,7 +64,7 @@ function update(dt) {
 
   if (state !== S.PLAY) {
     endT += dt;
-    if (state === S.END && endSweep > 0 && endSweep < SPAWN_Z + 0.4) endSweep += dt * 2.1;
+    if (state === S.END && endDropT >= 0 && endDropT < 8) endDropT += dt;
     return;
   }
 

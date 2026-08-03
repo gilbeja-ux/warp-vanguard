@@ -3,26 +3,32 @@
 //
 // The world has two sizes that matter: the speck it starts as, and the size it
 // settles at under the mission report. `full` is how far along that span the
-// FLIGHT gets you, so the arrival ceremony only ever covers what is left.
+// FLIGHT gets you, so the arrival only ever covers what is left.
 //
-//   full: 0.21  the shipped behaviour — the lane does about 4x and the ceremony
-//               does the remaining 5x in 2.3 seconds
-//   full: 1     the lane does all of it; the ceremony has no growing left to do
-//               and the world is already report-sized when the tunnel goes
+//   start · the speck at the vanishing point on departure, in units of the far
+//           glow's radius. Small enough to be a point of light you have to look
+//           for — a destination you can already resolve at the start of a run is
+//           not somewhere you are travelling to
+//   full  · 0.5 means the flight closes half the distance and the DROP OUT OF
+//           WARP closes the rest. That split is the point: a lane that delivers
+//           the whole approach leaves the arrival with nothing to do, and one
+//           that delivers none of it makes the run's whole flight static
+//   curve · 1 tracks lane progress linearly, higher values hold the world small
+//           for longer and then rush it in near the end (closer to how a real
+//           approach reads, since apparent size goes as 1/distance)
 //
-// `curve` shapes the span: 1 tracks lane progress linearly, higher values hold
-// the world small for longer and then rush it in near the end (closer to how a
-// real approach reads, since apparent size goes as 1/distance).
-//
-// Both are overridable per-load for side-by-side testing without a rebuild:
-//   ?destgrow=0.21   what the game shipped
-//   ?destgrow=1      the lane carries the whole approach
-//   ?destcurve=2.5   same endpoint, held back until late
+// All three are overridable per-load for side-by-side testing without a rebuild:
+//   ?deststart=0.075  the old departure speck, near 3x this one
+//   ?destgrow=1       the lane carries the whole approach, arrival does nothing
+//   ?destcurve=2.5    same endpoint, held back until late
 const DEST_APPROACH = {
-  full: 1,
+  start: 0.028,
+  full: 0.5,
   curve: 1
 };
 if (typeof location !== 'undefined') {
+  const qs = /[?&]deststart=([\d.]+)/.exec(location.search);
+  if (qs) DEST_APPROACH.start = clamp(parseFloat(qs[1]), 0.002, 1);
   const qg = /[?&]destgrow=([\d.]+)/.exec(location.search);
   if (qg) DEST_APPROACH.full = clamp(parseFloat(qg[1]), 0, 1);
   const qc = /[?&]destcurve=([\d.]+)/.exec(location.search);
@@ -32,26 +38,39 @@ function drawFarGlow(far, vr, g) {
   // laneProgress() is LATCHED and monotonic, so the world never shrinks mid-run
   // and never snaps back when the level ends — it holds its arrival size for
   // whatever the end sequence wants to do with it.
-  const R0 = vr * 0.075;              // the speck at the vanishing point on departure
+  const R0 = vr * DEST_APPROACH.start; // the speck at the vanishing point on departure
   const R1 = g.nodeR * DEST_LIFE.arrK; // the size it settles at under the mission report
   const flightR = R0 + (R1 * DEST_APPROACH.full - R0)
     * Math.pow(laneProgress(), DEST_APPROACH.curve);
-  // ARRIVAL. A campaign win IS reaching the destination, so the ceremony finishes
-  // the journey for real: the world closes the last of the distance and swells to
-  // meet the ring, and the mission report lands on top of it. Losses, endless and
-  // qualification never arrive — their world holds at whatever approach it made.
-  // At full:1 there is nothing left to close, so this blend is a no-op by design.
+  // ARRIVAL. A campaign win IS reaching the destination, so the drop out of warp
+  // finishes the journey for real: the world closes the last of the distance and
+  // swells to meet the ring, and the mission report lands on top of it. Losses,
+  // endless and qualification never arrive — their world holds at whatever
+  // approach it made.
+  //
+  // It rides laneExit() rather than a clock of its own, and that is the whole
+  // trick. The corridor blowing outward past the camera and the world rushing up
+  // to meet you are not two effects that happen to be scheduled together — they
+  // are one motion, and the only way to guarantee they stay one is to give them
+  // one curve. Move WARP_COLLAPSE.dur and both follow.
+  //
+  // The exponent is what makes it read as fast: the world covers half the
+  // remaining distance in the first quarter of the drop and then settles, which
+  // is deceleration, which is what arriving somewhere actually looks like.
   const arriving = state === S.END && endWin && !endless && !qual;
-  let arrive = 0;
-  if (arriving) {
-    const q = clamp((endT - 0.55) / 2.3, 0, 1); // rides in with the clear-sweep
-    arrive = 1 - Math.pow(1 - q, 3);            // fast closing, gentle settle
-  }
+  const arrive = arriving ? 1 - Math.pow(1 - laneExit(), 4) : 0;
   const R = Math.max(2, flightR) * (1 - arrive) + R1 * arrive;
   // Motes are grain at the limb of a distant body, and they were sized off a term
   // that topped out at 4x. Left on that ceiling: letting them ride a 19x approach
   // turns atmospheric grain into boulders.
-  const grow = Math.min(4, flightR / R0);
+  //
+  // Measured against a FIXED reference, not R0. R0 is a tunable now, and pinning
+  // the grain to it meant shrinking the departure speck silently inflated every
+  // mote — at start:0.028 the term reaches its 4x ceiling a third of the way down
+  // the lane, which puts full-size grain on a body four pixels across. The
+  // literal is the old R0 on purpose: it is the reference the ceiling was chosen
+  // against, so the grain behaves exactly as it shipped whatever `start` does.
+  const grow = Math.min(4, flightR / (vr * 0.075));
   const V = planetVariant();
   const breath = 0.5 + 0.5 * Math.sin(time * 0.7);
 
