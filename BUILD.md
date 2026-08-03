@@ -30,9 +30,22 @@ npm run hooks:install       # sets core.hooksPath to .githooks/
 
 # Building the Android app (offline APK)
 
-Warp Lane ships as a [Capacitor](https://capacitorjs.com) app: the web game
-in `src/` is bundled into a native Android project so it runs fully offline — no
-browser, no dev server, no wifi. This is done **without Android Studio or sudo**.
+Warp Lane ships as a [Capacitor](https://capacitorjs.com) app: the web game is
+bundled into a native Android project so it runs fully offline — no browser, no
+dev server, no wifi. This is done **without Android Studio or sudo**.
+
+`npm run build` stages **`dist/`** — a copy of `src/` with everything that should
+never reach a device removed — and `webDir` points there. `src/` itself stays the
+thing you edit and the thing `npm run dev` serves; `dist/` is generated and
+gitignored, so it is never hand-edited and never committed.
+
+The exclusions live in one list (`NEVER_SHIP` in `scripts/build.js`), each entry
+verified to have zero references from the game. `webDir` used to point straight at
+`src/`, which meant `cap sync` copied the raw source tree: 13.4MB of unreferenced
+character plates, a dead 2.7MB menu track, a `.bak` of the tunnel painter, and
+`editor.html` — a live dev source-viewer that was reachable *inside the shipped
+app*. Staged payload went 66MB → 54MB, and that is with the current menu track,
+which the previous APK had never picked up.
 
 ## One-time setup
 
@@ -60,8 +73,10 @@ echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 npm run apk
 ```
 
-This runs `scripts/build-apk.sh`, which syncs `src/` into the native project,
-compiles a debug APK, and copies it to `~/Desktop/WarpVanguard.apk`.
+This runs `scripts/build-apk.sh`, which stages `dist/`, syncs it into the native
+project, compiles a debug APK, and copies it to `~/Desktop/WarpVanguard.apk`.
+(It calls `npm run build` first — `cap sync` only copies whatever `webDir` already
+holds, so calling sync alone could package a stale `dist/`, or nothing on a fresh clone.)
 
 ## Install on a phone
 

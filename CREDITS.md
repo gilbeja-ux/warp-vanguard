@@ -7,7 +7,9 @@ AI-assisted tools) and is owned by the project. No third-party music license is
 required. That statement covers the folder as a whole, so tracks can be added,
 renamed, or replaced without a per-file entry here.
 
-- **Menu:** `src/audio/Midnight_Terminal_Wait.mp3` (116s), wired at `MUSIC_DATA.menu`.
+- **Menu:** `src/audio/Warp Lane Drift.mp3` (215s), wired at `MUSIC_DATA.menu`.
+  It replaced *Midnight Terminal Wait* (116s) in commit `262be2d`; the older file
+  is no longer referenced and is excluded from the shipped build.
 - **Run pool:** everything in `src/audio/music/`. `npm run build` scans that
   folder and writes the list to `src/audio/music/tracks.js`; the display title of
   each track is derived from its filename at runtime. Adding music is a drop-in

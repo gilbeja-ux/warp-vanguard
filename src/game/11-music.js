@@ -29,7 +29,13 @@ const MUSIC_XFADE = 4.0;  // seconds two takes overlap when free flow chains the
 const MUSIC_LEAD = 14;    // seconds before the seam the next track starts fetching + decoding
 // how long a menu take may be and still be held decoded for the session — see
 // the cache site below. 120s ≈ 45 MB, which is a fair price for an instant
-// return; past that the memory outweighs the convenience.
+// return; past that the memory outweighs the convenience. The CURRENT take is
+// 214.6s, so it is deliberately not cached: holding it would park ~79 MB for the
+// whole session on exactly the phones least able to spare it.
+//
+// This ceiling governs the instant-return convenience and NOTHING ELSE. The
+// seamless menu loop used to be gated on it by accident and therefore never ran;
+// it now takes the buffer off the playing source instead (see updateMusic).
 const MENU_CACHE_MAX = 120;
 // a manifest entry is normally a bare url; { file, name } overrides the title
 function trackEntry(k) {
@@ -363,11 +369,24 @@ function updateMusic(dt) {
     if (xfT >= 1) endCrossfade();
   }
   // the menu piece is a composition with an ending, not a loop — so it loops by
-  // crossfading INTO ITSELF, the same overlap free flow uses at a seam. Its
-  // buffer is already in hand (menuBuf), so the seam costs nothing.
-  if (currentTrackKey === 'menu' && menuBuf && musicSrc && !xfSrc && AC &&
+  // crossfading INTO ITSELF, the same overlap free flow uses at a seam.
+  //
+  // TAKE THE BUFFER OFF THE SOURCE THAT IS ALREADY PLAYING IT. This used to read
+  // `menuBuf &&`, which tied the seam to the session cache — and that cache has a
+  // 120s ceiling while the menu take is 214.6s, so menuBuf was never assigned and
+  // this whole branch was unreachable. The menu had been looping on the hard mp3
+  // seam that the entire buffer architecture exists to avoid, since commit 262be2d
+  // swapped a 116s piece for a 215s one and quietly crossed the ceiling.
+  //
+  // musicSrc.buffer IS the menu take, already decoded and in hand, so the seam
+  // still costs nothing and — unlike raising the ceiling — parks not one extra byte.
+  // The cache and the seam are separate concerns now: menuBuf only buys an INSTANT
+  // return from a run, and its ceiling is a memory decision that belongs to that
+  // question alone.
+  const menuTake = menuBuf || (musicSrc && musicSrc.buffer);
+  if (currentTrackKey === 'menu' && menuTake && musicSrc && !xfSrc && AC &&
       musicLoopDur > MUSIC_XFADE && musicLoopDur - (AC.currentTime - musicStartAt) < MUSIC_XFADE) {
-    crossfadeTo('menu', menuBuf);
+    crossfadeTo('menu', menuTake);
   }
   // the tape-warp moment this ease was kept for: the tutorial's TAP-TO-FIRE
   // hold drags the track down to a stop, releasing it spools back up

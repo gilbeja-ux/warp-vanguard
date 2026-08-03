@@ -125,14 +125,24 @@ THE FRINGE · **DARK TRANSIT** (no cover).
 Unchanged by the theme shift — every file and every mapping carries over.
 
 - Music: synthwave/cyber, author-produced. Normalize tracks ~-14 LUFS.
-- **Menu track: SHIPPED** — *Midnight Terminal Wait*
-  (`src/audio/Midnight_Terminal_Wait.mp3`), wired at `MUSIC_DATA.menu`.
-- The **seam duck is retained deliberately**: `updateMusic` eases the menu
-  track's gain to 0.12 across the 1.2s either side of the loop boundary and
-  back, so the loop crossfades through itself instead of hard-cutting. It never
-  touches the opening play-through. Run-pool tracks don't use it — they're
-  sample-accurate Web Audio loops with encoder padding trimmed via
-  `loopStart`/`loopEnd`.
+- **Menu track: SHIPPED** — *Warp Lane Drift*
+  (`src/audio/Warp Lane Drift.mp3`, 215s), wired at `MUSIC_DATA.menu`. It replaced
+  *Midnight Terminal Wait* (116s) in `262be2d`; that file is unreferenced now and
+  the build excludes it.
+- The menu piece is **a composition with an ending, not a loop**, so it loops by
+  **crossfading into itself** — the same 4s equal-power overlap FREE FLOW uses at a
+  seam, via `crossfadeTo('menu', …)` in `updateMusic`. (This replaced an earlier
+  gain duck that eased the track to 0.12 either side of the boundary; that
+  mechanism is gone.) Run-pool tracks don't need it — they're sample-accurate Web
+  Audio loops with encoder padding trimmed via `loopStart`/`loopEnd`.
+
+  ⚠️ **This was silently broken from `262be2d` to 2026-08-03.** The overlap was
+  gated on the session cache `menuBuf`, which has a 120s ceiling, and the menu take
+  is 215s — so the branch was unreachable and the menu looped on the raw mp3 seam
+  the whole buffer architecture exists to avoid. It now takes the buffer off the
+  source already playing it, so the cache ceiling (a memory decision) and the seam
+  (a sound decision) are independent. Guarded by a test that forces a take over the
+  ceiling; the previous test passed only because the stub's buffer reports 10s.
 - **Run pool: `src/audio/music/`** — every track in that folder is a candidate
   for any run, drawn from a shuffled bag. FREE FLOW chains them with a 4s
   equal-power crossfade. **The folder is the source of truth**: `npm run build`

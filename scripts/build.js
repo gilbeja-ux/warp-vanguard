@@ -33,9 +33,73 @@ const prev = fs.existsSync(outPath) ? fs.readFileSync(outPath, 'utf8') : null;
 if (prev !== out) fs.writeFileSync(outPath, out);
 if (!tracks.length) console.warn('! no audio in src/audio/music/ — runs will have no soundtrack');
 
-console.log('✓ Build directory ready');
-console.log('✓ Assets available at', assetDir);
 console.log('✓ Run pool: ' + tracks.length + ' track(s)' + (prev === out ? ' (unchanged)' : ' → src/audio/music/tracks.js'));
+
+// ---------- STAGE dist/ — what actually ships ----------
+// capacitor.config.json used to point webDir at src/ itself, so `cap sync` copied
+// the RAW SOURCE TREE into the APK: 13.4MB of unreferenced character plates, a
+// dead 2.7MB menu track, a .bak of the tunnel painter, and editor.html — a live
+// dev source-viewer that was reachable inside the shipped app. 61.4MB of APK,
+// about 16MB of it provably unreachable.
+//
+// This is a COPY WITH A DENYLIST, not a bundler. src/ is untouched, still 33
+// <script src> tags, still opens at file://, still zero dependencies — everything
+// docs/REFACTOR-PLAN.md section 5 protects. The only new fact is that there is now
+// a staging directory between the source and the package.
+const distDir = path.join(__dirname, '..', 'dist');
+// Anything matched here never reaches a device. Each entry is here because it was
+// verified to have zero references from the game (grep across src/ and scripts/).
+const NEVER_SHIP = [
+  'Characters',                        // 13.4MB, 7 plates — named only in docs/THEME-SHIFT.md prose
+  'audio/Midnight_Terminal_Wait.mp3',  // 2.7MB — the previous menu take, replaced by 262be2d
+  'editor.html', 'editor.js',          // the Lane Designer: a dev tool, not a game screen
+  'game/manifest.json',                // build-time load order; nothing fetches it at runtime
+  '.DS_Store',
+];
+const SKIP_EXT = /\.(bak|stale-bak|orig|rej)$/i;
+
+function shipPath(rel) {
+  if (SKIP_EXT.test(rel)) return false;
+  for (const deny of NEVER_SHIP) {
+    if (rel === deny || rel.startsWith(deny + path.sep)) return false;
+  }
+  return path.basename(rel) !== '.DS_Store';
+}
+
+let copied = 0, skipped = 0, bytes = 0;
+function stage(relDir) {
+  const from = path.join(srcDir, relDir);
+  for (const name of fs.readdirSync(from)) {
+    const rel = relDir ? path.join(relDir, name) : name;
+    const abs = path.join(srcDir, rel);
+    if (!shipPath(rel)) { skipped++; continue; }
+    const st = fs.statSync(abs);
+    if (st.isDirectory()) { fs.mkdirSync(path.join(distDir, rel), { recursive: true }); stage(rel); continue; }
+    const dest = path.join(distDir, rel);
+    // mtime+size check, so a rebuild does not re-copy 40MB of audio every time
+    let stale = true;
+    try { const d = fs.statSync(dest); stale = d.size !== st.size || d.mtimeMs < st.mtimeMs; } catch (e) {}
+    if (stale) { fs.mkdirSync(path.dirname(dest), { recursive: true }); fs.copyFileSync(abs, dest); copied++; }
+    bytes += st.size;
+  }
+}
+// prune anything in dist/ that no longer has a source (a renamed track would
+// otherwise ship forever alongside its replacement)
+function prune(relDir) {
+  const here = path.join(distDir, relDir);
+  if (!fs.existsSync(here)) return;
+  for (const name of fs.readdirSync(here)) {
+    const rel = relDir ? path.join(relDir, name) : name;
+    const abs = path.join(distDir, rel);
+    if (fs.statSync(abs).isDirectory()) { prune(rel); if (!fs.readdirSync(abs).length) fs.rmdirSync(abs); continue; }
+    if (!fs.existsSync(path.join(srcDir, rel)) || !shipPath(rel)) { fs.unlinkSync(abs); }
+  }
+}
+fs.mkdirSync(distDir, { recursive: true });
+stage('');
+prune('');
+console.log('✓ dist/ staged: ' + (bytes / 1048576).toFixed(1) + ' MB shippable'
+  + ' (' + copied + ' file(s) copied, ' + skipped + ' excluded)');
 
 // ---- verifier staleness guard ----
 // The leaderboard verifier is a BUNDLE of the sim, deployed separately. If the

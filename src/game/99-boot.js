@@ -1136,7 +1136,13 @@ function drawPostChain(rawDt, worldFx, g) {
 resize();
 requestAnimationFrame(frame);
 // offline capability + PWA installability (no-op on insecure origins)
-if ('serviceWorker' in navigator && window.isSecureContext) {
+// The service worker is for the WEB build only. Inside the Capacitor shell every
+// asset is already on local storage, and androidScheme:"https" makes
+// isSecureContext true there — so this registered anyway and sw.js's unbounded
+// write-through cache copied the whole soundtrack into Cache Storage a second
+// time. Up to ~40MB of duplicated audio, which the player sees as the app's size
+// in Android settings, bought nothing at all.
+if ('serviceWorker' in navigator && window.isSecureContext && !window.Capacitor) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 // boot: the splash decodes its score and tries to run it right away — the

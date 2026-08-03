@@ -150,11 +150,19 @@ function bootRingS(g) {
   return (g.R0 / (1 + zz * 6)) / g.nodeR;
 }
 
-// ---------- optional sprite skins ----------
-// Drop PNGs into src/sprites/ (normal, heavy, lock0, lock1, frag, crawler, boss)
-// and they replace the procedural bodies automatically; missing files fall back.
+// ---------- optional sprite skins (OFF unless asked for) ----------
+// Drop PNGs into src/sprites/ (normal, heavy, lock0, lock1, frag, boss) and they
+// replace the procedural bodies automatically; missing files fall back.
+//
+// OPT-IN, because this ran unconditionally at script-parse time and src/sprites/
+// has never existed — so every boot fired six Image() requests that could only
+// 404, on the critical path, ahead of the first frame. A directory's absence
+// cannot be tested without asking for a file, so the switch is a flag rather than
+// a probe: set window.VG_SPRITES (or add ?sprites) and drop the folder in.
 const SPRITES = {};
-if (typeof Image !== 'undefined') {
+if (typeof Image !== 'undefined' &&
+    ((typeof window !== 'undefined' && window.VG_SPRITES) ||
+     (typeof location !== 'undefined' && /[?&]sprites/.test(location.search)))) {
   for (const k of ['normal', 'heavy', 'lock0', 'lock1', 'frag', 'boss']) {
     const img = new Image();
     img.onload = () => { SPRITES[k] = img; };

@@ -157,6 +157,7 @@ code = code.replace("'use strict';", '') + `
   setMenuScroll: v => { menuScroll = v; }, tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
   detectBeat, beatQuantize, setBeat: (p, at) => { beatPeriod = p; musicStartAt = at; },
   pickTrack, trackCount, trackName, skipTrack, prettyTrackName, dropPreload,
+  setMenuBuf: v => { menuBuf = v; }, getMenuBuf: () => menuBuf, MENU_CACHE_MAX: () => MENU_CACHE_MAX,
   getRunTrack: () => runTrack, setRunTrack: v => { runTrack = v; }, trackBagLen: () => trackBag.length,
   nowPlayingName: () => (npT < NP_DUR ? npName : null), announceTrack: nowPlaying,
   xfade: () => ({ src: xfSrc, gain: xfGain, t: xfT, next: nextTrack, loading: nextLoadKey, srcGain: musicSrcGain }),
@@ -2205,6 +2206,27 @@ async function runMusicUp() {
   check('the menu piece loops by crossfading into itself',
     !!G.xfade().src && G.xfade().src === menuTake && G.music().src !== menuTake && G.music().key === 'menu');
   G.updateMusic(5); G.dropPreload();  // close the overlap, leave the slot clean for what follows
+
+  // AND IT MUST LOOP WITHOUT THE SESSION CACHE. This is the case that shipped
+  // broken for three commits and no test could see: the seam was gated on menuBuf,
+  // menuBuf has a 120s ceiling, and the real menu take is 214.6s — so in production
+  // the branch was unreachable and the menu looped on the raw mp3 seam. It passed
+  // here only because the stub's makeBuf() reports duration 10, which fits the
+  // ceiling. Force the production shape: no cache, and the seam still has to close.
+  {
+    const longTake = { ...makeBuf(), duration: G.MENU_CACHE_MAX() + 95 }; // 215s, like the real one
+    G.setMenuBuf(null);
+    check('a menu take over the cache ceiling is not held for the session',
+      !(longTake.duration <= G.MENU_CACHE_MAX()) && G.getMenuBuf() === null);
+    G.setState(G.S.MENU);
+    G.updateMusic(0.05); await tick();
+    const uncached = G.music().src;
+    G.setBeat(0, -5);                 // back inside the overlap window
+    G.updateMusic(0.05);
+    check('the menu still loops seamlessly with no cached buffer (the shipped case)',
+      !!G.xfade().src && G.xfade().src === uncached && G.music().src !== uncached && G.music().key === 'menu');
+    G.updateMusic(5); G.dropPreload();
+  }
   G.setState(G.S.PLAY);
   G.settings.music = false; G.updateMusic(0.016);
   check('music toggle silences the gain', G.music().gain.gain.value === 0);

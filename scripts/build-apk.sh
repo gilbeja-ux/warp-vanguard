@@ -12,7 +12,12 @@ export PATH="$JAVA_HOME/bin:$PATH"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# Copy the latest web assets from src/ into the native project.
+# Stage dist/ FIRST, then copy it into the native project. `cap sync` only copies
+# whatever webDir already points at — it does not build — so calling it directly
+# shipped whatever dist/ happened to hold from a previous run, or nothing at all on
+# a fresh clone. It also meant `npm run apk` could package a stale tracks.js while
+# `npm run sync` (which does chain the build) packaged a correct one.
+npm run build
 npx cap sync android
 
 # Regenerate the launcher icon (bare shield at every mipmap density).
