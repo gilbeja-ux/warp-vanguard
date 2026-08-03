@@ -421,8 +421,12 @@ const DIALS = {
     shipN:     ['departures, most', 0, 12, 1],
     shipO:     ['wake brightness', 0, 1, 0.01],
     shipPer:   ['gap between departures', 'vec'],
-    stnR:      ['orbital station size', 0, 0.3, 0.005],
-    stnO:      ['station distance, near/far', 'vec'],
+    arrK:      ['arrival radius (ring radii)', 0.1, 1.2, 0.01],
+    compR:     ['companion size', 0, 0.6, 0.005],
+    compV:     ['...varies either way by', 0, 1, 0.01],
+    compD:     ['companion offset, near/far', 'vec'],
+    compPar:   ['companion parallax', 1, 2.5, 0.01],
+    compFin:   ['endpoint build, larger by', 1, 3, 0.01],
     twinkle:   ['deep-sky scintillation', 0, 1, 0.01],
     blinkP:    ['share of slow blinkers', 0, 1, 0.01]
   },
@@ -1123,20 +1127,34 @@ function mixStage(st) {
   bar.className = 'mixbar';
   hero.appendChild(bar);
 
+  // the companion's own numbers. They are not part of the bar's 100 — a world
+  // either is or is not the delivery, and separately does or does not carry an
+  // installation — so stacking them into one bar would be a lie about the split.
+  const note = document.createElement('div');
+  note.className = 'hint';
+  hero.appendChild(note);
+
   const ladder = document.createElement('div');
   ladder.className = 'ladder';
   hero.appendChild(ladder);
   st.appendChild(hero);
 
   stageDraw = () => {
-    const p = G.DEST_MIX.planet, s = G.DEST_MIX.station, g = Math.max(0, 100 - p - s);
+    // A relay delivers to a WORLD or to the system's PRIMARY, and that is the
+    // whole split now — stations and gates left this bar when they stopped being
+    // destinations. What share of worlds carry one, and how many of those are a
+    // gate, is a different question and rides under the bar as text.
+    const s = G.DEST_MIX.star, p = Math.max(0, 100 - s);
     bar.innerHTML = '';
-    for (const [w, lab, col] of [[p, 'PLANET ' + p, '#6fe3ff'], [s, 'STATION ' + s, '#c4d8f0'], [g, 'GATE ' + g, '#60e0d0']]) {
+    for (const [w, lab, col] of [[p, 'WORLD ' + p, '#6fe3ff'], [s, 'PRIMARY ' + s, '#ffd24a']]) {
       const d = document.createElement('div');
       d.style.flex = w; d.style.background = col;
       d.textContent = w >= 9 ? lab : '';
       bar.appendChild(d);
     }
+    const cg = G.DEST_MIX.gate;
+    note.textContent = 'COMPANION on ' + G.DEST_MIX.comp + '% of worlds · '
+      + (100 - cg) + '% station / ' + cg + '% gate · endpoints always, primaries never';
     // the real sequence, straight off the game's own picker — the honest answer
     // to "what will a player actually see", which a percentage cannot give
     ladder.innerHTML = '';

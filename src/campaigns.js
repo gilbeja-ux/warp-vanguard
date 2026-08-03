@@ -10,12 +10,12 @@
 // scripted chatter on a clock.
 //
 // A LEVEL'S `name` IS NOT WHAT THE PLAYER READS. The menu, the HUD and the
-// leaderboard all show levelRouteName() — "FROM » TO", built from the systems
-// the galaxy generator places for that contract's relays. A relay is a leg, and
-// a leg is named by its two ends. `name` is an AUTHORING label: the loader
-// length-checks it and the Lane Designer edits it, and nothing else reads it.
+// leaderboard all show levelRouteName() — the DESTINATION the galaxy generator
+// places for that relay, and nothing else. `name` is an AUTHORING label: the
+// loader length-checks it and the Lane Designer edits it, and nothing else
+// reads it.
 //
-// So these names are set to the destination each leg delivers to — the "TO" end
+// So these names are set to the destination each leg delivers to — the same end
 // of the route the game shows — because a label that disagrees with the game is
 // how this file ended up carrying a corrupt-badge investigation ('EVIDENCE
 // VAULT', 'BADGE ZERO') inside a contract about a deep range survey, invisibly,

@@ -33,12 +33,20 @@ const BASE_K = 0.25;
 // So the diffuse field is accumulated in FLOATS below and handed to the canvas
 // as one finished image. There is nothing left for the rasteriser to dither.
 // ---------- THE MARQUEE ----------
-// A route name is two place names and an arrow, so it will not fit, and there is
-// no size that makes it fit — shrinking to 8px only made it illegible in a
+// This exists because a level name USED to be two place names and an arrow,
+// which would not fit at any size — shrinking to 8px only made it illegible in a
 // different way, and handing fillText a maxWidth condenses the letters until
 // Audiowide stops being Audiowide. A name that overruns its bracket is CLIPPED
-// and SCROLLED instead. Every list of route names in the game does this the same
-// way, so it lives here rather than in the one screen that needed it first.
+// and SCROLLED instead. Every list of names in the game does this the same way,
+// so it lives here rather than in the one screen that needed it first.
+//
+// A name is now ONE destination, so it nearly always fits and this nearly always
+// no-ops (`want` is 0 whenever tw <= w). It is kept, not deleted, because
+// "nearly" is doing real work: system names are generated, a long one paired
+// with a high numeral still overruns a narrow bracket, and community packages
+// can push relay counts further out the spiral than the bundled five do. The
+// cost of keeping it is one measureText per row per frame; the cost of removing
+// it is a name that silently runs off the edge of the leaderboard.
 //
 // Only the FOCUSED row scrolls. Eight names sliding at once was motion for its
 // own sake, and the head of each row is the thing you scan the column by, so an
@@ -48,12 +56,17 @@ const BASE_K = 0.25;
 // `k` is the 0..1 travel, and null parks the text at the start.
 let marqScroll = {};   // eased offset per key — survives a focus change so it can ease
 let marqT = 0;         // the clock for screens with no camera of their own
-// THE MARQUEE IS THE CAMERA. On the route map the focused row's name scrolls on
-// the same 0..1 the lens uses to fly the lane, so the two are one motion: at the
-// start of the ride you are over the FROM system and reading the FROM name, the
-// text travels while the camera travels, and it lands on the TO name exactly as
-// the camera arrives. Then both reverse together. It used to run on its own
-// clock, which meant the text and the map were telling the same story out of step.
+// THE MARQUEE IS THE CAMERA — on the rare row long enough to still scroll. The
+// focused row's name rides the same 0..1 the lens uses to fly the lane, so the
+// two are one motion rather than two clocks telling the same story out of step.
+//
+// This coupling was the whole point when a name was "FROM » TO": the text
+// travelled from one end of the route to the other exactly as the camera did,
+// and you read the arrival at the moment you reached it. A one-destination name
+// has no second half to travel to, so what survives is the weaker version — a
+// long name walks while the camera flies. Worth keeping for the rows it still
+// catches; not worth mourning, because the route is drawn on the chart, and a
+// line between two systems was always going to say it better than a string could.
 //
 // The leaderboard has no lens to ride, so marqueeK() replays that same ping-pong
 // off marqT — identical rate, identical dwell at both ends — and the two screens
@@ -120,27 +133,37 @@ let CITY_CHAINS = [];
 // infrastructure reads as underground — ghosting through the towers.
 // ---------- DESTINATION KINDS ----------
 // >>> DEST-KIND
-// A relay delivers to a place, and places are not all planets. Kind is chosen
-// deterministically from campaign + level, exactly like the planet variant, so
-// the chart and the end of the lane always agree about what is out there.
+// A relay delivers to a BODY: a world, or the system's own primary. Kind is
+// chosen deterministically from campaign + level, exactly like the planet
+// variant, so the chart and the end of the lane always agree about what is out
+// there.
+//
+// Stations and gates USED to be answers here, and a quarter of every contract
+// was flown to one. They are not places you arrive at any more — they are what
+// stands in front of the place you arrive at (see the companion in DEST_LIFE).
+// What that bought: the build no longer has to fill the bore to be seen, so it
+// is read at a size where its detail survives instead of one where it becomes
+// wallpaper, and every arrival now has a world behind it to give it a scale.
+//
 // Asteroid fields are scenery only — you fly THROUGH a field, you do not arrive
 // at one — so they are never a mission endpoint.
 function destKindFor(campId, lv, isBoss) {
-  // A CONTRACT'S ENDPOINT OUTRANKS EVERYTHING, the boss star included: you fight
-  // the interdictor at the gates of the place you were escorting the convoy to,
-  // which is a better arrival than an anonymous sun. One relay per campaign.
-  const fin = typeof s3FinalFor === 'function' && s3FinalFor(campId, lv);
-  if (fin) return s3build(fin).kind;
-  if (isBoss) return 'star';                 // every other duel happens at a sun
+  // A CONTRACT'S ENDPOINT IS ALWAYS A WORLD. It used to BE the fortress or the
+  // gate; now the convoy is delivering to somewhere that fortress guards, and
+  // the fortress is the thing hanging in front of it as you come in.
+  if (typeof s3FinalFor === 'function' && s3FinalFor(campId, lv)) return 'planet';
   if (namedDestFor(campId, lv)) return 'planet'; // a named world IS its relay's destination
   let h = 0x811c9dc5;
   const id = (campId || 'x') + '#' + lv;
   for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
   h ^= h >>> 15; h = Math.imul(h, 0x2545f491); h ^= h >>> 13;
   const q = (h >>> 0) % 100;
-  // gates take whatever planets and stations leave, so the mix can never overflow
-  return q < DEST_MIX.planet ? 'planet'
-    : q < DEST_MIX.planet + DEST_MIX.station ? 'station' : 'gate';
+  // A DUEL NO LONGER MEANS A SUN. `isBoss` used to force one, which read as a
+  // rule the moment you noticed it — every boss on the same anonymous star. A
+  // boss relay is dealt its destination like any other, so an interdiction
+  // happens wherever the contract was going: usually a world, sometimes a
+  // primary. The argument stays because callers pass it and the chart asks.
+  return q < DEST_MIX.star ? 'star' : 'planet';
 }
 // <<< DEST-KIND
 // (drawStationArt / drawGateArt / drawFieldArt are RETIRED, and so is the shaded
@@ -237,14 +260,22 @@ function destNameAt(ci, li) {
   const p2 = ch && ch.pts[clamp(li, 0, ch.pts.length - 1)];
   return (p2 && p2.dname) || 'UNCHARTED';
 }
-// The level's name is the ROUTE it flies: where the convoy forms up, and where it
-// is going. A relay is a leg, and a leg has two ends.
+// The level's name is WHERE IT DELIVERS. Nothing else.
+//
+// It used to be the whole leg — "FROM » TO" — which is true to the fiction and
+// wrong on every surface that shows it. Two system names and a chevron is a
+// string long enough to need shrinking in the menu, truncating on the
+// leaderboard and eliding in the HUD, and the FROM half carries no information
+// the player does not already have: it is the level they just finished. What
+// they are actually reading for is the far end, and it was the half that lost
+// the fight for space. The route is still on the chart, drawn, where a route
+// belongs.
+//
+// The name is kept for its callers — nothing outside this file cares that a leg
+// stopped having two ends.
 function levelRouteName(ci, li) {
   if (!CITY_CHAINS.length) buildCity();
-  const from = li > 0 ? destNameAt(ci, li - 1)
-    : ci > 0 ? destNameAt(ci - 1, (CAMPAIGNS[ci - 1] && CAMPAIGNS[ci - 1].levels.length - 1) || 0)
-    : 'MERIDIAN HAULAGE';
-  return from + ' » ' + destNameAt(ci, li);
+  return destNameAt(ci, li);
 }
 // the route for the level being flown right now
 function levelTitle(i) { return levelRouteName(Math.max(0, CAMPAIGNS.indexOf(CAMP)), i); }
@@ -420,17 +451,23 @@ function buildCity() {
     const lv = camp && camp.levels && camp.levels[li];
     const boss = !!(lv && lv.boss);
     const campId = (camp && camp.id) || 'x';
-    // a boss duel happens AT the star; everything else orbits one
-    const slot = boss ? -1 : (Math.abs(Math.floor(pts[g].x * 13 + pts[g].y * 7)) % sy.planets.length);
+    // WHERE IN THE SYSTEM THE DELIVERY IS, and it is destKindFor that says so —
+    // not `boss`. Pinning bosses to the centre was the chart's own copy of the
+    // every-duel-happens-at-a-sun rule, and it disagreed with the lane the
+    // moment the lane stopped believing it. One function decides, both views
+    // follow, which is what this file has always claimed.
+    const kind = destKindFor(campId, li, boss);
+    const slot = kind === 'star' ? -1 : (Math.abs(Math.floor(pts[g].x * 13 + pts[g].y * 7)) % sy.planets.length);
     pts[g].sys = sy; pts[g].slot = slot; pts[g].campId = campId; pts[g].li = li; pts[g].boss = boss;
+    // The primary carries the system's bare name; a world carries its numeral.
+    // The STATION and GATE suffixes are gone with the kinds that earned them —
+    // an installation is no longer the destination, so it no longer names one.
     if (slot < 0) { pts[g].dx = sy.x; pts[g].dy = sy.y; pts[g].dname = sy.name; }
     else {
       const pl = sy.planets[slot];
       pts[g].dx = sy.x + Math.cos(pl.a) * pl.o;
       pts[g].dy = sy.y + Math.sin(pl.a) * pl.o * 0.5;
-      const k = destKindFor(campId, li, false);
-      pts[g].dname = sy.name + (k === 'station' ? ' STATION' : k === 'gate' ? ' GATE'
-        : ' ' + ROMAN[Math.min(slot, ROMAN.length - 1)]);
+      pts[g].dname = sy.name + ' ' + ROMAN[Math.min(slot, ROMAN.length - 1)];
     }
     sy.relay = g;
   }

@@ -595,9 +595,22 @@ const PLANET_SHADE = {
   duneF: 5.5,        // dune scale on a `dune` world
   duneA: 0.22        // dune anisotropy — how far the wind stretches them
 };
-// How often each kind turns up as a mission endpoint, out of 100. Gates take
-// whatever planets and stations leave — so these two are the whole dial.
-const DEST_MIX = { id: 'MIX', planet: 62, station: 24 };
+// WHAT A RELAY DELIVERS TO, out of 100 — and there are only two answers now: a
+// world, or the system's own primary.
+//
+// Stations and gates are no longer places you ARRIVE at. A berth is something a
+// world HAS, not something a convoy flies to instead of one, and arriving AT one
+// meant the build filled the bore — so the single most detailed object in the
+// game was also the one with nothing beside it to give it a size. It stands in
+// FRONT of a world now (see the companion block in DEST_LIFE), near the camera,
+// where a hull crossing a planet's limb reads as the scale cue it always was.
+//
+//   star · how often the delivery is to the primary rather than a world. Sparse:
+//          a sun has no surface to make a place of, and takes no companion
+//   comp · how many worlds have an installation standing in front of them
+//   gate · what share of those installations are a lane gate rather than a
+//          station. Deliberately the odd one out
+const DEST_MIX = { id: 'MIX', star: 14, comp: 82, gate: 22 };
 // WHAT LIVES THERE. A destination that only sits in the frame is a picture; these
 // are the things that make it a PLACE. Every arrival gets a creeping terminator
 // and a scintillating sky — those are the world and the void behaving, and both
@@ -608,6 +621,14 @@ const DEST_LIFE = {
   id: 'LIF',
   n0: 2, n1: 3,                    // features dealt per relay (inclusive)
   vis0: 0.20, vis1: 0.24,          // R/nodeR where life fades in / reaches full
+  arrK: 0.52,                      // THE ARRIVAL RADIUS, in ring radii — the size
+                                   // the world settles at under the mission
+                                   // report. It lives here rather than as a
+                                   // literal in drawFarGlow because the
+                                   // companion's parallax is measured as R/R1:
+                                   // both ends have to agree what "arrived" is
+                                   // or the installation lands at the wrong size
+                                   // on the one frame anybody studies it
   creep: 0.15, creepRate: 0.045,   // terminator swing (rad) and how slowly it swings
   nightK: 0.44,                    // how much darker the creeping shadow makes the night limb
   clus0: 7, clusN: 5, perClus: 9,  // city-light clusters, and lights per cluster
@@ -616,7 +637,24 @@ const DEST_LIFE = {
   // Nothing that big moves in the time you spend looking at a score.
   moonR: 0.15, moonO: [1.5, 2.15], moonC: '198,192,180',
   shipN: 3, shipO: 0.9, shipPer: [70, 160],  // shipPer is the gap BETWEEN departures
-  stnR: 0.085, stnO: [1.2, 1.55],
+  // THE COMPANION — the station or gate standing in front of the world. It is
+  // NOT in orbit, and that is the whole point: it sits between you and the
+  // place, much nearer the camera than the disc behind it, so it is drawn last,
+  // never occluded, and its hull crosses the limb rather than circling it.
+  //
+  //   compR/compV · size in destination radii at arrival, and how far either
+  //                 side of it a relay may be dealt
+  //   compD       · how far off the world's centre it sits, in R. Kept under 1
+  //                 so it always overlaps the disc — a silhouette against a lit
+  //                 world is the read; a hull in empty sky beside one is not
+  //   compPar     · PARALLAX, and the only real depth cue 2D has here: a nearer
+  //                 object grows FASTER as you close on it. Size rides
+  //                 (R/R1)^compPar, so on departure the companion is a mote
+  //                 against a speck and by arrival it is a structure in the
+  //                 foreground. At 1 it would just ride the world, flat.
+  //   compFin     · a contract's endpoint build stands this much larger. It is
+  //                 the one installation a player is meant to know by sight
+  compR: 0.20, compV: 0.55, compD: [0.30, 0.78], compPar: 1.28, compFin: 1.45,
   twinkle: 0.09, blinkP: 0.05      // deep-sky scintillation depth, and how many are slow blinkers
   // (both deliberately small. This layer is 430 points and the backdrop's own
   // gated stars carry the twinkling — if this one breathes as well, the two
@@ -739,7 +777,13 @@ const S3D_WARP = {
 // any relay, not just the one being flown. Map and lane read from one function,
 // so the world on the chart and the world at the end of the bore cannot drift.
 function planetVariantFor(campId, lv, isBoss) {
-  if (isBoss) return PLANET_STAR; // the duel happens at a sun
+  // WHAT THE BODY IS is destKindFor's call, not `boss`'s. This used to read
+  // `if (isBoss) return PLANET_STAR`, which was the third place in the codebase
+  // holding a private opinion about where duels happen — the chart pinned bosses
+  // to system centres, the kind function forced 'star', and this returned a sun.
+  // Three copies of one rule is how they end up disagreeing; there is one now,
+  // and the other two ask it.
+  if (destKindFor(campId, lv, isBoss) === 'star') return PLANET_STAR;
   const named = namedDestFor(campId, lv);
   if (named) return named;        // a named world outranks the deal
   let h = 2166136261;

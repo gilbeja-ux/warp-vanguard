@@ -32,8 +32,8 @@ function drawFarGlow(far, vr, g) {
   // laneProgress() is LATCHED and monotonic, so the world never shrinks mid-run
   // and never snaps back when the level ends — it holds its arrival size for
   // whatever the end sequence wants to do with it.
-  const R0 = vr * 0.075;        // the speck at the vanishing point on departure
-  const R1 = g.nodeR * 0.52;    // the size it settles at under the mission report
+  const R0 = vr * 0.075;              // the speck at the vanishing point on departure
+  const R1 = g.nodeR * DEST_LIFE.arrK; // the size it settles at under the mission report
   const flightR = R0 + (R1 * DEST_APPROACH.full - R0)
     * Math.pow(laneProgress(), DEST_APPROACH.curve);
   // ARRIVAL. A campaign win IS reaching the destination, so the ceremony finishes
@@ -64,22 +64,16 @@ function drawFarGlow(far, vr, g) {
   ctx.beginPath(); ctx.arc(far.x, far.y, R * 4.6, 0, TAU); ctx.fill();
 
   // --- the body ---
-  // Stations and gates are machined objects, so they are DRAWN rather than shaded
-  // per pixel — and by the same two functions the chart uses, so the thing at the
-  // end of the bore is the thing the map promised, only larger.
-  const kind = destKindFor((typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x',
-    levelIdx, !!(LV && LV.boss));
-  if (kind === 'station' || kind === 'gate') {
-    const laS = destLightA();
-    drawDestLife(far, R, g, false, laS); // whatever is round the back, first
-    const campId = (typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x';
-    // ONE renderer. s3draw always puts something down — the baked build, or its
-    // own placeholder mass while the bake is still working through the queue.
-    s3draw(far.x, far.y, R * 1.02, s3BuildFor(campId, levelIdx, kind), 0.96);
-    drawDestLife(far, R, g, true, laS);
-    if (1 - arrive > 0.02) drawFarMotes(far, R, grow, breath, 1 - arrive);
-    return;
-  }
+  // (The arrive-AT-a-station path is gone. A station or gate used to be a
+  // destination kind of its own, and this function branched to draw the build at
+  // R * 1.02 — the whole bore. Two things were wrong with it. The build had to
+  // carry the frame alone, with nothing behind it to say how big it was, so the
+  // most expensive art in the game read as a pattern. And the world path below —
+  // terminator, cities, moon, traffic, motes — was skipped entirely, so a
+  // quarter of all arrivals were to a place with no life on them at all.
+  // Installations stand in FRONT of a world now; see the companion in
+  // drawDestLife, which is the last thing this function's world path draws.)
+  //
   // A planet is one sprite, scaled continuously — no rebuild while it grows. The
   // exception is size: the approach sprite upscaled 2x+ goes soft, so past that
   // it is built at double resolution instead.
@@ -99,11 +93,19 @@ function drawFarGlow(far, vr, g) {
   }
   const la = V.emis ? LIGHT_A : destLightA(); // a star has no terminator to creep
   // A swarm has no surface, so nothing that lives ON a world belongs on it — no
-  // cities, no creeping terminator across a single face, and no moon
-  // in orbit around a cloud of rubble. Each rock in buildFieldSprite carries its
-  // own terminator already.
+  // cities, no creeping terminator across a single face, and no moon in orbit
+  // around a cloud of rubble. Each rock in buildFieldSprite carries its own
+  // terminator already.
+  //
+  // That USED to be enforced here, by refusing to call the life layer at all for
+  // a swarm. It was too blunt: the layer also carries traffic and the companion,
+  // neither of which needs a surface, and `signal-lost` delivers its contract to
+  // an asteroid field — so the one build that campaign is meant to be known by
+  // was dealt to it and then never drawn. destinationLife() knows what a swarm
+  // is now and declines the surface features itself, which leaves exactly one
+  // rule here: a terminator needs a face to creep across.
   const swarm = !!V.field;
-  if (!swarm) drawDestLife(far, R, g, false, la);   // far half of every orbit, occluded by the body
+  drawDestLife(far, R, g, false, la);   // far half of every orbit, occluded by the body
   if (planetSprite) {
     const w = planetSprite.S * (R / planetSprite.R);
     ctx.drawImage(planetSprite.cv, far.x - w / 2, far.y - w / 2, w, w);
@@ -125,7 +127,7 @@ function drawFarGlow(far, vr, g) {
   // the sun creeps across the face — the shadow goes ON the body, then everything
   // that lives here goes over the top, lit by that same drifted vector
   if (!V.emis && !swarm) drawTerminatorCreep(far, R, clamp((R / g.nodeR - DEST_LIFE.vis0) / DEST_LIFE.vis1, 0, 1), la);
-  if (!swarm) drawDestLife(far, R, g, true, la);
+  drawDestLife(far, R, g, true, la);
   // --- glowing grain in the haze: the atmosphere lit from within ---
   drawFarMotes(far, R, grow, breath, 1 - arrive);
 }
@@ -160,8 +162,11 @@ function drawFarMotes(far, R, grow, breath, moteK) {
 // >>> DEST-LIFE
 // The lab lifts this whole region so it can stage a real arrival. It may reach
 // only TAU, clamp, time, ctx, mulberry32, LIGHT_A, PLANET_SHADE, DEST_LIFE,
-// destKindFor, s3draw, s3BuildFor, PLANET_TYPES, buildPlanetSprite, and the
-// CAMP / levelIdx / LV the relay is chosen by.
+// DEST_MIX, destKindFor, s3draw, s3BuildFor, s3FinalFor, PLANET_TYPES,
+// buildPlanetSprite, and the CAMP / levelIdx / LV the relay is chosen by.
+// (DEST_MIX and s3FinalFor are lifted with DEST-DATA and DEST-S3D-PICK — the
+// companion needs the first to know how often it exists and the second to know
+// whether it is a contract's endpoint.)
 //
 // The arrival made the world big; this is what stops it being a poster of a
 // world. Each relay is dealt a HAND from the deck below, off its own hash stream
@@ -169,10 +174,17 @@ function drawFarMotes(far, R, grow, breath, moteK) {
 // the seed), and the hand is permanent: a place you have been to has the same
 // moon in the same orbit and the same cities in the same valleys next time.
 //
-// The deck is filtered by what the destination physically IS — a gate has no
+// The deck is filtered by what the destination physically IS — a star has no
 // night side to light, so it can only be dealt the things that live in ORBIT
 // around it.
-const DEST_DECK = ['lights', 'moon', 'traffic', 'station'];
+//
+// 'station' LEFT THIS DECK. It was a card like any other, dealt to about half of
+// all relays, drawn at 0.085 R on a tilted orbit and — half the time — parked
+// round the back where the world hid it. That is a lot of machinery to make an
+// object you cannot reliably see. The installation is not a card any more: it is
+// a near-universal COMPANION standing in front of the world (DEST_MIX.comp), and
+// what the deck deals is the world's own life.
+const DEST_DECK = ['lights', 'moon', 'traffic'];
 // A MOON IS A WORLD TOO, and for a long time it was the last hand-painted body in
 // the game: a dark disc with a highlight airbrushed onto it, hanging in a frame
 // where the destination beside it is shaded per pixel. At arrival size that is the
@@ -206,8 +218,17 @@ function destinationLife() {
   h ^= h >>> 16; h = Math.imul(h, 0x7feb352d); h ^= h >>> 15;
   const rnd = mulberry32(h >>> 0);
   const rr = (a, b) => a + rnd() * (b - a);
-  // only a lit rock has a night side to light; a star's face is all day
-  const surface = kind === 'planet';
+  // A SURFACE IS SOMETHING TO LIGHT AND SOMETHING TO ORBIT, and two kinds of
+  // destination have neither: a star's face is all day, and a swarm is a cloud
+  // of rubble with no single face at all.
+  //
+  // The swarm case used to be enforced in drawFarGlow, by not calling this layer
+  // — which also denied it traffic and the companion, neither of which needs a
+  // surface. It is answered in the DATA now, so every caller gets the same
+  // answer without having to know the rule.
+  const V0 = planetVariantFor(campId, levelIdx, isBoss);
+  const swarm = !!(V0 && V0.field);
+  const surface = kind === 'planet' && !swarm;
   const deck = DEST_DECK.filter(f => surface || f !== 'lights');
   for (let i = deck.length - 1; i > 0; i--) { // seeded shuffle, then cut the top n
     const j = (rnd() * (i + 1)) | 0;
@@ -216,6 +237,10 @@ function destinationLife() {
   const n = Math.min(deck.length, L.n0 + ((rnd() * (L.n1 - L.n0 + 1)) | 0));
   const has = {};
   for (let i = 0; i < n; i++) has[deck[i]] = true;
+  // Nothing is in orbit around a cloud of rubble. Forced AFTER the deal, the way
+  // the named worlds below force theirs, so the rnd stream is untouched and no
+  // other relay's hand moves because this one lost a moon.
+  if (swarm) has.moon = false;
   // A NAMED WORLD KEEPS ITS PROMISES. Irena always has her moon and always
   // wears her gas cloud — forced AFTER the deal, so the rnd stream up to here
   // is untouched and every other relay's hand comes out exactly as before.
@@ -270,16 +295,52 @@ function destinationLife() {
       // place you have been to still has its own moon in its own orbit.
       ph: rnd() * TAU, sz: L.moonR * rr(0.62, 1.18), V: MOON_TYPES[(rnd() * MOON_TYPES.length) | 0]
     } : null,
-    stn: has.station ? {
-      orb: rr(L.stnO[0], L.stnO[1]), sq: rr(0.12, 0.4), tilt: rr(-0.8, 0.8),
-      // `seed` was already the last draw this hand took, so reading a build off
-      // it costs the stream nothing and every relay keeps the moon it had.
-      ph: rnd() * TAU, seed: rnd() * 20,
-      build: (() => {
-        const st = S3D_BUILDS.filter(b => b.kind === 'station');
-        return st[(Math.abs(Math.round(h)) + levelIdx) % st.length].id;
-      })()
-    } : null,
+    // THE COMPANION — the station or gate standing in front of the world, near
+    // the camera. Not an orbit: a position on the frame and a size, because
+    // "between you and the place" has no orbital elements to solve.
+    //
+    // Its draws are UNCONDITIONAL, taken whether or not it ends up existing, so
+    // the stream past this point does not move when a relay is dealt out of one.
+    // The old `stn` card could take its draws inside the `if` because it was the
+    // last thing dealt; the gas cloud sits behind this one, and Irena's bank
+    // would shift every time a neighbouring world lost its station.
+    comp: (() => {
+      const side = rnd() < 0.5 ? -1 : 1;
+      // WHERE IT HANGS: lower half, and off to one side. Straight up is where the
+      // mission report lands, straight down is where the convoy river runs, and
+      // dead centre would hide the world it is meant to be standing in front of.
+      // A quarter-turn either side of the low diagonal is what is left — and it
+      // is also the best of them, because a hull crossing the limb off-axis
+      // reads as depth where one parked on the equator reads as a decal.
+      const a = Math.PI / 2 + side * rr(0.12, 0.42) * Math.PI;
+      const d = rr(L.compD[0], L.compD[1]);
+      const sz = L.compR * rr(1 - L.compV, 1 + L.compV);
+      const roll = (rnd() * 100) | 0;
+      const gate = ((rnd() * 100) | 0) < DEST_MIX.gate;
+      // A SUN TAKES NOTHING. Nobody berths at a star, and the one job a
+      // companion has — a hull crossing a lit limb to say how big that limb is —
+      // a star's own glare would swallow anyway.
+      if (kind !== 'planet') return null;
+      // A CONTRACT'S ENDPOINT ALWAYS HAS ITS OWN. s3BuildFor returns the fixed
+      // build there whatever kind it is asked for, so the fortress at the end of
+      // `shutdown` is the fortress every time — larger than an ordinary
+      // installation, because it is the one a player is meant to know by sight.
+      const fin = typeof s3FinalFor === 'function' && !!s3FinalFor(campId, levelIdx);
+      if (!fin && roll >= DEST_MIX.comp) return null;
+      // AN ENDPOINT TAKES NO VARIANCE. Its build is fixed per contract, so its
+      // size is fixed too — the thing you are meant to recognise should not be
+      // 45% bigger at one relay than another. It is also what keeps the whole
+      // set inside its bake: a sprite is drawn at R/cam pixels regardless of
+      // what resolution it was baked at, so the DEALT MAXIMUM is what decides
+      // whether the source is being downscaled or blown up. Stacking compFin on
+      // top of the top of the compV range put the long spine at 363px drawn from
+      // a 300px bake — the one build a campaign is known by, soft on the one
+      // frame anybody studies it. Fixed here, nothing needs re-baking.
+      return {
+        a, d, fin, sz: fin ? L.compR * L.compFin : sz,
+        build: s3BuildFor(campId, levelIdx, gate ? 'gate' : 'station')
+      };
+    })(),
     // THE GAS CLOUD — Irena's alone. A bank of soft violet puffs clustered on
     // one flank of the world, most hanging behind it, a few crossing in front.
     // Drawn LAST in the rnd stream, so a world gaining or losing the cloud can
@@ -408,15 +469,31 @@ function drawShips(far, R, F, vis, back) {
     drawWarpWake(far.x + s.x * R, far.y + s.y * R, s.dir, s.len * R, k, DEST_LIFE.shipO * vis);
   }
 }
-// A STATION in low orbit — drawn by the SAME art the chart and the station
-// destinations use, just small and on an orbit. It says the place is worked.
-function drawOrbitStation(far, R, F, vis) {
-  const p = orbitAt(F.stn, far, R);
-  const rr = Math.max(3, R * DEST_LIFE.stnR);
-  // The SAME builds that stand at the end of a lane, small and in orbit — so the
-  // thing hanging over a world is a place you could fly to, not a different
-  // species of object drawn by a different renderer.
-  s3draw(p.x, p.y, rr, F.stn.build || 'FORT', vis * 0.94, rr < 9);
+// THE COMPANION: the station or gate standing between you and the world.
+//
+// It is the last thing drawn at a destination and it is never occluded, because
+// it is not in orbit — it is in the foreground. That is also why it does not
+// simply ride R. A nearer object subtends a larger angle AND grows faster as you
+// close on it, so its size rides (R/R1)^compPar: on departure it is a mote
+// against a speck, and by arrival it is a structure with a planet behind it.
+// Riding R flat would have parked it at a fixed fraction of the disc for the
+// whole flight, which is precisely how you say "painted on".
+//
+// It is drawn by the SAME art the chart uses, so the thing hanging in front of a
+// world is a place you could dock at, not a different species of object.
+function drawCompanion(far, R, g, F, vis) {
+  const C = F.comp;
+  const R1 = g.nodeR * DEST_LIFE.arrK;
+  // clamped at 1: the arrival ceremony pushes R past R1, and letting the
+  // exponent run there would have the companion still swelling after the world
+  // has settled — the one moment the frame is meant to be holding still.
+  const k = Math.pow(clamp(R / R1, 0, 1), DEST_LIFE.compPar);
+  const rr = Math.max(2, R1 * C.sz * k);
+  const x = far.x + Math.cos(C.a) * C.d * R;
+  const y = far.y + Math.sin(C.a) * C.d * R;
+  // Below ~9px the lamps and the gate throat stop being detail and start being a
+  // halo that IS the object — the same threshold the chart chips use.
+  s3draw(x, y, rr, C.build || 'FORT', vis, rr < 9);
 }
 // The two passes. Everything on a far-half orbit goes down BEFORE the body so the
 // body occludes it; everything else goes over the top. `vis` ramps the whole
@@ -450,20 +527,32 @@ function drawGasCloud(far, R, F, vis, front) {
 function drawDestLife(far, R, g, front, la) {
   const L = DEST_LIFE;
   const vis = clamp((R / g.nodeR - L.vis0) / L.vis1, 0, 1);
-  if (vis <= 0.01) return;
+  // A NEARER OBJECT RESOLVES SOONER. The world's own life fades in at vis0,
+  // which is where detail ON A SURFACE starts to mean anything. The companion is
+  // nowhere near that surface — it is in the foreground — so it earns its way in
+  // earlier, at half the threshold. It still arrives as a speck: compPar keeps it
+  // small until late whatever this ramp says. The two together are the read —
+  // something appearing sooner AND growing faster than the thing behind it is
+  // what "closer" looks like when you have no z-buffer to say it with.
+  const cvis = clamp((R / g.nodeR - L.vis0 * 0.5) / L.vis1, 0, 1);
+  if (vis <= 0.01 && cvis <= 0.01) return;
   const F = destinationLife();
   if (!front) {
+    if (vis <= 0.01) return;
     if (F.gas) drawGasCloud(far, R, F, vis, false); // the bank sits behind everything
     if (F.moon && !orbitAt(F.moon, far, R).front) drawMoon(far, R, la, F, vis);
-    if (F.stn && !orbitAt(F.stn, far, R).front) drawOrbitStation(far, R, F, vis);
     if (F.ships.length) drawShips(far, R, F, vis, true);
     return;
   }
-  if (F.has.lights && F.lights.length) drawCityLights(far, R, la, F, vis);
-  if (F.ships.length) drawShips(far, R, F, vis, false);
-  if (F.moon && orbitAt(F.moon, far, R).front) drawMoon(far, R, la, F, vis);
-  if (F.stn && orbitAt(F.stn, far, R).front) drawOrbitStation(far, R, F, vis);
-  if (F.gas) drawGasCloud(far, R, F, vis, true);   // stray wisps cross the face last
+  if (vis > 0.01) {
+    if (F.has.lights && F.lights.length) drawCityLights(far, R, la, F, vis);
+    if (F.ships.length) drawShips(far, R, F, vis, false);
+    if (F.moon && orbitAt(F.moon, far, R).front) drawMoon(far, R, la, F, vis);
+    if (F.gas) drawGasCloud(far, R, F, vis, true); // stray wisps cross the face last
+  }
+  // LAST, AND OVER EVERYTHING. Nothing at this destination can occlude the
+  // companion, because nothing at this destination is in front of it.
+  if (F.comp) drawCompanion(far, R, g, F, cvis);
 }
 // <<< DEST-LIFE
 
