@@ -5,10 +5,17 @@
 // settles at under the mission report. `full` is how far along that span the
 // FLIGHT gets you, so the arrival only ever covers what is left.
 //
-//   start · the speck at the vanishing point on departure, in units of the far
-//           glow's radius. Small enough to be a point of light you have to look
-//           for — a destination you can already resolve at the start of a run is
-//           not somewhere you are travelling to
+//   start · the world's size at the vanishing point on departure, in units of the
+//           far glow's radius. This used to be 0.028 — about two pixels, a point of
+//           light you had to look for, on the argument that a destination you can
+//           already resolve is not somewhere you are travelling to.
+//
+//           The launch rework overrules that, because there is now a HELD moment
+//           before the boot where the ship sits parked in open space waiting for the
+//           runner's hands, and the only thing to look at in it is where you are
+//           going. Two pixels is nothing to look at. It is still plainly distant —
+//           a small lit disc against the drift, a fraction of the size it settles at
+//           on arrival — so the flight still has the whole approach left to make
 //   full  · 0.5 means the flight closes half the distance and the DROP OUT OF
 //           WARP closes the rest. That split is the point: a lane that delivers
 //           the whole approach leaves the arrival with nothing to do, and one
@@ -18,11 +25,11 @@
 //           approach reads, since apparent size goes as 1/distance)
 //
 // All three are overridable per-load for side-by-side testing without a rebuild:
-//   ?deststart=0.075  the old departure speck, near 3x this one
+//   ?deststart=0.028  the old departure speck, a sixth of this one
 //   ?destgrow=1       the lane carries the whole approach, arrival does nothing
 //   ?destcurve=2.5    same endpoint, held back until late
 const DEST_APPROACH = {
-  start: 0.028,
+  start: 0.17,
   full: 0.5,
   curve: 1
 };

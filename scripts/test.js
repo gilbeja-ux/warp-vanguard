@@ -145,6 +145,7 @@ code = code.replace("'use strict';", '') + `
   // the warp trilogy: the engine bed's live nodes, the sample registry, and the dials
   warpAudio: () => ({ bed: warpBed, synth: ambNodes, bufs: Object.keys(sampleBufs), EXIT_STING }),
   ambient, playSample, sfx2: sfx, WARP_SPOOL: () => WARP_SPOOL, laneFlow: () => laneFlow,
+  WARP_LAUNCH: () => WARP_LAUNCH, BOOT_LOCK: () => BOOT_LOCK, INTRO_DUR: () => INTRO_DUR,
   music: () => ({ src: musicSrc, gain: musicGain, key: currentTrackKey, ac: AC, warm: warmKey }),
   bolts: () => bolts, hitStop: () => hitStop, fx, pickups: () => pickups, spawnPickup,
   boss: () => boss, endlessCfg, tut: () => tut, isEndless: () => endless, getLV: () => LV,
@@ -198,6 +199,10 @@ code = code.replace("'use strict';", '') + `
   simStep, startTrace, stopTrace, startReplay, stopReplay, dismissInfo, // run-trace record/replay
   rawFrame: now => frame(now), // the real frame() incl. the accumulator (G.frame is the same)
   getIntro: () => introT, setIntro: v => { introT = v; introCd = 0; }, getLevelT: () => levelT, setEndT: v => { endT = v; },
+  // the launch gate: hands on the pads is what starts the boot clock (see 72-tick)
+  setPadHold: (a, b) => { padHold[0] = a; padHold[1] = b; }, isLaunched: () => introLatch,
+  getPreT: () => preT, isPreLaunch: () => preLaunch(),
+  getBuzzN: () => buzzMonN, getBuzzLast: () => buzzMonLast, // counted before the haptics gate
   startQualification, getInfoCard: () => infoCard, isQual: () => qual,
   keys, setBeamAim: (x, y) => { beamAim.x = x; beamAim.y = y; }, getHeat: () => heat, isOverheat: () => overheat, startBossTest,
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
@@ -1493,19 +1498,26 @@ G.setState(G.S.MENU);
 G.progress.tutorialDone = true;
 
 // ================= level intro =================
+// The wait for hands comes FIRST now: a parked drift with the destination dead ahead,
+// then the boot those hands set off. Both frames are drawn here because they are two
+// different pictures, not one picture at two times.
 rawStartLevel(1);
 check('intro clock arms on level start', G.getIntro() === 0);
-for (let i = 0; i < 24; i++) G.update(0.05); // 1.2s — the ring is still riding the tunnel in
-check('spawns held during the intro', G.enemies().length === 0);
-check('level clock frozen during the intro', G.getLevelT() === 0);
-drawOk('mid-intro frame (ring fly-in + range readout)', () => {});
-for (let i = 0; i < 30; i++) G.update(0.05); // past the dock + power-up, into the thumb gate (2.4s)
-check('boot holds at the gate until thumbs are placed', G.getIntro() < 2.85);
-drawOk('gate frame (awaiting operator + thumb prompts)', () => {});
+for (let i = 0; i < 24; i++) G.update(0.05); // 1.2s of parked drift
+check('the boot has not started — it is waiting for hands', G.getIntro() === 0 && G.isPreLaunch());
+check('spawns held while parked', G.enemies().length === 0);
+check('level clock frozen while parked', G.getLevelT() === 0);
+drawOk('parked pre-launch frame (destination + AWAITING RUNNER + thumb prompts)', () => {});
 canvasHandlers.pointerdown({ pointerId: 41, clientX: 120, clientY: 220, pointerType: 'touch' });
 canvasHandlers.pointerdown({ pointerId: 42, clientX: 680, clientY: 220, pointerType: 'touch' });
-for (let i = 0; i < 20; i++) G.update(0.05);
-check('godspeed: boot completes once both pads are held', G.getIntro() > 2.9);
+G.update(0.05);
+check('both thumbs are what start the boot', G.isLaunched() && G.getIntro() > 0);
+for (let i = 0; i < 23; i++) G.update(0.05); // 1.2s in — the ring is still riding the tunnel in
+check('spawns still held through the boot', G.enemies().length === 0);
+check('level clock still frozen through the boot', G.getLevelT() === 0);
+drawOk('mid-intro frame (ring fly-in + range readout)', () => {});
+for (let i = 0; i < 40; i++) G.update(0.05); // past the dock + power-up, to handover
+check('godspeed: the boot runs clean through to handover', G.getIntro() > 2.9);
 drawOk('godspeed frame', () => {});
 let spawned = false;
 // generous window: the first spawn can be story-held clear of the t=6 comm
@@ -2246,7 +2258,10 @@ G.keys['ArrowUp'] = false;
   check('A deploys the selected relay', G.getState() === G.S.PLAY || G.getState() === G.S.INFO);
   if (G.getState() === G.S.INFO) dismiss();
   // controller boot gate: same-direction sticks do NOT arm; opposite sticks do
-  G.setIntro(2.5); // inside the AWAITING OPERATOR window
+  // mid-boot, where the grip is still read (introT < INTRO_DUR). Deliberately NOT 0: at 0
+  // a satisfied grip would LAUNCH the run and start the ceremony clock, and this test is
+  // about the stick geometry, not the gate
+  G.setIntro(2.5);
   pad.axes = [1, 0, 1, 0]; // both sticks east — one thumb, effectively
   G.update(0.05);
   check('same-direction sticks do not satisfy the gate', !G.getPadHold()[0] && !G.getPadHold()[1]);
@@ -2566,9 +2581,105 @@ async function runMusicUp() {
     check('and the warp dive has not been spent behind it', G.getWarpT() > 0);
     G.dismissInfo();
     for (let i = 0; i < 30; i++) G.update(1 / 60);    // half a second past release
-    check('releasing the disc is what starts the warp', G.getState() === G.S.PLAY && G.laneFlow() > 0);
-    check('…and the ring lock-on begins on the same beat', G.getIntro() > 0.1);
-    check('the lane is still winding up half a second in, not already there', G.laneFlow() < 0.5);
+    check('releasing the disc does NOT start the warp — the runner does', G.getState() === G.S.PLAY && G.laneFlow() === 0);
+    check('…so the boot clock is still parked at zero', G.getIntro() === 0 && !G.isLaunched());
+    check('and the parked clock is the one that ran', G.getPreT() > 0.2);
+    check('the warp dive is STILL unspent, waiting for hands', G.getWarpT() > 0);
+  }
+
+  // THE RUNNER STARTS THE CEREMONY. The thumb gate used to sit at INTRO_GATE, near the
+  // END of the boot — so the lane spooling up and the ring riding in played to a player
+  // who had not done anything yet, and all that was left for them was the gate at the far
+  // side. Inverted: nothing moves until both thumbs are down.
+  {
+    rawStartLevel(0, true);
+    G.dismissInfo();
+    for (let i = 0; i < 60; i++) G.update(1 / 60);
+    check('parked: one thumb is not a launch', (() => {
+      G.setPadHold(true, false);
+      for (let i = 0; i < 30; i++) G.update(1 / 60);
+      return !G.isLaunched() && G.getIntro() === 0 && G.laneFlow() === 0;
+    })());
+    check('the level clock does not run while parked either', G.getLevelT() === 0);
+    // THE ACK IS AN EDGE, NOT A STATE. Each pad rumbles on the frame it lands and then
+    // stays quiet — driven off padArm, because a held thumb evaluated every frame would
+    // rumble 60 times a second for as long as the player waits for their other hand.
+    check('a pad rumbles once when it lands, not every frame', (() => {
+      const n0 = G.getBuzzN();
+      for (let i = 0; i < 40; i++) G.update(1 / 60); // still holding the one pad
+      return G.getBuzzN() === n0;
+    })());
+    check('…and lifting it is silent — no scolding', (() => {
+      const n0 = G.getBuzzN();
+      G.setPadHold(false, false);
+      for (let i = 0; i < 10; i++) G.update(1 / 60);
+      return G.getBuzzN() === n0;
+    })());
+    check('the second pad acks on ITS side', (() => {
+      G.setPadHold(true, false);
+      for (let i = 0; i < 3; i++) G.update(1 / 60);
+      const n0 = G.getBuzzN();
+      G.setPadHold(true, true);
+      G.update(1 / 60);
+      return G.getBuzzN() === n0 + 1 && /side1/.test(G.getBuzzLast());
+    })());
+    check('both thumbs launch it', (() => {
+      G.setPadHold(true, true);
+      G.update(1 / 60);
+      return G.isLaunched() && G.getIntro() > 0;
+    })());
+    check('…and preLaunch() is over the instant it latches', !G.isPreLaunch());
+    // LETTING GO CANNOT STALL THE BOOT. The old gate could hold mid-ceremony; there is
+    // no such state any more, which is the point of moving the wait to the front.
+    G.setPadHold(false, false);
+    for (let i = 0; i < 200; i++) G.update(1 / 60);
+    check('lifting off the pads cannot stall the boot', G.getIntro() >= G.INTRO_DUR());
+    check('the lane is at full warp by handover', G.laneFlow() === 1);
+    check('and the run clock is running', G.getLevelT() > 0);
+  }
+
+  // THE LAUNCH CURVE. Not a linear ramp: the drive winds up under a barely-moving lane
+  // while the ring rides in, and BOOT_LOCK — the dock — is what lets go. The threshold is
+  // the whole point, so it is asserted rather than left to drift.
+  {
+    // park properly first — one frame is not enough for a lane inherited at speed from the
+    // previous block to wind down, and the curve is only the whole story from a standstill
+    const park = () => {
+      rawStartLevel(0, true); G.dismissInfo();
+      for (let i = 0; i < 90; i++) G.update(1 / 60);
+      G.setPadHold(true, true); G.update(1 / 60);
+    };
+    park();
+    check('the launch starts from a genuine standstill', G.laneFlow() < 0.01);
+    const at = t => { // laneFlow once the ceremony clock has reached t
+      while (G.getIntro() < t) G.update(1 / 60);
+      return G.laneFlow();
+    };
+    const held = G.WARP_LAUNCH().held;
+    check(`the lane barely moves while the ring closes (${at(0.4).toFixed(3)} at 0.4s)`, at(0.4) < held * 0.2);
+    check('it is moving, though — not frozen', at(0.4) > 0);
+    const atDock = at(G.BOOT_LOCK());
+    check(`the dock is the threshold (${atDock.toFixed(2)} of full when the ring lands)`,
+      Math.abs(atDock - held) < 0.02);
+    check('the jump happens AFTER the dock, not before', at(G.BOOT_LOCK() + 0.3) > held + 0.3);
+    check('full warp lands inside the take, before handover',
+      at(G.BOOT_LOCK() + G.WARP_LAUNCH().jump + 0.02) === 1 && G.getIntro() < G.INTRO_DUR());
+    // monotonic from a standstill: nothing in the ceremony may make the lane fall back and
+    // re-accelerate — that reads as the drive faltering
+    let prev = 0, fell = false;
+    park();
+    while (G.getIntro() < G.INTRO_DUR()) { G.update(1 / 60); if (G.laneFlow() < prev) fell = true; prev = G.laneFlow(); }
+    check('the launch curve never goes backwards', !fell);
+    // …but a lane inherited AT SPEED winds down into the curve instead of being pinned
+    // there by the floor, or snapped to a crawl in one frame
+    rawStartLevel(0, true); G.dismissInfo(); G.update(1 / 60);
+    const inherited = G.laneFlow();
+    G.setPadHold(true, true); G.update(1 / 60);
+    check(`a lane entered at speed (${inherited.toFixed(2)}) is not pinned by the floor`,
+      inherited > 0.5 && G.laneFlow() < inherited);
+    check('…and does not snap down in one frame either', G.laneFlow() > inherited - 0.1);
+    while (G.getIntro() < G.INTRO_DUR()) G.update(1 / 60);
+    check('either way the lane is at full warp by handover', G.laneFlow() === 1);
   }
 
   // THE SPOOL-UP. The lane leaves a standstill and takes WARP_SPOOL to reach full
@@ -2582,6 +2693,9 @@ async function runMusicUp() {
     check('the spool-up is long enough to be seen (>= 2s)', G.WARP_SPOOL() >= 2);
     G.setState(G.S.MENU); G.update(1); // park the lane
     check('a parked lane is at a standstill', G.laneFlow() === 0);
+    // past the boot, so this measures the GENERIC spool and not the launch curve — which
+    // owns laneFlow for the whole ceremony and would otherwise pin it to zero here
+    G.setIntro(999);
     G.setState(G.S.PLAY);
     G.update(0.5);
     const half = G.laneFlow();

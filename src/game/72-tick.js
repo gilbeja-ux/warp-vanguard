@@ -31,8 +31,21 @@ function update(dt) {
   // standstill and re-spooling 2.4s each time one appeared would be far worse than
   // letting it fly.
   const discHold = state === S.INFO && introT < INTRO_DUR;
+  // …AND THE RUNNER HOLDS THE LAUNCH.
+  //
+  // Once the disc is released the lane STAYS parked until both thumbs are on the pads.
+  // See the intro block below for why the gate moved to the front; what matters here is
+  // that the two holds are the same hold, so everything the disc parks — the lane, the
+  // dive, the take — is also parked by the wait for hands, and releasing the disc into
+  // an empty cockpit changes nothing on screen.
+  const laneHold = discHold || preLaunch();
 
-  if (!discHold) warpT = Math.max(0, warpT - dt);
+  // THE DIVE WAITS FOR THE DOCK. warpT is the level's entry shove — 0.9s of 5x bore
+  // scroll, stretched smears and a lifted field. Released at launch it burned off during
+  // the quietest part of the spool, where the lane is barely moving and there is nothing
+  // for it to shove; by the time the ring actually docked it was spent. Held through the
+  // pre-dock window instead, so the violence and the threshold are the same moment.
+  if (!laneHold && !(introLatch && introT < BOOT_LOCK)) warpT = Math.max(0, warpT - dt);
   const warp2 = warpT / 0.9;
   // laneFlow: SPOOL UP from a dead stop on launch; brake down slow — EXCEPT on an
   // arrival, which is the opposite of a glide.
@@ -53,10 +66,10 @@ function update(dt) {
   // that were making them. Over 2.6s that read as the lane politely winding
   // down; over WARP_COLLAPSE.brake it reads as the stars stopping, which is the
   // thing itself. A loss still winds down slowly — nothing has arrived.
-  // discHold parks the lane behind a pre-run briefing: until the card is released the
-  // ship is drifting in open space exactly as it does on the menu, and the warp is
-  // still ahead of you rather than behind.
-  const flowTgt = discHold ? 0
+  // laneHold parks the lane before a run has been launched: until the card is released
+  // AND the runner's hands are on the pads, the ship is drifting in open space exactly
+  // as it does on the menu, and the warp is still ahead of you rather than behind.
+  const flowTgt = laneHold ? 0
     : (state === S.PLAY || state === S.PAUSE || state === S.INFO) ? 1 : 0;
   // ~0.45s to clear once the menu takes over; instant back to 1 on the way in,
   // because a run must never fade UP over the player
@@ -66,7 +79,40 @@ function update(dt) {
     enemies.length = ghosts.length = pickups.length = particles.length = 0;
     popups.length = 0; rimFX.length = 0; latches.length = 0; killStreaks.length = 0;
   }
-  if (laneFlow < flowTgt) laneFlow = Math.min(flowTgt, laneFlow + dt / WARP_SPOOL);
+  // THE LAUNCH CURVE.
+  //
+  // A linear spool is constant acceleration — honest, and completely undramatic: the
+  // lane just gets faster at a fixed rate for 2.4s and arrives nowhere in particular.
+  // What a jump needs is a THRESHOLD, and there is already an event on this clock worth
+  // crossing: BOOT_LOCK, the moment the ring finishes riding in and DOCKS onto the lane.
+  //
+  // So the drive winds up under a lane that has barely started moving (`held`, eased in
+  // — the picture deliberately lagging the take, which sits at 1% for its first tenth
+  // and climbs from there; engines spool before a ship moves), and the dock is what lets
+  // go. From there the lane takes the ship and full warp lands inside the take's
+  // plateau. The ring locking on and the jump are ONE beat instead of two events that
+  // happen to be scheduled near each other — and the shove is the level's own warp dive
+  // (`warpT`, held until launch above), so it is the existing kick landing on the
+  // existing dock rather than a new effect bolted on.
+  //
+  // The curve is a FLOOR, not an assignment, and a lane already faster than it brakes
+  // down into it at the normal rate. Both halves matter. Launching from the parked
+  // standstill — the only path the ceremony is designed around — the floor is the whole
+  // story and the lane is monotonic, so a mid-ceremony pause or briefing cannot make it
+  // fall back and re-accelerate. But a level can also be entered with the lane still at
+  // speed (straight into the next one, or a retry caught before the collapse finished),
+  // and there a floor alone would PIN it at whatever it inherited: assigning the curve
+  // outright would snap full warp down to a crawl in one frame, so it winds down instead
+  // and the curve picks it up when they meet.
+  const WL = WARP_LAUNCH;
+  if (introLatch && introT < INTRO_DUR) {
+    const u = introT / BOOT_LOCK;
+    const c = introT < BOOT_LOCK
+      ? WL.held * Math.pow(u, WL.ease)
+      : WL.held + (1 - WL.held) * (1 - Math.pow(1 - Math.min(1, (introT - BOOT_LOCK) / WL.jump), 3));
+    laneFlow = laneFlow < c ? c : Math.max(c, laneFlow - dt / 0.45);
+  }
+  else if (laneFlow < flowTgt) laneFlow = Math.min(flowTgt, laneFlow + dt / WARP_SPOOL);
   else if (laneFlow > flowTgt)
     laneFlow = Math.max(flowTgt, laneFlow - dt / (state === S.END ? (endWin ? WARP_COLLAPSE.brake : 1.0) : 0.45));
   // the wall streams at EXACTLY the traffic speed — leaks stay glued to it
@@ -113,17 +159,66 @@ function update(dt) {
     if (d2 !== resumeDigit) { resumeDigit = d2; sfx.count(); }
     if (resumeHold > 0) return;
   }
-  // intro: the boot sequence — the ring locks on, nodes power up, systems
-  // check, then the level waits for BOTH thumbs before godspeed
-  if (introT >= INTRO_GATE && introT < INTRO_DUR && padHold[0] && padHold[1]) introLatch = true;
-  const introPrev = introT;
+  // THE RUNNER STARTS THE CEREMONY.
+  //
+  // The thumb gate used to sit at INTRO_GATE, near the END of the boot: the ceremony
+  // started itself the instant the disc cleared, and the player was asked for their hands
+  // only after the one part worth watching — the lane spooling up out of a standstill,
+  // the ring riding in and docking — had already played to someone who had not done
+  // anything yet. All that was left for them was the paperwork at the far side of it.
+  //
+  // Inverted. The clock does not start until both thumbs are down, so the warp-in is the
+  // consequence of the player's own hands, and the wait before it is a real held moment
+  // instead of dead air behind a card. It also deletes a whole state: there is no longer
+  // a ceremony that can stall halfway.
+  //
+  // `introT` is HELD at 0 rather than run negative, so every consumer keeps its existing
+  // timing — the boot is DEFERRED, not re-timed. preLaunch() is what distinguishes a held
+  // 0 from frame 0 of a running boot; preT is the parked clock the pre-launch card fades
+  // and pulses on.
+  //
   // (no disc guard needed here: the `state !== S.PLAY` return above already makes this
   // block unreachable while a card is up — verified, not assumed)
-  if (introT < INTRO_GATE) introT += dt;
-  else if (introT >= INTRO_DUR || introLatch) introT += dt;
-  // (else: holding at the gate, waiting for hands)
+  // PARKED AWAITING THE RUNNER: per-pad ack, and the standby metronome.
+  //
+  // Each pad acks on the frame it lands — a fifth apart, low then high, so two pads are an
+  // ascending pair that resolves into the warp take rather than the same blip twice. The
+  // rumble goes to that hand's side only, which is the cheapest way to say WHICH pad
+  // registered on a device with no cursor. Driven off an edge (`padArm`) and not off
+  // padHold, or a held thumb would rumble sixty times a second while the other hand moves.
+  //
+  // This sits AHEAD of the latch deliberately. Downstream of it — keyed off the parked
+  // stage — the SECOND pad never acked at all: the frame it lands is the frame that
+  // launches, so the parked stage was already gone, and the one press that matters most
+  // was the only silent one.
+  //
+  // The standby pip stands down as soon as any hand arrives. Once one pad is down the game
+  // is not idling, it is waiting for one specific thing, and a metronome over that reads as
+  // "still nothing happening".
+  if (!introLatch) {
+    for (let i = 0; i < 2; i++) {
+      if (padHold[i] === padArm[i]) continue;
+      padArm[i] = padHold[i];
+      if (!padHold[i]) continue;            // lifting is silent — no scolding
+      const other = padHold[i ? 0 : 1];
+      tone(other ? 1046 : 698, 0.05, 'square', 0.05);
+      tone(other ? 1568 : 1046, 0.04, 'sine', 0.03, null, null, 0.05);
+      buzz(other ? [30, 25, 55] : 30, { side: i, strong: other ? 0.8 : 0.5, weak: 0.6 });
+    }
+    if (padHold[0] || padHold[1]) gatePip = 1.1;
+    else {
+      gatePip -= dt;
+      if (gatePip <= 0) { gatePip = 1.1; tone(960, 0.03, 'sine', 0.03); }
+    }
+  }
+  if (!introLatch && introT <= 0 && padHold[0] && padHold[1]) introLatch = true;
+  const introPrev = introT;
+  if (introLatch) introT += dt;  // launched: the boot now runs clean through to handover
+  else preT += dt;               // parked: drifting, waiting on both thumbs
   const inIntro = introT < INTRO_DUR;
-  const stageNow = introT >= INTRO_DUR ? 4 : introT >= INTRO_GATE ? 3 : introT >= BOOT_LOCK ? 1 : 0;
+  // stage -1 is PARKED, and matches introStage's reset value so it fires nothing
+  const stageNow = !introLatch ? -1
+    : introT >= INTRO_DUR ? 4 : introT >= INTRO_GATE ? 3 : introT >= BOOT_LOCK ? 1 : 0;
   introStageChange(dt, introPrev, inIntro, stageNow);
   // effect timers run on real time; hit-stop scales the game clock
   fx.wide = Math.max(0, fx.wide - dt);
@@ -317,11 +412,11 @@ function introStageChange(dt, introPrev, inIntro, stageNow) {
   if (stageNow !== introStage && introT < INTRO_DUR + 1) {
     introStage = stageNow;
     if (stageNow === 0) { // LOCKING ON LANE: approach rumble + rangefinder pips closing in
-      // THE WARP ENGAGES HERE, on the same beat the ring locks onto the lane — not at
-      // GODSPEED. This stage now fires the instant a briefing disc is released (see
-      // discHold), so the take, the ring lock-on and the acceleration out of the
-      // menu's slow drift all begin together. warp-in is 2.44s and WARP_SPOOL is 2.4s,
-      // so the lane reaches full warp just as the boot hands over control.
+      // THE WARP ENGAGES HERE, and this stage now fires on the frame the runner's second
+      // thumb lands (see the gate in update()) — so the take, the ring's lock-on and the
+      // acceleration out of the menu's slow drift all begin at the player's own touch.
+      // warp-in is 2.44s; the launch curve reaches full warp at 2.25s, inside the take's
+      // plateau, and the boot hands over control at 2.9s.
       playSample('warpIn');
       // the startup take runs from the top of the boot, pre-cut to length
       bootSample = playSample('startup');
@@ -369,11 +464,6 @@ function introStageChange(dt, introPrev, inIntro, stageNow) {
       tone(1250, 0.02, 'square', 0.06, null, null, 0.18);
     }
     buzz(15);
-  }
-  // holding at the gate: a quiet standby pip keeps the console alive
-  if (stageNow === 3 && !introLatch && inIntro) {
-    gatePip -= dt;
-    if (gatePip <= 0) { gatePip = 1.1; tone(960, 0.03, 'sine', 0.03); }
   }
 
 }

@@ -17,7 +17,12 @@ const SFX_FILES = {
   fail:   ['audio/sfx/failed.mp3', 1.0],
   win:    ['audio/sfx/win.mp3', 1.0],
   // ---- the warp trilogy: entering the lane, riding it, leaving it ----
-  warpIn:   ['audio/sfx/warp-in.mp3', 0.9],   // 2.44s — the spool-up, on the GODSPEED beat
+  // 0.38, down from 0.9 (-7.5dB), in two passes — 0.65 was still too hot on the device.
+  // Two reasons it runs loud: it fires on the SAME beat as `startup` (0.9) so the two
+  // takes stack, and its own envelope climbs for 1.8s and then sits on a plateau, so it
+  // is loudest exactly where the boot's other cues land. It also plays on the player's
+  // own touch now, which puts it where the ear is already paying attention.
+  warpIn:   ['audio/sfx/warp-in.mp3', 0.38],  // 2.44s — the spool-up, on the launch beat
   inWarp:   ['audio/sfx/in-warp.mp3', 0.34],  // 8.93s — LOOPED under the whole run (see ambient())
   exitWarp: ['audio/sfx/exit-warp.mp3', 0.95] // 4.96s — dropping out of warp on a win
   // splash2.mp3 (8.1s) scores the boot splash — it has its own player there

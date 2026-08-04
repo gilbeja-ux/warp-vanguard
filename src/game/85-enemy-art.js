@@ -1437,9 +1437,14 @@ function drawHolderRing(g) {
   // boot: the ring launches from the operator's own viewpoint and flies INTO
   // the tunnel, braking into the dock — perspective-true (the same 1/(1+6z)
   // law as the traffic), so it reads as deploying hardware, not a UI transition
+  // …and while the run is PARKED there is no ring at all: it has not been sent for yet.
+  // bootRingS() holds it at its launch scale (~3.3x, blown past the frame edges) which
+  // still leaves two fat arcs crossing the picture, and dock markers waiting at a rim
+  // nothing is flying towards. Both are ceremony, and the ceremony has not started.
+  const parked = preLaunch();
   const bootRing = (state === S.PLAY || state === S.PAUSE) && introT < INTRO_DUR + 1;
   const ringS = bootRingS(g);
-  if (bootRing && introT < BOOT_LOCK) {
+  if (bootRing && !parked && introT < BOOT_LOCK) {
     const p = clamp(introT / BOOT_LOCK, 0, 1);
     // dock markers wait at the rim: hairline target circle + four braces
     const ba = 0.5 + 0.4 * p;
@@ -1460,9 +1465,9 @@ function drawHolderRing(g) {
   // accelerating law as the corridor, and nothing is left framing the world.
   const rExit = laneExit();
   const ringOutS = 1 + rExit * rExit * 3.6, ringOutA = 1 - rExit;
-  if (state !== S.MENU && state !== S.GUIDE && ringOutA > 0.004) {
-    // the PHYSICAL ring exists only in the game — menus and the Archive stay
-    // open so the boot's ring arrival lands with real contrast
+  if (state !== S.MENU && state !== S.GUIDE && !parked && ringOutA > 0.004) {
+    // the PHYSICAL ring exists only in the game — menus, the Archive and the parked
+    // pre-launch drift stay open so the boot's ring arrival lands with real contrast
     const sc = ringS * ringOutS;
     const al = (ringS !== 1 ? 0.35 + 0.65 * clamp(introT / BOOT_LOCK, 0, 1) : 1) * ringOutA;
     const xf = sc !== 1 || al < 1;
@@ -1514,6 +1519,11 @@ function drawHolderRing(g) {
   return bz;
 }
 function drawNodes(g) {
+  // …and while the run is PARKED, neither does the hardware they are mounted on. The
+  // arcs ride the ring's fly-in as one assembly, so at a held introT of 0 they sit at
+  // the same ~3.3x launch scale — which does not read as "not here yet", it reads as
+  // two fat arcs parked across the corners of the frame. Nothing has been sent for.
+  if (preLaunch()) { drawPulseOrbs(g); return; }
   const bzn = Math.min(W, H) * 0.055;
   const bh = bzn * ARCFX.bandW;                   // the monolith band's half-width
   const fused = boss && boss.mergeT >= 1;
@@ -2038,23 +2048,103 @@ function drawPulseOrbs(g) {
   }
 }
 
+// awaiting operator: the per-pad prompt. Amber and breathing until that thumb lands,
+// green and steady once it has. Drawn on the DORMANT console while the run is parked —
+// the pads are the only thing on screen the player can act on, so the ask belongs on
+// them — and again at the far end of the boot for the gamepad's two-stick grip.
+function drawPadPrompt(i, d, tut) {
+  const okI = padHold[i];
+  // THE TARGET: a breathing dot on the RIM, on the side facing the BORE.
+  //
+  // On the rim rather than in the middle because the rim is what a dial is steered by, and
+  // a touch on the pad is ABSOLUTE — the node jumps to whatever angle the finger lands on,
+  // so any point works mechanically and the dot's only job is to be obvious.
+  //
+  // Which is why it is not at nodes[i].angle, which was the first thing I tried: resetLevel
+  // parks both angles pointing down-frame and the pads live in the bottom corners, so that
+  // rim point sits half off the screen. Aimed at the bore it is always fully in frame, and
+  // it draws the line between the pad and the ring it drives.
+  //
+  // Breath + sonar ping together: the breath says "alive", the outward rings say "touch".
+  // A pulse on its own reads as a status light.
+  if (!okI) {
+    const gp = geo();
+    const pa = Math.atan2(gp.cy - d.y, gp.cx - d.x);
+    const px2 = d.x + Math.cos(pa) * d.r, py2 = d.y + Math.sin(pa) * d.r;
+    const br = 0.5 + 0.5 * Math.sin(time * 3.2);
+    const ping = (time * 1.15) % 1;
+    const halo = 34 + br * 12;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const hg = ctx.createRadialGradient(px2, py2, 0, px2, py2, halo);
+    hg.addColorStop(0, `rgba(255,228,158,${(0.52 + br * 0.34).toFixed(2)})`);
+    hg.addColorStop(0.38, `rgba(255,200,74,${(0.18 + br * 0.16).toFixed(2)})`);
+    hg.addColorStop(1, 'rgba(255,190,60,0)');
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.arc(px2, py2, halo, 0, TAU); ctx.fill();
+    ctx.restore();
+    // two rings half a cycle apart, so there is always one mid-flight — a single ping
+    // spends a third of its cycle nearly invisible, which reads as a flicker
+    for (const ph of [ping, (ping + 0.5) % 1]) {
+      ctx.strokeStyle = `rgba(255,214,90,${(Math.sin(ph * Math.PI) * 0.62).toFixed(2)})`;
+      ctx.lineWidth = 2.5 - ph * 1.2;
+      ctx.beginPath(); ctx.arc(px2, py2, 7 + ph * 30, 0, TAU); ctx.stroke();
+    }
+    ctx.fillStyle = `rgba(255,236,186,${(0.55 + br * 0.35).toFixed(2)})`;
+    ctx.beginPath(); ctx.arc(px2, py2, 9 + br * 2.4, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(255,252,238,${(0.85 + br * 0.15).toFixed(2)})`;
+    ctx.beginPath(); ctx.arc(px2, py2, 5 + br * 1.4, 0, TAU); ctx.fill();
+  }
+  ctx.strokeStyle = okI ? 'rgba(126,226,98,0.9)'
+    : `rgba(255,210,74,${(0.45 + Math.sin(time * 5) * 0.3).toFixed(2)})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(d.x, d.y, d.r + 9, 0, TAU); ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = okI ? 'rgba(126,226,98,0.9)' : 'rgba(255,210,74,0.85)';
+  ctx.font = '700 10px Audiowide, system-ui';
+  ctx.fillText(okI ? 'READY' : 'PLACE THUMB', d.x, d.y - d.r - 14);
+  ctx.textAlign = 'left';
+  // first boot: the gesture ghost already laps the rim, so the pupil learns the
+  // thumb motion before the controls are even handed over
+  if (tut) drawDialComet(i);
+}
 function drawDials() {
   const bz = Math.min(W, H) * 0.055; // pad gauge width
+  const parked = preLaunch();
   const booting = state === S.PLAY && introT < INTRO_DUR;
-  const padsLive = introT >= BOOT_LOCK; // consoles start charging the moment the ring docks
+  const padsLive = introT >= BOOT_LOCK; // consoles charge the moment the ring docks
+  // (no !parked needed: parked pins introT at 0, which is already short of BOOT_LOCK)
   for (let i = 0; i < 2; i++) {
     const side = i === 0 ? 'L' : 'R';
     const d = dialCenter(side);
     const n = nodes[i];
     if (booting && !padsLive) { // dormant console: a dark ring, standing by
-      ctx.strokeStyle = 'rgba(90,120,160,0.22)';
+      // A TOUCH LIGHTS THE PAD, whatever the emitters are doing.
+      //
+      // The startup ramp is the ship's business and does not finish until BOOT_ON; the
+      // player needs to know their thumb landed NOW. It used to say so with one small
+      // green word on a console that stayed dark, which is not an answer to "did that
+      // register?" — so the whole gauge ring lights in that emitter's own colour, which
+      // is also the colour its arc will be wearing thirty frames later.
+      // …and it STAYS lit from the touch straight into the power-up ramp. Gated on
+      // padHold alone rather than on `parked`, because a dormant console that lights on
+      // contact and then goes dark again for the 1.5s until the ring docks takes back the
+      // one piece of feedback the player just earned.
+      const armed = padHold[i];
+      const col0 = NODE_COLS[i];
+      if (armed) {
+        ctx.fillStyle = `rgba(${col0},0.10)`;
+        ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU); ctx.fill();
+      }
+      ctx.strokeStyle = armed ? `rgba(${col0},0.8)` : 'rgba(90,120,160,0.22)';
       ctx.lineWidth = bz * 0.85;
       ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU); ctx.stroke();
       ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(120,150,185,0.45)';
+      ctx.fillStyle = armed ? `rgba(${col0},0.95)` : 'rgba(120,150,185,0.45)';
       ctx.font = '600 9px Audiowide, system-ui';
-      ctx.fillText('OFFLINE', d.x, d.y + 3);
+      ctx.fillText(armed ? 'ARMED' : 'OFFLINE', d.x, d.y + 3);
       ctx.textAlign = 'left';
+      if (parked) drawPadPrompt(i, d, tut);
       continue;
     }
     const col = NODE_COLS[i];
@@ -2157,21 +2247,11 @@ function drawDials() {
         ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(d.x, d.y, d.r + 6, 0, TAU); ctx.stroke();
       }
-      if (introT >= INTRO_GATE - 0.01) { // awaiting operator: per-pad prompt
-        const okI = padHold[i];
-        ctx.strokeStyle = okI ? 'rgba(126,226,98,0.9)'
-          : `rgba(255,210,74,${(0.45 + Math.sin(time * 5) * 0.3).toFixed(2)})`;
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(d.x, d.y, d.r + 9, 0, TAU); ctx.stroke();
-        ctx.textAlign = 'center';
-        ctx.fillStyle = okI ? 'rgba(126,226,98,0.9)' : 'rgba(255,210,74,0.85)';
-        ctx.font = '700 10px Audiowide, system-ui';
-        ctx.fillText(okI ? 'READY' : 'PLACE THUMB', d.x, d.y - d.r - 14);
-        ctx.textAlign = 'left';
-        // first boot: the gesture ghost already laps the rim, so the pupil
-        // learns the thumb motion before the controls are even handed over
-        if (tut) drawDialComet(i);
-      }
+      // A REMINDER, no longer a gate. The thumbs are what started this boot, so by
+      // INTRO_GATE the normal case is two hands already down — prompting them would be
+      // noise. It only speaks to a runner who LET GO on the way in, which is the one
+      // case where control is about to transfer to nobody.
+      if (introT >= INTRO_GATE - 0.01 && !padHold[i]) drawPadPrompt(i, d, tut);
     }
     // radar blips: live enemy positions — angle matches the tunnel, radius =
     // how far along the APPROACH. The old mapping clamped z to [0,1], but an

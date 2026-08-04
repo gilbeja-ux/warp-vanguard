@@ -99,14 +99,137 @@ function drawNowPlaying() {
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.restore();
 }
+// THE LAUNCH TOOLTIP: the one instruction, sat directly under the AWAITING RUNNER stamp so
+// the status and the ask read as a single block. `yTop` is its upper edge — it centres
+// itself half its own height below that, so the caller never has to know the font size.
+//
+// A NOTE ON THE COORDINATES, because I got this wrong once and it cost a round trip. This
+// is a LANDSCAPE game: on a portrait-shaped viewport `resize()` sets ROT and paints the
+// whole frame through a 90° transform, because the player turns the device. So game space
+// IS screen space from the player's point of view, and no orientation branch belongs here.
+// What LOOKS like the right-hand edge in a portrait screenshot is the top of the picture —
+// rotate the image before judging any of this.
+//
+// (Corollary: isLandscape() is `W > H` on the game space and is therefore true in both
+// device orientations. It is not the question anyone asking about orientation means.)
+//
+// It also carries the one-pad-down case. Two pads that each say READY on their own give no
+// hint the game is waiting for them TOGETHER — the remaining way to be stuck here without
+// knowing why.
+function drawLaunchTip(a0, yTop) {
+  const held = (padHold[0] ? 1 : 0) + (padHold[1] ? 1 : 0);
+  // a controller has its own grip and no pad dots to aim at, so it gets told the grip
+  const lines = held === 1 ? ['ONE MORE', gpSeen ? 'BOTH STICKS AT ONCE' : 'BOTH PADS TOGETHER']
+    : gpSeen ? ['HOLD BOTH STICKS', 'OPPOSITE SIDES']
+    : ['TAKE THE CONTROLS', 'TO INITIATE WARP'];
+  // TWO LINES, sized to the gap BETWEEN THE PAD DOTS — measured off the pads, not guessed
+  // off a fraction of the frame. Sat under the stamp, the plate is at exactly the height
+  // the dots live at, and one wide line ran its ends straight through both of them: the
+  // instruction covering the target it points to. Narrow enough to pass between them, the
+  // text can be half again as big as it was when it spanned the frame.
+  const dL = dialCenter('L'), dR = dialCenter('R'), CLR = 52; // CLR ≈ the dot's halo
+  const maxW = Math.max(120, (dR.x - dR.r - CLR) - (dL.x + dL.r + CLR));
+  const px = Math.min(fitPx(lines[0], '800', Math.min(W * 0.034, 24), maxW, 11),
+    fitPx(lines[1], '800', Math.min(W * 0.034, 24), maxW, 11));
+  const breath = 0.82 + 0.18 * Math.sin(time * 3.2); // same clock as the pad dots
+  const col = held === 1 ? '126,226,98' : '255,210,74';
+  ctx.save();
+  ctx.globalAlpha = a0;
+  ctx.textAlign = 'center';
+  ctx.font = '800 ' + px + 'px Audiowide, system-ui';
+  try { ctx.letterSpacing = '3px'; } catch (e) {}
+  const wid = Math.max(ctx.measureText(lines[0]).width, ctx.measureText(lines[1]).width);
+  const gap = px * 1.5, halfW = wid / 2 + px * 0.7, halfH = gap * 0.5 + px * 0.66;
+  const ax = W / 2, ay = yTop + halfH;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(ax - halfW, ay - halfH, halfW * 2, halfH * 2, 9);
+  else ctx.rect(ax - halfW, ay - halfH, halfW * 2, halfH * 2);
+  ctx.fillStyle = 'rgba(4,10,20,0.66)'; ctx.fill();
+  ctx.strokeStyle = `rgba(${col},${(0.32 + breath * 0.3).toFixed(2)})`;
+  ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = `rgba(${col},${(0.74 + breath * 0.26).toFixed(2)})`;
+  ctx.shadowColor = `rgb(${col})`; ctx.shadowBlur = lowFX ? 0 : 12;
+  ctx.fillText(lines[0], ax, ay - gap * 0.5 + px * 0.36);
+  ctx.fillText(lines[1], ax, ay + gap * 0.5 + px * 0.36);
+  ctx.shadowBlur = 0;
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+// WARP CALIBRATING: the lock-on, drawn around the destination itself.
+//
+// The first WARP_CAL seconds after launch, before there is any corridor. A ring closes
+// clockwise from twelve o'clock with a live percentage, so the thing the player is waiting
+// on is the thing they are looking at — and when it completes, the lane resolves out of it.
+// Held at 100% for WARP_CAL_HOLD while it fades, so the completion is legible instead of
+// vanishing on the frame it lands.
+//
+// Drawn in the HUD pass rather than in the tunnel, so it sits over the bore the moment the
+// bore appears (overlay text on top — the house rule).
+function drawWarpCal() {
+  if (!introLatch || introT >= WARP_CAL + WARP_CAL_HOLD) return;
+  const g = geo(), far = ring(SPAWN_Z, g);
+  const p = clamp(introT / WARP_CAL, 0, 1);
+  const a0 = introT <= WARP_CAL ? 1 : 1 - (introT - WARP_CAL) / WARP_CAL_HOLD;
+  const R = Math.max(26, Math.min(W, H) * 0.085);
+  const done = p >= 1;
+  const col = done ? '126,226,98' : '143,224,255';
+  ctx.save();
+  ctx.globalAlpha = a0;
+  ctx.lineCap = 'butt';
+  // the track, then the sweep over it
+  ctx.strokeStyle = 'rgba(120,170,215,0.20)';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(far.x, far.y, R, 0, TAU); ctx.stroke();
+  const a1 = -Math.PI / 2, a2 = a1 + p * TAU;
+  ctx.strokeStyle = `rgba(${col},0.95)`;
+  ctx.lineWidth = 3.5;
+  ctx.shadowColor = `rgb(${col})`; ctx.shadowBlur = lowFX ? 0 : 10;
+  ctx.beginPath(); ctx.arc(far.x, far.y, R, a1, a2); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // the leading head, so the sweep has a direction the eye can catch
+  if (!done) {
+    ctx.fillStyle = '#eafaff';
+    ctx.beginPath(); ctx.arc(far.x + Math.cos(a2) * R, far.y + Math.sin(a2) * R, 3.2, 0, TAU); ctx.fill();
+  }
+  // four tick marks on the quarters — a gauge, not a spinner
+  ctx.strokeStyle = `rgba(${col},0.5)`;
+  ctx.lineWidth = 1.5;
+  for (let k = 0; k < 4; k++) {
+    const ta = a1 + k * Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(far.x + Math.cos(ta) * (R + 4), far.y + Math.sin(ta) * (R + 4));
+    ctx.lineTo(far.x + Math.cos(ta) * (R + 8), far.y + Math.sin(ta) * (R + 8));
+    ctx.stroke();
+  }
+  ctx.textAlign = 'center';
+  ctx.fillStyle = `rgba(${col},0.95)`;
+  ctx.font = '700 11px Audiowide, system-ui';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.fillText(done ? 'LANE ACQUIRED' : 'WARP CALIBRATING', far.x, far.y - R - 16);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.font = '700 15px ui-monospace, Menlo, monospace';
+  ctx.fillText(Math.round(p * 100) + '%', far.x, far.y + R + 24);
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
 function drawIntroCard() {
   const L = LV || LEVELS[levelIdx];
-  if (introT < INTRO_DUR + 0.5) {
+  // PARKED: the boot has not started. introT is pinned at 0, so the card's own clock is
+  // preT — it fades in off the disc release and then simply holds, with no out-fade,
+  // because there is no schedule left to run. The route is what the player reads while
+  // they decide to launch, so it stays up rather than flashing past.
+  const parked = preLaunch();
+  if (parked || introT < INTRO_DUR + 0.5) {
     const t = introT;
     ctx.textAlign = 'center';
-    if (t < INTRO_DUR) {
-      const inA = clamp(t / 0.35, 0, 1);
-      const outA = clamp((INTRO_DUR - t) / 0.45, 0, 1);
+    if (parked || t < INTRO_DUR) {
+      // ONE fade-in clock across both halves. preT counts the parked wait and stops when
+      // the boot starts; t counts the boot. Summed, they are monotonic — so the title does
+      // not pop back to zero and re-fade on the frame the runner launches, which is what
+      // reading `t` alone did.
+      const inA = clamp((preT + t) / 0.5, 0, 1);
+      const outA = parked ? 1 : clamp((INTRO_DUR - t) / 0.45, 0, 1);
       const scale = 0.85 + 0.15 * (1 - Math.pow(1 - inA, 3));
       ctx.save();
       ctx.translate(W / 2, H * 0.30);
@@ -124,21 +247,30 @@ function drawIntroCard() {
       ctx.fillText(lname, 0, 0);
       ctx.shadowBlur = 0;
       try { ctx.letterSpacing = '0px'; } catch (e) {}
-      if (L.hint) {
-        const hpx = fitPx(L.hint, '600', 12, titleMaxW, 9);
-        ctx.fillStyle = '#ffb8c8'; ctx.font = '600 ' + hpx + 'px Audiowide, system-ui';
-        ctx.fillText(L.hint, 0, 26);
-      }
+      // (the level's `hint` used to print here — "NEW THREAT: …" in pink under the route.
+      //  Cut: on a parked frame whose whole job is one instruction it was a second thing
+      //  demanding to be read, and it is the only place hint was ever shown, so nothing
+      //  else needs it. The threat now teaches itself in the lane.)
       ctx.restore();
-      // boot stage callouts, stamped like an ops console — no bounce, no chatter
-      const stI = t >= INTRO_GATE ? 3 : t >= BOOT_LOCK ? 1 : 0;
+      // parked, the block drops a little: at 0.52 the stamp's cap height ran through the
+      // destination, and the destination is the one thing this frame is built to present
+      const ly = H * (parked ? 0.585 : 0.52);
+      // CALIBRATION OWNS ITS OWN WINDOW, fade included. The readout the player is waiting on
+      // is the ring around the destination, so the stage callout stands down rather than
+      // stamping LOCKING ON LANE across it — and that has to cover WARP_CAL_HOLD too, or the
+      // stamp lands on the ring's own LANE ACQUIRED and 100% while they are still on screen.
+      if (introLatch && t < WARP_CAL + WARP_CAL_HOLD) { ctx.textAlign = 'left'; return; }
+      // boot stage callouts, stamped like an ops console — no bounce, no chatter.
+      // Stage 2 is PARKED (amber, breathing); 0→1→3 are the boot the hands set off. Stage 3
+      // no longer gates anything — with the wait moved to the front it is the last beat
+      // before control transfers.
+      const stI = parked ? 2 : t >= INTRO_GATE ? 3 : t >= BOOT_LOCK ? 1 : 0;
       const stStart = [0, BOOT_LOCK, 0, INTRO_GATE][stI];
       const ct = t - stStart;
-      const labels = ['LOCKING ON LANE', 'ACTIVATING EMITTERS', '', 'AWAITING RUNNER'];
-      const ly = H * 0.52;
+      const labels = ['LOCKING ON LANE', 'ACTIVATING EMITTERS', 'AWAITING RUNNER', 'CLEARED FOR RUN'];
       ctx.save();
-      ctx.globalAlpha = stI === 3 ? 0.8 + Math.sin(time * 2.5) * 0.15 : Math.min(1, ct / 0.06);
-      const lcol = stI === 3 ? '#ffd24a' : '#8fe0ff';
+      ctx.globalAlpha = parked ? (0.8 + Math.sin(time * 2.5) * 0.15) * inA : Math.min(1, ct / 0.06);
+      const lcol = parked ? '#ffd24a' : '#8fe0ff';
       ctx.fillStyle = ct < 0.07 ? '#ffffff' : lcol; // one-flash stamp, then steady
       try { ctx.letterSpacing = '5px'; } catch (e) {}
       const bpx = fitPx(labels[stI], '700', Math.min(W * 0.032, 19), ringChord(H * 0.52, 90), 11);
@@ -151,7 +283,7 @@ function drawIntroCard() {
       ctx.shadowBlur = 0;
       // targeting brackets framing the callout
       const bx = lw2 / 2 + 18, by = 15, arm = 7;
-      ctx.strokeStyle = stI === 3 ? 'rgba(255,210,74,0.6)' : 'rgba(143,224,255,0.55)';
+      ctx.strokeStyle = parked ? 'rgba(255,210,74,0.6)' : 'rgba(143,224,255,0.55)';
       ctx.lineWidth = 1.5;
       for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
         ctx.beginPath();
@@ -164,7 +296,11 @@ function drawIntroCard() {
       // monospace status readout under the callout — data garnish, ops style
       let sub = '', subT = stStart;
       if (stI === 0) {
-        const rp = clamp(t / BOOT_LOCK, 0, 1); // distance left to the dock, same motion law
+        // distance left to the dock, same motion law — but rebased onto the window this
+        // readout is actually ON SCREEN for. Measured from t=0 it opened at 4.2M and had
+        // nothing left to count, because calibration owns everything before 1.04s.
+        const r0 = WARP_CAL + WARP_CAL_HOLD;
+        const rp = clamp((t - r0) / Math.max(0.01, BOOT_LOCK - r0), 0, 1);
         const rngM = (1 - rp * rp * (3 - 2 * rp)) * 26;
         sub = 'RANGE ' + rngM.toFixed(1).padStart(5, '0') + ' M';
         subT = t; // live readout — never flash-stamps
@@ -172,6 +308,10 @@ function drawIntroCard() {
         if (t >= BOOT_ON) { sub = 'ALL SYSTEMS — ONLINE'; subT = BOOT_ON; }
         else if (t >= BOOT_LOCK + 0.3) { sub = 'CHARGING EMITTERS + CONSOLES'; subT = BOOT_LOCK + 0.3; }
         else sub = 'DOCK CONFIRMED';
+      } else if (stI === 3) {
+        // carried across the boundary rather than re-stamped: the systems came online at
+        // BOOT_ON and nothing has changed since, so the readout should not blink
+        sub = 'ALL SYSTEMS — ONLINE'; subT = BOOT_ON;
       }
       if (sub) {
         const sct = t - subT;
@@ -180,12 +320,9 @@ function drawIntroCard() {
         ctx.font = '600 12px ui-monospace, Menlo, monospace';
         ctx.fillText(sub + (Math.sin(time * 6) > 0 ? ' ▎' : '  '), W / 2, ly + 32);
       }
-      if (stI === 3) { // the gate explains itself
-        ctx.globalAlpha = 0.85;
-        ctx.fillStyle = 'rgba(200,235,255,0.8)';
-        ctx.font = '500 11px Audiowide, system-ui';
-        ctx.fillText(gpSeen ? 'HOLD BOTH STICKS — OPPOSITE SIDES' : 'PLACE BOTH THUMBS ON THE PADS', W / 2, ly + 32);
-      }
+      // the ask sits under the AWAITING RUNNER stamp: 15 clears the callout's brackets,
+      // 16 is the breathing room, and drawLaunchTip drops its own half-height below that
+      if (parked) drawLaunchTip(inA, ly + 31);
     } else { // CONTROLS ACTIVE — the lane goes live (Lane Command says godspeed)
       const gt = (t - INTRO_DUR) / 0.6;
       ctx.save();
@@ -289,6 +426,15 @@ function drawHUD(g) {
   const ELEV = Math.PI * 0.28;
   const barR = Math.min(g.nodeR + Math.min(W, H) * 0.125, (H / 2 - bw2 - 8) / Math.sin(ELEV));
   const aL0 = Math.PI * 1.06, aL1 = Math.PI + ELEV; // lower-left → upper-left
+  // THE GAUGES ARE CONSOLE HARDWARE. They come up on the SAME ramp as the pads, so the
+  // whole assembly — ring, arcs, consoles, gauges — powers on as one machine. Parked,
+  // there is nothing to hang them on, and a full integrity bar lit over an empty cockpit
+  // was by some distance the loudest thing in a frame meant to be stars and a planet.
+  const gaugeA = (state !== S.PLAY && state !== S.PAUSE) ? 1
+    : preLaunch() ? 0
+    : introT < INTRO_DUR ? clamp((introT - BOOT_LOCK) / (BOOT_ON - BOOT_LOCK), 0, 1) : 1;
+  ctx.save();
+  ctx.globalAlpha = gaugeA;
   ctx.lineCap = 'round';
   ctx.strokeStyle = 'rgba(240,250,255,0.85)'; ctx.lineWidth = bw2 + 5;
   ctx.beginPath(); ctx.arc(g.cx, g.cy, barR, aL0, aL1); ctx.stroke();
@@ -379,6 +525,7 @@ function drawHUD(g) {
       ctx.beginPath(); ctx.arc(g.cx, g.cy, barR, ea - 0.0004, ea + 0.0004); ctx.stroke();
     }
   }
+  ctx.restore(); // end of the gauge assembly's power-up alpha
   ctx.lineCap = 'round';
 
   // score (right) — suppressed while watching a replay; drawReplayChrome owns the

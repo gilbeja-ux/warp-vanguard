@@ -1108,15 +1108,15 @@ function drawPostChain(rawDt, worldFx, g) {
   }
 
   if (state === S.PLAY) {
-    drawHUD(g); drawDials(); drawIntroCard(); drawNowPlaying();
+    drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawNowPlaying();
     if (popLive('pause')) drawPause(); // resume: the panel erases behind its scan
     if (worldFx) ctx.restore(); // end the replay world fly-in (board overlay is NOT zoomed)
     // leaderboard<->player transition: the board rides ON TOP of the (paused)
     // replay — its cards fly out / the ring zooms into the lens, revealing the run
     if (replayXfer && replayPkg) { menuButtons = []; drawMenuBoard(); }
   }
-  else if (state === S.PAUSE) { drawHUD(g); drawDials(); drawIntroCard(); drawPause(); }
-  else if (state === S.INFO) { drawHUD(g); drawDials(); drawIntroCard(); drawInfoCard(); }
+  else if (state === S.PAUSE) { drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawPause(); }
+  else if (state === S.INFO) { drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawInfoCard(); }
   else if (state === S.GUIDE) drawGuide(g);
   else if (state === S.MENU) {
     if (SPLASH.on && SPLASH.t < SPL.wheel) { /* boot stage one: only the tunnel

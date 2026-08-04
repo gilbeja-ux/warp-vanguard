@@ -7,21 +7,29 @@
 const SEAMS = 14, SEAM_OFF = 0.12, HOOP_SPACING = 0.28;
 function drawLattice(g) {
   if (state === S.MENU) return;
+  // the reach carries drawWarpField, the lift ON the bore, with it
+  const reach = boreReach();
+  if (reach <= Z_FLOOR) return;
   const exit = laneExit(), exitZ = laneExitZ(), exitK = 1 - exit;
   if (exitK <= 0.004) return; // the corridor is gone — nothing structural left to draw
   ctx.save();
   ctx.lineCap = 'butt';
-  // both ends ride the exit, so the seams stretch and sweep out through the frame
-  const rFar = ring(Math.max(Z_FLOOR + 0.01, SPAWN_Z - exitZ), g).r;
+  // both ends ride the exit, so the seams stretch and sweep out through the frame — and the
+  // FAR end also rides the reach, so a half-laid corridor has seams that stop where it does
+  const zFar = Math.min(SPAWN_Z, reach);
+  const rFar = ring(Math.max(Z_FLOOR + 0.01, zFar - exitZ), g).r;
   const rNear = ring(Math.max(Z_FLOOR + 0.004, g.hitZ * 0.4 - exitZ), g).r;
-  for (let i = 0; i < SEAMS; i++) {
+  for (let i = 0; i < SEAMS && zFar > g.hitZ * 0.4 + 0.03; i++) {
     const a = i / SEAMS * TAU + SEAM_OFF;
     const fx2 = g.cx + Math.cos(a) * rFar, fy2 = g.cy + Math.sin(a) * rFar;
     const nx2 = g.cx + Math.cos(a) * rNear, ny2 = g.cy + Math.sin(a) * rNear;
+    // the seams draw brighter and flatter as a blueprint — a survey line runs the whole
+    // length at one weight, where a powered seam falls off toward the viewer
+    const sl = laneLit(), sk = 1 + (1 - sl) * 1.3;
     const grd = ctx.createLinearGradient(fx2, fy2, nx2, ny2);
     grd.addColorStop(0, 'rgba(90,170,235,0)');
-    grd.addColorStop(0.3, `rgba(90,170,235,${(0.26 * exitK).toFixed(3)})`);
-    grd.addColorStop(1, `rgba(90,170,235,${(0.08 * exitK).toFixed(3)})`);
+    grd.addColorStop(0.3, `rgba(90,170,235,${(0.26 * exitK * sk).toFixed(3)})`);
+    grd.addColorStop(1, `rgba(90,170,235,${((0.08 + 0.14 * (1 - sl)) * exitK).toFixed(3)})`);
     ctx.strokeStyle = grd;
     ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(fx2, fy2); ctx.lineTo(nx2, ny2); ctx.stroke();
@@ -42,15 +50,34 @@ function drawLattice(g) {
     if (z <= Z_FLOOR + 0.004) continue;
     const rr = ring(z, g);
     if (rr.r > Math.max(W, H) * 1.6) continue; // already past every edge — skip the stroke
-    const a = clamp((SPAWN_Z - 0.05 - z0) / 0.4, 0, 1) * 0.26 * exitK;
+    const bk = boreK(z0, reach);
+    if (bk <= 0.004) continue; // this hoop is past the front — the lane is not here yet
+    const a = clamp((SPAWN_Z - 0.05 - z0) / 0.4, 0, 1) * 0.26 * exitK * bk;
     // a slow charge running down the lane: each hoop brightens as the pulse
     // passes it, so the field reads as powered rather than as inert scaffolding
     const pulse = 0.78 + 0.42 * Math.pow(0.5 + 0.5 * Math.sin((z * 3.1 - time * 1.15) * TAU), 3);
-    ctx.strokeStyle = `rgba(96,224,208,${(a * pulse).toFixed(3)})`;
-    ctx.lineWidth = Math.max(0.8, rr.r / g.nodeR * 1.5);
+    // THE BLUEPRINT. Before the warp there is no plasma and no glow, so what the hoops must
+    // carry on their own is "surveyed, not yet powered": a colder blue, a uniform hairline
+    // instead of a depth-weighted one, and no charge pulse — a drawing does not throb.
+    // They cross-fade to the powered teal on the dock, with everything else.
+    // `lit` is read per hoop rather than hoisted so the fade cannot desync from the bands'.
+    const lt = laneLit();
+    const pl = 1 + (pulse - 1) * lt;
+    const cr = Math.round(96 + 44 * (1 - lt)), cg = Math.round(224 - 16 * (1 - lt)),
+      cb = Math.round(208 + 47 * (1 - lt));
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(a * pl * (1 + (1 - lt) * 0.9)).toFixed(3)})`;
+    ctx.lineWidth = Math.max(0.8, (rr.r / g.nodeR * 1.5) * lt + 1.2 * (1 - lt));
     ctx.beginPath(); ctx.arc(g.cx, g.cy, rr.r, 0, TAU); ctx.stroke();
+    // the drafting glint: a hoop flares as it is being drawn in and settles once it is
+    // there, which is what makes the lane read as arriving ring by ring
+    const glint = Math.sin(clamp(bk, 0, 1) * Math.PI) * (1 - lt);
+    if (glint > 0.02) {
+      ctx.strokeStyle = `rgba(226,245,255,${(glint * 0.5).toFixed(3)})`;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, rr.r, 0, TAU); ctx.stroke();
+    }
   }
-  drawWarpField(g);
+  drawWarpField(g, reach);
   ctx.restore();
 }
 
@@ -93,10 +120,15 @@ function buildFieldGlow() {
   c.fillStyle = gr;
   c.fillRect(0, 0, S, S);
 }
-function drawWarpField(g) {
+function drawWarpField(g, reach) {
   if (state === S.MENU) return;
+  if (reach === undefined) reach = boreReach();
+  // THE GRADIENT THAT LIGHTS THE BORE. A blueprint is lines; this is the glow, and it is the
+  // single clearest statement that the lane is powered — so it waits for the warp.
+  const lit = laneLit();
+  if (lit <= 0.004) return;
   if (!fieldGlowCv) buildFieldGlow();
-  const dive = clamp(warpT / 0.9, 0, 1);
+  const dive = laneDive();
   // ORGANIC VISIBILITY. A single sine is a metronome — the eye learns it in two
   // cycles and stops reading it as alive. Three incommensurate periods (11.3s,
   // 4.7s, 2.9s) never line up, so the field swells and thins on no schedule at
@@ -122,7 +154,7 @@ function drawWarpField(g) {
       + 0.26 * Math.sin(z0 * 5.5 - time * 1.35)
       + 0.12 * Math.sin(z0 * 11.2 + time * 0.81);
     const depthK = clamp((SPAWN_Z - 0.04 - z0) / 0.22, 0, 1);
-    const al = (0.30 + 0.42 * dive) * depthK * charge * swell * exitK;
+    const al = (0.30 + 0.42 * dive) * depthK * charge * swell * exitK * boreK(z0, reach) * lit;
     if (al < 0.008) continue;
     ctx.globalAlpha = Math.min(1, al);
     ctx.drawImage(fieldGlowCv, rg.x - sz, rg.y - sz, sz * 2, sz * 2);
@@ -278,6 +310,16 @@ function drawLaneFilaments(g, dive) {
 }
 
 function drawTunnel(g) {
+  // NO CORRIDOR UNTIL IT IS CALIBRATED. Parked, and through the lock-on, the frame is open
+  // space plus the world you are aimed at — the far end still draws, everything that makes
+  // it a tunnel does not, until the front reaches it. See boreReach().
+  const reach = boreReach();
+  if (reach <= Z_FLOOR) { drawFarEnd(g, 1 - laneExit()); return; }
+  // …and the WALL is lighting, not structure: smeared starlight with plasma over it is what
+  // a lane under load looks like. Until the warp fires there is only the blueprint the
+  // lattice draws, so the whole band pass stands down rather than fading up early.
+  const lit = laneLit();
+  if (lit <= 0.004) { drawFarEnd(g, 1 - laneExit()); return; }
   // the wall is starlight smeared by transit, stamped at receding depths, with a
   // layer of roiling plasma over it — a lane under load, not clean geometry
   const N = 10;
@@ -285,7 +327,7 @@ function drawTunnel(g) {
   // the whole wall hots up. warpT is 0.9 on level entry and decays to 0, so the
   // hyperspace-reference intensity lives HERE, in a 0.9s cinematic beat, instead
   // of sitting on top of 70 seconds of play where it would eat threat contrast.
-  const dive = clamp(warpT / 0.9, 0, 1);
+  const dive = laneDive();
   // THE JUMP LIFT. References 1 and 2 (hyperspace entry, Elite's charge) sit on a
   // lifted BLUE field — that is what gives their streaks something to burn
   // against. References 3 and 4 (cruise) are near-black. Both are true, of the
@@ -315,7 +357,9 @@ function drawTunnel(g) {
     const rg = ring(z, g);
     const hs = rg.r / 0.75; // texture band mid-radius maps onto this depth's wall radius
     if (hs < 5) continue;
-    const a = (1 - z) * 0.85 + 0.08;
+    const bk = boreK(z, reach) * lit;
+    if (bk <= 0.004) continue; // not laid this far out yet, or not powered up yet
+    const a = ((1 - z) * 0.85 + 0.08) * bk;
     ctx.save();
     ctx.translate(rg.x, rg.y);
     ctx.rotate(i * 0.55); // each depth band has its own FIXED twist — a spinning wall would shear under the leaks
@@ -341,7 +385,7 @@ function drawTunnel(g) {
       const z2 = z - 1;
       const rg2 = ring(z2, g);
       const hs2 = rg2.r / 0.75;
-      const a2 = clamp(1 + z2 / 0.15, 0, 1) * 0.9;
+      const a2 = clamp(1 + z2 / 0.15, 0, 1) * 0.9 * boreK(z2, reach) * lit;
       if (a2 > 0.01) {
         ctx.save();
         ctx.translate(rg2.x, rg2.y);
@@ -367,6 +411,15 @@ function drawTunnel(g) {
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
   drawLaneFilaments(g, dive);
+  drawFarEnd(g, exitK);
+}
+// THE FAR END: the unlit pool and the world sitting in it.
+//
+// Split out of drawTunnel because it is the one part that survives a corridor that has not
+// resolved yet. Before calibration completes there is no bore, no lattice and no field
+// lift — but the destination is the whole point of the parked moment, and the pool is what
+// separates it from the starfield rather than being corridor dressing.
+function drawFarEnd(g, exitK) {
   // the far end is a VOID, not a lamp: the bore runs off into unlit distance.
   // A dark pool swallows the wall bands so nothing reads as "wall" out there —
   // and depth is sold instead by data blips winking somewhere down the line,

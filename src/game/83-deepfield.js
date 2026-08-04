@@ -194,7 +194,7 @@ initDeepField();
 // stay — a point of light needs no parallax to be believed.
 function drawDeepField(g, dt) {
   const SR = Math.min(W, H) * 0.5; // NOT S — that is the state enum, and shadowing it TDZs S.MENU above
-  const dive = clamp(warpT / 0.9, 0, 1);
+  const dive = laneDive();
   const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5) * laneFlow;
   // THE ORBIT DRIFT, nearest-layer edition. The pads hang the wrap span past
   // both screen edges so the modulo jump always happens off-frame — a body
@@ -378,9 +378,9 @@ function drawStreaks(g, dt) {
   // dropping out of warp looks like. Parked (menus), the field is still points.
   const ambSpan = (0.11 + spd * 0.34) * laneFlow;
   for (const st of streaks) {
-    const wsp = 1 + (warpT / 0.9) * 5; // warp-dive stretch
+    const wsp = 1 + laneDive() * 5; // warp-dive stretch
     // per-star length, so no two smears are the same size
-    const span = (st.gold ? 0.05 : ambSpan * st.lenK) * (1 + (warpT / 0.9) * 3);
+    const span = (st.gold ? 0.05 : ambSpan * st.lenK) * (1 + laneDive() * 3);
     let dz = dt * spd * st.sp * wsp; // the river flows WITH the traffic
     if (st.z + span < EXIT_Z) dz = Math.min(dz, EXIT_CAP); // never a sub-frame exit
     st.z -= dz;
@@ -602,8 +602,8 @@ function drawLaneMedium(g, dt) {
   const exitK = 1 - laneExit(); // the medium is what the LANE is full of
   if (exitK <= 0.004) return;
   const spd = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow;
-  const wsp = 1 + (warpT / 0.9) * 5;
-  const dive = clamp(warpT / 0.9, 0, 1);
+  const wsp = 1 + laneDive() * 5;
+  const dive = laneDive();
   // --- gas first: everything else moves through it ---
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';

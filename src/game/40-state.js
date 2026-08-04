@@ -75,15 +75,28 @@ let musicDuck = 0;            // music dips under the end ceremony
 let fadeT = 0;                // universal screen-stitch fade
 const BOOT_LOCK = 1.5;        // the ring rides the tunnel in and docks at this moment
 const BOOT_ON = 2.1;          // nodes AND consoles finish their power ramp together here
-const INTRO_GATE = 2.4;       // the boot holds here until both thumbs are on the pads
-const INTRO_DUR = 2.9;        // boot: LOCK -> POWER-UP -> (thumbs) -> CONTROLS ACTIVE
+const INTRO_GATE = 2.4;       // systems online; the last beat before control transfers
+const INTRO_DUR = 2.9;        // boot: (thumbs) -> LOCK -> POWER-UP -> CONTROLS ACTIVE
 let introStage = -1;          // last boot stage that fired its sounds
 let bootSample = false;       // the startup take carries the boot — synth layers stand down
 let bootNodeSample = false;   // the node whir carries the power ramp — ditto
 let padHold = [false, false]; // live thumb contact per pad side
-let introLatch = false;       // both thumbs seen at the gate — godspeed is a promise
+let introLatch = false;       // LAUNCHED: both thumbs seen, the ceremony clock is running
 let gatePip = 0;              // standby blip metronome while awaiting the operator
+let padArm = [false, false];  // per-pad ack edge while parked — see introStageChange
 let introT = 999, introCd = -1;
+let preT = 0;                 // seconds parked awaiting the runner — the pre-launch clock
+// PRE-LAUNCH: the briefing disc is gone, the ceremony has NOT begun. The ship sits in
+// the same slow drift the menu sits in, with the destination dead ahead, and the game
+// is waiting for both thumbs before anything happens.
+//
+// This predicate exists because `introT` is HELD at 0 while parked rather than made
+// negative — that keeps the ~20 consumers of introT (the ring fly-in, the console power
+// ramp, the boot card, the node reboot) on their existing timings, so the ceremony is
+// deferred rather than re-timed. The cost is that introT === 0 no longer means "frame 0
+// of the boot", and this is the one thing that can tell those two apart.
+const preLaunch = () => !introLatch && introT <= 0
+  && (state === S.PLAY || state === S.PAUSE || state === S.INFO);
 let tolVis = 1;               // eased hit-arc multiplier (wide-arc grows/shrinks smoothly)
 let bolts = [];               // lightning arcs (node → trap)
 const fx = { wide: 0, auto: 0, chain: 0 }; // power-up effect timers (seconds)
@@ -174,7 +187,81 @@ const WARP_COLLAPSE = { at: 0.12, dur: 0.72, brake: 0.40, flash: 0.30, shock: 0.
 // warp when a run engages. Matched to warp-in.mp3 (2.44s), which plays on the same
 // beat, so the sound and the acceleration are one event. Was 0.5s, which was over
 // before the eye had found the motion. Purely visual — see the note in 72-tick.
+//
+// This is the GENERIC spool, used when a lane starts flowing for any other reason.
+// A launch does not use it: it runs the two-part curve below off the ceremony clock,
+// because a launch has a threshold to cross and a plain ramp has nothing.
 const WARP_SPOOL = 2.4;
+// THE LAUNCH: what the drive is holding at while the ring is still riding in (`held`),
+// and how long the lane takes to go from there to full warp once the ring DOCKS
+// (`jump`). The engines wind up under a lane that is barely moving, and the dock is
+// what lets go — so full warp lands at BOOT_LOCK + jump = 2.25s, inside the plateau
+// warp-in.mp3 holds from 1.6s to its end. Purely visual, same as WARP_SPOOL.
+// `held` is 0.10, not 0.30. The sky's throttle is
+// `trafficSpeed * laneFlow + WARP_CRUISE * (1 - laneFlow)` (drawWarpSky), so at 0.30 the
+// pre-dock lane ran about 3.4x the menu's station-keeping crawl — which is not a ship
+// waiting to be launched, it is a ship already cruising. At 0.10 it is ~1.8x the crawl:
+// unmistakably under way, unmistakably not yet in the lane. It also buys the jump a far
+// bigger step to take, and there is plenty happening over those 1.5s without it — the
+// corridor is being laid, the ring is flying in, the lock-on is counting.
+const WARP_LAUNCH = { held: 0.10, jump: 0.75, ease: 2.6 };
+// THE CALIBRATION, and the one thing it gates.
+//
+// A launch does not resolve the lane instantly. The destination is locked on FIRST — a
+// progress ring closing around it, 0 to 100% — and only when that reads 100% does the
+// corridor itself exist. Until then there is nothing but open space and the world you are
+// aiming at, which is what turns the bore's arrival into an event rather than furniture
+// that was always on screen.
+//
+// It SNAPS rather than fades, deliberately: the ring completing is the motivation, and a
+// corridor easing into view over a fifth of a second reads as a render glitch next to it.
+// (A fade would also have to thread an alpha through the band loop's own per-band
+// globalAlpha, which does not compose.)
+const WARP_CAL = 0.8;         // seconds of lock-on before the lane resolves
+const WARP_CAL_HOLD = 0.24;   // …then the ring holds at 100% and fades, over the arrival
+// 0.24, just under HOOP_SPACING (0.28), so at most ONE hoop is ever mid-fade: the corridor
+// draws itself in ring by ring instead of two at a time in a smear.
+const BORE_EDGE = 0.24;       // the corridor's soft leading edge, in z
+// IS THE LANE LIT? 0 = a blueprint, 1 = a powered corridor.
+//
+// The lane is laid as a DRAWING first — hoops and seams, thin and schematic, no texture and
+// no glow. What makes it a lit tunnel is the wall's plasma and the field's luminous sheath,
+// and those are what "under power" looks like, so they have no business arriving before the
+// warp does. They come up on the DOCK, with the jump, which gives the launch a third act:
+// draft the lane, dock onto it, then light it and go.
+const LANE_LIT_IN = 0.4;      // seconds for the lit lane to come up over the blueprint
+const laneLit = () => {
+  if (!(state === S.PLAY || state === S.PAUSE || state === S.INFO) || introT >= INTRO_DUR) return 1;
+  if (!introLatch) return 0;
+  return clamp((introT - BOOT_LOCK) / LANE_LIT_IN, 0, 1);
+};
+// HOW FAR DOWN THE LANE THE CORRIDOR HAS BEEN LAID, in z. Z_FLOOR is none of it, past
+// SPAWN_Z is all of it.
+//
+// The corridor is built FROM THE SHIP OUTWARD across the calibration, so the near hoops and
+// wall bands arrive first and the far end closes on the destination just as the lock-on
+// reads 100%. It replaced a snap, and the reason is staggering: with a snap, the bore, the
+// ring's fly-in, the lock-on and the drive all began on one frame, and simultaneous is the
+// one thing a sequence must not be. Now each has its own moment inside the same 0.8s.
+//
+// Menus and the end ceremony are untouched — those painters gate on state themselves.
+// It is EASED, and that is not a taste call. A ring's screen radius goes as 1/(1 + 6z), so
+// a front advancing linearly in z crosses most of the visible frame in its first fifth and
+// then spends the rest adding hoops too small to notice — measured, the frame already read
+// as built at 29%. Squaring the ramp holds the front out near the frame edge, gives the
+// launch a beat of nothing at all, and then sweeps it in to the destination.
+const BORE_EASE = 2.0;
+const boreReach = () => {
+  if (!(state === S.PLAY || state === S.PAUSE || state === S.INFO) || introT >= WARP_CAL)
+    return SPAWN_Z + 1;
+  // starts a full soft-edge BELOW the floor, so at the instant of launch there is no
+  // corridor at all rather than a hoop already sitting at the frame edge
+  const z0 = Z_FLOOR - BORE_EDGE;
+  if (!introLatch) return z0;
+  return z0 + (SPAWN_Z + 1 - z0) * Math.pow(clamp(introT / WARP_CAL, 0, 1), BORE_EASE);
+};
+// alpha for a piece of corridor at depth z: full behind the front, out ahead of it
+const boreK = (z, reach) => clamp((reach - z) / BORE_EDGE, 0, 1);
 // THE LANE LETS GO. Arriving means the corridor is behind you, so on a win it
 // leaves: the wall bands, field hoops, seams and sheath all blow outward through
 // the frame and fade, and what is left is open space with the destination in it.
@@ -186,6 +273,18 @@ const laneExit = () => state === S.END && endWin && !endless && !qual
 // how far the whole corridor has slid past the eye, in z. Accelerating: the lane
 // releases slowly and then goes all at once, which is what letting go looks like.
 const laneExitZ = () => { const e = laneExit(); return e * e * (SPAWN_Z + 0.3); };
+// THE ENTRY DIVE, as the PAINTERS should read it.
+//
+// warpT is now held at full while a run is parked and through the pre-dock spool, so the
+// shove lands on the ring's dock instead of being spent on the wait. But a held dive is
+// not a dive HAPPENING, and five painters brighten and stretch off it — the lane
+// filaments blazed for as long as the player took to reach for the pads, which is how
+// this was caught.
+//
+// laneFlow is exactly the question they mean to ask: is this corridor energised. Scaling
+// by it is a no-op for all of normal play (laneFlow is 1 there), and during the launch it
+// turns the dive from a switch into something the acceleration brings up with it.
+const laneDive = () => clamp(warpT / 0.9, 0, 1) * laneFlow;
 // SECONDS SINCE THE DROP, -1 when idle. It used to be `endSweep`, a z position:
 // the front of a green wave rolling from the ring to the horizon. Nothing needs a
 // z any more — the wave is gone — but the ceremony still needs a clock that runs
