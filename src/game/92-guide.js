@@ -887,7 +887,10 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
   const train = d.kind === 'train';
   const real = d.kind === 'camp';   // a real case file (training + teasers are not)
   const solid = real || train;      // gets the lit bore + border; teasers stay dim
-  const pk = real ? d.pk : null;
+  // training carries a pseudo-package too, so this is NOT `real ? d.pk : null` — every
+  // other read of pk below stays behind `real`, because only a contract has a title,
+  // a progress record or a place in the campaign list. The strip is what they share.
+  const pk = d.pk || null;
   const title = train ? 'VANGUARD TRAINING' : real ? pk.title : CAMPS_SOON[d.si];
   const cp = real ? (progress.camp[pk.id] || { unlocked: 1, stars: [] }) : null;
   const done = train ? progress.tutorialDone : real && campaignCleared(pk.id);
@@ -924,9 +927,14 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
   ctx.fillStyle = 'rgba(8,18,36,0.85)';
   ctx.fillRect(x - r, y - r, r * 2, mh);
   const rng = mulberry32(0xD15C + i * 7919);
-  if (real) { // the campaign's own map image, else the city render, cropped in
-    const im2 = campMapImg(pk);
+  let painted = false; // a real picture landed on the strip, so nothing stands in for one
+  if (pk) { // the client's art, else the campaign's own map image, else the chart crop
+    // `art` outranks `map.image` here: this strip is the contract's face, and once a
+    // campaign has a picture of its client that is what belongs on it. The map image is
+    // still the right thing on the map SCREEN, which is a different surface.
+    const im2 = campArtImg(pk) || campMapImg(pk);
     if (im2) {
+      painted = true;
       const sh2 = im2.w * (mh / (r * 2));
       ctx.drawImage(im2.img, 0, clamp((im2.h - sh2) / 2, 0, im2.h), im2.w, Math.min(sh2, im2.h), x - r, y - r, r * 2, mh);
     } else {
@@ -955,7 +963,9 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
       }
     }
   }
-  if (train) { // a practice reticle stands in for the route map
+  if (train && !painted) { // a practice reticle stands in for the route map — but only
+    // while there is no picture on the strip, and it is drawn AFTER it, so a decode that
+    // lands late would otherwise put crosshairs across the ship
     const ty = (y - r + sepY) / 2, tr = (sepY - (y - r)) * 0.36;
     ctx.strokeStyle = 'rgba(111,227,255,0.55)'; ctx.lineWidth = 1.2;
     for (let k = 1; k <= 3; k++) { ctx.beginPath(); ctx.arc(x, ty, tr * k / 3, 0, TAU); ctx.stroke(); }
@@ -965,7 +975,8 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     ctx.stroke();
     ctx.fillStyle = 'rgba(111,227,255,0.9)';
     ctx.beginPath(); ctx.arc(x, ty, 2.2, 0, TAU); ctx.fill();
-  } else if (!real) { // static for the teasers
+  } else if (!real && !train) { // static for the teasers — `!train` because a painted
+    // training disc now falls past the branch above, and must not land here instead
     ctx.fillStyle = 'rgba(120,170,230,0.25)';
     for (let k = 0; k < 26; k++) ctx.fillRect(x - r + rng() * r * 2, y - r + rng() * (r * 0.6), 2, 2);
   }

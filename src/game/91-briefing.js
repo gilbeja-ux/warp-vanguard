@@ -323,7 +323,10 @@ function drawInfoCard() {
     while (fs > 8 && ctx.measureText(text).width > maxW);
     return fs;
   };
-  const isStory = /^story/.test(infoCard);
+  // THE CLOSURE DISC SHARES THE MISSION LAYOUT. `verdict` fires once per campaign, when the
+  // last relay's boss goes down, and it wants the same picture-over-caption shape a
+  // briefing has rather than the threat-model layout it used to borrow.
+  const isStory = /^story/.test(infoCard) || infoCard === 'verdict';
   ctx.textAlign = 'center';
   if (isStory) drawStoryDisc(c, g, R);
   else { // FIELD BRIEFING: a threat model, named, with its drill
@@ -379,9 +382,88 @@ function wrapRows(text, maxW) {
 // rides a caption bar across the art's lower edge, full disc width. Below the
 // art, two readings of what you're flying into. One thing said per mission; the
 // in-run comms carry the scene from here.
+// THE FALLBACK IS A HERO SHOT OF THE DESTINATION, not a placeholder.
+//
+// It used to be a plate in the relay's tint with a threat glyph stamped on it — honest
+// about being empty, and it looked it. The lane already knows where it delivers, and that
+// world is already rendered per-pixel by the same shader the arrival uses
+// (planetVariant → buildPlanetSprite), so the disc can show the actual place for free:
+// no file, no download, no decode, and it can never be the wrong world for the lane.
+//
+// Composed for the disc, not the bore. The circle mask takes the corners and the caption
+// bar covers the lower band, so the body is centred horizontally and sits in the middle of
+// what is actually VISIBLE (aTop → the caption bar's top), which is a different centre
+// from the art box's.
+//
+// Draw-only, and the randomness proves it: the star scatter runs off its own mulberry32
+// keyed by the relay, never Math.random — that IS the sim RNG on a campaign level, and a
+// briefing disc that consumed from it would desync the replay verifier.
+function drawDiscWorld(g, Rc, aTop, aH, bh, L) {
+  const tint = (L && L.tint) || '80,160,255';
+  const domeH = Math.max(24, aH - bh);          // what the caption bar leaves visible
+  // 0.55, not 0.5: aTop is the circle's topmost POINT, where the mask's visible width is
+  // zero, so the geometric middle of the dome still sits high enough to shave the body's
+  // crown off. Pushed down until the crown clears the mask with room to spare.
+  const cy = aTop + domeH * 0.55;
+  // deep space, with the relay's colour lifting the top edge — the same cue the old
+  // plate carried, kept because it is what tells two adjacent discs apart at a glance
+  const bg = ctx.createLinearGradient(g.cx, aTop, g.cx, aTop + aH);
+  bg.addColorStop(0, 'rgba(' + tint + ',0.20)');
+  bg.addColorStop(0.55, 'rgba(5,10,22,0.96)');
+  bg.addColorStop(1, 'rgba(2,5,12,1)');
+  ctx.fillStyle = bg; ctx.fillRect(g.cx - Rc, aTop, Rc * 2, aH);
+  const rnd = mulberry32(((levelIdx + 1) * 9176) ^ 0x5f3a);
+  for (let i = 0; i < 90; i++) {
+    const sx = g.cx - Rc + rnd() * Rc * 2, sy = aTop + rnd() * aH;
+    const a2 = 0.14 + rnd() * 0.6, sr = 0.4 + rnd() * 1.0;
+    ctx.fillStyle = 'rgba(214,236,255,' + a2.toFixed(2) + ')';
+    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, TAU); ctx.fill();
+  }
+  const V = planetVariant();
+  const R = domeH * 0.34;
+  // the atmosphere, behind the body — this is most of what makes it read as glamorous
+  // rather than as a circle pasted on stars. A STAR gets far less of it: its sprite is
+  // already a bloom, and at the planet's setting the haze filled the whole dome orange
+  // and buried both the starfield and the relay's tint under it.
+  const hazeK = V.emis ? 0.5 : 1, reach = V.emis ? 2.0 : 2.6;
+  const hz = ctx.createRadialGradient(g.cx, cy, R * 0.92, g.cx, cy, R * reach);
+  hz.addColorStop(0, 'rgba(' + V.atmo + ',' + (0.34 * hazeK).toFixed(3) + ')');
+  hz.addColorStop(0.4, 'rgba(' + V.atmo + ',' + (0.11 * hazeK).toFixed(3) + ')');
+  hz.addColorStop(1, 'rgba(' + V.atmo + ',0)');
+  ctx.fillStyle = hz;
+  ctx.beginPath(); ctx.arc(g.cx, cy, R * reach, 0, TAU); ctx.fill();
+  const sp = discWorld(V);
+  if (sp) {
+    const w = sp.S * (R / sp.R);
+    ctx.drawImage(sp.cv, g.cx - w / 2, cy - w / 2, w, w);
+    // the day/night line, so the body has a direction of light and a lit limb. A star
+    // has no night side to draw one on.
+    if (!V.emis) drawTerminatorCreep({ x: g.cx, y: cy }, R, 1, destLightA());
+  } else {
+    // no ImageData (the headless harness stubs it): a lit disc, offset to the key light
+    ctx.save();
+    ctx.beginPath(); ctx.arc(g.cx, cy, R, 0, TAU); ctx.clip();
+    ctx.fillStyle = 'rgba(9,14,26,0.95)';
+    ctx.fillRect(g.cx - R, cy - R, R * 2, R * 2);
+    const bg2 = ctx.createRadialGradient(
+      g.cx + Math.cos(LIGHT_A) * R * 0.62, cy + Math.sin(LIGHT_A) * R * 0.62, R * 0.05,
+      g.cx, cy, R * 1.45);
+    bg2.addColorStop(0, 'rgba(' + V.z + ',0.75)');
+    bg2.addColorStop(1, 'rgba(14,22,44,0)');
+    ctx.fillStyle = bg2;
+    ctx.fillRect(g.cx - R, cy - R, R * 2, R * 2);
+    ctx.restore();
+  }
+}
 function drawStoryDisc(c, g, R) {
-  const li = +infoCard.slice(5);
+  // On the closure disc `slice(5)` is 'ct' → NaN → L is undefined, and that is exactly
+  // right: the readings further down describe a LANE, and a closure is not one, so the
+  // `if (!L) return` guard drops them with no branch of their own. Its art hangs off the
+  // CARD instead of a level, and with no art it falls to the glam shot of the world the
+  // contract just delivered to — which is the best possible default for a closure.
+  const li = +infoCard.slice(5); // NaN on 'verdict' — see above; the readings read it too
   const L = LEVELS[li];
+  const artOf = L || c;
   const Rc = R * 0.965;              // the mask: just inside the border ring
   const artB = g.cy + R * 0.34;      // the art's bottom edge
   const half = y => Math.sqrt(Math.max(1, Rc * Rc - y * y)); // the chord, half-width
@@ -400,17 +482,12 @@ function drawStoryDisc(c, g, R) {
   const aTop = g.cy - Rc, aH = artB - aTop;
   ctx.save();
   ctx.beginPath(); ctx.arc(g.cx, g.cy, Rc, 0, TAU); ctx.clip();
-  const im = discArtImg(L);
+  const im = discArtImg(artOf);
   if (im) { // cover-fit the keyframe across the full disc width
     const s = Math.max(Rc * 2 / im.w, aH / im.h);
     ctx.drawImage(im.img, g.cx - im.w * s / 2, aTop + aH / 2 - im.h * s / 2, im.w * s, im.h * s);
-  } else { // no keyframe on disk yet — the relay's own tint stands in
-    const tint = (L && L.tint) || '80,160,255';
-    const wg = ctx.createLinearGradient(g.cx, aTop, g.cx, artB);
-    wg.addColorStop(0, 'rgba(' + tint + ',0.34)');
-    wg.addColorStop(1, 'rgba(4,9,20,0.95)');
-    ctx.fillStyle = wg; ctx.fillRect(g.cx - Rc, aTop, Rc * 2, aH);
-    drawInfoGlyph(infoCard, g.cx, aTop + (aH - bh) * 0.5, Math.min(aH * 0.16, 30));
+  } else { // no keyframe on disk yet — a GLAM SHOT of where this lane delivers
+    drawDiscWorld(g, Rc, aTop, aH, bh, L);
   }
   // the grade the ENGINE adds, so 40 authored keyframes read as one show: the
   // relay's tint, scanlines, a vignette. Art ships clean — see the disc spec.

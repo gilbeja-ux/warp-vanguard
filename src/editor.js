@@ -845,7 +845,8 @@ function edDiscInfo() {
   } else if (/^[\w-]+\.(webp|png|jpg)$/.test(art)) msg = 'file — expects src/art/disc/' + art;
   else msg = 'INVALID name — use letters, digits, - and a .webp/.png/.jpg extension';
   const im = art ? discArtImg(lv) : null;   // null until it decodes; kicks off the load
-  const miss = art && !im && DISCIMG[/^data:image\//.test(art) ? art : 'art/disc/' + art];
+  // DISCIMG is an LRU Map now (see the note on discArtImg), not a plain object
+  const miss = art && !im && DISCIMG.get(/^data:image\//.test(art) ? art : 'art/disc/' + art);
   if (im) {
     const ar = im.w / im.h;
     msg += '  ·  ' + im.w + '×' + im.h + '  ·  ' + (Math.abs(ar - EDART_AR) < 0.12

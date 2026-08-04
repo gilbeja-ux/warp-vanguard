@@ -1,21 +1,60 @@
 'use strict';
 // ---- briefing disc art: one keyframe per mission (docs/DISC-ART-SPEC.md) ----
-// Lazy-decoded on first draw, so boot never waits on 40 images. A level with no
-// art — or one whose image hasn't decoded yet — gets the tint plate instead, so
-// art can land one disc at a time without anything popping in half-drawn.
-const DISCIMG = {}; // decoded per source
+// Lazy-decoded on first draw, so boot never waits on 40 images. A level with no art — or
+// one whose image hasn't decoded yet — gets the GLAM SHOT of its destination instead
+// (drawDiscWorld), so art can land one disc at a time and a disc without art is still a
+// picture of somewhere rather than a placeholder.
+//
+// A BOUNDED cache, and the bound is the point. Keyframes ship at 1280x864
+// (docs/DISC-ART-SPEC.md), which is 4.4MB of RGBA once decoded — the browser holds that
+// for as long as the Image is reachable, whatever the 140KB file weighs. Decoding all 40
+// is ~177MB, which is not a slow frame, it is a dead tab on the phones this targets.
+//
+// A Map because insertion order IS the LRU order: a hit re-inserts to move itself to the
+// end, and eviction always takes keys().next(). Evicting nulls the handlers before
+// clearing src, since clearing it can itself fire onerror and would otherwise mark a
+// perfectly good entry as missing on its way out.
+const DISC_LRU_MAX = 4; // the disc on screen, plus room for the Designer to page around
+const DISCIMG = new Map(); // url -> entry, least-recently-used first
 function discArtImg(L) {
   const src = L && L.art;
   if (!src || typeof Image === 'undefined') return null;
   const url = /^data:image\//.test(src) ? src : 'art/disc/' + src;
-  let e2 = DISCIMG[url];
-  if (!e2) {
-    e2 = DISCIMG[url] = { img: new Image(), w: 0, h: 0, err: false };
+  let e2 = DISCIMG.get(url);
+  if (e2) { DISCIMG.delete(url); DISCIMG.set(url, e2); } // touch: move to most-recent
+  else {
+    e2 = { img: new Image(), w: 0, h: 0, err: false };
     e2.img.onload = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; };
-    e2.img.onerror = () => { e2.err = true; }; // not on disk — the tint plate stands,
+    e2.img.onerror = () => { e2.err = true; }; // not on disk — the glam shot stands,
     e2.img.src = url;                          // and the Designer reports the miss
+    DISCIMG.set(url, e2);
+    while (DISCIMG.size > DISC_LRU_MAX) {
+      const k = DISCIMG.keys().next().value, ov = DISCIMG.get(k);
+      DISCIMG.delete(k);
+      if (ov && ov.img) { ov.img.onload = ov.img.onerror = null; ov.img.src = ''; }
+    }
   }
   return e2.w ? e2 : null;
+}
+// ---- the contract disc's strip: the CLIENT, not the route ----
+// A campaign's `art` replaces the star-chart crop in the carousel disc's top strip — the
+// people who hired you, at 3:1. It is deliberately NOT map.image: that field also drives
+// the full map screen, where route pins are drawn over it, and pins on a picture of a
+// freight yard are nonsense. So a package can carry both, meaning different things.
+//
+// One entry per campaign and at most five packages, so this is bounded by construction and
+// needs no LRU — unlike the forty mission keyframes above. menuCache is dropped on load
+// because the carousel is cached and would otherwise hold the pre-image frame.
+const CAMPART = {}; // decoded per campaign id
+function campArtImg(pk) {
+  if (!pk || !pk.art || typeof Image === 'undefined') return null;
+  let e2 = CAMPART[pk.id];
+  if (!e2) {
+    e2 = CAMPART[pk.id] = { img: new Image(), w: 0, h: 0 };
+    e2.img.onload = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; menuCache = null; };
+    e2.img.src = /^data:image\//.test(pk.art) ? pk.art : 'art/camp/' + pk.art;
+  }
+  return e2.w ? e2 : null; // null until decoded — the chart crop stands in
 }
 // ---- image maps: a package may bring its OWN world (map.image + mapPos pins) ----
 const MAPIMG = {}; // decoded per campaign id
@@ -25,7 +64,9 @@ function campMapImg(pk) {
   if (!e2) {
     e2 = MAPIMG[pk.id] = { img: new Image(), w: 0, h: 0 };
     e2.img.onload = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; menuCache = null; };
-    e2.img.src = pk.map.image;
+    // a bundled name needs its folder — fed to src raw it would resolve at the site root.
+    // Bounded by construction at one per campaign, so no LRU: five strips, not forty.
+    e2.img.src = /^data:image\//.test(pk.map.image) ? pk.map.image : 'art/map/' + pk.map.image;
   }
   return e2.w ? e2 : null; // null until decoded — callers fall back to the city
 }

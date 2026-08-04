@@ -33,7 +33,7 @@
 const CAMPAIGN_PACKAGES = [{
   id: 'investigation', format: 1,
   title: 'THE CARGO RUN', tagline: 'HAULERS CONSORTIUM · TIER 1 → 3', difficulty: 1,
-  client: 'Meridian Haulage', tiers: [1, 3],
+  client: 'Meridian Haulage', tiers: [1, 3], art: 'investigation.webp',
   story: 'A hauler consortium is moving bonded freight out of the inner worlds to a tier-3 market, and every operator they hired last quarter came back short. You fly point. Whatever has been seeded in that lane comes off it before the cargo arrives.',
   map: { theme: 'chart' }, // procedural lane chart; image maps carry { image, pins }
   speakers: [
@@ -66,12 +66,14 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'THE WARDEN CORE AWAITS — six bolts close the case',
       story: { line: 'The buyer is waiting. Nothing gets through you.' } }
   ],
-  verdict: { title: 'CONTRACT 01 — DELIVERED', lines: [
+  verdict: { title: 'CONTRACT 01 — DELIVERED',
+    // the closure disc reads `line`; `lines` keeps the authored epilogue
+    line: 'Eight legs, one hold. Nothing lost.', lines: [
     'Eight legs, one hold, nothing lost.', 'The consortium paid on arrival and', 'asked no questions about the wreckage', 'we left in the lane behind us.'] } },
 {
   id: 'going-deeper', format: 1,
   title: 'THE SURVEY', tagline: 'DEEP RANGE EXPEDITION · TIER 1 → 4', difficulty: 2,
-  client: 'Deep Range Survey', tiers: [1, 4],
+  client: 'Deep Range Survey', tiers: [1, 4], art: 'going-deeper.webp',
   story: 'A survey expedition is pushing past the picket to chart lanes nobody has flown in forty years. They carry instruments, not guns. Eight legs from the inner worlds out to the deep — and the further you get, the less anyone is coming if it goes wrong.',
   map: { theme: 'chart' },
   speakers: [
@@ -112,12 +114,14 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'his private warden is THREE — shield, shredder, alibi. break each',
       story: { line: 'Final reading, then we take them home.' } }
   ],
-  verdict: { title: 'CONTRACT 02 — CHARTED', lines: [
+  verdict: { title: 'CONTRACT 02 — CHARTED',
+    // the closure disc reads `line`; `lines` keeps the authored epilogue
+    line: 'Readings taken. Everyone came home.', lines: [
     'They got their readings and we got', 'them home. Four of those lanes had', 'not been flown since the survey', 'before this one never came back.'] } },
 {
   id: 'signal-lost', format: 1,
   title: 'THE COLLECTOR', tagline: 'A LONE TRADER · TIER 2 → 4', difficulty: 3,
-  client: 'Vess Andarr, trader', tiers: [2, 4],
+  client: 'Vess Andarr, trader', tiers: [2, 4], art: 'signal-lost.webp',
   story: 'One trader, one hold, and a manifest she will not read out. She pays in advance, flies at odd hours, and wants no escort showing on any register. Tier 2 to tier 4, quietly, and no questions about what is in the crates.',
   map: { theme: 'chart' },
   speakers: [
@@ -158,12 +162,14 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'ride the light — survive every sweep and the beacon burns itself out',
       story: { line: 'Last leg. Then she is gone, and so are we.' } }
   ],
-  verdict: { title: 'CONTRACT 03 — CLEARED', lines: [
+  verdict: { title: 'CONTRACT 03 — CLEARED',
+    // the closure disc reads `line`; `lines` keeps the authored epilogue
+    line: 'Unloaded at a berth with no name.', lines: [
     'She unloaded at a berth with no name', 'on it and was gone inside the hour.', 'The fee cleared before we docked.', 'We still do not know what we escorted.'] } },
 {
   id: 'the-bait', format: 1,
   title: 'SILENT PICKET', tagline: 'NAVY FLOTILLA · TIER 4 → 5', difficulty: 4,
-  client: 'Flotilla Command', tiers: [4, 5],
+  client: 'Flotilla Command', tiers: [4, 5], art: 'the-bait.webp',
   story: 'A navy flotilla running dark along the outer picket — and running dark means no active sweep, which means you are their sweep. Tier 4 and the near edge of no man’s land, where lanes stop being charted and start being claimed.',
   map: { theme: 'chart' },
   speakers: [
@@ -204,12 +210,14 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'his hunter-warden is THREE — the nose, the jaws, the ghost',
       story: { line: 'Hold the picket. The flotilla never lights up.' } }
   ],
-  verdict: { title: 'CONTRACT 04 — RELIEVED', lines: [
+  verdict: { title: 'CONTRACT 04 — RELIEVED',
+    // the closure disc reads `line`; `lines` keeps the authored epilogue
+    line: 'The flotilla held. Never lit a scan.', lines: [
     'The flotilla held its patrol and never', 'lit a single active scan. Whatever was', 'waiting on that picket met us first,', 'which was the entire point of hiring us.'] } },
 {
   id: 'shutdown', format: 1,
   title: 'THE DELEGATION', tagline: 'FEDERATION PRESIDENT · TIER 1 → 5', difficulty: 5,
-  client: 'Federation Delegation', tiers: [1, 5],
+  client: 'Federation Delegation', tiers: [1, 5], art: 'shutdown.webp',
   story: 'The Federation president, in the open, crossing every cordon there is to sign another species into the accession. Tier 1 to tier 5 with the route filed in advance, because a state visit cannot be flown in secret. Everything that does not want that signature knows exactly where she will be.',
   map: { theme: 'chart' },
   speakers: [
@@ -252,5 +260,7 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'THE DISPATCHER — six injections seat the antidote and shut it down',
       story: { line: 'Last cordon. She signs on the other side of this lane.' } }
   ],
-  verdict: { title: 'CONTRACT 05 — SIGNED', lines: [
+  verdict: { title: 'CONTRACT 05 — SIGNED',
+    // the closure disc reads `line`; `lines` keeps the authored epilogue
+    line: 'Five cordons crossed. She signed it.', lines: [
     'She crossed all five cordons and put', 'her name on it. The lane behind her was', 'the most contested stretch of space', 'anyone has flown this decade.'] } }];

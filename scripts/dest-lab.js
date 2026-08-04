@@ -206,7 +206,7 @@ function patchById(span, entries) {
   return out;
 }
 
-const SINGLES = ['PLANET_STAR', 'PLANET_SHADE', 'DEST_MIX', 'DEST_LIFE',
+const SINGLES = ['PLANET_STAR', 'PLANET_STAR_W', 'PLANET_STAR_R', 'PLANET_SHADE', 'DEST_MIX', 'DEST_LIFE',
   'S3D_LIGHT', 'S3D_LAMPS', 'S3D_WARP'];
 
 function writeGame(payload) {

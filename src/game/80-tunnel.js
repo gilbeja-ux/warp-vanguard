@@ -589,7 +589,23 @@ function namedDestFor(campId, lv) {
 }
 // The boss sun. Same renderer, but emis kills the night side — it makes its own
 // light, so there is no terminator to place.
+// THREE SUNS, NOT ONE.
+//
+// Every star in the game used to be this single yellow variant, and at DEST_MIX.star = 14%
+// that is six of the forty relays — including two ADJACENT pairs (investigation L6/L7 and
+// shutdown L5/L6), which read as a bug rather than as a galaxy: the same sun twice in a row.
+//
+// `n` is the sprite-cache key (planetChip / deepWorld / discWorld all index on it), so each
+// variant must name itself. Three skins is three more cached sprites, not three more
+// renderers — they come off the same per-pixel shader as every world.
 const PLANET_STAR = { id: 'SUN', n: 'star', z: [255, 226, 150], belt: [245, 245, 245], bf: 17.1, ba: 0.12, atmo: [255, 200, 82], ak: 2.15, emis: 1 };
+// hot: a blue-white core under a cold halo, with the banding dialled down — a B/A primary
+// is smoother than a yellow one
+const PLANET_STAR_W = { id: 'SUNW', n: 'white star', z: [238, 246, 255], belt: [255, 255, 255], bf: 17.1, ba: 0.10, atmo: [150, 195, 255], ak: 2.15, emis: 1 };
+// cool: deep orange core, red halo, and heavier banding reaching further out — a red giant
+// should read as the turbulent one of the three
+const PLANET_STAR_R = { id: 'SUNR', n: 'red star', z: [255, 142, 96], belt: [255, 206, 176], bf: 15.4, ba: 0.16, atmo: [255, 96, 62], ak: 2.30, emis: 1 };
+const STAR_DECK = [PLANET_STAR, PLANET_STAR_W, PLANET_STAR_R];
 // The shading model itself — shared by every world above, which is why it is a
 // separate table. Move a dial here and all nine change together; that is the
 // point. These were loose magic numbers inside the pixel loop until the lab
@@ -837,6 +853,39 @@ const S3D_WARP = {
 // Split from planetVariant() so the GALAXY MAP can ask the same question about
 // any relay, not just the one being flown. Map and lane read from one function,
 // so the world on the chart and the world at the end of the bore cannot drift.
+// WHICH sun — dealt so no two stars a player meets IN A ROW are the same.
+//
+// "In a row" means consecutive STARS, not consecutive relays, and that distinction is why
+// this walks instead of hashing. My first attempt offset a campaign hash by the level index
+// ((h + lv) % 3), which does guarantee adjacent relays differ — but relays three apart
+// collide exactly, and investigation's stars sit at L3, L6 and L7, so L3 and L6 came out
+// identical. Two of a contract's three suns matching is the same complaint one relay later.
+//
+// So: walk the contract's relays in order, hash each star relay for its own colour, and
+// nudge it one place along if it matches the star before it. Order matters and a hash has no
+// order, which is the whole reason the walk exists. At most eight steps, memoised per relay
+// because the render path asks every frame.
+//
+// (destKindFor ignores its isBoss argument for the star decision, so passing false while
+// walking earlier relays is safe — only the caller's own level needs the real flag, and it
+// does not change the answer either.)
+const STARPICK = {};
+function starFor(campId, lv) {
+  const key = (campId || 'x') + '#' + lv;
+  if (key in STARPICK) return STARPICK[key];
+  let prev = -1, idx = 0;
+  for (let i = 0; i <= lv; i++) {
+    if (destKindFor(campId, i, false) !== 'star') continue;
+    let h = 2166136261;
+    const id = (campId || 'x') + '#' + i;
+    for (let k = 0; k < id.length; k++) { h ^= id.charCodeAt(k); h = Math.imul(h, 16777619); }
+    h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15;
+    idx = (h >>> 0) % STAR_DECK.length;
+    if (idx === prev) idx = (idx + 1) % STAR_DECK.length; // never the same sun twice running
+    prev = idx;
+  }
+  return (STARPICK[key] = STAR_DECK[idx]);
+}
 function planetVariantFor(campId, lv, isBoss) {
   // WHAT THE BODY IS is destKindFor's call, not `boss`'s. This used to read
   // `if (isBoss) return PLANET_STAR`, which was the third place in the codebase
@@ -844,7 +893,7 @@ function planetVariantFor(campId, lv, isBoss) {
   // to system centres, the kind function forced 'star', and this returned a sun.
   // Three copies of one rule is how they end up disagreeing; there is one now,
   // and the other two ask it.
-  if (destKindFor(campId, lv, isBoss) === 'star') return PLANET_STAR;
+  if (destKindFor(campId, lv, isBoss) === 'star') return starFor(campId, lv);
   const named = namedDestFor(campId, lv);
   if (named) return named;        // a named world outranks the deal
   let h = 2166136261;
@@ -888,6 +937,16 @@ const deepWorlds = {};
 function deepWorld(V) {
   if (!(V.n in deepWorlds)) deepWorlds[V.n] = buildPlanetSprite(DEEP_WORLD_R, V);
   return deepWorlds[V.n];
+}
+// BRIEFING-DISC worlds: the same renderer a third time, at the size a hero shot of the
+// destination wants inside a mission disc. Its own reference radius for the reason the
+// deep-sky one has its own — the disc draws these at ~150 device px, and an upscaled
+// 52px sprite is mush. Nine sprites cover every campaign; built lazily, one per skin.
+const DISC_WORLD_R = 132;
+const discWorlds = {};
+function discWorld(V) {
+  if (!(V.n in discWorlds)) discWorlds[V.n] = buildPlanetSprite(DISC_WORLD_R, V);
+  return discWorlds[V.n];
 }
 let planetSprite = null, planetSpriteKey = '';
 // >>> DEST-SPRITE

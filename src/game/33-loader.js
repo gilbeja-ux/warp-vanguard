@@ -40,7 +40,19 @@ function validateCampaign(p) {
     // author notes: carried with the level, never read by the engine or shown
     if (l.notes !== undefined && !(typeof l.notes === 'string' && l.notes.length <= 4000)) errs.push(tag + 'bad notes');
     if (i === 0 && p.verdict && !(str(p.verdict.title) && Array.isArray(p.verdict.lines) && p.verdict.lines.every(str))) errs.push('bad verdict card');
-    if (i === 0 && p.map && p.map.image !== undefined && !(str(p.map.image) && /^data:image\//.test(p.map.image))) errs.push('bad map image (data:image URI required)');
+    // Either delivery, matching the rule for a level's `art` two lines up: a bundled file
+    // name (cacheable, lazy, no base64 tax on campaigns.js) or a self-contained data URI
+    // for exported/UGC packages. It used to demand the data URI, which forced every
+    // bundled campaign to carry its strip as ~33%-inflated base64 parsed at boot.
+    // the contract disc's client strip, and the closure disc's own keyframe — same two
+    // deliveries as a level's `art`: a bundled file name, or a self-contained data URI
+    const artOk = v => str(v) && (/^data:image\//.test(v) ? v.length <= 400000 : /^[\w-]+\.(webp|png|jpg)$/.test(v));
+    if (i === 0 && p.art !== undefined && !artOk(p.art)) errs.push('bad campaign art');
+    if (i === 0 && p.verdict && p.verdict.art !== undefined && !artOk(p.verdict.art)) errs.push('bad verdict art');
+    if (i === 0 && p.map && p.map.image !== undefined
+      && !(str(p.map.image) && (/^data:image\//.test(p.map.image)
+        ? p.map.image.length <= 400000 : /^[\w-]+\.(webp|png|jpg)$/.test(p.map.image))))
+      errs.push('bad map image (data:image URI under 400KB, or a .webp/.png/.jpg file name)');
     if (l.mapPos && !(l.mapPos.x >= 0 && l.mapPos.x <= 1 && l.mapPos.y >= 0 && l.mapPos.y <= 1)) errs.push(tag + 'bad mapPos (0..1)');
     if (l.bossKind !== undefined && (!l.boss || !['core', 'triad', 'spinner'].includes(l.bossKind))) errs.push(tag + 'bad bossKind');
     (l.comms || []).forEach(c => {
@@ -167,8 +179,13 @@ function switchCampaign(i) {
 // discAt(); a campaign index maps to its carousel slot via discOfCamp().
 const TRAIN_DISCS = 1;
 const discCount = () => TRAIN_DISCS + CAMPAIGNS.length + CAMPS_SOON.length;
+// Training is not a contract and has no client, but its disc has the same face — so it
+// carries a PSEUDO-PACKAGE, enough of one to ride the strip path the contracts use
+// (campArtImg keys off id + art, and nothing else here is read). The `_` id keeps it out
+// of the namespace a real package id could occupy.
+const TRAIN_PKG = { id: '_train', art: 'training.webp' };
 function discAt(i) {
-  if (i < TRAIN_DISCS) return { kind: 'train' };
+  if (i < TRAIN_DISCS) return { kind: 'train', pk: TRAIN_PKG };
   const j = i - TRAIN_DISCS;
   if (j < CAMPAIGNS.length) return { kind: 'camp', ci: j, pk: CAMPAIGNS[j] };
   return { kind: 'soon', si: j - CAMPAIGNS.length };

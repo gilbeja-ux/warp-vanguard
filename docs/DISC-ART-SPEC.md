@@ -61,6 +61,12 @@ The art box on screen, at DPR 2 (the cap):
 - **Ship at 1280 × 864** — 3:2, matches the box aspect almost exactly (1.481 vs
   1.479), so cover-fit crops nothing horizontally. Covers the worst case with
   headroom.
+  - *Measured 2026-08-04 against the live build, not estimated:* phone (430×800 CSS)
+    → box **657 × 444** device px; tablet (834×1112 CSS) → **1275 × 862**, aspect 1.479
+    at both. So 1280 × 864 is the worst case rounded up, and anything smaller upscales
+    on a tablet. A test card at this size confirmed the mask eats the 8px border, the
+    bottom-28% band lands under the caption bar, and a white subject stays white through
+    the tint wash — which is why the delivery rule below is *full colour*, not muted.
 - **Master at 2560 × 1728** — keep these; they're the reserve for future screens.
 - **WebP, quality ~75.** Budget ≤ 140 KB per disc at this size. 40 discs ≈ 5 MB.
 
@@ -84,11 +90,71 @@ Offline is already handled: the APK bundles `src/` wholesale, and the web servic
 worker is network-first with cache-on-fetch ([sw.js](../src/sw.js)) — no precache
 list to maintain.
 
-## Fallback — ship art one disc at a time
+## Fallback — a glam shot of the destination, not a placeholder
 
-A level with no `art`, or whose image hasn't decoded yet, draws a plate in the
-relay's own `tint` with the threat glyph in it. Nothing breaks, nothing pops in
-half-drawn, and campaign 1's art can land without touching 2–5.
+A level with no `art`, or whose image hasn't decoded yet, draws a **hero shot of the
+world that lane delivers to** (`drawDiscWorld` in `91-briefing.js`): the body large and
+lit, its atmosphere behind it, a terminator across its face, on a starfield.
+
+It costs nothing and it cannot be wrong. The destination is already dealt per relay by
+`planetVariant()` and already rendered per-pixel by the same shader the arrival uses, so
+the disc reuses `buildPlanetSprite` through a `discWorld(V)` cache — nine sprites cover
+every campaign. No file, no download, no decode.
+
+This replaced a plate in the relay's `tint` with a threat glyph stamped on it, which was
+honest about being empty and looked it. So art can still land one disc at a time, and a
+disc without art is a picture of somewhere rather than a holding pattern.
+
+Two things it is careful about:
+
+- **It composes for the visible dome, not the art box.** `aTop` is the circle's topmost
+  point, where the mask's width is zero, so the body centres at `0.55` of the dome height
+  rather than `0.5` — at `0.5` its crown is shaved off.
+- **A star gets half the haze.** Its sprite is already a bloom; at the planet's setting the
+  atmosphere filled the whole dome and buried both the starfield and the relay's tint.
+
+It is draw-only: the star scatter runs off its own `mulberry32` keyed by the relay, never
+`Math.random`, which on a campaign level *is* the sim RNG.
+
+## The closure disc (`verdict`)
+
+One per campaign, shown when the last relay's boss goes down. It shares the **mission
+layout** — picture over caption — rather than the threat-model layout it used to borrow.
+
+- Its art hangs off the **card**, not a level: `verdict: { art: 'name.webp', … }`.
+- It carries a **short closure line** in `verdict.line` (~35 chars; "Eight legs, one hold.
+  Nothing lost."). `line` outranks `lines` in the caption, so each campaign's longer
+  authored epilogue stays in `lines`, intact and available for any screen that wants it —
+  it simply is not what this disc reads.
+- **No readings.** `+infoCard.slice(5)` is `NaN` on `'verdict'`, so `L` is undefined and the
+  existing `if (!L) return` drops LANE LENGTH / DETECTED THREATS. That is correct rather
+  than convenient: those describe a lane, and a closure is not one.
+- With no art it falls to the glam shot, which is a hero shot of the world the contract
+  just delivered to — the best default a closure could have.
+
+## The contract disc's strip (campaign `art`)
+
+The carousel disc's top strip, **3:1**, ship at 1152 × 384. Subject: the **client**, not
+the route. See `src/art/camp/README.md` for the measured crop.
+
+Deliberately a separate field from `map.image`: that one also drives the full map screen,
+where route pins are drawn over it, and pins on a picture of a freight yard are nonsense.
+A package may carry both. `art` outranks `map.image` on the strip.
+
+This strip gets **no tint wash and no scanlines** — that treatment belongs to the mission
+discs only, so client art carries all of its own grade.
+
+## Memory — the cache is bounded
+
+A keyframe at 1280 × 864 is **4.4 MB of RGBA once decoded**, whatever the 140 KB file
+weighs, and the browser holds it as long as the `Image` is reachable. Forty of them is
+~177 MB — not a slow frame, a dead tab.
+
+`DISCIMG` is therefore an **LRU Map capped at `DISC_LRU_MAX` (4)**: insertion order is LRU
+order, a hit re-inserts itself to the end, and eviction takes `keys().next()` and clears
+that entry's `src` (handlers nulled first, since clearing `src` can itself fire `onerror`).
+Campaign map strips are not capped — there are five, one per package, bounded by
+construction.
 
 ## What the engine adds — deliver art clean
 

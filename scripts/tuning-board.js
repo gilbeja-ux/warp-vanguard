@@ -68,7 +68,7 @@ const REGISTRY = [
     blurb: 'What sits at the end of the lane. The game has eighteen named worlds plus '
       + 'stations and gates, and which one you get is decided by the contract and the lane — '
       + 'so pick a lane below and the real destination for it comes up.',
-    consts: ['PLANET_REF_R', 'PLANET_CHIP_R', 'PLANET_STAR', 'DEST_MIX', 'RING_REF_R', 'FIELD_RING_K'] },
+    consts: ['PLANET_REF_R', 'PLANET_CHIP_R', 'PLANET_STAR', 'PLANET_STAR_W', 'PLANET_STAR_R', 'DEST_MIX', 'RING_REF_R', 'FIELD_RING_K'] },
   { id: 'hud', title: 'HUD & briefing', preview: 'hud', file: '91-briefing.js',
     blurb: 'The holographic kit and the briefing card palette.',
     consts: ['INFO_PAL', 'POP_STRIPS'] },

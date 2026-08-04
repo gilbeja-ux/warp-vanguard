@@ -287,6 +287,14 @@ let dirty = false;
 
 const $ = s => document.querySelector(s);
 const clone = o => JSON.parse(JSON.stringify(o));
+/* THE SUNS. There are three now — yellow, white and red — dealt per relay by starFor().
+   The lab knew about exactly ONE, hardcoded in five places, which is why the other two were
+   invisible here even though /api/dest-src was already serving them. Read off STAR_DECK so a
+   fourth sun appears by itself; the fallback covers a game source older than the deck. */
+const STARS = () => (G.STAR_DECK && G.STAR_DECK.length ? G.STAR_DECK : [G.PLANET_STAR]).filter(Boolean);
+const starById = id => STARS().find(s => s && s.id === id);
+const starDefault = id => [DEFAULTS.PLANET_STAR, DEFAULTS.PLANET_STAR_W, DEFAULTS.PLANET_STAR_R]
+  .find(s => s && s.id === id);
 // canvas cannot resolve var(), so the one label drawn INTO a canvas reads the
 // token off the root rather than repeating the literal
 const INK4 = getComputedStyle(document.documentElement).getPropertyValue('--ink-4').trim() || '#4d6c93';
@@ -516,7 +524,7 @@ function railItems() {
   const out = [{ g: 'OVERVIEW', id: 'ALL', n: 'contact sheet' }];
   out.push({ g: 'WORLDS', id: 'SHD', n: 'shared shading' });
   G.PLANET_TYPES.forEach(p => out.push({ id: p.id, n: p.n }));
-  out.push({ id: G.PLANET_STAR.id, n: G.PLANET_STAR.n + ' (boss)' });
+  STARS().forEach(s => out.push({ id: s.id, n: s.n }));
   out.push({ g: 'STATIONS 3D', id: G.S3D_LIGHT.id, n: 'light & material' });
   out.push({ id: G.S3D_LAMPS.id, n: 'how lights blink' });
   out.push({ id: G.S3D_WARP.id, n: 'the gate throat' });
@@ -556,7 +564,7 @@ function markRail() {
 /* ── which table does an ID point at ─────────────────────────────────── */
 function target(id) {
   if (id === 'SHD') return { live: G.PLANET_SHADE, base: DEFAULTS.PLANET_SHADE, dials: DIALS.PLANET_SHADE, name: 'shared world shading' };
-  if (id === 'SUN') return { live: G.PLANET_STAR, base: DEFAULTS.PLANET_STAR, dials: DIALS.world, name: G.PLANET_STAR.n };
+  { const st = starById(id); if (st) return { live: st, base: starDefault(id), dials: DIALS.world, name: st.n }; }
   if (id === 'MIX') return { live: G.DEST_MIX, base: DEFAULTS.DEST_MIX, dials: DIALS.DEST_MIX, name: 'kind mix' };
   if (id === 'LIF') return { live: G.DEST_LIFE, base: DEFAULTS.DEST_LIFE, dials: DIALS.DEST_LIFE, name: 'what lives there' };
   if (id === 'S3L') return { live: G.S3D_LIGHT, base: DEFAULTS.S3D_LIGHT, dials: DIALS.S3D_LIGHT, name: 'built-station light & material', s3: 'FORT' };
@@ -760,7 +768,8 @@ function setState(s, txt) {
 }
 function payload() {
   return {
-    PLANET_TYPES: G.PLANET_TYPES, PLANET_STAR: G.PLANET_STAR, PLANET_SHADE: G.PLANET_SHADE,
+    PLANET_TYPES: G.PLANET_TYPES, PLANET_SHADE: G.PLANET_SHADE,
+    PLANET_STAR: G.PLANET_STAR, PLANET_STAR_W: G.PLANET_STAR_W, PLANET_STAR_R: G.PLANET_STAR_R,
     DEST_MIX: G.DEST_MIX, DEST_LIFE: G.DEST_LIFE,
     S3D_LIGHT: G.S3D_LIGHT, S3D_LAMPS: G.S3D_LAMPS, S3D_WARP: G.S3D_WARP
   };
@@ -853,7 +862,7 @@ function drawS3(c, id, R, x, y, t) {
 function drawDest(c, id, R, x, y, t, max) {
   const T = target(id);
   if (T && T.s3) return drawS3(c, T.s3, R, x, y, t);
-  const V = id === 'SUN' ? G.PLANET_STAR : G.PLANET_TYPES.find(p => p.id === id);
+  const V = starById(id) || G.PLANET_TYPES.find(p => p.id === id);
   if (V) blit(c, V, R, x, y, max);
 }
 function cv(w, h) {
@@ -903,7 +912,7 @@ function buildStage() {
 // corona and a ringed world's ring both reach far past the body, and the sprite
 // already knows exactly how far — so ask it rather than guessing a square.
 function footprint(id, R) {
-  const V = id === 'SUN' ? G.PLANET_STAR : G.PLANET_TYPES.find(p => p.id === id);
+  const V = starById(id) || G.PLANET_TYPES.find(p => p.id === id);
   const s = V && sprite(V, R);
   return s ? Math.ceil(s.S) : Math.ceil(R * 2.6);
 }
@@ -951,7 +960,7 @@ function bodyStage(st) {
     big = grow(hero, big, cur, R, HERO_MAX);
     big.c.clearRect(0, 0, big.w, big.h);
     // the haze the game puts around every body, so a colour is judged in air
-    const V = cur === 'SUN' ? G.PLANET_STAR : G.PLANET_TYPES.find(p => p.id === cur);
+    const V = starById(cur) || G.PLANET_TYPES.find(p => p.id === cur);
     if (V) {
       const hz = big.c.createRadialGradient(big.w / 2, big.h / 2, R * 0.8, big.w / 2, big.h / 2, R * 1.9);
       hz.addColorStop(0, 'rgba(' + V.atmo + ',0.075)');
@@ -974,13 +983,14 @@ function bodyStage(st) {
 function sheetStage(st) {
   const sheet = document.createElement('div');
   sheet.className = 'sheet';
-  // Worlds, the boss star, and then every BUILT destination — the four station
-  // builds and the gate. 'STN' and 'GAT' used to sit here as one station and one
-  // gate, because there was only ever one of each; a build has replaced both, and
-  // there are five of them, so the sheet shows the five.
+  // Worlds, every SUN, and then every BUILT destination — the four station builds and the
+  // gate. 'STN' and 'GAT' used to sit here as one station and one gate, because there was
+  // only ever one of each; a build has replaced both, and there are five of them, so the
+  // sheet shows the five. The suns went the same way: one hardcoded 'SUN' became the deck,
+  // so the sheet shows all three and would show a fourth without being told.
   const ids = cur === 'SHD'
-    ? G.PLANET_TYPES.map(p => p.id).concat(['SUN'])
-    : G.PLANET_TYPES.map(p => p.id).concat(['SUN'], G.S3D_BUILDS.map(b => 'B:' + b.id));
+    ? G.PLANET_TYPES.map(p => p.id).concat(STARS().map(s => s.id))
+    : G.PLANET_TYPES.map(p => p.id).concat(STARS().map(s => s.id), G.S3D_BUILDS.map(b => 'B:' + b.id));
   const cells = ids.map(id => {
     const t = target(id);
     const s = cv(110, 110);
@@ -1351,7 +1361,8 @@ function fail(msg) {
         return true;
       }
       return {
-        PLANET_REF_R, PLANET_TYPES, PLANET_STAR, PLANET_SHADE,
+        PLANET_REF_R, PLANET_TYPES, PLANET_SHADE,
+        PLANET_STAR, PLANET_STAR_W, PLANET_STAR_R, STAR_DECK, starFor,
         DEST_MIX, DEST_LIFE,
         S3D_LIGHT, S3D_LAMPS, S3D_WARP, S3D_BUILDS, S3D_FINAL,
         S3Mesh, s3render, s3lamp, s3build, s3FinalFor, s3BuildFor, s3warp,

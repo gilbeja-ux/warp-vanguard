@@ -56,10 +56,13 @@ const NEVER_SHIP = [
   'game/manifest.json',                // build-time load order; nothing fetches it at runtime
   '.DS_Store',
 ];
-const SKIP_EXT = /\.(bak|stale-bak|orig|rej)$/i;
+const SKIP_EXT = /\.(bak|stale-bak|orig|rej|md)$/i; // .md: notes-to-authors, never a game asset
+// `_`-prefixed files are fixtures — the disc test card, for one. They exist so the art
+// pipeline can be re-verified against a known image; they are not content.
+const SKIP_FIXTURE = /^_/;
 
 function shipPath(rel) {
-  if (SKIP_EXT.test(rel)) return false;
+  if (SKIP_EXT.test(rel) || SKIP_FIXTURE.test(path.basename(rel))) return false;
   for (const deny of NEVER_SHIP) {
     if (rel === deny || rel.startsWith(deny + path.sep)) return false;
   }
