@@ -1342,7 +1342,12 @@ G.startQualification();
 G.update(0.05);
 check('qualification opens straight into play on the movement drill',
   G.getState() === G.S.PLAY && G.isQual() && G.qualStage().card === 'move');
-function settle() { for (let i = 0; i < 4; i++) G.update(0.4); }
+// 1.6s, in 0.05s steps rather than the 4 x 0.4s it used to take. Same duration, but a 0.4s
+// step moves a trap 0.16 in z — WIDER THAN THE HIT WINDOW — so a hazard could cross the ring
+// inside one step and register neither a hit nor a miss. Every drill in this section reaches
+// its verdict by something crossing that plane, so the coarse step was a latent flake in all
+// of them. Nothing depended on the tunnelling: the suite is green either way.
+function settle() { for (let i = 0; i < 32; i++) G.update(0.05); }
 function waitLive(maxS) {
   for (let i = 0; i < maxS / 0.05; i++) {
     if (G.enemies().some(e => e.tut && !e.dead && !e.resolved) || G.pickups().some(p => p.tut && !p.done)) return true;
@@ -1468,17 +1473,47 @@ check('bonus-stream drill begins', G.qualStage().card === 'strip');
   check('tracing the practice stream end-to-end succeeds',
     spawned && !G.enemies().some(e => e.type === 'strip' && !e.dead) && G.tut() && !G.tut().retry);
 }
-settle();
-check('pulse drill: the purge volley is already inbound',
-  G.qualStage().card === 'pulse' && G.enemies().filter(e => e.tut === 'pulse' && !e.dead).length === 4);
+// THE PULSE DRILL. Reported flaky (one failure in eight runs, 2026-08-03) and it never
+// reproduced — 66 runs across this commit and a51735f, all green, and with Math.random
+// pinned the state here is identical every time. But the check as written was FRAGILE in
+// exactly the shape a flake takes, so it is stated properly now instead of being left to
+// coincidence:
+//
+//   settle() advanced a flat 1.6s and the check read whatever that landed on, which was
+//   `tut.t === 1.2`. It passed for a reason nothing in the test mentions — `tut.t >= 1`
+//   freezes the world (see updateTutorial), so the traps had already stopped and could not
+//   reach the ring. That is a 0.2s margin held by an unrelated constant. Move the freeze
+//   threshold, advanceQual's `tut.t > 0.8` gate, or settle()'s duration and the check
+//   silently starts measuring a MOVING volley — at which point a 0.4s settle step (0.16 in
+//   z, wider than the hit window) can tunnel a trap straight past the ring, registering
+//   neither a hit nor a miss, and the 4 becomes a 3 on some runs and not others.
+//
+// So: wait for the stage to open, in small steps, and assert the claim the name actually
+// makes — as the stage OPENS, four traps are already inbound. advanceQual pre-spawns them,
+// so that is structurally guaranteed and independent of travel time entirely.
 {
-  // two seconds in, the run HOLDS: world frozen, music wound to a stop
-  let fGuard = 60;
+  let oGuard = 200; // ~10s; the advance needs !live && tut.t > 0.8
+  while (oGuard-- > 0 && G.qualStage().card !== 'pulse') G.update(0.05);
+  const vol = G.enemies().filter(e => e.tut === 'pulse');
+  const live = vol.filter(e => !e.dead);
+  check(`pulse drill: the purge volley is already inbound (${live.length} traps, card ${G.qualStage().card})`,
+    G.qualStage().card === 'pulse' && live.length === 4);
+  // …and state the thing the old check was silently relying on, so a change to the drill's
+  // speed or stagger fails HERE, naming the cause, instead of as a mystery count elsewhere
+  check(`the volley is still short of the ring (nearest z ${Math.min(...vol.map(e => e.z)).toFixed(2)} vs hitZ ${G.geo().hitZ.toFixed(2)})`,
+    vol.length > 0 && Math.min(...vol.map(e => e.z)) > G.geo().hitZ);
+}
+{
+  // a beat in, the run HOLDS: world frozen, music wound to a stop
+  let fGuard = 80;
   while (fGuard-- > 0 && !(G.tut() && G.tut().frozen)) G.update(0.05);
   check('the FIRE-PULSE hold freezes the run', G.tut() && G.tut().frozen === true);
-  const zBefore = G.enemies().find(e => e.tut === 'pulse' && !e.dead).z;
+  // every trap, not just the first the array happens to yield — "the traffic" is all of it
+  const zBefore = G.enemies().filter(e => e.tut === 'pulse' && !e.dead).map(e => e.z);
   for (let i = 0; i < 6; i++) G.update(0.05);
-  check('the hold stops the traffic', G.enemies().find(e => e.tut === 'pulse' && !e.dead).z === zBefore);
+  const zAfter = G.enemies().filter(e => e.tut === 'pulse' && !e.dead).map(e => e.z);
+  check(`the hold stops the traffic (${zAfter.length} traps held)`,
+    zBefore.length === 4 && zAfter.length === 4 && zAfter.every((z, i) => z === zBefore[i]));
   // the ribbon charged it — tapping the core releases the hold and fires
   const d2 = G.dialCenter('L');
   canvasHandlers.pointerdown({ pointerId: 9, clientX: d2.x, clientY: d2.y, pointerType: 'touch' });
