@@ -444,7 +444,10 @@ function introStageChange(dt, introPrev, inIntro, stageNow) {
       tone(740, 0.05, 'square', 0.09, null, null, 0.17);
       tone(58, 0.4, 'sine', 0.22, 42);
       buzz([20, 30, 50]);
-      commCur = { s: 'CMD', m: 'godspeed, runner.' }; commT = 0;
+      // the handover line. Not 'godspeed, runner.' any more: the deploy barks 1.5s later
+      // already speak to the runner, so Command's own line names the RELEASE — the thing
+      // that just happened on this frame — and keeps godspeed for the send-off.
+      commCur = { s: 'CMD', m: 'Vanguard released, Godspeed.' }; commT = 0;
     }
   }
   // nodes and consoles finish their power ramp together — both lenses re-form

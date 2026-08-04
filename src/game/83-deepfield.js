@@ -653,8 +653,11 @@ function drawLaneMedium(g, dt) {
 // Beyond that: never queue (a stale bark comments on something that stopped being
 // true), priority interrupts, and silence is fine — a quiet run is a clean run.
 const BARKS = {
-  deploy:      ['lane is yours, runner.', "clock's running. keep it clean.",
-                "we're live. eyes up.", 'corridor is hot. go.'],
+  // NO `deploy`. The launch already has a voice — Command's handover line at the end of the
+  // boot ("Vanguard released, Godspeed.", see introStageChange). A second unprompted line
+  // 1.5s into the run said nothing the player did not just watch happen, and because the
+  // variant rotates by counter it was a different platitude every run. Barks earn their
+  // place by REACTING to something; nothing has happened yet at levelT 1.5.
   firstHeavy:  ['armor inbound. both emitters.', "that one's plated. hold the bolt.",
                 "heavy. you'll need the pair."],
   firstLine:   ['barrier strung. take an end each.', 'pair job. split the emitters.',
@@ -681,7 +684,6 @@ const BARKS = {
 };
 // pri 1 = highest · cd = per-trigger cooldown · once = at most once per run
 const BARK_CFG = {
-  deploy:      { pri: 5, cd: 0,  once: 1 },
   firstHeavy:  { pri: 3, cd: 8,  once: 1 },
   firstLine:   { pri: 3, cd: 8,  once: 1 },
   firstWall:   { pri: 2, cd: 8,  once: 1 },
@@ -726,7 +728,6 @@ function updateBarks(dt) {
     if (boss.hp <= 1) bark('bossLow');
     return;                                          // the warden owns the channel
   }
-  if (levelT > 1.5) bark('deploy');
   // first-of-kind: read the live wave rather than hooking the spawner
   for (const e of enemies) {
     if (e.dead || e.resolved) continue;

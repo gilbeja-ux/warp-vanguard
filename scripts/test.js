@@ -210,6 +210,7 @@ code = code.replace("'use strict';", '') + `
   weekNow, weekOf, weekLabel, weekStartMs, weekOfBoard, getPulse: () => pulseCharge,
   getShield: () => shieldCharge, setShield: v => { shieldCharge = v; },
   setMenuScreen: v => { menuScreen = v; }, getMenuScreen: () => menuScreen, commCur: () => commCur,
+  clearComm: () => { commCur = null; commT = 0; }, // so a test can watch for the NEXT line
   setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length,
   latches: () => latches, setLatches: v => { latches = v; },
   spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; },
@@ -1295,6 +1296,25 @@ G.update(0.15); G.update(0.15); G.update(0.15); // card animates out
 check('dismissing the log enters the relay', G.getState() === G.S.PLAY && G.getLV() === G.getLevels()[2]);
 G.setIntro(999);
 {
+  // THE LANE OPENS IN SILENCE. `deploy` used to bark at levelT > 1.5 with nothing having
+  // happened yet — four platitudes on a counter, a different one every run. It is gone
+  // (docs/IN-RUN-VOICE.md rule 7): the launch's voice is Command's handover line at the end
+  // of the boot, and the channel stays shut until there is something to react TO.
+  //
+  // The loop stops as soon as traffic is live, because a bark then is legitimate — so this
+  // can never go falsely red on a level whose first wave arrives early.
+  G.clearComm();
+  let qGuard = 60, spoke = null;              // 3s: twice the old trigger
+  while (qGuard-- > 0 && !spoke) {
+    if (G.enemies().some(e => !e.dead)) break;
+    G.update(0.05);
+    if (G.commCur()) spoke = G.commCur().m;
+  }
+  check(`the lane opens in silence — no start bark${spoke ? ' (heard "' + spoke + '")' : ''}`, !spoke);
+}
+{
+  // …and the channel still WORKS: with traffic running, a reactive bark lands. This used to
+  // be satisfied inside 1.5s by `deploy`; now it has to wait for a real trigger.
   let cGuard = 300;
   while (cGuard-- > 0 && !G.commCur()) { G.setIntegrity(100); G.update(0.05); }
   check('the handler barks over the campaign line', !!G.commCur());

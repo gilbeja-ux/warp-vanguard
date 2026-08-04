@@ -580,9 +580,16 @@ function drawQualCeremony(t) {
   ctx.fillText('QUALIFIED', 0, -fs * 0.1);
   ctx.shadowBlur = 0;
   try { ctx.letterSpacing = '2px'; } catch (e) {}
-  ctx.font = '700 ' + Math.max(9, Math.round(fs * 0.32)) + 'px Audiowide, system-ui';
+  // TWO FITTED LINES, and the fitting is the fix. This subtitle was drawn at a flat
+  // fs * 0.32 with no fitPx — it held together only because 'THE LANE IS YOURS TO CLEAR'
+  // happened to be short enough, so any longer replacement ran off the stamp. Split at the
+  // colon clause it reads as a stamp rather than a sentence, which is what this moment is.
+  const sub = ['CERTIFICATION: PASSED', 'CLEARED FOR WARP'];
+  const ss = Math.max(8, Math.min(...sub.map(l =>
+    fitPx(l, 700, Math.round(fs * 0.32), g2.nodeR * 1.7, 8))));
+  ctx.font = '700 ' + ss + 'px Audiowide, system-ui';
   ctx.fillStyle = 'rgba(150,215,240,' + (al * 0.9).toFixed(2) + ')';
-  ctx.fillText('THE LANE IS YOURS TO CLEAR', 0, fs * 0.72);
+  sub.forEach((l, i) => ctx.fillText(l, 0, fs * 0.72 + i * (ss + 5)));
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.textAlign = 'left';
   ctx.restore();

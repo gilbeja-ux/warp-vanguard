@@ -39,6 +39,14 @@ These are non-negotiable — the first two are correctness, not taste.
 5. **Global cooldown 7s** on top of per-trigger cooldowns, so barks never stack.
 6. **Silence is fine.** A quiet run is a clean run. Target ~4–6 barks per level,
    not 3-per-level guaranteed.
+7. **A bark must REACT to something.** There is deliberately no start bark. There
+   used to be a `deploy` trigger at `levelT > 1.5` and it broke this rule: nothing
+   has happened by then, so all four variants were platitudes ("lane is yours,
+   runner", "corridor is hot. go."), and because variant choice is a counter it was
+   a *different* platitude every run. The launch already has a voice — Command's
+   handover line at the end of the boot (`introStageChange`, stage 4:
+   "Vanguard released, Godspeed."). Do not add a second one; if the opening feels
+   quiet, that is the boot ceremony's job, not the channel's.
 
 ## Trigger table
 
@@ -46,7 +54,6 @@ Priority 1 = highest. "Once" = fires at most once per run.
 
 | id | Fires when | Pri | Cooldown | Once |
 |---|---|---|---|---|
-| `deploy` | 1.5s after the intro clears | 5 | — | ✓ |
 | `firstHeavy` | first heavy spawns this run | 3 | 8s | ✓ |
 | `firstLine` | first barrier pair spawns | 3 | 8s | ✓ |
 | `firstWall` | first latch telegraphs | 2 | 8s | ✓ |
@@ -70,8 +77,6 @@ House style, matching the existing comms: lowercase, terse, ≤ 40 characters
 
 ```js
 const BARKS = {
-  deploy:      ['line is yours, defender.', "clock's running. keep it clean.",
-                "we're live. eyes up.", "wire's hot. go."],
   firstHeavy:  ['armor inbound. both nodes.', "that one's plated. hold the bolt.",
                 "heavy. you'll need the pair."],
   firstLine:   ['barrier strung. take an end each.', 'pair job. split the nodes.',

@@ -31,7 +31,11 @@ const INFO_CARDS = {
   pickup: { title: 'POWER-UP', lines: ['Golden relays arm powers.', 'Catch one with any emitter.'] },
   strip:  { title: 'BONUS RIBBON', lines: ['Optional: ride its crossing point.', 'A full ride banks a full PULSE.'] },
   wall:   { title: 'RIM WALL', lines: ['It seizes part of your rail.', 'Crossing FRIES — go around.'] },
-  done:   { title: 'QUALIFIED', lines: ['The lane is yours to clear.', 'Report to Meridian Haulage — the', 'investigation begins at relay 01.'] },
+  // NOT SHOWN. 'done' has no disc — advanceQual returns before any card and the QUALIFIED
+  // stamp is drawn in-world by drawQualCeremony, which owns this wording. Kept in step with
+  // it on purpose: a second copy of user-facing copy is a trap, and this one already caught
+  // me editing the wrong string once.
+  done:   { title: 'QUALIFIED', lines: ['Certification: PASSED. Cleared for warp.', 'Report to Meridian Haulage — the', 'investigation begins at relay 01.'] },
   verdict: { title: 'LOG 09 — VERDICT', lines: ['The gateway burned. The convoy', 'reached Lane Command intact. Warrants', 'went out within the hour — the', 'buyer wore a badge. Case closed.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Zaps bank charge in your pads.', 'A glowing orb: TAP to fire.'] },
   boss:   { title: 'WARDEN CORE', lines: ['The dials stay YOURS. Dock both', 'emitters and HOLD — the bolt homes', 'on the core. SIX hits close the case.', 'Dodge darts. Mind the latches.'] },
