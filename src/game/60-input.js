@@ -423,7 +423,7 @@ function menuTap(x, y, pid) {
       // leaderboard screen controls
       else if (b.boardLeft) pressUI(b, () => { // left list: pick a board or fold a campaign
         const it = b.boardLeft;
-        if (it.kind === 'camp') { boardCollapsed[it.id] = !boardCollapsed[it.id]; sfx.tick(); }
+        if (it.kind === 'camp' || it.kind === 'weeks') { boardCollapsed[it.id] = !boardCollapsed[it.id]; sfx.tick(); }
         else if (it.kind === 'mode') boardPick(it.mode);
         else if (it.kind === 'week') boardPick('weekly', it.week);
         else boardPick('campaign', it.camp, it.level);

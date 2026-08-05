@@ -12,9 +12,30 @@ function boardKeyFor() {
 // the week the feature shipped; the list runs from the live week back to it, newest
 // first, and grows by one row every Monday.
 const WEEK_LADDER_FIRST = 2953; // 3–9 AUG, 2026
+// The ladder folds under one header, sharing the campaigns' collapse state so there is one
+// mechanism rather than two. '#weeks' cannot collide with a campaign id — the loader holds
+// those to /^[a-z0-9-]+$/ — and it is a reserved key rather than a campaign that happens
+// not to exist yet.
+const BOARD_WEEKS = '#weeks';
+// DEV: ?weeks=N pretends the ladder has already run N weeks.
+//
+// The fold below only has anything to fold once history exists, and history arrives one
+// Monday at a time — so in the ladder's first week the feature is invisible and cannot be
+// reviewed at all. This makes it reviewable now, and again whenever the list's behaviour at
+// twenty or fifty rungs matters.
+//
+// LISTING ONLY. It cannot affect a score: the board key still comes from the real weekNow(),
+// and the server recomputes the live week from its own clock before accepting anything (see
+// boardKeyFor in submit-run). Picking a fabricated rung just reads an empty board, honestly.
+const WEEK_LADDER_DEV = (() => {
+  if (typeof location === 'undefined') return 0;
+  const m = /[?&]weeks=(\d+)/.exec(location.search);
+  return m ? Math.max(1, Math.min(200, parseInt(m[1], 10) || 0)) : 0;
+})();
 const weekLadder = () => {
   const now = weekNow(), out = [];
-  for (let w = now; w >= WEEK_LADDER_FIRST; w--) out.push(w);
+  const first = WEEK_LADDER_DEV ? now - (WEEK_LADDER_DEV - 1) : WEEK_LADDER_FIRST;
+  for (let w = now; w >= first; w--) out.push(w);
   return out;
 };
 // kick off the async fetch for the current selection; a newer request drops stale replies
@@ -29,9 +50,16 @@ function loadBoard() {
 }
 function openBoard(from) {
   boardFrom = from || 'home';
-  boardSel.mode = null; boardData = null; boardSelRank = 1; // nothing picked yet — the ring shows the prompt
+  boardSelRank = 1;
   // every campaign starts folded (first open only — respects the player's toggles after)
   CAMPAIGNS.forEach(c => { if (boardCollapsed[c.id] === undefined) { boardCollapsed[c.id] = true; boardFoldV[c.id] = 0; } });
+  // the ladder folds too, and starts folded for the same reason the campaigns do
+  if (boardCollapsed[BOARD_WEEKS] === undefined) { boardCollapsed[BOARD_WEEKS] = true; boardFoldV[BOARD_WEEKS] = 0; }
+  // OPENS ON THE LIVE WEEK. It used to open on a prompt ("choose a level to see leading
+  // scores") with nothing loaded, which spent the first interaction on a question that has
+  // one obvious answer — the ladder is the competitive spine, and the live rung is the only
+  // board still in play. boardPick kicks the fetch off while the screen is still flying in.
+  boardPick('weekly');
   lbSession(); // background: mint/refresh the session so identity.uid is known (drives "Show my Run")
   // the current menu screen spins out, then the board circles in (see menuFx completion)
   menuFx = { kind: 'spinOut', t: 0, dur: 0.3, to: 'board', dir: 1 };
@@ -55,11 +83,20 @@ function boardLeftItems() {
     { kind: 'mode', mode: 'endless', label: 'FREE FLOW', sel: boardSel.mode === 'endless' },
   ];
   const live = weekNow();
-  for (const w of weekLadder()) {
-    items.push({
-      kind: 'week', week: w, label: weekLabel(w), live: w === live,
-      sel: boardSel.mode === 'weekly' && boardSel.week === w,
-    });
+  const rung = w => ({
+    kind: 'week', week: w, label: weekLabel(w), live: w === live,
+    sel: boardSel.mode === 'weekly' && boardSel.week === w,
+  });
+  // THE LIVE WEEK STAYS OUT IN THE OPEN. It is the one board anyone can still change, and
+  // the thing this screen opens on, so it is not worth a tap. What bloats is the HISTORY:
+  // a rung every Monday, never removed, and after a year it buries Free Flow and the five
+  // contracts. So only the closed weeks fold, under one header.
+  items.push(rung(live));
+  const past = weekLadder().filter(w => w !== live);
+  if (past.length) { // no header over an empty group — in the ladder's first week there is none
+    const folded = !!boardCollapsed[BOARD_WEEKS];
+    items.push({ kind: 'weeks', id: BOARD_WEEKS, collapsed: folded, label: 'WEEKLY LANES' });
+    for (const w of past) items.push(Object.assign(rung(w), { inGroup: true }));
   }
   CAMPAIGNS.forEach((c, ci) => {
     const collapsed = !!boardCollapsed[c.id];
@@ -167,13 +204,15 @@ function drawMenuBoard() {
   ctx.restore();
 
   // ================= LEFT: modes + collapsible campaigns (animated fold) =================
-  for (const c of CAMPAIGNS) { // ease each campaign's fold toward its open/closed target
-    const t = boardCollapsed[c.id] ? 0 : 1, v = boardFoldV[c.id] === undefined ? 1 : boardFoldV[c.id];
-    boardFoldV[c.id] = Math.abs(t - v) < 0.01 ? t : v + (t - v) * 0.22;
+  // ease every foldable group toward its open/closed target — the campaigns and the ladder
+  for (const k of CAMPAIGNS.map(c => c.id).concat(BOARD_WEEKS)) {
+    const t = boardCollapsed[k] ? 0 : 1, v = boardFoldV[k] === undefined ? 1 : boardFoldV[k];
+    boardFoldV[k] = Math.abs(t - v) < 0.01 ? t : v + (t - v) * 0.22;
   }
   const items = boardLeftItems();
   const ind = Math.round(leftRowH * 0.42); // level indent (narrower card, right-aligned to the arc)
-  const foldOf = it => it.kind === 'level' ? (boardFoldV[it.campId] === undefined ? 1 : boardFoldV[it.campId]) : 1;
+  const foldKey = it => it.kind === 'level' ? it.campId : (it.kind === 'week' && it.inGroup) ? BOARD_WEEKS : null;
+  const foldOf = it => { const k = foldKey(it); return k === null || boardFoldV[k] === undefined ? 1 : boardFoldV[k]; };
   const listY = SAFE.t + H * 0.035, listBot = H - SAFE.b - H * 0.02, viewH = listBot - listY;
   const totalH = items.reduce((a, it) => a + (leftRowH + leftGap) * foldOf(it), 0);
   boardLeftScroll = clamp(boardLeftScroll, 0, Math.max(0, totalH - viewH));
@@ -197,7 +236,7 @@ function drawMenuBoard() {
       const rightX = ringL(yy + rh / 2) - 12;          // right edge rides the ring arc
       const cw = it.kind === 'level' ? colW - ind : colW;
       const cardX = rightX - cw;
-      if (it.kind === 'camp') {
+      if (it.kind === 'camp' || it.kind === 'weeks') {
         card(cardX, yy, cw, leftRowH, false);
         const th = leftRowH * 0.17, tX = cardX + 14, tcy = yy + leftRowH / 2; // inline +/- box
         ctx.strokeStyle = 'rgba(255,210,74,0.9)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
@@ -206,9 +245,13 @@ function drawMenuBoard() {
         if (it.collapsed) { ctx.moveTo(tX + th, tcy - th * 0.5); ctx.lineTo(tX + th, tcy + th * 0.5); } ctx.stroke();
         // a header cannot be selected, so the one HOLDING the selected board is the
         // focused row — the same rule the list follows, applied a level up
-        const holds = boardSel.mode === 'campaign' && boardSel.camp === it.camp;
+        const holds = it.kind === 'weeks' ? boardSel.mode === 'weekly'
+          : boardSel.mode === 'campaign' && boardSel.camp === it.camp;
         ctx.fillStyle = '#ffd24a'; ctx.font = '700 ' + fLeft + 'px Audiowide, system-ui';
         const labX = tX + th * 2 + 12;
+        // (no count on this header. It was here, right-aligned, and the space it reserved
+        //  clipped the last letter of WEEKLY LANES — the title is the thing that had to fit,
+        //  and the campaign headers carry no count either.)
         drawMarquee('bl' + it.id, it.label, labX, tcy + fLeft * 0.36, cardX + cw - 16 - labX, holds ? marqueeK() : null);
         menuButtons.push({ x: cardX, y: yy, w: cw, h: leftRowH, boardLeft: it });
       } else if (it.kind === 'mode') {

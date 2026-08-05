@@ -155,7 +155,7 @@ code = code.replace("'use strict';", '') + `
   getGpSel: () => gpSel, setGpSel: v => { gpSel = v; },
   getMapSel: () => mapSel, getPadHold: () => padHold,
   getCampScroll: () => campScrollTgt, setCampScroll: v => { campScroll = campScrollTgt = v; }, CAMPS_SOON,
-  getMenuFx: () => menuFx, getBackRect: () => menuBackRect,
+  getMenuFx: () => menuFx, setMenuFx: v => { menuFx = v; }, getBackRect: () => menuBackRect,
   startEndless, menuBtns: () => menuButtons, getEndWin: () => endWin,
   setLevelT: v => { levelT = v; }, setIntegrity: v => { integrity = v; }, setScore: v => { score = v; },
   setMenuScroll: v => { menuScroll = v; }, tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
@@ -194,6 +194,7 @@ code = code.replace("'use strict';", '') + `
   getIdentity: () => identity, boardKey, captureRun, getLastRun: () => lastRun, // leaderboard capture
   lbTop, lbRank, lbDay, LEADERBOARD, // leaderboard read client (Supabase)
   boardKeyFor, boardPick, openBoard, boardLeftItems, weekLadder, getBoardSel: () => boardSel, setBoardData: v => { boardData = v; }, // board screen
+  setBoardCollapsed: (k, v) => { boardCollapsed[k] = v; }, // the left list's folds
   setNameEntry: v => { nameEntry = v; }, setEndProvisional: v => { endProvisional = v; }, // high-score name card
   getMaxCombo: () => maxCombo, endLevel,
   simStep, startTrace, stopTrace, startReplay, stopReplay, dismissInfo, // run-trace record/replay
@@ -425,6 +426,47 @@ drawOk('leaderboard: endless tab', () => { G.getBoardSel().mode = 'endless'; });
     rungs.filter(r => r.live).length === 1 && rungs[0].live === true);
   check('board: every rung is labelled by its date range',
     rungs.every(r => /^\d{1,2}(–\d{1,2} [A-Z]{3}, \d{4}| [A-Z]{3} (\d{4} )?– \d{1,2} [A-Z]{3},? ?\d{4})$/.test(r.label)));
+  // THE LADDER FOLDS ITS HISTORY, not its live rung. The list grows a row every Monday and
+  // never shrinks, so a year in it buries Free Flow and the five contracts — but the live
+  // week is the one board still in play and the one this screen opens on, so it stays out in
+  // the open and only the closed weeks fold.
+  //
+  // The clock is moved rather than trusted: on the ladder's very first week there IS no
+  // history, and a test that reads the real date would assert one thing this month and the
+  // opposite next month.
+  {
+    const realNow = Date.now;
+    try {
+      Date.now = () => realNow() + 11 * 7 * 864e5; // eleven Mondays on: history exists
+      G.openBoard('home');
+      const items = G.boardLeftItems();
+      const hdr = items.find(i => i.kind === 'weeks');
+      const weeks = items.filter(i => i.kind === 'week');
+      const liveRow = weeks.find(w => w.live);
+      check('board: the closed weeks sit under a WEEKLY LANES header', !!hdr && hdr.label === 'WEEKLY LANES');
+      check('board: that header starts folded, like the campaigns do', !!hdr && !!hdr.collapsed);
+      check(`board: the live week sits OUTSIDE the group (${weeks.length} rungs, 1 loose)`,
+        !!liveRow && !liveRow.inGroup && weeks.filter(w => !w.live).every(w => w.inGroup) && weeks.length > 1);
+      check('board: the live rung is listed above the header', items.indexOf(liveRow) < items.indexOf(hdr));
+      check('board: the leaderboard opens ON the live week, not on a prompt',
+        G.getBoardSel().mode === 'weekly' && G.getBoardSel().week === G.weekNow());
+      G.setBoardCollapsed('#weeks', false);
+      check('board: the header toggles the fold open',
+        !G.boardLeftItems().find(i => i.kind === 'weeks').collapsed);
+      G.setBoardCollapsed('#weeks', true);
+      // …and in the ladder's FIRST week there is nothing to fold, so there is no empty header.
+      // The timestamp is computed BEFORE the stub is installed: a stub that calls weekLadder()
+      // recurses, because weekLadder asks weekNow which asks Date.now (it blew the stack once).
+      const firstMs = G.weekStartMs(G.weekLadder()[G.weekLadder().length - 1]) + 864e5;
+      Date.now = () => firstMs;
+      check('board: no header at all while there is no history to fold',
+        G.weekLadder().length === 1 && !G.boardLeftItems().some(i => i.kind === 'weeks') &&
+        G.boardLeftItems().filter(i => i.kind === 'week').length === 1);
+    } finally { Date.now = realNow; }
+    check('board: the ladder\'s fold key cannot collide with a campaign id',
+      !G.CAMPAIGNS.some(c => c.id === '#weeks'));
+    G.setMenuFx(null); // openBoard armed a spinOut — hand the suite back a settled menu
+  }
   G.boardPick('weekly');
 }
 G.setMenuScreen('home'); G.setState(G.S.MENU);
