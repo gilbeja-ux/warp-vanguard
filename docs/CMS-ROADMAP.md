@@ -206,7 +206,7 @@ does not ship in the store build.
 - Campaign 2 THE SURVEY (difficulty 2): MASS & FLOW — dense red traffic,
   high speed, few puzzle types; the player "rides" the tunnel. Bands drive
   surge waves. Finale: BADGE ZERO's private core (`bossKind: 'triad'`) —
-  three linked mini cores (SHIELD / SHREDDER / ALIBI), destroyed core by
+  three linked mini cores (WALL / SHREDDER / GHOST), destroyed core by
   core, arena riddled with rim walls + dart volleys.
 - Campaign 3 THE COLLECTOR (difficulty 3): alternating hard-to-read puzzle
   levels and fast flow bursts (first shipped use of beats + bands). Finale:

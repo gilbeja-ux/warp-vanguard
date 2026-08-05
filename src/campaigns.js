@@ -111,7 +111,7 @@ const CAMPAIGN_PACKAGES = [{
       bands: [{ t0: 18, t1: 38, intensity: 1.7 }, { t0: 52, t1: 70, intensity: 2.1, mix: { doubles: 0.65 } }],
       story: { line: 'Tier 4. The expedition before this one filed no report.' } },
     { tint: '212,101,255', duration: 50, spawnMin: 0.70, spawnMax: 1.25, speed: 0.55, doubles: 0.45, heavies: 0.16, lines: 0.10, colors: 0.22, frags: 0.14, walls: 0.08, track: 2, boss: true, bossKind: 'triad',
-      hint: 'his private warden is THREE — shield, shredder, alibi. break each',
+      hint: 'his private warden is THREE — wall, shredder, ghost. break each',
       story: { line: 'Final reading, then we take them home.' } }
   ],
   verdict: { title: 'CONTRACT 02 — CHARTED', art: 'survey-closure.webp',

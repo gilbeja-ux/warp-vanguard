@@ -9,9 +9,9 @@ const BOSS_DEFS = {
     speak: 'this lane is mine. nothing you carry leaves it.', card: 'boss', brief: 'bossBriefed'
   },
   triad: {
-    title: 'SHIELD · SHREDDER · ALIBI', sub: 'ONE MACHINE IN THREE BODIES — THREE BOLTS EACH',
+    title: 'WALL · SHREDDER · GHOST', sub: 'ONE MACHINE IN THREE BODIES — THREE BOLTS EACH',
     online: 'PRIVATE WARDEN ONLINE', down: 'PRIVATE WARDEN DOWN',
-    speak: 'my shield. my shredder. my alibi. count to three.', card: 'bossTriad', brief: 'triadBriefed'
+    speak: 'my wall. my shredder. my ghost. count to three.', card: 'bossTriad', brief: 'triadBriefed'
   },
   spinner: {
     title: 'THE BEACON', sub: 'OUTRUN THE LIGHT — ITS OWN SWEEP OVERLOADS IT',
@@ -19,7 +19,10 @@ const BOSS_DEFS = {
     speak: 'I see everything on this ring. keep running.', card: 'bossSpinner', brief: 'spinnerBriefed'
   }
 };
-const TRIAD_NAMES = ['SHIELD', 'SHREDDER', 'ALIBI'];
+// SHIELD was retired here: it is the DEFLECTOR SHIELD pickup's word, and one
+// word cannot mean both a boss body and a power-up. ALIBI went with it — the
+// warden is an outlaw interdictor now, not a suspect with a cover story.
+const TRIAD_NAMES = ['WALL', 'SHREDDER', 'GHOST'];
 const TRIAD_FREE_ARC = 1.6;  // the dockable-arc law: walls may never close the ring
 const SPIN_BEAM_HALF = 0.13; // beacon beam half-width at the ring (rad)
 // the boss duel: the intruder flies inside the tunnel while the dock-and-hold

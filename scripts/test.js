@@ -815,7 +815,7 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
     while (G.boss() && G.boss().introT < G.BOSS_CER() && guard-- > 0) { G.setIntegrity(100); G.update(0.05); }
   }
 
-  // ---------- TRIAD: SHIELD · SHREDDER · ALIBI ----------
+  // ---------- TRIAD: WALL · SHREDDER · GHOST ----------
   G.progress.triadBriefed = false;
   enterBossLevel('triad');
   const T = G.boss();
