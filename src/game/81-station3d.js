@@ -1456,15 +1456,16 @@ function s3warp(c, sp, x, y, w, alpha, t) {
 // star. The FINAL destination outranks that: you fight the interdictor at the
 // gates of the place you were escorting the convoy to, which is a better story
 // than fighting it at an anonymous sun.
-// Keyed by DEAL SEED, not by campaign id (see campSeedOf in 30-campaigns): these are the
-// original slugs, and every caller passes the seed, so each build stays at the endpoint it
-// was authored for. THE CARGO RUN / THE SURVEY / THE COLLECTOR / THE PATROL / THE DELEGATION.
+// The build standing at each campaign's endpoint — one baked model per contract,
+// authored for that arrival. Keyed by campaign id (these were the retired slugs
+// until the deal became data; see DEST_DEAL in 80-tunnel). DEST_DEAL's last cell
+// per campaign says the same thing and the test suite asserts they agree.
 const S3D_FINAL = {
-  'investigation': 'PORT',
-  'going-deeper': 'GATE',
-  'signal-lost': 'SPINE',
-  'the-bait': 'TRUSS',
-  'shutdown': 'FORT'
+  'cargo-run': 'PORT',
+  'survey': 'GATE',
+  'collector': 'SPINE',
+  'patrol': 'TRUSS',
+  'delegation': 'FORT'
 };
 const s3build = id => S3D_BUILDS.find(b => b.id === id) || S3D_BUILDS[0];
 // Is this relay a campaign's endpoint? Only the LAST level counts, and only for
@@ -1472,11 +1473,11 @@ const s3build = id => S3D_BUILDS.find(b => b.id === id) || S3D_BUILDS[0];
 function s3FinalFor(campId, lv) {
   const id = S3D_FINAL[campId];
   if (!id) return null;
-  // matched on the SEED, because that is what every caller passes in here — S3D_FINAL's keys
-  // are the original slugs, so this asks the same question of the same package. Matching on
-  // `id` silently found nothing after the rename and fell back to last = 7, which happened to
-  // be right only because every campaign currently has eight relays.
-  const camp = typeof CAMPAIGNS !== 'undefined' && CAMPAIGNS.find(c => campSeedOf(c) === campId);
+  // Matched on the id, which is what every caller passes and what S3D_FINAL is keyed
+  // by. This asked for the seed while the keys were slugs; when they briefly disagreed
+  // it found nothing and fell back to last = 7, which was right only because every
+  // campaign happens to have eight relays.
+  const camp = typeof CAMPAIGNS !== 'undefined' && CAMPAIGNS.find(c => c.id === campId);
   const last = camp && camp.levels ? camp.levels.length - 1 : 7;
   return lv === last ? id : null;
 }
@@ -1486,7 +1487,9 @@ function s3FinalFor(campId, lv) {
 function s3BuildFor(campId, lv, kind) {
   const fin = s3FinalFor(campId, lv);
   if (fin) return fin;
-  if (kind === 'gate') return 'GATE';
+  if (kind === 'gate') return 'GATE';   // a gate relay is a gate, whatever the deal says
+  const frozen = dealBuildId(campId, lv);
+  if (frozen) return frozen;
   let h = 0x811c9dc5;
   const id = (campId || 'x') + '#s3';
   for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }

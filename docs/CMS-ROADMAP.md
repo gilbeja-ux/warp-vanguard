@@ -199,6 +199,23 @@ does not ship in the store build.
   (stick direction = node angle) for MacBook playtesting. Triggers fire the
   matching pulse, START pauses, A dismisses cards.
 
+## Where a relay's sky comes from
+
+A package does NOT carry its destinations. `DEST_DEAL` and `DEST_ROLL` in
+`src/game/80-tunnel.js` hold them, keyed by campaign id — one cell per relay,
+`'VARIANT/BUILD'`, in flight order. Edit a cell and exactly that relay changes.
+
+This used to be an emergent property of the campaign's name: every consumer
+hashed `id + '#' + relay`, so renaming a campaign re-rolled all forty skies (39
+of 40, measured) and there was no way to change one relay without disturbing the
+rest. That is why a `seed` field existed alongside `id`. The deal is data now and
+the seed is gone.
+
+A package with no row — UGC, a test fixture, the training package — still deals
+itself a sky from the old hash, so the table is an override rather than a
+requirement. But a SHIPPED campaign must have a complete row: `npm test` asserts
+it, so a rename that forgets the table fails loudly instead of re-rolling.
+
 ## Campaign arc & future boss concepts (designer-approved direction)
 
 - Campaign 1 THE CARGO RUN (difficulty 1): teaches the enemy types one by

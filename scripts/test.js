@@ -151,6 +151,8 @@ code = code.replace("'use strict';", '') + `
   boss: () => boss, endlessCfg, tut: () => tut, isEndless: () => endless, getLV: () => LV,
   qualStage: () => tut ? QUAL[tut.stage] : null,
   getProg: () => PROG, getCamp: () => CAMP, validateCampaign, installCampaign, CAMPAIGNS,
+  DEST_DEAL, DEST_ROLL, S3D_FINAL, dealVariantId, dealBuildId, dealRoll, variantById,
+  destKindFor, planetVariantFor, s3BuildFor, PLANET_TYPES, STAR_DECK,
   getLevels: () => LEVELS, migrateSaveShape, getInfoCards: () => INFO_CARDS,
   getGpSel: () => gpSel, setGpSel: v => { gpSel = v; },
   getMapSel: () => mapSel, getPadHold: () => padHold,
@@ -1854,6 +1856,40 @@ G.keys['ArrowUp'] = false;
     G.CAMPAIGNS[0].levels[7].bossKind === undefined && G.CAMPAIGNS[1].levels[7].bossKind === 'triad' && G.CAMPAIGNS[2].levels[7].bossKind === 'spinner');
   check('every shipped campaign lints clean (beats + bands included)',
     G.CAMPAIGNS.every(pk => G.lintCampaign(pk).every(fl => fl.length === 0)));
+
+  // ---- THE FROZEN DEAL ----
+  // A relay's destination is data now (DEST_DEAL / DEST_ROLL in 80-tunnel), not the
+  // output of hashing the campaign's name. These assertions are what makes that safe
+  // to rely on: without them a renamed or reordered campaign would fall through to
+  // the old hash and quietly re-deal all forty skies, which is exactly what the
+  // `seed` field used to exist to prevent.
+  check('every shipped campaign has a complete frozen deal',
+    G.CAMPAIGNS.every(pk => {
+      const row = G.DEST_DEAL[pk.id], roll = G.DEST_ROLL[pk.id];
+      return Array.isArray(row) && row.length === pk.levels.length &&
+             Array.isArray(roll) && roll.length === pk.levels.length;
+    }));
+  check('every frozen cell names a variant and a build that exist',
+    G.CAMPAIGNS.every(pk => G.DEST_DEAL[pk.id].every((cell, lv) => {
+      const vid = G.dealVariantId(pk.id, lv), bid = G.dealBuildId(pk.id, lv);
+      return !!G.variantById(vid) && /^[A-Z]+$/.test(bid) && cell === vid + '/' + bid;
+    })));
+  check('the deal and S3D_FINAL agree on every endpoint',
+    G.CAMPAIGNS.every(pk => G.dealBuildId(pk.id, pk.levels.length - 1) === G.S3D_FINAL[pk.id]));
+  check('a relay is a star exactly when its frozen variant is one',
+    G.CAMPAIGNS.every(pk => pk.levels.every((lv, i) => {
+      const isStar = G.destKindFor(pk.id, i, i === pk.levels.length - 1) === 'star';
+      return isStar === /^SUN/.test(G.dealVariantId(pk.id, i));
+    })));
+  check('the dealt body is the frozen body, on all 40 relays',
+    G.CAMPAIGNS.every(pk => pk.levels.every((lv, i) =>
+      G.planetVariantFor(pk.id, i, i === pk.levels.length - 1).id === G.dealVariantId(pk.id, i))));
+  check('an unknown package still deals itself a sky (the hash fallback survives)',
+    !G.dealVariantId('no-such-campaign', 0) &&
+    !!G.planetVariantFor('no-such-campaign', 0, false) &&
+    !!G.s3BuildFor('no-such-campaign', 0, 'station'));
+  check('no campaign carries a seed field any more',
+    G.CAMPAIGNS.every(pk => pk.seed === undefined));
   G.installCampaign(G.CAMPAIGNS[1]);
   check('campaign #2: 8 levels, boss finale, own progress, own verdict',
     G.getLevels().length === 8 && G.getLevels()[7].boss === true &&

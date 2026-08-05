@@ -10,15 +10,15 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 let lowFX = false, time = 0, ctx = null;
 const CAMPAIGNS = [
-  { id: 'investigation', levels: new Array(8) }, { id: 'going-deeper', levels: new Array(8) },
-  { id: 'signal-lost', levels: new Array(8) }, { id: 'the-bait', levels: new Array(8) },
-  { id: 'shutdown', levels: new Array(8) }
+  { id: 'cargo-run', levels: new Array(8) }, { id: 'survey', levels: new Array(8) },
+  { id: 'collector', levels: new Array(8) }, { id: 'patrol', levels: new Array(8) },
+  { id: 'delegation', levels: new Array(8) }
 ];
 </script>
 <script src="file:///Users/gilbeja/vsCode/warp-vanguard/src/game/81-station3d.js"></script>
 <script>
 const CELL = 500, COLS = 3;
-const ORDER = ['investigation', 'going-deeper', 'signal-lost', 'the-bait', 'shutdown'];
+const ORDER = ['cargo-run', 'survey', 'collector', 'patrol', 'delegation'];
 const ROWS = Math.ceil(ORDER.length / COLS);
 const cv = document.getElementById('c');
 cv.width = CELL * COLS; cv.height = CELL * ROWS;
@@ -46,7 +46,7 @@ ORDER.forEach((camp, i) => {
 });
 // the kind override must agree
 log.push('kinds: ' + ORDER.map(c => c + '=' + s3build(s3FinalFor(c, 7)).kind).join(' '));
-log.push('non-final deal: ' + [0,1,2,3,4,5,6].map(l => s3BuildFor('investigation', l, 'station')).join(','));
+log.push('non-final deal: ' + [0,1,2,3,4,5,6].map(l => s3BuildFor('cargo-run', l, 'station')).join(','));
 window.__log = log.join(' | ');
 window.__done = true;
 </script>

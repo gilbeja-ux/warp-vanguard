@@ -579,16 +579,67 @@ const PLANET_TYPES = [
 const PLANET_DEAL = PLANET_TYPES.filter(p => !p.named);
 // WHERE THE NAMED WORLDS LIVE — 'campaignId#levelIdx' -> type id. A named
 // destination also forces its relay's KIND to 'planet' (see destKindFor).
-// Irena sits at LAUNDRY LANE, Gil's pick — the hash had dealt THE SURVEY two
+// Irena sits at LAUNDRY LANE, Gil's pick — the deal had given THE SURVEY two
 // oceans back to back at relays 04 and 05, so pinning her here also breaks
-// that repeat.
-// keyed by DEAL SEED + level, not by campaign id — see campSeedOf. 'going-deeper' is THE
-// SURVEY's seed; renaming the key would move Irena to a different relay.
-const DEST_NAMED = { 'going-deeper#4': 'IRN' };
+// that repeat. (DEST_DEAL now records her too; this stays because it is the
+// mechanism a package author uses, and it outranks the deal.)
+const DEST_NAMED = { 'survey#4': 'IRN' };
 function namedDestFor(campId, lv) {
   const id = DEST_NAMED[(campId || 'x') + '#' + lv];
   return id ? PLANET_TYPES.find(p => p.id === id) : null;
 }
+
+// ---------- THE FROZEN DEAL ----------
+// A relay's sky used to be an emergent property of one string. Every consumer
+// hashed `campaignSeed + '#' + relay`, so the forty destinations existed only as
+// the output of five slugs nobody could touch: renaming a campaign re-rolled all
+// forty (39 of 40 measured), and there was NO WAY AT ALL to change one relay
+// without disturbing the rest. That is a bad way to store art direction, and it
+// is why the seed field had to be kept long after the name it held was retired.
+//
+// It is data now. One cell per relay, 'VARIANT/BUILD', in flight order:
+//   VARIANT  a PLANET_TYPES or STAR_DECK id — the destination itself. The KIND
+//            (star or planet) falls out of it, so it is not stored twice.
+//   BUILD    which S3D_BUILDS station stands at that relay. The last cell is the
+//            campaign's endpoint and agrees with S3D_FINAL.
+// Edit a cell and exactly that relay changes. Nothing else moves.
+//
+// Keyed by campaign id. A package with no entry here — UGC, the test fixtures,
+// the training package — still deals itself a sky off the old hash, so this is
+// an override, not a requirement. `campaignDealComplete` in the test suite
+// asserts every SHIPPED campaign has a full row, so a rename that forgets to
+// bring the table along fails loudly instead of silently re-rolling.
+const DEST_DEAL = {
+  'cargo-run':  ['DES/FORT', 'VIO/PORT', 'SUN/TRUSS', 'AST/SPINE', 'OCN/FORT', 'SUNW/TRUSS', 'SUNR/TRUSS', 'VRD/PORT'],
+  'survey':     ['VRD/FORT', 'OCN/FORT', 'TUN/PORT', 'OCN/FORT', 'IRN/FORT', 'RNG/SPINE', 'OCN/SPINE', 'EAR/GATE'],
+  'collector':  ['MLT/FORT', 'GRE/PORT', 'VIO/PORT', 'RST/SPINE', 'GRE/TRUSS', 'TUN/PORT', 'PAL/SPINE', 'AST/SPINE'],
+  'patrol':     ['EAR/FORT', 'VRD/FORT', 'AST/SPINE', 'AST/SPINE', 'TAN/TRUSS', 'VIO/PORT', 'SUNW/TRUSS', 'VIO/TRUSS'],
+  'delegation': ['PAL/TRUSS', 'VOL/PORT', 'STO/SPINE', 'TAN/TRUSS', 'SUNR/PORT', 'SUN/FORT', 'VIO/TRUSS', 'OCN/FORT']
+};
+// The moons, rings, city lights and gas clouds each relay was dealt. Opaque on
+// purpose: these are PRNG seeds, not choices, so there is nothing to read here.
+// Frozen from the deal that was approved, because destinationLife keyed its
+// stream off the campaign string too — without these, a rename would strip a
+// moon off a world someone had already signed off on. Regenerate only if you
+// mean to re-roll every decoration in the game.
+const DEST_ROLL = {
+  'cargo-run':  [0x59bca026, 0xf1f6618e, 0x1cfc7376, 0x51b9fd41, 0x9ef315a9, 0x4e80643e, 0x5d2ee922, 0xbeed5276],
+  'survey':     [0x8dd83c8e, 0x82d450c1, 0x1074fc9c, 0xb31e51bf, 0x166ee5a7, 0xca126838, 0x0df43e46, 0x9d8c2a57],
+  'collector':  [0xf7035f02, 0x857b295e, 0x578cf9be, 0xd133bead, 0xe829d9fd, 0x9fc41476, 0xa60808c9, 0x3df362f1],
+  'patrol':     [0x63561fc1, 0xdb1f723e, 0x1157ce56, 0x8e160a2a, 0xc45192ba, 0xb132a5e3, 0x8a05e58f, 0x5d8979b9],
+  'delegation': [0x7f64483f, 0xaf85e647, 0xe6b08560, 0x1af5e57c, 0x560cc652, 0xf44e007d, 0x24d9cb37, 0xe727c63f]
+};
+const STAR_IDS = { SUN: 1, SUNW: 1, SUNR: 1 };
+const dealCell = (campId, lv) => {
+  const row = DEST_DEAL[campId || 'x'];
+  return (row && row[lv]) || null;
+};
+const dealVariantId = (campId, lv) => { const c = dealCell(campId, lv); return c ? c.slice(0, c.indexOf('/')) : null; };
+const dealBuildId = (campId, lv) => { const c = dealCell(campId, lv); return c ? c.slice(c.indexOf('/') + 1) : null; };
+const dealRoll = (campId, lv) => { const r = DEST_ROLL[campId || 'x']; return r && r[lv] !== undefined ? r[lv] : null; };
+// Resolve a frozen variant id. Searches the stars too — a cell may name a sun,
+// and the suns are their own consts, not members of PLANET_TYPES.
+const variantById = id => PLANET_TYPES.find(t => t.id === id) || STAR_DECK.find(t => t.id === id) || null;
 // The boss sun. Same renderer, but emis kills the night side — it makes its own
 // light, so there is no terminator to place.
 // THREE SUNS, NOT ONE.
@@ -873,6 +924,9 @@ const S3D_WARP = {
 // does not change the answer either.)
 const STARPICK = {};
 function starFor(campId, lv) {
+  // a frozen cell names its own sun; the walk below is for packages without one
+  const vid = dealVariantId(campId, lv);
+  if (vid && STAR_IDS[vid]) return variantById(vid) || STAR_DECK[0];
   const key = (campId || 'x') + '#' + lv;
   if (key in STARPICK) return STARPICK[key];
   let prev = -1, idx = 0;
@@ -898,6 +952,8 @@ function planetVariantFor(campId, lv, isBoss) {
   if (destKindFor(campId, lv, isBoss) === 'star') return starFor(campId, lv);
   const named = namedDestFor(campId, lv);
   if (named) return named;        // a named world outranks the deal
+  const vid = dealVariantId(campId, lv);
+  if (vid) { const V = variantById(vid); if (V) return V; }
   let h = 2166136261;
   const id = campId || 'x';
   for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -912,7 +968,7 @@ function planetVariantFor(campId, lv, isBoss) {
 }
 // <<< DEST-PICK
 function planetVariant() {
-  return planetVariantFor(campSeed(), levelIdx, !!(LV && LV.boss));
+  return planetVariantFor(campKey(), levelIdx, !!(LV && LV.boss));
 }
 // Chart-scale worlds: one small sprite per variant, built once and stamped at
 // every relay. Nine sprites cover the whole galaxy map however many relays it

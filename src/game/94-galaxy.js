@@ -153,6 +153,11 @@ function destKindFor(campId, lv, isBoss) {
   // the fortress is the thing hanging in front of it as you come in.
   if (typeof s3FinalFor === 'function' && s3FinalFor(campId, lv)) return 'planet';
   if (namedDestFor(campId, lv)) return 'planet'; // a named world IS its relay's destination
+  // A FROZEN CELL ALREADY SAYS WHICH BODY IS THERE, and a sun is a sun — so the
+  // kind is read off the variant rather than dealt a second time from a hash that
+  // could disagree with it.
+  const vid = dealVariantId(campId, lv);
+  if (vid) return STAR_IDS[vid] ? 'star' : 'planet';
   let h = 0x811c9dc5;
   const id = (campId || 'x') + '#' + lv;
   for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -450,7 +455,7 @@ function buildCity() {
     const camp = CAMPAIGNS[ci];
     const lv = camp && camp.levels && camp.levels[li];
     const boss = !!(lv && lv.boss);
-    const campId = campSeedOf(camp); // the DEAL seed, not the id
+    const campId = campIdOf(camp);
     // WHERE IN THE SYSTEM THE DELIVERY IS, and it is destKindFor that says so —
     // not `boss`. Pinning bosses to the centre was the chart's own copy of the
     // every-duel-happens-at-a-sun rule, and it disagreed with the lane the

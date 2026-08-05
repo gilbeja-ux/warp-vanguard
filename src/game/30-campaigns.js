@@ -24,8 +24,14 @@ let LEVELS = [], STORY = [], COMMS = [], SPKCOL = {};
 // A new campaign needs no seed; without one this falls back to the id, which is what a
 // package author would expect. S3D_FINAL and DEST_NAMED are keyed by seed for the same
 // reason — their keys are the old slugs and they still point at the right relays.
-const campSeedOf = pk => (pk && (pk.seed || pk.id)) || 'x';
-const campSeed = () => campSeedOf(typeof CAMP !== 'undefined' && CAMP);
+// A campaign is identified by its id and nothing else. There WAS a second field,
+// `seed`, because the id was also the hash input that dealt all forty relays —
+// so the id could not be renamed without re-dealing the game, and the retired
+// Data Defenders slugs had to be kept as seeds. DEST_DEAL and DEST_ROLL in
+// 80-tunnel hold that deal as data now, so the seed is gone and an id is just a
+// name again.
+const campIdOf = pk => (pk && pk.id) || 'x';
+const campKey = () => campIdOf(typeof CAMP !== 'undefined' && CAMP);
 const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
 // endless mode: difficulty is a function of survival time, rebuilt each frame
 function endlessCfg(t) {

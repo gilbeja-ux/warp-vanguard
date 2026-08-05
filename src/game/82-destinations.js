@@ -233,16 +233,24 @@ function moonSprite(V) {
 }
 let destLifeKey = '', destLifeVal = null;
 function destinationLife() {
-  const campId = campSeed(); // the DEAL seed, not the id — see campSeedOf in 30-campaigns
+  const campId = (typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x';
   const isBoss = !!(LV && LV.boss);
   const kind = destKindFor(campId, levelIdx, isBoss);
   const key = campId + '#' + levelIdx + '#' + kind;
   if (destLifeKey === key && destLifeVal) return destLifeVal;
   const L = DEST_LIFE;
-  let h = 0x9e3779b9;
-  for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
-  h ^= h >>> 16; h = Math.imul(h, 0x7feb352d); h ^= h >>> 15;
-  const rnd = mulberry32(h >>> 0);
+  // A relay's decorations come from DEST_ROLL when it has one. They used to come
+  // from a hash of this key, which meant the campaign's NAME decided which worlds
+  // kept a moon — rename it and forty destinations quietly lost or gained one.
+  // The hash is still here for packages with no frozen roll.
+  let roll = dealRoll(campId, levelIdx);
+  if (roll === null) {
+    let h = 0x9e3779b9;
+    for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+    h ^= h >>> 16; h = Math.imul(h, 0x7feb352d); h ^= h >>> 15;
+    roll = h >>> 0;
+  }
+  const rnd = mulberry32(roll);
   const rr = (a, b) => a + rnd() * (b - a);
   // A SURFACE IS SOMETHING TO LIGHT AND SOMETHING TO ORBIT, and two kinds of
   // destination have neither: a star's face is all day, and a swarm is a cloud

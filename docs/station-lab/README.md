@@ -45,9 +45,11 @@ a few milliseconds a frame on it while the player is on the menu.
 
 | campaign | build | tris | lamps |
 | --- | --- | ---: | ---: |
-*(verify.html and hero2.html pass the original slugs — `investigation`, `going-deeper`, … —
-directly to `s3BuildFor`. That is correct, not stale: `S3D_FINAL` is keyed by DEAL SEED, and
-those slugs are the seeds. Renaming them there would break the harnesses.)*
+*(verify.html and hero2.html pass campaign ids — `cargo-run`, `survey`, … — straight to
+`s3BuildFor`, which is what `S3D_FINAL` and `DEST_DEAL` are keyed by. They held the retired
+slugs while those were the deal seeds; the seed is gone, so an id is the only key now. Pass a
+name that is in neither table and `s3BuildFor` falls back to its hash — the harness will draw
+something, just not what the game draws.)*
 
 | C1 · cargo-run | port & piers | 17,680 | 25 |
 | C2 · survey | gate | 11,028 | 40 |
