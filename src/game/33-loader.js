@@ -129,7 +129,6 @@ function installCampaign(p) {
   LEVELS = p.levels;
   STORY = p.levels.map(l => l.story || null);
   COMMS = p.levels.map(l => l.comms || []);
-  CASE_NOTES = p.levels.map(l => l.caseNote || '');
   SPKCOL = {};
   for (const s of p.speakers) SPKCOL[s.id] = s.color;
   // per-campaign progress rides along, padded to this package's level count
@@ -191,7 +190,7 @@ function discAt(i) {
   return { kind: 'soon', si: j - CAMPAIGNS.length };
 }
 const discOfCamp = ci => TRAIN_DISCS + ci;
-// Sync a carousel disc: training launches the qualification run; a case file
+// Sync a carousel disc: training launches the qualification run; a contract
 // zooms into its relay map.
 function syncDisc(di) {
   const d = discAt(di);

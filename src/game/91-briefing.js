@@ -378,7 +378,7 @@ function wrapRows(text, maxW) {
 
 // ---- the mission disc ----
 // The keyframe fills the disc wall to wall, masked by the disc itself — the same
-// treatment the case-file carousel gives a campaign's map image. The plot line
+// treatment the contract carousel gives a campaign's map image. The plot line
 // rides a caption bar across the art's lower edge, full disc width. Below the
 // art, two readings of what you're flying into. One thing said per mission; the
 // in-run comms carry the scene from here.

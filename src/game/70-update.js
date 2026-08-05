@@ -51,7 +51,7 @@ const INFO_CARDS = {
 // story briefings show on deploy, comm chatter ticks mid-run at scripted
 // times (deterministic levels keep them in sync). Case notes are still authored
 // per level but no longer drawn on the mission report.
-// installCampaign() has already filled STORY/COMMS/CASE_NOTES by the time
+// installCampaign() has already filled STORY/COMMS by the time
 // they're read; story cards register into INFO_CARDS here, once it exists.
 infoCardsReady = true;
 lintReady = true;

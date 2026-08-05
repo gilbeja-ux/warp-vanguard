@@ -143,7 +143,7 @@ offline entitlement flag; no server for v1. Full plan in
   (singular); every brand surface is the squadron.
 - Voice: terse operational radio traffic. Four speakers — HAUL (Meridian Haulage
   Yards), CMD (Lane Command), TRACE (analyst), WARD (the hostile
-  warden core). Lowercase clipped comms in-level; typewriter case-file logs on
+  warden core). Lowercase clipped comms in-level; typewriter briefings on
   briefing discs.
 - The full brand record — tokens, mark, typography, chrome grammar, audio
   direction, store asset specs — lives in [BRAND.md](BRAND.md) and is binding
@@ -159,8 +159,8 @@ offline entitlement flag; no server for v1. Full plan in
   `npm run dev`).
 - The theme shift's full translation record — what changed, what survived
   verbatim, and what art is owed — is [docs/THEME-SHIFT.md](docs/THEME-SHIFT.md).
-- Complete narrative script for all campaigns in [docs/STORY.md](docs/STORY.md)
-  — every case-file log, hint, comm line, and case note in reading order.
+- Complete narrative script for all campaigns in [src/campaigns.js](src/campaigns.js)
+  — every briefing, hint and comm line in reading order.
 - All four music tracks are composed by the author (AI-assisted), no licensing
   risk; logged in [CREDITS.md](CREDITS.md). A replacement menu track is still
   owed by the author (spec in BRAND.md).

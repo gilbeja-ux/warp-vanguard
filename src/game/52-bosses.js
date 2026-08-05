@@ -4,13 +4,13 @@
 // the death ceremony and the verdict — bossKind picks which machine shows up
 const BOSS_DEFS = {
   core: {
-    title: 'THE GATEWAY CORE', sub: 'DOCK BOTH EMITTERS AND HOLD — SIX BOLTS CLOSE THE CASE',
+    title: 'THE WARDEN CORE', sub: 'DOCK BOTH EMITTERS AND HOLD — SIX BOLTS CLOSE THE CONTRACT',
     online: 'WARDEN CORE ONLINE', down: 'WARDEN DOWN',
-    speak: 'the evidence is contaminated. I am the cure.', card: 'boss', brief: 'bossBriefed'
+    speak: 'this lane is mine. nothing you carry leaves it.', card: 'boss', brief: 'bossBriefed'
   },
   triad: {
     title: 'SHIELD · SHREDDER · ALIBI', sub: 'ONE MACHINE IN THREE BODIES — THREE BOLTS EACH',
-    online: 'PRIVATE CORE ONLINE', down: 'PRIVATE CORE DOWN',
+    online: 'PRIVATE WARDEN ONLINE', down: 'PRIVATE WARDEN DOWN',
     speak: 'my shield. my shredder. my alibi. count to three.', card: 'bossTriad', brief: 'triadBriefed'
   },
   spinner: {

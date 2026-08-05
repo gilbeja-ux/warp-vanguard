@@ -157,15 +157,16 @@ identifier with consequences.
 
 ## Not landed here, on purpose
 
-`src/campaigns.js` carries the **shipped** story (Investigation → Going Deeper →
-Signal Lost → The Bait → Shutdown). [SCREENPLAY.md](SCREENPLAY.md) holds a
+`src/campaigns.js` carried the **shipped** story, and `SCREENPLAY.md` held a
 *pending narrative rewrite* — Renke, Reyes, the wardens, the signature spine —
-that was never applied to the engine.
+that was never applied to the engine. Both were themed; neither was swapped for
+the other, because landing a narrative rewrite inside a theme branch would have
+made the diff unreviewable.
 
-**Both were themed; neither was swapped for the other.** Landing the narrative
-rewrite inside a theme branch would have made this diff unreviewable, and the
-two changes want separate review. The work order for the narrative rewrite is
-still [SCREENPLAY-PLAN.md](SCREENPLAY-PLAN.md), now written in lane vocabulary.
+**Resolved 2026-08-05, the other way.** The rewrite was never taken up and the
+shipped story moved on without it — five contracts with their own clients. The
+three screenplay documents were deleted rather than reconciled, so the only
+narrative record now is `src/campaigns.js` and the story-bible artifact.
 
 ## Owed art
 

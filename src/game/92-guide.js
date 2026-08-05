@@ -789,7 +789,7 @@ function drawMenuHome(ccx, ccy, R) {
   ctx.textAlign = 'left';
 }
 
-// case-file carousel: every campaign is a DISC — a bore-ringed lens whose
+// contract carousel: every campaign is a DISC — a bore-ringed lens whose
 // top third is the route map and whose lower two thirds carry the dossier —
 // laid out in a horizontal, scrollable line. TAKE CONTRACT zooms the disc up
 // into the tunnel and opens its relay map.
@@ -885,7 +885,7 @@ function drawMenuCamps(ccx, ccy, R) {
 function drawCampDisc(i, x, y, r, zq, tpx) {
   const d = discAt(i);
   const train = d.kind === 'train';
-  const real = d.kind === 'camp';   // a real case file (training + teasers are not)
+  const real = d.kind === 'camp';   // a real contract (training + teasers are not)
   const solid = real || train;      // gets the lit bore + border; teasers stay dim
   // training carries a pseudo-package too, so this is NOT `real ? d.pk : null` — every
   // other read of pk below stays behind `real`, because only a contract has a title,

@@ -161,7 +161,7 @@ A void-dark field carrying six saturated signal colors, each of which means some
 
 ### Named Rules
 
-**The Gold Rule.** Payload Gold appears only where the player *gains* something: the bonus ribbon, pulse charge, score, the leaderboard, case-file value. Never on a hazard, never as decoration, never as a warm accent for contrast. This rule was paid for — the rim-wall hazard bars shipped in amber, read as inviting and bonus-like, and were recolored to Breach Red the same day. If gold is on screen, the player should be able to move toward it.
+**The Gold Rule.** Payload Gold appears only where the player *gains* something: the bonus ribbon, pulse charge, score, the leaderboard, contract value. Never on a hazard, never as decoration, never as a warm accent for contrast. This rule was paid for — the rim-wall hazard bars shipped in amber, read as inviting and bonus-like, and were recolored to Breach Red the same day. If gold is on screen, the player should be able to move toward it.
 
 **The Match Rule.** Signal Blue and Arc White are reserved for the player's two nodes and the enemies keyed to them. No interface element, no marketing surface, and no effect may use a node color on something that is not a node or its matching lock. Ambiguity here is a gameplay bug, not a visual preference.
 
@@ -181,7 +181,7 @@ Audiowide ships at weight 400 only; the heavier weights below are canvas-synthes
 - **Display** (800, `clamp(22px, 3.6vmin, 44px)`, 2px tracking): Brand wordmark, level titles, boss title stamps. Always shrink-to-fit rather than wrap where the bore is narrow.
 - **Headline** (800, 22px, 2px tracking): Briefing disc titles, victory report headings.
 - **Title** (700, 13px, 3px tracking, uppercase): Console panel header bands. The widest tracking in the system — these read as engraved labels on hardware.
-- **Body** (500, 15px, ~1.2 line-height): Case-file logs and card copy. Set on 3px extra leading (`fontSize + 3`), which is tight by web standards and correct here: the copy is two-to-four short lines inside a circle, and generous leading pushes it against the rim.
+- **Body** (500, 15px, ~1.2 line-height): Briefing lines and card copy. Set on 3px extra leading (`fontSize + 3`), which is tight by web standards and correct here: the copy is two-to-four short lines inside a circle, and generous leading pushes it against the rim.
 - **Label** (700, 12px, 3px tracking): Actions, `TAP TO CONTINUE`, mode names, stamped callouts.
 - **Caption** (500, 9px): Sub-captions under mode keys, pad states like `OFFLINE`.
 - **Readout** (monospace, 10px): Live telemetry — `RANGE 0xx.x M`, boot status lines, hex garnish.
@@ -289,9 +289,9 @@ The signature component. Story and instruction arrive as a disc that flies up to
 - **Shape:** Circle at `0.9 × nodeR`, radial fill from `rgba(6,11,24,0.93)` at center to fully transparent at the rim, so it dissolves into the bore rather than ending
 - **Rim:** 1.5px ring at 97% radius in `rgba(120,200,255,0.3)`, overlaid with four 2.5px accent arcs at 75% that drift slowly around it
 - **Content order:** kicker → glyph → title → body → `TAP TO CONTINUE`
-- **Kicker:** Payload Gold at 80% for case files (`CASE FILE // LC-2209`), Chrome Cyan at 70% for field briefings — gold marks archival value, cyan marks instruction
+- **Kicker:** Payload Gold at 80% for a contract's briefing, Chrome Cyan at 70% for field instruction — gold marks the story, cyan marks the lesson. (The `CASE FILE // LC-2209` form this once specified is not drawn; the disc leads with the client and tier.)
 - **Body:** Body Ice at 88%, shrink-to-fit against a 60%-of-diameter width budget, 3px extra leading
-- **Story typing:** Case-file logs type themselves in at 46 characters per second with a block cursor and a teletype tick every other character
+- **Story typing:** Briefing lines type themselves in at 46 characters per second with a block cursor and a teletype tick every other character
 - **Motion:** Zoom in over 0.28s with an ease-out-back overshoot (`1.70158`), out over 0.18s; the field dims to `rgba(3,6,14,0.45)` unscaled beneath so the dim stays even while the disc flies
 - **Prompt:** `TAP TO CONTINUE` pulses between 20% and 80% cyan at 4rad/s
 
@@ -309,7 +309,7 @@ The campaign map is a circular LENS over one continuous isometric lane chart, si
 - **Perimeters:** one dashed ellipse per campaign band (a ground circle in iso is a 2:1 ellipse), green inside → amber → red at the edge, studded with gate ticks and labelled with the cover it still holds
 - **Runs:** buried — every cable run draws UNDER the skyline and ghosts up through it; the selected run is then repeated OVER the towers so a dense downtown can never swallow the line about to be defended
 
-**The Cover Ladder.** A relay's ring is its CASE's band, not its exact pixel radius. Forty relays over ~1,000px of radius means junction-lattice noise is larger than one hop's worth of outward progress, so per-relay cover would jitter — the dossier would claim level 5 is safer than level 4. Bands are fitted to the relays that actually landed in them, and cover ramps monotonically across each case and hands off to the next: 93% at the first relay of case 01, 2% at the last of case 05.
+**The Cover Ladder.** A relay's ring is its CONTRACT's band, not its exact pixel radius. Forty relays over ~1,000px of radius means junction-lattice noise is larger than one hop's worth of outward progress, so per-relay cover would jitter — the dossier would claim level 5 is safer than level 4. Bands are fitted to the relays that actually landed in them, and cover ramps monotonically across each case and hands off to the next: 93% at the first relay of case 01, 2% at the last of case 05.
 
 ### Dial Pad
 

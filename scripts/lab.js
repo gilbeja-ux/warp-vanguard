@@ -21,8 +21,6 @@ const port = process.env.PORT || 8010;
 
 // the reference column's shelf — whitelisted, never a path from the client
 const DOCS = {
-  screenplay: 'SCREENPLAY.md',
-  plan: 'SCREENPLAY-PLAN.md',
   voice: 'IN-RUN-VOICE.md',
   art: 'DISC-ART-SPEC.md'
 };

@@ -785,7 +785,7 @@ function frame(now) {
   //
   // And it is ZERO wherever the physical ring itself isn't drawn. The band FX
   // are lighting ON that hardware: in a menu or the Archive there is no ring to
-  // light, so a run's last hits were floating in the middle of the case-file
+  // light, so a run's last hits were floating in the middle of the contract
   // chooser as bare arcs. Nothing on the band outlives the ring it sits on.
   const hw = state === S.MENU || inGuide ? 0 : endPower();
   prof('bandFX');

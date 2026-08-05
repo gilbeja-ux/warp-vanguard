@@ -392,7 +392,7 @@ function menuTap(x, y, pid) {
       : (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h);
     if (hit && !b.locked) {
       if (b.mode === 'campaign') pressUI(b, () => {
-        // Story Mode always opens the carousel now (training + every case file).
+        // Story Mode always opens the carousel now (training + every contract).
         // Center on the active case, or on the training disc for a fresh player.
         campScroll = campScrollTgt = progress.tutorialDone ? discOfCamp(Math.max(0, CAMPAIGNS.indexOf(CAMP))) : 0;
         campPendingSync = null;

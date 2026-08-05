@@ -46,15 +46,15 @@ const ED = {
       spawnMin: 1.2, spawnMax: 2.0, speed: 0.4,
       doubles: 0, heavies: 0, lines: 0, colors: 0, frags: 0, track: 0,
       story: { title: 'LOG — NEW RELAY', lines: ['edit this briefing'] },
-      comms: [], caseNote: ''
+      comms: []
     };
   },
   newCampaign() {
     return {
-      id: 'new-campaign', format: 1, title: 'NEW CAMPAIGN', tagline: 'UNTITLED CASE', difficulty: 1,
-      story: 'describe the case here.',
+      id: 'new-campaign', format: 1, title: 'NEW CAMPAIGN', tagline: 'UNTITLED CONTRACT', difficulty: 1,
+      story: 'describe the contract here.',
       map: { theme: 'chart' },
-      speakers: [{ id: 'OMNI', name: 'Meridian Haulage', color: '111,227,255', portrait: { drawn: 'OMNI' } }],
+      speakers: [{ id: 'OMNI', name: 'Meridian Haulage', color: '111,227,255' }],
       levels: [ED.newLevel()]
     };
   },
@@ -731,7 +731,6 @@ function edBuildStatic() {
   lBind('lSpeed', 'speed', v => +v || 0.1);
   lBind('lSMin', 'spawnMin', v => +v || 0.1);
   lBind('lSMax', 'spawnMax', v => +v || 0.1);
-  lBind('lCase', 'caseNote');
   edq('lDur').addEventListener('change', e => {
     const lv = edLv();
     lv.duration = Math.max(10, Math.min(600, +e.target.value || 45));
@@ -1174,7 +1173,6 @@ function edRenderLevel() {
     inp.addEventListener('input', e => { lv[k] = Math.max(0, Math.min(1, +e.target.value || 0)); edApply(); });
   }
   edq('lStoryL').value = lv.story ? (lv.story.line || (lv.story.lines || []).join(' ')) : '';
-  edq('lCase').value = lv.caseNote || '';
   edq('lNotes').value = lv.notes || '';
   // an embedded keyframe is a 400 KB string — never put that in a text field
   const embedded = /^data:image\//.test(lv.art || '');

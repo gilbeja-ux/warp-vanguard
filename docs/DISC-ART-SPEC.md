@@ -7,7 +7,7 @@ the frame and delivery rules are what make 40 disparate images read as one show.
 ## The frame
 
 **There is no rectangular frame.** The keyframe fills the disc wall to wall and
-is **masked by the disc itself** — the same treatment the case-file carousel
+is **masked by the disc itself** — the same treatment the contract carousel
 gives a campaign's map image ([index.html:10259](../src/index.html#L10259)). The
 plot line rides a caption bar across the art's lower edge, spanning the full disc
 width, and the mask gives that bar curved ends. Nothing sits above the art: no
@@ -177,7 +177,7 @@ So: full colour, full contrast, no scanlines, no frame, no vignette, no logo.
   silhouette at thumbnail size. If it needs squinting, it fails.
 - Faces and key detail centred and high — the mask crops the corners entirely and
   the caption bar covers the lower band.
-- Palette anchors already in the game: field cyan/blue, case-file amber
+- Palette anchors already in the game: field cyan/blue, briefing amber
   `rgb(255,210,74)`, and the speaker colours declared per campaign in
   [campaigns.js](../src/campaigns.js).
 - **Speaker portraits are a separate job.** The in-run holo-portraits are
@@ -223,7 +223,6 @@ Keep the pre-crop master beside it as `_<name>.png`. The `_` is what stops it sh
 | **art file** | references `src/art/disc/<name>` instead; the bundled path, no size cost |
 | readout | source, KB, decoded pixels, aspect vs the disc's 1.48:1, and `NOT FOUND` when a referenced file isn't on disk |
 | **plot line** | the sentence, with a live character count against the two-row budget |
-| **case note** | the win-screen payoff |
 | **notes** | private, travels with the level, never shown in game or read by the engine |
 | **PREVIEW DISC** | drops the embedded game into `S.INFO` for this level — the real renderer, and it stays live so edits rewrap as you type |
 

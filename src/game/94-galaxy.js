@@ -712,7 +712,7 @@ function drawStarPoint(x, y, coreR, hot, tint, bright) {
 // briefing disc's crop each supply one, so both views share this single pass and
 // cannot drift apart.
 // `labels` off draws the chart WITHOUT its type — the cordon names are set at a
-// fixed 12px, which is a headline inside a case-file disc's map strip and a
+// fixed 12px, which is a headline inside a contract disc's map strip and a
 // caption inside the full lens. The rings carry the geography on their own.
 function drawGalaxyOverlay(tf, ccx, ccy, R, labels) {
   if (labels === undefined) labels = true;
@@ -783,7 +783,7 @@ function drawGalaxyOverlay(tf, ccx, ccy, R, labels) {
 // come out sharp at any zoom instead of being a magnified bitmap.
 function drawSystemsLive(wx, wy, z, ccx, ccy, R) {
   if (!SCENERY.length) return;
-  // ride the caller's alpha instead of overwriting it — a case-file disc mid
+  // ride the caller's alpha instead of overwriting it — a contract disc mid
   // sync-zoom, and the lens mid fade-in, are both drawn under one
   const ga0 = ctx.globalAlpha;
   const pad = 60;

@@ -251,7 +251,7 @@ function discBlock(item, disc, i, rerender) {
     lines.appendChild(row);
   }
 
-  const titleInp = el('input', { class: 'plain', type: 'text', placeholder: 'LOG 06 — THE KEYS' });
+  const titleInp = el('input', { class: 'plain', type: 'text', placeholder: 'RELAY 06 — THE KEYS' });
   titleInp.value = disc.title || '';
   titleInp.style.fontFamily = "'Audiowide', system-ui, sans-serif";
   titleInp.style.letterSpacing = '1.5px';
@@ -490,12 +490,7 @@ function renderMissionPane(pane) {
 
   if (!isV && !isT) {
     pane.appendChild(el('div', { class: 'sep' }));
-    pane.appendChild(el('div', { class: 'two' }, [
-      labelled('Hint', 'under the level title on boot', counted(item, 'hint', 52, 'NEW THREAT: …')),
-      labelled('Case note', 'one line on the victory report', counted(item, 'caseNote', 64, 'CASE NOTE: …'))
-    ]));
-    pane.appendChild(labelled('TRACE analysis', 'present tense, keyed to what the player destroyed — the number in it is real',
-      counted(item, 'analysis', 64, '17 keyed taps recovered — same issuing terminal.')));
+    pane.appendChild(labelled('Hint', 'under the level title on boot', counted(item, 'hint', 52, 'NEW THREAT: …')));
   }
 
   pane.appendChild(labelled('Notes', null, textarea(item, 'notes', 'notes', 'Anything unresolved.')));
@@ -642,7 +637,7 @@ function md(src) {
   return { html: out.join('\n'), toc };
 }
 
-const REF = { doc: 'screenplay', html: '', toc: [], scroll: {} };
+const REF = { doc: 'voice', html: '', toc: [], scroll: {} };
 
 async function loadDoc(name) {
   const body = $('refDocBody');

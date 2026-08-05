@@ -10,7 +10,7 @@
 const CAMPAIGNS = typeof CAMPAIGN_PACKAGES === 'undefined' ? [] : CAMPAIGN_PACKAGES;
 // active-campaign views — populated ONLY by installCampaign()
 let CAMP = null, PROG = null;
-let LEVELS = [], STORY = [], COMMS = [], CASE_NOTES = [], SPKCOL = {};
+let LEVELS = [], STORY = [], COMMS = [], SPKCOL = {};
 // THE DEAL SEED — deliberately NOT the campaign's id.
 //
 // An id is identity: progress is stored under it and a leaderboard board is keyed by it. But

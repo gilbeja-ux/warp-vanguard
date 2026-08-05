@@ -116,15 +116,17 @@ The current ticker is the problem, not the writing. Whatever ships must:
 - sit in the **lower safe area**, near the HUD where the eye already checks score
   — not `H * 0.185` on the aim axis
 - never shrink below **12px**; if it doesn't fit, the line is too long — cut it
-- keep the portrait tile (it's good, and it's what makes the voice a character),
-  but drop to a smaller chip so the line can grow
+- ~~keep the portrait tile~~ — **removed 2026-08-05.** Only 2 of 7 speakers ever
+  had their own face; the rest wore haulage's suit, which said less than the name
+  chip does. The line is chip + message now, and it has that width back
 - hold for 4s, not 6 — reactive lines go stale fast
 
 ## Migration
 
 1. Delete `comms` from all 40 levels in [campaigns.js](../src/campaigns.js) and the
    ticker's clock-driven feed at [index.html:4653-4656](../src/index.html#L4653-L4656).
-2. Keep `caseNote` untouched — it already carries every plot beat.
+2. ~~Keep `caseNote`~~ — **deleted 2026-08-05.** It stopped being drawn on the
+   report and nothing read it, so the plot beats it held live in `story` now.
 3. Fold any beat that lived *only* in a comm into that level's `story` lines.
 4. Keep the comm renderer; repoint it at the bark system and move it down-screen.
 5. `validateCampaign` keeps accepting `comms` (older packages stay valid) but the

@@ -342,81 +342,6 @@ function drawIntroCard() {
   }
 }
 
-// procedural holo-portraits for the comm line — line-art busts in the
-// speaker's color, scanlined and flickering like a tapped video feed.
-// Switches on the SPEAKER ID, not on the package's `portrait` field (which
-// nothing reads). CMD: peaked cap + badge · WARD: a void disc with a red lens ·
-// TRACE: hooded, face lost to glitch bars — a retired speaker no package calls
-// any more. Everyone else takes the HAUL face: suit + lapel pin. That means the
-// survey, the trader, the flotilla and the delegation all wear haulage's suit.
-// (The comment here used to promise a CORE face; there has never been one.)
-function drawCommFace(s, cx2, cy3, r, col) {
-  ctx.save();
-  ctx.translate(cx2, cy3);
-  const flick = 0.8 + Math.sin(time * 13) * 0.1 + (Math.random() < 0.04 ? -0.3 : 0);
-  ctx.globalAlpha *= Math.max(0.4, flick);
-  ctx.strokeStyle = `rgba(${col},0.9)`;
-  ctx.fillStyle = `rgba(${col},0.16)`;
-  ctx.lineWidth = 1.4;
-  ctx.lineJoin = 'round';
-  if (s === 'WARD') { // the rogue warden: a void disc, watching
-    ctx.fillStyle = 'rgba(3,1,8,0.95)';
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.88, 0, TAU); ctx.fill();
-    ctx.strokeStyle = `rgba(${col},0.9)`;
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.88, Math.PI * 0.75, Math.PI * 1.8); ctx.stroke(); // horizon rim
-    ctx.strokeStyle = 'rgba(255,60,90,0.6)';
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.88, Math.PI * 0.08, Math.PI * 0.5); ctx.stroke(); // red underglow
-    const ig = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 0.62); // the HAL lens
-    ig.addColorStop(0, 'rgba(255,240,225,0.98)');
-    ig.addColorStop(0.25, 'rgba(255,110,110,0.95)');
-    ig.addColorStop(0.6, 'rgba(170,25,55,0.9)');
-    ig.addColorStop(1, 'rgba(40,4,16,0)');
-    ctx.fillStyle = ig;
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.62, 0, TAU); ctx.fill();
-  } else if (s === 'TRACE') { // hooded silhouette
-    ctx.beginPath();
-    ctx.moveTo(-r, r * 1.05);
-    ctx.quadraticCurveTo(-r * 1.05, -r * 0.55, 0, -r * 1.02);
-    ctx.quadraticCurveTo(r * 1.05, -r * 0.55, r, r * 1.05);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = 'rgba(3,6,14,0.85)'; // void where the face should be
-    ctx.beginPath(); ctx.arc(0, -r * 0.08, r * 0.5, 0, TAU); ctx.fill();
-    for (const gy of [-0.28, 0, 0.24]) {  // glitch bars scanning the void
-      const gw = r * (0.34 + Math.sin(time * 7 + gy * 9) * 0.14);
-      ctx.beginPath(); ctx.moveTo(-gw, (gy - 0.08) * r); ctx.lineTo(gw, (gy - 0.08) * r); ctx.stroke();
-    }
-  } else { // HAUL / CMD: head + shoulders, each with their uniform's tell
-    ctx.beginPath(); ctx.arc(0, -r * 0.32, r * 0.42, 0, TAU); ctx.fill(); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.95, r * 1.05);
-    ctx.quadraticCurveTo(0, r * 0.05, r * 0.95, r * 1.05);
-    ctx.fill(); ctx.stroke();
-    if (s === 'CMD') { // peaked cap seated ON the head, badge on the dome
-      ctx.fillStyle = 'rgba(6,12,26,0.9)'; // solid crown so the head reads as capped
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.62, -r * 0.52);
-      ctx.quadraticCurveTo(0, -r * 1.1, r * 0.62, -r * 0.52);
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(-r * 0.66, -r * 0.5); ctx.lineTo(r * 0.66, -r * 0.5); ctx.stroke();
-      ctx.fillStyle = `rgba(${col},0.95)`;
-      ctx.beginPath(); ctx.arc(0, -r * 0.74, r * 0.08, 0, TAU); ctx.fill();
-    } else { // HAUL: corporate tie + lapel pin
-      ctx.beginPath();
-      ctx.moveTo(0, r * 0.22); ctx.lineTo(-r * 0.13, r * 0.52);
-      ctx.lineTo(0, r * 0.95); ctx.lineTo(r * 0.13, r * 0.52);
-      ctx.closePath(); ctx.stroke();
-      ctx.fillStyle = `rgba(${col},0.95)`;
-      ctx.beginPath(); ctx.arc(r * 0.48, r * 0.6, r * 0.07, 0, TAU); ctx.fill();
-    }
-  }
-  ctx.strokeStyle = `rgba(${col},0.10)`; // transmission scanlines over the feed
-  ctx.lineWidth = 1;
-  for (let sy = -r; sy < r * 1.1; sy += 3) {
-    ctx.beginPath(); ctx.moveTo(-r, sy); ctx.lineTo(r, sy); ctx.stroke();
-  }
-  ctx.restore();
-}
-
 function drawHUD(g) {
   const L = LV || LEVELS[levelIdx];
   const pad = 14;
@@ -617,30 +542,21 @@ function drawHUD(g) {
     ctx.save();
     ctx.globalAlpha = Math.min(1, fade);
     const cy2 = Math.max(14 + SAFE.t + 38, H * 0.185); // inside the bore's clear width
-    const pr = 14, pb = pr * 2 + 8; // holo-portrait tile + its gap
-    // shrink the line until portrait + chip + message fit the chord here
+    // No portrait tile: only two of seven speakers ever had their own face, so the
+    // rest wore haulage's suit and the tile said less than the name chip does. The
+    // line is chip + message, centered on the bore.
+    // shrink the line until chip + message fit the chord here
     let cfz = 10, lw2, tw2;
     for (; cfz >= 8; cfz--) {
       ctx.font = '700 ' + cfz + 'px Audiowide, system-ui';
       lw2 = ctx.measureText(label).width;
       ctx.font = '500 ' + cfz + 'px Audiowide, system-ui';
       tw2 = ctx.measureText(commCur.m).width;
-      if (pb + lw2 + 6 + tw2 <= ringChord(cy2, 26)) break;
+      if (lw2 + 6 + tw2 <= ringChord(cy2, 26)) break;
     }
-    const x0 = W / 2 - (pb + lw2 + 6 + tw2) / 2 + pb;
+    const x0 = W / 2 - (lw2 + 6 + tw2) / 2;
     ctx.textAlign = 'left';
     const spkCol = SPK[commCur.s] || '160,215,255';
-    // portrait tile, chamfered like the rest of the HUD chrome — the voice
-    // gets a face, like a rough video call from inside the wire
-    const bx = x0 - 6 - pb + 4, by = cy2 - 4 - pr;
-    ctx.fillStyle = 'rgba(6,12,26,0.8)';
-    techRect(bx, by, pr * 2, pr * 2, 5); ctx.fill();
-    ctx.save();
-    techRect(bx, by, pr * 2, pr * 2, 5); ctx.clip();
-    drawCommFace(commCur.s, bx + pr, by + pr + 1.5, pr * 0.82, spkCol);
-    ctx.restore();
-    ctx.strokeStyle = `rgba(${spkCol},0.55)`; ctx.lineWidth = 1;
-    techRect(bx, by, pr * 2, pr * 2, 5); ctx.stroke();
     ctx.fillStyle = `rgba(${spkCol},0.14)`;
     roundRect(x0 - 6, cy2 - 11, lw2 + 11, 15, 4); ctx.fill();
     ctx.strokeStyle = `rgba(${spkCol},0.5)`; ctx.lineWidth = 1;

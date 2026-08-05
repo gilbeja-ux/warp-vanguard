@@ -1272,7 +1272,7 @@ const cTile = G.menuBtns().find(b => b.mode === 'campaign');
   G.menuTap(sc.cx + Math.cos(ma) * mr, sc.cy + Math.sin(ma) * mr, 1);
 }
 flushUI(); // press beat -> spin -> screen switch
-check('campaign tile opens the case-file carousel (multiple campaigns shipped)', G.getMenuScreen() === 'camps');
+check('campaign tile opens the contract carousel (multiple campaigns shipped)', G.getMenuScreen() === 'camps');
 flushUI(); G.setCampScroll(1); G.frame(16); // center the row
 { // discs: a Vanguard Training disc leads the carousel, then every real campaign,
   // each reachable with its own SYNC key (its carousel index); no teasers left
@@ -1807,7 +1807,7 @@ G.keys['ArrowUp'] = false;
     id: 'test-camp', format: 1, title: 'TEST CAMPAIGN',
     speakers: [{ id: 'OMNI', color: '1,2,3' }],
     levels: [{ tint: '10,20,30', duration: 30, spawnMin: 1, spawnMax: 2, speed: 0.4,
-      comms: [{ t: 5, s: 'OMNI', m: 'hello' }], story: { title: 'LOG X', lines: ['a line'] }, caseNote: 'note' }]
+      comms: [{ t: 5, s: 'OMNI', m: 'hello' }], story: { title: 'RELAY X', lines: ['a line'] } }]
   });
   check('validator passes a well-formed package', G.validateCampaign(mini()).length === 0);
   let p = mini(); p.levels[0].tint = 'red';
@@ -1826,7 +1826,7 @@ G.keys['ArrowUp'] = false;
     G.getCamp().id === 'test-camp' && G.getLevels().length === 1 && G.getLevels()[0].tint === '10,20,30');
   check('fresh campaign gets fresh progress', G.getProg().unlocked === 1 && G.getProg().stars.length === 1);
   check('story cards re-registered for the new campaign',
-    G.getInfoCards().story0.title === 'LOG X' && !G.getInfoCards().story1);
+    G.getInfoCards().story0.title === 'RELAY X' && !G.getInfoCards().story1);
   check('back to the bundled campaign, progress intact',
     G.installCampaign(G.CAMPAIGNS[0]) === true && G.getProg().stars[1] === star1 && G.getLevels().length === 8);
   // image maps: package-supplied worlds validate; junk is refused
@@ -1839,14 +1839,14 @@ G.keys['ArrowUp'] = false;
   const m = G.migrateSaveShape({ stars: [3, 2], bests: [100], unlocked: 2, tutorialDone: true });
   check('old flat saves fold into campaign #1', m.camp['cargo-run'].unlocked === 2 &&
     m.camp['cargo-run'].stars[0] === 3 && m.stars === undefined && m.tutorialDone === true);
-  // campaign #2: GOING DEEPER
-  check('GOING DEEPER ships as campaign #2 and validates clean',
+  // campaign #2: THE SURVEY
+  check('THE SURVEY ships as campaign #2 and validates clean',
     G.CAMPAIGNS.length === 5 && G.CAMPAIGNS[1].id === 'survey' && G.validateCampaign(G.CAMPAIGNS[1]).length === 0);
-  check('SIGNAL LOST ships as campaign #3 and validates clean',
+  check('THE COLLECTOR ships as campaign #3 and validates clean',
     G.CAMPAIGNS[2].id === 'collector' && G.validateCampaign(G.CAMPAIGNS[2]).length === 0);
-  check('THE BAIT ships as campaign #4 and validates clean',
+  check('THE PATROL ships as campaign #4 and validates clean',
     G.CAMPAIGNS[3].id === 'patrol' && G.validateCampaign(G.CAMPAIGNS[3]).length === 0);
-  check('SHUTDOWN ships as campaign #5 and validates clean',
+  check('THE DELEGATION ships as campaign #5 and validates clean',
     G.CAMPAIGNS[4].id === 'delegation' && G.validateCampaign(G.CAMPAIGNS[4]).length === 0);
   check('difficulty rises across all five shipped campaigns',
     G.CAMPAIGNS.every((pk, i) => i === 0 || pk.difficulty > G.CAMPAIGNS[i - 1].difficulty));
@@ -2328,7 +2328,7 @@ G.keys['ArrowUp'] = false;
   pad.axes = [0, 0, 0, 0];
   tap(0);
   flushUI();
-  check('A on the campaign slice opens the case-file carousel', G.getMenuScreen() === 'camps');
+  check('A on the campaign slice opens the contract carousel', G.getMenuScreen() === 'camps');
   flushUI(); G.frame(16); G.update(0.05); // discs build; centered = active case
   // the carousel opens centered on the ACTIVE case, whose slot is TRAIN_DISCS +
   // its campaign index — never a fixed number. Step RELATIVE to wherever it
@@ -2340,7 +2340,7 @@ G.keys['ArrowUp'] = false;
   check('D-pad left slides it back', G.getCampScroll() === d0);
   tap(0); // A syncs the centered disc
   flushUI(); flushUI();
-  check('A syncs the centered case file into its route map', G.getMenuScreen() === 'map');
+  check('A syncs the centered contract into its route map', G.getMenuScreen() === 'map');
   flushUI(); // let the panels finish driving in
   G.frame(16); G.update(0.05);
   // the map is a list: D-pad up/down moves the relay selection directly
@@ -2367,7 +2367,7 @@ G.keys['ArrowUp'] = false;
   check('opposite sticks register the operator', G.getPadHold()[0] && G.getPadHold()[1]);
   pad.axes = [0, 0, 0, 0];
   G.setIntro(999);
-  // B backs out of the map — via the case-file picker — to the wheel
+  // B backs out of the map — via the contract picker — to the wheel
   G.setState(G.S.MENU); G.setMenuScreen('map'); G.frame(16); G.update(0.05);
   tap(1);
   flushUI(); flushUI(); // panels fly out -> the disc shrinks back into its slot
@@ -2381,7 +2381,7 @@ G.keys['ArrowUp'] = false;
   check('START opens the settings panel from the menu', G.getMenuSettings() === true);
   tap(1);
   check('B closes the settings panel', G.getMenuSettings() === false);
-  // LB/RB ride the case-file carousel
+  // LB/RB ride the contract carousel
   G.setMenuScreen('camps'); G.setCampScroll(0); G.frame(16); G.update(0.05);
   tap(5); // RB
   check('RB slides the carousel to the next disc', G.getCampScroll() === 1);

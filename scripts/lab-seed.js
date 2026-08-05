@@ -41,7 +41,7 @@ function tuning(pkg) {
 }
 
 // --- the story ------------------------------------------------------------
-// Act premise + outline come from docs/SCREENPLAY.md. Mission beats are a
+// Act premise + outline come from src/campaigns.js. Mission beats are a
 // FIRST-PASS spread — drafts to argue with, not decisions.
 const ACTS = [
   {
@@ -164,8 +164,6 @@ const story = {
         scene: '',
         discs: [blankDisc()],
         hint: '',
-        caseNote: '',
-        analysis: '',
         notes: '',
         status: 'empty',
         tuning: { duration: t[i].duration, speed: t[i].speed, introduces: t[i].introduces, boss: t[i].boss }

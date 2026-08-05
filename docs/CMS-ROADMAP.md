@@ -13,12 +13,11 @@ One self-contained JSON file per campaign:
   id, title, tagline, difficulty,        // picker metadata
   story,                                  // general campaign premise
   map: { theme: 'city' } | { image },     // procedural fallback OR data-URI image
-  speakers: [{ id, name, color, portrait }],  // portrait: drawn-id or data-URI
+  speakers: [{ id, name, color }],        // the comm chip's name + color
   levels: [{
     name, hint, tint, mapPos: {x, y},     // identity + pin on the map
     story: { title, lines },              // deploy briefing card
     comms: [{ t, speaker, text }],        // in-run chatter (drives story lulls)
-    caseNote,                             // report screen line
     duration, speed,
     beats: [ ... ],                       // hand-placed events (walls, ambushes,
                                           //   streams, pickups, lulls)
@@ -182,7 +181,7 @@ does not ship in the store build.
   not ship). Actual build exclusion is release-phase work (scripts/build.js).
 
 - **Phase 3 — campaign UX in game** (mostly done)
-  DONE: case-file disc carousel (sync-zoom, swipe, teaser slots), per-campaign
+  DONE: contract disc carousel (sync-zoom, swipe, teaser slots), per-campaign
   progress + verdicts + lastCamp restore, any-campaign unlocks, and IMAGE MAPS:
   a package's `map.image` (data:image URI) + per-level `mapPos {x,y in 0..1}`
   now render in the relay-map lens (camera, routes, hexes, chevrons all ride
@@ -204,18 +203,25 @@ does not ship in the store build.
 
 - Campaign 1 THE CARGO RUN (difficulty 1): teaches the enemy types one by
   one. Finale: the Warden Core (`bossKind: 'core'`).
-- Campaign 2 GOING DEEPER (difficulty 2): MASS & FLOW — dense red traffic,
+- Campaign 2 THE SURVEY (difficulty 2): MASS & FLOW — dense red traffic,
   high speed, few puzzle types; the player "rides" the tunnel. Bands drive
   surge waves. Finale: BADGE ZERO's private core (`bossKind: 'triad'`) —
   three linked mini cores (SHIELD / SHREDDER / ALIBI), destroyed core by
   core, arena riddled with rim walls + dart volleys.
-- Campaign 3 SIGNAL LOST (difficulty 3): alternating hard-to-read puzzle
+- Campaign 3 THE COLLECTOR (difficulty 3): alternating hard-to-read puzzle
   levels and fast flow bursts (first shipped use of beats + bands). Finale:
   THE BEACON (`bossKind: 'spinner'`) — a rotating beam the player orbits to
   avoid; every COMPLETED sweep overloads the boss (4 sweeps kill it); add
   waves incl. rim walls between sweeps.
-- Campaign 4 (BLACK ICE, teaser): TBD.
-- Campaign 5 (ZERO DAY, teaser) FINALE CONCEPT — THE TUNNEL ITSELF: the far
+- Campaign 4 THE PATROL (difficulty 4): bait packets — the wrong phase gets no
+  bite. Finale: the private warden x3 (`bossKind: 'triad'`).
+- Campaign 5 THE DELEGATION (difficulty 5): escort the federation president from
+  the core to tier 5. Finale: the warden core (`bossKind: 'core'`).
+
+All five ship. What follows is an unbuilt boss idea, not a plan for a missing
+campaign — it wants a supershot mechanic the game does not have.
+
+- FINALE CONCEPT — THE TUNNEL ITSELF: the far
   end glows red and attacks in phases — (1) a torrent of reds, (2) walls of
   node killers + rim walls, (3) purples, (4) demanding blue/white keyed
   waves — then the end MATERIALIZES INTO AN ORB killed by one SUPERSHOT the

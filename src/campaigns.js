@@ -37,9 +37,9 @@ const CAMPAIGN_PACKAGES = [{
   story: 'A hauler consortium is moving bonded freight out of the inner worlds to a tier-3 market, and every operator they hired last quarter came back short. You fly point. Whatever has been seeded in that lane comes off it before the cargo arrives.',
   map: { theme: 'chart' }, // procedural lane chart; image maps carry { image, pins }
   speakers: [
-    { id: 'HAUL', name: 'Meridian Haulage', color: '111,227,255', portrait: { drawn: 'HAUL' } },
-    { id: 'CMD',  name: 'Lane Command', color: '235,245,255', portrait: { drawn: 'CMD' } },
-    { id: 'WARD', name: 'the interdiction', color: '212,101,255', portrait: { drawn: 'WARD' } }
+    { id: 'HAUL', name: 'Meridian Haulage', color: '111,227,255' },
+    { id: 'CMD',  name: 'Lane Command', color: '235,245,255' },
+    { id: 'WARD', name: 'the interdiction', color: '212,101,255' }
   ],
   levels: [
     { tint: '80,160,255', duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0,
@@ -77,9 +77,9 @@ const CAMPAIGN_PACKAGES = [{
   story: 'A survey expedition is pushing past the picket to chart lanes nobody has flown in forty years. They carry instruments, not guns. Eight legs from the inner worlds out to the deep — and the further you get, the less anyone is coming if it goes wrong.',
   map: { theme: 'chart' },
   speakers: [
-    { id: 'SURV', name: 'Deep Range Survey', color: '111,227,255', portrait: { drawn: 'HAUL' } },
-    { id: 'CMD',  name: 'Lane Command', color: '235,245,255', portrait: { drawn: 'CMD' } },
-    { id: 'WARD', name: 'the interdiction', color: '212,101,255', portrait: { drawn: 'WARD' } }
+    { id: 'SURV', name: 'Deep Range Survey', color: '111,227,255' },
+    { id: 'CMD',  name: 'Lane Command', color: '235,245,255' },
+    { id: 'WARD', name: 'the interdiction', color: '212,101,255' }
   ],
   levels: [
     { tint: '96,180,255', duration: 50, spawnMin: 0.75, spawnMax: 1.30, speed: 0.46, doubles: 0.45, heavies: 0.08, lines: 0.00, colors: 0.00, frags: 0.08, track: 1,
@@ -125,9 +125,9 @@ const CAMPAIGN_PACKAGES = [{
   story: 'One trader, one hold, and a manifest she will not read out. She pays in advance, flies at odd hours, and wants no escort showing on any register. Tier 2 to tier 4, quietly, and no questions about what is in the crates.',
   map: { theme: 'chart' },
   speakers: [
-    { id: 'TRDR', name: 'Vess Andarr, trader', color: '111,227,255', portrait: { drawn: 'HAUL' } },
-    { id: 'CMD',  name: 'Lane Command', color: '235,245,255', portrait: { drawn: 'CMD' } },
-    { id: 'WARD', name: 'the interdiction', color: '212,101,255', portrait: { drawn: 'WARD' } }
+    { id: 'TRDR', name: 'Vess Andarr, trader', color: '111,227,255' },
+    { id: 'CMD',  name: 'Lane Command', color: '235,245,255' },
+    { id: 'WARD', name: 'the interdiction', color: '212,101,255' }
   ],
   levels: [
     { tint: '80,200,215', duration: 55, spawnMin: 1.00, spawnMax: 1.65, speed: 0.48, doubles: 0.30, heavies: 0.18, lines: 0.30, colors: 0.35, frags: 0.10, track: 0,
@@ -173,9 +173,9 @@ const CAMPAIGN_PACKAGES = [{
   story: 'A navy flotilla running dark along the outer picket — and running dark means no active sweep, which means you are their sweep. Tier 4 and the near edge of no man’s land, where lanes stop being charted and start being claimed.',
   map: { theme: 'chart' },
   speakers: [
-    { id: 'FLOT', name: 'Flotilla Command', color: '111,227,255', portrait: { drawn: 'HAUL' } },
-    { id: 'CMD',  name: 'Lane Command', color: '235,245,255', portrait: { drawn: 'CMD' } },
-    { id: 'WARD', name: 'the interdiction', color: '212,101,255', portrait: { drawn: 'WARD' } }
+    { id: 'FLOT', name: 'Flotilla Command', color: '111,227,255' },
+    { id: 'CMD',  name: 'Lane Command', color: '235,245,255' },
+    { id: 'WARD', name: 'the interdiction', color: '212,101,255' }
   ],
   levels: [
     { tint: '255,190,90', duration: 45, spawnMin: 0.90, spawnMax: 1.45, speed: 0.52, doubles: 0.35, heavies: 0.12, lines: 0.10, colors: 0.35, frags: 0.10, track: 0,
@@ -221,9 +221,9 @@ const CAMPAIGN_PACKAGES = [{
   story: 'The Federation president, in the open, crossing every cordon there is to sign another species into the accession. Tier 1 to tier 5 with the route filed in advance, because a state visit cannot be flown in secret. Everything that does not want that signature knows exactly where she will be.',
   map: { theme: 'chart' },
   speakers: [
-    { id: 'DELG', name: 'Federation Delegation', color: '111,227,255', portrait: { drawn: 'HAUL' } },
-    { id: 'CMD',  name: 'Lane Command', color: '235,245,255', portrait: { drawn: 'CMD' } },
-    { id: 'WARD', name: 'the interdiction', color: '212,101,255', portrait: { drawn: 'WARD' } }
+    { id: 'DELG', name: 'Federation Delegation', color: '111,227,255' },
+    { id: 'CMD',  name: 'Lane Command', color: '235,245,255' },
+    { id: 'WARD', name: 'the interdiction', color: '212,101,255' }
   ],
   levels: [
     { tint: '96,180,255', duration: 50, spawnMin: 0.72, spawnMax: 1.20, speed: 0.58, doubles: 0.50, heavies: 0.15, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 0,
