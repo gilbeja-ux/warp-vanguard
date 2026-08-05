@@ -9,25 +9,25 @@
   "start_url": "./index.html",
   "icons": [
     {
-      "src": "icons/df-192.png",
+      "src": "icons/wv-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/df-512.png",
+      "src": "icons/wv-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/df-mask-192.png",
+      "src": "icons/wv-mask-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "icons/df-mask-512.png",
+      "src": "icons/wv-mask-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

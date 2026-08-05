@@ -85,7 +85,6 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '96,180,255', duration: 50, spawnMin: 0.75, spawnMax: 1.30, speed: 0.46, doubles: 0.45, heavies: 0.08, lines: 0.00, colors: 0.00, frags: 0.08, track: 1,
       hint: 'volume over trickery — ride the lane, keep the combo',
       bands: [{ t0: 28, t1: 44, intensity: 1.5 }],
-      art: 'going-deeper-01.webp',
       story: { line: 'Instruments, not guns. They fly, we clear.' } },
     { tint: '255,160,80', duration: 55, spawnMin: 0.68, spawnMax: 1.20, speed: 0.49, doubles: 0.50, heavies: 0.10, lines: 0.00, colors: 0.00, frags: 0.10, track: 2, bursts: true,
       hint: 'the loop runs HOT — pure traffic, find your rhythm',
@@ -115,7 +114,7 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'his private warden is THREE — shield, shredder, alibi. break each',
       story: { line: 'Final reading, then we take them home.' } }
   ],
-  verdict: { title: 'CONTRACT 02 — CHARTED',
+  verdict: { title: 'CONTRACT 02 — CHARTED', art: 'going-deeper-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
     line: 'Readings taken. Everyone came home.', lines: [
     'They got their readings and we got', 'them home. Four of those lanes had', 'not been flown since the survey', 'before this one never came back.'] } },

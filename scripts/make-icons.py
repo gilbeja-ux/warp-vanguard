@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the Android launcher icon from src/icons/df-512.png.
+"""Generate the Android launcher icon from src/icons/wv-512.png.
 
 The shield is drawn bare. It used to carry a cyan outline so the stable
 installed build could be told apart from the dev / PWA icon on the home
@@ -14,7 +14,7 @@ import os
 from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "src", "icons", "df-512.png")
+SRC = os.path.join(ROOT, "src", "icons", "wv-512.png")
 RES = os.path.join(ROOT, "android", "app", "src", "main", "res")
 
 NAVY = (3, 6, 14, 255)          # #03060e — matches manifest theme_color
@@ -26,7 +26,7 @@ LEGACY = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
 
 
 def load_shield(target_frac):
-    """Crop df-512 to its shield and scale so its longest side is
+    """Crop wv-512 to its shield and scale so its longest side is
     target_frac of the master canvas, returned centered on a transparent
     MASTER x MASTER canvas."""
     im = Image.open(SRC).convert("RGBA")

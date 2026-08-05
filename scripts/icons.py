@@ -36,10 +36,10 @@ LOCKUP = os.path.join(SRC, 'logo.webp')
 BG = (3, 6, 14, 255)          # manifest background_color, #03060e
 
 # `any` nearly fills its tile; `maskable` sits inside the circular safe zone
-SIZES = [(192, 0.94, False, 'df-192.png'),
-         (512, 0.94, False, 'df-512.png'),
-         (192, 0.62, True,  'df-mask-192.png'),
-         (512, 0.62, True,  'df-mask-512.png')]
+SIZES = [(192, 0.94, False, 'wv-192.png'),
+         (512, 0.94, False, 'wv-512.png'),
+         (192, 0.62, True,  'wv-mask-192.png'),
+         (512, 0.62, True,  'wv-mask-512.png')]
 
 
 def adopt(target, *patterns):
