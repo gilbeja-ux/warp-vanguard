@@ -207,6 +207,12 @@ validator rejects over 96.
 `src/art/disc/<campaignId>-<NN>.webp` — `NN` is the 1-based level number,
 zero-padded. e.g. `investigation-04.webp`, `shutdown-07.webp`.
 
+A closure disc is not a level, so it takes the campaign's name and the word:
+`src/art/disc/<campaignId>-closure.webp`, referenced from `verdict.art`.
+
+Keep the pre-crop master beside it as `_<name>.png`. The `_` is what stops it shipping
+(scripts/build.js), and it is the only copy that still has the pixels a re-crop would need.
+
 ## Authoring it — the Tunnel Designer
 
 `src/editor.html` → **MISSION DISC** section, per level:
