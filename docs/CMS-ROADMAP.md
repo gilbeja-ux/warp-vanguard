@@ -202,8 +202,8 @@ does not ship in the store build.
 
 ## Campaign arc & future boss concepts (designer-approved direction)
 
-- Campaign 1 THE INVESTIGATION (difficulty 1): teaches the enemy types one by
-  one. Finale: the Firewall Core (`bossKind: 'core'`).
+- Campaign 1 THE CARGO RUN (difficulty 1): teaches the enemy types one by
+  one. Finale: the Warden Core (`bossKind: 'core'`).
 - Campaign 2 GOING DEEPER (difficulty 2): MASS & FLOW — dense red traffic,
   high speed, few puzzle types; the player "rides" the tunnel. Bands drive
   surge waves. Finale: BADGE ZERO's private core (`bossKind: 'triad'`) —

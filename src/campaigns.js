@@ -63,7 +63,7 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'ALL THREATS ACTIVE — maximum traffic',
       story: { line: 'Last stretch before the exchange.' } },
     { tint: '212,101,255', duration: 45, spawnMin: 0.80, spawnMax: 1.40, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,
-      hint: 'THE WARDEN CORE AWAITS — six bolts close the case',
+      hint: 'THE WARDEN CORE AWAITS — six bolts close the contract',
       story: { line: 'The buyer is waiting. Nothing gets through you.' } }
   ],
   verdict: { title: 'CONTRACT 01 — DELIVERED',

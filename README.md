@@ -6,10 +6,12 @@ A mobile game for iOS and Android featuring dual-node controls in a fiber-optic 
 
 Pilot a payload through a data tunnel by commanding two radial nodes to intercept incoming data traps. Features:
 - Dual-thumb radial dial controls with a guided first-run tutorial
-- 8-level campaign: heavy traps, barrier lines, burst volleys, speed waves,
-  color-locked traps, and a firewall-core boss fight
+- 5 campaigns of 8 relays: heavy traps, barrier lines, burst volleys, speed
+  waves, color-locked traps, and three boss duels — the warden core, the
+  private warden ×3, and the beacon
 - Endless mode with time-ramped difficulty and best-score tracking
-- Power-ups riding the stream: slow-mo, wide-arc, auto-zap
+- Power-ups riding the stream: deflector shield, wide arc, auto-zap, pulse
+  injection, chain overdrive
 - Custom soundtrack with seamless Web Audio looping
 - Haptics, auto-pause on app switch, safe-area aware UI, perf watchdog
 - Offline-capable gameplay

@@ -42,7 +42,7 @@ const INFO_CARDS = {
   verdict: { title: 'CONTRACT — CLOSED', line: 'Delivered. The contract closes.',
     lines: ['Delivered. The contract closes.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Zaps bank charge in your pads.', 'A glowing orb: TAP to fire.'] },
-  boss:   { title: 'WARDEN CORE', lines: ['The dials stay YOURS. Dock both', 'emitters and HOLD — the bolt homes', 'on the core. SIX hits close the case.', 'Dodge darts. Mind the latches.'] },
+  boss:   { title: 'WARDEN CORE', lines: ['The dials stay YOURS. Dock both', 'emitters and HOLD — the bolt homes', 'on the core. SIX hits close the contract.', 'Dodge darts. Mind the latches.'] },
   bossTriad: { title: 'PRIVATE WARDEN ×3', lines: ['One machine in three bodies. The', 'bolt hunts the body you AIM at —', 'three bolts each. The walls come', 'fast: dock in the gaps, then fire.'] },
   bossSpinner: { title: 'THE BEACON', lines: ['Bolts fizzle on its shield. Its', 'sweeping light FRIES a caught', 'emitter — outrun it with both. Each', 'survived sweep overloads it once.'] }
 };
