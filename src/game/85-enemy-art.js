@@ -795,7 +795,7 @@ function drawLineBeam(en, g) {
   ctx.restore();
 }
 
-// the firewall core — flying deep in the tunnel, plus its bullet-hell return fire
+// the warden core — flying deep in the tunnel, plus its bullet-hell return fire
 // boss rail clamps: molten orange arcs seizing part of the ring — crossing one
 // fries the cannon. They burn away from both ends and are gone within 3s.
 function drawLatches(g, bz) {
@@ -1034,7 +1034,7 @@ function drawVoidCore(g, c) {
   // hold its position in the stream
   if (tear) ctx.translate(Math.sin(time * 51 + seed) * size * 0.08, Math.cos(time * 47) * size * 0.05);
   // red-dominant livery to match the eye — the purple survives only as
-  // GLITCHES: parts flicker back to firewall violet for a frame, far more
+  // GLITCHES: parts flicker back to warden violet for a frame, far more
   // often while the body is tearing
   const gCol = ph => Math.sin(time * 11 + ph * 5.7) > (tear ? 0.45 : 0.86) ? '212,101,255' : '255,60,90';
   // it EATS light — the tunnel dims around it before anything is drawn
@@ -2295,7 +2295,7 @@ function drawDials() {
       ctx.fillStyle = 'rgba(255,210,74,0.9)';
       ctx.beginPath(); ctx.arc(gx, gy, 2 + blipQ(p.z) * 2.5, 0, TAU); ctx.fill();
     }
-    // the firewall core: oversized blinking blip at its tunnel position
+    // the warden core: oversized blinking blip at its tunnel position
     if (boss) {
       const rr2 = d.r * clamp(boss.rad || 0, 0, 1) * 0.85;
       const bx2 = d.x + Math.cos(boss.ang || 0) * rr2, by2 = d.y + Math.sin(boss.ang || 0) * rr2;

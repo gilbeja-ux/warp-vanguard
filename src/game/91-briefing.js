@@ -166,7 +166,7 @@ function drawInfoGlyph(kind, cx, cy, r) {
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(0, 0, r * (0.6 + k2 * 1.3), 0, TAU); ctx.stroke();
   } else if (kind === 'boss') {
-    // mini firewall-core: the same corrupted mosaic the duel shows
+    // mini warden-core: the same corrupted mosaic the duel shows
     const SH = ['#b03ae8', '#8a2ad4', '#d465ff', '#6f14b8'];
     const ext = r * 1.05, cs = ext * 2 / 3;
     for (let rr = 0; rr < 3; rr++) for (let cc = 0; cc < 3; cc++) {

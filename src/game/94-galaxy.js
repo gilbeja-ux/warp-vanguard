@@ -450,7 +450,7 @@ function buildCity() {
     const camp = CAMPAIGNS[ci];
     const lv = camp && camp.levels && camp.levels[li];
     const boss = !!(lv && lv.boss);
-    const campId = (camp && camp.id) || 'x';
+    const campId = campSeedOf(camp); // the DEAL seed, not the id
     // WHERE IN THE SYSTEM THE DELIVERY IS, and it is destKindFor that says so —
     // not `boss`. Pinning bosses to the centre was the chart's own copy of the
     // every-duel-happens-at-a-sun rule, and it disagreed with the lane the

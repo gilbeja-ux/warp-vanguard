@@ -11,6 +11,21 @@ const CAMPAIGNS = typeof CAMPAIGN_PACKAGES === 'undefined' ? [] : CAMPAIGN_PACKA
 // active-campaign views — populated ONLY by installCampaign()
 let CAMP = null, PROG = null;
 let LEVELS = [], STORY = [], COMMS = [], CASE_NOTES = [], SPKCOL = {};
+// THE DEAL SEED — deliberately NOT the campaign's id.
+//
+// An id is identity: progress is stored under it and a leaderboard board is keyed by it. But
+// it was also what every destination hash read, so renaming one re-rolled which world and
+// which sun sat at each of its relays. The ids were renamed on 2026-08-05 (investigation ->
+// cargo-run, the-bait -> patrol, and so on) to stop the code speaking the retired Data
+// Defenders story, and that alone would have moved forty destinations — including ones art
+// had already been generated for.
+//
+// So `seed` holds the ORIGINAL slug and the hashes read it: identity moved, the sky did not.
+// A new campaign needs no seed; without one this falls back to the id, which is what a
+// package author would expect. S3D_FINAL and DEST_NAMED are keyed by seed for the same
+// reason — their keys are the old slugs and they still point at the right relays.
+const campSeedOf = pk => (pk && (pk.seed || pk.id)) || 'x';
+const campSeed = () => campSeedOf(typeof CAMP !== 'undefined' && CAMP);
 const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
 // endless mode: difficulty is a function of survival time, rebuilt each frame
 function endlessCfg(t) {
@@ -46,5 +61,5 @@ function bandCfg(level, t) {
   return cfg;
 }
 // campaign progress lives per campaign id under progress.camp; the flat
-// pre-CMS fields (stars/bests/unlocked) migrate into camp.investigation
+// pre-CMS fields (stars/bests/unlocked) migrate into camp['cargo-run']
 const progress = { camp: {}, tutorialDone: false, bossBriefed: false, triadBriefed: false, spinnerBriefed: false, stripBriefed: false, wallBriefed: false, best: 0, weekly: { last: 0, streak: 0, best: 0 } };

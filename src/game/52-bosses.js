@@ -629,7 +629,7 @@ function lastKillBeat(justKilled) {
   tone(1046, 0.22, 'triangle', 0.08, 1568, null, 0.12);
   buzz([20, 30, 60]);
 }
-// firewall shield: eats one breach that would cost integrity. Returns true if
+// the shield: eats one breach that would cost integrity. Returns true if
 // it fired — the caller skips the damage AND its red-alert dressing.
 function shieldAbsorb(x, y, ang) {
   if (shieldCharge <= 0) return false;

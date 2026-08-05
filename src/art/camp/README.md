@@ -32,17 +32,17 @@ re-cropping and `_`-prefixed so 9.7MB of source never reaches a device.
 
 The masters arrived ~1407 × 768 (1.83:1), so each loses a vertical band to reach 3:1.
 The offsets below were chosen per image, not centred — they place the subject against the
-bottom edge (which is flush with the separator rule) and, for `signal-lost`, lift the frame
+bottom edge (which is flush with the separator rule) and, for `collector`, lift the frame
 clear of a generator watermark sitting low-right in the master.
 
 | campaign | client | subject | crop `y` |
 |---|---|---|---|
 | `training` | — (the qualification run) | dual emitters lit, warp bore ahead | 145 |
-| `investigation` | Meridian Haulage | container freighters + escort | 280 |
-| `going-deeper` | Deep Range Survey | RV COSMOS VOYAGER, solar arrays | 132 |
-| `signal-lost` | Vess Andarr, trader | STARFIRE YACHT AETHELGARD | 138 |
-| `the-bait` | Flotilla Command | warship flotilla | 192 |
-| `shutdown` | Federation Delegation | STATE SHIP UNITY | 140 |
+| `cargo-run` | Meridian Haulage | container freighters + escort | 280 |
+| `survey` | Deep Range Survey | RV COSMOS VOYAGER, solar arrays | 132 |
+| `collector` | Vess Andarr, trader | STARFIRE YACHT AETHELGARD | 138 |
+| `patrol` | Flotilla Command | warship flotilla | 192 |
+| `delegation` | Federation Delegation | STATE SHIP UNITY | 140 |
 
 ```sh
 W=$(sips -g pixelWidth _<id>.png | grep -oE '[0-9]+$'); H=$((W/3))

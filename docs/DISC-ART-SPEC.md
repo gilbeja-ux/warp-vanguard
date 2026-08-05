@@ -75,8 +75,8 @@ The art box on screen, at DPR 2 (the cap):
 Two paths, mirroring how map images already work
 ([index.html:11359](../src/index.html#L11359)):
 
-**Bundled campaigns → file reference.** `art: 'investigation-04.webp'` in the
-level, file at `src/art/disc/investigation-04.webp`. Lazy-decoded when the disc
+**Bundled campaigns → file reference.** `art: 'cargo-run-04.webp'` in the
+level, file at `src/art/disc/cargo-run-04.webp`. Lazy-decoded when the disc
 opens, so boot never waits on 40 images.
 
 **UGC / exported packages → data URI.** `art: 'data:image/webp;base64,…'`, capped
@@ -205,7 +205,7 @@ validator rejects over 96.
 ## Naming
 
 `src/art/disc/<campaignId>-<NN>.webp` — `NN` is the 1-based level number,
-zero-padded. e.g. `investigation-04.webp`, `shutdown-07.webp`.
+zero-padded. e.g. `cargo-run-04.webp`, `delegation-07.webp`.
 
 A closure disc is not a level, so it takes the campaign's name and the word:
 `src/art/disc/<campaignId>-closure.webp`, referenced from `verdict.art`.

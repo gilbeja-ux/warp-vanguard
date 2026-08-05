@@ -520,7 +520,7 @@ function startLevel(i, brief) {
   resetRun();
   runTrack = pickTrack(); // the soundtrack is drawn fresh; the sim never reads it (campaign spawns are scripted)
   armRunMusic();
-  if (brief && STORY[i]) showCard('story' + i); // the investigation continues
+  if (brief && STORY[i]) showCard('story' + i); // the contract's next leg
 }
 // QUALIFICATION: the training run — movement, every enemy type, one power-up
 function startQualification() {
@@ -546,7 +546,7 @@ function startQualification() {
   // free flow: no greeting disc — boot straight in; the CONTROLS CHECK banner
   // and the marching arrows take it from there
 }
-// TEMPORARY dev shortcut: jump straight into the CORE FIREWALL duel.
+// TEMPORARY dev shortcut: jump straight into the WARDEN CORE duel.
 // Remove this (and its menu key) before release — grep "BOSS TEST".
 function startBossTest() {
   startLevel(LEVELS.length - 1);

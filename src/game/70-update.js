@@ -35,14 +35,18 @@ const INFO_CARDS = {
   // stamp is drawn in-world by drawQualCeremony, which owns this wording. Kept in step with
   // it on purpose: a second copy of user-facing copy is a trap, and this one already caught
   // me editing the wrong string once.
-  done:   { title: 'QUALIFIED', lines: ['Certification: PASSED. Cleared for warp.', 'Report to Meridian Haulage — the', 'investigation begins at relay 01.'] },
-  verdict: { title: 'LOG 09 — VERDICT', lines: ['The gateway burned. The convoy', 'reached Lane Command intact. Warrants', 'went out within the hour — the', 'buyer wore a badge. Case closed.'] },
+  done:   { title: 'QUALIFIED', lines: ['Certification: PASSED. Cleared for warp.', 'Report to Meridian Haulage — your', 'first contract begins at relay 01.'] },
+  // A FALLBACK ONLY — every package supplies its own (INFO_CARDS.verdict = CAMP.verdict in
+  // 33-loader), so this shows for a package that forgot one. It used to carry the retired
+  // investigation's epilogue, which would have been a story from another game.
+  verdict: { title: 'CONTRACT — CLOSED', line: 'Delivered. The contract closes.',
+    lines: ['Delivered. The contract closes.'] },
   pulse:  { title: 'PULSE CHARGE', lines: ['Zaps bank charge in your pads.', 'A glowing orb: TAP to fire.'] },
   boss:   { title: 'WARDEN CORE', lines: ['The dials stay YOURS. Dock both', 'emitters and HOLD — the bolt homes', 'on the core. SIX hits close the case.', 'Dodge darts. Mind the latches.'] },
   bossTriad: { title: 'PRIVATE WARDEN ×3', lines: ['One machine in three bodies. The', 'bolt hunts the body you AIM at —', 'three bolts each. The walls come', 'fast: dock in the gaps, then fire.'] },
   bossSpinner: { title: 'THE BEACON', lines: ['Bolts fizzle on its shield. Its', 'sweeping light FRIES a caught', 'emitter — outrun it with both. Each', 'survived sweep overloads it once.'] }
 };
-// ---------- the investigation ----------
+// ---------- the contracts ----------
 // campaign narrative lives in the campaign package (src/campaigns.js):
 // story briefings show on deploy, comm chatter ticks mid-run at scripted
 // times (deterministic levels keep them in sync). Case notes are still authored

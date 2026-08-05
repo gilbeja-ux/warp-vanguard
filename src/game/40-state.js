@@ -100,19 +100,19 @@ const preLaunch = () => !introLatch && introT <= 0
 let tolVis = 1;               // eased hit-arc multiplier (wide-arc grows/shrinks smoothly)
 let bolts = [];               // lightning arcs (node → trap)
 const fx = { wide: 0, auto: 0, chain: 0 }; // power-up effect timers (seconds)
-let shieldCharge = 0; // firewall shield: 1 = the next breach is absorbed
+let shieldCharge = 0; // the shield: 1 = the next breach is absorbed
 let shieldFlashT = 0; // absorb animation clock: the sheath drains into the hit
 let shieldHitA = 0;   // where the caught breach struck (the drain's focal angle)
 let shieldUpT = 0;    // charge-in animation clock: the glow spreads from the pickup
 let shieldUpA = 0;    // where the shield pickup was caught (the spread's origin)
-// dev hook: open the game with ?shield to keep the firewall shield armed —
+// dev hook: open the game with ?shield to keep the shield armed —
 // it re-arms itself after every catch, for effect testing
 const DEV_SHIELD = typeof location !== 'undefined' && /[?&]shield/.test(location.search);
 let killStreaks = []; // kill streaks: reprogrammed packets tracing home
 let pickups = [], pickupT = 20;
 let ribbonT = 30; // bonus ribbon cadence — golden ribbons on levels 5+ / endless
 let tut = null;               // tutorial controller (level 1, first run)
-let boss = null;              // firewall core (levels with boss: true)
+let boss = null;              // the warden core (levels with boss: true)
 const BOSS_CER = 3.4;         // arrival ceremony length — the core emerges before it fights
 let latches = [];             // boss rail clamps: {a, span0, t, dur} — orange arcs that fry a crossing node
 // DEAD SUBSYSTEM — the fused ray-cannon duel is disabled ("no fuse, ever": boss.mergeT

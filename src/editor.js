@@ -1182,7 +1182,7 @@ function edRenderLevel() {
   edq('lArtFile').disabled = embedded;
   edq('lArtFile').placeholder = embedded
     ? 'an uploaded image is embedded — CLEAR it to reference a file instead'
-    : 'investigation-04.webp — a file in src/art/disc/';
+    : 'cargo-run-04.webp — a file in src/art/disc/';
   edDiscInfo();
   // comms
   const cm = edq('lComms');

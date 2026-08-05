@@ -582,6 +582,8 @@ const PLANET_DEAL = PLANET_TYPES.filter(p => !p.named);
 // Irena sits at LAUNDRY LANE, Gil's pick — the hash had dealt THE SURVEY two
 // oceans back to back at relays 04 and 05, so pinning her here also breaks
 // that repeat.
+// keyed by DEAL SEED + level, not by campaign id — see campSeedOf. 'going-deeper' is THE
+// SURVEY's seed; renaming the key would move Irena to a different relay.
 const DEST_NAMED = { 'going-deeper#4': 'IRN' };
 function namedDestFor(campId, lv) {
   const id = DEST_NAMED[(campId || 'x') + '#' + lv];
@@ -592,8 +594,8 @@ function namedDestFor(campId, lv) {
 // THREE SUNS, NOT ONE.
 //
 // Every star in the game used to be this single yellow variant, and at DEST_MIX.star = 14%
-// that is six of the forty relays — including two ADJACENT pairs (investigation L6/L7 and
-// shutdown L5/L6), which read as a bug rather than as a galaxy: the same sun twice in a row.
+// that is six of the forty relays — including two ADJACENT pairs (THE CARGO RUN L6/L7 and
+// THE DELEGATION L5/L6), which read as a bug rather than as a galaxy: the same sun twice over.
 //
 // `n` is the sprite-cache key (planetChip / deepWorld / discWorld all index on it), so each
 // variant must name itself. Three skins is three more cached sprites, not three more
@@ -858,7 +860,7 @@ const S3D_WARP = {
 // "In a row" means consecutive STARS, not consecutive relays, and that distinction is why
 // this walks instead of hashing. My first attempt offset a campaign hash by the level index
 // ((h + lv) % 3), which does guarantee adjacent relays differ — but relays three apart
-// collide exactly, and investigation's stars sit at L3, L6 and L7, so L3 and L6 came out
+// collide exactly, and THE CARGO RUN's stars sit at L3, L6 and L7, so L3 and L6 came out
 // identical. Two of a contract's three suns matching is the same complaint one relay later.
 //
 // So: walk the contract's relays in order, hash each star relay for its own colour, and
@@ -910,8 +912,7 @@ function planetVariantFor(campId, lv, isBoss) {
 }
 // <<< DEST-PICK
 function planetVariant() {
-  return planetVariantFor((typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x',
-    levelIdx, !!(LV && LV.boss));
+  return planetVariantFor(campSeed(), levelIdx, !!(LV && LV.boss));
 }
 // Chart-scale worlds: one small sprite per variant, built once and stamped at
 // every relay. Nine sprites cover the whole galaxy map however many relays it

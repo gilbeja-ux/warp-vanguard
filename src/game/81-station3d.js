@@ -1456,6 +1456,9 @@ function s3warp(c, sp, x, y, w, alpha, t) {
 // star. The FINAL destination outranks that: you fight the interdictor at the
 // gates of the place you were escorting the convoy to, which is a better story
 // than fighting it at an anonymous sun.
+// Keyed by DEAL SEED, not by campaign id (see campSeedOf in 30-campaigns): these are the
+// original slugs, and every caller passes the seed, so each build stays at the endpoint it
+// was authored for. THE CARGO RUN / THE SURVEY / THE COLLECTOR / THE PATROL / THE DELEGATION.
 const S3D_FINAL = {
   'investigation': 'PORT',
   'going-deeper': 'GATE',
@@ -1469,7 +1472,11 @@ const s3build = id => S3D_BUILDS.find(b => b.id === id) || S3D_BUILDS[0];
 function s3FinalFor(campId, lv) {
   const id = S3D_FINAL[campId];
   if (!id) return null;
-  const camp = typeof CAMPAIGNS !== 'undefined' && CAMPAIGNS.find(c => c.id === campId);
+  // matched on the SEED, because that is what every caller passes in here — S3D_FINAL's keys
+  // are the original slugs, so this asks the same question of the same package. Matching on
+  // `id` silently found nothing after the rename and fell back to last = 7, which happened to
+  // be right only because every campaign currently has eight relays.
+  const camp = typeof CAMPAIGNS !== 'undefined' && CAMPAIGNS.find(c => campSeedOf(c) === campId);
   const last = camp && camp.levels ? camp.levels.length - 1 : 7;
   return lv === last ? id : null;
 }

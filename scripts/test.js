@@ -389,7 +389,7 @@ drawOk('play HUD with all enemy types', () => { G.setState(G.S.PLAY); });
 drawOk('play HUD with the NOW PLAYING strip up', () => { G.setState(G.S.PLAY); G.announceTrack(0); });
 drawOk('pause panel', () => { G.setState(G.S.PAUSE); });
 drawOk('end screen', () => { G.setState(G.S.END); });
-drawOk('high-score takeover card', () => { G.setState(G.S.END); G.setEndT(3.2); G.setScore(38800); G.setEndProvisional({ rank: 7, total: 50 }); G.setNameEntry({ board: 'investigation:2' }); });
+drawOk('high-score takeover card', () => { G.setState(G.S.END); G.setEndT(3.2); G.setScore(38800); G.setEndProvisional({ rank: 7, total: 50 }); G.setNameEntry({ board: 'cargo-run:2' }); });
 drawOk('high-score takeover (rank pending)', () => { G.setState(G.S.END); G.setEndT(3.2); G.setEndProvisional(null); G.setNameEntry({ board: 'endless' }); });
 G.setNameEntry(null); G.setEndProvisional(null); // don't leak the card into later END tests
 drawOk('main menu', () => { G.setState(G.S.MENU); });
@@ -400,7 +400,7 @@ drawOk('leaderboard: offline', () => { G.setMenuScreen('board'); G.setBoardData(
 drawOk('leaderboard: empty', () => { G.setMenuScreen('board'); G.setBoardData({ key: 'endless', loading: false, rows: [], error: false }); });
 drawOk('leaderboard: populated', () => {
   G.setMenuScreen('board'); G.getBoardSel().mode = 'campaign';
-  G.setBoardData({ key: 'investigation:0', loading: false, error: false, rows: [
+  G.setBoardData({ key: 'cargo-run:0', loading: false, error: false, rows: [
     { rank: 1, player_id: 'x', player_name: 'ACE', score: 48200, max_combo: 22, time_sec: 41, verified: true, trace_id: 't1' },
     { rank: 2, player_id: G.getIdentity().id, player_name: 'YOU', score: 39750, max_combo: 16, time_sec: 44, verified: true, trace_id: null },
     { rank: 3, player_id: 'z', player_name: 'RAYzor', score: 31100, max_combo: 11, time_sec: 47, verified: false, trace_id: null } ] });
@@ -598,7 +598,7 @@ check('auto-zap clears traps without coverage', en.dead === true);
 G.fx.auto = 0;
 idle(40); // drain hit-stop
 G.enemies().length = 0;
-// firewall shield: eats one breach, then integrity takes the next
+// the shield: eats one breach, then integrity takes the next
 G.setIntegrity(100); G.setShield(1);
 en = G.spawnEnemy(2.0, 'normal');
 aim(0, 0.5); aim(1, 0.5 + Math.PI); // nowhere near it
@@ -692,12 +692,12 @@ check('heal lands on the fifth banked zap', G.stats().integrity === 50);
 const c0 = G.endlessCfg(0), c200 = G.endlessCfg(200);
 check('endless difficulty ramps with time', c200.speed > c0.speed && c200.spawnMin < c0.spawnMin && c200.heavies > 0 && c0.heavies === 0);
 
-// ================= boss duel (CORE FIREWALL) =================
+// ================= boss duel (WARDEN CORE) =================
 G.progress.bossBriefed = false;
 G.startLevel(7);
 G.setLevelT(46); // past the level clock
 G.update(0.01);
-check('firewall core spawns after the level clock', !!G.boss());
+check('the warden core spawns after the level clock', !!G.boss());
 check('boss briefing card shows first', G.getState() === G.S.INFO && G.getInfoCard() === 'boss');
 dismiss();
 check('briefing dismissed back to the duel', G.getState() === G.S.PLAY);
@@ -1284,7 +1284,7 @@ flushUI(); G.setCampScroll(1); G.frame(16); // center the row
     if (G.menuBtns().some(b => b.sync === i)) covered++;
   }
   check('carousel: training disc + one SYNC key per real campaign, no teasers', covered === totalDiscs && G.CAMPS_SOON.length === 0);
-  const invCarousel = TRAIN + G.CAMPAIGNS.findIndex(c => c.id === 'investigation'); // carousel slot of the investigation disc
+  const invCarousel = TRAIN + G.CAMPAIGNS.findIndex(c => c.id === 'cargo-run'); // carousel slot of THE CARGO RUN's disc
   G.setCampScroll(invCarousel); G.frame(16);
   const syncs = G.menuBtns().filter(b => b.sync !== undefined);
   check('carousel: scroll hint appears with discs off-stage', G.menuBtns().some(b => b.scrollDir === 1));
@@ -1292,7 +1292,7 @@ flushUI(); G.setCampScroll(1); G.frame(16); // center the row
   G.menuTap(inv.x + inv.w / 2, inv.y + inv.h / 2, 1);
 }
 flushUI(); flushUI(); // press beat -> disc zoom -> panels drive in
-check('TAKE CONTRACT zooms the disc into its route map', G.getMenuScreen() === 'map' && G.getCamp().id === 'investigation');
+check('TAKE CONTRACT zooms the disc into its route map', G.getMenuScreen() === 'map' && G.getCamp().id === 'cargo-run');
 flushUI(); // panels settle
 G.frame(16);
 const n2 = G.menuBtns().find(b => b.node === 2);
@@ -1796,13 +1796,13 @@ function soak(name, start, seconds) {
 soak('metro exchange (bursts)', () => G.startLevel(2), 60);
 soak('quantum relay (color locks)', () => G.startLevel(5), 70);
 soak('darknet edge (bursts)', () => G.startLevel(6), 80);
-soak('core firewall (boss fight)', () => G.startLevel(7), 90);
+soak('the warden core (boss fight)', () => G.startLevel(7), 90);
 soak('endless ramp', () => G.startEndless(), 150);
 G.keys['ArrowUp'] = false;
 
 // ================= campaign packages (Phase 0) =================
 {
-  check('boot installed the bundled campaign', G.getCamp().id === 'investigation' && G.getLevels().length === 8);
+  check('boot installed the bundled campaign', G.getCamp().id === 'cargo-run' && G.getLevels().length === 8);
   const mini = () => ({
     id: 'test-camp', format: 1, title: 'TEST CAMPAIGN',
     speakers: [{ id: 'OMNI', color: '1,2,3' }],
@@ -1820,7 +1820,7 @@ G.keys['ArrowUp'] = false;
   check('validator rejects zero speed', G.validateCampaign(p).length > 0);
   p = mini(); p.id = 'BAD ID!';
   check('validator rejects a malformed id', G.validateCampaign(p).length > 0);
-  check('installCampaign refuses an invalid package', G.installCampaign(p) === false && G.getCamp().id === 'investigation');
+  check('installCampaign refuses an invalid package', G.installCampaign(p) === false && G.getCamp().id === 'cargo-run');
   const star1 = G.getProg().stars[1];
   check('a valid package installs and switches the views', G.installCampaign(mini()) === true &&
     G.getCamp().id === 'test-camp' && G.getLevels().length === 1 && G.getLevels()[0].tint === '10,20,30');
@@ -1837,17 +1837,17 @@ G.keys['ArrowUp'] = false;
   p = mini(); p.levels[0].mapPos = { x: 1.4, y: 0.5 };
   check('validator rejects an out-of-range pin', G.validateCampaign(p).length > 0);
   const m = G.migrateSaveShape({ stars: [3, 2], bests: [100], unlocked: 2, tutorialDone: true });
-  check('old flat saves fold into campaign #1', m.camp.investigation.unlocked === 2 &&
-    m.camp.investigation.stars[0] === 3 && m.stars === undefined && m.tutorialDone === true);
+  check('old flat saves fold into campaign #1', m.camp['cargo-run'].unlocked === 2 &&
+    m.camp['cargo-run'].stars[0] === 3 && m.stars === undefined && m.tutorialDone === true);
   // campaign #2: GOING DEEPER
   check('GOING DEEPER ships as campaign #2 and validates clean',
-    G.CAMPAIGNS.length === 5 && G.CAMPAIGNS[1].id === 'going-deeper' && G.validateCampaign(G.CAMPAIGNS[1]).length === 0);
+    G.CAMPAIGNS.length === 5 && G.CAMPAIGNS[1].id === 'survey' && G.validateCampaign(G.CAMPAIGNS[1]).length === 0);
   check('SIGNAL LOST ships as campaign #3 and validates clean',
-    G.CAMPAIGNS[2].id === 'signal-lost' && G.validateCampaign(G.CAMPAIGNS[2]).length === 0);
+    G.CAMPAIGNS[2].id === 'collector' && G.validateCampaign(G.CAMPAIGNS[2]).length === 0);
   check('THE BAIT ships as campaign #4 and validates clean',
-    G.CAMPAIGNS[3].id === 'the-bait' && G.validateCampaign(G.CAMPAIGNS[3]).length === 0);
+    G.CAMPAIGNS[3].id === 'patrol' && G.validateCampaign(G.CAMPAIGNS[3]).length === 0);
   check('SHUTDOWN ships as campaign #5 and validates clean',
-    G.CAMPAIGNS[4].id === 'shutdown' && G.validateCampaign(G.CAMPAIGNS[4]).length === 0);
+    G.CAMPAIGNS[4].id === 'delegation' && G.validateCampaign(G.CAMPAIGNS[4]).length === 0);
   check('difficulty rises across all five shipped campaigns',
     G.CAMPAIGNS.every((pk, i) => i === 0 || pk.difficulty > G.CAMPAIGNS[i - 1].difficulty));
   check('finales escalate: core, then triad, then spinner',
@@ -2109,7 +2109,7 @@ G.keys['ArrowUp'] = false;
   check('comms clamp at the 64-char transmission limit', ED.clampComm('x'.repeat(80)).length === 64);
   { // mission-disc content: art, the plot line, and the designer's own notes
     const dc = ED.clone(G.CAMPAIGNS[0]);
-    dc.levels[0].art = 'investigation-01.webp';
+    dc.levels[0].art = 'cargo-run-01.webp';
     dc.levels[0].notes = 'reshoot the keyframe — too blue';
     check('a bundled art file reference validates', G.validateCampaign(dc).length === 0);
     dc.levels[0].art = 'data:image/webp;base64,' + 'A'.repeat(64);
@@ -2810,9 +2810,9 @@ async function runMusicUp() {
       lastUrl = url; lastBody = JSON.parse(opts.body); lastHeaders = opts.headers;
       return { ok: true, json: async () => ([{ rank: 1, player_id: 'p1', player_name: 'ACE', score: 5000, verified: true }]) };
     };
-    const top = await G.lbTop('investigation:2', 10);
+    const top = await G.lbTop('cargo-run:2', 10);
     check('lbTop hits the leaderboard_top RPC', lastUrl.endsWith('/rest/v1/rpc/leaderboard_top'));
-    check('lbTop passes board + limit, null day for a campaign board', lastBody.p_board === 'investigation:2' && lastBody.p_limit === 10 && lastBody.p_day === null);
+    check('lbTop passes board + limit, null day for a campaign board', lastBody.p_board === 'cargo-run:2' && lastBody.p_limit === 10 && lastBody.p_day === null);
     check('lbTop ships the publishable key, not a secret', String(lastHeaders.apikey).startsWith('sb_publishable_'));
     check('lbTop parses the ranked rows', Array.isArray(top) && top[0].score === 5000);
     // no board uses the `day` column any more — the week rides in the board KEY

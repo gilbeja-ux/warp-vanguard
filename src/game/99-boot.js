@@ -863,7 +863,7 @@ function drawBandFX(now, g, bz, hw) {
     if (hw < 1) ctx.restore();
   }
   if (shieldCharge > 0 && hw > 0.004) {
-    // FIREWALL SHIELD: the monolith ITSELF runs hot — the whole band bathes
+    // THE SHIELD: the monolith ITSELF runs hot — the whole band bathes
     // in charge, both machined lips light up, filaments crawl the full
     // circle and twin charge sectors circulate. Unmissable: the ring is
     // STRONGER right now.

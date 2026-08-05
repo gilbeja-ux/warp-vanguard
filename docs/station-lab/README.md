@@ -45,11 +45,15 @@ a few milliseconds a frame on it while the player is on the menu.
 
 | campaign | build | tris | lamps |
 | --- | --- | ---: | ---: |
-| C1 · investigation | port & piers | 17,680 | 25 |
-| C2 · going-deeper | gate | 11,028 | 40 |
-| C3 · signal-lost | spine & torus | 28,084 | 22 |
-| C4 · the-bait | truss disc | 38,584 | 31 |
-| C5 · shutdown | fortress ring | 16,036 | 28 |
+*(verify.html and hero2.html pass the original slugs — `investigation`, `going-deeper`, … —
+directly to `s3BuildFor`. That is correct, not stale: `S3D_FINAL` is keyed by DEAL SEED, and
+those slugs are the seeds. Renaming them there would break the harnesses.)*
+
+| C1 · cargo-run | port & piers | 17,680 | 25 |
+| C2 · survey | gate | 11,028 | 40 |
+| C3 · collector | spine & torus | 28,084 | 22 |
+| C4 · patrol | truss disc | 38,584 | 31 |
+| C5 · delegation | fortress ring | 16,036 | 28 |
 
 A campaign's endpoint is its **last level**, and it outranks the boss star: you
 fight the interdictor at the gates of the place you were escorting the convoy to.

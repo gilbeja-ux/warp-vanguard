@@ -317,7 +317,6 @@ function drawMenuMap() {
     const cleared = PROG.stars[i] > 0;
     const isFrontier = i === frontier && !cleared;
     const isBoss = !!LEVELS[i].boss;
-    const campId = (typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x';
     // 40% smaller than the first cut: at full size the bodies crowded each other
     // and left no room for the systems and lanes around them
     // ---- the destination body ----

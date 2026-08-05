@@ -125,7 +125,7 @@ function drawFarGlow(far, vr, g) {
   //
   // That USED to be enforced here, by refusing to call the life layer at all for
   // a swarm. It was too blunt: the layer also carries traffic and the companion,
-  // neither of which needs a surface, and `signal-lost` delivers its contract to
+  // neither of which needs a surface, and THE COLLECTOR delivers its contract to
   // an asteroid field — so the one build that campaign is meant to be known by
   // was dealt to it and then never drawn. destinationLife() knows what a swarm
   // is now and declines the surface features itself, which leaves exactly one
@@ -233,7 +233,7 @@ function moonSprite(V) {
 }
 let destLifeKey = '', destLifeVal = null;
 function destinationLife() {
-  const campId = (typeof CAMP !== 'undefined' && CAMP && CAMP.id) || 'x';
+  const campId = campSeed(); // the DEAL seed, not the id — see campSeedOf in 30-campaigns
   const isBoss = !!(LV && LV.boss);
   const kind = destKindFor(campId, levelIdx, isBoss);
   const key = campId + '#' + levelIdx + '#' + kind;
@@ -349,7 +349,7 @@ function destinationLife() {
       if (kind !== 'planet') return null;
       // A CONTRACT'S ENDPOINT ALWAYS HAS ITS OWN. s3BuildFor returns the fixed
       // build there whatever kind it is asked for, so the fortress at the end of
-      // `shutdown` is the fortress every time — larger than an ordinary
+      // THE DELEGATION is the fortress every time — larger than an ordinary
       // installation, because it is the one a player is meant to know by sight.
       const fin = typeof s3FinalFor === 'function' && !!s3FinalFor(campId, levelIdx);
       if (!fin && roll >= DEST_MIX.comp) return null;

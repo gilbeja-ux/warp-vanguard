@@ -394,7 +394,7 @@ function update(dt) {
 
   updatePickups(dt, sdt, L, g, covers, ringXY);
 
-  // the firewall core duel
+  // the warden core duel
   if (boss) {
     updateBossFight(dt, g);
     if (!boss || state !== S.PLAY) return; // victory mid-update
@@ -758,7 +758,7 @@ function updateEnemy(en, C) {
     let hit = false;
     const boltPairs = []; // [node, targetAngle] — where the lightning jumps from/to
     if (fx.auto > 0) {
-      hit = true; // auto-zap: the firewall clears anything crossing the ring
+      hit = true; // auto-zap: the ring clears anything crossing it
       if (en.partner) boltPairs.push([nodes[0], en.angle], [nodes[1], en.partner.angle]);
       else boltPairs.push([nearest(en.angle), en.angle]);
     } else if (en.type === 'heavy') {

@@ -52,10 +52,13 @@ const STORE_KEY = 'warpVanguard.v1';
 // the old entry, so nothing is left behind; drop both lines once every device
 // you care about has booted the renamed build at least once.
 const LEGACY_STORE_KEY = 'dataDefenders.v1';
-// pre-campaign saves kept flat stars/bests/unlocked — fold them into campaign #1
+// pre-campaign saves kept flat stars/bests/unlocked — fold them into campaign #1.
+// Targets the CURRENT id. Writing the retired 'investigation' here and leaning on the rename
+// loop in loadState to move it a few lines later did work, but it meant this function emitted
+// a key nothing reads and was only correct because of the order the two ran in.
 function migrateSaveShape(dp) {
   if (dp.stars && !dp.camp) {
-    dp.camp = { investigation: {
+    dp.camp = { 'cargo-run': {
       unlocked: dp.unlocked || 1,
       stars: dp.stars,
       bests: Array.isArray(dp.bests) ? dp.bests : []
@@ -79,6 +82,17 @@ function saveState() {
       if (d.progress) {
         Object.assign(progress, migrateSaveShape(d.progress));
         if (!progress.camp) progress.camp = {};
+        // ONE-WAY MIGRATION, 2026-08-05. The campaign ids stopped speaking the retired Data
+        // Defenders story (investigation -> cargo-run, the-bait -> patrol, ...) and progress
+        // is stored under the id, so a save written before the rename would have read as a
+        // player who had never played. Moved rather than copied, and only when the new key is
+        // absent, so a later save cannot be overwritten by a stale one.
+        for (const [was, now] of [['investigation', 'cargo-run'], ['going-deeper', 'survey'],
+          ['signal-lost', 'collector'], ['the-bait', 'patrol'], ['shutdown', 'delegation']]) {
+          if (progress.camp[was] && !progress.camp[now]) progress.camp[now] = progress.camp[was];
+          delete progress.camp[was];
+          if (progress.lastCamp === was) progress.lastCamp = now;
+        }
       }
       if (d.settings) Object.assign(settings, d.settings);
       // old default was 0.5 — migrate untouched saves to the new quieter bed
