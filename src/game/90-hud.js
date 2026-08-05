@@ -344,8 +344,12 @@ function drawIntroCard() {
 
 // procedural holo-portraits for the comm line — line-art busts in the
 // speaker's color, scanlined and flickering like a tapped video feed.
-// HAUL: suit + lapel pin · CMD: peaked cap + badge · TRACE: hooded, face
-// lost to glitch bars · CORE: nothing human, a spiked core
+// Switches on the SPEAKER ID, not on the package's `portrait` field (which
+// nothing reads). CMD: peaked cap + badge · WARD: a void disc with a red lens ·
+// TRACE: hooded, face lost to glitch bars — a retired speaker no package calls
+// any more. Everyone else takes the HAUL face: suit + lapel pin. That means the
+// survey, the trader, the flotilla and the delegation all wear haulage's suit.
+// (The comment here used to promise a CORE face; there has never been one.)
 function drawCommFace(s, cx2, cy3, r, col) {
   ctx.save();
   ctx.translate(cx2, cy3);

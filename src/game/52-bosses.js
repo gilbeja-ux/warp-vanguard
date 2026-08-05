@@ -29,7 +29,7 @@ function spawnBoss() {
   const kind = (LV || LEVELS[levelIdx]).bossKind || 'core';
   boss = {
     kind,
-    hp: 6, maxHp: 6, // six bolts close the case; phase 2 at three
+    hp: 6, maxHp: 6, // six bolts close the contract; phase 2 at three
     // it FLIES inside the tunnel: cross-section polar (ang, rad) + depth z
     ang: Math.random() * TAU, rad: 0.12, z: 1.55,
     tAng: Math.random() * TAU, tRad: 0.4, tZ: 0.6,
