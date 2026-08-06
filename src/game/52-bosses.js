@@ -335,7 +335,11 @@ function updateBossFight(dt, g) {
     if (!b.cer2 && b.introT > 1.5) { // the eye ignites; it speaks
       b.cer2 = true;
       sfx.bossOnline(); buzz([40, 60, 90], { strong: 0.7, weak: 0.9 }); // arrival: presence, not pain
-      commCur = { s: 'CORE', m: bd.speak }; commT = 0;
+      // WARD, not CORE: every package defines WARD as 'the interdiction' in the
+      // boss's own violet, and nothing defined CORE — so this chip used to miss
+      // SPKCOL and fall back to a generic blue. New speakers get added when a
+      // fight actually needs a new voice, not implied by a string here.
+      commCur = { s: 'WARD', m: bd.speak }; commT = 0;
     }
     if (b.introT >= BOSS_CER) {
       popup(W / 2, H * 0.30, bd.online, '#d465ff');
@@ -403,7 +407,7 @@ function updateBossFight(dt, g) {
   // (latch ticking + node fry now live in update() — walls exist campaign-wide)
   resolveBossShots(dt, g, railR);
 }
-// ---------- triad: BADGE ZERO's private core — one machine in three bodies ----------
+// ---------- triad: one machine in three bodies ----------
 // scarce docking is the fight: the ring stays ridden with rail latches (two at
 // once) while the bodies spray telegraphed dart fans. The bolt hunts whichever
 // body you AIM at; three bolts each, and the survivors only get angrier.
