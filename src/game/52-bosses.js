@@ -3,6 +3,20 @@
 // one framework, three intruders: every boss shares the arrival ceremony,
 // the death ceremony and the verdict — bossKind picks which machine shows up
 const BOSS_DEFS = {
+  // THE ARRAY. A conductor, not a combatant: it holds the bore's centre, never moves,
+  // and never shoots at you. It CONDUCTS — each arm releases a figure of traffic down
+  // the lane, and the fight is reading the figure and answering it on the ring.
+  //
+  // Why static: the beacon is the fight that works, and the reasons all generalise.
+  // It sits where the eye already is (the centre, where traffic arrives from), its
+  // threat is expressed on the RING rather than as a small object to track, it does
+  // not add a second stream of fast dots to a screen already full of them, and you
+  // never have to hit it. That last one is what lets a boss stand still.
+  array: {
+    title: 'THE ARRAY', sub: 'READ THE FIGURE — CLEAR IT CLEAN',
+    online: 'ARRAY ONLINE', down: 'ARRAY DOWN',
+    speak: 'I do not chase. I arrange.', card: 'bossArray', brief: 'arrayBriefed'
+  },
   core: {
     title: 'THE WARDEN CORE', sub: 'DOCK BOTH EMITTERS AND HOLD — SIX BOLTS CLOSE THE CONTRACT',
     online: 'WARDEN CORE ONLINE', down: 'WARDEN DOWN',
@@ -37,6 +51,24 @@ const TRIAD_FREE_ARC = 1.6;  // the dockable-arc law: walls may never close the 
 const CORE_HEAT_PER_SALVO = 0.115; // ~9 salvos, so roughly 7–9s of pressure per cycle
 const CORE_VENT_DUR = 2.2;         // how long the panels stay open
 const CORE_VENT_MUL = 2;           // bolts land double while they are
+// THE FIGURES. Each is a shape drawn in traffic: bearings relative to the conducting
+// arm, plus an arrival WINDOW index that staggers depth down the pipe.
+//
+// The window numbers are the fairness contract, not decoration. At most TWO reds may
+// share a window, because there are two thumbs — and when two do share one they are
+// far enough apart that each is a separate reach rather than a coin toss about which
+// hand goes. A fan of three arriving together would be unanswerable by construction,
+// which is exactly the trap the intrusion-wave spawner already documents.
+const ARR_FIGURES = [
+  { n: 'FAN',    a: [-0.52, 0.00, 0.52],             w: [0, 1, 2] },
+  { n: 'PINCER', a: [-1.25, 1.25, 0.00],             w: [0, 0, 2] },
+  { n: 'COLUMN', a: [0.00, 0.00, 0.00, 0.00],        w: [0, 1, 2, 3] },
+  { n: 'SPIRAL', a: [0.00, 2.40, 4.80, 1.20],        w: [0, 1, 2, 3] }
+];
+const ARR_ARMS = 4;          // arms, and therefore figures to answer. hp is arms + the core
+const ARR_TELE = 1.35;       // how long the arm aims before it releases
+const ARR_GRACE = 0.55;      // after the last red resolves, before the figure is judged
+const ARR_EXPOSE = 2.6;      // with every arm sheared, how long the bare core stays hittable
 const SPIN_BEAM_HALF = 0.13; // beacon beam half-width at the ring (rad)
 // THE LIGHT IS KEYED TO ONE EMITTER. A sweep condemns the blue carriage or the
 // white one — never both — so the fight stops being a two-thumb sprint and starts
@@ -79,6 +111,22 @@ function spawnBoss() {
     boss.volleyT = 2.4;
     boss.latchT = 2.2;  // the arena is RIDDEN with walls — far hotter than boss 1
     boss.booms = [];    // mini implosions of downed bodies
+  } else if (kind === 'array') {
+    // hp is one per arm plus one for the core underneath: the arms are the fight, the
+    // core is the finisher, and the volley is what converts the last of it.
+    boss.hp = boss.maxHp = ARR_ARMS + 1;
+    boss.arms = [];
+    for (let i = 0; i < ARR_ARMS; i++)
+      boss.arms.push({ i, a: (i / ARR_ARMS) * TAU, live: true, lit: 0, shear: -1 });
+    boss.mode = 'tele'; boss.modeT = ARR_TELE;
+    boss.armN = 0;                 // which arm is conducting
+    boss.figN = 0;                 // which figure it will draw
+    boss.figBase = Math.random() * TAU;
+    boss.figMark = [];             // bearings the ring is telegraphing
+    boss.figIds = [];              // the reds released, so the judge can find them
+    boss.clean = true;
+    boss.exposeT = 0;              // > 0 while the bare core can be hit
+    boss.rad = 0; boss.tRad = 0; boss.tZ = 0.5;
   } else if (kind === 'spinner') {
     boss.hp = boss.maxHp = 4; // four survived sweeps put the light out
     boss.mode = 'tele'; boss.modeT = 1.7;
@@ -133,6 +181,17 @@ function killTriadCore(c) {
 function bossVolleyHit(sh) {
   const b = boss;
   if (!b || b.introT < BOSS_CER || b.dying !== undefined) return;
+  if (b.kind === 'array' && !(b.exposeT > 0)) {
+    // ARMOURED WHILE IT HAS ARMS. The figures are the fight; a bolt is not an answer
+    // to a pattern, and letting one be would make every arm skippable.
+    b.shieldT = 0.6;
+    burst(b.sx, b.sy, '#8fe0ff', 16, 4);
+    popup(b.sx, b.sy - b.sSize, 'ARMOURED — CLEAR THE FIGURE', '#8fe0ff');
+    tone(620, 0.12, 'sine', 0.08, 340);
+    crackle(0.15, 1600, 700, 1, 0.3);
+    buzz(10);
+    return;
+  }
   if (b.kind === 'spinner') { // the beacon is SHIELDED to bolts — survive the sweep instead
     b.shieldT = 0.6;
     burst(b.sx, b.sy, '#8fe0ff', 16, 4);
@@ -382,6 +441,7 @@ function updateBossFight(dt, g) {
   }
   // DEATH CEREMONY
   if (b.dying !== undefined) { updateBossDeath(dt, g); return; }
+  if (b.kind === 'array')   { updateArrayFight(dt, g);   return; }
   if (b.kind === 'triad')   { updateTriadFight(dt, g);   resolveBossShots(dt, g, railR); return; }
   if (b.kind === 'spinner') { updateSpinnerFight(dt, g); resolveBossShots(dt, g, railR); return; }
   // restless flight inside the tunnel — cross-section polar + depth
@@ -460,6 +520,111 @@ function updateBossFight(dt, g) {
   }
   // (latch ticking + node fry now live in update() — walls exist campaign-wide)
   resolveBossShots(dt, g, railR);
+}
+// ---------- array: the conductor ----------
+// A cycle: an arm swings to a bearing and lights (tele) -> it releases a figure of
+// traffic (run) -> the figure is judged. Clean, and that arm SHEARS OFF: permanent,
+// visible, and the machine is smaller for the rest of the fight. Dirty, and the same
+// arm conducts again — a harder figure each time, but no progress lost, because a boss
+// that resets its own health on a single miss is a boss nobody finishes.
+//
+// With every arm gone the bare core is exposed and takes the volley. That is the one
+// place this fight is directly shootable, and it is deliberate: the volley is the
+// game's third verb and the teaching boss should end by asking for it.
+function updateArrayFight(dt, g) {
+  const b = boss;
+  // it holds the centre and stays there. No re-targeting, no drift, no bob.
+  b.ang += dt * 0.12;                        // the armature's own slow wheel
+  b.rad = lerp(b.rad, 0, Math.min(1, dt * 3));
+  b.z = lerp(b.z, 0.5, Math.min(1, dt * 1.5));
+  b.u = Math.cos(b.ang) * b.rad;
+  b.v = Math.sin(b.ang) * b.rad;
+  const brg = ring(b.z, g);
+  b.sx = brg.x + b.u * brg.r;
+  b.sy = brg.y + b.v * brg.r;
+  b.sSize = Math.min(W, H) * 0.30 * brg.s;
+  for (const arm of b.arms) {
+    if (arm.shear >= 0) arm.shear += dt;     // shear animation runs on
+    arm.lit = Math.max(0, arm.lit - dt * 2);
+  }
+  if (b.exposeT > 0) { b.exposeT -= dt; if (b.exposeT <= 0) b.exposeT = 0; }
+
+  const live = b.arms.filter(a2 => a2.live);
+  if (!live.length) {                        // arms all gone: the core, exposed, waiting
+    if (b.exposeT <= 0) {
+      b.exposeT = ARR_EXPOSE;
+      popup(W / 2, H * 0.30, 'CORE EXPOSED — DOCK BOTH AND FIRE', '#ffd24a');
+      tone(150, 0.5, 'sawtooth', 0.13, 70);
+      buzz([40, 30, 60]);
+    }
+    return;
+  }
+  b.modeT -= dt;
+  if (b.mode === 'tele') {
+    const arm = b.arms[b.armN] && b.arms[b.armN].live ? b.arms[b.armN] : live[0];
+    b.armN = arm.i;
+    arm.lit = 1;
+    // the arm swings to the figure's bearing — the telegraph IS the aim
+    arm.a += angDiff(b.figBase, arm.a) * Math.min(1, dt * 3.2);
+    const fig = ARR_FIGURES[b.figN % ARR_FIGURES.length];
+    b.figMark = fig.a.map(off => b.figBase + off);
+    if (b.modeT <= 0) {
+      b.mode = 'run';
+      b.clean = true;
+      b.figIds = [];
+      const gapZ = 0.80 * (LV.speed || 0.5) * (mutators.fast ? 1.35 : 1);
+      for (let k = 0; k < fig.a.length; k++) {
+        const en = spawnEnemy(clearOfWalls(b.figBase + fig.a[k]), 'normal');
+        en.lock = undefined; en.drift = 0;
+        en.z = SPAWN_Z + fig.w[k] * gapZ;
+        en.arrFig = true;                    // the judge's handle on this figure
+        b.figIds.push(en);
+      }
+      popup(W / 2, H * 0.30, fig.n, '#8fe0ff');
+      sfx.bossShot();
+      crackle(0.3, 700, 2400, 2, 0.4);
+      b.modeT = 30;                          // safety: a figure cannot hang the fight
+    }
+    return;
+  }
+  // running: wait for every red in the figure to be settled one way or the other
+  const outstanding = b.figIds.filter(e => !e.dead && !e.resolved && !e.failed);
+  for (const e of b.figIds) if (e.resolved && !e.dead) b.clean = false; // slipped past
+  if (outstanding.length && b.modeT > 0) return;
+  b.modeT -= 0;                              // (the grace beat is the ARR_GRACE timer below)
+  if (b.graceT === undefined) b.graceT = ARR_GRACE;
+  b.graceT -= dt;
+  if (b.graceT > 0) return;
+  b.graceT = undefined;
+  const arm = b.arms[b.armN];
+  if (b.clean && arm && arm.live) {          // answered: the arm shears off
+    arm.live = false; arm.shear = 0;
+    b.hp -= 1;
+    b.hurtT = 0.3;
+    const ax = b.sx + Math.cos(arm.a) * b.sSize * 1.5, ay = b.sy + Math.sin(arm.a) * b.sSize * 1.5;
+    burst(ax, ay, '#ffffff', 30, 6);
+    burst(ax, ay, '#ffd24a', 24, 5);
+    popup(ax, ay - 20, 'ARM SHEARED ' + (b.maxHp - 1 - b.hp + 1) + '/' + ARR_ARMS, '#ffd24a');
+    score += Math.round(500 * mutMul());
+    shake = 1;
+    hitStop = Math.min(hitStop + 0.14, 0.18);
+    tone(70, 0.4, 'sine', 0.2, 38);
+    crackle(0.4, 2200, 350, 3, 0.9);
+    buzz([55, 35, 75]);
+  } else {
+    popup(W / 2, H * 0.30, 'FIGURE BROKEN — AGAIN', '#ff9a3c');
+    tone(120, 0.3, 'sawtooth', 0.12, 60);
+    buzz(20);
+  }
+  // next figure, harder, from a fresh bearing well clear of the last one
+  b.figN++;
+  b.figBase = clearOfWalls(b.figBase + 1.9 + rand(-0.5, 0.5));
+  const nextLive = b.arms.filter(a2 => a2.live);
+  if (nextLive.length) {
+    b.armN = nextLive[(b.figN) % nextLive.length].i;
+    b.mode = 'tele';
+    b.modeT = Math.max(0.7, ARR_TELE - b.figN * 0.10); // it aims faster as it loses arms
+  }
 }
 // ---------- triad: one machine in three bodies ----------
 // scarce docking is the fight: the ring stays ridden with rail latches (two at

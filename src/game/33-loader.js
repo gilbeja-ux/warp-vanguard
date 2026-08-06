@@ -54,7 +54,7 @@ function validateCampaign(p) {
         ? p.map.image.length <= 400000 : /^[\w-]+\.(webp|png|jpg)$/.test(p.map.image))))
       errs.push('bad map image (data:image URI under 400KB, or a .webp/.png/.jpg file name)');
     if (l.mapPos && !(l.mapPos.x >= 0 && l.mapPos.x <= 1 && l.mapPos.y >= 0 && l.mapPos.y <= 1)) errs.push(tag + 'bad mapPos (0..1)');
-    if (l.bossKind !== undefined && (!l.boss || !['core', 'triad', 'spinner'].includes(l.bossKind))) errs.push(tag + 'bad bossKind');
+    if (l.bossKind !== undefined && (!l.boss || !['core', 'triad', 'spinner', 'array'].includes(l.bossKind))) errs.push(tag + 'bad bossKind');
     (l.comms || []).forEach(c => {
       if (!(c.t >= 0 && c.t < l.duration) || !spk.has(c.s) || !str(c.m) || c.m.length > 64) errs.push(tag + 'bad comm');
     });

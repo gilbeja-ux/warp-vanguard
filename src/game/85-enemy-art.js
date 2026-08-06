@@ -1027,7 +1027,60 @@ const TRIAD_HULL = { WALL: 'WALL', SHREDDER: 'SHRED', GHOST: 'GHOST' };
 // per-hull on-screen scale. Each build frames itself with its own `cam`, so one factor
 // would leave the beacon tiny next to the cutter — these are set by eye against the
 // bore, which is the only place the comparison means anything.
-const BOSS_HULL_R = { CUTTER: 1.95, WALL: 1.70, SHRED: 1.70, GHOST: 1.80, BEACN: 1.85 };
+const BOSS_HULL_R = { CUTTER: 1.95, WALL: 1.70, SHRED: 1.70, GHOST: 1.80, BEACN: 1.85,
+  // the conductor is the centrepiece of its fight, not a dot in the bore — these are
+  // set against the ring, which is the only comparison that means anything
+  ARRHUB: 2.30, ARRARM: 1.70 };
+// THE ARRAY IS TWO SPRITES, not one. The hub holds the centre and each live arm is
+// stamped at its own bearing, so an arm can aim (the telegraph) and shear off (the
+// damage) independently. One baked sprite could do neither.
+function drawArrayRig(b, size, haze) {
+  const hub = s3SpriteFor('ARRHUB'), arm = s3SpriteFor('ARRARM');
+  if (!hub || !arm) return false;
+  const R = size * BOSS_HULL_R.ARRHUB;
+  for (const a2 of b.arms) {
+    const shearing = a2.shear >= 0 && a2.shear < 1.1;
+    if (!a2.live && !shearing) continue;
+    ctx.save();
+    ctx.rotate(a2.a);
+    // a sheared arm tumbles outward and fades — the machine visibly loses hardware
+    let al = haze;
+    if (shearing) {
+      const q = a2.shear / 1.1;
+      ctx.translate(R * (0.9 + q * 1.5), 0);
+      ctx.rotate(q * 1.4);
+      al = haze * (1 - q);
+    } else {
+      ctx.translate(R * 0.9, 0);
+    }
+    s3draw(0, 0, size * BOSS_HULL_R.ARRARM, 'ARRARM', al);
+    // the conducting arm runs its throat hot, which is the tell that it is about to release
+    if (a2.live && a2.lit > 0.02) {
+      ctx.globalCompositeOperation = 'lighter';
+      const lg = ctx.createRadialGradient(size * 0.75, 0, 0, size * 0.75, 0, size * 0.95);
+      lg.addColorStop(0, `rgba(255,225,180,${(0.55 * a2.lit * haze).toFixed(2)})`);
+      lg.addColorStop(1, 'rgba(255,150,60,0)');
+      ctx.fillStyle = lg;
+      ctx.beginPath(); ctx.arc(size * 0.75, 0, size * 0.95, 0, TAU); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.restore();
+  }
+  s3draw(0, 0, R, 'ARRHUB', haze);
+  // the bare core, exposed: the one window where a bolt is an answer
+  if (b.exposeT > 0) {
+    const vp = 0.55 + Math.sin(time * 15) * 0.45;
+    ctx.globalCompositeOperation = 'lighter';
+    const eg = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 1.5);
+    eg.addColorStop(0, `rgba(255,240,210,${(0.55 * vp * haze).toFixed(2)})`);
+    eg.addColorStop(0.5, `rgba(255,150,60,${(0.30 * vp * haze).toFixed(2)})`);
+    eg.addColorStop(1, 'rgba(255,110,40,0)');
+    ctx.fillStyle = eg;
+    ctx.beginPath(); ctx.arc(0, 0, size * 1.5, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  return true;
+}
 function bossHullId(v) {
   if (v.name) return TRIAD_HULL[v.name] || null;
   if (v.kind === 'spinner') return 'BEACN';
@@ -1072,6 +1125,7 @@ function drawVoidCore(g, c) {
   // menu, so in practice it is ready long before a relay-8 duel).
   //
   // Only the core boss has a hull: triad bodies come through this same function.
+  if (b.kind === 'array' && b.arms && drawArrayRig(b, size, haze)) { ctx.restore(); return; }
   const hullId = bossHullId(b);
   if (hullId && s3SpriteFor(hullId)) {
     const hk = clamp(b.coreHeat === undefined ? 0 : b.coreHeat, 0, 1);

@@ -694,138 +694,108 @@ check('heal lands on the fifth banked zap', G.stats().integrity === 50);
 const c0 = G.endlessCfg(0), c200 = G.endlessCfg(200);
 check('endless difficulty ramps with time', c200.speed > c0.speed && c200.spawnMin < c0.spawnMin && c200.heavies > 0 && c0.heavies === 0);
 
-// ================= boss duel (WARDEN CORE) =================
-G.progress.bossBriefed = false;
+// ================= boss duel (THE ARRAY) =================
+// Campaign 1's finale is the conductor: static at the bore centre, armoured while it
+// has arms, and damaged only by answering a figure of traffic cleanly. The classic
+// core fight still ships on campaign 5 and is covered in its own block below.
+G.progress.arrayBriefed = false;
 G.startLevel(7);
 G.setLevelT(46); // past the level clock
 G.update(0.01);
-check('the warden core spawns after the level clock', !!G.boss());
-check('boss briefing card shows first', G.getState() === G.S.INFO && G.getInfoCard() === 'boss');
+check('the array spawns after the level clock', !!G.boss() && G.boss().kind === 'array');
+check('boss briefing card shows first', G.getState() === G.S.INFO && G.getInfoCard() === 'bossArray');
 dismiss();
 check('briefing dismissed back to the duel', G.getState() === G.S.PLAY);
 // ARRIVAL CEREMONY: the core surfaces before it fights
-check('the core arrives with a ceremony, not a fight', G.boss().introT < G.BOSS_CER());
+check('the array arrives with a ceremony, not a fight', G.boss().introT < G.BOSS_CER());
 let cerGuard = 200;
 while (G.boss().introT < G.BOSS_CER() && cerGuard-- > 0) G.update(0.05);
 check('the ceremony completes and the duel begins', G.boss().introT >= G.BOSS_CER());
 check('the dials never change hands — no fuse', G.boss().mergeT === 0);
-// the duel verb is the campaign verb: dock both nodes, charge, homing bolt
-function bossBolt() {
+// A CONDUCTOR IS NOT SHOT, IT IS ANSWERED. These helpers play the fight the way a
+// player does: wait out the telegraph, clear every red in the figure before it reaches
+// the ring, and let the judge shear the arm.
+function arrRun() { // let the conducting arm finish aiming and release its figure
   const b = G.boss();
-  G.volley().cd = 0;
-  aim(0, 1.0); aim(1, 1.0); // dock and hold — the charge fires itself
-  const hp0 = b.hp;
-  for (let i = 0; i < 60 && b.hp === hp0 && b.hp > 0; i++) {
-    // hold the radiators cold: a vent doubles the bolt, and this helper's callers are
-    // asserting what ONE bolt is worth. Without this the damage figure depends on how
-    // many salvos happened to fit in the charge window.
-    b.coreHeat = 0; b.ventT = 0;
-    G.setIntegrity(100); b.shots.length = 0; b.latchT = 99; G.update(0.05);
+  let gd = 200;
+  while (gd-- > 0 && b.mode !== 'run') { G.setIntegrity(100); G.update(0.05); }
+  return b.mode === 'run';
+}
+function arrClear() { // clear the figure the way two thumbs would
+  const b = G.boss();
+  let gd = 900;
+  while (gd-- > 0) {
+    const out = b.figIds.filter(e => !e.dead && !e.resolved && !e.failed);
+    if (!out.length) break;
+    out.sort((x, y) => x.z - y.z);
+    // ONE THUMB EACH on the two nearest arrivals. A figure may land two reds in the
+    // same window on purpose — that is the fairness contract, at most two at once and
+    // far enough apart to be separate reaches. A helper that only ever covered the
+    // single nearest one let the partner slip past and reported the FIGHT as broken.
+    aim(0, out[0].angle);
+    aim(1, (out[1] || out[0]).angle);
+    G.setIntegrity(100); G.update(0.05);
   }
-  aim(1, 1.0 + Math.PI); // undock between bolts
-  G.update(0.05);
+  return b.figIds.every(e => e.dead);
+}
+function arrFigure() { // one full cycle: telegraph, clear, judge
+  const b = G.boss();
+  const hp0 = b.hp;
+  if (!arrRun()) return 0;
+  arrClear();
+  let gd = 200;
+  while (gd-- > 0 && b.hp === hp0 && b.mode !== 'tele') { G.setIntegrity(100); G.update(0.05); }
+  let gd2 = 60;
+  while (gd2-- > 0 && b.hp === hp0) { G.setIntegrity(100); G.update(0.05); }
   return hp0 - b.hp;
 }
-check('a docked charge launches a homing bolt into the core', bossBolt() === 1);
-drawOk('boss duel frame (charge + core)', () => {});
-bossBolt();
-check('three hits trigger BREACH PROTOCOL (phase 2)', (bossBolt(), G.boss().phase2 === true && G.boss().hp === 3));
-{
-  let tGuard = 200;
-  while (tGuard-- > 0 && !G.enemies().length) { G.setIntegrity(100); G.boss().shots.length = 0; G.update(0.05); }
-  check('phase 2 deploys wall taps mid-duel', G.enemies().length > 0);
-  G.enemies().length = 0;
-}
-// ---- THE VENT WINDOW ----
-// Firing loads the radiators; at full load the panels open and it stops shooting
-// while bolts land double. The window is the whole reason the fight has a shape, so
-// each half of it is asserted separately: that it opens, that nothing can shoot you
-// while it is open, that a bolt is worth more, and that it closes cold.
-{
+check('the array holds the bore centre and does not wander',
+  (() => { const b = G.boss(); const r0 = b.rad;
+    for (let i = 0; i < 40; i++) { G.setIntegrity(100); G.update(0.05); }
+    return b.rad <= Math.max(0.02, r0) && b.tRad === 0; })());
+check('it conducts a named figure, telegraphed before it releases', (() => {
   const b = G.boss();
-  b.hp = 6; b.maxHp = 6; b.phase2 = false; // a clean body to measure against
-  G.enemies().length = 0; G.setLatches([]);
-  b.coreHeat = 0.95; b.ventT = 0; b.shots.length = 0; b.shootT = 0.01; b.latchT = 99;
-  let vg = 40;
-  while (vg-- > 0 && !(b.ventT > 0)) { G.setIntegrity(100); G.update(0.05); }
-  check('salvos load the radiators until the panels blow', b.ventT > 0 && b.coreHeat >= 1);
-  check('the vent aborts the volley it was firing', b.shots.length === 0);
-  drawOk('interdictor venting (panels open)', () => {});
-  // nothing may shoot while the panels are open — that is what makes it a window
-  b.shootT = 0.01; b.latchT = 0.01;
-  const intg = G.stats().integrity;
-  let qg = 12, fired = false;
-  while (qg-- > 0 && b.ventT > 0) { G.update(0.05); if (b.shots.length) fired = true; }
-  check('a venting core fires nothing at all', !fired && G.stats().integrity === intg);
-  // and a bolt is worth double while it is open
-  b.ventT = 9; b.coreHeat = 1; b.hp = 6;
+  let gd = 200; while (gd-- > 0 && b.mode !== 'tele') { G.setIntegrity(100); G.update(0.05); }
+  return b.mode === 'tele' && b.figMark.length >= 3;
+})());
+{ // ARMOURED: a bolt is not an answer to a pattern
+  const b = G.boss(), hp0 = b.hp;
+  b.exposeT = 0;
   G.volley().cd = 0;
   aim(0, 1.0); aim(1, 1.0);
-  let dg = 60;
-  while (dg-- > 0 && b.hp === 6) { G.setIntegrity(100); b.shots.length = 0; G.update(0.05); }
-  check('a bolt into an open vent lands double', b.hp === 4);
+  let vg = 60, fizz = false;
+  while (vg-- > 0 && !fizz) { G.setIntegrity(100); G.update(0.05); fizz = b.shieldT > 0; }
   aim(1, 1.0 + Math.PI); G.update(0.05);
-  // ...and doubling must not step straight past the phase-2 trigger
-  b.hp = 4; b.phase2 = false; b.ventT = 9; b.coreHeat = 1;
-  G.volley().cd = 0;
-  aim(0, 1.0); aim(1, 1.0);
-  let pg = 60;
-  while (pg-- > 0 && b.hp === 4) { G.setIntegrity(100); b.shots.length = 0; G.update(0.05); }
-  check('a doubled bolt over the trigger still opens phase 2', b.hp === 2 && b.phase2 === true);
-  aim(1, 1.0 + Math.PI); G.update(0.05);
-  // the window shuts, cold
-  b.ventT = 0.05;
-  let cg = 20;
-  while (cg-- > 0 && b.ventT > 0) { G.setIntegrity(100); G.update(0.05); }
-  check('the vent closes and the radiators are cold', b.ventT === 0 && b.coreHeat === 0);
-  // Hand the duel back exactly as this block found it: three bolts in, phase 2 open.
-  // "three more bolts -> death ceremony" is asserted 90 lines below, and it counts
-  // from here — leaving a full health bar behind broke a dozen downstream checks.
-  b.hp = 3; b.phase2 = true; b.shots.length = 0; b.latchT = 99;
-  b.coreHeat = 0; b.ventT = 0;
-  G.enemies().length = 0; G.setLatches([]);
+  check('a bolt fizzles while it still has arms', fizz && b.hp === hp0);
 }
-// dodge mechanics — darts hunt either carriage now
-const B2 = G.boss();
-aim(0, 1.0); aim(1, 1.0);
-B2.shots.length = 0; B2.shootT = 0.01;
-G.update(0.05); // fires at a carriage's current spot
-B2.shootT = 99;  // hold further fire
-check('the core returns fire', B2.shots.length > 0);
-aim(0, 2.4); aim(1, 2.4); // dodge away
-const hpMe = G.stats().integrity;
-for (let i = 0; i < 60 && B2.shots.length; i++) G.update(0.05);
-check('dodging the shot avoids damage', G.stats().integrity === hpMe);
-B2.shootT = 0.01;
-G.update(0.05);
-B2.shootT = 99;
-const hpMe2 = G.stats().integrity;
-for (let i = 0; i < 60 && B2.shots.length; i++) G.update(0.05); // stand still
-check('standing still takes the hit', hpMe2 - G.stats().integrity >= 9);
-// rail latches — the core clamps the ring; crossing the orange arc fries a node
-B2.shots.length = 0; B2.shootT = 99; B2.latchT = 99; // quiet lane for the latch checks
-aim(0, 1.0); aim(1, 2.0); // apart — no accidental charging
-G.setLatches([{ a: 2.7, span0: 0.5, t: 0.3, dur: 3, tele: 0, arm: 0.25 }]); // away from both
-G.update(0.05);
-check('a latch across the ring leaves distant nodes alone', !(G.nodes[0].deadT > 0));
-aim(0, 2.7); // slide node 0 INTO the clamp
-G.update(0.05);
-check('crossing a latch fries the node (node-killer style)', G.nodes[0].deadT > 0);
-G.volley().cd = 0;
-aim(0, 2.0); // dock attempt with a fried node
-for (let i = 0; i < 14; i++) { G.setIntegrity(100); B2.shootT = 99; G.update(0.05); }
-check('a fried node cannot charge the volley', G.volley().charge === 0);
-aim(0, 1.0); // apart again
-for (let i = 0; i < 70; i++) { G.setIntegrity(100); B2.shootT = 99; B2.latchT = 99; G.update(0.05); } // reboot + burn-off
-check('the latch burns away within 3s', G.latches().length === 0);
-check('the node reboots after the fry', !(G.nodes[0].deadT > 0));
-B2.latchT = 0.01; // the core throws a grapple on its own
-G.update(0.05);
-check('the core fires latch grapples', B2.shots.some(sh => sh.latch === true));
-B2.shots.length = 0; B2.latchT = 99;
-// finish it: three more bolts -> death ceremony -> verdict -> case closed
-bossBolt(); bossBolt(); bossBolt();
-check('six bolts put the core down', G.boss() && G.boss().dying !== undefined);
+drawOk('array duel frame (conductor + figure)', () => {});
+check('a figure cleared clean shears an arm', arrFigure() === 1);
+check('...and the arm is gone for good', G.boss().arms.filter(a2 => a2.live).length === 3);
+{ // a broken figure costs no health, and re-conducts. A boss that resets on one miss
+  // is a boss nobody finishes, so this is the contract, not an accident.
+  const b = G.boss(), hp0 = b.hp;
+  arrRun();
+  for (const e of b.figIds) { e.resolved = true; } // let the whole figure slip past
+  let gd = 200;
+  while (gd-- > 0 && b.mode !== 'tele') { G.setIntegrity(100); G.update(0.05); }
+  check('a broken figure loses no health and conducts again', b.hp === hp0 && b.mode === 'tele');
+  check('...and the arm survives the miss', b.arms.filter(a2 => a2.live).length === 3);
+}
+arrFigure(); arrFigure(); arrFigure();
+check('four sheared arms leave the core bare', G.boss().arms.every(a2 => !a2.live));
+{ // the finisher: with the arms gone the core is exposed, and the volley converts it
+  const b = G.boss();
+  let gd = 200;
+  while (gd-- > 0 && !(b.exposeT > 0)) { G.setIntegrity(100); G.update(0.05); }
+  check('the bare core exposes itself', b.exposeT > 0 && b.hp === 1);
+  b.exposeT = 999; // hold the window open for the charge
+  G.volley().cd = 0;
+  aim(0, 1.0); aim(1, 1.0);
+  let fg = 120;
+  while (fg-- > 0 && G.boss() && G.boss().dying === undefined) { G.setIntegrity(100); G.update(0.05); }
+  check('a volley into the exposed core puts the array down',
+    G.boss() && G.boss().dying !== undefined);
+}
 let dGuard = 400;
 while (G.boss() && dGuard-- > 0) { G.setIntegrity(100); G.update(0.05); }
 check('the death ceremony ends at the VERDICT card', G.getState() === G.S.INFO && G.getInfoCard() === 'verdict');
@@ -845,8 +815,19 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
 
 // ================= boss engine dispatch (Phase 3: triad + spinner) =================
 {
-  // the classic campaign duel above (and this shortcut) ran without bossKind
-  check('a boss level without bossKind fields the classic core', G.boss() && G.boss().kind === 'core');
+  // campaign 1 now names its finale, so the DEFAULT is asserted on a package that
+  // omits bossKind entirely — which is the thing the default is actually for.
+  check('a boss level without bossKind still fields the classic core', (() => {
+    const pk = { id: 'no-kind', format: 1, title: 'NO KIND',
+      speakers: [{ id: 'WARD', color: '212,101,255' }],
+      levels: [{ tint: '10,20,30', duration: 1, spawnMin: 9, spawnMax: 9, speed: 0.4,
+        doubles: 0, heavies: 0, lines: 0, colors: 0, boss: true,
+        story: { line: 'x' } }] };
+    if (!G.installCampaign(pk)) return false;
+    G.startLevel(0); G.setLevelT(4); G.update(0.01);
+    const ok = !!G.boss() && G.boss().kind === 'core';
+    return ok;
+  })());
   const bossPack = kind => ({
     id: 'boss-' + kind, format: 1, title: kind.toUpperCase() + ' TEST',
     speakers: [{ id: 'WARD', color: '212,101,255' }, { id: 'CMD', color: '235,245,255' }],
@@ -854,8 +835,8 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
     levels: [{ name: 'FINALE', tint: '212,101,255', duration: 10, spawnMin: 1, spawnMax: 2, speed: 0.5,
       boss: true, bossKind: kind }]
   });
-  check('validator accepts bossKind triad + spinner',
-    G.validateCampaign(bossPack('triad')).length === 0 && G.validateCampaign(bossPack('spinner')).length === 0);
+  check('validator accepts every shipped bossKind',
+    ['core', 'triad', 'spinner', 'array'].every(k => G.validateCampaign(bossPack(k)).length === 0));
   const badP = bossPack('triad'); badP.levels[0].bossKind = 'megacore';
   check('validator rejects an unknown bossKind', G.validateCampaign(badP).length > 0);
 
@@ -864,6 +845,76 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
     G.startLevel(0);
     G.setLevelT(11); // past the level clock — the finale spawns at once
     G.update(0.01);
+  }
+
+  // ---- THE CLASSIC CORE, still shipped by campaign 5 ----
+  // It moved off campaign 1 when that finale became the conductor, so its mechanics —
+  // the homing bolt, phase 2, and the vent window — are covered here on a constructed
+  // package instead. Deleting the campaign-1 block took these with it, which would have
+  // left the vent shipping with no test at all.
+  {
+    G.progress.bossBriefed = true;
+    enterBossLevel('core');
+    ceremonyOut();
+    const b = G.boss();
+    check('the core fight still fields the flying core', b && b.kind === 'core');
+    function coreBolt() {
+      G.volley().cd = 0;
+      aim(0, 1.0); aim(1, 1.0);
+      const hp0 = b.hp;
+      for (let i = 0; i < 60 && b.hp === hp0 && b.hp > 0; i++) {
+        b.coreHeat = 0; b.ventT = 0;   // hold the radiators cold: one bolt, one damage
+        G.setIntegrity(100); b.shots.length = 0; b.latchT = 99; G.update(0.05);
+      }
+      aim(1, 1.0 + Math.PI); G.update(0.05);
+      return hp0 - b.hp;
+    }
+    check('a docked charge launches a homing bolt into the core', coreBolt() === 1);
+    coreBolt(); coreBolt();
+    check('three hits trigger BREACH PROTOCOL (phase 2)', b.phase2 === true && b.hp === 3);
+    { // the vent: firing loads the radiators, the panels open, and bolts land double
+      b.hp = 6; b.maxHp = 6; b.phase2 = false;
+      G.enemies().length = 0; G.setLatches([]);
+      b.coreHeat = 0.95; b.ventT = 0; b.shots.length = 0; b.shootT = 0.01; b.latchT = 99;
+      let vg = 40;
+      while (vg-- > 0 && !(b.ventT > 0)) { G.setIntegrity(100); G.update(0.05); }
+      check('salvos load the radiators until the panels blow', b.ventT > 0 && b.coreHeat >= 1);
+      check('the vent aborts the volley it was firing', b.shots.length === 0);
+      drawOk('interdictor venting (panels open)', () => {});
+      b.shootT = 0.01; b.latchT = 0.01;
+      const intg = G.stats().integrity;
+      let qg = 12, fired = false;
+      while (qg-- > 0 && b.ventT > 0) { G.update(0.05); if (b.shots.length) fired = true; }
+      check('a venting core fires nothing at all', !fired && G.stats().integrity === intg);
+      b.ventT = 9; b.coreHeat = 1; b.hp = 6;
+      G.volley().cd = 0; aim(0, 1.0); aim(1, 1.0);
+      let dg = 60;
+      while (dg-- > 0 && b.hp === 6) { G.setIntegrity(100); b.shots.length = 0; G.update(0.05); }
+      check('a bolt into an open vent lands double', b.hp === 4);
+      aim(1, 1.0 + Math.PI); G.update(0.05);
+      b.hp = 4; b.phase2 = false; b.ventT = 9; b.coreHeat = 1;
+      G.volley().cd = 0; aim(0, 1.0); aim(1, 1.0);
+      let pg = 60;
+      while (pg-- > 0 && b.hp === 4) { G.setIntegrity(100); b.shots.length = 0; G.update(0.05); }
+      check('a doubled bolt over the trigger still opens phase 2', b.hp === 2 && b.phase2 === true);
+      aim(1, 1.0 + Math.PI); G.update(0.05);
+      b.ventT = 0.05;
+      let cg = 20;
+      while (cg-- > 0 && b.ventT > 0) { G.setIntegrity(100); G.update(0.05); }
+      check('the vent closes and the radiators are cold', b.ventT === 0 && b.coreHeat === 0);
+    }
+    { // it still returns fire, and dodging still works
+      b.hp = 6; b.ventT = 0; b.coreHeat = 0;
+      aim(0, 1.0); aim(1, 1.0);
+      b.shots.length = 0; b.shootT = 0.01;
+      G.update(0.05);
+      b.shootT = 99;
+      check('the core returns fire', b.shots.length > 0);
+      aim(0, 2.4); aim(1, 2.4);
+      const hpMe = G.stats().integrity;
+      for (let i = 0; i < 60 && b.shots.length; i++) G.update(0.05);
+      check('dodging the shot avoids damage', G.stats().integrity === hpMe);
+    }
   }
   function ceremonyOut() {
     let guard = 200;
@@ -1963,8 +2014,8 @@ G.keys['ArrowUp'] = false;
     G.CAMPAIGNS[4].id === 'delegation' && G.validateCampaign(G.CAMPAIGNS[4]).length === 0);
   check('difficulty rises across all five shipped campaigns',
     G.CAMPAIGNS.every((pk, i) => i === 0 || pk.difficulty > G.CAMPAIGNS[i - 1].difficulty));
-  check('finales escalate: core, then triad, then spinner',
-    G.CAMPAIGNS[0].levels[7].bossKind === undefined && G.CAMPAIGNS[1].levels[7].bossKind === 'triad' && G.CAMPAIGNS[2].levels[7].bossKind === 'spinner');
+  check('every shipped finale names the fight it fields',
+    G.CAMPAIGNS.map(pk => pk.levels[7].bossKind).join(',') === 'array,triad,spinner,triad,core');
   check('every shipped campaign lints clean (beats + bands included)',
     G.CAMPAIGNS.every(pk => G.lintCampaign(pk).every(fl => fl.length === 0)));
 

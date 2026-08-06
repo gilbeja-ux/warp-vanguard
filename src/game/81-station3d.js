@@ -1076,6 +1076,77 @@ function s3_beacon(M, seed) {
   return M;
 }
 
+// ---- 11-12. THE ARRAY, in two pieces. A conductor is a fixed installation, and its
+// arms come OFF one at a time as the fight is answered — so it cannot be one sprite.
+// The hub bakes once and the arm bakes once; the draw puts the hub at the bore centre
+// and stamps the arm at each live bearing. That also lets an arm swing to aim, which
+// is the fight's telegraph, and lets a sheared one fling away on its own.
+//
+// Both face the LENS, like the gate: rotX(-90°) takes a build described in the XY
+// plane and stands it square to the camera. An armature seen from above would read as
+// a squashed ellipse, and this thing's whole job is being read head-on.
+
+// The hub: a drum with a machinery collar and a single aperture, watching down the lane.
+function s3_arrhub(M, seed) {
+  const rnd = s3rng(seed || 9311), P = s3palette(M);
+  s3cyl(M, [0, 0, 0], [0, 0, 1], 0.560, 0.150, 34, P.hull, true);
+  s3greebleRing(M, 0.360, 0.560, 0.152, 44, [P.mid, P.light, P.dark], rnd, { h: 0.040 });
+  // A RIM, NOT A PLATE. This was a capped cylinder at radius 0.600, which seen head-on
+  // is a solid orange disc — it buried the greeble ring and the window row behind it and
+  // the whole hub baked as an orange dinner plate. An annulus is the shape that was meant.
+  s3annulus(M, 0.545, 0.615, 0.14, 0.185, 34, P.haz);
+  s3cyl(M, [0, 0, 0.20], [0, 0, 1], 0.300, 0.075, 28, P.hull2, true);
+  s3greebleRing(M, 0.190, 0.300, 0.28, 26, [P.mid, P.dark, P.light], rnd, { h: 0.030 });
+  s3winRow(M, 0.565, 0.02, 26, P.win, { w: 0.016, h: 0.034, d: 0.010 });
+  // the aperture it watches through — a recessed bay, so the live glow has an opening
+  s3cyl(M, [0, 0, 0.26], [0, 0, 1], 0.180, 0.030, 24, P.dark, true);
+  s3cyl(M, [0, 0, 0.29], [0, 0, 1], 0.120, 0.020, 22, P.bay, true);
+  for (let i = 0; i < 8; i++) {                                        // iris louvres
+    const a = i / 8 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
+    s3box(M, [ca * 0.150, sa * 0.150, 0.28], V3scl([ca, sa, 0], 0.058),
+      V3scl([-sa, ca, 0], 0.020), [0, 0, 0.018], P.mid);
+  }
+  // four arm sockets, so a sheared arm leaves a visible stump rather than a clean hull
+  for (let i = 0; i < 4; i++) {
+    const a = i / 4 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
+    s3cyl(M, [ca * 0.560, sa * 0.560, 0], [ca, sa, 0], 0.105, 0.075, 16, P.hull2, true);
+    s3box(M, [ca * 0.610, sa * 0.610, 0], V3scl([ca, sa, 0], 0.030),
+      V3scl([-sa, ca, 0], 0.070), [0, 0, 0.070], P.dark);
+  }
+  s3greebleWall(M, 0.562, -0.14, 0.14, 60, [P.hull2, P.dark, P.mid], rnd, { d: 0.036 });
+  for (let i = 0; i < 10; i++) {
+    const a = i / 10 * 6.2831853;
+    M.lamp([Math.cos(a) * 0.590, Math.sin(a) * 0.590, 0.14], [255, 74, 60], 0.0075, i / 10, 'beacon');
+  }
+  M.lamp([0, 0, 0.31], [255, 190, 120], 0.024, 0, 'steady');           // the aperture, lit
+  return M;
+}
+// One arm: a boom out to a launcher throat. Built along +X so the draw can stamp it at
+// any bearing, and deliberately heavier at the outboard end — that is where the traffic
+// leaves from, and it is what the player should be reading.
+function s3_arrarm(M, seed) {
+  const rnd = s3rng(seed || 2777), P = s3palette(M);
+  s3cyl(M, [0.34, 0, 0], [1, 0, 0], 0.088, 0.300, 18, P.hull, true);   // the boom
+  s3truss(M, 0, 0.055, 0.62, 0, 0.062, 6, P.truss);                    // a web under it
+  for (let i = 0; i < 3; i++)                                          // frame collars
+    s3cyl(M, [0.16 + i * 0.170, 0, 0], [1, 0, 0], 0.104, 0.018, 16, P.light, true);
+  s3greebleWall(M, 0.090, 0.10, 0.58, 34, [P.hull2, P.dark, P.mid], rnd, { d: 0.030 });
+  // the launcher head: a drum, a throat, and hazard marks around the mouth
+  s3cyl(M, [0.72, 0, 0], [1, 0, 0], 0.165, 0.115, 22, P.hull2, true);
+  s3cyl(M, [0.86, 0, 0], [1, 0, 0], 0.185, 0.035, 22, P.haz, true);
+  s3cyl(M, [0.90, 0, 0], [1, 0, 0], 0.115, 0.040, 20, P.dark, false);  // the throat
+  s3cyl(M, [0.93, 0, 0], [1, 0, 0], 0.078, 0.020, 18, P.bay, true);
+  for (let i = 0; i < 6; i++) {                                        // muzzle ribs
+    const a = i / 6 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
+    s3box(M, [0.86, ca * 0.185, sa * 0.185], [0.030, 0, 0],
+      V3scl([0, ca, sa], 0.022), V3scl([0, -sa, ca], 0.018), P.mid);
+  }
+  s3box(M, [0.50, 0, 0.100], [0.130, 0, 0], [0, 0.060, 0], [0, 0, 0.022], P.rad); // a small fin
+  M.lamp([0.95, 0, 0], [255, 160, 90], 0.016, 0, 'steady');            // the throat, lit
+  M.lamp([0.72, 0, 0.170], [255, 74, 60], 0.008, 0.4, 'beacon');
+  return M;
+}
+
 const S3D_BUILDS = [
   { id: 'TRUSS', n: 'truss disc',    kind: 'station', cam: 0.40,  fn: s3_truss },
   { id: 'FORT',  n: 'fortress ring', kind: 'station', cam: 0.40,  fn: s3_fortress },
@@ -1105,7 +1176,16 @@ const S3D_BUILDS = [
   { id: 'GHOST', n: 'dark hull',    kind: 'boss', cam: 0.320, fn: s3_ghost,
     rotX: Math.PI / 2, rotZ: Math.PI / 2 },
   // The beacon STANDS: no rotX, because a lighthouse on its side reads as wreckage.
-  { id: 'BEACN', n: 'beacon mast',  kind: 'boss', cam: 0.300, fn: s3_beacon }
+  { id: 'BEACN', n: 'beacon mast',  kind: 'boss', cam: 0.300, fn: s3_beacon },
+  // THE ARRAY, in two pieces so arms can shear off one at a time. Both stand square to
+  // the lens like the gate does — an armature seen from above is a squashed ellipse,
+  // and being read head-on is this machine's entire job.
+  // rotX is POSITIVE here, unlike the gate. The camera sits at -Y looking toward +Y, so
+  // rotX(-90°) sends a build's +Z features to +Y — facing away. The gate survives that
+  // because its ring is a symmetric hoop; a hub with an aperture on one face does not,
+  // and the first bake came out as a blank grey disc with all the hardware behind it.
+  { id: 'ARRHUB', n: 'array hub', kind: 'boss', cam: 0.640, fn: s3_arrhub, rotX: Math.PI / 2 },
+  { id: 'ARRARM', n: 'array arm', kind: 'boss', cam: 0.560, fn: s3_arrarm, rotX: Math.PI / 2 }
 ];
 
 // ---------------------------------------------------------------- the render
