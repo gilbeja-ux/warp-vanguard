@@ -3,6 +3,12 @@
 function spawnBolt(x1, y1, x2, y2) {
   bolts.push({ x1, y1, x2, y2, life: ARCFX.zapT, max: ARCFX.zapT });
 }
+// How close the purge column gets before the teaching hold stops the world. Measured
+// from the ring (hitZ), so it means the same thing at any lane speed: 0.50 lands the
+// nearest trap at z ~0.73 against a hitZ of 0.25, roughly halving the gap the old
+// one-second timer left. Lower it to let them bear down further.
+const PULSE_HOLD_LEAD = 0.50;
+const PULSE_HOLD_CAP = 4;   // backstop, for a pupil who zaps the column instead of waiting
 // ---------- qualification curriculum ----------
 const QUAL = [
   { card: 'move' },
@@ -30,7 +36,7 @@ const INFO_CARDS = {
   frag:   { title: 'EMITTER KILLER', lines: ['It INVERTS the emitter that', 'strikes it. Let it pass.'] },
   pickup: { title: 'POWER-UP', lines: ['Golden relays arm powers.', 'Catch one with any emitter.'] },
   strip:  { title: 'BONUS RIBBON', lines: ['Optional: ride its crossing point.', 'A full ride banks a full PULSE.'] },
-  wall:   { title: 'RIM WALL', lines: ['It seizes part of your rail.', 'Crossing FRIES — go around.'] },
+  wall:   { title: 'DEAD ZONE', lines: ['It seizes part of your rail.', 'Crossing FRIES — go around.'] },
   // NOT SHOWN. 'done' has no disc — advanceQual returns before any card and the QUALIFIED
   // stamp is drawn in-world by drawQualCeremony, which owns this wording. Kept in step with
   // it on purpose: a second copy of user-facing copy is a trap, and this one already caught
@@ -198,10 +204,17 @@ function updateTutorial(dt) {
     return;
   }
   if (st.card === 'pulse' && !tut.fired) {
-    // the teaching hold: a beat after the volley shows, the tunnel freezes
-    // and the music winds down to a stop — TAP TO FIRE points at the charged
-    // pad. firePulse() releases the hold and the wave clears the lane.
-    if (!tut.frozen && tut.t >= 1) {
+    // the teaching hold: the tunnel freezes and the music winds down to a stop —
+    // TAP TO FIRE points at the charged pad. firePulse() releases the hold and the
+    // wave clears the lane.
+    // Gated on PROXIMITY, not a stopwatch. It used to fire one second in, which
+    // froze the volley at z ~ 1.65 — four distant dots, no drama, and the purge
+    // wave's whole point is clearing a crowd that is nearly on top of you. Now the
+    // column bears down to just outside the ring before the world stops. The time
+    // cap is a backstop for the pupil who zaps the column instead of waiting.
+    const pulseNear = enemies.reduce((m, e) =>
+      e.tut === 'pulse' && !e.dead && !e.resolved && e.z < m ? e.z : m, 99);
+    if (!tut.frozen && (pulseNear <= geo().hitZ + PULSE_HOLD_LEAD || tut.t >= PULSE_HOLD_CAP)) {
       tut.frozen = true;
       // the hold must always be releasable: guarantee a tappable charged pad
       if (!(pulseCharge[0] >= PULSE_MAX && nodes[0].deadT <= 0)

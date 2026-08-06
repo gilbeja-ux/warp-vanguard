@@ -1673,6 +1673,16 @@ check('bonus-stream drill begins', G.qualStage().card === 'strip');
   let fGuard = 80;
   while (fGuard-- > 0 && !(G.tut() && G.tut().frozen)) G.update(0.05);
   check('the FIRE-PULSE hold freezes the run', G.tut() && G.tut().frozen === true);
+  // WHERE it freezes is the point, not just that it does. Gil's note: let the player get
+  // closer before the world stops — a purge wave clearing four distant dots teaches
+  // nothing about clearing a crowd that is on top of you. The hold is gated on proximity
+  // now, so assert the column is genuinely near the ring rather than trusting a constant.
+  {
+    const zf = G.enemies().filter(e => e.tut === 'pulse' && !e.dead).map(e => e.z);
+    const near = Math.min(...zf), hz = G.geo().hitZ;
+    check(`the hold waits until the column is close (nearest z ${near.toFixed(2)}, hitZ ${hz.toFixed(2)})`,
+      zf.length === 4 && near > hz && near <= hz + 0.55);
+  }
   // every trap, not just the first the array happens to yield — "the traffic" is all of it
   const zBefore = G.enemies().filter(e => e.tut === 'pulse' && !e.dead).map(e => e.z);
   for (let i = 0; i < 6; i++) G.update(0.05);

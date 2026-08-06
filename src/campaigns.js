@@ -54,7 +54,7 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'NEW THREAT: barrier lines — one emitter on each end',
       story: { line: 'Cordon 02. Not all the traffic here is traffic.' } },
     { tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35, speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, walls: 0.10, track: 1,
-      hint: 'NEW THREAT: rim walls — the rail closes, route around',
+      hint: 'NEW THREAT: dead zones — the rail closes, route around',
       story: { line: 'The hold is worth more than the ship carrying it.' } },
     { tint: '255,205,80', duration: 65, spawnMin: 0.68, spawnMax: 1.25, speed: 0.48, doubles: 0.42, heavies: 0.18, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 2,
       hint: 'NEW THREAT: phase-locked threats — match the emitter',
