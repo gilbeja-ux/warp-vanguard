@@ -390,19 +390,26 @@ function pollGamepad(dt) {
   }
   padPrev.a = a0;
   if (state !== S.PLAY) return;
-  if (introT < INTRO_DUR) {
-    // controller grip: both sticks held pointing APART — two thumbs bracing
-    // the ring — registers the operator (touch thumbs still work as ever)
-    const g0 = stick(0), g1 = stick(1);
-    if (g0 !== null && g1 !== null && Math.abs(angDiff(g0, g1)) > 2.1) padHold[0] = padHold[1] = true;
-    return;
-  }
+  // THE LAUNCH GATE IS A CONTROLS CHECK, NOT A POSE. It used to require both sticks held
+  // more than 2.1 rad APART — and that rule was both undiscoverable and pointless: the
+  // separation is unchanged by pointing both in or both out (adding pi to two bearings
+  // preserves the angle between them), so it rejected nothing a player would plausibly
+  // do except hold both sticks the same way, while reading as "there is a secret pose".
+  //
+  // Now each stick arms its OWN pad the moment it leaves the deadzone, and the emitters
+  // answer it live — the node control below is deliberately NOT gated on the intro, so
+  // pushing a stick swings that pad's knob exactly as it will mid-run. That IS the check:
+  // you move it, it moves, and the run starts when both have answered.
+  const inIntro = introT < INTRO_DUR;
   const fused = boss && boss.mergeT >= 1;
   for (let i = 0; i < 2; i++) {
     if (fused && i === 1) continue;
     const a = stick(i);
-    if (a !== null) nodes[i].angle = a;
+    if (a === null) continue;
+    nodes[i].angle = a;
+    if (inIntro) padHold[i] = true;      // deflection alone is the operator's answer
   }
+  if (inIntro) return;                   // no pulse triggers until the lane is live
   for (const [bi, ni, key] of [[6, 0, 'lt'], [7, 1, 'rt']]) { // LT/RT → pulse
     const dn = press(bi);
     if (dn && !padPrev[key] && !boss && pulseCharge[ni] >= PULSE_MAX && nodes[ni].deadT <= 0) firePulse(ni);

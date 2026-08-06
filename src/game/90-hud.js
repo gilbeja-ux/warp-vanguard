@@ -119,9 +119,10 @@ function drawNowPlaying() {
 function drawLaunchTip(a0, yTop) {
   const held = (padHold[0] ? 1 : 0) + (padHold[1] ? 1 : 0);
   // a controller has its own grip and no pad dots to aim at, so it gets told the grip
-  const lines = held === 1 ? ['ONE MORE', gpSeen ? 'BOTH STICKS AT ONCE' : 'BOTH PADS TOGETHER']
-    : gpSeen ? ['HOLD BOTH STICKS', 'OPPOSITE SIDES']
-    : ['TAKE THE CONTROLS', 'TO INITIATE WARP'];
+  // A controller no longer needs a pose taught — a stick moves its emitter and arms its
+  // own pad — so the copy stops describing a grip and just says the lane is waiting.
+  const lines = held === 1 ? ['ONE MORE', gpSeen ? 'BOTH STICKS' : 'BOTH PADS TOGETHER']
+    : ['WARP LANE READY', 'TAKE THE CONTROLS TO START'];
   // TWO LINES, sized to the gap BETWEEN THE PAD DOTS — measured off the pads, not guessed
   // off a fraction of the frame. Sat under the stamp, the plate is at exactly the height
   // the dots live at, and one wide line ran its ends straight through both of them: the

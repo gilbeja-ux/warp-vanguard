@@ -2600,17 +2600,29 @@ G.keys['ArrowUp'] = false;
   flushUI();
   check('A deploys the selected relay', G.getState() === G.S.PLAY || G.getState() === G.S.INFO);
   if (G.getState() === G.S.INFO) dismiss();
-  // controller boot gate: same-direction sticks do NOT arm; opposite sticks do
-  // mid-boot, where the grip is still read (introT < INTRO_DUR). Deliberately NOT 0: at 0
-  // a satisfied grip would LAUNCH the run and start the ceremony clock, and this test is
-  // about the stick geometry, not the gate
+  // CONTROLLER BOOT GATE: a controls check, not a pose. Each stick arms its OWN pad the
+  // moment it leaves the deadzone, and the emitter answers live so the player can see the
+  // controller is connected. This block asserted the opposite until Gil rejected it: the
+  // old rule needed the sticks >2.1 rad APART, which was undiscoverable AND pointless,
+  // since the separation is identical whether both point in or both point out.
+  // Mid-boot on purpose (introT < INTRO_DUR, not 0): at 0 a satisfied gate would LAUNCH
+  // and start the ceremony clock, and this is about the arming rule.
   G.setIntro(2.5);
-  pad.axes = [1, 0, 1, 0]; // both sticks east — one thumb, effectively
+  pad.axes = [0, 0, 0, 0];
   G.update(0.05);
-  check('same-direction sticks do not satisfy the gate', !G.getPadHold()[0] && !G.getPadHold()[1]);
-  pad.axes = [1, 0, -1, 0]; // bracing the ring from both sides
+  check('centred sticks arm nothing', !G.getPadHold()[0] && !G.getPadHold()[1]);
+  pad.axes = [1, 0, 0, 0]; // LEFT stick only
   G.update(0.05);
-  check('opposite sticks register the operator', G.getPadHold()[0] && G.getPadHold()[1]);
+  check('one deflected stick arms its OWN pad only', G.getPadHold()[0] && !G.getPadHold()[1]);
+  check('...and drives that emitter live, parked', Math.abs(G.nodes[0].angle - 0) < 1e-9);
+  pad.axes = [1, 0, 1, 0]; // both east — same direction, which the old rule REJECTED
+  G.update(0.05);
+  check('same-direction sticks now satisfy the gate — no pose required',
+    G.getPadHold()[0] && G.getPadHold()[1]);
+  pad.axes = [0, 1, -1, 0]; // and the emitters track their own sticks independently
+  G.update(0.05);
+  check('each emitter follows its own stick',
+    Math.abs(G.nodes[0].angle - Math.PI / 2) < 1e-9 && Math.abs(Math.abs(G.nodes[1].angle) - Math.PI) < 1e-9);
   pad.axes = [0, 0, 0, 0];
   G.setIntro(999);
   // B backs out of the map — via the contract picker — to the wheel
