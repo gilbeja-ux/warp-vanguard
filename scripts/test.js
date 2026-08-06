@@ -200,6 +200,7 @@ code = code.replace("'use strict';", '') + `
   setNameEntry: v => { nameEntry = v; }, setEndProvisional: v => { endProvisional = v; }, // high-score name card
   getMaxCombo: () => maxCombo, endLevel,
   simStep, startTrace, stopTrace, startReplay, stopReplay, dismissInfo, // run-trace record/replay
+  launchReplay, getReplaying: () => replaying, // the watch-a-run viewer + its guard flag
   rawFrame: now => frame(now), // the real frame() incl. the accumulator (G.frame is the same)
   getIntro: () => introT, setIntro: v => { introT = v; introCd = 0; }, getLevelT: () => levelT, setEndT: v => { endT = v; },
   // the launch gate: hands on the pads is what starts the boot clock (see 72-tick)
@@ -1325,6 +1326,40 @@ function runDailyFramerate(fps, targetSteps) {
 }
 G.setState(G.S.MENU);
 G.setState(G.S.MENU);
+
+// ================= the replay flag cannot strand a live run =================
+// THE INVINCIBILITY BUG. Watching a replay sets `replaying`, and endLevel's replay
+// guard swallows the run's end while it is up. Leaving the viewer through any door
+// except its own BACK control — Escape into the ordinary pause menu, then QUIT —
+// kept the flag up for the whole session, and every later run became unlosable:
+// integrity hit zero and the state never left PLAY. Two fixes, both asserted here:
+// resetRun clears the flag (so no leak can outlive the menu), and reseedReplay
+// re-asserts it (so the viewer itself still works).
+{
+  // a minimal verified-shape trace: enough frames to launch the viewer
+  const frames = [];
+  for (let i = 0; i < 40; i++) frames.push(1.0 + i * 0.01);
+  const pkg = { mode: 'campaign', campId: 'cargo-run', levelIdx: 0, seed: 0, frames };
+  check('the replay viewer launches (flag up)',
+    G.launchReplay(pkg, { name: 'TEST' }, false) === true && G.getReplaying() === true);
+  // THE LEAK: pause out of the replay the way the Escape key used to allow, then
+  // quit to the menu through the ordinary pause path — no exitReplay anywhere
+  G.setState(G.S.PAUSE);
+  G.setState(G.S.MENU);
+  check('the stale flag is still up at the menu — the trap this block exists for',
+    G.getReplaying() === true);
+  // the player starts a REAL run: the flag must die at the door
+  G.startLevel(0);
+  check('starting a live run clears the stale replay flag', G.getReplaying() === false);
+  // and the loss must land again: drain the hull, tick once, expect END
+  let lg = 40;
+  while (lg-- > 0 && G.getState() !== G.S.PLAY) G.update(0.05); // ride out the intro gate
+  G.boss() && (G.boss().introT = 99);
+  G.setIntegrity(0);
+  let eg = 30;
+  while (eg-- > 0 && G.getState() !== G.S.END) G.update(0.05);
+  check('a drained hull ends the run — no invincibility', G.getState() === G.S.END);
+}
 
 // ================= run-trace record → replay round-trip =================
 // Record a run whose nodes sweep the ring (killing seeded traffic), then replay

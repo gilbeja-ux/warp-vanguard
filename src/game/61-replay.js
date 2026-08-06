@@ -118,6 +118,9 @@ function reseedReplay(seeking) {
     if (p.campId && (!CAMP || CAMP.id !== p.campId)) { const cp = CAMPAIGNS.find(c => c.id === p.campId); if (cp) installCampaign(cp); }
     startLevel(Number.isInteger(p.levelIdx) ? p.levelIdx : 0); // campaign: fixed per-level seed
   }
+  // resetRun (inside the start call above) clears `replaying` on principle — this is
+  // the one caller entitled to it, so it re-asserts. Order matters: after the start.
+  replaying = true;
   introT = 999; introCd = 0;            // dive straight in — no boot ceremony
   if (seeking) { warpT = 0; fadeT = 0; } // a scrub rewind rebuilds from frame 0 — no fly-in each drag
   endDropT = -1; endWin = false;         // clear any finished-run drop from a prior pass

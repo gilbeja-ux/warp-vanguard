@@ -291,6 +291,10 @@ window.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+    // watching a replay: Escape means LEAVE THE REPLAY, exactly like its BACK control.
+    // It used to fall through to the normal pause menu, whose QUIT walks to the menu
+    // without exitReplay() — stranding replaying === true for the session.
+    if (replaying) { if (!replayXfer) { replayXfer = { dir: -1, t: 0 }; replayPaused = true; sfx.tick(); } return; }
     if (state === S.PLAY) { state = S.PAUSE; sfx.tick(); }
     else if (state === S.INFO && !infoOutAt) { pausedFromInfo = true; state = S.PAUSE; sfx.tick(); }
     else if (state === S.PAUSE) {
@@ -473,6 +477,14 @@ function endTap(x, y) {
 }
 
 function resetRun() {
+  // A RUN THAT BEGINS HERE IS THE PLAYER'S. `replaying` is cleared unconditionally,
+  // and reseedReplay re-asserts it right after its own start call — so a stuck flag
+  // cannot outlive the menu. It could: leaving the replay viewer through any door
+  // except its own BACK control (the Escape key was one) kept replaying === true for
+  // the whole session, and endLevel's replay guard then swallowed every loss — the
+  // invincibility Gil reported. The flag's true owner is the replay system; everyone
+  // else starting a run means it OFF.
+  replaying = false;
   // modifiers stay locked until the campaign is cleared
   if (!anyCampaignCleared()) mutators.oneLife = mutators.fast = mutators.noPickups = false;
   // the player must never fly into an EMPTY tunnel: the first release fires on
