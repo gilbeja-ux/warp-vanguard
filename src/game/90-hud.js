@@ -462,6 +462,61 @@ function drawTutLessonLine(desc) {
   ctx.restore();
   ctx.textAlign = 'left';
 }
+// ---------- THE LANE SPEEDO ----------
+// Bottom-centre dashboard: how fast the lane is actually running, in multiples of
+// lightspeed. HONEST by construction — it reads the same throttle the sky scrolls at
+// (trafficSpeed · laneFlow + WARP_CRUISE · (1 − laneFlow), times the warp-dive
+// multiplier), so every real speed event shows without wiring: the parked drift sits
+// SUB-light, the launch dive is the moment the number crosses 1c and spikes, each
+// campaign level cruises at its own figure, and an endless surge sweeps it a step up.
+//
+// The curve is 9c · (thr/0.40)^1.15: exponent chosen so the parked crawl lands under
+// 1c (a flat ×22.5 put it at 1.24c, and "you are not in warp yet" is the whole point
+// of the parked read) while level speeds spread 9–13c and the dive spikes past 50c.
+let speedoV = 0, speedoT = -1;
+function drawSpeedo(g, gaugeA) {
+  if (tut) return;                      // training owns the bottom band (lesson line)
+  if (replaying) return;                // the transport chrome lives down here
+  const thr = (trafficSpeed * laneFlow + WARP_CRUISE * (1 - laneFlow)) * (1 + laneDive() * 4);
+  const target = 9 * Math.pow(Math.max(thr, 0.001) / 0.40, 1.15);
+  // smooth roll: surges sweep, they don't snap. time holds still in PAUSE, so the
+  // readout freezes there for free.
+  const dt2 = speedoT < 0 ? 1 : clamp(time - speedoT, 0, 0.25);
+  speedoT = time;
+  speedoV += (target - speedoV) * Math.min(1, dt2 * 6);
+  const v = speedoV;
+  const u = Math.min(W, H);
+  const dive = laneDive();
+  const sub = v < 1;                    // sub-light: parked, or the first beat of launch
+  const col = dive > 0.22 ? '235,248,255' : sub ? '128,152,176' : '111,227,255';
+  const a = gaugeA * (sub ? 0.75 : 0.95);
+  if (a < 0.02) return;
+  const y = H - Math.max(SAFE.b, 8) - u * 0.030;
+  ctx.save();
+  ctx.textAlign = 'center';
+  // the figure — one decimal, tabular enough in Audiowide to not swim
+  const fig = v >= 100 ? Math.round(v).toString() : v.toFixed(1);
+  const fs = Math.round(u * 0.034 * (1 + dive * 0.12)); // the dive physically swells it
+  ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
+  ctx.fillStyle = 'rgba(' + col + ',' + a.toFixed(2) + ')';
+  const figW = ctx.measureText(fig).width;
+  ctx.fillText(fig, W / 2 - u * 0.008, y);
+  ctx.font = '700 ' + Math.round(fs * 0.62) + 'px Audiowide, system-ui';
+  ctx.fillText('c', W / 2 + figW / 2 + u * 0.008, y);
+  // the throttle ticker: eight cells against the fastest the game runs. Cells, not a
+  // bar — the surge steps of endless read as CELLS LIGHTING, which is the point.
+  const cells = 8, cw2 = u * 0.017, ch2 = u * 0.008, gap2 = u * 0.005;
+  const lit = clamp(thr / 0.62, 0, 1) * cells;
+  const x0 = W / 2 - (cells * cw2 + (cells - 1) * gap2) / 2;
+  const ty = y + u * 0.014;
+  for (let i = 0; i < cells; i++) {
+    const on = clamp(lit - i, 0, 1);
+    ctx.fillStyle = 'rgba(' + col + ',' + (a * (0.14 + 0.72 * on)).toFixed(2) + ')';
+    ctx.fillRect(x0 + i * (cw2 + gap2), ty, cw2, ch2);
+  }
+  ctx.restore();
+  ctx.textAlign = 'left';
+}
 function drawHUD(g) {
   const L = LV || LEVELS[levelIdx];
   const pad = 14;
@@ -482,6 +537,7 @@ function drawHUD(g) {
   const gaugeA = (state !== S.PLAY && state !== S.PAUSE) ? 1
     : preLaunch() ? 0
     : introT < INTRO_DUR ? clamp((introT - BOOT_LOCK) / (BOOT_ON - BOOT_LOCK), 0, 1) : 1;
+  drawSpeedo(g, gaugeA);   // the lane speedo shares the console power-on ramp
   ctx.save();
   ctx.globalAlpha = gaugeA;
   ctx.lineCap = 'round';
