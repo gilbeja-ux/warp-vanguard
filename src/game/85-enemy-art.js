@@ -1218,6 +1218,76 @@ function drawVoidCore(g, c) {
       ctx.stroke();
     }
   }
+  // ---- THE RADIATORS ARE THE HEAT GAUGE ----
+  // The hull says how close the vent is, so nothing has to be read off a HUD. At this
+  // range the body is a few dozen pixels and a bar there would be unreadable — but a
+  // COLOUR is not, which is the same reason the beacon's beam carries its phase.
+  // Dull red, then orange, then white, then the panels blow.
+  //
+  // Drawn LAST, on top of the hull. The first attempt put this next to the dark
+  // gradient near the top of the function, and the fins vanished completely behind the
+  // body — only the plumes and the aperture ring cleared it. Every radius here starts
+  // outside size*1.0 for the same reason: it has to read at 26px, in a bore, at speed.
+  // Guarded: triad bodies come through this same function and have no radiators.
+  if (b.coreHeat !== undefined && dieQ < 0) {
+    const hk = clamp(b.coreHeat, 0, 1);
+    const venting = b.ventT > 0;
+    const hCol = hk < 0.34 ? '190,60,40' : hk < 0.67 ? '255,130,45' : '255,230,195';
+    if (hk > 0.02 || venting) {
+      // four fin stubs down each flank, brightening and lengthening with the load
+      const fa = 0.35 + hk * 0.60;
+      ctx.strokeStyle = `rgba(${hCol},${(fa * haze).toFixed(2)})`;
+      ctx.lineWidth = Math.max(1.6, size * 0.085);
+      ctx.lineCap = 'butt';
+      for (let f = 0; f < 4; f++) {
+        const fy = (f - 1.5) * size * 0.30;
+        for (const sgn of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(sgn * size * 1.04, fy);
+          ctx.lineTo(sgn * size * (1.04 + 0.46 * (0.40 + hk * 0.60)), fy);
+          ctx.stroke();
+        }
+      }
+      if (hk > 0.5) { // hot enough to bloom around the fin roots
+        ctx.globalCompositeOperation = 'lighter';
+        const rg2 = ctx.createRadialGradient(0, 0, size * 0.9, 0, 0, size * 2.0);
+        rg2.addColorStop(0, `rgba(${hCol},${(0.16 * (hk - 0.5) * 2 * haze).toFixed(2)})`);
+        rg2.addColorStop(1, `rgba(${hCol},0)`);
+        ctx.fillStyle = rg2;
+        ctx.beginPath(); ctx.arc(0, 0, size * 2.0, 0, TAU); ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+    if (venting) {
+      // the panels are open: a hot bloom and two plumes dumping heat sideways. The
+      // loudest the body ever gets, because it is the only moment the player is meant
+      // to stop dodging and commit.
+      const vp = 0.6 + Math.sin(time * 17) * 0.4;
+      ctx.globalCompositeOperation = 'lighter';
+      const vg = ctx.createRadialGradient(0, 0, size * 0.5, 0, 0, size * 2.6);
+      vg.addColorStop(0, `rgba(255,240,215,${(0.50 * vp * haze).toFixed(2)})`);
+      vg.addColorStop(0.4, `rgba(255,150,60,${(0.34 * vp * haze).toFixed(2)})`);
+      vg.addColorStop(1, 'rgba(255,110,40,0)');
+      ctx.fillStyle = vg;
+      ctx.beginPath(); ctx.arc(0, 0, size * 2.6, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(255,232,200,${(0.80 * vp * haze).toFixed(2)})`;
+      ctx.lineWidth = Math.max(2, size * 0.085);
+      ctx.lineCap = 'round';
+      for (const sgn of [-1, 1]) { // two plumes, venting sideways
+        ctx.beginPath();
+        ctx.moveTo(sgn * size * 0.9, 0);
+        ctx.lineTo(sgn * size * (1.9 + vp * 0.8), -size * 0.20 * sgn);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      // an aperture ring, so it reads as PANELS OPEN rather than merely as hot
+      ctx.strokeStyle = `rgba(255,205,150,${(0.70 * haze).toFixed(2)})`;
+      ctx.lineWidth = Math.max(1.4, size * 0.055);
+      ctx.setLineDash([size * 0.30, size * 0.20]);
+      ctx.beginPath(); ctx.arc(0, 0, size * (1.16 + vp * 0.10), 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
   ctx.restore();
 }
 // arrival title stamp + death shockwaves — the shared ceremony dressing

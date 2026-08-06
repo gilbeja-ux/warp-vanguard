@@ -24,6 +24,19 @@ const BOSS_DEFS = {
 // warden is an outlaw interdictor now, not a suspect with a cover story.
 const TRIAD_NAMES = ['WALL', 'SHREDDER', 'GHOST'];
 const TRIAD_FREE_ARC = 1.6;  // the dockable-arc law: walls may never close the ring
+// THE INTERDICTOR RUNS HOT. Every salvo it fires loads its radiators, and at full
+// load it has to VENT: it stops shooting, drifts almost to a stop, and takes double
+// damage for a couple of seconds. Before this, three hits in it simply got angrier —
+// escalation with no reward, so the fight was attrition with no shape. Now it has
+// one: pressure, a tell you can watch climbing, a window, and a commitment.
+//
+// Named coreHeat/ventT rather than heat/overheat ON PURPOSE. Those globals belong to
+// the parked ray-cannon duel (see docs/parked/RAY-CANNON.md) and are still in the
+// tree; sharing their names would make two unrelated mechanics grep as one. That
+// removal is still owed — it reaches into 72-tick, so it is its own change.
+const CORE_HEAT_PER_SALVO = 0.115; // ~9 salvos, so roughly 7–9s of pressure per cycle
+const CORE_VENT_DUR = 2.2;         // how long the panels stay open
+const CORE_VENT_MUL = 2;           // bolts land double while they are
 const SPIN_BEAM_HALF = 0.13; // beacon beam half-width at the ring (rad)
 // THE LIGHT IS KEYED TO ONE EMITTER. A sweep condemns the blue carriage or the
 // white one — never both — so the fight stops being a two-thumb sprint and starts
@@ -49,6 +62,7 @@ function spawnBoss() {
     u: 0, v: 0, sx: W / 2, sy: H / 2, sSize: 40,
     retarget: 1.2, spin: 0, hurtT: 0,
     shootT: 1.6, shots: [],
+    coreHeat: 0, ventT: 0, ventN: 0, // radiator load, and the window it opens
     mergeT: 0, introT: 0 // controls never change hands — no fuse, ever
   };
   if (kind === 'triad') {
@@ -136,7 +150,9 @@ function bossVolleyHit(sh) {
     c.hp -= 1; c.hurtT = 0.3;
     cv = c;
   }
-  b.hp -= 1;
+  // double while the panels are open — that is what the window is FOR
+  const mul = (b.kind === 'core' && b.ventT > 0) ? CORE_VENT_MUL : 1;
+  b.hp -= mul;
   b.hurtT = 0.3;
   burst(cv.sx, cv.sy, '#ffffff', 30, 6);
   burst(cv.sx, cv.sy, '#d465ff', 26, 5);
@@ -150,7 +166,9 @@ function bossVolleyHit(sh) {
   tone(70, 0.3, 'sine', 0.2, 40);
   crackle(0.35, 2000, 300, 2, 0.8);
   buzz([40, 30, 60], { strong: 0.9, weak: 0.5 });
-  if (b.kind === 'core' && b.hp === 3 && !b.phase2) {
+  // `<= 3`, not `=== 3`: a doubled bolt can step 4 -> 2 straight past the trigger,
+  // and phase 2 silently never happening is a worse bug than it firing a hit late.
+  if (b.kind === 'core' && b.hp <= 3 && b.hp > 0 && !b.phase2) {
     b.phase2 = true;
     b.tapT = 1.2;
     popup(W / 2, H * 0.3, 'BREACH PROTOCOL — IT FIGHTS BACK', '#d465ff');
@@ -368,7 +386,7 @@ function updateBossFight(dt, g) {
   if (b.kind === 'spinner') { updateSpinnerFight(dt, g); resolveBossShots(dt, g, railR); return; }
   // restless flight inside the tunnel — cross-section polar + depth
   b.retarget -= dt;
-  if (b.retarget <= 0) {
+  if (b.retarget <= 0 && !(b.ventT > 0)) { // venting, it holds no station — it coasts
     b.retarget = rand(0.9, 1.7) * (b.phase2 ? 0.75 : 1);
     b.tAng = Math.random() * TAU;
     b.tRad = rand(0.1, 0.6);
@@ -385,6 +403,15 @@ function updateBossFight(dt, g) {
   b.sSize = Math.min(W, H) * 0.30 * brg.s;
   // NO fuse, NO beam, NO stick: the dials stay yours. Dock both nodes to
   // charge — the bolt homes on the core (see the volley block in update)
+  // THE VENT WINDOW. While the panels are open it holds no station and fires
+  // nothing: the whole point is a couple of seconds where the only thing happening
+  // is your shot. Everything that could shoot you is skipped below.
+  if (b.ventT > 0) {
+    b.ventT -= dt;
+    if (b.ventT <= 0) { b.coreHeat = 0; b.ventT = 0; } // cooled, and hunting again
+    resolveBossShots(dt, g, railR);  // darts already in the air still arrive
+    return;
+  }
   // PHASE 2 — three hits in, the cornered core punches taps into the wall:
   // zap them like always while you look for the next firing window
   if (b.phase2) {
@@ -407,6 +434,19 @@ function updateBossFight(dt, g) {
     else if (roll < 0.8) { const sp = rand(0.3, 0.45); fireOrb(A - sp); fireOrb(A); fireOrb(A + sp); } // fan
     else { const off = rand(0.5, 0.9); fireOrb(A - off); fireOrb(A + off); fireOrb(A + rand(-0.15, 0.15)); } // pincer
     sfx.bossShot();
+    // and the shot costs it something. Enraged it fires faster, so it also cooks
+    // faster — the reward for surviving phase 2 is that the windows come sooner.
+    b.coreHeat += CORE_HEAT_PER_SALVO;
+    if (b.coreHeat >= 1) {
+      b.coreHeat = 1;
+      b.ventT = CORE_VENT_DUR;
+      b.ventN = (b.ventN || 0) + 1;
+      b.shots = [];               // it aborts the volley it was mid-way through
+      popup(W / 2, H * 0.30, 'VENTING — HIT IT NOW', '#ffb478');
+      tone(70, 0.9, 'sine', 0.16, 30);
+      crackle(0.8, 220, 2600, 5, 0.8);
+      buzz([60, 30, 80]);
+    }
   }
   // RAIL LATCH — the core grapples the rail itself: an orange clamp arc that
   // fries the cannon (node-killer style) if you slide across it. It burns off

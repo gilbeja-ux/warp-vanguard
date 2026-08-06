@@ -84,10 +84,24 @@ function qualSpawn(kind) {
     // several traps at once — spend the pulse the RIDE just charged
     // (safety top-up only if the ribbon somehow didn't bank one)
     if (pulseCharge[0] < PULSE_MAX && pulseCharge[1] < PULSE_MAX) pulseCharge[0] = PULSE_MAX;
+    // CLEAR OF BOTH EMITTERS. These used to land at Math.random() * TAU, which meant a
+    // trap could materialise directly on a parked carriage and die for free — the pupil
+    // is then shown a purge wave clearing three traps instead of four, and the drill
+    // teaches slightly the wrong thing. It also made the test assert a count that
+    // depended on where the thumbs happened to be resting: one failure in four runs.
+    // Same reachability discipline the wall drill and the linter already use.
+    let pa = nodes[0].angle + Math.PI;
     for (let k = 0; k < 4; k++) {
-      const e3 = spawnEnemy(Math.random() * TAU, 'normal');
+      for (let h = 0; h < 8; h++) { // nudge off a carriage, then off a wall
+        const onNode = nodes.some(n => Math.abs(angDiff(n.angle, pa)) < 0.45);
+        if (!onNode) break;
+        pa += 0.5;
+      }
+      pa = clearOfWalls(pa);
+      const e3 = spawnEnemy(pa, 'normal');
       e3.lock = undefined; e3.tut = 'pulse';
       e3.z = SPAWN_Z - 0.05 - k * 0.22; // staggered inside the purge wave's reach
+      pa += 2.399963; // golden hop, so the four are never bunched
     }
     return;
   }

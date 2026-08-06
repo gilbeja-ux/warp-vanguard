@@ -716,6 +716,10 @@ function bossBolt() {
   aim(0, 1.0); aim(1, 1.0); // dock and hold — the charge fires itself
   const hp0 = b.hp;
   for (let i = 0; i < 60 && b.hp === hp0 && b.hp > 0; i++) {
+    // hold the radiators cold: a vent doubles the bolt, and this helper's callers are
+    // asserting what ONE bolt is worth. Without this the damage figure depends on how
+    // many salvos happened to fit in the charge window.
+    b.coreHeat = 0; b.ventT = 0;
     G.setIntegrity(100); b.shots.length = 0; b.latchT = 99; G.update(0.05);
   }
   aim(1, 1.0 + Math.PI); // undock between bolts
@@ -731,6 +735,55 @@ check('three hits trigger BREACH PROTOCOL (phase 2)', (bossBolt(), G.boss().phas
   while (tGuard-- > 0 && !G.enemies().length) { G.setIntegrity(100); G.boss().shots.length = 0; G.update(0.05); }
   check('phase 2 deploys wall taps mid-duel', G.enemies().length > 0);
   G.enemies().length = 0;
+}
+// ---- THE VENT WINDOW ----
+// Firing loads the radiators; at full load the panels open and it stops shooting
+// while bolts land double. The window is the whole reason the fight has a shape, so
+// each half of it is asserted separately: that it opens, that nothing can shoot you
+// while it is open, that a bolt is worth more, and that it closes cold.
+{
+  const b = G.boss();
+  b.hp = 6; b.maxHp = 6; b.phase2 = false; // a clean body to measure against
+  G.enemies().length = 0; G.setLatches([]);
+  b.coreHeat = 0.95; b.ventT = 0; b.shots.length = 0; b.shootT = 0.01; b.latchT = 99;
+  let vg = 40;
+  while (vg-- > 0 && !(b.ventT > 0)) { G.setIntegrity(100); G.update(0.05); }
+  check('salvos load the radiators until the panels blow', b.ventT > 0 && b.coreHeat >= 1);
+  check('the vent aborts the volley it was firing', b.shots.length === 0);
+  drawOk('interdictor venting (panels open)', () => {});
+  // nothing may shoot while the panels are open — that is what makes it a window
+  b.shootT = 0.01; b.latchT = 0.01;
+  const intg = G.stats().integrity;
+  let qg = 12, fired = false;
+  while (qg-- > 0 && b.ventT > 0) { G.update(0.05); if (b.shots.length) fired = true; }
+  check('a venting core fires nothing at all', !fired && G.stats().integrity === intg);
+  // and a bolt is worth double while it is open
+  b.ventT = 9; b.coreHeat = 1; b.hp = 6;
+  G.volley().cd = 0;
+  aim(0, 1.0); aim(1, 1.0);
+  let dg = 60;
+  while (dg-- > 0 && b.hp === 6) { G.setIntegrity(100); b.shots.length = 0; G.update(0.05); }
+  check('a bolt into an open vent lands double', b.hp === 4);
+  aim(1, 1.0 + Math.PI); G.update(0.05);
+  // ...and doubling must not step straight past the phase-2 trigger
+  b.hp = 4; b.phase2 = false; b.ventT = 9; b.coreHeat = 1;
+  G.volley().cd = 0;
+  aim(0, 1.0); aim(1, 1.0);
+  let pg = 60;
+  while (pg-- > 0 && b.hp === 4) { G.setIntegrity(100); b.shots.length = 0; G.update(0.05); }
+  check('a doubled bolt over the trigger still opens phase 2', b.hp === 2 && b.phase2 === true);
+  aim(1, 1.0 + Math.PI); G.update(0.05);
+  // the window shuts, cold
+  b.ventT = 0.05;
+  let cg = 20;
+  while (cg-- > 0 && b.ventT > 0) { G.setIntegrity(100); G.update(0.05); }
+  check('the vent closes and the radiators are cold', b.ventT === 0 && b.coreHeat === 0);
+  // Hand the duel back exactly as this block found it: three bolts in, phase 2 open.
+  // "three more bolts -> death ceremony" is asserted 90 lines below, and it counts
+  // from here — leaving a full health bar behind broke a dozen downstream checks.
+  b.hp = 3; b.phase2 = true; b.shots.length = 0; b.latchT = 99;
+  b.coreHeat = 0; b.ventT = 0;
+  G.enemies().length = 0; G.setLatches([]);
 }
 // dodge mechanics — darts hunt either carriage now
 const B2 = G.boss();
