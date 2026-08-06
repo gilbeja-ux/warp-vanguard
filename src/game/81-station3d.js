@@ -831,14 +831,14 @@ function s3_cutter(M, seed) {
   // bridge panes are too small to survive the distance.
   s3winRow(M, 0.172, -0.30, 22, P.win, { w: 0.014, h: 0.030, d: 0.008 });
   s3winRow(M, 0.172, 0.16, 22, P.win, { w: 0.014, h: 0.030, d: 0.008 });
-  if (s3has(0.90)) s3winRow(M, 0.188, -0.07, 20, P.win, { w: 0.012, h: 0.022, d: 0.007 });
+  s3winRow(M, 0.188, -0.07, 20, P.win, { w: 0.012, h: 0.022, d: 0.007 });
   // conduit runs along the flank: the plumbing a working ship wears on the outside
   for (const sgn of [-1, 1]) for (const yy of [0.095, -0.095]) {
     s3cyl(M, [sgn * 0.150, yy, -0.05], [0, 0, 1], 0.022, 0.480, 10, P.mid, true);
-    if (s3has(0.85)) for (let k = -2; k <= 2; k++)   // clamps every so often
+    for (let k = -2; k <= 2; k++)   // clamps every so often
       s3cyl(M, [sgn * 0.150, yy, -0.05 + k * 0.190], [0, 0, 1], 0.032, 0.016, 10, P.dark, true);
   }
-  if (s3has(0.70)) for (const sgn of [-1, 1]) {      // tankage blistered off the waist
+  for (const sgn of [-1, 1]) {      // tankage blistered off the waist
     s3sphere(M, [sgn * 0.155, -0.130, -0.42], 0.082, 20, 13, P.light);
     s3cyl(M, [sgn * 0.155, -0.130, -0.30], [0, 0, 1], 0.030, 0.060, 12, P.mid, true);
   }
@@ -855,10 +855,10 @@ function s3_cutter(M, seed) {
     s3cyl(M, [sgn * 0.330, -0.075, 0.72], [0, 0, 1], 0.088, 0.190, 18, P.hull2, true);
     s3box(M, [sgn * 0.330, -0.075, 0.90], [sgn * 0.088, 0, 0], [0, 0.055, 0], [0, 0, 0.045], P.haz);
   }
-  if (s3has(0.80)) s3greebleRing(M, 0.20, 0.40, 0.92, 30, [P.mid, P.light, P.dark], rnd, { h: 0.032 });
+  s3greebleRing(M, 0.20, 0.40, 0.92, 30, [P.mid, P.light, P.dark], rnd, { h: 0.032 });
   // the head was a plain slab in the first pass. Break its faces with hardware and a
   // pane row so the biggest single form on the ship stops reading as a moulded block.
-  if (s3has(0.65)) for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 16; i++) {
     const sgn = i & 1 ? 1 : -1, u = (i >> 1) / 8 - 0.44;
     const m2 = [P.dark, P.mid, P.hull2, P.light][i & 3];
     s3box(M, [sgn * 0.415, -0.020 + u * 0.26, 0.70 + (rnd() - 0.5) * 0.28],
@@ -866,7 +866,7 @@ function s3_cutter(M, seed) {
       [0, 0.020 + rnd() * 0.036, 0], [0, 0, 0.020 + rnd() * 0.040], m2);
   }
   s3box(M, [0, -0.190, 0.70], [0.330, 0, 0], [0, 0.022, 0], [0, 0, 0.150], P.dark); // belly plate
-  if (s3has(0.75)) for (let i = 0; i < 5; i++)   // lit panes down the head's flank
+  for (let i = 0; i < 5; i++)   // lit panes down the head's flank
     for (const sgn of [-1, 1])
       s3box(M, [sgn * 0.418, 0.045, 0.58 + i * 0.058], [sgn * 0.006, 0, 0],
         [0, 0.020, 0], [0, 0, 0.016], P.win);
@@ -895,7 +895,7 @@ function s3_cutter(M, seed) {
         [sgn * 0.300, 0, 0.055],            // canted back along its span
         [0, 0.016, 0],
         [0, 0, 0.215], P.rad);
-      if (s3has(0.85)) {                     // fold line + a dark root, so it reads as fitted
+      {                     // fold line + a dark root, so it reads as fitted
         s3box(M, [sgn * 0.520, 0.048, z], [sgn * 0.300, 0, 0.055], [0, 0.005, 0], [0, 0, 0.016], P.dark);
         s3box(M, [sgn * 0.245, 0.020, z], [sgn * 0.048, 0, 0], [0, 0.030, 0], [0, 0, 0.150], P.dark);
         // ribs across the span: a radiator is a structure, and a bare slab is cardboard
@@ -917,11 +917,11 @@ function s3_cutter(M, seed) {
     s3cyl(M, [ca, sa, -1.13], [0, 0, 1], 0.098, 0.115, 20, P.hull2, false); // bell
     s3cyl(M, [ca, sa, -1.26], [0, 0, 1], 0.076, 0.030, 18, P.dark, true);   // throat
   }
-  if (s3has(0.75)) for (const sgn of [-1, 1])                              // rcs quads
+  for (const sgn of [-1, 1])                              // rcs quads
     s3box(M, [sgn * 0.215, 0.120, -0.66], [sgn * 0.060, 0, 0], [0, 0.052, 0], [0, 0, 0.085], P.hull2);
 
   // ---- topside: the mast it finds you with
-  if (s3has(0.55)) {
+  {
     s3cyl(M, [0, 0.215, -0.05], [0, 1, 0], 0.034, 0.105, 14, P.mid, true);
     s3dish(M, [0, 0.335, -0.05], [0, 0.44, 0.90], 0.150, 0.062, P.light);
   }
@@ -939,6 +939,140 @@ function s3_cutter(M, seed) {
     M.lamp([Math.cos(a) * 0.115, Math.sin(a) * 0.115, -1.28], [255, 150, 90], 0.016, 0, 'steady');
   }
   M.lamp([0, 0.240, 0.90], [190, 230, 255], 0.009, 0.6, 'steady');         // bridge worklight
+  return M;
+}
+
+// ---- 7-9. THE PRIVATE WARDEN, IN THREE BODIES. One machine, three hulls, and the
+// only thing that matters about them at the size they are drawn is that you can tell
+// which is which at a glance. So each gets a silhouette doing its own job rather than
+// three tints of one shape: WALL is a slab, SHREDDER is a toothed drum, GHOST is a
+// thin dark wedge with almost nothing lit on it. Same palette and the same greeble
+// idiom as the stations, so they read as the same navy's hardware.
+//
+// All three are laid horizontal by the same rotX+rotZ as the cutter.
+
+// WALL — a barrier hull. Almost all of it is the armour plate on the front.
+function s3_wall(M, seed) {
+  const rnd = s3rng(seed || 3121), P = s3palette(M);
+  // the plate: broad, flat, ribbed, and canted so it catches the light as a face
+  s3box(M, [0, 0, 0.52], [0.560, 0, 0], [0, 0.075, 0], [0, 0, 0.330], P.hull);
+  for (let i = -3; i <= 3; i++)  // vertical ribs across the face
+    s3box(M, [i * 0.155, 0.082, 0.52], [0.028, 0, 0], [0, 0.014, 0], [0, 0, 0.320], P.hull2);
+  s3box(M, [0, 0.090, 0.52], [0.560, 0, 0], [0, 0.010, 0], [0, 0, 0.044], P.haz); // stripe
+  for (const sgn of [-1, 1])     // shoulder buffers
+    s3cyl(M, [sgn * 0.560, 0, 0.52], [0, 0, 1], 0.086, 0.310, 16, P.mid, true);
+  s3greebleWall(M, 0.120, -0.42, 0.16, 54, [P.hull2, P.dark, P.mid], rnd, { d: 0.032 });
+  // body: short and stubby behind the plate
+  s3cyl(M, [0, 0, -0.14], [0, 0, 1], 0.145, 0.360, 22, P.hull, true);
+  s3winRow(M, 0.147, -0.06, 16, P.win, { w: 0.013, h: 0.026, d: 0.008 });
+  s3cyl(M, [0, 0, -0.56], [0, 0, 1], 0.185, 0.110, 22, P.hull2, true);
+  for (const sgn of [-1, 1]) {   // two drives, set wide
+    s3cyl(M, [sgn * 0.115, -0.030, -0.72], [0, 0, 1], 0.078, 0.090, 18, P.hull2, false);
+    s3cyl(M, [sgn * 0.115, -0.030, -0.82], [0, 0, 1], 0.058, 0.026, 16, P.dark, true);
+    M.lamp([sgn * 0.115, -0.030, -0.84], [255, 150, 90], 0.013, 0, 'steady');
+  }
+  M.lamp([0, 0.105, 0.52], [255, 200, 80], 0.012, 0, 'beacon');
+  for (const sgn of [-1, 1]) M.lamp([sgn * 0.600, 0.040, 0.52], [255, 80, 70], 0.009, 0.4, 'steady');
+  return M;
+}
+
+// SHREDDER — a breaking machine. The rotor is the whole read.
+function s3_shredder(M, seed) {
+  const rnd = s3rng(seed || 4519), P = s3palette(M);
+  // the rotor drum, forward, with teeth stood off it
+  s3cyl(M, [0, 0, 0.60], [0, 0, 1], 0.235, 0.185, 26, P.hull2, true);
+  for (let i = 0; i < 14; i++) {
+    const a = i / 14 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
+    s3box(M, [ca * 0.275, sa * 0.275, 0.60], V3scl([ca, sa, 0], 0.058),
+      V3scl([-sa, ca, 0], 0.020), [0, 0, 0.150], P.light);
+    s3box(M, [ca * 0.330, sa * 0.330, 0.60], V3scl([ca, sa, 0], 0.026),
+      V3scl([-sa, ca, 0], 0.012), [0, 0, 0.115], P.haz);   // the tip, hazard-marked
+  }
+  s3cyl(M, [0, 0, 0.60], [0, 0, 1], 0.120, 0.230, 18, P.dark, true); // the hub, recessed
+  // the arm that carries it, and the body behind
+  s3cyl(M, [0, 0, 0.22], [0, 0, 1], 0.098, 0.200, 18, P.mid, true);
+  s3cyl(M, [0, 0, -0.18], [0, 0, 1], 0.165, 0.260, 24, P.hull, true);
+  s3greebleWall(M, 0.167, -0.42, 0.04, 62, [P.hull2, P.dark, P.mid, P.light], rnd, { d: 0.036 });
+  s3winRow(M, 0.167, -0.30, 16, P.win, { w: 0.013, h: 0.024, d: 0.008 });
+  for (const sgn of [-1, 1])  // hydraulic rams to the rotor arm
+    s3cyl(M, [sgn * 0.120, -0.070, 0.18], [0, 0.18, 0.98], 0.030, 0.260, 12, P.light, true);
+  s3cyl(M, [0, 0, -0.55], [0, 0, 1], 0.200, 0.120, 24, P.hull2, true);
+  s3cyl(M, [0, 0, -0.72], [0, 0, 1], 0.105, 0.085, 20, P.dark, false);
+  M.lamp([0, 0, -0.80], [255, 150, 90], 0.015, 0, 'steady');
+  M.lamp([0, 0.185, -0.18], [255, 90, 70], 0.010, 0.2, 'strobe');
+  for (let i = 0; i < 3; i++) M.lamp([0, 0, 0.60], [255, 200, 120], 0.007, i / 3, 'beacon');
+  return M;
+}
+
+// GHOST — on no register. Faceted, dark, and almost unlit: the one you lose track of.
+function s3_ghost(M, seed) {
+  const rnd = s3rng(seed || 8837), P = s3palette(M);
+  // a slim swept wedge. Built from three tapering sections so the facets catch light
+  // as separate planes rather than as one long tube.
+  s3cyl(M, [0, 0, 0.62], [0, 0, 1], 0.070, 0.300, 7, P.dark, true);   // 7 sides: faceted
+  s3cyl(M, [0, 0, 0.16], [0, 0, 1], 0.128, 0.200, 7, P.hull2, true);
+  s3cyl(M, [0, 0, -0.34], [0, 0, 1], 0.150, 0.320, 7, P.dark, true);
+  // swept blades either side — the thing that makes it read as a dart, not a pencil
+  for (const sgn of [-1, 1]) {
+    s3box(M, [sgn * 0.290, 0, 0.02], [sgn * 0.190, 0, -0.120], [0, 0.020, 0], [0, 0, 0.185], P.hull2);
+    s3box(M, [sgn * 0.290, 0.024, 0.02], [sgn * 0.190, 0, -0.120], [0, 0.006, 0], [0, 0, 0.020], P.dark);
+    s3box(M, [sgn * 0.430, 0, -0.10], [sgn * 0.050, 0, 0], [0, 0.026, 0], [0, 0, 0.070], P.mid);
+  }
+  s3greebleWall(M, 0.152, -0.62, -0.10, 40, [P.dark, P.hull2, P.mid], rnd, { d: 0.024 });
+  // one narrow lit slit, and nothing else. A dark hull with a single warm line on it
+  // reads as deliberately unlit, where a hull with no light at all reads as unfinished.
+  s3box(M, [0, 0.130, 0.30], [0.014, 0, 0], [0, 0.012, 0], [0, 0, 0.115], P.win);
+  s3cyl(M, [0, 0, -0.68], [0, 0, 1], 0.115, 0.075, 14, P.dark, false);
+  M.lamp([0, 0, -0.74], [150, 190, 230], 0.010, 0, 'steady');   // cold drive, not hot
+  M.lamp([0, 0.140, 0.30], [190, 220, 255], 0.006, 0.5, 'beacon');
+  return M;
+}
+
+// ---- 10. THE BEACON. A lighthouse in the bore: a mast that will not stop turning,
+// with the lamp housing carrying the sweep. It STANDS — no rotX, unlike the ships —
+// because a beacon that lies on its side reads as wreckage.
+// The sweep beam itself is drawn live over the sprite, in the colour of whichever
+// emitter it currently condemns; the housing here is the hardware it comes out of.
+function s3_beacon(M, seed) {
+  const rnd = s3rng(seed || 6203), P = s3palette(M);
+  // base: a machinery block with the drive and the tankage
+  s3cyl(M, [0, 0, -1.05], [0, 0, 1], 0.320, 0.190, 28, P.hull, true);
+  s3greebleRing(M, 0.180, 0.320, -0.86, 34, [P.mid, P.light, P.dark], rnd, { h: 0.034 });
+  s3cyl(M, [0, 0, -1.27], [0, 0, 1], 0.270, 0.036, 26, P.haz, true);
+  for (let i = 0; i < 3; i++) {
+    const a = i / 3 * 6.2831853 + 0.5, ca = Math.cos(a) * 0.165, sa = Math.sin(a) * 0.165;
+    s3cyl(M, [ca, sa, -1.40], [0, 0, 1], 0.088, 0.095, 18, P.hull2, false);
+    M.lamp([ca, sa, -1.50], [255, 150, 90], 0.014, 0, 'steady');
+  }
+  // the mast
+  s3cyl(M, [0, 0, -0.30], [0, 0, 1], 0.115, 0.560, 22, P.hull, true);
+  for (let i = -2; i <= 2; i++) s3cyl(M, [0, 0, -0.30 + i * 0.215], [0, 0, 1], 0.134, 0.020, 20, P.light, true);
+  s3greebleWall(M, 0.117, -0.80, 0.20, 66, [P.hull2, P.dark, P.mid], rnd, { d: 0.030 });
+  // radiator wings low down, so the lamp head reads clean against the sky
+  for (const sgn of [-1, 1]) {
+    s3cyl(M, [sgn * 0.135, 0, -0.42], [sgn, 0, 0], 0.032, 0.070, 12, P.mid, true);
+    s3box(M, [sgn * 0.420, 0.020, -0.42], [sgn * 0.245, 0, 0], [0, 0.014, 0], [0, 0, 0.175], P.rad);
+    s3box(M, [sgn * 0.420, 0.036, -0.42], [sgn * 0.245, 0, 0], [0, 0.005, 0], [0, 0, 0.014], P.dark);
+  }
+  // the gimbal, then the lamp housing: the biggest single form, and the one that turns
+  s3cyl(M, [0, 0, 0.34], [0, 1, 0], 0.140, 0.185, 20, P.hull2, true);   // yoke axle
+  for (const sgn of [-1, 1])
+    s3box(M, [0, sgn * 0.200, 0.46], [0.130, 0, 0], [0, 0.032, 0], [0, 0, 0.150], P.mid);
+  s3cyl(M, [0, 0, 0.66], [0, 0, 1], 0.290, 0.215, 26, P.hull, true);    // housing drum
+  s3greebleRing(M, 0.180, 0.290, 0.86, 26, [P.mid, P.dark, P.light], rnd, { h: 0.026 });
+  s3cyl(M, [0, 0, 0.66], [0, 0, 1], 0.310, 0.030, 26, P.haz, true);     // hazard band
+  // the aperture: a recessed bay, so the live beam appears to leave a real opening
+  s3box(M, [0, -0.285, 0.66], [0.215, 0, 0], [0, 0.026, 0], [0, 0, 0.165], P.bay);
+  for (let i = 0; i < 5; i++)   // louvres across it
+    s3box(M, [-0.170 + i * 0.085, -0.300, 0.66], [0.014, 0, 0], [0, 0.016, 0], [0, 0, 0.160], P.dark);
+  s3dish(M, [0, 0.230, 0.90], [0, 0.52, 0.85], 0.130, 0.052, P.light);
+  s3winRow(M, 0.292, 0.60, 18, P.win, { w: 0.012, h: 0.020, d: 0.007 });
+  M.lamp([0, -0.310, 0.66], [255, 240, 210], 0.020, 0, 'steady');       // the lamp itself
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * 6.2831853;
+    M.lamp([Math.cos(a) * 0.300, Math.sin(a) * 0.300, 0.86], [255, 90, 70], 0.0075, i / 8, 'beacon');
+  }
+  M.lamp([0, 0, 1.00], [255, 255, 255], 0.013, 0, 'strobe');
   return M;
 }
 
@@ -960,7 +1094,18 @@ const S3D_BUILDS = [
     // Z -> X: rotX(90°) takes the hull's forward axis to -Y, then rotZ(90°) swings it
     // to +X, which projects across the frame. So a hull authored with the Z-axis
     // helpers (s3winRow, s3greebleWall both assume it) still presents its flank.
-    rotX: Math.PI / 2, rotZ: Math.PI / 2 }
+    rotX: Math.PI / 2, rotZ: Math.PI / 2 },
+  // The warden's three bodies, laid horizontal the same way. Separate builds rather
+  // than one hull in three tints: at the size these are drawn, the silhouette is the
+  // only thing that survives, so telling them apart has to be structural.
+  { id: 'WALL',  n: 'barrier hull', kind: 'boss', cam: 0.300, fn: s3_wall,
+    rotX: Math.PI / 2, rotZ: Math.PI / 2 },
+  { id: 'SHRED', n: 'rotor hull',   kind: 'boss', cam: 0.300, fn: s3_shredder,
+    rotX: Math.PI / 2, rotZ: Math.PI / 2 },
+  { id: 'GHOST', n: 'dark hull',    kind: 'boss', cam: 0.320, fn: s3_ghost,
+    rotX: Math.PI / 2, rotZ: Math.PI / 2 },
+  // The beacon STANDS: no rotX, because a lighthouse on its side reads as wreckage.
+  { id: 'BEACN', n: 'beacon mast',  kind: 'boss', cam: 0.300, fn: s3_beacon }
 ];
 
 // ---------------------------------------------------------------- the render

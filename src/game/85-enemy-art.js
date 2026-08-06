@@ -1016,6 +1016,24 @@ function drawBoss(g) {
 // armor plates, and watches the player with a slit eye. Parameterized on a
 // view `c` (the boss itself, or one of the triad's mini bodies) so all three
 // bosses share one machined-optics look.
+// WHICH HULL A BOSS BODY WEARS. drawVoidCore is called with the boss itself for the
+// core and the beacon, and once per body for the warden's triad — the triad's bodies
+// carry a `name`, which is what tells the two cases apart.
+//
+// Returning null is the honest answer for anything without a build: the drawn body
+// below is still the fallback, and the triad's DEATH ceremony deliberately takes it,
+// because the implosion it plays is animation the baked sprite cannot do.
+const TRIAD_HULL = { WALL: 'WALL', SHREDDER: 'SHRED', GHOST: 'GHOST' };
+// per-hull on-screen scale. Each build frames itself with its own `cam`, so one factor
+// would leave the beacon tiny next to the cutter — these are set by eye against the
+// bore, which is the only place the comparison means anything.
+const BOSS_HULL_R = { CUTTER: 1.95, WALL: 1.70, SHRED: 1.70, GHOST: 1.80, BEACN: 1.85 };
+function bossHullId(v) {
+  if (v.name) return TRIAD_HULL[v.name] || null;
+  if (v.kind === 'spinner') return 'BEACN';
+  if (v.kind === 'core') return 'CUTTER';
+  return null;
+}
 function drawVoidCore(g, c) {
   const b = c; // the body below reads the classic field names off the view
   const cerQ = b.introT < BOSS_CER ? clamp(b.introT / BOSS_CER, 0, 1) : 1;
@@ -1052,26 +1070,29 @@ function drawVoidCore(g, c) {
   // menu, so in practice it is ready long before a relay-8 duel).
   //
   // Only the core boss has a hull: triad bodies come through this same function.
-  if (b.coreHeat !== undefined && s3SpriteFor('CUTTER')) {
-    const hk = clamp(b.coreHeat, 0, 1);
+  const hullId = bossHullId(b);
+  if (hullId && s3SpriteFor(hullId)) {
+    const hk = clamp(b.coreHeat === undefined ? 0 : b.coreHeat, 0, 1);
     const venting = b.ventT > 0;
-    // a slow idle bank. NOT a heading chase: the boss re-targets constantly, and
-    // pointing the hull at each new course spun it like a compass needle.
-    ctx.rotate(Math.sin(time * 0.42 + b.spin * 0.05) * 0.11);
+    const R = size * BOSS_HULL_R[hullId];
+    // A slow idle bank — NOT a heading chase: the boss re-targets constantly, and
+    // pointing the hull at each new course spun it like a compass needle. The beacon
+    // is exempt: it stands on a mast and a banking lighthouse reads as a falling one.
+    if (hullId !== 'BEACN') ctx.rotate(Math.sin(time * 0.42 + b.spin * 0.05) * 0.11);
     if (flash > 0.3) { // struck: a white wash over the metal, through the sprite's own mask
-      s3draw(0, 0, size * 1.95, 'CUTTER', haze);
+      s3draw(0, 0, R, hullId, haze);
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = haze * 0.5 * flash;
-      s3draw(0, 0, size * 1.95, 'CUTTER', 1, true);
+      s3draw(0, 0, R, hullId, 1, true);
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = haze;
     } else {
-      s3draw(0, 0, size * 1.95, 'CUTTER', haze);
+      s3draw(0, 0, R, hullId, haze);
     }
     // THE HEAT RIDES OVER THE BAKED RADIATORS. A wash rather than drawn fins: the fins
     // are real geometry now, so the glow only has to say how hot they are — and a wash
     // survives the bank, which hand-placed bars would not.
-    if (hk > 0.04 || venting) {
+    if (b.coreHeat !== undefined && (hk > 0.04 || venting)) {
       const hCol = hk < 0.34 ? '190,70,40' : hk < 0.67 ? '255,130,45' : '255,215,175';
       ctx.globalCompositeOperation = 'lighter';
       const hg = ctx.createRadialGradient(0, 0, size * 0.15, 0, 0, size * 1.75);
