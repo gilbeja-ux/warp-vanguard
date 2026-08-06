@@ -648,11 +648,14 @@ function drawEnd(g) {
   // the scene shows through at 0.18, so the data leans harder on its own shadow
   ctx.shadowColor = 'rgba(2,5,12,0.95)'; ctx.shadowBlur = lowFX ? 0 : 9;
   // mode line
+  // JUST THE PLACE. It read 'MISSION REPORT // XANYR 575 II' — and the banner two lines
+  // below already says what happened, so the words before the slashes were a label on a
+  // screen that needs none.
   const modeName = endless ? (weekly ? 'WEEKLY LANE' : 'ENDLESS LANE') : qual ? 'QUALIFICATION' : curRouteName();
   try { ctx.letterSpacing = '3px'; } catch (e) {}
   ctx.fillStyle = 'rgba(140,210,255,0.7)';
-  fit('700', 11, 'MISSION REPORT  //  ' + modeName);
-  ctx.fillText('MISSION REPORT  //  ' + modeName, g.cx, g.cy - R * 0.64);
+  fit('700', 11, modeName);
+  ctx.fillText(modeName, g.cx, g.cy - R * 0.64);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
 
   // banner slams in
@@ -693,23 +696,101 @@ function drawEnd(g) {
 
   // stats + best reveal after the count settles
   ctx.globalAlpha = pA * ph(T.stats, T.stats + 0.3);
-  ctx.fillStyle = 'rgba(150,215,255,0.85)'; ctx.font = '11px monospace';
-  ctx.fillText('intercepted ' + zaps + '   //   perfect ' + perfects, g.cx, g.cy + R * 0.36);
-  ctx.fillText('missed ' + misses + '   //   integrity ' + Math.round(integrity) + '%', g.cx, g.cy + R * 0.36 + 17);
-  const bestVal = endless ? (weekly ? (progress.weekly && progress.weekly.best) : progress.best) : PROG.bests[levelIdx];
-  const isNew = endless ? (score >= (bestVal || 0) && score > 0) : endNewBest;
-  if ((endless || (!qual && (endWin || (bestVal || 0) > 0))) && bestVal !== undefined) {
-    ctx.fillStyle = isNew ? '#ffd24a' : 'rgba(255,210,74,0.7)';
-    ctx.font = '700 13px Audiowide, system-ui';
-    ctx.fillText((isNew ? 'NEW BEST  ' : 'BEST  ') + (bestVal || 0).toLocaleString(), g.cx, g.cy + R * 0.36 + 44);
-  }
-  // leaderboard sync status (ranked runs) — green on success, amber on a problem
-  if (lbStatus && !qual) {
-    ctx.globalAlpha = pA;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = /RANK|SUBMITTED/.test(lbStatus) ? 'rgba(120,255,170,0.9)' : 'rgba(255,150,90,0.95)';
-    ctx.font = '600 10px Audiowide, system-ui';
-    ctx.fillText('◈ ' + lbStatus, g.cx, g.cy + R * 0.36 + 80);
+  // ---- THE TELEMETRY STRIP ----
+  // Four readings in a row, each a value over its label, divided by hairlines. It was two
+  // lines of 11px MONOSPACE joined by double slashes — the only monospace on the screen,
+  // which read as debug output rather than as a report, and gave four numbers of quite
+  // different weight exactly the same voice.
+  //
+  // The colour carries the meaning, so the numbers can be read without the labels:
+  // interceptions are the neutral count, PERFECTS are payload gold because they are a
+  // thing gained, and the two that can go wrong say so — misses go hazard only when there
+  // ARE misses (a zero reads as clean, not as an alarm), and integrity grades itself.
+  {
+    const u = Math.min(W, H);
+    const cy2 = g.cy + R * 0.36;
+    const integ = Math.round(integrity);
+    // TERSE LABELS, because the cell decides. Four cells inside the bore's width leaves
+    // roughly sixty pixels each, and INTERCEPTED / INTEGRITY only fit that by shrinking
+    // the type to six pixels — legible in a capture, not on a phone. The value carries
+    // the meaning anyway: '100%' next to HULL needs no more words than that.
+    const cells = [
+      { v: String(zaps), l: 'HITS', c: '150,215,255' },
+      { v: String(perfects), l: 'PERFECT', c: perfects > 0 ? '255,210,74' : '120,150,185' },
+      { v: String(misses), l: 'MISSED', c: misses > 0 ? '255,110,120' : '120,150,185' },
+      { v: integ + '%', l: 'HULL',
+        c: integ >= 100 ? '126,226,98' : integ >= 60 ? '150,215,255' : integ >= 25 ? '255,190,90' : '255,110,120' }
+    ];
+    // sized off the ring, not the frame: this sits inside the bore's width like the rest
+    // of the report, and a wide phone must not stretch it into a banner
+    const cw3 = Math.min(g.nodeR * 2 * 0.235, u * 0.155);
+    const x03 = g.cx - cw3 * 1.5;
+    const vpx = Math.max(13, Math.round(u * 0.030));
+    // THE LABEL FONT IS FITTED, NOT CHOSEN. At a guessed size INTERCEPTED and INTEGRITY
+    // overran their cells and the strip read 'INTERCEPTEDPERFECT' — so the longest label
+    // is measured against the cell and the size comes down until it clears. Letter
+    // spacing is included in the measurement by being applied BEFORE it, or the fit is
+    // computed against a narrower string than the one that gets drawn.
+    let lpx = Math.max(8, Math.round(u * 0.0145));
+    try { ctx.letterSpacing = '1.2px'; } catch (e) {}
+    for (; lpx > 8; lpx--) {   // floor at 8: below that it is decoration, not a label
+      ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
+      const widest = Math.max(...cells.map(c4 => ctx.measureText(c4.l).width));
+      if (widest <= cw3 * 0.88) break;
+    }
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    for (let i = 0; i < 4; i++) {
+      const c3 = cells[i], cxq = x03 + cw3 * (i + 0.5);
+      ctx.fillStyle = 'rgba(' + c3.c + ',0.95)';
+      ctx.font = '700 ' + vpx + 'px Audiowide, system-ui';
+      ctx.fillText(c3.v, cxq, cy2);
+      ctx.fillStyle = 'rgba(' + c3.c + ',0.55)';
+      ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
+      try { ctx.letterSpacing = '1.2px'; } catch (e) {}
+      ctx.fillText(c3.l, cxq, cy2 + vpx * 0.92);
+      try { ctx.letterSpacing = '0px'; } catch (e) {}
+      if (i < 3) {   // hairline divider, short — it separates without drawing a table
+        const dx = x03 + cw3 * (i + 1);
+        ctx.strokeStyle = 'rgba(140,200,255,0.20)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(dx, cy2 - vpx * 0.78); ctx.lineTo(dx, cy2 + vpx * 0.72);
+        ctx.stroke();
+      }
+    }
+    // ---- BEST + RANK, ONE ROW ----
+    // They were 36px apart on separate lines, which read as two unrelated footnotes. Both
+    // answer "how did that go against everyone else", so they belong on the same line —
+    // measured and centred as a pair, and each still stands alone when the other is absent.
+    const bestVal = endless ? (weekly ? (progress.weekly && progress.weekly.best) : progress.best) : PROG.bests[levelIdx];
+    const isNew = endless ? (score >= (bestVal || 0) && score > 0) : endNewBest;
+    const showBest = (endless || (!qual && (endWin || (bestVal || 0) > 0))) && bestVal !== undefined;
+    const showRank = !!lbStatus && !qual;
+    if (showBest || showRank) {
+      const rowY = cy2 + vpx * 0.92 + Math.max(20, u * 0.040);
+      const bTxt = (isNew ? 'NEW BEST  ' : 'BEST  ') + (bestVal || 0).toLocaleString();
+      const rTxt = '◈ ' + lbStatus;
+      const bF = '700 ' + Math.max(11, Math.round(u * 0.024)) + 'px Audiowide, system-ui';
+      const rF = '600 ' + Math.max(9, Math.round(u * 0.019)) + 'px Audiowide, system-ui';
+      ctx.font = bF; const bW = showBest ? ctx.measureText(bTxt).width : 0;
+      ctx.font = rF; const rW = showRank ? ctx.measureText(rTxt).width : 0;
+      const gapR = (showBest && showRank) ? Math.max(14, u * 0.022) : 0;
+      let xr = g.cx - (bW + gapR + rW) / 2;
+      ctx.textAlign = 'left';
+      if (showBest) {
+        ctx.font = bF;
+        ctx.fillStyle = isNew ? '#ffd24a' : 'rgba(255,210,74,0.7)';
+        ctx.fillText(bTxt, xr, rowY);
+        xr += bW + gapR;
+      }
+      if (showRank) {
+        ctx.globalAlpha = pA;   // the sync line does not wait on the stats reveal
+        ctx.font = rF;
+        ctx.fillStyle = /RANK|SUBMITTED/.test(lbStatus) ? 'rgba(120,255,170,0.9)' : 'rgba(255,150,90,0.95)';
+        ctx.fillText(rTxt, xr, rowY);
+      }
+      ctx.textAlign = 'center';
+    }
   }
 
   // buttons live OUTSIDE the ring, in the side margins. While the high-score card
