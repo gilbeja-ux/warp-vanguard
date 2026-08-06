@@ -810,8 +810,27 @@ const WARP_TONES = 6;            // how finely that tint is banded across the fr
 // — a mid-depth star takes the best part of a minute to arrive — and fast
 // enough that the eye finds the flow within a couple of seconds of looking.
 let WARP_CRUISE = 0.055;
+// AND ON THE REPORT, A QUARTER OF IT. The lane brakes to a stop when a level ends
+// (flowTgt is 0 for S.END exactly as it is for S.MENU, 72-tick), so the report was
+// running this field at precisely the menu's station-keeping crawl — the same slow
+// fly toward the horizon, on the one screen whose entire claim is that we arrived.
+// Quartering it says PARKED without stopping the sky dead, which would read as a
+// frozen frame rather than as a ship at rest.
+//
+// EASED, AND THE EASE IS FREE. The ramp runs while laneFlow is still braking, and
+// the cruise term is weighted by (1 - laneFlow) — so it is worth nearly nothing for
+// the whole time it is changing, and the slowdown is never seen happening. Leaving
+// the report ramps it straight back; a relaunch pushes laneFlow to 1, which drowns
+// the cruise term entirely, so the menu and the next run both get full pace.
+//
+// The smears come with it for free: a tail is screen velocity × shutter, so at a
+// quarter speed they are a quarter as long. Less motion blur IS what slower looks
+// like — the arrival reads as settling, not as someone turning an effect down.
+let ARRIVE_CRUISE_Q = 0.25;      // the report's share of the menu's pace (?arrive= overrides)
+const ARRIVE_EASE = 0.8;         // seconds to cross to it, both directions
+let arriveCruise = 1;
 // ?warpv=0.5 flies it fast for a taste test, ?warpn=200 thins it out,
-// ?cruise=0.2 taste-tests the parked crawl.
+// ?cruise=0.2 taste-tests the parked crawl, ?arrive=1 disables the report's slowdown.
 if (typeof location !== 'undefined') {
   const qv = /[?&]warpv=([\d.]+)/.exec(location.search);
   if (qv) WARP_V = parseFloat(qv[1]);
@@ -819,6 +838,8 @@ if (typeof location !== 'undefined') {
   if (qn) WARP_N = parseInt(qn[1], 10);
   const qc = /[?&]cruise=([\d.]+)/.exec(location.search);
   if (qc) WARP_CRUISE = parseFloat(qc[1]);
+  const qa = /[?&]arrive=([\d.]+)/.exec(location.search);
+  if (qa) ARRIVE_CRUISE_Q = parseFloat(qa[1]);
 }
 let warpStars = [];
 // SYSRANDOM, NOT MATH.RANDOM, EVERYWHERE BELOW — the one rule this layer cannot
@@ -930,7 +951,7 @@ function drawWarpSky(vis, bdt) {
   // full rate: a launch is a push on a sky already under way, and the brake
   // settles it back to a crawl — the field itself never stops and never swaps.
   const thr = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow
-    + WARP_CRUISE * (1 - laneFlow);
+    + WARP_CRUISE * arriveCruise * (1 - laneFlow);
   const v = WARP_V * thr * (1 + dive * 2.6);
   // DOPPLER RIDES THE THROTTLE. The tint is banded by screen radius through a
   // prebuilt ramp; at a crawl there is no shift worth the name, so the band
@@ -1030,9 +1051,16 @@ function tickMenuSky(dt) {
   const want = (state === S.MENU || state === S.GUIDE) ? 1 : 0;
   menuSkyVis += clamp(dt / 0.5, 0, 1) * (want - menuSkyVis);
 }
+// …and the same idea for the throttle: eased on frame time, keyed on state, read by
+// the sky's blend. See ARRIVE_CRUISE_Q for why the ease costs nothing to look at.
+function tickArriveCruise(dt) {
+  const want = state === S.END ? ARRIVE_CRUISE_Q : 1;
+  arriveCruise += clamp(dt / ARRIVE_EASE, 0, 1) * (want - arriveCruise);
+}
 function drawStarField() {
   const bdt = typeof frameDt === 'number' ? frameDt : 0; // bursts advance on frame time, not wall time
   tickMenuSky(bdt);
+  tickArriveCruise(bdt);
   // ONE SKY, TWO DISTANCES. The stationary twinkling field is the FAR sky; it
   // still thins under way, because at speed the streaks own the frame and the
   // painted depth steps back to WARP_SKY with its sheet. The blanket is the

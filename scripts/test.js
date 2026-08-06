@@ -171,6 +171,11 @@ code = code.replace("'use strict';", '') + `
   pickTrack, trackCount, trackName, skipTrack, prettyTrackName, dropPreload,
   setMenuBuf: v => { menuBuf = v; }, getMenuBuf: () => menuBuf, MENU_CACHE_MAX: () => MENU_CACHE_MAX,
   fieldSizes: () => ({ warp: warpStars.length, streaks: streaks.length, deep: deepStars.length, gas: gasWisps.length }),
+  // the report's quartered cruise: the eased multiplier, its target, and the raw
+  // handles the rate test needs to isolate the sky's throttle from the lane's
+  getArriveCruise: () => arriveCruise, setArriveCruise: v => { arriveCruise = v; },
+  ARRIVE_Q: () => ARRIVE_CRUISE_Q, warpStars: () => warpStars,
+  setLaneFlow: v => { laneFlow = v; }, setWarpT: v => { warpT = v; },
   // let the watchdog tests jump the accumulator instead of paying ~1600 rendered
   // frames to earn each 2s window — the accumulation itself is plain addition and is
   // already covered by the trip test; what needs testing is the comparison and the
@@ -1372,6 +1377,70 @@ G.setState(G.S.MENU);
     G.getEndT() > 2.62 + frozen + 0.42);
   drawOk('report after the card clears (badge popped)', () => {});
   G.getProg().bests[1] = best0;   // leave the world as found
+}
+
+// ================= the report cruises at a quarter of the menu's pace =================
+// A level ends and the lane brakes to a dead stop, and 72-tick targets flow 0 for S.END
+// exactly as it does for S.MENU — so the report was flying the star field at precisely
+// the menu's station-keeping crawl, on the one screen whose whole claim is that we
+// arrived. Two halves to hold: the multiplier eases (never snaps, in either direction),
+// and it actually reaches the sky's throttle.
+{
+  const Q = G.ARRIVE_Q();
+  check('the report targets a quarter of the menu cruise', Math.abs(Q - 0.25) < 1e-9);
+
+  // THE RATE, measured on a real star rather than re-derived from the formula. Park the
+  // lane so the cruise term is the whole throttle, and kill the launch dive so the same
+  // shared multiplier applies to both readings.
+  G.setLaneFlow(0); G.setWarpT(0);
+  const st = G.warpStars()[0];
+  // pinned far and near the axis: a star recycles when its SMEAR leaves the frame, and
+  // a recycle mid-measurement would read as a huge negative dz
+  let ts = 200000;
+  const probe = mul => {
+    G.setArriveCruise(mul);
+    G.frame(ts += 16);                  // prime: settle the clock at a 16ms step first
+    st.z = 0.99; st.rf = 0.1; st.ca = 1; st.sa = 0;
+    for (let i = 0; i < 10; i++) G.frame(ts += 16);
+    return 0.99 - st.z;
+  };
+  G.setState(G.S.MENU);
+  const dzMenu = probe(1);
+  G.setState(G.S.END);
+  const dzEnd = probe(Q);
+  const ratio = dzEnd / dzMenu;
+  check(`a star closes ${Math.round(1 / ratio)}x slower on the report ` +
+    `(dz ${dzMenu.toExponential(2)} -> ${dzEnd.toExponential(2)})`,
+    dzMenu > 0 && Math.abs(ratio - Q) < 0.02);
+
+  // THE EASE, both directions. A snap would be visible on the frame it happened.
+  G.setState(G.S.END); G.setArriveCruise(1);
+  let ts2 = 300000;
+  G.frame(ts2 += 16);
+  const oneFrame = G.getArriveCruise();
+  check('one frame on the report does not snap the cruise down',
+    oneFrame < 1 && oneFrame > 0.9);
+  for (let i = 0; i < 200; i++) G.frame(ts2 += 16);
+  const settled = G.getArriveCruise();
+  check(`the report settles toward the quarter (${settled.toFixed(3)})`,
+    settled < 0.32 && settled > Q - 1e-6);
+
+  // leaving the report hands the pace straight back — Gil's explicit requirement
+  G.setState(G.S.MENU);
+  G.frame(ts2 += 16);
+  check('leaving the report starts the pace climbing again', G.getArriveCruise() > settled);
+  for (let i = 0; i < 400; i++) G.frame(ts2 += 16);
+  check(`the menu is back to full cruise (${G.getArriveCruise().toFixed(3)})`,
+    G.getArriveCruise() > 0.99);
+  // and under way it does not matter either way: the cruise term carries (1 - laneFlow),
+  // so a lane at speed weights it out entirely. Asserted with laneFlow, NOT by entering
+  // S.PLAY — frame() runs the sim there, and ten frames of a real level wrote a best that
+  // a later test asserts on.
+  G.setArriveCruise(Q); G.setLaneFlow(1);
+  const dzFlow = probe(Q);
+  check('a lane at speed weights the quartered cruise out entirely',
+    dzFlow > dzMenu * 4);
+  G.setLaneFlow(0); G.setArriveCruise(1); G.setState(G.S.MENU);
 }
 
 // ================= a skipped report still shows everything =================
