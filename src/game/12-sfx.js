@@ -164,6 +164,9 @@ const sfx = {
   // at EXIT_STING, part-way down the drop, and the two land as one event rather than
   // as two cues queued up. Falls back to the bare sting if the take hasn't decoded.
   arrive() {
+    // Fired on the frame the run ends. The take is a SWELL — it needs ~0.44s to reach
+    // its loud stretch — and WARP_COLLAPSE.at is set to that figure so the visual bump
+    // lands inside the sound rather than ahead of it. Move one, move the other.
     if (!playSample('exitWarp')) { this.win(); return; }
     // the recorded sting can be scheduled; the synth one can't, so it gets a timer
     if (!playSample('win', 1, 0, 1, EXIT_STING)) setTimeout(() => sfx.win(), EXIT_STING * 1000);

@@ -174,8 +174,16 @@ const endPower = () => state === S.END ? clamp(1 - (endT - 0.15) / 0.6, 0, 1) : 
 // of its distance. Anything on a different clock reads as a sequence of effects
 // rather than as a thing happening.
 //
-//   at    · when it starts, in seconds after the run ends. Enough of a beat for
-//           the last kill to land and no more
+//   at    · when it starts, in seconds after the run ends. ALIGNED TO exit-warp.mp3,
+//           which is the whole reason this number is what it is. The take is a swell,
+//           not a hit: measured on its 10ms RMS envelope it crosses half its peak at
+//           0.37s and tops out at 0.74s, so at 0.12 the bump fired during the sound's
+//           quiet lead-in and the sound's climax landed a third of a second AFTER the
+//           flash had already gone — the sound read as chasing the picture. At 0.44
+//           the take runs first, audibly, and its loudest stretch (0.48–0.90s) carries
+//           the flash and the whole streak collapse. To re-derive after a new take:
+//           ffmpeg -i exit-warp.mp3 -ac 1 -ar 22050 -f s16le - | (10ms RMS envelope),
+//           then take the first crossing of ~60% of peak.
 //   dur   · how long the drop takes. This is the number to move if the arrival
 //           feels slow — it drives the lane's departure AND the world's swell
 //   brake · how long laneFlow takes to reach 0. It is what collapses every warp
@@ -184,7 +192,7 @@ const endPower = () => state === S.END ? clamp(1 - (endT - 0.15) / 0.6, 0, 1) : 
 //           corridor has finished leaving
 //   flash · the white bloom at the instant of the drop
 //   shock · how long the bow wave takes to cross the frame and go past you
-const WARP_COLLAPSE = { at: 0.12, dur: 0.72, brake: 0.40, flash: 0.30, shock: 0.55 };
+const WARP_COLLAPSE = { at: 0.44, dur: 0.72, brake: 0.40, flash: 0.30, shock: 0.55 };
 // …and the other end of it: how long the lane takes to get from a dead stop to full
 // warp when a run engages. Matched to warp-in.mp3 (2.44s), which plays on the same
 // beat, so the sound and the acceleration are one event. Was 0.5s, which was over
