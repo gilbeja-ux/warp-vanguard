@@ -898,22 +898,18 @@ function drawMenuCamps(ccx, ccy, R) {
 // Both live here rather than in the disc painter so any surface that paints camp art
 // can call one function and get the same behaviour.
 const DISC_GLOW = {
-  // a convoy under way: the lead hauler plus two of the pack
-  'cargo-run.webp':  [{ x: 0.152, y: 0.660, r: 0.070, c: '190,220,255' },
-                      { x: 0.565, y: 0.745, r: 0.078, c: '205,230,255' },
-                      { x: 0.930, y: 0.780, r: 0.075, c: '205,230,255' }],
-  // the survey vessel barely shows a drive — its character is lit instrument decks,
-  // and a pulse on those says "systems running", which is the same job
-  'survey.webp':     [{ x: 0.505, y: 0.630, r: 0.075, c: '140,215,255' },
-                      { x: 0.600, y: 0.430, r: 0.058, c: '170,230,255' }],
-  // one big teal drive on the yacht's stern
-  'collector.webp':  [{ x: 0.878, y: 0.535, r: 0.098, c: '90,240,225' }],
-  // navy trails run violet, and they are the only bright thing in the frame
-  'patrol.webp':     [{ x: 0.305, y: 0.120, r: 0.080, c: '200,150,255' },
-                      { x: 0.612, y: 0.275, r: 0.092, c: '190,160,255' }],
-  // chrome state transport: the escorts carry what little glow there is
-  'delegation.webp': [{ x: 0.648, y: 0.560, r: 0.065, c: '215,235,255' },
-                      { x: 0.945, y: 0.755, r: 0.070, c: '200,225,255' }]
+  // RE-READ FOR THE 2:1 STRIPS. The re-cut kept full master width, so x carried over;
+  // every y was re-read off the new strips because the vertical band changed entirely.
+  'cargo-run.webp':  [{ x: 0.152, y: 0.700, r: 0.058, c: '190,220,255' },
+                      { x: 0.565, y: 0.760, r: 0.064, c: '205,230,255' },
+                      { x: 0.930, y: 0.790, r: 0.062, c: '205,230,255' }],
+  'survey.webp':     [{ x: 0.505, y: 0.700, r: 0.062, c: '140,215,255' },
+                      { x: 0.600, y: 0.560, r: 0.048, c: '170,230,255' }],
+  'collector.webp':  [{ x: 0.878, y: 0.620, r: 0.080, c: '90,240,225' }],
+  'patrol.webp':     [{ x: 0.305, y: 0.240, r: 0.066, c: '200,150,255' },
+                      { x: 0.612, y: 0.360, r: 0.075, c: '190,160,255' }],
+  'delegation.webp': [{ x: 0.648, y: 0.650, r: 0.054, c: '215,235,255' },
+                      { x: 0.945, y: 0.800, r: 0.058, c: '200,225,255' }]
 };
 const DISC_ART_CROP = 0.965;   // how much of the strip shows — the rest is drift margin
 // NOT EVERY PLATE IS AN EXTERIOR. The training disc is a simulator cockpit: there is no
@@ -1101,7 +1097,12 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
   // sheet, same cordons, same live systems. The whole strip draws inside its own
   // RECT clip: a cordon ellipse is hundreds of world-px across, so without one it
   // sweeps straight down through the dossier text below.
-  const sepY = y - r / 3;
+  // HALF THE CIRCLE IS PICTURE. The art box ran to y - r/3; Gil wants the image given
+  // more room, so the chord sits on the centre line. The box is 2r x r — exactly 2:1 —
+  // and the strips were re-cut from their masters at 1152x576 to match, full width
+  // preserved, because width-cropping the old 3:1 strips would have amputated the
+  // yacht's stern and the right-hand haulers.
+  const sepY = y;
   const mh = sepY - (y - r);
   ctx.save();
   ctx.beginPath(); ctx.rect(x - r, y - r, r * 2, mh); ctx.clip();
@@ -1172,21 +1173,34 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     const seg = t.split('·').map(v => v.trim()).find(v => /tier/i.test(v));
     return seg || t;
   }
+  // THE TITLE LIVES ON THE PICTURE. Bottom edge of the art, over a scrim — a dark
+  // gradient rising to the chord — so it reads on a bright plate, with a soft cyan
+  // glow. shadowBlur is fine here: this is the menu, not the run.
   ctx.textAlign = 'center';
-  if (tpx === undefined) tpx = fitPx(title, 800, Math.round(r * 0.17), r * 1.5, 10);
+  const scrim = ctx.createLinearGradient(x, sepY - r * 0.34, x, sepY);
+  scrim.addColorStop(0, 'rgba(4,10,22,0)');
+  scrim.addColorStop(1, 'rgba(4,10,22,0.82)');
+  ctx.fillStyle = scrim;
+  ctx.fillRect(x - r, sepY - r * 0.34, r * 2, r * 0.34);
+  if (tpx === undefined) tpx = fitPx(title, 800, Math.round(r * 0.17), r * 1.7, 10);
   ctx.font = '800 ' + tpx + 'px Audiowide, system-ui';
+  ctx.save();
+  ctx.shadowColor = solid ? 'rgba(120,215,255,0.85)' : 'rgba(120,215,255,0.35)';
+  ctx.shadowBlur = r * 0.055;
   ctx.fillStyle = solid ? '#eaf7ff' : 'rgba(150,175,210,0.8)';
-  ctx.fillText(title, x, sepY + r * 0.22);
+  ctx.fillText(title, x, sepY - r * 0.055);
+  ctx.fillText(title, x, sepY - r * 0.055);   // twice: the glow builds, the face stays crisp
+  ctx.restore();
   ctx.font = '700 ' + Math.max(9, Math.round(r * 0.085)) + 'px Audiowide, system-ui';
   if (train) {
     ctx.fillStyle = done ? 'rgba(126,226,98,0.95)' : 'rgba(140,200,240,0.8)';
-    ctx.fillText(done ? 'QUALIFIED ✓' : 'QUALIFICATION RUN', x, sepY + r * 0.44);
+    ctx.fillText(done ? 'QUALIFIED ✓' : 'QUALIFICATION RUN', x, sepY + r * 0.20);
     ctx.font = '500 ' + Math.max(8, Math.round(r * 0.07)) + 'px Audiowide, system-ui';
     ctx.fillStyle = 'rgba(130,180,225,0.7)';
     // one line, in the same slot the contracts use for their tier range. It used to list
     // the curriculum over two lines, which is the disc explaining itself before you have
     // seen any of it — the drills teach that far better than a caption can.
-    ctx.fillText('LEARN THE ESSENTIALS', x, sepY + r * 0.78);
+    ctx.fillText('LEARN THE ESSENTIALS', x, sepY + r * 0.42);
   } else if (real) {
     const starSum = (cp.stars || []).reduce((a2, b2) => a2 + b2, 0);
     ctx.fillStyle = 'rgba(160,210,250,0.85)';
@@ -1200,7 +1214,7 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     const headW = ctx.measureText(headStr).width;
     const rateW = ctx.measureText(rateStr).width;
     const totW = headW + shR * 2 + gap + rateW;
-    const lineY = sepY + r * 0.44;
+    const lineY = sepY + r * 0.20;
     ctx.textAlign = 'left';
     ctx.fillText(headStr, x - totW / 2, lineY);
     const shX = x - totW / 2 + headW + shR;
@@ -1211,14 +1225,14 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     ctx.textAlign = 'center';
     ctx.fillStyle = done ? 'rgba(126,226,98,0.95)' : 'rgba(140,200,240,0.8)';
     // a COUNT, not a level id — level numbers run continuously across campaigns
-    ctx.fillText(done ? 'CONTRACT COMPLETE' : Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length + ' STAGES', x, sepY + r * 0.62);
+    ctx.fillText(done ? 'CONTRACT COMPLETE' : Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length + ' STAGES', x, sepY + r * 0.375);
     // THE TIER RANGE ONLY. A tagline reads 'HAULERS CONSORTIUM · TIER 1 → 3' — and the
     // client is already the disc's whole picture and its title, so printing it again
     // underneath was the line explaining what the disc had just shown. What is left is
     // the one thing said nowhere else: how deep the contract goes.
     ctx.font = '500 ' + Math.max(8, Math.round(r * 0.07)) + 'px Audiowide, system-ui';
     ctx.fillStyle = 'rgba(130,180,225,0.7)';
-    ctx.fillText(tierOf(pk), x, sepY + r * 0.78);
+    ctx.fillText(tierOf(pk), x, sepY + r * 0.52);
   }
   if (solid) {
     // TAKE CONTRACT: the disc's own bottom segment — the circle edge IS the
@@ -1243,10 +1257,10 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     }
   } else {
     ctx.fillStyle = 'rgba(150,175,210,0.75)';
-    ctx.fillText('COMING SOON', x, sepY + r * 0.55);
+    ctx.fillText('COMING SOON', x, sepY + r * 0.24);
     ctx.font = '500 ' + Math.max(8, Math.round(r * 0.07)) + 'px Audiowide, system-ui';
     ctx.fillStyle = 'rgba(120,150,190,0.55)';
-    ctx.fillText('a new contract is being drawn up', x, sepY + r * 0.72);
+    ctx.fillText('a new contract is being drawn up', x, sepY + r * 0.44);
   }
   ctx.textAlign = 'left';
   ctx.restore();
