@@ -50,7 +50,6 @@ const distDir = path.join(__dirname, '..', 'dist');
 // Anything matched here never reaches a device. Each entry is here because it was
 // verified to have zero references from the game (grep across src/ and scripts/).
 const NEVER_SHIP = [
-  'Characters',                        // 13.4MB, 7 plates — named only in docs/THEME-SHIFT.md prose
   'audio/Midnight_Terminal_Wait.mp3',  // 2.7MB — the previous menu take, replaced by 262be2d
   'editor.html', 'editor.js',          // the Lane Designer: a dev tool, not a game screen
   'game/manifest.json',                // build-time load order; nothing fetches it at runtime

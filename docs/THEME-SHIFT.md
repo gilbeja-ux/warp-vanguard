@@ -177,6 +177,6 @@ Code and copy can carry the theme most of the way. These need the author.
    the bore, which reads at 48px where four letters would not.
 2. **The full lockup** — `src/logo.png` relettered: WARP LANE large, VANGUARD
    SQUADRON beneath, *the wolves* between the two gold rules.
-3. **Character plates.** `src/Characters/` holds seven; the cast survives the
-   shift intact, so whether they need regenerating is a look question, not a
-   story one.
+3. ~~**Character plates.**~~ **Resolved 2026-08-07, by deletion.** `src/Characters/`
+   held seven plates no screen ever drew. They went out with the theme they were
+   made for; recoverable from `bcdbc2b` if the cast is ever wanted back.
