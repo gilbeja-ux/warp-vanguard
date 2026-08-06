@@ -572,7 +572,7 @@ function updateArrayFight(dt, g) {
       b.mode = 'run';
       b.clean = true;
       b.figIds = [];
-      const gapZ = 0.80 * (LV.speed || 0.5) * (mutators.fast ? 1.35 : 1);
+      const gapZ = 0.80 * (LV.speed || 0.5) * (mutLive('fast') ? 1.35 : 1);
       for (let k = 0; k < fig.a.length; k++) {
         const en = spawnEnemy(clearOfWalls(b.figBase + fig.a[k]), 'normal');
         en.lock = undefined; en.drift = 0;
@@ -708,7 +708,7 @@ function spawnSpinnerWave() {
   // arrival window (one per node), window partners land a half-ring apart so
   // both are reachable, and windows arrive ~0.85s apart down the pipe.
   const n2 = 3 + Math.min(3, b.round); // the waves thicken round by round
-  const gapZ = 0.85 * (LV.speed || 0.5) * (mutators.fast ? 1.35 : 1);
+  const gapZ = 0.85 * (LV.speed || 0.5) * (mutLive('fast') ? 1.35 : 1);
   let prevA = Math.random() * TAU;
   for (let k = 0; k < n2; k++) {
     const w = k >> 1; // window index — two seats per window

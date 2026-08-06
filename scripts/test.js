@@ -1949,18 +1949,31 @@ G.setEndT(0.1); drawOk('end ceremony: banner fading in', () => {});
 G.setEndT(1.2); drawOk('end ceremony: counters running', () => {});
 G.setEndT(3.0); drawOk('end ceremony: buttons arrived', () => {});
 
+// MODIFIERS ARE FREE-FLOW EQUIPMENT — Gil's bug report: a loadout armed on the flow
+// screen silently applied to campaign runs too. The two halves of the contract are
+// asserted separately, because the earlier version of this block asserted the BUG:
+// it toggled modifiers, started a CAMPAIGN level, and required the quarter hull and
+// the multiplied take to be there.
 G.mutators.oneLife = true; G.mutators.fast = true;
 G.startLevel(1);
-check('one-life modifier starts at a single block', G.stats().integrity === 25);
+check('a campaign run ignores the flow loadout — whole hull', G.stats().integrity === 100);
 G.enemies().length = 0;
 en = G.spawnEnemy(0.5, 'normal');
 aim(0, Math.PI); aim(1, 0.5 + 0.2);
 s0 = G.getScore();
 cross(en);
-check('modifiers multiply the take (×3 → 300)', G.getScore() - s0 === 300);
-G.mutators.noPickups = true;
-check('modifier multiplier compounds', Math.abs((2 * 1.5 * 1.3) - 3.9) < 1e-9);
+check('a campaign take is unmultiplied (×1 → 100)', G.getScore() - s0 === 100);
+// ...and in FREE FLOW the same loadout bites, which is what it is for
+G.startEndless();
+check('an endless run honours the loadout — quarter hull', G.stats().integrity === 25);
+G.enemies().length = 0;
+en = G.spawnEnemy(0.5, 'normal');
+aim(0, Math.PI); aim(1, 0.5 + 0.2);
+s0 = G.getScore();
+cross(en);
+check('an endless take is multiplied (×3 → 300)', G.getScore() - s0 === 300);
 G.mutators.oneLife = G.mutators.fast = G.mutators.noPickups = false;
+G.startLevel(1);
 
 // ================= soak: simulated minutes of play =================
 let simNow = 500000; // monotonic clock for frame() across soaks

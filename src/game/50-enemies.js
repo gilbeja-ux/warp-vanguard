@@ -77,7 +77,7 @@ const PATTERNS = [
 // traps drop in at the visual horizon and ride the wall at CONSTANT z-speed —
 // perspective alone supplies the acceleration feel, so arrival is extrapolable
 const SPAWN_Z = 2.1;
-const travelTime = () => (SPAWN_Z - geo().hitZ) / ((LV || LEVELS[levelIdx]).speed * (mutators.fast ? 1.35 : 1));
+const travelTime = () => (SPAWN_Z - geo().hitZ) / ((LV || LEVELS[levelIdx]).speed * (mutLive('fast') ? 1.35 : 1));
 // ---------- spawn fairness ----------
 // never schedule an arrival pattern two nodes can't physically cover:
 //  · heavies/lines demand BOTH nodes at once — their window must be empty
@@ -226,7 +226,7 @@ function fireBeat(b, bi, eff) {
     : undefined;
   if (b.kind === 'wall') spawnWall(a, b.force, eff);
   else if (b.kind === 'strip') spawnStrip();
-  else if (b.kind === 'pickup') { if (!mutators.noPickups) spawnPickup(b.type); }
+  else if (b.kind === 'pickup') { if (!mutLive('noPickups')) spawnPickup(b.type); }
   else if (b.type === 'line') spawnLine(a, b.force);
   else if (b.type === 'lock0' || b.type === 'lock1') {
     // fairness beats authorship: a lock whose node is booked flips or unlocks

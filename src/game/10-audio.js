@@ -11,7 +11,16 @@ const settings = {
 };
 // score-chase modifiers — unlocked with the campaign, toggled on the menu
 const mutators = { oneLife: false, fast: false, noPickups: false };
-const mutMul = () => (mutators.oneLife ? 2 : 1) * (mutators.fast ? 1.5 : 1) * (mutators.noPickups ? 1.3 : 1);
+// MODIFIERS ARE FREE-FLOW EQUIPMENT. The toggles persist (they are the player's flow
+// loadout, saved with the profile) but they only BITE when the run is a flow run —
+// endless is true for both the endless lane and the weekly. They used to read raw
+// everywhere, so a loadout armed in Free Flow silently applied to every campaign run:
+// quarter hull, faster traffic, no pickups, multiplied scores. mutLive is the one
+// gate; every application site reads through it. The UI that PREVIEWS the loadout on
+// the flow screen wants the raw product — that is mutMulRaw, and it is UI-only.
+const mutLive = k => mutators[k] === true && endless;
+const mutMul = () => (mutLive('oneLife') ? 2 : 1) * (mutLive('fast') ? 1.5 : 1) * (mutLive('noPickups') ? 1.3 : 1);
+const mutMulRaw = () => (mutators.oneLife ? 2 : 1) * (mutators.fast ? 1.5 : 1) * (mutators.noPickups ? 1.3 : 1);
 function applySettings() {
   saveState();
   if (sfxGain) sfxGain.gain.value = sfxBusGain();

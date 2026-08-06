@@ -259,7 +259,7 @@ function update(dt) {
   // beats keep their own timing, which is the designer's call.
   const dropWindow = endless || levelT < L.duration - travelTime() - 2;
   if (!inIntro && dropWindow) pickupT -= sdt;
-  if (!tut && dropWindow && pickupT <= 0) { pickupT = srand(20, 32); if (!mutators.noPickups) spawnPickup(); }
+  if (!tut && dropWindow && pickupT <= 0) { pickupT = srand(20, 32); if (!mutLive('noPickups')) spawnPickup(); }
   // golden bonus streams ride in on their own clock, once the campaign has
   // taught them (level 5+) — free flow gets them throughout. None spawn near
   // a level's end: a ribbon must have time to be ridden AND spent
@@ -277,7 +277,7 @@ function update(dt) {
 
   const g = geo();
 
-  const waveMul = mutators.fast ? 1.35 : 1; // constant clock — surges live in endless L.speed
+  const waveMul = mutLive('fast') ? 1.35 : 1; // constant clock — surges live in endless L.speed
   trafficSpeed = L.speed * waveMul; // tunnel bands, hoops, river and glyphs all ride this
   const TOL = ARCFX.span * tolVis; // the arc IS the window — same span the node renders
   // a rebooting node (node-killer hit) covers nothing until it's back online
@@ -811,7 +811,7 @@ function updateEnemy(en, C) {
         }
       }
       // max-combo streaks knit the payload back together
-      const cap = mutators.oneLife ? 25 : 100;
+      const cap = mutLive('oneLife') ? 25 : 100;
       if (combo >= 5 && integrity < cap) {
         comboHeal++;
         if (comboHeal >= 5) {

@@ -495,7 +495,7 @@ function resetRun() {
   resetBarks();
   commNext = 0; commCur = null; commT = 0;
   surgeLevel = 0; surgeCount = -1; surgeWaveZ = -1;
-  integrity = mutators.oneLife ? 25 : 100;
+  integrity = mutLive('oneLife') ? 25 : 100; // flow loadout — a campaign hull is always whole
   score = 0; zaps = 0; misses = 0; combo = 0; maxCombo = 0; perfects = 0; fragsHit = 0; comboHeal = 0;
   comboStartT = 0; maxComboStart = 0; maxComboSec = 0;
   lbStatus = ''; lastSubmit = null; // clear last run's leaderboard status

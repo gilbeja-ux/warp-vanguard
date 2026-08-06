@@ -1374,7 +1374,7 @@ function drawMenuFlow() {
       } else padlock(r2.x + r2.w - 16, r2.y + mh / 2, 5);
       my2 += mh + mgap;
     }
-    const mm2 = mutsOpen ? mutMul() : 1;
+    const mm2 = mutsOpen ? mutMulRaw() : 1; // the loadout preview — raw, the menu is not a run
     if (mm2 > 1) {
       ctx.fillStyle = '#ffd24a'; ctx.font = '700 11px Audiowide, system-ui';
       ctx.fillText('SCORE ×' + (Math.round(mm2 * 100) / 100), mx, my2 + 10);

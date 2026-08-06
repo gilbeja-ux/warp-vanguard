@@ -41,7 +41,7 @@ function newRunId() {
 // trace (phase 3) attaches here later as `run.trace` for replay verification.
 function captureRun(win) {
   const mode = weekly ? 'weekly' : endless ? 'endless' : 'campaign';
-  const active = Object.keys(mutators).filter(k => mutators[k] === true);
+  const active = Object.keys(mutators).filter(k => mutLive(k)); // what BIT, not what was toggled
   lastRun = {
     // ONE ROW PER PLAYER ON A WEEKLY BOARD. run_id is part of the row key, so a
     // fresh id per run is what lets a player hold several rows on a campaign board —
