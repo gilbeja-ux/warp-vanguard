@@ -666,7 +666,7 @@ function drawMenuHome(ccx, ccy, R) {
   const SECTORS = [
     { mode: 'board', name: 'LEADERBOARD', glyph: '▲', cap: 'top runs',
       mid: -Math.PI / 2, locked: false, primary: false, col: '255,210,74' },
-    { mode: 'campaign', name: 'CONTRACTS', glyph: 'C', cap: 'five clients · ' + LEVELS.length + ' relays each',
+    { mode: 'campaign', name: 'CONTRACTS', glyph: 'C', cap: 'five clients · ' + LEVELS.length + ' stages each',
       mid: Math.PI * 5 / 6, locked: false, primary: !campDone, col: '126,226,98' },
     { mode: 'flow', name: 'FREE FLOW', glyph: '∞', cap: flowOpen ? 'endless · the ranked week' : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock',
       mid: Math.PI / 6, locked: !flowOpen, primary: campDone, col: '120,220,255' }
@@ -984,6 +984,14 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
   ctx.strokeStyle = 'rgba(120,200,255,0.35)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(x - r, sepY); ctx.lineTo(x + r, sepY); ctx.stroke();
   // dossier: big title, then the data lines
+  // TIER n -> m, lifted out of a package's tagline. Taglines are authored as
+  // 'CLIENT NAME · TIER 1 → 3', so the tier is whichever segment mentions one; anything
+  // else and the whole tagline is the honest fallback rather than a blank line.
+  function tierOf(pack) {
+    const t = (pack && pack.tagline) || '';
+    const seg = t.split('·').map(v => v.trim()).find(v => /tier/i.test(v));
+    return seg || t;
+  }
   ctx.textAlign = 'center';
   if (tpx === undefined) tpx = fitPx(title, 800, Math.round(r * 0.17), r * 1.5, 10);
   ctx.font = '800 ' + tpx + 'px Audiowide, system-ui';
@@ -995,14 +1003,18 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     ctx.fillText(done ? 'QUALIFIED ✓' : 'QUALIFICATION RUN', x, sepY + r * 0.44);
     ctx.font = '500 ' + Math.max(8, Math.round(r * 0.07)) + 'px Audiowide, system-ui';
     ctx.fillStyle = 'rgba(130,180,225,0.7)';
-    ctx.fillText('LEARN THE CONTROLS · ONE RUN', x, sepY + r * 0.62);
-    ctx.fillText('MOVEMENT · EVERY THREAT · A POWER-UP', x, sepY + r * 0.78);
+    // one line, in the same slot the contracts use for their tier range. It used to list
+    // the curriculum over two lines, which is the disc explaining itself before you have
+    // seen any of it — the drills teach that far better than a caption can.
+    ctx.fillText('LEARN THE ESSENTIALS', x, sepY + r * 0.78);
   } else if (real) {
     const starSum = (cp.stars || []).reduce((a2, b2) => a2 + b2, 0);
     ctx.fillStyle = 'rgba(160,210,250,0.85)';
     // draw the relay/difficulty line, then a small gold shield + rating count after it
     const rateStr = starSum + '/' + pk.levels.length * 3;
-    const headStr = pk.levels.length + ' RELAYS \u00b7 ' + '\u25b2'.repeat(pk.difficulty || 1) + ' \u00b7 ';
+    // STAGES, and no difficulty triangles: the tier range on the bottom line already
+    // says how hard a contract is, and says it in the fiction's own terms.
+    const headStr = pk.levels.length + ' STAGES \u00b7 ';
     const sPx = Math.max(9, Math.round(r * 0.085));
     const shR = sPx * 0.5, gap = shR * 0.9;
     const headW = ctx.measureText(headStr).width;
@@ -1019,11 +1031,14 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     ctx.textAlign = 'center';
     ctx.fillStyle = done ? 'rgba(126,226,98,0.95)' : 'rgba(140,200,240,0.8)';
     // a COUNT, not a level id — level numbers run continuously across campaigns
-    ctx.fillText(done ? 'CONTRACT CLOSED' : Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length + ' RELAYS', x, sepY + r * 0.62);
-    // short description: the tagline carries the pitch
+    ctx.fillText(done ? 'CONTRACT COMPLETE' : Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length + ' STAGES', x, sepY + r * 0.62);
+    // THE TIER RANGE ONLY. A tagline reads 'HAULERS CONSORTIUM · TIER 1 → 3' — and the
+    // client is already the disc's whole picture and its title, so printing it again
+    // underneath was the line explaining what the disc had just shown. What is left is
+    // the one thing said nowhere else: how deep the contract goes.
     ctx.font = '500 ' + Math.max(8, Math.round(r * 0.07)) + 'px Audiowide, system-ui';
     ctx.fillStyle = 'rgba(130,180,225,0.7)';
-    ctx.fillText(pk.tagline || '', x, sepY + r * 0.78);
+    ctx.fillText(tierOf(pk), x, sepY + r * 0.78);
   }
   if (solid) {
     // TAKE CONTRACT: the disc's own bottom segment — the circle edge IS the
