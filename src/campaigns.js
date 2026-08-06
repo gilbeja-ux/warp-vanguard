@@ -163,10 +163,16 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'ride the light — survive every sweep and the beacon burns itself out',
       story: { line: 'Last leg. Then she is gone, and so are we.' } }
   ],
-  verdict: { title: 'CONTRACT 03 — CLEARED',
+  verdict: { title: 'CONTRACT 03 — CLEARED', art: 'collector-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
-    line: 'Unloaded at a berth with no name.', lines: [
-    'She unloaded at a berth with no name', 'on it and was gone inside the hour.', 'The fee cleared before we docked.', 'We still do not know what we escorted.'] } },
+    //
+    // REWRITTEN WITH THE ART. This used to end 'We still do not know what we escorted',
+    // which the closure disc now flatly contradicts — the picture is the stone on a
+    // plinth under the dome. The beat is kept and turned into the reveal: we never knew
+    // during the run, and the last thing we see is what it was. The trader stays SHE —
+    // all five of the campaign's story lines write Vess Andarr that way.
+    line: 'The rarest stone in the known galaxy.', lines: [
+    'She never told us what was in the hold.', 'It stands on a plinth under her dome now,', 'lit for anyone who cares to look:', 'the rarest stone in the known galaxy.'] } },
 {
   id: 'patrol', format: 1,
   title: 'THE PATROL', tagline: 'NAVY FLOTILLA · TIER 4 → 5', difficulty: 4,
