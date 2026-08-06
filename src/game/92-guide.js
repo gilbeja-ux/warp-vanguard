@@ -882,6 +882,91 @@ function drawMenuCamps(ccx, ccy, R) {
 }
 // one campaign disc: a miniature bore. zq>0 = mid sync-zoom (contents fade
 // as the disc becomes the tunnel itself)
+// ---------- LIVE DISC ART ----------
+// A still bitmap on a disc reads as a printed plate. Two effects, both deliberately
+// under the threshold of conscious notice — the test is that you should only catch
+// them if you stare at one disc for five seconds:
+//
+//   DRIFT. The source rect is cropped a few percent tighter than the disc needs and
+//   the crop wanders inside that margin. Costs nothing, needs no authoring, and works
+//   on every strip including ones added later.
+//
+//   THRUSTERS. Hand-placed hotspots, because a bitmap's pixels cannot be animated but
+//   additive light over them can. Normalised to the image so they ride the drift; the
+//   positions were read off each strip by eye, which is the only way to get them right.
+//
+// Both live here rather than in the disc painter so any surface that paints camp art
+// can call one function and get the same behaviour.
+const DISC_GLOW = {
+  // the pupil's ship: twin plumes low-left, the brightest engines in the set
+  'training.webp':   [{ x: 0.165, y: 0.645, r: 0.115, c: '120,205,255' },
+                      { x: 0.305, y: 0.785, r: 0.105, c: '150,140,255' }],
+  // a convoy under way: the lead hauler plus two of the pack
+  'cargo-run.webp':  [{ x: 0.152, y: 0.660, r: 0.070, c: '190,220,255' },
+                      { x: 0.565, y: 0.745, r: 0.078, c: '205,230,255' },
+                      { x: 0.930, y: 0.780, r: 0.075, c: '205,230,255' }],
+  // the survey vessel barely shows a drive — its character is lit instrument decks,
+  // and a pulse on those says "systems running", which is the same job
+  'survey.webp':     [{ x: 0.505, y: 0.630, r: 0.075, c: '140,215,255' },
+                      { x: 0.600, y: 0.430, r: 0.058, c: '170,230,255' }],
+  // one big teal drive on the yacht's stern
+  'collector.webp':  [{ x: 0.878, y: 0.535, r: 0.098, c: '90,240,225' }],
+  // navy trails run violet, and they are the only bright thing in the frame
+  'patrol.webp':     [{ x: 0.305, y: 0.120, r: 0.080, c: '200,150,255' },
+                      { x: 0.612, y: 0.275, r: 0.092, c: '190,160,255' }],
+  // chrome state transport: the escorts carry what little glow there is
+  'delegation.webp': [{ x: 0.648, y: 0.560, r: 0.065, c: '215,235,255' },
+                      { x: 0.945, y: 0.755, r: 0.070, c: '200,225,255' }]
+};
+const DISC_ART_CROP = 0.965;   // how much of the strip shows — the rest is drift margin
+function drawLiveCampArt(im2, pk, x, y, r, mh) {
+  // the still framing this replaces: full width, vertically centred, letterboxed to mh
+  const sh0 = Math.min(im2.w * (mh / (r * 2)), im2.h);
+  const y0 = clamp((im2.h - sh0) / 2, 0, im2.h);
+  const K = DISC_ART_CROP;
+  const sw = im2.w * K, sh = sh0 * K;
+  // periods chosen coprime-ish (19s and 27s) so the loop never announces itself, and
+  // slow enough that five seconds of staring is about a quarter of one sweep
+  const px = 0.5 + 0.5 * Math.sin(time * 0.33);
+  const py = 0.5 + 0.5 * Math.sin(time * 0.23 + 1.7);
+  const ox = (im2.w - sw) * px;
+  const oy = y0 + (sh0 - sh) * py;
+  ctx.drawImage(im2.img, ox, oy, sw, sh, x - r, y - r, r * 2, mh);
+  // BLOOM BREATHE: the same frame again, additive, at a hair of alpha. Additive means
+  // it lifts only what is already bright, so it reads as light in the scene rather than
+  // as a flat wash over the whole plate.
+  // 0.005..0.065, not 0.01..0.10: at a tenth of additive alpha the whole plate visibly
+  // brightened, which crosses from "the scene has light in it" into "the screen is
+  // pulsing". The thruster cores carry the presence; this only has to keep the frame
+  // from sitting perfectly dead.
+  const bl = 0.035 + 0.030 * Math.sin(time * 0.41 + 0.6);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = bl;
+  ctx.drawImage(im2.img, ox, oy, sw, sh, x - r, y - r, r * 2, mh);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  // the thrusters, mapped through the SAME source rect so they track the drift
+  const spots = DISC_GLOW[(pk && pk.art) || ''] || [];
+  ctx.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < spots.length; k++) {
+    const sp = spots[k];
+    const u = (sp.x * im2.w - ox) / sw, v = (sp.y * im2.h - oy) / sh;
+    if (u < -0.15 || u > 1.15 || v < -0.15 || v > 1.15) continue; // drifted out of frame
+    const gx = x - r + u * r * 2, gy = y - r + v * mh;
+    // each hotspot gets its own phase off its index, so a pair of nozzles never
+    // pulses in lockstep — two engines breathing as one reads as a blinking light
+    const pk2 = 0.62 + 0.38 * Math.sin(time * 1.35 + k * 2.1);
+    const rr = sp.r * r * 2 * (0.92 + 0.08 * pk2);
+    const gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, rr);
+    gg.addColorStop(0, 'rgba(' + sp.c + ',' + (0.34 * pk2).toFixed(3) + ')');
+    gg.addColorStop(0.45, 'rgba(' + sp.c + ',' + (0.15 * pk2).toFixed(3) + ')');
+    gg.addColorStop(1, 'rgba(' + sp.c + ',0)');
+    ctx.fillStyle = gg;
+    ctx.beginPath(); ctx.arc(gx, gy, rr, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
 function drawCampDisc(i, x, y, r, zq, tpx) {
   const d = discAt(i);
   const train = d.kind === 'train';
@@ -935,8 +1020,7 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     const im2 = campArtImg(pk) || campMapImg(pk);
     if (im2) {
       painted = true;
-      const sh2 = im2.w * (mh / (r * 2));
-      ctx.drawImage(im2.img, 0, clamp((im2.h - sh2) / 2, 0, im2.h), im2.w, Math.min(sh2, im2.h), x - r, y - r, r * 2, mh);
+      drawLiveCampArt(im2, pk, x, y, r, mh);
     } else {
       if (!cityBase) buildCity();
       // each disc previews the stretch of city ITS case works — the inner
