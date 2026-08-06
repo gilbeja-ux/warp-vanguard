@@ -198,7 +198,7 @@ code = code.replace("'use strict';", '') + `
   boardKeyFor, boardPick, openBoard, boardLeftItems, weekLadder, getBoardSel: () => boardSel, setBoardData: v => { boardData = v; }, // board screen
   setBoardCollapsed: (k, v) => { boardCollapsed[k] = v; }, // the left list's folds
   setNameEntry: v => { nameEntry = v; }, setEndProvisional: v => { endProvisional = v; }, // high-score name card
-  getMaxCombo: () => maxCombo, endLevel,
+  getMaxCombo: () => maxCombo, endLevel, endBtnAt, endRevealAt, getEndT: () => endT,
   simStep, startTrace, stopTrace, startReplay, stopReplay, dismissInfo, // run-trace record/replay
   launchReplay, getReplaying: () => replaying, // the watch-a-run viewer + its guard flag
   rawFrame: now => frame(now), // the real frame() incl. the accumulator (G.frame is the same)
@@ -1326,6 +1326,29 @@ function runDailyFramerate(fps, targetSteps) {
 }
 G.setState(G.S.MENU);
 G.setState(G.S.MENU);
+
+// ================= a skipped report still shows everything =================
+// Gil lost the NEW BEST badge on mobile. Not broken — OUT-RUN. Tapping the report
+// fast-forwarded endT to endBtnAt + 0.15, which is BEFORE the telemetry and the badge
+// reveal, so the first tap jumped to the buttons and the second tap left the screen
+// while the badge was still queued. A skip has to land past every reveal.
+{
+  G.startLevel(1);
+  G.update(0.05);
+  G.setIntegrity(0);
+  let g7 = 40;
+  while (g7-- > 0 && G.getState() !== G.S.END) G.update(0.05);
+  check('a report is up to skip', G.getState() === G.S.END);
+  G.setEndT(0.2);                       // mid-ceremony, well before anything has landed
+  canvasHandlers.pointerdown({ pointerId: 21, clientX: 10, clientY: 10, pointerType: 'touch' });
+  canvasHandlers.pointerup({ pointerId: 21, clientX: 10, clientY: 10, pointerType: 'touch' });
+  // the skip must clear the LAST reveal, not merely the buttons
+  check(`a skip lands past every reveal (endT ${G.getEndT().toFixed(2)} vs buttons at ${G.endBtnAt().toFixed(2)})`,
+    G.getEndT() >= G.endRevealAt() && G.endRevealAt() > G.endBtnAt() + 0.15);
+  check('...and the screen is still the report — the skip is not an exit',
+    G.getState() === G.S.END);
+  drawOk('skipped report (every reveal landed)', () => {});
+}
 
 // ================= the replay flag cannot strand a live run =================
 // THE INVINCIBILITY BUG. Watching a replay sets `replaying`, and endLevel's replay

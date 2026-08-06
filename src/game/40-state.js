@@ -163,6 +163,13 @@ let endProvisional = null, nameEntryBtns = [];
 // long the old green sweep took to roll to the horizon. The drop is over in under
 // a second now, so 2.9 was a second and a half of nothing happening.
 const endBtnAt = () => endWin ? 1.9 : 1.25;
+// WHEN THE REPORT HAS FINISHED SAYING EVERYTHING. The buttons arrive at endBtnAt, but the
+// telemetry and the NEW BEST badge land AFTER them — so a tap that skipped only to the
+// buttons left the last reveals still queued, and a player who then pressed NEXT LEVEL
+// never saw them. That is how the badge went missing on mobile: not broken, out-run. A
+// skip now jumps here, past every reveal, because someone who skips wants all of it now.
+// Keep in step with the T table in drawEndPanel — this is the last beat plus its pop.
+const endRevealAt = () => endWin ? 3.15 : 1.80;
 // POWER-DOWN. The run is over, so the weapons are over: the energy arcs and the
 // pulse orbs banked in them bleed off the ring as the ceremony opens, leaving the
 // bare monolith framing the destination. The report is not a moment to be still

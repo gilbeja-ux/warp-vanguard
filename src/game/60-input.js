@@ -443,7 +443,10 @@ function menuTap(x, y, pid) {
 let endButtons = [];
 function endTap(x, y) {
   if (trans || menuFx) return; // a departure is already in motion — keys are spent
-  if (endT < endBtnAt() + 0.15) { endT = endBtnAt() + 0.15; return; } // skip the ceremony
+  // SKIP MEANS ALL OF IT. This landed on endBtnAt + 0.15, which is before the telemetry
+  // and the NEW BEST badge reveal — so the first tap fast-forwarded to the buttons and the
+  // second tap left before the badge had appeared at all.
+  if (endT < endRevealAt()) { endT = endRevealAt(); return; }
   for (const b of endButtons) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
       closeNameEntry(); // leaving END dismisses the high-score card + its DOM field

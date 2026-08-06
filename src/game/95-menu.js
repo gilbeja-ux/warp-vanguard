@@ -613,8 +613,11 @@ function drawEnd(g) {
   const ph = (a, b2) => clamp((endT - a) / (b2 - a), 0, 1);
   // wins let the clear-sweep roll first; losses resolve fast
   const T = endWin
-    ? { panel0: 0.95, panel1: 1.4, cnt0: 1.4, cnt1: 2.55, stars: 1.6, stats: 2.6, best: 2.95 }
-    : { panel0: 0.05, panel1: 0.40, cnt0: 0.35, cnt1: 1.00, stars: 99,   stats: 1.0, best: 1.3 };
+    // `best` is the NEW BEST badge. Tied to cnt1 — the badge is a verdict ON the number, so
+    // it stamps the instant the count-up settles rather than drifting in later. endRevealAt
+    // in 40-state must stay past best + its 0.42 pop, or a skip can outrun it again.
+    ? { panel0: 0.95, panel1: 1.4, cnt0: 1.4, cnt1: 2.55, stars: 1.6, stats: 2.6, best: 2.62 }
+    : { panel0: 0.05, panel1: 0.40, cnt0: 0.35, cnt1: 1.00, stars: 99,   stats: 1.0, best: 1.10 };
   const btnAt = endBtnAt();
 
   // the live (now cleared) scene keeps breathing beneath — dim it gently. Wins
