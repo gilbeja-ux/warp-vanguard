@@ -613,8 +613,8 @@ function drawEnd(g) {
   const ph = (a, b2) => clamp((endT - a) / (b2 - a), 0, 1);
   // wins let the clear-sweep roll first; losses resolve fast
   const T = endWin
-    ? { panel0: 0.95, panel1: 1.4, cnt0: 1.4, cnt1: 2.55, stars: 1.6, stats: 2.6 }
-    : { panel0: 0.05, panel1: 0.40, cnt0: 0.35, cnt1: 1.00, stars: 99,   stats: 1.0 };
+    ? { panel0: 0.95, panel1: 1.4, cnt0: 1.4, cnt1: 2.55, stars: 1.6, stats: 2.6, best: 2.95 }
+    : { panel0: 0.05, panel1: 0.40, cnt0: 0.35, cnt1: 1.00, stars: 99,   stats: 1.0, best: 1.3 };
   const btnAt = endBtnAt();
 
   // the live (now cleared) scene keeps breathing beneath — dim it gently. Wins
@@ -655,14 +655,14 @@ function drawEnd(g) {
   try { ctx.letterSpacing = '3px'; } catch (e) {}
   ctx.fillStyle = 'rgba(140,210,255,0.7)';
   fit('700', 11, modeName);
-  ctx.fillText(modeName, g.cx, g.cy - R * 0.64);
+  ctx.fillText(modeName, g.cx, g.cy - R * 0.92);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
 
   // banner slams in
   const tPop = 1 + 0.22 * (1 - ph(T.panel0, T.panel0 + 0.3));
   const banner = endless ? 'LANE COLLAPSED' : qual ? (endWin ? 'QUALIFIED' : 'TRAINING ABORTED') : endWin ? 'LANE CLEARED' : 'WARP LANE UNSTABLE';
   ctx.save();
-  ctx.translate(g.cx, g.cy - R * 0.38);
+  ctx.translate(g.cx, g.cy - R * 0.70);   // tight under the place name, not mid-frame
   ctx.scale(tPop, tPop);
   ctx.fillStyle = endCol;
   try { ctx.letterSpacing = '4px'; } catch (e) {}
@@ -675,65 +675,126 @@ function drawEnd(g) {
 
   // stars pop one by one, each with a chime
   if (endWin && !qual && !endless) {
-    drawStars(g.cx, g.cy - R * 0.16, endStars, Math.min(W, H) * 0.045, endT - T.stars);
+    // the stars belong to the VERDICT, so they ride up with the banner rather than
+    // sitting in the middle of the frame the destination is arriving through
+    drawStars(g.cx, g.cy - R * 0.44, endStars, Math.min(W, H) * 0.045, endT - T.stars);
     let popped = 0;
     for (let i = 0; i < endStars; i++) if (endT - T.stars > 0.4 + i * 0.35) popped++;
     if (popped > endFxStars) { endFxStars = popped; tone(760 + popped * 220, 0.2, 'triangle', 0.13, 900 + popped * 260); }
   }
+
+  // ---- THE NUMBERS SIT ON THE BOTTOM EDGE ----
+  // Anchored to the frame's bottom rather than to the ring's centre, because the middle of
+  // this screen belongs to the destination world swelling in behind the data — that arrival
+  // is the reward, and the report used to park the score straight over it.
+  // Stack, top to bottom: rank · score · SCORE · NEW BEST · telemetry.
+  const uB = Math.min(W, H);
+  // clearance, not just an offset: the labels are the lowest text on the screen and at
+  // 0.030 they grazed the frame edge on a short frame
+  const botPad = Math.max(SAFE.b, 10) + uB * 0.058;
+  const telLabelY = H - botPad;                 // the lowest text on the screen
+  const telValY = telLabelY - Math.max(13, Math.round(uB * 0.030)) * 0.92;
+  const nbY = telValY - uB * 0.090;             // the NEW BEST tag, when there is one
+  const scLabelY = nbY - uB * 0.048;
+  const scoreY = scLabelY - uB * 0.046;
+  const rankY = scoreY - uB * 0.072;            // the standing, above the number it earned
 
   // the score counts itself up
   const cntP = 1 - Math.pow(1 - ph(T.cnt0, T.cnt1), 3);
   const shown = Math.round(score * cntP);
   const counting = cntP > 0 && cntP < 1 && score > 0;
   if (counting && time - endTickT > 0.07) { endTickT = time; tone(1500, 0.025, 'square', 0.035); }
+  // THE STANDING, ON TOP OF THE READING. It used to trail the best line as a footnote;
+  // it is the answer to "where does that put me", so it introduces the number.
+  if (lbStatus && !qual) {
+    ctx.fillStyle = /RANK|SUBMITTED/.test(lbStatus) ? 'rgba(120,255,170,0.92)' : 'rgba(255,150,90,0.95)';
+    ctx.font = '600 ' + Math.max(10, Math.round(uB * 0.021)) + 'px Audiowide, system-ui';
+    try { ctx.letterSpacing = '2px'; } catch (e) {}
+    ctx.fillText('◈ ' + lbStatus, g.cx, rankY);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+  }
   ctx.fillStyle = '#eaf4ff';
   ctx.font = '700 ' + (28 + (counting ? 2 : 0)) + 'px Audiowide, system-ui';
-  ctx.fillText(shown.toLocaleString(), g.cx, g.cy + R * 0.1);
+  ctx.fillText(shown.toLocaleString(), g.cx, scoreY);
   ctx.fillStyle = 'rgba(160,215,255,0.7)'; ctx.font = '600 11px Audiowide, system-ui';
   try { ctx.letterSpacing = '3px'; } catch (e) {}
-  ctx.fillText('SCORE', g.cx, g.cy + R * 0.1 + 20);
+  ctx.fillText('SCORE', g.cx, scLabelY);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
+
+  // ---- NEW BEST: a tag, and only when it IS one ----
+  // It used to print 'NEW BEST 93,110' under the telemetry — the same number already
+  // filling the middle of the screen, said twice. The figure is redundant; the FACT is
+  // not. So it is a tag under the score's own title, and it pops: overshoot into place,
+  // then a slow breath on the plate so it keeps catching the eye without moving again.
+  {
+    const bestVal = endless ? (weekly ? (progress.weekly && progress.weekly.best) : progress.best) : PROG.bests[levelIdx];
+    const isNewB = endless ? (score >= (bestVal || 0) && score > 0) : endNewBest;
+    if (isNewB && (bestVal || 0) > 0 && !qual) {
+      const k = ph(T.best, T.best + 0.42);
+      if (k > 0.001) {
+        // overshoot: 1.35 -> 1, easing out. A tag that merely fades in does not read as
+        // an award; the scale is what makes it land.
+        const os2 = 1 + 0.35 * Math.pow(1 - k, 2.4) - 0.06 * Math.sin(k * Math.PI);
+        const br2 = 0.5 + 0.5 * Math.sin(time * 3.4);
+        ctx.save();
+        ctx.globalAlpha = pA * k;
+        ctx.translate(g.cx, nbY);
+        ctx.scale(os2, os2);
+        const fpx = Math.max(10, Math.round(uB * 0.023));
+        ctx.font = '700 ' + fpx + 'px Audiowide, system-ui';
+        try { ctx.letterSpacing = '2.5px'; } catch (e) {}
+        const tw2 = ctx.measureText('NEW BEST').width;
+        const padX = fpx * 0.85, padY = fpx * 0.60;
+        ctx.fillStyle = 'rgba(255,210,74,' + (0.10 + br2 * 0.06).toFixed(2) + ')';
+        techRect(-tw2 / 2 - padX, -fpx * 0.78 - padY * 0.4, tw2 + padX * 2, fpx + padY * 1.2, fpx * 0.34);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,210,74,' + (0.55 + br2 * 0.40).toFixed(2) + ')';
+        ctx.lineWidth = 1.5;
+        techRect(-tw2 / 2 - padX, -fpx * 0.78 - padY * 0.4, tw2 + padX * 2, fpx + padY * 1.2, fpx * 0.34);
+        ctx.stroke();
+        ctx.fillStyle = '#ffd24a';
+        ctx.shadowColor = 'rgba(255,210,74,0.9)'; ctx.shadowBlur = lowFX ? 0 : 10 * br2;
+        ctx.fillText('NEW BEST', 0, 0);
+        ctx.shadowBlur = 0;
+        try { ctx.letterSpacing = '0px'; } catch (e) {}
+        ctx.restore();
+      }
+    }
+  }
 
   // stats + best reveal after the count settles
   ctx.globalAlpha = pA * ph(T.stats, T.stats + 0.3);
   // ---- THE TELEMETRY STRIP ----
-  // Four readings in a row, each a value over its label, divided by hairlines. It was two
-  // lines of 11px MONOSPACE joined by double slashes — the only monospace on the screen,
-  // which read as debug output rather than as a report, and gave four numbers of quite
-  // different weight exactly the same voice.
-  //
-  // The colour carries the meaning, so the numbers can be read without the labels:
-  // interceptions are the neutral count, PERFECTS are payload gold because they are a
-  // thing gained, and the two that can go wrong say so — misses go hazard only when there
-  // ARE misses (a zero reads as clean, not as an alarm), and integrity grades itself.
+  // Four readings in a row: value over label, hairline dividers, Audiowide like the rest.
+  // The colour carries the meaning so the numbers read without their labels — hits neutral
+  // cyan, PERFECTS payload gold because they are a thing gained, misses hazard ONLY when
+  // there are misses (a zero reads as clean, not as an alarm), and the lane's stability
+  // grades itself green through cyan and amber to red.
   {
     const u = Math.min(W, H);
-    const cy2 = g.cy + R * 0.36;
     const integ = Math.round(integrity);
-    // TERSE LABELS, because the cell decides. Four cells inside the bore's width leaves
-    // roughly sixty pixels each, and INTERCEPTED / INTEGRITY only fit that by shrinking
-    // the type to six pixels — legible in a capture, not on a phone. The value carries
-    // the meaning anyway: '100%' next to HULL needs no more words than that.
+    // STABILITY, not hull. This shipped one commit as HULL, which was my invention and
+    // wrong fiction: nothing here measures the ship. `integrity` is the LANE's — a miss
+    // pops 'STABILITY LOST' at the ring, and the gauge is the lane holding together.
     const cells = [
       { v: String(zaps), l: 'HITS', c: '150,215,255' },
       { v: String(perfects), l: 'PERFECT', c: perfects > 0 ? '255,210,74' : '120,150,185' },
       { v: String(misses), l: 'MISSED', c: misses > 0 ? '255,110,120' : '120,150,185' },
-      { v: integ + '%', l: 'HULL',
+      { v: integ + '%', l: 'STABILITY',
         c: integ >= 100 ? '126,226,98' : integ >= 60 ? '150,215,255' : integ >= 25 ? '255,190,90' : '255,110,120' }
     ];
-    // sized off the ring, not the frame: this sits inside the bore's width like the rest
-    // of the report, and a wide phone must not stretch it into a banner
     const cw3 = Math.min(g.nodeR * 2 * 0.235, u * 0.155);
-    const x03 = g.cx - cw3 * 1.5;
+    // CENTRED. This was `cx - cw*1.5`, which puts four cell CENTRES at cx-cw .. cx+2cw —
+    // a midpoint of cx + cw/2, so the whole strip sat half a cell right of everything
+    // above it. Four cells need two widths of lead, not one and a half.
+    const x03 = g.cx - cw3 * 2;
     const vpx = Math.max(13, Math.round(u * 0.030));
-    // THE LABEL FONT IS FITTED, NOT CHOSEN. At a guessed size INTERCEPTED and INTEGRITY
-    // overran their cells and the strip read 'INTERCEPTEDPERFECT' — so the longest label
-    // is measured against the cell and the size comes down until it clears. Letter
-    // spacing is included in the measurement by being applied BEFORE it, or the fit is
-    // computed against a narrower string than the one that gets drawn.
+    // the label size is FITTED: at a guessed size the longest labels overran their cells
+    // and the strip read as one run-on word. Letter spacing is applied BEFORE measuring,
+    // or the fit is computed against a narrower string than the one drawn.
     let lpx = Math.max(8, Math.round(u * 0.0145));
     try { ctx.letterSpacing = '1.2px'; } catch (e) {}
-    for (; lpx > 8; lpx--) {   // floor at 8: below that it is decoration, not a label
+    for (; lpx > 8; lpx--) {
       ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
       const widest = Math.max(...cells.map(c4 => ctx.measureText(c4.l).width));
       if (widest <= cw3 * 0.88) break;
@@ -743,56 +804,22 @@ function drawEnd(g) {
       const c3 = cells[i], cxq = x03 + cw3 * (i + 0.5);
       ctx.fillStyle = 'rgba(' + c3.c + ',0.95)';
       ctx.font = '700 ' + vpx + 'px Audiowide, system-ui';
-      ctx.fillText(c3.v, cxq, cy2);
+      ctx.fillText(c3.v, cxq, telValY);
       ctx.fillStyle = 'rgba(' + c3.c + ',0.55)';
       ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
       try { ctx.letterSpacing = '1.2px'; } catch (e) {}
-      ctx.fillText(c3.l, cxq, cy2 + vpx * 0.92);
+      ctx.fillText(c3.l, cxq, telLabelY);
       try { ctx.letterSpacing = '0px'; } catch (e) {}
       if (i < 3) {   // hairline divider, short — it separates without drawing a table
         const dx = x03 + cw3 * (i + 1);
         ctx.strokeStyle = 'rgba(140,200,255,0.20)';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(dx, cy2 - vpx * 0.78); ctx.lineTo(dx, cy2 + vpx * 0.72);
+        ctx.moveTo(dx, telValY - vpx * 0.78); ctx.lineTo(dx, telValY + vpx * 0.72);
         ctx.stroke();
       }
     }
-    // ---- BEST + RANK, ONE ROW ----
-    // They were 36px apart on separate lines, which read as two unrelated footnotes. Both
-    // answer "how did that go against everyone else", so they belong on the same line —
-    // measured and centred as a pair, and each still stands alone when the other is absent.
-    const bestVal = endless ? (weekly ? (progress.weekly && progress.weekly.best) : progress.best) : PROG.bests[levelIdx];
-    const isNew = endless ? (score >= (bestVal || 0) && score > 0) : endNewBest;
-    const showBest = (endless || (!qual && (endWin || (bestVal || 0) > 0))) && bestVal !== undefined;
-    const showRank = !!lbStatus && !qual;
-    if (showBest || showRank) {
-      const rowY = cy2 + vpx * 0.92 + Math.max(20, u * 0.040);
-      const bTxt = (isNew ? 'NEW BEST  ' : 'BEST  ') + (bestVal || 0).toLocaleString();
-      const rTxt = '◈ ' + lbStatus;
-      const bF = '700 ' + Math.max(11, Math.round(u * 0.024)) + 'px Audiowide, system-ui';
-      const rF = '600 ' + Math.max(9, Math.round(u * 0.019)) + 'px Audiowide, system-ui';
-      ctx.font = bF; const bW = showBest ? ctx.measureText(bTxt).width : 0;
-      ctx.font = rF; const rW = showRank ? ctx.measureText(rTxt).width : 0;
-      const gapR = (showBest && showRank) ? Math.max(14, u * 0.022) : 0;
-      let xr = g.cx - (bW + gapR + rW) / 2;
-      ctx.textAlign = 'left';
-      if (showBest) {
-        ctx.font = bF;
-        ctx.fillStyle = isNew ? '#ffd24a' : 'rgba(255,210,74,0.7)';
-        ctx.fillText(bTxt, xr, rowY);
-        xr += bW + gapR;
-      }
-      if (showRank) {
-        ctx.globalAlpha = pA;   // the sync line does not wait on the stats reveal
-        ctx.font = rF;
-        ctx.fillStyle = /RANK|SUBMITTED/.test(lbStatus) ? 'rgba(120,255,170,0.9)' : 'rgba(255,150,90,0.95)';
-        ctx.fillText(rTxt, xr, rowY);
-      }
-      ctx.textAlign = 'center';
-    }
   }
-
   // buttons live OUTSIDE the ring, in the side margins. While the high-score card
   // is up they're GATED: drawn locked (the takeover scrim dims them) and NOT
   // registered as hit targets, so Continue waits until the player saves or skips.
