@@ -797,6 +797,151 @@ function s3_gate(M, seed, accent) {
 
 // The registry. `cam` is how much of the sprite one station radius takes, tuned
 // per build so the whole thing — piers, spine, arrays — fits inside its canvas.
+// ---- 6. THE INTERDICTION CUTTER. The first boss, and the first thing in this file
+// that is not a place. Everything in the silhouette is doing a job: the hammerhead is
+// where the grapple gear lives, the slab radiators are where its heat goes, and the
+// drive block is oversized for the hull because a cutter's whole purpose is catching
+// things that are already running.
+//
+// SHORT AND WIDE, NOT LONG. The first attempt built a 4-unit spine and it read as a
+// sausage on a stick — at the couple of dozen pixels a boss actually occupies in the
+// bore, length collapses to a line and every greeble on it is gone. What survives at
+// that size is the silhouette and a few big tonal blocks, so the massing is built for
+// that: a heavy head, a short thick body, big canted radiator wings, a fat drive can.
+//
+// It is built along +Z as forward and laid horizontal by rotX+rotZ at registration
+// (Z -> X, see the note there), so it presents its flank and reads as a vessel rather
+// than as a blob pointed at the lens.
+//
+// The radiator slabs are deliberately the largest flat surfaces on the model. They are
+// the heat gauge — the whole fight's rhythm is read off them — so there are four big
+// ones rather than eight small, and they cant outward where nothing can hide them.
+function s3_cutter(M, seed) {
+  const rnd = s3rng(seed || 7717), P = s3palette(M);
+
+  // ---- body: short, thick, and tapered so it is not a tube
+  s3cyl(M, [0, 0, -0.10], [0, 0, 1], 0.170, 0.520, 28, P.hull, true);
+  s3cyl(M, [0, 0, 0.46], [0, 0, 1], 0.148, 0.090, 26, P.hull2, true);   // waist collar
+  for (let i = -2; i <= 2; i++)                                          // frame rings
+    s3cyl(M, [0, 0, -0.10 + i * 0.215], [0, 0, 1], 0.186, 0.020, 24, P.light, true);
+  s3greebleWall(M, 0.172, -0.58, 0.40, 128, [P.hull2, P.dark, P.mid, P.light], rnd, { d: 0.040 });
+  // LIT WINDOWS ARE THE SCALE CUE. Without them a hull is a shape; with them it is a
+  // shape with people in it, which is the single biggest thing separating this from
+  // the line art it replaces. Two rows on the body, not just the bridge, because the
+  // bridge panes are too small to survive the distance.
+  s3winRow(M, 0.172, -0.30, 22, P.win, { w: 0.014, h: 0.030, d: 0.008 });
+  s3winRow(M, 0.172, 0.16, 22, P.win, { w: 0.014, h: 0.030, d: 0.008 });
+  if (s3has(0.90)) s3winRow(M, 0.188, -0.07, 20, P.win, { w: 0.012, h: 0.022, d: 0.007 });
+  // conduit runs along the flank: the plumbing a working ship wears on the outside
+  for (const sgn of [-1, 1]) for (const yy of [0.095, -0.095]) {
+    s3cyl(M, [sgn * 0.150, yy, -0.05], [0, 0, 1], 0.022, 0.480, 10, P.mid, true);
+    if (s3has(0.85)) for (let k = -2; k <= 2; k++)   // clamps every so often
+      s3cyl(M, [sgn * 0.150, yy, -0.05 + k * 0.190], [0, 0, 1], 0.032, 0.016, 10, P.dark, true);
+  }
+  if (s3has(0.70)) for (const sgn of [-1, 1]) {      // tankage blistered off the waist
+    s3sphere(M, [sgn * 0.155, -0.130, -0.42], 0.082, 20, 13, P.light);
+    s3cyl(M, [sgn * 0.155, -0.130, -0.30], [0, 0, 1], 0.030, 0.060, 12, P.mid, true);
+  }
+  // a dark dorsal spine strip: tonal separation that survives being tiny
+  s3box(M, [0, 0.178, -0.05], [0.070, 0, 0], [0, 0.020, 0], [0, 0, 0.500], P.dark);
+  s3box(M, [0, -0.178, 0.10], [0.098, 0, 0], [0, 0.018, 0], [0, 0, 0.330], P.haz); // ventral hazard
+
+  // ---- the hammerhead: wide where the grapple gear lives, stepped so it has mass
+  s3box(M, [0, 0, 0.70], [0.410, 0, 0], [0, 0.185, 0], [0, 0, 0.215], P.hull);
+  s3box(M, [0, 0.070, 0.94], [0.300, 0, 0], [0, 0.115, 0], [0, 0, 0.105], P.hull2);  // upper step
+  s3box(M, [0, 0.175, 0.90], [0.135, 0, 0], [0, 0.062, 0], [0, 0, 0.078], P.light);  // bridge
+  s3winRow(M, 0.137, 0.90, 12, P.win, { w: 0.016, h: 0.030, d: 0.009 });
+  for (const sgn of [-1, 1]) {                       // shoulder pods on the head
+    s3cyl(M, [sgn * 0.330, -0.075, 0.72], [0, 0, 1], 0.088, 0.190, 18, P.hull2, true);
+    s3box(M, [sgn * 0.330, -0.075, 0.90], [sgn * 0.088, 0, 0], [0, 0.055, 0], [0, 0, 0.045], P.haz);
+  }
+  if (s3has(0.80)) s3greebleRing(M, 0.20, 0.40, 0.92, 30, [P.mid, P.light, P.dark], rnd, { h: 0.032 });
+  // the head was a plain slab in the first pass. Break its faces with hardware and a
+  // pane row so the biggest single form on the ship stops reading as a moulded block.
+  if (s3has(0.65)) for (let i = 0; i < 16; i++) {
+    const sgn = i & 1 ? 1 : -1, u = (i >> 1) / 8 - 0.44;
+    const m2 = [P.dark, P.mid, P.hull2, P.light][i & 3];
+    s3box(M, [sgn * 0.415, -0.020 + u * 0.26, 0.70 + (rnd() - 0.5) * 0.28],
+      [sgn * (0.012 + rnd() * 0.026), 0, 0],
+      [0, 0.020 + rnd() * 0.036, 0], [0, 0, 0.020 + rnd() * 0.040], m2);
+  }
+  s3box(M, [0, -0.190, 0.70], [0.330, 0, 0], [0, 0.022, 0], [0, 0, 0.150], P.dark); // belly plate
+  if (s3has(0.75)) for (let i = 0; i < 5; i++)   // lit panes down the head's flank
+    for (const sgn of [-1, 1])
+      s3box(M, [sgn * 0.418, 0.045, 0.58 + i * 0.058], [sgn * 0.006, 0, 0],
+        [0, 0.020, 0], [0, 0, 0.016], P.win);
+
+  // ---- the grapple: a drum, a barrel, and three claws stood open
+  s3cyl(M, [0, -0.020, 1.00], [0, 0, 1], 0.150, 0.090, 22, P.dark, true);  // cable drum
+  for (let i = 0; i < 8; i++) {                                            // drum ribs
+    const a = i / 8 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
+    s3box(M, [ca * 0.150, -0.020 + sa * 0.150, 1.00], V3scl([ca, sa, 0], 0.016),
+      V3scl([-sa, ca, 0], 0.014), [0, 0, 0.088], P.mid);
+  }
+  s3cyl(M, [0, -0.020, 1.22], [0, 0, 1], 0.062, 0.150, 18, P.light, true); // barrel
+  s3cyl(M, [0, -0.020, 1.37], [0, 0, 1], 0.090, 0.040, 20, P.hull2, true); // muzzle collar
+  for (let i = 0; i < 3; i++) {
+    const a = i / 3 * 6.2831853 + 0.52, ca = Math.cos(a), sa = Math.sin(a);
+    s3beam(M, [ca * 0.072, -0.020 + sa * 0.072, 1.41], [ca * 0.185, -0.020 + sa * 0.185, 1.58], 0.024, P.light);
+    s3beam(M, [ca * 0.185, -0.020 + sa * 0.185, 1.58], [ca * 0.135, -0.020 + sa * 0.135, 1.72], 0.019, P.hull2);
+  }
+
+  // ---- THE RADIATORS. Two a side, big, canted out and back. These are the gauge.
+  for (let i = 0; i < 2; i++) {
+    const z = -0.34 + i * 0.400;
+    for (const sgn of [-1, 1]) {
+      s3cyl(M, [sgn * 0.190, 0, z], [sgn, 0, 0], 0.038, 0.090, 14, P.mid, true);   // mount stub
+      s3box(M, [sgn * 0.520, 0.030, z],
+        [sgn * 0.300, 0, 0.055],            // canted back along its span
+        [0, 0.016, 0],
+        [0, 0, 0.215], P.rad);
+      if (s3has(0.85)) {                     // fold line + a dark root, so it reads as fitted
+        s3box(M, [sgn * 0.520, 0.048, z], [sgn * 0.300, 0, 0.055], [0, 0.005, 0], [0, 0, 0.016], P.dark);
+        s3box(M, [sgn * 0.245, 0.020, z], [sgn * 0.048, 0, 0], [0, 0.030, 0], [0, 0, 0.150], P.dark);
+        // ribs across the span: a radiator is a structure, and a bare slab is cardboard
+        for (let r2 = -1; r2 <= 1; r2++)
+          s3box(M, [sgn * (0.520 + r2 * 0.170), 0.036, z + r2 * 0.031],
+            [sgn * 0.014, 0, 0], [0, 0.008, 0], [0, 0, 0.210], P.mid);
+        // and a header pipe along the root edge, where the coolant would actually run
+        s3cyl(M, [sgn * 0.245, 0.030, z], [0, 0, 1], 0.020, 0.205, 10, P.light, true);
+      }
+    }
+  }
+
+  // ---- drive block: a fat can with three flared bells. Oversized on purpose.
+  s3cyl(M, [0, 0, -0.78], [0, 0, 1], 0.245, 0.190, 28, P.hull, true);
+  s3greebleRing(M, 0.150, 0.245, -0.60, 30, [P.mid, P.light, P.dark], rnd, { h: 0.030 });
+  s3cyl(M, [0, 0, -0.99], [0, 0, 1], 0.215, 0.030, 26, P.haz, true);       // hazard band
+  for (let i = 0; i < 3; i++) {
+    const a = i / 3 * 6.2831853 + 1.05, ca = Math.cos(a) * 0.115, sa = Math.sin(a) * 0.115;
+    s3cyl(M, [ca, sa, -1.13], [0, 0, 1], 0.098, 0.115, 20, P.hull2, false); // bell
+    s3cyl(M, [ca, sa, -1.26], [0, 0, 1], 0.076, 0.030, 18, P.dark, true);   // throat
+  }
+  if (s3has(0.75)) for (const sgn of [-1, 1])                              // rcs quads
+    s3box(M, [sgn * 0.215, 0.120, -0.66], [sgn * 0.060, 0, 0], [0, 0.052, 0], [0, 0, 0.085], P.hull2);
+
+  // ---- topside: the mast it finds you with
+  if (s3has(0.55)) {
+    s3cyl(M, [0, 0.215, -0.05], [0, 1, 0], 0.034, 0.105, 14, P.mid, true);
+    s3dish(M, [0, 0.335, -0.05], [0, 0.44, 0.90], 0.150, 0.062, P.light);
+  }
+  if (s3has(1.05)) s3dish(M, [0.190, -0.150, 0.30], [0.86, -0.46, 0.22], 0.086, 0.036, P.light);
+
+  // ---- lamps. The metal is baked; these ride over it live, which is the whole reason
+  // a hull in this game reads as crewed rather than as a photograph of one.
+  M.lamp([0, -0.020, 1.76], [255, 90, 70], 0.014, 0, 'strobe');            // claw tip, warning
+  for (const sgn of [-1, 1])                                               // nav lights
+    M.lamp([sgn * 0.425, -0.075, 0.70], sgn < 0 ? [255, 70, 70] : [150, 255, 170], 0.010, 0.3, 'steady');
+  for (let i = 0; i < 4; i++)                                              // flank beacons
+    M.lamp([0, -0.190, -0.45 + i * 0.30], [255, 74, 60], 0.0080, i / 4, 'beacon');
+  for (let i = 0; i < 3; i++) {                                            // drive throats, hot
+    const a = i / 3 * 6.2831853 + 1.05;
+    M.lamp([Math.cos(a) * 0.115, Math.sin(a) * 0.115, -1.28], [255, 150, 90], 0.016, 0, 'steady');
+  }
+  M.lamp([0, 0.240, 0.90], [190, 230, 255], 0.009, 0.6, 'steady');         // bridge worklight
+  return M;
+}
+
 const S3D_BUILDS = [
   { id: 'TRUSS', n: 'truss disc',    kind: 'station', cam: 0.40,  fn: s3_truss },
   { id: 'FORT',  n: 'fortress ring', kind: 'station', cam: 0.40,  fn: s3_fortress },
@@ -806,7 +951,16 @@ const S3D_BUILDS = [
   // the viewer, instead of lying flat as a hoop seen from above. -90° about X takes
   // the ring's plane from XY to XZ and points its aperture down +Y, which is the
   // direction the camera looks FROM (see s3renderSteps: V = -d).
-  { id: 'GATE',  n: 'gate',          kind: 'gate',    cam: 0.41,  fn: s3_gate, rotX: -Math.PI / 2 }
+  { id: 'GATE',  n: 'gate',          kind: 'gate',    cam: 0.41,  fn: s3_gate, rotX: -Math.PI / 2 },
+  // kind 'boss', not 'station': s3BuildFor deals only from the stations, so a hull
+  // registered here can never turn up moored at a relay as scenery.
+  // rotX brings the nose toward the lens rather than showing the flank — see the
+  // note on the build. Not a full 90°: dead-on, a long hull foreshortens into a blob.
+  { id: 'CUTTER', n: 'interdiction cutter', kind: 'boss', cam: 0.245, fn: s3_cutter,
+    // Z -> X: rotX(90°) takes the hull's forward axis to -Y, then rotZ(90°) swings it
+    // to +X, which projects across the frame. So a hull authored with the Z-axis
+    // helpers (s3winRow, s3greebleWall both assume it) still presents its flank.
+    rotX: Math.PI / 2, rotZ: Math.PI / 2 }
 ];
 
 // ---------------------------------------------------------------- the render

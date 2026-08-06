@@ -1044,6 +1044,76 @@ function drawVoidCore(g, c) {
   dk.addColorStop(1, 'rgba(4,2,12,0)');
   ctx.fillStyle = dk;
   ctx.beginPath(); ctx.arc(0, 0, size * 3.1, 0, TAU); ctx.fill();
+  // ---- THE HULL IS BAKED HARDWARE, NOT LINE ART ----
+  // The interdictor is an S3D mesh through the same renderer that builds the stations
+  // the player arrives at — real materials, greebling, lit windows, lamps over the top.
+  // Everything below this branch is the drawn body it replaces, kept as the fallback for
+  // the frames before the bake lands (it is queued with the stations and pumped on the
+  // menu, so in practice it is ready long before a relay-8 duel).
+  //
+  // Only the core boss has a hull: triad bodies come through this same function.
+  if (b.coreHeat !== undefined && s3SpriteFor('CUTTER')) {
+    const hk = clamp(b.coreHeat, 0, 1);
+    const venting = b.ventT > 0;
+    // a slow idle bank. NOT a heading chase: the boss re-targets constantly, and
+    // pointing the hull at each new course spun it like a compass needle.
+    ctx.rotate(Math.sin(time * 0.42 + b.spin * 0.05) * 0.11);
+    if (flash > 0.3) { // struck: a white wash over the metal, through the sprite's own mask
+      s3draw(0, 0, size * 1.95, 'CUTTER', haze);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = haze * 0.5 * flash;
+      s3draw(0, 0, size * 1.95, 'CUTTER', 1, true);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = haze;
+    } else {
+      s3draw(0, 0, size * 1.95, 'CUTTER', haze);
+    }
+    // THE HEAT RIDES OVER THE BAKED RADIATORS. A wash rather than drawn fins: the fins
+    // are real geometry now, so the glow only has to say how hot they are — and a wash
+    // survives the bank, which hand-placed bars would not.
+    if (hk > 0.04 || venting) {
+      const hCol = hk < 0.34 ? '190,70,40' : hk < 0.67 ? '255,130,45' : '255,215,175';
+      ctx.globalCompositeOperation = 'lighter';
+      const hg = ctx.createRadialGradient(0, 0, size * 0.15, 0, 0, size * 1.75);
+      hg.addColorStop(0, `rgba(${hCol},${(0.30 * hk * haze).toFixed(2)})`);
+      hg.addColorStop(0.55, `rgba(${hCol},${(0.20 * hk * haze).toFixed(2)})`);
+      hg.addColorStop(1, `rgba(${hCol},0)`);
+      ctx.fillStyle = hg;
+      ctx.beginPath(); ctx.arc(0, 0, size * 1.75, 0, TAU); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (venting) {
+      // the panels are open. The loudest the hull ever gets, because it is the only
+      // moment the player is meant to stop dodging and commit.
+      const vp = 0.6 + Math.sin(time * 17) * 0.4;
+      ctx.globalCompositeOperation = 'lighter';
+      const vg = ctx.createRadialGradient(0, 0, size * 0.3, 0, 0, size * 2.5);
+      vg.addColorStop(0, `rgba(255,242,220,${(0.44 * vp * haze).toFixed(2)})`);
+      vg.addColorStop(0.42, `rgba(255,155,65,${(0.30 * vp * haze).toFixed(2)})`);
+      vg.addColorStop(1, 'rgba(255,110,40,0)');
+      ctx.fillStyle = vg;
+      ctx.beginPath(); ctx.arc(0, 0, size * 2.5, 0, TAU); ctx.fill();
+      // plumes off the radiator roots, up and down — which is where the slabs sit once
+      // the hull is laid horizontal (model +X becomes screen vertical; see the rotZ note)
+      ctx.strokeStyle = `rgba(255,236,205,${(0.75 * vp * haze).toFixed(2)})`;
+      ctx.lineWidth = Math.max(2, size * 0.075);
+      ctx.lineCap = 'round';
+      for (const sgn of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(-size * 0.25, sgn * size * 0.55);
+        ctx.lineTo(-size * 0.30, sgn * size * (1.35 + vp * 0.55));
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = `rgba(255,205,150,${(0.60 * haze).toFixed(2)})`;
+      ctx.lineWidth = Math.max(1.4, size * 0.05);
+      ctx.setLineDash([size * 0.30, size * 0.20]);
+      ctx.beginPath(); ctx.arc(0, 0, size * (1.45 + vp * 0.10), 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+    return;
+  }
   // accretion: the data fabric warps in — streaks spiral into the mass,
   // swirling faster and redder as it dies
   ctx.lineCap = 'round';
