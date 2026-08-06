@@ -2504,6 +2504,9 @@ function drawDials() {
     }
     ctx.globalAlpha = 1; // boot condense-in ends with this console
   }
+  // tutorial pad ghosts, LAST — over the finished dial, or the chrome buries them
+  if (typeof tutDescNow !== 'undefined' && tutDescNow && tutDescNow.ghosts.length)
+    drawTutPadGhosts(tutDescNow);
 }
 
 function roundRect(x, y, w, h, r) {

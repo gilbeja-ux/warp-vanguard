@@ -342,6 +342,177 @@ function drawIntroCard() {
   }
 }
 
+// ---------- tutorial focus layer ----------
+// One descriptor of the live drill feeds the spotlight, the pad ghosts and the
+// lesson line, so the three aids cannot drift apart. Everything here is render-side:
+// the only state is which hazard types this qualification run has already
+// spotlighted, and that resets when a fresh tutorial starts (the tut object changes).
+const TUT_LESSON = {
+  move:   'SLIDE THE DIALS \u2014 RIDE THE RING',
+  normal: 'ALIGN EITHER EMITTER ON THE RED',
+  frag:   'EMITTER KILLER \u2014 LET IT PASS',
+  wall:   'RIM WALL \u2014 GO AROUND',
+  heavy:  'DOCK BOTH EMITTERS TOGETHER',
+  line:   'COVER BOTH ENDS \u2014 ONE EACH',
+  lock0:  'ONLY THE MATCHING PHASE COLLAPSES IT',
+  lock1:  'ONLY THE MATCHING PHASE COLLAPSES IT',
+  volley: 'DOCK BOTH ON THE LANE \u2014 HOLD',
+  pickup: 'CATCH THE GOLD RELAY',
+  strip:  'RIDE THE CROSSING POINT',
+  pulse:  'TAP THE GLOWING CORE'
+};
+const TUT_ACCENT = {
+  move: '143,224,255', normal: '255,96,120', frag: '255,154,60', wall: '255,154,60',
+  heavy: '143,224,255', line: '111,227,255', lock0: '95,150,255', lock1: '235,244,255',
+  volley: '143,224,255', pickup: '255,210,74', strip: '255,210,74', pulse: '255,210,74'
+};
+let tutFocusRef = null;           // which tut object the seen-set belongs to
+let tutSeen = {};                 // hazard kind -> spotlighted already
+let tutSpot = null;               // { kind, t0, tOff } — the live spotlight
+let tutLessonKind = null, tutLessonT0 = 0; // for the line's fade-in on change
+let tutDescNow = null;            // this frame's descriptor, for drawDials to read
+function tutFocusDesc(st, ten) {
+  if (tutFocusRef !== tut) { tutFocusRef = tut; tutSeen = {}; tutSpot = null; tutLessonKind = null; }
+  // what is being taught RIGHT NOW — the enemy knows best (queue drills like the
+  // killer ride inside the 'normal' stage), then the stage's own card
+  let kind = ten ? ten.tut : null;
+  if (!kind && st.card === 'move' && tut.aim && tut.aim.targets) kind = 'move';
+  if (!kind && tut.spawned === 'wall' && latches.length) kind = 'wall';
+  if (!kind) return null;
+  const gD = geo();
+  const holes = [];   // world spots the veil must not cover
+  const ghosts = [];  // { i, a, col } — slots to mirror on the dials
+  const ringHole = a => {
+    holes.push({ x: gD.cx + Math.cos(a) * gD.nodeR, y: gD.cy + Math.sin(a) * gD.nodeR,
+                 r: Math.min(W, H) * 0.11 });
+  };
+  const enemyHole = en => {
+    const rg = ring(en.z, gD);
+    holes.push({ x: rg.x + Math.cos(en.angle) * rg.r, y: rg.y + Math.sin(en.angle) * rg.r,
+                 r: Math.min(W, H) * (0.07 + 0.10 * rg.s) });
+  };
+  if (kind === 'move') {
+    for (const t of tut.aim.targets) {
+      ringHole(t.a);
+      ghosts.push({ i: t.node, a: t.a, col: NODE_COLS[t.node] });
+    }
+  } else if (kind === 'wall') {
+    const lt = latches[0];
+    if (lt) ringHole(lt.a);                        // dodge drill: no pad ghost
+  } else if (ten) {
+    enemyHole(ten);
+    if (ten.type !== 'strip') ringHole(ten.angle);
+    if (kind === 'normal') {
+      const i = nodes[0] === (Math.abs(angDiff(nodes[0].angle, ten.angle)) <
+        Math.abs(angDiff(nodes[1].angle, ten.angle)) ? nodes[0] : nodes[1]) ? 0 : 1;
+      ghosts.push({ i, a: ten.angle, col: NODE_COLS[i] });
+    } else if (kind === 'heavy' || kind === 'volley') {
+      ghosts.push({ i: 0, a: ten.angle, col: NODE_COLS[0] }, { i: 1, a: ten.angle, col: NODE_COLS[1] });
+    } else if (kind === 'line' && ten.partner) {
+      // each pad takes the end its node is nearer — the same neutral the guide uses
+      const aA = ten.angle, aB = ten.partner.angle;
+      const straight = Math.abs(angDiff(nodes[0].angle, aA)) + Math.abs(angDiff(nodes[1].angle, aB))
+                    <= Math.abs(angDiff(nodes[0].angle, aB)) + Math.abs(angDiff(nodes[1].angle, aA));
+      ghosts.push({ i: 0, a: straight ? aA : aB, col: '111,227,255' },
+                  { i: 1, a: straight ? aB : aA, col: '111,227,255' });
+      ringHole(aB);
+    } else if (kind === 'lock0' || kind === 'lock1') {
+      const i = ten.lock;
+      if (i === 0 || i === 1) ghosts.push({ i, a: ten.angle, col: NODE_COLS[i] });
+    } else if (kind === 'pickup') {
+      const i = Math.abs(angDiff(nodes[0].angle, ten.angle)) <
+                Math.abs(angDiff(nodes[1].angle, ten.angle)) ? 0 : 1;
+      ghosts.push({ i, a: ten.angle, col: '255,210,74' });
+    } else if (kind === 'strip') {
+      const kX = clamp(gD.hitZ - ten.z, 0, ten.len);
+      const aS = stripAngle(ten, kX);
+      const i = Math.abs(angDiff(nodes[0].angle, aS)) <
+                Math.abs(angDiff(nodes[1].angle, aS)) ? 0 : 1;
+      ghosts.push({ i, a: aS, col: '255,210,74' });
+      ringHole(aS);
+    }
+    // frag: hole only — the drill is DODGE, and a pad ghost would say "go here"
+  }
+  return { kind, holes, ghosts };
+}
+// The veil: a single even-odd fill with round holes, plus a second half-alpha pass
+// with wider holes as a stepped feather. No offscreen canvas and no compositing
+// modes on purpose — this also runs under the test harness's ctx stub.
+function drawTutSpotlight(desc, g) {
+  if (state !== S.PLAY) return;
+  const kind = desc && desc.kind;
+  if (kind && !tutSeen[kind]) { tutSeen[kind] = true; tutSpot = { kind, t0: time, tOff: 0 }; }
+  if (!tutSpot) return;
+  const live = kind === tutSpot.kind;
+  const age = time - tutSpot.t0;
+  if ((!live || age > 4.5) && !tutSpot.tOff) tutSpot.tOff = time;   // fade out
+  let a = Math.min(1, age / 0.45);
+  if (tutSpot.tOff) a *= Math.max(0, 1 - (time - tutSpot.tOff) / 0.4);
+  // retire only on the way OUT. The first frame of the fade-IN also has a ~ 0, and
+  // an unconditional guard here killed the spotlight the same frame it was born —
+  // it never displayed at all, and only a capture of that exact frame showed why.
+  if (a <= 0.01) { if (tutSpot.tOff) tutSpot = null; return; }
+  const holes = live && desc ? desc.holes : [];
+  const veil = (alpha, grow) => {
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    for (const h of holes) { ctx.moveTo(h.x + h.r * grow, h.y); ctx.arc(h.x, h.y, h.r * grow, 0, TAU); }
+    ctx.fillStyle = 'rgba(2,4,10,' + alpha.toFixed(3) + ')';
+    ctx.fill('evenodd');
+  };
+  veil(0.42 * a, 1.30);   // wide soft step first...
+  veil(0.30 * a, 1.00);   // ...then the tight one: a two-step feather, no gradients
+}
+// The ghost: the drill's slot ON THE DIAL, at the same bearing and in the same
+// colour as its ring slot. Lands (solid + lock tick) when the node is inside the
+// SAME tolerance the ring uses, so the two views can never disagree about "close".
+function drawTutPadGhosts(desc) {
+  for (const gh of desc.ghosts) {
+    const d = dialCenter(gh.i === 0 ? 'L' : 'R');
+    const TOLm = ARCFX.span * tolVis;
+    const span = Math.max(0.22, TOLm);
+    const on = nodes[gh.i].deadT <= 0 && Math.abs(angDiff(nodes[gh.i].angle, gh.a)) < TOLm;
+    const puls = on ? 1 : 0.55 + 0.45 * Math.sin(time * 5);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(' + gh.col + ',' + (0.20 * puls).toFixed(2) + ')';
+    ctx.lineWidth = d.r * 0.30;
+    ctx.beginPath(); ctx.arc(d.x, d.y, d.r, gh.a - span, gh.a + span); ctx.stroke();
+    ctx.strokeStyle = 'rgba(' + gh.col + ',' + ((on ? 0.95 : 0.7) * puls).toFixed(2) + ')';
+    ctx.lineWidth = d.r * 0.10;
+    ctx.beginPath(); ctx.arc(d.x, d.y, d.r, gh.a - span, gh.a + span); ctx.stroke();
+    // the exact bearing, as a dot just outside the track — the "put it HERE"
+    const mx = d.x + Math.cos(gh.a) * d.r * 1.22, my = d.y + Math.sin(gh.a) * d.r * 1.22;
+    ctx.fillStyle = 'rgba(' + gh.col + ',' + (0.9 * puls).toFixed(2) + ')';
+    ctx.beginPath(); ctx.arc(mx, my, d.r * 0.055 * (on ? 1.4 : 1), 0, TAU); ctx.fill();
+    if (on) { // landed: a lock tick winds around the knob, same read as the ring's
+      ctx.strokeStyle = 'rgba(' + gh.col + ',0.9)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(d.x + Math.cos(gh.a) * d.r, d.y + Math.sin(gh.a) * d.r,
+        d.r * 0.16, -Math.PI / 2, -Math.PI / 2 + TAU * 0.999); ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+function drawTutLessonLine(desc) {
+  const msg = TUT_LESSON[desc.kind];
+  if (!msg) return;
+  if (tutLessonKind !== desc.kind) { tutLessonKind = desc.kind; tutLessonT0 = time; }
+  const a = Math.min(1, (time - tutLessonT0) / 0.35);
+  const u = Math.min(W, H);
+  const col = TUT_ACCENT[desc.kind] || '143,224,255';
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = '700 ' + Math.round(u * 0.030) + 'px Audiowide, system-ui';
+  const y = H - Math.max(SAFE.b, 8) - u * 0.022;
+  ctx.fillStyle = 'rgba(4,8,18,' + (0.55 * a).toFixed(2) + ')';
+  const w2 = ctx.measureText(msg).width;
+  roundRect(W / 2 - w2 / 2 - u * 0.018, y - u * 0.036, w2 + u * 0.036, u * 0.048, 6); ctx.fill();
+  ctx.fillStyle = 'rgba(' + col + ',' + (0.95 * a).toFixed(2) + ')';
+  ctx.fillText(msg, W / 2, y);
+  ctx.restore();
+  ctx.textAlign = 'left';
+}
 function drawHUD(g) {
   const L = LV || LEVELS[levelIdx];
   const pad = 14;
@@ -601,6 +772,7 @@ function drawHUD(g) {
 
   // qualification guides — the arrows do ALL the teaching, no captions
   // (held until the boot ceremony hands over the controls)
+  tutDescNow = null; // stale ghosts must not survive the drill that made them
   if (tut && tut.stage >= 0 && introT >= INTRO_DUR) {
     const st = QUAL[tut.stage];
     { // curriculum pips: one per drill, so the pupil can SEE the finish line
@@ -621,6 +793,30 @@ function drawHUD(g) {
     // labels that ride the traps say the same thing where the eye already is.)
     const nn = a => Math.abs(angDiff(nodes[0].angle, a)) < Math.abs(angDiff(nodes[1].angle, a)) ? nodes[0] : nodes[1];
     const ten = enemies.find(e => e.tut && !e.dead && !e.resolved);
+
+    // ---------- THE FOCUS LAYER ----------
+    // Three aids that share one description of the live drill, so they can never
+    // disagree about what is being taught:
+    //   · a SPOTLIGHT — the first time each hazard type ever appears, the world dims
+    //     except the hazard and its slot. Once per type, never on retries: failure
+    //     already has the retry popup, and a dim that fires constantly is wallpaper.
+    //   · PAD GHOSTS — the target slot drawn ON THE DIAL at the same bearing, in the
+    //     same colour as its ring slot. Every other aid lives on the ring; nothing
+    //     ever taught that the pad IS the ring in miniature, and that mapping is the
+    //     entire control scheme.
+    //   · a LESSON LINE — one imperative above the bottom edge naming the live drill.
+    //     The disc gets dismissed and then memory has to carry the lesson; this
+    //     carries it instead. Bottom band, never the centre: the centre is where the
+    //     traffic arrives from, which is why the stage banners died.
+    // All render-only. No sim state, no Math.random, nothing pushed into sim arrays.
+    const desc = tutFocusDesc(st, ten);
+    drawTutSpotlight(desc, g);
+    if (desc) drawTutLessonLine(desc);
+    // the pad ghosts are NOT drawn here: drawDials() runs after drawHUD and lays the
+    // dial chrome over anything painted now. The desc is stashed and drawDials calls
+    // drawTutPadGhosts itself, last, so the ghost sits on top of the finished dial.
+    tutDescNow = desc;
+
     if (st.card === 'move' && tut.aim.targets) {
       // ALIGN drill: each lit target is a spot on the ring to bring its node
       // onto. The tolerance window glows, a dashed dock marker + a guide arrow
