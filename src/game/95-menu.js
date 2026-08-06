@@ -693,11 +693,48 @@ function drawEnd(g) {
   // 0.030 they grazed the frame edge on a short frame
   const botPad = Math.max(SAFE.b, 10) + uB * 0.058;
   const telLabelY = H - botPad;                 // the lowest text on the screen
-  const telValY = telLabelY - Math.max(13, Math.round(uB * 0.030)) * 0.92;
-  const nbY = telValY - uB * 0.090;             // the NEW BEST tag, when there is one
-  const scLabelY = nbY - uB * 0.048;
-  const scoreY = scLabelY - uB * 0.046;
-  const rankY = scoreY - uB * 0.072;            // the standing, above the number it earned
+  const vpx = Math.max(13, Math.round(uB * 0.030));
+  const telValY = telLabelY - vpx * 0.92;
+  // EVERY GAP IS IN UNITS OF THE TYPE IT SEPARATES, not a fraction of the frame. The score
+  // was a hardcoded 28px while the gaps scaled with the viewport, so on a short frame the
+  // number's descenders ran into its own title. Sizes first, then stack bottom-up from the
+  // telemetry — that way the block stays legible at any height instead of at one.
+  const spx = Math.max(22, Math.round(uB * 0.062));   // the score number
+  const fpxB = Math.max(10, Math.round(uB * 0.023));  // the NEW BEST badge
+  const lpxS = Math.max(9, Math.round(uB * 0.020));   // shared label size (telemetry + SCORE)
+  const nbY = telValY - vpx * 0.80 - fpxB * 2.1;      // the badge, clear of the strip
+  const scLabelY = nbY - fpxB * 1.9;
+  const scoreY = scLabelY - lpxS * 1.25;              // the title tucks DIRECTLY under it
+  const rankY = scoreY - spx * 0.95;                  // the standing, close above its number
+
+  // ---- TELEMETRY SIZING, COMPUTED UP FRONT ----
+  // Done here rather than at the draw because the SCORE title borrows this label size:
+  // Gil wants them identical, and two numbers that merely happen to match will drift.
+  const integK = Math.round(integrity);
+  const telCells = [
+    { v: String(zaps), l: 'HITS', c: '150,215,255' },
+    { v: String(perfects), l: 'PERFECT', c: perfects > 0 ? '255,210,74' : '120,150,185' },
+    { v: String(misses), l: 'MISSED', c: misses > 0 ? '255,110,120' : '120,150,185' },
+    { v: integK + '%', l: 'STABILITY',
+      c: integK >= 100 ? '126,226,98' : integK >= 60 ? '150,215,255' : integK >= 25 ? '255,190,90' : '255,110,120' }
+  ];
+  // THE CELL IS SIZED TO THE LABEL, not the reverse. The old loop shrank the font toward a
+  // floor of 8px and then drew whatever it had — so when STABILITY still did not fit at the
+  // floor it simply overflowed into the divider, which is what Gil saw on mobile. Now the
+  // widest label PICKS the cell width, at a size that leaves real air either side, and the
+  // font only comes down if four such cells cannot fit the frame.
+  let lpx = lpxS, cw3 = 0;
+  const availW = Math.min(W * 0.90, g.nodeR * 2 * 1.5);
+  for (; lpx > 7; lpx--) {
+    ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
+    try { ctx.letterSpacing = '1.2px'; } catch (e) {}
+    const widest = Math.max(...telCells.map(c4 => ctx.measureText(c4.l).width));
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    cw3 = Math.max(widest / 0.70, uB * 0.150);   // 30% of the cell stays clear of the rules
+    if (cw3 * 4 <= availW) break;
+    cw3 = availW / 4;
+  }
+  const x03 = g.cx - cw3 * 2;   // four cells need TWO widths of lead to centre
 
   // the score counts itself up
   const cntP = 1 - Math.pow(1 - ph(T.cnt0, T.cnt1), 3);
@@ -714,10 +751,12 @@ function drawEnd(g) {
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   }
   ctx.fillStyle = '#eaf4ff';
-  ctx.font = '700 ' + (28 + (counting ? 2 : 0)) + 'px Audiowide, system-ui';
+  ctx.font = '700 ' + (spx + (counting ? 2 : 0)) + 'px Audiowide, system-ui';
   ctx.fillText(shown.toLocaleString(), g.cx, scoreY);
-  ctx.fillStyle = 'rgba(160,215,255,0.7)'; ctx.font = '600 11px Audiowide, system-ui';
-  try { ctx.letterSpacing = '3px'; } catch (e) {}
+  // the same size and spacing as the telemetry labels below — one label voice on the screen
+  ctx.fillStyle = 'rgba(160,215,255,0.7)';
+  ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
+  try { ctx.letterSpacing = '1.2px'; } catch (e) {}
   ctx.fillText('SCORE', g.cx, scLabelY);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
 
@@ -740,18 +779,28 @@ function drawEnd(g) {
         ctx.globalAlpha = pA * k;
         ctx.translate(g.cx, nbY);
         ctx.scale(os2, os2);
-        const fpx = Math.max(10, Math.round(uB * 0.023));
+        const fpx = fpxB;   // hoisted: nbY was computed from it
         ctx.font = '700 ' + fpx + 'px Audiowide, system-ui';
         try { ctx.letterSpacing = '2.5px'; } catch (e) {}
-        const tw2 = ctx.measureText('NEW BEST').width;
-        const padX = fpx * 0.85, padY = fpx * 0.60;
+        const m2 = ctx.measureText('NEW BEST');
+        const tw2 = m2.width;
+        // CENTRED ON THE INK, NOT ON THE EM BOX. The plate was pinned to the baseline with
+        // asymmetric padding — a guess, and it read high. Measure the glyphs' actual top and
+        // bottom and put the plate around THAT, so the badge is centred by construction at
+        // any font size. Falls back to a cap-height estimate where the metrics are absent
+        // (the test harness's ctx stub is one).
+        const asc = m2.actualBoundingBoxAscent, desc = m2.actualBoundingBoxDescent;
+        const inkTop = (typeof asc === 'number' && asc > 0) ? -asc : -fpx * 0.72;
+        const inkBot = (typeof desc === 'number') ? desc : fpx * 0.04;
+        const inkMid = (inkTop + inkBot) / 2, inkH = inkBot - inkTop;
+        const padX = fpx * 0.85, padY = fpx * 0.62;
+        const bw3 = tw2 + padX * 2, bh3 = inkH + padY * 2;
+        const bx3 = -bw3 / 2, by3 = inkMid - bh3 / 2;   // the plate straddles the ink's middle
         ctx.fillStyle = 'rgba(255,210,74,' + (0.10 + br2 * 0.06).toFixed(2) + ')';
-        techRect(-tw2 / 2 - padX, -fpx * 0.78 - padY * 0.4, tw2 + padX * 2, fpx + padY * 1.2, fpx * 0.34);
-        ctx.fill();
+        techRect(bx3, by3, bw3, bh3, fpx * 0.34); ctx.fill();
         ctx.strokeStyle = 'rgba(255,210,74,' + (0.55 + br2 * 0.40).toFixed(2) + ')';
         ctx.lineWidth = 1.5;
-        techRect(-tw2 / 2 - padX, -fpx * 0.78 - padY * 0.4, tw2 + padX * 2, fpx + padY * 1.2, fpx * 0.34);
-        ctx.stroke();
+        techRect(bx3, by3, bw3, bh3, fpx * 0.34); ctx.stroke();
         ctx.fillStyle = '#ffd24a';
         ctx.shadowColor = 'rgba(255,210,74,0.9)'; ctx.shadowBlur = lowFX ? 0 : 10 * br2;
         ctx.fillText('NEW BEST', 0, 0);
@@ -765,59 +814,28 @@ function drawEnd(g) {
   // stats + best reveal after the count settles
   ctx.globalAlpha = pA * ph(T.stats, T.stats + 0.3);
   // ---- THE TELEMETRY STRIP ----
-  // Four readings in a row: value over label, hairline dividers, Audiowide like the rest.
-  // The colour carries the meaning so the numbers read without their labels — hits neutral
-  // cyan, PERFECTS payload gold because they are a thing gained, misses hazard ONLY when
-  // there are misses (a zero reads as clean, not as an alarm), and the lane's stability
-  // grades itself green through cyan and amber to red.
-  {
-    const u = Math.min(W, H);
-    const integ = Math.round(integrity);
-    // STABILITY, not hull. This shipped one commit as HULL, which was my invention and
-    // wrong fiction: nothing here measures the ship. `integrity` is the LANE's — a miss
-    // pops 'STABILITY LOST' at the ring, and the gauge is the lane holding together.
-    const cells = [
-      { v: String(zaps), l: 'HITS', c: '150,215,255' },
-      { v: String(perfects), l: 'PERFECT', c: perfects > 0 ? '255,210,74' : '120,150,185' },
-      { v: String(misses), l: 'MISSED', c: misses > 0 ? '255,110,120' : '120,150,185' },
-      { v: integ + '%', l: 'STABILITY',
-        c: integ >= 100 ? '126,226,98' : integ >= 60 ? '150,215,255' : integ >= 25 ? '255,190,90' : '255,110,120' }
-    ];
-    const cw3 = Math.min(g.nodeR * 2 * 0.235, u * 0.155);
-    // CENTRED. This was `cx - cw*1.5`, which puts four cell CENTRES at cx-cw .. cx+2cw —
-    // a midpoint of cx + cw/2, so the whole strip sat half a cell right of everything
-    // above it. Four cells need two widths of lead, not one and a half.
-    const x03 = g.cx - cw3 * 2;
-    const vpx = Math.max(13, Math.round(u * 0.030));
-    // the label size is FITTED: at a guessed size the longest labels overran their cells
-    // and the strip read as one run-on word. Letter spacing is applied BEFORE measuring,
-    // or the fit is computed against a narrower string than the one drawn.
-    let lpx = Math.max(8, Math.round(u * 0.0145));
+  // Four readings: value over label, hairline dividers, Audiowide like the rest. The colour
+  // carries the meaning so the numbers read without their labels — hits neutral cyan,
+  // PERFECTS payload gold because they are a thing gained, misses hazard ONLY when there
+  // are misses (a zero reads as clean, not as an alarm), and the LANE's stability grades
+  // itself green through cyan and amber to red. Geometry came from the sizing pass above.
+  for (let i = 0; i < 4; i++) {
+    const c3 = telCells[i], cxq = x03 + cw3 * (i + 0.5);
+    ctx.fillStyle = 'rgba(' + c3.c + ',0.95)';
+    ctx.font = '700 ' + vpx + 'px Audiowide, system-ui';
+    ctx.fillText(c3.v, cxq, telValY);
+    ctx.fillStyle = 'rgba(' + c3.c + ',0.55)';
+    ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
     try { ctx.letterSpacing = '1.2px'; } catch (e) {}
-    for (; lpx > 8; lpx--) {
-      ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
-      const widest = Math.max(...cells.map(c4 => ctx.measureText(c4.l).width));
-      if (widest <= cw3 * 0.88) break;
-    }
+    ctx.fillText(c3.l, cxq, telLabelY);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
-    for (let i = 0; i < 4; i++) {
-      const c3 = cells[i], cxq = x03 + cw3 * (i + 0.5);
-      ctx.fillStyle = 'rgba(' + c3.c + ',0.95)';
-      ctx.font = '700 ' + vpx + 'px Audiowide, system-ui';
-      ctx.fillText(c3.v, cxq, telValY);
-      ctx.fillStyle = 'rgba(' + c3.c + ',0.55)';
-      ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
-      try { ctx.letterSpacing = '1.2px'; } catch (e) {}
-      ctx.fillText(c3.l, cxq, telLabelY);
-      try { ctx.letterSpacing = '0px'; } catch (e) {}
-      if (i < 3) {   // hairline divider, short — it separates without drawing a table
-        const dx = x03 + cw3 * (i + 1);
-        ctx.strokeStyle = 'rgba(140,200,255,0.20)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(dx, telValY - vpx * 0.78); ctx.lineTo(dx, telValY + vpx * 0.72);
-        ctx.stroke();
-      }
+    if (i < 3) {   // hairline divider, short — it separates without drawing a table
+      const dx = x03 + cw3 * (i + 1);
+      ctx.strokeStyle = 'rgba(140,200,255,0.20)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(dx, telValY - vpx * 0.78); ctx.lineTo(dx, telValY + vpx * 0.72);
+      ctx.stroke();
     }
   }
   // buttons live OUTSIDE the ring, in the side margins. While the high-score card
