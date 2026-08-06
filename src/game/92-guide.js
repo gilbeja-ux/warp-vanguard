@@ -919,6 +919,59 @@ const DISC_GLOW = {
                       { x: 0.945, y: 0.755, r: 0.070, c: '200,225,255' }]
 };
 const DISC_ART_CROP = 0.965;   // how much of the strip shows — the rest is drift margin
+// ---------- PARALLAX ----------
+// The ship and the starfield are baked into ONE opaque bitmap, so they cannot be pulled
+// apart and moved at different rates. What can be done is add a layer that was never in
+// the plate: a procedural starfield, drifting COUNTER to it. Relative motion is then the
+// sum of both, so each layer's own movement can stay under the noticing threshold while
+// the parallax still reads.
+//
+// The trick that makes it honest rather than a smear: additive light self-masks. A dim
+// star over bright hull metal is imperceptible; over black space it is the whole signal.
+// So a drifting star layer already behaves like a BACKGROUND layer — and sampling each
+// strip's luminance once makes it exact, fading stars out wherever the plate is bright
+// so they never crawl across the ship.
+const DISC_LUMA = new Map();     // art key -> { w, h, a } | null when unreadable
+function discLuma(im2, key) {
+  if (DISC_LUMA.has(key)) return DISC_LUMA.get(key);
+  const LW = 84, LH = 28;        // coarse on purpose: this is a mask, not a thumbnail
+  let v = null;
+  try {
+    const c = document.createElement('canvas');
+    c.width = LW; c.height = LH;
+    const g2 = c.getContext('2d');
+    if (g2 && g2.drawImage && g2.getImageData) {
+      g2.drawImage(im2.img, 0, 0, LW, LH);
+      const d = g2.getImageData(0, 0, LW, LH).data;
+      const a = new Uint8Array(LW * LH);
+      for (let i = 0; i < LW * LH; i++)
+        a[i] = (d[i * 4] * 0.30 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11) | 0;
+      v = { w: LW, h: LH, a };
+    }
+  } catch (e) { v = null; }      // a stubbed ctx, or a tainted canvas: fall back gracefully
+  DISC_LUMA.set(key, v);
+  return v;
+}
+// Stars are seeded off the art name, so a disc's sky is its own and never re-scatters
+// between frames. mulberry32, not Math.random — this is draw code.
+const DISC_SKY = new Map();
+function discSky(key) {
+  let sky = DISC_SKY.get(key);
+  if (sky) return sky;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+  const rnd = mulberry32(h >>> 0);
+  sky = [];
+  for (let i = 0; i < 120; i++)
+    sky.push({ u: rnd(), v: rnd(),
+      s: 0.35 + rnd() * 0.75,            // size
+      a: 0.20 + rnd() * 0.55,            // base brightness
+      w: 0.5 + rnd() * 2.2,              // twinkle rate
+      ph: rnd() * 6.2831853,
+      near: rnd() < 0.13 });             // a few sit closer and travel further
+  DISC_SKY.set(key, sky);
+  return sky;
+}
 function drawLiveCampArt(im2, pk, x, y, r, mh) {
   // the still framing this replaces: full width, vertically centred, letterboxed to mh
   const sh0 = Math.min(im2.w * (mh / (r * 2)), im2.h);
@@ -946,9 +999,39 @@ function drawLiveCampArt(im2, pk, x, y, r, mh) {
   ctx.drawImage(im2.img, ox, oy, sw, sh, x - r, y - r, r * 2, mh);
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
+  // ---- the counter-drifting sky ----
+  const key = (pk && pk.art) || 'x';
+  const sky = discSky(key), lum = discLuma(im2, key);
+  ctx.globalCompositeOperation = 'lighter';
+  // counter-drift: the plate rides px/py, the sky rides the opposite side of the same
+  // sweep, so the two separate at twice either one's speed
+  const qx = (1 - px), qy = (1 - py);
+  for (const st of sky) {
+    const far = st.near ? 2.1 : 1;
+    // the star's home is in SOURCE space, so it shares the plate's frame of reference
+    const su = st.u * im2.w + (im2.w - sw) * (qx - 0.5) * far * 1.9;
+    const sv = st.v * im2.h + (sh0 - sh) * (qy - 0.5) * far * 1.9;
+    const u2 = (su - ox) / sw, v2 = (sv - oy) / sh;
+    if (u2 < 0 || u2 > 1 || v2 < 0 || v2 > 1) continue;
+    // OFF THE HULL. Bright plate -> no star; dark space -> full star. Without this the
+    // sky crawls over the ship, which is the exact opposite of a parallax read.
+    let mask = 1;
+    if (lum) {
+      const lx = clamp((st.u * lum.w) | 0, 0, lum.w - 1);
+      const ly = clamp((st.v * lum.h) | 0, 0, lum.h - 1);
+      mask = clamp(1 - lum.a[ly * lum.w + lx] / 120, 0, 1);
+    }
+    if (mask < 0.05) continue;
+    const tw = 0.55 + 0.45 * Math.sin(time * st.w + st.ph);
+    const al = st.a * mask * tw * (st.near ? 0.85 : 0.6);
+    if (al < 0.02) continue;
+    const gx2 = x - r + u2 * r * 2, gy2 = y - r + v2 * mh;
+    const rr2 = st.s * (st.near ? 1.9 : 1.15) * Math.max(1, Math.min(W, H) * 0.0016);
+    ctx.fillStyle = 'rgba(226,240,255,' + al.toFixed(3) + ')';
+    ctx.beginPath(); ctx.arc(gx2, gy2, rr2, 0, TAU); ctx.fill();
+  }
   // the thrusters, mapped through the SAME source rect so they track the drift
   const spots = DISC_GLOW[(pk && pk.art) || ''] || [];
-  ctx.globalCompositeOperation = 'lighter';
   for (let k = 0; k < spots.length; k++) {
     const sp = spots[k];
     const u = (sp.x * im2.w - ox) / sw, v = (sp.y * im2.h - oy) / sh;
