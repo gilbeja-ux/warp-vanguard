@@ -1309,24 +1309,60 @@ function drawTriadLinks(g) {
 // the BEACON's lighthouse beam — drawn as LIGHT, never a surface: a white-hot
 // filament in a soft additive wedge from the lamp to beyond the ring, plus a
 // hazard bloom where the light rakes the rail (the WYSIWYG danger readout)
+// THE LIGHT WEARS THE EMITTER IT CONDEMNS. This used to be Payload Gold, which was
+// two problems in one: gold is reserved for things the player GAINS, and a single
+// colour cannot say which carriage has to run. The beam now takes the condemned
+// node's own colour, in the telegraph as well as the sweep — the tell has to be
+// readable BEFORE the lamp fires, or the phase is a coin toss instead of a read.
+function spinBeamPal(b) {
+  const ph = b.beamPhase || 0;
+  return ph === 0
+    // blue carriage condemned: unmistakably its blue, with a white-hot core
+    ? { wide: '90,180,255', mid: '150,215,255', hot: '235,248,255', rim: '80,150,255' }
+    // white carriage: cooled to silver so it never reads as "no colour", and the
+    // rim goes steel rather than blue so the two are told apart at a glance
+    : { wide: '196,214,232', mid: '232,242,252', hot: '255,255,255', rim: '190,206,224' };
+}
 function drawSpinnerBeam(g) {
   const b = boss;
   const A = b.beamA;
+  const P = spinBeamPal(b);
   const exR = g.R0 * 1.05; // past the ring — the light leaves the screen
   const ex = g.cx + Math.cos(A) * exR, ey2 = g.cy + Math.sin(A) * exR;
   if (b.mode === 'tele') { // the ghost line sweeps up: aim first, fire second
     const pl = 0.35 + Math.sin(time * 14) * 0.22;
     ctx.save();
-    ctx.setLineDash([6, 9]);
-    ctx.strokeStyle = `rgba(255,210,74,${pl.toFixed(2)})`;
-    ctx.lineWidth = 2;
+    // THE TELL HAS TO LAND, and the first attempt put it on the lamp: the beacon is
+    // ~12px on screen from four hundred away down the bore, so a swatch on its
+    // housing was invisible and a 2px ghost line lost the argument with the bore.
+    // Everything below is at RING scale instead, because that is where the player is
+    // looking — the read decides which thumb has to run, and a read that has to be
+    // hunted for is the same as no read at all.
+    ctx.setLineDash([7, 8]);
+    ctx.strokeStyle = `rgba(${P.mid},${(0.55 + pl * 0.45).toFixed(2)})`;
+    ctx.lineWidth = 3.5;
     ctx.beginPath(); ctx.moveTo(b.sx, b.sy); ctx.lineTo(ex, ey2); ctx.stroke();
     ctx.setLineDash([]);
     for (let k = 1; k <= 3; k++) { // chevrons lead the coming rotation
       const a2 = A + b.beamDir * 0.18 * k;
-      ctx.strokeStyle = `rgba(255,210,74,${(pl * (1 - k * 0.25)).toFixed(2)})`;
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, a2 - 0.035, a2 + 0.035); ctx.stroke();
+      ctx.strokeStyle = `rgba(${P.mid},${(pl * (1 - k * 0.22) * 1.5).toFixed(2)})`;
+      ctx.lineWidth = 4.5;
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, a2 - 0.05, a2 + 0.05); ctx.stroke();
+    }
+    // and the condemned carriage is marked ON ITSELF. A colour somewhere else asks
+    // the player to remember which emitter is which; a halo around the actual thumb
+    // does not.
+    const cRail = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
+    const cn = nodes[b.beamPhase || 0];
+    if (cn) {
+      const cxx = g.cx + Math.cos(cn.angle) * cRail, cyy = g.cy + Math.sin(cn.angle) * cRail;
+      const rr = Math.min(W, H) * (0.032 + 0.010 * Math.sin(time * 9));
+      ctx.strokeStyle = `rgba(${P.hot},${(0.45 + pl * 0.55).toFixed(2)})`;
+      ctx.lineWidth = 2.6;
+      ctx.beginPath(); ctx.arc(cxx, cyy, rr, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = `rgba(${P.rim},${(0.28 + pl * 0.35).toFixed(2)})`;
+      ctx.lineWidth = 5.5;
+      ctx.beginPath(); ctx.arc(cxx, cyy, rr * 1.5, 0, TAU); ctx.stroke();
     }
     ctx.restore();
     return;
@@ -1336,9 +1372,9 @@ function drawSpinnerBeam(g) {
   // the glow wedge
   const wr = Math.hypot(ex - b.sx, ey2 - b.sy);
   const wg2 = ctx.createRadialGradient(b.sx, b.sy, b.sSize * 0.3, b.sx, b.sy, wr);
-  wg2.addColorStop(0, 'rgba(255,244,200,0.5)');
-  wg2.addColorStop(0.35, 'rgba(255,214,110,0.22)');
-  wg2.addColorStop(1, 'rgba(255,190,80,0.05)');
+  wg2.addColorStop(0, `rgba(${P.hot},0.5)`);
+  wg2.addColorStop(0.35, `rgba(${P.mid},0.22)`);
+  wg2.addColorStop(1, `rgba(${P.wide},0.05)`);
   ctx.fillStyle = wg2;
   const HW = 0.16; // wedge half-angle
   ctx.beginPath();
@@ -1348,17 +1384,19 @@ function drawSpinnerBeam(g) {
   ctx.closePath(); ctx.fill();
   // the filament — constant angular speed, readable and fair
   ctx.lineCap = 'round';
-  for (const [lw, col] of [[9, 'rgba(255,214,110,0.35)'], [4, 'rgba(255,240,200,0.8)'], [1.6, 'rgba(255,255,255,0.98)']]) {
+  for (const [lw, col] of [[9, `rgba(${P.wide},0.35)`], [4, `rgba(${P.mid},0.8)`], [1.6, `rgba(${P.hot},0.98)`]]) {
     ctx.strokeStyle = col;
     ctx.lineWidth = lw;
     ctx.beginPath(); ctx.moveTo(b.sx, b.sy); ctx.lineTo(ex, ey2); ctx.stroke();
   }
   // hazard bloom where the light crosses the ring
-  ctx.strokeStyle = `rgba(255,120,60,${(0.55 + Math.sin(time * 22) * 0.2).toFixed(2)})`;
+  ctx.strokeStyle = `rgba(${P.rim},${(0.55 + Math.sin(time * 22) * 0.2).toFixed(2)})`;
   ctx.lineWidth = Math.min(W, H) * 0.02;
   ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, A - SPIN_BEAM_HALF, A + SPIN_BEAM_HALF); ctx.stroke();
   const hx = g.cx + Math.cos(A) * g.nodeR, hy = g.cy + Math.sin(A) * g.nodeR;
-  if (Math.random() < 0.5) burst(hx, hy, '#ffd9a0', 1, 2.5);
+  // sysRandom, not Math.random: in a seeded lane Math.random IS the spawn stream, and
+  // the server replays without ever drawing a frame. Draw code must not spend it.
+  if (sysRandom() < 0.5) burst(hx, hy, `rgb(${P.hot})`, 1, 2.5);
   ctx.restore();
 }
 // the fused ray cannon: aim barrel + a straight perspective-tapered beam

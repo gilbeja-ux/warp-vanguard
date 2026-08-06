@@ -932,18 +932,66 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
     check('a volley bolt fizzles on the beacon shield — zero damage', shielded && SP.hp === hp0);
     drawOk('spinner shield-shimmer frame', () => {});
   }
-  // the sweep fries a node parked in its path — and rolls on
+  // THE LIGHT IS KEYED TO ONE EMITTER. The sweep condemns blue or white, never both:
+  // the condemned carriage must run, and the other is free to work. Both halves are
+  // asserted, because "it fries what it should" and "it spares what it should" are
+  // different claims and only the pair of them is the mechanic.
   {
     G.enemies().length = 0; G.setLatches([]);
     aim(0, 1.0); aim(1, 1.0 + Math.PI);
     SP.mode = 'sweep'; SP.swept = 0; SP.beamDir = 1;
     SP.sweepSpd = Math.PI * 2 / 5.6;
-    SP.beamA = 1.0 - 0.4; // the light closes on the parked blue node
+    SP.beamPhase = 0;            // blue is condemned
+    SP.sweepAdds = 0;            // no reds — this block is about the beam alone
+    SP.beamA = 1.0 - 0.4;        // the light closes on the parked blue node
     let sg = 40, fried = false;
     while (sg-- > 0 && !fried) { G.setIntegrity(100); G.update(0.05); fried = G.nodes[0].deadT > 0; }
-    check('the sweeping beam fries a node parked in its path', fried);
+    check('the sweep fries the CONDEMNED emitter parked in its path', fried);
     check('the sweep rolls on after the fry', SP.mode === 'sweep' && SP.dying === undefined);
     drawOk('spinner mid-sweep frame (beam live)', () => {});
+  }
+  {
+    G.enemies().length = 0; G.setLatches([]);
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
+    aim(0, 1.0); aim(1, 1.8);
+    SP.mode = 'sweep'; SP.swept = 0; SP.beamDir = 1;
+    SP.sweepSpd = Math.PI * 2 / 5.6;
+    SP.beamPhase = 1;            // WHITE is condemned, so blue may sit in the light
+    SP.sweepAdds = 0;
+    SP.beamA = 1.0 - 0.4;        // sweeping through blue at 1.0, then white at 1.8
+    // long enough for the light to reach BOTH parked nodes (1.2 rad of travel at
+    // 1.12 rad/s), and far short of the full rotation that would overload it
+    let sg = 40;
+    while (sg-- > 0) { G.setIntegrity(100); G.update(0.05); }
+    check('the spared emitter survives sitting in the beam', G.nodes[0].deadT <= 0);
+    check('...and the same sweep still condemns the other one', G.nodes[1].deadT > 0);
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
+  }
+  // WORK FOR THE FREE THUMB: reds released during the sweep, as a trickle, more each round
+  {
+    G.enemies().length = 0; G.setLatches([]);
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
+    aim(0, 1.0); aim(1, 1.0 + Math.PI);
+    SP.mode = 'sweep'; SP.swept = 0; SP.beamDir = 1;
+    SP.sweepSpd = Math.PI * 2 / 900;   // effectively parked: no overload mid-measurement
+    SP.beamPhase = 0;
+    SP.beamA = 1.0 + Math.PI * 0.9;    // away from both nodes — nothing fries here
+    SP.sweepAdds = 3; SP.addT = 0.2;
+    let ag = 200, seen = 0;
+    while (ag-- > 0 && SP.sweepAdds > 0) {
+      G.setIntegrity(100); G.update(0.05);
+      seen = Math.max(seen, G.enemies().filter(e => !e.dead && !e.resolved).length);
+    }
+    check('the sweep releases its reds for the free emitter', SP.sweepAdds === 0 && seen >= 1);
+    check('they trickle in rather than landing as a wall', seen <= 3);
+    check('and they are plain reds — either emitter may take them',
+      G.enemies().every(e => e.type !== 'strip' ? e.lock === undefined : true));
+    G.enemies().length = 0;
+    // hand the fight back as it was found: the next block completes a rotation in a
+    // single frame from swept = TAU - 0.001, which the parked speed above cannot do
+    SP.sweepSpd = Math.PI * 2 / 5.6;
+    SP.sweepAdds = 0;
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
   }
   // a completed sweep overloads the BEACON itself — and the add wave rides in
   {

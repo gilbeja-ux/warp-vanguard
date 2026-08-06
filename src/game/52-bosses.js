@@ -25,6 +25,16 @@ const BOSS_DEFS = {
 const TRIAD_NAMES = ['WALL', 'SHREDDER', 'GHOST'];
 const TRIAD_FREE_ARC = 1.6;  // the dockable-arc law: walls may never close the ring
 const SPIN_BEAM_HALF = 0.13; // beacon beam half-width at the ring (rad)
+// THE LIGHT IS KEYED TO ONE EMITTER. A sweep condemns the blue carriage or the
+// white one — never both — so the fight stops being a two-thumb sprint and starts
+// being two thumbs doing different jobs: one runs from the light, the other works.
+// Which emitter is showing in the telegraph, in its own colour, before the lamp fires.
+//
+// And the free thumb gets work: reds released DURING the sweep, more each round.
+// Without them the safe carriage just parks somewhere behind the beam and waits,
+// which is the whole reason the old sweep only ever asked one question.
+const SPIN_SWEEP_ADDS = [1, 2, 3, 3]; // reds per sweep, by round — the difficulty knob
+const SPIN_ADD_GAP = 1.15;            // seconds between them, so they arrive as a trickle
 // the boss duel: the intruder flies inside the tunnel while the dock-and-hold
 // volley (the campaign verb — controls never change hands) takes it apart
 function spawnBoss() {
@@ -62,6 +72,10 @@ function spawnBoss() {
     boss.beamDir = Math.random() < 0.5 ? -1 : 1;
     boss.swept = 0; boss.round = 0; boss.shieldT = 0;
     boss.tRad = 0; boss.tZ = 0.5;
+    // rolled, not alternated. The colour in the telegraph is the tell, and a
+    // predictable flip would teach the player to stop reading it.
+    boss.beamPhase = Math.random() < 0.5 ? 0 : 1;
+    boss.sweepAdds = 0; boss.addT = 0; boss.addA = Math.random() * TAU;
   }
   heat = 0; overheat = false; beamActive = false; beamAim.x = 0; beamAim.y = 0;
   const bd = BOSS_DEFS[kind];
@@ -521,12 +535,16 @@ function updateSpinnerFight(dt, g) {
   b.sy = brg.y + b.v * brg.r;
   b.sSize = Math.min(W, H) * 0.30 * brg.s;
   b.modeT -= dt;
-  if (b.mode === 'tele') { // ghost line up — the lamp charges
+  if (b.mode === 'tele') { // ghost line up — the lamp charges, already showing its colour
     if (b.modeT <= 0) {
       b.mode = 'sweep';
       b.swept = 0;
       b.sweepSpd = TAU / Math.max(4.2, 5.8 - b.round * 0.45); // a touch faster each round
-      popup(W / 2, H * 0.3, 'SWEEP ' + (b.round + 1) + '/' + b.maxHp, '#ffd24a');
+      b.sweepAdds = SPIN_SWEEP_ADDS[Math.min(b.round, SPIN_SWEEP_ADDS.length - 1)];
+      b.addT = 0.45; // the first red lands just after the light does
+      popup(W / 2, H * 0.3, 'SWEEP ' + (b.round + 1) + '/' + b.maxHp + ' — '
+        + (b.beamPhase === 0 ? 'BLUE' : 'WHITE') + ' EMITTER CONDEMNED',
+        NODE_HEX[b.beamPhase]);
       tone(180, 0.5, 'sawtooth', 0.13, 90);
       crackle(0.5, 400, 2600, 2, 0.5);
       buzz([30, 30, 50]);
@@ -535,21 +553,33 @@ function updateSpinnerFight(dt, g) {
     const dA = b.sweepSpd * dt;
     b.beamA += dA * b.beamDir;
     b.swept += dA;
-    // a node caught in the light fries — wall-fry treatment; the sweep rolls on
-    const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
-    for (let i = 0; i < 2; i++) {
-      const n = nodes[i];
-      if (n.deadT > 0) continue;
-      if (Math.abs(angDiff(n.angle, b.beamA)) < SPIN_BEAM_HALF) {
-        n.deadT = 2;
-        const px2 = g.cx + Math.cos(n.angle) * railR, py2 = g.cy + Math.sin(n.angle) * railR;
-        burst(px2, py2, '#ff9a3c', 22, 4);
-        popup(px2, py2 - 24, 'EMITTER FRIED', '#ffb478');
-        sfx.fry(Math.cos(n.angle) * 0.6);
-        redFlash = Math.max(redFlash, 0.5);
-        shake = Math.min(shake + 0.5, 1);
-        buzz([40, 30, 60]);
+    // WORK FOR THE FREE THUMB. Released one at a time rather than as a wave: the
+    // condemned carriage is already running, so a clump would be unanswerable by
+    // the single emitter that is allowed to deal with it.
+    if (b.sweepAdds > 0) {
+      b.addT -= dt;
+      if (b.addT <= 0) {
+        b.addT = SPIN_ADD_GAP;
+        b.sweepAdds--;
+        b.addA = clearOfWalls(b.addA + 2.399963 + rand(-0.35, 0.35)); // hop onward, never stacked
+        const en3 = spawnEnemy(b.addA, 'normal');
+        en3.lock = undefined; // a plain red: EITHER emitter may take it, and only one is free
+        en3.drift = 0;
       }
+    }
+    // ONLY THE CONDEMNED CARRIAGE FRIES. The other may sit in the light all day —
+    // that is what makes the colour worth reading, and what frees a thumb to work.
+    const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
+    const n = nodes[b.beamPhase];
+    if (n.deadT <= 0 && Math.abs(angDiff(n.angle, b.beamA)) < SPIN_BEAM_HALF) {
+      n.deadT = 2;
+      const px2 = g.cx + Math.cos(n.angle) * railR, py2 = g.cy + Math.sin(n.angle) * railR;
+      burst(px2, py2, '#ff9a3c', 22, 4);
+      popup(px2, py2 - 24, 'EMITTER FRIED', '#ffb478');
+      sfx.fry(Math.cos(n.angle) * 0.6);
+      redFlash = Math.max(redFlash, 0.5);
+      shake = Math.min(shake + 0.5, 1);
+      buzz([40, 30, 60]);
     }
     if (b.swept >= TAU) { // full rotation — the discharge overloads the BEACON
       b.round++;
@@ -574,6 +604,7 @@ function updateSpinnerFight(dt, g) {
       b.mode = 'adds';
       b.modeT = 14; // the add phase can't stall the fight forever
       b.beamDir *= -1; // the next sweep runs the other way
+      b.beamPhase = Math.random() < 0.5 ? 0 : 1; // and may condemn the other thumb
       spawnSpinnerWave();
     }
   } else { // adds: clear the wave (or wait out the timeout) to face the next sweep
