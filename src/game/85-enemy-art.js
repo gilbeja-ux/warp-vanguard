@@ -2322,32 +2322,71 @@ function drawPadPrompt(i, d, tut) {
   // Breath + sonar ping together: the breath says "alive", the outward rings say "touch".
   // A pulse on its own reads as a status light.
   if (!okI) {
+    // THE GESTURE, ANIMATED OUTWARD. A dot travels from the pad's middle out to the rim
+    // and away from the bore, looping — and because the two pads sit either side of the
+    // screen, the two dots visibly move in OPPOSITE directions, which is the shape of
+    // the thing the gate actually wants.
+    //
+    // The static version aimed a breathing dot AT the bore. For touch that was fine — a
+    // pad tap is absolute, so any rim point works and the dot only had to be obvious.
+    // For a controller it said nothing: the gamepad gate needs the two sticks pointing
+    // roughly APART (see 71-gamepad), and a still dot communicates a place to press, not
+    // a direction to push. Measured, the gate does not care WHICH way — both-inward and
+    // both-outward are the same 2.8 rad apart on every plausible frame, since adding pi
+    // to both bearings preserves their separation. So this is a legibility fix, not a
+    // rule change: it shows one gesture that works instead of implying a press a stick
+    // cannot perform.
     const gp = geo();
-    const pa = Math.atan2(gp.cy - d.y, gp.cx - d.x);
-    const px2 = d.x + Math.cos(pa) * d.r, py2 = d.y + Math.sin(pa) * d.r;
+    const away = Math.atan2(d.y - gp.cy, d.x - gp.cx);   // away from the bore, per pad
+    const ca = Math.cos(away), sa = Math.sin(away);
     const br = 0.5 + 0.5 * Math.sin(time * 3.2);
-    const ping = (time * 1.15) % 1;
-    const halo = 34 + br * 12;
+    const r0 = d.r * 0.14, r1 = d.r * 1.16;              // from the hub, out past the rim
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const hg = ctx.createRadialGradient(px2, py2, 0, px2, py2, halo);
-    hg.addColorStop(0, `rgba(255,228,158,${(0.52 + br * 0.34).toFixed(2)})`);
-    hg.addColorStop(0.38, `rgba(255,200,74,${(0.18 + br * 0.16).toFixed(2)})`);
-    hg.addColorStop(1, 'rgba(255,190,60,0)');
-    ctx.fillStyle = hg;
-    ctx.beginPath(); ctx.arc(px2, py2, halo, 0, TAU); ctx.fill();
-    ctx.restore();
-    // two rings half a cycle apart, so there is always one mid-flight — a single ping
-    // spends a third of its cycle nearly invisible, which reads as a flicker
-    for (const ph of [ping, (ping + 0.5) % 1]) {
-      ctx.strokeStyle = `rgba(255,214,90,${(Math.sin(ph * Math.PI) * 0.62).toFixed(2)})`;
-      ctx.lineWidth = 2.5 - ph * 1.2;
-      ctx.beginPath(); ctx.arc(px2, py2, 7 + ph * 30, 0, TAU); ctx.stroke();
+    // the track the gesture runs along, so the direction reads even between pulses
+    ctx.strokeStyle = 'rgba(255,205,80,0.20)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    ctx.moveTo(d.x + ca * r0, d.y + sa * r0);
+    ctx.lineTo(d.x + ca * r1, d.y + sa * r1);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // two travellers half a cycle apart — one is always in flight. A single pulse spends
+    // a third of its loop invisible, which reads as a flicker rather than as a move.
+    const RUN = 1.15;
+    for (const ph of [(time / RUN) % 1, ((time / RUN) + 0.5) % 1]) {
+      const e = ph * ph * (3 - 2 * ph);                  // eases out gently, arrives fast
+      const rr = r0 + (r1 - r0) * e;
+      const fx3 = d.x + ca * rr, fy3 = d.y + sa * rr;
+      const fade = Math.sin(Math.min(1, ph / 0.86) * Math.PI);
+      if (fade < 0.02) continue;
+      // a comet: the trail behind it is what makes the direction unmistakable
+      const back = Math.max(r0, rr - d.r * 0.5);
+      const tg = ctx.createLinearGradient(d.x + ca * back, d.y + sa * back, fx3, fy3);
+      tg.addColorStop(0, 'rgba(255,196,60,0)');
+      tg.addColorStop(1, 'rgba(255,224,140,' + (0.42 * fade).toFixed(2) + ')');
+      ctx.strokeStyle = tg;
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(d.x + ca * back, d.y + sa * back);
+      ctx.lineTo(fx3, fy3);
+      ctx.stroke();
+      const hg = ctx.createRadialGradient(fx3, fy3, 0, fx3, fy3, 22);
+      hg.addColorStop(0, 'rgba(255,232,166,' + (0.62 * fade).toFixed(2) + ')');
+      hg.addColorStop(1, 'rgba(255,190,60,0)');
+      ctx.fillStyle = hg;
+      ctx.beginPath(); ctx.arc(fx3, fy3, 22, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(255,252,238,' + (0.92 * fade).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(fx3, fy3, 4.6, 0, TAU); ctx.fill();
     }
-    ctx.fillStyle = `rgba(255,236,186,${(0.55 + br * 0.35).toFixed(2)})`;
-    ctx.beginPath(); ctx.arc(px2, py2, 9 + br * 2.4, 0, TAU); ctx.fill();
-    ctx.fillStyle = `rgba(255,252,238,${(0.85 + br * 0.15).toFixed(2)})`;
-    ctx.beginPath(); ctx.arc(px2, py2, 5 + br * 1.4, 0, TAU); ctx.fill();
+    // the destination: a breathing mark on the rim where the push ends up
+    const ex3 = d.x + ca * d.r, ey3 = d.y + sa * d.r;
+    ctx.strokeStyle = 'rgba(255,214,90,' + (0.30 + br * 0.34).toFixed(2) + ')';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(ex3, ey3, 8 + br * 3, 0, TAU); ctx.stroke();
+    ctx.restore();
   }
   ctx.strokeStyle = okI ? 'rgba(126,226,98,0.9)'
     : `rgba(255,210,74,${(0.45 + Math.sin(time * 5) * 0.3).toFixed(2)})`;
@@ -2356,7 +2395,7 @@ function drawPadPrompt(i, d, tut) {
   ctx.textAlign = 'center';
   ctx.fillStyle = okI ? 'rgba(126,226,98,0.9)' : 'rgba(255,210,74,0.85)';
   ctx.font = '700 10px Audiowide, system-ui';
-  ctx.fillText(okI ? 'READY' : 'PLACE THUMB', d.x, d.y - d.r - 14);
+  ctx.fillText(okI ? 'READY' : 'PUSH OUT', d.x, d.y - d.r - 14);
   ctx.textAlign = 'left';
   // first boot: the gesture ghost already laps the rim, so the pupil learns the
   // thumb motion before the controls are even handed over
