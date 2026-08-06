@@ -898,9 +898,6 @@ function drawMenuCamps(ccx, ccy, R) {
 // Both live here rather than in the disc painter so any surface that paints camp art
 // can call one function and get the same behaviour.
 const DISC_GLOW = {
-  // the pupil's ship: twin plumes low-left, the brightest engines in the set
-  'training.webp':   [{ x: 0.165, y: 0.645, r: 0.115, c: '120,205,255' },
-                      { x: 0.305, y: 0.785, r: 0.105, c: '150,140,255' }],
   // a convoy under way: the lead hauler plus two of the pack
   'cargo-run.webp':  [{ x: 0.152, y: 0.660, r: 0.070, c: '190,220,255' },
                       { x: 0.565, y: 0.745, r: 0.078, c: '205,230,255' },
@@ -919,6 +916,11 @@ const DISC_GLOW = {
                       { x: 0.945, y: 0.755, r: 0.070, c: '200,225,255' }]
 };
 const DISC_ART_CROP = 0.965;   // how much of the strip shows — the rest is drift margin
+// NOT EVERY PLATE IS AN EXTERIOR. The training disc is a simulator cockpit: there is no
+// hull to hold still while a sky slides behind it, and no engine to breathe, so a drifting
+// starfield over it would just be dirt crawling on a window. It renders as a plate.
+// Gil's call, and the right one — the effects are for ships in flight.
+const DISC_STILL = { 'training.webp': 1 };
 // ---------- PARALLAX ----------
 // The ship and the starfield are baked into ONE opaque bitmap, so they cannot be pulled
 // apart and moved at different rates. What can be done is add a layer that was never in
@@ -962,20 +964,28 @@ function discSky(key) {
   for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
   const rnd = mulberry32(h >>> 0);
   sky = [];
-  for (let i = 0; i < 120; i++)
+  // DUST, NOT STARS. The first pass drew ~1-2px specks at up to 0.45 alpha, which read as
+  // a second population of stars competing with the ones painted into the plate. Finer and
+  // fainter, and more of them: dust is something you notice the texture of, not the grains.
+  for (let i = 0; i < 190; i++)
     sky.push({ u: rnd(), v: rnd(),
-      s: 0.35 + rnd() * 0.75,            // size
-      a: 0.20 + rnd() * 0.55,            // base brightness
+      s: 0.20 + rnd() * 0.40,            // size
+      a: 0.10 + rnd() * 0.28,            // base brightness
       w: 0.5 + rnd() * 2.2,              // twinkle rate
       ph: rnd() * 6.2831853,
-      near: rnd() < 0.13 });             // a few sit closer and travel further
+      near: rnd() < 0.10 });             // a few sit closer and travel further
   DISC_SKY.set(key, sky);
   return sky;
 }
 function drawLiveCampArt(im2, pk, x, y, r, mh) {
-  // the still framing this replaces: full width, vertically centred, letterboxed to mh
+  // aspect-preserving fit: sh0 is the source height whose ratio to the full width matches
+  // the art box, so a strip authored at any aspect centre-crops rather than stretching
   const sh0 = Math.min(im2.w * (mh / (r * 2)), im2.h);
   const y0 = clamp((im2.h - sh0) / 2, 0, im2.h);
+  if (DISC_STILL[(pk && pk.art) || '']) {   // a plate: no drift, no sky, no thrusters
+    ctx.drawImage(im2.img, 0, y0, im2.w, sh0, x - r, y - r, r * 2, mh);
+    return;
+  }
   const K = DISC_ART_CROP;
   const sw = im2.w * K, sh = sh0 * K;
   // periods chosen coprime-ish (19s and 27s) so the loop never announces itself, and
@@ -1023,10 +1033,13 @@ function drawLiveCampArt(im2, pk, x, y, r, mh) {
     }
     if (mask < 0.05) continue;
     const tw = 0.55 + 0.45 * Math.sin(time * st.w + st.ph);
-    const al = st.a * mask * tw * (st.near ? 0.85 : 0.6);
-    if (al < 0.02) continue;
+    const al = st.a * mask * tw * (st.near ? 0.42 : 0.30);
+    if (al < 0.008) continue;
     const gx2 = x - r + u2 * r * 2, gy2 = y - r + v2 * mh;
-    const rr2 = st.s * (st.near ? 1.9 : 1.15) * Math.max(1, Math.min(W, H) * 0.0016);
+    // the floor is 0.35px, not 1px: a sub-pixel arc still paints, at reduced coverage,
+    // which is exactly what a dust grain should be. Clamping it up to a whole pixel is
+    // what made these read as hard little dots.
+    const rr2 = st.s * (st.near ? 1.35 : 0.85) * Math.max(0.35, Math.min(W, H) * 0.0013);
     ctx.fillStyle = 'rgba(226,240,255,' + al.toFixed(3) + ')';
     ctx.beginPath(); ctx.arc(gx2, gy2, rr2, 0, TAU); ctx.fill();
   }
