@@ -1038,7 +1038,7 @@ function drawVoidCore(g, c) {
   const b = c; // the body below reads the classic field names off the view
   const cerQ = b.introT < BOSS_CER ? clamp(b.introT / BOSS_CER, 0, 1) : 1;
   const dieQ = b.dying !== undefined ? b.dying : -1;
-  let size = b.sSize * (1 + Math.sin(b.spin * 1.6) * 0.04);
+  let size = b.sSize;   // no breathing pulse: on a baked hull it reads as the model resizing
   if (dieQ > 2.3) size *= Math.max(0.01, 1 - (dieQ - 2.3) / 0.3); // implosion
   ctx.save();
   ctx.globalAlpha = 0.72 + 0.28 * (1 - clamp(b.z, 0, 1)); // deeper = hazier
@@ -1048,9 +1048,11 @@ function drawVoidCore(g, c) {
   const dmg = 1 - clamp(b.hp / b.maxHp, 0, 1);
   const seed = b.spin * 3.3;
   const tear = Math.sin(time * 2.3 + seed) > 0.9 - dmg * 0.5 ? 1 : 0;
-  // erratic: the whole body twitches a frame when it tears — it can't quite
-  // hold its position in the stream
-  if (tear) ctx.translate(Math.sin(time * 51 + seed) * size * 0.08, Math.cos(time * 47) * size * 0.05);
+  // NO POSITIONAL TWITCH. `tear` used to also translate the whole body by a
+  // sin(time*51) shake whenever it fired — about every 2.7s, which is the "jitter
+  // every second or so" Gil reported. It read as a rendering fault rather than as
+  // menace, and on a baked hull it reads as the sprite slipping. `tear` survives only
+  // as the glitch-colour gate below, which is where it earned its keep.
   // red-dominant livery to match the eye — the purple survives only as
   // GLITCHES: parts flicker back to warden violet for a frame, far more
   // often while the body is tearing
@@ -1075,10 +1077,9 @@ function drawVoidCore(g, c) {
     const hk = clamp(b.coreHeat === undefined ? 0 : b.coreHeat, 0, 1);
     const venting = b.ventT > 0;
     const R = size * BOSS_HULL_R[hullId];
-    // A slow idle bank — NOT a heading chase: the boss re-targets constantly, and
-    // pointing the hull at each new course spun it like a compass needle. The beacon
-    // is exempt: it stands on a mast and a banking lighthouse reads as a falling one.
-    if (hullId !== 'BEACN') ctx.rotate(Math.sin(time * 0.42 + b.spin * 0.05) * 0.11);
+    // NO BANK. A slow idle roll lived here to keep the hull from looking pasted on,
+    // but the direction is a machine holding station rather than a ship under way, and
+    // any rotation on a fixed installation reads as drift.
     if (flash > 0.3) { // struck: a white wash over the metal, through the sprite's own mask
       s3draw(0, 0, R, hullId, haze);
       ctx.globalCompositeOperation = 'lighter';
