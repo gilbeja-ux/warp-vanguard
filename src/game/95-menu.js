@@ -834,9 +834,9 @@ function drawEnd(g) {
     const lx = margin / 2, rx = W - margin / 2;
     const primary = endWin && !endless && !qual && levelIdx + 1 < LEVELS.length
       ? { label: 'NEXT LEVEL ▸', action: 'next' }
-      : { label: endWin ? 'REPLAY' : 'RETRY', action: 'retry' };
+      : { label: endWin ? 'RESTART' : 'RETRY', action: 'retry' };
     const secondary = [];
-    if (primary.action === 'next') secondary.push({ label: 'REPLAY', action: 'retry' });
+    if (primary.action === 'next') secondary.push({ label: 'RESTART', action: 'retry' });
     secondary.push({ label: 'MENU', action: 'menu' });
     const bcut = Math.min(12, bh * 0.28); // the button()'s own chamfer — the focus ring matches it
     button(rx - bw / 2, g.cy - bh / 2 + rise, bw, bh, primary.label, !gated, gated);

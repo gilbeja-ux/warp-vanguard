@@ -2670,6 +2670,46 @@ G.keys['ArrowUp'] = false;
   flushUI();
   check('Y quits the paused run to the menu', G.getState() === G.S.MENU);
   flushUI(); flushUI();
+
+  // ---- PAUSE + REPORT BINDINGS ----
+  // Y and B both LEAVE; X restarts. Only Y had a test, so the remap that moved restart
+  // off B (where it sat on the button players press to back out of things) would have
+  // regressed in silence. Each of the three is pinned on both screens.
+  {
+    G.startLevel(1); G.update(0.05);
+    G.setState(G.S.PAUSE); G.frame(16); G.update(0.05);
+    tap(1); // B on pause
+    flushUI();
+    check('B leaves a paused run, like Y', G.getState() === G.S.MENU);
+    flushUI(); flushUI();
+
+    G.startLevel(1); G.update(0.05);
+    G.setState(G.S.PAUSE); G.frame(16); G.update(0.05);
+    G.setLevelT(12); const lt0 = G.getLevelT();
+    tap(2); // X on pause
+    flushUI();
+    check('X restarts from pause — back in the lane, clock rewound',
+      G.getState() === G.S.PLAY && G.getLevelT() < lt0);
+
+    // and the report: X re-runs, B and Y both go to the menu
+    G.startLevel(1); G.update(0.05);
+    G.setIntegrity(0); let g5 = 30;
+    while (g5-- > 0 && G.getState() !== G.S.END) G.update(0.05);
+    G.setEndT(9); G.frame(16); G.update(0.05);
+    check('the report is up', G.getState() === G.S.END);
+    tap(2); // X on the report
+    flushUI();
+    check('X restarts from the report', G.getState() === G.S.PLAY || G.getState() === G.S.INFO);
+    if (G.getState() === G.S.INFO) dismiss();
+
+    G.setIntegrity(0); let g6 = 30;
+    while (g6-- > 0 && G.getState() !== G.S.END) G.update(0.05);
+    G.setEndT(9); G.frame(16); G.update(0.05);
+    tap(1); // B on the report
+    flushUI(); flushUI();
+    check('B leaves the report to the menu', G.getState() === G.S.MENU);
+    flushUI(); flushUI();
+  }
   delete globalThis.navigator;
   G.setState(G.S.MENU); G.setMenuScreen('home');
 }

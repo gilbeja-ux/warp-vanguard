@@ -22,22 +22,28 @@ function gpSyncFocus(list) { // → true when focus just snapped to a fresh scre
   gpSel = Math.max(0, i);
   return true;
 }
-function gpBackAction() { // B: CANCEL (modal, panel, card) / RESTART (pause + report)
+function gpBackAction() { // B: CANCEL (modal, panel, card) / LEAVE (pause + report)
   if (state === S.MENU) {
     if (menuConfirm) { menuConfirm = false; sfx.tick(); return; } // close the modal, go nowhere
     if (menuSettings) { menuSettings = false; sfx.tick(); return; } // close the settings panel
     gpMenuBack();
-  } else if (state === S.PAUSE) { // B restarts the level from pause
-    const b = pauseButtonsList.find(b2 => b2.action === 'restart');
-    if (b) pauseTap(b.x + b.w / 2, b.y + b.h / 2, -7);
-    else { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; sfx.tick(); }
   }
   else if (state === S.INFO) { if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); } }
   else if (state === S.GUIDE) closeGuide(); // B hands the wing back
-  else if (state === S.END) {
-    if (nameEntry) { closeNameEntry(); sfx.tick(); } // cancel the high-score card
-    else gpEndPress('retry'); // B: re-run the level
-  }
+  else if (state === S.END && nameEntry) { closeNameEntry(); sfx.tick(); } // cancel the card
+  // ON PAUSE AND ON THE REPORT, B LEAVES — the same door as Y. Gil's call, and it matches
+  // the muscle memory a controller brings: B is the way OUT of a screen, everywhere else
+  // in this game and in most others. It used to RESTART from both, which put the most
+  // destructive option on the button players press to back out. Restart is X now.
+  else if (state === S.PAUSE || state === S.END) gpQuitAction();
+}
+// X: RESTART, on the two screens that can offer one. Deliberately the button nothing else
+// uses, so re-running a level is never what a stray B or Y does.
+function gpRestartAction() {
+  if (state === S.PAUSE) {
+    const b = pauseButtonsList.find(b2 => b2.action === 'restart');
+    if (b) pauseTap(b.x + b.w / 2, b.y + b.h / 2, -7);
+  } else if (state === S.END && !nameEntry) gpEndPress('retry');
 }
 function gpMenuBack() { // one step back through the menu screens
   if (menuScreen === 'home' || menuFx) return;
@@ -154,8 +160,10 @@ function drawGpHints() { // once a controller speaks, keys wear their buttons
     if (b.deploy !== undefined || b.action === 'resume'
       || (endA ? b.action === endA : b.action === 'next')) h = 'A';
     else if (b.back) h = 'Y';
-    else if (b.action === 'restart' && state === S.PAUSE) h = 'B';
-    else if (b.action === 'retry' && state === S.END) h = 'B'; // when A already owns retry the chain never gets here
+    // restart is X on both screens; leaving is Y (and B does the same, but one glyph per
+    // key is the honest hint — a button showing two letters teaches neither)
+    else if (b.action === 'restart' && state === S.PAUSE) h = 'X';
+    else if (b.action === 'retry' && state === S.END) h = 'X'; // when A already owns retry the chain never gets here
     else if (b.action === 'menu' && state !== S.MENU) h = 'Y';
     if (!h || b.sector) continue;
     drawPadHint(b.x + b.w / 2, b.y - 2, h);
@@ -205,7 +213,7 @@ function pollGamepad(dt) {
     if (anyBtn && !padPrev.any) { gpSeen = true; if (SPLASH.t >= 0.3) splashEnd(true); }
     padPrev.any = anyBtn;
     // the skip press must not echo into the menu as a phantom A/B/Y/START
-    padPrev.a = press(0); padPrev.b = press(1); padPrev.y = press(3); padPrev.start = press(9);
+    padPrev.a = press(0); padPrev.b = press(1); padPrev.x = press(2); padPrev.y = press(3); padPrev.start = press(9);
     return;
   }
   if (!gpSeen && (gp.buttons.some(b2 => b2 && b2.pressed) || gp.axes.some(v => Math.abs(v) > 0.3)))
@@ -361,6 +369,9 @@ function pollGamepad(dt) {
   const yy = press(3); // Y — quit
   if (yy && !padPrev.y) gpQuitAction();
   padPrev.y = yy;
+  const xx = press(2); // X — restart (pause + report)
+  if (xx && !padPrev.x) gpRestartAction();
+  padPrev.x = xx;
   const a0 = press(0);
   if (a0 && !padPrev.a) {
     if (state === S.INFO) {
