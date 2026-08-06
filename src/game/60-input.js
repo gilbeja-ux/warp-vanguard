@@ -497,7 +497,7 @@ function resetRun() {
   preT = 0; padArm = [false, false]; // parked: introT does not move until both thumbs land
   rimFX = []; latches = []; killStreaks = []; resumeHold = 0; warpT = WARP_DIVE; fadeT = 0.35;
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; }
-  fx.wide = fx.auto = fx.chain = 0; shieldCharge = DEV_SHIELD ? 1 : 0; pickupT = srand(16, 24); pickupBag = [];
+  fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24); pickupBag = [];
   ribbonT = srand(11, 15); // first golden ribbon EARLY — its pulse should serve the whole run
   sched = [];
   initBeats(); // authored timeline: arm the beat queue + pre-book its windows

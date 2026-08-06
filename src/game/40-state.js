@@ -105,9 +105,11 @@ let shieldFlashT = 0; // absorb animation clock: the sheath drains into the hit
 let shieldHitA = 0;   // where the caught breach struck (the drain's focal angle)
 let shieldUpT = 0;    // charge-in animation clock: the glow spreads from the pickup
 let shieldUpA = 0;    // where the shield pickup was caught (the spread's origin)
-// dev hook: open the game with ?shield to keep the shield armed —
-// it re-arms itself after every catch, for effect testing
-const DEV_SHIELD = typeof location !== 'undefined' && /[?&]shield/.test(location.search);
+// (The ?shield dev hook lived here: a self-re-arming shield for effect testing. It was
+// REMOVED after it cost a bug hunt — a query string survives in a browser tab forever,
+// so a tab once opened with ?shield plays invincible in every later session, absorbing
+// every breach with no way to lose. It also consumed Math.random() in the tick, which
+// desyncs a seeded lane from the verifier. Test the effect by catching the pickup.)
 let killStreaks = []; // kill streaks: reprogrammed packets tracing home
 let pickups = [], pickupT = 20;
 let ribbonT = 30; // bonus ribbon cadence — golden ribbons on levels 5+ / endless

@@ -134,10 +134,6 @@ function update(dt) {
   popups = popups.filter(p => p.life > 0);
   shieldFlashT = Math.max(0, shieldFlashT - dt);
   shieldUpT = Math.max(0, shieldUpT - dt);
-  if (DEV_SHIELD && shieldCharge === 0 && shieldFlashT === 0 && state === S.PLAY) {
-    shieldCharge = 1; // dev loop: re-arm with the spread animation from a random angle
-    shieldUpT = 0.6; shieldUpA = Math.random() * TAU;
-  }
   for (const st of killStreaks) st.t += dt;
   killStreaks = killStreaks.filter(st => st.t < 0.15); // must match DUR in the draw pass
   for (const b of bolts) b.life -= dt;
