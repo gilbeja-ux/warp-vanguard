@@ -322,6 +322,13 @@ let guide = null; // FIELD GUIDE (S.GUIDE): open-page state (from + in/out clock
 let nameEntry = null;         // { board } while the high-score card is up, else null
 let nameEntryDraft = '';      // current text in the high-score handle field
 let nameEntryFx = 0;          // 0..1 entrance ramp for the crescendo-takeover card
+// HOW LONG THE NEW BEST BADGE HAS BEEN HELD BACK. The high-score card is a takeover: a
+// 60% scrim over the whole frame plus a panel on the ring's centre, which on a short frame
+// sits right on top of the badge. So a badge that popped while the card was up played its
+// one animation behind a scrim, to a player reading a different thing — exactly how Gil
+// missed it on mobile. This pins the badge's reveal at zero for as long as the card is up,
+// so the pop happens AFTER dismissal, whenever the card happens to arrive.
+let nbHold = 0;
 // the field input handler just sanitizes + stashes; validity is derived
 // synchronously via nameStatus() at draw time (no server round-trip — local UX)
 function onEntryInput(v) { nameEntryDraft = sanitizeName(v); }

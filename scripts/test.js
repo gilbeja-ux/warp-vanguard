@@ -198,7 +198,7 @@ code = code.replace("'use strict';", '') + `
   boardKeyFor, boardPick, openBoard, boardLeftItems, weekLadder, getBoardSel: () => boardSel, setBoardData: v => { boardData = v; }, // board screen
   setBoardCollapsed: (k, v) => { boardCollapsed[k] = v; }, // the left list's folds
   setNameEntry: v => { nameEntry = v; }, setEndProvisional: v => { endProvisional = v; }, // high-score name card
-  getMaxCombo: () => maxCombo, endLevel, endBtnAt, endRevealAt, getEndT: () => endT,
+  getMaxCombo: () => maxCombo, endLevel, endBtnAt, endRevealAt, getEndT: () => endT, getNbHold: () => nbHold,
   simStep, startTrace, stopTrace, startReplay, stopReplay, dismissInfo, // run-trace record/replay
   launchReplay, getReplaying: () => replaying, // the watch-a-run viewer + its guard flag
   rawFrame: now => frame(now), // the real frame() incl. the accumulator (G.frame is the same)
@@ -1326,6 +1326,53 @@ function runDailyFramerate(fps, targetSteps) {
 }
 G.setState(G.S.MENU);
 G.setState(G.S.MENU);
+
+// ================= the NEW BEST badge outlives the high-score card =================
+// THE ACTUAL BUG Gil hit, on desktop as well as mobile. A top-50 run raises the high-score
+// card, which is a takeover: a 60% scrim over the whole frame plus a panel centred on the
+// ring — and the badge lives directly under that panel. So on every run good enough to be
+// ranked, the badge's one animation played behind a scrim while the player was reading a
+// different thing. Its reveal is pinned while the card is up and pops once it clears.
+//
+// Note the WIN: a loss can never carry a new best (endLevel only computes endNewBest in the
+// win branch), so an earlier version of this block asserted nothing at all — the badge
+// branch was never even entered.
+{
+  G.startLevel(1); G.update(0.05);
+  // save and restore: this block WINS level 1, which writes its recorded best — and a
+  // later test asserts that best equals its own score. Leaving 4321 behind broke it.
+  const best0 = G.getProg().bests[1];
+  G.getProg().bests[1] = 0;
+  G.setScore(4321);
+  G.enemies().length = 0; G.setLatches([]);
+  G.setIntegrity(100); G.setLevelT(999);
+  let g8 = 40;
+  while (g8-- > 0 && G.getState() !== G.S.END) G.update(0.05);
+  check('a WON run records the best and flags it', G.getState() === G.S.END && G.getProg().bests[1] > 0);
+  G.setEndT(9); G.frame(16);
+  check('with no card, the badge reveal has run', G.getNbHold() === 0);
+  // the card arrives late, after the badge would already have popped
+  G.setNameEntry({ board: 'campaign' });
+  G.frame(16);
+  const held = G.getNbHold();
+  check('a card pins the badge reveal back to zero', held > 0);
+  G.frame(16);
+  check('...and the hold is monotonic — it cannot un-hold mid-card', G.getNbHold() >= held);
+  drawOk('report with the high-score card up (badge held)', () => {});
+  // the player skips: the hold freezes, so the pop plays where it can be seen
+  const frozen = G.getNbHold();
+  const endT0 = G.getEndT();
+  G.setNameEntry(null);
+  // frame(now) derives its dt from `now - last`, so frame(16) forty times is forty frames
+  // of ZERO elapsed time — endT never moved and this read as a fail. Advance the clock.
+  let ts9 = 100000;
+  for (let i = 0; i < 40; i++) G.frame(ts9 += 16);
+  check('the hold freezes when the card clears', Math.abs(G.getNbHold() - frozen) < 1e-9);
+  check(`...and the reveal then runs (endT ${endT0.toFixed(2)} -> ${G.getEndT().toFixed(2)}, needs ${(2.62 + frozen + 0.42).toFixed(2)})`,
+    G.getEndT() > 2.62 + frozen + 0.42);
+  drawOk('report after the card clears (badge popped)', () => {});
+  G.getProg().bests[1] = best0;   // leave the world as found
+}
 
 // ================= a skipped report still shows everything =================
 // Gil lost the NEW BEST badge on mobile. Not broken — OUT-RUN. Tapping the report

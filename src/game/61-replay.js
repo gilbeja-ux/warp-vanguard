@@ -365,7 +365,7 @@ function endLevel(win) {
   endDropT = win ? 0 : -1;            // victory: the lane drops out of warp
   beamSound(false, 0); beamActive = false; stripSound(false, 0);
   endRunMusic();
-  endWin = win; endT = 0; endFxStars = 0; endTickT = 0;
+  endWin = win; endT = 0; endFxStars = 0; endTickT = 0; nbHold = 0;
   endStars = win && !endless && !qual ? (integrity >= 90 ? 3 : integrity >= 60 ? 2 : 1) : 0;
   if (qual) {
     sfx.win();

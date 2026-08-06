@@ -772,7 +772,10 @@ function drawEnd(g) {
     const bestVal = endless ? (weekly ? (progress.weekly && progress.weekly.best) : progress.best) : PROG.bests[levelIdx];
     const isNewB = endless ? (score >= (bestVal || 0) && score > 0) : endNewBest;
     if (isNewB && (bestVal || 0) > 0 && !qual) {
-      const k = ph(T.best, T.best + 0.42);
+      // held at zero while the takeover card is up, then popped once it clears. Math.max
+      // keeps the hold monotonic, so it can never un-hold and fire mid-card.
+      if (nameEntry) nbHold = Math.max(nbHold, endT - T.best);
+      const k = ph(T.best + nbHold, T.best + nbHold + 0.42);
       if (k > 0.001) {
         // overshoot: 1.35 -> 1, easing out. A tag that merely fades in does not read as
         // an award; the scale is what makes it land.
