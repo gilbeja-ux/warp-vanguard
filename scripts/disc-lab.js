@@ -63,7 +63,7 @@ function readPackages(text) {
 // time. See the field audit in the page header.
 const SLOT_KINDS = {
   mission: { where: 'the mission disc, before the lane', max: MISSION_MAX, hard: true },
-  closure: { where: 'the closure disc, after the boss', max: 120, hard: false },
+  closure: { where: 'the closure disc, set below the picture — no plate over the art', max: 120, hard: false },
   epilogue: { where: 'authored epilogue — the validator requires it, the disc does not read it', max: 60, hard: false },
   brief: { where: 'contract brief — authored, but NOT drawn anywhere in the game today', max: 400, hard: false }
 };

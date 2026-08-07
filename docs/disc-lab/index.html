@@ -238,7 +238,7 @@ function renderCamps() {
 // the four kinds, in the order an author works through a contract
 const GROUPS = [
   ['mission',  'Mission discs',  'one per stage — this is the line in the black bar'],
-  ['closure',  'Closure disc',   'shown once, after the contract’s boss goes down'],
+  ['closure',  'Closure disc',   'shown once when the contract’s boss goes down — sets below the picture'],
   ['epilogue', 'Closure epilogue', ''],
   ['brief',    'Contract brief', '']
 ];
@@ -437,8 +437,11 @@ function preview(s, force) {
   const drawn = s.kind === 'mission' || s.kind === 'closure';
   $('#hint').innerHTML = drawn
     ? 'Previewing the real renderer at ' + VP[vp][0] + '×' + VP[vp][1] + '. ' +
-      (spec.hard ? 'Over <b>' + spec.max + '</b> characters and the installer rejects the package.'
-                 : 'No hard limit — but a long line wraps to more rows and shrinks the type.')
+      (spec.hard
+        ? 'Over <b>' + spec.max + '</b> characters and the installer rejects the package.'
+        : 'No hard limit: this sets in the open band under the picture, which holds about ' +
+          '<b>two rows on a phone</b> and five on a tablet. Past that the type shrinks to fit — ' +
+          'check it on Phone before you commit to a long one.')
     : '<b>Not drawn.</b> ' + spec.where + ' — editing it here changes campaigns.js, but no disc will show it.';
   if (!drawn) {
     $('#stageBody').innerHTML = '<div class="nopreview">no disc reads this text<br>' +

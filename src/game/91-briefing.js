@@ -350,7 +350,7 @@ function drawInfoCard() {
   }
   // a mission disc spends its middle on art and readings, so the hint sits lower
   // and quieter — down where the disc has narrowed to little else
-  const tapY = g.cy + R * (isStory ? 0.79 : 0.66);
+  const tapY = g.cy + R * (isStory ? TAP_K : 0.66);
   ctx.fillStyle = 'rgba(140,230,255,' + (0.5 + Math.sin(time * 4) * 0.3).toFixed(2) + ')';
   try { ctx.letterSpacing = isStory ? '2px' : '3px'; } catch (e) {}
   fit('700', isStory ? 9 : 12, 'TAP TO CONTINUE');
@@ -381,6 +381,10 @@ function wrapRows(text, maxW) {
 // Now every character runs its own short fade on a stagger, so the line resolves as a
 // soft wave left to right and the last glyph lands about where the typing used to finish.
 const BAR_SCALE = 1.5;         // the caption bar's height, over what its rows need
+// TAP TO CONTINUE's baseline on a story/closure disc, as a share of R. Shared, because the
+// closure's text sizes itself against the room it has BEFORE that line — two places reading
+// one number, rather than two numbers drifting apart.
+const TAP_K = 0.79;
 const LINE_LEAD = 0.25;        // the beat before the first character shows
 const LINE_STAGGER = 0.016;    // and the gap between each one starting
 const LINE_FADE = 0.34;        // how long one character takes to arrive
@@ -493,22 +497,43 @@ function drawStoryDisc(c, g, R) {
   const L = LEVELS[li];
   const artOf = L || c;
   const Rc = R * 0.965;              // the mask: just inside the border ring
-  const artB = g.cy + R * 0.34;      // the art's bottom edge
+  // THE ART'S BOTTOM EDGE. A closure stops its picture a little higher than a mission does:
+  // the mission spends the band below on readings and only needs its plate's worth, while a
+  // closure's line sets in that band in the open and wants room to breathe. Measured on a
+  // phone, where everything scales but two rows of type still take 0.16R — at 0.34 the line
+  // cleared TAP TO CONTINUE by 13px, which fits but reads cramped.
+  const artB = g.cy + R * (infoCard === 'verdict' ? 0.26 : 0.34);
   const half = y => Math.sqrt(Math.max(1, Rc * Rc - y * y)); // the chord, half-width
-  // measure the plot line FIRST — the caption bar is sized by its own wrap, and
-  // its width is the disc's chord at the bar's lowest point, not a panel edge
+  // THE CLOSURE HAS NO BAR. A verdict fires once per campaign and carries no readings, so
+  // the entire band between the picture and TAP TO CONTINUE is empty — the line sets down
+  // there in the open, and the picture keeps all of itself. Only a mission disc still needs
+  // the plate, because that band is where its LANE LENGTH and DETECTED THREATS live.
+  const isClosure = infoCard === 'verdict';
+  const clrTop = artB + R * 0.13;                    // where a closure's first row's ink starts
+  const clrBot = g.cy + R * TAP_K - R * 0.11;        // …and the floor the hint leaves it
+  // measure the line FIRST — the bar is sized by its own wrap, and its width is the disc's
+  // chord at its lowest point, not a panel edge
   const body = c.line || (c.lines || []).join(' ');
   let ls = Math.max(10, Math.min(16, Math.round(R * 0.095))), rows = [], tw = 0;
   for (;;) {
     ctx.font = '500 ' + ls + 'px Audiowide, system-ui';
-    tw = half(R * 0.34) * 2 - R * 0.16;
+    // the chord at the LOWEST row either way, so no row runs into the rim
+    tw = (isClosure ? half(R * 0.64) : half(R * 0.34)) * 2 - R * 0.16;
     rows = wrapRows(body, tw);
-    if (rows.length <= 2 || ls <= 9) break;
+    // DOES THE BLOCK FIT THE BAND — asked directly, not converted into a row count. Counting
+    // rows as floor(band / lineHeight) + 1 ignores the first row's cap height, which on a
+    // phone is most of a line: it green-lit three rows and the last one sat on top of TAP TO
+    // CONTINUE. Deriving it also beats picking a number, since the same disc is 2 rows on a
+    // phone and 5 on a tablet.
+    const fits = isClosure
+      ? (rows.length - 1) * (ls + 5) + ls * 0.9 <= clrBot - clrTop
+      : rows.length <= 2;
+    if (fits || ls <= 9) break;
     ls--;
   }
   // BAR_SCALE: the bar is 1.5x the height its rows strictly need, and the text is centred
   // in the slack rather than hanging from the top edge — see base0 at the draw.
-  const lh = ls + 5, bh = (rows.length * lh + 16) * BAR_SCALE;
+  const lh = ls + 5, bh = isClosure ? 0 : (rows.length * lh + 16) * BAR_SCALE;
   const aTop = g.cy - Rc, aH = artB - aTop;
   ctx.save();
   ctx.beginPath(); ctx.arc(g.cx, g.cy, Rc, 0, TAU); ctx.clip();
@@ -530,12 +555,14 @@ function drawStoryDisc(c, g, R) {
   ctx.fillStyle = vg; ctx.fillRect(g.cx - Rc, aTop, Rc * 2, aH);
   // the caption bar rides the art's lower edge, full disc width — the mask gives
   // it curved ends, so it reads as part of the disc rather than a floating panel
-  const bTop = artB - bh;
-  const cg = ctx.createLinearGradient(g.cx, bTop, g.cx, artB);
-  cg.addColorStop(0, 'rgba(3,7,16,0.80)');
-  cg.addColorStop(0.35, 'rgba(3,7,16,0.94)');
-  cg.addColorStop(1, 'rgba(3,7,16,0.94)');
-  ctx.fillStyle = cg; ctx.fillRect(g.cx - Rc, bTop, Rc * 2, bh);
+  const bTop = artB - bh;            // a closure's bh is 0, so this IS the art's edge
+  if (!isClosure) {
+    const cg = ctx.createLinearGradient(g.cx, bTop, g.cx, artB);
+    cg.addColorStop(0, 'rgba(3,7,16,0.80)');
+    cg.addColorStop(0.35, 'rgba(3,7,16,0.94)');
+    cg.addColorStop(1, 'rgba(3,7,16,0.94)');
+    ctx.fillStyle = cg; ctx.fillRect(g.cx - Rc, bTop, Rc * 2, bh);
+  }
   ctx.restore();
   // the art covered the disc's rim — lay the ring and its accent arcs back over
   ctx.strokeStyle = 'rgba(120,200,255,0.3)'; ctx.lineWidth = 1.5;
@@ -562,7 +589,10 @@ function drawStoryDisc(c, g, R) {
   const capH = (typeof asc3 === 'number' && asc3 > 0) ? asc3 : ls * 0.72;
   const dscH = (typeof desc3 === 'number' && desc3 > 0) ? desc3 : ls * 0.06;
   const inkH = (rows.length - 1) * lh + capH + dscH;
-  const base0 = bTop + (bh - inkH) / 2 + capH;
+  // a closure sets from the top of its free band; a mission centres in its plate
+  const base0 = isClosure
+    ? clrTop + Math.max(0, (clrBot - clrTop - inkH) / 2) + capH   // centred in the band
+    : bTop + (bh - inkH) / 2 + capH;
   ctx.textAlign = 'left';
   let ci = 0, lastA = -1;
   for (let i = 0; i < rows.length; i++) {
