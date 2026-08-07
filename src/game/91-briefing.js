@@ -514,7 +514,12 @@ function drawStoryDisc(c, g, R) {
   // measure the line FIRST — the bar is sized by its own wrap, and its width is the disc's
   // chord at its lowest point, not a panel edge
   const body = c.line || (c.lines || []).join(' ');
-  let ls = Math.max(10, Math.min(16, Math.round(R * 0.095))), rows = [], tw = 0;
+  // NO CEILING. This used to be min(16, R*0.095), which meant the line sat at 0.044R on a
+  // desktop against 0.097R on a phone — less than half the relative size, on a disc where
+  // everything else already scales with R. The readings immediately below it were 38px while
+  // the line above them was 16. Now the line scales like the rest of the disc, so the type
+  // reads the same at every size; the 10px floor stays, since that one is about legibility.
+  let ls = Math.max(10, Math.round(R * 0.095)), rows = [], tw = 0;
   for (;;) {
     ctx.font = '500 ' + ls + 'px Audiowide, system-ui';
     // the chord at the LOWEST row either way, so no row runs into the rim

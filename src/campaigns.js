@@ -69,7 +69,7 @@ const CAMPAIGN_PACKAGES = [{
   ],
   verdict: { title: 'CONTRACT 01 — DELIVERED', art: 'cargo-run-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
-    line: 'Good job! This is system\'s economy is now booming!', lines: [
+    line: 'Good job! The system\'s economy is now booming!', lines: [
     'Eight legs, one hold, nothing lost.', 'The consortium paid on arrival and', 'asked no questions about the wreckage', 'we left in the lane behind us.'] } },
 {
   id: 'survey', format: 1,
@@ -117,7 +117,7 @@ const CAMPAIGN_PACKAGES = [{
   ],
   verdict: { title: 'CONTRACT 02 — CHARTED', art: 'survey-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
-    line: 'Some would call it "A giant leap", Discovery data delivered.', lines: [
+    line: '"A giant leap", Discovery data delivered.', lines: [
     'They got their readings and we got', 'them home. Four of those lanes had', 'not been flown since the survey', 'before this one never came back.'] } },
 {
   id: 'collector', format: 1,
@@ -204,7 +204,7 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '120,160,255', duration: 60, spawnMin: 0.56, spawnMax: 0.96, speed: 0.63, doubles: 0.50, heavies: 0.18, lines: 0.18, colors: 0.50, frags: 0.16, walls: 0.10, track: 1,
       hint: 'follow the bite home — phase-locked traffic all the way down',
       bands: [{ t0: 28, t1: 48, intensity: 1.7 }],
-      story: { line: 'Federation law doesn\'t apply here, weapons hot,' } },
+      story: { line: 'Federation law doesn\'t apply here, weapons hot!' } },
     { tint: '255,205,90', duration: 65, spawnMin: 0.52, spawnMax: 0.90, speed: 0.65, doubles: 0.55, heavies: 0.18, lines: 0.20, colors: 0.55, frags: 0.18, walls: 0.12, track: 2, bursts: true,
       hint: 'the nest — every phase at once, and it is awake',
       bands: [{ t0: 20, t1: 38, intensity: 1.8 }, { t0: 50, t1: 63, intensity: 2.0, mix: { colors: 0.65 } }],
@@ -235,7 +235,7 @@ const CAMPAIGN_PACKAGES = [{
   levels: [
     { tint: '96,180,255', duration: 50, spawnMin: 0.72, spawnMax: 1.20, speed: 0.58, doubles: 0.50, heavies: 0.15, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 0,
       hint: 'you escort the antidote now — get it into his lane and hold on',
-      story: { line: 'The minister of Xeno Relations, in the open, this is dangerous.' } },
+      story: { line: 'The minister of Xeno Relations, in the open' } },
     { tint: '255,160,80', duration: 55, spawnMin: 0.60, spawnMax: 1.02, speed: 0.63, doubles: 0.55, heavies: 0.16, lines: 0.22, colors: 0.32, frags: 0.16, walls: 0.12, track: 1, bursts: true,
       hint: 'his outer cordon throws everything — do not slow the convoy',
       bands: [{ t0: 18, t1: 36, intensity: 1.7 }],
