@@ -67,7 +67,7 @@ const CAMPAIGN_PACKAGES = [{
       bossKind: 'array',
       story: { line: 'The buyer is waiting. Nothing gets through you.' } }
   ],
-  verdict: { title: 'CONTRACT 01 — DELIVERED',
+  verdict: { title: 'CONTRACT 01 — DELIVERED', art: 'cargo-run-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
     line: 'Eight legs, one hold. Nothing lost.', lines: [
     'Eight legs, one hold, nothing lost.', 'The consortium paid on arrival and', 'asked no questions about the wreckage', 'we left in the lane behind us.'] } },
