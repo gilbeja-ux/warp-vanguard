@@ -269,5 +269,5 @@ const CAMPAIGN_PACKAGES = [{
   ],
   verdict: { title: 'CONTRACT 05 — SIGNED', art: 'delegation-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
-    line: 'First Contact! This is a new dawn for our society.', lines: [
+    line: 'First Contact! This is a new dawn for humankind!', lines: [
     'She crossed all five cordons and put', 'her name on it. The lane behind her was', 'the most contested stretch of space', 'anyone has flown this decade.'] } }];
