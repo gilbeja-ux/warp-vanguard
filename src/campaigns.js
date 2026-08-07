@@ -46,7 +46,7 @@ const CAMPAIGN_PACKAGES = [{
       story: { line: 'The journey begins. Keep the convoy safe!' } },
     { tint: '255,170,90', duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
       hint: 'NEW THREAT: heavy armor — dock both emitters and HOLD',
-      story: { line: 'So far so good!, Let\'s keep it up.' } },
+      story: { line: 'So far so good! Let\'s keep it up.' } },
     { tint: '110,230,200', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
       hint: 'NEW THREAT: burst deployments — threats arrive in volleys',
       story: { line: 'Moving into less protected space. Stay vigilant.' } },
@@ -58,7 +58,7 @@ const CAMPAIGN_PACKAGES = [{
       story: { line: 'No turning back now...' } },
     { tint: '255,205,80', duration: 65, spawnMin: 0.68, spawnMax: 1.25, speed: 0.48, doubles: 0.42, heavies: 0.18, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 2,
       hint: 'NEW THREAT: phase-locked threats — match the emitter',
-      story: { line: 'Scoop some fuel at the star for our last leg of the run' } },
+      story: { line: 'Scoop some fuel at the star for our last leg of the run.' } },
     { tint: '255,70,100', duration: 70, spawnMin: 0.58, spawnMax: 1.10, speed: 0.54, doubles: 0.48, heavies: 0.22, lines: 0.22, colors: 0.36, frags: 0.20, walls: 0.15, track: 0, bursts: true,
       hint: 'ALL THREATS ACTIVE — maximum traffic',
       story: { line: 'Last stretch before the exchange.' } },
@@ -94,7 +94,7 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '120,230,190', duration: 60, spawnMin: 0.62, spawnMax: 1.10, speed: 0.52, doubles: 0.50, heavies: 0.10, lines: 0.00, colors: 0.15, frags: 0.12, track: 0,
       hint: 'phase locks in the flood — glance, match, keep moving',
       bands: [{ t0: 30, t1: 48, intensity: 1.6 }],
-      story: { line: 'Valuable data to colect, let\'s make sure they\'re safe.' } },
+      story: { line: 'Valuable data to collect, let\'s make sure they\'re safe.' } },
     { tint: '255,205,90', duration: 60, spawnMin: 0.58, spawnMax: 1.00, speed: 0.55, doubles: 0.55, heavies: 0.12, lines: 0.00, colors: 0.15, frags: 0.12, track: 1, bursts: true,
       hint: 'burst volleys — the flood comes in waves now',
       bands: [{ t0: 24, t1: 42, intensity: 1.7, mix: { doubles: 0.6 } }],
@@ -117,7 +117,7 @@ const CAMPAIGN_PACKAGES = [{
   ],
   verdict: { title: 'CONTRACT 02 — CHARTED', art: 'survey-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
-    line: '"A giant leap", Discovery data delivered.', lines: [
+    line: '"A giant leap", discovery data delivered.', lines: [
     'They got their readings and we got', 'them home. Four of those lanes had', 'not been flown since the survey', 'before this one never came back.'] } },
 {
   id: 'collector', format: 1,
@@ -141,11 +141,11 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '255,190,110', duration: 60, spawnMin: 0.95, spawnMax: 1.50, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.28, colors: 0.45, frags: 0.14, walls: 0.12, track: 2,
       hint: 'shoal water — phase-locked reefs and sealed pairs, read before you steer',
       beats: [{ t: 26, kind: 'wall' }, { t: 35, kind: 'strip' }, { t: 46, kind: 'wall' }],
-      story: { line: 'looking like a luxury cruiser, we\'re actually hunting for gems' } },
+      story: { line: 'Looking like a luxury cruiser, we\'re actually hunting for gems.' } },
     { tint: '120,160,255', duration: 60, spawnMin: 0.55, spawnMax: 0.92, speed: 0.60, doubles: 0.65, heavies: 0.05, lines: 0.00, colors: 0.00, frags: 0.12, track: 0, bursts: true,
       hint: 'riptide — do not fight the pace, become it',
       bands: [{ t0: 12, t1: 28, intensity: 1.8 }, { t0: 36, t1: 54, intensity: 2.0, mix: { doubles: 0.7 } }],
-      story: { line: 'Whatever is in the cargohold, somebody else wants it.' } },
+      story: { line: 'Whatever is in the cargo hold, somebody else wants it.' } },
     { tint: '150,230,120', duration: 65, spawnMin: 0.90, spawnMax: 1.42, speed: 0.52, doubles: 0.35, heavies: 0.22, lines: 0.30, colors: 0.40, frags: 0.16, walls: 0.18, track: 1,
       hint: 'the rail closes in shallow water — plan two moves ahead',
       beats: [{ t: 24, kind: 'wall' }, { t: 40, kind: 'lull', dur: 5 }, { t: 52, kind: 'wall' }],
@@ -158,7 +158,7 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'the narrows: every trick on the reach, then open water',
       beats: [{ t: 31, kind: 'wall' }, { t: 44, kind: 'wall' }, { t: 62, kind: 'strip' }],
       bands: [{ t0: 34, t1: 48, intensity: 1.9 }],
-      story: { line: 'This planet looks barren, i guess we\'ll find out...' } },
+      story: { line: 'This planet looks barren, I guess we\'ll find out...' } },
     { tint: '255,230,120', duration: 50, spawnMin: 0.80, spawnMax: 1.40, speed: 0.55, doubles: 0.35, heavies: 0.18, lines: 0.20, colors: 0.30, frags: 0.14, walls: 0.10, track: 1, boss: true, bossKind: 'spinner',
       hint: 'ride the light — survive every sweep and the beacon burns itself out',
       story: { line: 'Asteroid belts are usually a trap, bring your A game!' } }
@@ -171,7 +171,7 @@ const CAMPAIGN_PACKAGES = [{
     // plinth under the dome. The beat is kept and turned into the reveal: we never knew
     // during the run, and the last thing we see is what it was. The trader stays SHE —
     // all five of the campaign's story lines write Vess Andarr that way.
-    line: '"Good job Vanguard! now... let\'s plot a course back!"', lines: [
+    line: '"Good job Vanguard! Now... let\'s plot a course back!"', lines: [
     'She never told us what was in the hold.', 'It stands on a plinth under her dome now,', 'lit for anyone who cares to look:', 'the rarest stone in the known galaxy.'] } },
 {
   id: 'patrol', format: 1,
@@ -212,14 +212,14 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '255,90,110', duration: 70, spawnMin: 0.48, spawnMax: 0.82, speed: 0.68, doubles: 0.58, heavies: 0.22, lines: 0.22, colors: 0.50, frags: 0.20, walls: 0.15, track: 0, bursts: true,
       hint: 'he has committed everything — this is the whole swarm',
       bands: [{ t0: 16, t1: 36, intensity: 1.9 }, { t0: 50, t1: 68, intensity: 2.1, mix: { colors: 0.6, doubles: 0.65 } }],
-      story: { line: 'Use the star\'s energy to burn our stalkers' } },
+      story: { line: 'Use the star\'s energy to burn our stalkers.' } },
     { tint: '212,120,255', duration: 50, spawnMin: 0.72, spawnMax: 1.28, speed: 0.60, doubles: 0.45, heavies: 0.20, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 1, boss: true, bossKind: 'triad',
       hint: 'his hunter-warden is THREE — the nose, the jaws, the ghost',
       story: { line: 'Found them! Warping to ambush location, keep us safe.' } }
   ],
   verdict: { title: 'CONTRACT 04 — RELIEVED',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
-    line: 'Threat neutralized! good job Vanguard!', lines: [
+    line: 'Threat neutralized! Good job Vanguard!', lines: [
     'The flotilla held its patrol and never', 'lit a single active scan. Whatever was', 'waiting on that picket met us first,', 'which was the entire point of hiring us.'] } },
 {
   id: 'delegation', format: 1,
@@ -235,7 +235,7 @@ const CAMPAIGN_PACKAGES = [{
   levels: [
     { tint: '96,180,255', duration: 50, spawnMin: 0.72, spawnMax: 1.20, speed: 0.58, doubles: 0.50, heavies: 0.15, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 0,
       hint: 'you escort the antidote now — get it into his lane and hold on',
-      story: { line: 'The minister of Xeno Relations, in the open' } },
+      story: { line: 'The minister of Xeno Relations, in the open.' } },
     { tint: '255,160,80', duration: 55, spawnMin: 0.60, spawnMax: 1.02, speed: 0.63, doubles: 0.55, heavies: 0.16, lines: 0.22, colors: 0.32, frags: 0.16, walls: 0.12, track: 1, bursts: true,
       hint: 'his outer cordon throws everything — do not slow the convoy',
       bands: [{ t0: 18, t1: 36, intensity: 1.7 }],
@@ -269,5 +269,5 @@ const CAMPAIGN_PACKAGES = [{
   ],
   verdict: { title: 'CONTRACT 05 — SIGNED', art: 'delegation-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
-    line: 'First Contact! This is a new dawn for our society', lines: [
+    line: 'First Contact! This is a new dawn for our society.', lines: [
     'She crossed all five cordons and put', 'her name on it. The lane behind her was', 'the most contested stretch of space', 'anyone has flown this decade.'] } }];
