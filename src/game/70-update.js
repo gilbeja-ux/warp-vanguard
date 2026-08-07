@@ -64,12 +64,10 @@ infoCardsReady = true;
 lintReady = true;
 registerStoryCards();
 
-let typeN = -1; // teletype progress for story cards
 let infoOutAt = 0; // briefing dismissal animates out before play resumes
 function showCard(key) {
   if (key === 'strip' && !progress.stripBriefed) { progress.stripBriefed = true; saveState(); }
   if (key === 'wall' && !progress.wallBriefed) { progress.wallBriefed = true; saveState(); }
-  typeN = -1;
   infoOutAt = 0;
   infoCard = key; infoShownAt = time;
   state = S.INFO;

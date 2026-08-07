@@ -3373,6 +3373,70 @@ async function runMusicUp() {
     }
   }
 
+  // ================= the briefing disc lab =================
+  // It WRITES src/campaigns.js, so its refusals matter more than its features. Every check
+  // here runs through the pure patch(), which returns new text instead of touching the
+  // repo — a test that saved for real would rewrite the game's story on every run.
+  {
+    const LAB = require(path.join(ROOT, 'scripts', 'disc-lab.js'));
+    const campText = fs.readFileSync(path.join(ROOT, 'src', 'campaigns.js'), 'utf8');
+    const pkgs = LAB.readPackages(campText);
+    const slots = LAB.locate(campText, LAB.slotList(pkgs));
+
+    // THE DRIFT GUARD. The lab duplicates the installer's 96-character limit because the
+    // validator needs game globals to run. If someone retunes 33-loader and not the lab,
+    // the lab starts accepting lines the installer will reject — so read the real number
+    // out of the loader and hold them together.
+    const loader = fs.readFileSync(path.join(ROOT, 'src', 'game', '33-loader.js'), 'utf8');
+    const lim = /story\.line\.length > (\d+)/.exec(loader);
+    check('the lab agrees with the installer about the disc line limit',
+      !!lim && +lim[1] === LAB.MISSION_MAX);
+
+    check('every disc text in every campaign is located in the source',
+      slots.length === pkgs.reduce((n, p2) => n + (typeof p2.story === 'string' ? 1 : 0) +
+        (p2.levels || []).filter(l => l && l.story && typeof l.story.line === 'string').length +
+        (p2.verdict ? (typeof p2.verdict.line === 'string' ? 1 : 0) + (p2.verdict.lines || []).length : 0), 0));
+
+    // a located span must hold exactly the value it claims, or a save writes over the
+    // wrong string — the one failure mode that would silently corrupt the campaigns
+    let mism = 0, disorder = 0, prevEnd = -1;
+    for (const sl of slots) {
+      const lit = campText.slice(sl.start, sl.end);
+      const back = lit.slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+      if (back !== sl.value) mism++;
+      if (sl.start < prevEnd) disorder++;
+      prevEnd = sl.end;
+    }
+    check('each located span holds exactly its own literal', mism === 0);
+    check('the spans are in source order and never overlap', disorder === 0);
+
+    const shipped = slots.filter(sl => sl.kind === 'mission').map(sl => sl.value.length);
+    check(`every shipped mission line fits the limit (longest ${Math.max(...shipped)}/${LAB.MISSION_MAX})`,
+      Math.max(...shipped) <= LAB.MISSION_MAX);
+
+    const target = slots.find(sl => sl.kind === 'mission');
+    const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+    check('an unknown id is refused', threw(() => LAB.patch(campText, [{ id: 'nope/level/0', value: 'x' }])));
+    check('a value that moved on disk is refused',
+      threw(() => LAB.patch(campText, [{ id: target.id, was: 'stale', value: 'x' }])));
+    check('an over-long mission line is refused',
+      threw(() => LAB.patch(campText, [{ id: target.id, value: 'y'.repeat(LAB.MISSION_MAX + 1) }])));
+    check('a blank line is refused', threw(() => LAB.patch(campText, [{ id: target.id, value: '  ' }])));
+    check('a save that changes nothing is refused',
+      threw(() => LAB.patch(campText, [{ id: target.id, value: target.value }])));
+
+    // the round trip: out and back is byte-identical, which is what proves the patch edits
+    // only the literal and not the formatting or the comments around it
+    const probe = 'A line the lab wrote — with an apostrophe: don\'t.';
+    const out = LAB.patch(campText, [{ id: target.id, was: target.value, value: probe }]);
+    check('a patched line reads back through a fresh parse',
+      LAB.slotList(LAB.readPackages(out.next)).find(sl => sl.id === target.id).value === probe);
+    const back2 = LAB.patch(out.next, [{ id: target.id, was: probe, value: target.value }]);
+    check('out and back leaves campaigns.js byte-identical', back2.next === campText);
+    check('the test never wrote to campaigns.js',
+      fs.readFileSync(path.join(ROOT, 'src', 'campaigns.js'), 'utf8') === campText);
+  }
+
   console.log(failures === 0 ? '\nALL TESTS PASSED' : '\n' + failures + ' FAILURES');
   process.exit(failures === 0 ? 0 : 1);
 })();

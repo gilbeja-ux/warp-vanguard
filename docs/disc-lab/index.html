@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1500">
+<title>Briefing Disc Lab — Warp Vanguard</title>
+<style>
+  /* Desktop-only authoring tool for every disc text in the game. NOT part of the store
+     build. Chrome borrows the console language its sibling lab established (docs/dest-lab)
+     so the two read as one toolset; the preview stage is the REAL GAME in an iframe,
+     because a lab that redraws the disc itself starts lying the day the renderer moves. */
+  @font-face {
+    font-family: 'Audiowide';
+    src: url('/fonts/audiowide.woff2') format('woff2');
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+  :root {
+    --void:      #02040c;
+    --shell:     #050a16;
+    --panel:     #081226;
+    --panel-2:   #0b1830;
+    --panel-3:   #0f2140;
+    --line:      #14305a;
+    --line-soft: #0e2242;
+    --ink:       #dcecff;
+    --ink-2:     #a8c6e8;
+    --ink-3:     #7b9bc2;
+    --ink-4:     #4d6c93;
+    --cyan:      #6fe3ff;
+    --gold:      #ffd24a;
+    --red:       #ff3c5a;
+    --green:     #7ee262;
+    --amber:     #ff9a3c;
+    --display: 'Audiowide', 'Segoe UI', system-ui, sans-serif;
+    --text: ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--void); color: var(--ink);
+    font-family: var(--text); font-size: 13px; line-height: 1.5;
+  }
+  /* ---- header ---- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: 14px; flex-wrap: nowrap;
+    padding: 12px 20px; background: var(--shell);
+    border-bottom: 1px solid var(--line);
+  }
+  /* the chips absorb the slack and scroll if they must — SAVE must never wrap off the
+     first row, which is exactly what a wrapping header did */
+  header > h1, header > #status, header > button { flex: 0 0 auto; }
+  h1 {
+    margin: 0; font-family: var(--display); font-size: 15px; font-weight: 400;
+    letter-spacing: 1.6px; color: var(--cyan); text-transform: uppercase;
+  }
+  h1 span { color: var(--ink-4); letter-spacing: 1px; }
+  .camps { display: flex; gap: 6px; flex: 1 1 auto; min-width: 0; overflow-x: auto; padding-bottom: 2px; }
+  .chip {
+    font-family: var(--display); font-size: 10px; letter-spacing: 1px;
+    padding: 7px 12px; border: 1px solid var(--line); border-radius: 3px;
+    background: var(--panel); color: var(--ink-3); cursor: pointer;
+    text-transform: uppercase; transition: background .12s, color .12s, border-color .12s;
+  }
+  .chip:hover { background: var(--panel-2); color: var(--ink); }
+  .chip[aria-selected="true"] {
+    background: var(--panel-3); color: var(--cyan); border-color: var(--cyan);
+  }
+  .chip .dot { color: var(--gold); margin-left: 6px; }
+  button.act {
+    font-family: var(--display); font-size: 10px; letter-spacing: 1.2px;
+    padding: 8px 15px; border-radius: 3px; cursor: pointer; text-transform: uppercase;
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--ink-2);
+  }
+  button.act:hover:not(:disabled) { background: var(--panel-3); color: var(--ink); }
+  button.act.primary { border-color: var(--cyan); color: var(--cyan); }
+  button.act.primary:hover:not(:disabled) { background: #10314f; }
+  button.act:disabled { opacity: .35; cursor: default; }
+  #status { font-family: var(--mono); font-size: 11px; color: var(--ink-4); max-width: 230px; text-align: right; }
+  #status.good { color: var(--green); }
+  #status.bad { color: var(--red); white-space: pre-line; }
+
+  /* ---- body: texts on the left, the real disc on the right ---- */
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 660px; gap: 22px; padding: 20px; align-items: start; }
+  section.group { margin-bottom: 26px; }
+  .grouphead {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--line-soft);
+  }
+  .grouphead b {
+    font-family: var(--display); font-size: 11px; font-weight: 400; letter-spacing: 1.4px;
+    color: var(--ink-2); text-transform: uppercase;
+  }
+  .grouphead i { font-style: normal; font-size: 11px; color: var(--ink-4); }
+  .grouphead i.warn { color: var(--amber); }
+
+  .row {
+    display: grid; grid-template-columns: 92px minmax(0, 1fr) 74px 62px;
+    gap: 10px; align-items: start; padding: 7px 0;
+    border-bottom: 1px solid rgba(20,48,90,0.35);
+  }
+  .row .lab {
+    font-family: var(--display); font-size: 9.5px; letter-spacing: .8px;
+    color: var(--ink-4); padding-top: 9px; text-transform: uppercase;
+  }
+  .row.dirty .lab { color: var(--gold); }
+  textarea {
+    width: 100%; min-height: 34px; resize: vertical;
+    font-family: var(--text); font-size: 13px; line-height: 1.45; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line-soft); border-radius: 3px;
+    padding: 7px 9px;
+  }
+  textarea:focus { outline: none; border-color: var(--cyan); background: var(--panel-2); }
+  .row.dirty textarea { border-color: var(--gold); }
+  .row.over textarea { border-color: var(--red); }
+  .count {
+    font-family: var(--mono); font-size: 11px; color: var(--ink-4);
+    padding-top: 10px; text-align: right; font-variant-numeric: tabular-nums;
+  }
+  .count.near { color: var(--amber); }
+  .count.over { color: var(--red); }
+  .row .revert {
+    font-family: var(--display); font-size: 8.5px; letter-spacing: .6px; padding: 7px 4px;
+    border: 1px solid var(--line-soft); border-radius: 3px; background: transparent;
+    color: var(--ink-4); cursor: pointer; visibility: hidden;
+  }
+  .row.dirty .revert { visibility: visible; color: var(--ink-3); }
+  .row .revert:hover { color: var(--gold); border-color: var(--gold); }
+
+  /* ---- preview ---- */
+  aside { position: sticky; top: 76px; }
+  .stage {
+    border: 1px solid var(--line); border-radius: 4px; overflow: hidden;
+    background: #000; margin-bottom: 10px;
+  }
+  .stage iframe { display: block; border: 0; background: #000; }
+  .stagebar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 8px 10px; background: var(--shell); border-bottom: 1px solid var(--line-soft);
+  }
+  .stagebar .who {
+    font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mini {
+    font-family: var(--display); font-size: 9px; letter-spacing: .8px; text-transform: uppercase;
+    padding: 5px 9px; border: 1px solid var(--line); border-radius: 3px;
+    background: var(--panel); color: var(--ink-3); cursor: pointer;
+  }
+  .mini:hover { color: var(--ink); background: var(--panel-2); }
+  .mini[aria-selected="true"] { color: var(--cyan); border-color: var(--cyan); }
+  .note {
+    font-family: var(--text); font-size: 12px; color: var(--ink-3);
+    background: var(--panel); border: 1px solid var(--line-soft); border-left: 2px solid var(--amber);
+    border-radius: 3px; padding: 10px 12px;
+  }
+  .note b { color: var(--amber); font-weight: 600; }
+  .nopreview {
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    font-family: var(--display); font-size: 11px; letter-spacing: 1px; color: var(--ink-4);
+    padding: 30px 26px; line-height: 2;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Briefing Disc Lab <span>· warp vanguard</span></h1>
+  <div class="camps" id="camps" role="tablist"></div>
+  <div id="status">loading…</div>
+  <button class="act" id="reload">Reload</button>
+  <button class="act primary" id="save" disabled>Save to campaigns.js</button>
+</header>
+
+<main>
+  <div id="texts"></div>
+  <aside>
+    <div class="stage">
+      <div class="stagebar">
+        <div class="who" id="who">—</div>
+        <button class="mini" id="vpDesk" aria-selected="true">Desktop</button>
+        <button class="mini" id="vpPhone">Phone</button>
+        <button class="mini" id="replay">Replay</button>
+      </div>
+      <div id="stageBody"></div>
+    </div>
+    <div class="note" id="hint"></div>
+  </aside>
+</main>
+
+<script>
+'use strict';
+// ---------------------------------------------------------------------------------------
+// THE PREVIEW IS THE GAME. Every other approach to previewing a disc — redrawing it here,
+// mocking the layout, screenshotting once — drifts away from the renderer silently. This
+// drives the real game in an iframe into its own S.INFO state and overrides the card text
+// in memory, which is exactly how the Lane Designer previews a disc (src/editor.js).
+// ---------------------------------------------------------------------------------------
+const VP = { desk: [1456, 915], phone: [844, 390] };
+let DATA = null;           // the payload as loaded — `was` for every save
+let edits = new Map();     // slot id -> edited value (only while it differs)
+let camp = null;           // selected campaign id
+let sel = null;            // slot being previewed
+let vp = 'desk';
+let frame = null, frameReady = false, bootSeq = 0;
+
+const $ = s => document.querySelector(s);
+const el = (t, cls, txt) => { const n = document.createElement(t); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
+const valueOf = s => edits.has(s.id) ? edits.get(s.id) : s.value;
+
+function setStatus(msg, cls) { const n = $('#status'); n.textContent = msg; n.className = cls || ''; }
+
+// ---- load ----
+async function load() {
+  setStatus('loading…');
+  const r = await fetch('/api/discs');
+  if (!r.ok) return setStatus('load failed: ' + await r.text(), 'bad');
+  DATA = await r.json();
+  edits.clear();
+  if (!camp || !DATA.campaigns.some(c => c.id === camp)) camp = DATA.campaigns[0].id;
+  renderCamps(); renderTexts(); refreshDirty();
+  setStatus(DATA.campaigns.length + ' campaigns · ' +
+    DATA.campaigns.reduce((n, c) => n + c.slots.length, 0) + ' texts');
+}
+
+function renderCamps() {
+  const box = $('#camps'); box.textContent = '';
+  for (const c of DATA.campaigns) {
+    const b = el('button', 'chip', c.title);
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', String(c.id === camp));
+    const n = c.slots.filter(s => edits.has(s.id)).length;
+    if (n) b.appendChild(el('span', 'dot', '●'));
+    b.onclick = () => { camp = c.id; sel = null; renderCamps(); renderTexts(); };
+    box.appendChild(b);
+  }
+}
+
+// the four kinds, in the order an author works through a contract
+const GROUPS = [
+  ['mission',  'Mission discs',  'one per stage — this is the line in the black bar'],
+  ['closure',  'Closure disc',   'shown once, after the contract’s boss goes down'],
+  ['epilogue', 'Closure epilogue', ''],
+  ['brief',    'Contract brief', '']
+];
+
+function renderTexts() {
+  const c = DATA.campaigns.find(x => x.id === camp);
+  const host = $('#texts'); host.textContent = '';
+  for (const [kind, title, sub] of GROUPS) {
+    const slots = c.slots.filter(s => s.kind === kind);
+    if (!slots.length) continue;
+    const sec = el('section', 'group');
+    const head = el('div', 'grouphead');
+    head.appendChild(el('b', null, title));
+    // WHERE IT SHOWS, from the server's own field audit. Two of these four are authored
+    // but never drawn, and saying so is the whole difference between a tool and a trap.
+    const spec = DATA.kinds[kind];
+    const note = el('i', null, sub || spec.where);
+    if (/NOT drawn|does not read/.test(spec.where)) { note.className = 'warn'; note.textContent = spec.where; }
+    head.appendChild(note);
+    sec.appendChild(head);
+    for (const s of slots) sec.appendChild(rowFor(s, spec));
+    host.appendChild(sec);
+  }
+  if (!sel) { const first = c.slots.find(s => s.kind === 'mission') || c.slots[0]; if (first) preview(first); }
+}
+
+function rowFor(s, spec) {
+  const row = el('div', 'row');
+  row.dataset.id = s.id;
+  row.appendChild(el('div', 'lab', s.label));
+  const ta = el('textarea');
+  ta.value = valueOf(s);
+  ta.rows = 2;
+  ta.spellcheck = true;
+  const count = el('div', 'count');
+  const rev = el('button', 'revert', 'Revert');
+
+  const paint = () => {
+    const v = ta.value;
+    const dirty = v !== s.value;
+    row.classList.toggle('dirty', dirty);
+    // the hard limit is the installer's; a soft one is just guidance, so it never blocks
+    const over = spec.hard && v.length > spec.max;
+    row.classList.toggle('over', over);
+    count.textContent = spec.hard ? v.length + ' / ' + spec.max : v.length + ' ch';
+    count.className = 'count' + (over ? ' over' : (spec.hard && v.length > spec.max * 0.85) ? ' near' : '');
+    if (dirty) edits.set(s.id, v); else edits.delete(s.id);
+  };
+  let t = 0;
+  ta.oninput = () => { paint(); refreshDirty(); clearTimeout(t); t = setTimeout(() => preview(s), 180); };
+  ta.onfocus = () => preview(s);
+  rev.onclick = () => { ta.value = s.value; paint(); refreshDirty(); preview(s); };
+  paint();
+  row.appendChild(ta); row.appendChild(count); row.appendChild(rev);
+  return row;
+}
+
+function refreshDirty() {
+  const c = DATA.campaigns.find(x => x.id === camp);
+  const anyOver = !!document.querySelector('.row.over');
+  $('#save').disabled = edits.size === 0 || anyOver;
+  $('#save').textContent = edits.size ? 'Save ' + edits.size + ' to campaigns.js' : 'Save to campaigns.js';
+  if (anyOver) setStatus('a line is over the installer’s limit — fix it before saving', 'bad');
+  else if (edits.size) setStatus(edits.size + ' unsaved');
+  else setStatus('no changes');
+  // the campaign chips carry a dot while they hold unsaved text
+  renderCampDots();
+}
+function renderCampDots() {
+  [...$('#camps').children].forEach((b, i) => {
+    const c = DATA.campaigns[i];
+    const has = c.slots.some(s => edits.has(s.id));
+    let dot = b.querySelector('.dot');
+    if (has && !dot) b.appendChild(el('span', 'dot', '●'));
+    if (!has && dot) dot.remove();
+  });
+}
+
+// ---- save ----
+$('#save').onclick = async () => {
+  const all = DATA.campaigns.flatMap(c => c.slots);
+  const payload = [...edits.entries()].map(([id, value]) => {
+    const s = all.find(x => x.id === id);
+    return { id, value, was: s ? s.value : undefined };
+  });
+  setStatus('writing…');
+  const r = await fetch('/api/apply', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ edits: payload })
+  });
+  const body = await r.text();
+  if (!r.ok) return setStatus(body, 'bad');
+  const n = payload.length;
+  await load();
+  setStatus('wrote ' + n + ' — .bak kept alongside', 'good');
+};
+$('#reload').onclick = () => {
+  if (edits.size && !confirm(edits.size + ' unsaved change(s) will be lost. Reload?')) return;
+  load();
+};
+
+// ---- the preview stage ----
+$('#vpDesk').onclick = () => setVp('desk');
+$('#vpPhone').onclick = () => setVp('phone');
+$('#replay').onclick = () => sel && preview(sel, true);
+function setVp(v) {
+  vp = v;
+  $('#vpDesk').setAttribute('aria-selected', String(v === 'desk'));
+  $('#vpPhone').setAttribute('aria-selected', String(v === 'phone'));
+  mountFrame();            // a resize rebakes the disc's whole layout — reboot it cleanly
+  if (sel) preview(sel, true);
+}
+
+// THE BRIDGE, and why it exists. The game's data lives in top-level `const`/`let`
+// declarations, and those are lexical bindings — they are NOT properties of the iframe's
+// window. So `frame.contentWindow.INFO_CARDS` is undefined even though the game is running
+// fine; only `function` declarations (showCard, splashEnd) come through as properties. The
+// Lane Designer never hit this because it is loaded INTO the game page rather than parented
+// above it. A script injected into the iframe resolves those names the ordinary way, so the
+// bridge is authored here and runs there.
+const BRIDGE = `
+window.__discLab = {
+  ready: () => typeof CAMPAIGN_PACKAGES !== 'undefined' && typeof showCard === 'function',
+  hush() { settings.sound = false; settings.music = false; settings.haptics = false; },
+  boot() { this.hush(); splashEnd(true); state = S.MENU; },
+  camp: () => CAMP && CAMP.id,
+  show(campId, li, text, replay) {
+    this.hush();
+    if (!CAMP || CAMP.id !== campId) {
+      installCampaign(CAMPAIGN_PACKAGES.find(c => c.id === campId));
+      progress.tutorialDone = true;
+    }
+    if (li === null) {
+      INFO_CARDS.verdict = Object.assign({}, CAMP.verdict, { line: text, lines: null });
+      if (infoCard !== 'verdict' || replay) showCard('verdict');
+    } else {
+      levelIdx = li; LV = LEVELS[li];
+      INFO_CARDS['story' + li] = Object.assign({}, INFO_CARDS['story' + li], { line: text, lines: null });
+      introT = 999; introCd = 0;
+      if (infoCard !== 'story' + li || replay) showCard('story' + li);
+    }
+    // a fresh card replays the fade and the count-up; a keystroke inside the SAME card
+    // backdates the clock instead, so the text updates without restarting the animation
+    if (!replay) infoShownAt = time - 9;
+    return { state, infoCard, line: INFO_CARDS[infoCard] && INFO_CARDS[infoCard].line,
+             music: settings.music, sound: settings.sound };
+  }
+};`;
+
+function mountFrame() {
+  const [w, h] = VP[vp];
+  const body = $('#stageBody');
+  body.textContent = '';
+  frameReady = false;
+  const seq = ++bootSeq;
+  // scaled to fit the panel it actually sits in, so the phone and the desktop are both
+  // fully visible and the disc is judged at its real aspect rather than a cropped one.
+  // Measured, not assumed: a hardcoded width left a black strip down one side.
+  const avail = body.clientWidth || 640;
+  const scale = avail / w;
+  const wrap = el('div');
+  wrap.style.cssText = 'width:100%;height:' + Math.round(h * scale) + 'px;overflow:hidden;';
+  frame = document.createElement('iframe');
+  frame.src = '/game/index.html';
+  frame.width = w; frame.height = h;
+  frame.style.cssText = 'width:' + w + 'px;height:' + h + 'px;transform:scale(' + scale +
+    ');transform-origin:0 0;';
+  wrap.appendChild(frame);
+  body.appendChild(wrap);
+  const tick = setInterval(() => {
+    if (seq !== bootSeq) return clearInterval(tick);
+    const g = frame.contentWindow;
+    // showCard is a function declaration, so it IS a window property — that is the only
+    // reliable signal from out here that the game's scripts have all run
+    if (!g || typeof g.showCard !== 'function' || typeof g.splashEnd !== 'function') return;
+    if (!g.__discLab) {
+      const sc = g.document.createElement('script');
+      sc.textContent = BRIDGE;
+      g.document.body.appendChild(sc);
+    }
+    if (!g.__discLab || !g.__discLab.ready()) return;
+    clearInterval(tick);
+    g.__discLab.boot();   // silent, past the splash, sitting on the menu
+    frameReady = true;
+    if (sel) preview(sel, true);
+  }, 120);
+}
+
+function preview(s, force) {
+  const same = sel && sel.id === s.id;
+  sel = s;
+  [...document.querySelectorAll('.row')].forEach(r =>
+    r.style.background = r.dataset.id === s.id ? 'rgba(18,44,80,0.35)' : '');
+  const spec = DATA.kinds[s.kind];
+  $('#who').textContent = camp + ' · ' + s.label;
+  const drawn = s.kind === 'mission' || s.kind === 'closure';
+  $('#hint').innerHTML = drawn
+    ? 'Previewing the real renderer at ' + VP[vp][0] + '×' + VP[vp][1] + '. ' +
+      (spec.hard ? 'Over <b>' + spec.max + '</b> characters and the installer rejects the package.'
+                 : 'No hard limit — but a long line wraps to more rows and shrinks the type.')
+    : '<b>Not drawn.</b> ' + spec.where + ' — editing it here changes campaigns.js, but no disc will show it.';
+  if (!drawn) {
+    $('#stageBody').innerHTML = '<div class="nopreview">no disc reads this text<br>' +
+      '<span style="color:var(--ink-3)">' + spec.where + '</span></div>';
+    frameReady = false; frame = null;
+    return;
+  }
+  if (!frame || !frameReady) { if (!frame) mountFrame(); return; }
+  const g = frame.contentWindow;
+  if (!g.__discLab) { mountFrame(); return; }
+  const m = /\/level\/(\d+)$/.exec(s.id);
+  try {
+    g.__discLab.show(camp, m ? +m[1] : null, valueOf(s), !same || !!force);
+  } catch (e) {
+    $('#who').textContent = 'preview failed: ' + e.message;
+  }
+}
+
+load();
+setVp('desk');
+</script>
+</body>
+</html>

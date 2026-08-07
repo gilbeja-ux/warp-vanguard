@@ -376,6 +376,34 @@ function wrapRows(text, maxW) {
   return rows;
 }
 
+// THE PLOT LINE'S ARRIVAL. It used to type itself in, one character appearing whole with
+// a teletype tick under it. A teletype is a machine printing AT you; a briefing arrives.
+// Now every character runs its own short fade on a stagger, so the line resolves as a
+// soft wave left to right and the last glyph lands about where the typing used to finish.
+const BAR_SCALE = 1.5;         // the caption bar's height, over what its rows need
+const LINE_LEAD = 0.25;        // the beat before the first character shows
+const LINE_STAGGER = 0.016;    // and the gap between each one starting
+const LINE_FADE = 0.34;        // how long one character takes to arrive
+const STAT_LEAD = 0.30;        // the readings hold at zero this long…
+const STAT_RISE = 0.75;        // …then spin up to their value over this
+// PREFIX WIDTHS, CACHED. A per-character fade needs an x per glyph, and taking those from
+// cumulative prefix widths — rather than summing each character's own advance — puts every
+// glyph exactly where the whole string would have put it, kerning included. Measured once
+// per row per font: a card that never changes would otherwise pay ~90 measureText calls a
+// frame for a layout that is already settled. The font is IN the key, so a size change
+// cannot reuse a stale row.
+const CHAR_XS = new Map();
+function charXs(row, font) {
+  const key = font + '|' + row;
+  let xs = CHAR_XS.get(key);
+  if (xs) return xs;
+  xs = [0];
+  for (let i = 1; i <= row.length; i++) xs.push(ctx.measureText(row.slice(0, i)).width);
+  if (CHAR_XS.size > 64) CHAR_XS.clear(); // a handful live at a time — a flush is free
+  CHAR_XS.set(key, xs);
+  return xs;
+}
+
 // ---- the mission disc ----
 // The keyframe fills the disc wall to wall, masked by the disc itself — the same
 // treatment the contract carousel gives a campaign's map image. The plot line
@@ -478,7 +506,9 @@ function drawStoryDisc(c, g, R) {
     if (rows.length <= 2 || ls <= 9) break;
     ls--;
   }
-  const lh = ls + 5, bh = rows.length * lh + 16;
+  // BAR_SCALE: the bar is 1.5x the height its rows strictly need, and the text is centred
+  // in the slack rather than hanging from the top edge — see base0 at the draw.
+  const lh = ls + 5, bh = (rows.length * lh + 16) * BAR_SCALE;
   const aTop = g.cy - Rc, aH = artB - aTop;
   ctx.save();
   ctx.beginPath(); ctx.arc(g.cx, g.cy, Rc, 0, TAU); ctx.clip();
@@ -520,30 +550,68 @@ function drawStoryDisc(c, g, R) {
   ctx.moveTo(g.cx - half(artB - g.cy), artB - 0.5);
   ctx.lineTo(g.cx + half(artB - g.cy), artB - 0.5);
   ctx.stroke();
-  // the line types itself in, teletype ticking under it
-  let budget = Math.max(0, Math.floor((time - infoShownAt - 0.25) * 46));
-  const total = body.length;
-  const shown = Math.min(budget, total);
-  if (shown !== typeN && shown < total) {
-    if (shown % 2 === 0) tone(1900 + (shown % 5) * 60, 0.012, 'square', 0.022);
-    typeN = shown;
-  }
+  // the line fades in a character at a time — see LINE_STAGGER for why, and for what
+  // this replaced
+  const t3 = time - infoShownAt;
   ctx.font = '500 ' + ls + 'px Audiowide, system-ui';
-  ctx.fillStyle = 'rgba(222,242,255,0.96)';
-  let cursorPlaced = false;
-  rows.forEach((ln, i) => {
-    const take = Math.max(0, Math.min(ln.length, budget));
-    budget -= ln.length + 1; // the wrap ate a space
-    let cursor = '';
-    if (!cursorPlaced && take < ln.length) { cursor = '▌'; cursorPlaced = true; }
-    ctx.fillText(ln.slice(0, take) + cursor, g.cx, bTop + 9 + ls + i * lh);
-  });
+  // INK-CENTRED, not baseline-pinned: measure a row's real ascent and descent so the
+  // block sits on the bar's middle. Pinning to the baseline reads high, which is exactly
+  // what the taller bar would have made obvious.
+  const m3 = ctx.measureText(rows[0] || 'M');
+  const asc3 = m3.actualBoundingBoxAscent, desc3 = m3.actualBoundingBoxDescent;
+  const capH = (typeof asc3 === 'number' && asc3 > 0) ? asc3 : ls * 0.72;
+  const dscH = (typeof desc3 === 'number' && desc3 > 0) ? desc3 : ls * 0.06;
+  const inkH = (rows.length - 1) * lh + capH + dscH;
+  const base0 = bTop + (bh - inkH) / 2 + capH;
+  ctx.textAlign = 'left';
+  let ci = 0, lastA = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const ln = rows[i], xs = charXs(ln, ctx.font), y = base0 + i * lh;
+    const x0 = g.cx - xs[ln.length] / 2;
+    for (let j = 0; j < ln.length; j++) {
+      const a = clamp((t3 - LINE_LEAD - ci * LINE_STAGGER) / LINE_FADE, 0, 1);
+      ci++;
+      if (a < 0.005 || ln[j] === ' ') continue;
+      // 20 alpha buckets, so a settled line costs ONE fillStyle string instead of ninety
+      const q = Math.round(a * 20) / 20;
+      if (q !== lastA) { ctx.fillStyle = 'rgba(222,242,255,' + (0.96 * q).toFixed(3) + ')'; lastA = q; }
+      ctx.fillText(ln[j], x0 + xs[j], y);
+    }
+    ci++; // the wrap ate a space — keep the stagger running across the break
+  }
+  ctx.textAlign = 'center';
   if (!L) return;
   // the readings: the number, its name under it in a quieter size
   const numY = artB + R * 0.17, labY = numY + R * 0.10;
   const numPx = Math.max(11, Math.round(R * 0.105));
-  const labPx = Math.max(7, Math.round(R * 0.055));
-  const colX = R * 0.38;
+  // EVEN THREE WAYS. These two labels are different lengths, so a shared column offset
+  // cannot give them equal margins — DETECTED THREATS ended up 12px off the rim while
+  // LANE LENGTH sat 52px off its own side, which is the lopsidedness this fixes.
+  //
+  // Solved rather than nudged: the row's slack is (chord*2 - wL - wR), split three ways
+  // between the left margin, the gap between the columns and the right margin. Equal
+  // margins AND an equal centre gap, at any disc size and whatever the labels say. It
+  // lands LANE LENGTH within a few px of where it already was and brings DETECTED THREATS
+  // in off the rim, which is exactly the move asked for.
+  //
+  // The widest pair also picks the size, the way the end screen's telemetry does: fitting
+  // and then drawing anyway is how labels end up touching a divider on a small phone.
+  const chord = half(labY - g.cy);
+  const MIN_SLACK = R * 0.055;   // …below which the row is too tight and the type shrinks
+  let labPx = Math.max(7, Math.round(R * 0.055)), wL = 0, wR = 0;
+  for (;;) {
+    ctx.font = '700 ' + labPx + 'px Audiowide, system-ui';
+    try { ctx.letterSpacing = '0.5px'; } catch (e) {} // BEFORE the measure, or the fit is
+    wL = ctx.measureText('LANE LENGTH').width;        // computed against a narrower string
+    wR = ctx.measureText('DETECTED THREATS').width;
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    if (chord * 2 - wL - wR >= MIN_SLACK * 3 || labPx <= 6) break;
+    labPx--;
+  }
+  const slack = Math.max(MIN_SLACK, (chord * 2 - wL - wR) / 3);
+  // the readings COUNT UP on arrival: a number that lands, rather than one that was
+  // already sitting there when the disc opened. Same clock as the line's fade.
+  const rise = 1 - Math.pow(1 - clamp((t3 - STAT_LEAD) / STAT_RISE, 0, 1), 3);
   const stat = (dx, num, label, col) => {
     ctx.font = '700 ' + numPx + 'px Audiowide, system-ui';
     ctx.fillStyle = col;
@@ -554,8 +622,8 @@ function drawStoryDisc(c, g, R) {
     ctx.fillText(label, g.cx + dx, labY);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   };
-  stat(-colX, Math.round(L.duration) + 's', 'LANE LENGTH', 'rgba(230,246,255,0.94)');
-  stat(colX, String(levelThreats(L, li)), 'DETECTED THREATS', 'rgba(255,210,74,0.96)');
+  stat(-chord + slack + wL / 2, Math.round(L.duration * rise) + 's', 'LANE LENGTH', 'rgba(230,246,255,0.94)');
+  stat(chord - slack - wR / 2, String(Math.round(levelThreats(L, li) * rise)), 'DETECTED THREATS', 'rgba(255,210,74,0.96)');
 }
 
 // TAP TO FIRE rides the charged pad during the hold

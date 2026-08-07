@@ -22,7 +22,8 @@
     "hooks:install": "git config core.hooksPath .githooks && echo \"git hooks active (.githooks/)\"",
     "lab:tune": "node scripts/tuning-board.js",
     "test:board": "node scripts/test-board.js",
-    "test:freeze": "node scripts/test-weekly-freeze.mjs"
+    "test:freeze": "node scripts/test-weekly-freeze.mjs",
+    "lab:disc": "node scripts/disc-lab.js"
   },
   "keywords": [
     "game",
