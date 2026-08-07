@@ -217,7 +217,7 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'his hunter-warden is THREE — the nose, the jaws, the ghost',
       story: { line: 'Found them! Warping to ambush location, keep us safe.' } }
   ],
-  verdict: { title: 'CONTRACT 04 — RELIEVED',
+  verdict: { title: 'CONTRACT 04 — RELIEVED', art: 'patrol-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
     line: 'Threat neutralized! Good job Vanguard!', lines: [
     'The flotilla held its patrol and never', 'lit a single active scan. Whatever was', 'waiting on that picket met us first,', 'which was the entire point of hiring us.'] } },
