@@ -51,7 +51,7 @@ logged below so the chain of title is provable at submission.
 | `miss2` | `miss2.wav` | Breach (alt) | _TBC_ | CC0 / royalty-free |
 | `pick` | `power-up.wav` | Power-up collected | _TBC_ | CC0 / royalty-free |
 | `pulse` | `pulse.mp3` | Pulse purge | _TBC_ | CC0 / royalty-free |
-| `volley` | `volley.mp3` | Unite-volley fire | _TBC_ | CC0 / royalty-free |
+| `volley` | `volley2.mp3` | Unite-volley fire | _TBC_ | CC0 / royalty-free |
 | `shutdown` | `shutdown.mp3` | Node fried by a killer or wall | _TBC_ | CC0 / royalty-free |
 | `restart` | `restarting.mp3` | That node rebooting back online | _TBC_ | CC0 / royalty-free |
 | `startup` | `startup1.mp3` | Boot sequence as the ring locks in (cut at 2s) | _TBC_ | CC0 / royalty-free |

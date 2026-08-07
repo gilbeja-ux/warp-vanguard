@@ -165,26 +165,6 @@ function drawInfoGlyph(kind, cx, cy, r) {
     ctx.strokeStyle = `rgba(${NODE_COLS[0]},${(0.7 * (1 - k2)).toFixed(2)})`;
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(0, 0, r * (0.6 + k2 * 1.3), 0, TAU); ctx.stroke();
-  } else if (kind === 'boss') {
-    // mini warden-core: the same corrupted mosaic the duel shows
-    const SH = ['#b03ae8', '#8a2ad4', '#d465ff', '#6f14b8'];
-    const ext = r * 1.05, cs = ext * 2 / 3;
-    for (let rr = 0; rr < 3; rr++) for (let cc = 0; cc < 3; cc++) {
-      const fl = 0.55 + 0.45 * Math.sin(time * 6 + rr * 2.7 + cc * 1.3);
-      ctx.fillStyle = rr === 1 && cc === 1 ? '#f3d4ff' : SH[(rr * 3 + cc) % SH.length];
-      ctx.globalAlpha = rr === 1 && cc === 1 ? 1 : 0.45 + 0.5 * fl;
-      ctx.fillRect(-ext + cc * cs + cs * 0.05, -ext + rr * cs + cs * 0.05, cs * 0.9, cs * 0.9);
-    }
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + 0.5 * (Math.sin(time * 13) * 0.5 + 0.5)).toFixed(2) + ')';
-    ctx.fillRect(Math.sin(time * 9) * r * 0.3 - r, Math.sin(time * 3.1) * r * 0.6, r * 2, r * 0.09);
-    ctx.strokeStyle = 'rgba(230,245,255,0.55)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, 0, r * 1.45, 0, TAU); ctx.stroke();
-    const oa = time * 1.4;
-    ctx.fillStyle = 'rgb(80,170,255)';
-    ctx.beginPath(); ctx.arc(Math.cos(oa) * r * 1.45, Math.sin(oa) * r * 1.45, r * 0.16, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(Math.cos(oa + Math.PI) * r * 1.45, Math.sin(oa + Math.PI) * r * 1.45, r * 0.16, 0, TAU); ctx.fill();
   } else {
     // the live threat models: tap hardware in the type's color
     const pal = kind === 'heavy' ? INFO_PAL.heavy : kind === 'lock' ? INFO_PAL.lock : INFO_PAL.normal;

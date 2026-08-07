@@ -15,22 +15,22 @@ const BOSS_DEFS = {
   array: {
     title: 'THE ARRAY', sub: 'READ THE FIGURE — CLEAR IT CLEAN',
     online: 'ARRAY ONLINE', down: 'ARRAY DOWN',
-    speak: 'I do not chase. I arrange.', card: 'bossArray', brief: 'arrayBriefed'
+    speak: 'I do not chase. I arrange.'
   },
   core: {
     title: 'THE WARDEN CORE', sub: 'DOCK BOTH EMITTERS AND HOLD — SIX BOLTS CLOSE THE CONTRACT',
     online: 'WARDEN CORE ONLINE', down: 'WARDEN DOWN',
-    speak: 'this lane is mine. nothing you carry leaves it.', card: 'boss', brief: 'bossBriefed'
+    speak: 'this lane is mine. nothing you carry leaves it.'
   },
   triad: {
     title: 'WALL · SHREDDER · GHOST', sub: 'ONE MACHINE IN THREE BODIES — THREE BOLTS EACH',
     online: 'PRIVATE WARDEN ONLINE', down: 'PRIVATE WARDEN DOWN',
-    speak: 'my wall. my shredder. my ghost. count to three.', card: 'bossTriad', brief: 'triadBriefed'
+    speak: 'my wall. my shredder. my ghost. count to three.'
   },
   spinner: {
     title: 'THE BEACON', sub: 'OUTRUN THE LIGHT — ITS OWN SWEEP OVERLOADS IT',
     online: 'THE BEACON ONLINE', down: 'BEACON DOWN',
-    speak: 'I see everything on this ring. keep running.', card: 'bossSpinner', brief: 'spinnerBriefed'
+    speak: 'I see everything on this ring. keep running.'
   }
 };
 // SHIELD was retired here: it is the DEFLECTOR SHIELD pickup's word, and one
@@ -140,8 +140,12 @@ function spawnBoss() {
     boss.sweepAdds = 0; boss.addT = 0; boss.addA = Math.random() * TAU;
   }
   heat = 0; overheat = false; beamActive = false; beamAim.x = 0; beamAim.y = 0;
-  const bd = BOSS_DEFS[kind];
-  if (!progress[bd.brief] && !tracePlay) { progress[bd.brief] = true; saveState(); showCard(bd.card); }
+  // NO DISC. A boss used to stop the lane on a first meeting and explain itself in four
+  // lines before you had seen it do anything. Read cold, that is homework; read after the
+  // fact, it is a spoiler. It announces itself in-world instead and always has — the
+  // arrival ceremony puts its name and its one-line tell on the ring (85-enemy-art), WARD
+  // barks over comms, and ARRAY ONLINE pops. Everything a player needs to start reacting
+  // is in the picture, which is where the machine's behaviour is legible anyway.
 }
 // triad helpers: which body answers to a docked aim bearing
 function nearestTriadCore(a) {

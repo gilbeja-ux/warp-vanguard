@@ -709,9 +709,10 @@ G.startLevel(7);
 G.setLevelT(46); // past the level clock
 G.update(0.01);
 check('the array spawns after the level clock', !!G.boss() && G.boss().kind === 'array');
-check('boss briefing card shows first', G.getState() === G.S.INFO && G.getInfoCard() === 'bossArray');
-dismiss();
-check('briefing dismissed back to the duel', G.getState() === G.S.PLAY);
+// NO DISC. A boss is met, not read about — it explains itself on the ring instead. So the
+// thing worth asserting is the inverse of what used to be here: the lane must NOT stop when
+// one arrives. A stray showCard would freeze the fight before the player saw a single figure.
+check('the array arrives with no briefing disc — the lane never stops', G.getState() === G.S.PLAY);
 // ARRIVAL CEREMONY: the core surfaces before it fights
 check('the array arrives with a ceremony, not a fight', G.boss().introT < G.BOSS_CER());
 let cerGuard = 200;
@@ -933,9 +934,7 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
   const T = G.boss();
   check('bossKind triad spawns the three-body private core',
     !!T && T.kind === 'triad' && T.cores.length === 3 && T.maxHp === 9 && T.hp === 9);
-  check('triad briefing card gates the fight once',
-    G.getState() === G.S.INFO && G.getInfoCard() === 'bossTriad' && G.progress.triadBriefed === true);
-  dismiss();
+  check('the triad arrives with no briefing disc', G.getState() === G.S.PLAY);
   ceremonyOut();
   check('triad ceremony completes into a live three-body fight',
     T.introT >= G.BOSS_CER() && T.cores.every(c => !c.dead));
@@ -1019,9 +1018,7 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
   enterBossLevel('spinner');
   const SP = G.boss();
   check('bossKind spinner spawns THE BEACON', !!SP && SP.kind === 'spinner' && SP.maxHp === 4);
-  check('spinner briefing card gates the fight once',
-    G.getState() === G.S.INFO && G.getInfoCard() === 'bossSpinner' && G.progress.spinnerBriefed === true);
-  dismiss();
+  check('the beacon arrives with no briefing disc', G.getState() === G.S.PLAY);
   ceremonyOut();
   check('beacon ceremony completes into the telegraph phase',
     SP.introT >= G.BOSS_CER() && SP.mode === 'tele');

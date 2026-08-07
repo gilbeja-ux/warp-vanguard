@@ -10,7 +10,7 @@ const SFX_FILES = {
   pick:   ['audio/sfx/power-up.wav', 0.8],
   pulse:  ['audio/sfx/pulse.mp3', 1.0],
   pulseArm: ['audio/sfx/pulse_charge.mp3', 0.9], // an orb reaching full — ready to fire
-  volley: ['audio/sfx/volley.mp3', 0.9],
+  volley: ['audio/sfx/volley2.mp3', 1.0], // levelled in the edit — no trim needed
   shutdown: ['audio/sfx/shutdown.mp3', 0.9],   // an emitter fried by a killer/wall
   restart:  ['audio/sfx/restarting.mp3', 0.9], // that node rebooting back online
   startup:  ['audio/sfx/startup1.mp3', 0.9], // boot sequence as the ring locks in (cut at 2s)

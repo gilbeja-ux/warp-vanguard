@@ -316,7 +316,7 @@ function drawReplayChrome() {
 // no INFO card fires during the headless warm-up (the replay itself is already
 // guarded by !tracePlay). Operates on the throwaway headless `progress`.
 function markBriefingsSeen() {
-  progress.wallBriefed = progress.stripBriefed = progress.bossBriefed = progress.triadBriefed = progress.spinnerBriefed = true;
+  progress.wallBriefed = progress.stripBriefed = true; // the boss discs are gone; these two remain
 }
 // Put the sim in a canonical, save-state-independent baseline for verification:
 // all mutators off + briefings seen. The verifier then re-applies the run's OWN
