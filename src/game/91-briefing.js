@@ -536,10 +536,19 @@ function drawStoryDisc(c, g, R) {
     if (fits || ls <= 9) break;
     ls--;
   }
-  // BAR_SCALE: the bar is 1.5x the height its rows strictly need, and the text is centred
-  // in the slack rather than hanging from the top edge — see base0 at the draw.
-  const lh = ls + 5, bh = isClosure ? 0 : (rows.length * lh + 16) * BAR_SCALE;
+  // THE PLATE, CAPPED AS A SHARE OF THE PICTURE. BAR_SCALE gives it 1.5x the height its rows
+  // strictly need, which is right on a big disc — but on a phone the same multiplier put it
+  // over 42% of the art box against a desktop's 30%. The plate is not disproportionate by
+  // accident: its padding (16) and leading (+5) are absolute px, so on a small disc they are
+  // a far larger share of it. Rather than tune a second multiplier, state the rule — the
+  // plate may not take more than a third of the keyframe, or the keyframe stops being the
+  // point. (The spec's own ceiling is 28%; a third is the outside of that.) The floor keeps
+  // the clamp from ever cutting into the ink it exists to hold.
+  const lh = ls + 5;
   const aTop = g.cy - Rc, aH = artB - aTop;
+  const bh = isClosure ? 0 : Math.max(
+    (rows.length - 1) * lh + ls * 1.5,
+    Math.min((rows.length * lh + 16) * BAR_SCALE, aH * 0.33));
   ctx.save();
   ctx.beginPath(); ctx.arc(g.cx, g.cy, Rc, 0, TAU); ctx.clip();
   const im = discArtImg(artOf);
