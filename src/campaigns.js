@@ -43,22 +43,22 @@ const CAMPAIGN_PACKAGES = [{
   ],
   levels: [
     { tint: '80,160,255', duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0,
-      story: { line: 'Bonded freight, eight legs, one hold.' } },
+      story: { line: 'The journey begins. Keep the convoy safe!' } },
     { tint: '255,170,90', duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
       hint: 'NEW THREAT: heavy armor — dock both emitters and HOLD',
-      story: { line: 'Second leg. The consortium is watching the clock.' } },
+      story: { line: 'So far so good!, Let\'s keep it up.' } },
     { tint: '110,230,200', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
       hint: 'NEW THREAT: burst deployments — threats arrive in volleys',
-      story: { line: 'Past the inner picket. Cover starts thinning.' } },
+      story: { line: 'Moving into less protected space. Stay vigilant.' } },
     { tint: '70,205,235', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
       hint: 'NEW THREAT: barrier lines — one emitter on each end',
-      story: { line: 'Cordon 02. Not all the traffic here is traffic.' } },
+      story: { line: 'A little detour through the belt.' } },
     { tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35, speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, walls: 0.10, track: 1,
       hint: 'NEW THREAT: dead zones — the rail closes, route around',
-      story: { line: 'The hold is worth more than the ship carrying it.' } },
+      story: { line: 'No turning back now...' } },
     { tint: '255,205,80', duration: 65, spawnMin: 0.68, spawnMax: 1.25, speed: 0.48, doubles: 0.42, heavies: 0.18, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 2,
       hint: 'NEW THREAT: phase-locked threats — match the emitter',
-      story: { line: 'A tier-3 market ahead, and everyone who wants the cargo.' } },
+      story: { line: 'Scoop some fuel at the star for our last leg of the run' } },
     { tint: '255,70,100', duration: 70, spawnMin: 0.58, spawnMax: 1.10, speed: 0.54, doubles: 0.48, heavies: 0.22, lines: 0.22, colors: 0.36, frags: 0.20, walls: 0.15, track: 0, bursts: true,
       hint: 'ALL THREATS ACTIVE — maximum traffic',
       story: { line: 'Last stretch before the exchange.' } },
@@ -69,13 +69,13 @@ const CAMPAIGN_PACKAGES = [{
   ],
   verdict: { title: 'CONTRACT 01 — DELIVERED', art: 'cargo-run-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
-    line: 'Eight legs, one hold. Nothing lost.', lines: [
+    line: 'Good job! This is system\'s economy is now booming!', lines: [
     'Eight legs, one hold, nothing lost.', 'The consortium paid on arrival and', 'asked no questions about the wreckage', 'we left in the lane behind us.'] } },
 {
   id: 'survey', format: 1,
   title: 'THE SURVEY', tagline: 'DEEP RANGE EXPEDITION · TIER 1 → 4', difficulty: 2,
   client: 'Deep Range Survey', tiers: [1, 4], art: 'survey.webp',
-  story: 'A survey expedition is pushing past the picket to chart lanes nobody has flown in forty years. They carry instruments, not guns. Eight legs from the inner worlds out to the deep — and the further you get, the less anyone is coming if it goes wrong.',
+  story: 'A survey expedition is pushing past patrolled space to chart lanes nobody has flown in forty years. They carry instruments, not guns. Eight legs from the inner worlds out to the deep — and the further you get, the less anyone is coming if it goes wrong.',
   map: { theme: 'chart' },
   speakers: [
     { id: 'SURV', name: 'Deep Range Survey', color: '111,227,255' },
@@ -94,11 +94,11 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '120,230,190', duration: 60, spawnMin: 0.62, spawnMax: 1.10, speed: 0.52, doubles: 0.50, heavies: 0.10, lines: 0.00, colors: 0.15, frags: 0.12, track: 0,
       hint: 'phase locks in the flood — glance, match, keep moving',
       bands: [{ t0: 30, t1: 48, intensity: 1.6 }],
-      story: { line: 'They want readings. They do not want us on any register.' } },
+      story: { line: 'Valuable data to colect, let\'s make sure they\'re safe.' } },
     { tint: '255,205,90', duration: 60, spawnMin: 0.58, spawnMax: 1.00, speed: 0.55, doubles: 0.55, heavies: 0.12, lines: 0.00, colors: 0.15, frags: 0.12, track: 1, bursts: true,
       hint: 'burst volleys — the flood comes in waves now',
       bands: [{ t0: 24, t1: 42, intensity: 1.7, mix: { doubles: 0.6 } }],
-      story: { line: 'Past the patrol shell. The charts stop being reliable.' } },
+      story: { line: 'Past patrolled space. The charts stop being reliable.' } },
     { tint: '150,120,255', duration: 65, spawnMin: 0.55, spawnMax: 0.95, speed: 0.57, doubles: 0.55, heavies: 0.10, lines: 0.08, colors: 0.18, frags: 0.14, walls: 0.06, track: 2,
       hint: 'walls in the current — reroute without losing the beat',
       bands: [{ t0: 28, t1: 46, intensity: 1.6 }],
@@ -117,7 +117,7 @@ const CAMPAIGN_PACKAGES = [{
   ],
   verdict: { title: 'CONTRACT 02 — CHARTED', art: 'survey-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
-    line: 'Readings taken. Everyone came home.', lines: [
+    line: 'Some would call it "A giant leap", Discovery data delivered.', lines: [
     'They got their readings and we got', 'them home. Four of those lanes had', 'not been flown since the survey', 'before this one never came back.'] } },
 {
   id: 'collector', format: 1,
@@ -141,15 +141,15 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '255,190,110', duration: 60, spawnMin: 0.95, spawnMax: 1.50, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.28, colors: 0.45, frags: 0.14, walls: 0.12, track: 2,
       hint: 'shoal water — phase-locked reefs and sealed pairs, read before you steer',
       beats: [{ t: 26, kind: 'wall' }, { t: 35, kind: 'strip' }, { t: 46, kind: 'wall' }],
-      story: { line: 'No escort on any register. Officially we are not here.' } },
+      story: { line: 'looking like a luxury cruiser, we\'re actually hunting for gems' } },
     { tint: '120,160,255', duration: 60, spawnMin: 0.55, spawnMax: 0.92, speed: 0.60, doubles: 0.65, heavies: 0.05, lines: 0.00, colors: 0.00, frags: 0.12, track: 0, bursts: true,
       hint: 'riptide — do not fight the pace, become it',
       bands: [{ t0: 12, t1: 28, intensity: 1.8 }, { t0: 36, t1: 54, intensity: 2.0, mix: { doubles: 0.7 } }],
-      story: { line: 'Whatever is in the crates, somebody else wants it.' } },
+      story: { line: 'Whatever is in the cargohold, somebody else wants it.' } },
     { tint: '150,230,120', duration: 65, spawnMin: 0.90, spawnMax: 1.42, speed: 0.52, doubles: 0.35, heavies: 0.22, lines: 0.30, colors: 0.40, frags: 0.16, walls: 0.18, track: 1,
       hint: 'the rail closes in shallow water — plan two moves ahead',
       beats: [{ t: 24, kind: 'wall' }, { t: 40, kind: 'lull', dur: 5 }, { t: 52, kind: 'wall' }],
-      story: { line: 'Outlaw territory. Her kind of market.' } },
+      story: { line: 'Outlaw territory. This is where treasures are found.' } },
     { tint: '255,120,140', duration: 70, spawnMin: 0.50, spawnMax: 0.86, speed: 0.63, doubles: 0.65, heavies: 0.12, lines: 0.00, colors: 0.00, frags: 0.18, track: 2, bursts: true,
       hint: 'undertow — the fastest water on the dead reach',
       bands: [{ t0: 14, t1: 34, intensity: 1.8 }, { t0: 46, t1: 64, intensity: 2.2 }],
@@ -158,10 +158,10 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'the narrows: every trick on the reach, then open water',
       beats: [{ t: 31, kind: 'wall' }, { t: 44, kind: 'wall' }, { t: 62, kind: 'strip' }],
       bands: [{ t0: 34, t1: 48, intensity: 1.9 }],
-      story: { line: 'A tier-4 berth with no name on it.' } },
+      story: { line: 'This planet looks barren, i guess we\'ll find out...' } },
     { tint: '255,230,120', duration: 50, spawnMin: 0.80, spawnMax: 1.40, speed: 0.55, doubles: 0.35, heavies: 0.18, lines: 0.20, colors: 0.30, frags: 0.14, walls: 0.10, track: 1, boss: true, bossKind: 'spinner',
       hint: 'ride the light — survive every sweep and the beacon burns itself out',
-      story: { line: 'Last leg. Then she is gone, and so are we.' } }
+      story: { line: 'Asteroid belts are usually a trap, bring your A game!' } }
   ],
   verdict: { title: 'CONTRACT 03 — CLEARED', art: 'collector-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
@@ -171,13 +171,13 @@ const CAMPAIGN_PACKAGES = [{
     // plinth under the dome. The beat is kept and turned into the reveal: we never knew
     // during the run, and the last thing we see is what it was. The trader stays SHE —
     // all five of the campaign's story lines write Vess Andarr that way.
-    line: 'The rarest stone in the known galaxy.', lines: [
+    line: '"Good job Vanguard! now... let\'s plot a course back!"', lines: [
     'She never told us what was in the hold.', 'It stands on a plinth under her dome now,', 'lit for anyone who cares to look:', 'the rarest stone in the known galaxy.'] } },
 {
   id: 'patrol', format: 1,
   title: 'THE PATROL', tagline: 'NAVY FLOTILLA · TIER 4 → 5', difficulty: 4,
   client: 'Flotilla Command', tiers: [4, 5], art: 'patrol.webp',
-  story: 'A navy flotilla running dark along the outer picket — and running dark means no active sweep, which means you are their sweep. Tier 4 and the near edge of no man’s land, where lanes stop being charted and start being claimed.',
+  story: 'A navy flotilla running dark along the outer rings — and running dark means no active sweep, which means you are their sweep. Tier 4 and the near edge of no man’s land, where lanes stop being charted and start being claimed.',
   map: { theme: 'chart' },
   speakers: [
     { id: 'FLOT', name: 'Flotilla Command', color: '111,227,255' },
@@ -191,35 +191,35 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '126,200,110', duration: 50, spawnMin: 0.80, spawnMax: 1.32, speed: 0.55, doubles: 0.40, heavies: 0.14, lines: 0.12, colors: 0.45, frags: 0.12, track: 1,
       hint: 'match the bait to the mark — wrong phase, no bite',
       bands: [{ t0: 26, t1: 44, intensity: 1.5 }],
-      story: { line: 'No active scan. Nothing out here announces us.' } },
+      story: { line: 'No active scan. Make sure nothing collapses our warp.' } },
     { tint: '90,200,235', duration: 55, spawnMin: 0.70, spawnMax: 1.18, speed: 0.58, doubles: 0.45, heavies: 0.14, lines: 0.14, colors: 0.50, frags: 0.12, walls: 0.06, track: 2, bursts: true,
       hint: 'the bite comes in volleys now — hold your phases steady',
       bands: [{ t0: 18, t1: 36, intensity: 1.6 }],
       beats: [{ t: 30, kind: 'strip' }],
-      story: { line: 'The picket does not hold itself.' } },
+      story: { line: 'Patrol point Charlie, stay alert!' } },
     { tint: '255,150,70', duration: 60, spawnMin: 0.62, spawnMax: 1.05, speed: 0.60, doubles: 0.50, heavies: 0.16, lines: 0.16, colors: 0.45, frags: 0.14, walls: 0.08, track: 0, bursts: true,
       hint: 'blood in the water — the whole pack answers at once',
       bands: [{ t0: 22, t1: 40, intensity: 1.7, mix: { colors: 0.6 } }],
-      story: { line: 'Edge of the charted lanes.' } },
+      story: { line: 'Edge of the charted lanes. Check for pirate activity.' } },
     { tint: '120,160,255', duration: 60, spawnMin: 0.56, spawnMax: 0.96, speed: 0.63, doubles: 0.50, heavies: 0.18, lines: 0.18, colors: 0.50, frags: 0.16, walls: 0.10, track: 1,
       hint: 'follow the bite home — phase-locked traffic all the way down',
       bands: [{ t0: 28, t1: 48, intensity: 1.7 }],
-      story: { line: 'Past here the lanes are claimed, not charted.' } },
+      story: { line: 'Federation law doesn\'t apply here, weapons hot,' } },
     { tint: '255,205,90', duration: 65, spawnMin: 0.52, spawnMax: 0.90, speed: 0.65, doubles: 0.55, heavies: 0.18, lines: 0.20, colors: 0.55, frags: 0.18, walls: 0.12, track: 2, bursts: true,
       hint: 'the nest — every phase at once, and it is awake',
       bands: [{ t0: 20, t1: 38, intensity: 1.8 }, { t0: 50, t1: 63, intensity: 2.0, mix: { colors: 0.65 } }],
-      story: { line: 'Something has been shadowing the formation.' } },
+      story: { line: 'Our lanes are being targeted, tracing...' } },
     { tint: '255,90,110', duration: 70, spawnMin: 0.48, spawnMax: 0.82, speed: 0.68, doubles: 0.58, heavies: 0.22, lines: 0.22, colors: 0.50, frags: 0.20, walls: 0.15, track: 0, bursts: true,
       hint: 'he has committed everything — this is the whole swarm',
       bands: [{ t0: 16, t1: 36, intensity: 1.9 }, { t0: 50, t1: 68, intensity: 2.1, mix: { colors: 0.6, doubles: 0.65 } }],
-      story: { line: 'The near edge of no man’s land.' } },
+      story: { line: 'Use the star\'s energy to burn our stalkers' } },
     { tint: '212,120,255', duration: 50, spawnMin: 0.72, spawnMax: 1.28, speed: 0.60, doubles: 0.45, heavies: 0.20, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 1, boss: true, bossKind: 'triad',
       hint: 'his hunter-warden is THREE — the nose, the jaws, the ghost',
-      story: { line: 'Hold the picket. The flotilla never lights up.' } }
+      story: { line: 'Found them! Warping to ambush location, keep us safe.' } }
   ],
   verdict: { title: 'CONTRACT 04 — RELIEVED',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
-    line: 'The flotilla held. Never lit a scan.', lines: [
+    line: 'Threat neutralized! good job Vanguard!', lines: [
     'The flotilla held its patrol and never', 'lit a single active scan. Whatever was', 'waiting on that picket met us first,', 'which was the entire point of hiring us.'] } },
 {
   id: 'delegation', format: 1,
@@ -235,7 +235,7 @@ const CAMPAIGN_PACKAGES = [{
   levels: [
     { tint: '96,180,255', duration: 50, spawnMin: 0.72, spawnMax: 1.20, speed: 0.58, doubles: 0.50, heavies: 0.15, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 0,
       hint: 'you escort the antidote now — get it into his lane and hold on',
-      story: { line: 'The president, in the open, route filed in advance.' } },
+      story: { line: 'The minister of Xeno Relations, in the open, this is dangerous.' } },
     { tint: '255,160,80', duration: 55, spawnMin: 0.60, spawnMax: 1.02, speed: 0.63, doubles: 0.55, heavies: 0.16, lines: 0.22, colors: 0.32, frags: 0.16, walls: 0.12, track: 1, bursts: true,
       hint: 'his outer cordon throws everything — do not slow the convoy',
       bands: [{ t0: 18, t1: 36, intensity: 1.7 }],
@@ -244,11 +244,11 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'walls stacked on walls — thread the convoy through, do not clip it',
       beats: [{ t: 20, kind: 'wall' }, { t: 40, kind: 'wall' }, { t: 50, kind: 'strip' }],
       bands: [{ t0: 28, t1: 48, intensity: 1.7 }],
-      story: { line: 'Everyone who objects knows exactly where she will be.' } },
+      story: { line: 'Everyone who objects knows exactly where we are.' } },
     { tint: '255,205,90', duration: 60, spawnMin: 0.50, spawnMax: 0.86, speed: 0.69, doubles: 0.60, heavies: 0.20, lines: 0.24, colors: 0.38, frags: 0.20, walls: 0.16, track: 0, bursts: true,
       hint: 'pure panic traffic — become the pace or drown in it',
       bands: [{ t0: 14, t1: 32, intensity: 1.9 }, { t0: 42, t1: 58, intensity: 2.1, mix: { doubles: 0.7 } }],
-      story: { line: 'Cordon 02, and the escort is already thinner than it should be.' } },
+      story: { line: 'The escort is already thinner than it should be.' } },
     { tint: '150,120,255', duration: 65, spawnMin: 0.46, spawnMax: 0.80, speed: 0.72, doubles: 0.60, heavies: 0.20, lines: 0.28, colors: 0.40, frags: 0.22, walls: 0.20, track: 1, bursts: true,
       hint: 'he seals every gate — keyed, walled, doubled. read fast',
       bands: [{ t0: 20, t1: 40, intensity: 1.9 }, { t0: 50, t1: 63, intensity: 2.2, mix: { colors: 0.55 } }],
@@ -257,17 +257,17 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '255,90,110', duration: 70, spawnMin: 0.44, spawnMax: 0.76, speed: 0.75, doubles: 0.62, heavies: 0.22, lines: 0.26, colors: 0.42, frags: 0.22, walls: 0.20, track: 2, bursts: true,
       hint: 'the fastest water on any lane — do not fight it, ride it',
       bands: [{ t0: 16, t1: 36, intensity: 2.0 }, { t0: 48, t1: 68, intensity: 2.2, mix: { doubles: 0.7, colors: 0.55 } }],
-      story: { line: 'Outlaw territory. No cover worth the name.' } },
+      story: { line: 'Outlaw territory. We must move fast or it\'s over.' } },
     { tint: '255,70,160', duration: 75, spawnMin: 0.42, spawnMax: 0.72, speed: 0.78, doubles: 0.65, heavies: 0.25, lines: 0.28, colors: 0.45, frags: 0.25, walls: 0.22, track: 0, bursts: true,
       hint: 'everything he has, all at once, at full speed — the last door',
       bands: [{ t0: 18, t1: 38, intensity: 2.0 }, { t0: 52, t1: 72, intensity: 2.3, mix: { colors: 0.6, doubles: 0.72 } }],
       beats: [{ t: 31, kind: 'wall' }, { t: 62, kind: 'wall' }],
-      story: { line: 'No man’s land. The accession world is on the far side.' } },
+      story: { line: 'No man’s land. Our destination world is on the far side.' } },
     { tint: '212,101,255', duration: 55, spawnMin: 0.68, spawnMax: 1.22, speed: 0.66, doubles: 0.50, heavies: 0.22, lines: 0.20, colors: 0.40, frags: 0.20, walls: 0.14, track: 1, boss: true, bossKind: 'core',
       hint: 'THE DISPATCHER — six injections seat the antidote and shut it down',
-      story: { line: 'Last cordon. She signs on the other side of this lane.' } }
+      story: { line: 'Last lane. The future of the galaxy depends on it!' } }
   ],
   verdict: { title: 'CONTRACT 05 — SIGNED', art: 'delegation-closure.webp',
     // the closure disc reads `line`; `lines` keeps the authored epilogue
-    line: 'Five cordons crossed. She signed it.', lines: [
+    line: 'First Contact! This is a new dawn for our society', lines: [
     'She crossed all five cordons and put', 'her name on it. The lane behind her was', 'the most contested stretch of space', 'anyone has flown this decade.'] } }];
