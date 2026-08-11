@@ -797,353 +797,88 @@ function s3_gate(M, seed, accent) {
 
 // The registry. `cam` is how much of the sprite one station radius takes, tuned
 // per build so the whole thing — piers, spine, arrays — fits inside its canvas.
-// ---- 6. THE INTERDICTION CUTTER. The first boss, and the first thing in this file
-// that is not a place. Everything in the silhouette is doing a job: the hammerhead is
-// where the grapple gear lives, the slab radiators are where its heat goes, and the
-// drive block is oversized for the hull because a cutter's whole purpose is catching
-// things that are already running.
+// ---- 6-8. THE WARP LEECH, in three rings. One machine family for all five
+// campaign duels: an outlaw engine clamped across the lane's centre. The draw
+// (85-enemy-art) stamps these concentrically with a live counter-rotation per
+// ring, so the bake stays cheap and the spin costs a canvas rotate. The seven
+// hulls of the retired duels (cutter, the warden's three bodies, the beacon,
+// the array's two pieces) went with their fights.
 //
-// SHORT AND WIDE, NOT LONG. The first attempt built a 4-unit spine and it read as a
-// sausage on a stick — at the couple of dozen pixels a boss actually occupies in the
-// bore, length collapses to a line and every greeble on it is gone. What survives at
-// that size is the silhouette and a few big tonal blocks, so the massing is built for
-// that: a heavy head, a short thick body, big canted radiator wings, a fat drive can.
-//
-// It is built along +Z as forward and laid horizontal by rotX+rotZ at registration
-// (Z -> X, see the note there), so it presents its flank and reads as a vessel rather
-// than as a blob pointed at the lens.
-//
-// The radiator slabs are deliberately the largest flat surfaces on the model. They are
-// the heat gauge — the whole fight's rhythm is read off them — so there are four big
-// ones rather than eight small, and they cant outward where nothing can hide them.
-function s3_cutter(M, seed) {
-  const rnd = s3rng(seed || 7717), P = s3palette(M);
+// All three face the LENS, like the array hub did: rotX(+90°) takes a build
+// described in the XY plane and stands it square to the camera with its +Z
+// features toward the viewer. A wheel-train's whole job is being read head-on.
 
-  // ---- body: short, thick, and tapered so it is not a tube
-  s3cyl(M, [0, 0, -0.10], [0, 0, 1], 0.170, 0.520, 28, P.hull, true);
-  s3cyl(M, [0, 0, 0.46], [0, 0, 1], 0.148, 0.090, 26, P.hull2, true);   // waist collar
-  for (let i = -2; i <= 2; i++)                                          // frame rings
-    s3cyl(M, [0, 0, -0.10 + i * 0.215], [0, 0, 1], 0.186, 0.020, 24, P.light, true);
-  s3greebleWall(M, 0.172, -0.58, 0.40, 128, [P.hull2, P.dark, P.mid, P.light], rnd, { d: 0.040 });
-  // LIT WINDOWS ARE THE SCALE CUE. Without them a hull is a shape; with them it is a
-  // shape with people in it, which is the single biggest thing separating this from
-  // the line art it replaces. Two rows on the body, not just the bridge, because the
-  // bridge panes are too small to survive the distance.
-  s3winRow(M, 0.172, -0.30, 22, P.win, { w: 0.014, h: 0.030, d: 0.008 });
-  s3winRow(M, 0.172, 0.16, 22, P.win, { w: 0.014, h: 0.030, d: 0.008 });
-  s3winRow(M, 0.188, -0.07, 20, P.win, { w: 0.012, h: 0.022, d: 0.007 });
-  // conduit runs along the flank: the plumbing a working ship wears on the outside
-  for (const sgn of [-1, 1]) for (const yy of [0.095, -0.095]) {
-    s3cyl(M, [sgn * 0.150, yy, -0.05], [0, 0, 1], 0.022, 0.480, 10, P.mid, true);
-    for (let k = -2; k <= 2; k++)   // clamps every so often
-      s3cyl(M, [sgn * 0.150, yy, -0.05 + k * 0.190], [0, 0, 1], 0.032, 0.016, 10, P.dark, true);
+// LCHRIM — the outer sprocket. The silhouette IS the read: an annulus (the
+// bore shows through the middle) with twelve hazard-tipped dogs stood off it.
+function s3_lchrim(M, seed) {
+  const rnd = s3rng(seed || 5507), P = s3palette(M);
+  s3annulus(M, 0.46, 0.60, -0.04, 0.06, 36, P.hull);          // the wheel body
+  s3annulus(M, 0.44, 0.47, 0.05, 0.075, 36, P.light);         // inner lip collar
+  s3annulus(M, 0.585, 0.615, 0.05, 0.075, 36, P.haz);         // hazard rim band
+  s3greebleRing(M, 0.47, 0.585, 0.062, 40, [P.mid, P.dark, P.light], rnd, { h: 0.028 });
+  for (let i = 0; i < 12; i++) { // THE TEETH — sprocket dogs, hazard-tipped
+    const a = i / 12 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
+    s3box(M, [ca * 0.645, sa * 0.645, 0.01], V3scl([ca, sa, 0], 0.045),
+      V3scl([-sa, ca, 0], 0.052), [0, 0, 0.050], P.hull2);
+    s3box(M, [ca * 0.695, sa * 0.695, 0.01], V3scl([ca, sa, 0], 0.014),
+      V3scl([-sa, ca, 0], 0.036), [0, 0, 0.040], P.haz);
   }
-  for (const sgn of [-1, 1]) {      // tankage blistered off the waist
-    s3sphere(M, [sgn * 0.155, -0.130, -0.42], 0.082, 20, 13, P.light);
-    s3cyl(M, [sgn * 0.155, -0.130, -0.30], [0, 0, 1], 0.030, 0.060, 12, P.mid, true);
-  }
-  // a dark dorsal spine strip: tonal separation that survives being tiny
-  s3box(M, [0, 0.178, -0.05], [0.070, 0, 0], [0, 0.020, 0], [0, 0, 0.500], P.dark);
-  s3box(M, [0, -0.178, 0.10], [0.098, 0, 0], [0, 0.018, 0], [0, 0, 0.330], P.haz); // ventral hazard
-
-  // ---- the hammerhead: wide where the grapple gear lives, stepped so it has mass
-  s3box(M, [0, 0, 0.70], [0.410, 0, 0], [0, 0.185, 0], [0, 0, 0.215], P.hull);
-  s3box(M, [0, 0.070, 0.94], [0.300, 0, 0], [0, 0.115, 0], [0, 0, 0.105], P.hull2);  // upper step
-  s3box(M, [0, 0.175, 0.90], [0.135, 0, 0], [0, 0.062, 0], [0, 0, 0.078], P.light);  // bridge
-  s3winRow(M, 0.137, 0.90, 12, P.win, { w: 0.016, h: 0.030, d: 0.009 });
-  for (const sgn of [-1, 1]) {                       // shoulder pods on the head
-    s3cyl(M, [sgn * 0.330, -0.075, 0.72], [0, 0, 1], 0.088, 0.190, 18, P.hull2, true);
-    s3box(M, [sgn * 0.330, -0.075, 0.90], [sgn * 0.088, 0, 0], [0, 0.055, 0], [0, 0, 0.045], P.haz);
-  }
-  s3greebleRing(M, 0.20, 0.40, 0.92, 30, [P.mid, P.light, P.dark], rnd, { h: 0.032 });
-  // the head was a plain slab in the first pass. Break its faces with hardware and a
-  // pane row so the biggest single form on the ship stops reading as a moulded block.
-  for (let i = 0; i < 16; i++) {
-    const sgn = i & 1 ? 1 : -1, u = (i >> 1) / 8 - 0.44;
-    const m2 = [P.dark, P.mid, P.hull2, P.light][i & 3];
-    s3box(M, [sgn * 0.415, -0.020 + u * 0.26, 0.70 + (rnd() - 0.5) * 0.28],
-      [sgn * (0.012 + rnd() * 0.026), 0, 0],
-      [0, 0.020 + rnd() * 0.036, 0], [0, 0, 0.020 + rnd() * 0.040], m2);
-  }
-  s3box(M, [0, -0.190, 0.70], [0.330, 0, 0], [0, 0.022, 0], [0, 0, 0.150], P.dark); // belly plate
-  for (let i = 0; i < 5; i++)   // lit panes down the head's flank
-    for (const sgn of [-1, 1])
-      s3box(M, [sgn * 0.418, 0.045, 0.58 + i * 0.058], [sgn * 0.006, 0, 0],
-        [0, 0.020, 0], [0, 0, 0.016], P.win);
-
-  // ---- the grapple: a drum, a barrel, and three claws stood open
-  s3cyl(M, [0, -0.020, 1.00], [0, 0, 1], 0.150, 0.090, 22, P.dark, true);  // cable drum
-  for (let i = 0; i < 8; i++) {                                            // drum ribs
-    const a = i / 8 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
-    s3box(M, [ca * 0.150, -0.020 + sa * 0.150, 1.00], V3scl([ca, sa, 0], 0.016),
-      V3scl([-sa, ca, 0], 0.014), [0, 0, 0.088], P.mid);
-  }
-  s3cyl(M, [0, -0.020, 1.22], [0, 0, 1], 0.062, 0.150, 18, P.light, true); // barrel
-  s3cyl(M, [0, -0.020, 1.37], [0, 0, 1], 0.090, 0.040, 20, P.hull2, true); // muzzle collar
-  for (let i = 0; i < 3; i++) {
-    const a = i / 3 * 6.2831853 + 0.52, ca = Math.cos(a), sa = Math.sin(a);
-    s3beam(M, [ca * 0.072, -0.020 + sa * 0.072, 1.41], [ca * 0.185, -0.020 + sa * 0.185, 1.58], 0.024, P.light);
-    s3beam(M, [ca * 0.185, -0.020 + sa * 0.185, 1.58], [ca * 0.135, -0.020 + sa * 0.135, 1.72], 0.019, P.hull2);
-  }
-
-  // ---- THE RADIATORS. Two a side, big, canted out and back. These are the gauge.
-  for (let i = 0; i < 2; i++) {
-    const z = -0.34 + i * 0.400;
-    for (const sgn of [-1, 1]) {
-      s3cyl(M, [sgn * 0.190, 0, z], [sgn, 0, 0], 0.038, 0.090, 14, P.mid, true);   // mount stub
-      s3box(M, [sgn * 0.520, 0.030, z],
-        [sgn * 0.300, 0, 0.055],            // canted back along its span
-        [0, 0.016, 0],
-        [0, 0, 0.215], P.rad);
-      {                     // fold line + a dark root, so it reads as fitted
-        s3box(M, [sgn * 0.520, 0.048, z], [sgn * 0.300, 0, 0.055], [0, 0.005, 0], [0, 0, 0.016], P.dark);
-        s3box(M, [sgn * 0.245, 0.020, z], [sgn * 0.048, 0, 0], [0, 0.030, 0], [0, 0, 0.150], P.dark);
-        // ribs across the span: a radiator is a structure, and a bare slab is cardboard
-        for (let r2 = -1; r2 <= 1; r2++)
-          s3box(M, [sgn * (0.520 + r2 * 0.170), 0.036, z + r2 * 0.031],
-            [sgn * 0.014, 0, 0], [0, 0.008, 0], [0, 0, 0.210], P.mid);
-        // and a header pipe along the root edge, where the coolant would actually run
-        s3cyl(M, [sgn * 0.245, 0.030, z], [0, 0, 1], 0.020, 0.205, 10, P.light, true);
-      }
-    }
-  }
-
-  // ---- drive block: a fat can with three flared bells. Oversized on purpose.
-  s3cyl(M, [0, 0, -0.78], [0, 0, 1], 0.245, 0.190, 28, P.hull, true);
-  s3greebleRing(M, 0.150, 0.245, -0.60, 30, [P.mid, P.light, P.dark], rnd, { h: 0.030 });
-  s3cyl(M, [0, 0, -0.99], [0, 0, 1], 0.215, 0.030, 26, P.haz, true);       // hazard band
-  for (let i = 0; i < 3; i++) {
-    const a = i / 3 * 6.2831853 + 1.05, ca = Math.cos(a) * 0.115, sa = Math.sin(a) * 0.115;
-    s3cyl(M, [ca, sa, -1.13], [0, 0, 1], 0.098, 0.115, 20, P.hull2, false); // bell
-    s3cyl(M, [ca, sa, -1.26], [0, 0, 1], 0.076, 0.030, 18, P.dark, true);   // throat
-  }
-  for (const sgn of [-1, 1])                              // rcs quads
-    s3box(M, [sgn * 0.215, 0.120, -0.66], [sgn * 0.060, 0, 0], [0, 0.052, 0], [0, 0, 0.085], P.hull2);
-
-  // ---- topside: the mast it finds you with
-  {
-    s3cyl(M, [0, 0.215, -0.05], [0, 1, 0], 0.034, 0.105, 14, P.mid, true);
-    s3dish(M, [0, 0.335, -0.05], [0, 0.44, 0.90], 0.150, 0.062, P.light);
-  }
-  if (s3has(1.05)) s3dish(M, [0.190, -0.150, 0.30], [0.86, -0.46, 0.22], 0.086, 0.036, P.light);
-
-  // ---- lamps. The metal is baked; these ride over it live, which is the whole reason
-  // a hull in this game reads as crewed rather than as a photograph of one.
-  M.lamp([0, -0.020, 1.76], [255, 90, 70], 0.014, 0, 'strobe');            // claw tip, warning
-  for (const sgn of [-1, 1])                                               // nav lights
-    M.lamp([sgn * 0.425, -0.075, 0.70], sgn < 0 ? [255, 70, 70] : [150, 255, 170], 0.010, 0.3, 'steady');
-  for (let i = 0; i < 4; i++)                                              // flank beacons
-    M.lamp([0, -0.190, -0.45 + i * 0.30], [255, 74, 60], 0.0080, i / 4, 'beacon');
-  for (let i = 0; i < 3; i++) {                                            // drive throats, hot
-    const a = i / 3 * 6.2831853 + 1.05;
-    M.lamp([Math.cos(a) * 0.115, Math.sin(a) * 0.115, -1.28], [255, 150, 90], 0.016, 0, 'steady');
-  }
-  M.lamp([0, 0.240, 0.90], [190, 230, 255], 0.009, 0.6, 'steady');         // bridge worklight
-  return M;
-}
-
-// ---- 7-9. THE PRIVATE WARDEN, IN THREE BODIES. One machine, three hulls, and the
-// only thing that matters about them at the size they are drawn is that you can tell
-// which is which at a glance. So each gets a silhouette doing its own job rather than
-// three tints of one shape: WALL is a slab, SHREDDER is a toothed drum, GHOST is a
-// thin dark wedge with almost nothing lit on it. Same palette and the same greeble
-// idiom as the stations, so they read as the same navy's hardware.
-//
-// All three are laid horizontal by the same rotX+rotZ as the cutter.
-
-// WALL — a barrier hull. Almost all of it is the armour plate on the front.
-function s3_wall(M, seed) {
-  const rnd = s3rng(seed || 3121), P = s3palette(M);
-  // the plate: broad, flat, ribbed, and canted so it catches the light as a face
-  s3box(M, [0, 0, 0.52], [0.560, 0, 0], [0, 0.075, 0], [0, 0, 0.330], P.hull);
-  for (let i = -3; i <= 3; i++)  // vertical ribs across the face
-    s3box(M, [i * 0.155, 0.082, 0.52], [0.028, 0, 0], [0, 0.014, 0], [0, 0, 0.320], P.hull2);
-  s3box(M, [0, 0.090, 0.52], [0.560, 0, 0], [0, 0.010, 0], [0, 0, 0.044], P.haz); // stripe
-  for (const sgn of [-1, 1])     // shoulder buffers
-    s3cyl(M, [sgn * 0.560, 0, 0.52], [0, 0, 1], 0.086, 0.310, 16, P.mid, true);
-  s3greebleWall(M, 0.120, -0.42, 0.16, 54, [P.hull2, P.dark, P.mid], rnd, { d: 0.032 });
-  // body: short and stubby behind the plate
-  s3cyl(M, [0, 0, -0.14], [0, 0, 1], 0.145, 0.360, 22, P.hull, true);
-  s3winRow(M, 0.147, -0.06, 16, P.win, { w: 0.013, h: 0.026, d: 0.008 });
-  s3cyl(M, [0, 0, -0.56], [0, 0, 1], 0.185, 0.110, 22, P.hull2, true);
-  for (const sgn of [-1, 1]) {   // two drives, set wide
-    s3cyl(M, [sgn * 0.115, -0.030, -0.72], [0, 0, 1], 0.078, 0.090, 18, P.hull2, false);
-    s3cyl(M, [sgn * 0.115, -0.030, -0.82], [0, 0, 1], 0.058, 0.026, 16, P.dark, true);
-    M.lamp([sgn * 0.115, -0.030, -0.84], [255, 150, 90], 0.013, 0, 'steady');
-  }
-  M.lamp([0, 0.105, 0.52], [255, 200, 80], 0.012, 0, 'beacon');
-  for (const sgn of [-1, 1]) M.lamp([sgn * 0.600, 0.040, 0.52], [255, 80, 70], 0.009, 0.4, 'steady');
-  return M;
-}
-
-// SHREDDER — a breaking machine. The rotor is the whole read.
-function s3_shredder(M, seed) {
-  const rnd = s3rng(seed || 4519), P = s3palette(M);
-  // the rotor drum, forward, with teeth stood off it
-  s3cyl(M, [0, 0, 0.60], [0, 0, 1], 0.235, 0.185, 26, P.hull2, true);
-  for (let i = 0; i < 14; i++) {
-    const a = i / 14 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
-    s3box(M, [ca * 0.275, sa * 0.275, 0.60], V3scl([ca, sa, 0], 0.058),
-      V3scl([-sa, ca, 0], 0.020), [0, 0, 0.150], P.light);
-    s3box(M, [ca * 0.330, sa * 0.330, 0.60], V3scl([ca, sa, 0], 0.026),
-      V3scl([-sa, ca, 0], 0.012), [0, 0, 0.115], P.haz);   // the tip, hazard-marked
-  }
-  s3cyl(M, [0, 0, 0.60], [0, 0, 1], 0.120, 0.230, 18, P.dark, true); // the hub, recessed
-  // the arm that carries it, and the body behind
-  s3cyl(M, [0, 0, 0.22], [0, 0, 1], 0.098, 0.200, 18, P.mid, true);
-  s3cyl(M, [0, 0, -0.18], [0, 0, 1], 0.165, 0.260, 24, P.hull, true);
-  s3greebleWall(M, 0.167, -0.42, 0.04, 62, [P.hull2, P.dark, P.mid, P.light], rnd, { d: 0.036 });
-  s3winRow(M, 0.167, -0.30, 16, P.win, { w: 0.013, h: 0.024, d: 0.008 });
-  for (const sgn of [-1, 1])  // hydraulic rams to the rotor arm
-    s3cyl(M, [sgn * 0.120, -0.070, 0.18], [0, 0.18, 0.98], 0.030, 0.260, 12, P.light, true);
-  s3cyl(M, [0, 0, -0.55], [0, 0, 1], 0.200, 0.120, 24, P.hull2, true);
-  s3cyl(M, [0, 0, -0.72], [0, 0, 1], 0.105, 0.085, 20, P.dark, false);
-  M.lamp([0, 0, -0.80], [255, 150, 90], 0.015, 0, 'steady');
-  M.lamp([0, 0.185, -0.18], [255, 90, 70], 0.010, 0.2, 'strobe');
-  for (let i = 0; i < 3; i++) M.lamp([0, 0, 0.60], [255, 200, 120], 0.007, i / 3, 'beacon');
-  return M;
-}
-
-// GHOST — on no register. Faceted, dark, and almost unlit: the one you lose track of.
-function s3_ghost(M, seed) {
-  const rnd = s3rng(seed || 8837), P = s3palette(M);
-  // a slim swept wedge. Built from three tapering sections so the facets catch light
-  // as separate planes rather than as one long tube.
-  s3cyl(M, [0, 0, 0.62], [0, 0, 1], 0.070, 0.300, 7, P.dark, true);   // 7 sides: faceted
-  s3cyl(M, [0, 0, 0.16], [0, 0, 1], 0.128, 0.200, 7, P.hull2, true);
-  s3cyl(M, [0, 0, -0.34], [0, 0, 1], 0.150, 0.320, 7, P.dark, true);
-  // swept blades either side — the thing that makes it read as a dart, not a pencil
-  for (const sgn of [-1, 1]) {
-    s3box(M, [sgn * 0.290, 0, 0.02], [sgn * 0.190, 0, -0.120], [0, 0.020, 0], [0, 0, 0.185], P.hull2);
-    s3box(M, [sgn * 0.290, 0.024, 0.02], [sgn * 0.190, 0, -0.120], [0, 0.006, 0], [0, 0, 0.020], P.dark);
-    s3box(M, [sgn * 0.430, 0, -0.10], [sgn * 0.050, 0, 0], [0, 0.026, 0], [0, 0, 0.070], P.mid);
-  }
-  s3greebleWall(M, 0.152, -0.62, -0.10, 40, [P.dark, P.hull2, P.mid], rnd, { d: 0.024 });
-  // one narrow lit slit, and nothing else. A dark hull with a single warm line on it
-  // reads as deliberately unlit, where a hull with no light at all reads as unfinished.
-  s3box(M, [0, 0.130, 0.30], [0.014, 0, 0], [0, 0.012, 0], [0, 0, 0.115], P.win);
-  s3cyl(M, [0, 0, -0.68], [0, 0, 1], 0.115, 0.075, 14, P.dark, false);
-  M.lamp([0, 0, -0.74], [150, 190, 230], 0.010, 0, 'steady');   // cold drive, not hot
-  M.lamp([0, 0.140, 0.30], [190, 220, 255], 0.006, 0.5, 'beacon');
-  return M;
-}
-
-// ---- 10. THE BEACON. A lighthouse in the bore: a mast that will not stop turning,
-// with the lamp housing carrying the sweep. It STANDS — no rotX, unlike the ships —
-// because a beacon that lies on its side reads as wreckage.
-// The sweep beam itself is drawn live over the sprite, in the colour of whichever
-// emitter it currently condemns; the housing here is the hardware it comes out of.
-function s3_beacon(M, seed) {
-  const rnd = s3rng(seed || 6203), P = s3palette(M);
-  // base: a machinery block with the drive and the tankage
-  s3cyl(M, [0, 0, -1.05], [0, 0, 1], 0.320, 0.190, 28, P.hull, true);
-  s3greebleRing(M, 0.180, 0.320, -0.86, 34, [P.mid, P.light, P.dark], rnd, { h: 0.034 });
-  s3cyl(M, [0, 0, -1.27], [0, 0, 1], 0.270, 0.036, 26, P.haz, true);
-  for (let i = 0; i < 3; i++) {
-    const a = i / 3 * 6.2831853 + 0.5, ca = Math.cos(a) * 0.165, sa = Math.sin(a) * 0.165;
-    s3cyl(M, [ca, sa, -1.40], [0, 0, 1], 0.088, 0.095, 18, P.hull2, false);
-    M.lamp([ca, sa, -1.50], [255, 150, 90], 0.014, 0, 'steady');
-  }
-  // the mast
-  s3cyl(M, [0, 0, -0.30], [0, 0, 1], 0.115, 0.560, 22, P.hull, true);
-  for (let i = -2; i <= 2; i++) s3cyl(M, [0, 0, -0.30 + i * 0.215], [0, 0, 1], 0.134, 0.020, 20, P.light, true);
-  s3greebleWall(M, 0.117, -0.80, 0.20, 66, [P.hull2, P.dark, P.mid], rnd, { d: 0.030 });
-  // radiator wings low down, so the lamp head reads clean against the sky
-  for (const sgn of [-1, 1]) {
-    s3cyl(M, [sgn * 0.135, 0, -0.42], [sgn, 0, 0], 0.032, 0.070, 12, P.mid, true);
-    s3box(M, [sgn * 0.420, 0.020, -0.42], [sgn * 0.245, 0, 0], [0, 0.014, 0], [0, 0, 0.175], P.rad);
-    s3box(M, [sgn * 0.420, 0.036, -0.42], [sgn * 0.245, 0, 0], [0, 0.005, 0], [0, 0, 0.014], P.dark);
-  }
-  // the gimbal, then the lamp housing: the biggest single form, and the one that turns
-  s3cyl(M, [0, 0, 0.34], [0, 1, 0], 0.140, 0.185, 20, P.hull2, true);   // yoke axle
-  for (const sgn of [-1, 1])
-    s3box(M, [0, sgn * 0.200, 0.46], [0.130, 0, 0], [0, 0.032, 0], [0, 0, 0.150], P.mid);
-  s3cyl(M, [0, 0, 0.66], [0, 0, 1], 0.290, 0.215, 26, P.hull, true);    // housing drum
-  s3greebleRing(M, 0.180, 0.290, 0.86, 26, [P.mid, P.dark, P.light], rnd, { h: 0.026 });
-  s3cyl(M, [0, 0, 0.66], [0, 0, 1], 0.310, 0.030, 26, P.haz, true);     // hazard band
-  // the aperture: a recessed bay, so the live beam appears to leave a real opening
-  s3box(M, [0, -0.285, 0.66], [0.215, 0, 0], [0, 0.026, 0], [0, 0, 0.165], P.bay);
-  for (let i = 0; i < 5; i++)   // louvres across it
-    s3box(M, [-0.170 + i * 0.085, -0.300, 0.66], [0.014, 0, 0], [0, 0.016, 0], [0, 0, 0.160], P.dark);
-  s3dish(M, [0, 0.230, 0.90], [0, 0.52, 0.85], 0.130, 0.052, P.light);
-  s3winRow(M, 0.292, 0.60, 18, P.win, { w: 0.012, h: 0.020, d: 0.007 });
-  M.lamp([0, -0.310, 0.66], [255, 240, 210], 0.020, 0, 'steady');       // the lamp itself
+  // LIT WINDOWS ARE THE SCALE CUE, here as everywhere: a machine with a crew
+  // deck is a machine with a size. One sparse row — a leech is mostly engine.
+  s3winRow(M, 0.605, -0.01, 24, P.win, { w: 0.013, h: 0.026, d: 0.008 });
   for (let i = 0; i < 8; i++) {
     const a = i / 8 * 6.2831853;
-    M.lamp([Math.cos(a) * 0.300, Math.sin(a) * 0.300, 0.86], [255, 90, 70], 0.0075, i / 8, 'beacon');
+    M.lamp([Math.cos(a) * 0.57, Math.sin(a) * 0.57, 0.08], [255, 74, 60], 0.0075, i / 8, 'beacon');
   }
-  M.lamp([0, 0, 1.00], [255, 255, 255], 0.013, 0, 'strobe');
   return M;
 }
-
-// ---- 11-12. THE ARRAY, in two pieces. A conductor is a fixed installation, and its
-// arms come OFF one at a time as the fight is answered — so it cannot be one sprite.
-// The hub bakes once and the arm bakes once; the draw puts the hub at the bore centre
-// and stamps the arm at each live bearing. That also lets an arm swing to aim, which
-// is the fight's telegraph, and lets a sheared one fling away on its own.
-//
-// Both face the LENS, like the gate: rotX(-90°) takes a build described in the XY
-// plane and stands it square to the camera. An armature seen from above would read as
-// a squashed ellipse, and this thing's whole job is being read head-on.
-
-// The hub: a drum with a machinery collar and a single aperture, watching down the lane.
-function s3_arrhub(M, seed) {
-  const rnd = s3rng(seed || 9311), P = s3palette(M);
-  s3cyl(M, [0, 0, 0], [0, 0, 1], 0.560, 0.150, 34, P.hull, true);
-  s3greebleRing(M, 0.360, 0.560, 0.152, 44, [P.mid, P.light, P.dark], rnd, { h: 0.040 });
-  // A RIM, NOT A PLATE. This was a capped cylinder at radius 0.600, which seen head-on
-  // is a solid orange disc — it buried the greeble ring and the window row behind it and
-  // the whole hub baked as an orange dinner plate. An annulus is the shape that was meant.
-  s3annulus(M, 0.545, 0.615, 0.14, 0.185, 34, P.haz);
-  s3cyl(M, [0, 0, 0.20], [0, 0, 1], 0.300, 0.075, 28, P.hull2, true);
-  s3greebleRing(M, 0.190, 0.300, 0.28, 26, [P.mid, P.dark, P.light], rnd, { h: 0.030 });
-  s3winRow(M, 0.565, 0.02, 26, P.win, { w: 0.016, h: 0.034, d: 0.010 });
-  // the aperture it watches through — a recessed bay, so the live glow has an opening
-  s3cyl(M, [0, 0, 0.26], [0, 0, 1], 0.180, 0.030, 24, P.dark, true);
-  s3cyl(M, [0, 0, 0.29], [0, 0, 1], 0.120, 0.020, 22, P.bay, true);
-  for (let i = 0; i < 8; i++) {                                        // iris louvres
-    const a = i / 8 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
-    s3box(M, [ca * 0.150, sa * 0.150, 0.28], V3scl([ca, sa, 0], 0.058),
-      V3scl([-sa, ca, 0], 0.020), [0, 0, 0.018], P.mid);
-  }
-  // four arm sockets, so a sheared arm leaves a visible stump rather than a clean hull
-  for (let i = 0; i < 4; i++) {
-    const a = i / 4 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
-    s3cyl(M, [ca * 0.560, sa * 0.560, 0], [ca, sa, 0], 0.105, 0.075, 16, P.hull2, true);
-    s3box(M, [ca * 0.610, sa * 0.610, 0], V3scl([ca, sa, 0], 0.030),
-      V3scl([-sa, ca, 0], 0.070), [0, 0, 0.070], P.dark);
-  }
-  s3greebleWall(M, 0.562, -0.14, 0.14, 60, [P.hull2, P.dark, P.mid], rnd, { d: 0.036 });
-  for (let i = 0; i < 10; i++) {
+// LCHGEAR — the bearing race: rollers riding between two shallow annuli, with
+// a toothed inner edge biting toward the hub. Spins against the sprocket.
+function s3_lchgear(M, seed) {
+  const rnd = s3rng(seed || 6841), P = s3palette(M);
+  s3annulus(M, 0.30, 0.42, -0.03, 0.02, 32, P.hull2);
+  s3annulus(M, 0.30, 0.42, 0.065, 0.095, 32, P.dark);
+  for (let i = 0; i < 10; i++) { // TEN ROLLERS — the bearing read, and the spin tell
     const a = i / 10 * 6.2831853;
-    M.lamp([Math.cos(a) * 0.590, Math.sin(a) * 0.590, 0.14], [255, 74, 60], 0.0075, i / 10, 'beacon');
+    s3sphere(M, [Math.cos(a) * 0.36, Math.sin(a) * 0.36, 0.045], 0.052, 12, 8, P.light);
   }
-  M.lamp([0, 0, 0.31], [255, 190, 120], 0.024, 0, 'steady');           // the aperture, lit
+  for (let i = 0; i < 16; i++) { // the toothed inner edge
+    const a = (i + 0.5) / 16 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
+    s3box(M, [ca * 0.28, sa * 0.28, 0.01], V3scl([ca, sa, 0], 0.026),
+      V3scl([-sa, ca, 0], 0.022), [0, 0, 0.030], P.mid);
+  }
+  s3greebleRing(M, 0.31, 0.41, 0.024, 24, [P.mid, P.dark], rnd, { h: 0.020 });
+  for (let i = 0; i < 5; i++) { // the interdiction's violet, on its own hardware
+    const a = i / 5 * 6.2831853;
+    M.lamp([Math.cos(a) * 0.41, Math.sin(a) * 0.41, 0.09], [212, 101, 255], 0.006, i / 5, 'beacon');
+  }
   return M;
 }
-// One arm: a boom out to a launcher throat. Built along +X so the draw can stamp it at
-// any bearing, and deliberately heavier at the outboard end — that is where the traffic
-// leaves from, and it is what the player should be reading.
-function s3_arrarm(M, seed) {
-  const rnd = s3rng(seed || 2777), P = s3palette(M);
-  s3cyl(M, [0.34, 0, 0], [1, 0, 0], 0.088, 0.300, 18, P.hull, true);   // the boom
-  s3truss(M, 0, 0.055, 0.62, 0, 0.062, 6, P.truss);                    // a web under it
-  for (let i = 0; i < 3; i++)                                          // frame collars
-    s3cyl(M, [0.16 + i * 0.170, 0, 0], [1, 0, 0], 0.104, 0.018, 16, P.light, true);
-  s3greebleWall(M, 0.090, 0.10, 0.58, 34, [P.hull2, P.dark, P.mid], rnd, { d: 0.030 });
-  // the launcher head: a drum, a throat, and hazard marks around the mouth
-  s3cyl(M, [0.72, 0, 0], [1, 0, 0], 0.165, 0.115, 22, P.hull2, true);
-  s3cyl(M, [0.86, 0, 0], [1, 0, 0], 0.185, 0.035, 22, P.haz, true);
-  s3cyl(M, [0.90, 0, 0], [1, 0, 0], 0.115, 0.040, 20, P.dark, false);  // the throat
-  s3cyl(M, [0.93, 0, 0], [1, 0, 0], 0.078, 0.020, 18, P.bay, true);
-  for (let i = 0; i < 6; i++) {                                        // muzzle ribs
-    const a = i / 6 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
-    s3box(M, [0.86, ca * 0.185, sa * 0.185], [0.030, 0, 0],
-      V3scl([0, ca, sa], 0.022), V3scl([0, -sa, ca], 0.018), P.mid);
+// LCHHUB — the lamp housing: a drum with a recessed mouth (the live lamp burns
+// INSIDE it — colour is the fight's tell, so it is never baked) and four
+// hazard-tipped clamp jaws. The machine is FASTENED to the lane; these say so.
+function s3_lchhub(M, seed) {
+  const rnd = s3rng(seed || 9173), P = s3palette(M);
+  s3cyl(M, [0, 0, 0], [0, 0, 1], 0.30, 0.075, 28, P.hull, true);
+  s3greebleRing(M, 0.20, 0.30, 0.077, 26, [P.mid, P.light, P.dark], rnd, { h: 0.026 });
+  s3annulus(M, 0.285, 0.315, 0.07, 0.10, 28, P.haz);
+  // the mouth: recessed bay, so the live lamp appears to leave a real opening
+  s3cyl(M, [0, 0, 0.09], [0, 0, 1], 0.185, 0.020, 24, P.dark, true);
+  s3cyl(M, [0, 0, 0.105], [0, 0, 1], 0.135, 0.014, 22, P.bay, true);
+  for (let i = 0; i < 8; i++) { // iris louvres around the mouth
+    const a = i / 8 * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
+    s3box(M, [ca * 0.16, sa * 0.16, 0.10], V3scl([ca, sa, 0], 0.05),
+      V3scl([-sa, ca, 0], 0.018), [0, 0, 0.014], P.mid);
   }
-  s3box(M, [0.50, 0, 0.100], [0.130, 0, 0], [0, 0.060, 0], [0, 0, 0.022], P.rad); // a small fin
-  M.lamp([0.95, 0, 0], [255, 160, 90], 0.016, 0, 'steady');            // the throat, lit
-  M.lamp([0.72, 0, 0.170], [255, 74, 60], 0.008, 0.4, 'beacon');
+  for (let i = 0; i < 4; i++) { // FOUR CLAMP JAWS, set between the iris blades
+    const a = i / 4 * 6.2831853 + 0.3927, ca = Math.cos(a), sa = Math.sin(a);
+    s3box(M, [ca * 0.36, sa * 0.36, 0.0], V3scl([ca, sa, 0], 0.085),
+      V3scl([-sa, ca, 0], 0.045), [0, 0, 0.055], P.hull2);
+    s3box(M, [ca * 0.445, sa * 0.445, 0.0], V3scl([ca, sa, 0], 0.020),
+      V3scl([-sa, ca, 0], 0.032), [0, 0, 0.046], P.haz);
+  }
+  s3winRow(M, 0.302, -0.02, 14, P.win, { w: 0.012, h: 0.022, d: 0.007 });
+  M.lamp([0, 0, 0.12], [255, 90, 90], 0.020, 0, 'steady'); // the mouth smoulders under the live lamp
   return M;
 }
 
@@ -1159,33 +894,16 @@ const S3D_BUILDS = [
   { id: 'GATE',  n: 'gate',          kind: 'gate',    cam: 0.41,  fn: s3_gate, rotX: -Math.PI / 2 },
   // kind 'boss', not 'station': s3BuildFor deals only from the stations, so a hull
   // registered here can never turn up moored at a relay as scenery.
-  // rotX brings the nose toward the lens rather than showing the flank — see the
-  // note on the build. Not a full 90°: dead-on, a long hull foreshortens into a blob.
-  { id: 'CUTTER', n: 'interdiction cutter', kind: 'boss', cam: 0.245, fn: s3_cutter,
-    // Z -> X: rotX(90°) takes the hull's forward axis to -Y, then rotZ(90°) swings it
-    // to +X, which projects across the frame. So a hull authored with the Z-axis
-    // helpers (s3winRow, s3greebleWall both assume it) still presents its flank.
-    rotX: Math.PI / 2, rotZ: Math.PI / 2 },
-  // The warden's three bodies, laid horizontal the same way. Separate builds rather
-  // than one hull in three tints: at the size these are drawn, the silhouette is the
-  // only thing that survives, so telling them apart has to be structural.
-  { id: 'WALL',  n: 'barrier hull', kind: 'boss', cam: 0.300, fn: s3_wall,
-    rotX: Math.PI / 2, rotZ: Math.PI / 2 },
-  { id: 'SHRED', n: 'rotor hull',   kind: 'boss', cam: 0.300, fn: s3_shredder,
-    rotX: Math.PI / 2, rotZ: Math.PI / 2 },
-  { id: 'GHOST', n: 'dark hull',    kind: 'boss', cam: 0.320, fn: s3_ghost,
-    rotX: Math.PI / 2, rotZ: Math.PI / 2 },
-  // The beacon STANDS: no rotX, because a lighthouse on its side reads as wreckage.
-  { id: 'BEACN', n: 'beacon mast',  kind: 'boss', cam: 0.300, fn: s3_beacon },
-  // THE ARRAY, in two pieces so arms can shear off one at a time. Both stand square to
-  // the lens like the gate does — an armature seen from above is a squashed ellipse,
-  // and being read head-on is this machine's entire job.
-  // rotX is POSITIVE here, unlike the gate. The camera sits at -Y looking toward +Y, so
-  // rotX(-90°) sends a build's +Z features to +Y — facing away. The gate survives that
-  // because its ring is a symmetric hoop; a hub with an aperture on one face does not,
-  // and the first bake came out as a blank grey disc with all the hardware behind it.
-  { id: 'ARRHUB', n: 'array hub', kind: 'boss', cam: 0.640, fn: s3_arrhub, rotX: Math.PI / 2 },
-  { id: 'ARRARM', n: 'array arm', kind: 'boss', cam: 0.560, fn: s3_arrarm, rotX: Math.PI / 2 }
+  // THE WARP LEECH, in three concentric rings the draw counter-rotates live.
+  // NO rotX, unlike the hulls this roster replaced: the wheels stay flat in
+  // the XY plane and `el` raises the camera to look almost straight down at
+  // them. That bakes each ring CIRCULAR — at the default elevation a ring
+  // bakes as an ellipse, and an ellipse under ctx.rotate wobbles like a
+  // tumbling coin instead of spinning like a wheel. Not exactly 90°: dead
+  // vertical degenerates the camera basis (cross with Z-up goes to zero).
+  { id: 'LCHRIM',  n: 'leech sprocket', kind: 'boss', cam: 0.66, fn: s3_lchrim,  el: 1.45 },
+  { id: 'LCHGEAR', n: 'leech bearing',  kind: 'boss', cam: 1.05, fn: s3_lchgear, el: 1.45 },
+  { id: 'LCHHUB',  n: 'leech housing',  kind: 'boss', cam: 1.02, fn: s3_lchhub,  el: 1.45 }
 ];
 
 // ---------------------------------------------------------------- the render
@@ -1942,7 +1660,7 @@ function s3Pump(budget) {
       }
       catch (e) { S3D_LIGHT.detail = keep; s3Sprites[id] = 'fail'; continue; }
       S3D_LIGHT.detail = keep;
-      s3Job = { id, it: s3renderSteps(M, { w: ref, h: ref, ss, scale: ref * B.cam }) };
+      s3Job = { id, it: s3renderSteps(M, { w: ref, h: ref, ss, scale: ref * B.cam, el: B.el }) };
       // Constructing the geometry is one long unchunked call — 38k triangles for
       // the drydock — so it gets the frame to itself. Rendering on the same slice
       // is what turns a long frame into a visibly dropped one.

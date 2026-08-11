@@ -68,7 +68,7 @@ All landscape 16:9, matching the game's locked orientation.
 |---|---|---|
 | 1 | Mid-run bore. Both arcs lit, four breaches at staggered depth, one mid-discharge. High combo. | `TWO THUMBS. ONE LINE.` |
 | 2 | Nodes docked, white-hot volley core filling the arc window, four reds nose-to-tail in one lane. | `DOCK BOTH. CLEAR THE LANE.` |
-| 3 | The warden core — eye lit, plates torn, darts inbound. | `NOTHING GETS THROUGH YOU.` |
+| 3 | The warp leech — rings counter-spinning, lamp lit, swarm inbound. | `NOTHING GETS THROUGH YOU.` |
 | 4 | Lane chart: patrol cordons, green cleared routes flowing, dossier open. | `5 CAMPAIGNS. 40 RELAYS.` |
 | 5 | Briefing disc art plate, client name and tier in gold. | `FIVE CONTRACTS. FORTY RELAYS.` |
 | 6 | Rim wall crossing the bore with the golden ribbon riding it. | `ROUTE AROUND. RIDE THE GOLD.` |

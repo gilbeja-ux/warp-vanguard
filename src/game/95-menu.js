@@ -531,7 +531,7 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   for (let k = 0; k < 3; k++) star5(px2 + 22 + k * 20, py2 + 56, 7, k < PROG.stars[li]);
   // fixed rows top-down, deploy pinned to the bottom — nothing overlaps
   ctx.fillStyle = 'rgba(160,215,255,0.8)'; ctx.font = '600 9px Audiowide, system-ui';
-  ctx.fillText((L2.boss ? 'WARDEN DUEL · ' : '') + 'RUN ' + L2.duration + 's · TRAFFIC ' + Math.round(L2.speed * 100), px2 + 14, py2 + 78);
+  ctx.fillText((L2.boss ? 'LEECH DUEL · ' : '') + 'RUN ' + L2.duration + 's · TRAFFIC ' + Math.round(L2.speed * 100), px2 + 14, py2 + 78);
   if ((PROG.bests[li] || 0) > 0) {
     ctx.fillStyle = 'rgba(255,210,74,0.85)';
     ctx.fillText('BEST ' + PROG.bests[li].toLocaleString(), px2 + 14, py2 + 92);

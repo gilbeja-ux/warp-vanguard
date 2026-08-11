@@ -451,14 +451,17 @@ const PICKUPS = {
   wide:   { dur: 10, label: 'WIDE ARC' },
   auto:   { dur: 5,  label: 'AUTO-ZAP' },
   inject: { dur: 0,  label: 'PULSE INJECTED' },  // both purge orbs snap to ready
-  chain:  { dur: 6,  label: 'CHAIN OVERDRIVE' }  // zaps arc to the nearest hostile
+  chain:  { dur: 6,  label: 'CHAIN OVERDRIVE' }, // zaps arc to the nearest hostile
+  health: { dur: 0,  label: 'STABILITY +25' }    // one stability block back — SCHEDULED, never rolled
 };
 // kinds come from a seeded shuffle-bag: every kind appears once before any
 // repeats. A plain uniform roll + per-level fixed seeds froze whole kinds out
 // of entire levels forever (chain, chain — and never a shield, on any replay)
 let pickupBag = [];
 function spawnPickup(kind) { // beats may pin the kind (skipping the bag)
-  const kinds = Object.keys(PICKUPS);
+  // health never rides the bag: relief is SENT — after hot bands, behind
+  // surges, mid-duel — so it lands where the lane just hurt, not at random
+  const kinds = Object.keys(PICKUPS).filter(k => k !== 'health');
   const z0 = dropTravel !== null ? geo().hitZ + dropTravel * (LV || LEVELS[levelIdx]).speed * 0.9 : SPAWN_Z;
   if (!kind) {
     if (!pickupBag.length) {

@@ -677,8 +677,8 @@ const BARKS = {
                 "lost one. don't lose the lane."],
   lastStretch: ["final stretch. they'll throw everything.",
                 "almost home. don't ease off.", 'last leg. finish it.'],
-  bossOpen:    ["that's the core. six hits.", 'there it is. dock and hold.'],
-  bossLow:     ["it's failing. finish it.", 'one more. put it down.'],
+  bossOpen:    ["that's the leech. pulse it off our lane.", 'there it is. feed on its swarm.'],
+  bossLow:     ["it's failing. finish it.", 'one more pulse. put it down.'],
   win:         ["lane's clear. good work.", 'convoy delivered. logged.'],
   loss:        ["lane's gone. we'll re-run it.", 'they got through. again.']
 };
@@ -726,7 +726,7 @@ function updateBarks(dt) {
   if (boss) {
     bark('bossOpen');
     if (boss.hp <= 1) bark('bossLow');
-    return;                                          // the warden owns the channel
+    return;                                          // the interdiction owns the channel
   }
   // first-of-kind: read the live wave rather than hooking the spawner
   for (const e of enemies) {

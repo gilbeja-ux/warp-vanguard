@@ -395,6 +395,13 @@ function enemyPal(en) {
     ? { glow: '200,70,255',
         shades: ['#b03ae8', '#8a2ad4', '#d465ff', '#6f14b8', '#c44af0'],
         lights: ['#eab8ff', '#f3d4ff', '#d98cff'] }
+    : en.noCharge
+    // the boss's own pressure drone: deep interdiction violet — kill it to keep
+    // the lane, but it feeds the pulse NOTHING (darker than heavy's magenta,
+    // and heavies never share a duel lane with these, so the two can't collide)
+    ? { glow: '160,80,255',
+        shades: ['#7a2fd0', '#5a1ba8', '#9450ec', '#42128a', '#8640de'],
+        lights: ['#d4b0ff', '#e6d0ff', '#b88cff'] }
     : en.lock === 0
     ? { glow: '80,170,255',
         shades: ['#2f7fe0', '#1c4fae', '#4d9bff', '#12398a', '#3f8af0'],
@@ -593,7 +600,9 @@ function drawEnemy(en, g) {
     return;
   }
 
-  const spr = SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.type];
+  // a pressure drone (noCharge) skips the baked red skin and draws procedurally
+  // in the interdiction's own violet — the boss's drone, and worth nothing
+  const spr = en.noCharge ? null : SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.type];
 
   // hot glow at the wall point — except payload packets, which swallow light.
   // the glow breathes harder as arrival closes in: near threats burn brightest
@@ -711,10 +720,14 @@ function drawPickup(p, g) {
   ctx.save();
   ctx.globalAlpha = fade;
   ctx.translate(x, y);
+  // the STABILITY PATCH wears the integrity gauge's own blue — relief must
+  // read as THAT gauge from across the bore; everything else stays pickup gold
+  const heal2 = p.kind === 'health';
+  const glowC = heal2 ? '143,199,255' : '255,210,74';
   const pulse = 1 + Math.sin(time * 5 + p.spin) * 0.1;
   const gl = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 2.6 * pulse);
-  gl.addColorStop(0, 'rgba(255,210,74,0.55)');
-  gl.addColorStop(1, 'rgba(255,210,74,0)');
+  gl.addColorStop(0, `rgba(${glowC},0.55)`);
+  gl.addColorStop(1, `rgba(${glowC},0)`);
   ctx.fillStyle = gl;
   ctx.beginPath(); ctx.arc(0, 0, size * 2.6 * pulse, 0, TAU); ctx.fill();
   ctx.rotate(p.spin * 0.6);
@@ -724,10 +737,10 @@ function drawPickup(p, g) {
     i ? ctx.lineTo(Math.cos(a2) * size, Math.sin(a2) * size) : ctx.moveTo(Math.cos(a2) * size, Math.sin(a2) * size);
   }
   ctx.closePath();
-  ctx.fillStyle = 'rgba(60,40,5,0.85)'; ctx.fill();
-  ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = Math.max(1, size * 0.14); ctx.stroke();
+  ctx.fillStyle = heal2 ? 'rgba(8,24,44,0.85)' : 'rgba(60,40,5,0.85)'; ctx.fill();
+  ctx.strokeStyle = heal2 ? '#8fc7ff' : '#ffd24a'; ctx.lineWidth = Math.max(1, size * 0.14); ctx.stroke();
   ctx.rotate(-p.spin * 0.6);
-  ctx.strokeStyle = '#ffe9b0'; ctx.fillStyle = '#ffe9b0';
+  ctx.strokeStyle = heal2 ? '#dcecff' : '#ffe9b0'; ctx.fillStyle = heal2 ? '#dcecff' : '#ffe9b0';
   ctx.lineWidth = Math.max(1, size * 0.12); ctx.lineCap = 'round';
   const s2 = size * 0.52;
   if (p.kind === 'shield') { // heater shield
@@ -753,6 +766,12 @@ function drawPickup(p, g) {
     ctx.beginPath(); ctx.arc(0, 0, s2 * 1.05, -0.7, 0.7); ctx.stroke();
     ctx.beginPath(); ctx.arc(0, 0, s2 * 0.55, Math.PI - 0.9, Math.PI + 0.9); ctx.stroke();
     ctx.beginPath(); ctx.arc(0, 0, s2 * 1.05, Math.PI - 0.7, Math.PI + 0.7); ctx.stroke();
+  } else if (p.kind === 'health') { // the patch: a bold stability cross
+    ctx.lineWidth = Math.max(1.4, size * 0.2);
+    ctx.beginPath();
+    ctx.moveTo(-s2 * 0.7, 0); ctx.lineTo(s2 * 0.7, 0);
+    ctx.moveTo(0, -s2 * 0.7); ctx.lineTo(0, s2 * 0.7);
+    ctx.stroke();
   } else { // lightning bolt
     ctx.beginPath();
     ctx.moveTo(s2 * 0.3, -s2); ctx.lineTo(-s2 * 0.45, s2 * 0.15); ctx.lineTo(0, s2 * 0.15);
@@ -795,7 +814,6 @@ function drawLineBeam(en, g) {
   ctx.restore();
 }
 
-// the warden core — flying deep in the tunnel, plus its bullet-hell return fire
 // boss rail clamps: molten orange arcs seizing part of the ring — crossing one
 // fries the cannon. They burn away from both ends and are gone within 3s.
 function drawLatches(g, bz) {
@@ -905,360 +923,201 @@ function drawLatches(g, bz) {
 
 function drawBoss(g) {
   const b = boss;
-  // orbs first: race from the core's depth out to the ring, growing with perspective
-  const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
-  for (const sh of b.shots) {
-    const k = clamp(sh.t / sh.dur, 0, 1);
-    const posAt = kk => {
-      const z = lerp(sh.zb, g.hitZ, kk);
-      const rg = ring(z, g);
-      const tu = Math.cos(sh.th) * (railR / g.nodeR), tv = Math.sin(sh.th) * (railR / g.nodeR);
-      return { x: rg.x + lerp(sh.u0, tu, kk) * rg.r, y: rg.y + lerp(sh.v0, tv, kk) * rg.r, s: rg.s };
-    };
-    const p = posAt(k), p2 = posAt(Math.min(1, k + 0.05));
-    const dirA = Math.atan2(p2.y - p.y, p2.x - p.x); // it flies point-first
-    const os = Math.min(W, H) * 0.055 * p.s;
-    // grapples burn orange; darts are threat-red, glitching violet for a frame
-    const oc = sh.latch ? '255,154,60'
-      : Math.sin(time * 11 + sh.th * 5.7) > 0.86 ? '212,101,255' : '255,60,90';
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.rotate(dirA);
-    // motion trail streaking behind the dart
-    const tg = ctx.createLinearGradient(-os * 6, 0, os * 1.2, 0);
-    tg.addColorStop(0, `rgba(${oc},0)`);
-    tg.addColorStop(1, `rgba(${oc},0.55)`);
-    ctx.strokeStyle = tg;
-    ctx.lineWidth = Math.max(1.5, os * 0.5);
-    ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(-os * 6, 0); ctx.lineTo(os * 0.6, 0); ctx.stroke();
-    // the dart: a dark needle with a hot edge — hull, not a bubble
-    ctx.fillStyle = 'rgba(10,4,18,0.95)';
-    ctx.strokeStyle = `rgba(${oc},0.9)`;
-    ctx.lineWidth = Math.max(1, os * 0.14);
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(os * 2.1, 0);
-    ctx.lineTo(-os * 1.4, -os * 0.6);
-    ctx.lineTo(-os * 0.7, 0);
-    ctx.lineTo(-os * 1.4, os * 0.6);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-    // white-hot tip
-    const tp = ctx.createRadialGradient(os * 2.1, 0, 0, os * 2.1, 0, os * 1.1);
-    tp.addColorStop(0, 'rgba(255,255,255,0.95)');
-    tp.addColorStop(0.4, `rgba(${oc},0.5)`);
-    tp.addColorStop(1, `rgba(${oc},0)`);
-    ctx.fillStyle = tp;
-    ctx.beginPath(); ctx.arc(os * 2.1, 0, os * 1.1, 0, TAU); ctx.fill();
-    ctx.restore();
-    if (sh.latch) { // where it will bite: the doomed stretch of rail blinks
-      const halfP = 0.5 * clamp(sh.t / sh.dur, 0, 1);
-      ctx.strokeStyle = `rgba(255,154,60,${(0.35 + Math.sin(time * 16) * 0.2).toFixed(2)})`;
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([5, 7]);
-      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + Math.min(W, H) * 0.0275, sh.th - halfP, sh.th + halfP); ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
   // ceremony/death staging: the arrival dims the world; the death collapses it
   const cerQ0 = b.introT < BOSS_CER ? clamp(b.introT / BOSS_CER, 0, 1) : 1;
   if (cerQ0 < 1) { // the tunnel's light drains as the truth surfaces
     ctx.fillStyle = `rgba(2,1,8,${(cerQ0 * 0.4).toFixed(2)})`;
     ctx.fillRect(0, 0, W, H);
   }
-  if (b.kind === 'triad' && b.dying === undefined) {
-    // one machine in three bodies: the links go under the bodies
-    drawTriadLinks(g);
-    for (const c of b.cores) if (!c.dead) drawVoidCore(g, c);
-    // charge telegraph: the firing body blooms before its dart spray
-    for (const c of b.cores) {
-      if (c.dead || !(c.chargeT > 0)) continue;
-      const q = 1 - c.chargeT / 0.55;
-      const cr2 = c.sSize * (1.5 + q * 0.9);
-      const cg3 = ctx.createRadialGradient(c.sx, c.sy, 0, c.sx, c.sy, cr2);
-      cg3.addColorStop(0, `rgba(255,120,150,${(0.30 + q * 0.45).toFixed(2)})`);
-      cg3.addColorStop(1, 'rgba(255,60,90,0)');
-      ctx.fillStyle = cg3;
-      ctx.beginPath(); ctx.arc(c.sx, c.sy, cr2, 0, TAU); ctx.fill();
+  // the sweeps draw first — the light comes OUT of the machine, so it sits under it
+  if (b.dying === undefined) {
+    for (const bm of b.beams) if (!bm.done) drawLeechBeam(g, b, bm, b.mode === 'tele');
+    for (const f3 of (b.beamFx || [])) drawLeechBeam(g, b, f3, false); // spent light, retreating
+  }
+  drawLeechDrink(g);   // ceremony: it pulls your banked charge off the pads
+  drawLeechMachine(g);
+  if (b.shieldT > 0 && b.dying === undefined) { // wrong-key fizzle: the shield shimmer
+    const q = 1 - b.shieldT / 0.6;
+    ctx.save();
+    ctx.strokeStyle = `rgba(143,224,255,${((1 - q) * 0.8).toFixed(2)})`;
+    ctx.lineWidth = 2.5;
+    const shR = b.sSize * (1.15 + q * 0.5);
+    ctx.beginPath();
+    for (let k = 0; k <= 6; k++) {
+      const a2 = k / 6 * TAU + b.spin * 0.3;
+      ctx[k ? 'lineTo' : 'moveTo'](b.sx + Math.cos(a2) * shR, b.sy + Math.sin(a2) * shR);
     }
-    for (const bm of b.booms) { // mini implosions where a body went down
-      const q = clamp(bm.t / 0.9, 0, 1);
-      for (const [spd, col, w2] of [[1, '255,255,255', 2.5], [0.7, '212,101,255', 1.5]]) {
-        const rr2 = q * spd * Math.min(W, H) * 0.45;
-        if (rr2 < 2) continue;
-        ctx.strokeStyle = `rgba(${col},${((1 - q) * 0.8).toFixed(2)})`;
-        ctx.lineWidth = w2 + (1 - q) * 4;
-        ctx.beginPath(); ctx.arc(bm.x, bm.y, rr2, 0, TAU); ctx.stroke();
-      }
-    }
-  } else {
-    if (b.kind === 'spinner' && b.dying === undefined) drawSpinnerBeam(g); // the light, under the lamp
-    drawVoidCore(g, b);
-    if (b.kind === 'spinner' && b.shieldT > 0) { // bolt fizzle: the shield shimmer
-      const q = 1 - b.shieldT / 0.6;
-      ctx.save();
-      ctx.strokeStyle = `rgba(143,224,255,${((1 - q) * 0.8).toFixed(2)})`;
-      ctx.lineWidth = 2.5;
-      const shR = b.sSize * (1.15 + q * 0.5);
-      ctx.beginPath();
-      for (let k = 0; k <= 6; k++) {
-        const a2 = k / 6 * TAU + b.spin * 0.3;
-        ctx[k ? 'lineTo' : 'moveTo'](b.sx + Math.cos(a2) * shR, b.sy + Math.sin(a2) * shR);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
+    ctx.stroke();
+    ctx.restore();
   }
   drawBossOverlays(g);
 }
-// the CORE body: a rogue intelligence rendered as ABSENCE — a void sphere that
-// eats the tunnel's light, warps the data fabric into itself, wears dark
-// armor plates, and watches the player with a slit eye. Parameterized on a
-// view `c` (the boss itself, or one of the triad's mini bodies) so all three
-// bosses share one machined-optics look.
-// WHICH HULL A BOSS BODY WEARS. drawVoidCore is called with the boss itself for the
-// core and the beacon, and once per body for the warden's triad — the triad's bodies
-// carry a `name`, which is what tells the two cases apart.
+// THE DRINK, made visible: while the ceremony runs, violet filaments syphon the
+// banked pulse charge off each pad into the machine — the popup says what is
+// happening, this shows WHERE it is going
+function drawLeechDrink(g) {
+  const b = boss;
+  if (b.introT >= BOSS_CER || !b.drankSaid) return;
+  const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 2; i++) {
+    if (pulseCharge[i] <= 0) continue;
+    const n = nodes[i];
+    const nx = g.cx + Math.cos(n.angle) * railR, ny = g.cy + Math.sin(n.angle) * railR;
+    for (const [lw, col] of [[3.5, 'rgba(212,101,255,0.20)'], [1.4, 'rgba(234,184,255,0.65)']]) {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.moveTo(nx, ny);
+      const SEG = 7;
+      let px2 = -(b.sy - ny), py2 = b.sx - nx;
+      const pl = Math.hypot(px2, py2) || 1;
+      px2 /= pl; py2 /= pl;
+      for (let k = 1; k < SEG; k++) {
+        const q = k / SEG;
+        const off = Math.sin(time * 15 + k * 4.7 + i * 9) * Math.sin(q * Math.PI) * 14;
+        ctx.lineTo(lerp(nx, b.sx, q) + px2 * off, lerp(ny, b.sy, q) + py2 * off);
+      }
+      ctx.lineTo(b.sx, b.sy);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+// ---- THE MACHINE ----
+// One body plan for all five leeches: counter-rotating sprocket and bearing
+// rings around a lamp housing, clamped dead centre in the bore. The rings are
+// baked S3D hardware (LCHRIM / LCHGEAR / LCHHUB) stamped with a live rotation
+// each — the counter-spin is what says MACHINE at twenty pixels, and a canvas
+// rotate on a baked disc costs nothing. Until the bake lands, a procedural
+// version of the same silhouette stands in (same radii, same spin), so a duel
+// never waits on the menu's bake queue.
 //
-// Returning null is the honest answer for anything without a build: the drawn body
-// below is still the fallback, and the triad's DEATH ceremony deliberately takes it,
-// because the implosion it plays is animation the baked sprite cannot do.
-const TRIAD_HULL = { WALL: 'WALL', SHREDDER: 'SHRED', GHOST: 'GHOST' };
-// per-hull on-screen scale. Each build frames itself with its own `cam`, so one factor
-// would leave the beacon tiny next to the cutter — these are set by eye against the
-// bore, which is the only place the comparison means anything.
-const BOSS_HULL_R = { CUTTER: 1.95, WALL: 1.70, SHRED: 1.70, GHOST: 1.80, BEACN: 1.85,
-  // the conductor is the centrepiece of its fight, not a dot in the bore — these are
-  // set against the ring, which is the only comparison that means anything
-  ARRHUB: 2.30, ARRARM: 1.70 };
-// THE ARRAY IS TWO SPRITES, not one. The hub holds the centre and each live arm is
-// stamped at its own bearing, so an arm can aim (the telegraph) and shear off (the
-// damage) independently. One baked sprite could do neither.
-function drawArrayRig(b, size, haze) {
-  const hub = s3SpriteFor('ARRHUB'), arm = s3SpriteFor('ARRARM');
-  if (!hub || !arm) return false;
-  const R = size * BOSS_HULL_R.ARRHUB;
-  for (const a2 of b.arms) {
-    const shearing = a2.shear >= 0 && a2.shear < 1.1;
-    if (!a2.live && !shearing) continue;
-    ctx.save();
-    ctx.rotate(a2.a);
-    // a sheared arm tumbles outward and fades — the machine visibly loses hardware
-    let al = haze;
-    if (shearing) {
-      const q = a2.shear / 1.1;
-      ctx.translate(R * (0.9 + q * 1.5), 0);
-      ctx.rotate(q * 1.4);
-      al = haze * (1 - q);
-    } else {
-      ctx.translate(R * 0.9, 0);
-    }
-    s3draw(0, 0, size * BOSS_HULL_R.ARRARM, 'ARRARM', al);
-    // the conducting arm runs its throat hot, which is the tell that it is about to release
-    if (a2.live && a2.lit > 0.02) {
-      ctx.globalCompositeOperation = 'lighter';
-      const lg = ctx.createRadialGradient(size * 0.75, 0, 0, size * 0.75, 0, size * 0.95);
-      lg.addColorStop(0, `rgba(255,225,180,${(0.55 * a2.lit * haze).toFixed(2)})`);
-      lg.addColorStop(1, 'rgba(255,150,60,0)');
-      ctx.fillStyle = lg;
-      ctx.beginPath(); ctx.arc(size * 0.75, 0, size * 0.95, 0, TAU); ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-    }
-    ctx.restore();
-  }
-  s3draw(0, 0, R, 'ARRHUB', haze);
-  // the bare core, exposed: the one window where a bolt is an answer
-  if (b.exposeT > 0) {
-    const vp = 0.55 + Math.sin(time * 15) * 0.45;
-    ctx.globalCompositeOperation = 'lighter';
-    const eg = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 1.5);
-    eg.addColorStop(0, `rgba(255,240,210,${(0.55 * vp * haze).toFixed(2)})`);
-    eg.addColorStop(0.5, `rgba(255,150,60,${(0.30 * vp * haze).toFixed(2)})`);
-    eg.addColorStop(1, 'rgba(255,110,40,0)');
-    ctx.fillStyle = eg;
-    ctx.beginPath(); ctx.arc(0, 0, size * 1.5, 0, TAU); ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
-  }
-  return true;
+// Five machines, one rig table: what changes per contract is the massing —
+// ring radii, spin rates, lamp size — plus everything drawn live (beams, lamp
+// colour). Radii are in body sizes, spins in b.spin multiples (sign = way).
+// Sized against the RING, which is the only comparison that means anything.
+// The first cut floated the sprocket far outside the bearing race with dark
+// bore between them — imposing, but the machine obscured traffic arriving from
+// the tunnel's far side. Gil's call: the rings MESH. The sprocket's inner lip
+// (0.44 build units) sits ON the race's outer edge (0.42), so rim = 0.955 ×
+// gear everywhere — a tight counter-rotating gear train, roughly half the old
+// footprint, with the far tunnel readable around it.
+const LEECH_RIG = {
+  leech:    { rim: 1.29, gear: 1.35, hub: 0.82, wRim: 0.40, wGear: -0.70, lamp: 0.40 },
+  siphon:   { rim: 1.38, gear: 1.45, hub: 0.87, wRim: 0.45, wGear: -0.80, lamp: 0.44 },
+  prism:    { rim: 1.48, gear: 1.55, hub: 0.87, wRim: -0.50, wGear: 0.85, lamp: 0.44 },
+  mimic:    { rim: 1.62, gear: 1.70, hub: 0.95, wRim: 0.55, wGear: -0.95, lamp: 0.52 },
+  blockade: { rim: 1.77, gear: 1.85, hub: 1.05, wRim: 0.60, wGear: -1.05, lamp: 0.57 }
+};
+// the lamp is the fight's tell: hostile red at rest (glitching the family
+// violet), the condemned pulse colour when a lamp mechanic is live — and the
+// blink telegraphs a flip by flickering THROUGH the colour that is coming
+function leechLampCol(b) {
+  // the LAST STAND wants BOTH keys: the lamp strobes blue/white, fast — no
+  // colour to read any more, just the demand itself
+  if (b.lastStand) return Math.sin(time * 14) > 0 ? NODE_COLS[0] : NODE_COLS[1];
+  if (!bossLampLive())
+    return Math.sin(time * 11) > 0.86 ? '212,101,255' : '255,60,90';
+  if (b.lampBlink > 0 && Math.sin(time * 26) > 0) return NODE_COLS[1 - b.lamp];
+  return NODE_COLS[b.lamp];
 }
-function bossHullId(v) {
-  if (v.name) return TRIAD_HULL[v.name] || null;
-  if (v.kind === 'spinner') return 'BEACN';
-  if (v.kind === 'core') return 'CUTTER';
-  return null;
-}
-function drawVoidCore(g, c) {
-  const b = c; // the body below reads the classic field names off the view
+function drawLeechMachine(g) {
+  const b = boss;
   const cerQ = b.introT < BOSS_CER ? clamp(b.introT / BOSS_CER, 0, 1) : 1;
   const dieQ = b.dying !== undefined ? b.dying : -1;
-  let size = b.sSize;   // no breathing pulse: on a baked hull it reads as the model resizing
+  let size = b.sSize;
   if (dieQ > 2.3) size *= Math.max(0.01, 1 - (dieQ - 2.3) / 0.3); // implosion
+  const rig = LEECH_RIG[b.kind] || LEECH_RIG.leech;
   ctx.save();
   ctx.globalAlpha = 0.72 + 0.28 * (1 - clamp(b.z, 0, 1)); // deeper = hazier
   ctx.translate(b.sx, b.sy);
   const haze = ctx.globalAlpha;
   const flash = b.hurtT > 0 ? b.hurtT / 0.15 : 0;
   const dmg = 1 - clamp(b.hp / b.maxHp, 0, 1);
-  const seed = b.spin * 3.3;
-  const tear = Math.sin(time * 2.3 + seed) > 0.9 - dmg * 0.5 ? 1 : 0;
-  // NO POSITIONAL TWITCH. `tear` used to also translate the whole body by a
-  // sin(time*51) shake whenever it fired — about every 2.7s, which is the "jitter
-  // every second or so" Gil reported. It read as a rendering fault rather than as
-  // menace, and on a baked hull it reads as the sprite slipping. `tear` survives only
-  // as the glitch-colour gate below, which is where it earned its keep.
-  // red-dominant livery to match the eye — the purple survives only as
-  // GLITCHES: parts flicker back to warden violet for a frame, far more
-  // often while the body is tearing
-  const gCol = ph => Math.sin(time * 11 + ph * 5.7) > (tear ? 0.45 : 0.86) ? '212,101,255' : '255,60,90';
-  // it EATS light — the tunnel dims around it before anything is drawn
-  const dk = ctx.createRadialGradient(0, 0, size * 0.5, 0, 0, size * 3.1);
+  // red-dominant accents that glitch the interdiction violet, more as it is wounded
+  const gCol = ph => Math.sin(time * 11 + ph * 5.7) > (0.86 - dmg * 0.3) ? '212,101,255' : '255,60,90';
+  // it EATS light — the tunnel dims around it before anything is drawn. The
+  // halo hugs the machine (rim-tied): a fixed 2.8-size wash out-lived the ring
+  // shrink and was itself hiding far-side traffic the shrink meant to reveal.
+  const dkR = size * rig.rim * 1.5;
+  const dk = ctx.createRadialGradient(0, 0, size * 0.5, 0, 0, dkR);
   dk.addColorStop(0, 'rgba(2,1,8,0.8)');
   dk.addColorStop(0.55, 'rgba(4,2,12,0.4)');
   dk.addColorStop(1, 'rgba(4,2,12,0)');
   ctx.fillStyle = dk;
-  ctx.beginPath(); ctx.arc(0, 0, size * 3.1, 0, TAU); ctx.fill();
-  // ---- THE HULL IS BAKED HARDWARE, NOT LINE ART ----
-  // The interdictor is an S3D mesh through the same renderer that builds the stations
-  // the player arrives at — real materials, greebling, lit windows, lamps over the top.
-  // Everything below this branch is the drawn body it replaces, kept as the fallback for
-  // the frames before the bake lands (it is queued with the stations and pumped on the
-  // menu, so in practice it is ready long before a relay-8 duel).
-  //
-  // Only the core boss has a hull: triad bodies come through this same function.
-  if (b.kind === 'array' && b.arms && drawArrayRig(b, size, haze)) { ctx.restore(); return; }
-  const hullId = bossHullId(b);
-  if (hullId && s3SpriteFor(hullId)) {
-    const hk = clamp(b.coreHeat === undefined ? 0 : b.coreHeat, 0, 1);
-    const venting = b.ventT > 0;
-    const R = size * BOSS_HULL_R[hullId];
-    // NO BANK. A slow idle roll lived here to keep the hull from looking pasted on,
-    // but the direction is a machine holding station rather than a ship under way, and
-    // any rotation on a fixed installation reads as drift.
-    if (flash > 0.3) { // struck: a white wash over the metal, through the sprite's own mask
-      s3draw(0, 0, R, hullId, haze);
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = haze * 0.5 * flash;
-      s3draw(0, 0, R, hullId, 1, true);
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = haze;
-    } else {
-      s3draw(0, 0, R, hullId, haze);
-    }
-    // THE HEAT RIDES OVER THE BAKED RADIATORS. A wash rather than drawn fins: the fins
-    // are real geometry now, so the glow only has to say how hot they are — and a wash
-    // survives the bank, which hand-placed bars would not.
-    if (b.coreHeat !== undefined && (hk > 0.04 || venting)) {
-      const hCol = hk < 0.34 ? '190,70,40' : hk < 0.67 ? '255,130,45' : '255,215,175';
-      ctx.globalCompositeOperation = 'lighter';
-      const hg = ctx.createRadialGradient(0, 0, size * 0.15, 0, 0, size * 1.75);
-      hg.addColorStop(0, `rgba(${hCol},${(0.30 * hk * haze).toFixed(2)})`);
-      hg.addColorStop(0.55, `rgba(${hCol},${(0.20 * hk * haze).toFixed(2)})`);
-      hg.addColorStop(1, `rgba(${hCol},0)`);
-      ctx.fillStyle = hg;
-      ctx.beginPath(); ctx.arc(0, 0, size * 1.75, 0, TAU); ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-    }
-    if (venting) {
-      // the panels are open. The loudest the hull ever gets, because it is the only
-      // moment the player is meant to stop dodging and commit.
-      const vp = 0.6 + Math.sin(time * 17) * 0.4;
-      ctx.globalCompositeOperation = 'lighter';
-      const vg = ctx.createRadialGradient(0, 0, size * 0.3, 0, 0, size * 2.5);
-      vg.addColorStop(0, `rgba(255,242,220,${(0.44 * vp * haze).toFixed(2)})`);
-      vg.addColorStop(0.42, `rgba(255,155,65,${(0.30 * vp * haze).toFixed(2)})`);
-      vg.addColorStop(1, 'rgba(255,110,40,0)');
-      ctx.fillStyle = vg;
-      ctx.beginPath(); ctx.arc(0, 0, size * 2.5, 0, TAU); ctx.fill();
-      // plumes off the radiator roots, up and down — which is where the slabs sit once
-      // the hull is laid horizontal (model +X becomes screen vertical; see the rotZ note)
-      ctx.strokeStyle = `rgba(255,236,205,${(0.75 * vp * haze).toFixed(2)})`;
-      ctx.lineWidth = Math.max(2, size * 0.075);
-      ctx.lineCap = 'round';
-      for (const sgn of [-1, 1]) {
-        ctx.beginPath();
-        ctx.moveTo(-size * 0.25, sgn * size * 0.55);
-        ctx.lineTo(-size * 0.30, sgn * size * (1.35 + vp * 0.55));
-        ctx.stroke();
-      }
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = `rgba(255,205,150,${(0.60 * haze).toFixed(2)})`;
-      ctx.lineWidth = Math.max(1.4, size * 0.05);
-      ctx.setLineDash([size * 0.30, size * 0.20]);
-      ctx.beginPath(); ctx.arc(0, 0, size * (1.45 + vp * 0.10), 0, TAU); ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    ctx.restore();
-    return;
-  }
-  // accretion: the data fabric warps in — streaks spiral into the mass,
-  // swirling faster and redder as it dies
-  ctx.lineCap = 'round';
-  for (let i = 0; i < 14; i++) {
-    const ph = (time * (0.16 + (i % 5) * 0.03) + i * 0.618) % 1;
-    const al = Math.sin(ph * Math.PI) * (0.3 + dmg * 0.2) * haze;
-    if (al < 0.02) continue;
-    const a0 = i * 2.39 + b.spin * 0.7 + ph * 2.2;
-    ctx.strokeStyle = `rgba(${gCol(i)},${al.toFixed(2)})`;
-    ctx.lineWidth = Math.max(1, size * 0.035 * (1 - ph * 0.5));
-    ctx.beginPath(); ctx.arc(0, 0, size * lerp(2.9, 0.78, ph), a0, a0 + 0.55 + ph * 0.5); ctx.stroke();
-  }
-  // dark armor plates on two counter-rotating tracks — they shear off at each
-  // sixth of its health, so the fight's progress reads on the machine itself
-  const segsAlive = Math.ceil(clamp(b.hp / b.maxHp, 0, 1) * 6);
-  const plates = (rr, tilt, dir, alMul) => {
+  ctx.beginPath(); ctx.arc(0, 0, dkR, 0, TAU); ctx.fill();
+  // dying: the wheel-train runs wild before it lets go
+  const wob = dieQ >= 0 ? 1 + dieQ * 1.6 : 1;
+  // stamp one ring: baked hardware when the sprite exists, the procedural
+  // stand-in otherwise (same silhouette — never s3placeholder's blank mass)
+  const stamp = (id, R, rot, fallback) => {
     ctx.save();
-    ctx.rotate(Math.sin(time * 0.4 * dir) * 0.35);
-    ctx.scale(1, tilt);
-    for (let k = 0; k < 6; k++) {
-      if (k >= segsAlive) continue;
-      const a0 = k / 6 * TAU + b.spin * 0.55 * dir;
-      ctx.save();
-      ctx.translate(Math.cos(a0) * size * rr, Math.sin(a0) * size * rr);
-      ctx.rotate(a0 + Math.PI / 2);
-      ctx.fillStyle = `rgba(8,4,16,${(0.92 * alMul).toFixed(2)})`;
-      ctx.strokeStyle = `rgba(${gCol(k * 1.7 + dir)},${((0.5 + flash * 0.5) * alMul).toFixed(2)})`;
-      ctx.lineWidth = Math.max(1, size * 0.03);
-      ctx.beginPath(); // an angular shard of hull, not a neat tile
-      ctx.moveTo(-size * 0.30, 0);
-      ctx.lineTo(-size * 0.10, -size * 0.13);
-      ctx.lineTo(size * 0.30, -size * 0.07);
-      ctx.lineTo(size * 0.16, size * 0.12);
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.restore();
-    }
+    ctx.rotate(rot);
+    if (s3SpriteFor(id)) {
+      s3draw(0, 0, R, id, haze);
+      if (flash > 0.3) { // struck: a white wash through the sprite's own mask
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = haze * 0.5 * flash;
+        s3draw(0, 0, R, id, 1, true);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = haze;
+      }
+    } else fallback(R);
     ctx.restore();
   };
-  plates(1.75, 0.6, -1, 0.55); // far track, behind the body
-  // the void sphere — mostly absence, lit only at its horizon
-  const sph = ctx.createRadialGradient(-size * 0.25, -size * 0.28, size * 0.1, 0, 0, size * 0.98);
-  sph.addColorStop(0, 'rgba(26,12,44,1)');
-  sph.addColorStop(0.55, 'rgba(9,4,18,1)');
-  sph.addColorStop(1, 'rgba(3,1,8,1)');
-  ctx.fillStyle = sph;
-  ctx.beginPath(); ctx.arc(0, 0, size * 0.95, 0, TAU); ctx.fill();
-  // event-horizon rim: hot crimson catch above (glitching violet), red below
-  ctx.lineWidth = Math.max(1.5, size * 0.05);
-  ctx.strokeStyle = `rgba(${gCol(2.4)},${(0.55 + flash * 0.45).toFixed(2)})`;
-  ctx.beginPath(); ctx.arc(0, 0, size * 0.95, Math.PI * 0.8, Math.PI * 1.7); ctx.stroke();
-  ctx.strokeStyle = `rgba(255,60,90,${(0.35 + dmg * 0.35).toFixed(2)})`;
-  ctx.beginPath(); ctx.arc(0, 0, size * 0.95, Math.PI * 0.05, Math.PI * 0.55); ctx.stroke();
-  // corruption lightning crawling the sphere when it tears or takes fire
-  if (tear || flash > 0.4) {
-    ctx.strokeStyle = `rgba(240,200,255,${(0.5 + flash * 0.4).toFixed(2)})`;
-    ctx.lineWidth = Math.max(1, size * 0.02);
-    ctx.beginPath();
-    let lx = -size * 0.7, ly = Math.sin(time * 9 + seed) * size * 0.4;
-    ctx.moveTo(lx, ly);
-    for (let k2 = 1; k2 <= 5; k2++) {
-      lx += size * 0.28;
-      ly += Math.sin(time * 31 + seed + k2 * 7) * size * 0.22 - ly * 0.3;
-      ctx.lineTo(lx, ly);
+  // the procedural stand-ins: dark steel rings in the same three roles
+  const fbRim = R => { // outer sprocket: a toothed ring
+    ctx.strokeStyle = 'rgba(16,20,30,0.95)';
+    ctx.lineWidth = R * 0.24;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.85, 0, TAU); ctx.stroke();
+    ctx.fillStyle = 'rgba(22,27,40,0.95)';
+    for (let k = 0; k < 12; k++) {
+      const a2 = k / 12 * TAU;
+      ctx.save(); ctx.rotate(a2); ctx.translate(R * 0.97, 0);
+      ctx.fillRect(-R * 0.04, -R * 0.075, R * 0.11, R * 0.15);
+      ctx.restore();
     }
-    ctx.stroke();
-  }
-  // the EYE — HAL-class: one great lens fills the face, and it is watching
-  // YOU. The burning fixation point leads toward the cannon with tiny
-  // deterministic saccades — it re-fixates like something that thinks.
+    ctx.strokeStyle = `rgba(${gCol(1)},${(0.45 + flash * 0.4).toFixed(2)})`;
+    ctx.lineWidth = Math.max(1, R * 0.035);
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.74, 0, TAU); ctx.stroke();
+  };
+  const fbGear = R => { // bearing race: a ring of rollers
+    ctx.strokeStyle = 'rgba(13,17,26,0.95)';
+    ctx.lineWidth = R * 0.30;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.82, 0, TAU); ctx.stroke();
+    ctx.fillStyle = 'rgba(90,102,128,0.9)';
+    for (let k = 0; k < 10; k++) {
+      const a2 = k / 10 * TAU;
+      ctx.beginPath(); ctx.arc(Math.cos(a2) * R * 0.82, Math.sin(a2) * R * 0.82, R * 0.085, 0, TAU); ctx.fill();
+    }
+  };
+  const fbHub = R => { // lamp housing: a dark drum with a machined mouth
+    ctx.fillStyle = 'rgba(10,13,20,0.97)';
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(${gCol(2.2)},${(0.5 + flash * 0.4).toFixed(2)})`;
+    ctx.lineWidth = Math.max(1, R * 0.06);
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.92, 0, TAU); ctx.stroke();
+  };
+  stamp('LCHRIM', size * rig.rim, b.spin * rig.wRim * wob, fbRim);
+  stamp('LCHGEAR', size * rig.gear, b.spin * rig.wGear * wob, fbGear);
+  stamp('LCHHUB', size * rig.hub, b.spin * 0.12 * wob, fbHub);
+  // ---- THE LAMP — a HAL-class camera eye, drawn live because its colour is
+  // the fight's tell. One deep lens in the hub's mouth: a dark barrel, stacked
+  // glass elements leaning toward the player's cannon with tiny deterministic
+  // saccades — it re-fixates like something that THINKS, which is what makes
+  // it scary — a machined blade iris, and a small furious sensor at the bottom
+  // of the well burning the key colour. Ignition on arrival, panic in death.
+  const ign = cerQ < 1 ? clamp((b.introT - 1.5) / 0.9, 0, 1) * (Math.sin(time * 31) > -0.4 ? 1 : 0.3)
+    : dieQ >= 0 ? Math.max(0, 1 - dieQ / 2.3) * (Math.sin(time * 23) > -0.2 ? 1 : 0.25)
+    : 1;
+  const lc = leechLampCol(b);
+  const lampR = size * rig.lamp;
+  const blinkA = bossLampLive() && b.lampBlink > 0 ? (Math.sin(time * 26) > 0 ? 1 : 0.45) : 1;
+  ctx.save();
+  ctx.globalAlpha = haze * Math.max(0.03, ign * blinkA);
+  // the stare: the lens leans at its prey (the blue cannon's rail position)
   const railR2 = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
   const lkx = g.cx + Math.cos(nodes[0].angle) * railR2 - b.sx;
   const lky = g.cy + Math.sin(nodes[0].angle) * railR2 - b.sy;
@@ -1266,92 +1125,91 @@ function drawVoidCore(g, c) {
   const ux2 = lkx / lkd, uy2 = lky / lkd;
   const sacT = Math.floor(time * (dieQ >= 0 ? 7 : 1.3)); // dying: the gaze panics
   const sac1 = Math.sin(sacT * 12.9898) * 0.5, sac2 = Math.sin(sacT * 78.233) * 0.5;
-  const eyeR = size * 0.8;
-  // ignition on arrival, guttering out in death
-  const eyeA = cerQ < 1 ? clamp((b.introT - 1.5) / 0.9, 0, 1) * (Math.sin(time * 31) > -0.4 ? 1 : 0.3)
-    : dieQ >= 0 ? Math.max(0, 1 - dieQ / 2.3) * (Math.sin(time * 23) > -0.2 ? 1 : 0.25)
-    : 1;
-  ctx.save();
-  ctx.globalAlpha *= Math.max(0.03, eyeA);
-  const ex = ux2 * size * 0.07, ey = uy2 * size * 0.07; // the lens leans at its prey
-  // the barrel: a deep dark well — the red lives at the BOTTOM of it
-  const wg = ctx.createRadialGradient(ex, ey, 0, ex, ey, eyeR);
-  wg.addColorStop(0, 'rgba(30,4,12,1)');
-  wg.addColorStop(0.7, 'rgba(16,2,8,1)');
-  wg.addColorStop(1, 'rgba(8,1,5,1)');
-  ctx.fillStyle = wg;
-  ctx.beginPath(); ctx.arc(ex, ey, eyeR, 0, TAU); ctx.fill();
+  // soft key-coloured halo out of the mouth
+  ctx.globalCompositeOperation = 'lighter';
+  const hg = ctx.createRadialGradient(0, 0, 0, 0, 0, lampR * 2.2);
+  hg.addColorStop(0, `rgba(${lc},0.26)`);
+  hg.addColorStop(1, `rgba(${lc},0)`);
+  ctx.fillStyle = hg;
+  ctx.beginPath(); ctx.arc(0, 0, lampR * 2.2, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  // the barrel: a deep dark well — the colour lives at the BOTTOM of it
+  const wg3 = ctx.createRadialGradient(ux2 * lampR * 0.07, uy2 * lampR * 0.07, 0, 0, 0, lampR);
+  wg3.addColorStop(0, 'rgba(16,10,22,1)');
+  wg3.addColorStop(0.7, 'rgba(8,5,13,1)');
+  wg3.addColorStop(1, 'rgba(4,2,8,1)');
+  ctx.fillStyle = wg3;
+  ctx.beginPath(); ctx.arc(0, 0, lampR, 0, TAU); ctx.fill();
   // stacked glass elements — each deeper ring shifts further toward the prey,
   // and that parallax is what makes it read as a BARREL, not a disc
   for (let j = 1; j <= 4; j++) {
-    const rj = eyeR * (1 - j * 0.185);
-    const ox = ex + ux2 * eyeR * 0.055 * j + (j > 2 ? sac1 * eyeR * 0.03 : 0);
-    const oy = ey + uy2 * eyeR * 0.055 * j + (j > 2 ? sac2 * eyeR * 0.03 : 0);
-    ctx.strokeStyle = `rgba(255,70,95,${(0.14 + j * 0.09 + flash * 0.2).toFixed(2)})`;
-    ctx.lineWidth = Math.max(0.8, size * (0.014 + j * 0.004));
+    const rj = lampR * (1 - j * 0.185);
+    const ox = ux2 * lampR * 0.06 * j + (j > 2 ? sac1 * lampR * 0.03 : 0);
+    const oy = uy2 * lampR * 0.06 * j + (j > 2 ? sac2 * lampR * 0.03 : 0);
+    ctx.strokeStyle = `rgba(${lc},${(0.12 + j * 0.09 + flash * 0.2).toFixed(2)})`;
+    ctx.lineWidth = Math.max(0.8, lampR * (0.035 + j * 0.012));
     ctx.beginPath(); ctx.arc(ox, oy, rj, 0, TAU); ctx.stroke();
     // cold glass glint riding the upper-left of each element
     ctx.strokeStyle = `rgba(210,230,255,${(0.05 + j * 0.02).toFixed(2)})`;
-    ctx.lineWidth = Math.max(0.6, size * 0.01);
+    ctx.lineWidth = Math.max(0.6, lampR * 0.02);
     ctx.beginPath(); ctx.arc(ox, oy, rj, Math.PI * 0.85, Math.PI * 1.35); ctx.stroke();
   }
   // aperture: a machined 7-blade iris around the sensor, contracting under fire
-  const px3 = ex + ux2 * eyeR * 0.22 + sac1 * eyeR * 0.05;
-  const py3 = ey + uy2 * eyeR * 0.22 + sac2 * eyeR * 0.05;
-  const bR = eyeR * (0.34 - flash * 0.08);
-  ctx.strokeStyle = `rgba(255,90,110,${(0.5 + flash * 0.4).toFixed(2)})`;
-  ctx.lineWidth = Math.max(1, size * 0.02);
+  const px3 = ux2 * lampR * 0.24 + sac1 * lampR * 0.05;
+  const py3 = uy2 * lampR * 0.24 + sac2 * lampR * 0.05;
+  const bR = lampR * (0.40 - flash * 0.08);
+  ctx.strokeStyle = `rgba(${lc},${(0.55 + flash * 0.4).toFixed(2)})`;
+  ctx.lineWidth = Math.max(1, lampR * 0.05);
   ctx.beginPath();
-  for (let k2 = 0; k2 < 7; k2++) {
-    const a2 = k2 / 7 * TAU + b.spin * 0.25;
-    ctx[k2 ? 'lineTo' : 'moveTo'](px3 + Math.cos(a2) * bR, py3 + Math.sin(a2) * bR);
+  for (let k = 0; k < 7; k++) {
+    const a2 = k / 7 * TAU + b.spin * 0.25;
+    ctx[k ? 'lineTo' : 'moveTo'](px3 + Math.cos(a2) * bR, py3 + Math.sin(a2) * bR);
   }
   ctx.closePath(); ctx.stroke();
-  // the sensor at the bottom of the well — a small furious source, not a wash
-  const sg = ctx.createRadialGradient(px3, py3, 0, px3, py3, bR * 0.85);
-  sg.addColorStop(0, flash > 0.3 ? '#ffffff' : 'rgba(255,235,220,1)');
-  sg.addColorStop(0.25, 'rgba(255,110,110,0.9)');
-  sg.addColorStop(0.7, 'rgba(190,25,50,0.5)');
-  sg.addColorStop(1, 'rgba(120,8,30,0)');
-  ctx.fillStyle = sg;
+  // THE SENSOR at the bottom of the well — a small furious source, not a wash
+  const sg2 = ctx.createRadialGradient(px3, py3, 0, px3, py3, bR * 0.85);
+  sg2.addColorStop(0, flash > 0.3 ? '#ffffff' : 'rgba(255,248,242,1)');
+  sg2.addColorStop(0.25, `rgba(${lc},0.92)`);
+  sg2.addColorStop(0.7, `rgba(${lc},0.45)`);
+  sg2.addColorStop(1, `rgba(${lc},0)`);
+  ctx.fillStyle = sg2;
   ctx.beginPath(); ctx.arc(px3, py3, bR * 0.85, 0, TAU); ctx.fill();
   // sensor reticle etched on the glass — hairline cross through the fixation point
-  ctx.strokeStyle = 'rgba(255,180,190,0.22)';
+  ctx.strokeStyle = `rgba(${lc},0.25)`;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(px3 - bR * 1.5, py3); ctx.lineTo(px3 + bR * 1.5, py3);
   ctx.moveTo(px3, py3 - bR * 1.5); ctx.lineTo(px3, py3 + bR * 1.5);
   ctx.stroke();
-  // machined lens lip — red steel, glitching violet — with focus-ring ticks
-  ctx.strokeStyle = `rgba(${gCol(0.3)},${(0.5 + flash * 0.4).toFixed(2)})`;
-  ctx.lineWidth = Math.max(1.2, size * 0.035);
-  ctx.beginPath(); ctx.arc(ex, ey, eyeR, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,120,140,0.4)';
-  ctx.lineWidth = Math.max(0.8, size * 0.015);
-  for (let k2 = 0; k2 < 12; k2++) {
-    const a2 = k2 / 12 * TAU;
+  // machined lens lip with focus-ring ticks
+  ctx.strokeStyle = `rgba(${lc},${(0.55 + flash * 0.35).toFixed(2)})`;
+  ctx.lineWidth = Math.max(1.2, lampR * 0.07);
+  ctx.beginPath(); ctx.arc(0, 0, lampR, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = `rgba(${lc},0.4)`;
+  ctx.lineWidth = Math.max(0.8, lampR * 0.03);
+  for (let k = 0; k < 12; k++) {
+    const a2 = k / 12 * TAU;
     ctx.beginPath();
-    ctx.moveTo(ex + Math.cos(a2) * eyeR * 0.93, ey + Math.sin(a2) * eyeR * 0.93);
-    ctx.lineTo(ex + Math.cos(a2) * eyeR * 0.99, ey + Math.sin(a2) * eyeR * 0.99);
+    ctx.moveTo(Math.cos(a2) * lampR * 0.93, Math.sin(a2) * lampR * 0.93);
+    ctx.lineTo(Math.cos(a2) * lampR * 0.99, Math.sin(a2) * lampR * 0.99);
     ctx.stroke();
   }
-  // specular catch on the glass — it's a lens, not a hole
-  ctx.fillStyle = 'rgba(220,235,255,0.25)';
-  ctx.beginPath(); ctx.ellipse(ex - eyeR * 0.42, ey - eyeR * 0.48, eyeR * 0.2, eyeR * 0.1, -0.6, 0, TAU); ctx.fill();
-  ctx.restore(); // eye ignition/gutter alpha
-  plates(1.4, 0.85, 1, 1); // near track, riding in front
-  // chromatic ghost rims when tearing — it can't hold its own outline
-  if (tear || dieQ > 0.2) {
+  // specular catch on the glass — it's a LENS, not a hole
+  ctx.fillStyle = 'rgba(220,235,255,0.22)';
+  ctx.beginPath(); ctx.ellipse(-lampR * 0.42, -lampR * 0.48, lampR * 0.2, lampR * 0.1, -0.6, 0, TAU); ctx.fill();
+  ctx.restore();
+  // chromatic ghost rims when wounded or dying — it can't hold its own outline
+  if (dmg > 0.5 || dieQ > 0.2) {
     ctx.globalAlpha = haze * 0.5;
     for (const [gc, gs2] of [['255,60,90', 1], ['110,200,255', -1]]) {
       ctx.strokeStyle = `rgba(${gc},0.5)`;
       ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(gs2 * size * 0.1, 0, size * 0.95, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(gs2 * size * 0.08, 0, size * rig.rim * 0.95, 0, TAU); ctx.stroke();
     }
     ctx.globalAlpha = haze;
   }
-  // beam contact: targeting brackets stamp onto the core — the same bracket
-  // grammar as the boot callouts, so "designated" reads instantly
+  // pulse contact: targeting brackets stamp onto the machine — the same
+  // bracket grammar as the boot callouts, so "designated" reads instantly
   if (b.hurtT > 0 && dieQ < 0) {
     const br = size * 1.25, armL = size * 0.3;
     ctx.strokeStyle = `rgba(255,255,255,${(0.45 + flash * 0.5).toFixed(2)})`;
@@ -1364,76 +1222,6 @@ function drawVoidCore(g, c) {
       ctx.stroke();
     }
   }
-  // ---- THE RADIATORS ARE THE HEAT GAUGE ----
-  // The hull says how close the vent is, so nothing has to be read off a HUD. At this
-  // range the body is a few dozen pixels and a bar there would be unreadable — but a
-  // COLOUR is not, which is the same reason the beacon's beam carries its phase.
-  // Dull red, then orange, then white, then the panels blow.
-  //
-  // Drawn LAST, on top of the hull. The first attempt put this next to the dark
-  // gradient near the top of the function, and the fins vanished completely behind the
-  // body — only the plumes and the aperture ring cleared it. Every radius here starts
-  // outside size*1.0 for the same reason: it has to read at 26px, in a bore, at speed.
-  // Guarded: triad bodies come through this same function and have no radiators.
-  if (b.coreHeat !== undefined && dieQ < 0) {
-    const hk = clamp(b.coreHeat, 0, 1);
-    const venting = b.ventT > 0;
-    const hCol = hk < 0.34 ? '190,60,40' : hk < 0.67 ? '255,130,45' : '255,230,195';
-    if (hk > 0.02 || venting) {
-      // four fin stubs down each flank, brightening and lengthening with the load
-      const fa = 0.35 + hk * 0.60;
-      ctx.strokeStyle = `rgba(${hCol},${(fa * haze).toFixed(2)})`;
-      ctx.lineWidth = Math.max(1.6, size * 0.085);
-      ctx.lineCap = 'butt';
-      for (let f = 0; f < 4; f++) {
-        const fy = (f - 1.5) * size * 0.30;
-        for (const sgn of [-1, 1]) {
-          ctx.beginPath();
-          ctx.moveTo(sgn * size * 1.04, fy);
-          ctx.lineTo(sgn * size * (1.04 + 0.46 * (0.40 + hk * 0.60)), fy);
-          ctx.stroke();
-        }
-      }
-      if (hk > 0.5) { // hot enough to bloom around the fin roots
-        ctx.globalCompositeOperation = 'lighter';
-        const rg2 = ctx.createRadialGradient(0, 0, size * 0.9, 0, 0, size * 2.0);
-        rg2.addColorStop(0, `rgba(${hCol},${(0.16 * (hk - 0.5) * 2 * haze).toFixed(2)})`);
-        rg2.addColorStop(1, `rgba(${hCol},0)`);
-        ctx.fillStyle = rg2;
-        ctx.beginPath(); ctx.arc(0, 0, size * 2.0, 0, TAU); ctx.fill();
-        ctx.globalCompositeOperation = 'source-over';
-      }
-    }
-    if (venting) {
-      // the panels are open: a hot bloom and two plumes dumping heat sideways. The
-      // loudest the body ever gets, because it is the only moment the player is meant
-      // to stop dodging and commit.
-      const vp = 0.6 + Math.sin(time * 17) * 0.4;
-      ctx.globalCompositeOperation = 'lighter';
-      const vg = ctx.createRadialGradient(0, 0, size * 0.5, 0, 0, size * 2.6);
-      vg.addColorStop(0, `rgba(255,240,215,${(0.50 * vp * haze).toFixed(2)})`);
-      vg.addColorStop(0.4, `rgba(255,150,60,${(0.34 * vp * haze).toFixed(2)})`);
-      vg.addColorStop(1, 'rgba(255,110,40,0)');
-      ctx.fillStyle = vg;
-      ctx.beginPath(); ctx.arc(0, 0, size * 2.6, 0, TAU); ctx.fill();
-      ctx.strokeStyle = `rgba(255,232,200,${(0.80 * vp * haze).toFixed(2)})`;
-      ctx.lineWidth = Math.max(2, size * 0.085);
-      ctx.lineCap = 'round';
-      for (const sgn of [-1, 1]) { // two plumes, venting sideways
-        ctx.beginPath();
-        ctx.moveTo(sgn * size * 0.9, 0);
-        ctx.lineTo(sgn * size * (1.9 + vp * 0.8), -size * 0.20 * sgn);
-        ctx.stroke();
-      }
-      ctx.globalCompositeOperation = 'source-over';
-      // an aperture ring, so it reads as PANELS OPEN rather than merely as hot
-      ctx.strokeStyle = `rgba(255,205,150,${(0.70 * haze).toFixed(2)})`;
-      ctx.lineWidth = Math.max(1.4, size * 0.055);
-      ctx.setLineDash([size * 0.30, size * 0.20]);
-      ctx.beginPath(); ctx.arc(0, 0, size * (1.16 + vp * 0.10), 0, TAU); ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
   ctx.restore();
 }
 // arrival title stamp + death shockwaves — the shared ceremony dressing
@@ -1441,7 +1229,7 @@ function drawBossOverlays(g) {
   const b = boss;
   const bd = BOSS_DEFS[b.kind];
   const cerQ = b.introT < BOSS_CER ? clamp(b.introT / BOSS_CER, 0, 1) : 1;
-  // ARRIVAL: the name stamps in while the eye ignites
+  // ARRIVAL: the name stamps in while the lamp ignites
   if (cerQ < 1 && b.introT > 1.7) {
     const ta = clamp((b.introT - 1.7) / 0.25, 0, 1);
     ctx.save();
@@ -1478,60 +1266,12 @@ function drawBossOverlays(g) {
     ctx.restore();
   }
 }
-// the triad's energy links: crackling filaments strung between the bodies —
-// the visual proof this is ONE machine in three bodies. Deterministic sin
-// jitter (no RNG, no allocations) keeps the crackle alive and phones happy.
-function drawTriadLinks(g) {
-  const b = boss;
-  ctx.save();
-  ctx.lineCap = 'round';
-  const SEG = 7;
-  for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) {
-    const c1 = b.cores[i], c2 = b.cores[j];
-    if (c1.dead || c2.dead) continue; // a dead body drops its links
-    let nx = -(c2.sy - c1.sy), ny = c2.sx - c1.sx;
-    const nl = Math.hypot(nx, ny) || 1;
-    nx /= nl; ny /= nl;
-    const amp0 = Math.min(c1.sSize, c2.sSize) * 0.35;
-    for (const [lw, col, amp] of [
-      [Math.max(2, c1.sSize * 0.16), 'rgba(212,101,255,0.22)', 0.45],
-      [Math.max(1, c1.sSize * 0.05), 'rgba(255,120,150,0.75)', 1]
-    ]) {
-      ctx.strokeStyle = col;
-      ctx.lineWidth = lw;
-      ctx.beginPath();
-      ctx.moveTo(c1.sx, c1.sy);
-      for (let k = 1; k < SEG; k++) {
-        const q = k / SEG;
-        const off = Math.sin(time * 13 + k * 5.1 + i * 7 + j * 3) * Math.sin(q * Math.PI) * amp0 * amp;
-        ctx.lineTo(lerp(c1.sx, c2.sx, q) + nx * off, lerp(c1.sy, c2.sy, q) + ny * off);
-      }
-      ctx.lineTo(c2.sx, c2.sy);
-      ctx.stroke();
-    }
-    // a data pulse rides each link — one bloodstream through three bodies
-    const pq = (time * 0.7 + (i * 2 + j) * 0.37) % 1;
-    const px2 = lerp(c1.sx, c2.sx, pq), py2 = lerp(c1.sy, c2.sy, pq);
-    const pr2 = Math.max(2, c1.sSize * 0.14);
-    const pg2 = ctx.createRadialGradient(px2, py2, 0, px2, py2, pr2 * 2.2);
-    pg2.addColorStop(0, 'rgba(255,255,255,0.9)');
-    pg2.addColorStop(0.4, 'rgba(212,101,255,0.5)');
-    pg2.addColorStop(1, 'rgba(212,101,255,0)');
-    ctx.fillStyle = pg2;
-    ctx.beginPath(); ctx.arc(px2, py2, pr2 * 2.2, 0, TAU); ctx.fill();
-  }
-  ctx.restore();
-}
-// the BEACON's lighthouse beam — drawn as LIGHT, never a surface: a white-hot
-// filament in a soft additive wedge from the lamp to beyond the ring, plus a
-// hazard bloom where the light rakes the rail (the WYSIWYG danger readout)
-// THE LIGHT WEARS THE EMITTER IT CONDEMNS. This used to be Payload Gold, which was
-// two problems in one: gold is reserved for things the player GAINS, and a single
-// colour cannot say which carriage has to run. The beam now takes the condemned
-// node's own colour, in the telegraph as well as the sweep — the tell has to be
-// readable BEFORE the lamp fires, or the phase is a coin toss instead of a read.
-function spinBeamPal(b) {
-  const ph = b.beamPhase || 0;
+// A LIGHT WEARS THE EMITTER IT CONDEMNS. Gold was two problems in one: gold is
+// reserved for things the player GAINS, and a single colour cannot say which
+// carriage has to run. Every sweep takes the condemned node's own colour, in
+// the telegraph as well as the sweep — the tell has to be readable BEFORE the
+// lamp fires, or the phase is a coin toss instead of a read.
+function beamPal(ph) {
   return ph === 0
     // blue carriage condemned: unmistakably its blue, with a white-hot core
     ? { wide: '90,180,255', mid: '150,215,255', hot: '235,248,255', rim: '80,150,255' }
@@ -1539,37 +1279,35 @@ function spinBeamPal(b) {
     // rim goes steel rather than blue so the two are told apart at a glance
     : { wide: '196,214,232', mid: '232,242,252', hot: '255,255,255', rim: '190,206,224' };
 }
-function drawSpinnerBeam(g) {
-  const b = boss;
-  const A = b.beamA;
-  const P = spinBeamPal(b);
+// one sweep of light — ghost (telegraph) or live — drawn as LIGHT, never a
+// surface: a white-hot filament in a soft additive wedge from the lamp to
+// beyond the ring, plus a hazard bloom where it rakes the rail (WYSIWYG danger)
+function drawLeechBeam(g, b, bm, ghost) {
+  const A = bm.a;
+  const P = beamPal(bm.phase);
   const exR = g.R0 * 1.05; // past the ring — the light leaves the screen
   const ex = g.cx + Math.cos(A) * exR, ey2 = g.cy + Math.sin(A) * exR;
-  if (b.mode === 'tele') { // the ghost line sweeps up: aim first, fire second
+  if (ghost) { // the ghost line sweeps up: aim first, fire second
     const pl = 0.35 + Math.sin(time * 14) * 0.22;
     ctx.save();
-    // THE TELL HAS TO LAND, and the first attempt put it on the lamp: the beacon is
-    // ~12px on screen from four hundred away down the bore, so a swatch on its
-    // housing was invisible and a 2px ghost line lost the argument with the bore.
-    // Everything below is at RING scale instead, because that is where the player is
-    // looking — the read decides which thumb has to run, and a read that has to be
-    // hunted for is the same as no read at all.
+    // the tell lands at RING scale, because that is where the player is looking —
+    // the read decides which thumb has to run, and a read that has to be hunted
+    // for is the same as no read at all
     ctx.setLineDash([7, 8]);
     ctx.strokeStyle = `rgba(${P.mid},${(0.55 + pl * 0.45).toFixed(2)})`;
     ctx.lineWidth = 3.5;
     ctx.beginPath(); ctx.moveTo(b.sx, b.sy); ctx.lineTo(ex, ey2); ctx.stroke();
     ctx.setLineDash([]);
     for (let k = 1; k <= 3; k++) { // chevrons lead the coming rotation
-      const a2 = A + b.beamDir * 0.18 * k;
+      const a2 = A + bm.dir * 0.18 * k;
       ctx.strokeStyle = `rgba(${P.mid},${(pl * (1 - k * 0.22) * 1.5).toFixed(2)})`;
       ctx.lineWidth = 4.5;
       ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, a2 - 0.05, a2 + 0.05); ctx.stroke();
     }
-    // and the condemned carriage is marked ON ITSELF. A colour somewhere else asks
-    // the player to remember which emitter is which; a halo around the actual thumb
-    // does not.
+    // and the condemned carriage is marked ON ITSELF — a halo around the thumb
+    // that has to run, not a colour somewhere else asking to be remembered
     const cRail = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
-    const cn = nodes[b.beamPhase || 0];
+    const cn = nodes[bm.phase];
     if (cn) {
       const cxx = g.cx + Math.cos(cn.angle) * cRail, cyy = g.cy + Math.sin(cn.angle) * cRail;
       const rr = Math.min(W, H) * (0.032 + 0.010 * Math.sin(time * 9));
@@ -1583,36 +1321,71 @@ function drawSpinnerBeam(g) {
     ctx.restore();
     return;
   }
-  if (b.mode !== 'sweep') return;
   ctx.save();
-  // the glow wedge
-  const wr = Math.hypot(ex - b.sx, ey2 - b.sy);
-  const wg2 = ctx.createRadialGradient(b.sx, b.sy, b.sSize * 0.3, b.sx, b.sy, wr);
+  // BIRTH AND DEATH OF THE LIGHT. A live ray BURSTS from the machine's mouth —
+  // the filament shoots out fast then lands — and a spent rotation is pulled
+  // back home. `reach` is how far out the light extends this frame; the fry
+  // (and its hazard bloom) only exists at full reach, so the danger stays
+  // exactly what the picture says.
+  const born = bm.dying === undefined ? clamp((bm.liveT || 0) / BEAM_BURST, 0, 1) : 1;
+  const die = bm.dying !== undefined ? clamp(bm.dying / BEAM_FADE, 0, 1) : 0;
+  const reach = (1 - Math.pow(1 - born, 3)) * (1 - Math.pow(die, 2));
+  if (reach <= 0.02) { ctx.restore(); return; }
+  ctx.globalAlpha *= Math.min(1, 0.35 + reach * 0.65) * (1 - die * die);
+  const rx = lerp(b.sx, ex, reach), ry = lerp(b.sy, ey2, reach); // the light's far end
+  // the glow wedge, only as far as the light has reached
+  const wr = Math.hypot(rx - b.sx, ry - b.sy);
+  const wg2 = ctx.createRadialGradient(b.sx, b.sy, b.sSize * 0.3, b.sx, b.sy, Math.max(wr, b.sSize * 0.6));
   wg2.addColorStop(0, `rgba(${P.hot},0.5)`);
   wg2.addColorStop(0.35, `rgba(${P.mid},0.22)`);
   wg2.addColorStop(1, `rgba(${P.wide},0.05)`);
   ctx.fillStyle = wg2;
   const HW = 0.16; // wedge half-angle
+  const wR = lerp(b.sSize * 0.6, exR, reach);
   ctx.beginPath();
   ctx.moveTo(b.sx, b.sy);
-  ctx.lineTo(g.cx + Math.cos(A - HW) * exR, g.cy + Math.sin(A - HW) * exR);
-  ctx.arc(g.cx, g.cy, exR, A - HW, A + HW);
+  ctx.lineTo(g.cx + Math.cos(A - HW) * wR, g.cy + Math.sin(A - HW) * wR);
+  ctx.arc(g.cx, g.cy, wR, A - HW, A + HW);
   ctx.closePath(); ctx.fill();
   // the filament — constant angular speed, readable and fair
   ctx.lineCap = 'round';
   for (const [lw, col] of [[9, `rgba(${P.wide},0.35)`], [4, `rgba(${P.mid},0.8)`], [1.6, `rgba(${P.hot},0.98)`]]) {
     ctx.strokeStyle = col;
     ctx.lineWidth = lw;
-    ctx.beginPath(); ctx.moveTo(b.sx, b.sy); ctx.lineTo(ex, ey2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(b.sx, b.sy); ctx.lineTo(rx, ry); ctx.stroke();
   }
-  // hazard bloom where the light crosses the ring
-  ctx.strokeStyle = `rgba(${P.rim},${(0.55 + Math.sin(time * 22) * 0.2).toFixed(2)})`;
-  ctx.lineWidth = Math.min(W, H) * 0.02;
-  ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, A - SPIN_BEAM_HALF, A + SPIN_BEAM_HALF); ctx.stroke();
-  const hx = g.cx + Math.cos(A) * g.nodeR, hy = g.cy + Math.sin(A) * g.nodeR;
-  // sysRandom, not Math.random: in a seeded lane Math.random IS the spawn stream, and
-  // the server replays without ever drawing a frame. Draw code must not spend it.
-  if (sysRandom() < 0.5) burst(hx, hy, `rgb(${P.hot})`, 1, 2.5);
+  // the mouth flares while it is emitting or swallowing the light
+  const surge2 = bm.dying !== undefined ? die : 1 - born;
+  if (surge2 > 0.02) {
+    ctx.globalCompositeOperation = 'lighter';
+    const mg = ctx.createRadialGradient(b.sx, b.sy, 0, b.sx, b.sy, b.sSize * (0.6 + surge2 * 1.1));
+    mg.addColorStop(0, `rgba(${P.hot},${(0.55 * surge2).toFixed(2)})`);
+    mg.addColorStop(1, `rgba(${P.mid},0)`);
+    ctx.fillStyle = mg;
+    ctx.beginPath(); ctx.arc(b.sx, b.sy, b.sSize * (0.6 + surge2 * 1.1), 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  if (reach >= 0.999 && bm.dying === undefined) { // full reach: the light BURNS
+    // hazard bloom where the light crosses the ring
+    ctx.strokeStyle = `rgba(${P.rim},${(0.55 + Math.sin(time * 22) * 0.2).toFixed(2)})`;
+    ctx.lineWidth = Math.min(W, H) * 0.02;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, A - SWEEP_BEAM_HALF, A + SWEEP_BEAM_HALF); ctx.stroke();
+    // the telegraphed reversal: chevrons flip to the OTHER side of the light and
+    // blink until the turn lands — an unannounced turn would be a coin toss
+    if (bm.warn) {
+      const bl = Math.sin(time * 18) > 0 ? 1 : 0.25;
+      for (let k = 1; k <= 3; k++) {
+        const a2 = A - bm.dir * 0.20 * k;
+        ctx.strokeStyle = `rgba(${P.hot},${(bl * (1 - k * 0.22)).toFixed(2)})`;
+        ctx.lineWidth = 4.5;
+        ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, a2 - 0.05, a2 + 0.05); ctx.stroke();
+      }
+    }
+    const hx = g.cx + Math.cos(A) * g.nodeR, hy = g.cy + Math.sin(A) * g.nodeR;
+    // sysRandom, not Math.random: in a seeded lane Math.random IS the spawn stream, and
+    // the server replays without ever drawing a frame. Draw code must not spend it.
+    if (sysRandom() < 0.5) burst(hx, hy, `rgb(${P.hot})`, 1, 2.5);
+  }
   ctx.restore();
 }
 // the fused ray cannon: aim barrel + a straight perspective-tapered beam
@@ -2011,16 +1784,10 @@ function fireVolley(g) {
   volley.cd = 1.25; // re-charge gap — shooting crowds is worse than zapping them
   const a = volley.aimA !== undefined ? volley.aimA
     : nodes[0].angle + angDiff(nodes[1].angle, nodes[0].angle) / 2;
+  // one bolt, every lane: the retired duels used to convert this into a homing
+  // shot at the boss, but a leech only answers to the pulse — in a duel the
+  // volley stays the ordinary bore bolt (kills a red, feeds nothing)
   const sh = { a, z: g.hitZ, reach, dead: false };
-  if (boss && boss.introT >= BOSS_CER && boss.dying === undefined) {
-    sh.homing = true; sh.t = 0; // the duel bolt hunts the core itself
-    const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
-    sh.sx0 = g.cx + Math.cos(a) * railR; sh.sy0 = g.cy + Math.sin(a) * railR;
-    if (boss.kind === 'triad') { // the bolt answers to the AIM: nearest body wins
-      const c = nearestTriadCore(a);
-      sh.coreI = c ? c.i : 0;
-    }
-  }
   volley.shots.push(sh);
   for (const n of nodes) { n.recoil = 1; n.dip = 1; }
   const hx = g.cx + Math.cos(a) * g.nodeR, hy = g.cy + Math.sin(a) * g.nodeR;
@@ -2080,17 +1847,9 @@ function drawVolley(g) {
   }
   for (const sh of volley.shots) {
     if (sh.dead) continue;
-    let x, y, s;
-    if (sh.homing && boss) { // screen-space sprint to its core (triad: the aimed body)
-      const tc = boltTargetCore(sh);
-      const e = sh.t * sh.t;
-      x = lerp(sh.sx0, tc.sx, e); y = lerp(sh.sy0, tc.sy, e);
-      s = 1 - sh.t * 0.5;
-    } else {
-      const rg = ring(sh.z, g);
-      x = rg.x + Math.cos(sh.a) * rg.r; y = rg.y + Math.sin(sh.a) * rg.r;
-      s = rg.s * 3;
-    }
+    const rg0 = ring(sh.z, g);
+    const x = rg0.x + Math.cos(sh.a) * rg0.r, y = rg0.y + Math.sin(sh.a) * rg0.r;
+    const s = rg0.s * 3;
     const br = Math.max(3, Math.min(W, H) * 0.02 * s);
     const bg2 = ctx.createRadialGradient(x, y, 0, x, y, br * 2.6);
     bg2.addColorStop(0, 'rgba(255,255,255,0.95)');
@@ -2186,7 +1945,10 @@ function drawPulseWave(g) {
 //     carries the energy off toward the bore. It used to cut to nothing
 //     between two frames, a pop at the player's most powerful moment.
 function drawPulseOrbs(g) {
-  if (boss) return; // the duel owns the pads
+  // NO boss gate here any more. The retired duels disabled the pulse, so the
+  // orbs used to hide when a boss was live — but the pulse IS the leech duel's
+  // verb, and hiding the fight's own ammo gauge was a bug (2026-08-11). During
+  // the arrival ceremony the meters visibly drain as the machine drinks them.
   const fdt = typeof frameDt === 'number' ? frameDt : 0;
   for (let i = 0; i < 2; i++) {
     const fx2 = pulseFx[i];
@@ -2572,7 +2334,7 @@ function drawDials() {
       ctx.fillStyle = 'rgba(255,210,74,0.9)';
       ctx.beginPath(); ctx.arc(gx, gy, 2 + blipQ(p.z) * 2.5, 0, TAU); ctx.fill();
     }
-    // the warden core: oversized blinking blip at its tunnel position
+    // the leech: oversized blinking blip at its tunnel position
     if (boss) {
       const rr2 = d.r * clamp(boss.rad || 0, 0, 1) * 0.85;
       const bx2 = d.x + Math.cos(boss.ang || 0) * rr2, by2 = d.y + Math.sin(boss.ang || 0) * rr2;

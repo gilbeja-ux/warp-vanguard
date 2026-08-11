@@ -350,12 +350,14 @@ function endLevel(win) {
   // sound) so the replay ends like the real level. The frame loop then holds on
   // the final frame (play button becomes restart); the viewer leaves via BACK.
   if (replaying) { endWin = win; endDropT = win ? 0 : -1; if (win) sfx.arrive(); else sfx.fail(); return; }
-  if (boardKey()) { captureRun(win); lastRun.trace = frames; lbSubmit(lastRun); } // capture, attach trace, submit (async, fire-and-forget)
+  // a boss-test drill never files: its clock jump is invisible to the trace,
+  // so no verifier on earth could reproduce it — and it isn't a real run anyway
+  if (boardKey() && !bossTestRun) { captureRun(win); lastRun.trace = frames; lbSubmit(lastRun); } // capture, attach trace, submit (async, fire-and-forget)
   // did this score make the visible board (top 50)? If so, pop the 80s arcade
   // name-entry card on the END screen — every qualifying run, pre-filled with the
   // player's last handle so returning players can keep it or type something new.
   endProvisional = null; nameEntry = null; nameEntryDraft = '';
-  if (boardKey() && !qual && score > 0) {
+  if (boardKey() && !qual && !bossTestRun && score > 0) {
     const bk = boardKey();
     lbProvisional(bk, score, zaps, perfects).then(r => {
       endProvisional = r;

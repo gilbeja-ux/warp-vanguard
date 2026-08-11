@@ -56,7 +56,10 @@ does not ship in the store build.
   { t, kind: 'enemy', type: 'normal'|'heavy'|'line'|'lock0'|'lock1'|'frag', angle?, force? }
   { t, kind: 'wall', angle?, force? } // rim wall; its latch BITES at t
   { t, kind: 'strip' }             // golden bonus ribbon, head arrives at t
-  { t, kind: 'pickup', type? }     // power-up (shield|wide|auto|inject|chain)
+  { t, kind: 'pickup', type? }     // power-up (shield|wide|auto|inject|chain|health)
+                                   //   health = STABILITY +25, integrity-blue; never in the
+                                   //   random bag — it is SENT (band relief, surges, boss wounds)
+                                   //   or hand-placed here
   { t, kind: 'lull', dur }         // quiet window: no filler ARRIVALS in [t, t+dur]
   ```
 
@@ -216,24 +219,38 @@ itself a sky from the old hash, so the table is an override rather than a
 requirement. But a SHIPPED campaign must have a complete row: `npm test` asserts
 it, so a rename that forgets the table fails loudly instead of re-rolling.
 
-## Campaign arc & future boss concepts (designer-approved direction)
+## Campaign arc & the leech roster (designer-approved direction, 2026-08)
+
+Every campaign ends on a WARP LEECH — one machine family (counter-rotating
+sprocket rings around a lamp-core, clamped across the lane's centre), one
+damage verb (ONLY pulses wound it), and a per-contract twist in how the
+charge is earned. The 2026-08 rework retired the earlier roster (the array,
+the warden triad, the beacon-as-boss, the warden core) along with the boss
+homing volley.
 
 - Campaign 1 THE CARGO RUN (difficulty 1): teaches the enemy types one by
-  one. Finale: the Warden Core (`bossKind: 'core'`).
+  one. Finale: THE WARP LEECH (`bossKind: 'leech'`) — swarm waves feed the
+  pulse; six pulses cut it loose; waves thicken with every hit.
 - Campaign 2 THE SURVEY (difficulty 2): MASS & FLOW — dense red traffic,
   high speed, few puzzle types; the player "rides" the tunnel. Bands drive
-  surge waves. Finale: BADGE ZERO's private core (`bossKind: 'triad'`) —
-  three linked mini cores (WALL / SHREDDER / GHOST), destroyed core by
-  core, arena riddled with rim walls + dart volleys.
+  surge waves. Finale: THE SIPHON (`bossKind: 'siphon'`) — one colour-keyed
+  sweep condemns one emitter while the free thumb rides streams (even
+  rounds) or zaps trickled reds (odd rounds).
 - Campaign 3 THE COLLECTOR (difficulty 3): alternating hard-to-read puzzle
   levels and fast flow bursts (first shipped use of beats + bands). Finale:
-  THE BEACON (`bossKind: 'spinner'`) — a rotating beam the player orbits to
-  avoid; every COMPLETED sweep overloads the boss (4 sweeps kill it); add
-  waves incl. rim walls between sweeps.
+  THE PRISM (`bossKind: 'prism'`) — TWO beams, one per emitter colour, at
+  unequal speeds with telegraphed mid-sweep reversals; charge in the calms.
 - Campaign 4 THE PATROL (difficulty 4): bait packets — the wrong phase gets no
-  bite. Finale: the private warden x3 (`bossKind: 'triad'`).
-- Campaign 5 THE DELEGATION (difficulty 5): escort the federation president from
-  the core to tier 5. Finale: the warden core (`bossKind: 'core'`).
+  bite. Finale: THE MIMIC (`bossKind: 'mimic'`) — its lamp flips blue/white
+  (blink-telegraphed, locked while a pulse flies); only the matching pulse
+  lands, and its swarm is colour-locked drones sorting your kills. (Purple
+  pressure drones were cut from this fight — too much screen at once. The
+  mechanic remains available under a global law: purple demands BOTH
+  emitters and books an exclusive stretch of pipe, PURPLE_CLEAR each side.)
+- Campaign 5 THE DELEGATION (difficulty 5): escort the federation president
+  from the core systems to tier 5. Finale: THE BLOCKADE
+  (`bossKind: 'blockade'`) — nine pulses through four shed layers (swarm,
+  siphon, prism, mimic; 1+2+3+3), with a last-stand lamp-keyed sweep at 1 hp.
 
 All five ship. What follows is an unbuilt boss idea, not a plan for a missing
 campaign — it wants a supershot mechanic the game does not have.

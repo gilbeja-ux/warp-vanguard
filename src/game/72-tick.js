@@ -344,6 +344,30 @@ function update(dt) {
         sfx.speedUp();
         buzz(20, { strong: 0, weak: 0 }); // WORLD telegraph — phone only. The lane
         // announcing itself through the pad read as a random rumble.
+        // SURGE RELIEF: a stability patch rides in behind every step-up — it
+        // spawns at the horizon as the surge lands, so it arrives a breath
+        // into the harder water. Time-fixed (the 100s marks), so weekly's
+        // seeded script stays a pure function of the week.
+        if (!mutLive('noPickups')) spawnPickup('health');
+      }
+    }
+  }
+  // BAND RELIEF (campaign): an authored hot stretch (intensity >= 1.7) ends,
+  // and a stability patch rides in behind it — relief lands where the lane
+  // just hurt, on the clock, never on a roll. The angle draws from a side
+  // stream (like beats do) so the level's main seeded script stays untouched,
+  // and the fired ledger lives outside LV — package data is never mutated.
+  if (!endless && !tut && !qual && !boss && LV && LV.bands) {
+    for (let bi = 0; bi < LV.bands.length; bi++) {
+      const bd2 = LV.bands[bi];
+      if ((bd2.intensity || 1) < 1.7 || reliefFired[bi]) continue;
+      if (levelT < bd2.t1 + 1.0) continue;
+      reliefFired[bi] = true;
+      if (!mutLive('noPickups')) {
+        const keep = spawnRng;
+        spawnRng = mulberry32((0x4EA1F ^ (levelIdx * 7919 + bi * 104729)) >>> 0);
+        spawnPickup('health');
+        spawnRng = keep;
       }
     }
   }
@@ -377,6 +401,13 @@ function update(dt) {
         score += Math.round(60 * mutMul()); // flat bounty — no combo, no zap credit
       }
     }
+    // THE DUEL'S ONLY WOUND. The wavefront reaches the machine's depth and is
+    // judged — bossPulseHit owns the verdict (the mimic fizzles a wrong colour;
+    // everyone else takes the hit). hitBoss keeps one wave from being judged twice.
+    if (boss && !wv.hitBoss && boss.introT >= BOSS_CER && boss.dying === undefined && wv.z >= boss.z) {
+      wv.hitBoss = true;
+      bossPulseHit(wv);
+    }
     if (wv.z > SPAWN_Z && wv.kills) popup(W / 2, H * 0.4, 'PULSE PURGE ×' + wv.kills, '#8fe0ff');
   }
   pulseWaves = pulseWaves.filter(wv => wv.z <= SPAWN_Z);
@@ -390,7 +421,7 @@ function update(dt) {
 
   updatePickups(dt, sdt, L, g, covers, ringXY);
 
-  // the warden core duel
+  // the leech duel
   if (boss) {
     updateBossFight(dt, g);
     if (!boss || state !== S.PLAY) return; // victory mid-update
@@ -494,7 +525,8 @@ function updateLatches(dt, inIntro, ringXY, nodeXY) {
       if (nodes[i].deadT > 0) continue;
       if (Math.abs(angDiff(nodes[i].angle, lt.a)) < half) { // crossed the clamp
         nodes[i].deadT = 2;
-        if (fused) nodes[1].deadT = 2;
+        fryDrain(i); // the fry tax: a dead zone bleeds the orb you were building
+        if (fused) { nodes[1].deadT = 2; fryDrain(1); }
         const p2 = nodeXY(nodes[i]);
         burst(p2.x, p2.y, '#ff9a3c', 22, 4);
         popup(p2.x, p2.y - 24, fused ? 'CANNON FRIED' : 'EMITTER FRIED', '#ffb478');
@@ -523,12 +555,11 @@ function updateVolley(dt, docked, g) {
   }
   for (const sh of volley.shots) {
     if (sh.dead) continue;
-    if (sh.homing) { // duel bolt: rides the wire straight to the core
-      sh.t += dt / 0.55;
-      if (!boss) { sh.dead = true; continue; }
-      if (sh.t >= 1) { sh.dead = true; bossVolleyHit(sh); }
-      continue;
-    }
+    // NO HOMING BOLT ANY MORE. The retired duels converted the volley into a
+    // homing shot at the boss; the leech roster's only wound is the pulse, so
+    // in a duel the volley stays exactly what it is on any other lane: a bore
+    // bolt that deletes a red (below) but pays no pulse feed — an escape valve
+    // that can never shortcut the charge economy.
     sh.z += dt * 2.4;
     if (sh.z > (sh.reach || SPAWN_Z)) { sh.dead = true; continue; } // spent at the horizon
     for (const en of enemies) {
@@ -605,12 +636,18 @@ function updatePickups(dt, sdt, L, g, covers, ringXY) {
           // the pickup sparkle every other relay gets, then both coils arming.
           // It played heal() alone before, which is the sound of being repaired.
           sfx.pick(); sfx.pulseArmed();
+        } else if (p.kind === 'health') { // the patch: one stability block back
+          const cap = mutLive('oneLife') ? 25 : 100;
+          integrity = Math.min(cap, integrity + 25);
+          sfx.pick(); sfx.heal(); // the sparkle, then the sound of being repaired
         } else {
           fx[p.kind] = PICKUPS[p.kind].dur;
           sfx.pick();
         }
-        burst(x, y, '#ffd24a', 24, 4);
-        popup(x, y, PICKUPS[p.kind].label, '#ffd24a');
+        // the patch wears the stability gauge's own blue; everything else is gold
+        const pc2 = p.kind === 'health' ? '#8fc7ff' : '#ffd24a';
+        burst(x, y, pc2, 24, 4);
+        popup(x, y, PICKUPS[p.kind].label, pc2);
         if (p.tut) popup(x, y - 30, 'PICKED UP', '#7ee262'); // the label's verb, answered
         buzz(15);
       }
@@ -730,8 +767,9 @@ function updateEnemy(en, C) {
         } else {
           combo = 0; comboHeal = 0; fragsHit++;
           if (!shieldAbsorb(fx2, fy)) {
-            // the trap fries every node that touched it — 2s forced reboot
-            for (const n of nodes) if (covers(n, en.angle)) n.deadT = 2;
+            // the trap fries every node that touched it — 2s forced reboot,
+            // and the fry tax bleeds the orb it was banking
+            for (let ni = 0; ni < 2; ni++) if (covers(nodes[ni], en.angle)) { nodes[ni].deadT = 2; fryDrain(ni); }
             popup(fx2, fy, 'EMITTER FRIED — REBOOTING', '#ff4a5e');
             redFlash = 1; shake = Math.min(shake + 0.6, 1);
             sfx.fry(Math.cos(en.angle) * 0.7);
@@ -768,6 +806,13 @@ function updateEnemy(en, C) {
       const p = en.partner;
       if (covers(nodes[0], en.angle) && covers(nodes[1], p.angle)) { hit = true; boltPairs.push([nodes[0], en.angle], [nodes[1], p.angle]); }
       else if (covers(nodes[1], en.angle) && covers(nodes[0], p.angle)) { hit = true; boltPairs.push([nodes[1], en.angle], [nodes[0], p.angle]); }
+    } else if (en.noCharge) {
+      // the purple law: a pressure drone DEMANDS BOTH emitters — one node
+      // alone bounces off, heavy-style. And the kill still feeds NOTHING;
+      // its whole job is booking both hands at once (which is why the
+      // spawn ledger gives it an exclusive stretch of pipe).
+      hit = covers(nodes[0], en.angle) && covers(nodes[1], en.angle);
+      if (hit) boltPairs.push([nodes[0], en.angle], [nodes[1], en.angle]);
     } else if (en.lock !== undefined) {
       // color-locked: only the matching node can break it
       hit = covers(nodes[en.lock], en.angle);
@@ -793,13 +838,18 @@ function updateEnemy(en, C) {
       const pts = Math.round(base * (perfect ? 2 : 1) * mutMul()) * scoreMul();
       score += pts; zaps++;
       // each shooter banks the zap into ITS orb (both, on a shared kill) —
-      // choosing which node fires is choosing which pulse you charge
-      if (!en.tut) {
+      // choosing which node fires is choosing which pulse you charge.
+      // A leech's pressure drone (noCharge) feeds NOTHING: it is pure threat,
+      // and killing it is lane upkeep rather than progress toward a shot.
+      if (!en.tut && !en.noCharge) {
         const fed = new Set();
         for (const [n2] of boltPairs) fed.add(n2 === nodes[0] ? 0 : 1);
+        // duel economy: boss swarms run fat — richer feed keeps a six-pulse
+        // fight at minutes, not tens of them. BOSS_FEED is the tuning knob.
+        const feed = Math.min(combo, 5) * (boss ? BOSS_FEED : 1);
         for (const fi of fed) {
           if (pulseCharge[fi] >= PULSE_MAX) continue;
-          pulseCharge[fi] = Math.min(PULSE_MAX, pulseCharge[fi] + Math.min(combo, 5));
+          pulseCharge[fi] = Math.min(PULSE_MAX, pulseCharge[fi] + feed);
           pulseFx[fi].bank = 1; // the orb visibly swallows what just landed
           // panned to the pad that banked it, so a zap tells you WHICH orb it fed
           const pan = Math.cos(nodes[fi].angle) * 0.7;

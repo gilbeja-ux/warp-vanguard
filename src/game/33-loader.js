@@ -54,7 +54,8 @@ function validateCampaign(p) {
         ? p.map.image.length <= 400000 : /^[\w-]+\.(webp|png|jpg)$/.test(p.map.image))))
       errs.push('bad map image (data:image URI under 400KB, or a .webp/.png/.jpg file name)');
     if (l.mapPos && !(l.mapPos.x >= 0 && l.mapPos.x <= 1 && l.mapPos.y >= 0 && l.mapPos.y <= 1)) errs.push(tag + 'bad mapPos (0..1)');
-    if (l.bossKind !== undefined && (!l.boss || !['core', 'triad', 'spinner', 'array'].includes(l.bossKind))) errs.push(tag + 'bad bossKind');
+    // the leech roster (2026-08: core/triad/spinner/array retired with their fights)
+    if (l.bossKind !== undefined && (!l.boss || !['leech', 'siphon', 'prism', 'mimic', 'blockade'].includes(l.bossKind))) errs.push(tag + 'bad bossKind');
     (l.comms || []).forEach(c => {
       if (!(c.t >= 0 && c.t < l.duration) || !spk.has(c.s) || !str(c.m) || c.m.length > 64) errs.push(tag + 'bad comm');
     });
@@ -62,7 +63,7 @@ function validateCampaign(p) {
     // findings are lintCampaign WARNINGS, never rejection grounds)
     const BK = { enemy: 1, wall: 1, strip: 1, pickup: 1, lull: 1 };
     const ET = { normal: 1, heavy: 1, line: 1, lock0: 1, lock1: 1, frag: 1 };
-    const PK = { shield: 1, wide: 1, auto: 1, inject: 1, chain: 1 }; // mirrors PICKUPS (declared later — TDZ at boot)
+    const PK = { shield: 1, wide: 1, auto: 1, inject: 1, chain: 1, health: 1 }; // mirrors PICKUPS (declared later — TDZ at boot)
     if (l.beats !== undefined && !Array.isArray(l.beats)) errs.push(tag + 'bad beats');
     (Array.isArray(l.beats) ? l.beats : []).forEach(b => {
       if (!b || !BK[b.kind] || !(b.t >= 0 && b.t < l.duration)) { errs.push(tag + 'bad beat'); return; }

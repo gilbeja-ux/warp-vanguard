@@ -220,10 +220,10 @@ code = code.replace("'use strict';", '') + `
   getShield: () => shieldCharge, setShield: v => { shieldCharge = v; },
   setMenuScreen: v => { menuScreen = v; }, getMenuScreen: () => menuScreen, commCur: () => commCur,
   clearComm: () => { commCur = null; commT = 0; }, // so a test can watch for the NEXT line
-  setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length,
+  setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length, firePulse,
   latches: () => latches, setLatches: v => { latches = v; },
   spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; },
-  volley: () => volley, BOSS_CER: () => BOSS_CER, latchFreeArc,
+  volley: () => volley, BOSS_CER: () => BOSS_CER, latchFreeArc, leechWave, PURPLE_CLEAR: () => PURPLE_CLEAR,
   bandCfg, lintLevel, lintCampaign, lintWalk, levelThreats, birthFade, getSched: () => sched
 };`;
 eval(code);
@@ -642,6 +642,49 @@ aim(0, 1.2);
 G.update(0.01);
 check('catching a pickup arms its effect', G.fx.auto > 4);
 G.fx.auto = 0;
+// ---- the STABILITY PATCH: +25 integrity, capped, scheduled — never rolled ----
+G.setIntegrity(40);
+G.spawnPickup('health');
+{
+  const hp3 = G.pickups()[G.pickups().length - 1];
+  hp3.z = G.geo().hitZ; hp3.angle = 1.2;
+  aim(0, 1.2); aim(1, 1.2 + Math.PI);
+  G.update(0.01);
+  check('a stability patch restores one block (+25)', G.stats().integrity === 65);
+}
+G.setIntegrity(100);
+G.spawnPickup('health');
+{
+  const hp4 = G.pickups()[G.pickups().length - 1];
+  hp4.z = G.geo().hitZ; hp4.angle = 1.2;
+  aim(0, 1.2);
+  G.update(0.01);
+  check('...and never past the cap', G.stats().integrity === 100);
+}
+{ // relief is SENT, never rolled: the random bag must not contain it
+  G.pickups().length = 0;
+  for (let i = 0; i < 12; i++) G.spawnPickup(); // two full bag cycles and change
+  check('the shuffle-bag never deals a stability patch',
+    G.pickups().every(pk2 => pk2.kind !== 'health'));
+  G.pickups().length = 0;
+}
+{ // BAND RELIEF: a hot band (intensity >= 1.7) ends -> a patch rides in behind it
+  G.installCampaign(G.CAMPAIGNS[1]); // THE SURVEY: level 2 carries a 1.8 band at [44,53]
+  G.startLevel(1);
+  G.setLevelT(54.2); // past t1 + the 1s beat
+  G.setIntegrity(100); G.update(0.05);
+  const relief = G.pickups().filter(pk2 => pk2.kind === 'health');
+  check('a hot band sends its patch — and the mild band (1.5) sends none', relief.length === 1);
+  G.installCampaign(G.CAMPAIGNS[0]); // back to the bundled default for everything downstream
+}
+{ // the Lane Designer may hand-place one: the loader accepts the type
+  const hpPack = { id: 'hp-beat', format: 1, title: 'HP',
+    speakers: [{ id: 'CMD', color: '235,245,255' }],
+    levels: [{ tint: '10,20,30', duration: 20, spawnMin: 9, spawnMax: 9, speed: 0.4,
+      doubles: 0, heavies: 0, lines: 0, colors: 0,
+      beats: [{ t: 5, kind: 'pickup', type: 'health' }], story: { line: 'x' } }] };
+  check('the loader accepts an authored health-pickup beat', G.validateCampaign(hpPack).length === 0);
+}
 
 // ================= deterministic campaign levels =================
 function recordSpawns(start, n) {
@@ -700,108 +743,166 @@ check('heal lands on the fifth banked zap', G.stats().integrity === 50);
 const c0 = G.endlessCfg(0), c200 = G.endlessCfg(200);
 check('endless difficulty ramps with time', c200.speed > c0.speed && c200.spawnMin < c0.spawnMin && c200.heavies > 0 && c0.heavies === 0);
 
-// ================= boss duel (THE ARRAY) =================
-// Campaign 1's finale is the conductor: static at the bore centre, armoured while it
-// has arms, and damaged only by answering a figure of traffic cleanly. The classic
-// core fight still ships on campaign 5 and is covered in its own block below.
-G.progress.arrayBriefed = false;
+// ================= boss duel (THE WARP LEECH) =================
+// Campaign 1's finale is the family's teaching machine. Every leech shares one
+// contract — static at the bore centre, wounded ONLY by pulses, fed by its own
+// swarm — so what this block asserts is the contract every other machine
+// inherits; the kind-specific twists are covered in the dispatch block below.
+function ceremonyOut() {
+  let guard = 200;
+  while (G.boss() && G.boss().introT < G.BOSS_CER() && guard-- > 0) { G.setIntegrity(100); G.update(0.05); }
+}
+// quiet the swarm cadence for a controlled step, without silencing the fight
+function bossQuiet() { const b = G.boss(); if (b) b.waveT = 99; }
+// bank-and-fire: one full orb into the bore; runs the wave to the machine's depth
+function pulseShot(i) {
+  const b = G.boss();
+  const hp0 = b.hp;
+  G.setPulse(i === 0 ? [G.PULSE_MAX(), 0] : [0, G.PULSE_MAX()]);
+  G.firePulse(i);
+  let guard = 40;
+  while (guard-- > 0 && b.hp === hp0 && b.shieldT <= 0.01 && b.dying === undefined) {
+    bossQuiet(); G.setIntegrity(100); G.update(0.05);
+  }
+  return hp0 - b.hp;
+}
 G.startLevel(7);
 G.setLevelT(46); // past the level clock
 G.update(0.01);
-check('the array spawns after the level clock', !!G.boss() && G.boss().kind === 'array');
-// NO DISC. A boss is met, not read about — it explains itself on the ring instead. So the
-// thing worth asserting is the inverse of what used to be here: the lane must NOT stop when
-// one arrives. A stray showCard would freeze the fight before the player saw a single figure.
-check('the array arrives with no briefing disc — the lane never stops', G.getState() === G.S.PLAY);
-// ARRIVAL CEREMONY: the core surfaces before it fights
-check('the array arrives with a ceremony, not a fight', G.boss().introT < G.BOSS_CER());
-let cerGuard = 200;
-while (G.boss().introT < G.BOSS_CER() && cerGuard-- > 0) G.update(0.05);
+check('the leech spawns after the level clock', !!G.boss() && G.boss().kind === 'leech');
+// NO DISC. A boss is met, not read about — the lane must NOT stop when one arrives.
+check('no briefing disc — the lane never stops', G.getState() === G.S.PLAY);
+check('it arrives with a ceremony, not a fight', G.boss().introT < G.BOSS_CER());
+// THE DRINK: charge carried in from the lane is pulled off the pads during the
+// ceremony, so every duel's six cycles are EARNED cycles.
+G.setPulse([G.PULSE_MAX(), G.PULSE_MAX()]);
+ceremonyOut();
+check('the ceremony drinks banked charge — every duel starts at zero',
+  G.getPulse()[0] === 0 && G.getPulse()[1] === 0);
 check('the ceremony completes and the duel begins', G.boss().introT >= G.BOSS_CER());
 check('the dials never change hands — no fuse', G.boss().mergeT === 0);
-// A CONDUCTOR IS NOT SHOT, IT IS ANSWERED. These helpers play the fight the way a
-// player does: wait out the telegraph, clear every red in the figure before it reaches
-// the ring, and let the judge shear the arm.
-function arrRun() { // let the conducting arm finish aiming and release its figure
+check('it holds the bore centre and does not wander', (() => {
   const b = G.boss();
-  let gd = 200;
-  while (gd-- > 0 && b.mode !== 'run') { G.setIntegrity(100); G.update(0.05); }
-  return b.mode === 'run';
-}
-function arrClear() { // clear the figure the way two thumbs would
-  const b = G.boss();
-  let gd = 900;
-  while (gd-- > 0) {
-    const out = b.figIds.filter(e => !e.dead && !e.resolved && !e.failed);
-    if (!out.length) break;
-    out.sort((x, y) => x.z - y.z);
-    // ONE THUMB EACH on the two nearest arrivals. A figure may land two reds in the
-    // same window on purpose — that is the fairness contract, at most two at once and
-    // far enough apart to be separate reaches. A helper that only ever covered the
-    // single nearest one let the partner slip past and reported the FIGHT as broken.
-    aim(0, out[0].angle);
-    aim(1, (out[1] || out[0]).angle);
-    G.setIntegrity(100); G.update(0.05);
-  }
-  return b.figIds.every(e => e.dead);
-}
-function arrFigure() { // one full cycle: telegraph, clear, judge
-  const b = G.boss();
-  const hp0 = b.hp;
-  if (!arrRun()) return 0;
-  arrClear();
-  let gd = 200;
-  while (gd-- > 0 && b.hp === hp0 && b.mode !== 'tele') { G.setIntegrity(100); G.update(0.05); }
-  let gd2 = 60;
-  while (gd2-- > 0 && b.hp === hp0) { G.setIntegrity(100); G.update(0.05); }
-  return hp0 - b.hp;
-}
-check('the array holds the bore centre and does not wander',
-  (() => { const b = G.boss(); const r0 = b.rad;
-    for (let i = 0; i < 40; i++) { G.setIntegrity(100); G.update(0.05); }
-    return b.rad <= Math.max(0.02, r0) && b.tRad === 0; })());
-check('it conducts a named figure, telegraphed before it releases', (() => {
-  const b = G.boss();
-  let gd = 200; while (gd-- > 0 && b.mode !== 'tele') { G.setIntegrity(100); G.update(0.05); }
-  return b.mode === 'tele' && b.figMark.length >= 3;
+  for (let i = 0; i < 40; i++) { G.setIntegrity(100); G.update(0.05); }
+  return b.rad <= 0.02;
 })());
-{ // ARMOURED: a bolt is not an answer to a pattern
-  const b = G.boss(), hp0 = b.hp;
-  b.exposeT = 0;
-  G.volley().cd = 0;
-  aim(0, 1.0); aim(1, 1.0);
-  let vg = 60, fizz = false;
-  while (vg-- > 0 && !fizz) { G.setIntegrity(100); G.update(0.05); fizz = b.shieldT > 0; }
-  aim(1, 1.0 + Math.PI); G.update(0.05);
-  check('a bolt fizzles while it still has arms', fizz && b.hp === hp0);
-}
-drawOk('array duel frame (conductor + figure)', () => {});
-check('a figure cleared clean shears an arm', arrFigure() === 1);
-check('...and the arm is gone for good', G.boss().arms.filter(a2 => a2.live).length === 3);
-{ // a broken figure costs no health, and re-conducts. A boss that resets on one miss
-  // is a boss nobody finishes, so this is the contract, not an accident.
-  const b = G.boss(), hp0 = b.hp;
-  arrRun();
-  for (const e of b.figIds) { e.resolved = true; } // let the whole figure slip past
-  let gd = 200;
-  while (gd-- > 0 && b.mode !== 'tele') { G.setIntegrity(100); G.update(0.05); }
-  check('a broken figure loses no health and conducts again', b.hp === hp0 && b.mode === 'tele');
-  check('...and the arm survives the miss', b.arms.filter(a2 => a2.live).length === 3);
-}
-arrFigure(); arrFigure(); arrFigure();
-check('four sheared arms leave the core bare', G.boss().arms.every(a2 => !a2.live));
-{ // the finisher: with the arms gone the core is exposed, and the volley converts it
+drawOk('leech duel frame (machine + swarm)', () => {});
+// THE SWARM is the fight: released waves, never return fire
+{
   const b = G.boss();
-  let gd = 200;
-  while (gd-- > 0 && !(b.exposeT > 0)) { G.setIntegrity(100); G.update(0.05); }
-  check('the bare core exposes itself', b.exposeT > 0 && b.hp === 1);
-  b.exposeT = 999; // hold the window open for the charge
+  G.enemies().length = 0; G.setLatches([]);
+  b.waveT = 0.01;
+  let wg = 40;
+  while (wg-- > 0 && !G.enemies().some(e => !e.dead)) { G.setIntegrity(100); G.update(0.05); }
+  const wave = G.enemies().filter(e => !e.dead && e.type === 'normal');
+  check('it releases a swarm rather than shooting', wave.length >= 3 && b.shots === undefined);
+  // FAIRNESS: the swarm is a convoy — max two per arrival window, window
+  // partners a half-ring apart, windows staggered down the pipe
+  const spd = G.getLV().speed;
+  const arr = wave.map(e => e.z / spd).sort((a, b2) => a - b2);
+  let fair = true;
+  for (let i = 0; i < arr.length; i++) {
+    const mates = wave.filter(e2 => Math.abs(e2.z / spd - arr[i]) < 0.4);
+    if (mates.length > 2) fair = false;
+    if (mates.length === 2) { // window partners must be coverable one-per-node
+      let d = Math.abs(mates[0].angle - mates[1].angle) % (Math.PI * 2);
+      if (d > Math.PI) d = Math.PI * 2 - d;
+      if (d < 0.9) fair = false; // near-stacked reds = one node asked twice
+    }
+  }
+  check('the swarm respects the fairness law (≤2 per window, split angles)', fair);
+}
+// THE DUEL ECONOMY: zaps feed double, pressure drones feed nothing
+{
+  G.enemies().length = 0; G.setLatches([]);
+  G.setPulse([0, 0]);
+  // a frozen pacifier keeps the lane "live": the swarm cadence releases the
+  // moment the lane runs dry (that is the fight's pacing), and a stray wave
+  // feeding the orbs mid-assert is exactly what this block must not measure.
+  // speedMul must be nonzero — movement reads `en.speedMul || 1`.
+  const pac = G.spawnEnemy(4.2, 'normal'); pac.lock = undefined; pac.speedMul = 1e-6;
+  const en2 = G.spawnEnemy(1.0, 'normal'); en2.lock = undefined;
+  aim(0, 1.0); aim(1, 1.0 + Math.PI);
+  let zg = 200;
+  while (zg-- > 0 && !en2.dead && !en2.resolved) { bossQuiet(); G.setIntegrity(100); G.update(0.05); }
+  const fed = G.getPulse()[0];
+  check('a duel zap feeds the orb at BOSS_FEED rate',
+    en2.dead && fed >= 2 && fed === Math.min(G.stats().combo, 5) * 2);
+  // GIL'S PURPLE LAW, the mechanic half: a pressure drone DEMANDS BOTH
+  // emitters — one node alone bounces off, heavy-style — and pays nothing
+  const pc0 = G.getPulse()[0], pc1 = G.getPulse()[1];
+  const pd = G.spawnEnemy(1.0, 'normal'); pd.lock = undefined; pd.noCharge = true;
+  aim(0, 1.0); aim(1, 1.0 + Math.PI);
+  let pg = 200;
+  while (pg-- > 0 && !pd.dead && !pd.resolved) { bossQuiet(); G.setIntegrity(100); G.update(0.05); }
+  check('a purple demands BOTH emitters — one alone bounces off', !pd.dead && pd.resolved);
+  const pd2 = G.spawnEnemy(1.0, 'normal'); pd2.lock = undefined; pd2.noCharge = true;
+  aim(0, 1.0); aim(1, 1.0); // both docked on it — and the volley held off,
+  let pg2 = 200;            // so the ZAP does the killing, not the bore bolt
+  while (pg2-- > 0 && !pd2.dead && !pd2.resolved) {
+    G.volley().cd = 99;
+    bossQuiet(); G.setIntegrity(100); G.update(0.05);
+  }
+  aim(1, 1.0 + Math.PI); G.update(0.05);
+  check('both emitters together break it — and it still feeds NOTHING',
+    pd2.dead && G.getPulse()[0] === pc0 && G.getPulse()[1] === pc1);
+  pac.dead = true; // the pacifier leaves with the block
+}
+// GIL'S PURPLE LAW, the ledger half: a purple books an EXCLUSIVE stretch of
+// pipe — nothing shares its window, nothing lands within PURPLE_CLEAR of it
+{
+  G.enemies().length = 0; G.setLatches([]);
+  G.getSched().length = 0; // a clean ledger, so the stretch geometry is exact
+  G.leechWave(6, { purple: 1 }); // every lock-less seat WANTS to be purple
+  const spd3 = G.getLV().speed;
+  const seats = G.enemies().filter(e => !e.dead && e.type === 'normal').map(e => ({ z: e.z, p: !!e.noCharge }));
+  const purs = seats.filter(v => v.p);
+  check('a forced-purple wave still seats at least one purple', purs.length >= 1);
+  check('every purple owns its stretch — nothing within PURPLE_CLEAR either side',
+    purs.every(pu => seats.every(o => o === pu
+      || Math.abs(o.z - pu.z) / spd3 >= G.PURPLE_CLEAR() - 1e-6)));
+  G.enemies().length = 0; G.setLatches([]);
+}
+// ONLY THE PULSE WOUNDS IT: the volley stays a lane tool in a duel
+{
+  const b = G.boss();
+  G.enemies().length = 0; G.setLatches([]);
+  G.nodes[0].deadT = G.nodes[1].deadT = 0;
   G.volley().cd = 0;
+  const hp0 = b.hp;
   aim(0, 1.0); aim(1, 1.0);
-  let fg = 120;
-  while (fg-- > 0 && G.boss() && G.boss().dying === undefined) { G.setIntegrity(100); G.update(0.05); }
-  check('a volley into the exposed core puts the array down',
-    G.boss() && G.boss().dying !== undefined);
+  let vg = 30, sawBolt = false, homing = false;
+  while (vg-- > 0) {
+    bossQuiet(); G.setIntegrity(100); G.update(0.05);
+    for (const sh of G.volley().shots) { sawBolt = true; if (sh.homing) homing = true; }
+  }
+  aim(1, 1.0 + Math.PI); G.update(0.05);
+  check('a docked charge still fires the plain bore bolt', sawBolt && !homing);
+  check('...and it is not an answer — the machine takes no bolt damage', b.hp === hp0);
+}
+// THE WOUND: a pulse lands one hit, and double-banking lands two back-to-back
+{
+  const b = G.boss();
+  G.enemies().length = 0; G.setLatches([]);
+  check('a pulse wave lands the only real damage', pulseShot(0) === 1 && b.round === 1);
+  G.setPulse([G.PULSE_MAX(), G.PULSE_MAX()]);
+  const hp1 = b.hp;
+  G.firePulse(0); G.firePulse(1);
+  let dg2 = 40;
+  while (dg2-- > 0 && b.hp > hp1 - 2 && b.dying === undefined) { bossQuiet(); G.setIntegrity(100); G.update(0.05); }
+  check('double-banked orbs land back-to-back hits', b.hp === hp1 - 2);
+  check('the escalation clock tracks the wounds', b.round === 3);
+  check('the convoy answers the second wound with a patch pod',
+    G.pickups().some(pk2 => pk2.kind === 'health'));
+}
+// six pulses close the contract -> death ceremony -> verdict -> END
+{
+  let guard = 12;
+  while (guard-- > 0 && G.boss() && G.boss().dying === undefined) {
+    G.enemies().length = 0; G.setLatches([]);
+    pulseShot(0);
+  }
+  check('six pulses cut the leech loose — death ceremony', G.boss() && G.boss().dying !== undefined);
 }
 let dGuard = 400;
 while (G.boss() && dGuard-- > 0) { G.setIntegrity(100); G.update(0.05); }
@@ -819,12 +920,28 @@ check('BOSS TEST key drops straight into the duel', !!G.boss());
 G.boss().introT = 99; // skip the ceremony for the shortcut check
 for (let i = 0; i < 4; i++) G.update(0.05);
 check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
+{ // A DRILL NEVER FILES. The clock jump is invisible to the trace, so the
+  // verifier would replay these inputs against the level from second zero and
+  // reject with [0 vs score] — the exact wound Gil screenshotted. The drill
+  // flag keeps captureRun/lbSubmit out of the whole boss-test path.
+  const prevRun = G.getLastRun();
+  let kg = 12;
+  while (kg-- > 0 && G.boss() && G.boss().dying === undefined) {
+    G.enemies().length = 0; G.setLatches([]);
+    pulseShot(0);
+  }
+  let dg2 = 400;
+  while (G.boss() && dg2-- > 0) { G.setIntegrity(100); G.update(0.05); }
+  if (G.getState() === G.S.INFO) dismiss();
+  check('the drill reached its own end', G.getState() === G.S.END);
+  check('...and filed NOTHING — no capture, no submission', G.getLastRun() === prevRun);
+}
 
-// ================= boss engine dispatch (Phase 3: triad + spinner) =================
+// ================= boss engine dispatch (the leech roster) =================
 {
-  // campaign 1 now names its finale, so the DEFAULT is asserted on a package that
+  // campaign 1 names its finale, so the DEFAULT is asserted on a package that
   // omits bossKind entirely — which is the thing the default is actually for.
-  check('a boss level without bossKind still fields the classic core', (() => {
+  check('a boss level without bossKind fields the teaching leech', (() => {
     const pk = { id: 'no-kind', format: 1, title: 'NO KIND',
       speakers: [{ id: 'WARD', color: '212,101,255' }],
       levels: [{ tint: '10,20,30', duration: 1, spawnMin: 9, spawnMax: 9, speed: 0.4,
@@ -832,7 +949,7 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
         story: { line: 'x' } }] };
     if (!G.installCampaign(pk)) return false;
     G.startLevel(0); G.setLevelT(4); G.update(0.01);
-    const ok = !!G.boss() && G.boss().kind === 'core';
+    const ok = !!G.boss() && G.boss().kind === 'leech';
     return ok;
   })());
   const bossPack = kind => ({
@@ -843,8 +960,10 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
       boss: true, bossKind: kind }]
   });
   check('validator accepts every shipped bossKind',
-    ['core', 'triad', 'spinner', 'array'].every(k => G.validateCampaign(bossPack(k)).length === 0));
-  const badP = bossPack('triad'); badP.levels[0].bossKind = 'megacore';
+    ['leech', 'siphon', 'prism', 'mimic', 'blockade'].every(k => G.validateCampaign(bossPack(k)).length === 0));
+  check('validator rejects the retired kinds',
+    ['core', 'triad', 'spinner', 'array'].every(k => G.validateCampaign(bossPack(k)).length > 0));
+  const badP = bossPack('mimic'); badP.levels[0].bossKind = 'megaleech';
   check('validator rejects an unknown bossKind', G.validateCampaign(badP).length > 0);
 
   function enterBossLevel(kind) {
@@ -854,302 +973,363 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
     G.update(0.01);
   }
 
-  // ---- THE CLASSIC CORE, still shipped by campaign 5 ----
-  // It moved off campaign 1 when that finale became the conductor, so its mechanics —
-  // the homing bolt, phase 2, and the vent window — are covered here on a constructed
-  // package instead. Deleting the campaign-1 block took these with it, which would have
-  // left the vent shipping with no test at all.
-  {
-    G.progress.bossBriefed = true;
-    enterBossLevel('core');
-    ceremonyOut();
-    const b = G.boss();
-    check('the core fight still fields the flying core', b && b.kind === 'core');
-    function coreBolt() {
-      G.volley().cd = 0;
-      aim(0, 1.0); aim(1, 1.0);
-      const hp0 = b.hp;
-      for (let i = 0; i < 60 && b.hp === hp0 && b.hp > 0; i++) {
-        b.coreHeat = 0; b.ventT = 0;   // hold the radiators cold: one bolt, one damage
-        G.setIntegrity(100); b.shots.length = 0; b.latchT = 99; G.update(0.05);
-      }
-      aim(1, 1.0 + Math.PI); G.update(0.05);
-      return hp0 - b.hp;
-    }
-    check('a docked charge launches a homing bolt into the core', coreBolt() === 1);
-    coreBolt(); coreBolt();
-    check('three hits trigger BREACH PROTOCOL (phase 2)', b.phase2 === true && b.hp === 3);
-    { // the vent: firing loads the radiators, the panels open, and bolts land double
-      b.hp = 6; b.maxHp = 6; b.phase2 = false;
-      G.enemies().length = 0; G.setLatches([]);
-      b.coreHeat = 0.95; b.ventT = 0; b.shots.length = 0; b.shootT = 0.01; b.latchT = 99;
-      let vg = 40;
-      while (vg-- > 0 && !(b.ventT > 0)) { G.setIntegrity(100); G.update(0.05); }
-      check('salvos load the radiators until the panels blow', b.ventT > 0 && b.coreHeat >= 1);
-      check('the vent aborts the volley it was firing', b.shots.length === 0);
-      drawOk('interdictor venting (panels open)', () => {});
-      b.shootT = 0.01; b.latchT = 0.01;
-      const intg = G.stats().integrity;
-      let qg = 12, fired = false;
-      while (qg-- > 0 && b.ventT > 0) { G.update(0.05); if (b.shots.length) fired = true; }
-      check('a venting core fires nothing at all', !fired && G.stats().integrity === intg);
-      b.ventT = 9; b.coreHeat = 1; b.hp = 6;
-      G.volley().cd = 0; aim(0, 1.0); aim(1, 1.0);
-      let dg = 60;
-      while (dg-- > 0 && b.hp === 6) { G.setIntegrity(100); b.shots.length = 0; G.update(0.05); }
-      check('a bolt into an open vent lands double', b.hp === 4);
-      aim(1, 1.0 + Math.PI); G.update(0.05);
-      b.hp = 4; b.phase2 = false; b.ventT = 9; b.coreHeat = 1;
-      G.volley().cd = 0; aim(0, 1.0); aim(1, 1.0);
-      let pg = 60;
-      while (pg-- > 0 && b.hp === 4) { G.setIntegrity(100); b.shots.length = 0; G.update(0.05); }
-      check('a doubled bolt over the trigger still opens phase 2', b.hp === 2 && b.phase2 === true);
-      aim(1, 1.0 + Math.PI); G.update(0.05);
-      b.ventT = 0.05;
-      let cg = 20;
-      while (cg-- > 0 && b.ventT > 0) { G.setIntegrity(100); G.update(0.05); }
-      check('the vent closes and the radiators are cold', b.ventT === 0 && b.coreHeat === 0);
-    }
-    { // it still returns fire, and dodging still works
-      b.hp = 6; b.ventT = 0; b.coreHeat = 0;
-      aim(0, 1.0); aim(1, 1.0);
-      b.shots.length = 0; b.shootT = 0.01;
-      G.update(0.05);
-      b.shootT = 99;
-      check('the core returns fire', b.shots.length > 0);
-      aim(0, 2.4); aim(1, 2.4);
-      const hpMe = G.stats().integrity;
-      for (let i = 0; i < 60 && b.shots.length; i++) G.update(0.05);
-      check('dodging the shot avoids damage', G.stats().integrity === hpMe);
-    }
-  }
-  function ceremonyOut() {
-    let guard = 200;
-    while (G.boss() && G.boss().introT < G.BOSS_CER() && guard-- > 0) { G.setIntegrity(100); G.update(0.05); }
-  }
-
-  // ---------- TRIAD: WALL · SHREDDER · GHOST ----------
-  G.progress.triadBriefed = false;
-  enterBossLevel('triad');
-  const T = G.boss();
-  check('bossKind triad spawns the three-body private core',
-    !!T && T.kind === 'triad' && T.cores.length === 3 && T.maxHp === 9 && T.hp === 9);
-  check('the triad arrives with no briefing disc', G.getState() === G.S.PLAY);
-  ceremonyOut();
-  check('triad ceremony completes into a live three-body fight',
-    T.introT >= G.BOSS_CER() && T.cores.every(c => !c.dead));
-  drawOk('triad mid-fight frame (three bodies + links)', () => {});
-  // a bolt routes to the body NEAREST the docked aim bearing
-  function triadBolt(pick) { // dock on the chosen body's bearing; returns the wounded index
-    const b = G.boss();
-    G.volley().cd = 0;
-    G.nodes[0].deadT = G.nodes[1].deadT = 0;
-    const hp0 = b.cores.map(c => c.hp);
-    let guard = 90, hit = -1;
-    while (guard-- > 0 && hit < 0 && b.dying === undefined) {
-      const c = b.cores[pick];
-      const a = c.dead ? G.nodes[0].angle : c.bear;
-      aim(0, a); aim(1, a);
-      G.setIntegrity(100); b.shots.length = 0; b.latchT = 99; b.volleyT = 99; G.setLatches([]);
-      G.update(0.05);
-      hit = b.cores.findIndex((c2, i2) => c2.hp < hp0[i2]);
-    }
-    aim(1, G.nodes[0].angle + Math.PI); // undock between bolts
-    G.update(0.05);
-    return hit;
-  }
-  check('the bolt routes to the aimed body (SHIELD)', triadBolt(0) === 0);
-  check('re-aiming routes the next bolt elsewhere (SHREDDER)', triadBolt(1) === 1);
-  triadBolt(0); triadBolt(0);
-  check('three bolts fell one body — the others fight on',
-    T.cores[0].dead === true && !T.cores[1].dead && !T.cores[2].dead && T.hp === 5 && T.dying === undefined);
-  drawOk('triad frame with one body down', () => {});
-  // wall pressure: two concurrent latches, but the dockable-arc law holds
-  {
-    T.shots.length = 0;
-    aim(0, 1.0); aim(1, 2.2); // undocked — no bolts fly during the pressure soak
-    let saw2 = false, minArc = 99;
-    for (let i = 0; i < 700; i++) {
+  // ---- FAIRNESS SOAK: the wall laws, held live under swarm pressure ----
+  // The swarm cadence overlaps waves in the pipe, so a latch dropped with wave
+  // N+1 must route around wave N's drones still flying in (the bug this soak
+  // was written for: drones arriving ON a dead zone). Every frame asserts:
+  //  (1) no live drone CROSSES THE RING inside a bitten wall's current span —
+  //      an arrival on a dead zone is unanswerable by construction;
+  //  (2) the dockable-arc law: a wall-free arc >= 1.6 rad always survives.
+  // Siphon and prism drop their latches through this same leechWave path, so
+  // the soaked machines cover the mechanism for all five.
+  function bossFairSoak(label, frames) {
+    const TAU2 = Math.PI * 2;
+    const aDiff = (x, y) => { let d = (x - y) % TAU2; if (d > Math.PI) d -= TAU2; if (d < -Math.PI) d += TAU2; return d; };
+    let arcOK = true, cleanArrivals = true, sawLatch = false, sawOverlap = false;
+    let winCountOK = true, lockLawOK = true, purpleLawOK = true, sawFlavours = false;
+    const GAP = 0.55;
+    for (let f = 0; f < frames; f++) {
+      const b = G.boss();
+      if (!b || b.dying !== undefined) break;
+      if (b.waveT !== undefined) b.waveT = Math.min(b.waveT, 1.2); // waves overlap in the pipe
       G.setIntegrity(100);
-      T.volleyT = 99;                          // fans quiet — this soak is about walls
-      T.latchT = Math.min(T.latchT, 0.05);     // keep the wall pressure maxed
       G.update(0.05);
-      if (G.latches().length >= 2) saw2 = true;
-      minArc = Math.min(minArc, G.latchFreeArc());
-      G.nodes[0].deadT = G.nodes[1].deadT = 0; // the soak measures arcs, not fries
-      if (T.dying !== undefined) break;
-    }
-    check('the triad rides the ring with two concurrent latches', saw2);
-    check('a wall-free dock arc >= 1.6 rad always survives', minArc >= 1.6 - 1e-6);
-    G.setLatches([]); T.shots.length = 0;
-  }
-  // telegraphed radial dart fans, alternating bodies
-  {
-    T.shots.length = 0;
-    T.volleyT = 0.01;
-    let fanGuard = 60, sawCharge = false;
-    while (fanGuard-- > 0 && !T.shots.filter(sh => !sh.latch).length) {
-      G.setIntegrity(100); T.latchT = 99;
-      G.update(0.05);
-      sawCharge = sawCharge || T.cores.some(c => c.chargeT > 0);
-    }
-    const fan = T.shots.filter(sh => !sh.latch);
-    check('a radial dart fan fires from a body (5 darts, wide spread)',
-      fan.length >= 5 && Math.abs(fan[fan.length - 1].th - fan[0].th) > 1.5);
-    check('the fan was telegraphed by a charge glow', sawCharge);
-    T.shots.length = 0; T.volleyT = 99;
-  }
-  // finish it: nine total bolts -> death ceremony -> verdict -> END
-  triadBolt(1); triadBolt(1);
-  check('six bolts, two bodies down', T.cores[1].dead === true && T.hp === 3);
-  triadBolt(2); triadBolt(2); triadBolt(2);
-  check('nine bolts fell the triad — death ceremony', T.dying !== undefined);
-  {
-    let dg = 400;
-    while (G.boss() && dg-- > 0) { G.setIntegrity(100); G.update(0.05); }
-    check('triad death ends at the VERDICT card', G.getState() === G.S.INFO && G.getInfoCard() === 'verdict');
-    dismiss();
-    check('triad verdict closes the case — END, win recorded',
-      G.getState() === G.S.END && G.getEndWin() === true && G.getProg().stars[0] > 0);
-  }
-
-  // ---------- SPINNER: THE BEACON ----------
-  G.progress.spinnerBriefed = false;
-  enterBossLevel('spinner');
-  const SP = G.boss();
-  check('bossKind spinner spawns THE BEACON', !!SP && SP.kind === 'spinner' && SP.maxHp === 4);
-  check('the beacon arrives with no briefing disc', G.getState() === G.S.PLAY);
-  ceremonyOut();
-  check('beacon ceremony completes into the telegraph phase',
-    SP.introT >= G.BOSS_CER() && SP.mode === 'tele');
-  // a volley bolt fizzles on the shield — the beacon takes ZERO bolt damage
-  {
-    SP.mode = 'adds'; SP.modeT = 99; // hold the beam so the dock is safe
-    G.enemies().length = 0; G.setLatches([]);
-    G.nodes[0].deadT = G.nodes[1].deadT = 0;
-    G.volley().cd = 0;
-    const hp0 = SP.hp;
-    let fg = 60, shielded = false;
-    while (fg-- > 0 && !shielded) {
-      aim(0, 1.0); aim(1, 1.0);
-      G.setIntegrity(100); G.update(0.05);
-      shielded = SP.shieldT > 0;
-    }
-    aim(1, 1.0 + Math.PI); G.update(0.05);
-    check('a volley bolt fizzles on the beacon shield — zero damage', shielded && SP.hp === hp0);
-    drawOk('spinner shield-shimmer frame', () => {});
-  }
-  // THE LIGHT IS KEYED TO ONE EMITTER. The sweep condemns blue or white, never both:
-  // the condemned carriage must run, and the other is free to work. Both halves are
-  // asserted, because "it fries what it should" and "it spares what it should" are
-  // different claims and only the pair of them is the mechanic.
-  {
-    G.enemies().length = 0; G.setLatches([]);
-    aim(0, 1.0); aim(1, 1.0 + Math.PI);
-    SP.mode = 'sweep'; SP.swept = 0; SP.beamDir = 1;
-    SP.sweepSpd = Math.PI * 2 / 5.6;
-    SP.beamPhase = 0;            // blue is condemned
-    SP.sweepAdds = 0;            // no reds — this block is about the beam alone
-    SP.beamA = 1.0 - 0.4;        // the light closes on the parked blue node
-    let sg = 40, fried = false;
-    while (sg-- > 0 && !fried) { G.setIntegrity(100); G.update(0.05); fried = G.nodes[0].deadT > 0; }
-    check('the sweep fries the CONDEMNED emitter parked in its path', fried);
-    check('the sweep rolls on after the fry', SP.mode === 'sweep' && SP.dying === undefined);
-    drawOk('spinner mid-sweep frame (beam live)', () => {});
-  }
-  {
-    G.enemies().length = 0; G.setLatches([]);
-    G.nodes[0].deadT = G.nodes[1].deadT = 0;
-    aim(0, 1.0); aim(1, 1.8);
-    SP.mode = 'sweep'; SP.swept = 0; SP.beamDir = 1;
-    SP.sweepSpd = Math.PI * 2 / 5.6;
-    SP.beamPhase = 1;            // WHITE is condemned, so blue may sit in the light
-    SP.sweepAdds = 0;
-    SP.beamA = 1.0 - 0.4;        // sweeping through blue at 1.0, then white at 1.8
-    // long enough for the light to reach BOTH parked nodes (1.2 rad of travel at
-    // 1.12 rad/s), and far short of the full rotation that would overload it
-    let sg = 40;
-    while (sg-- > 0) { G.setIntegrity(100); G.update(0.05); }
-    check('the spared emitter survives sitting in the beam', G.nodes[0].deadT <= 0);
-    check('...and the same sweep still condemns the other one', G.nodes[1].deadT > 0);
-    G.nodes[0].deadT = G.nodes[1].deadT = 0;
-  }
-  // WORK FOR THE FREE THUMB: reds released during the sweep, as a trickle, more each round
-  {
-    G.enemies().length = 0; G.setLatches([]);
-    G.nodes[0].deadT = G.nodes[1].deadT = 0;
-    aim(0, 1.0); aim(1, 1.0 + Math.PI);
-    SP.mode = 'sweep'; SP.swept = 0; SP.beamDir = 1;
-    SP.sweepSpd = Math.PI * 2 / 900;   // effectively parked: no overload mid-measurement
-    SP.beamPhase = 0;
-    SP.beamA = 1.0 + Math.PI * 0.9;    // away from both nodes — nothing fries here
-    SP.sweepAdds = 3; SP.addT = 0.2;
-    let ag = 200, seen = 0;
-    while (ag-- > 0 && SP.sweepAdds > 0) {
-      G.setIntegrity(100); G.update(0.05);
-      seen = Math.max(seen, G.enemies().filter(e => !e.dead && !e.resolved).length);
-    }
-    check('the sweep releases its reds for the free emitter', SP.sweepAdds === 0 && seen >= 1);
-    check('they trickle in rather than landing as a wall', seen <= 3);
-    check('and they are plain reds — either emitter may take them',
-      G.enemies().every(e => e.type !== 'strip' ? e.lock === undefined : true));
-    G.enemies().length = 0;
-    // hand the fight back as it was found: the next block completes a rotation in a
-    // single frame from swept = TAU - 0.001, which the parked speed above cannot do
-    SP.sweepSpd = Math.PI * 2 / 5.6;
-    SP.sweepAdds = 0;
-    G.nodes[0].deadT = G.nodes[1].deadT = 0;
-  }
-  // a completed sweep overloads the BEACON itself — and the add wave rides in
-  {
-    G.nodes[0].deadT = G.nodes[1].deadT = 0;
-    const hp1 = SP.hp, dir0 = SP.beamDir;
-    SP.swept = Math.PI * 2 - 0.001;
-    SP.beamA = G.nodes[0].angle + Math.PI; // away — the overload tick fries nobody
-    G.setIntegrity(100); G.update(0.05);
-    check('a completed sweep overloads the beacon — one round of damage',
-      SP.hp === hp1 - 1 && SP.mode === 'adds');
-    check('an intrusion wave (with a rim latch) spawns between sweeps',
-      G.enemies().filter(e => !e.dead).length >= 3 && G.latches().length >= 1);
-    { // FAIRNESS: the wave is a convoy — max two per arrival window, window
-      // partners a half-ring apart, windows staggered down the pipe
-      const wave = G.enemies().filter(e => !e.dead && e.type === 'normal');
-      const spd = G.getLV().speed;
-      const arr = wave.map(e => e.z / spd).sort((a, b) => a - b);
-      let fair = true;
-      for (let i = 0; i < arr.length; i++) {
-        const mates = wave.filter(e2 => Math.abs(e2.z / spd - arr[i]) < 0.4);
-        if (mates.length > 2) fair = false;
-        if (mates.length === 2) { // window partners must be coverable one-per-node
-          let d = Math.abs(mates[0].angle - mates[1].angle) % (Math.PI * 2);
-          if (d > Math.PI) d = Math.PI * 2 - d;
-          if (d < 0.9) fair = false; // near-stacked reds = one node asked twice
+      if (G.latchFreeArc() < 1.6 - 1e-6) arcOK = false;
+      const hitZ = G.geo().hitZ;
+      for (const lt of G.latches()) {
+        sawLatch = true;
+        const lt2 = lt.t - lt.tele;
+        if (lt2 < 0) continue; // telegraphing — not yet a dead zone
+        const half = lt.span0 * (1 - lt2 / lt.dur);
+        for (const e of G.enemies()) {
+          if (e.dead || e.resolved || e.failed || e.type === 'strip') continue;
+          if (e.z > hitZ + 0.06) sawOverlap = sawOverlap || Math.abs(aDiff(e.angle, lt.a)) < 2; // traffic near a live wall existed
+          if (Math.abs(e.z - hitZ) > 0.06) continue; // only ARRIVALS are judged
+          if (Math.abs(aDiff(e.angle, lt.a)) < half) cleanArrivals = false;
         }
       }
-      check('the intrusion wave respects the fairness law (\u22642 per window, split angles)', fair);
+      // THE WINDOW LAWS, read off the live pipe — across waves, not per spawner:
+      // ≤2 hostiles share an arrival window; a colour never double-books its
+      // node; and a purple NEVER shares a window with a keyed drone (a lock
+      // binds one named thumb, a purple demands the other — both hands booked
+      // into upkeep with zero charge income is unfair by economy).
+      const live = G.enemies().filter(e => !e.dead && !e.resolved && !e.failed && e.type !== 'strip');
+      const spd2 = G.getLV().speed;
+      for (let x = 0; x < live.length; x++) {
+        let mates = 0;
+        for (let y = 0; y < live.length; y++) {
+          if (x === y) continue;
+          const dtA = Math.abs(live[x].z - live[y].z) / spd2;
+          // the purple radius law: a pressure drone owns PURPLE_CLEAR of pipe
+          // either side — it demands both emitters, so nothing rides near it
+          if (y > x && (live[x].noCharge || live[y].noCharge) && dtA < G.PURPLE_CLEAR() - 1e-6) purpleLawOK = false;
+          if (dtA >= GAP) continue;
+          mates++;
+          if (y < x) continue; // pair rules judged once
+          if (live[x].lock !== undefined && live[x].lock === live[y].lock) lockLawOK = false;
+        }
+        if (mates > 1) winCountOK = false; // a third demand in one moment — two thumbs, never three asks
+        if (live[x].lock !== undefined || live[x].noCharge) sawFlavours = true;
+      }
     }
-    check('the next sweep runs the other way', SP.beamDir === -dir0);
-    drawOk('spinner add-wave frame', () => {});
-    // the add phase ends on wave-clear or timeout — force the timeout path
-    SP.modeT = 0.01;
-    G.setIntegrity(100); G.update(0.05);
-    check('the add phase hands back to the telegraph', SP.mode === 'tele');
+    check('fairness soak (' + label + '): walls flowed and no drone arrived on one',
+      sawLatch && sawOverlap && cleanArrivals);
+    check('fairness soak (' + label + '): the dockable-arc law held throughout', arcOK);
+    check('fairness soak (' + label + '): ≤2 per window, colours never double-book, purple rides alone',
+      winCountOK && lockLawOK && purpleLawOK);
+    return sawFlavours;
   }
-  // three more survived sweeps put the light out -> death -> verdict -> END
+  { // the teaching machine, wounded enough that every wave rides a latch
+    enterBossLevel('leech');
+    ceremonyOut();
+    G.boss().round = 4;
+    bossFairSoak('leech', 700);
+  }
+
+  // ---------- THE SIPHON: one light, one job each ----------
+  enterBossLevel('siphon');
+  ceremonyOut();
+  const SI = G.boss();
+  check('bossKind siphon fields the one-light machine', !!SI && SI.kind === 'siphon' && SI.maxHp === 6);
   {
-    for (let r = 0; r < 3; r++) {
+    let tg = 200;
+    while (tg-- > 0 && SI.mode !== 'tele') { G.setIntegrity(100); G.update(0.05); }
+    check('it telegraphs before it fires — one beam, colour-keyed',
+      SI.mode === 'tele' && SI.beams.length === 1 && (SI.beams[0].phase === 0 || SI.beams[0].phase === 1));
+  }
+  { // round 0 is a STREAM round: the sweep hangs a ribbon for the free thumb
+    let sg = 200;
+    while (sg-- > 0 && SI.mode !== 'sweep') { G.setIntegrity(100); G.update(0.05); }
+    check('the first sweep hangs a stream in the lane',
+      SI.mode === 'sweep' && G.enemies().some(e => e.type === 'strip' && !e.dead));
+  }
+  { // THE LIGHT IS KEYED: it fries its own emitter and spares the other. Both
+    // halves are asserted, because "it fries what it should" and "it spares
+    // what it should" are different claims and only the pair is the mechanic.
+    G.enemies().length = 0; G.setLatches([]);
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
+    const bm = SI.beams[0];
+    SI.mode = 'sweep';
+    bm.phase = 0; bm.dir = 1; bm.spd = Math.PI * 2 / 5.6; bm.swept = 0; bm.rev = undefined; bm.done = false;
+    aim(0, 1.0); aim(1, 1.8);
+    G.setPulse([10, 10]); // the fry tax applies to the light too
+    bm.a = 1.0 - 0.4; // the light closes on parked blue at 1.0, then crosses white at 1.8
+    let sg = 40;
+    while (sg-- > 0) { G.setIntegrity(100); G.update(0.05); }
+    check('the sweep fries the CONDEMNED emitter parked in its path', G.nodes[0].deadT > 0);
+    check('...and spares the other one sitting in the same light', G.nodes[1].deadT <= 0);
+    check('the light bled the condemned orb by 3 — the spared orb kept its charge',
+      G.getPulse()[0] === 7 && G.getPulse()[1] === 10);
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
+    drawOk('siphon mid-sweep frame (beam live)', () => {});
+  }
+  { // THE BURST: a half-born ray cannot fry — the danger waits for the picture
+    G.enemies().length = 0; G.setLatches([]);
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
+    SI.mode = 'sweep';
+    SI.beams = [{ a: 1.0, dir: 1, spd: Math.PI * 2 / 5.6, phase: 0, swept: 0, done: false, liveT: 0 }];
+    aim(0, 1.0); aim(1, 1.0 + Math.PI); // parked dead in the light's birthplace
+    G.setIntegrity(100); G.update(0.05);
+    check('a half-born ray cannot fry', G.nodes[0].deadT <= 0);
+    for (let i = 0; i < 8; i++) { G.setIntegrity(100); G.update(0.05); }
+    check('...and at full reach it burns', G.nodes[0].deadT > 0);
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
+  }
+  { // a completed rotation costs it nothing itself — the calm is the charge window
+    const bm = SI.beams[0];
+    bm.swept = Math.PI * 2 - 0.001;
+    bm.a = G.nodes[0].angle + Math.PI;
+    G.setIntegrity(100); G.update(0.05);
+    check('a completed sweep hands over to the calm — no self-damage', SI.mode === 'calm' && SI.hp === 6);
+    check('the spent light retreats through beamFx', !!SI.beamFx && SI.beamFx.length >= 1);
+    SI.modeT = 0.01;
+    G.enemies().length = 0; G.setLatches([]);
+    G.setIntegrity(100); G.update(0.05); G.update(0.05);
+    check('the calm hands back to the telegraph', SI.mode === 'tele');
+  }
+  { // a wound flips the phase parity: odd rounds trickle reds instead of a stream
+    G.enemies().length = 0; G.setLatches([]);
+    check('a pulse wounds the siphon mid-fight', pulseShot(0) === 1);
+    G.enemies().length = 0; G.setLatches([]);
+    SI.mode = 'idle'; SI.beams = [];
+    G.setIntegrity(100); G.update(0.05); // tele arms
+    SI.modeT = 0.01;
+    G.setIntegrity(100); G.update(0.05); // sweep begins
+    check('an odd round trickles plain reds for the free thumb — no stream',
+      SI.mode === 'sweep' && SI.sweepAdds >= 2 && !G.enemies().some(e => e.type === 'strip' && !e.dead));
+  }
+
+  // ---------- THE PRISM: two lights, one each ----------
+  enterBossLevel('prism');
+  ceremonyOut();
+  const PR = G.boss();
+  {
+    let tg = 200;
+    while (tg-- > 0 && PR.mode !== 'tele') { G.setIntegrity(100); G.update(0.05); }
+    const ph = PR.beams.map(bm => bm.phase).sort().join(',');
+    check('bossKind prism splits the light — two beams, both colours',
+      !!PR && PR.kind === 'prism' && PR.beams.length === 2 && ph === '0,1');
+    check('the lights run unequal, opposite ways',
+      PR.beams[0].dir === -PR.beams[1].dir && PR.beams[0].spd !== PR.beams[1].spd);
+  }
+  { // each light fries ONLY its own emitter — park blue in the white light's path
+    let tg = 200;
+    while (tg-- > 0 && PR.mode !== 'sweep') { G.setIntegrity(100); G.update(0.05); }
+    G.enemies().length = 0; G.setLatches([]);
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
+    const b0 = PR.beams.find(bm => bm.phase === 0), b1 = PR.beams.find(bm => bm.phase === 1);
+    aim(0, 1.0); aim(1, 4.0);
+    b0.spd = 0.0001; b0.a = 4.5; b0.rev = undefined;         // the blue light, parked away
+    b1.spd = Math.PI * 2 / 5.6; b1.dir = 1; b1.a = 0.6; b1.swept = 0.1; b1.rev = undefined;
+    let sg = 30;
+    while (sg-- > 0) { G.setIntegrity(100); G.update(0.05); }
+    check('the WHITE light crosses the blue emitter and spares it', G.nodes[0].deadT <= 0);
+    b1.spd = 0.0001; b1.a = 4.5;
+    b0.spd = Math.PI * 2 / 5.6; b0.dir = 1; b0.a = 0.6; b0.swept = 0.1;
+    let sg2 = 30;
+    while (sg2-- > 0 && G.nodes[0].deadT <= 0) { G.setIntegrity(100); G.update(0.05); }
+    check('the BLUE light crossing the same park fries it', G.nodes[0].deadT > 0);
+    G.nodes[0].deadT = G.nodes[1].deadT = 0;
+    drawOk('prism twin-sweep frame', () => {});
+  }
+  { // the faster light learns to turn — and the turn is telegraphed
+    PR.round = 2; PR.round0 = 0;
+    PR.mode = 'idle'; PR.beams = [];
+    G.setIntegrity(100); G.update(0.05); // tele: arms the beams for round 2
+    const rv = PR.beams.find(bm => bm.rev !== undefined);
+    check('round 2 arms a mid-sweep reversal on one light', !!rv);
+    PR.modeT = 0.01;
+    G.setIntegrity(100); G.update(0.05); // sweep begins
+    for (const bm of PR.beams) { bm.a = G.nodes[0].angle + Math.PI; bm.spd = Math.min(bm.spd, 1.2); bm.liveT = 9; } // past the burst — this block tests the turn, not the birth
+    rv.swept = rv.rev * Math.PI * 2 - 0.3;
+    const d0 = rv.dir;
+    G.setIntegrity(100); G.update(0.05);
+    check('the turn is telegraphed before it lands', rv.warn === true && rv.reversed === false && rv.dir === d0);
+    rv.swept = rv.rev * Math.PI * 2 + 0.001;
+    G.setIntegrity(100); G.update(0.05);
+    check('the light reverses where the chevrons said', rv.reversed === true && rv.dir === -d0);
+  }
+  { // both rotations done -> the charge swarm arrives
+    G.enemies().length = 0; G.setLatches([]);
+    for (const bm of PR.beams) {
+      bm.swept = Math.PI * 2 - 0.001; bm.a = G.nodes[0].angle + Math.PI;
+      bm.rev = undefined; bm.reversed = true; bm.done = false;
+    }
+    G.setIntegrity(100); G.update(0.05);
+    check('both lights out hands over to the charge swarm',
+      PR.mode === 'adds' && G.enemies().some(e => !e.dead));
+  }
+
+  // ---------- THE MIMIC: read the lamp ----------
+  enterBossLevel('mimic');
+  ceremonyOut();
+  const MI = G.boss();
+  check('bossKind mimic lights the lamp', !!MI && MI.kind === 'mimic' && (MI.lamp === 0 || MI.lamp === 1));
+  { // the lamp: holds, blinks, flips
+    G.enemies().length = 0; G.setLatches([]);
+    const lamp0 = MI.lamp;
+    MI.lampT = 0.01; MI.lampBlink = 0;
+    bossQuiet(); G.setIntegrity(100); G.update(0.05);
+    check('an expiring hold starts the blink telegraph', MI.lampBlink > 0 && MI.lamp === lamp0);
+    let bg2 = 40;
+    while (bg2-- > 0 && MI.lamp === lamp0) { bossQuiet(); G.setIntegrity(100); G.update(0.05); }
+    check('the blink lands the flip', MI.lamp === 1 - lamp0);
+  }
+  { // LOCKED WHILE A PULSE FLIES: judged by the colour you committed at
+    G.enemies().length = 0; G.setLatches([]);
+    const lamp0 = MI.lamp;
+    G.setPulse(lamp0 === 0 ? [G.PULSE_MAX(), 0] : [0, G.PULSE_MAX()]);
+    G.firePulse(lamp0);
+    MI.lampT = 0.01; MI.lampBlink = 0; // it WANTS to flip — the wave forbids it
+    const hp0 = MI.hp;
+    let lg = 40, flipped = false;
+    while (lg-- > 0 && MI.hp === hp0 && MI.dying === undefined) {
+      bossQuiet(); G.setIntegrity(100); G.update(0.05);
+      if (MI.lamp !== lamp0) flipped = true;
+    }
+    check('the lamp is locked while the wave is in flight', !flipped);
+    check('the matching pulse lands', MI.hp === hp0 - 1);
+  }
+  { // the wrong key fizzles — a spent bomb, not a hit
+    let wg = 80;
+    while (wg-- > 0 && MI.lampBlink > 0) { bossQuiet(); G.setIntegrity(100); G.update(0.05); }
+    const wrong = 1 - MI.lamp;
+    const hp0 = MI.hp;
+    G.setPulse(wrong === 0 ? [G.PULSE_MAX(), 0] : [0, G.PULSE_MAX()]);
+    G.firePulse(wrong);
+    let fg = 40, fizz = false;
+    while (fg-- > 0 && !fizz && MI.hp === hp0) { bossQuiet(); G.setIntegrity(100); G.update(0.05); fizz = MI.shieldT > 0; }
+    check('the wrong colour fizzles on the shell — zero damage', fizz && MI.hp === hp0);
+    drawOk('mimic wrong-key fizzle frame', () => {});
+  }
+  { // the swarm sells the economy: colour-locked drones sort your kills.
+    // NO PURPLE — pulled from this fight (2026-08-11): with a lamp to read and
+    // keys to sort, a third drone class over-freighted the screen. The
+    // noCharge mechanic itself stays covered by the leech block's unit test.
+    let sawLock = false, sawPurple = false;
+    let sg = 400;
+    while (sg-- > 0 && !sawLock) {
       G.enemies().length = 0; G.setLatches([]);
-      G.nodes[0].deadT = G.nodes[1].deadT = 0;
-      SP.mode = 'sweep'; SP.swept = Math.PI * 2 - 0.001;
-      SP.beamA = G.nodes[0].angle + Math.PI;
+      MI.waveT = 0.01;
+      G.setIntegrity(100); G.update(0.05);
+      for (const e of G.enemies()) {
+        if (e.lock !== undefined) sawLock = true;
+        if (e.noCharge) sawPurple = true;
+      }
+    }
+    for (let sg2 = 0; sg2 < 120; sg2++) { // and hold a while: purple stays OUT
+      G.enemies().length = 0; G.setLatches([]);
+      MI.waveT = 0.01;
+      G.setIntegrity(100); G.update(0.05);
+      if (G.enemies().some(e => e.noCharge)) sawPurple = true;
+    }
+    check('the mimic swarm carries colour-locked drones', sawLock);
+    check('and never a purple — pulled from this fight for screen load', !sawPurple);
+    G.enemies().length = 0; G.setLatches([]);
+  }
+  { // and its wall pressure obeys the laws under the full colour/purple mix
+    MI.round = 6; MI.round0 = 0;
+    check('mimic soak exercised the keyed swarm (the laws were not vacuous)',
+      bossFairSoak('mimic', 700) === true);
+  }
+
+  // ---------- THE BLOCKADE: nine pulses, four layers ----------
+  enterBossLevel('blockade');
+  ceremonyOut();
+  const BL = G.boss();
+  check('bossKind blockade takes nine pulses through four layers',
+    !!BL && BL.kind === 'blockade' && BL.maxHp === 9 && BL.phase === 0);
+  // always fire the RIGHT key: the lamp's colour once the mimic layer is up
+  function blPulse() { return pulseShot(BL.phase === 3 && BL.lamp >= 0 ? BL.lamp : 0); }
+  check('the first pulse sheds the outer layer', blPulse() === 1 && BL.phase === 1 && BL.mode === 'shed');
+  {
+    let sg = 60;
+    while (sg-- > 0 && BL.mode === 'shed') { G.setIntegrity(100); G.update(0.05); }
+    check('the shed stagger hands over to the next layer', BL.mode !== 'shed');
+  }
+  blPulse(); blPulse();
+  check('three hits open the prism layer', BL.hp === 6 && BL.phase === 2);
+  blPulse(); blPulse(); blPulse();
+  check('six hits open the mimic layer — the lamp lights',
+    BL.hp === 3 && BL.phase === 3 && BL.lamp >= 0);
+  { // the composite machine's wall pressure obeys the laws too
+    BL.round = BL.round0 + 5;
+    check('blockade soak exercised the keyed swarm (campaign 5 runs the same laws)',
+      bossFairSoak('blockade·mimic layer', 500) === true);
+  }
+  blPulse();
+  check('seven hits leave two — still the mimic layer', BL.hp === 2 && BL.phase === 3);
+  blPulse();
+  check('at one hp it makes its LAST STAND', BL.hp === 1 && BL.lastStand === true);
+  { // the shift arms through the telegraph doctrine: ghost line first
+    let lg = 80;
+    while (lg-- > 0 && !BL.beams.length) { G.enemies().length = 0; G.setIntegrity(100); G.update(0.05); }
+    check('the last-stand light arms through a ghost telegraph', BL.beams.length >= 1 && BL.mode === 'tele');
+    check('...aimed at one emitter while the line will feed the OTHER', BL.beams[0].phase === BL.lsPhase);
+  }
+  { // the feeding line: single-file, keyed to the FREE thumb — never pairs
+    G.enemies().length = 0; G.setLatches([]); G.getSched().length = 0;
+    let cg = 40;
+    while (cg-- > 0 && BL.mode === 'tele') { G.setIntegrity(100); G.update(0.05); }
+    const freeKey = 1 - BL.beams[0].phase;
+    let lg2 = 140;
+    while (lg2-- > 0 && BL.mode === 'sweep' && G.enemies().filter(e => !e.dead).length < 3) {
       G.setIntegrity(100); G.update(0.05);
     }
-    check('four survived sweeps put the beacon down', SP.dying !== undefined);
+    const line = G.enemies().filter(e => !e.dead && e.type === 'normal');
+    check('the line is keyed to the free thumb — it charges ITSELF',
+      line.length >= 2 && line.every(e => e.lock === freeKey));
+    const spd4 = G.getLV().speed;
+    let single = true;
+    for (let x = 0; x < line.length; x++) for (let y = x + 1; y < line.length; y++)
+      if (Math.abs(line[x].z - line[y].z) / spd4 < 0.55) single = false;
+    check('...and arrives single-file, never as window pairs', single);
+  }
+  { // the shift SWAPS every rotation: the other thumb runs, the other feeds
+    const ph0 = BL.beams[0].phase;
+    for (const bm of BL.beams) { bm.swept = Math.PI * 2 - 0.001; bm.a = G.nodes[0].angle + Math.PI; }
+    G.setIntegrity(100); G.update(0.05); // the rotation completes — shift over
+    let sg3 = 40;
+    while (sg3-- > 0 && !BL.beams.length) { G.enemies().length = 0; G.setIntegrity(100); G.update(0.05); }
+    check('the next shift swaps the ray to the other emitter', BL.beams[0].phase === 1 - ph0);
+    G.enemies().length = 0; G.setLatches([]);
+  }
+  check('a lone key fizzles at the last stand', pulseShot(0) === 0 && BL.shieldT > 0);
+  { // the finale gesture: BOTH keys, fired as one
+    let wg2 = 40;
+    while (wg2-- > 0 && BL.shieldT > 0.01) { G.setIntegrity(100); G.update(0.05); }
+    G.setPulse([G.PULSE_MAX(), G.PULSE_MAX()]);
+    G.firePulse(0); G.firePulse(1);
+    let kg2 = 40;
+    while (kg2-- > 0 && BL.dying === undefined) { G.setIntegrity(100); G.update(0.05); }
+    check('both keys together break the blockade — death ceremony', BL.dying !== undefined);
+  }
+  {
     let dg = 400;
     while (G.boss() && dg-- > 0) { G.setIntegrity(100); G.update(0.05); }
-    check('beacon death ends at the VERDICT card', G.getState() === G.S.INFO && G.getInfoCard() === 'verdict');
+    check('blockade death ends at the VERDICT card', G.getState() === G.S.INFO && G.getInfoCard() === 'verdict');
     dismiss();
-    check('beacon verdict closes the case — END, win recorded',
+    check('blockade verdict closes the case — END, win recorded',
       G.getState() === G.S.END && G.getEndWin() === true && G.getProg().stars[0] > 0);
   }
   // back to the bundled campaign for everything downstream
@@ -1163,11 +1343,14 @@ G.startLevel(4); // SUBLANE DRIFT — the wall's home level
 G.enemies().length = 0;
 G.setLatches([{ a: 1.0, span0: 0.5, t: 0, dur: 3, tele: 0.9, arm: 0.4 }]);
 aim(0, 1.0); aim(1, 2.5); // node 0 parked exactly where the wall will bite
+G.setPulse([9, 9]); // the fry tax: the dead zone will bleed the burned orb
 quiet(); G.update(0.05);
 check('a telegraphing wall does not bite yet', !(G.nodes[0].deadT > 0));
 for (let i = 0; i < 30; i++) { quiet(); G.update(0.05); } // through telegraph + arm grace
 check('crossing a live rim wall fries the node', G.nodes[0].deadT > 0);
 check('the far node is untouched', !(G.nodes[1].deadT > 0));
+check('the dead zone bled the fried orb by 3 — the far orb kept its charge',
+  G.getPulse()[0] === 6 && G.getPulse()[1] === 9);
 for (let i = 0; i < 90; i++) { quiet(); G.update(0.05); }
 check('the wall burns off within ~4s', G.latches().length === 0);
 check('the fried node reboots', !(G.nodes[0].deadT > 0));
@@ -2031,9 +2214,13 @@ cross(en);
 check('untouched packet pays a small bonus', en.resolved && G.getScore() - s0 === 50 && G.stats().integrity === int0);
 en = G.spawnEnemy(1.2, 'frag');
 aim(1, 1.2); // touch the trap — the mistake
+G.setShield(0); // no shield: this block measures the fry, not the save
+G.setPulse([8, 8]); // and the fry tax: the burned pad's orb bleeds 3
 cross(en);
 check('touching a node killer fries the node, not the payload',
   en.dead && G.nodes[1].deadT > 0 && G.stats().integrity === int0 && G.stats().combo === 0);
+check('the fry tax bleeds the fried orb by 3 — the other is untouched',
+  G.getPulse()[1] === 5 && G.getPulse()[0] === 8);
 en = G.spawnEnemy(1.2, 'normal');
 cross(en);
 check('a rebooting node cannot zap', !en.dead);
@@ -2199,7 +2386,7 @@ G.keys['ArrowUp'] = false;
   check('difficulty rises across all five shipped campaigns',
     G.CAMPAIGNS.every((pk, i) => i === 0 || pk.difficulty > G.CAMPAIGNS[i - 1].difficulty));
   check('every shipped finale names the fight it fields',
-    G.CAMPAIGNS.map(pk => pk.levels[7].bossKind).join(',') === 'array,triad,spinner,triad,core');
+    G.CAMPAIGNS.map(pk => pk.levels[7].bossKind).join(',') === 'leech,siphon,prism,mimic,blockade');
   check('every shipped campaign lints clean (beats + bands included)',
     G.CAMPAIGNS.every(pk => G.lintCampaign(pk).every(fl => fl.length === 0)));
 

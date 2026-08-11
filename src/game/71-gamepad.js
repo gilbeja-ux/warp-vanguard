@@ -423,7 +423,9 @@ function pollGamepad(dt) {
   if (inIntro) return;                   // no pulse triggers until the lane is live
   for (const [bi, ni, key] of [[6, 0, 'lt'], [7, 1, 'rt']]) { // LT/RT → pulse
     const dn = press(bi);
-    if (dn && !padPrev[key] && !boss && pulseCharge[ni] >= PULSE_MAX && nodes[ni].deadT <= 0) firePulse(ni);
+    // duels run on the pulse — only the boss ceremony and death keep it shut
+    const duelOk = !boss || (boss.introT >= BOSS_CER && boss.dying === undefined);
+    if (dn && !padPrev[key] && duelOk && pulseCharge[ni] >= PULSE_MAX && nodes[ni].deadT <= 0) firePulse(ni);
     padPrev[key] = dn;
   }
 }

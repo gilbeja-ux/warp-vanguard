@@ -159,8 +159,9 @@ canvas.addEventListener('pointerdown', e => {
     else if (P.x < W / 2) padHold[0] = true;
     else padHold[1] = true;
   }
-  // charged pulse orbs: tapping a ready core fires that node's wave, solo
-  if (!boss) {
+  // charged pulse orbs: tapping a ready core fires that node's wave, solo.
+  // The duel runs on this verb — only the ceremony and the death keep it shut
+  if (!boss || (boss.introT >= BOSS_CER && boss.dying === undefined)) {
     for (let i = 0; i < 2; i++) {
       if (pulseCharge[i] < PULSE_MAX || nodes[i].deadT > 0) continue; // fried pads stay dark
       const d = dialCenter(i === 0 ? 'L' : 'R');
@@ -502,6 +503,8 @@ function resetRun() {
   score = 0; zaps = 0; misses = 0; combo = 0; maxCombo = 0; perfects = 0; fragsHit = 0; comboHeal = 0;
   comboStartT = 0; maxComboStart = 0; maxComboSec = 0;
   lbStatus = ''; lastSubmit = null; // clear last run's leaderboard status
+  bossTestRun = false; // every real start clears the drill flag (startBossTest re-sets it)
+  reliefFired = [];    // each level's hot bands get to send their patch again
   startTrace(); // record this run's input from the first step — for verify + replay
   pulseCharge = [0, 0]; pulseWaves = [];
   volley = { charge: 0, cd: 0, shots: [] };
@@ -561,12 +564,17 @@ function startQualification() {
   // free flow: no greeting disc — boot straight in; the CONTROLS CHECK banner
   // and the marching arrows take it from there
 }
-// TEMPORARY dev shortcut: jump straight into the WARDEN CORE duel.
+// TEMPORARY dev shortcut: jump straight into the leech duel.
 // Remove this (and its menu key) before release — grep "BOSS TEST".
 function startBossTest() {
   startLevel(LEVELS.length - 1);
-  levelT = LEVELS[LEVELS.length - 1].duration; // clock already expired — core spawns at once
+  levelT = LEVELS[LEVELS.length - 1].duration; // clock already expired — the leech spawns at once
   introT = 999; introCd = 0;                   // skip the countdown
+  // A DRILL, NOT A RUN. The clock jump above is invisible to the trace, so the
+  // verifier would replay these inputs against the level from second zero and
+  // reject with [0 vs score] — endLevel reads this flag and never files a
+  // boss-test run to any board.
+  bossTestRun = true;
 }
 function startEndless() {
   weekly = false; Math.random = sysRandom;

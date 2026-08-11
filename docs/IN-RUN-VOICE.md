@@ -68,7 +68,7 @@ Priority 1 = highest. "Once" = fires at most once per run.
 | `bossLow` | boss at final hits | 1 | — | ✓ |
 | `win` / `loss` | run ends | 1 | — | ✓ |
 
-Boss barks defer to WARD: if a warden taunt is on screen, CMD stays quiet.
+Boss barks defer to WARD: if a leech taunt is on screen, CMD stays quiet.
 
 ## The pool
 
@@ -96,8 +96,8 @@ const BARKS = {
                 "lost one. don't lose the line."],
   lastStretch: ["final stretch. they'll throw everything.",
                 "almost home. don't ease off.", 'last leg. finish it.'],
-  bossOpen:    ["that's the core. six hits.", 'there it is. dock and hold.'],
-  bossLow:     ["it's failing. finish it.", 'one more. put it down.'],
+  bossOpen:    ["that's the leech. pulse it off our lane.", 'there it is. feed on its swarm.'],
+  bossLow:     ["it's failing. finish it.", 'one more pulse. put it down.'],
   win:         ["relay's clear. good work.", 'convoy delivered. logged.'],
   loss:        ["line's gone. we'll re-run it.", 'they got through. again.']
 };
