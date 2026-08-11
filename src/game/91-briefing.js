@@ -99,8 +99,9 @@ function drawInfoGlyph(kind, cx, cy, r) {
     // constant by design, so there is no state-dependent rate to leap.
     voidPacket(r * 1.05, time * 0.25, time, 7.3);
   } else if (kind === 'line') {
-    // two taps torn open along a running crack
-    const off = r * 1.15;
+    // two full-size taps torn open along a running crack — the pair IS the
+    // threat, so each end is the same hardware the 'normal' glyph shows
+    const off = r * 1.6;
     ctx.strokeStyle = 'rgba(255,60,90,0.6)'; ctx.lineWidth = Math.max(2, r * 0.16);
     ctx.setLineDash([r * 0.4, r * 0.28]);
     ctx.lineDashOffset = -time * r * 2;
@@ -108,7 +109,7 @@ function drawInfoGlyph(kind, cx, cy, r) {
     ctx.setLineDash([]);
     for (const sx of [-off, off]) {
       ctx.save(); ctx.translate(sx, 0);
-      infoTap(r * 0.5, INFO_PAL.normal, false);
+      infoTap(r, INFO_PAL.normal, false);
       ctx.restore();
     }
   } else if (kind === 'wall') {
