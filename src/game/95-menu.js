@@ -536,13 +536,14 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
     ctx.fillStyle = 'rgba(255,210,74,0.85)';
     ctx.fillText('BEST ' + PROG.bests[li].toLocaleString(), px2 + 14, py2 + 92);
   }
+  // no 'boss' entry: the glyph set has no boss art (it fell through to the red
+  // normal tap, reading as a duplicate) and the stats line already says LEECH DUEL
   const kinds = ['normal'];
   if (L2.heavies) kinds.push('heavy');
   if (L2.lines) kinds.push('line');
   if (L2.colors) kinds.push('lock');
   if (L2.walls) kinds.push('wall');
   if (L2.frags) kinds.push('frag');
-  if (L2.boss) kinds.push('boss');
   // how much of the city's shield still reaches this relay — the cover thins
   // with every perimeter you leave behind, and the traffic thickens to match
   if (!campMapImg(CAMP)) {
@@ -561,14 +562,22 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   const dw = pw - 24, dh = 34;
   const dx2 = px2 + 12, dy2 = py2 + ph - dh - 12;
   // the traffic legend stacks UP from the deploy key, so a short panel squeezes
-  // the gap above it rather than sliding glyphs under the button
-  const gRows = Math.ceil(kinds.length / 5), gy = dy2 - 20 - (gRows - 1) * 26;
+  // the gap above it rather than sliding glyphs under the button. Glyphs flow
+  // into one line when the panel is wide enough, wrapping only on overflow —
+  // the linked pair needs a double-width cell now that its taps are full size
+  const cellW = k => k === 'line' ? 52 : 26;
+  let gx = 0, gRow = 0;
+  const slots = kinds.map(k => {
+    const w = cellW(k);
+    if (gx > 0 && gx + w > pw - 28) { gRow++; gx = 0; }
+    const s = { k, x: px2 + 14 + gx + w / 2, row: gRow };
+    gx += w;
+    return s;
+  });
+  const gy = dy2 - 20 - gRow * 26;
   ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
   ctx.fillText('EXPECTED TRAFFIC', px2 + 14, gy - 16);
-  kinds.forEach((k, ki) => {
-    const col2 = ki % 5, row2 = Math.floor(ki / 5);
-    drawInfoGlyph(k, px2 + 26 + col2 * 26, gy + row2 * 26, 8);
-  });
+  slots.forEach(s => drawInfoGlyph(s.k, s.x, gy + s.row * 26, 8));
   levelKey(dx2, dy2, dw, dh, '▶', 'DEPLOY', -1, false, li === frontier);
   menuButtons.push({ x: dx2, y: dy2, w: dw, h: dh, deploy: li, locked: false });
 }
