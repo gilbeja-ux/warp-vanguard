@@ -464,6 +464,28 @@ function buildCity() {
     const kind = destKindFor(campId, li, boss);
     const slot = kind === 'star' ? -1 : (Math.abs(Math.floor(pts[g].x * 13 + pts[g].y * 7)) % sy.planets.length);
     pts[g].sys = sy; pts[g].slot = slot; pts[g].campId = campId; pts[g].li = li; pts[g].boss = boss;
+    // ...AND THE BODY WEARS WHAT YOU WILL ACTUALLY ARRIVE AT. destKindFor above
+    // settled star-vs-world, but the body's LOOK was still whatever mkSystem's
+    // own rng dealt it — so the chart showed an ice giant for a relay that flies
+    // you to a molten world, and the map was decorative rather than a chart.
+    // Both views now read planetVariantFor/starFor, which is the same deal the
+    // lane's own destination is built from (DEST_DEAL, then the hash walk).
+    //
+    // Overwritten HERE, on the one body the relay delivers to, rather than in
+    // mkSystem: every other world in the system is scenery and keeps its rolled
+    // look, so systems stay varied while the destination tells the truth.
+    if (typeof planetVariantFor === 'function') {
+      const V = planetVariantFor(campId, li, boss);
+      if (V && slot >= 0) sy.planets[slot].V = V; // planetChip(V) bakes the world you land at
+      else if (V && V.z) {
+        // the primary IS the destination, so the chart's sun wears the dealt
+        // sun's own colours: `z` is its core, `atmo` its halo. Joined to
+        // strings because STAR_CLASS carries "r,g,b" text while a variant
+        // carries [r,g,b] — the template literal hides that, and hiding it is
+        // how the next reader gets a surprise.
+        sy.cls = { c: V.z.join(','), g: (V.atmo || V.z).join(','), r: sy.cls.r };
+      }
+    }
     // The primary carries the system's bare name; a world carries its numeral.
     // The STATION and GATE suffixes are gone with the kinds that earned them —
     // an installation is no longer the destination, so it no longer names one.

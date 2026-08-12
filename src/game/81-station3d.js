@@ -1409,28 +1409,49 @@ function s3lane(c, sp, x, y, w, alpha, t) {
   gl.addColorStop(1, 'rgba(' + F.col + ',0)');
   c.fillStyle = gl;
   c.beginPath(); c.arc(x, y, R + reach, 0, 6.2831853); c.fill();
-  // …and the corridor itself, as RINGS RIDING OUT OF THE MOUTH. Radial spokes were
+  // …and the corridor itself, as RINGS FALLING INTO THE MOUTH. Radial spokes were
   // the first attempt and they read as clock hands: end-on, a corridor is not spokes,
-  // it is hoops — which is exactly how the game draws its lane everywhere else. Each
-  // ring is born at the aperture and swells outward as it comes at you, fading as it
-  // goes, so the mouth reads as exhaling rather than as a lit decal.
+  // it is hoops — which is exactly how the game draws its lane everywhere else.
+  //
+  // THE RINGS RUN INWARD, and they run in PERSPECTIVE (Gil, 2026-08-12). They used
+  // to be born at the aperture and swell outward on a LINEAR radius, which gave two
+  // wrong readings at once: a gate exhaling, and — because linear spacing has no
+  // convergence — concentric circles stamped on top of the hardware rather than a
+  // corridor leading away to it. Now each hoop is given a DEPTH and its radius is
+  // R * (gateZ / z), the honest 1/z projection: hoops released near the camera come
+  // in wide and, as z walks toward the gate's own depth, they shrink AND bunch up
+  // against the mouth exactly the way real perspective packs them. That convergence
+  // is the distance cue; the eye reads a receding tunnel instead of a flat decal.
   //
   // Squashed on the same axis as the aperture, so the hoops sit in the mouth's plane
   // instead of floating in front of it.
   const NR = Math.max(0, Math.round(F.laneRays));
   if (NR) {
     const sq = Math.max(0.12, sp.apUp ? Math.cos(S3D_LIGHT.el) : Math.sin(S3D_LIGHT.el));
+    const zNear = 1 / (1 + F.laneLen); // depth a hoop is released at: the far end of the run
     c.save();
     c.translate(x, y);
     c.scale(1, sq);
     for (let i = 0; i < NR; i++) {
-      // evenly spaced in phase so the mouth pulses steadily rather than in clumps
-      const q = ((t * 0.42 + i / NR) % 1 + 1) % 1;
-      const rr = R * (0.55 + q * (0.45 + F.laneLen));
-      const fade = Math.sin(q * Math.PI);          // in at the mouth, out at the end
+      // evenly spaced in phase so the mouth swallows them steadily, not in clumps
+      const u = ((t * 0.42 + i / NR) % 1 + 1) % 1;   // 0 released near you → 1 at the mouth
+      const z = zNear + (1 - zNear) * u;             // walking IN toward the gate's own depth
+      const rr = R / z;                              // 1/z: wide out here, R at the aperture
+      // faint when it is wide and far from the source, brightest as it converges,
+      // gone the instant the mouth takes it. The `u` weighting pushes the peak
+      // LATE — a hoop is dimmest out here and brightest just before the aperture
+      // swallows it, so the brightness gradient itself leads the eye down the
+      // corridor to the gate. Peaking mid-run (plain sine) read as a halo
+      // hanging around the hardware instead.
+      const fade = Math.sin(u * Math.PI) * (0.35 + 0.65 * u);
       if (fade < 0.02) continue;
-      c.strokeStyle = 'rgba(' + F.col + ',' + (a * 0.55 * fade).toFixed(3) + ')';
-      c.lineWidth = Math.max(0.8, R * 0.055 * (0.5 + fade));
+      // OPACITY DOWN to a whisper of what it was: the corridor is depth, not a
+      // headline, and at full strength it fought the hardware it is supposed to
+      // recede toward.
+      c.strokeStyle = 'rgba(' + F.col + ',' + (a * 0.33 * fade).toFixed(3) + ')';
+      // a constant-width hoop LOOKS thicker up close — same 1/z, so the line
+      // weight agrees with the radius instead of contradicting it
+      c.lineWidth = Math.max(0.6, R * 0.045 / z);
       c.beginPath(); c.arc(0, 0, rr, 0, 6.2831853); c.stroke();
     }
     c.restore();

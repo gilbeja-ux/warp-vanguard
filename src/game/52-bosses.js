@@ -84,6 +84,13 @@ const BOSS_DEAD_IMPACT = 1.43; // where the blast sits inside the take
 // there. Raise HOLD to let more of the piece play under the opening.
 const ARRIVAL_HOLD = 4.4;
 const ARRIVAL_FADE = 1.0;
+// AND THE MUSIC GETS OUT OF ITS WAY. The take is mastered hot — it peaks ABOVE
+// full scale already, so making it "louder" by gain would only clip it. What
+// was actually burying it is the run track playing at full level underneath,
+// so the arrival ducks the music for exactly as long as it holds. The duck's
+// own 1.2s release then lifts the track back as the take fades, which is why
+// this reuses musicDuck rather than adding a second envelope.
+const ARRIVAL_DUCK = ARRIVAL_HOLD;
 // THE MIMIC'S LAMP. Random flips would be a coin toss, so the lamp keeps three
 // promises: a colour HOLDS long enough to bank against, every flip is telegraphed
 // by a blink, and the lamp is LOCKED while a pulse is in flight — the shot you
@@ -126,6 +133,7 @@ function spawnBoss() {
   // its first tenth of a second, so it belongs HERE rather than at any later
   // beat of the ceremony — the sound and the rising hull are one arrival.
   sfx.bossArrive(ARRIVAL_HOLD, ARRIVAL_FADE);
+  boss.duckT = ARRIVAL_DUCK; // and the track stands down while it plays
   // NO DISC. A boss is met, not read about: the arrival ceremony puts its name
   // and its one-line tell on the ring (85-enemy-art), WARD barks over comms,
   // and ONLINE pops. Everything needed to start reacting is in the picture.
@@ -703,6 +711,10 @@ function updateBossFight(dt, g) {
   b.spin += dt * 2;
   b.hurtT = Math.max(0, b.hurtT - dt);
   b.shieldT = Math.max(0, b.shieldT - dt);
+  // hold the track down under the arrival take (see ARRIVAL_DUCK). Re-asserted
+  // every frame rather than set once, because musicDuck decays on its own —
+  // letting go is what releases the music, and it releases smoothly for free.
+  if (b.duckT > 0) { b.duckT -= dt; musicDuck = 1; }
   if (b.beamFx && b.beamFx.length) { // spent light retreating into the mouth
     for (const f3 of b.beamFx) f3.dying += dt;
     b.beamFx = b.beamFx.filter(f3 => f3.dying < BEAM_FADE);
