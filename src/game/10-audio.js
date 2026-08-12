@@ -55,6 +55,11 @@ function audio() {
 // a MENU screen for soundtrack purposes: the menu itself, and the field guide
 // when it was opened from the home screen rather than mid-run
 const menuScreenNow = () => state === S.MENU || (state === S.GUIDE && (!guide || guide.from !== 'pause'));
+// ...and its counterpart: the pause card's music hold has to survive stepping
+// OFF the card into the guide. The guide opened mid-run is still the pause —
+// the run is frozen behind it — so the track stays parked where it stood
+// instead of spooling back up for a screen that isn't the lane.
+const pauseHeldNow = () => state === S.PAUSE || (state === S.GUIDE && !!guide && guide.from === 'pause');
 function tone(freq, dur, type, vol, slideTo, dest, delay, pan) {
   if (simMuted) return;
   const ac = AC; if (!ac || !sfxGain) return;

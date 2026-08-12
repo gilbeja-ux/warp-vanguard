@@ -45,7 +45,7 @@ const GUIDE_ITEMS = [
     draw: (cx, cy, r) => archTapSpec('lk1', 'normal', 1, cx, cy, r, 0.5) },
   { cap: ['DANGER!', 'STEER CLEAR'], col: '160,175,200',
     draw: (cx, cy, r) => archTapSpec('frag', 'frag', undefined, cx, cy, r, 0.95) },
-  { cap: ['RIDE IT TO', 'CHARGE PULSE'], col: '255,210,74',
+  { cap: ['RIDE TO', 'CHARGE PULSE'], col: '255,210,74',
     draw: (cx, cy, r) => { // the ribbon in its true 3D form: a STATIC snake of
       // wall arcs receding into a private bore (real wallPatch projection),
       // with a ride-light sweeping it head-to-tail, letting go, and looping
