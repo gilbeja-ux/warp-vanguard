@@ -77,6 +77,13 @@ const BEAM_FADE = 0.35;
 // (BOSS_BOOM_AT) or re-cut the take (BOSS_DEAD_IMPACT) and the other follows.
 const BOSS_BOOM_AT = 2.3;      // when the implosion lets go, in ceremony seconds
 const BOSS_DEAD_IMPACT = 1.43; // where the blast sits inside the take
+// THE ARRIVAL BED. boss-arrival.mp3 runs 9.08s at full level — far longer than
+// the 3.4s ceremony — so it is held across the whole arrival and then eased
+// out. HOLD lands in the take's own dip at ~4.5s (a swell would cut off mid
+// -phrase), which is about a second into the fight; FADE carries it away from
+// there. Raise HOLD to let more of the piece play under the opening.
+const ARRIVAL_HOLD = 4.4;
+const ARRIVAL_FADE = 1.0;
 // THE MIMIC'S LAMP. Random flips would be a coin toss, so the lamp keeps three
 // promises: a colour HOLDS long enough to bank against, every flip is telegraphed
 // by a blink, and the lamp is LOCKED while a pulse is in flight — the shot you
@@ -115,6 +122,10 @@ function spawnBoss() {
   // the continue's ledger: what the level EARNED before the duel began — a
   // RETRY DUEL restores exactly this, so only the fight itself is replayed
   bossSnap = { score, zaps, misses, perfects, maxCombo, maxComboSec, fragsHit };
+  // THE DRAMA, on the frame the machine surfaces. The take is full level from
+  // its first tenth of a second, so it belongs HERE rather than at any later
+  // beat of the ceremony — the sound and the rising hull are one arrival.
+  sfx.bossArrive(ARRIVAL_HOLD, ARRIVAL_FADE);
   // NO DISC. A boss is met, not read about: the arrival ceremony puts its name
   // and its one-line tell on the ring (85-enemy-art), WARD barks over comms,
   // and ONLINE pops. Everything needed to start reacting is in the picture.

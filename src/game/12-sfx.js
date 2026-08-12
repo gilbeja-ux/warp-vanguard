@@ -20,6 +20,11 @@ const SFX_FILES = {
   // EARLY on purpose so its impact lands on the implosion rather than after it;
   // see BOSS_DEAD_IMPACT in 52-bosses, which is that 1.43s figure.
   bossDead: ['audio/sfx/boss-dead.mp3', 1.0],
+  // 9.08s — a BED, not an impact: full level from 0.14s and swelling in waves
+  // to ~7.5s. It opens on the frame the machine surfaces and is faded out over
+  // the duel's first beat (ARRIVAL_HOLD/FADE in 52-bosses) — carried to its own
+  // end it would still be at three-quarter level with combat on top of it.
+  bossArrive: ['audio/sfx/boss-arrival.mp3', 1.0],
   // ---- the warp trilogy: entering the lane, riding it, leaving it ----
   // 0.38, down from 0.9 (-7.5dB), in two passes — 0.65 was still too hot on the device.
   // Two reasons it runs loud: it fires on the SAME beat as `startup` (0.9) so the two
@@ -152,8 +157,12 @@ const sfx = {
     tone(880, 0.22, 'triangle', 0.065, 1320, null, 0.10, pan);
     tone(1760, 0.30, 'sine', 0.030, 2640, null, 0.16, pan);
   },
-  // (bossOnline lived here — the arrival sting. The ceremony is silent now, so
-  // it had no caller; a synth voice nothing plays is just weight. 2026-08-12.)
+  // THE ARRIVAL, as a recorded bed. Fired on the frame the machine surfaces and
+  // held across the ceremony, then eased out through the take's own dip so the
+  // fight opens in the clear. No synth fallback ON PURPOSE: the ceremony's
+  // synthesised cues were cut deliberately (see spawnBoss), so a missing take
+  // means silence — which is exactly what shipped before this file existed.
+  bossArrive(hold, fade) { return playSample('bossArrive', 1, 0, 1, 0, undefined, 0, hold, fade); },
   // THE MACHINE DYING, as a recorded take. Called from the death ceremony ~1.43s
   // BEFORE the implosion so the take's own blast lands on it (the build-up scores
   // the convulsions on the way there). Returns false when the take has not
