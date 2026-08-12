@@ -70,6 +70,13 @@ const SWEEP_ADD_GAP = 1.15;   // trickle spacing for reds released under a sweep
 // spectacle riding b.beamFx — the fight machinery is already done with it).
 const BEAM_BURST = 0.30;
 const BEAM_FADE = 0.35;
+// THE DEATH TAKE, aligned to the picture. boss-dead.mp3 is 5.11s with a 1.4s
+// build and its blast at 1.43s, so the take is started that far BEFORE the
+// implosion: the build scores the convulsions, the blast lands on the flash.
+// Both numbers are here because they are one relationship — move the implosion
+// (BOSS_BOOM_AT) or re-cut the take (BOSS_DEAD_IMPACT) and the other follows.
+const BOSS_BOOM_AT = 2.3;      // when the implosion lets go, in ceremony seconds
+const BOSS_DEAD_IMPACT = 1.43; // where the blast sits inside the take
 // THE MIMIC'S LAMP. Random flips would be a coin toss, so the lamp keeps three
 // promises: a colour HOLDS long enough to bank against, every flip is telegraphed
 // by a blink, and the lamp is LOCKED while a pulse is in flight — the shot you
@@ -105,6 +112,9 @@ function spawnBoss() {
     boss.phase = 0; boss.round0 = 0;
   }
   heat = 0; overheat = false; beamActive = false; beamAim.x = 0; beamAim.y = 0;
+  // the continue's ledger: what the level EARNED before the duel began — a
+  // RETRY DUEL restores exactly this, so only the fight itself is replayed
+  bossSnap = { score, zaps, misses, perfects, maxCombo, maxComboSec, fragsHit };
   // NO DISC. A boss is met, not read about: the arrival ceremony puts its name
   // and its one-line tell on the ring (85-enemy-art), WARD barks over comms,
   // and ONLINE pops. Everything needed to start reacting is in the picture.
@@ -383,8 +393,12 @@ function runSwarm(b, dt, opts) {
     locks: opts.locks, purple: opts.purple,
     latch: opts.latch !== undefined ? opts.latch : r >= 3
   });
+  // NO SOUND ON A RELEASE. The first wave lands on the duel's opening frame, so
+  // this crackle WAS the encounter's start sound — the last synth noise standing
+  // between the ceremony and a proper 'boss incoming' take (Gil, 2026-08-12).
+  // The popup says it, the drones arriving say it louder, and the moment is now
+  // free for a recorded cue.
   popup(W / 2, H * 0.3, 'SWARM RELEASED', '#d465ff');
-  crackle(0.3, 900, 2200, 2, 0.4);
 }
 // A LIGHT IS KEYED TO ONE EMITTER — the beacon's law, kept whole: a beam
 // carries `phase` (0 blue / 1 white) and only ever fries its matching
@@ -578,8 +592,7 @@ function updatePrismFight(dt, g) {
       b.beams = [];
       b.mode = 'adds'; b.modeT = 14; // the charge window: a swarm to feed on
       leechWave(4 + Math.min(4, bossRound(b)), { latch: bossRound(b) >= 2 });
-      popup(W / 2, H * 0.3, 'SWARM RELEASED', '#d465ff');
-      crackle(0.3, 900, 2200, 2, 0.4);
+      popup(W / 2, H * 0.3, 'SWARM RELEASED', '#d465ff'); // silent, like runSwarm's
     }
     return;
   }
@@ -708,23 +721,24 @@ function updateBossFight(dt, g) {
         drank = true;
       }
     }
+    // THE ARRIVAL IS QUIET NOW (Gil's call, 2026-08-12). It used to carry a
+    // 2.6s synth drone + crackle, the bossOnline() sting, a sawtooth stab, and
+    // TWO haptic jolts — a stack of synthesised noise announcing a machine that
+    // announces itself perfectly well on the ring. The picture, the WARD line
+    // and the lane's own music carry it; nothing here plays a note or buzzes.
     if (drank && !b.drankSaid && b.introT > 0.8) {
       b.drankSaid = true;
       popup(W / 2, H * 0.36, 'IT DRINKS YOUR CHARGE', '#d465ff');
-      tone(90, 0.8, 'sine', 0.1, 40);
     }
-    if (!b.cer1) { b.cer1 = true; tone(30, 2.6, 'sine', 0.16, 55); crackle(2.4, 60, 260, 1, 0.35); }
     if (!b.cer2 && b.introT > 1.5) { // the lamp ignites; it speaks
       b.cer2 = true;
-      sfx.bossOnline(); buzz([40, 60, 90], { strong: 0.7, weak: 0.9 }); // arrival: presence, not pain
       // WARD: every package defines WARD as 'the interdiction' in the family's
       // own violet — the one voice all five machines share
       commCur = { s: 'WARD', m: bd.speak }; commT = 0;
     }
     if (b.introT >= BOSS_CER) {
       popup(W / 2, H * 0.30, bd.online, '#d465ff');
-      shake = 1; buzz([30, 40, 60]);
-      tone(160, 0.5, 'sawtooth', 0.14, 60);
+      shake = 1; // the world still lurches — that is picture, not noise
     }
     return;
   }
@@ -754,12 +768,16 @@ function updateBossDeath(dt, g) {
     shake = Math.min(shake + 0.4, 1);
     buzz(20);
   }
-  if (!b.boom && b.dying > 2.3) { // the implosion lets go
+  // the take goes in EARLY, so its blast and the implosion are one event
+  if (!b.deadSfx && b.dying >= BOSS_BOOM_AT - BOSS_DEAD_IMPACT) {
+    b.deadSfx = sfx.bossDeadTake() ? 'take' : 'none';
+  }
+  if (!b.boom && b.dying > BOSS_BOOM_AT) { // the implosion lets go
     b.boom = true;
     burst(b.sx, b.sy, '#ffffff', 60, 8);
     burst(b.sx, b.sy, '#d465ff', 50, 6);
     burst(b.sx, b.sy, '#ff9a3c', 30, 7);
-    sfx.bossDown();
+    if (b.deadSfx !== 'take') sfx.bossDown(); // the take never decoded — synth it here instead
     shake = 1;
     buzz([80, 40, 120], { strong: 1, weak: 1 }); // the kill
   }

@@ -117,6 +117,11 @@ let tut = null;               // tutorial controller (level 1, first run)
 let boss = null;              // the warp leech (levels with boss: true)
 let bossTestRun = false;      // the dev long-press drill — its runs never file to a board
 let reliefFired = [];         // band-relief ledger: which hot bands already sent their patch
+// THE CONTINUE, priced in eligibility: a duel lost may be retried WITHOUT
+// re-flying the level — but a continued run no longer ranks anywhere.
+let bossFailed = false;       // the run ended mid-duel — the END screen may offer RETRY DUEL
+let bossRetried = false;      // a continue was taken: completion counts, the boards don't
+let bossSnap = null;          // score/tally snapshot at boss arrival — what a retry restores
 const BOSS_CER = 3.4;         // arrival ceremony length — the core emerges before it fights
 let latches = [];             // boss rail clamps: {a, span0, t, dur} — orange arcs that fry a crossing node
 // DEAD SUBSYSTEM — the fused ray-cannon duel is disabled ("no fuse, ever": boss.mergeT

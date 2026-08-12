@@ -53,6 +53,15 @@ const NEVER_SHIP = [
   'audio/Midnight_Terminal_Wait.mp3',  // 2.7MB — the previous menu take, replaced by 262be2d
   'editor.html', 'editor.js',          // the Lane Designer: a dev tool, not a game screen
   'game/manifest.json',                // build-time load order; nothing fetches it at runtime
+  // THE BRAND MASTERS. src/icons/logo*.png are what the art is re-dropped as;
+  // `npm run icons` converts them to the lossless webps the game actually loads
+  // (src/logo.webp, src/logo-small.webp) and cuts the launcher set from them.
+  // Shipping the PNGs too packaged 744KB of duplicate brand — the exact double
+  // -copy scripts/icons.py warns about in its own docstring. The masters stay in
+  // the repo (they are the thing to re-drop); they just never reach a device.
+  // GB-logo-hollow.png is NOT here: 99-boot loads it as the studio mark.
+  'icons/logo.png', 'icons/logo-small.png',
+  'icons/gb-logo.png',                 // the solid studio mark — only the hollow one is loaded
   '.DS_Store',
 ];
 const SKIP_EXT = /\.(bak|stale-bak|orig|rej|md)$/i; // .md: notes-to-authors, never a game asset

@@ -18,6 +18,7 @@ function gpSyncFocus(list) { // → true when focus just snapped to a fresh scre
   // the campaign slice on the wheel — whatever moves the player forward
   let i = list.findIndex(b => b.deploy !== undefined || b.action === 'next' || b.action === 'resume' || b.mode === 'campaign'
     || (b.camp !== undefined && CAMPAIGNS[b.camp] === CAMP));
+  if (i < 0 && state === S.END) i = list.indexOf(endForward(list)); // the report's own forward key (continue included)
   if (i < 0) i = list.findIndex(b => b.action === 'retry' || b.endless !== undefined);
   gpSel = Math.max(0, i);
   return true;
@@ -66,6 +67,21 @@ function gpQuitAction() { // Y: BACK a screen in the menus, QUIT the run elsewhe
 function gpEndPress(action) {
   const b = endButtons.find(b2 => b2.action === action);
   if (b) endTap(b.x + b.w / 2, b.y + b.h / 2);
+}
+// THE REPORT'S FORWARD KEY, in one place. A is hard-mapped to whatever moves
+// the player onward, and the report offers exactly one of these at a time:
+// NEXT LEVEL after a win, RETRY DUEL after a duel death (the continue), else
+// RETRY. It lived inline in three spots — the pad hint, the initial focus and
+// the A handler — and when the continue was added, only the screen learned
+// about it: A fell through to 'retry' and restarted the whole level, which is
+// exactly the wrong door. One list, one order, every consumer.
+const END_FORWARD = ['next', 'duel', 'retry'];
+function endForward(list) {
+  for (const a of END_FORWARD) {
+    const b = (list || []).find(b2 => b2.action === a);
+    if (b) return b;
+  }
+  return null;
 }
 function gpList() {
   // settings rows (toggles) ride the focus ring too — pause and menu panel alike
@@ -152,9 +168,9 @@ function drawGpHints() { // once a controller speaks, keys wear their buttons
       ctx.restore();
     }
   }
-  // on the report, A is hard-mapped to FORWARD (next, else retry), B re-runs, Y exits
-  const endA = state === S.END && list
-    ? (list.some(b2 => b2.action === 'next') ? 'next' : 'retry') : null;
+  // on the report, A is hard-mapped to FORWARD (next / retry duel / retry), Y exits
+  const endAB = state === S.END && list ? endForward(list) : null;
+  const endA = endAB ? endAB.action : null;
   if (list) for (const b of list) {
     let h = null;
     if (b.deploy !== undefined || b.action === 'resume'
@@ -388,7 +404,7 @@ function pollGamepad(dt) {
       // on the report it's always FORWARD (next / retry) — B is the menu exit
       const target = onMap ? list.find(b2 => b2.deploy !== undefined) // elsewhere the focused key
         : state === S.END
-          ? (list.find(b2 => b2.action === 'next') || list.find(b2 => b2.action === 'retry') || list[Math.min(gpSel, list.length - 1)])
+          ? (endForward(list) || list[Math.min(gpSel, list.length - 1)])
           : list[Math.min(gpSel, list.length - 1)];
       if (target) {
         gpNav = true;

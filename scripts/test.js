@@ -224,6 +224,8 @@ code = code.replace("'use strict';", '') + `
   latches: () => latches, setLatches: v => { latches = v; },
   spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; },
   volley: () => volley, BOSS_CER: () => BOSS_CER, latchFreeArc, leechWave, PURPLE_CLEAR: () => PURPLE_CLEAR,
+  startBossRetry, isBossFailed: () => bossFailed, isBossRetried: () => bossRetried, endButtons: () => endButtons,
+  endTap, endForward, // the report's keys, and the pad's forward mapping over them
   bandCfg, lintLevel, lintCampaign, lintWalk, levelThreats, birthFade, getSched: () => sched
 };`;
 eval(code);
@@ -935,6 +937,55 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
   if (G.getState() === G.S.INFO) dismiss();
   check('the drill reached its own end', G.getState() === G.S.END);
   check('...and filed NOTHING — no capture, no submission', G.getLastRun() === prevRun);
+}
+
+// ================= THE CONTINUE: retry the duel, lose the record =================
+{
+  G.startLevel(7);
+  G.setLevelT(46); G.update(0.01); // the leech spawns — the snapshot is taken here
+  ceremonyOut();
+  const snapScore = G.getScore();
+  G.setShield(0); G.setIntegrity(0); G.update(0.05); // the duel ends us
+  check('a duel death lands on the END screen with the continue armed',
+    G.getState() === G.S.END && G.getEndWin() === false && G.isBossFailed() === true);
+  G.setEndT(9); // past every reveal — the buttons are live
+  drawOk('END screen with RETRY DUEL offered', () => {});
+  check('the END screen offers RETRY DUEL first, full retry second',
+    G.endButtons().some(b2 => b2.action === 'duel') && G.endButtons().some(b2 => b2.action === 'retry'));
+  const prevRun2 = G.getLastRun();      // the failed run filed normally — it still ranked
+  const bests0 = G.getProg().bests[7] || 0;
+  { // THE PAD'S FORWARD KEY must be the continue. A is hard-mapped to whatever
+    // moves the player onward, and it knew only next/retry when the continue
+    // shipped — so A restarted the whole level instead. Assert the mapping,
+    // not just the function behind it.
+    const fwd = G.endForward(G.endButtons());
+    check('the pad\'s A key points at RETRY DUEL, not a level restart', !!fwd && fwd.action === 'duel');
+  }
+  { // and press it the way a player does — through the button, not the API
+    const db = G.endButtons().find(b2 => b2.action === 'duel');
+    G.endTap(db.x + db.w / 2, db.y + db.h / 2);
+    let tg2 = 60;
+    while (tg2-- > 0 && G.getState() === G.S.END) G.update(0.05);
+    G.setIntro(999);
+    G.update(0.01);
+  }
+  check('the continue restores the level-earned score and re-arms the duel',
+    G.getScore() === snapScore && !!G.boss() && G.isBossRetried() === true);
+  check('...and it is the DUEL that resumed, not the level from zero',
+    G.getLevelT() >= G.getLevels()[7].duration);
+  ceremonyOut();
+  let kg3 = 12;
+  while (kg3-- > 0 && G.boss() && G.boss().dying === undefined) {
+    G.enemies().length = 0; G.setLatches([]);
+    pulseShot(0);
+  }
+  let dg4 = 400;
+  while (G.boss() && dg4-- > 0) { G.setIntegrity(100); G.update(0.05); }
+  if (G.getState() === G.S.INFO) dismiss();
+  check('a continued win still completes the campaign (stars stand)',
+    G.getState() === G.S.END && G.getEndWin() === true && G.getProg().stars[7] > 0);
+  check('...but the record book stays closed: no filing, no local best',
+    G.getLastRun() === prevRun2 && (G.getProg().bests[7] || 0) === bests0);
 }
 
 // ================= boss engine dispatch (the leech roster) =================

@@ -865,15 +865,28 @@ function drawEnd(g) {
     const margin = g.cx - g.nodeR;
     const bw = Math.min(Math.max(margin * 0.82, 120), 200), bh = 50;
     const lx = margin / 2, rx = W - margin / 2;
+    // a duel lost offers THE CONTINUE first: retry the fight without the level,
+    // with its price — the run stops ranking — printed right under the key
+    const duelable = !endWin && bossFailed && !endless && !qual;
     const primary = endWin && !endless && !qual && levelIdx + 1 < LEVELS.length
       ? { label: 'NEXT LEVEL ▸', action: 'next' }
+      : duelable ? { label: 'RETRY DUEL ▸', action: 'duel' }
       : { label: endWin ? 'RESTART' : 'RETRY', action: 'retry' };
     const secondary = [];
     if (primary.action === 'next') secondary.push({ label: 'RESTART', action: 'retry' });
+    if (primary.action === 'duel') secondary.push({ label: 'FULL RETRY', action: 'retry' });
     secondary.push({ label: 'MENU', action: 'menu' });
     const bcut = Math.min(12, bh * 0.28); // the button()'s own chamfer — the focus ring matches it
     button(rx - bw / 2, g.cy - bh / 2 + rise, bw, bh, primary.label, !gated, gated);
     if (!gated) endButtons.push({ x: rx - bw / 2, y: g.cy - bh / 2, w: bw, h: bh, action: primary.action, cut: bcut });
+    if (primary.action === 'duel') { // the price, stated where the choice is made
+      const pa2 = ctx.textAlign;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,180,120,0.78)';
+      ctx.font = '600 10px Audiowide, system-ui';
+      ctx.fillText("SCORE WON'T QUALIFY FOR THE BOARD", rx, g.cy + bh / 2 + rise + 18);
+      ctx.textAlign = pa2;
+    }
     let sy = g.cy - (secondary.length * bh + (secondary.length - 1) * 14) / 2;
     for (const b of secondary) {
       button(lx - bw / 2, sy + rise, bw, bh, b.label, false, gated);

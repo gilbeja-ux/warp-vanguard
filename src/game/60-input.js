@@ -455,6 +455,10 @@ function endTap(x, y) {
         if (weekly) startWeekly(); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx);
         warpT = 0; // a re-sync doesn't travel — no warp dive on the way back in
       }));
+      else if (b.action === 'duel') pressUI(b, () => startTrans('derez', () => {
+        startBossRetry(); // the continue: the duel replays, the run stops ranking
+        warpT = 0;
+      }));
       else if (b.action === 'next') pressUI(b, () => startTrans('warp', () => startLevel(levelIdx + 1, true)));
       else pressUI(b, () => { // home in style: the menu drives into view, no glitch
         // training lives in Story Mode now → the report zooms back out INTO its disc
@@ -504,6 +508,7 @@ function resetRun() {
   comboStartT = 0; maxComboStart = 0; maxComboSec = 0;
   lbStatus = ''; lastSubmit = null; // clear last run's leaderboard status
   bossTestRun = false; // every real start clears the drill flag (startBossTest re-sets it)
+  bossFailed = false; bossRetried = false; bossSnap = null; // continues don't outlive their level (startBossRetry re-marks)
   reliefFired = [];    // each level's hot bands get to send their patch again
   startTrace(); // record this run's input from the first step — for verify + replay
   pulseCharge = [0, 0]; pulseWaves = [];
@@ -575,6 +580,23 @@ function startBossTest() {
   // reject with [0 vs score] — endLevel reads this flag and never files a
   // boss-test run to any board.
   bossTestRun = true;
+}
+// THE CONTINUE — retry the DUEL only, priced in eligibility: the level's
+// earnings come back from the snapshot spawnBoss took, the hull is fresh, and
+// the run is marked non-competitive. Completion still counts (stars, the
+// campaign's route); the boards, the local bests and the badge do not — a
+// continue buys the ending, never the record.
+function startBossRetry() {
+  const snap = bossSnap;
+  startLevel(levelIdx);
+  if (snap) {
+    score = snap.score; zaps = snap.zaps; misses = snap.misses; perfects = snap.perfects;
+    maxCombo = snap.maxCombo; maxComboSec = snap.maxComboSec; fragsHit = snap.fragsHit;
+  }
+  levelT = LEVELS[levelIdx].duration; // the level is already flown — straight to the duel
+  introT = 999; introCd = 0;
+  bossRetried = true;
+  popup(W / 2, H * 0.3, 'DUEL RETRY — THIS RUN NO LONGER RANKS', '#ffb478');
 }
 function startEndless() {
   weekly = false; Math.random = sysRandom;

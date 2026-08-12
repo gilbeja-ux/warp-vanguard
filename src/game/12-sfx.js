@@ -16,6 +16,10 @@ const SFX_FILES = {
   startup:  ['audio/sfx/startup1.mp3', 0.9], // boot sequence as the ring locks in (cut at 2s)
   fail:   ['audio/sfx/failed.mp3', 1.0],
   win:    ['audio/sfx/win.mp3', 1.0],
+  // 5.11s — a 1.4s build, the blast at 1.43s, ringing out by 4s. It is STARTED
+  // EARLY on purpose so its impact lands on the implosion rather than after it;
+  // see BOSS_DEAD_IMPACT in 52-bosses, which is that 1.43s figure.
+  bossDead: ['audio/sfx/boss-dead.mp3', 1.0],
   // ---- the warp trilogy: entering the lane, riding it, leaving it ----
   // 0.38, down from 0.9 (-7.5dB), in two passes — 0.65 was still too hot on the device.
   // Two reasons it runs loud: it fires on the SAME beat as `startup` (0.9) so the two
@@ -148,12 +152,15 @@ const sfx = {
     tone(880, 0.22, 'triangle', 0.065, 1320, null, 0.10, pan);
     tone(1760, 0.30, 'sine', 0.030, 2640, null, 0.16, pan);
   },
-  bossOnline() { // the gateway core spins up
-    tone(55, 1.1, 'sawtooth', 0.11, 220);
-    crackle(0.9, 300, 1600, 2, 1.0, 0.1);
-    tone(110, 0.5, 'square', 0.07, 55, null, 0.9);
-  },
-  bossDown() { // core breach: broadband blast into a long sub tail
+  // (bossOnline lived here — the arrival sting. The ceremony is silent now, so
+  // it had no caller; a synth voice nothing plays is just weight. 2026-08-12.)
+  // THE MACHINE DYING, as a recorded take. Called from the death ceremony ~1.43s
+  // BEFORE the implosion so the take's own blast lands on it (the build-up scores
+  // the convulsions on the way there). Returns false when the take has not
+  // decoded — the caller then falls back to bossDown() ON the implosion frame,
+  // because the synth voice has no build-up to schedule against.
+  bossDeadTake() { return playSample('bossDead'); },
+  bossDown() { // fallback: broadband blast into a long sub tail
     crackle(0.7, 1200, 90, 1.4, 2.6);
     tone(90, 0.9, 'sine', 0.16, 30);
     crackle(0.4, 4000, 600, 4, 1.2, 0.15);

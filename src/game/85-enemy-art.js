@@ -1014,13 +1014,21 @@ const LEECH_RIG = {
 // the lamp is the fight's tell: hostile red at rest (glitching the family
 // violet), the condemned pulse colour when a lamp mechanic is live — and the
 // blink telegraphs a flip by flickering THROUGH the colour that is coming
+// the lamp FADES between its colours, never blinks (Gil's call, after a
+// blinkier cut): every state is a smooth crossfade on its own clock
+function lampMix(c1, c2, t) {
+  const a = c1.split(','), b2 = c2.split(',');
+  return Math.round(lerp(+a[0], +b2[0], t)) + ','
+    + Math.round(lerp(+a[1], +b2[1], t)) + ','
+    + Math.round(lerp(+a[2], +b2[2], t));
+}
 function leechLampCol(b) {
-  // the LAST STAND wants BOTH keys: the lamp strobes blue/white, fast — no
-  // colour to read any more, just the demand itself
-  if (b.lastStand) return Math.sin(time * 14) > 0 ? NODE_COLS[0] : NODE_COLS[1];
-  if (!bossLampLive())
-    return Math.sin(time * 11) > 0.86 ? '212,101,255' : '255,60,90';
-  if (b.lampBlink > 0 && Math.sin(time * 26) > 0) return NODE_COLS[1 - b.lamp];
+  // the LAST STAND wants BOTH keys: the lamp breathes between blue and white
+  if (b.lastStand) return lampMix(NODE_COLS[0], NODE_COLS[1], 0.5 + 0.5 * Math.sin(time * 5));
+  if (!bossLampLive()) // at rest: hostile red with a slow violet breath in it
+    return lampMix('255,60,90', '212,101,255', 0.3 + 0.3 * Math.sin(time * 2));
+  if (b.lampBlink > 0) // the flip warning: smooth surges toward the NEXT colour
+    return lampMix(NODE_COLS[b.lamp], NODE_COLS[1 - b.lamp], 0.5 - 0.5 * Math.cos(time * 16));
   return NODE_COLS[b.lamp];
 }
 function drawLeechMachine(g) {
@@ -1103,100 +1111,53 @@ function drawLeechMachine(g) {
   stamp('LCHRIM', size * rig.rim, b.spin * rig.wRim * wob, fbRim);
   stamp('LCHGEAR', size * rig.gear, b.spin * rig.wGear * wob, fbGear);
   stamp('LCHHUB', size * rig.hub, b.spin * 0.12 * wob, fbHub);
-  // ---- THE LAMP — a HAL-class camera eye, drawn live because its colour is
-  // the fight's tell. One deep lens in the hub's mouth: a dark barrel, stacked
-  // glass elements leaning toward the player's cannon with tiny deterministic
-  // saccades — it re-fixates like something that THINKS, which is what makes
-  // it scary — a machined blade iris, and a small furious sensor at the bottom
-  // of the well burning the key colour. Ignition on arrival, panic in death.
+  // ---- THE LAMP — a burning orb, drawn live because its colour is the
+  // fight's tell. (A HAL-style camera eye lived here for one build and Gil
+  // killed it on sight — the lamp is a LIGHT, not a face.) Colours crossfade
+  // on leechLampCol's clocks — the lamp never blinks — and two additive halos
+  // breathe around the core so it reads as a real source in the bore.
   const ign = cerQ < 1 ? clamp((b.introT - 1.5) / 0.9, 0, 1) * (Math.sin(time * 31) > -0.4 ? 1 : 0.3)
     : dieQ >= 0 ? Math.max(0, 1 - dieQ / 2.3) * (Math.sin(time * 23) > -0.2 ? 1 : 0.25)
     : 1;
   const lc = leechLampCol(b);
   const lampR = size * rig.lamp;
-  const blinkA = bossLampLive() && b.lampBlink > 0 ? (Math.sin(time * 26) > 0 ? 1 : 0.45) : 1;
+  // the flip warning breathes the brightness — a smooth swell, never a flicker
+  const blinkA = bossLampLive() && b.lampBlink > 0 ? 0.78 + 0.22 * Math.sin(time * 16) : 1;
   ctx.save();
   ctx.globalAlpha = haze * Math.max(0.03, ign * blinkA);
-  // the stare: the lens leans at its prey (the blue cannon's rail position)
-  const railR2 = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
-  const lkx = g.cx + Math.cos(nodes[0].angle) * railR2 - b.sx;
-  const lky = g.cy + Math.sin(nodes[0].angle) * railR2 - b.sy;
-  const lkd = Math.hypot(lkx, lky) || 1;
-  const ux2 = lkx / lkd, uy2 = lky / lkd;
-  const sacT = Math.floor(time * (dieQ >= 0 ? 7 : 1.3)); // dying: the gaze panics
-  const sac1 = Math.sin(sacT * 12.9898) * 0.5, sac2 = Math.sin(sacT * 78.233) * 0.5;
-  // soft key-coloured halo out of the mouth
   ctx.globalCompositeOperation = 'lighter';
-  const hg = ctx.createRadialGradient(0, 0, 0, 0, 0, lampR * 2.2);
-  hg.addColorStop(0, `rgba(${lc},0.26)`);
+  // the wide soft wash, breathing gently
+  const br2 = 1 + Math.sin(time * 2.6) * 0.06;
+  const hg = ctx.createRadialGradient(0, 0, 0, 0, 0, lampR * 2.6 * br2);
+  hg.addColorStop(0, `rgba(${lc},0.30)`);
+  hg.addColorStop(0.5, `rgba(${lc},0.12)`);
   hg.addColorStop(1, `rgba(${lc},0)`);
   ctx.fillStyle = hg;
-  ctx.beginPath(); ctx.arc(0, 0, lampR * 2.2, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, lampR * 2.6 * br2, 0, TAU); ctx.fill();
+  // and a tight hot bloom hugging the glass
+  const hg2 = ctx.createRadialGradient(0, 0, 0, 0, 0, lampR * 1.25);
+  hg2.addColorStop(0, `rgba(${lc},0.5)`);
+  hg2.addColorStop(1, `rgba(${lc},0)`);
+  ctx.fillStyle = hg2;
+  ctx.beginPath(); ctx.arc(0, 0, lampR * 1.25, 0, TAU); ctx.fill();
   ctx.globalCompositeOperation = 'source-over';
-  // the barrel: a deep dark well — the colour lives at the BOTTOM of it
-  const wg3 = ctx.createRadialGradient(ux2 * lampR * 0.07, uy2 * lampR * 0.07, 0, 0, 0, lampR);
-  wg3.addColorStop(0, 'rgba(16,10,22,1)');
-  wg3.addColorStop(0.7, 'rgba(8,5,13,1)');
-  wg3.addColorStop(1, 'rgba(4,2,8,1)');
-  ctx.fillStyle = wg3;
+  // the lamp itself: a white-hot centre falling through the key colour
+  const lg = ctx.createRadialGradient(0, 0, 0, 0, 0, lampR);
+  lg.addColorStop(0, flash > 0.3 ? '#ffffff' : 'rgba(255,250,245,0.98)');
+  lg.addColorStop(0.35, `rgba(${lc},0.92)`);
+  lg.addColorStop(1, `rgba(${lc},0)`);
+  ctx.fillStyle = lg;
   ctx.beginPath(); ctx.arc(0, 0, lampR, 0, TAU); ctx.fill();
-  // stacked glass elements — each deeper ring shifts further toward the prey,
-  // and that parallax is what makes it read as a BARREL, not a disc
-  for (let j = 1; j <= 4; j++) {
-    const rj = lampR * (1 - j * 0.185);
-    const ox = ux2 * lampR * 0.06 * j + (j > 2 ? sac1 * lampR * 0.03 : 0);
-    const oy = uy2 * lampR * 0.06 * j + (j > 2 ? sac2 * lampR * 0.03 : 0);
-    ctx.strokeStyle = `rgba(${lc},${(0.12 + j * 0.09 + flash * 0.2).toFixed(2)})`;
-    ctx.lineWidth = Math.max(0.8, lampR * (0.035 + j * 0.012));
-    ctx.beginPath(); ctx.arc(ox, oy, rj, 0, TAU); ctx.stroke();
-    // cold glass glint riding the upper-left of each element
-    ctx.strokeStyle = `rgba(210,230,255,${(0.05 + j * 0.02).toFixed(2)})`;
-    ctx.lineWidth = Math.max(0.6, lampR * 0.02);
-    ctx.beginPath(); ctx.arc(ox, oy, rj, Math.PI * 0.85, Math.PI * 1.35); ctx.stroke();
-  }
-  // aperture: a machined 7-blade iris around the sensor, contracting under fire
-  const px3 = ux2 * lampR * 0.24 + sac1 * lampR * 0.05;
-  const py3 = uy2 * lampR * 0.24 + sac2 * lampR * 0.05;
-  const bR = lampR * (0.40 - flash * 0.08);
-  ctx.strokeStyle = `rgba(${lc},${(0.55 + flash * 0.4).toFixed(2)})`;
-  ctx.lineWidth = Math.max(1, lampR * 0.05);
+  // a machined 7-blade iris around the mouth, contracting under fire
+  const bR = lampR * (0.78 - flash * 0.10);
+  ctx.strokeStyle = `rgba(${lc},${(0.6 + flash * 0.35).toFixed(2)})`;
+  ctx.lineWidth = Math.max(1, size * 0.02);
   ctx.beginPath();
   for (let k = 0; k < 7; k++) {
     const a2 = k / 7 * TAU + b.spin * 0.25;
-    ctx[k ? 'lineTo' : 'moveTo'](px3 + Math.cos(a2) * bR, py3 + Math.sin(a2) * bR);
+    ctx[k ? 'lineTo' : 'moveTo'](Math.cos(a2) * bR, Math.sin(a2) * bR);
   }
   ctx.closePath(); ctx.stroke();
-  // THE SENSOR at the bottom of the well — a small furious source, not a wash
-  const sg2 = ctx.createRadialGradient(px3, py3, 0, px3, py3, bR * 0.85);
-  sg2.addColorStop(0, flash > 0.3 ? '#ffffff' : 'rgba(255,248,242,1)');
-  sg2.addColorStop(0.25, `rgba(${lc},0.92)`);
-  sg2.addColorStop(0.7, `rgba(${lc},0.45)`);
-  sg2.addColorStop(1, `rgba(${lc},0)`);
-  ctx.fillStyle = sg2;
-  ctx.beginPath(); ctx.arc(px3, py3, bR * 0.85, 0, TAU); ctx.fill();
-  // sensor reticle etched on the glass — hairline cross through the fixation point
-  ctx.strokeStyle = `rgba(${lc},0.25)`;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(px3 - bR * 1.5, py3); ctx.lineTo(px3 + bR * 1.5, py3);
-  ctx.moveTo(px3, py3 - bR * 1.5); ctx.lineTo(px3, py3 + bR * 1.5);
-  ctx.stroke();
-  // machined lens lip with focus-ring ticks
-  ctx.strokeStyle = `rgba(${lc},${(0.55 + flash * 0.35).toFixed(2)})`;
-  ctx.lineWidth = Math.max(1.2, lampR * 0.07);
-  ctx.beginPath(); ctx.arc(0, 0, lampR, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = `rgba(${lc},0.4)`;
-  ctx.lineWidth = Math.max(0.8, lampR * 0.03);
-  for (let k = 0; k < 12; k++) {
-    const a2 = k / 12 * TAU;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a2) * lampR * 0.93, Math.sin(a2) * lampR * 0.93);
-    ctx.lineTo(Math.cos(a2) * lampR * 0.99, Math.sin(a2) * lampR * 0.99);
-    ctx.stroke();
-  }
-  // specular catch on the glass — it's a LENS, not a hole
-  ctx.fillStyle = 'rgba(220,235,255,0.22)';
-  ctx.beginPath(); ctx.ellipse(-lampR * 0.42, -lampR * 0.48, lampR * 0.2, lampR * 0.1, -0.6, 0, TAU); ctx.fill();
   ctx.restore();
   // chromatic ghost rims when wounded or dying — it can't hold its own outline
   if (dmg > 0.5 || dieQ > 0.2) {

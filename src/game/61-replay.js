@@ -350,14 +350,17 @@ function endLevel(win) {
   // sound) so the replay ends like the real level. The frame loop then holds on
   // the final frame (play button becomes restart); the viewer leaves via BACK.
   if (replaying) { endWin = win; endDropT = win ? 0 : -1; if (win) sfx.arrive(); else sfx.fail(); return; }
+  // the END screen may offer RETRY DUEL when the fight itself is what ended us
+  bossFailed = !win && !!boss && !endless && !qual && !tut;
   // a boss-test drill never files: its clock jump is invisible to the trace,
-  // so no verifier on earth could reproduce it — and it isn't a real run anyway
-  if (boardKey() && !bossTestRun) { captureRun(win); lastRun.trace = frames; lbSubmit(lastRun); } // capture, attach trace, submit (async, fire-and-forget)
+  // so no verifier on earth could reproduce it. A CONTINUED run never files
+  // either — that is the continue's price, stated on the button that took it.
+  if (boardKey() && !bossTestRun && !bossRetried) { captureRun(win); lastRun.trace = frames; lbSubmit(lastRun); } // capture, attach trace, submit (async, fire-and-forget)
   // did this score make the visible board (top 50)? If so, pop the 80s arcade
   // name-entry card on the END screen — every qualifying run, pre-filled with the
   // player's last handle so returning players can keep it or type something new.
   endProvisional = null; nameEntry = null; nameEntryDraft = '';
-  if (boardKey() && !qual && !bossTestRun && score > 0) {
+  if (boardKey() && !qual && !bossTestRun && !bossRetried && score > 0) {
     const bk = boardKey();
     lbProvisional(bk, score, zaps, perfects).then(r => {
       endProvisional = r;
@@ -386,10 +389,13 @@ function endLevel(win) {
     saveState();
     sfx.fail();
   } else if (win) {
+    // a CONTINUED win still completes — stars and the route are the point of
+    // the continue — but the record book stays closed to it: no local best,
+    // no NEW BEST badge, exactly as the RETRY DUEL button said.
     PROG.stars[levelIdx] = Math.max(PROG.stars[levelIdx], endStars);
     PROG.unlocked = Math.max(PROG.unlocked, Math.min(levelIdx + 2, LEVELS.length));
-    endNewBest = score > (PROG.bests[levelIdx] || 0);
-    PROG.bests[levelIdx] = Math.max(PROG.bests[levelIdx] || 0, score);
+    endNewBest = !bossRetried && score > (PROG.bests[levelIdx] || 0);
+    if (!bossRetried) PROG.bests[levelIdx] = Math.max(PROG.bests[levelIdx] || 0, score);
     saveState();
     sfx.arrive();   // dropping out of warp, the sting rising through its tail
   } else { endNewBest = false; sfx.fail(); }
