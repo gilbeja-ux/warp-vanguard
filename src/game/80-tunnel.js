@@ -891,7 +891,12 @@ const S3D_WARP = {
   // the throat's own colour, so it is plainly the same energy.
   lane: 0.55,       // brightness of the spill
   laneLen: 0.85,    // how far past the aperture it reaches, in aperture radii
-  laneRays: 5,      // faint shafts through the spill — the corridor's walls
+  laneRays: 8,      // hoops in the approach track — enough to read as a CHAIN
+  // how far the track leans out of the screen toward you, in aperture radii at
+  // the near end. 0 puts every hoop concentric on the gate (rings stamped on the
+  // hardware); this walks their centres along the approach axis instead, so they
+  // plot a course standing in front of the gate the way sci-fi approach markers do.
+  laneTrack: 1.6,
   grain: 0.075,      // film grain over the aperture
   grainPx: 2,       // its size in sprite pixels
   grainFps: 21,     // and how often it reshuffles. Film runs at 24; grain that

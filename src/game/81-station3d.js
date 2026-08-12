@@ -1429,32 +1429,47 @@ function s3lane(c, sp, x, y, w, alpha, t) {
   if (NR) {
     const sq = Math.max(0.12, sp.apUp ? Math.cos(S3D_LIGHT.el) : Math.sin(S3D_LIGHT.el));
     const zNear = 1 / (1 + F.laneLen); // depth a hoop is released at: the far end of the run
-    c.save();
-    c.translate(x, y);
-    c.scale(1, sq);
+    // THE APPROACH AXIS. A hoop out in front of the gate is nearer the lens, and
+    // a point moving toward the lens projects AWAY from the principal point — so
+    // the track runs from the gate directly out from screen centre. That is not a
+    // stylistic pick: it is where those hoops would actually land, which is why
+    // the chain reads as standing in space rather than as decals sliding about.
+    // A gate parked dead on the axis has no such direction, so it lays its track
+    // downward, toward the viewer's side of the frame.
+    const cx0 = (typeof W === 'number' ? W : 0) * 0.5, cy0 = (typeof H === 'number' ? H : 0) * 0.5;
+    let axx = x - cx0, axy = y - cy0;
+    const al = Math.hypot(axx, axy);
+    if (al < 1e-3) { axx = 0; axy = 1; } else { axx /= al; axy /= al; }
+    const track = F.laneTrack === undefined ? 0 : F.laneTrack;
     for (let i = 0; i < NR; i++) {
       // evenly spaced in phase so the mouth swallows them steadily, not in clumps
-      const u = ((t * 0.42 + i / NR) % 1 + 1) % 1;   // 0 released near you → 1 at the mouth
+      const u = ((t * 0.42 + i / NR) % 1 + 1) % 1;   // 0 released out on the track → 1 at the mouth
       const z = zNear + (1 - zNear) * u;             // walking IN toward the gate's own depth
       const rr = R / z;                              // 1/z: wide out here, R at the aperture
+      // ...and the SAME 1/z walks its centre back down the track, so a hoop's
+      // position and its size are one projection rather than two effects that
+      // have to be kept in agreement by hand.
+      const off = track * R * (1 / z - 1);
       // faint when it is wide and far from the source, brightest as it converges,
       // gone the instant the mouth takes it. The `u` weighting pushes the peak
-      // LATE — a hoop is dimmest out here and brightest just before the aperture
-      // swallows it, so the brightness gradient itself leads the eye down the
-      // corridor to the gate. Peaking mid-run (plain sine) read as a halo
-      // hanging around the hardware instead.
+      // LATE — a hoop is dimmest out on the track and brightest just before the
+      // aperture swallows it, so the brightness gradient itself leads the eye
+      // down the course to the gate.
       const fade = Math.sin(u * Math.PI) * (0.35 + 0.65 * u);
       if (fade < 0.02) continue;
-      // OPACITY DOWN to a whisper of what it was: the corridor is depth, not a
-      // headline, and at full strength it fought the hardware it is supposed to
-      // recede toward.
+      c.save();
+      // the lean is applied in SCREEN space and the squash inside it — flipping
+      // that order would squash the offset too and drag the track flat
+      c.translate(x + axx * off, y + axy * off);
+      c.scale(1, sq);
+      // OPACITY DOWN to a whisper of what it was: the course is depth, not a
+      // headline, and at full strength it fought the hardware it leads to.
       c.strokeStyle = 'rgba(' + F.col + ',' + (a * 0.33 * fade).toFixed(3) + ')';
-      // a constant-width hoop LOOKS thicker up close — same 1/z, so the line
-      // weight agrees with the radius instead of contradicting it
+      // a constant-width hoop LOOKS thicker up close — same 1/z again
       c.lineWidth = Math.max(0.6, R * 0.045 / z);
       c.beginPath(); c.arc(0, 0, rr, 0, 6.2831853); c.stroke();
+      c.restore();
     }
-    c.restore();
   }
   c.restore();
 }
