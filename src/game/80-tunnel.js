@@ -890,13 +890,20 @@ const S3D_WARP = {
   // OUTSIDE the bake's mask (it has to reach past the hardware to read at all), in
   // the throat's own colour, so it is plainly the same energy.
   lane: 0.55,       // brightness of the spill
-  laneLen: 0.85,    // how far past the aperture it reaches, in aperture radii
+  // how far the course reaches back toward you, in aperture radii. Longer than
+  // it was: with the hoops concentric, REACH is what sells the run — the near
+  // hoop has to be wide enough to read as passing you.
+  laneLen: 1.30,
   laneRays: 8,      // hoops in the approach track — enough to read as a CHAIN
-  // how far the track leans out of the screen toward you, in aperture radii at
-  // the near end. 0 puts every hoop concentric on the gate (rings stamped on the
-  // hardware); this walks their centres along the approach axis instead, so they
-  // plot a course standing in front of the gate the way sci-fi approach markers do.
-  laneTrack: 1.6,
+  // HOW FAR THE COURSE LEANS OFF YOUR SIGHT LINE, in aperture radii at the near
+  // end. Kept at ZERO, and the geometry is why: hoops marking a STRAIGHT course
+  // to the gate all sit on the same ray from your eye to it, so they project
+  // concentrically — only their size changes. Any lean at all is the course
+  // running diagonally PAST the gate rather than into it, which is exactly how
+  // it read on the device. The depth comes from the 1/z spacing instead, which
+  // is where it comes from in life. Dial a little in if a gate should ever sit
+  // off the heading you are actually flying.
+  laneTrack: 0,
   grain: 0.075,      // film grain over the aperture
   grainPx: 2,       // its size in sprite pixels
   grainFps: 21,     // and how often it reshuffles. Film runs at 24; grain that
