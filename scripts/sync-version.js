@@ -51,4 +51,18 @@ if (g === before && !/versionCode\s+\d+/.test(before)) {
   process.exit(1);
 }
 fs.writeFileSync(GRADLE, g);
-console.log(`version ${version}  →  versionName "${version}"  versionCode ${code}`);
+console.log(`android  versionName "${version}"  versionCode ${code}`);
+
+// ---- iOS, when the platform exists ----
+// Same rule, same source. Apple rejects a build whose CFBundleVersion has not
+// risen within a version train, exactly as Play does with versionCode — so the
+// number is derived here too rather than typed into Xcode, where nobody would
+// remember to move it.
+const PBX = path.join(ROOT, 'ios', 'App', 'App.xcodeproj', 'project.pbxproj');
+if (fs.existsSync(PBX)) {
+  let x = fs.readFileSync(PBX, 'utf8');
+  x = x.replace(/CURRENT_PROJECT_VERSION = [^;]*;/g, 'CURRENT_PROJECT_VERSION = ' + code + ';');
+  x = x.replace(/MARKETING_VERSION = [^;]*;/g, 'MARKETING_VERSION = ' + version + ';');
+  fs.writeFileSync(PBX, x);
+  console.log(`ios      MARKETING_VERSION ${version}  CURRENT_PROJECT_VERSION ${code}`);
+}

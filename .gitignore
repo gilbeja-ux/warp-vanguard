@@ -13,7 +13,23 @@ yarn-error.log*
 *.swp
 *.swo
 *~
-ios/
+# ---- the iOS project ----
+# Same rule as Android below: Capacitor regenerates most of it, but four files
+# carry DECISIONS — the landscape lock and fullscreen flags, the audio session
+# that stops the mute switch silencing the game, the bundle id and the generated
+# versions, and the pod manifest. Untracked, `cap add ios` on another machine
+# would quietly rebuild a portrait-capable, mute-switch-silenced app.
+ios/*
+!ios/App/
+ios/App/*
+!ios/App/App/
+ios/App/App/*
+!ios/App/App/Info.plist
+!ios/App/App/AppDelegate.swift
+!ios/App/App.xcodeproj/
+ios/App/App.xcodeproj/*
+!ios/App/App.xcodeproj/project.pbxproj
+!ios/App/Podfile
 # ---- the Android project ----
 # Capacitor regenerates most of this from capacitor.config.json, so build
 # output, Gradle caches and machine-local paths stay out. But four files carry
