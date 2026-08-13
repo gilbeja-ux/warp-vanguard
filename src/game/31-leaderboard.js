@@ -12,6 +12,12 @@ function ensureIdentity() {
     identity.id = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID()
       : 'wv-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36);
   }
+  // NO DASH, AND THAT IS THE WHOLE POINT. 'Vanguard-' + 6 hex is 15 characters
+  // against a NAME_MAX of 14, so every auto handle ever submitted was sliced a
+  // digit short by sanitizeName() here and cleanName() in submit-run — the boards
+  // are full of 'Vanguard-25A43'. The label claimed 16M possibilities and was
+  // delivering 1M. Dropping the dash frees exactly the one character that was
+  // being eaten: 'Vanguard' + 6 hex is 14, which fits whole.
   if (!identity.autoName) {
     // 6 hex chars ≈ 16M labels — collisions are harmless (uid is the real key)
     let s = '';
@@ -19,7 +25,13 @@ function ensureIdentity() {
       const b = new Uint8Array(3); crypto.getRandomValues(b);
       s = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
     } else s = Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
-    identity.autoName = 'Vanguard-' + s.toUpperCase();
+    identity.autoName = 'Vanguard' + s.toUpperCase();
+  } else if (identity.autoName.indexOf('-') >= 0) {
+    // A save from before the change carries the 15-char form, which would go on
+    // being truncated for as long as that player never types a handle. Removing
+    // the dash keeps every digit they already had AND makes it fit — so their
+    // label stops changing shape between the device and the board.
+    identity.autoName = identity.autoName.replace('-', '');
   }
   return identity.id;
 }

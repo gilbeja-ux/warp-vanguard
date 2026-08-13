@@ -303,7 +303,10 @@ create table if not exists public.reports (
   run_id      uuid not null references public.runs(id) on delete cascade,
   reporter_id text not null,
   reason      text not null default 'other',
-  created_at  timestamptz not null default now()
+  created_at  timestamptz not null default now(),
+  -- stamped when a moderator acted (or dismissed); NULL = still open. The report
+  -- is kept either way — it is the record of why a name changed.
+  handled_at  timestamptz
 );
 create unique index if not exists reports_run_reporter on public.reports (run_id, reporter_id);
 create index if not exists reports_run     on public.reports (run_id);
@@ -349,44 +352,22 @@ revoke execute on function public.report_run(uuid, text, text)    from public, a
 -- deciding about lives in `runs`. This view is that join, one row per reported
 -- RUN. security_invoker keeps it as invisible as the table it reads.
 -- ---------------------------------------------------------------------------
-create or replace view public.report_queue
-with (security_invoker = true) as
-select r.id as run_id, r.player_name, r.board, r.score, r.verified, r.name_locked,
-       count(*)::int as reports, string_agg(distinct rp.reason, ', ') as reasons,
-       min(rp.created_at) as first_report, max(rp.created_at) as last_report
-from public.reports rp
-join public.runs r on r.id = rp.run_id
-group by r.id, r.player_name, r.board, r.score, r.verified, r.name_locked;
-revoke all on public.report_queue from public, anon, authenticated;
-
--- select public.moderate_name('<run_id>')  → redact + LOCK (without the lock the
--- player renames it straight back and the moderation was theatre)
-create or replace function public.moderate_name(p_run uuid)
-returns text
-language plpgsql as $$
-declare was text;
-begin
-  select player_name into was from public.runs where id = p_run;
-  if was is null then return 'no such run'; end if;
-  update public.runs set player_name = 'REDACTED', name_locked = true, updated_at = now() where id = p_run;
-  return 'redacted and locked (was: ' || was || ')';
-end;
-$$;
-
--- select public.release_name('<run_id>')  → unlock. Does NOT restore the old name;
--- it is overwritten and gone, which for the 'personal' reason is the entire point.
-create or replace function public.release_name(p_run uuid)
-returns text
-language plpgsql as $$
-begin
-  update public.runs set name_locked = false, updated_at = now() where id = p_run;
-  if not found then return 'no such run'; end if;
-  return 'unlocked — the player can now rename it (the old name is gone)';
-end;
-$$;
-
-revoke execute on function public.moderate_name(uuid) from public, anon, authenticated;
-revoke execute on function public.release_name(uuid)  from public, anon, authenticated;
+-- NOT REPEATED HERE, and that is the correction. This file carried its own copies
+-- of report_queue, moderate_name and release_name, and within a single session all
+-- three had drifted from the migrations: the view was missing player_id,
+-- open_reports and handled_at, and moderate_name no longer closed the report it
+-- acted on. Two copies of a function is two functions.
+--
+-- The MODERATION SURFACE therefore lives in migrations/ alone:
+--   20260813000300  report_queue, moderate_name, release_name
+--   20260813000700  handled_at, resolve_reports, moderate_player, rename_entry,
+--                   reset_entry_name, dismiss_reports, the widened report_queue
+--   20260813000800  the auto handle loses its dash
+-- and the ADMIN views (admin_overview, board_occupancy, ladder_reach,
+-- player_growth) in 20260813000400/000500/000600. `supabase db push` installs the
+-- lot; a fresh project built from THIS file alone comes up able to run the game
+-- and take scores, which is what it is for. What they all mean is in
+-- docs/MODERATION.md.
 
 -- The ADMIN views (admin_overview, board_occupancy, ladder_reach, player_growth)
 -- are NOT repeated here. They are read-only dashboard tooling, not something the

@@ -21,7 +21,7 @@ Reports as cards with buttons on them — **Rename…**, **Redact**, **Release**
 Acting on a report marks it handled and moves it to a folded *Handled* section, so
 the queue is what is still open rather than everything that ever happened.
 
-**Rename…** opens a drawer: type a handle, or take *reset to Vanguard-XXXXXX* —
+**Rename…** opens a drawer: type a handle, or take *reset to VanguardXXXXXX* —
 usually the kinder answer, and the right one for the `personal` reason, where the
 point is that the name should stop being a name. Either way the entry is locked.
 
@@ -100,7 +100,7 @@ select public.moderate_player('<run_id>');  -- every entry this player holds
 
 select public.rename_entry('<run_id>', 'CALMNAME');   -- set one, locked
 select public.rename_entry('<run_id>', 'CALMNAME', true);  -- …on all their entries
-select public.reset_entry_name('<run_id>');           -- back to Vanguard-XXXXX
+select public.reset_entry_name('<run_id>');           -- back to VanguardXXXXXX
 select public.dismiss_reports('<run_id>');            -- the report was wrong
 ```
 
