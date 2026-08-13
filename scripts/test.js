@@ -200,6 +200,7 @@ code = code.replace("'use strict';", '') + `
   getTime: () => time, resetLoop: t => { last = t; simAcc = 0; }, // fixed-timestep loop probes
   getIdentity: () => identity, boardKey, captureRun, getLastRun: () => lastRun, // leaderboard capture
   lbTop, lbRank, lbDay, LEADERBOARD, // leaderboard read client (Supabase)
+  lbSubmit, lbStatus: () => lbStatus, // submission + the line the END screen prints
   boardKeyFor, boardPick, openBoard, boardLeftItems, weekLadder, getBoardSel: () => boardSel, setBoardData: v => { boardData = v; }, // board screen
   setBoardCollapsed: (k, v) => { boardCollapsed[k] = v; }, // the left list's folds
   setNameEntry: v => { nameEntry = v; }, setEndProvisional: v => { endProvisional = v; }, // high-score name card
@@ -3097,6 +3098,30 @@ async function runMusicUp() {
   for (let i = 0; i < 6 && !G.music().src; i++) { G.updateMusic(1.1); await tick(); }
 }
 (async () => {
+// ---- WHAT A FAILED SUBMISSION SAYS OUT LOUD ----
+// The END screen prints lbStatus verbatim. It used to print the raw failure —
+// "REJECTED 400: verification failed [0 vs 38660, ig0 st2368/2368]" — which is
+// precise, alarming and meaningless to a player, and every one of those is a
+// tester bug report about a system behaving correctly. The diagnostic still
+// exists, on the console; the screen gets a sentence.
+{
+  const seen = [];
+  const warn = console.warn;
+  console.warn = m => seen.push(String(m));
+  // the harness's fetch stub resolves without `ok`, which is the same shape a
+  // blocked or captive-portal network produces
+  await G.lbSubmit({ board: 'endless', mode: 'endless', score: 1000 });
+  console.warn = warn;
+  const s = G.lbStatus();
+  check('a failed submission speaks English, not diagnostics',
+    /SAVED ON THIS DEVICE|TIMED OUT|UPDATE THE GAME|TRY AGAIN/.test(s));
+  check('...and never leaks the raw failure to the screen',
+    !/REJECTED|AUTH HTTP|NET ERR|undefined|\[object/.test(s));
+  check('...while the diagnostic still reaches the console for a log grab',
+    seen.some(m => /\[leaderboard\]/.test(m)));
+  check('and it tells the player their score is not lost', /SAVED ON THIS DEVICE/.test(s));
+}
+
   G.settings.music = true; G.settings.musicVol = 0.5;
   G.playTrack('menu');
   await tick(); // drain fetch→decode→start promise chain

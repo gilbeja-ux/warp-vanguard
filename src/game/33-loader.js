@@ -134,6 +134,13 @@ function installCampaign(p) {
   for (const s of p.speakers) SPKCOL[s.id] = s.color;
   // per-campaign progress rides along, padded to this package's level count
   const c = progress.camp[p.id] || (progress.camp[p.id] = { unlocked: 1, stars: [], bests: [] });
+  // COERCE BEFORE PADDING. These come off localStorage, which is player-writable
+  // and survives every update — a save that predates a shape, or one somebody
+  // poked at, would otherwise take `.push` on a non-array and throw HERE, during
+  // install, before a single frame is drawn. A boot crash is the one failure a
+  // tester cannot report from inside the game, so it is worth two lines.
+  if (!Array.isArray(c.stars)) c.stars = [];
+  if (!Array.isArray(c.bests)) c.bests = [];
   while (c.stars.length < LEVELS.length) c.stars.push(0);
   while (c.bests.length < LEVELS.length) c.bests.push(0);
   c.unlocked = Math.min(Math.max(1, c.unlocked || 1), LEVELS.length);
