@@ -4,137 +4,287 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tester Guide — Warp Vanguard</title>
-<meta name="description" content="How to test Warp Vanguard, what to look for, and where to send what you find.">
+<meta name="description" content="You're playing Warp Vanguard before anyone else. Here's how to get it and what to tell me.">
+<meta name="theme-color" content="#06040d">
 <style>
-  :root {
-    --bore: #06040d; --panel: #0d0a18; --line: #241d38;
-    --ink: #e8e2f2; --dim: #9a8fb4; --vio: #d465ff; --gold: #ffd24a; --grn: #7ee262;
+  /* Audiowide is the game's own face, served from this repo rather than a font
+     CDN — the privacy policy one click away says there is no third-party
+     tracking on these pages, and a webfont request would quietly make that
+     false. */
+  @font-face {
+    font-family: 'Audiowide';
+    src: url('fonts/audiowide.woff2') format('woff2');
+    font-display: swap;
   }
+
+  /* Deliberately dark-only. This page is a doorway into a game that is black
+     with light in it; a light theme would misrepresent the thing it is
+     selling. */
+  :root {
+    --bore: #06040d;
+    --panel: #100b1e;
+    --raise: #17102a;
+    --line: #251d3a;
+    --ink: #ece7f5;
+    --body: #cdc5de;
+    --dim: #948aad;
+    --vio: #d465ff;
+    --grn: #7ee262;
+    --gold: #ffd24a;
+    --pad: 20px;
+  }
+
   * { box-sizing: border-box; }
   html { background: var(--bore); -webkit-text-size-adjust: 100%; }
   body {
-    margin: 0; background: var(--bore); color: var(--ink);
-    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
-    padding: 0 20px 80px;
+    margin: 0;
+    background: var(--bore);
+    color: var(--body);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  .wrap { max-width: 760px; margin: 0 auto; }
-  header { border-bottom: 1px solid var(--line); padding: 44px 0 20px; margin-bottom: 32px; }
-  .eyebrow { font-size: 11px; letter-spacing: 0.24em; color: var(--gold); text-transform: uppercase; }
-  h1 { font-size: clamp(26px, 5vw, 36px); margin: 10px 0 6px; letter-spacing: 0.01em; text-wrap: balance; }
-  .updated { color: var(--dim); font-size: 13.5px; }
-  h2 { font-size: 20px; margin: 40px 0 12px; letter-spacing: 0.01em; }
-  h3 { font-size: 16px; margin: 26px 0 8px; }
-  p, li { color: #d6cfe6; }
-  a { color: var(--grn); }
-  strong { color: #fff; }
-  .short { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 20px 24px; }
-  .short ul { margin: 0; padding-left: 20px; }
-  .short li { margin: 7px 0; }
-  .tablewrap { overflow-x: auto; margin: 18px 0; }
-  table { border-collapse: collapse; width: 100%; min-width: 460px; font-size: 14.5px; }
-  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--vio); font-size: 11.5px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; }
-  code { background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px; font-size: 14px; }
+  .wrap { max-width: 620px; margin: 0 auto; padding: 0 var(--pad) 64px; }
+
+  /* ---------- hero ---------- */
+  header { padding: 40px 0 0; }
+  .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .brand img { width: 52px; height: 52px; border-radius: 11px; display: block; }
+  .brand h1 {
+    font-family: 'Audiowide', system-ui, sans-serif;
+    font-size: 25px; line-height: 1.1; margin: 0; color: #fff;
+    letter-spacing: 0.01em;
+  }
+  .brand .sub {
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--gold); margin-top: 5px;
+  }
+  .lede {
+    font-size: 19px; line-height: 1.45; color: var(--ink);
+    margin: 0 0 22px; text-wrap: balance;
+  }
+  .lede b { color: #fff; font-weight: 600; }
+
+  /* height:auto is mandatory, not tidiness. The width/height attributes on the
+     <img> reserve layout space so the page does not jump as images decode —
+     but CSS width:100% only overrides the WIDTH, leaving the height attribute
+     in force and squashing every shot into a distorted sliver. */
+  .shot {
+    width: 100%; height: auto; border-radius: 9px; display: block;
+    border: 1px solid var(--line);
+  }
+  .strip {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    margin-top: 8px;
+  }
+  /* min-width:0 defeats the grid's automatic minimum size, which would otherwise
+     floor each column at the image's intrinsic 560px. height:auto for the same
+     reason as .shot above. */
+  .strip img {
+    width: 100%; height: auto; min-width: 0; border-radius: 6px; display: block;
+    border: 1px solid var(--line);
+  }
+
+  /* ---------- sections ---------- */
+  h2 {
+    font-family: 'Audiowide', system-ui, sans-serif;
+    font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--vio); margin: 44px 0 16px; font-weight: 400;
+  }
+
+  /* The install steps are numbered because they are genuinely sequential —
+     the account has to be right before the link will work at all. */
+  ol.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+  ol.steps li {
+    counter-increment: s; position: relative;
+    padding: 0 0 18px 44px; color: var(--body);
+  }
+  ol.steps li::before {
+    content: counter(s);
+    position: absolute; left: 0; top: -1px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--raise); border: 1px solid var(--line);
+    color: var(--vio); font-family: 'Audiowide', system-ui, sans-serif;
+    font-size: 13px; display: grid; place-items: center;
+  }
+  ol.steps b { color: #fff; font-weight: 600; }
+  ol.steps li:last-child { padding-bottom: 0; }
+
+  /* ---------- the one thing that must not be missed ---------- */
+  .ask {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--gold);
+    border-radius: 8px; padding: 20px 22px; margin: 32px 0;
+  }
+  .ask h3 {
+    font-family: 'Audiowide', system-ui, sans-serif;
+    font-size: 14px; letter-spacing: 0.04em; color: var(--gold);
+    margin: 0 0 9px; font-weight: 400; text-transform: uppercase;
+  }
+  .ask p { margin: 0; font-size: 15px; color: var(--body); }
+  .ask p + p { margin-top: 10px; }
+
+  /* ---------- call to action ---------- */
   .cta {
-    display: inline-block; background: var(--grn); color: #06040d; font-weight: 700;
-    text-decoration: none; padding: 13px 26px; border-radius: 5px; margin: 8px 0;
-    letter-spacing: 0.02em;
+    display: block; text-align: center; text-decoration: none;
+    background: var(--grn); color: #06040d;
+    font-family: 'Audiowide', system-ui, sans-serif;
+    font-size: 15px; letter-spacing: 0.03em;
+    padding: 17px 20px; border-radius: 7px; margin: 6px 0 10px;
+    transition: filter 0.15s ease;
   }
-  .warn { border-left: 3px solid var(--gold); padding: 4px 0 4px 18px; margin: 20px 0; }
-  .warn strong { color: var(--gold); }
-  ol li { margin: 9px 0; }
-  footer { border-top: 1px solid var(--line); margin-top: 48px; padding-top: 20px; color: var(--dim); font-size: 13.5px; }
+  .cta:hover, .cta:focus-visible { filter: brightness(1.12); }
+  .cta-note { font-size: 13.5px; color: var(--dim); text-align: center; margin: 0; }
+
+  /* ---------- expanders ---------- */
+  details {
+    border-top: 1px solid var(--line);
+  }
+  details:last-of-type { border-bottom: 1px solid var(--line); }
+  summary {
+    cursor: pointer; list-style: none; padding: 15px 30px 15px 0;
+    position: relative; color: var(--ink); font-size: 15.5px;
+    font-weight: 500;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after {
+    content: '+'; position: absolute; right: 4px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--vio); font-size: 19px; line-height: 1;
+  }
+  details[open] summary::after { content: '−'; }
+  summary:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
+  .inner { padding: 0 0 18px; font-size: 15px; }
+  .inner p { margin: 0 0 11px; }
+  .inner p:last-child { margin-bottom: 0; }
+  .inner ul { margin: 0; padding-left: 19px; }
+  .inner li { margin: 8px 0; }
+  .inner b, .inner strong { color: #fff; }
+  .inner a { color: var(--grn); }
+  .hint { color: var(--dim); font-size: 14px; }
+
+  footer {
+    margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
+    color: var(--dim); font-size: 13px; text-align: center;
+  }
+  footer a { color: var(--dim); }
+
+  @media (max-width: 380px) {
+    .brand h1 { font-size: 21px; }
+    .lede { font-size: 17.5px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
 
 <header>
-  <div class="eyebrow">Warp Vanguard</div>
-  <h1>Tester Guide</h1>
-  <div class="updated">Closed test · v1.0.0</div>
+  <div class="brand">
+    <img src="img/icon.webp" alt="" width="52" height="52">
+    <div>
+      <h1>Warp Vanguard</h1>
+      <div class="sub">Closed test · v1.0.0</div>
+    </div>
+  </div>
+
+  <p class="lede">You're playing it <b>before anyone else</b>. Two thumbs, one
+  lane, and everything that wants your convoy has to come through you.</p>
+
+  <img class="shot" src="img/hero.webp" alt="Gameplay: two emitters on a ring guarding a warp lane" width="1000" height="563" loading="eager">
+  <div class="strip">
+    <img src="img/boss.webp" alt="A boss duel" width="560" height="315" loading="lazy">
+    <img src="img/arrival.webp" alt="Completing a relay" width="560" height="315" loading="lazy">
+    <img src="img/chart.webp" alt="The campaign route map" width="560" height="315" loading="lazy">
+  </div>
 </header>
 
-<p>Thanks for testing. You are playing the game before anyone else, and what
-you send back genuinely changes what ships. This page is short on purpose.</p>
-
-<h2>What it is</h2>
-<p>An arcade game for Android. You guard a convoy through a warp lane — two
-emitters ride a ring under your thumbs, and everything that wants the convoy
-has to come through you. Landscape, two thumbs, about a minute to understand.</p>
-
 <h2>Getting it</h2>
-<ol>
-  <li>Send me the <strong>Gmail address your phone uses for the Play Store</strong>.
-      It has to be that exact account or the app simply won't appear for you, with
-      no explanation.</li>
-  <li>I'll send you a join link. Open it <strong>on your phone</strong> and tap
-      <em>Become a tester</em>.</li>
-  <li>Install from Google Play as normal.</li>
+<ol class="steps">
+  <li>Send me the <b>Gmail address your phone uses for Google Play</b>. It has to be that exact one.</li>
+  <li>Open the link I send you <b>on your phone</b> → <b>Become a tester</b>.</li>
+  <li>Install from Google Play like any other app.</li>
 </ol>
-<p>If the link says the app isn't available, wait fifteen minutes and try again
-— Play is slow to propagate. If it still fails, it's almost always the wrong
-Google account.</p>
 
-<div class="warn">
-  <p><strong>Please leave it installed for the whole two weeks.</strong> Google
-  requires a minimum number of testers to stay opted in continuously before the
-  game is allowed to launch. Uninstalling early doesn't just remove you — it
-  resets progress toward that requirement and pushes the release date back for
-  everyone. You don't have to play every day. Just don't tidy it off your
-  phone.</p>
+<div class="ask">
+  <h3>One real favour</h3>
+  <p><b>Please leave it installed for two weeks.</b> Google won't let the game
+  launch until enough testers have stayed opted in that long.</p>
+  <p>You don't have to play every day — just don't tidy it off your phone.
+  Uninstalling early sets the release date back for everyone.</p>
 </div>
 
-<h2>A shortcut, so you can see the good bits</h2>
-<p>There are five campaigns, each ending in a duel with a warp leech — a
-machine clamped across the lane, drinking it. They are the most interesting
-thing in the game and they are normally hours away.</p>
-<p>So: on a campaign's route map, <strong>press and hold the final relay for
-three seconds</strong>. A ring charges around your finger and you drop straight
-into that boss fight. Each of the five is a different puzzle.</p>
-<p>These runs are marked as practice and never reach the leaderboards, so you
-can't accidentally cheat your way onto a board. <em>This shortcut is removed
-before public release — it exists for you.</em></p>
+<h2>Telling me things</h2>
+<a class="cta" href="https://docs.google.com/forms/d/e/1FAIpQLScL4TIOddqWKJopoZ-Xc_yAwOTTV7JX0Jg2ID7CZXDGy9fq0g/viewform" target="_blank" rel="noopener">Send feedback</a>
+<p class="cta-note">Or just message me. Honest reactions beat bug reports.</p>
 
-<h2>What I most need to know</h2>
-<div class="short">
-<ul>
-  <li><strong>Where did you stop playing, and why?</strong> The single most useful thing you can tell me.</li>
-  <li><strong>What was confusing?</strong> Especially in the first two minutes.</li>
-  <li><strong>What felt unfair</strong> — as opposed to merely hard? Those are different, and the difference matters enormously.</li>
-  <li><strong>Did it run badly?</strong> Stutter, overheating, battery, anything.</li>
-  <li><strong>Did anything look wrong</strong> on your screen — cut off at the edges, overlapping, hidden behind the notch?</li>
-</ul>
-</div>
-<p>Bugs are welcome, but honest reactions are worth more. "I got bored on relay
-6" is more useful than a typo.</p>
+<h2>Worth knowing</h2>
 
-<h3>If it crashes</h3>
-<p>Note roughly what you were doing and tell me. Crashes are reported to me
-automatically, but without knowing what happened they're just a stack trace.</p>
+<details>
+  <summary>See all five bosses in five minutes</summary>
+  <div class="inner">
+    <p>Each campaign ends in a duel with a <b>warp leech</b> — a machine clamped
+    across the lane, drinking it. They're the best part of the game and they're
+    normally hours away.</p>
+    <p>So: on a campaign's route map, <b>press and hold the final relay for
+    three seconds</b>. A ring charges around your finger and you drop straight
+    into that fight. All five are different puzzles.</p>
+    <p class="hint">These runs never reach the leaderboards, so you can't
+    accidentally cheat your way onto a board. The shortcut is removed before
+    public release — it exists for you.</p>
+  </div>
+</details>
 
-<h2>Things I already know</h2>
-<div class="tablewrap">
-<table>
-  <tr><th>Known</th><th>Status</th></tr>
-  <tr><td>Leaderboards need a connection</td><td>By design — the game itself plays fully offline</td></tr>
-  <tr><td>The boss shortcut described above</td><td>Deliberate, removed before launch</td></tr>
-  <tr><td>No tablet-specific layout yet</td><td>Works, but built for phones</td></tr>
-</table>
-</div>
+<details>
+  <summary>What's most useful to tell me</summary>
+  <div class="inner">
+    <ul>
+      <li><b>Where did you stop playing, and why?</b> The single most useful thing you can say.</li>
+      <li><b>What was confusing</b> in the first two minutes?</li>
+      <li><b>What felt unfair</b> — as opposed to just hard? Those are very different.</li>
+      <li><b>Did it stutter, overheat, or drain the battery?</b></li>
+      <li><b>Did anything look wrong</b> — cut off at the edges, overlapping, hidden behind the notch?</li>
+    </ul>
+    <p class="hint">"I got bored on relay 6" is worth more to me than a typo.</p>
+  </div>
+</details>
 
-<h2>Sending feedback</h2>
-<p>Whatever is easiest — message me directly, or use the form:</p>
-<p><a class="cta" href="https://docs.google.com/forms/d/e/1FAIpQLScL4TIOddqWKJopoZ-Xc_yAwOTTV7JX0Jg2ID7CZXDGy9fq0g/viewform" target="_blank" rel="noopener">Send feedback</a></p>
-<p>You can also leave a private review in the Play Store listing; as a tester
-it goes only to me and never appears publicly.</p>
+<details>
+  <summary>Already known — don't bother reporting</summary>
+  <div class="inner">
+    <ul>
+      <li>Leaderboards need a connection. The game itself plays fully offline.</li>
+      <li>No tablet layout yet — it works, but it's built for phones.</li>
+      <li>The boss shortcut above. That one's deliberate.</li>
+    </ul>
+  </div>
+</details>
 
-<h2>Your data</h2>
-<p>There is no advertising, no analytics and no tracking. If you submit a
-score, it sends an anonymous id, the display name you type, and how the run
-went — nothing else. Full detail in the
-<a href="privacy.html">privacy policy</a>, and you can delete everything from
-inside the game under <strong>MY DATA</strong>.</p>
+<details>
+  <summary>If it crashes</summary>
+  <div class="inner">
+    <p>Crashes are reported to me automatically — but a crash with no story is
+    just a stack trace. Tell me roughly what you were doing and it becomes
+    fixable.</p>
+  </div>
+</details>
+
+<details>
+  <summary>Your data</summary>
+  <div class="inner">
+    <p>No advertising, no analytics, no tracking. If you submit a score it
+    sends an anonymous id, the display name you type, and how the run went —
+    nothing else.</p>
+    <p>You can delete all of it from inside the game under <b>MY DATA</b>.
+    Full detail in the <a href="privacy.html">privacy policy</a>.</p>
+  </div>
+</details>
+
+<div style="height:34px"></div>
+<p class="cta-note">If the link says the app isn't available, wait fifteen
+minutes and try again. If it still fails, it's almost always the wrong Google
+account.</p>
 
 <footer>
   Warp Vanguard · closed test · thank you
