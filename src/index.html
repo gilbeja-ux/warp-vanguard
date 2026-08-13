@@ -34,6 +34,12 @@
 </head>
 <body>
 <canvas id="game"></canvas>
+<!-- THE BUILD'S OWN FINGERPRINT. scripts/build.js stamps the real sim id in
+     here on the way into dist/; served straight out of src/ (the dev server) it
+     stays null, which means "unknown" and switches the check off. It cannot
+     live in src/game/ because the id is a hash OF those files — a stamp inside
+     the thing being hashed changes the hash it is recording. -->
+<script>window.__SIM_ID = null; /* build-stamped */</script>
 <script src="campaigns.js"></script>
 <script src="audio/music/tracks.js"></script>
 <script src="game/00-core.js"></script>

@@ -109,6 +109,29 @@ function prune(relDir) {
 fs.mkdirSync(distDir, { recursive: true });
 stage('');
 prune('');
+
+// ---- stamp the build's sim id into the shipped index.html ----
+// The client has to be able to say WHICH rules it played by, or the server
+// cannot tell a run made by an out-of-date app from a forged one — and it was
+// calling the first the second, which reads to a player as an accusation.
+// Stamped here rather than in src/ because the id is a hash of the game
+// sources: a stamp inside them would change the hash it is recording. Served
+// from src/ (the dev server) the value stays null, which means "unknown" and
+// leaves the check off — dev builds are not trying to prove anything.
+{
+  const simId = require('./lib/sim-id.js').simId(path.join(__dirname, '..'));
+  const idxPath = path.join(distDir, 'index.html');
+  const before = fs.readFileSync(idxPath, 'utf8');
+  const after = before.replace('window.__SIM_ID = null;', 'window.__SIM_ID = ' + JSON.stringify(simId) + ';');
+  if (after === before) {
+    console.error('✗ could not stamp the sim id — the marker in src/index.html moved.');
+    console.error('  The server can no longer tell an outdated client from a forged run. Fix before shipping.');
+    process.exit(1);
+  }
+  fs.writeFileSync(idxPath, after);
+  console.log('✓ sim id stamped: ' + simId);
+}
+
 console.log('✓ dist/ staged: ' + (bytes / 1048576).toFixed(1) + ' MB shippable'
   + ' (' + copied + ' file(s) copied, ' + skipped + ' excluded)');
 

@@ -169,6 +169,22 @@ Deno.serve(async (req) => {
   } else {
     const m = await getSim();
     if (!m) return json({ error: "sim load failed", detail: _simErr }, 500);
+    // ---- OUT OF DATE, OR FORGED? ----
+    // Verification replays the run with THIS build's copy of the game. A client
+    // on an older build computes a different run from the same inputs, so its
+    // score fails to match — and, from here, that is indistinguishable from a
+    // forgery. It was being reported as one, which tells an honest player that
+    // their legitimate run "failed verification".
+    //
+    // The client now states which rules it played by. A mismatch is answered
+    // 409 with a distinct error, so the app can say "update available" instead.
+    // It is NOT waved through: an old build plays by different rules, so its
+    // scores genuinely are not comparable and do not belong on the same board.
+    // Clients that send no id at all (dev builds) skip the check and are
+    // verified normally — they will simply fail if they really are stale.
+    const clientSim = typeof body?.simId === "string" ? body.simId : null;
+    if (clientSim && m.SIM_ID && clientSim !== m.SIM_ID)
+      return json({ error: "client outdated", clientSim, serverSim: m.SIM_ID }, 409);
     let res;
     try { res = m.verifyRun(run); } catch (e) { return json({ error: "verify crashed", detail: String((e as any)?.stack ?? e) }, 500); }
     if (!res.ok) return json({ error: "verification failed", claimed: run.score, recomputed: res.recomputed, integrity: res.integrity, steps: res.steps, traceLen: run.trace.length }, 400);

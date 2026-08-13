@@ -164,7 +164,14 @@ async function lbSubmit(run) {
     const res = await lbFetch(LEADERBOARD.url + '/functions/v1/submit-run', {
       method: 'POST',
       headers: { apikey: LEADERBOARD.key, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ run: payload, name: displayName() })
+      // simId: WHICH RULES THIS BUILD PLAYS BY. The server re-simulates with its
+      // own copy of the game, so a client a version behind computes a different
+      // run from the same inputs — indistinguishable, from the server's side,
+      // from a forged one. Sending it lets the server say "you are out of date"
+      // instead of "this did not verify", which is the difference between a
+      // prompt and an accusation. null on a dev build → the check is skipped.
+      body: JSON.stringify({ run: payload, name: displayName(),
+        simId: (typeof window !== 'undefined' && window.__SIM_ID) || null })
     }, LB_TIMEOUT_SUBMIT);
     const txt = await res.text();
     let d = null; try { d = JSON.parse(txt); } catch (e) {}
@@ -182,8 +189,10 @@ async function lbSubmit(run) {
       // server re-simulates with ITS copy of the game, so a client that is a
       // build behind computes a different run from the same inputs. Naming the
       // likely cause turns a scary rejection into an action.
+      const outdated = res.status === 409 || (d && d.error === 'client outdated');
       const verifyFail = d && (d.error === 'verification failed' || d.recomputed !== undefined);
-      lbFail(raw, verifyFail ? 'NOT VERIFIED — UPDATE THE GAME AND TRY AGAIN'
+      lbFail(raw, outdated ? 'UPDATE AVAILABLE — THIS BUILD CAN NO LONGER POST SCORES'
+        : verifyFail ? 'SCORE NOT VERIFIED — SAVED ON THIS DEVICE'
         : res.status === 429 ? 'TOO MANY SUBMISSIONS — TRY AGAIN SHORTLY'
         : 'NOT ACCEPTED — SCORE SAVED ON THIS DEVICE');
     }
