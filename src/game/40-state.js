@@ -116,6 +116,24 @@ let ribbonT = 30; // bonus ribbon cadence — golden ribbons on levels 5+ / endl
 let tut = null;               // tutorial controller (level 1, first run)
 let boss = null;              // the warp leech (levels with boss: true)
 let bossTestRun = false;      // the dev long-press drill — its runs never file to a board
+// ============================================================================
+// ⚠️  REMOVE BEFORE PUBLIC LAUNCH — grep "DEV_KEYS" and "BOSS TEST"
+// ============================================================================
+// The long-press-the-last-relay shortcut that drops straight into a duel. It
+// stays ON for the TESTER builds (internal testing), because testers need to
+// reach a boss without flying eight relays to get there.
+//
+// It must be OFF for the public release, and the reason is not tidiness: it
+// lets anyone reach any finale instantly, which is exactly the claim the
+// leaderboards make about themselves. Drills already refuse to file a score
+// (see bossTestRun), so this is not an exploit today — but it is a cheat
+// sitting in a shipped build, and the monetization work lands at the same
+// moment, where "skip to the end" would also walk straight through the demo
+// paywall at relay 04.
+//
+// Flip to false, then delete this flag, startBossTest(), the menuHold block in
+// 99-boot and the HOLD_BOSS constant. RELEASE-PLAN.md §1 tracks it.
+const DEV_KEYS = true;
 let reliefFired = [];         // band-relief ledger: which hot bands already sent their patch
 // THE CONTINUE, priced in eligibility: a duel lost may be retried WITHOUT
 // re-flying the level — but a continued run no longer ranks anywhere.

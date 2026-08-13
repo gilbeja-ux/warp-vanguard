@@ -23,7 +23,9 @@
     "lab:tune": "node scripts/tuning-board.js",
     "test:board": "node scripts/test-board.js",
     "test:freeze": "node scripts/test-weekly-freeze.mjs",
-    "lab:disc": "node scripts/disc-lab.js"
+    "lab:disc": "node scripts/disc-lab.js",
+    "aab": "bash scripts/build-aab.sh",
+    "version:sync": "node scripts/sync-version.js"
   },
   "keywords": [
     "game",

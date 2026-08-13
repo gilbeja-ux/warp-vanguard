@@ -1,0 +1,22 @@
+# Copy to android/key.properties and fill in. That file is GITIGNORED and must
+# stay that way — the upload key cannot be replaced once the listing exists.
+#
+# Create the keystore ONCE (never regenerate it for an existing listing):
+#
+#   keytool -genkey -v \
+#     -keystore ~/warp-vanguard-upload.jks \
+#     -alias upload -keyalg RSA -keysize 2048 -validity 10000
+#
+# Keep ~/warp-vanguard-upload.jks and these passwords backed up somewhere you
+# will still have in five years — a password manager, not this repo, not the
+# Desktop. Losing them means Play App Signing has to reset your upload key;
+# losing them WITHOUT Play App Signing enrolled means the app can never be
+# updated again.
+#
+# storeFile is resolved relative to the android/ directory, so an absolute path
+# is the safe answer.
+
+storeFile=/Users/YOU/warp-vanguard-upload.jks
+storePassword=CHANGEME
+keyAlias=upload
+keyPassword=CHANGEME

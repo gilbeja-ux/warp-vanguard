@@ -14,7 +14,24 @@ yarn-error.log*
 *.swo
 *~
 ios/
-android/
+# ---- the Android project ----
+# Capacitor regenerates most of this from capacitor.config.json, so build
+# output, Gradle caches and machine-local paths stay out. But four files carry
+# DECISIONS rather than generated content — release signing, the SDK levels,
+# the manifest's landscape lock, and the generated version numbers — and if
+# those are untracked then a fresh clone (or a `cap add android`) silently
+# builds a differently-configured, unsigned app. They are re-included below.
+android/*
+!android/app/
+android/app/*
+!android/app/build.gradle
+!android/app/src/
+android/app/src/*
+!android/app/src/main/
+android/app/src/main/*
+!android/app/src/main/AndroidManifest.xml
+!android/variables.gradle
+!android/key.properties.example
 .capacitor/
 capacitor.config.json.bak
 .claude/
@@ -42,3 +59,12 @@ docs/dest-lab/dest-tuning.json
 # meaningful next to the device and thermal state that produced them. The numbers
 # worth keeping go in the commit message or a doc, not in the repo as data.
 bench-results/
+
+# ---- RELEASE SIGNING — never commit these ----
+# The upload key is unrecoverable: commit or lose it and this listing can
+# never be updated again. Play App Signing can reset an upload key; it cannot
+# undo one that leaked. Kept out of the tree BEFORE any key exists.
+*.jks
+*.keystore
+key.properties
+android/key.properties

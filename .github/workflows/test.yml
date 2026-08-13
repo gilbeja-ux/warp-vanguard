@@ -1,0 +1,30 @@
+# The safety net for a codebase with no type system: a ~600-check headless
+# harness that evals the real game source. It is the only thing standing
+# between a one-character edit and a broken build, so it runs on every push.
+name: test
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # No `npm ci` — there is no lockfile and no runtime dependency. The suite
+      # stubs the DOM itself and evals src/game/*.js directly, which is exactly
+      # what makes it fast enough to run on every push.
+      - name: game suite
+        run: node scripts/test.js
+      - name: leaderboard/board suite
+        run: node scripts/test-board.js
+      # The verifier bundle is generated from the same sources. If it cannot be
+      # built, a sim change has broken the server's copy of the game — worth
+      # catching here rather than at deploy time.
+      - name: verifier bundle builds
+        run: node scripts/build-verifier.js

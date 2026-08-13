@@ -131,7 +131,8 @@ function tickUI(dt) {
       menuPtr = null; // eat the release — it must not land as a backdrop tap
     }
   }
-  if (menuHold && (state !== S.MENU || menuScreen !== 'map' || menuFx || menuConfirm)) menuHold = null;
+  // the boss-test long-press: tester builds only (see DEV_KEYS in 40-state)
+  if (menuHold && (!DEV_KEYS || state !== S.MENU || menuScreen !== 'map' || menuFx || menuConfirm)) menuHold = null;
   else if (menuHold) {
     menuHold.t += dt;
     if (menuHold.t >= HOLD_BOSS) {
