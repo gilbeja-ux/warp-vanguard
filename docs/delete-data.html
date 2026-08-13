@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delete Your Data — Warp Vanguard</title>
+<meta name="description" content="How to delete your Warp Vanguard leaderboard data, and what gets removed.">
+<meta name="theme-color" content="#06040d">
+<style>
+  @font-face {
+    font-family: 'Audiowide';
+    src: url('fonts/audiowide.woff2') format('woff2');
+    font-display: swap;
+  }
+  :root {
+    --bore: #06040d; --panel: #100b1e; --raise: #17102a; --line: #251d3a;
+    --ink: #ece7f5; --body: #cdc5de; --dim: #948aad;
+    --vio: #d465ff; --grn: #7ee262; --gold: #ffd24a;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bore); -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bore); color: var(--body);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 620px; margin: 0 auto; padding: 0 20px 64px; }
+  header { padding: 40px 0 8px; }
+  .eyebrow {
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--gold);
+  }
+  h1 {
+    font-family: 'Audiowide', system-ui, sans-serif;
+    font-size: 27px; line-height: 1.15; margin: 10px 0 0; color: #fff;
+  }
+  .lede { font-size: 17.5px; color: var(--ink); margin: 18px 0 0; text-wrap: balance; }
+  h2 {
+    font-family: 'Audiowide', system-ui, sans-serif;
+    font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--vio); margin: 40px 0 14px; font-weight: 400;
+  }
+  /* Genuinely sequential — you cannot reach the panel without the step before. */
+  ol.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+  ol.steps li {
+    counter-increment: s; position: relative;
+    padding: 0 0 16px 44px; color: var(--body);
+  }
+  ol.steps li::before {
+    content: counter(s); position: absolute; left: 0; top: -1px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--raise); border: 1px solid var(--line);
+    color: var(--vio); font-family: 'Audiowide', system-ui, sans-serif;
+    font-size: 13px; display: grid; place-items: center;
+  }
+  ol.steps li:last-child { padding-bottom: 0; }
+  b, strong { color: #fff; }
+  code {
+    background: var(--raise); border: 1px solid var(--line); border-radius: 4px;
+    padding: 2px 7px; font-size: 14px; color: var(--ink);
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 18px 22px; margin: 20px 0;
+  }
+  .card h3 {
+    font-family: 'Audiowide', system-ui, sans-serif;
+    font-size: 13.5px; letter-spacing: 0.04em; text-transform: uppercase;
+    margin: 0 0 8px; font-weight: 400; color: var(--ink);
+  }
+  .card.warn { border-left: 3px solid var(--gold); }
+  .card.warn h3 { color: var(--gold); }
+  .card p { margin: 0; font-size: 15px; }
+  .card p + p { margin-top: 9px; }
+  ul { padding-left: 19px; margin: 12px 0; }
+  li { margin: 7px 0; }
+  a { color: var(--grn); }
+  .dim { color: var(--dim); font-size: 14.5px; }
+  footer {
+    margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--line);
+    color: var(--dim); font-size: 13px;
+  }
+  footer a { color: var(--dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Warp Vanguard</div>
+  <h1>Delete your data</h1>
+  <p class="lede">You can erase everything Warp Vanguard holds about you from
+  inside the game. It takes about ten seconds and needs no account, no email
+  and no request to us.</p>
+</header>
+
+<h2>In the game</h2>
+<ol class="steps">
+  <li>Open <b>System Config</b> — the gear on the main menu. <span class="dim">(The leaderboard screen has the same door.)</span></li>
+  <li>Tap <b>MY DATA</b>.</li>
+  <li>Tap <b>DELETE MY RUNS</b>, then confirm.</li>
+</ol>
+
+<div class="card">
+  <h3>Deleted</h3>
+  <p>Every <b>leaderboard entry</b> you hold, on every board · the <b>replay
+  traces</b> stored with them · the <b>anonymous player id</b> itself.</p>
+  <p>Removed immediately and permanently. It cannot be undone.</p>
+</div>
+
+<div class="card">
+  <h3>Kept</h3>
+  <p><b>Nothing that identifies you.</b> Like any web service, our hosting
+  provider records technical request logs containing IP addresses, for security
+  and abuse prevention. They are never joined to leaderboard entries, are not
+  used to profile anyone, and age out on the provider's own schedule.</p>
+  <p>Your local progress, settings and personal bests are also untouched —
+  those never left your device in the first place.</p>
+</div>
+
+<div class="card">
+  <h3>Retention</h3>
+  <p>Leaderboard entries are otherwise kept <b>indefinitely</b> — that is what a
+  leaderboard is, and weekly boards are deliberately frozen when their week
+  closes so results stand as a permanent record. There is no automatic expiry,
+  which is precisely why the control above exists.</p>
+</div>
+
+<div class="card">
+  <h3>If you only want your name off</h3>
+  <p><b>RENAME MY RUNS</b>, in the same panel, changes the display name on every
+  entry you hold while leaving your scores and positions intact. For most people
+  who want a chosen name off a public board, this is the better control.</p>
+</div>
+
+<h2>What we hold at all</h2>
+<p>Only what a leaderboard needs: an <b>anonymous player id</b> generated by the
+game, the <b>display name you typed</b>, and <b>how a run went</b> — plus a
+replay trace of the controls, which is how the server proves a score was really
+achieved.</p>
+<p>There is no advertising, no analytics and no tracking. We never receive your
+name, email address, phone number, location or any device identifier. If you
+have never submitted a score, <b>we hold nothing about you at all</b>.</p>
+<p class="dim">Your progress, settings and personal bests are stored only on
+your own device, and uninstalling removes them.</p>
+
+<div class="card warn">
+  <h3>Uninstalling does not delete your entries</h3>
+  <p>Leaderboard entries live on the server and stay after the app is gone. If
+  you want them removed, <b>use the control above before you uninstall</b> —
+  it is by far the easiest route, and after uninstalling it may not be possible
+  at all. The next section explains why.</p>
+</div>
+
+<h2>If you have already uninstalled</h2>
+<p>Email <a href="mailto:gilbeja.int@gmail.com?subject=Delete%20my%20data">gilbeja.int@gmail.com</a>
+with the subject <b>“Delete my data”</b>. We aim to respond within 30 days.</p>
+<p>An honest limit, so it is not a surprise: entries carry <b>no name, email or
+account we can look you up by</b>. The only identifier is the anonymous id that
+was held on your device, so once that is gone we may genuinely be unable to
+tell which rows were yours. A display name is not proof — anyone can read one
+off a public board.</p>
+<p>We act regardless on any report that an entry contains someone's real name
+or personal information, or that a name is offensive or impersonates someone.
+Those need no proof of who is asking, and every entry on a board carries a
+<b>report this</b> link.</p>
+
+<footer>
+  Warp Vanguard · <a href="privacy.html">Privacy policy</a> ·
+  <a href="mailto:gilbeja.int@gmail.com">gilbeja.int@gmail.com</a>
+</footer>
+
+</div>
+</body>
+</html>
