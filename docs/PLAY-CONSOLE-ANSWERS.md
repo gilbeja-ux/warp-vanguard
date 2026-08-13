@@ -57,11 +57,33 @@ because those need no proof of who is asking.
 | App activity | **In-app actions** (scores, run results, replay traces) | Yes | No | Required* | App functionality |
 | Personal info | **Name** | **No** — the display handle is user-chosen and not a real name | — | — | — |
 
-\* "Required" in the sense that submitting a score requires them; playing the
-game does not. If the Console offers "Users can choose whether this data is
-collected", that is arguably **Yes** (a player who never submits sends nothing)
-— answer Yes only if the flow genuinely makes it optional at the moment of
-collection.
+\* **Required, and this is settled — do not answer "users can choose".** An
+earlier draft of this file hedged, reasoning that a player who never submits
+sends nothing. The code says otherwise: `endLevel` in `61-replay.js` calls
+`lbSubmit` automatically at the end of every run that has a board, and there is
+no setting anywhere that turns it off. A player is never asked and cannot
+decline. Answering "optional" would put the form at odds with the binary, which
+is the most common cause of Data Safety enforcement.
+
+That answer changes only if a leaderboard opt-out is ever shipped — a settings
+toggle read before `lbSubmit`. Worth doing eventually; it would also make the
+GDPR position easier. It does not exist today.
+
+### The per-type dialog
+
+Clicking a data type opens three more questions. For **both** User IDs and
+In-app actions:
+
+| Question | Answer |
+|---|---|
+| Is this data processed ephemerally? | **No** — it is written to the database and kept indefinitely |
+| Required, or can users choose? | **Data collection is required** |
+| Why is this data collected? | **App functionality** only |
+
+Leave *Analytics*, *Developer communications*, *Advertising or marketing* and
+*Fraud prevention, security and compliance* unticked. Anti-cheat is performed on
+the score and the replay trace, not on the identifier, and none of the rest
+exist in this app.
 
 **Do NOT tick:** Location, Financial info, Health, Messages, Photos/Videos,
 Files, Calendar, Contacts, App info and performance (no crash/analytics SDK),
