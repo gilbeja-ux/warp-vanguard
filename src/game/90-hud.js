@@ -221,30 +221,25 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   ctx.rotate(side === 'L' ? Math.PI * 0.75 : Math.PI * 0.25);
   const press = 1 - down * 0.12; // the pad flattens very slightly under contact
   ctx.scale(press, press);
-  // WHAT MAKES IT READ AS A THUMB, in order of how much each one carries:
-  //   1. ASYMMETRY. A thumb is not a capsule. The palm side is fuller than the
-  //      back, and the tip sits off the centre line. A symmetrical lozenge reads
-  //      as a pill however well it is shaded.
-  //   2. THE NAIL. One rounded plate near the tip and the whole thing resolves.
-  //      It is the single cheapest piece of information here, and the player is
-  //      looking at the back of their own thumb, so it belongs in view.
-  //   3. THE KNUCKLE CREASE. One short arc where the joint folds.
+  // THE SILHOUETTE IS THE ONE THAT WORKED: a round tip swelling evenly into the
+  // knuckle. An earlier pass pushed the nose off the centre line on the theory
+  // that a thumb is asymmetric — anatomically true, and it read WORSE, because at
+  // this size the lopsidedness looks like a drawing mistake rather than a form.
+  // Asymmetry is carried by the shading instead, where it costs no silhouette.
   // The far end is squared and then hidden by the gradients below, so the shape
   // runs off toward a hand out of frame rather than stopping in mid-air.
-  const R = rad, END = R * 2.05;
+  const R = rad, END = R * 2.5;
   ctx.beginPath();
-  ctx.moveTo(0, -R * 0.46);                                      // back edge, at the tip
-  ctx.quadraticCurveTo(-R * 0.52, -R * 0.40, -R * 0.56, R * 0.06); // the nose, pushed off-centre
-  ctx.quadraticCurveTo(-R * 0.50, R * 0.48, R * 0.06, R * 0.60);   // fuller on the palm side
-  ctx.quadraticCurveTo(R * 0.85, R * 0.92, R * 1.45, R * 1.02);
-  ctx.lineTo(END, R * 1.02);
-  ctx.lineTo(END, -R * 0.88);
-  ctx.quadraticCurveTo(R * 1.10, -R * 0.80, 0, -R * 0.46);
+  ctx.arc(0, 0, R * 0.54, Math.PI * 0.5, Math.PI * 1.5);                 // the tip
+  ctx.quadraticCurveTo(R * 0.78, -R * 0.70, R * 1.55, -R * 0.76);
+  ctx.lineTo(END, -R * 0.76);
+  ctx.lineTo(END, R * 0.76);
+  ctx.quadraticCurveTo(R * 0.78, R * 0.70, 0, R * 0.54);
   ctx.closePath();
   const fade = (a) => {
     const g = ctx.createLinearGradient(-R * 0.56, 0, END, 0);
     g.addColorStop(0, `rgba(${GHOST_COL},${a})`);
-    g.addColorStop(0.78, `rgba(${GHOST_COL},${a * 0.95})`);
+    g.addColorStop(0.50, `rgba(${GHOST_COL},${a * 0.92})`);
     g.addColorStop(1, `rgba(${GHOST_COL},0)`);
     return g;
   };
@@ -268,19 +263,35 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   if (!lowFX) { ctx.shadowColor = `rgba(${GHOST_COL},0.5)`; ctx.shadowBlur = 9; }
   ctx.stroke();
   ctx.shadowBlur = 0;
-  // the nail — an oval plate set into the tip, tilted with the thumb's own axis
+  // THE NAIL. Not an ellipse floating mid-digit — that was the tell. A nail is a
+  // PLATE AT THE TIP whose free edge follows the curve of the fingertip, running
+  // very nearly to the silhouette, with a straighter cuticle behind it and a pale
+  // lunula at the base. Built from the same centre as the tip arc so the two
+  // curves are automatically concentric, which is what sells it: a nail that does
+  // not share the fingertip's curvature reads as a sticker.
+  const nR = R * 0.44, nA = Math.PI * 0.62, nB = Math.PI * 1.38;
+  const nx = Math.cos(nA) * nR, ny = Math.sin(nA) * nR;
   ctx.beginPath();
-  ctx.ellipse(R * 0.30, R * 0.10, R * 0.34, R * 0.28, -0.18, 0, TAU);
-  ctx.strokeStyle = `rgba(${GHOST_COL},${0.80 * alpha})`;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.fillStyle = `rgba(${GHOST_COL},${0.20 * alpha})`;
+  ctx.arc(0, 0, nR, nA, nB);                       // free edge, concentric with the tip
+  ctx.quadraticCurveTo(R * 0.30, 0, nx, ny);       // cuticle, bowed gently toward the knuckle
+  ctx.closePath();
+  ctx.fillStyle = `rgba(255,255,255,${(0.16 * alpha).toFixed(3)})`;
   ctx.fill();
-  // the knuckle crease — one short arc where the joint folds
+  ctx.strokeStyle = `rgba(${GHOST_COL},${(0.95 * alpha).toFixed(3)})`;
+  ctx.lineWidth = 2.2;
+  ctx.stroke();
+  // the lunula — the pale half-moon at the base. Small, and the one detail that
+  // makes a nail plate look grown rather than drawn.
   ctx.beginPath();
-  ctx.moveTo(R * 1.12, -R * 0.72);
-  ctx.quadraticCurveTo(R * 1.34, R * 0.12, R * 1.12, R * 0.92);
-  ctx.strokeStyle = `rgba(${GHOST_COL},${0.34 * alpha})`;
+  ctx.arc(0, 0, R * 0.20, Math.PI * 0.72, Math.PI * 1.28);
+  ctx.strokeStyle = `rgba(255,255,255,${(0.42 * alpha).toFixed(3)})`;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // the interphalangeal crease — where the thumb's one joint folds
+  ctx.beginPath();
+  ctx.moveTo(R * 1.20, -R * 0.74);
+  ctx.quadraticCurveTo(R * 1.40, R * 0.05, R * 1.20, R * 0.82);
+  ctx.strokeStyle = `rgba(${GHOST_COL},${(0.30 * alpha).toFixed(3)})`;
   ctx.lineWidth = 1.6;
   ctx.stroke();
   ctx.restore();
@@ -306,7 +317,7 @@ function drawThumbGhosts(a0) {
     const u = ((t - i * GHOST_STAGGER) / GHOST_CYCLE) % 1;
     if (u < 0) continue;                    // the trailing thumb waits out its stagger
     const s = ghostSample(ghostKeysPlace(side), u);
-    drawThumbGhost(s.x, s.y, side, s.down, s.a * a0, d.r * 0.70);
+    drawThumbGhost(s.x, s.y, side, s.down, s.a * a0, d.r * 0.86);
   }
 }
 // WARP CALIBRATING: the lock-on, drawn around the destination itself.
