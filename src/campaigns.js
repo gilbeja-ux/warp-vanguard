@@ -86,7 +86,7 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '96,180,255', duration: 50, spawnMin: 0.75, spawnMax: 1.30, speed: 0.46, doubles: 0.45, heavies: 0.08, lines: 0.00, colors: 0.00, frags: 0.08, track: 1,
       hint: 'volume over trickery — ride the lane, keep the combo',
       bands: [{ t0: 28, t1: 44, intensity: 1.5 }],
-      story: { line: 'Instruments, not guns. They fly, we clear.' } },
+      story: { line: ' We clear the path - They fly it' } },
     { tint: '255,160,80', duration: 55, spawnMin: 0.68, spawnMax: 1.20, speed: 0.49, doubles: 0.50, heavies: 0.10, lines: 0.00, colors: 0.00, frags: 0.10, track: 2, bursts: true,
       hint: 'the loop runs HOT — pure traffic, find your rhythm',
       bands: [{ t0: 16, t1: 32, intensity: 1.5 }, { t0: 44, t1: 53, intensity: 1.8 }],
