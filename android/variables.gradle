@@ -1,7 +1,18 @@
 ext {
     minSdkVersion = 22
-    compileSdkVersion = 34
-    targetSdkVersion = 34
+    // API 35 (Android 15). Play enforces a rolling target-API floor and 34 is
+    // below it; internal testing tolerates an old target, production does not,
+    // so this is raised now rather than discovered at the promotion gate.
+    //
+    // TWO KNOCK-ONS THAT ARE REAL, not theoretical, at this level:
+    //   · EDGE-TO-EDGE is enforced — the app draws under the status and
+    //     navigation bars. This game is fullscreen landscape and paints its own
+    //     ring, so it wants that anyway, but it MUST be checked on a
+    //     gesture-nav device that nothing lands under the bars.
+    //   · 16 KB PAGE SIZE for native libraries. Capacitor's own libs are the
+    //     only native code here; verify on a 16KB device/emulator image.
+    compileSdkVersion = 35
+    targetSdkVersion = 35
     androidxActivityVersion = '1.8.0'
     androidxAppCompatVersion = '1.6.1'
     androidxCoordinatorLayoutVersion = '1.2.0'

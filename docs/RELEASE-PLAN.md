@@ -66,20 +66,22 @@ itch.io) as a funnel.
 Everything here follows from one fact: the game sends an anonymous id, a
 player-chosen handle, and run data to a server.
 
-- [ ] **Privacy policy, publicly hosted at a stable URL.** Mandatory for both
-      stores. Must state: anonymous account id, chosen display name, scores and
-      input traces; that there is no advertising, analytics or tracking; retention;
-      and how to request deletion. *(I can draft it; hosting is yours — GitHub
-      Pages off this repo is the cheap answer.)*
+- [x] **Privacy policy, publicly hosted at a stable URL.** `docs/privacy.html`,
+      served by GitHub Pages at
+      **https://gilbeja-ux.github.io/warp-vanguard/privacy.html**.
+      Owner enables it once: *Settings → Pages → branch `master`, folder `/docs`*.
 - [ ] **Play Data Safety form.** Must match reality exactly, and mismatches are a
       common rejection. Expected answers: collects *User IDs* (anonymous) and
       *App activity / in-game actions*; data **is** transmitted off-device; **not**
       used for tracking or advertising; encrypted in transit; deletion available.
-- [ ] **Data deletion path.** Play requires a way to request account/data deletion
-      for apps with accounts — anonymous ones included. Cheapest compliant version:
-      an in-game "delete my leaderboard data" action that calls a Supabase function
-      to purge rows for that player id, plus a stated email/web route for anyone who
-      has uninstalled.
+- [x] **Data deletion path — TESTER VERSION: by email**, `gilbeja.int@gmail.com`,
+      processed by hand. Play accepts a documented request channel; an in-app
+      control is not required. Adequate for a tester cohort **and only that**.
+- [ ] ⚠️ **BEFORE PUBLIC LAUNCH — in-app deletion control.** A *Delete my
+      leaderboard data* action calling a Supabase function that purges rows for the
+      player id. Hand-processing does not scale past testers, and an unanswered
+      request is a policy breach rather than a full inbox. `privacy.html` must
+      change on the same day it ships.
 - [ ] **UGC handling for player handles.** Server-side moderation already exists
       (`submit-run`). Stores also expect a **report mechanism** and the ability to
       act on reports. Minimum viable: a report control on the board rows plus a

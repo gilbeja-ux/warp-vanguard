@@ -9,9 +9,15 @@ enforcement, and it is checked against the binary.
 
 ## App content → Privacy policy
 
-URL of the published `docs/PRIVACY-POLICY.md`.
-*(Owed: a real hosting URL and a real contact email — see the note at the foot
-of that file.)*
+```
+https://gilbeja-ux.github.io/warp-vanguard/privacy.html
+```
+
+Served by GitHub Pages from this repo. **One-time setup by the account owner:**
+repo → *Settings* → *Pages* → Source: *Deploy from a branch* → branch `master`,
+folder `/docs` → Save. The URL is live a minute or two later. Contact address is
+`gilbeja.int@gmail.com`; both the address and the policy text can be changed at
+any time by editing `docs/privacy.html` and pushing.
 
 ## App content → Ads
 
@@ -22,7 +28,16 @@ of that file.)*
 **Does your app collect or share any required user data types?** → **Yes**
 **Is all data encrypted in transit?** → **Yes** (HTTPS to Supabase)
 **Do you provide a way for users to request data deletion?** → **Yes**
-(in-game control + email route)
+
+Answer **Yes**, and where the form asks how, give the email route:
+`gilbeja.int@gmail.com`. Play accepts a documented request channel — an in-app
+control is not required, only a real way to ask that is actually honoured.
+**It has to be honoured**: a deletion request that goes unanswered is a policy
+breach, not an untidy inbox. Watch that address.
+
+> **Owed before public launch:** an in-app *Delete my leaderboard data* control.
+> Hand-processing is fine for a tester cohort and does not scale past it. When it
+> ships, `privacy.html` changes the same day. Tracked in RELEASE-PLAN §2.
 
 ### Data types to declare
 
