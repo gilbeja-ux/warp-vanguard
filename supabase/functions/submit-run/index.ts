@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
   //    carrying the trace pointer. run_id is the row key, scoped by player_id, so
   //    it can only ever address this player's own row: worst case they overwrite
   //    a run of their own, which is exactly what the rename flow wants.
-  const { error: wErr } = await svc.rpc("submit_verified_run", {
+  const { data: evicted, error: wErr } = await svc.rpc("submit_verified_run", {
     p_board: board, p_day: day, p_player: playerId, p_name: cleanName(body.name ?? run.playerName),
     p_run_id: cleanRunId(run.runId),
     p_score: score, p_max_combo: stat.maxCombo, p_combo_sec: stat.comboSec, p_time_sec: +run.timeSec || 0,
@@ -220,6 +220,26 @@ Deno.serve(async (req) => {
     p_verified: verified, p_trace_id: traceId,
   });
   if (wErr) return json({ error: "write failed", detail: wErr.message }, 500);
+
+  // ---- PURGE THE REPLAYS THAT JUST FELL OFF THE BOARD ----
+  // The write above evicts everything past the top 100 and hands back the trace
+  // keys those rows were holding. Postgres cannot reach Storage, so if we do not
+  // delete them here nobody ever will: the object outlives its row for ever,
+  // referenced by nothing and reachable by nothing. Before the pre-Play wipe the
+  // bucket held 337 objects against 228 live pointers — a third of it garbage,
+  // and the ratio only grows, because the busier a board is the more it evicts.
+  //
+  // Best-effort and never fatal. The score is already safely on the board by this
+  // point, and failing a player's submission because a cleanup job could not
+  // delete somebody else's old file would be the wrong trade every time. A miss
+  // leaves an orphan — the exact thing that was happening on every write before.
+  const dead = (evicted ?? [])
+    .map((r: any) => r?.evicted_trace)
+    .filter((t: unknown): t is string => typeof t === "string" && !!t);
+  if (dead.length) {
+    const { error: sErr } = await svc.storage.from("traces").remove(dead);
+    if (sErr) console.warn(`[submit-run] evicted ${dead.length} trace(s), purge failed: ${sErr.message}`);
+  }
 
   // 5) hand back the standing — the player's BEST row when they hold several
   const { data: rank } = await svc.rpc("leaderboard_rank", { p_board: board, p_day: day, p_player: playerId });

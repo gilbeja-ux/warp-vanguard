@@ -171,15 +171,21 @@ $$;
 -- The signature gained p_run_id, and `create or replace` with a DIFFERENT
 -- parameter list would add an overload rather than replace — leaving the old
 -- one-row-per-player function callable (and the RPC ambiguous). Drop it first.
+-- Returns the trace keys of the rows it EVICTED, so the caller can purge them
+-- from Storage. Postgres cannot reach Storage, so without this the object outlives
+-- its row for ever — see migrations/20260813000900_evict_returns_traces.sql.
 drop function if exists public.submit_verified_run(
   text, int, text, text, int, int, real, int, int, int, text[], int, boolean, text, int, real
+);
+drop function if exists public.submit_verified_run(
+  text, int, text, text, int, int, real, int, int, int, text[], int, boolean, text, int, real, text
 );
 create or replace function public.submit_verified_run(
   p_board text, p_day int, p_player text, p_name text, p_score int,
   p_max_combo int, p_time_sec real, p_integrity int, p_misses int, p_perfects int,
   p_mutators text[], p_seed int, p_verified boolean, p_trace_id text,
   p_zaps int default 0, p_combo_sec real default 0, p_run_id text default ''
-) returns void
+) returns table (evicted_trace text)
 language sql as $$
   -- Insert this run. It only ever collides with ITSELF — same (board, day,
   -- player, run_id) — which is the rename re-submit, not a different run. On that
@@ -224,7 +230,8 @@ language sql as $$
         where r2.board = p_board and coalesce(r2.day, -1) = coalesce(p_day, -1)
         order by r2.score desc, r2.zaps desc, r2.perfects desc, r2.created_at asc, r2.id asc
         limit 100
-     );
+     )
+  returning d.trace_id;
 $$;
 
 -- leaderboard_top / leaderboard_rank are safe for the anon role to execute;

@@ -97,9 +97,24 @@ player-chosen handle, and run data to a server.
       integrity is a defensible ground for keeping the **score** while the **name**
       is reset — which is why the rename exists beside the delete. Do not reword
       the policy into consent language.
-- [ ] **Supabase DPA.** Art. 28 requires a written processor contract. Supabase
-      publishes one; accept it in the dashboard. `privacy.html` already claims it
-      is in place, so this is owed the moment that page is public.
+- [x] **Supabase DPA — already in force, nothing to click.** Art. 28 requires a
+      written contract with any processor handling personal data on your behalf,
+      covering security, sub-processors, deletion and audit. Supabase's is the
+      [Data Processing Addendum](https://supabase.com/legal/customer-resources/data-processing-addendum)
+      (Version 1, 1 August 2026), and it executes **automatically** with the Terms
+      of Service — *"acceptance of the Agreement shall have the same effect as
+      signing the SCCs"* (Schedule 2 §1.2), with the same wording for the UK
+      addendum. There is no dashboard toggle and nothing to sign and email; a
+      previous draft of this file said there was, and that was wrong.
+
+      So `privacy.html`'s claim that Supabase acts *"under a data processing
+      agreement"* is already true. The Standard Contractual Clauses for
+      international transfers come bundled in the same document, which is the
+      other thing Art. 28 would otherwise have needed separately.
+
+      **What would change this:** adding any processor that is not Supabase — an
+      analytics SDK, a crash reporter, an email service, a CDN that sees user
+      data. Each needs its own Art. 28 contract and its own line in the policy.
 - [ ] **Art. 30 record of processing.** The <250-employee exemption in Art. 30(5)
       lapses when processing is not "occasional", and a live leaderboard is not.
       One internal page, written once. Art. 27 (EU representative) is the same
