@@ -18,10 +18,13 @@ const QUAL = [
   { card: 'heavy',  queue: ['heavy'] },
   { card: 'line',   queue: ['line'] },
   { card: 'lock',   queue: ['lock0', 'lock1'] },
-  { card: 'volley' },                          // a red column, one charged shot
+  // NO VOLLEY DRILL. The unite-volley — dock both emitters on one lane, hold,
+  // and a bolt clears the column — is still in the game and always was; it is
+  // simply not taught. It is the one mechanic that rewards being found, and the
+  // drill spent a whole stage on something the curriculum never needs again.
   { card: 'pickup', queue: ['pickup'] },
   { card: 'strip',  queue: ['strip'] },        // the ride charges a pulse...
-  { card: 'pulse',  queue: ['pulse'] },        // ...which this volley spends
+  { card: 'pulse',  queue: ['pulse'] },        // ...which this column spends
   { card: 'done' }
 ];
 // the tutorial never stops the run: the arrows, dock spots and riding labels do
@@ -114,17 +117,6 @@ function qualSpawn(kind) {
     tone(1180, 0.02, 'square', 0.05); tone(1180, 0.02, 'square', 0.05, null, null, 0.22);
     return;
   }
-  if (kind === 'volley') {
-    // a COLUMN of reds — one lane, nose to tail down the tunnel. Dock both
-    // nodes on the lane and the charged shot clears the lot: fire and forget.
-    const a = Math.random() * TAU;
-    for (let k = 0; k < 4; k++) {
-      const e4 = spawnEnemy(a, 'normal');
-      e4.lock = undefined; e4.tut = 'volley'; e4.drift = 0;
-      e4.z = SPAWN_Z - 0.05 + k * 0.24; // deeper mates emerge as the column advances
-    }
-    return;
-  }
   if (kind === 'line') {
     const a = Math.random() * TAU, gap = rand(0.9, 1.3);
     const e1 = spawnEnemy(a, 'line'), e2 = spawnEnemy(a + gap, 'line');
@@ -168,7 +160,7 @@ function advanceQual() {
   tut.queue = (QUAL[tut.stage].queue || []).slice();
   sfx.tick();
   // pre-spawned drills: the hazard is already inbound as the stage opens
-  if (c === 'volley' || c === 'pulse') { tut.queue = []; qualSpawn(c); }
+  if (c === 'pulse') { tut.queue = []; qualSpawn(c); }
 }
 const AIM_HOLD = 0.3; // seconds a node must sit on a target to lock it in
 function updateTutorial(dt) {

@@ -2040,39 +2040,15 @@ check('color-lock drill begins', G.qualStage().card === 'lock');
 check('blue-lock practice', waitLive(4) && zapPractice());
 check('white-lock practice', waitLive(4) && zapPractice());
 settle();
-check('volley drill: the red column is already inbound, one lane',
-  G.qualStage().card === 'volley'
-  && G.enemies().filter(e => e.tut === 'volley' && !e.dead).length === 4
-  && new Set(G.enemies().filter(e => e.tut === 'volley').map(e => e.angle)).size === 1);
-{
-  // plain zaps don't graduate this stage: killing a column red the old way
-  // arms a retry and the column comes back
-  const pen = G.enemies().find(e => e.tut === 'volley');
-  aim(0, pen.angle); aim(1, pen.angle + Math.PI);
-  cross(pen);
-  check('zapping the column arms a volley retry', pen.dead === true && G.tut().retry === 'volley');
-  let dGuard = 400;
-  while (dGuard-- > 0 && G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved)) G.update(0.05);
-  let rGuard = 100;
-  while (rGuard-- > 0 && !G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved)) G.update(0.05);
-  check('the column respawns for the volley lesson',
-    G.enemies().filter(e => e.tut === 'volley' && !e.dead && !e.resolved).length === 4);
-}
-{
-  // dock both on the lane, hold — the charged shot sweeps the whole column
-  const colA = G.enemies().find(e => e.tut === 'volley' && !e.dead && !e.resolved).angle;
-  G.volley().cd = 0;
-  aim(0, colA); aim(1, colA);
-  let vGuard = 200;
-  while (vGuard-- > 0 && G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved)) G.update(0.05);
-  // dead bodies are culled from the array — "cleared" means none remain and
-  // none slipped past (a tut miss would have armed a retry)
-  check('one charged shot clears the whole column',
-    !G.enemies().some(e => e.tut === 'volley') && G.tut() && !G.tut().retry);
-  aim(1, colA + Math.PI); // undock for the next drill
-}
-settle();
-check('power-up drill begins', G.qualStage().card === 'pickup');
+// THE VOLLEY DRILL IS GONE ON PURPOSE — the curriculum steps straight from the
+// colour locks to the power-up. The unite-volley itself is untouched and still
+// covered above ("the volley punches through reds too"); what was removed is
+// only the stage that taught it. This assertion is the guard: if a volley drill
+// ever creeps back into QUAL, the pickup stage stops following the locks and
+// this fails.
+check('the curriculum steps from colour locks straight to the power-up',
+  G.qualStage().card === 'pickup'
+  && !G.enemies().some(e => e.tut === 'volley'));
 waitLive(4);
 {
   const pp = G.pickups().find(p2 => p2.tut && !p2.done);

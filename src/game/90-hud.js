@@ -357,7 +357,6 @@ const TUT_LESSON = {
   line:   'COVER BOTH ENDS \u2014 ONE EACH',
   lock0:  'ONLY THE MATCHING PHASE COLLAPSES IT',
   lock1:  'ONLY THE MATCHING PHASE COLLAPSES IT',
-  volley: 'DOCK BOTH ON THE LANE \u2014 HOLD',
   pickup: 'CATCH THE GOLD RELAY',
   strip:  'RIDE THE CROSSING POINT',
   pulse:  'TAP THE GLOWING CORE'
@@ -365,7 +364,7 @@ const TUT_LESSON = {
 const TUT_ACCENT = {
   move: '143,224,255', normal: '255,96,120', frag: '255,154,60', wall: '255,154,60',
   heavy: '143,224,255', line: '111,227,255', lock0: '95,150,255', lock1: '235,244,255',
-  volley: '143,224,255', pickup: '255,210,74', strip: '255,210,74', pulse: '255,210,74'
+  pickup: '255,210,74', strip: '255,210,74', pulse: '255,210,74'
 };
 let tutFocusRef = null;           // which tut object the lesson state belongs to
 let tutLessonKind = null, tutLessonT0 = 0; // for the line's fade-in on change
@@ -386,7 +385,7 @@ function tutFocusDesc(st, ten) {
       const i = nodes[0] === (Math.abs(angDiff(nodes[0].angle, ten.angle)) <
         Math.abs(angDiff(nodes[1].angle, ten.angle)) ? nodes[0] : nodes[1]) ? 0 : 1;
       ghosts.push({ i, a: ten.angle, col: NODE_COLS[i] });
-    } else if (kind === 'heavy' || kind === 'volley') {
+    } else if (kind === 'heavy') {
       ghosts.push({ i: 0, a: ten.angle, col: NODE_COLS[0] }, { i: 1, a: ten.angle, col: NODE_COLS[1] });
     } else if (kind === 'line' && ten.partner) {
       // each pad takes the end its node is nearer — the same neutral the guide uses
@@ -829,11 +828,6 @@ function drawHUD(g) {
           drawParkSpot(ten.angle, 'rgba(140,220,255,0.85)');
           drawParkSpot(ten.partner.angle, 'rgba(140,220,255,0.85)');
         }
-      }
-      else if (ten.tut === 'volley') { // dock BOTH on the column's lane — one shot, whole column
-        drawGuideArc(nodes[0], ten.angle); drawGuideArc(nodes[1], ten.angle);
-        drawDockSpot(ten.angle);
-        drawRideLabel('USE BOTH EMITTERS', ten, '#8fe0ff');
       }
       else if (ten.lock !== undefined) drawGuideArc(nodes[ten.lock], ten.angle);
       // killers wear a landing signal — the drill is DODGE, the label says so

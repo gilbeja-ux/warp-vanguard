@@ -921,13 +921,7 @@ function updateEnemy(en, C) {
       spawnKillStreak(en.angle, en.z);
       lastKillBeat(en);
       popup(ex, ey, (perfect ? 'PERFECT +' : '+') + pts + (combo >= 3 ? '  x' + scoreMul() : ''), perfect ? '#ffe9b0' : '#bfeaff');
-      if (en.tut === 'volley' && tut && !tut.retry) {
-        // the lesson is the VOLLEY — a plain zap kills the trap but not
-        // the stage; the column returns until one charged shot clears it
-        tut.retry = 'volley';
-        popup(ex, ey - 30, 'DOCK BOTH — FIRE THE VOLLEY', '#ffb066');
-      }
-      else if (en.tut) popup(ex, ey - 30, 'INTERCEPTED', '#7ee262'); // the label's verb, answered
+      if (en.tut) popup(ex, ey - 30, 'INTERCEPTED', '#7ee262'); // the label's verb, answered
       // no screen shake on a clean kill — the rim flash + haptics carry it;
       // the tunnel only twitches when something goes WRONG
       const zapSampled = sfx.zap(combo, Math.cos(en.angle) * 0.7);
