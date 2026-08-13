@@ -144,6 +144,9 @@
     background: rgba(126, 226, 98, 0.09); filter: none;
   }
   .cta-note { font-size: 13.5px; color: var(--dim); text-align: center; margin: 0; }
+  /* there is no bare `a` rule on this page — without this the fallback link
+     renders in default browser blue on a near-black ground. */
+  .cta-note a { color: var(--grn); }
 
   /* ---------- expanders ---------- */
   details {
@@ -216,12 +219,13 @@
   be that exact one, and I have to add it before the button below will work for you.</li>
   <li>Once I say you're added, open <b>this page on your phone</b> and tap
   <b>Install the game</b>.</li>
-  <li>Tap <b>Become a tester</b>, then install from Google Play as normal.</li>
+  <li>Join the test when Google Play asks, then install as normal.</li>
 </ol>
 
-<a class="cta" href="https://play.google.com/apps/testing/com.warpvanguard.game" target="_blank" rel="noopener">Install the game</a>
+<a class="cta" href="https://play.google.com/store/apps/details?id=com.warpvanguard.game" target="_blank" rel="noopener">Install the game</a>
 <p class="cta-note">Only works once I've added your address — otherwise Play
-will just say the app isn't available.</p>
+just says the app isn't available. Not on a phone, or nothing happens?
+<a href="https://play.google.com/apps/testing/com.warpvanguard.game" target="_blank" rel="noopener">Join on the web instead</a>.</p>
 
 <div class="ask">
   <h3>One real favour</h3>
