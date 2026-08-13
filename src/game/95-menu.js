@@ -587,7 +587,7 @@ function drawMenuSettings() {
   const q = popFxQ('set', menuSettings);
   pauseSlidersList = []; pauseTogglesList = []; menuSetButtons = [];
   ctx.fillStyle = 'rgba(3,6,14,' + (0.62 * q).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
-  const pw = Math.min(W * 0.72, 520), ph = Math.min(H * 0.84, 300);
+  const pw = Math.min(W * 0.72, 520), ph = Math.min(H * 0.86, 344);
   const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
   menuSetPanel = { x: px, y: py, w: pw, h: ph };
   popRender(q, px, py, pw, ph, () => {
@@ -596,9 +596,27 @@ function drawMenuSettings() {
     settingRow('SFX',     'sound',   'soundVol', py + 76,  px, pw);
     settingRow('MUSIC',   'music',   'musicVol', py + 120, px, pw);
     settingRow('HAPTICS', 'haptics', null,       py + 164, px, pw);
-    const bw = 160, bh = 42;
-    button(W / 2 - bw / 2, py + ph - bh - 20, bw, bh, 'CLOSE', true);
-    menuSetButtons.push({ x: W / 2 - bw / 2, y: py + ph - bh - 20, w: bw, h: bh, action: 'close' });
+    const bw = 160, bh = 42, closeY = py + ph - bh - 20;
+    // MY DATA — the second door to the rename/erase panel (the board screen has
+    // the first). It lives here because a player who wants their name off the
+    // boards looks for it in settings, and the board route dead-ends for anyone
+    // holding no rows. Positioned off the CLOSE key so a short panel squeezes the
+    // gap above it rather than sliding the row underneath.
+    const mdY = closeY - 14 - 36, mdX = px + 24, mdW = pw - 48;
+    techRect(mdX, mdY, mdW, 36, 7);
+    ctx.fillStyle = 'rgba(10,26,48,0.8)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(120,200,255,0.42)'; ctx.lineWidth = 1.2; techRect(mdX, mdY, mdW, 36, 7); ctx.stroke();
+    ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(160,225,255,0.95)';
+    try { ctx.letterSpacing = '2px'; } catch (e) {}
+    ctx.font = '700 12px Audiowide, system-ui';
+    ctx.fillText('MY DATA', mdX + 16, mdY + 23);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    ctx.fillStyle = 'rgba(150,190,225,0.7)'; ctx.font = '500 10px Audiowide, system-ui';
+    ctx.textAlign = 'right'; ctx.fillText('RENAME / DELETE MY RUNS  ▸', mdX + mdW - 16, mdY + 23);
+    ctx.textAlign = 'left';
+    menuSetButtons.push({ x: mdX, y: mdY, w: mdW, h: 36, action: 'mydata' });
+    button(W / 2 - bw / 2, closeY, bw, bh, 'CLOSE', true);
+    menuSetButtons.push({ x: W / 2 - bw / 2, y: closeY, w: bw, h: bh, action: 'close' });
     ctx.restore();
   });
   ctx.textAlign = 'left';

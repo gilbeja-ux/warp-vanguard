@@ -29,15 +29,25 @@ any time by editing `docs/privacy.html` and pushing.
 **Is all data encrypted in transit?** → **Yes** (HTTPS to Supabase)
 **Do you provide a way for users to request data deletion?** → **Yes**
 
-Answer **Yes**, and where the form asks how, give the email route:
-`gilbeja.int@gmail.com`. Play accepts a documented request channel — an in-app
-control is not required, only a real way to ask that is actually honoured.
-**It has to be honoured**: a deletion request that goes unanswered is a policy
-breach, not an untidy inbox. Watch that address.
+Answer **Yes**. The route is **in-app**: the *MY DATA* panel on the leaderboard
+screen and in *System Config* offers **rename my runs** and **delete my runs**,
+both acting on every board at once. Email (`gilbeja.int@gmail.com`) remains as the
+fallback for players who have already uninstalled. Give both if the form allows,
+and the URL of `privacy.html` where it asks for documentation.
 
-> **Owed before public launch:** an in-app *Delete my leaderboard data* control.
-> Hand-processing is fine for a tester cohort and does not scale past it. When it
-> ships, `privacy.html` changes the same day. Tracked in RELEASE-PLAN §2.
+**The email route still has to be honoured** where it can be: an unanswered
+request is a policy breach, not an untidy inbox. Watch that address. Note the
+honest limit, which `privacy.html` states outright — entries carry no name, email
+or account to look a person up by, so without the id held on their device we may
+genuinely be unable to identify which rows are theirs. Reports of a *specific*
+entry (real name, personal information, offensive handle) we act on regardless,
+because those need no proof of who is asking.
+
+> **Not required, and worth knowing:** Play's account-deletion mandate applies only
+> to apps offering **account creation** — an app account being a user-facing
+> identity that serves the user across apps and devices. The anonymous Supabase uid
+> is neither. The control was built for GDPR Art. 21 and because a session token is
+> better proof of ownership than a typed name, not to satisfy this form.
 
 ### Data types to declare
 

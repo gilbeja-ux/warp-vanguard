@@ -415,3 +415,15 @@ enabled = true
 
 [functions.submit-run]
 verify_jwt = true
+
+# my-data acts on whatever identity the token names, so the signature check is the
+# whole security model — with verify_jwt off, an unsigned token claiming any `sub`
+# would erase that player's boards.
+[functions.my-data]
+verify_jwt = true
+
+# report-run dedupes and rate-limits by the REPORTER's id, taken from the token.
+# Unsigned tokens would make every report anonymous and unlimited, which is the
+# same as having no threshold at all.
+[functions.report-run]
+verify_jwt = true

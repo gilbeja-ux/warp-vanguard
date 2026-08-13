@@ -203,3 +203,109 @@ async function lbSubmit(run) {
         : 'OFFLINE — SCORE SAVED ON THIS DEVICE');
   }
 }
+
+// ---------- the player's own data (rename / erase) ----------
+// Both verbs go through the my-data Edge Function, authorised by the anonymous
+// session token — which is the ONLY proof of ownership these identities have.
+// There is no email to confirm through and no password to re-enter; a handle read
+// off a public board proves nothing. Holding a valid token for the id IS holding
+// the id, so the request carries no player id at all: the server takes it from
+// the JWT, and a tampered body can only ever address the identity it already has.
+//
+// Resolves { ok, ... } or { ok:false, human } — the caller shows `human` and never
+// the raw failure, same split as lbFail().
+async function lbMyData(action, name) {
+  if (!LEADERBOARD.enabled || typeof fetch === 'undefined') return { ok: false, human: 'UNAVAILABLE OFFLINE' };
+  try {
+    const token = await lbSession();
+    if (!token) return { ok: false, human: 'OFFLINE — TRY AGAIN WHEN CONNECTED' };
+    const res = await lbFetch(LEADERBOARD.url + '/functions/v1/my-data', {
+      method: 'POST',
+      headers: { apikey: LEADERBOARD.key, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, name })
+    });
+    const txt = await res.text();
+    let d = null; try { d = JSON.parse(txt); } catch (e) {}
+    if (!res.ok || !d || !d.ok) {
+      lbFail('MY-DATA ' + action + ' ' + res.status + ': ' + (d && d.error ? d.error : txt.slice(0, 64)),
+        'COULD NOT REACH THE BOARDS — NOTHING CHANGED');
+      return { ok: false, human: 'COULD NOT REACH THE BOARDS — NOTHING CHANGED' };
+    }
+    if (action === 'rename') {
+      // adopt the name the SERVER settled on, not the one we typed — it ran the
+      // same moderation submit-run does, so a blocked handle comes back REDACTED
+      // and the local copy has to agree with what the board now shows. `name` is
+      // null when the rename was REFUSED (cooldown, or every row locked): keep the
+      // old handle then, or the device would wear a name no board agrees with.
+      if (d.name) { identity.name = d.name; saveState(); }
+    } else if (action === 'delete') {
+      lbForgetIdentity();
+    }
+    return d;
+  } catch (e) {
+    lbFail('MY-DATA ' + action + ' ERR: ' + (e && e.message || e),
+      e && e.name === 'AbortError' ? 'NO ANSWER — NOTHING CHANGED' : 'OFFLINE — NOTHING CHANGED');
+    return { ok: false, human: e && e.name === 'AbortError' ? 'NO ANSWER — NOTHING CHANGED' : 'OFFLINE — NOTHING CHANGED' };
+  }
+}
+
+// ---------- reporting a handle ----------
+// The display name is the only user-generated content on a board, and a word
+// filter cannot know that a handle is someone's real name or is impersonating a
+// regular. Those need a human, and this is how they reach one.
+//
+// `reason` is one of a closed set ('offensive' | 'personal' | 'impersonation').
+// There is no free-text field on purpose: it would be user content needing its
+// own moderation, and it is what an angry player types abuse into.
+//
+// The answer is deliberately uninformative — the reporter never learns how many
+// others reported the row or whether anything happened, because publishing the
+// threshold turns it into a target. Reports are remembered LOCALLY so the link
+// disarms; that is UX, not enforcement (the server dedupes for real).
+async function lbReport(runId, reason) {
+  if (!LEADERBOARD.enabled || typeof fetch === 'undefined' || !runId) return { ok: false, human: 'UNAVAILABLE OFFLINE' };
+  try {
+    const token = await lbSession();
+    if (!token) return { ok: false, human: 'OFFLINE — TRY AGAIN WHEN CONNECTED' };
+    const res = await lbFetch(LEADERBOARD.url + '/functions/v1/report-run', {
+      method: 'POST',
+      headers: { apikey: LEADERBOARD.key, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId, reason })
+    });
+    const txt = await res.text();
+    let d = null; try { d = JSON.parse(txt); } catch (e) {}
+    if (!res.ok || !d || !d.ok) {
+      lbFail('REPORT ' + res.status + ': ' + (d && d.error ? d.error : txt.slice(0, 64)), 'COULD NOT SEND — TRY AGAIN LATER');
+      return { ok: false, human: 'COULD NOT SEND — TRY AGAIN LATER' };
+    }
+    progress.reported = progress.reported || {};
+    progress.reported[runId] = 1; saveState();
+    return d;
+  } catch (e) {
+    lbFail('REPORT ERR: ' + (e && e.message || e), 'OFFLINE — TRY AGAIN LATER');
+    return { ok: false, human: 'OFFLINE — TRY AGAIN LATER' };
+  }
+}
+const lbReported = runId => !!(runId && progress.reported && progress.reported[runId]);
+
+// Drop every trace of the old identity from this device after a successful erase.
+// The server has deleted the auth user, so the session is already dead — but the
+// LABELS are still here, and leaving them would quietly rebuild the same person:
+// the next submitted score would mint a fresh uid and then wear the same handle
+// on the same boards, which is not what "delete my runs" promised. The remembered
+// ranks go too (they point at rows that no longer exist), and so does lastRun —
+// otherwise the END screen's rename path could resubmit the just-erased run under
+// the new identity moments after it was wiped.
+//
+// Local PROGRESS is deliberately untouched: campaign completion, settings and
+// personal bests never left the device, and erasing a leaderboard presence is not
+// a request to lose the game. privacy.html says exactly this.
+function lbForgetIdentity() {
+  identity.id = ''; identity.autoName = ''; identity.name = '';
+  identity.uid = ''; identity.token = ''; identity.tokenExp = 0;
+  identity.refresh = ''; identity.service = '';
+  ensureIdentity();          // mint a fresh device handle + auto label immediately
+  progress.myBoards = {};
+  lastRun = null; lastSubmit = null; lbStatus = '';
+  saveState();
+}

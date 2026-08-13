@@ -588,6 +588,10 @@ function drawMenu(g) {
   if (menuPopUp() && menuBadge) stampMenuBadge(g); // badge holds its post, under the popup
   if (menuSettings || popLive('set')) drawMenuSettings(); // …through the erase too
   if (menuConfirm || popLive('confirm')) drawResetConfirm();
+  // MY DATA sits on top of SYSTEM CONFIG, because that is one of its two doors —
+  // drawn last so the settings panel dims behind it rather than over it
+  if (myData || popLive('mydata')) drawMyData();
+  if (report || popLive('report')) drawReport();
 }
 // the launch/zoom transform frame() wraps around the whole menu — mirrored so
 // the floating badge scales and fades in lockstep with the rest of the wheel
@@ -608,7 +612,8 @@ function stampMenuBadge(g) { // the hub shield at its home spot
 }
 // with a popup up the badge doesn't vanish — it steps back INTO the scene
 // (stamped under the popup's dim by drawMenu) instead of riding on top
-const menuPopUp = () => menuSettings || menuConfirm || popLive('set') || popLive('confirm');
+const menuPopUp = () => menuSettings || menuConfirm || myData || report
+  || popLive('set') || popLive('confirm') || popLive('mydata') || popLive('report');
 function drawMenuBadgeTop(g) {
   if (state !== S.MENU || menuScreen !== 'home' || !menuBadge || menuPopUp()) return;
   stampMenuBadge(g);
@@ -651,6 +656,219 @@ function drawResetConfirm() {
   menuConfirmBtns.push(cancel, wipe);
   ctx.restore();
   });
+}
+
+// ---------------------------------------------------------------------------
+// MY DATA — rename every run I hold, or erase them all. See the note in
+// 40-state.js for why both verbs are offered and why two screens open this.
+//
+// The panel is deliberately plain-spoken. Every line here is a PROMISE the code
+// has to keep, so it says exactly what each verb touches and what it leaves
+// alone — the commonest fear at this button is "will I lose my campaign", and
+// the answer is no, in as many words.
+// ---------------------------------------------------------------------------
+// "TRY AGAIN IN 7H 20M" beats "in 26400 seconds". Rounds UP to the minute so the
+// panel never says 0M while the server is still refusing.
+function fmtWait(sec) {
+  const m = Math.ceil(Math.max(0, sec) / 60), h = Math.floor(m / 60);
+  return h ? h + 'H ' + (m % 60) + 'M' : m + 'M';
+}
+function mdKey(btns, x, y, w, h, label, tone, tag) {
+  const T = tone === 'danger' ? ['rgba(120,26,26,0.92)', 'rgba(255,120,120,0.85)', '#ffd9d9']
+    : tone === 'go' ? ['rgba(26,86,58,0.92)', 'rgba(126,226,98,0.8)', '#dcffd2']
+    : ['rgba(20,44,72,0.9)', 'rgba(120,200,255,0.55)', '#dff2ff'];
+  techRect(x, y, w, h, 8); ctx.fillStyle = T[0]; ctx.fill();
+  ctx.strokeStyle = T[1]; ctx.lineWidth = 1.2; techRect(x, y, w, h, 8); ctx.stroke();
+  ctx.fillStyle = T[2]; ctx.font = '700 12px Audiowide, system-ui'; ctx.textAlign = 'center';
+  ctx.fillText(label, x + w / 2, y + h / 2 + 4);
+  btns.push({ x, y, w, h, tag });
+}
+function drawMyData() {
+  const q = popFxQ('mydata', !!myData);
+  myDataBtns = [];
+  const st = myData ? myData.step : 'menu', busy = !!(myData && myData.busy);
+  ctx.fillStyle = 'rgba(2,6,14,' + (0.72 * q).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
+  const pw = Math.min(W - 48, 470);
+  const ph = st === 'menu' ? 262 : st === 'rename' ? 236 : st === 'done' ? 190 : 250;
+  const px = (W - pw) / 2, py = (H - ph) / 2;
+  // the DOM field belongs to the rename step alone — drop it the moment we leave,
+  // or an invisible input keeps the keyboard up over the confirm screen
+  if (!(myData && st === 'rename') && overlayField === 'mydata') clearField();
+  popRender(q, px, py, pw, ph, () => {
+  ctx.save();
+  techRect(px, py, pw, ph, 12);
+  ctx.fillStyle = 'rgba(8,18,34,0.98)'; ctx.fill();
+  ctx.strokeStyle = st === 'confirm' ? 'rgba(255,110,110,0.7)' : 'rgba(120,200,255,0.6)'; ctx.lineWidth = 1.5;
+  techRect(px, py, pw, ph, 12); ctx.stroke();
+  ctx.textAlign = 'center';
+  const line = (s, y, col, w) => { ctx.fillStyle = col || 'rgba(220,235,255,0.9)'; ctx.font = (w || '500') + ' 12px Audiowide, system-ui'; ctx.fillText(s, W / 2, y); };
+  const bw = pw - 44, bx = px + 22;
+
+  if (st === 'menu') {
+    ctx.fillStyle = '#9fd8ff'; ctx.font = '800 15px Audiowide, system-ui';
+    ctx.fillText('MY DATA', W / 2, py + 34);
+    line('The boards hold a name you chose and the runs', py + 62);
+    line('you set. Both are yours to change.', py + 80);
+    mdKey(myDataBtns, bx, py + 100, bw, 38, 'RENAME MY RUNS', 'calm', 'toRename');
+    line('Your scores stay — only the name changes.', py + 154, 'rgba(150,190,225,0.75)');
+    mdKey(myDataBtns, bx, py + 168, bw, 38, 'DELETE MY RUNS', 'danger', 'toConfirm');
+    mdKey(myDataBtns, px + pw / 2 - 60, py + ph - 46, 120, 34, 'CLOSE', 'calm', 'close');
+  }
+  else if (st === 'rename') {
+    ctx.fillStyle = '#9fd8ff'; ctx.font = '800 15px Audiowide, system-ui';
+    ctx.fillText('RENAME MY RUNS', W / 2, py + 34);
+    line('This name replaces the old one on every run', py + 60);
+    line('you hold, on every board. Scores are untouched.', py + 78);
+    const fr = { x: px + 40, y: py + 96, w: pw - 80, h: 40 };
+    mountField('mydata', fr, { placeholder: 'ENTER YOUR HANDLE', value: myDataDraft, maxLength: NAME_MAX,
+      onInput: v => { myDataDraft = sanitizeName(v); }, onEnter: () => myDataAct('save') });
+    const ok = nameStatus(myDataDraft) === 'ok';
+    line(ok ? 'Do not use your real name.' : 'At least 2 characters, nothing offensive.',
+      py + 154, ok ? 'rgba(150,190,225,0.75)' : 'rgba(255,170,120,0.9)');
+    const hw = (pw - 56) / 2;
+    mdKey(myDataBtns, px + 22, py + ph - 56, hw, 38, 'CANCEL', 'calm', 'toMenu');
+    if (ok && !busy) mdKey(myDataBtns, px + pw - 22 - hw, py + ph - 56, hw, 38, 'SAVE', 'go', 'save');
+    else { ctx.globalAlpha = 0.4; mdKey([], px + pw - 22 - hw, py + ph - 56, hw, 38, busy ? 'SAVING…' : 'SAVE', 'go', 'save'); ctx.globalAlpha = 1; }
+  }
+  else if (st === 'confirm') {
+    ctx.fillStyle = '#ff9a9a'; ctx.font = '800 15px Audiowide, system-ui';
+    ctx.fillText('DELETE MY RUNS', W / 2, py + 34);
+    line('Every run you hold is removed from every board,', py + 64);
+    line('with its replay and this device’s board identity.', py + 82);
+    line('Your campaign progress and local bests are kept.', py + 108, 'rgba(150,220,150,0.9)');
+    line('This cannot be undone.', py + 134, '#ff9a9a', '700');
+    const hw = (pw - 56) / 2;
+    mdKey(myDataBtns, px + 22, py + ph - 56, hw, 38, 'CANCEL', 'calm', 'toMenu');
+    if (!busy) mdKey(myDataBtns, px + pw - 22 - hw, py + ph - 56, hw, 38, 'DELETE', 'danger', 'delete');
+    else { ctx.globalAlpha = 0.4; mdKey([], px + pw - 22 - hw, py + ph - 56, hw, 38, 'DELETING…', 'danger', 'delete'); ctx.globalAlpha = 1; }
+  }
+  else { // 'done' — the result line, and one way out
+    ctx.fillStyle = myData && myData.bad ? '#ff9a9a' : '#7ee262'; ctx.font = '800 15px Audiowide, system-ui';
+    ctx.fillText(myData && myData.bad ? 'NOTHING CHANGED' : 'DONE', W / 2, py + 40);
+    line((myData && myData.msg) || '', py + 76);
+    mdKey(myDataBtns, px + pw / 2 - 60, py + ph - 50, 120, 34, 'CLOSE', 'calm', 'close');
+  }
+  ctx.textAlign = 'left';
+  ctx.restore();
+  });
+}
+// ---------------------------------------------------------------------------
+// REPORT THIS — flagging someone else's handle. Three canned reasons and a way
+// out; tapping a reason IS the confirmation, so there is no second step asking
+// "are you sure" about a reversible, non-destructive act.
+//
+// Cheating is deliberately not on this list: the verifier replays every campaign
+// and weekly run, so a verified row is provably legitimate and a cheating report
+// against one could only be explained away, never acted on. This pipe carries the
+// NAME, which is the only thing on a board a human has to judge.
+// ---------------------------------------------------------------------------
+const REPORT_REASONS = [
+  ['offensive',     'OFFENSIVE OR HATEFUL'],
+  ['personal',      'A REAL NAME OR PERSONAL INFO'],
+  ['impersonation', 'IMPERSONATING SOMEONE'],
+];
+function drawReport() {
+  const q = popFxQ('report', !!report);
+  reportBtns = [];
+  const done = !!(report && report.done), busy = !!(report && report.busy);
+  ctx.fillStyle = 'rgba(2,6,14,' + (0.72 * q).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
+  const pw = Math.min(W - 48, 430), ph = done ? 178 : 250;
+  const px = (W - pw) / 2, py = (H - ph) / 2;
+  popRender(q, px, py, pw, ph, () => {
+  ctx.save();
+  techRect(px, py, pw, ph, 12);
+  ctx.fillStyle = 'rgba(8,18,34,0.98)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(224,110,110,0.6)'; ctx.lineWidth = 1.5;
+  techRect(px, py, pw, ph, 12); ctx.stroke();
+  ctx.textAlign = 'center';
+  if (done) {
+    ctx.fillStyle = report && report.bad ? '#ff9a9a' : '#7ee262'; ctx.font = '800 15px Audiowide, system-ui';
+    ctx.fillText(report && report.bad ? 'NOT SENT' : 'REPORTED', W / 2, py + 44);
+    ctx.fillStyle = 'rgba(220,235,255,0.9)'; ctx.font = '500 12px Audiowide, system-ui';
+    ctx.fillText((report && report.msg) || '', W / 2, py + 78);
+    mdKey(reportBtns, px + pw / 2 - 60, py + ph - 50, 120, 34, 'CLOSE', 'calm', 'close');
+  } else {
+    ctx.fillStyle = '#e08a8a'; ctx.font = '800 15px Audiowide, system-ui';
+    ctx.fillText('REPORT THIS NAME', W / 2, py + 34);
+    ctx.fillStyle = 'rgba(180,205,230,0.85)'; ctx.font = '500 11px Audiowide, system-ui';
+    ctx.fillText('“' + String((report && report.row && report.row.player_name) || 'ANON').slice(0, 16) + '”', W / 2, py + 58);
+    ctx.fillStyle = 'rgba(150,190,225,0.7)'; ctx.font = '500 10px Audiowide, system-ui';
+    ctx.fillText('The score is not affected. What is wrong with it?', W / 2, py + 78);
+    REPORT_REASONS.forEach(([key, label], i) => {
+      const y = py + 92 + i * 40;
+      if (busy) { ctx.globalAlpha = 0.4; mdKey([], px + 22, y, pw - 44, 34, label, 'calm', key); ctx.globalAlpha = 1; }
+      else mdKey(reportBtns, px + 22, y, pw - 44, 34, label, 'calm', key);
+    });
+    mdKey(reportBtns, px + pw / 2 - 60, py + ph - 44, 120, 30, busy ? 'SENDING…' : 'CANCEL', 'calm', 'close');
+  }
+  ctx.textAlign = 'left';
+  ctx.restore();
+  });
+}
+function reportAct(tag) {
+  if (!report) return;
+  if (tag === 'close') { closeReport(); return; }
+  if (report.busy || report.done) return;
+  const id = report.row && report.row.id;
+  if (!id) { report.done = true; report.bad = true; report.msg = 'THIS ENTRY IS NO LONGER ON THE BOARD'; return; }
+  report.busy = true;
+  lbReport(id, tag).then(r => {
+    if (!report) return;
+    report.busy = false; report.done = true; report.bad = !r.ok;
+    // What a reporter is told is the SAME every time, and says nothing about how
+    // many others reported the row or whether anything happened to it. Publishing
+    // the threshold would turn it into a target.
+    report.msg = r.ok ? 'Thanks — a human will look at this name.' : (r.human || 'COULD NOT SEND');
+  });
+}
+
+// the panel's verbs. Kept out of the drawer so the network calls can't be fired
+// twice by a redraw, and so `busy` is the single thing gating a second tap.
+function myDataAct(tag) {
+  if (!myData) return;
+  if (tag === 'close') { closeMyData(); return; }
+  if (tag === 'toMenu') { clearField(); myData.step = 'menu'; myData.msg = ''; return; }
+  if (tag === 'toRename') { myDataDraft = identity.name || ''; myData.step = 'rename'; return; }
+  if (tag === 'toConfirm') { myData.step = 'confirm'; return; }
+  if (myData.busy) return; // a second tap while the first is in flight does nothing
+  if (tag === 'save') {
+    if (nameStatus(myDataDraft) !== 'ok') return;
+    const want = sanitizeName(myDataDraft).trim();
+    myData.busy = true; clearField();
+    lbMyData('rename', want).then(r => {
+      if (!myData) return;                       // panel closed under us — nothing to report to
+      myData.busy = false; myData.step = 'done';
+      const rows = r.rows || 0, locked = r.locked || 0, wait = r.waitSec || 0;
+      // "nothing happened" has four different causes and they are not the same
+      // news. Collapsing them into one message is how a player concludes the
+      // button is broken when it is in fact working exactly as designed.
+      if (!r.ok)        { myData.bad = true;  myData.msg = r.human || 'COULD NOT REACH THE BOARDS'; }
+      else if (wait > 0){ myData.bad = true;  myData.msg = 'ALREADY RENAMED TODAY — TRY AGAIN IN ' + fmtWait(wait); }
+      else if (!rows && locked) { myData.bad = true; myData.msg = 'THOSE ENTRIES WERE MODERATED AND CANNOT BE RENAMED'; }
+      else if (!rows)   { myData.bad = true;  myData.msg = 'YOU HOLD NO ENTRIES ON ANY BOARD YET'; }
+      else {
+        myData.bad = false;
+        // report what the BOARD now says, not what was typed — the server runs the
+        // same word filter submit-run does, so a blocked handle comes back REDACTED
+        myData.msg = rows + ' run' + (rows === 1 ? '' : 's') + ' now read “' + (r.name || want) + '”'
+          + (locked ? ' · ' + locked + ' moderated ' + (locked === 1 ? 'entry' : 'entries') + ' kept' : '');
+        // the open board still shows the OLD name — refetch it. Not `boardData = null`:
+        // nothing polls for that, so the screen would sit on SYNCING… forever.
+        if (boardSel.mode) loadBoard();
+      }
+    });
+    return;
+  }
+  if (tag === 'delete') {
+    myData.busy = true;
+    lbMyData('delete').then(r => {
+      if (!myData) return;
+      myData.busy = false; myData.step = 'done'; myData.bad = !r.ok;
+      myData.msg = r.ok ? (r.rows || 0) + ' run' + (r.rows === 1 ? '' : 's') + ' erased from the boards'
+        : (r.human || 'COULD NOT REACH THE BOARDS');
+      if (r.ok && boardSel.mode) loadBoard(); // my rows are gone from it — pull the board again
+    });
+  }
 }
 
 function drawMenuHome(ccx, ccy, R) {

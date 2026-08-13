@@ -74,18 +74,55 @@ player-chosen handle, and run data to a server.
       common rejection. Expected answers: collects *User IDs* (anonymous) and
       *App activity / in-game actions*; data **is** transmitted off-device; **not**
       used for tracking or advertising; encrypted in transit; deletion available.
-- [x] **Data deletion path — TESTER VERSION: by email**, `gilbeja.int@gmail.com`,
-      processed by hand. Play accepts a documented request channel; an in-app
-      control is not required. Adequate for a tester cohort **and only that**.
-- [ ] ⚠️ **BEFORE PUBLIC LAUNCH — in-app deletion control.** A *Delete my
-      leaderboard data* action calling a Supabase function that purges rows for the
-      player id. Hand-processing does not scale past testers, and an unanswered
-      request is a policy breach rather than a full inbox. `privacy.html` must
-      change on the same day it ships.
-- [ ] **UGC handling for player handles.** Server-side moderation already exists
-      (`submit-run`). Stores also expect a **report mechanism** and the ability to
-      act on reports. Minimum viable: a report control on the board rows plus a
-      documented takedown route.
+- [x] **Data deletion path — SHIPPED IN-APP.** The **MY DATA** panel, reached from
+      the leaderboard screen and from *System Config*, offers two verbs backed by
+      the `my-data` Edge Function: *rename my runs* (every row, every board) and
+      *delete my runs* (rows + replay traces + the anonymous auth user). Ownership
+      is proved by the session JWT — the only proof an anonymous identity has, and
+      a better one than the old email route, which asked for a display name anyone
+      could read off a public board. Email survives as the fallback for players who
+      have uninstalled, and `privacy.html` now states plainly that without the
+      device-held id we may be unable to identify their entries.
+
+      **Neither store ever required this.** Play's and Apple's deletion mandates
+      are scoped to *account creation* — Play defines an app account as a
+      user-facing identity serving the user across apps and devices, which the
+      Supabase anon uid is not. It was built because GDPR Art. 21 does apply, and
+      because the control is the cheapest way to authenticate a request.
+- [ ] **Legitimate interest, not consent — keep it that way.** `privacy.html` now
+      names Art. 6(1)(f) as the basis. This is deliberate and load-bearing: under
+      *consent*, Art. 7(3) makes withdrawal trivial and Art. 17(1)(b) turns it into
+      an automatic erasure trigger, so every request would have to be honoured in
+      full. Under legitimate interest a player must *object* (Art. 21), and board
+      integrity is a defensible ground for keeping the **score** while the **name**
+      is reset — which is why the rename exists beside the delete. Do not reword
+      the policy into consent language.
+- [ ] **Supabase DPA.** Art. 28 requires a written processor contract. Supabase
+      publishes one; accept it in the dashboard. `privacy.html` already claims it
+      is in place, so this is owed the moment that page is public.
+- [ ] **Art. 30 record of processing.** The <250-employee exemption in Art. 30(5)
+      lapses when processing is not "occasional", and a live leaderboard is not.
+      One internal page, written once. Art. 27 (EU representative) is the same
+      shape of argument and is effectively never enforced at this scale — note it,
+      revisit if the game gets big.
+- [x] **UGC handling for player handles — SHIPPED.** Three layers now: the client
+      filter as you type, the server word-list backstop in `submit-run` (and
+      `my-data` on rename), and a **report** route — a muted *report this* link at
+      the foot of each entry's detail column, opening three canned reasons
+      (offensive / real name or personal info / impersonation). No free text: it
+      would be UGC needing its own moderation, and it is the field an angry player
+      types abuse into. Cheating is deliberately absent — a verified run is
+      provably legitimate and endless is unadjudicable, so that traffic would only
+      bury the reports a human must read.
+
+      **Acting on reports** is `report_run`: one report per person per row, and at
+      **three distinct reporters an UNVERIFIED row's name is redacted and locked**.
+      Verified campaign/weekly rows never auto-act — they are records someone
+      earned, so an automatic action there is worth more to a brigade than to a
+      moderator. Those queue; read them in the `reports` table.
+- [ ] **Watch the `reports` table.** Nothing notifies you. Verified rows above the
+      threshold sit there until a human looks. Worth a weekly glance, or a Supabase
+      scheduled digest if it ever gets traffic.
 - [ ] **Content rating questionnaire** (IARC, via Play Console). Expect ~E/PEGI 3
       with an interactive-elements flag for **user interaction** (leaderboards +
       handles). Answer honestly; the flag is normal.

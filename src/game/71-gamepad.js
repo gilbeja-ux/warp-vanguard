@@ -25,6 +25,8 @@ function gpSyncFocus(list) { // → true when focus just snapped to a fresh scre
 }
 function gpBackAction() { // B: CANCEL (modal, panel, card) / LEAVE (pause + report)
   if (state === S.MENU) {
+    if (report) { closeReport(); sfx.tick(); return; }            // the report panel sits above MY DATA
+    if (myData) { closeMyData(); sfx.tick(); return; }            // MY DATA sits above the settings panel
     if (menuConfirm) { menuConfirm = false; sfx.tick(); return; } // close the modal, go nowhere
     if (menuSettings) { menuSettings = false; sfx.tick(); return; } // close the settings panel
     gpMenuBack();
@@ -55,6 +57,8 @@ function gpMenuBack() { // one step back through the menu screens
 }
 function gpQuitAction() { // Y: BACK a screen in the menus, QUIT the run elsewhere
   if (state === S.MENU) {
+    if (report) { closeReport(); sfx.tick(); return; }
+    if (myData) { closeMyData(); sfx.tick(); return; }
     if (menuConfirm) { menuConfirm = false; sfx.tick(); return; }
     if (menuSettings) { menuSettings = false; sfx.tick(); return; }
     gpMenuBack();
@@ -85,7 +89,8 @@ function endForward(list) {
 }
 function gpList() {
   // settings rows (toggles) ride the focus ring too — pause and menu panel alike
-  if (state === S.MENU) return menuSettings ? menuSetButtons.concat(pauseTogglesList) : menuButtons;
+  if (state === S.MENU) return report ? reportBtns : myData ? myDataBtns
+    : menuSettings ? menuSetButtons.concat(pauseTogglesList) : menuButtons;
   if (state === S.PAUSE) return pauseButtonsList.concat(pauseTogglesList);
   if (state === S.END) return endButtons;
   return null;
@@ -157,7 +162,7 @@ function drawGpHints() { // once a controller speaks, keys wear their buttons
   // ...and never during a screen change: the ring is drawn from the key's current
   // rect, which is meaningless while the layout is flying in or out.
   if (list && list.length && gpNav && !menuFx && !trans
-    && !(state === S.MENU && menuScreen === 'map' && !menuSettings)
+    && !(state === S.MENU && menuScreen === 'map' && !menuSettings && !myData && !report)
     && !(state === S.END && nameEntry)) {
     const fb = list[Math.min(gpSel, list.length - 1)];
     if (fb && !fb.sector) {
@@ -184,7 +189,7 @@ function drawGpHints() { // once a controller speaks, keys wear their buttons
     if (!h || b.sector) continue;
     drawPadHint(b.x + b.w / 2, b.y - 2, h);
   }
-  if (state === S.MENU && menuScreen !== 'home' && menuBackRect && !menuSettings)
+  if (state === S.MENU && menuScreen !== 'home' && menuBackRect && !menuSettings && !myData && !report)
     drawPadHint(menuBackRect.x + menuBackRect.w / 2, menuBackRect.y + menuBackRect.h + 9, 'Y');
   // the high-score card: A saves (once live), B skips
   if (state === S.END && nameEntry) for (const b of nameEntryBtns)
@@ -249,7 +254,7 @@ function pollGamepad(dt) {
       sfx.tick();
     }
     else if (state === S.GUIDE) closeGuide();
-    else if (state === S.MENU && !menuConfirm && !menuFx) { menuSettings = !menuSettings; sfx.tick(); } // START: the settings panel
+    else if (state === S.MENU && !menuConfirm && !myData && !report && !menuFx) { menuSettings = !menuSettings; sfx.tick(); } // START: the settings panel
   }
   padPrev.start = start;
   if (state === S.GUIDE) { // the guide: A dismisses, like an info disc
@@ -258,7 +263,7 @@ function pollGamepad(dt) {
     padPrev.a = aG;
   }
   const list = gpList();
-  const inSettings = state === S.MENU && menuSettings;
+  const inSettings = state === S.MENU && (menuSettings || !!myData || !!report);
   const onMap = state === S.MENU && menuScreen === 'map' && !inSettings;
   if (list && list.length && onMap) {
     // the map is a LIST, not a maze: up/down picks the relay, A deploys,

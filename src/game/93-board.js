@@ -203,6 +203,25 @@ function drawMenuBoard() {
   ctx.stroke();
   ctx.restore();
 
+  // ---- MY DATA: rename every run I hold, or erase them all ----
+  // It rides beside the back key rather than in the entry-detail column, because
+  // it is not about the SELECTED run — both verbs act on every row this player
+  // holds, across every board. The detail column describes one entry; this does
+  // not belong in it. Always present, never gated on holding a row here: a
+  // player with nothing on this board may still hold runs on five others.
+  { const mw = 84, mdk = { x: bk.x - 8 - mw, y: bk.y, w: mw, h: bk.h };
+    ctx.save(); ctx.globalAlpha = backA;
+    techRect(mdk.x, mdk.y, mdk.w, mdk.h, 8);
+    ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(120,220,255,0.4)'; ctx.lineWidth = 1.5;
+    techRect(mdk.x, mdk.y, mdk.w, mdk.h, 8); ctx.stroke();
+    ctx.fillStyle = 'rgba(200,240,255,0.85)'; ctx.font = '700 ' + F(H * 0.019) + 'px Audiowide, system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('MY DATA', mdk.x + mdk.w / 2, mdk.y + mdk.h / 2 + F(H * 0.019) * 0.36);
+    ctx.textAlign = 'left';
+    ctx.restore();
+    if (backA > 0.5) menuButtons.push({ x: mdk.x, y: mdk.y, w: mdk.w, h: mdk.h, boardMyData: true }); }
+
   // ================= LEFT: modes + collapsible campaigns (animated fold) =================
   // ease every foldable group toward its open/closed target — the campaigns and the ladder
   for (const k of CAMPAIGNS.map(c => c.id).concat(BOARD_WEEKS)) {
@@ -430,9 +449,12 @@ function drawMenuBoard() {
       ['Perfect', (sel.perfects || 0) + ' (' + pct + '%)', AN(sel.perfects) + ' (' + AN(pct) + '%)'],
     ];
     // vertical budget: name + 5 detail cards + the Replay button (same height as a
-    // detail card) must all fit above the screen bottom
+    // detail card) must all fit above the screen bottom — and now the report link
+    // under them, whose strip is RESERVED here rather than taken out of the slack,
+    // because there was none: the six slots divided up to `bottom` exactly.
     const bottom = H - SAFE.b - H * 0.025;
-    const dCardH = Math.min(Math.min(H * 0.092, 76), (bottom - dy - 6 * cardGap) / 6);
+    const fRep = F(H * 0.020), repRes = fRep + 16;   // the report link's own strip
+    const dCardH = Math.min(Math.min(H * 0.092, 76), (bottom - dy - 6 * cardGap - repRes) / 6);
     details.forEach(([label, fin, disp], i) => {
       ctx.save(); ctx.translate(boardRowOff(i + 1, 'right'), 0);
       const lX = archL(dy + dCardH / 2);
@@ -466,6 +488,30 @@ function drawMenuBoard() {
     ctx.globalAlpha = 1;
     ctx.restore();
     if (can) menuButtons.push({ x: repX, y: repY, w: repW, h: repH2, boardReplaySel: sel });
+
+    // ---- "report this" — a muted red link, deliberately the quietest thing here ----
+    // It is not a card and not a key: reporting is a rare, sober act and giving it
+    // a button's weight would put it in the same visual class as Replay, which is
+    // the thing people are here to press. Hidden on my OWN rows — MY DATA is the
+    // door for those, and self-reporting only ever confuses.
+    if (sel.player_id !== meId) {
+      const already = lbReported(sel.id);
+      const ry = repY + repH2 + 12, rtx = archL(ry + fRep * 0.5) + 4;
+      ctx.save(); ctx.translate(boardRowOff(6, 'right'), 0);
+      ctx.font = '600 ' + fRep + 'px Audiowide, system-ui'; ctx.textAlign = 'left';
+      const label = already ? 'reported' : 'report this';
+      ctx.fillStyle = already ? 'rgba(150,170,190,0.55)' : 'rgba(214,104,104,0.78)';
+      ctx.fillText(label, rtx, ry + fRep);
+      const rtw = ctx.measureText(label).width;
+      if (!already) { // a thin underline, so it reads as a link rather than a label
+        ctx.strokeStyle = 'rgba(214,104,104,0.34)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(rtx, ry + fRep + 3.5); ctx.lineTo(rtx + rtw, ry + fRep + 3.5); ctx.stroke();
+      }
+      ctx.restore();
+      // the tap target is padded well past the text — this is a small link on a
+      // phone, and a miss here lands on nothing rather than on the wrong thing
+      if (!already && sel.id) menuButtons.push({ x: rtx - 10, y: ry - 6, w: rtw + 20, h: fRep + 18, boardReport: sel });
+    }
     ctx.restore(); // end right column
   }
   ctx.textAlign = 'left';

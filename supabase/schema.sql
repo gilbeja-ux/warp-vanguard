@@ -95,9 +95,12 @@ create policy runs_public_read on public.runs
 
 -- Top of a board (pass p_day for 'daily', NULL otherwise). Ranked with a window
 -- function — exact "rank / of total" for free.
+-- `id` is in the payload because a report has to name the row it is about, and
+-- nothing else identifies one: rank shifts as scores land, player_id is not unique
+-- per row, and created_at is a tie-break rather than a key. See reports, below.
 create or replace function public.leaderboard_top(p_board text, p_day int default null, p_limit int default 100)
 returns table (
-  rank int, player_id text, player_name text, score int,
+  rank int, id uuid, player_id text, player_name text, score int,
   max_combo int, combo_sec real, time_sec real, zaps int, misses int, perfects int,
   verified boolean, trace_id text, created_at timestamptz
 )
@@ -111,7 +114,7 @@ returns table (
 -- EARLIER record (created_at), then id as a final absolute deterministic key.
 language sql stable as $$
   select rank() over (order by r.score desc, r.zaps desc, r.perfects desc, r.created_at asc, r.id asc)::int as rank,
-         r.player_id, r.player_name, r.score,
+         r.id, r.player_id, r.player_name, r.score,
          r.max_combo, r.combo_sec, r.time_sec, r.zaps, r.misses, r.perfects,
          r.verified, r.trace_id, r.created_at
   from public.runs r
@@ -233,3 +236,162 @@ grant execute on function public.leaderboard_provisional_rank(text, int, int, in
 -- No name/account RPCs: the display name is a free-typed handle carried on each
 -- run row and moderated by the submit-run Edge Function. There is no sign-in,
 -- no uniqueness, and no profiles table (see the identity note near the top).
+
+-- ---------------------------------------------------------------------------
+-- THE PLAYER'S OWN DATA, and REPORTS on someone else's.
+--
+-- These live in migrations/ as their own files (20260813000000_my_data.sql and
+-- 20260813000100_reports.sql) with the full reasoning; they are repeated here
+-- because THIS file is the fresh-project path and a project built from it alone
+-- would otherwise come up without them. Read the migrations for the why.
+-- ---------------------------------------------------------------------------
+
+-- A rename is guarded twice: it skips rows a moderator (or report_run's
+-- threshold) has neutralised, and it is rate-limited to one a day. See
+-- migrations/20260813000200_rename_guards.sql for the reasoning on both.
+alter table public.runs add column if not exists name_locked boolean not null default false;
+-- one timestamp per player and nothing else — a clock for the rate limit, NOT the
+-- profiles table this schema keeps refusing to grow
+create table if not exists public.player_limits (
+  player_id  text primary key,
+  renamed_at timestamptz
+);
+alter table public.player_limits enable row level security;  -- no policies: service role only
+
+-- Rename every run a player holds, on every board (the handle is one handle,
+-- denormalized onto every row). The FIRST rename is always free; the cooldown
+-- starts only after one that changed something. Service-role only.
+create or replace function public.rename_my_runs(p_player text, p_name text, p_cooldown_sec int default 86400)
+returns table (renamed int, locked int, wait_sec int)
+language plpgsql as $$
+declare v_last timestamptz; v_wait int := 0; n_ren int := 0; n_lock int := 0;
+begin
+  select pl.renamed_at into v_last from public.player_limits pl where pl.player_id = p_player;
+  if v_last is not null then
+    v_wait := greatest(0, p_cooldown_sec - floor(extract(epoch from (now() - v_last)))::int);
+  end if;
+  select count(*)::int into n_lock from public.runs r where r.player_id = p_player and r.name_locked;
+  if v_wait > 0 then return query select 0, n_lock, v_wait; return; end if;
+  update public.runs set player_name = coalesce(p_name, ''), updated_at = now()
+   where player_id = p_player and not name_locked;
+  get diagnostics n_ren = row_count;
+  if n_ren > 0 then
+    insert into public.player_limits (player_id, renamed_at) values (p_player, now())
+    on conflict (player_id) do update set renamed_at = now();
+  end if;
+  return query select n_ren, n_lock, 0;
+end;
+$$;
+
+-- Erase every run a player holds, handing back the trace keys so the caller can
+-- purge Storage too. Takes the cooldown ledger row with it. Service-role only.
+-- Deliberately NOT blocked by name_locked: erasing the row removes the offending
+-- name outright, so there is nothing left to protect.
+create or replace function public.delete_my_runs(p_player text)
+returns table (trace_id text)
+language plpgsql as $$
+begin
+  delete from public.player_limits where player_id = p_player;
+  return query delete from public.runs r where r.player_id = p_player returning r.trace_id;
+end;
+$$;
+
+-- Reports on a handle — the only user-generated content on a board. No client
+-- role can read or write this table (RLS on, no policies).
+create table if not exists public.reports (
+  id          uuid primary key default gen_random_uuid(),
+  run_id      uuid not null references public.runs(id) on delete cascade,
+  reporter_id text not null,
+  reason      text not null default 'other',
+  created_at  timestamptz not null default now()
+);
+create unique index if not exists reports_run_reporter on public.reports (run_id, reporter_id);
+create index if not exists reports_run     on public.reports (run_id);
+create index if not exists reports_created on public.reports (created_at desc);
+alter table public.reports enable row level security;
+
+-- File a report; redact the name at 3 distinct reporters, UNVERIFIED rows only
+-- (a verified run is a record someone earned — those queue for a human).
+create or replace function public.report_run(p_run uuid, p_reporter text, p_reason text)
+returns table (reports int, redacted boolean)
+language plpgsql as $$
+declare v_owner text; v_verified boolean; n int; did boolean := false;
+begin
+  select r.player_id, r.verified into v_owner, v_verified from public.runs r where r.id = p_run;
+  if v_owner is null then return query select 0::int, false; return; end if;
+  if v_owner = p_reporter then return query select 0::int, false; return; end if;
+  insert into public.reports (run_id, reporter_id, reason)
+  values (p_run, p_reporter, coalesce(nullif(p_reason, ''), 'other'))
+  on conflict (run_id, reporter_id) do nothing;
+  select count(distinct reporter_id)::int into n from public.reports where run_id = p_run;
+  if n >= 3 and not v_verified then
+    -- name_locked is what makes the redaction STICK: without it the player puts
+    -- the name straight back through MY DATA and moderation is theatre
+    update public.runs set player_name = 'REDACTED', name_locked = true, updated_at = now()
+     where id = p_run and not name_locked;
+    did := found;
+  end if;
+  return query select n, did;
+end;
+$$;
+
+-- None of the three are reachable with the publishable key: they take the player
+-- id as an argument (the Edge Functions pass it from a verified JWT), so an anon
+-- caller could otherwise name anyone. Postgres grants EXECUTE to PUBLIC on new
+-- functions by default — these revokes are the guard, not a formality.
+revoke execute on function public.rename_my_runs(text, text, int) from public, anon, authenticated;
+revoke execute on function public.delete_my_runs(text)            from public, anon, authenticated;
+revoke execute on function public.report_run(uuid, text, text)    from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- THE MODERATION SURFACE — see docs/MODERATION.md.
+-- `reports` alone is unusable for judging: it holds uuids, and the name you are
+-- deciding about lives in `runs`. This view is that join, one row per reported
+-- RUN. security_invoker keeps it as invisible as the table it reads.
+-- ---------------------------------------------------------------------------
+create or replace view public.report_queue
+with (security_invoker = true) as
+select r.id as run_id, r.player_name, r.board, r.score, r.verified, r.name_locked,
+       count(*)::int as reports, string_agg(distinct rp.reason, ', ') as reasons,
+       min(rp.created_at) as first_report, max(rp.created_at) as last_report
+from public.reports rp
+join public.runs r on r.id = rp.run_id
+group by r.id, r.player_name, r.board, r.score, r.verified, r.name_locked;
+revoke all on public.report_queue from public, anon, authenticated;
+
+-- select public.moderate_name('<run_id>')  → redact + LOCK (without the lock the
+-- player renames it straight back and the moderation was theatre)
+create or replace function public.moderate_name(p_run uuid)
+returns text
+language plpgsql as $$
+declare was text;
+begin
+  select player_name into was from public.runs where id = p_run;
+  if was is null then return 'no such run'; end if;
+  update public.runs set player_name = 'REDACTED', name_locked = true, updated_at = now() where id = p_run;
+  return 'redacted and locked (was: ' || was || ')';
+end;
+$$;
+
+-- select public.release_name('<run_id>')  → unlock. Does NOT restore the old name;
+-- it is overwritten and gone, which for the 'personal' reason is the entire point.
+create or replace function public.release_name(p_run uuid)
+returns text
+language plpgsql as $$
+begin
+  update public.runs set name_locked = false, updated_at = now() where id = p_run;
+  if not found then return 'no such run'; end if;
+  return 'unlocked — the player can now rename it (the old name is gone)';
+end;
+$$;
+
+revoke execute on function public.moderate_name(uuid) from public, anon, authenticated;
+revoke execute on function public.release_name(uuid)  from public, anon, authenticated;
+
+-- The ADMIN views (admin_overview, board_occupancy, ladder_reach, player_growth)
+-- are NOT repeated here. They are read-only dashboard tooling, not something the
+-- game needs to run, and a fresh project comes up perfectly well without them —
+-- whereas keeping four aggregate views correct in two places is how the copies
+-- drift apart. They live in migrations/20260813000400_admin_views.sql (and the
+-- corrections in ...000500 and ...000600); `supabase db push` installs them.
+-- What they mean, and what they cannot mean, is in docs/MODERATION.md.

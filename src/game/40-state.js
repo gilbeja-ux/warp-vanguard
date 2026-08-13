@@ -358,6 +358,31 @@ let nbHold = 0;
 // synchronously via nameStatus() at draw time (no server round-trip — local UX)
 function onEntryInput(v) { nameEntryDraft = sanitizeName(v); }
 let menuConfirm = false, menuConfirmBtns = []; // reset-campaign confirmation modal
+// MY DATA — the player acting on their OWN leaderboard entries: rename every one
+// of them, or erase the lot. Two verbs of very different weight, deliberately
+// offered together: taking a name off a public board costs the board nothing, so
+// it answers almost every real request while the run stays where it was earned.
+//
+// ONE PANEL, TWO DOORS. The board screen carries the key, because that is the only
+// screen where a player is already looking at their own rows — but the board
+// dead-ends for someone holding none, and wanting out is exactly the state you are
+// in when you hold nothing you like. So SYSTEM CONFIG carries a second door to the
+// same panel. Neither is a copy of the other; both open this.
+// step: 'menu' → 'rename' | 'confirm' → 'done'.
+let myData = null;      // { step, busy, msg, bad } while the panel is up, else null
+let myDataBtns = [];
+let myDataDraft = '';
+function openMyData() { myData = { step: 'menu', busy: false, msg: '', bad: false }; myDataDraft = identity.name || ''; }
+function closeMyData() { myData = null; myDataDraft = ''; clearField(); }
+// REPORT — a player flagging someone else's handle. The name is the only
+// user-generated content on a board, and a word list cannot know that a handle is
+// somebody's real name or is impersonating a regular; those need a human.
+// Reasons are a closed set, never free text: free text is user content needing
+// its own moderation, and it is the field an angry player types abuse into.
+let report = null;      // { row, busy, done, msg, bad } while the panel is up
+let reportBtns = [];
+function openReport(row) { report = { row, busy: false, done: false, msg: '', bad: false }; }
+function closeReport() { report = null; }
 let menuHold = null;   // long-press charge on the last relay → the CORE duel: { node, t }
 let resetHold = null;  // long-press on the ↺ key → reset-campaign confirm: { t, x, y }
 let padSelHold = 0;    // gamepad twin: SELECT held on the route map

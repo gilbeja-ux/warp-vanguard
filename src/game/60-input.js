@@ -108,7 +108,7 @@ canvas.addEventListener('pointerdown', e => {
   if (state === S.MENU) {
     // overlay + gear act immediately; the level list uses tap-vs-drag on release
     const hitRect = (r, m) => r && P.x > r.x - m && P.x < r.x + r.w + m && P.y > r.y - m && P.y < r.y + r.h + m;
-    if (menuSettings || menuConfirm || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6) || hitRect(menuGuideRect, 8)) {
+    if (report || myData || menuSettings || menuConfirm || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6) || hitRect(menuGuideRect, 8)) {
       menuTap(P.x, P.y, e.pointerId);
       return;
     }
@@ -320,6 +320,25 @@ document.addEventListener('visibilitychange', () => {
 // ---------- menu / end screens hit areas ----------
 let menuButtons = [];
 function menuTap(x, y, pid) {
+  // the report panel sits above everything on the board screen, MY DATA included
+  if (report) {
+    for (const b of reportBtns) {
+      if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) { pressUI(b, () => reportAct(b.tag)); return; }
+    }
+    return; // no tap-outside dismiss: the panel always carries its own way out
+  }
+  // MY DATA owns every tap while it's up — it sits above SYSTEM CONFIG (one of
+  // its two doors), so it has to be tested before the settings branch or the
+  // panel underneath would eat the taps meant for it.
+  if (myData) {
+    for (const b of myDataBtns) {
+      if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) { pressUI(b, () => myDataAct(b.tag)); return; }
+    }
+    // NO tap-outside-to-dismiss here, unlike the other panels. A stray tap beside
+    // a live confirm ("delete everything?") should not quietly close the thing the
+    // player is deciding about; the panel always carries its own way out.
+    return;
+  }
   // the reset-confirm modal owns every tap while it's up
   if (menuConfirm) {
     for (const b of menuConfirmBtns) {
@@ -347,6 +366,9 @@ function menuTap(x, y, pid) {
     if (settingsTap(x, y, pid)) return;
     for (const b of menuSetButtons) {
       if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
+        // MY DATA is the one row that opens something instead of dismissing —
+        // the settings panel stays mounted underneath so CLOSE returns to it
+        if (b.action === 'mydata') { pressUI(b, () => openMyData()); return; }
         pressUI(b); menuSettings = false; return;
       }
     }
@@ -435,6 +457,8 @@ function menuTap(x, y, pid) {
       });
       else if (b.boardRow) pressUI(b, () => { boardSelRank = b.boardRow; sfx.tick(); }); // select an entry → details
       else if (b.boardShowMe) pressUI(b, () => { boardSelRank = b.boardShowMe; boardScrollToRank(b.boardShowMe); sfx.tick(); });
+      else if (b.boardMyData) pressUI(b, () => { openMyData(); sfx.tick(); });
+      else if (b.boardReport) pressUI(b, () => { openReport(b.boardReport); sfx.tick(); });
       else if (b.boardReplaySel) pressUI(b, () => boardReplayLaunch(b.boardReplaySel)); // watch the selected run
       else sfx.tick();
       return;
@@ -527,6 +551,11 @@ function resetRun() {
   nodes[0].angle = Math.PI * 0.75;
   nodes[1].angle = Math.PI * 0.25;
   popReset(); // a panel left open on QUIT/RESTART must not reappear (mid-dissolve) on the fresh run
+  // popReset only clears the ANIMATION; MY DATA holds real state (a half-typed
+  // handle, a live confirm), so it has to be torn down too or it reappears —
+  // mid-decision — the next time the menu is drawn.
+  if (myData) closeMyData();
+  if (report) closeReport();
   state = S.PLAY;
 }
 function startLevel(i, brief) {
