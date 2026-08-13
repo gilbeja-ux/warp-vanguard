@@ -89,9 +89,12 @@ player-chosen handle, and run data to a server.
 - [ ] **Content rating questionnaire** (IARC, via Play Console). Expect ~E/PEGI 3
       with an interactive-elements flag for **user interaction** (leaderboards +
       handles). Answer honestly; the flag is normal.
-- [ ] **CREDITS.md `_TBC_` placeholders.** 13 recorded SFX are CC0/royalty-free but
-      the per-file source URLs are still blank. Fill before shipping — attribution
-      hygiene, and it is evidence if a claim ever lands.
+- [x] **CREDITS.md audio licensing — settled.** The pool takes are CC0 (Sonniss /
+      Kenney / Freesound), which requires no attribution; the per-file origins were
+      never recorded, and the file now says so instead of claiming a chain of title
+      it could not show. The two boss takes are Pixabay Content License — recorded
+      separately because Pixabay is *not* CC0 — and it permits commercial use with
+      no attribution, so nothing is owed at launch or at the 1.1 paid unlock.
 - [ ] **Name clearance** on "Warp Vanguard" — Play/App Store search plus a
       trademark check. Rebranding after launch costs the listing's whole history.
 

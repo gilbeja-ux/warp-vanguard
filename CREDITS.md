@@ -64,16 +64,29 @@ from as a class.
 | `warpIn` | `warp-in.mp3` | Spooling into the lane | CC0 / royalty-free |
 | `inWarp` | `in-warp.mp3` | The lane, looped under a run | CC0 / royalty-free |
 | `exitWarp` | `exit-warp.mp3` | Dropping out of warp on a win | CC0 / royalty-free |
-| `bossArrive` | `boss-arrival.mp3` | A leech surfacing | author-supplied — **confirm** |
-| `bossDead` | `boss-dead.mp3` | A leech breaking up | author-supplied — **confirm** |
+| `bossArrive` | `boss-arrival.mp3` | A leech surfacing | Pixabay Content License |
+| `bossDead` | `boss-dead.mp3` | A leech breaking up | Pixabay Content License |
 | — | `splash2.mp3` | Splash sting | CC0 / royalty-free |
 
-> **The only open question is the last two.** `boss-arrival.mp3` and
-> `boss-dead.mp3` were added by hand in August 2026 and did not come through the
-> CC0 pool above, so their licence is whatever their actual source says. If they
-> came from a paid pack, a subscription library, or anywhere with terms, note it
-> here before public launch — that is the one line in this file that could
-> actually matter later.
+### The two Pixabay takes
+
+`boss-arrival.mp3` and `boss-dead.mp3` (added August 2026) came from
+**Pixabay**, and they are listed separately on purpose: Pixabay is **not CC0**.
+It has used its own *Pixabay Content License* since 2019, and lumping it in with
+the CC0 pool above would be the same overstatement this file just removed.
+
+In practice it is permissive in every way this project needs:
+
+- **Commercial use is allowed** — a paid app is fine, so the 1.1 unlock changes
+  nothing here.
+- **No attribution required.** These lines are a record, not an obligation.
+- The real restriction is on **redistributing the audio as audio** — selling or
+  publishing the files as a sound pack, wallpaper-style. Shipping them inside
+  the app as game audio is the intended use and is not that.
+
+Nothing to do before launch. If the download pages are ever recoverable from a
+Pixabay account's history, adding the two URLs here would make the record
+complete — but the licence class is what actually matters, and it is recorded.
 
 <!-- historical note, kept deliberately: this table used to carry a per-file
      "Source" column of _TBC_ placeholders under a sentence claiming the chain
