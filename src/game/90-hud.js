@@ -228,13 +228,17 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   // Asymmetry is carried by the shading instead, where it costs no silhouette.
   // The far end is squared and then hidden by the gradients below, so the shape
   // runs off toward a hand out of frame rather than stopping in mid-air.
-  const R = rad, END = R * 2.5;
+  // PARALLEL SIDES. This is the correction that mattered most and the one I kept
+  // undoing: a thumb is a rounded-ended SHAFT whose width barely changes from tip
+  // to knuckle. Every version that tapered read as a cone or a teardrop, because
+  // taper is what cones have. The tip is simply a semicircle of the same width as
+  // the shaft — nothing narrows.
+  const R = rad, HW = R * 0.58, END = R * 2.6;
   ctx.beginPath();
-  ctx.arc(0, 0, R * 0.54, Math.PI * 0.5, Math.PI * 1.5);                 // the tip
-  ctx.quadraticCurveTo(R * 0.78, -R * 0.70, R * 1.55, -R * 0.76);
-  ctx.lineTo(END, -R * 0.76);
-  ctx.lineTo(END, R * 0.76);
-  ctx.quadraticCurveTo(R * 0.78, R * 0.70, 0, R * 0.54);
+  ctx.arc(0, 0, HW, Math.PI * 0.5, Math.PI * 1.5);            // the tip: a half-round of shaft width
+  ctx.quadraticCurveTo(R * 0.9, -HW * 1.02, END, -HW * 1.10); // barely swells toward the hand
+  ctx.lineTo(END, HW * 1.10);
+  ctx.quadraticCurveTo(R * 0.9, HW * 1.02, 0, HW);
   ctx.closePath();
   const fade = (a) => {
     const g = ctx.createLinearGradient(-R * 0.56, 0, END, 0);
@@ -251,7 +255,7 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   // lit along the back, shadowed on the palm side where the form turns away.
   ctx.save();
   ctx.clip();
-  const vg = ctx.createLinearGradient(0, -R * 0.95, 0, R * 1.05);
+  const vg = ctx.createLinearGradient(0, -HW * 1.10, 0, HW * 1.10);
   vg.addColorStop(0, `rgba(255,255,255,${(0.20 * alpha).toFixed(3)})`);
   vg.addColorStop(0.42, `rgba(${GHOST_COL},${(0.05 * alpha).toFixed(3)})`);
   vg.addColorStop(1, `rgba(18,30,52,${(0.30 * alpha).toFixed(3)})`);
@@ -269,28 +273,35 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   // lunula at the base. Built from the same centre as the tip arc so the two
   // curves are automatically concentric, which is what sells it: a nail that does
   // not share the fingertip's curvature reads as a sticker.
-  const nR = R * 0.44, nA = Math.PI * 0.62, nB = Math.PI * 1.38;
-  const nx = Math.cos(nA) * nR, ny = Math.sin(nA) * nR;
+  // It is BROAD — in the reference it covers most of the digit's width and runs
+  // well back from the end. A small inset plate reads as a bead. Built as four
+  // curves: a round distal edge, sides that follow the shaft, and a narrower
+  // cuticle, which is the proportion a real plate has.
+  const nW = HW * 0.74, nTip = -HW * 0.72, nBase = R * 0.62;
   ctx.beginPath();
-  ctx.arc(0, 0, nR, nA, nB);                       // free edge, concentric with the tip
-  ctx.quadraticCurveTo(R * 0.30, 0, nx, ny);       // cuticle, bowed gently toward the knuckle
+  ctx.moveTo(nTip + R * 0.30, -nW);
+  ctx.quadraticCurveTo(nTip - R * 0.06, -nW * 0.86, nTip, 0);      // round the distal corner
+  ctx.quadraticCurveTo(nTip - R * 0.06, nW * 0.86, nTip + R * 0.30, nW);
+  ctx.quadraticCurveTo(nBase - R * 0.20, nW * 0.98, nBase, nW * 0.52); // sides follow the shaft
+  ctx.quadraticCurveTo(nBase + R * 0.10, 0, nBase, -nW * 0.52);        // the cuticle, narrower
+  ctx.quadraticCurveTo(nBase - R * 0.20, -nW * 0.98, nTip + R * 0.30, -nW);
   ctx.closePath();
-  ctx.fillStyle = `rgba(255,255,255,${(0.16 * alpha).toFixed(3)})`;
+  ctx.fillStyle = `rgba(255,255,255,${(0.17 * alpha).toFixed(3)})`;
   ctx.fill();
   ctx.strokeStyle = `rgba(${GHOST_COL},${(0.95 * alpha).toFixed(3)})`;
   ctx.lineWidth = 2.2;
   ctx.stroke();
-  // the lunula — the pale half-moon at the base. Small, and the one detail that
-  // makes a nail plate look grown rather than drawn.
+  // the lunula — the pale half-moon at the base, sitting just inside the cuticle
   ctx.beginPath();
-  ctx.arc(0, 0, R * 0.20, Math.PI * 0.72, Math.PI * 1.28);
-  ctx.strokeStyle = `rgba(255,255,255,${(0.42 * alpha).toFixed(3)})`;
+  ctx.moveTo(nBase - R * 0.16, -nW * 0.50);
+  ctx.quadraticCurveTo(nBase - R * 0.34, 0, nBase - R * 0.16, nW * 0.50);
+  ctx.strokeStyle = `rgba(255,255,255,${(0.40 * alpha).toFixed(3)})`;
   ctx.lineWidth = 1.5;
   ctx.stroke();
   // the interphalangeal crease — where the thumb's one joint folds
   ctx.beginPath();
-  ctx.moveTo(R * 1.20, -R * 0.74);
-  ctx.quadraticCurveTo(R * 1.40, R * 0.05, R * 1.20, R * 0.82);
+  ctx.moveTo(R * 1.28, -HW * 0.92);
+  ctx.quadraticCurveTo(R * 1.46, 0, R * 1.28, HW * 0.92);
   ctx.strokeStyle = `rgba(${GHOST_COL},${(0.30 * alpha).toFixed(3)})`;
   ctx.lineWidth = 1.6;
   ctx.stroke();
