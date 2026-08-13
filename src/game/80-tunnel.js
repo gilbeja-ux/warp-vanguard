@@ -890,20 +890,23 @@ const S3D_WARP = {
   // OUTSIDE the bake's mask (it has to reach past the hardware to read at all), in
   // the throat's own colour, so it is plainly the same energy.
   lane: 0.55,       // brightness of the spill
-  // how far the course reaches back toward you, in aperture radii. Longer than
-  // it was: with the hoops concentric, REACH is what sells the run — the near
-  // hoop has to be wide enough to read as passing you.
-  laneLen: 1.30,
-  laneRays: 8,      // hoops in the approach track — enough to read as a CHAIN
-  // HOW FAR THE COURSE LEANS OFF YOUR SIGHT LINE, in aperture radii at the near
-  // end. Kept at ZERO, and the geometry is why: hoops marking a STRAIGHT course
-  // to the gate all sit on the same ray from your eye to it, so they project
-  // concentrically — only their size changes. Any lean at all is the course
-  // running diagonally PAST the gate rather than into it, which is exactly how
-  // it read on the device. The depth comes from the 1/z spacing instead, which
-  // is where it comes from in life. Dial a little in if a gate should ever sit
-  // off the heading you are actually flying.
-  laneTrack: 0,
+  laneLen: 1.30,    // how far the mouth's spill reaches, in aperture radii
+  // ---- THE APPROACH LIGHTS ----
+  // The animated hoops are gone (Gil, 2026-08-13). Hoops could never be both
+  // visible and honest: a straight course to the gate sits on your own sight
+  // line, so its markers project concentrically and read as rings painted on
+  // the hardware — and leaning them off that line drew a course going PAST the
+  // gate. Lights on a LANE have no such problem, because a lane is a road
+  // arriving from somewhere, not a tunnel you are inside: it is SUPPOSED to
+  // come in from the side, which is exactly how the real ones look.
+  laneLights: 10,   // beacons on the approach
+  laneReach: 3.2,   // how far the far end sits from the gate, in aperture radii
+  laneNear: 0.52,   // depth of that far end (1 = the gate's own) — the perspective
+  laneDrop: 0.34,   // how far below horizontal the lane runs in
+  laneR: 0.055,     // beacon radius at the gate end, in aperture radii
+  laneCol: '126,226,98', // cleared-lane green, the same one LANE SECURED speaks in
+  laneSeq: 0.55,    // sequenced flashers, runs per second, travelling gateward
+  laneBase: 0.42,   // how lit a beacon is between pulses
   grain: 0.075,      // film grain over the aperture
   grainPx: 2,       // its size in sprite pixels
   grainFps: 21,     // and how often it reshuffles. Film runs at 24; grain that

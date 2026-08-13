@@ -1425,50 +1425,54 @@ function s3lane(c, sp, x, y, w, alpha, t) {
   //
   // Squashed on the same axis as the aperture, so the hoops sit in the mouth's plane
   // instead of floating in front of it.
-  const NR = Math.max(0, Math.round(F.laneRays));
-  if (NR) {
-    const sq = Math.max(0.12, sp.apUp ? Math.cos(S3D_LIGHT.el) : Math.sin(S3D_LIGHT.el));
-    const zNear = 1 / (1 + F.laneLen); // depth a hoop is released at: the far end of the run
-    // THE APPROACH AXIS. A hoop out in front of the gate is nearer the lens, and
-    // a point moving toward the lens projects AWAY from the principal point — so
-    // the track runs from the gate directly out from screen centre. That is not a
-    // stylistic pick: it is where those hoops would actually land, which is why
-    // the chain reads as standing in space rather than as decals sliding about.
-    // A gate parked dead on the axis has no such direction, so it lays its track
-    // downward, toward the viewer's side of the frame.
-    const cx0 = (typeof W === 'number' ? W : 0) * 0.5, cy0 = (typeof H === 'number' ? H : 0) * 0.5;
-    let axx = x - cx0, axy = y - cy0;
-    const al = Math.hypot(axx, axy);
-    if (al < 1e-3) { axx = 0; axy = 1; } else { axx /= al; axy /= al; }
-    const track = F.laneTrack === undefined ? 0 : F.laneTrack;
-    for (let i = 0; i < NR; i++) {
-      // evenly spaced in phase so the mouth swallows them steadily, not in clumps
-      const u = ((t * 0.42 + i / NR) % 1 + 1) % 1;   // 0 released out on the track → 1 at the mouth
-      const z = zNear + (1 - zNear) * u;             // walking IN toward the gate's own depth
-      const rr = R / z;                              // 1/z: wide out here, R at the aperture
-      // ...and the SAME 1/z walks its centre back down the track, so a hoop's
-      // position and its size are one projection rather than two effects that
-      // have to be kept in agreement by hand.
-      const off = track * R * (1 / z - 1);
-      // faint when it is wide and far from the source, brightest as it converges,
-      // gone the instant the mouth takes it. The `u` weighting pushes the peak
-      // LATE — a hoop is dimmest out on the track and brightest just before the
-      // aperture swallows it, so the brightness gradient itself leads the eye
-      // down the course to the gate.
-      const fade = Math.sin(u * Math.PI) * (0.35 + 0.65 * u);
-      if (fade < 0.02) continue;
-      c.save();
-      // the lean is applied in SCREEN space and the squash inside it — flipping
-      // that order would squash the offset too and drag the track flat
-      c.translate(x + axx * off, y + axy * off);
-      c.scale(1, sq);
-      // OPACITY DOWN to a whisper of what it was: the course is depth, not a
-      // headline, and at full strength it fought the hardware it leads to.
-      c.strokeStyle = 'rgba(' + F.col + ',' + (a * 0.33 * fade).toFixed(3) + ')';
-      // a constant-width hoop LOOKS thicker up close — same 1/z again
-      c.lineWidth = Math.max(0.6, R * 0.045 / z);
-      c.beginPath(); c.arc(0, 0, rr, 0, 6.2831853); c.stroke();
-      c.restore();
+  // ---- THE APPROACH LANE: beacons on a road in, sequenced toward the gate ----
+  // A LANE ARRIVES FROM SOMEWHERE, which is what makes this work where hoops
+  // could not: markers on your own sight line to the gate project concentrically
+  // (rings on the hardware), but a lane is allowed — required, even — to come in
+  // from the side, and reads as a road the moment it does.
+  //
+  // The beacons are one straight line in space running out from the gate toward
+  // the camera's side of it. Position, spacing and size are all the SAME 1/z
+  // projection, so they bunch and shrink toward the gate exactly as a real
+  // approach does; only their brightness is authored, and that is the sequenced
+  // flasher sweeping gateward to say WHICH WAY IN.
+  const NL = Math.max(0, Math.round(F.laneLights === undefined ? 0 : F.laneLights));
+  if (NL > 1) {
+    const cx0 = (typeof W === 'number' ? W : 0) * 0.5;
+    // out toward the frame's near side — away from the lens axis, so the lane
+    // never runs back through the world the gate is standing in front of
+    const sgn = x >= cx0 ? 1 : -1;
+    let axx = sgn, axy = F.laneDrop === undefined ? 0.34 : F.laneDrop;
+    const al = Math.hypot(axx, axy) || 1;
+    axx /= al; axy /= al;
+    const zN = Math.max(0.12, Math.min(0.95, F.laneNear === undefined ? 0.52 : F.laneNear));
+    const spread = (F.laneReach === undefined ? 3.2 : F.laneReach) / (1 / zN - 1); // far end lands at laneReach
+    const head = 1 - ((t * (F.laneSeq === undefined ? 0.55 : F.laneSeq)) % 1);     // sweeps 1 → 0: inbound
+    const base = F.laneBase === undefined ? 0.42 : F.laneBase;
+    const lr = (F.laneR === undefined ? 0.055 : F.laneR) * R;
+    const col = F.laneCol || F.col;
+    for (let i = 0; i < NL; i++) {
+      const s = i / (NL - 1);              // 0 at the gate, 1 at the far end
+      const z = 1 - s * (1 - zN);          // ...and nearer the lens as it goes
+      const inv = 1 / z;
+      const off = spread * R * (inv - 1);  // the projection that spaces them
+      const px = x + axx * (off + R * 1.02); // clear of the hardware's own rim
+      const py = y + axy * (off + R * 1.02);
+      // the sequenced flash: a head running down the lane toward the mouth, the
+      // way approach lighting tells a pilot which end is the runway
+      const d = ((s - head) % 1 + 1) % 1;
+      const lit = base + (1 - base) * Math.pow(1 - d, 10);
+      const rr = lr * inv;                 // nearer beacons are bigger
+      if (rr < 0.35) continue;
+      const A = a * lit;
+      const gl2 = c.createRadialGradient(px, py, 0, px, py, rr * 3.2);
+      gl2.addColorStop(0, 'rgba(' + col + ',' + (A * 0.95).toFixed(3) + ')');
+      gl2.addColorStop(0.32, 'rgba(' + col + ',' + (A * 0.34).toFixed(3) + ')');
+      gl2.addColorStop(1, 'rgba(' + col + ',0)');
+      c.fillStyle = gl2;
+      c.beginPath(); c.arc(px, py, rr * 3.2, 0, 6.2831853); c.fill();
+      c.fillStyle = 'rgba(220,255,220,' + (A * 0.9).toFixed(3) + ')';
+      c.beginPath(); c.arc(px, py, rr * 0.62, 0, 6.2831853); c.fill();
     }
   }
   c.restore();
