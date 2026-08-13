@@ -899,14 +899,21 @@ const S3D_WARP = {
   // gate. Lights on a LANE have no such problem, because a lane is a road
   // arriving from somewhere, not a tunnel you are inside: it is SUPPOSED to
   // come in from the side, which is exactly how the real ones look.
-  laneLights: 10,   // beacons on the approach
+  laneLights: 8,    // beacons per rail — and there are TWO rails, one each side
+  laneRail: 1.15,   // half the corridor's width AT THE GATE, in aperture radii
   laneReach: 3.2,   // how far the far end sits from the gate, in aperture radii
   laneNear: 0.52,   // depth of that far end (1 = the gate's own) — the perspective
-  laneDrop: 0.34,   // how far below horizontal the lane runs in
-  laneR: 0.055,     // beacon radius at the gate end, in aperture radii
+  // THE LANE RUNS DOWN THE SCENE'S OWN PERSPECTIVE. The warp streaks radiate
+  // from the frame's centre because that is the vanishing point everything here
+  // is drawn to, so the corridor has to lie along the radial through the gate —
+  // any other axis reads as a lane crossing the scene rather than arriving down
+  // it. laneDrop then tips it a few degrees BELOW that radial, which is what
+  // puts the approach under you where a ship would actually fly it.
+  laneDrop: 0.30,
+  laneR: 0.14,      // beacon radius at the gate end, in aperture radii
   laneCol: '126,226,98', // cleared-lane green, the same one LANE SECURED speaks in
   laneSeq: 0.55,    // sequenced flashers, runs per second, travelling gateward
-  laneBase: 0.42,   // how lit a beacon is between pulses
+  laneBase: 0.55,   // how lit a beacon is between pulses
   grain: 0.075,      // film grain over the aperture
   grainPx: 2,       // its size in sprite pixels
   grainFps: 21,     // and how often it reshuffles. Film runs at 24; grain that

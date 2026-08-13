@@ -1438,26 +1438,35 @@ function s3lane(c, sp, x, y, w, alpha, t) {
   // flasher sweeping gateward to say WHICH WAY IN.
   const NL = Math.max(0, Math.round(F.laneLights === undefined ? 0 : F.laneLights));
   if (NL > 1) {
-    const cx0 = (typeof W === 'number' ? W : 0) * 0.5;
-    // out toward the frame's near side — away from the lens axis, so the lane
-    // never runs back through the world the gate is standing in front of
-    const sgn = x >= cx0 ? 1 : -1;
-    let axx = sgn, axy = F.laneDrop === undefined ? 0.34 : F.laneDrop;
+    const sq = Math.max(0.12, sp.apUp ? Math.cos(S3D_LIGHT.el) : Math.sin(S3D_LIGHT.el));
+    const cx0 = (typeof W === 'number' ? W : 0) * 0.5, cy0 = (typeof H === 'number' ? H : 0) * 0.5;
+    // DOWN THE SCENE'S OWN PERSPECTIVE. Everything here is drawn to a vanishing
+    // point at the frame's centre — it is why the warp streaks rake outward from
+    // it — so the corridor lies along the radial through the gate and matches
+    // them. Picking any other axis (a flat horizontal, say) draws a lane
+    // CROSSING the scene, which is the diagonal it read as.
+    let axx = x - cx0, axy = y - cy0;
+    const al0 = Math.hypot(axx, axy);
+    if (al0 < 1e-3) { axx = 0; axy = 1; } else { axx /= al0; axy /= al0; }
+    axy += F.laneDrop === undefined ? 0.30 : F.laneDrop; // ...and a few degrees under it
     const al = Math.hypot(axx, axy) || 1;
     axx /= al; axy /= al;
+    // the rails run either side of that axis. Their separation carries the SAME
+    // 1/z as everything else, which is what makes two parallel lines of lights
+    // converge on the gate the way a runway's edges do.
+    const pxn = -axy, pyn = axx * sq;     // squashed like the aperture it leads to
+    const rail = (F.laneRail === undefined ? 1.15 : F.laneRail) * R;
     const zN = Math.max(0.12, Math.min(0.95, F.laneNear === undefined ? 0.52 : F.laneNear));
     const spread = (F.laneReach === undefined ? 3.2 : F.laneReach) / (1 / zN - 1); // far end lands at laneReach
     const head = 1 - ((t * (F.laneSeq === undefined ? 0.55 : F.laneSeq)) % 1);     // sweeps 1 → 0: inbound
     const base = F.laneBase === undefined ? 0.42 : F.laneBase;
-    const lr = (F.laneR === undefined ? 0.055 : F.laneR) * R;
+    const lr = (F.laneR === undefined ? 0.05 : F.laneR) * R;
     const col = F.laneCol || F.col;
     for (let i = 0; i < NL; i++) {
       const s = i / (NL - 1);              // 0 at the gate, 1 at the far end
       const z = 1 - s * (1 - zN);          // ...and nearer the lens as it goes
       const inv = 1 / z;
       const off = spread * R * (inv - 1);  // the projection that spaces them
-      const px = x + axx * (off + R * 1.02); // clear of the hardware's own rim
-      const py = y + axy * (off + R * 1.02);
       // the sequenced flash: a head running down the lane toward the mouth, the
       // way approach lighting tells a pilot which end is the runway
       const d = ((s - head) % 1 + 1) % 1;
@@ -1465,14 +1474,18 @@ function s3lane(c, sp, x, y, w, alpha, t) {
       const rr = lr * inv;                 // nearer beacons are bigger
       if (rr < 0.35) continue;
       const A = a * lit;
-      const gl2 = c.createRadialGradient(px, py, 0, px, py, rr * 3.2);
-      gl2.addColorStop(0, 'rgba(' + col + ',' + (A * 0.95).toFixed(3) + ')');
-      gl2.addColorStop(0.32, 'rgba(' + col + ',' + (A * 0.34).toFixed(3) + ')');
-      gl2.addColorStop(1, 'rgba(' + col + ',0)');
-      c.fillStyle = gl2;
-      c.beginPath(); c.arc(px, py, rr * 3.2, 0, 6.2831853); c.fill();
-      c.fillStyle = 'rgba(220,255,220,' + (A * 0.9).toFixed(3) + ')';
-      c.beginPath(); c.arc(px, py, rr * 0.62, 0, 6.2831853); c.fill();
+      for (const side of [-1, 1]) {        // one rail each side of the corridor
+        const px = x + axx * off + pxn * rail * inv * side;
+        const py = y + axy * off + pyn * rail * inv * side;
+        const gl2 = c.createRadialGradient(px, py, 0, px, py, rr * 3.2);
+        gl2.addColorStop(0, 'rgba(' + col + ',' + (A * 0.95).toFixed(3) + ')');
+        gl2.addColorStop(0.32, 'rgba(' + col + ',' + (A * 0.34).toFixed(3) + ')');
+        gl2.addColorStop(1, 'rgba(' + col + ',0)');
+        c.fillStyle = gl2;
+        c.beginPath(); c.arc(px, py, rr * 3.2, 0, 6.2831853); c.fill();
+        c.fillStyle = 'rgba(220,255,220,' + (A * 0.9).toFixed(3) + ')';
+        c.beginPath(); c.arc(px, py, rr * 0.62, 0, 6.2831853); c.fill();
+      }
     }
   }
   c.restore();
