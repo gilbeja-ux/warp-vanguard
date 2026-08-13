@@ -1,18 +1,24 @@
 ext {
     minSdkVersion = 22
-    // API 35 (Android 15). Play enforces a rolling target-API floor and 34 is
-    // below it; internal testing tolerates an old target, production does not,
-    // so this is raised now rather than discovered at the promotion gate.
+    // API 36 (Android 16). Play's floor moves every 31 August to within a year of
+    // the latest release; on 31 August 2026 that becomes 36, and Console already
+    // reports the app as non-compliant. Past that date an out-of-date target
+    // blocks UPDATES, not just new listings — so a closed test running on 35
+    // would have been frozen mid-flight.
     //
-    // TWO KNOCK-ONS THAT ARE REAL, not theoretical, at this level:
-    //   · EDGE-TO-EDGE is enforced — the app draws under the status and
-    //     navigation bars. This game is fullscreen landscape and paints its own
-    //     ring, so it wants that anyway, but it MUST be checked on a
-    //     gesture-nav device that nothing lands under the bars.
-    //   · 16 KB PAGE SIZE for native libraries. Capacitor's own libs are the
-    //     only native code here; verify on a 16KB device/emulator image.
-    compileSdkVersion = 35
-    targetSdkVersion = 35
+    // THREE KNOCK-ONS AT THIS LEVEL, all checked rather than assumed:
+    //   · EDGE-TO-EDGE IS NOW MANDATORY. At 35 an app could still opt out with
+    //     windowOptOutEdgeToEdgeEnforcement; at 36 that flag is ignored. This
+    //     game already lays its pads out against SAFE.l/r/b insets, which is why
+    //     it survives the change — but it has to be seen on a gesture-nav device.
+    //   · ORIENTATION LOCKS ARE IGNORED on large screens (≥600dp). sensorLandscape
+    //     stops being honoured on tablets. This game already paints through a 90°
+    //     transform when the viewport is portrait — that is the "turn your device"
+    //     path and it is deliberate — so it degrades to sideways, not to broken.
+    //   · 16 KB PAGE SIZE for native libraries. Nothing here ships any:
+    //     mergeReleaseNativeLibs reports NO-SOURCE, so there is nothing to align.
+    compileSdkVersion = 36
+    targetSdkVersion = 36
     androidxActivityVersion = '1.8.0'
     androidxAppCompatVersion = '1.6.1'
     androidxCoordinatorLayoutVersion = '1.2.0'
