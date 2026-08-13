@@ -2308,6 +2308,11 @@ function drawDials() {
   // tutorial pad ghosts, LAST — over the finished dial, or the chrome buries them
   if (typeof tutDescNow !== 'undefined' && tutDescNow && tutDescNow.ghosts.length)
     drawTutPadGhosts(tutDescNow);
+  // THUMB GHOSTS, LATER STILL. They teach where a hand goes, which is a question
+  // that comes before "where do I aim" — and they only exist while the lane is
+  // parked, so they can never share the frame with the aiming ghosts above.
+  if (typeof preLaunch !== 'undefined' && preLaunch() && typeof drawThumbGhosts === 'function')
+    drawThumbGhosts(1);
 }
 
 function roundRect(x, y, w, h, r) {

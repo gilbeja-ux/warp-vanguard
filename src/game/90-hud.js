@@ -157,6 +157,117 @@ function drawLaunchTip(a0, yTop) {
   ctx.textAlign = 'left';
   ctx.restore();
 }
+// ---------- thumb ghosts ----------
+// THE WORDS WERE NOT ENOUGH. The parked gate has always said BOTH PADS TOGETHER
+// and new players still sat on it: naming the pads does not tell a hand what to
+// do. So it is demonstrated instead — two thumbs slide in from the edges, settle
+// on the dots and press, on a loop, until the real ones arrive.
+//
+// A PATH SAMPLER, NOT A POSITION. Keyframes in, place-on-the-pad out. Teaching a
+// sweep later is another keyframe list, not another system — which is the whole
+// reason it is built this way rather than as two hard-coded tweens.
+//
+// Coordinates are game space. This is a landscape game painted through a 90°
+// transform (see the note on drawLaunchTip), so there is no orientation branch
+// here and there must never be one: dialCenter() already answers in the space
+// the player sees.
+const GHOST_CYCLE = 2.9;    // one enter → press → fade loop, seconds
+const GHOST_STAGGER = 0.30; // the right thumb trails, so it reads as two hands not a mirror
+// EXPERTS NEVER SEE IT. Someone who knows the grip has both thumbs down inside a
+// second; the demonstration only surfaces for someone who is actually stuck.
+const GHOST_DELAY = 1.4;
+const GHOST_COL = '198,216,240'; // deliberately off the signal palette — a hand is not a game object
+
+// { at, x, y, down, a } — `down` 0..1 is contact, `a` is opacity
+function ghostKeysPlace(side) {
+  const d = dialCenter(side);
+  const from = side === 'L' ? -d.r * 2.4 : W + d.r * 2.4;
+  const rise = d.r * 1.15; // arrives from below, the way a thumb actually comes up
+  return [
+    { at: 0.00, x: from, y: d.y + rise, down: 0, a: 0 },
+    { at: 0.12, x: from, y: d.y + rise, down: 0, a: 1 },
+    { at: 0.54, x: d.x,  y: d.y,        down: 0, a: 1 },
+    { at: 0.66, x: d.x,  y: d.y,        down: 1, a: 1 },
+    { at: 0.88, x: d.x,  y: d.y,        down: 1, a: 1 },
+    { at: 1.00, x: d.x,  y: d.y,        down: 1, a: 0 }
+  ];
+}
+function ghostSample(keys, u) {
+  let i = 0;
+  while (i < keys.length - 2 && u > keys[i + 1].at) i++;
+  const a = keys[i], b = keys[i + 1];
+  const span = Math.max(1e-4, b.at - a.at);
+  const p = clamp((u - a.at) / span, 0, 1);
+  const e = p * p * (3 - 2 * p); // smoothstep — a hand does not move linearly
+  return {
+    x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e,
+    down: a.down + (b.down - a.down) * e,
+    a: a.a + (b.a - a.a) * e
+  };
+}
+// One thumb, outline only. An outline can sit directly on the dot it is pointing
+// at without hiding it, which a filled hand cannot.
+function drawThumbGhost(x, y, side, down, alpha, rad) {
+  ctx.save();
+  ctx.translate(x, y);
+  // local +X trails back toward the hand: down-left for the left thumb, down-right
+  // for the right. The tip (local -X) therefore points up onto the pad.
+  ctx.rotate(side === 'L' ? Math.PI * 0.75 : Math.PI * 0.25);
+  const press = 1 - down * 0.12; // the pad flattens very slightly under contact
+  ctx.scale(press, press);
+  // A THUMB, NOT A PADDLE. Straight sides with a square cap read as a bandage;
+  // what says "thumb" is the narrow rounded tip swelling into a wider knuckle.
+  // The far end is squared off on purpose and then hidden — see the gradients,
+  // which fade it out before the cap can be seen, so the shape runs off toward a
+  // hand that is out of frame instead of ending in mid-air.
+  const END = rad * 2.8;
+  ctx.beginPath();
+  ctx.arc(0, 0, rad * 0.52, Math.PI * 0.5, Math.PI * 1.5);              // tip, pointing -X
+  ctx.quadraticCurveTo(rad * 0.80, -rad * 0.78, rad * 1.7, -rad * 0.88); // swell to the knuckle
+  ctx.lineTo(END, -rad * 0.88);
+  ctx.lineTo(END, rad * 0.88);
+  ctx.quadraticCurveTo(rad * 0.80, rad * 0.78, 0, rad * 0.52);
+  ctx.closePath();
+  const fade = (a) => {
+    const g = ctx.createLinearGradient(-rad * 0.5, 0, END, 0);
+    g.addColorStop(0, `rgba(${GHOST_COL},${a})`);
+    g.addColorStop(0.70, `rgba(${GHOST_COL},${a * 0.95})`);
+    g.addColorStop(1, `rgba(${GHOST_COL},0)`);
+    return g;
+  };
+  ctx.fillStyle = fade((0.26 + down * 0.14) * alpha);
+  ctx.fill();
+  ctx.strokeStyle = fade((0.85 + down * 0.15) * alpha);
+  ctx.lineWidth = 3;
+  if (!lowFX) { ctx.shadowColor = `rgba(${GHOST_COL},0.5)`; ctx.shadowBlur = 9; }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+  // contact bloom — the moment of the press, drawn unrotated so it stays a circle
+  if (down > 0.01) {
+    ctx.save();
+    ctx.globalAlpha = alpha * (1 - down) * 0.9 + alpha * 0.25;
+    ctx.strokeStyle = `rgba(${GHOST_COL},0.9)`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, rad * (0.55 + down * 0.75), 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+}
+function drawThumbGhosts(a0) {
+  // a controller has no pads to place a thumb on, and a stick arms its own side
+  if (typeof gpSeen !== 'undefined' && gpSeen) return;
+  if (typeof preT === 'undefined' || preT < GHOST_DELAY) return;
+  const t = preT - GHOST_DELAY;
+  for (let i = 0; i < 2; i++) {
+    if (padHold[i]) continue;               // that thumb has arrived — its ghost has nothing left to say
+    const side = i === 0 ? 'L' : 'R';
+    const d = dialCenter(side);
+    const u = ((t - i * GHOST_STAGGER) / GHOST_CYCLE) % 1;
+    if (u < 0) continue;                    // the trailing thumb waits out its stagger
+    const s = ghostSample(ghostKeysPlace(side), u);
+    drawThumbGhost(s.x, s.y, side, s.down, s.a * a0, d.r * 0.95);
+  }
+}
 // WARP CALIBRATING: the lock-on, drawn around the destination itself.
 //
 // The first WARP_CAL seconds after launch, before there is any corridor. A ring closes
