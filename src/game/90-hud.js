@@ -179,17 +179,23 @@ const GHOST_DELAY = 1.4;
 const GHOST_COL = '198,216,240'; // deliberately off the signal palette — a hand is not a game object
 
 // { at, x, y, down, a } — `down` 0..1 is contact, `a` is opacity
+//
+// IT LANDS ON THE DOT, NOT THE MIDDLE. padDotXY is the same point drawPadPrompt
+// breathes at, taken from there rather than recomputed. The pad centre belongs
+// to the PULSE tap; a thumb demonstrated into the middle of the dial teaches the
+// wrong gesture, and teaches it at the exact moment the player is copying.
 function ghostKeysPlace(side) {
   const d = dialCenter(side);
+  const g = padDotXY(d);
   const from = side === 'L' ? -d.r * 2.4 : W + d.r * 2.4;
   const rise = d.r * 1.15; // arrives from below, the way a thumb actually comes up
   return [
-    { at: 0.00, x: from, y: d.y + rise, down: 0, a: 0 },
-    { at: 0.12, x: from, y: d.y + rise, down: 0, a: 1 },
-    { at: 0.54, x: d.x,  y: d.y,        down: 0, a: 1 },
-    { at: 0.66, x: d.x,  y: d.y,        down: 1, a: 1 },
-    { at: 0.88, x: d.x,  y: d.y,        down: 1, a: 1 },
-    { at: 1.00, x: d.x,  y: d.y,        down: 1, a: 0 }
+    { at: 0.00, x: from, y: g.y + rise, down: 0, a: 0 },
+    { at: 0.12, x: from, y: g.y + rise, down: 0, a: 1 },
+    { at: 0.54, x: g.x,  y: g.y,        down: 0, a: 1 },
+    { at: 0.66, x: g.x,  y: g.y,        down: 1, a: 1 },
+    { at: 0.88, x: g.x,  y: g.y,        down: 1, a: 1 },
+    { at: 1.00, x: g.x,  y: g.y,        down: 1, a: 0 }
   ];
 }
 function ghostSample(keys, u) {
@@ -215,33 +221,68 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   ctx.rotate(side === 'L' ? Math.PI * 0.75 : Math.PI * 0.25);
   const press = 1 - down * 0.12; // the pad flattens very slightly under contact
   ctx.scale(press, press);
-  // A THUMB, NOT A PADDLE. Straight sides with a square cap read as a bandage;
-  // what says "thumb" is the narrow rounded tip swelling into a wider knuckle.
-  // The far end is squared off on purpose and then hidden — see the gradients,
-  // which fade it out before the cap can be seen, so the shape runs off toward a
-  // hand that is out of frame instead of ending in mid-air.
-  const END = rad * 2.8;
+  // WHAT MAKES IT READ AS A THUMB, in order of how much each one carries:
+  //   1. ASYMMETRY. A thumb is not a capsule. The palm side is fuller than the
+  //      back, and the tip sits off the centre line. A symmetrical lozenge reads
+  //      as a pill however well it is shaded.
+  //   2. THE NAIL. One rounded plate near the tip and the whole thing resolves.
+  //      It is the single cheapest piece of information here, and the player is
+  //      looking at the back of their own thumb, so it belongs in view.
+  //   3. THE KNUCKLE CREASE. One short arc where the joint folds.
+  // The far end is squared and then hidden by the gradients below, so the shape
+  // runs off toward a hand out of frame rather than stopping in mid-air.
+  const R = rad, END = R * 2.05;
   ctx.beginPath();
-  ctx.arc(0, 0, rad * 0.52, Math.PI * 0.5, Math.PI * 1.5);              // tip, pointing -X
-  ctx.quadraticCurveTo(rad * 0.80, -rad * 0.78, rad * 1.7, -rad * 0.88); // swell to the knuckle
-  ctx.lineTo(END, -rad * 0.88);
-  ctx.lineTo(END, rad * 0.88);
-  ctx.quadraticCurveTo(rad * 0.80, rad * 0.78, 0, rad * 0.52);
+  ctx.moveTo(0, -R * 0.46);                                      // back edge, at the tip
+  ctx.quadraticCurveTo(-R * 0.52, -R * 0.40, -R * 0.56, R * 0.06); // the nose, pushed off-centre
+  ctx.quadraticCurveTo(-R * 0.50, R * 0.48, R * 0.06, R * 0.60);   // fuller on the palm side
+  ctx.quadraticCurveTo(R * 0.85, R * 0.92, R * 1.45, R * 1.02);
+  ctx.lineTo(END, R * 1.02);
+  ctx.lineTo(END, -R * 0.88);
+  ctx.quadraticCurveTo(R * 1.10, -R * 0.80, 0, -R * 0.46);
   ctx.closePath();
   const fade = (a) => {
-    const g = ctx.createLinearGradient(-rad * 0.5, 0, END, 0);
+    const g = ctx.createLinearGradient(-R * 0.56, 0, END, 0);
     g.addColorStop(0, `rgba(${GHOST_COL},${a})`);
-    g.addColorStop(0.70, `rgba(${GHOST_COL},${a * 0.95})`);
+    g.addColorStop(0.78, `rgba(${GHOST_COL},${a * 0.95})`);
     g.addColorStop(1, `rgba(${GHOST_COL},0)`);
     return g;
   };
   ctx.fillStyle = fade((0.26 + down * 0.14) * alpha);
   ctx.fill();
+  // VOLUME. An even fill inside an outline reads as a paper cut-out however good
+  // the silhouette is — the thing that makes it a finger is light falling ACROSS
+  // it. One gradient perpendicular to the thumb's axis, clipped to the shape:
+  // lit along the back, shadowed on the palm side where the form turns away.
+  ctx.save();
+  ctx.clip();
+  const vg = ctx.createLinearGradient(0, -R * 0.95, 0, R * 1.05);
+  vg.addColorStop(0, `rgba(255,255,255,${(0.20 * alpha).toFixed(3)})`);
+  vg.addColorStop(0.42, `rgba(${GHOST_COL},${(0.05 * alpha).toFixed(3)})`);
+  vg.addColorStop(1, `rgba(18,30,52,${(0.30 * alpha).toFixed(3)})`);
+  ctx.fillStyle = vg;
+  ctx.fillRect(-R * 1.2, -R * 1.4, END + R * 2.6, R * 3);
+  ctx.restore();
   ctx.strokeStyle = fade((0.85 + down * 0.15) * alpha);
   ctx.lineWidth = 3;
   if (!lowFX) { ctx.shadowColor = `rgba(${GHOST_COL},0.5)`; ctx.shadowBlur = 9; }
   ctx.stroke();
   ctx.shadowBlur = 0;
+  // the nail — an oval plate set into the tip, tilted with the thumb's own axis
+  ctx.beginPath();
+  ctx.ellipse(R * 0.30, R * 0.10, R * 0.34, R * 0.28, -0.18, 0, TAU);
+  ctx.strokeStyle = `rgba(${GHOST_COL},${0.80 * alpha})`;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = `rgba(${GHOST_COL},${0.20 * alpha})`;
+  ctx.fill();
+  // the knuckle crease — one short arc where the joint folds
+  ctx.beginPath();
+  ctx.moveTo(R * 1.12, -R * 0.72);
+  ctx.quadraticCurveTo(R * 1.34, R * 0.12, R * 1.12, R * 0.92);
+  ctx.strokeStyle = `rgba(${GHOST_COL},${0.34 * alpha})`;
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
   ctx.restore();
   // contact bloom — the moment of the press, drawn unrotated so it stays a circle
   if (down > 0.01) {
@@ -249,7 +290,7 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
     ctx.globalAlpha = alpha * (1 - down) * 0.9 + alpha * 0.25;
     ctx.strokeStyle = `rgba(${GHOST_COL},0.9)`;
     ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(x, y, rad * (0.55 + down * 0.75), 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, rad * (0.34 + down * 0.42), 0, TAU); ctx.stroke();
     ctx.restore();
   }
 }
@@ -265,7 +306,7 @@ function drawThumbGhosts(a0) {
     const u = ((t - i * GHOST_STAGGER) / GHOST_CYCLE) % 1;
     if (u < 0) continue;                    // the trailing thumb waits out its stagger
     const s = ghostSample(ghostKeysPlace(side), u);
-    drawThumbGhost(s.x, s.y, side, s.down, s.a * a0, d.r * 0.95);
+    drawThumbGhost(s.x, s.y, side, s.down, s.a * a0, d.r * 0.70);
   }
 }
 // WARP CALIBRATING: the lock-on, drawn around the destination itself.

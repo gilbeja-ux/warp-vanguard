@@ -2029,6 +2029,18 @@ function drawPulseOrbs(g) {
 // green and steady once it has. Drawn on the DORMANT console while the run is parked —
 // the pads are the only thing on screen the player can act on, so the ask belongs on
 // them — and again at the far end of the boot for the gamepad's two-stick grip.
+// WHERE THE THUMB ACTUALLY GOES: the breathing dot's point on the rim, facing
+// the bore. Shared rather than recomputed because the thumb ghost aims at this
+// same spot — two copies of the formula would drift, and the failure would be a
+// demonstration pointing at the wrong place, which is worse than none.
+//
+// NOT THE PAD CENTRE. The centre is the PULSE tap; the rim is the grip. Landing
+// a teaching thumb in the middle teaches the wrong gesture entirely.
+function padDotXY(d) {
+  const gp = geo();
+  const pa = Math.atan2(gp.cy - d.y, gp.cx - d.x);
+  return { x: d.x + Math.cos(pa) * d.r, y: d.y + Math.sin(pa) * d.r, a: pa };
+}
 function drawPadPrompt(i, d, tut) {
   const okI = padHold[i];
   // THE TARGET: a breathing dot on the RIM, on the side facing the BORE.
@@ -2057,9 +2069,8 @@ function drawPadPrompt(i, d, tut) {
     // travelling dot was teaching a rule that no longer exists. Breath plus sonar ping:
     // the breath says "alive", the outward rings say "touch". A pulse alone reads as a
     // status light.
-    const gp = geo();
-    const pa = Math.atan2(gp.cy - d.y, gp.cx - d.x);
-    const px2 = d.x + Math.cos(pa) * d.r, py2 = d.y + Math.sin(pa) * d.r;
+    const dot = padDotXY(d);
+    const px2 = dot.x, py2 = dot.y;
     const br = 0.5 + 0.5 * Math.sin(time * 3.2);
     const ping = (time * 1.15) % 1;
     const halo = 34 + br * 12;
