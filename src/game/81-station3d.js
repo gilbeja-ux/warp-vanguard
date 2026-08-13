@@ -1472,19 +1472,32 @@ function s3lane(c, sp, x, y, w, alpha, t) {
       const d = ((s - head) % 1 + 1) % 1;
       const lit = base + (1 - base) * Math.pow(1 - d, 10);
       const rr = lr * inv;                 // nearer beacons are bigger
-      if (rr < 0.35) continue;
-      const A = a * lit;
+      if (rr < 0.05) continue; // floored below, so only the truly absent are skipped
+      // the lane carries its OWN brightness: the spill's soft wash is the wrong
+      // ceiling for a point source, which lives or dies on contrast
+      const A = (alpha === undefined ? 1 : alpha) * breath
+        * (F.laneLit === undefined ? 0.95 : F.laneLit) * lit;
       for (const side of [-1, 1]) {        // one rail each side of the corridor
         const px = x + axx * off + pxn * rail * inv * side;
         const py = y + axy * off + pyn * rail * inv * side;
-        const gl2 = c.createRadialGradient(px, py, 0, px, py, rr * 3.2);
-        gl2.addColorStop(0, 'rgba(' + col + ',' + (A * 0.95).toFixed(3) + ')');
-        gl2.addColorStop(0.32, 'rgba(' + col + ',' + (A * 0.34).toFixed(3) + ')');
+        // A POINT SOURCE, drawn the way the station lamps are: a hard little
+        // core carrying almost all the brightness, inside a halo that falls off
+        // FAST. A single wide gradient — which is what this was — has to choose
+        // between a soft ball and a flat disc, and either way it reads as an
+        // object rather than as a light seen from a long way off.
+        const hr = rr * 2.8;
+        const gl2 = c.createRadialGradient(px, py, 0, px, py, hr);
+        gl2.addColorStop(0.00, 'rgba(' + col + ',' + (A * 0.75).toFixed(3) + ')');
+        gl2.addColorStop(0.20, 'rgba(' + col + ',' + (A * 0.28).toFixed(3) + ')');
+        gl2.addColorStop(0.55, 'rgba(' + col + ',' + (A * 0.07).toFixed(3) + ')');
         gl2.addColorStop(1, 'rgba(' + col + ',0)');
         c.fillStyle = gl2;
-        c.beginPath(); c.arc(px, py, rr * 3.2, 0, 6.2831853); c.fill();
-        c.fillStyle = 'rgba(220,255,220,' + (A * 0.9).toFixed(3) + ')';
-        c.beginPath(); c.arc(px, py, rr * 0.62, 0, 6.2831853); c.fill();
+        c.beginPath(); c.arc(px, py, hr, 0, 6.2831853); c.fill();
+        // the filament: near white-hot and SMALL, floored at sub-pixel range so
+        // a distant marker dims rather than disappearing — a light that drops
+        // out entirely just reads as a gap in the chain
+        c.fillStyle = 'rgba(236,255,240,' + Math.min(1, A * 1.35).toFixed(3) + ')';
+        c.beginPath(); c.arc(px, py, Math.max(0.7, rr * 0.44), 0, 6.2831853); c.fill();
       }
     }
   }

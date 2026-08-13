@@ -899,7 +899,7 @@ const S3D_WARP = {
   // gate. Lights on a LANE have no such problem, because a lane is a road
   // arriving from somewhere, not a tunnel you are inside: it is SUPPOSED to
   // come in from the side, which is exactly how the real ones look.
-  laneLights: 8,    // beacons per rail — and there are TWO rails, one each side
+  laneLights: 12,   // beacons per rail — and there are TWO rails, one each side
   laneRail: 1.15,   // half the corridor's width AT THE GATE, in aperture radii
   laneReach: 3.2,   // how far the far end sits from the gate, in aperture radii
   laneNear: 0.52,   // depth of that far end (1 = the gate's own) — the perspective
@@ -910,7 +910,16 @@ const S3D_WARP = {
   // it. laneDrop then tips it a few degrees BELOW that radial, which is what
   // puts the approach under you where a ship would actually fly it.
   laneDrop: 0.30,
-  laneR: 0.14,      // beacon radius at the gate end, in aperture radii
+  // BEACON SIZE, in aperture radii, at the gate end. Small on purpose: a marker
+  // light at this distance is a POINT with a halo, not a lamp with a body — the
+  // moment its core has area it stops reading as a light and starts reading as
+  // a glowing ball. Everything that sells it lives in the falloff, not the size.
+  laneR: 0.075,
+  // ...and its own brightness, NOT the mouth-spill's. A marker light reads by
+  // CONTRAST, not by area: keeping the core small and letting it burn is what
+  // makes it a light, where the same energy spread wide is a smudge. Inheriting
+  // `lane` (a soft 0.55 wash) capped these into invisibility.
+  laneLit: 0.95,
   laneCol: '126,226,98', // cleared-lane green, the same one LANE SECURED speaks in
   laneSeq: 0.55,    // sequenced flashers, runs per second, travelling gateward
   laneBase: 0.55,   // how lit a beacon is between pulses
