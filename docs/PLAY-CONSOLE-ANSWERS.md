@@ -121,6 +121,25 @@ device identifier).
 
 **Is any data used for tracking or advertising?** → **No.**
 
+## Store listing → AI asset declaration
+
+**Don't label assets.** Nothing on the listing is generative-AI output, and each
+one can be traced:
+
+| Asset | Origin |
+|---|---|
+| App icon | Badge art drawn by hand in a design tool, resized and reframed by `scripts/icons.py` — that script never draws the badge, it only reframes whatever is in `src/` |
+| Feature graphic | An HTML/CSS composition of engine renders, that same badge, and type, rendered headlessly |
+| Screenshots | Frames captured from the game's own renderer at 1920×1080 |
+
+The declaration covers **generative AI creating or editing the listing
+graphics** — a synthetic image standing in for a real one. A capture of the
+running game is not that however it was captured, and resizing a hand-drawn logo
+is not editing it with AI. Apple asks an equivalent question; same answer.
+
+**Revisit if** any generated art ever reaches the icon, the feature graphic or a
+screenshot. The answer is per-asset, not per-app.
+
 ## App content → Content ratings (IARC questionnaire)
 
 - Category: **Game**
