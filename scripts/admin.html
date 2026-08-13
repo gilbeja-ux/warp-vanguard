@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Warp Vanguard — Admin</title>
+<style>
+  :root {
+    --bg:#06040d; --panel:#0d0a18; --panel2:#120e20; --line:#241d38;
+    --ink:#e8e2f2; --dim:#9a8fb4; --vio:#d465ff; --gold:#ffd24a;
+    --grn:#7ee262; --red:#e06868; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; padding:0 20px 80px; }
+  .wrap { max-width:1080px; margin:0 auto; }
+  header { display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;
+    border-bottom:1px solid var(--line); padding:28px 0 16px; margin-bottom:20px; }
+  h1 { font-size:20px; margin:0; }
+  .eyebrow { font-size:10px; letter-spacing:.24em; color:var(--gold); text-transform:uppercase; }
+
+  /* every section folds; the queue starts open, the reference tables closed */
+  details.sec { border-top:1px solid var(--line); padding:14px 0 4px; }
+  details.sec > summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:10px;
+    font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--vio); font-weight:600; }
+  details.sec > summary::-webkit-details-marker { display:none; }
+  details.sec > summary::before { content:'▸'; color:var(--dim); transition:transform .15s; }
+  details.sec[open] > summary::before { transform:rotate(90deg); }
+  .count { color:var(--dim); letter-spacing:0; text-transform:none; font-weight:400; }
+  .count.hot { color:var(--red); }
+  .secbody { padding-top:12px; }
+
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(112px,1fr)); gap:8px; }
+  .tile { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px; }
+  .tile b { display:block; font-size:20px; font-weight:600; color:var(--gold); line-height:1.2; }
+  .tile span { font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); }
+
+  /* ---- report row: id line, then facts left / actions right ---- */
+  .card { background:var(--panel); border:1px solid var(--line); border-left:2px solid #5a2a2a;
+    border-radius:5px; padding:8px 12px; margin-bottom:7px; }
+  .card.done { border-left-color:var(--line); opacity:.62; }
+  .rid { font:11px/1.4 var(--mono); color:var(--dim); display:block; max-width:100%;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:copy; margin-bottom:3px; }
+  .rid:hover { color:var(--ink); }
+  .main { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .facts { display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; min-width:0; flex:1 1 300px; }
+  .acts { display:flex; gap:6px; flex-wrap:wrap; margin-left:auto; }
+  .name { font-size:15px; font-weight:600; }
+  .name.redacted { color:var(--dim); font-style:italic; font-weight:400; }
+  .meta { color:var(--dim); font-size:12px; }
+  .reasons { color:var(--red); font-size:12px; }
+  .tag { font-size:9px; letter-spacing:.08em; text-transform:uppercase; padding:1px 5px;
+    border-radius:3px; border:1px solid currentColor; }
+  .t-ver { color:var(--grn); } .t-un { color:var(--dim); }
+  .t-lock { color:var(--gold); } .t-n { color:var(--red); } .t-ok { color:var(--grn); }
+
+  button { font:600 10px/1 system-ui,sans-serif; letter-spacing:.06em; text-transform:uppercase;
+    padding:7px 10px; border-radius:4px; cursor:pointer; background:#16233a;
+    border:1px solid #35547e; color:#cfe4ff; white-space:nowrap; }
+  button:hover { background:#1d2e4a; }
+  button.danger { background:#3a1618; border-color:#7e3535; color:#ffd0d0; }
+  button.danger:hover { background:#4a1c1e; }
+  button.ghost { background:transparent; border-color:var(--line); color:var(--dim); }
+  button:disabled { opacity:.4; cursor:default; }
+
+  /* rename drawer, opened per row */
+  .ren { display:none; margin-top:9px; padding-top:9px; border-top:1px dashed var(--line);
+    align-items:center; gap:8px; flex-wrap:wrap; }
+  .ren.on { display:flex; }
+  .ren input[type=text] { flex:1 1 180px; min-width:140px; background:#080f1e; color:var(--ink);
+    border:1px solid #35547e; border-radius:4px; padding:7px 9px; font:14px var(--mono); }
+  .ren label { color:var(--dim); font-size:11px; display:flex; align-items:center; gap:5px; cursor:pointer; }
+  a.link { color:var(--gold); font-size:11px; cursor:pointer; text-decoration:underline;
+    text-underline-offset:2px; white-space:nowrap; }
+  a.link:hover { color:#fff; }
+
+  .empty { color:var(--dim); padding:16px; text-align:center; border:1px dashed var(--line); border-radius:6px; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th,td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--dim); font-size:10px; letter-spacing:.1em; text-transform:uppercase; font-weight:600; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .tablewrap { overflow-x:auto; background:var(--panel); border:1px solid var(--line); border-radius:6px; }
+  .note { color:var(--dim); font-size:12px; margin:8px 0 0; }
+  #toast { position:fixed; left:50%; bottom:26px; transform:translateX(-50%); background:var(--panel2);
+    border:1px solid var(--line); border-radius:6px; padding:11px 18px; font-size:13px;
+    opacity:0; transition:opacity .2s; pointer-events:none; max-width:80vw; }
+  #toast.on { opacity:1; }
+  #toast.bad { border-color:#7e3535; color:#ffd0d0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><div class="eyebrow">Warp Vanguard</div><h1>Admin console</h1></div>
+    <div style="margin-left:auto"><button class="ghost" id="refresh">Refresh</button></div>
+  </header>
+
+  <details class="sec" id="s-open" open>
+    <summary>Open reports <span class="count" id="c-open"></span></summary>
+    <div class="secbody" id="queue"></div>
+  </details>
+
+  <details class="sec" id="s-done">
+    <summary>Handled <span class="count" id="c-done"></span></summary>
+    <div class="secbody" id="handled"></div>
+  </details>
+
+  <details class="sec" open>
+    <summary>Numbers</summary>
+    <div class="secbody">
+      <div class="tiles" id="tiles"></div>
+      <p class="note"><b>identities</b> are anonymous auth sessions, <b>not people</b> — a new one is
+      minted whenever there is no valid refresh token, so cleared storage, another browser, an
+      incognito window or a new device each mint another. Not installs, not DAU. Deduping them to
+      humans would need a device fingerprint, which is the tracking the privacy policy forbids.</p>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>Boards <span class="count" id="c-boards"></span></summary>
+    <div class="secbody">
+      <div class="tablewrap"><table id="boards"></table></div>
+      <p class="note"><b>entries</b> caps at 100 — every board evicts past the top 100, so it is
+      occupancy, not traffic. <b>cut off</b> is what it now takes to place.</p>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>Ladder reach <span class="count" id="c-ladder"></span></summary>
+    <div class="secbody">
+      <div class="tablewrap"><table id="ladder"></table></div>
+      <p class="note">A <b>floor</b>: counts identities holding a top-100 entry, so it misses anyone
+      who cleared a level without placing, and flattens once a board fills.</p>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>New identities per week</summary>
+    <div class="secbody"><div class="tablewrap"><table id="growth"></table></div></div>
+  </details>
+</div>
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let busy = false;
+
+function toast(msg, bad) {
+  const t = $('#toast');
+  t.textContent = msg; t.className = 'on' + (bad ? ' bad' : '');
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = '', 3600);
+}
+
+const TILES = [
+  ['reports_open', 'open reports'], ['names_moderated', 'moderated'],
+  ['identities_total', 'identities'], ['identities_new_7d', 'new · 7d'],
+  ['identities_placing', 'on a board'], ['identities_multi_day', 'came back'],
+  ['board_entries', 'entries'], ['entries_set_7d', 'set · 7d'],
+];
+
+function table(el, rows, cols) {
+  if (!rows || !rows.length || rows.error) {
+    el.innerHTML = '<tr><td class="meta">' + (rows && rows.error ? esc(rows.error) : 'nothing yet') + '</td></tr>';
+    return 0;
+  }
+  el.innerHTML = '<thead><tr>' + cols.map(c => '<th>' + c[0] + '</th>').join('') + '</tr></thead><tbody>'
+    + rows.map(r => '<tr>' + cols.map(c =>
+        '<td' + (c[2] ? ' class="num"' : '') + '>' + c[1](r) + '</td>').join('') + '</tr>').join('')
+    + '</tbody>';
+  return rows.length;
+}
+
+// One report. The run id leads, on its own line, truncated — it identifies the row
+// and is the thing you paste into SQL, but it is not what you read to decide. The
+// facts sit left and the actions right, on ONE line; they only wrap to a second
+// when the window is too narrow to hold both.
+function card(r) {
+  const open = r.open_reports > 0;
+  const red = r.player_name === 'REDACTED';
+  const others = (r.player_entries || 1) - 1;
+  const act = (a, label, cls) => '<button' + (cls ? ' class="' + cls + '"' : '')
+    + ' data-a="' + a + '" data-id="' + r.run_id + '">' + label + '</button>';
+  return '<div class="card' + (open ? '' : ' done') + '" data-row="' + r.run_id + '">'
+    + '<span class="rid" title="click to copy">' + r.run_id + '</span>'
+    + '<div class="main">'
+    +   '<div class="facts">'
+    +     '<span class="name' + (red ? ' redacted' : '') + '">' + esc(r.player_name || 'ANON') + '</span>'
+    +     '<span class="tag ' + (r.verified ? 't-ver' : 't-un') + '">' + (r.verified ? 'verified' : 'unverified') + '</span>'
+    +     (r.name_locked ? '<span class="tag t-lock">locked</span>' : '')
+    +     '<span class="tag ' + (open ? 't-n' : 't-ok') + '">' + (open ? r.open_reports + ' open' : 'handled') + '</span>'
+    +     '<span class="reasons">' + esc(r.reasons) + '</span>'
+    +     '<span class="meta">' + esc(r.board) + ' · ' + Number(r.score).toLocaleString()
+    +       (others > 0 ? ' · +' + others + ' other entr' + (others === 1 ? 'y' : 'ies') : '')
+    +       ' · ' + new Date(r.last_report).toLocaleDateString() + '</span>'
+    +   '</div>'
+    +   '<div class="acts">'
+    +     '<button data-ren="' + r.run_id + '">Rename…</button>'
+    +     (r.name_locked ? act('release', 'Release') : act('moderate', 'Redact', 'danger'))
+    +     (open ? act('dismiss', 'Dismiss', 'ghost') : '')
+    +     act('delete', 'Delete', 'danger')
+    +   '</div>'
+    + '</div>'
+    // the rename drawer: type one, or take the default handle. "All entries" is
+    // here because the handle is on every row they hold — redacting just this one
+    // leaves the same name on their other boards.
+    + '<div class="ren" id="ren-' + r.run_id + '">'
+    +   '<input type="text" maxlength="14" placeholder="new handle (2–14 chars)" data-input="' + r.run_id + '">'
+    +   '<button data-a="rename" data-id="' + r.run_id + '">Set name</button>'
+    +   '<a class="link" data-a="reset" data-id="' + r.run_id + '">or reset to Vanguard-XXXXXX</a>'
+    +   (others > 0 ? '<label><input type="checkbox" data-all="' + r.run_id + '">'
+        + 'apply to all ' + (others + 1) + ' entries</label>' : '')
+    + '</div>'
+    + '</div>';
+}
+
+async function load() {
+  const d = await (await fetch('/api/data')).json();
+  const o = d.overview || {};
+  $('#tiles').innerHTML = TILES.map(([k, label]) =>
+    '<div class="tile"><b>' + (o[k] ?? '—') + '</b><span>' + label + '</span></div>').join('');
+
+  const q = Array.isArray(d.queue) ? d.queue : [];
+  const open = q.filter(r => r.open_reports > 0), done = q.filter(r => !r.open_reports);
+  $('#queue').innerHTML = open.length ? open.map(card).join('')
+    : '<div class="empty">Nothing open. Nothing to do.</div>';
+  $('#handled').innerHTML = done.length ? done.map(card).join('')
+    : '<div class="empty">Nothing handled yet.</div>';
+  $('#c-open').textContent = open.length || '';
+  $('#c-open').className = 'count' + (open.length ? ' hot' : '');
+  $('#c-done').textContent = done.length || '';
+  if (d.queue && d.queue.error) $('#queue').innerHTML = '<div class="empty">' + esc(d.queue.error) + '</div>';
+
+  $('#c-boards').textContent = table($('#boards'), d.boards, [
+    ['board', r => esc(r.board)],
+    ['entries', r => r.entries, 1], ['identities', r => r.players, 1],
+    ['verified', r => r.verified, 1],
+    ['top', r => Number(r.top_score).toLocaleString(), 1],
+    ['median', r => Number(r.median_score).toLocaleString(), 1],
+    ['cut off', r => Number(r.cut_off).toLocaleString(), 1],
+    ['last entry', r => new Date(r.last_entry).toLocaleDateString()],
+  ]) || '';
+  $('#c-ladder').textContent = table($('#ladder'), d.ladder, [
+    ['campaign', r => esc(r.campaign)], ['level', r => r.level, 1],
+    ['identities placed', r => r.players_placed, 1],
+    ['top', r => Number(r.top_score).toLocaleString(), 1],
+    ['median', r => Number(r.median_score).toLocaleString(), 1],
+  ]) || '';
+  table($('#growth'), d.growth, [
+    ['week', r => r.week], ['new identities', r => r.new_players, 1],
+  ]);
+}
+
+document.addEventListener('click', async e => {
+  const rid = e.target.closest('.rid');
+  if (rid) { navigator.clipboard?.writeText(rid.textContent.trim()); toast('run id copied'); return; }
+
+  const ren = e.target.closest('button[data-ren]');
+  if (ren) {
+    const el = document.getElementById('ren-' + ren.dataset.ren);
+    el.classList.toggle('on');
+    if (el.classList.contains('on')) el.querySelector('input[type=text]').focus();
+    return;
+  }
+
+  const b = e.target.closest('[data-a]');
+  if (!b || busy) return;
+  const action = b.dataset.a, runId = b.dataset.id;
+  const drawer = document.getElementById('ren-' + runId);
+  const all = !!(drawer && drawer.querySelector('input[data-all]')?.checked);
+  const name = drawer ? drawer.querySelector('input[type=text]').value.trim() : '';
+
+  if (action === 'rename' && name.length < 2) { toast('type a handle of 2–14 characters first', true); return; }
+  // Only DELETE asks. The others are all reversible or repeatable; deleting throws
+  // away someone's SCORE, which is a different kind of decision.
+  if (action === 'delete' && !confirm('Delete this entry entirely?\n\nThe score, its replay and its reports all go. Renaming or redacting is usually what you want instead.')) return;
+
+  busy = true; b.disabled = true;
+  try {
+    const r = await (await fetch('/api/act', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, runId, name, all }) })).json();
+    if (r.error) toast(r.error, true); else toast(r.message || 'done');
+    await load();
+  } catch (err) { toast(String(err), true); }
+  busy = false;
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const i = e.target.closest('input[data-input]');
+  if (i) document.querySelector('button[data-a="rename"][data-id="' + i.dataset.input + '"]')?.click();
+});
+
+$('#refresh').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>

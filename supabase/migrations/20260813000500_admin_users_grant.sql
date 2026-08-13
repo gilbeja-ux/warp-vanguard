@@ -1,0 +1,22 @@
+-- Warp Vanguard — let the admin views actually read auth.users.
+--
+-- admin_overview and player_growth are declared security_invoker (deliberately —
+-- see 20260813000400), which means they run with the CALLER's rights. service_role
+-- has no SELECT on auth.users by default, so both views returned
+--
+--     42501: permission denied for table users
+--
+-- to everything except a dashboard session running as `postgres`. That is a broken
+-- deliverable rather than a locked-down one: the views looked fine, and failed the
+-- first time anything but the SQL Editor touched them.
+--
+-- The grant is not an escalation. service_role already reads and WRITES auth.users
+-- through the Admin API — my-data calls auth.admin.deleteUser with it every time a
+-- player erases their data. This just gives the same role the same visibility over
+-- SQL, which is the door these views knock on.
+--
+-- It stays security_invoker rather than becoming security_definer: a definer view
+-- would run as its owner and hand auth.users to whoever could reach the view, with
+-- only the REVOKEs standing in the way. Granting the one role that already has the
+-- data keeps the blast radius where it was.
+grant select on auth.users to service_role;

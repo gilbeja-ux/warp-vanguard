@@ -24,6 +24,8 @@
     "test:board": "node scripts/test-board.js",
     "test:freeze": "node scripts/test-weekly-freeze.mjs",
     "lab:disc": "node scripts/disc-lab.js",
+    "admin": "node scripts/admin.js",
+    "portal": "node scripts/portal.js",
     "aab": "bash scripts/build-aab.sh",
     "version:sync": "node scripts/sync-version.js"
   },

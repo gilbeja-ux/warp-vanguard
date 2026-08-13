@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Warp Vanguard — Portal</title>
+<style>
+  :root {
+    --bg:#06040d; --panel:#0d0a18; --line:#241d38; --ink:#e8e2f2; --dim:#9a8fb4;
+    --vio:#d465ff; --gold:#ffd24a; --grn:#7ee262; --red:#e06868;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; padding:0 20px 70px; }
+  .wrap { max-width:860px; margin:0 auto; }
+  header { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+    border-bottom:1px solid var(--line); padding:30px 0 16px; margin-bottom:20px; }
+  h1 { font-size:20px; margin:0; }
+  .eyebrow { font-size:10px; letter-spacing:.24em; color:var(--gold); text-transform:uppercase; }
+  .clock { margin-left:auto; color:var(--dim); font-size:11px; }
+
+  a.srv { display:flex; align-items:center; gap:14px; text-decoration:none; color:inherit;
+    background:var(--panel); border:1px solid var(--line); border-left:2px solid var(--line);
+    border-radius:6px; padding:12px 15px; margin-bottom:8px; }
+  a.srv.up { border-left-color:var(--grn); }
+  a.srv.up:hover { background:#141024; border-color:#3b3157; }
+  a.srv.down { opacity:.72; cursor:default; border-left-color:#3a2020; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#4a3a4a; flex:none; }
+  .up .dot { background:var(--grn); box-shadow:0 0 8px rgba(126,226,98,.7); }
+  .who { min-width:0; flex:1 1 auto; }
+  .who b { font-size:15px; font-weight:600; display:block; }
+  .who span { color:var(--dim); font-size:12px; }
+  .right { text-align:right; flex:none; }
+  .port { font:12px var(--mono); color:var(--dim); }
+  .cmd { font:11px var(--mono); color:var(--gold); user-select:all; cursor:copy; }
+  .cmd:hover { color:#fff; }
+
+  .strip { background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:13px 16px; margin:18px 0 8px; }
+  .strip.warn { border-color:#7e3535; background:#150c14; }
+  .strip.ok { border-color:#2c4a2c; }
+  .strip h3 { margin:0 0 5px; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--vio); }
+  .strip.warn h3 { color:var(--red); }
+  .strip p { margin:0; font-size:13px; color:#d6cfe6; }
+  .strip code { font:12px var(--mono); color:var(--gold); }
+  h2 { font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--vio);
+    margin:26px 0 10px; font-weight:600; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); gap:8px; }
+  .tile { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:9px 11px; }
+  .tile b { display:block; font-size:19px; font-weight:600; color:var(--gold); line-height:1.2; }
+  .tile.hot b { color:var(--red); }
+  .tile span { font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); }
+  .note { color:var(--dim); font-size:12px; margin:10px 0 0; }
+  #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#120e20;
+    border:1px solid var(--line); border-radius:6px; padding:10px 16px; font-size:13px;
+    opacity:0; transition:opacity .2s; pointer-events:none; }
+  #toast.on { opacity:1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><div class="eyebrow">Warp Vanguard</div><h1>Portal</h1></div>
+    <div class="clock" id="clock"></div>
+  </header>
+
+  <div id="verifier"></div>
+  <div id="servers"></div>
+
+  <div id="adminbox" style="display:none">
+    <h2>Leaderboard</h2>
+    <div class="tiles" id="tiles"></div>
+    <p class="note"><b>identities</b> are anonymous auth sessions, not people — a new one is minted
+    whenever there is no valid refresh token. Not installs, not DAU.</p>
+  </div>
+
+  <p class="note">Everything here is <b>localhost only</b> and none of it is deployed. The admin
+  console holds the service_role key; the labs read and write files in this checkout. Neither
+  survives being hosted, which is why they are not.</p>
+</div>
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m) { const t = $('#toast'); t.textContent = m; t.className = 'on';
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = '', 2000); }
+
+const TILES = [
+  ['reports_open', 'open reports'], ['names_moderated', 'moderated'],
+  ['identities_total', 'identities'], ['identities_new_7d', 'new · 7d'],
+  ['board_entries', 'entries'], ['entries_set_7d', 'set · 7d'],
+];
+
+function verifierCard(v) {
+  if (!v.known) return '<div class="strip warn"><h3>Verifier</h3><p>No bundle built yet — run <code>npm run build:verifier</code>.</p></div>';
+  if (v.stale.length) {
+    const named = v.stale.length > 3
+      ? v.stale.slice(0, 3).join(', ') + ' and ' + (v.stale.length - 3) + ' more'
+      : v.stale.join(' and ');
+    return '<div class="strip warn"><h3>Verifier is stale</h3>'
+      + '<p>' + esc(named) + ' changed after the bundle was built. <b>Every campaign and weekly '
+      + 'submission will be rejected</b> until you run <code>npm run deploy:verifier</code>.</p></div>';
+  }
+  return '<div class="strip ok"><h3>Verifier in sync</h3><p>Local sim <code>'
+    + esc(v.local || '?') + '</code> matches the built bundle. '
+    + '<span style="color:var(--dim)">Confirm the deployed copy with <code>npm run verifier:status</code>.</span></p></div>';
+}
+
+async function load() {
+  let d;
+  try { d = await (await fetch('/api/status')).json(); }
+  catch { $('#clock').textContent = 'portal unreachable'; return; }
+
+  $('#verifier').innerHTML = verifierCard(d.verifier || {});
+  $('#servers').innerHTML = d.servers.map(s => {
+    const url = 'http://localhost:' + s.port + '/';
+    const inner = '<span class="dot"></span>'
+      + '<span class="who"><b>' + esc(s.name) + '</b><span>' + esc(s.what) + '</span></span>'
+      + '<span class="right"><span class="port">:' + s.port + '</span><br>'
+      + (s.up ? '<span class="port" style="color:var(--grn)">live</span>'
+              : '<span class="cmd" data-cmd="' + esc(s.cmd) + '">' + esc(s.cmd) + '</span>')
+      + '</span>';
+    return s.up
+      ? '<a class="srv up" href="' + url + '" target="_blank" rel="noopener">' + inner + '</a>'
+      : '<a class="srv down">' + inner + '</a>';
+  }).join('');
+
+  if (d.admin) {
+    $('#adminbox').style.display = '';
+    $('#tiles').innerHTML = TILES.map(([k, label]) =>
+      '<div class="tile' + (k === 'reports_open' && d.admin[k] > 0 ? ' hot' : '') + '"><b>'
+      + (d.admin[k] ?? '—') + '</b><span>' + label + '</span></div>').join('');
+  } else {
+    $('#adminbox').style.display = 'none';
+  }
+  $('#clock').textContent = 'checked ' + new Date().toLocaleTimeString();
+}
+
+// copying the start command must not also follow the (dead) link
+document.addEventListener('click', e => {
+  const c = e.target.closest('.cmd');
+  if (!c) return;
+  e.preventDefault(); e.stopPropagation();
+  navigator.clipboard?.writeText(c.dataset.cmd);
+  toast('copied: ' + c.dataset.cmd);
+});
+
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>
