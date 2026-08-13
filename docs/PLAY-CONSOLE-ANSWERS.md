@@ -29,11 +29,22 @@ any time by editing `docs/privacy.html` and pushing.
 **Is all data encrypted in transit?** → **Yes** (HTTPS to Supabase)
 **Do you provide a way for users to request data deletion?** → **Yes**
 
-Answer **Yes**. The route is **in-app**: the *MY DATA* panel on the leaderboard
-screen and in *System Config* offers **rename my runs** and **delete my runs**,
-both acting on every board at once. Email (`gilbeja.int@gmail.com`) remains as the
-fallback for players who have already uninstalled. Give both if the form allows,
-and the URL of `privacy.html` where it asks for documentation.
+Answer **Yes**, and give this as the **Delete data URL**:
+
+```
+https://gilbeja-ux.github.io/warp-vanguard/delete-data.html
+```
+
+**A `mailto:` is rejected** — the field validates as a URL, and Play publishes
+the link on the store listing. `docs/delete-data.html` exists to satisfy the
+three tests the field states: it names the app, it leads with the steps, and it
+says what is deleted, what is kept (the provider's request logs — naming them is
+what makes the page true) and the retention period.
+
+The route it describes is **in-app**: the *MY DATA* panel, on the leaderboard
+screen and in *System Config*, offering **rename my runs** and **delete my
+runs**, both acting on every board at once. Email (`gilbeja.int@gmail.com`)
+remains the fallback for players who have already uninstalled.
 
 **The email route still has to be honoured** where it can be: an unanswered
 request is a policy breach, not an untidy inbox. Watch that address. Note the
@@ -54,8 +65,8 @@ because those need no proof of who is asking.
 | Category | Type | Collected | Shared | Optional? | Purpose |
 |---|---|---|---|---|---|
 | Personal info | **User IDs** | Yes | No | Required* | App functionality |
-| App activity | **In-app actions** (scores, run results, replay traces) | Yes | No | Required* | App functionality |
-| Personal info | **Name** | **No** — the display handle is user-chosen and not a real name | — | — | — |
+| App activity | **App interactions** (scores, run results, replay traces) | Yes | No | Required* | App functionality |
+| Personal info | **Name** | **No — do not tick it.** See below | — | — | — |
 
 \* **Required, and this is settled — do not answer "users can choose".** An
 earlier draft of this file hedged, reasoning that a player who never submits
@@ -72,7 +83,7 @@ GDPR position easier. It does not exist today.
 ### The per-type dialog
 
 Clicking a data type opens three more questions. For **both** User IDs and
-In-app actions:
+App interactions:
 
 | Question | Answer |
 |---|---|
@@ -85,9 +96,28 @@ Leave *Analytics*, *Developer communications*, *Advertising or marketing* and
 the score and the replay trace, not on the identifier, and none of the rest
 exist in this app.
 
-**Do NOT tick:** Location, Financial info, Health, Messages, Photos/Videos,
-Files, Calendar, Contacts, App info and performance (no crash/analytics SDK),
-Device or other IDs (the player id is app-generated, not a device identifier).
+### Why *Name* is not declared
+
+Tempting, because the handle is free text a player could type a real name into.
+Do not tick it. The decisive argument is that `privacy.html` says outright *"You
+are never asked for your name"* and *"We do not collect your name"* — ticking
+*Name* here would leave two documents submitted together contradicting each
+other about the same field, which is worse than either answer alone.
+
+The handle is a pseudonymous label and is covered by the **User IDs**
+declaration. Everything about its handling treats it that way: the policy tells
+players not to use a real name, the client filters as they type, the server
+re-checks against a word list, and the second reason on the *report this* menu
+is "real name or personal information".
+
+Note the dialog **forces a Collected/Shared choice before it will save**. That
+is not Play insisting the type applies — it is assuming you already decided it
+does. Close it with the ✕ and untick the type on the list instead.
+
+**Do NOT tick:** Name, Location, Financial info, Health, Messages,
+Photos/Videos, Files, Calendar, Contacts, App info and performance (no
+crash/analytics SDK), Device or other IDs (the player id is app-generated, not a
+device identifier).
 
 **Is any data used for tracking or advertising?** → **No.**
 
