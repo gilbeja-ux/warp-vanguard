@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tester Guide — Warp Vanguard</title>
+<meta name="description" content="How to test Warp Vanguard, what to look for, and where to send what you find.">
+<style>
+  :root {
+    --bore: #06040d; --panel: #0d0a18; --line: #241d38;
+    --ink: #e8e2f2; --dim: #9a8fb4; --vio: #d465ff; --gold: #ffd24a; --grn: #7ee262;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bore); -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bore); color: var(--ink);
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 0 20px 80px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header { border-bottom: 1px solid var(--line); padding: 44px 0 20px; margin-bottom: 32px; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.24em; color: var(--gold); text-transform: uppercase; }
+  h1 { font-size: clamp(26px, 5vw, 36px); margin: 10px 0 6px; letter-spacing: 0.01em; text-wrap: balance; }
+  .updated { color: var(--dim); font-size: 13.5px; }
+  h2 { font-size: 20px; margin: 40px 0 12px; letter-spacing: 0.01em; }
+  h3 { font-size: 16px; margin: 26px 0 8px; }
+  p, li { color: #d6cfe6; }
+  a { color: var(--grn); }
+  strong { color: #fff; }
+  .short { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 20px 24px; }
+  .short ul { margin: 0; padding-left: 20px; }
+  .short li { margin: 7px 0; }
+  .tablewrap { overflow-x: auto; margin: 18px 0; }
+  table { border-collapse: collapse; width: 100%; min-width: 460px; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--vio); font-size: 11.5px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; }
+  code { background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px; font-size: 14px; }
+  .cta {
+    display: inline-block; background: var(--grn); color: #06040d; font-weight: 700;
+    text-decoration: none; padding: 13px 26px; border-radius: 5px; margin: 8px 0;
+    letter-spacing: 0.02em;
+  }
+  .warn { border-left: 3px solid var(--gold); padding: 4px 0 4px 18px; margin: 20px 0; }
+  .warn strong { color: var(--gold); }
+  ol li { margin: 9px 0; }
+  footer { border-top: 1px solid var(--line); margin-top: 48px; padding-top: 20px; color: var(--dim); font-size: 13.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Warp Vanguard</div>
+  <h1>Tester Guide</h1>
+  <div class="updated">Closed test · v1.0.0</div>
+</header>
+
+<p>Thanks for testing. You are playing the game before anyone else, and what
+you send back genuinely changes what ships. This page is short on purpose.</p>
+
+<h2>What it is</h2>
+<p>An arcade game for Android. You guard a convoy through a warp lane — two
+emitters ride a ring under your thumbs, and everything that wants the convoy
+has to come through you. Landscape, two thumbs, about a minute to understand.</p>
+
+<h2>Getting it</h2>
+<ol>
+  <li>Send me the <strong>Gmail address your phone uses for the Play Store</strong>.
+      It has to be that exact account or the app simply won't appear for you, with
+      no explanation.</li>
+  <li>I'll send you a join link. Open it <strong>on your phone</strong> and tap
+      <em>Become a tester</em>.</li>
+  <li>Install from Google Play as normal.</li>
+</ol>
+<p>If the link says the app isn't available, wait fifteen minutes and try again
+— Play is slow to propagate. If it still fails, it's almost always the wrong
+Google account.</p>
+
+<div class="warn">
+  <p><strong>Please leave it installed for the whole two weeks.</strong> Google
+  requires a minimum number of testers to stay opted in continuously before the
+  game is allowed to launch. Uninstalling early doesn't just remove you — it
+  resets progress toward that requirement and pushes the release date back for
+  everyone. You don't have to play every day. Just don't tidy it off your
+  phone.</p>
+</div>
+
+<h2>A shortcut, so you can see the good bits</h2>
+<p>There are five campaigns, each ending in a duel with a warp leech — a
+machine clamped across the lane, drinking it. They are the most interesting
+thing in the game and they are normally hours away.</p>
+<p>So: on a campaign's route map, <strong>press and hold the final relay for
+three seconds</strong>. A ring charges around your finger and you drop straight
+into that boss fight. Each of the five is a different puzzle.</p>
+<p>These runs are marked as practice and never reach the leaderboards, so you
+can't accidentally cheat your way onto a board. <em>This shortcut is removed
+before public release — it exists for you.</em></p>
+
+<h2>What I most need to know</h2>
+<div class="short">
+<ul>
+  <li><strong>Where did you stop playing, and why?</strong> The single most useful thing you can tell me.</li>
+  <li><strong>What was confusing?</strong> Especially in the first two minutes.</li>
+  <li><strong>What felt unfair</strong> — as opposed to merely hard? Those are different, and the difference matters enormously.</li>
+  <li><strong>Did it run badly?</strong> Stutter, overheating, battery, anything.</li>
+  <li><strong>Did anything look wrong</strong> on your screen — cut off at the edges, overlapping, hidden behind the notch?</li>
+</ul>
+</div>
+<p>Bugs are welcome, but honest reactions are worth more. "I got bored on relay
+6" is more useful than a typo.</p>
+
+<h3>If it crashes</h3>
+<p>Note roughly what you were doing and tell me. Crashes are reported to me
+automatically, but without knowing what happened they're just a stack trace.</p>
+
+<h2>Things I already know</h2>
+<div class="tablewrap">
+<table>
+  <tr><th>Known</th><th>Status</th></tr>
+  <tr><td>Leaderboards need a connection</td><td>By design — the game itself plays fully offline</td></tr>
+  <tr><td>The boss shortcut described above</td><td>Deliberate, removed before launch</td></tr>
+  <tr><td>No tablet-specific layout yet</td><td>Works, but built for phones</td></tr>
+</table>
+</div>
+
+<h2>Sending feedback</h2>
+<p>Whatever is easiest — message me directly, or use the form:</p>
+<p><a class="cta" href="FEEDBACK_FORM_URL">Send feedback</a></p>
+<p>You can also leave a private review in the Play Store listing; as a tester
+it goes only to me and never appears publicly.</p>
+
+<h2>Your data</h2>
+<p>There is no advertising, no analytics and no tracking. If you submit a
+score, it sends an anonymous id, the display name you type, and how the run
+went — nothing else. Full detail in the
+<a href="privacy.html">privacy policy</a>, and you can delete everything from
+inside the game under <strong>MY DATA</strong>.</p>
+
+<footer>
+  Warp Vanguard · closed test · thank you
+</footer>
+
+</div>
+</body>
+</html>
