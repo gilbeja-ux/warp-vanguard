@@ -1276,21 +1276,23 @@ const ENL_FADE = 1.2;             // …of which this much is the dissolve at th
 const ENL_TRAVEL = 1.30;          // one body's trip, this bore's horizon → the ring
 const ENL_LEAD = 0.12;            // the emitter is ON the lane this long before impact
 // THE RUN. Mixed traffic, because a run is mixed: plain bodies for either emitter,
-// the two locks that demand a colour, and heavies that need both at once. Angles all
-// sit on the UPPER arc — the plate owns the window's foot and the mask pinches its
-// crown, so the flanks are the only place a body is fully legible.
+// the two locks that demand a colour, and heavies that need both at once. Arrivals
+// are spread right around the rim now that the bore fills the disc — including the
+// lower third, where they pass BEHIND the caption plate. That is the point of the
+// full-disc framing: the run does not stop where the text starts, it continues under
+// it, and the plate reads as a label laid on a live scene rather than as its floor.
 const ENL_SCRIPT = [
-  { at: 0.20, a: -Math.PI / 2 - 0.98, type: 'normal', node: 0 },
-  { at: 1.05, a: -Math.PI / 2 + 1.04, type: 'normal', node: 1 },
-  { at: 1.95, a: -Math.PI / 2 - 0.52, type: 'normal', lock: 0, node: 0 },
-  { at: 2.85, a: -Math.PI / 2 + 0.58, type: 'normal', lock: 1, node: 1 },
-  { at: 3.80, a: -Math.PI / 2 - 1.16, type: 'heavy',  both: true },
-  { at: 4.85, a: -Math.PI / 2 + 0.26, type: 'normal', node: 1 },
-  { at: 5.65, a: -Math.PI / 2 - 0.28, type: 'normal', lock: 0, node: 0 },
-  { at: 6.50, a: -Math.PI / 2 + 1.18, type: 'normal', node: 1 },
-  { at: 7.40, a: -Math.PI / 2 - 0.78, type: 'heavy',  both: true },
-  { at: 8.45, a: -Math.PI / 2 + 0.72, type: 'normal', lock: 1, node: 1 },
-  { at: 9.20, a: -Math.PI / 2 - 1.08, type: 'normal', node: 0 }
+  { at: 0.20, a: -Math.PI / 2 - 1.05, type: 'normal', node: 0 },
+  { at: 1.05, a: -Math.PI / 2 + 1.15, type: 'normal', node: 1 },
+  { at: 1.95, a: -Math.PI / 2 - 0.45, type: 'normal', lock: 0, node: 0 },
+  { at: 2.85, a: -Math.PI / 2 + 0.50, type: 'normal', lock: 1, node: 1 },
+  { at: 3.80, a: -Math.PI / 2 - 1.55, type: 'heavy',  both: true },
+  { at: 4.85, a: -Math.PI / 2 + 0.20, type: 'normal', node: 1 },
+  { at: 5.65, a: -Math.PI / 2 - 1.95, type: 'normal', lock: 0, node: 0 },
+  { at: 6.50, a: -Math.PI / 2 + 1.70, type: 'normal', node: 1 },
+  { at: 7.40, a: -Math.PI / 2 - 0.70, type: 'heavy',  both: true },
+  { at: 8.45, a: -Math.PI / 2 + 2.05, type: 'normal', lock: 1, node: 1 },
+  { at: 9.20, a: -Math.PI / 2 - 1.25, type: 'normal', node: 0 }
 ];
 const enlTakes = (c, i) => c.both || c.node === i;   // does emitter i answer this one
 // THE DIORAMA'S OWN HORIZON, much nearer than the run's SPAWN_Z of 2.1. Depth falls
@@ -1336,20 +1338,13 @@ function enlistArtRun(x, y, w, h, covered) {
   bgG.addColorStop(0.55, 'rgba(4,9,20,0.96)');
   bgG.addColorStop(1, 'rgba(2,5,12,1)');
   ctx.fillStyle = bgG; ctx.fillRect(x, y, w, h);
-  const clearH = h - covered;
-  // BIGGER THAN THE BAND, ON PURPOSE. In a real run the node ring is 0.88 of the
-  // screen's short side — it runs off the top and bottom of the glass, and the
-  // player only ever sees its flanks. A ring made to fit this window entirely would
-  // be a small circle floating in a rectangle, which is not what the game looks like.
-  // So it overhangs and gets cropped, exactly as it is cropped in play — but the
-  // crop has to happen against the PLATE, not against the mask. Centred in the band
-  // its crown pushed through the rim, and a circle cut by a curve reads as a
-  // collision rather than as a frame edge. Seated one radius down from the window's
-  // top, the crown clears and the foot goes behind the plate, which is the honest
-  // half to lose: the action all arrives on the upper flanks.
-  const cx = x + w / 2;
-  const nodeR = Math.min(w * 0.40, clearH * 0.62);
-  const cy = y + nodeR + w * 0.025;
+  // THE DISC IS THE RING. Not a bore tucked into the space the plate leaves — the
+  // node ring is laid ON the mask, so the disc's own rim IS the ring the emitters
+  // ride and the traffic arrives on. `covered` is deliberately ignored here: the run
+  // owns the whole circle and the caption plate lies over its lower third, which is
+  // what makes the scene continue behind the label instead of stopping above it.
+  const cx = x + w / 2, cy = y + h / 2;
+  const nodeR = (w / 2) * 0.955;              // just inside the mask, so the band clears the rim
   const g2 = { cx, cy, R0: nodeR * 2.5, nodeR, hitZ: 0.25, sw: 0, swy: 0 };
   const show = time % ENL_SHOW;
   // the dissolve: the run thins out over the last beat and the next pass prints in
@@ -1489,43 +1484,36 @@ function enlistArtLegend(x, y, w, h, covered) {
   ctx.fillStyle = bgG; ctx.fillRect(x, y, w, h);
   const clearH = h - covered;
   const mL = 10 + SAFE.l, mR = 10 + SAFE.r, mT = 8 + SAFE.t, mB = 13 + SAFE.b;
-  // FITTED TO THE CIRCLE, NOT THE BOX. The page is a rectangle and the mask is a
-  // circle: scaled to the window's bounding width its top corners — and the title
-  // that sits between them — hang outside the rim and get cut. The disc's own
-  // geometry is recoverable from the window it handed us (the window spans the full
-  // mask), so shrink until all four corners are inside it.
-  // ANCHORED TO THE PLATE, AND FITTED TO THE BAND — the page is allowed to spill
-  // past the mask at its corners, because the mask cuts EMPTY PAGE MARGIN there.
-  // Shrinking until all four corners were inside cost a quarter of the page to buy
-  // clearance for two corners nothing is drawn in.
+  // BIGGER THAN THE DISC, AND PANNED. Every earlier pass tried to make the whole page
+  // fit, and every one of them paid for it in type size — the page is a wide
+  // rectangle, the mask is a circle, and fitting the one inside the other means the
+  // specimens end up smaller than the thing they are teaching. So it stops fitting:
+  // the page is sized to FILL the picture's height and runs wider than the disc,
+  // which the mask crops. What is lost is the page's head and foot — its title and
+  // its tip — and neither is the point here. The SPECIMENS are the point, and they
+  // are what the extra size goes to.
   //
-  // What must survive the cut is checked and does: anchored on the plate, the title
-  // lands where the mask still leaves more room than the title's ink needs, and the
-  // specimen row sits near the equator where there is more still. The rim grazes the
-  // outermost specimen's glow and the page's own margins, which is all it should.
-  const dcx = x + w / 2;
-  const s = Math.min(w / W, clearH / H);
-  const pcy = y + clearH - H * s / 2;           // the page's foot rides the plate's top
-  // THE TITLE GETS ITS OWN BUDGET, measured from the mask. Everything else on the
-  // page can afford to be grazed by the rim — a specimen's glow, the page's margins —
-  // but the title is a LINE OF TEXT sitting at the page's head, which in a disc lands
-  // up near the crown where the chord is at its narrowest. Cut text reads as broken,
-  // not as cropped. So the chord at the title's own row becomes its max width and
-  // fitPx shrinks the title alone; the lineup below keeps every pixel of its size.
-  const Rm = w / 2, dcy = y + Rm;
-  const titleY = pcy - H * s / 2 + (mT + Math.round(Math.min(W, H) * 0.055)) * s;
-  const titleChord = 2 * Math.sqrt(Math.max(1, Rm * Rm - Math.pow(titleY - dcy, 2)));
+  // The width that overhangs is not thrown away either: the page drifts slowly left
+  // and right, so the outermost specimens on each side take their turn in view rather
+  // than living permanently behind the rim.
+  const s = clearH / H * 1.30;                  // fill the picture band, then some
+  const pageW = W * s;
+  const pan = Math.max(0, (pageW - w) / 2);     // how far off each edge the page runs
+  const drift = pan * Math.sin(time * 0.22);    // …and the slow sweep across it
   ctx.save();
-  ctx.translate(dcx, pcy);
+  // clipped to the picture band so the pan cannot smear into the caption plate
+  ctx.beginPath(); ctx.rect(x, y, w, clearH); ctx.clip();
+  ctx.translate(x + w / 2 - drift, y + clearH / 2);
   ctx.scale(s, s);
   ctx.translate(-W / 2, -H / 2);
   // the page's own box and its own type reference — every number here is the one
-  // drawGuide passes, which is the entire point
+  // drawGuide passes, which is the entire point. The title and tip still render:
+  // they are what the crop eats, and a page that stopped drawing them would leave a
+  // band of nothing where the mask was going to cut anyway.
   drawGuideLineup(
     { x: (mL + mR) / 2, y: mT, w: W - mL - mR, h: H - mB - mT },
     Math.min(W, H),
-    // …the budget is converted back into PAGE space, since that is what fitPx measures in
-    { titleMaxW: Math.min(W - 2 * (mL + 46), titleChord * 0.94 / s), hint: false });
+    { titleMaxW: W - 2 * (mL + 46), hint: false });
   ctx.restore();
 }
 function enlistArt(beat, x, y, w, h, covered, live) {
@@ -1638,32 +1626,35 @@ function enlistScanRender(g, R, q, body, hasPrev) {
 // back over the top. The numbers are that function's numbers on purpose.
 function enlistDiscBody(g, R, lines, t, beat) {
   const Rc = R * 0.965;                    // the mask: just inside the border ring
-  const artB = g.cy + R * 0.34;            // the picture's foot — a mission disc's edge
-  const aTop = g.cy - Rc, aH = artB - aTop;
+  // THIRDS, MEASURED ON THE MASK. The plate takes the bottom third of the disc and
+  // the picture keeps the top two — stated as a fraction of the circle rather than
+  // derived from however tall the text happens to be. Sizing the bar off its own
+  // rows is what a mission disc does, and it meant the split moved whenever a line
+  // wrapped differently; here the frame is the constant and the type fits into it.
+  const dTop = g.cy - Rc, dBot = g.cy + Rc;
+  const bTop = dTop + (dBot - dTop) * (2 / 3);
+  const bh = dBot - bTop;
+  // the art still fills the WHOLE mask and the plate is laid over its foot — the
+  // painters are told what the plate covers and keep their subject clear of it, but
+  // a picture that stopped dead at the seam would show its own edge there
+  const aTop = dTop, aH = dBot - dTop;
   const half = y => Math.sqrt(Math.max(1, Rc * Rc - y * y));
   // THE SCRIPT'S OWN LINE BREAKS ARE KEPT. A mission disc wraps a sentence to the
   // chord because its text is authored as one string; these are authored as two
   // deliberate halves ("Welcome to Vanguard Squadron," / "rookie."), and re-wrapping
   // them to fit would throw away the pause the writer put there. So the only fitting
-  // done is shrink-to-chord.
-  const tw = half(R * 0.34) * 2 - R * 0.16;
+  // done is shrink-to-chord — measured at the block's LOWEST row, the narrowest one.
+  const chordAt = y => half(y - g.cy) * 2 - R * 0.14;
   let ls = Math.max(10, Math.round(R * 0.095));
   for (;;) {
     ctx.font = '500 ' + ls + 'px Audiowide, system-ui';
+    const tw = chordAt(bTop + bh * 0.5 + (lines.length - 1) * (ls + 5) * 0.5);
     let widest = 0;
     for (const ln of lines) widest = Math.max(widest, ctx.measureText(ln).width);
     if (widest <= tw || ls <= 9) break;
     ls--;
   }
   const lh = ls + 5;
-  // A TIGHTER CAP THAN A MISSION DISC'S THIRD. A briefing's plate holds a wrapped
-  // sentence and its picture is a full-bleed keyframe that loses nothing to a tall
-  // bar. These discs are the opposite: two short authored lines, over pictures that
-  // are LIVE and need the room — at 0.33 the plate and the ident band together took
-  // 54% of the window and the bore came out a small circle in a wide rectangle.
-  const bh = Math.max((lines.length - 1) * lh + ls * 1.5,
-    Math.min((lines.length * lh + 16) * BAR_SCALE, aH * 0.26));
-  const bTop = artB - bh;
   ctx.save();
   ctx.beginPath(); ctx.arc(g.cx, g.cy, Rc, 0, TAU); ctx.clip();
   const full = lines.join(' ').length;
@@ -1676,21 +1667,19 @@ function enlistDiscBody(g, R, lines, t, beat) {
   // the grade the ENGINE adds, exactly as it adds it to forty authored keyframes:
   // scanlines and a vignette, so these discs sit in the same show as the briefings
   ctx.fillStyle = 'rgba(2,6,14,0.22)';
-  for (let sy = aTop + (Math.floor(time * 8) % 3); sy < artB; sy += 3) ctx.fillRect(g.cx - Rc, sy, Rc * 2, 1);
-  const vg = ctx.createRadialGradient(g.cx, aTop + aH * 0.42, aH * 0.3, g.cx, aTop + aH * 0.42, Rc * 1.05);
+  for (let sy = aTop + (Math.floor(time * 8) % 3); sy < bTop; sy += 3) ctx.fillRect(g.cx - Rc, sy, Rc * 2, 1);
+  const vg = ctx.createRadialGradient(g.cx, aTop + aH * 0.34, aH * 0.26, g.cx, aTop + aH * 0.34, Rc * 1.05);
   vg.addColorStop(0, 'rgba(0,0,0,0)');
   vg.addColorStop(1, 'rgba(2,5,12,0.62)');
   ctx.fillStyle = vg; ctx.fillRect(g.cx - Rc, aTop, Rc * 2, aH);
-  // THE PLATE IS THE DISC'S WHOLE LOWER BODY, not a bar with open space under it.
-  // It used to stop at the picture's foot, which left the bottom third of the mask
-  // showing the lane straight through — so the disc read as a ring with a panel
-  // wedged in it rather than as one solid object. It now runs to the mask's edge,
-  // and TAP TO CONTINUE sits ON it rather than in a hole below it.
-  const cg = ctx.createLinearGradient(g.cx, bTop, g.cx, g.cy + Rc);
-  cg.addColorStop(0, 'rgba(3,7,16,0.80)');
-  cg.addColorStop(0.14, 'rgba(3,7,16,0.94)');
+  // THE PLATE IS THE DISC'S BOTTOM THIRD, solid to the mask's edge — a bar with open
+  // space under it read as a ring with a panel wedged into it rather than as one
+  // object. TAP TO CONTINUE sits ON it.
+  const cg = ctx.createLinearGradient(g.cx, bTop, g.cx, dBot);
+  cg.addColorStop(0, 'rgba(3,7,16,0.78)');
+  cg.addColorStop(0.12, 'rgba(3,7,16,0.94)');
   cg.addColorStop(1, 'rgba(3,7,16,0.94)');
-  ctx.fillStyle = cg; ctx.fillRect(g.cx - Rc, bTop, Rc * 2, (g.cy + Rc) - bTop);
+  ctx.fillStyle = cg; ctx.fillRect(g.cx - Rc, bTop, Rc * 2, bh);
   ctx.restore();
   // the art covered the disc's rim — lay the ring and its accent arcs back over
   ctx.strokeStyle = `rgba(${ENLIST_COL},0.28)`; ctx.lineWidth = 1.5;
@@ -1713,7 +1702,11 @@ function enlistDiscBody(g, R, lines, t, beat) {
   const capH = (typeof asc3 === 'number' && asc3 > 0) ? asc3 : ls * 0.72;
   const dscH = (typeof desc3 === 'number' && desc3 > 0) ? desc3 : ls * 0.06;
   const inkH = (lines.length - 1) * lh + capH + dscH;
-  const base0 = bTop + (bh - inkH) / 2 + capH;
+  // CENTRED IN WHAT THE TAP LINE LEAVES, not in the whole plate. TAP TO CONTINUE
+  // lives at a fixed radius (TAP_K) and the plate is now a full third of the disc —
+  // centring the speech in all of it dropped the second row onto the tap line.
+  const tapTop = g.cy + R * TAP_K - R * 0.055;
+  const base0 = bTop + Math.max(0, (tapTop - bTop - inkH) / 2) + capH;
   ctx.fillStyle = 'rgba(228,240,254,0.96)';
   let used = 0;
   for (let i2 = 0; i2 < lines.length; i2++) {

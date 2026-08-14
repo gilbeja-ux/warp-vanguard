@@ -602,7 +602,13 @@ function startEnlistment(short, quiet) {
   //
   // Nothing runs while the discs are up: the level parks itself until both
   // thumbs land (preLaunch), and no thumb can land through a disc.
-  startQualification();
+  //
+  // …and the music is held back. startQualification normally arms the run's take
+  // straight away, because it is normally reached by pressing DEPLOY — but here the
+  // course is being set up MINUTES of talking before anyone plays it, and arming it
+  // now would kill the menu piece under the first disc. The hand-off is armed when
+  // the last disc lifts instead; see tickEnlist.
+  startQualification(true);
   enlist = { beat: 0, t: 0, short: !!short, out: 0 };
   state = S.ENLIST;
   if (!quiet) sfx.tick();
@@ -616,10 +622,18 @@ function enlistTap() {
     enlist.beat++; enlist.t = 0; sfx.tick();
     return;
   }
+  // THE LAST TAP IS THE DEPLOY PRESS, so it gets a deploy's music: the menu piece
+  // bows out over a second while the discs lift, the bus holds its silence, and the
+  // run's own take is decoded under it so it lands ON the start sequence — the same
+  // hand-off every contract gets, and the reason startQualification was told to keep
+  // its hands off the bus when the enlistment set the course up.
   enlist.out = 0.0001; // begins the hand-off fade; tickEnlist launches the course
+  armRunMusic();
   sfx.tick();
 }
-function startQualification() {
+// `holdMusic` keeps the menu piece on the bus: the enlistment sets the course up
+// long before it is played and does its own deploy fade when the discs clear.
+function startQualification(holdMusic) {
   weekly = false; Math.random = sysRandom;
   levelIdx = -1; endless = false; qual = true; spawnRng = Math.random;
   LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.40,
@@ -638,7 +652,7 @@ function startQualification() {
     [{ node: 0, a: -2.5 }, { node: 1, a: -0.64 }],   // both at once — FIXED
   ] };                                               // opposite upper sides, always clear apart
   runTrack = pickTrack();
-  armRunMusic();
+  if (!holdMusic) armRunMusic();
   // free flow: no greeting disc — boot straight in; the CONTROLS CHECK banner
   // and the marching arrows take it from there
 }

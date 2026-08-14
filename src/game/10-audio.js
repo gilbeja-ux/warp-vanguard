@@ -52,9 +52,21 @@ function audio() {
   // on which screen a tap happened to land on.
   return AC;
 }
-// a MENU screen for soundtrack purposes: the menu itself, and the field guide
-// when it was opened from the home screen rather than mid-run
-const menuScreenNow = () => state === S.MENU || (state === S.GUIDE && (!guide || guide.from !== 'pause'));
+// a MENU screen for soundtrack purposes: the menu itself, the field guide when it
+// was opened from the home screen rather than mid-run, and the enlistment.
+//
+// THE ENLISTMENT COUNTS because the course behind the discs is set up, not played —
+// the player is being talked to. Silence there made the game's first minute feel
+// like it had failed to load.
+//
+// UP TO THE LAST TAP, AND NOT PAST IT. `enlist.out` is the hand-off running, which
+// is this sequence's DEPLOY press — from that instant the menu piece is no longer
+// what the bus wants, so the contract performs the cut itself and nothing has to
+// fight the piece back down. Without that clause it would spool straight back up
+// underneath the fade, because the state stays S.ENLIST for another 0.7s.
+const menuScreenNow = () => state === S.MENU
+  || (state === S.ENLIST && !(enlist && enlist.out))
+  || (state === S.GUIDE && (!guide || guide.from !== 'pause'));
 // ...and its counterpart: the pause card's music hold has to survive stepping
 // OFF the card into the guide. The guide opened mid-run is still the pause —
 // the run is frozen behind it — so the track stays parked where it stood
