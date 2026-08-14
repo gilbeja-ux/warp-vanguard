@@ -21,14 +21,20 @@ const { buildPayload } = require('./tuning-board.js');
 const STRICT = new Set(['createLinearGradient', 'createRadialGradient', 'arc', 'arcTo', 'ellipse',
   'moveTo', 'lineTo', 'rect', 'fillRect', 'strokeRect', 'clearRect', 'quadraticCurveTo',
   'bezierCurveTo', 'translate', 'scale', 'rotate', 'setTransform', 'drawImage', 'roundRect']);
-const paint = { n: 0 };
-const grad = { addColorStop() {} };
+const paint = { n: 0, grads: 0, stops: 0, fullFills: 0 };
+// GRADIENT CONSTRUCTION IS THE MEASURED COST, not the painting. Device profiling
+// (OPPO CPH2581, 2026-08-03) found the streak field's entire bill was building
+// CanvasGradients — each addColorStop() is handed a freshly allocated rgba()
+// string the backend must CSS-parse — while the strokes themselves were nearly
+// free. Counting them here keeps that number honest as the game grows.
+const grad = { addColorStop() { paint.stops++; } };
 const CTX2D = new Proxy({}, {
   get: (t, k) => {
     if (k === 'canvas') return { width: 0, height: 0 };
     if (k === 'createImageData') return (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) });
     return (...a) => {
       paint.n++;
+      if (k === 'createLinearGradient' || k === 'createRadialGradient' || k === 'createConicGradient') paint.grads++;
       if (STRICT.has(k)) for (let i = 0; i < a.length; i++) {
         if (typeof a[i] === 'number' && !Number.isFinite(a[i])) throw new TypeError(`${k}: argument ${i} is ${a[i]}`);
       }
@@ -93,7 +99,7 @@ const sandbox = {
   performance: { now: () => 0 },
   requestAnimationFrame: () => 0, cancelAnimationFrame: () => {},
   setTimeout, clearTimeout, setImmediate,
-  __paint: null, __subj: null,   // filled in below, so the vm can measure one painter
+  __paint: null, __subj: null, __gsubj: null,   // filled in below, so the vm can measure one painter
   Blob: function (parts) { this.parts = parts; },
   URL: { createObjectURL: () => 'blob:stub', revokeObjectURL() {} },
   fetch: (url) => Promise.resolve({
@@ -125,15 +131,20 @@ for (const f of gameFileNames(ROOT)) {
 // painter has to contribute strokes of its own.
 sandbox.__paint = paint;
 sandbox.__subj = SUBJ;
+const GSUBJ = {};
+sandbox.__gsubj = GSUBJ;
 const SUBJECT_OF = { arcs: 'drawNodes', enemies: 'drawEnemy', decomp: 'drawGhost',
   streaks: 'drawStreaks', planet: 'drawFarGlow', hud: 'drawHUD' };
 for (const fn of new Set(Object.values(SUBJECT_OF))) {
   vm.runInContext(`{
     const _orig = ${fn};
     ${fn} = function (...a) {
-      const before = __paint.n;
+      const before = __paint.n, gBefore = __paint.grads;
       try { return _orig.apply(this, a); }
-      finally { __subj[${JSON.stringify(fn)}] = (__subj[${JSON.stringify(fn)}] || 0) + (__paint.n - before); }
+      finally {
+        __subj[${JSON.stringify(fn)}] = (__subj[${JSON.stringify(fn)}] || 0) + (__paint.n - before);
+        __gsubj[${JSON.stringify(fn)}] = (__gsubj[${JSON.stringify(fn)}] || 0) + (__paint.grads - gBefore);
+      }
     };
   }`, ctx, { filename: 'wrap:' + fn });
 }
@@ -162,8 +173,9 @@ setTimeout(() => {
   if (!wired) fail.push('EDITOR_DRIVE was never installed — the board cannot hold the clock');
 
   // drive a real scene and require the game's own frame() to paint it
-  paint.n = 0;
+  paint.n = 0; paint.grads = 0; paint.stops = 0;
   for (const k of Object.keys(SUBJ)) delete SUBJ[k];
+  for (const k of Object.keys(GSUBJ)) delete GSUBJ[k];
   try {
     vm.runInContext(`
       installCampaign(CAMPAIGNS[0]);
@@ -177,6 +189,10 @@ setTimeout(() => {
   if (paint.n < 500) fail.push(`the live scene barely painted (${paint.n} canvas calls)`);
   console.log(`live scene painted        : ${paint.n} canvas calls`);
   console.log(`  via ${painters.map(([k, n]) => k + '=' + n).join(', ') || '(none of the tracked painters)'}`);
+  // three frames were driven above, so per-frame is the number that means anything
+  console.log(`gradients built            : ${paint.grads} (${(paint.grads / 3).toFixed(0)}/frame, ${paint.stops} colour stops)`);
+  const gsub = Object.entries(GSUBJ).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+  if (gsub.length) console.log(`  gradients via ${gsub.map(([k, n]) => k + '=' + (n / 3).toFixed(0) + '/f').join(', ')}`);
 
   console.log(`subsystem buttons rendered : ${navButtons.length}`);
   console.log(`dial panel children        : ${nodes['#dials'].children.length}`);

@@ -1176,6 +1176,35 @@ function drawEphemera(inGuide) {
 // The finishing chain, in order: vignette, film grain, colour grade, level tint,
 // the HUD, the low-integrity warning, the damage flash, and the fade. Everything
 // here paints OVER the world, so order within it is the whole design.
+// The colour grade. Only its warm floor moves, and only with laneFlow — so it is
+// rebuilt when that changes by a hundredth, which is finer than the eye can read
+// on an 8% alpha wash and ~100x fewer builds than one a frame.
+let gradeCv = null, gradeKey = '';
+function gradeGrad() {
+  const k = W + 'x' + H + ':' + Math.round(laneFlow * 100);
+  if (gradeCv && gradeKey === k && gradeCtx === ctx) return gradeCv;
+  const gr = ctx.createLinearGradient(0, 0, 0, H);
+  gr.addColorStop(0, 'rgba(18,55,110,0.10)');   // cool up top
+  gr.addColorStop(0.55, 'rgba(0,0,0,0)');
+  // the warm floor is BOUNCE off the convoy, so it leaves with it — parked, the
+  // frame grades cool top to bottom and the lane reads as cold open space
+  gr.addColorStop(1, `rgba(255,150,50,${(0.08 * laneFlow).toFixed(3)})`);
+  gradeCv = gr; gradeKey = k; gradeCtx = ctx;
+  return gr;
+}
+// The level tint never changes WITHIN a level, so this is built once per relay
+// instead of sixty times a second for its entire duration.
+let tintCv = null, tintKey = '';
+let gradeCtx = null, tintCtx = null;
+function tintGrad(tint) {
+  const k = W + 'x' + H + ':' + tint;
+  if (tintCv && tintKey === k && tintCtx === ctx) return tintCv;
+  const gr = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
+  gr.addColorStop(0, `rgba(${tint},0)`);
+  gr.addColorStop(1, `rgba(${tint},0.11)`);
+  tintCv = gr; tintKey = k; tintCtx = ctx;
+  return gr;
+}
 function drawPostChain(rawDt, worldFx, g) {
   // cinematic vignette + color grade (under the HUD so controls stay crisp)
   if (vignetteCanvas) ctx.drawImage(vignetteCanvas, 0, 0, W, H);
@@ -1187,21 +1216,22 @@ function drawPostChain(rawDt, worldFx, g) {
       ctx.drawImage(grainCv, gx, gy);
     ctx.globalAlpha = 1;
   }
-  const grade = ctx.createLinearGradient(0, 0, 0, H);
-  grade.addColorStop(0, 'rgba(18,55,110,0.10)');   // cool up top
-  grade.addColorStop(0.55, 'rgba(0,0,0,0)');
-  // the warm floor is BOUNCE off the convoy, so it leaves with it — parked, the
-  // frame grades cool top to bottom and the lane reads as cold open space
-  grade.addColorStop(1, `rgba(255,150,50,${(0.08 * laneFlow).toFixed(3)})`);
-  ctx.fillStyle = grade;
+  // THE SAME LESSON drawStreaks ALREADY PAID FOR. Device profiling (OPPO
+  // CPH2581, 2026-08-03) found the streak field's whole bill was CONSTRUCTING
+  // gradients — five addColorStop()s each, every one handed a freshly allocated
+  // rgba() string the backend has to CSS-parse — while the painting itself was
+  // nearly free. These two are the same shape and were missed: two full-screen
+  // gradients rebuilt from scratch 60 times a second, for the entire run.
+  //
+  // Both are cached on what they actually depend on. A CanvasGradient belongs to
+  // the context that made it, so the cache is dropped when ctx is rebound
+  // (withCanvas swaps it for the offscreen bakes) and when the frame resizes.
+  ctx.fillStyle = gradeGrad();
   ctx.fillRect(0, 0, W, H);
 
   // per-level color identity: each relay tints the air at the edges
   if ((state === S.PLAY || state === S.PAUSE || state === S.INFO) && LV && LV.tint) {
-    const tg2 = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
-    tg2.addColorStop(0, `rgba(${LV.tint},0)`);
-    tg2.addColorStop(1, `rgba(${LV.tint},0.11)`);
-    ctx.fillStyle = tg2;
+    ctx.fillStyle = tintGrad(LV.tint);
     ctx.fillRect(0, 0, W, H);
   }
 
