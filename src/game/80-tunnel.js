@@ -6,7 +6,7 @@
 // proof that they are holes in a surface, not sprites in the bore
 const SEAMS = 14, SEAM_OFF = 0.12, HOOP_SPACING = 0.28;
 function drawLattice(g) {
-  if (state === S.MENU) return;
+  if (parkedSky()) return;
   // the reach carries drawWarpField, the lift ON the bore, with it
   const reach = boreReach();
   if (reach <= Z_FLOOR) return;
@@ -121,7 +121,7 @@ function buildFieldGlow() {
   c.fillRect(0, 0, S, S);
 }
 function drawWarpField(g, reach) {
-  if (state === S.MENU) return;
+  if (parkedSky()) return;
   if (reach === undefined) reach = boreReach();
   // THE GRADIENT THAT LIGHTS THE BORE. A blueprint is lines; this is the glow, and it is the
   // single clearest statement that the lane is powered — so it waits for the warp.
@@ -270,7 +270,7 @@ for (let i = 0; i < 9; i++) {
   });
 }
 function drawLaneFilaments(g, dive) {
-  if (state === S.MENU) return;
+  if (parkedSky()) return;
   const exitK = 1 - laneExit();
   if (exitK <= 0.004) return; // discharge needs a wall to arc across
   ctx.save();

@@ -9,6 +9,11 @@ let state = S.MENU;
 // This is that missing first half.
 //   { beat, t, short }  · short = the abbreviated re-entry, see startEnlistment
 let enlist = null;
+// THE CALM SKY. Two screens want the world dressed rather than flown: the menu,
+// and the enlistment in front of it. No bore, no lane, no traffic — just the
+// star field and the destination. Named because it is asked in four places, and
+// four hand-written comparisons is how one of them gets missed.
+const parkedSky = () => state === S.MENU || state === S.ENLIST;
 let levelIdx = 0, levelT = 0, spawnT = 0;
 let integrity = 100, score = 0, zaps = 0, misses = 0, combo = 0, perfects = 0, fragsHit = 0;
 let maxCombo = 0; // longest streak this run — a leaderboard display stat + tiebreaker

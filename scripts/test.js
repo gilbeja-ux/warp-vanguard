@@ -214,7 +214,7 @@ code = code.replace("'use strict';", '') + `
   getPreT: () => preT, isPreLaunch: () => preLaunch(),
   getBuzzN: () => buzzMonN, getBuzzLast: () => buzzMonLast, // counted before the haptics gate
   startQualification, getInfoCard: () => infoCard, isQual: () => qual,
-  startEnlistment, enlist: () => enlist, enlistTap, enlistScript,
+  startEnlistment, enlist: () => enlist, enlistTap, enlistScript, parkedSky,
   keys, setBeamAim: (x, y) => { beamAim.x = x; beamAim.y = y; }, getHeat: () => heat, isOverheat: () => overheat, startBossTest,
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
   stripAngle, startWeekly, isWeekly: () => weekly, weeklyIdx: () => weeklyIdx, weeklyLive,
@@ -444,6 +444,12 @@ drawOk('enlistment: handing off', () => { G.startEnlistment(false); G.enlist().b
   G.enlistTap();
   G.rawFrame(performance.now ? performance.now() + 2000 : 2000);
   check('the hand-off uncovers the run rather than reloading it', G.isQual() === true);
+  // THE CALM SKY. The discs float on the menu's world, not a flying lane — the
+  // bore and the pads all arrive together when the last one lifts.
+  G.startEnlistment(false, true);
+  check('the enlistment gets the parked sky, like the menu', G.parkedSky() === true);
+  G.setState(G.S.PLAY);
+  check('…and the lane returns the moment it hands over', G.parkedSky() === false);
 }
 drawOk('menu audio-config overlay', () => { G.setMenuSettings(true); });
 // dedicated leaderboard screen — every data state must render without throwing

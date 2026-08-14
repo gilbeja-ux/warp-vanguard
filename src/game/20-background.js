@@ -1048,7 +1048,7 @@ function drawWarpSky(vis, bdt) {
 // run in opposite directions on purpose: the menus lose the planets and gain the
 // stars, so neither transition is a cut.
 function tickMenuSky(dt) {
-  const want = (state === S.MENU || state === S.GUIDE) ? 1 : 0;
+  const want = (parkedSky() || state === S.GUIDE) ? 1 : 0;
   menuSkyVis += clamp(dt / 0.5, 0, 1) * (want - menuSkyVis);
 }
 // …and the same idea for the throttle: eased on frame time, keyed on state, read by

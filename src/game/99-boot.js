@@ -1136,7 +1136,11 @@ function drawPostChain(rawDt, worldFx, g) {
   }
   else if (state === S.PAUSE) { drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawPause(); }
   else if (state === S.INFO) { drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawInfoCard(); }
-  else if (state === S.ENLIST) { drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawEnlistment(); }
+  // NOTHING BUT THE DISC. The course is already running underneath, but none of
+  // its furniture is drawn: no pads, no AWAITING RUNNER, no bore. All of it
+  // arrives at once when the last disc lifts, which is the moment the player is
+  // being handed the controls — showing it early spends that moment early.
+  else if (state === S.ENLIST) drawEnlistment();
   else if (state === S.GUIDE) drawGuide(g);
   else if (state === S.MENU) {
     if (SPLASH.on && SPLASH.t < SPL.wheel) { /* boot stage one: only the tunnel
