@@ -1,0 +1,121 @@
+<!doctype html>
+<!-- Enlistment screenshot harness (dev only, not shipped: scripts/, not src/).
+     Sibling of shot-splash.html and it works the same way: serve the REPO ROOT,
+     open /scripts/shot-enlist.html?beat=0&t=1.2 — it lifts the game scripts out
+     of src/index.html, waits for the fonts and the badge to decode, claims
+     S.ENLIST, then hand-cranks the rAF clock to the requested per-beat time and
+     freezes. document.title flips to "READY" so a screenshotter knows the frame
+     is staged.
+
+       ?beat=0|1|2   which disc (0 comms, 1 the live diorama, 2 the field guide)
+       ?t=<seconds>  time WITHIN that beat — under ENLIST_SCAN (0.52) catches the
+                     scan print mid-sweep, past it catches the settled disc
+       ?short=1      the abbreviated re-entry script (one beat, the guide disc)
+       ?w=&h=        canvas size, for checking a phone against a tablet
+
+     The splash is ended outright rather than cranked through: drawEnlistment is
+     held behind it, and thirteen seconds of boot theatre per shot is thirteen
+     seconds of nothing this harness is looking at. -->
+<html>
+<head>
+<meta charset="utf-8">
+<base href="../src/">
+<title>staging…</title>
+<style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+(async () => {
+  const P = new URLSearchParams(location.search);
+  const beat = parseInt(P.get('beat') || '0', 10);
+  const target = parseFloat(P.get('t') || '1.5') * 1000;
+  const short = P.get('short') === '1';
+  if (P.get('w')) { window.innerWidth = +P.get('w'); }
+  const html = await (await fetch('index.html')).text();
+  // BOTH DELIVERIES. Source index.html carries <script src="game/NN-*.js"> — one
+  // tag per file — while `npm run build` concatenates them into inline blocks.
+  // Reading only inline blocks (as the splash harness does) silently loads NOTHING
+  // against the source tree and every game symbol comes back undefined.
+  // anchored: a loose /campaigns\.js/ also eats game/30-campaigns.js, which is
+  // where CAMPAIGNS, LEVELS and STORY are declared — drop that and the boot dies
+  // three files later blaming the symbols instead of the omission
+  const srcs = [...html.matchAll(/<script[^>]+src="([^"]+)"[^>]*>/g)].map(m => m[1])
+    .filter(u => u !== 'campaigns.js');
+  const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+  const fetched = await Promise.all(srcs.map(u => fetch(u).then(r => r.text())));
+  const blocks = [...fetched, ...inline];
+  const camp = await (await fetch('campaigns.js')).text();
+  let cbs = [], fired = 0;
+  window.__err = '';
+  window.onerror = (m, s, l) => { window.__err += m + ' @' + l + '; '; };
+  window.requestAnimationFrame = f => cbs.push(f);
+  // no audio: the splash locks its clock to the audio context's, which runs on
+  // WALL time and would ignore the crank below
+  window.AudioContext = undefined; window.webkitAudioContext = undefined;
+  // named, so a file that throws on evaluation says WHICH file. A game script
+  // that dies here leaves every `const` it declares in TDZ for everything after
+  // it, and the resulting wall of "X is not defined" names only the victims.
+  const names = ['campaigns.js', ...srcs, ...inline.map((_, i) => 'inline#' + i)];
+  [camp, ...blocks].forEach((src, i) => {
+    const s = document.createElement('script');
+    s.textContent = src;
+    const onerr = e => { window.__err += 'LOAD ' + names[i] + ': ' + e.message + '; '; };
+    window.addEventListener('error', onerr);
+    document.body.appendChild(s); // executes synchronously
+    window.removeEventListener('error', onerr);
+  });
+  // real time, cache-warming the game's own Image loads — virtual time cannot
+  // skip past real network, and the badge IS the first disc's subject
+  for (const f of ['logo.webp', 'logo-small.webp']) {
+    try { await createImageBitmap(await (await fetch(f)).blob()); } catch (e) {}
+  }
+  // raced, never awaited bare: a headless run with no font service leaves this
+  // promise pending forever and the harness hangs with nothing on screen
+  try { await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]); } catch (e) {}
+  await new Promise(r => setTimeout(r, 80)); // task turns for the game's onloads
+  const poke = code => { const s = document.createElement('script'); s.textContent = code; document.body.appendChild(s); };
+  let t = 0;
+  const crank = to => {
+    while (t < to) {
+      t += 1000 / 60;
+      const list = cbs; cbs = [];
+      for (const f of list) { fired++; try { f(t); } catch (e) { window.__err += e.message + '; '; } }
+    }
+  };
+  crank(60);                                   // one frame, so the game finishes booting
+  poke('if (typeof SPLASH !== "undefined") splashEnd(true);');
+  // ?guide=1 shoots the REAL field guide page instead — the disc's third art shares
+  // drawGuideLineup with it, so the page is the regression test for that refactor
+  if (P.get('guide') === '1') {
+    poke('enlist = null; state = S.MENU; enterGuide("menu");');
+    crank(t + target);
+    await fetch('/shot?name=guide&meta=' + encodeURIComponent(innerWidth + 'x' + innerHeight +
+      ' err ' + (window.__err || 'none')), { method: 'POST', body: document.getElementById('game').toDataURL('image/png') });
+    document.title = 'READY guide';
+    return;
+  }
+  poke('startEnlistment(' + (short ? 'true' : 'false') + ', true);');
+  // land on the requested beat directly — tapping through would have to satisfy
+  // the typing gate for every line before it, which is not what is being shot
+  poke('enlist.beat = ' + beat + '; enlist.t = 0;');
+  crank(t + 300);
+  await new Promise(r => setTimeout(r, 300));  // the badge's lazy Image, for real
+  poke('enlist.beat = ' + beat + '; enlist.t = 0;');
+  crank(t + target);
+  const cnv = document.getElementById('game');
+  // the viewport is reported because it is NOT the --window-size you asked for —
+  // headless subtracts its own chrome, and judging a layout against a canvas a
+  // third shorter than a real phone's is how a disc gets tuned for nothing
+  const meta = 'beat ' + beat + ' t ' + (target / 1000).toFixed(2) + 's ' +
+    innerWidth + 'x' + innerHeight + ' dpr' + devicePixelRatio +
+    ' frames ' + fired + ' err ' + (window.__err || 'none');
+  try {
+    await fetch('/shot?name=' + (short ? 'short' : 'beat' + beat) + '-t' + (target / 1000) +
+      '&meta=' + encodeURIComponent(meta), { method: 'POST', body: cnv.toDataURL('image/png') });
+  } catch (e) {}
+  document.title = 'READY ' + meta;
+})();
+</script>
+</body>
+</html>

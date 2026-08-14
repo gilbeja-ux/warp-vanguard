@@ -1078,7 +1078,7 @@ function pauseTap(x, y, pid) {
 // leaderboard, and a commander who christened them something else would be
 // competing with it.
 const ENLIST_COL = '235,245,255';       // Lane Command's own colour, from CAMP.factions
-const ENLIST_IN = 0.5;                  // panel fade-in, seconds
+const ENLIST_SCAN = 0.52;               // the disc PRINTS in over this — see enlistScanRender
 const ENLIST_TYPE = 26;                 // characters per second — a readable transmit rate
 const ENLIST_MIN = 0.55;                // a beat cannot be tapped away faster than this
 const ENLIST_OUT = 0.7;                 // hand-off fade before the course opens
@@ -1103,121 +1103,504 @@ const ENLIST_SHORT = [
 ];
 const enlistScript = () => (enlist && enlist.short) ? ENLIST_SHORT : ENLIST_SCRIPT;
 // how long this beat's text takes to type out — the tap gate waits for it, so a
-// player can never skip past a line they have not been shown
+// player can never skip past a line they have not been shown. The scan lead is
+// part of the answer because the line does not START until the disc has finished
+// printing: leave it out and the gate opens while he is still mid-sentence.
 function enlistTypeDur(beat) {
   const ln = enlistScript()[beat];
   if (!ln) return 0;
-  return ln.join(' ').length / ENLIST_TYPE;
+  return ENLIST_SCAN + ln.join(' ').length / ENLIST_TYPE;
 }
 // ---------- disc art ----------
-// NOTHING HAND-DRAWN. The first pass invented three little illustrations and they
-// looked exactly like what they were. Everything here is the game showing itself:
-// the shipped badge, a live zap, and the briefing glyphs the rest of this file
-// already draws. Reuse is not laziness on a disc — these sit in the player's
-// memory beside real briefings, and anything newly invented announces itself.
+// NOTHING HAND-DRAWN, and now nothing hand-LAID-OUT either. These three discs sit
+// in a player's memory beside forty real briefings, so they carry the mission
+// disc's shape exactly: a picture filling the top of the mask, a caption plate on
+// its lower edge, the line inside it. Which is why every painter below is handed
+// the WINDOW IT MUST FILL rather than a centre and a radius — a circular vignette
+// floating in the middle of a disc is the tell that gave the first pass away.
+//
+// `covered` is how much of that window's foot the caption plate will take, and
+// `topPad` is the band at its head that the VANGUARD ACTUAL ident owns. Painters
+// keep out of both: a kill that lands behind the plate is a kill the recruit never
+// sees, and the first pass had the emitters and the field guide's own title
+// crossing the callsign because the window was treated as free from edge to edge.
 
-// 1 — THE MARK. The real lockup, the same file the menu and the launcher use.
-function enlistArtLogo(r) {
-  const L = (typeof logoSm === 'function') ? logoSm() : null;
+// 1 — THE CHANNEL. A voice, not a face (see above) — so the picture is the thing
+// a voice actually looks like on a console: a spectrum running while he talks.
+// The bands answer to `live`, which is the typing clock, so the meter genuinely
+// moves with his sentence and settles the moment he stops.
+//
+// NO Math.random() ANYWHERE IN HERE. The qualification course is live and parked
+// underneath this disc, and its spawns run off a seeded stream — a draw path that
+// pulls from Math.random() would desync the replay the leaderboard verifies. Same
+// rule as popFrac above; every wobble below is a sine of time and index.
+const ENL_BANDS = 34;
+// speech, not white noise: three detuned rates beat against each other so no two
+// seconds repeat, and a syllable envelope surges the whole meter the way a talking
+// voice does. The low bands run hotter than the high ones — a spectrum tilt.
+function enlistBand(i, t, live) {
+  const n = ENL_BANDS;
+  const a = Math.sin(t * 5.9 + i * 0.83);
+  const b = Math.sin(t * 3.1 - i * 1.61 + 1.2);
+  const c = Math.sin(t * 12.7 + i * 2.27);
+  const syll = 0.45 + 0.55 * Math.abs(Math.sin(t * 4.3) * Math.sin(t * 2.1 + 0.6));
+  const tilt = 1 - 0.5 * (i / (n - 1));
+  const v = Math.abs(a * 0.55 + b * 0.3 + c * 0.15) * syll * tilt;
+  // idle is a low carrier hum, not silence — a dead meter reads as a dead channel,
+  // and the settled disc is what the player looks at longest while deciding to tap
+  return 0.07 + v * (live ? 0.93 : 0.32);
+}
+let enlShineBuf = null;
+// THE LOCKUP, WITH A SPECULAR SWEEP ACROSS THE SHIELD. `source-atop` is what
+// confines the band to the artwork's own pixels — but it confines it to whatever
+// is already on the canvas, which here is the spectrum. So the badge is composited
+// alone in a buffer and blitted whole; painting the band straight onto the disc
+// would have put a chrome streak across the waveform behind it.
+function enlistShinedLogo(L, x, y, w, h) {
+  const D = Math.max(1, DPR || 1);
+  const bw = Math.max(1, Math.ceil(w * D)), bh = Math.max(1, Math.ceil(h * D));
+  if (!enlShineBuf) enlShineBuf = document.createElement('canvas');
+  if (enlShineBuf.width !== bw || enlShineBuf.height !== bh) { enlShineBuf.width = bw; enlShineBuf.height = bh; }
+  const b = enlShineBuf.getContext('2d');
+  if (!b || !b.setTransform) { ctx.drawImage(L.img, x, y, w, h); return; } // headless — the plain badge stands
+  b.setTransform(D, 0, 0, D, 0, 0);
+  b.clearRect(0, 0, w, h);
+  b.globalCompositeOperation = 'source-over';
+  b.drawImage(L.img, 0, 0, w, h);
+  // the sweep: a narrow hot band raked across on a long cycle, travelling from
+  // off one edge to off the other so it enters and leaves rather than blinking
+  const P = 3.6, q = (time % P) / P;
+  const trav = -0.6 + q * 2.2;                  // in units of the badge's width
+  const gx = trav * w;
+  const gr = b.createLinearGradient(gx, y * 0 - h * 0.4, gx + w * 0.42, h * 1.4);
+  gr.addColorStop(0.00, 'rgba(255,255,255,0)');
+  gr.addColorStop(0.38, 'rgba(190,232,255,0.05)');
+  gr.addColorStop(0.50, 'rgba(255,255,255,0.42)');  // the hot line itself
+  gr.addColorStop(0.58, 'rgba(198,240,255,0.16)');
+  gr.addColorStop(1.00, 'rgba(255,255,255,0)');
+  b.globalCompositeOperation = 'source-atop';       // metal only — never the space around it
+  b.fillStyle = gr;
+  b.fillRect(0, 0, w, h);
+  b.globalCompositeOperation = 'source-over';
+  ctx.drawImage(enlShineBuf, 0, 0, bw, bh, x, y, w, h);
+}
+function enlistArtComms(x, y, w, h, covered, topPad, live) {
+  // the console field the meter sits on — the FULL window, ident band included, so
+  // the callsign has something to sit on rather than a hole in the picture
+  const bgG = ctx.createLinearGradient(x, y, x, y + h);
+  bgG.addColorStop(0, 'rgba(10,26,44,0.95)');
+  bgG.addColorStop(0.6, 'rgba(4,10,22,0.96)');
+  bgG.addColorStop(1, 'rgba(2,6,14,1)');
+  ctx.fillStyle = bgG; ctx.fillRect(x, y, w, h);
+  const cTop = y + topPad;                      // …the meter itself keeps below it
+  const clearH = h - topPad - covered;          // what the ident and the plate leave
+  const midY = cTop + clearH * 0.5;             // the meter's zero line
+  const halfH = clearH * 0.42;
+  // a faint instrument grid, so the bands read as a READING rather than as decor
+  ctx.strokeStyle = `rgba(${ENLIST_COL},0.06)`; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let k = -2; k <= 2; k++) {
+    const gy = midY + (k / 2) * halfH;
+    ctx.moveTo(x, gy); ctx.lineTo(x + w, gy);
+  }
+  ctx.stroke();
+  // the spectrum. Drawn from the centre out in both directions — the mirrored
+  // form is what reads as a WAVEFORM instead of a shop-window equaliser.
+  const pad = w * 0.06, bw2 = (w - pad * 2) / ENL_BANDS, bar = bw2 * 0.58;
+  for (let i = 0; i < ENL_BANDS; i++) {
+    const v = enlistBand(i, time, live);
+    const bx = x + pad + i * bw2 + (bw2 - bar) / 2;
+    const bhh = Math.max(1, v * halfH);
+    // hot core, cool shoulders — the same two-tone the emitters wear
+    ctx.fillStyle = `rgba(${NODE_COLS[0]},${(0.34 + v * 0.44).toFixed(2)})`;
+    ctx.fillRect(bx, midY - bhh, bar, bhh * 2);
+    const cap = Math.max(1, bhh * 0.12);
+    ctx.fillStyle = `rgba(210,246,255,${(0.5 + v * 0.5).toFixed(2)})`;
+    ctx.fillRect(bx, midY - bhh, bar, cap);
+    ctx.fillRect(bx, midY + bhh - cap, bar, cap);
+  }
+  // the zero line, brighter while he is mid-sentence
+  ctx.fillStyle = `rgba(${ENLIST_COL},${live ? 0.34 : 0.18})`;
+  ctx.fillRect(x, midY - 0.5, w, 1);
+  // THE BADGE, SAT OVER ITS OWN CHANNEL — and deliberately not over all of it. At
+  // 0.52 of the width the mark buried the meter and the picture read as a logo with
+  // two stray marks beside it; the spectrum is the subject and the badge is what
+  // sits ON it.
+  const L = (typeof brandLogoSmall === 'function') ? brandLogoSmall() : null;
   if (L && L.w) {
-    const sc = (r * 2.1) / Math.max(L.w, L.h);
-    const w = L.w * sc, h = L.h * sc;
-    ctx.drawImage(L.img, -w / 2, -h / 2, w, h);
-    return;
-  }
-  // the badge is a decode away on a cold first launch — hold its space with the
-  // ring rather than popping the layout when it lands
-  ctx.strokeStyle = `rgba(${ENLIST_COL},0.35)`; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
-}
-
-// 2 — THE JOB, PLAYED. A red runs the bore, an emitter sweeps onto it, it burns.
-// One loop of the only verb the game has.
-const ENL_RUN = 2.6; // seconds per repetition
-function enlistArtRun(r) {
-  const q = (time % ENL_RUN) / ENL_RUN;
-  const lane = -Math.PI / 2 + 0.55;          // where this one arrives
-  // the bore, receding
-  for (let k = 1; k <= 3; k++) {
-    ctx.strokeStyle = `rgba(${ENLIST_COL},${0.14 - k * 0.03})`;
-    ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.arc(0, 0, r * (1 - k * 0.24), 0, TAU); ctx.stroke();
-  }
-  // the ring
-  ctx.strokeStyle = `rgba(${ENLIST_COL},0.30)`; ctx.lineWidth = Math.max(1.5, r * 0.05);
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
-  // the emitter sweeping to meet it — it ARRIVES just before the kill, which is
-  // the whole skill being demonstrated
-  const sweep = clamp(q / 0.55, 0, 1);
-  const ease = sweep * sweep * (3 - 2 * sweep);
-  const na = lane - 1.5 + 1.5 * ease;
-  ctx.strokeStyle = `rgba(${NODE_COLS[0]},0.95)`;
-  ctx.lineWidth = Math.max(2.5, r * 0.13);
-  ctx.beginPath(); ctx.arc(0, 0, r, na - 0.30, na + 0.30); ctx.stroke();
-  // the other emitter idles opposite, so the pair reads as a pair
-  ctx.strokeStyle = `rgba(${NODE_COLS[1]},0.55)`;
-  ctx.beginPath(); ctx.arc(0, 0, r, na + Math.PI - 0.24, na + Math.PI + 0.24); ctx.stroke();
-  // the threat, closing
-  if (q < 0.58) {
-    const z = 1 - q / 0.58;                   // 1 far → 0 at the ring
-    const d = r * (0.15 + 0.85 * (1 - z));
-    const x = Math.cos(lane) * d, y = Math.sin(lane) * d;
-    ctx.fillStyle = `rgba(255,90,110,${(0.45 + 0.55 * (1 - z)).toFixed(2)})`;
-    ctx.beginPath(); ctx.arc(x, y, Math.max(1.6, r * 0.10 * (0.45 + (1 - z))), 0, TAU); ctx.fill();
-  } else {
-    // the burn: a flash on the rim, fading
-    const f = (q - 0.58) / 0.42;
-    const x = Math.cos(lane) * r, y = Math.sin(lane) * r;
-    ctx.strokeStyle = `rgba(191,234,255,${(1 - f).toFixed(2)})`;
-    ctx.lineWidth = Math.max(1.5, r * 0.06);
-    ctx.beginPath(); ctx.arc(x, y, r * (0.10 + f * 0.42), 0, TAU); ctx.stroke();
-    for (let k = 0; k < 6; k++) {              // sparks
-      const a2 = k / 6 * TAU + f * 1.4, dd = r * (0.10 + f * 0.5);
-      ctx.fillStyle = `rgba(255,180,150,${(0.85 * (1 - f)).toFixed(2)})`;
-      ctx.beginPath();
-      ctx.arc(x + Math.cos(a2) * dd, y + Math.sin(a2) * dd, Math.max(1, r * 0.035), 0, TAU);
-      ctx.fill();
-    }
+    const fit = Math.min(w * 0.40, clearH * 0.92);
+    const sc = fit / Math.max(L.w, L.h);
+    const lw = L.w * sc, lh2 = L.h * sc;
+    // a soft well behind it: enough to lift the mark off the bands, not so much
+    // that it punches a hole through the meter it is supposed to be riding
+    const wl = ctx.createRadialGradient(x + w / 2, midY, lw * 0.10, x + w / 2, midY, lw * 0.72);
+    wl.addColorStop(0, 'rgba(2,6,14,0.80)');
+    wl.addColorStop(0.7, 'rgba(2,6,14,0.46)');
+    wl.addColorStop(1, 'rgba(2,6,14,0)');
+    ctx.fillStyle = wl;
+    ctx.beginPath(); ctx.arc(x + w / 2, midY, lw * 0.72, 0, TAU); ctx.fill();
+    enlistShinedLogo(L, x + w / 2 - lw / 2, midY - lh2 / 2, lw, lh2);
   }
 }
 
-// 3 — THE FIELD. The briefing glyphs for each threat, tracked slowly sideways so
-// the whole roster passes the window. Same infoTap hardware the mission discs
-// use, in each type's own palette.
-const ENL_FIELD = [
-  { pal: INFO_PAL.normal, dbl: false },
-  { pal: INFO_PAL.heavy,  dbl: true  },
-  { pal: INFO_PAL.lock,   dbl: true  },
-  { pal: INFO_PAL.frag,   dbl: false },
-  { pal: INFO_PAL.boss,   dbl: true  }
+// 2 — THE JOB, PLAYED LIVE. Not a picture of the game and not a recording of it:
+// the REAL body renderers, on a REAL bore projection, in a private geometry sized
+// to this window. `ring()` is the shipped projection and `drawEnemy` is the
+// shipped art, so this diorama cannot drift from what the recruit is about to
+// play — when the enemy art changes, this changes with it, for nothing.
+//
+// The cage trick is the field guide's (see archWallG in 92-guide.js): hand the
+// renderers a geometry object of your own and they paint wherever you point them.
+// R0 = nodeR*2.5 and hitZ = 0.25 are geo()'s canonical numbers, so the recession
+// here is the recession in the run.
+const ENL_CYCLE = 3.6;            // one full demonstration, then it runs again
+const ENL_CAST = [
+  // angle: both arrive in the UPPER arc. The plate takes the window's foot and
+  // the mask pinches its crown, so the top flanks are the only place a body is
+  // fully legible — and a demonstration nobody can see teaches nothing.
+  { key: 'e0', type: 'normal', lock: undefined, angle: -Math.PI / 2 - 0.88, at: 0.00, node: 0 },
+  { key: 'e1', type: 'normal', lock: 0,         angle: -Math.PI / 2 + 0.94, at: 0.46, node: 1 }
 ];
-function enlistArtField(r) {
-  const step = r * 1.30, span = ENL_FIELD.length * step;
-  ctx.save();
-  // a soft window: the row runs past, clipped to the art's own circle
-  ctx.beginPath(); ctx.arc(0, 0, r * 1.20, 0, TAU); ctx.clip();
-  const drift = -((time * 0.16 * span) % span);
-  for (let pass = 0; pass < 2; pass++) {       // two copies make the scroll endless
-    for (let i = 0; i < ENL_FIELD.length; i++) {
-      const x = drift + pass * span + i * step - span * 0.5 + step * 0.5;
-      if (x < -r * 1.5 || x > r * 1.5) continue;
+// THE DIORAMA'S OWN HORIZON, much nearer than the run's SPAWN_Z of 2.1. Depth falls
+// off hard (see ring()): over the full range a body spends four fifths of its trip
+// as a two-pixel speck on the vanishing point, which in a window this size is the
+// entire demonstration. Starting at 1.05 puts it on screen at a size that reads and
+// still lets it grow the whole way in.
+const ENL_Z0 = 1.05;
+// THE BODIES RUN LARGE FOR THEIR BORE, and that is deliberate. drawEnemy sizes a
+// body as a fixed fraction of the RING it sits on, which is right in a run where
+// the ring is most of the glass — but this bore is a fifth of that, so a
+// proportionally honest body lands at nine pixels and teaches nothing. Half again
+// as big keeps the projection honest while making the subject legible.
+const ENL_BODY_MUL = 1.9;
+const ENL_BODIES = {};            // cached, so each body's own fx phase persists
+function enlistArtRun(x, y, w, h, covered, topPad) {
+  // deep space behind the bore, the same grade the story disc's glam shot uses —
+  // the FULL window, so the ident band is painted too
+  const bgG = ctx.createLinearGradient(x, y, x, y + h);
+  bgG.addColorStop(0, 'rgba(8,18,38,0.92)');
+  bgG.addColorStop(0.55, 'rgba(4,9,20,0.96)');
+  bgG.addColorStop(1, 'rgba(2,5,12,1)');
+  ctx.fillStyle = bgG; ctx.fillRect(x, y, w, h);
+  const cTop = y + topPad;
+  const clearH = h - topPad - covered;
+  const cx = x + w / 2, cy = cTop + clearH * 0.5;
+  // BIGGER THAN THE BAND, ON PURPOSE. In a real run the node ring is 0.88 of the
+  // screen's short side — it runs off the top and bottom of the glass, and the
+  // player only ever sees its flanks. A ring made to fit this window entirely would
+  // be a small circle floating in a rectangle, which is not what the game looks
+  // like. So it overhangs and gets cropped, exactly as it is cropped in play.
+  const nodeR = Math.min(w * 0.40, clearH * 0.62);
+  const g2 = { cx, cy, R0: nodeR * 2.5, nodeR, hitZ: 0.25, sw: 0, swy: 0 };
+  // THE BORE, on the real projection: rings at receding depths, converging on the
+  // horizon exactly as ring() converges them in the run
+  const RINGS = 5;
+  for (let k = 1; k <= RINGS; k++) {            // from the node ring back to the horizon
+    const rr = ring(g2.hitZ + (ENL_Z0 - g2.hitZ) * (k / RINGS), g2).r;
+    if (rr < 1) continue;
+    ctx.strokeStyle = `rgba(${ENLIST_COL},${(0.24 - k * 0.033).toFixed(3)})`;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(cx, cy, rr, 0, TAU); ctx.stroke();
+  }
+  const q = (time % ENL_CYCLE) / ENL_CYCLE;
+  const TRAVEL = 0.40;            // of the cycle: horizon → the ring
+  const BURN = 0.16;              // …and how long the kill flash lingers after
+  // the node ring itself
+  ctx.strokeStyle = `rgba(${ENLIST_COL},0.42)`; ctx.lineWidth = Math.max(1.4, nodeR * 0.04);
+  ctx.beginPath(); ctx.arc(cx, cy, nodeR, 0, TAU); ctx.stroke();
+  // bodies at the size THIS bore wants. drawEnemy scales its art off the glass
+  // (min(W,H)·0.06) because in a real run the ring IS the glass — in a window a
+  // fifth that size it would paint a body wider than the bore. Scaling about each
+  // body's own wall point resizes the art without moving where it sits.
+  const bodyS = ENL_BODY_MUL * nodeR / (Math.min(W, H) * 0.44);
+  const emitter = [null, null];
+  for (const c of ENL_CAST) {
+    let p = q - c.at; if (p < 0) p += 1;         // this body's own phase of the cycle
+    const arrive = clamp(p / TRAVEL, 0, 1);
+    // the emitter sweeps onto the lane and ARRIVES just before the kill — the
+    // whole skill of the game in one gesture, so it gets the eased approach
+    const ease = arrive * arrive * (3 - 2 * arrive);
+    emitter[c.node] = c.angle - 1.35 * (1 - ease);
+    if (p < TRAVEL) {
+      const en = ENL_BODIES[c.key] || (ENL_BODIES[c.key] = {
+        type: c.type, lock: c.lock, z: 0, z0: ENL_Z0, angle: c.angle,
+        arch: true, sizeMul: 1, speedMul: 1, spin: 0, spinMul: 1, age: 9,
+        dead: false, resolved: false, failed: false, partner: null });
+      en.z = ENL_Z0 - (ENL_Z0 - g2.hitZ) * arrive;     // this bore's horizon → the ring
+      en.spin = time * 1.1;
+      const rg = ring(Math.max(en.z, 0.02), g2);
+      const ex = rg.x + Math.cos(en.angle) * rg.r, ey = rg.y + Math.sin(en.angle) * rg.r;
       ctx.save();
-      ctx.translate(x, 0);
-      const fade = clamp(1 - Math.abs(x) / (r * 1.25), 0, 1);
-      ctx.globalAlpha = 0.25 + 0.75 * fade;   // the ends of the window dim out
-      infoTap(r * 0.34, ENL_FIELD[i].pal, ENL_FIELD[i].dbl);
+      ctx.translate(ex, ey); ctx.scale(bodyS, bodyS); ctx.translate(-ex, -ey);
+      drawEnemy(en, g2);
       ctx.restore();
+    } else if (p < TRAVEL + BURN) {              // the kill: a burst on the wall
+      const f = (p - TRAVEL) / BURN;
+      const bx = cx + Math.cos(c.angle) * nodeR, by = cy + Math.sin(c.angle) * nodeR;
+      ctx.strokeStyle = `rgba(191,234,255,${(1 - f).toFixed(2)})`;
+      ctx.lineWidth = Math.max(1.2, nodeR * 0.05);
+      ctx.beginPath(); ctx.arc(bx, by, nodeR * (0.08 + f * 0.40), 0, TAU); ctx.stroke();
+      for (let k = 0; k < 7; k++) {
+        const a2 = k / 7 * TAU + f * 1.6, dd = nodeR * (0.08 + f * 0.52);
+        ctx.fillStyle = `rgba(255,186,150,${(0.85 * (1 - f)).toFixed(2)})`;
+        ctx.beginPath();
+        ctx.arc(bx + Math.cos(a2) * dd, by + Math.sin(a2) * dd, Math.max(1, nodeR * 0.032), 0, TAU);
+        ctx.fill();
+      }
     }
   }
+  // THE EMITTERS, over everything they just burned. A node that has no body to
+  // meet idles opposite its partner, so the pair always reads as a pair.
+  for (let i = 0; i < 2; i++) {
+    const a = emitter[i] === null
+      ? (emitter[1 - i] === null ? (i ? 0.6 : Math.PI - 0.6) : emitter[1 - i] + Math.PI)
+      : emitter[i];
+    const hot = emitter[i] !== null;
+    ctx.strokeStyle = `rgba(${NODE_COLS[i]},${hot ? 0.95 : 0.42})`;
+    ctx.lineWidth = Math.max(2, nodeR * 0.13);
+    ctx.beginPath(); ctx.arc(cx, cy, nodeR, a - 0.28, a + 0.28); ctx.stroke();
+  }
+}
+
+// 3 — THE FIELD, WHICH IS THE FIELD GUIDE. Literally the page: drawGuideLineup is
+// the guide screen's own renderer, handed this window instead of the glass. So the
+// legend a recruit meets in their first minute IS the page they will open from the
+// menu later, and adding a specimen to the guide adds it here for nothing.
+// THE PAGE, SCALED — NOT RE-FLOWED. The obvious move is to hand the lineup the
+// disc's window as its box, and it does not work: six columns of two-line captions
+// re-flowed into a third of the width drive fitPx onto its 9px floor, where the
+// captions stop shrinking and start OVERLAPPING each other, and the title and tip
+// run out past the rim. Measured on a phone, colW comes to ~44px against an "ANY
+// EMITTER" that needs ~55px at the floor — it does not fit at any type size.
+//
+// So the page is laid out at FULL SCREEN SIZE and the whole thing is scaled down as
+// one unit, which is what "the legend screen as the masked image" actually means:
+// identical proportions to the page the player opens from the menu, nothing
+// colliding, just smaller. The window is close to the glass's own aspect (both are
+// wide landscape), so it fills without much waste.
+function enlistArtLegend(x, y, w, h, covered, topPad) {
+  const bgG = ctx.createLinearGradient(x, y, x, y + h);
+  bgG.addColorStop(0, 'rgba(7,17,34,0.94)');
+  bgG.addColorStop(0.6, 'rgba(4,9,20,0.96)');
+  bgG.addColorStop(1, 'rgba(2,5,12,1)');
+  ctx.fillStyle = bgG; ctx.fillRect(x, y, w, h);
+  const cTop = y + topPad;
+  const clearH = h - topPad - covered;
+  const mL = 10 + SAFE.l, mR = 10 + SAFE.r, mT = 8 + SAFE.t, mB = 13 + SAFE.b;
+  // 0.94 leaves a hair of margin, so the outer specimens' glow does not sit on the rim
+  const s = Math.min(w / W, clearH / H) * 0.94;
+  ctx.save();
+  ctx.translate(x + w / 2, cTop + clearH / 2);
+  ctx.scale(s, s);
+  ctx.translate(-W / 2, -H / 2);
+  // the page's own box and its own type reference — every number here is the one
+  // drawGuide passes, which is the entire point
+  drawGuideLineup(
+    { x: (mL + mR) / 2, y: mT, w: W - mL - mR, h: H - mB - mT },
+    Math.min(W, H),
+    { titleMaxW: W - 2 * (mL + 46), hint: false });   // the disc carries its own TAP line
   ctx.restore();
 }
-function enlistArt(beat, r) {
+function enlistArt(beat, x, y, w, h, covered, topPad, live) {
   ctx.save();
   ctx.lineCap = 'round';
-  if (beat === 0) enlistArtLogo(r);
-  else if (beat === 1) enlistArtRun(r);
-  else enlistArtField(r);
+  if (beat === 0) enlistArtComms(x, y, w, h, covered, topPad, live);
+  else if (beat === 1) enlistArtRun(x, y, w, h, covered, topPad);
+  else enlistArtLegend(x, y, w, h, covered, topPad);
   ctx.restore();
+}
+// ---------- the scan print ----------
+// THE DISC ARRIVES THE WAY THE BADGE DOES. It used to fly in on a back-eased zoom,
+// which is a UI panel's entrance — but the player has just watched the splash
+// PRINT the shield in behind a scan line, and that is the language this game opens
+// in. So the same move carries the discs, and it carries every beat change too:
+// tap, and the next disc prints over the last one rather than swapping.
+//
+// The technique is drawSplash's card two (see 99-boot.js): capture the art, then
+// reveal only what the scan head has passed, with chromatic ghosts that die as it
+// locks. Two differences, both because a disc is not a badge — the scan bar hugs
+// the CIRCLE'S CHORD rather than a silhouette, so it reads as printing this disc
+// and not a rectangle; and the wobble is deterministic, since the qualification
+// course is live underneath and Math.random() in a draw path desyncs its replay.
+let enlBuf = null;
+function enlistScanRender(g, R, q, body) {
+  if (q >= 1) { body(); return; }                  // printed — draw straight to screen
+  const M = 26;                                     // margin for the rim's accent arcs and glow
+  const rx = Math.max(0, Math.floor(g.cx - R - M)), ry = Math.max(0, Math.floor(g.cy - R - M));
+  const rw = Math.min(Math.ceil(W) - rx, Math.ceil((R + M) * 2)), rh = Math.min(Math.ceil(H) - ry, Math.ceil((R + M) * 2));
+  if (rw <= 0 || rh <= 0) return;
+  const D = Math.max(1, DPR || 1);
+  const bw = Math.max(1, Math.ceil(W * D)), bh = Math.max(1, Math.ceil(H * D));
+  if (!enlBuf) enlBuf = document.createElement('canvas');
+  if (enlBuf.width !== bw || enlBuf.height !== bh) { enlBuf.width = bw; enlBuf.height = bh; }
+  const b = enlBuf.getContext('2d');
+  if (!b || !b.setTransform) { body(); return; }   // headless — no buffer, no theatre
+  b.setTransform(D, 0, 0, D, 0, 0);
+  b.clearRect(rx, ry, rw, rh);
+  const prev = ctx; ctx = b;                        // redirect the disc painters into the buffer
+  try { body(); } finally { ctx = prev; }
+  if (q <= 0) return;
+  // the print head runs the DISC's own height, not the padded capture box, so the
+  // scan starts exactly on the crown and finishes exactly on the foot
+  const headY = g.cy - R + R * 2 * q;
+  const srcX = rx * D, srcY = ry * D, srcW = rw * D, srcH = rh * D;
+  const amt = Math.pow(1 - q, 2);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(rx, ry, rw, Math.max(0, headY - ry + 2)); ctx.clip();
+  if (amt > 0.03) {                                 // chromatic ghosts, dying as it locks
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = amt * 0.4;
+    ctx.drawImage(enlBuf, srcX, srcY, srcW, srcH, rx - amt * rw * 0.05, ry, rw, rh);
+    ctx.drawImage(enlBuf, srcX, srcY, srcW, srcH, rx + amt * rw * 0.05, ry, rw, rh);
+    ctx.restore();
+  }
+  ctx.drawImage(enlBuf, srcX, srcY, srcW, srcH, rx, ry, rw, rh); // the print — whole, seamless
+  ctx.restore();
+  // the head itself, sized to the chord it is crossing: zero at the crown, widest
+  // at the equator, closing again at the foot. This is what makes it read as the
+  // DISC being printed rather than a bar sliding down a box.
+  const dy = headY - g.cy;
+  const halfW = Math.sqrt(Math.max(0, R * R - dy * dy));
+  if (halfW > 0.5) {
+    const glowH = R * 0.30;
+    const gsc = ctx.createLinearGradient(0, headY - glowH, 0, headY);
+    gsc.addColorStop(0, 'rgba(111,227,255,0)');
+    gsc.addColorStop(1, 'rgba(111,227,255,0.35)');
+    ctx.fillStyle = gsc;
+    ctx.fillRect(g.cx - halfW, headY - glowH, halfW * 2, glowH);
+    ctx.fillStyle = 'rgba(235,250,255,0.85)';
+    ctx.fillRect(g.cx - halfW, headY, halfW * 2, 1.6);
+  }
+}
+// the disc itself: the mission briefing's layout, beat for beat. See drawStoryDisc
+// — the mask, the art window, the caption plate riding its lower edge, the rim laid
+// back over the top. The numbers are that function's numbers on purpose.
+function enlistDiscBody(g, R, lines, t) {
+  const Rc = R * 0.965;                    // the mask: just inside the border ring
+  const artB = g.cy + R * 0.34;            // the picture's foot — a mission disc's edge
+  const aTop = g.cy - Rc, aH = artB - aTop;
+  const half = y => Math.sqrt(Math.max(1, Rc * Rc - y * y));
+  // THE SCRIPT'S OWN LINE BREAKS ARE KEPT. A mission disc wraps a sentence to the
+  // chord because its text is authored as one string; these are authored as two
+  // deliberate halves ("Welcome to Vanguard Squadron," / "rookie."), and re-wrapping
+  // them to fit would throw away the pause the writer put there. So the only fitting
+  // done is shrink-to-chord.
+  const tw = half(R * 0.34) * 2 - R * 0.16;
+  let ls = Math.max(10, Math.round(R * 0.095));
+  for (;;) {
+    ctx.font = '500 ' + ls + 'px Audiowide, system-ui';
+    let widest = 0;
+    for (const ln of lines) widest = Math.max(widest, ctx.measureText(ln).width);
+    if (widest <= tw || ls <= 9) break;
+    ls--;
+  }
+  const lh = ls + 5;
+  // A TIGHTER CAP THAN A MISSION DISC'S THIRD. A briefing's plate holds a wrapped
+  // sentence and its picture is a full-bleed keyframe that loses nothing to a tall
+  // bar. These discs are the opposite: two short authored lines, over pictures that
+  // are LIVE and need the room — at 0.33 the plate and the ident band together took
+  // 54% of the window and the bore came out a small circle in a wide rectangle.
+  const bh = Math.max((lines.length - 1) * lh + ls * 1.5,
+    Math.min((lines.length * lh + 16) * BAR_SCALE, aH * 0.26));
+  const bTop = artB - bh;
+  // THE IDENT IS MEASURED BEFORE THE PICTURE IS PAINTED, because the band it needs
+  // is one of the picture's own bounds — the painters lay out inside what the ident
+  // and the plate leave. Fitted to the CHORD, not the box: the mask is a circle, and
+  // at this height the disc is barely half its bounding width, so a callsign sized
+  // against the box loses a letter off each end behind the rim.
+  const csY = aTop + aH * 0.13;
+  try { ctx.letterSpacing = '3px'; } catch (e) {}   // BEFORE the fit, or it measures a narrower string
+  const csChord = half(csY - g.cy) * 2 - R * 0.10;
+  const csPx = fitPx('VANGUARD ACTUAL', '700', Math.max(9, Math.round(R * 0.052)), csChord, 7);
+  ctx.font = '700 ' + csPx + 'px Audiowide, system-ui';
+  const csW = Math.min(csChord, ctx.measureText('VANGUARD ACTUAL').width + csPx * 2.4);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  // sized off the type it actually holds rather than a share of the window — a
+  // fraction big enough to clear the ident on a tablet wastes a third of a phone's
+  const csBand = Math.min(aH * 0.20, (csY - aTop) + csPx * 1.3);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, Rc, 0, TAU); ctx.clip();
+  const full = lines.join(' ').length;
+  const typed = Math.min(full, Math.floor((t - ENLIST_SCAN) * ENLIST_TYPE));
+  const talking = typed < full && !enlist.out;
+  enlistArt(enlist.short ? 2 : enlist.beat, g.cx - Rc, aTop, Rc * 2, aH, bh, csBand, talking);
+  // the grade the ENGINE adds, exactly as it adds it to forty authored keyframes:
+  // scanlines and a vignette, so these discs sit in the same show as the briefings
+  ctx.fillStyle = 'rgba(2,6,14,0.22)';
+  for (let sy = aTop + (Math.floor(time * 8) % 3); sy < artB; sy += 3) ctx.fillRect(g.cx - Rc, sy, Rc * 2, 1);
+  const vg = ctx.createRadialGradient(g.cx, aTop + aH * 0.42, aH * 0.3, g.cx, aTop + aH * 0.42, Rc * 1.05);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(2,5,12,0.62)');
+  ctx.fillStyle = vg; ctx.fillRect(g.cx - Rc, aTop, Rc * 2, aH);
+  // THE CALLSIGN RIDES THE PICTURE. It is a channel ident, not a heading — which is
+  // where a comms overlay puts it, and it keeps the caption plate free for what he
+  // actually says. (Its metrics were measured above, before the art was laid out.)
+  ctx.textAlign = 'center';
+  ctx.font = '700 ' + csPx + 'px Audiowide, system-ui';
+  try { ctx.letterSpacing = '3px'; } catch (e) {}
+  ctx.fillStyle = 'rgba(3,8,18,0.72)';
+  ctx.fillRect(g.cx - csW / 2, csY - csPx * 1.15, csW, csPx * 1.9);
+  ctx.fillStyle = `rgba(${ENLIST_COL},0.95)`;
+  ctx.fillText('VANGUARD ACTUAL', g.cx, csY + csPx * 0.34);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  // a live carrier pip beside the ident, lit only while he is mid-sentence
+  const pipX = g.cx - csW / 2 + csPx * 0.9;
+  ctx.fillStyle = talking
+    ? `rgba(126,226,98,${(0.55 + 0.45 * Math.sin(time * 9)).toFixed(2)})`
+    : 'rgba(120,150,180,0.5)';
+  ctx.beginPath(); ctx.arc(pipX, csY + csPx * 0.02, csPx * 0.22, 0, TAU); ctx.fill();
+  // the caption plate on the picture's lower edge, full disc width — the mask gives
+  // it curved ends, so it reads as part of the disc rather than a floating panel
+  const cg = ctx.createLinearGradient(g.cx, bTop, g.cx, artB);
+  cg.addColorStop(0, 'rgba(3,7,16,0.80)');
+  cg.addColorStop(0.35, 'rgba(3,7,16,0.94)');
+  cg.addColorStop(1, 'rgba(3,7,16,0.94)');
+  ctx.fillStyle = cg; ctx.fillRect(g.cx - Rc, bTop, Rc * 2, bh);
+  ctx.restore();
+  // the art covered the disc's rim — lay the ring and its accent arcs back over
+  ctx.strokeStyle = `rgba(${ENLIST_COL},0.28)`; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = `rgba(${ENLIST_COL},0.7)`; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    const a = k / 4 * TAU + Math.PI / 4 + time * 0.15;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, a - 0.22, a + 0.22); ctx.stroke();
+  }
+  ctx.strokeStyle = `rgba(${ENLIST_COL},0.20)`; ctx.lineWidth = 1;  // picture meets plate
+  ctx.beginPath();
+  ctx.moveTo(g.cx - half(bTop - g.cy), bTop - 0.5);
+  ctx.lineTo(g.cx + half(bTop - g.cy), bTop - 0.5);
+  ctx.stroke();
+  // …and the line he is speaking, typed into the plate, centred on its ink
+  ctx.textAlign = 'center';
+  ctx.font = '500 ' + ls + 'px Audiowide, system-ui';
+  const m3 = ctx.measureText(lines[0] || 'M');
+  const asc3 = m3.actualBoundingBoxAscent, desc3 = m3.actualBoundingBoxDescent;
+  const capH = (typeof asc3 === 'number' && asc3 > 0) ? asc3 : ls * 0.72;
+  const dscH = (typeof desc3 === 'number' && desc3 > 0) ? desc3 : ls * 0.06;
+  const inkH = (lines.length - 1) * lh + capH + dscH;
+  const base0 = bTop + (bh - inkH) / 2 + capH;
+  ctx.fillStyle = 'rgba(228,240,254,0.96)';
+  let used = 0;
+  for (let i2 = 0; i2 < lines.length; i2++) {
+    const whole = lines[i2];
+    const take = clamp(typed - used, 0, whole.length);
+    used += whole.length + 1;
+    if (take <= 0) break;
+    ctx.fillText(whole.slice(0, take), g.cx, base0 + i2 * lh);
+  }
+  ctx.textAlign = 'left';
+  return talking;
+}
+// HANDED BACK WHEN HE IS DONE. Between them these two hold a full-screen canvas at
+// DEVICE resolution plus a badge-sized one — on a 3x phone that is the thick end of
+// 12MB, for a sequence that runs ONCE, on the first launch, and never again. The
+// same reasoning that put an LRU on the mission keyframes applies here: the cost is
+// not a slow frame, it is a phone carrying the intro's buffers for the whole session.
+function enlistArtRelease() {
+  for (const c of [enlBuf, enlShineBuf]) if (c) { c.width = c.height = 0; }
+  enlBuf = null; enlShineBuf = null;
+  for (const k in ENL_BODIES) delete ENL_BODIES[k];
 }
 function drawEnlistment() {
   if (!enlist) return;
@@ -1228,73 +1611,38 @@ function drawEnlistment() {
   const lines = enlistScript()[enlist.beat] || [];
   const g = geo();
   const t = enlist.t;
-  const inQ = clamp(t / ENLIST_IN, 0, 1);
   const outQ = enlist.out ? clamp(enlist.out / ENLIST_OUT, 0, 1) : 0;
 
   ctx.save();
-  ctx.globalAlpha = Math.min(1, inQ) * (1 - outQ);
+  ctx.globalAlpha = 1 - outQ;
   // A LIGHT DIM ONLY. The qualification is already parked and drawing behind
   // this — the lane, the ring, the pads. Blacking it out would make the discs a
   // separate screen again, and the whole point is that they are not.
   ctx.fillStyle = 'rgba(3,6,14,0.5)'; ctx.fillRect(0, 0, W, H);
-  const bk = 1.70158;
-  const zin = 1 + (bk + 1) * Math.pow(inQ - 1, 3) + bk * Math.pow(inQ - 1, 2);
-  const sc = (0.3 + 0.7 * zin) * (1 - 0.5 * outQ * outQ);
+  // only the ARRIVAL changed — the hand-off still shrinks the disc away as the
+  // course opens underneath it
+  const sc = 1 - 0.5 * outQ * outQ;
   ctx.translate(g.cx, g.cy); ctx.scale(sc, sc); ctx.translate(-g.cx, -g.cy);
   const R = g.nodeR * 0.9;
 
-  const bg = ctx.createRadialGradient(g.cx, g.cy, R * 0.25, g.cx, g.cy, R);
-  bg.addColorStop(0, 'rgba(7,13,26,0.94)');
-  bg.addColorStop(0.82, 'rgba(5,9,20,0.9)');
-  bg.addColorStop(1, 'rgba(5,9,20,0)');
-  ctx.fillStyle = bg;
-  ctx.beginPath(); ctx.arc(g.cx, g.cy, R, 0, TAU); ctx.fill();
-  ctx.strokeStyle = `rgba(${ENLIST_COL},0.28)`; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = `rgba(${ENLIST_COL},0.7)`; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
-  for (let k = 0; k < 4; k++) {
-    const a = k / 4 * TAU + Math.PI / 4 + time * 0.15;
-    ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, a - 0.22, a + 0.22); ctx.stroke();
-  }
+  // enlist.t resets to 0 on every beat (see enlistTap), so this one clock prints
+  // the first disc AND every disc that replaces it — no separate transition state
+  const q = clamp(t / ENLIST_SCAN, 0, 1);
+  let talking = false;
+  enlistScanRender(g, R, q, () => { talking = enlistDiscBody(g, R, lines, t); });
 
-  ctx.textAlign = 'center';
-  ctx.fillStyle = `rgba(${ENLIST_COL},0.95)`;
-  ctx.font = '700 11px Audiowide, system-ui';
-  try { ctx.letterSpacing = '3px'; } catch (e) {}
-  ctx.fillText('VANGUARD ACTUAL', g.cx, g.cy - R * 0.62);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-
-  // the art, sat between the callsign and the line
-  ctx.save();
-  ctx.translate(g.cx, g.cy - R * 0.20);
-  enlistArt(enlist.short ? 2 : enlist.beat, R * 0.27);
-  ctx.restore();
-
-  const full = lines.join(' ').length;
-  const typed = Math.min(full, Math.floor(t * ENLIST_TYPE));
-  const talking = typed < full && !enlist.out;
-
-  ctx.fillStyle = 'rgba(228,240,254,0.96)';
-  const fs = Math.min(R * 0.115, 19);
-  ctx.font = '500 ' + fs + 'px Audiowide, system-ui';
-  let used = 0;
-  for (let i2 = 0; i2 < lines.length; i2++) {
-    const whole = lines[i2];
-    const take = clamp(typed - used, 0, whole.length);
-    used += whole.length + 1;
-    if (take <= 0) break;
-    ctx.fillText(whole.slice(0, take), g.cx, g.cy + R * 0.30 + i2 * (fs * 1.5));
-  }
-
-  if (!talking && !enlist.out) {
+  // the tap line sits OUTSIDE the print: an invitation that scanned in half-drawn
+  // would be inviting a tap the gate is still refusing
+  if (q >= 1 && !talking && !enlist.out) {
     const br = 0.55 + 0.45 * Math.sin(time * 3.4);
+    ctx.textAlign = 'center';
     ctx.fillStyle = `rgba(${ENLIST_COL},${(0.28 + br * 0.45).toFixed(2)})`;
     ctx.font = '700 10px Audiowide, system-ui';
     try { ctx.letterSpacing = '3px'; } catch (e) {}
     const last = enlist.beat >= enlistScript().length - 1;
-    ctx.fillText(last ? 'TAP TO BEGIN' : 'TAP TO CONTINUE', g.cx, g.cy + R * 0.74);
+    ctx.fillText(last ? 'TAP TO BEGIN' : 'TAP TO CONTINUE', g.cx, g.cy + R * TAP_K);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
+    ctx.textAlign = 'left';
   }
-  ctx.textAlign = 'left';
   ctx.restore();
 }

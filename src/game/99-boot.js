@@ -155,6 +155,7 @@ function tickEnlist(dt) {
     progress.enlisted = true;
     saveState();
     enlist = null;
+    enlistArtRelease(); // the discs' scan and shine buffers — see 91-briefing.js
     state = S.PLAY; // the course was started when the discs went up — just uncover it
   }
 }

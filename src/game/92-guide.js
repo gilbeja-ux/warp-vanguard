@@ -85,6 +85,104 @@ function guidePointer(P) { // one pager: any tap hands back (the X is an afforda
   if (c && P.x > c.x - 8 && P.x < c.x + c.w + 8 && P.y > c.y - 8 && P.y < c.y + c.h + 8) pressUI(c);
   closeGuide();
 }
+// ---- the lineup, drawn into an arbitrary box ----
+// ONE RENDERER, TWO HOMES. The field guide screen passes its safe rect; the
+// enlistment's third disc passes the window inside its mask. That is the whole
+// reason this is a parameter and not a screen fraction — the legend a recruit is
+// shown in the first minute has to BE the page they later open from the menu,
+// and two copies of a lineup drift the moment a specimen is added.
+//
+// `u` is the type-scale reference, passed rather than derived: the full page wants
+// to size against the glass (min(W,H)) while a disc wants to size against its own
+// window, and deriving it from the box would silently shrink the shipped page.
+//
+// The box's CENTRE is the axis for everything, and its width is what the columns
+// divide — which reproduces the page's long-standing behaviour of laying the
+// lineup out on the average of the two safe margins rather than on each one.
+const GUIDE_TIP = 'TIP: DOCK BOTH EMITTERS TOGETHER TO FIRE A SHOT';
+function drawGuideLineup(box, u, opts) {
+  const o = opts || {};
+  const cx0 = box.x + box.w / 2;
+  const n = GUIDE_ITEMS.length;
+  const colW = box.w / n;
+  const gap = Math.max(6, u * 0.03);
+  ctx.textAlign = 'center';
+  // title: grows into the width the close key leaves clear on both flanks
+  let titleY = box.y;
+  if (o.title !== false) {
+    try { ctx.letterSpacing = '3px'; } catch (e) {}
+    const titlePx = fitPx('FIELD GUIDE // KNOW YOUR ENEMY', '700', Math.round(u * 0.055),
+      o.titleMaxW === undefined ? box.w : o.titleMaxW, 10);
+    titleY = box.y + titlePx;
+    ctx.fillStyle = 'rgba(140,210,255,0.8)';
+    ctx.font = '700 ' + titlePx + 'px Audiowide, system-ui';
+    ctx.fillText('FIELD GUIDE // KNOW YOUR ENEMY', cx0, titleY);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+  }
+  // ONE caption size for the whole lineup: the widest line anywhere sets it, so
+  // no item's guidance reads smaller than its neighbour's (measured WITH the
+  // caption letter-spacing, since that's what the drawn width will carry)
+  try { ctx.letterSpacing = '1px'; } catch (e) {}
+  let capFs = Math.round(u * 0.06);
+  for (const it of GUIDE_ITEMS)
+    for (const ln of it.cap) capFs = Math.min(capFs, fitPx(ln, '700', capFs, colW - 8));
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  // foot: the tip fills the safe width, but never shouts over the guidance it
+  // supports — the captions ARE the page. The dismiss hint tucks under it.
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  const tipPx = o.tip === false ? 0
+    : fitPx(GUIDE_TIP, '700', Math.round(Math.min(u * 0.06, capFs * 1.35)), box.w, 9);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  const hintPx = o.hint === false ? 0 : clamp(Math.round(u * 0.028), 9, 15);
+  const hintY = box.y + box.h;
+  // with no hint the tip takes the foot itself, so the band keeps the room the
+  // dismiss line would have eaten rather than leaving a gap nothing sits in
+  const tipY = o.hint === false ? hintY : hintY - hintPx - gap * 0.9;
+  // A plain row: specimen, its two lines underneath. With no ring drawn around
+  // them the bodies answer only to their own footprint, so they take four
+  // fifths of the column — the plates never meet, and the glows that do are
+  // soft light. Height is the other ceiling: whatever the band leaves once the
+  // captions have their two lines.
+  const capH = capFs * 2 + 5;
+  const capGap = gap * 0.6;
+  const bandTop = titleY + (o.title === false ? 0 : gap);
+  const bandBot = (o.tip === false ? hintY : tipY - tipPx) - gap;
+  const bandH = bandBot - bandTop;
+  // a body is NOT a circle: the drill reaches high, the plate sits low. Budget
+  // the two directions separately so the label tucks under the plate instead of
+  // floating where a ring's rim used to be.
+  const ART_UP = 0.85, ART_DN = 0.45;
+  const cellR = Math.max(12, Math.min(colW * 0.85, u * 0.42,
+    (bandH - capH - capGap) / (ART_UP + ART_DN)));
+  const blockH = cellR * (ART_UP + ART_DN) + capGap + capH;
+  const cyS = bandTop + (bandH - blockH) / 2 + cellR * ART_UP;
+  const capY = cyS + cellR * ART_DN + capGap + capFs;
+  const x0 = cx0 - colW * n / 2;
+  GUIDE_ITEMS.forEach((it, i) => {
+    const cx = x0 + colW * (i + 0.5);
+    it.draw(cx, cyS, cellR);
+    ctx.textAlign = 'center';
+    try { ctx.letterSpacing = '1px'; } catch (e) {}
+    ctx.fillStyle = `rgb(${it.col})`;
+    ctx.font = '700 ' + capFs + 'px Audiowide, system-ui';
+    it.cap.forEach((ln, li) => ctx.fillText(ln, cx, capY + li * (capFs + 5)));
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+  });
+  // the tip + the way out
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  if (o.tip !== false) {
+    ctx.fillStyle = '#ffd24a';
+    ctx.font = '700 ' + tipPx + 'px Audiowide, system-ui';
+    ctx.fillText(GUIDE_TIP, cx0, tipY);
+  }
+  if (o.hint !== false) {
+    ctx.fillStyle = 'rgba(140,230,255,' + (0.45 + Math.sin(time * 4) * 0.25).toFixed(2) + ')';
+    ctx.font = '700 ' + hintPx + 'px Audiowide, system-ui';
+    ctx.fillText('TAP TO CONTINUE', cx0, hintY);
+  }
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.textAlign = 'left';
+}
 function drawGuide(g) {
   guideCloseRect = null;
   if (!guide) return;
@@ -107,79 +205,16 @@ function drawGuide(g) {
   const sc2 = 0.9 + 0.1 * inQ - 0.06 * outQ; // a breath of zoom, briefing-disc style
   ctx.translate(W / 2, H / 2); ctx.scale(sc2, sc2); ctx.translate(-W / 2, -H / 2);
   ctx.globalAlpha = master;
-  ctx.textAlign = 'center';
   // ---- layout: the page FILLS the safe rect. Nothing is pinned to a fixed
   // screen fraction — every size is grown until it hits the room actually
   // available, so a phone gets the largest lineup its glass can carry. ----
-  const U = Math.min(W, H);
   const mL = 10 + SAFE.l, mR = 10 + SAFE.r, mT = 8 + SAFE.t, mB = 13 + SAFE.b;
-  const n = GUIDE_ITEMS.length;
-  const colW = (W - mL - mR) / n;
-  const gap = Math.max(6, U * 0.03);
-  // title: grows into the width the close key leaves clear on both flanks
-  try { ctx.letterSpacing = '3px'; } catch (e) {}
-  const titlePx = fitPx('FIELD GUIDE // KNOW YOUR ENEMY', '700', Math.round(U * 0.055), W - 2 * (mL + 46), 10);
-  const titleY = mT + titlePx;
-  ctx.fillStyle = 'rgba(140,210,255,0.8)';
-  ctx.font = '700 ' + titlePx + 'px Audiowide, system-ui';
-  ctx.fillText('FIELD GUIDE // KNOW YOUR ENEMY', W / 2, titleY);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  // ONE caption size for the whole lineup: the widest line anywhere sets it, so
-  // no item's guidance reads smaller than its neighbour's (measured WITH the
-  // caption letter-spacing, since that's what the drawn width will carry)
-  try { ctx.letterSpacing = '1px'; } catch (e) {}
-  let capFs = Math.round(U * 0.06);
-  for (const it of GUIDE_ITEMS)
-    for (const ln of it.cap) capFs = Math.min(capFs, fitPx(ln, '700', capFs, colW - 8));
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  // foot: the tip fills the safe width, but never shouts over the guidance it
-  // supports — the captions ARE the page. The dismiss hint tucks under it.
-  const TIP = 'TIP: DOCK BOTH EMITTERS TOGETHER TO FIRE A SHOT';
-  try { ctx.letterSpacing = '2px'; } catch (e) {}
-  const tipPx = fitPx(TIP, '700', Math.round(Math.min(U * 0.06, capFs * 1.35)), W - mL - mR, 9);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  const hintPx = clamp(Math.round(U * 0.028), 9, 15);
-  const hintY = H - mB;
-  const tipY = hintY - hintPx - gap * 0.9;
-  // A plain row: specimen, its two lines underneath. With no ring drawn around
-  // them the bodies answer only to their own footprint, so they take four
-  // fifths of the column — the plates never meet, and the glows that do are
-  // soft light. Height is the other ceiling: whatever the band leaves once the
-  // captions have their two lines.
-  const capH = capFs * 2 + 5;
-  const capGap = gap * 0.6;
-  const bandTop = titleY + gap, bandBot = tipY - tipPx - gap;
-  const bandH = bandBot - bandTop;
-  // a body is NOT a circle: the drill reaches high, the plate sits low. Budget
-  // the two directions separately so the label tucks under the plate instead of
-  // floating where a ring's rim used to be.
-  const ART_UP = 0.85, ART_DN = 0.45;
-  const cellR = Math.max(12, Math.min(colW * 0.85, U * 0.42,
-    (bandH - capH - capGap) / (ART_UP + ART_DN)));
-  const blockH = cellR * (ART_UP + ART_DN) + capGap + capH;
-  const cyS = bandTop + (bandH - blockH) / 2 + cellR * ART_UP;
-  const capY = cyS + cellR * ART_DN + capGap + capFs;
-  const x0 = W / 2 - colW * n / 2;
-  GUIDE_ITEMS.forEach((it, i) => {
-    const cx = x0 + colW * (i + 0.5);
-    it.draw(cx, cyS, cellR);
-    ctx.textAlign = 'center';
-    try { ctx.letterSpacing = '1px'; } catch (e) {}
-    ctx.fillStyle = `rgb(${it.col})`;
-    ctx.font = '700 ' + capFs + 'px Audiowide, system-ui';
-    it.cap.forEach((ln, li) => ctx.fillText(ln, cx, capY + li * (capFs + 5)));
-    try { ctx.letterSpacing = '0px'; } catch (e) {}
-  });
-  // the tip + the way out
-  try { ctx.letterSpacing = '2px'; } catch (e) {}
-  ctx.fillStyle = '#ffd24a';
-  ctx.font = '700 ' + tipPx + 'px Audiowide, system-ui';
-  ctx.fillText(TIP, W / 2, tipY);
-  ctx.fillStyle = 'rgba(140,230,255,' + (0.45 + Math.sin(time * 4) * 0.25).toFixed(2) + ')';
-  ctx.font = '700 ' + hintPx + 'px Audiowide, system-ui';
-  ctx.fillText('TAP TO CONTINUE', W / 2, hintY);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  ctx.textAlign = 'left';
+  // x is the average of the two margins, not the left one: it keeps the lineup
+  // centred on the glass (where the title sets) on an asymmetric notch
+  drawGuideLineup(
+    { x: (mL + mR) / 2, y: mT, w: W - mL - mR, h: H - mB - mT },
+    Math.min(W, H),
+    { titleMaxW: W - 2 * (mL + 46) });
   ctx.restore();
   // close key (where the pause key lives in-run), steady outside the zoom
   ctx.save();
