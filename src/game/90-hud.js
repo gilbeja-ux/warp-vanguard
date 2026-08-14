@@ -260,7 +260,7 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   ctx.restore();
   ctx.strokeStyle = fade((0.85 + down * 0.15) * alpha);
   ctx.lineWidth = 3;
-  if (!lowFX) { ctx.shadowColor = `rgba(${GHOST_COL},0.5)`; ctx.shadowBlur = 9; }
+  if (!lowFX) { ctx.shadowColor = `rgba(${GHOST_COL},0.5)`; ctx.shadowBlur = lowFX ? 0 : 9; }
   ctx.stroke();
   ctx.shadowBlur = 0;
   // THE NAIL: a broad plate at the tip, covering most of the digit's width and
@@ -410,7 +410,7 @@ function drawIntroCard() {
       const lname = curRouteName();
       const tpx = fitPx(lname, '800', Math.min(W * 0.055, 32), titleMaxW, 15);
       ctx.fillStyle = '#eafaff'; ctx.font = '800 ' + tpx + 'px Audiowide, system-ui';
-      ctx.shadowColor = '#5fd7ff'; ctx.shadowBlur = 24;
+      ctx.shadowColor = '#5fd7ff'; ctx.shadowBlur = lowFX ? 0 : 24;
       ctx.fillText(lname, 0, 0);
       ctx.shadowBlur = 0;
       try { ctx.letterSpacing = '0px'; } catch (e) {}
@@ -497,7 +497,7 @@ function drawIntroCard() {
       ctx.globalAlpha = 1 - gt * gt;
       ctx.fillStyle = gt < 0.1 ? '#ffffff' : '#7ee262';
       ctx.font = '800 ' + Math.min(W * 0.055, 34) + 'px Audiowide, system-ui';
-      ctx.shadowColor = '#7ee262'; ctx.shadowBlur = 22;
+      ctx.shadowColor = '#7ee262'; ctx.shadowBlur = lowFX ? 0 : 22;
       try { ctx.letterSpacing = (4 + gt * 6).toFixed(1) + 'px'; } catch (e) {}
       ctx.fillText('CONTROLS ACTIVE', 0, 14);
       try { ctx.letterSpacing = '0px'; } catch (e) {}
@@ -787,7 +787,7 @@ function drawHUD(g) {
     ctx.globalAlpha = 0.92;
     ctx.fillStyle = '#ffd24a';
     ctx.font = '800 ' + Math.min(W * 0.08, 46) + 'px Audiowide, system-ui';
-    ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = 20;
+    ctx.shadowColor = '#ffd24a'; ctx.shadowBlur = lowFX ? 0 : 20;
     ctx.fillText(d2, W / 2, H * 0.45);
     ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.textAlign = 'left';
   }

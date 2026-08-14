@@ -479,7 +479,7 @@ function drawMenuBoard() {
     ctx.save(); ctx.translate(boardRowOff(6, 'right'), 0);
     ctx.globalAlpha = can ? 1 : 0.4;
     techRect(repX, repY, repW, repH2, 8); ctx.fillStyle = 'rgba(8,18,36,0.82)'; ctx.fill();
-    ctx.shadowColor = 'rgba(255,210,74,0.45)'; ctx.shadowBlur = can ? 12 : 0;
+    ctx.shadowColor = 'rgba(255,210,74,0.45)'; ctx.shadowBlur = (can && !lowFX) ? 12 : 0;
     ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2.2; techRect(repX, repY, repW, repH2, 8); ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#ffd24a'; // gold play triangle

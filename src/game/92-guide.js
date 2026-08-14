@@ -994,7 +994,7 @@ function drawMenuHome(ccx, ccy, R) {
     let ly = 30 + SAFE.t + fs;
     ctx.font = '900 ' + fs.toFixed(0) + 'px Audiowide, system-ui';
     try { ctx.letterSpacing = (fs * 0.08).toFixed(1) + 'px'; } catch (e) {}
-    ctx.shadowColor = 'rgba(0,10,30,0.85)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+    ctx.shadowColor = 'rgba(0,10,30,0.85)'; ctx.shadowBlur = lowFX ? 0 : 8; ctx.shadowOffsetY = 3;
     ctx.fillStyle = '#c6d6ea';
     for (const t2 of ['WARP']) { ctx.fillText(t2, lx, ly); ly += llh; }
     ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
@@ -1404,7 +1404,7 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
   ctx.font = '800 ' + tpx + 'px Audiowide, system-ui';
   ctx.save();
   ctx.shadowColor = solid ? 'rgba(120,215,255,0.85)' : 'rgba(120,215,255,0.35)';
-  ctx.shadowBlur = r * 0.055;
+  ctx.shadowBlur = lowFX ? 0 : r * 0.055;
   ctx.fillStyle = solid ? '#eaf7ff' : 'rgba(150,175,210,0.8)';
   ctx.fillText(title, x, sepY - r * 0.055);
   ctx.fillText(title, x, sepY - r * 0.055);   // twice: the glow builds, the face stays crisp

@@ -168,7 +168,7 @@ function drawGpHints() { // once a controller speaks, keys wear their buttons
     if (fb && !fb.sector) {
       ctx.save();
       ctx.strokeStyle = 'rgba(140,235,255,0.9)'; ctx.lineWidth = 2;
-      ctx.shadowColor = 'rgba(120,220,255,0.8)'; ctx.shadowBlur = 8;
+      ctx.shadowColor = 'rgba(120,220,255,0.8)'; ctx.shadowBlur = lowFX ? 0 : 8;
       if (keyShapePath(fb, 2)) ctx.stroke();
       ctx.restore();
     }

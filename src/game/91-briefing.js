@@ -745,7 +745,7 @@ function drawQualCeremony(t) {
   try { ctx.letterSpacing = '6px'; } catch (e) {}
   const fs = fitPx('QUALIFIED', 700, Math.round(g2.nodeR * 0.30), g2.nodeR * 1.7, 12);
   ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
-  ctx.shadowColor = 'rgba(120,225,255,0.8)'; ctx.shadowBlur = 22 * al;
+  ctx.shadowColor = 'rgba(120,225,255,0.8)'; ctx.shadowBlur = lowFX ? 0 : 22 * al;
   ctx.fillStyle = 'rgba(228,249,255,' + al.toFixed(2) + ')';
   ctx.fillText('QUALIFIED', 0, -fs * 0.1);
   ctx.shadowBlur = 0;

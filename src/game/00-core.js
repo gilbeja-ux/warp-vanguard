@@ -8,7 +8,15 @@
 const canvas = document.getElementById('game');
 // canvas text falls back to system-ui until the display font arrives — force it early
 if (document.fonts && document.fonts.load) document.fonts.load('16px Audiowide').catch(() => {});
-let ctx = canvas.getContext('2d'); // rebindable so offscreen layers can reuse the painters
+// alpha:false — AN OPAQUE CANVAS. With the default (alpha:true) the compositor
+// must blend the entire canvas against the page on every single frame, a
+// full-screen per-pixel operation that buys nothing here: the game paints its own
+// background over every pixel, and the page behind it is #03060e, which is what
+// an opaque canvas clears to anyway. Costs one word, removes a full-screen blend
+// from every frame on every device.
+//
+// The offscreen bakes in withCanvas() keep their alpha — those genuinely composite.
+let ctx = canvas.getContext('2d', { alpha: false }); // rebindable so offscreen layers can reuse the painters
 let W = 0, H = 0, DPR = 1;
 let SAFE = { t: 0, b: 0, l: 0, r: 0 }; // safe-area insets mapped into game space
 function withCanvas(cv, fn) {

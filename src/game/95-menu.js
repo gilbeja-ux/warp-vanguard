@@ -697,7 +697,7 @@ function drawEnd(g) {
   ctx.fillStyle = endCol;
   try { ctx.letterSpacing = '4px'; } catch (e) {}
   fit('800', 30, banner);
-  ctx.shadowColor = endCol; ctx.shadowBlur = 22;
+  ctx.shadowColor = endCol; ctx.shadowBlur = lowFX ? 0 : 22;
   ctx.fillText(banner, 0, 0);
   ctx.shadowBlur = 0;
   try { ctx.letterSpacing = '0px'; } catch (e) {}
