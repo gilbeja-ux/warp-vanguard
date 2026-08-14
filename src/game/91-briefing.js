@@ -1271,10 +1271,17 @@ function enlistArtComms(x, y, w, h, covered, live) {
 // That is what makes the loop seamless: at the wrap every body, every emitter and
 // every kill is recomputed from zero, so the show cannot drift, cannot leave a body
 // half-killed behind a dropped frame, and needs no reset step.
-const ENL_SHOW = 11.6;            // the whole cycle…
-const ENL_FADE = 1.2;             // …of which this much is the dissolve at the end
-const ENL_TRAVEL = 1.30;          // one body's trip, this bore's horizon → the ring
+const ENL_SHOW = 12.5;            // the whole cycle…
+const ENL_IN = 0.9;               // …opening on this, and closing on ENL_FADE
+const ENL_FADE = 1.2;
+const ENL_TRAVEL = 1.60;          // one body's trip, this bore's horizon → the ring
 const ENL_LEAD = 0.12;            // the emitter is ON the lane this long before impact
+// THE LANE ITSELF MOVES. Depth rings flow outward at this many bore-lengths a
+// second — faster than the traffic closes, so the picture reads as the ship running
+// the lane with contacts coming up on it, rather than as a target board with things
+// sliding around on it. Without this the bore was a set of static circles and the
+// whole diorama read as a diagram, however real the bodies on it were.
+const ENL_FLOW = 0.85;
 // THE RUN. Mixed traffic, because a run is mixed: plain bodies for either emitter,
 // the two locks that demand a colour, and heavies that need both at once. Arrivals
 // are spread right around the rim now that the bore fills the disc — including the
@@ -1298,9 +1305,12 @@ const enlTakes = (c, i) => c.both || c.node === i;   // does emitter i answer th
 // THE DIORAMA'S OWN HORIZON, much nearer than the run's SPAWN_Z of 2.1. Depth falls
 // off hard (see ring()): over the full range a body spends four fifths of its trip
 // as a two-pixel speck on the vanishing point, which in a window this size is the
-// entire demonstration. Starting at 1.05 puts it on screen at a size that reads and
-// still lets it grow the whole way in.
-const ENL_Z0 = 1.05;
+// entire demonstration. 1.80 is as deep as this bore can usefully go: it is inside
+// SPAWN_Z, so drawEnemy's own horizon fade still applies and a body MATERIALISES out
+// of the deep rather than appearing at full strength, and it leaves a long approach
+// to grow across. Deeper than this and the first half-second is a body too small to
+// see at an opacity too low to notice.
+const ENL_Z0 = 1.80;
 // THE BODIES RUN LARGE FOR THEIR BORE, and that is deliberate. drawEnemy sizes a
 // body as a fixed fraction of the RING it sits on, which is right in a run where
 // the ring is most of the glass — but this bore is a fifth of that, so a
@@ -1347,20 +1357,32 @@ function enlistArtRun(x, y, w, h, covered) {
   const nodeR = (w / 2) * 0.955;              // just inside the mask, so the band clears the rim
   const g2 = { cx, cy, R0: nodeR * 2.5, nodeR, hitZ: 0.25, sw: 0, swy: 0 };
   const show = time % ENL_SHOW;
-  // the dissolve: the run thins out over the last beat and the next pass prints in
-  // from nothing, so the loop reads as a fresh take rather than as a cut
-  const fk = show > ENL_SHOW - ENL_FADE
-    ? Math.max(0, 1 - (show - (ENL_SHOW - ENL_FADE)) / ENL_FADE) : 1;
+  // THE DISSOLVE, BOTH ENDS. The run thins out over the last beat and the next pass
+  // comes UP out of nothing rather than snapping on — a take that only faded out left
+  // the loop with a hard cut at the top, which is the one frame of the cycle the eye
+  // is already watching for.
+  const fk = Math.min(
+    show < ENL_IN ? show / ENL_IN : 1,
+    show > ENL_SHOW - ENL_FADE ? Math.max(0, 1 - (show - (ENL_SHOW - ENL_FADE)) / ENL_FADE) : 1);
   if (fk <= 0.004) return;
   ctx.save();
   ctx.globalAlpha *= fk * fk;     // squared: it holds its brightness, then goes
-  // THE BORE, on the real projection: rings at receding depths, converging on the
-  // horizon exactly as ring() converges them in the run
-  const RINGS = 5;
-  for (let k = 1; k <= RINGS; k++) {            // from the node ring back to the horizon
-    const rr = ring(g2.hitZ + (ENL_Z0 - g2.hitZ) * (k / RINGS), g2).r;
+  // THE BORE, FLOWING. Rings ride the real projection from the horizon out past the
+  // player, each one a fixed distance behind the last, the whole set sliding forward
+  // on one phase — so what the eye tracks is a lane being flown down rather than a
+  // set of circles. Each ring fades UP out of the horizon and back DOWN as it reaches
+  // the rim, which is what hides the wrap: at both ends of its life it is invisible,
+  // so the jump from near to far can never be seen.
+  const RINGS = 9;
+  const flowP = (time * ENL_FLOW) % 1;
+  for (let k = 0; k < RINGS; k++) {
+    let u = k / RINGS - flowP;
+    u -= Math.floor(u);                         // 0 = out at the rim, 1 = at the horizon
+    const rr = ring(g2.hitZ + (ENL_Z0 - g2.hitZ) * u, g2).r;
     if (rr < 1) continue;
-    ctx.strokeStyle = `rgba(${ENLIST_COL},${(0.24 - k * 0.033).toFixed(3)})`;
+    const a = Math.min(1, u * 5) * Math.min(1, (1 - u) * 3.5);
+    if (a <= 0.01) continue;
+    ctx.strokeStyle = `rgba(${ENLIST_COL},${(0.26 * a).toFixed(3)})`;
     ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.arc(cx, cy, rr, 0, TAU); ctx.stroke();
   }
