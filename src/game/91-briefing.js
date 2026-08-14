@@ -1258,14 +1258,41 @@ function enlistArtComms(x, y, w, h, covered, live) {
 // renderers a geometry object of your own and they paint wherever you point them.
 // R0 = nodeR*2.5 and hitZ = 0.25 are geo()'s canonical numbers, so the recession
 // here is the recession in the run.
-const ENL_CYCLE = 3.6;            // one full demonstration, then it runs again
-const ENL_CAST = [
-  // angle: both arrive in the UPPER arc. The plate takes the window's foot and
-  // the mask pinches its crown, so the top flanks are the only place a body is
-  // fully legible — and a demonstration nobody can see teaches nothing.
-  { key: 'e0', type: 'normal', lock: undefined, angle: -Math.PI / 2 - 0.88, at: 0.00, node: 0 },
-  { key: 'e1', type: 'normal', lock: 0,         angle: -Math.PI / 2 + 0.94, at: 0.46, node: 1 }
+// THE SHOW IS TEN SECONDS OF AN ACTUAL RUN, then a fade and it starts over. The
+// first pass was a two-body loop against hand-drawn arcs — a diagram of the game
+// rather than the game. Everything that carries the picture now is the shipped
+// renderer: drawArcNode paints the emitters (real plasma, real bus-bars, the arc
+// flaring white on discharge), drawEnemy paints the traffic, drawGhost de-rezzes
+// what dies. Only the bore rings and the discharge bolts are drawn here, and both
+// are drawn on the real projection.
+//
+// STATELESS BY CONSTRUCTION. Every value below is a pure function of the cycle
+// clock — nothing is carried between frames and nothing is mutated on a schedule.
+// That is what makes the loop seamless: at the wrap every body, every emitter and
+// every kill is recomputed from zero, so the show cannot drift, cannot leave a body
+// half-killed behind a dropped frame, and needs no reset step.
+const ENL_SHOW = 11.6;            // the whole cycle…
+const ENL_FADE = 1.2;             // …of which this much is the dissolve at the end
+const ENL_TRAVEL = 1.30;          // one body's trip, this bore's horizon → the ring
+const ENL_LEAD = 0.12;            // the emitter is ON the lane this long before impact
+// THE RUN. Mixed traffic, because a run is mixed: plain bodies for either emitter,
+// the two locks that demand a colour, and heavies that need both at once. Angles all
+// sit on the UPPER arc — the plate owns the window's foot and the mask pinches its
+// crown, so the flanks are the only place a body is fully legible.
+const ENL_SCRIPT = [
+  { at: 0.20, a: -Math.PI / 2 - 0.98, type: 'normal', node: 0 },
+  { at: 1.05, a: -Math.PI / 2 + 1.04, type: 'normal', node: 1 },
+  { at: 1.95, a: -Math.PI / 2 - 0.52, type: 'normal', lock: 0, node: 0 },
+  { at: 2.85, a: -Math.PI / 2 + 0.58, type: 'normal', lock: 1, node: 1 },
+  { at: 3.80, a: -Math.PI / 2 - 1.16, type: 'heavy',  both: true },
+  { at: 4.85, a: -Math.PI / 2 + 0.26, type: 'normal', node: 1 },
+  { at: 5.65, a: -Math.PI / 2 - 0.28, type: 'normal', lock: 0, node: 0 },
+  { at: 6.50, a: -Math.PI / 2 + 1.18, type: 'normal', node: 1 },
+  { at: 7.40, a: -Math.PI / 2 - 0.78, type: 'heavy',  both: true },
+  { at: 8.45, a: -Math.PI / 2 + 0.72, type: 'normal', lock: 1, node: 1 },
+  { at: 9.20, a: -Math.PI / 2 - 1.08, type: 'normal', node: 0 }
 ];
+const enlTakes = (c, i) => c.both || c.node === i;   // does emitter i answer this one
 // THE DIORAMA'S OWN HORIZON, much nearer than the run's SPAWN_Z of 2.1. Depth falls
 // off hard (see ring()): over the full range a body spends four fifths of its trip
 // as a two-pixel speck on the vanishing point, which in a window this size is the
@@ -1275,13 +1302,35 @@ const ENL_Z0 = 1.05;
 // THE BODIES RUN LARGE FOR THEIR BORE, and that is deliberate. drawEnemy sizes a
 // body as a fixed fraction of the RING it sits on, which is right in a run where
 // the ring is most of the glass — but this bore is a fifth of that, so a
-// proportionally honest body lands at nine pixels and teaches nothing. Half again
-// as big keeps the projection honest while making the subject legible.
-const ENL_BODY_MUL = 1.9;
+// proportionally honest body lands at nine pixels and teaches nothing. A quarter
+// again keeps the projection nearly honest while making the subject legible — 1.9
+// was tuned against a bore half this size and now paints a de-rezzing body as a
+// forty-pixel slab across a ninety-pixel ring.
+const ENL_BODY_MUL = 1.25;
 const ENL_BODIES = {};            // cached, so each body's own fx phase persists
+// the two emitters. Real node objects, because drawArcNode reads them — only
+// `trailV` carries across frames, and that is a smoothed velocity that self-corrects.
+const ENL_NODES = [{ angle: 0, trailV: 0 }, { angle: 0, trailV: 0 }];
+// where emitter i is pointing at time `show`: it eases off its last kill and onto
+// its next target, ARRIVING just before impact — which is the whole skill of the
+// game, so it gets the eased approach rather than a linear track.
+function enlistNodeAngle(i, show) {
+  let prevA = i ? -Math.PI / 2 + 1.5 : -Math.PI / 2 - 1.5, prevT = -1.2;
+  for (const c of ENL_SCRIPT) {
+    if (!enlTakes(c, i)) continue;
+    const impact = c.at + ENL_TRAVEL;
+    if (show < impact) {
+      const q = clamp((show - prevT) / Math.max(0.2, impact - ENL_LEAD - prevT), 0, 1);
+      return prevA + angDiff(c.a, prevA) * (q * q * (3 - 2 * q));
+    }
+    prevA = c.a; prevT = impact;
+  }
+  return prevA;                   // the run is over for this emitter — hold the last kill
+}
 function enlistArtRun(x, y, w, h, covered) {
-  // deep space behind the bore, the same grade the story disc's glam shot uses —
-  // the FULL window, so the ident band is painted too
+  // deep space behind the bore, the same grade the story disc's glam shot uses.
+  // Painted at FULL strength and outside the dissolve below: what fades between
+  // passes is the RUN, not the window it happens in.
   const bgG = ctx.createLinearGradient(x, y, x, y + h);
   bgG.addColorStop(0, 'rgba(8,18,38,0.92)');
   bgG.addColorStop(0.55, 'rgba(4,9,20,0.96)');
@@ -1302,6 +1351,14 @@ function enlistArtRun(x, y, w, h, covered) {
   const nodeR = Math.min(w * 0.40, clearH * 0.62);
   const cy = y + nodeR + w * 0.025;
   const g2 = { cx, cy, R0: nodeR * 2.5, nodeR, hitZ: 0.25, sw: 0, swy: 0 };
+  const show = time % ENL_SHOW;
+  // the dissolve: the run thins out over the last beat and the next pass prints in
+  // from nothing, so the loop reads as a fresh take rather than as a cut
+  const fk = show > ENL_SHOW - ENL_FADE
+    ? Math.max(0, 1 - (show - (ENL_SHOW - ENL_FADE)) / ENL_FADE) : 1;
+  if (fk <= 0.004) return;
+  ctx.save();
+  ctx.globalAlpha *= fk * fk;     // squared: it holds its brightness, then goes
   // THE BORE, on the real projection: rings at receding depths, converging on the
   // horizon exactly as ring() converges them in the run
   const RINGS = 5;
@@ -1312,64 +1369,100 @@ function enlistArtRun(x, y, w, h, covered) {
     ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.arc(cx, cy, rr, 0, TAU); ctx.stroke();
   }
-  const q = (time % ENL_CYCLE) / ENL_CYCLE;
-  const TRAVEL = 0.40;            // of the cycle: horizon → the ring
-  const BURN = 0.16;              // …and how long the kill flash lingers after
-  // the node ring itself
-  ctx.strokeStyle = `rgba(${ENLIST_COL},0.42)`; ctx.lineWidth = Math.max(1.4, nodeR * 0.04);
+  // the band the emitters are mounted on
+  ctx.strokeStyle = `rgba(${ENLIST_COL},0.30)`; ctx.lineWidth = Math.max(1.4, nodeR * 0.035);
   ctx.beginPath(); ctx.arc(cx, cy, nodeR, 0, TAU); ctx.stroke();
   // bodies at the size THIS bore wants. drawEnemy scales its art off the glass
   // (min(W,H)·0.06) because in a real run the ring IS the glass — in a window a
   // fifth that size it would paint a body wider than the bore. Scaling about each
   // body's own wall point resizes the art without moving where it sits.
   const bodyS = ENL_BODY_MUL * nodeR / (Math.min(W, H) * 0.44);
-  const emitter = [null, null];
-  for (const c of ENL_CAST) {
-    let p = q - c.at; if (p < 0) p += 1;         // this body's own phase of the cycle
-    const arrive = clamp(p / TRAVEL, 0, 1);
-    // the emitter sweeps onto the lane and ARRIVES just before the kill — the
-    // whole skill of the game in one gesture, so it gets the eased approach
-    const ease = arrive * arrive * (3 - 2 * arrive);
-    emitter[c.node] = c.angle - 1.35 * (1 - ease);
-    if (p < TRAVEL) {
-      const en = ENL_BODIES[c.key] || (ENL_BODIES[c.key] = {
-        type: c.type, lock: c.lock, z: 0, z0: ENL_Z0, angle: c.angle,
-        arch: true, sizeMul: 1, speedMul: 1, spin: 0, spinMul: 1, age: 9,
-        dead: false, resolved: false, failed: false, partner: null });
-      en.z = ENL_Z0 - (ENL_Z0 - g2.hitZ) * arrive;     // this bore's horizon → the ring
-      en.spin = time * 1.1;
+  const atWall = a => ({ x: cx + Math.cos(a) * nodeR, y: cy + Math.sin(a) * nodeR });
+  const scaledAt = (px, py, draw) => {
+    ctx.save();
+    ctx.translate(px, py); ctx.scale(bodyS, bodyS); ctx.translate(-px, -py);
+    draw();
+    ctx.restore();
+  };
+  // ---- the traffic, and what is left of it ----
+  for (let ci = 0; ci < ENL_SCRIPT.length; ci++) {
+    const c = ENL_SCRIPT[ci];
+    const p = show - c.at;
+    if (p < 0) continue;
+    const impact = ENL_TRAVEL;
+    // built up front, not inside the inbound branch: the de-rez below needs this
+    // body's palette, and a cycle joined mid-flight never runs that branch at all
+    const key = 'b' + ci;
+    const en = ENL_BODIES[key] || (ENL_BODIES[key] = {
+      type: c.type, lock: c.lock, z: 0, z0: ENL_Z0, angle: c.a,
+      arch: true, sizeMul: c.type === 'heavy' ? 1.2 : 1, speedMul: 1,
+      spin: 0, spinMul: 1, age: 9,
+      dead: false, resolved: false, failed: false, partner: null });
+    if (p < impact) {                            // inbound
+      en.z = ENL_Z0 - (ENL_Z0 - g2.hitZ) * (p / impact);
+      en.spin = time * (c.type === 'heavy' ? 0.45 : 1.1);
       const rg = ring(Math.max(en.z, 0.02), g2);
-      const ex = rg.x + Math.cos(en.angle) * rg.r, ey = rg.y + Math.sin(en.angle) * rg.r;
-      ctx.save();
-      ctx.translate(ex, ey); ctx.scale(bodyS, bodyS); ctx.translate(-ex, -ey);
-      drawEnemy(en, g2);
-      ctx.restore();
-    } else if (p < TRAVEL + BURN) {              // the kill: a burst on the wall
-      const f = (p - TRAVEL) / BURN;
-      const bx = cx + Math.cos(c.angle) * nodeR, by = cy + Math.sin(c.angle) * nodeR;
-      ctx.strokeStyle = `rgba(191,234,255,${(1 - f).toFixed(2)})`;
-      ctx.lineWidth = Math.max(1.2, nodeR * 0.05);
-      ctx.beginPath(); ctx.arc(bx, by, nodeR * (0.08 + f * 0.40), 0, TAU); ctx.stroke();
-      for (let k = 0; k < 7; k++) {
-        const a2 = k / 7 * TAU + f * 1.6, dd = nodeR * (0.08 + f * 0.52);
-        ctx.fillStyle = `rgba(255,186,150,${(0.85 * (1 - f)).toFixed(2)})`;
-        ctx.beginPath();
-        ctx.arc(bx + Math.cos(a2) * dd, by + Math.sin(a2) * dd, Math.max(1, nodeR * 0.032), 0, TAU);
-        ctx.fill();
-      }
+      const ex = rg.x + Math.cos(c.a) * rg.r, ey = rg.y + Math.sin(c.a) * rg.r;
+      scaledAt(ex, ey, () => drawEnemy(en, g2));
+    } else if (p < impact + DECOMP.glitchT) {    // killed: the REAL de-rez, in place
+      const wp = atWall(c.a);
+      const gh = { a: c.a, z: g2.hitZ, t: p - impact, sizeMul: en.sizeMul,
+        pal: enemyPal(en),
+        spr: (typeof SPRITES !== 'undefined')
+          ? SPRITES[c.lock === 0 ? 'lock0' : c.lock === 1 ? 'lock1' : c.type] : null };
+      scaledAt(wp.x, wp.y, () => drawGhost(gh, g2));
     }
   }
-  // THE EMITTERS, over everything they just burned. A node that has no body to
-  // meet idles opposite its partner, so the pair always reads as a pair.
+  // ---- the emitters, painted by the game's own arc renderer ----
+  // bh is the monolith band's half-width. In a run it is min(W,H)·0.055·bandW against
+  // a nodeR of 0.44·min(W,H) — so it is 0.125·bandW of the ring, whatever the ring is.
+  const bandH = nodeR * 0.125 * ARCFX.bandW;
   for (let i = 0; i < 2; i++) {
-    const a = emitter[i] === null
-      ? (emitter[1 - i] === null ? (i ? 0.6 : Math.PI - 0.6) : emitter[1 - i] + Math.PI)
-      : emitter[i];
-    const hot = emitter[i] !== null;
-    ctx.strokeStyle = `rgba(${NODE_COLS[i]},${hot ? 0.95 : 0.42})`;
-    ctx.lineWidth = Math.max(2, nodeR * 0.13);
-    ctx.beginPath(); ctx.arc(cx, cy, nodeR, a - 0.28, a + 0.28); ctx.stroke();
+    const n = ENL_NODES[i];
+    const na = enlistNodeAngle(i, show);
+    n.trailV = (n.trailV || 0) * 0.8 + angDiff(na, n.angle) * 0.2;  // the sliding wake
+    n.angle = na;
+    // the discharge: the arc flares white and its energy visibly drains, both decaying
+    // off the most recent kill this emitter made
+    let rec = 0, dip = 0;
+    for (const c of ENL_SCRIPT) {
+      if (!enlTakes(c, i)) continue;
+      const since = show - (c.at + ENL_TRAVEL);
+      if (since >= 0) { rec = Math.max(0, 1 - since * 4); dip = Math.max(0, 1 - since * 2.2); }
+    }
+    n.recoil = rec; n.dip = dip; n.held = false;
+    drawArcNode(n, g2, i, 0, false, bandH);
   }
+  // ---- the bolts, leaping from both bus-bars onto what they just took ----
+  // drawArcNode leaves each bar's tip on the node, so this runs after it, exactly as
+  // the run's own discharge does
+  ctx.lineCap = 'round';
+  for (const c of ENL_SCRIPT) {
+    const since = show - (c.at + ENL_TRAVEL);
+    if (since < 0 || since > ARCFX.zapT) continue;
+    const k = 1 - since / ARCFX.zapT;
+    const wp = atWall(c.a);
+    for (let i = 0; i < 2; i++) {
+      if (!enlTakes(c, i)) continue;
+      const n = ENL_NODES[i];
+      for (const tip of [n.tipA, n.tipB]) {
+        if (!tip) continue;
+        ctx.strokeStyle = `rgba(${NODE_COLS[i]},${(0.30 * k).toFixed(2)})`;
+        ctx.lineWidth = Math.max(1.5, nodeR * 0.05) * k;
+        ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.lineTo(wp.x, wp.y); ctx.stroke();
+        ctx.strokeStyle = `rgba(255,255,255,${(0.85 * k).toFixed(2)})`;
+        ctx.lineWidth = Math.max(0.8, nodeR * 0.016) * k;
+        ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.lineTo(wp.x, wp.y); ctx.stroke();
+      }
+    }
+    // …and the rim takes the hit
+    ctx.strokeStyle = `rgba(190,235,255,${(0.9 * k).toFixed(2)})`;
+    ctx.lineWidth = Math.max(1.2, nodeR * 0.045) * k;
+    ctx.beginPath();
+    ctx.arc(cx, cy, nodeR, c.a - 0.30 * (1 - k) - 0.05, c.a + 0.30 * (1 - k) + 0.05);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // 3 — THE FIELD, WHICH IS THE FIELD GUIDE. Literally the page: drawGuideLineup is
@@ -1401,22 +1494,27 @@ function enlistArtLegend(x, y, w, h, covered) {
   // that sits between them — hang outside the rim and get cut. The disc's own
   // geometry is recoverable from the window it handed us (the window spans the full
   // mask), so shrink until all four corners are inside it.
-  // ANCHORED TO THE PLATE, NOT CENTRED IN THE BAND. The crown carries no width at
-  // all, so a page centred in the window puts its top corners exactly where the mask
-  // is narrowest and the fit then shrinks the whole page to buy them room. Sitting it
-  // ON the plate keeps it down near the disc's equator, which is the widest the mask
-  // ever gets — about a quarter more page for the same clearance, and no dead gap
-  // between the tip line and the plate.
-  const Rm = w / 2, dcx = x + Rm, dcy = y + Rm;
-  let s = Math.min(w / W, clearH / H), pcy = y + clearH / 2;
-  for (let i = 0; i < 40; i++) {
-    const hw2 = W * s / 2, hh2 = H * s / 2;
-    pcy = y + clearH - hh2;                     // the page's foot rides the plate's top
-    // the corner row furthest from the disc's centre is the one that escapes first
-    const dy = Math.max(Math.abs(pcy - hh2 - dcy), Math.abs(pcy + hh2 - dcy));
-    if (hw2 * hw2 + dy * dy <= Rm * Rm * 0.97) break;   // 0.97: a hair of rim margin
-    s *= 0.97;
-  }
+  // ANCHORED TO THE PLATE, AND FITTED TO THE BAND — the page is allowed to spill
+  // past the mask at its corners, because the mask cuts EMPTY PAGE MARGIN there.
+  // Shrinking until all four corners were inside cost a quarter of the page to buy
+  // clearance for two corners nothing is drawn in.
+  //
+  // What must survive the cut is checked and does: anchored on the plate, the title
+  // lands where the mask still leaves more room than the title's ink needs, and the
+  // specimen row sits near the equator where there is more still. The rim grazes the
+  // outermost specimen's glow and the page's own margins, which is all it should.
+  const dcx = x + w / 2;
+  const s = Math.min(w / W, clearH / H);
+  const pcy = y + clearH - H * s / 2;           // the page's foot rides the plate's top
+  // THE TITLE GETS ITS OWN BUDGET, measured from the mask. Everything else on the
+  // page can afford to be grazed by the rim — a specimen's glow, the page's margins —
+  // but the title is a LINE OF TEXT sitting at the page's head, which in a disc lands
+  // up near the crown where the chord is at its narrowest. Cut text reads as broken,
+  // not as cropped. So the chord at the title's own row becomes its max width and
+  // fitPx shrinks the title alone; the lineup below keeps every pixel of its size.
+  const Rm = w / 2, dcy = y + Rm;
+  const titleY = pcy - H * s / 2 + (mT + Math.round(Math.min(W, H) * 0.055)) * s;
+  const titleChord = 2 * Math.sqrt(Math.max(1, Rm * Rm - Math.pow(titleY - dcy, 2)));
   ctx.save();
   ctx.translate(dcx, pcy);
   ctx.scale(s, s);
@@ -1426,7 +1524,8 @@ function enlistArtLegend(x, y, w, h, covered) {
   drawGuideLineup(
     { x: (mL + mR) / 2, y: mT, w: W - mL - mR, h: H - mB - mT },
     Math.min(W, H),
-    { titleMaxW: W - 2 * (mL + 46), hint: false });   // the disc carries its own TAP line
+    // …the budget is converted back into PAGE space, since that is what fitPx measures in
+    { titleMaxW: Math.min(W - 2 * (mL + 46), titleChord * 0.94 / s), hint: false });
   ctx.restore();
 }
 function enlistArt(beat, x, y, w, h, covered, live) {
@@ -1450,23 +1549,56 @@ function enlistArt(beat, x, y, w, h, covered, live) {
 // the CIRCLE'S CHORD rather than a silhouette, so it reads as printing this disc
 // and not a rectangle; and the wobble is deterministic, since the qualification
 // course is live underneath and Math.random() in a draw path desyncs its replay.
-let enlBuf = null;
-function enlistScanRender(g, R, q, body) {
+// IT IS A CROSS WIPE, NOT A REVEAL. The first pass showed the incoming disc above
+// the scan head and NOTHING below it, so for half a second the lane showed straight
+// through the bottom of the frame and the outgoing disc simply vanished — the head
+// read as erasing rather than as printing. The old disc now holds its ground until
+// the new one has covered it, which is the whole idea of a wipe.
+//
+// The outgoing disc is a SNAPSHOT, taken once on the frame the beat turns over, not
+// re-rendered live underneath. It is being progressively covered over ~0.5s and a
+// second live render every frame would double the cost of the diorama and the field
+// guide's six live specimens at exactly the moment the transition wants headroom.
+let enlBuf = null, enlPrevBuf = null, enlPrevFor = -1;
+function enlistEnsure(c) {
+  const D = Math.max(1, DPR || 1);
+  const bw = Math.max(1, Math.ceil(W * D)), bh = Math.max(1, Math.ceil(H * D));
+  if (c.width !== bw || c.height !== bh) { c.width = bw; c.height = bh; }
+  return c;
+}
+// paint `body` into an offscreen at device resolution, in game-space coords
+function enlistToBuf(c, rx, ry, rw, rh, body) {
+  const D = Math.max(1, DPR || 1);
+  const b = enlistEnsure(c).getContext('2d');
+  if (!b || !b.setTransform) return null;
+  b.setTransform(D, 0, 0, D, 0, 0);
+  b.clearRect(rx, ry, rw, rh);
+  const prev = ctx; ctx = b;                        // redirect the disc painters into the buffer
+  try { body(); } finally { ctx = prev; }
+  return b;
+}
+// snapshot the disc that is on its way out, so the wipe has something to wipe OVER
+function enlistKeepPrev(g, R, body) {
+  if (!enlPrevBuf) enlPrevBuf = document.createElement('canvas');
+  const M = 26;
+  const rx = Math.max(0, Math.floor(g.cx - R - M)), ry = Math.max(0, Math.floor(g.cy - R - M));
+  const rw = Math.min(Math.ceil(W) - rx, Math.ceil((R + M) * 2)), rh = Math.min(Math.ceil(H) - ry, Math.ceil((R + M) * 2));
+  return !!enlistToBuf(enlPrevBuf, rx, ry, rw, rh, body);
+}
+function enlistScanRender(g, R, q, body, hasPrev) {
   if (q >= 1) { body(); return; }                  // printed — draw straight to screen
   const M = 26;                                     // margin for the rim's accent arcs and glow
   const rx = Math.max(0, Math.floor(g.cx - R - M)), ry = Math.max(0, Math.floor(g.cy - R - M));
   const rw = Math.min(Math.ceil(W) - rx, Math.ceil((R + M) * 2)), rh = Math.min(Math.ceil(H) - ry, Math.ceil((R + M) * 2));
   if (rw <= 0 || rh <= 0) return;
   const D = Math.max(1, DPR || 1);
-  const bw = Math.max(1, Math.ceil(W * D)), bh = Math.max(1, Math.ceil(H * D));
   if (!enlBuf) enlBuf = document.createElement('canvas');
-  if (enlBuf.width !== bw || enlBuf.height !== bh) { enlBuf.width = bw; enlBuf.height = bh; }
-  const b = enlBuf.getContext('2d');
-  if (!b || !b.setTransform) { body(); return; }   // headless — no buffer, no theatre
-  b.setTransform(D, 0, 0, D, 0, 0);
-  b.clearRect(rx, ry, rw, rh);
-  const prev = ctx; ctx = b;                        // redirect the disc painters into the buffer
-  try { body(); } finally { ctx = prev; }
+  const b = enlistToBuf(enlBuf, rx, ry, rw, rh, body);
+  if (!b) { body(); return; }                      // headless — no buffer, no theatre
+  const bw = enlBuf.width, bh = enlBuf.height;
+  // the outgoing disc, WHOLE and underneath — the new one prints down over it
+  if (hasPrev && enlPrevBuf && enlPrevBuf.width)
+    ctx.drawImage(enlPrevBuf, rx * D, ry * D, rw * D, rh * D, rx, ry, rw, rh);
   if (q <= 0) return;
   // the print head runs the DISC's own height, not the padded capture box, so the
   // scan starts exactly on the crown and finishes exactly on the foot
@@ -1504,7 +1636,7 @@ function enlistScanRender(g, R, q, body) {
 // the disc itself: the mission briefing's layout, beat for beat. See drawStoryDisc
 // — the mask, the art window, the caption plate riding its lower edge, the rim laid
 // back over the top. The numbers are that function's numbers on purpose.
-function enlistDiscBody(g, R, lines, t) {
+function enlistDiscBody(g, R, lines, t, beat) {
   const Rc = R * 0.965;                    // the mask: just inside the border ring
   const artB = g.cy + R * 0.34;            // the picture's foot — a mission disc's edge
   const aTop = g.cy - Rc, aH = artB - aTop;
@@ -1540,7 +1672,7 @@ function enlistDiscBody(g, R, lines, t) {
   // NO CALLSIGN PLATE. It read as a caption pinned over the picture rather than as
   // part of it, and it cost the art the whole top fifth of the window. Who is
   // speaking is already carried by the line he speaks.
-  enlistArt(enlist.short ? 2 : enlist.beat, g.cx - Rc, aTop, Rc * 2, aH, bh, talking);
+  enlistArt(enlist.short ? 2 : beat, g.cx - Rc, aTop, Rc * 2, aH, bh, talking);
   // the grade the ENGINE adds, exactly as it adds it to forty authored keyframes:
   // scanlines and a vignette, so these discs sit in the same show as the briefings
   ctx.fillStyle = 'rgba(2,6,14,0.22)';
@@ -1600,8 +1732,8 @@ function enlistDiscBody(g, R, lines, t) {
 // same reasoning that put an LRU on the mission keyframes applies here: the cost is
 // not a slow frame, it is a phone carrying the intro's buffers for the whole session.
 function enlistArtRelease() {
-  for (const c of [enlBuf, enlShineBuf]) if (c) { c.width = c.height = 0; }
-  enlBuf = null; enlShineBuf = null;
+  for (const c of [enlBuf, enlPrevBuf, enlShineBuf]) if (c) { c.width = c.height = 0; }
+  enlBuf = null; enlPrevBuf = null; enlShineBuf = null; enlPrevFor = -1;
   for (const k in ENL_BODIES) delete ENL_BODIES[k];
 }
 function drawEnlistment() {
@@ -1630,8 +1762,21 @@ function drawEnlistment() {
   // enlist.t resets to 0 on every beat (see enlistTap), so this one clock prints
   // the first disc AND every disc that replaces it — no separate transition state
   const q = clamp(t / ENLIST_SCAN, 0, 1);
+  // THE OUTGOING DISC, SNAPSHOT ONCE. Taken on the first frame after the beat turns
+  // over — `enlPrevFor` records which arrival the snapshot belongs to, so it is
+  // captured exactly once per transition and not re-rendered every frame of it. The
+  // previous beat is drawn with a settled clock: it finished talking before the
+  // player could tap, so that is what it looked like when they did.
+  if (q < 1 && enlist.beat > 0 && enlPrevFor !== enlist.beat) {
+    const pl = enlistScript()[enlist.beat - 1] || [];
+    enlPrevFor = enlistKeepPrev(g, R,
+      () => enlistDiscBody(g, R, pl, 999, enlist.beat - 1)) ? enlist.beat : -1;
+  }
+  // the first disc has nothing behind it — it prints onto the open lane, as it should
+  const hasPrev = enlist.beat > 0 && enlPrevFor === enlist.beat;
   let talking = false;
-  enlistScanRender(g, R, q, () => { talking = enlistDiscBody(g, R, lines, t); });
+  enlistScanRender(g, R, q,
+    () => { talking = enlistDiscBody(g, R, lines, t, enlist.beat); }, hasPrev);
 
   // the tap line sits OUTSIDE the print: an invitation that scanned in half-drawn
   // would be inviting a tap the gate is still refusing
