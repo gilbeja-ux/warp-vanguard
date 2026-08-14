@@ -138,8 +138,9 @@ offline entitlement flag; no server for v1. Full plan in
   In-world the unit is **the wolves**, spoken "wolves", and comms address the player as
   *wolf*.
 - Logo is the user's shield badge, loaded from `src/logo.webp`. **Done** — the badge
-  reads WARP VANGUARD and the icon set carries the W monogram (`src/icons/wv-*.png`,
-  renamed from the `df-` Dark Fiber prefix 2026-08-05). No old lettering ships. The story voice may address the player as "runner"
+  reads WARP VANGUARD and the icon set carries the V monogram (`src/icons/wv-*.png`,
+  renamed from the `df-` Dark Fiber prefix 2026-08-05; the monogram itself was a W
+  until 2026-08-14). No old lettering ships. The story voice may address the player as "runner"
   (singular); every brand surface is the squadron.
 - Voice: terse operational radio traffic. Four speakers — HAUL (Meridian Haulage
   Yards), CMD (Lane Command), TRACE (analyst), WARD (the hostile

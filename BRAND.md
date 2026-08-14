@@ -39,26 +39,39 @@ now literal instead of metaphorical, and needs no explaining.
   Loaded at runtime by `brandLogo()`; the code keeps an Audiowide drawn stack as
   a fallback if the file is missing — that fallback already letters
   WARP / OVER / WATCH with a WARP VANGUARD subtitle, and VANGUARDS in the hub.
-- **App icon** — `src/icons/*.png` (`any`) and `df-mask-*.png` (`maskable`).
-  Same shield with the lettering removed and a **wolf mark** over the bore,
-  cyan chevrons top and bottom. Icon = badge only, no wordmark.
+- **App icon** — `src/icons/wv-*.png`, cut from the badge. Icon = badge only, no
+  wordmark.
 
-**SHIPPED (2026-07-31).** `src/logo.webp` is the full lockup and
-`src/logo-small.webp` is the badge-only mark: a gold-rimmed shield over a receding
-warp bore, with a **W** across it. The bore is still the mark, now drawn rather
-than described.
+**SHIPPED.** `src/logo.webp` is the full lockup and `src/logo-small.webp` is the
+badge-only mark: a gold-rimmed shield over a receding warp bore, with a **V**
+across it, gold speed bars flanking it either side. The bore is still the mark,
+now drawn rather than described. The V and its bars are the lockup's own
+treatment of WARP reduced to one letter, which is what keeps the badge and the
+lockup reading as the same object.
+
+*(2026-08-14: the monogram was a cyan **W** from 2026-07-31 until this drop. Any
+note describing a W — or the "wolf mark over the bore" that was written down but
+never drawn — predates it.)*
 
 The icon set is generated FROM the badge, not drawn separately, so the launcher
 tile and the menu badge can never diverge:
 
-- `df-192` / `df-512` (`any`) — badge at 94% of the tile, transparent surround.
-- `df-mask-192` / `df-mask-512` (`maskable`) — badge at **62%** on opaque
+- `wv-192` / `wv-512` (`any`) — badge at 94% of the tile, transparent surround.
+- `wv-mask-192` / `wv-mask-512` (`maskable`) — badge at **62%** on opaque
   `#03060e`. Launchers crop maskable icons to a circle or squircle, and 62% is
   what keeps every corner of the shield inside the tightest of those crops.
 
-Regenerate with the snippet in the commit for 2026-07-31 if the badge changes;
-bump the `?v=` on the `<link rel="icon">` tags at the same time or returning
-players keep the old tile.
+**To change the badge: drop the new art at `src/icons/logo-small.png` and run
+`npm run icons`.** That converts it to the lossless webp the game loads, recuts
+all four launcher icons, and bumps the `?v=` on the `<link rel="icon">` tags —
+which is not optional, because without it returning players keep the old tile and
+it reads as "the icon didn't update". The PNG masters in `src/icons/` are the
+thing to re-drop; `scripts/build.js` keeps them out of the package so the brand
+is not shipped twice.
+
+Where the badge shows up, so a change can be eyeballed in all three: the launcher
+tile, the first enrolment disc (riding the spectrum meter), and the map / free
+flow header beside the wordmark.
 
 The old EMP-emitter mark (coil body, twin prongs, live arc) stays retired.
 

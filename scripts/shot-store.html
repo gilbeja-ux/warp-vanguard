@@ -1,0 +1,352 @@
+<!doctype html>
+<!-- STORE SCREENSHOT HARNESS (dev only, not shipped: scripts/, not src/).
+     Third sibling of shot-splash.html and shot-lane.html, and the general case of
+     both: a SCENE REGISTRY where every store frame is a named, deterministic
+     recipe instead of a hand-driven URL.
+
+     Serve the REPO ROOT and open:
+       /scripts/shot-store.html?scene=bore
+       /scripts/shot-store.html?scene=boss&kind=mimic&w=960&h=540
+
+       scene   which recipe from SCENES below (the only required parameter)
+       w / h   logical size to render at. Default 960x540 — SIXTEEN BY NINE ON
+               PURPOSE, twice over: it is the widest ratio Play accepts for a
+               landscape shot, and geo()'s comment records it as the aspect the
+               bore's projection was tuned against, where R0 = nodeR*2.5 is a
+               no-op rather than a correction. The store's requirement and the
+               game's canonical geometry are the same number.
+       name    override the output filename
+
+     document.title flips to "READY <meta>" once the frame has been POSTed, and to
+     "FAILED <why>" if the scene's predicate never came true — a screenshotter
+     that only waits for /^READY/ will hang rather than quietly bank a wrong frame.
+
+     ── WHY THIS SHOOTS REAL PLAY ────────────────────────────────────────────────
+     A store frame that was assembled rather than played is a lie the player finds
+     out about in four seconds. So the run is REAL: the game boots, a real level
+     starts, and an autopilot holds the thumbs (it names bearings through
+     nodes[].slew, the same input a player has — never assigning an angle, which
+     would teleport a carriage through a live rim clamp and is the one thing
+     41-geometry is emphatic that no scheme may do).
+
+     What is staged is only the ROSTER, and only where the arrangement the shot
+     needs is rarer than a capture session: four reds nose-to-tail is a real
+     formation the game spawns, but waiting on the dice for it is not a pipeline.
+     Bodies are made by the game's own spawnEnemy so every field is the field the
+     renderer expects, then their depth and bearing are placed. Everything that
+     paints them — art, lighting, projection, the lane, the ring, the HUD — is
+     shipped code, untouched.
+
+     And the FRAME ITSELF IS FOUND, not counted to: each scene carries a `want`
+     predicate, and the harness cranks until the game satisfies it. "One
+     mid-discharge" means a bolt this run actually fired, caught on a frame where
+     it is still alive. A frame count would have drifted the first time anything
+     was retuned; a predicate re-finds the moment. -->
+<html>
+<head>
+<meta charset="utf-8">
+<base href="../src/">
+<title>staging…</title>
+<style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+// ============================================================================
+// THE SCENE REGISTRY
+// ============================================================================
+// Each scene is a recipe, and every field is optional except what it needs:
+//
+//   screen  'play' (a real run) or a menuScreen name ('map' | 'board'), or
+//           'disc' for a briefing card. Default 'play'.
+//   camp    campaign index · level  level index within it
+//   warm    frames of REAL PLAY before anything is staged. This is what puts
+//           traffic, streak history, lane furniture and particle state in the
+//           world — a scene staged onto a cold boot reads as a diagram.
+//   stage   JS evaluated INSIDE the game's scope once warm-up ends
+//   auto    'play' (autopilot answers threats) | 'dock' (both thumbs together,
+//           which is how UNITE-VOLLEY is expressed) | 'off'
+//   hold    frames to run after staging, before the predicate starts being asked
+//   want    JS expression in game scope; the first frame it is true is the frame
+//   scan    how many frames to keep asking before giving up (default 900)
+//
+// `stage` and `want` are strings because they run in the GAME's scope, not this
+// page's — a later <script> shares the injected game's top-level `let`s, which is
+// the only way to reach them (the tuning board and shot-lane use the same trick).
+const SCENES = {
+
+  // ── 1 · TWO THUMBS. ONE LINE. ──────────────────────────────────────────────
+  // The focal shot: it sits beside the icon in Play search and has to carry the
+  // whole game in one read — both emitters lit, the ring, and threats at
+  // genuinely different depths so the bore reads as a TUNNEL and not a dial.
+  // Staggered z is the entire point: four bodies at one depth is a clock face.
+  bore: {
+    camp: 0, level: 5, warm: 460, auto: 'play',
+    stage: `
+      combo = 27; maxCombo = 31; score = 41850;          // a run in good shape
+      enemies = enemies.filter(e => !e.dead && e.type === 'strip');
+      // four breaches, four depths, spread around the bore. The near one sits
+      // just off node 0's bearing so the tick's own zap path fires at it for
+      // real — that is where the discharge in this frame comes from.
+      [[0.31, 0.00, undefined], [0.62, 2.30, 0], [1.02, 4.05, undefined], [1.55, 5.42, 1]]
+        .forEach(([z, a, lock]) => { const e = spawnEnemy(a, 'normal'); e.z = e.z0 = z; e.lock = lock; e.age = 0.6; });
+      nodes[0].angle = 0.10; nodes[0].slew = null;
+      nodes[1].angle = 4.05; nodes[1].slew = null;
+    `,
+    hold: 2,
+    want: 'bolts.length >= 1 && enemies.filter(e => !e.dead && e.type === "normal").length >= 3',
+    scan: 240
+  },
+
+  // ── 2 · DOCK BOTH. CLEAR THE LANE. ────────────────────────────────────────
+  // The third verb. Both emitters on one bearing, the charge filling the arc
+  // window white-hot, and a column of reds nose-to-tail in the lane it is aimed
+  // down — the picture has to answer "why would you ever give up half your
+  // coverage" in one look, so the payoff must be visibly queued up.
+  volley: {
+    camp: 0, level: 5, warm: 420, auto: 'dock',
+    stage: `
+      combo = 18; score = 26400;
+      enemies = enemies.filter(e => !e.dead && e.type === 'strip');
+      // nose-to-tail down ONE lane, so the docked pair's aim reads as a decision
+      [0.40, 0.68, 0.98, 1.34].forEach(z => { const e = spawnEnemy(2.36, 'normal'); e.z = e.z0 = z; e.lock = undefined; e.age = 0.5; });
+      nodes[0].angle = 2.30; nodes[1].angle = 2.42;      // inside the 0.26 dock gap
+    `,
+    hold: 6,
+    // charge caps at 0.5 (72-tick) — 0.40 is late enough that the core is
+    // white-hot and the arc window is full, without being the discharge frame
+    want: 'volley.charge > 0.40 && enemies.filter(e => !e.dead && e.type === "normal").length >= 4',
+    scan: 200
+  },
+
+  // ── 3 · NOTHING GETS THROUGH YOU. ─────────────────────────────────────────
+  // The interdictor. ?kind= picks which of the five, because the roster was
+  // reworked recently and which one photographs best is a question for the
+  // contact sheet, not for a guess made here.
+  boss: {
+    camp: 0, level: 7, warm: 300, auto: 'play',
+    stage: `
+      combo = 12; score = 33200;
+      LV = LV || LEVELS[levelIdx];
+      LV.bossKind = (new URLSearchParams(location.search)).get('kind') || 'leech';
+      spawnBoss();
+      boss.introT = BOSS_CER + 3;                        // past the arrival ceremony
+      boss.hp = 4;                                       // mid-duel: two pulses landed
+      boss.waveT = 0.05;                                 // a swarm on its way in
+    `,
+    hold: 150,
+    // its own bodies on the lane, and the machine settled at the bore's centre
+    want: 'boss && boss.z < 1.6 && enemies.filter(e => !e.dead).length >= 3',
+    scan: 900
+  },
+
+  // ── 4 · FIVE CONTRACTS. FORTY RELAYS. ─────────────────────────────────────
+  // Scope, shown rather than claimed. The chart is a defended volume with the
+  // cordons printed on it, so the picture carries the fiction's own reason for
+  // why the outer work is harder.
+  chart: { screen: 'map', camp: 2, level: 3, hold: 150 },
+
+  // ── 5 · THE CONTRACT. ─────────────────────────────────────────────────────
+  disc: { screen: 'disc', camp: 0, level: 0, hold: 120 },
+
+  // ── 6 · ROUTE AROUND. RIDE THE GOLD. ──────────────────────────────────────
+  // The one shot about the lane rather than the traffic: a rim wall you must
+  // detour around, and the optional golden ribbon riding the wall past it. Gold
+  // is reserved for gains (DESIGN.md's Gold Rule), so the frame is legible as
+  // "hazard here, reward there" without a single label.
+  ribbon: {
+    camp: 0, level: 5, warm: 420, auto: 'play',
+    stage: `
+      combo = 21; score = 30900;
+      enemies = enemies.filter(e => !e.dead && e.type !== 'strip');
+      latches = [];
+      spawnWall(1.15, true);                             // force: no clash hops, we placed it
+      const rb = spawnStrip();
+      rb.angle = 4.30; rb.len = 0.80; rb.amp = 0.34; rb.frq = 2.6; rb.ph = 0.4;
+      rb.z = rb.z0 = 1.35; rb.tracing = true;            // a node is on it — the ride is lit
+      nodes[1].angle = 4.30;
+    `,
+    hold: 40,
+    // the carpet has to be IN the bore, not still at the horizon, or the shot is
+    // of an empty lane with a rumour in it
+    want: 'latches.length >= 1 && latches[0].t > 0.9 && enemies.some(e => e.type === "strip" && !e.dead)',
+    scan: 400
+  },
+
+  // ── 7 · SAME LANE. EVERY PLAYER. ALL WEEK. ────────────────────────────────
+  // Shot on the board's TRUE pre-launch state. There is no player base yet, and
+  // a board of invented names would be exactly the fabricated social proof the
+  // brief rules out — so it is shot empty, which the game already has a real
+  // answer for: NO RUNS YET — BE THE FIRST. The top of the ladder being visibly
+  // unclaimed is a better closing frame than strangers' scores anyway.
+  board: { screen: 'board', camp: 0, level: 3, hold: 150 }
+};
+
+(async () => {
+  const Q = new URLSearchParams(location.search);
+  const key = Q.get('scene');
+  const sc = SCENES[key];
+  if (!sc) { document.title = 'FAILED unknown scene "' + key + '" — have: ' + Object.keys(SCENES).join(','); return; }
+  const name = Q.get('name') || key;
+  const w = parseInt(Q.get('w') || '960', 10), h = parseInt(Q.get('h') || '540', 10);
+
+  window.__err = '';
+  window.onerror = (m, s, l) => { window.__err += m + ' @' + l + '; '; };
+  // we own the clock: collect rAF callbacks instead of letting them be scheduled
+  let cbs = [], fired = 0;
+  window.requestAnimationFrame = f => cbs.push(f);
+  // a live AudioContext locks the game's clock to WALL time, which would ignore
+  // the crank entirely (learned the hard way in shot-splash)
+  window.AudioContext = undefined; window.webkitAudioContext = undefined;
+  // innerWidth/innerHeight are [Replaceable] in the HTML spec, so these stick and
+  // resize() reads them — the frame's size is ours, not the headless viewport's,
+  // which never matches the --window-size asked for anyway
+  window.innerWidth = w; window.innerHeight = h;
+
+  // manifest order, not a scrape of index.html: the game is ordered topic files
+  const files = ['campaigns.js', 'audio/music/tracks.js'];
+  const man = await (await fetch('game/manifest.json')).json();
+  for (const f of man.files) files.push('game/' + f.file);
+  for (const f of files) {
+    const src = await (await fetch(f)).text();
+    const s = document.createElement('script');
+    s.textContent = src + '\n//# sourceURL=/' + f;   // a thrown file names ITSELF, not its victims
+    document.body.appendChild(s);                    // executes synchronously
+  }
+  // real time, warming the game's own Image loads. Virtual time cannot skip past
+  // a real decode, and the badge is furniture in two of these scenes
+  for (const f of ['logo.webp', 'logo-small.webp']) {
+    try { await createImageBitmap(await (await fetch(f)).blob()); } catch (e) {}
+  }
+  // raced, never awaited bare: a headless run with no font service leaves this
+  // pending forever and the harness hangs with nothing on screen
+  try { await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2500))]); } catch (e) {}
+  await new Promise(r => setTimeout(r, 120));
+
+  const poke = code => {
+    const s = document.createElement('script');
+    s.textContent = code;
+    document.body.appendChild(s);
+  };
+  let t = 0;
+  const crank = n => {
+    for (let i = 0; i < n; i++) {
+      t += 1000 / 60;
+      const list = cbs; cbs = [];
+      for (const f of list) { fired++; try { f(t); } catch (e) { window.__err += e.message + '; '; } }
+    }
+  };
+
+  crank(4);                                    // one pass of boot
+  poke('window.innerWidth = ' + w + '; window.innerHeight = ' + h + '; resize();');
+  crank(2);
+
+  // ── the autopilot and the probe, defined ONCE inside the game's scope ───────
+  // Both close over the game's module-level state, so the harness can then call
+  // them every frame for free. Poking a script per frame would be thousands of
+  // DOM insertions and would dominate the capture.
+  poke(`
+    // NAMES A BEARING, never assigns an angle. slewNodes runs the carriage there
+    // at NODE_SLEW and every intermediate angle is a real angle the rim clamps
+    // test — which is the whole reason 41-geometry forbids the shortcut.
+    window.__auto = function (mode) {
+      if (state !== S.PLAY) return;
+      integrity = 100;                        // nothing dies during a photo shoot
+      const live = enemies
+        .filter(e => !e.dead && !e.resolved && !e.failed && e.type !== 'frag' && e.type !== 'strip')
+        .sort((a, b) => a.z - b.z);           // nearest first: real triage order
+      if (mode === 'dock') {                  // both thumbs together — UNITE-VOLLEY
+        const tgt = live[0] ? live[0].angle : nodes[0].angle;
+        nodes[0].slew = tgt; nodes[1].slew = tgt;
+        return;
+      }
+      const taken = [];
+      for (let i = 0; i < 2; i++) {
+        // each emitter takes the nearest thing it can actually answer, and never
+        // the one the other is already on — two thumbs on one trap is not play
+        const tgt = live.find(e => taken.indexOf(e) < 0 &&
+          (e.lock === undefined || e.lock === i || e.type === 'heavy' || e.type === 'line'));
+        if (tgt) { taken.push(tgt); nodes[i].slew = tgt.angle; }
+      }
+    };
+    window.__probe = function (expr) { try { return !!eval(expr); } catch (e) { return false; } };
+    window.__stat = function () {
+      return 'st' + state + ' en' + enemies.filter(e => !e.dead).length +
+             ' bolt' + bolts.length + ' vol' + (volley.charge || 0).toFixed(2) +
+             ' combo' + combo + (boss ? ' bossHP' + boss.hp + ' z' + boss.z.toFixed(2) : '');
+    };
+  `);
+
+  const screen = sc.screen || 'play';
+  const camp = sc.camp || 0, level = sc.level || 0;
+
+  if (screen === 'play') {
+    poke(`SPLASH.on = false;
+          try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
+          startLevel(Math.min(${level}, (LEVELS || []).length - 1));
+          introT = 999; introCd = 0;          // past the launch ceremony
+          state = S.PLAY;`);
+    // warm-up: REAL PLAY, in slices, with the autopilot holding the thumbs. The
+    // slices exist because a straight crank with nobody playing loses the run and
+    // hands back a mission report instead of a lane.
+    const warm = sc.warm || 300;
+    for (let i = 0; i < warm; i++) { window.__auto(sc.auto === 'off' ? null : (sc.auto || 'play')); crank(1); }
+    if (sc.stage) poke(sc.stage);
+    for (let i = 0; i < (sc.hold || 0); i++) { window.__auto(sc.auto === 'off' ? null : (sc.auto || 'play')); crank(1); }
+  } else if (screen === 'disc') {
+    poke(`SPLASH.on = false;
+          try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
+          // the first story disc of the contract — the briefing a player actually
+          // reads before relay 01, not a card invented for the store
+          const k = Object.keys(INFO_CARDS).filter(x => /^story\\d+$/.test(x))[0] || Object.keys(INFO_CARDS)[0];
+          infoCard = k; infoShownAt = 0; state = S.INFO;`);
+    crank(sc.hold || 120);
+  } else {
+    poke(`SPLASH.on = false;
+          try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
+          state = S.MENU; menuScreen = '${screen}'; menuFx = null; menuCache = null;`);
+    if (screen === 'board') {
+      // The board fetches over the network and there is none here. Rather than
+      // shoot SYNCING… or OFFLINE, hand it the state a real player meets on the
+      // first day of a week: loaded, and empty. Nothing is invented — the game
+      // draws its own NO RUNS YET — BE THE FIRST.
+      poke(`boardSel.mode = 'weekly';
+            boardData = { key: boardKeyFor(), loading: false, rows: [], error: false };`);
+    }
+    crank(sc.hold || 150);
+    await new Promise(r => setTimeout(r, 400));   // the badge is a real Image load
+    poke('menuCache = null;');                    // repaint now that it decoded
+    crank(6);
+  }
+
+  // ── find the frame ─────────────────────────────────────────────────────────
+  let scanned = 0, found = !sc.want;
+  if (sc.want) {
+    const limit = sc.scan || 900;
+    for (; scanned < limit; scanned++) {
+      if (window.__probe(sc.want)) { found = true; break; }
+      window.__auto(sc.auto === 'off' ? null : (sc.auto || 'play'));
+      crank(1);
+    }
+  }
+  const stat = window.__stat ? window.__stat() : '';
+  const meta = key + ' ' + w + 'x' + h + ' dpr' + devicePixelRatio +
+    ' frames' + fired + (sc.want ? ' scan' + scanned : '') + ' ' + stat +
+    ' err ' + (window.__err || 'none');
+
+  if (!found) {
+    // Loud, and NOT captured. A near-miss frame banked silently is how a store
+    // set ends up with six good shots and one that quietly says nothing.
+    document.title = 'FAILED ' + key + ' predicate never true after ' + scanned + ' — ' + stat;
+    return;
+  }
+  const cnv = document.getElementById('game');
+  try {
+    await fetch('/shot?name=' + encodeURIComponent(name) + '&meta=' + encodeURIComponent(meta),
+      { method: 'POST', body: cnv.toDataURL('image/png') });
+  } catch (e) {}
+  document.title = 'READY ' + meta;
+})();
+</script>
+</body>
+</html>

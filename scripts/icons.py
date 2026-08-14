@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drop a badge in src/, run `npm run icons`, done.
+"""Drop a badge at src/icons/logo-small.png, run `npm run icons`, done.
 
     npm run icons
 
@@ -47,19 +47,29 @@ def adopt(target, *patterns):
 
     The game ships WebP (lossless — same pixels, a third less weight), but art
     arrives as PNG, so a dropped PNG is CONVERTED here rather than renamed. The
-    original is left alone: it is the thing to re-drop if this ever needs redoing,
-    and it must not sit in src/ afterwards or Capacitor packages both copies.
+    original is left alone: it is the thing to re-drop if this ever needs redoing.
+
+    LOOKED FOR IN BOTH PLACES, AND RE-ADOPTED WHEN IT IS NEWER. `src/icons/` is
+    where the masters settled — build.js denylists them there, so they can stay in
+    the repo without Capacitor packaging the brand twice. Two things followed from
+    that and both had to be fixed here: this only ever globbed src/, and it bailed
+    outright once the target existed. Between them, dropping replacement art in
+    the documented place and running `npm run icons` reported success and changed
+    nothing — the second badge had to be converted by hand. Newer master wins;
+    running twice still does nothing the second time.
     """
-    if os.path.exists(target):
-        return False
+    from PIL import Image
+    have = os.path.getmtime(target) if os.path.exists(target) else -1
     for pat in patterns:
-        for hit in sorted(glob.glob(os.path.join(SRC, pat))):
-            if os.path.abspath(hit) == os.path.abspath(target):
+        for hit in sorted(glob.glob(os.path.join(SRC, pat)) + glob.glob(os.path.join(ICONS, pat))):
+            if os.path.abspath(hit) == os.path.abspath(target) or os.path.getmtime(hit) <= have:
                 continue
-            from PIL import Image
             Image.open(hit).convert('RGBA').save(target, 'WEBP', lossless=True, exact=True, quality=100)
-            print(f'  adopted {os.path.basename(hit)} -> {os.path.basename(target)} (lossless webp)')
-            print(f'  NOTE: {os.path.basename(hit)} is still in src/ — move it out, it ships otherwise')
+            rel = os.path.relpath(hit, ROOT)
+            print(f'  adopted {rel} -> {os.path.basename(target)} (lossless webp)')
+            # only loose in src/ is a problem; the ones in src/icons/ are denylisted
+            if os.path.dirname(os.path.abspath(hit)) == os.path.abspath(SRC):
+                print(f'  NOTE: {rel} still ships — move it to src/icons/')
             return True
     return False
 
