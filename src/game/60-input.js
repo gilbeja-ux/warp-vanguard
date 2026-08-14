@@ -174,13 +174,26 @@ canvas.addEventListener('pointerdown', e => {
   }
   const side = P.x < W / 2 ? 'L' : 'R';
   const a0 = pointerAngle(side, P.x, P.y);
-  // replant rules: a touch ON the pad is absolute — knob and node jump under
-  // the finger, so a lift-and-replant can never desync thumb from knob. Off-pad
-  // touches (drifted grip) stay relative, with the old magnetic snap when close.
+  // replant rules: a touch ON the pad NAMES that bearing. The carriage RUNS to it
+  // (slewNodes) and arrives under the finger, so a lift-and-replant still ends
+  // with thumb and knob together — it simply cannot cross the ring for free any
+  // more. This used to be an outright assignment, which is the same teleport the
+  // stick was fixed for: tap the far side of a pad and the emitter was through a
+  // live dead zone without ever occupying it.
+  //
+  // Off-pad touches (a drifted grip) stay relative, with the old magnetic snap
+  // when close — and a far grab CANCELS any pending run, or the finger's deltas
+  // and a leftover bearing would both drive the same carriage.
+  //
+  // A THUMB THAT LANDS WHERE THE CARRIAGE ALREADY IS HAS NO JOURNEY, and naming a
+  // bearing it has already reached would cost the resting-thumb case — far the
+  // commonest one — its zero lag: the first drag would steer a destination for a
+  // tick instead of moving the knob. So the trivial landing names nothing.
   const ni = side === 'L' ? 0 : 1;
   const dc = dialCenter(side);
   const onPad = Math.hypot(P.x - dc.x, P.y - dc.y) <= dc.r * 1.15;
-  if (onPad || Math.abs(angDiff(a0, nodes[ni].angle)) < 0.6) nodes[ni].angle = a0;
+  const takes = onPad || Math.abs(angDiff(a0, nodes[ni].angle)) < 0.6;
+  nodes[ni].slew = (takes && Math.abs(angDiff(a0, nodes[ni].angle)) > 1e-6) ? a0 : null;
   pointers[e.pointerId] = { side, lastA: a0, px: P.x, py: P.y };
   canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
 });
@@ -233,10 +246,18 @@ canvas.addEventListener('pointermove', e => {
   const delta = angDiff(a, p.lastA);
   p.lastA = a;
   p.px = P.x; p.py = P.y; // the dial draws its virtual extension out to here
-  // pure 1:1 angular deltas: the knob keeps a constant offset from the thumb
-  // for the whole hold, and a drifted (farther) thumb naturally gets finer
-  // per-cm aiming — both properties die if the gain is scaled, so don't
-  nodes[p.side === 'L' ? 0 : 1].angle += delta; // zero-lag: node mirrors the thumb
+  const n = nodes[p.side === 'L' ? 0 : 1];
+  // STILL TRAVELLING: the finger keeps naming the bearing, so a drag that begins
+  // before the carriage has caught up STEERS the destination instead of fighting
+  // it — and the run stays one continuous journey the dead zones can catch.
+  //
+  // On arrival the bearing clears and the hold reverts to pure 1:1 angular
+  // deltas, from an offset of zero (the carriage landed under the finger). The
+  // knob then keeps a constant offset from the thumb for the rest of the hold,
+  // and a drifted (farther) thumb naturally gets finer per-cm aiming — both
+  // properties die if the gain is scaled, so don't.
+  if (n.slew !== null) n.slew = a;
+  else n.angle += delta; // zero-lag: node mirrors the thumb
 });
 function releasePointer(e) {
   delete pointers[e.pointerId]; delete pauseDrag[e.pointerId];
@@ -550,7 +571,9 @@ function resetRun() {
   introT = 0; introCd = -1; introStage = -1; introLatch = false; padHold = [false, false]; gatePip = 0;
   preT = 0; padArm = [false, false]; // parked: introT does not move until both thumbs land
   rimFX = []; latches = []; killStreaks = []; resumeHold = 0; warpT = WARP_DIVE; fadeT = 0.35;
-  for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; }
+  // slew last of all: a bearing named in the run being torn down must not still be
+  // pulling a carriage off its parked angle on the first tick of the fresh one
+  for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; n.slew = null; }
   fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24); pickupBag = [];
   ribbonT = srand(11, 15); // first golden ribbon EARLY — its pulse should serve the whole run
   sched = [];

@@ -56,10 +56,42 @@ const FRAGFX = {
 const enGun = l => { l *= ENEMYFX.mMetal; return `rgb(${Math.round(l * 0.92)},${Math.round(l * 0.96)},${Math.round(Math.min(255, l * 1.04))})`; };
 
 // nodes: [left(blue), right(white)]
+// `slew` is a NAMED BEARING, not a position: null means nothing is pending, a
+// number means this carriage is running the rim to reach it. See slewNodes.
 const nodes = [
-  { angle: Math.PI, color: '#1c3f8f', glow: '#4d8dff' },
-  { angle: 0,       color: '#ffffff', glow: '#bfe0ff' }
+  { angle: Math.PI, color: '#1c3f8f', glow: '#4d8dff', slew: null },
+  { angle: 0,       color: '#ffffff', glow: '#bfe0ff', slew: null }
 ];
+// THE EMITTER TRAVELS — IT DOES NOT APPEAR.
+//
+// Every control scheme NAMES A BEARING and the carriage runs to it. No scheme may
+// assign an angle outright, because the rim clamps (see updateLatches) only ever
+// test the angle a node is AT, never the ground it covered — so a teleport is a
+// free pass THROUGH a live dead zone: no frame ever exists with the node inside
+// it.
+//
+// The stick had this hole and was fixed on its own, which was half a fix: a touch
+// landing on a pad jumped the carriage across the ring in exactly the same way,
+// and that is the input almost everybody plays with. One rate and one integrator
+// for every scheme, so the two can never drift apart again.
+//
+// Deliberately brisk: a half-ring sweep lands in about a fifth of a second, so
+// naming a far bearing is still the fast way to travel — just no longer a free
+// one. What it must never be again is INSTANT.
+const NODE_SLEW = 14;   // rad/s
+// Runs inside update(), so the step is a sim step and every angle in between is a
+// real angle the latch block tests on the same tick — which is the entire point.
+// Being fried on the way is what a dead zone is FOR.
+function slewNodes(dt) {
+  if (tracePlay) return; // a replay drives angles from the trace; nothing else may move them
+  const step = NODE_SLEW * dt;
+  for (const n of nodes) {
+    if (n.slew === null) continue;
+    const d = angDiff(n.slew, n.angle);
+    if (Math.abs(d) <= step) { n.angle = n.slew; n.slew = null; } // land ON it, never past
+    else n.angle += Math.sign(d) * step;
+  }
+}
 
 // ---------- geometry ----------
 function geo() {

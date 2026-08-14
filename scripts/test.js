@@ -214,6 +214,7 @@ code = code.replace("'use strict';", '') + `
   getPreT: () => preT, isPreLaunch: () => preLaunch(),
   getBuzzN: () => buzzMonN, getBuzzLast: () => buzzMonLast, // counted before the haptics gate
   startQualification, getInfoCard: () => infoCard, isQual: () => qual,
+  NODE_SLEW, dragGhostState, // the one travel rate, and the drill ghost's appear/retire logic
   startEnlistment, enlist: () => enlist, enlistTap, enlistScript, parkedSky,
   getPaintN: () => paintN, getVsyncEst: () => vsyncEst,
   keys, setBeamAim: (x, y) => { beamAim.x = x; beamAim.y = y; }, getHeat: () => heat, isOverheat: () => overheat, startBossTest,
@@ -246,7 +247,11 @@ function check(name, cond) {
   console.log((cond ? 'PASS' : 'FAIL') + '  ' + name);
   if (!cond) failures++;
 }
-function aim(i, a) { G.nodes[i].angle = a; }
+// placing a carriage by hand supersedes any bearing still pending on it — the
+// same rule the keys follow. Without this, a slew left over from an earlier case
+// hauls the node off the angle the next case just set, and the failure lands in
+// whichever test happens to run second.
+function aim(i, a) { G.nodes[i].angle = a; G.nodes[i].slew = null; }
 // tap through an INFO disc (boss/story briefings — the tutorial no longer uses them)
 // dismiss taps land mid-screen: (5,5) is INSIDE the pause button's padded
 // hitbox, and pause works over the discs now — that tap would pause, not dismiss
@@ -2057,6 +2062,33 @@ G.startQualification();
 G.update(0.05);
 check('qualification opens straight into play on the movement drill',
   G.getState() === G.S.PLAY && G.isQual() && G.qualStage().card === 'move');
+
+// THE DRILL GHOST: a thumb that demonstrates the drag, for whoever is stuck.
+// Every gate here has an inverted twin that silently shows nothing (or shows it
+// to everybody, forever), and neither failure throws — which is why this is
+// asserted rather than left to the draw smoke test.
+{
+  const mark = G.nodes[0].angle + 1.2;
+  const hold = n => { for (let i = 0; i < n; i++) { G.dragGhostState(0, mark); G.update(0.05); } };
+  G.dragGhostState(0, mark);                       // first sight of this mark arms the grace
+  hold(10);                                        // 0.5s — still inside it
+  check('the drill ghost holds off while the grace runs', G.dragGhostState(0, mark) === null);
+  hold(30);                                        // past DRAG_GHOST_DELAY, nobody has moved
+  const up = G.dragGhostState(0, mark);
+  check('it appears for a thumb that has not moved', up !== null && up.u >= 0 && up.u < 1);
+  check('and it starts from where the carriage actually is', Math.abs(up.from - G.nodes[0].angle) < 1e-6);
+  aim(0, G.nodes[0].angle + 0.5);                  // they start closing the gap
+  check('real progress retires it on the spot', G.dragGhostState(0, mark) === null);
+  hold(10);
+  check('and the grace is re-armed, not just skipped', G.dragGhostState(0, mark) === null);
+  // moving the WRONG way must NOT count as doing it — that pupil is the whole point
+  aim(0, G.nodes[0].angle - 1.4);
+  hold(30);
+  check('going the wrong way still gets the demonstration', G.dragGhostState(0, mark) !== null);
+  // and it PAINTS — the state machine above says nothing about the thumb, the
+  // wake arc or the sampler ever being reached
+  drawOk('movement drill with the ghost thumb up', () => { G.setState(G.S.PLAY); });
+}
 // 1.6s, in 0.05s steps rather than the 4 x 0.4s it used to take. Same duration, but a 0.4s
 // step moves a trap 0.16 in z — WIDER THAN THE HIT WINDOW — so a hazard could cross the ring
 // inside one step and register neither a hit nor a miss. Every drill in this section reaches
@@ -2300,6 +2332,29 @@ pdown(9, dial.x + dial.r, dial.y);
 pmove(9, dial.x, dial.y + dial.r);
 check('raw drag: rim quarter-turn turns the node ~90° instantly', Math.abs(n0.angle - Math.PI / 2) < 1e-6);
 pup(9, dial.x, dial.y + dial.r);
+
+// THE EMITTER TRAVELS — IT DOES NOT APPEAR. A tap on the far side of the pad
+// names that bearing; the carriage has to run the rim to reach it. It used to
+// arrive on the touch itself, which walked it straight through any dead zone in
+// between without ever occupying one — the same hole the stick was fixed for.
+aim(0, 0);
+pdown(11, dial.x - dial.r, dial.y);            // the opposite rim: half a ring away
+check('a pad tap NAMES a bearing — the carriage does not arrive on the touch', Math.abs(n0.angle) < 1e-6);
+G.update(1 / 60);
+const travelled = Math.abs(n0.angle);
+check('the carriage is under way on the next tick', travelled > 0 && travelled < Math.PI - 1e-6);
+for (let i = 0; i < 60; i++) G.update(1 / 60);  // a half-ring lands well inside a second
+const offBy = Math.abs(((n0.angle - Math.PI) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+check('and it lands ON the named bearing, never past it', offBy < 1e-6 && n0.slew === null);
+pup(11, dial.x - dial.r, dial.y);
+
+// every scheme travels at the one rate: the stick names its bearing through the
+// same field the finger does, so neither can drift from the other again
+aim(1, 0);
+G.nodes[1].slew = Math.PI / 2;
+G.update(1 / 60);
+check('a named bearing moves the carriage at NODE_SLEW, whoever named it',
+  Math.abs(G.nodes[1].angle - G.NODE_SLEW / 60) < 1e-9);
 
 // aim assist was removed (it fought the thumb): nodes must NEVER move on their own
 G.enemies().length = 0;
@@ -2968,15 +3023,54 @@ G.keys['ArrowUp'] = false;
   const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 16 }, () => ({ pressed: false })) };
   Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [pad] }, configurable: true });
   const tap = (i) => { pad.buttons[i].pressed = true; G.update(0.05); pad.buttons[i].pressed = false; G.update(0.05); };
+  // hold whatever the sticks currently say until the carriages stop running.
+  // A half-ring is the longest trip there is, and at NODE_SLEW that is 5 steps.
+  const settle = (n = 8) => { for (let k = 0; k < n; k++) G.update(0.05); };
+  // compare BEARINGS, not numbers — a carriage that has wound around can hold
+  // the right angle as 2π rather than 0
+  const angErr = (x, y) => {
+    let d = (x - y) % (Math.PI * 2);
+    if (d > Math.PI) d -= Math.PI * 2;
+    if (d < -Math.PI) d += Math.PI * 2;
+    return Math.abs(d);
+  };
+  const stickTo = (i, a) => { pad.axes[i * 2] = Math.cos(a); pad.axes[i * 2 + 1] = Math.sin(a); };
   G.startLevel(1);
   G.update(0.05);
+  // A STICK NAMES A BEARING; THE CARRIAGE RUNS THE RIM TO IT. This was an outright
+  // assignment once, which teleported the emitter across the ring — straight through
+  // any live wall in between, since a clamp only ever tests the angle a node is AT.
+  // So the contract has two halves, and both are asserted: one step gets PART of the
+  // way, and holding the stick arrives exactly.
   pad.axes = [1, 0, 0, -1]; // left stick east, right stick north
+  const aWas = G.nodes[0].angle;
   G.update(0.05);
-  check('sticks steer the nodes absolutely',
-    Math.abs(G.nodes[0].angle) < 1e-6 && Math.abs(G.nodes[1].angle + Math.PI / 2) < 1e-6);
+  check('one step runs the node toward the bearing, not onto it',
+    angErr(G.nodes[0].angle, aWas) > 1e-6 && angErr(G.nodes[0].angle, 0) > 1e-6);
+  settle();
+  check('holding the sticks lands both nodes exactly on their bearings',
+    angErr(G.nodes[0].angle, 0) < 1e-6 && angErr(G.nodes[1].angle, -Math.PI / 2) < 1e-6);
   pad.axes = [0.1, 0.1, 0, -1]; // left stick inside the deadzone
   G.update(0.05);
-  check('deadzone leaves the node parked', Math.abs(G.nodes[0].angle) < 1e-6);
+  check('deadzone leaves the node parked', angErr(G.nodes[0].angle, 0) < 1e-6);
+  // AND THE WALL MUST BE ABLE TO CATCH IT — the whole reason the travel exists.
+  // Node at 0, bearing at 2.0, and the short way round goes straight through a
+  // clamp sitting at 1.0. Teleporting, no frame ever put the node inside it.
+  G.enemies().length = 0;
+  G.setIntro(999);
+  aim(0, 0); aim(1, Math.PI);
+  G.nodes[0].deadT = 0;
+  G.setLatches([{ a: 1.0, span0: 0.5, t: 2.5, dur: 3.2, tele: 2.0, arm: 0.4, z0: 1.3, bit: true }]);
+  stickTo(0, 2.0);
+  pad.axes[2] = 0; pad.axes[3] = 0; // right stick centred — node 1 stays put
+  G.update(0.05);
+  check('a node driven through a live wall is fried by it', G.nodes[0].deadT > 0);
+  G.setLatches([]);                 // the control: same sweep, no wall
+  G.nodes[0].deadT = 0;
+  aim(0, 0);
+  settle();
+  check('the same sweep with no wall arrives unharmed',
+    G.nodes[0].deadT <= 0 && angErr(G.nodes[0].angle, 2.0) < 1e-6);
   G.setPulse([G.PULSE_MAX(), 0]);
   pad.buttons[6].pressed = true; // LT
   G.update(0.05);
@@ -3058,15 +3152,16 @@ G.keys['ArrowUp'] = false;
   pad.axes = [1, 0, 0, 0]; // LEFT stick only
   G.update(0.05);
   check('one deflected stick arms its OWN pad only', G.getPadHold()[0] && !G.getPadHold()[1]);
-  check('...and drives that emitter live, parked', Math.abs(G.nodes[0].angle - 0) < 1e-9);
+  settle(); G.setIntro(2.5);   // let the carriage finish its run, and hold the boot where it was
+  check('...and drives that emitter live, parked', angErr(G.nodes[0].angle, 0) < 1e-6);
   pad.axes = [1, 0, 1, 0]; // both east — same direction, which the old rule REJECTED
   G.update(0.05);
   check('same-direction sticks now satisfy the gate — no pose required',
     G.getPadHold()[0] && G.getPadHold()[1]);
   pad.axes = [0, 1, -1, 0]; // and the emitters track their own sticks independently
-  G.update(0.05);
+  settle(); G.setIntro(2.5);
   check('each emitter follows its own stick',
-    Math.abs(G.nodes[0].angle - Math.PI / 2) < 1e-9 && Math.abs(Math.abs(G.nodes[1].angle) - Math.PI) < 1e-9);
+    angErr(G.nodes[0].angle, Math.PI / 2) < 1e-6 && angErr(G.nodes[1].angle, Math.PI) < 1e-6);
   pad.axes = [0, 0, 0, 0];
   G.setIntro(999);
   // B backs out of the map — via the contract picker — to the wheel

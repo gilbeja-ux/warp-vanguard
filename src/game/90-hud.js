@@ -323,6 +323,90 @@ function drawThumbGhosts(a0) {
     drawThumbGhost(s.x, s.y, side, s.down, s.a * a0, d.r * 0.86);
   }
 }
+// ---------- the drill ghost: a thumb that DRAGS ----------
+// The launch gate demonstrates ARRIVING; this demonstrates the verb the whole
+// game is played with. A thumb fades in on the pad where the carriage actually
+// is, runs the rim the short way round to the mark, settles on it, and fades —
+// on a loop, beside the arrow already drawn out on the ring.
+//
+// IT IS NOT AN ANALOGY. pointerAngle is atan2 about the pad centre and a landing
+// touch names that bearing outright (60-input), so a thumb's angle on the rim IS
+// its emitter's angle on the ring, one to one. The demonstration and the required
+// motion are the same motion, at the same scale.
+//
+// It replaces the comet that used to lap this rim. Two things sweeping one circle
+// is noise, and a lap that never stops says "turn" where a thumb that stops on
+// the mark says "turn THIS far" — which is the part nobody was getting.
+const DRAG_GHOST_DELAY = 1.1;  // grace before anyone is shown anything
+const DRAG_GHOST_CYCLE = 2.4;  // fade in → sweep → settle on the mark → fade out
+// The sweep, in the sampler's own currency: `x` carries PROGRESS ALONG THE ARC
+// (0 = where the carriage is, 1 = the mark) rather than a screen coordinate, and
+// y goes unused. One dimension, same keyframe machinery — which is exactly what
+// the note over ghostKeysPlace promised the next lesson would cost.
+//
+// `down` is 1 throughout: a drag never leaves the glass. Only the launch gate's
+// ghost has an approach to animate.
+const GHOST_KEYS_DRAG = [
+  { at: 0.00, x: 0, y: 0, down: 1, a: 0 },
+  { at: 0.12, x: 0, y: 0, down: 1, a: 1 },
+  { at: 0.62, x: 1, y: 0, down: 1, a: 1 },
+  { at: 0.86, x: 1, y: 0, down: 1, a: 1 }, // holds on the mark — the destination has to read
+  { at: 1.00, x: 1, y: 0, down: 1, a: 0 }
+];
+let dragGhost = [null, null];   // per node: { a, t0, from, gap, lap }
+// Returns { u, from } while a demonstration is running, or null — which is the
+// answer most of the time, and deliberately so.
+function dragGhostState(i, target) {
+  const gap = Math.abs(angDiff(target, nodes[i].angle));
+  let s = dragGhost[i];
+  if (!s || Math.abs(angDiff(s.a, target)) > 1e-3) {   // a new mark is a new lesson
+    // the trailing pad is staggered, so two demonstrations read as two hands
+    // rather than one mirrored animation
+    dragGhost[i] = { a: target, t0: time + DRAG_GHOST_DELAY + i * GHOST_STAGGER, from: nodes[i].angle, gap, lap: -1 };
+    return null;
+  }
+  // THEY ARE DOING IT. Any real progress toward the mark retires the ghost and
+  // re-arms the grace, so this only ever surfaces for someone actually stuck —
+  // the same rule the launch gate's GHOST_DELAY follows. Moving the WRONG way
+  // does not reset it: that is precisely who the demonstration is for.
+  if (gap < s.gap - 0.02) {
+    s.gap = gap; s.t0 = time + DRAG_GHOST_DELAY; s.lap = -1;
+    return null;
+  }
+  s.gap = Math.min(s.gap, gap);
+  if (time < s.t0) return null;
+  const lap = Math.floor((time - s.t0) / DRAG_GHOST_CYCLE);
+  // RE-READ THE START ON EVERY LOOP, never per frame. Per frame, a partial drag
+  // reshapes the path under the thumb and the ghost looks like it is fighting the
+  // hand; latched forever, it goes on demonstrating a journey already half made.
+  // Once a loop is the honest middle: each pass starts from wherever they left it.
+  if (lap !== s.lap) { s.lap = lap; s.from = nodes[i].angle; }
+  return { u: ((time - s.t0) % DRAG_GHOST_CYCLE) / DRAG_GHOST_CYCLE, from: s.from };
+}
+function drawTutDragGhost(i, target) {
+  if (typeof gpSeen !== 'undefined' && gpSeen) return; // a stick is not a thumb
+  const st = dragGhostState(i, target);
+  if (!st) return;
+  const side = i === 0 ? 'L' : 'R';
+  const d = dialCenter(side);
+  const s = ghostSample(GHOST_KEYS_DRAG, st.u);
+  const sweep = angDiff(target, st.from);   // the short way round — the same call the ring's arrow makes,
+  const a = st.from + sweep * s.x;          // so the pad and the ring can never point opposite ways
+  ctx.save();
+  // the wake: the ground already covered, so the gesture leaves a LINE and not
+  // just a moving object — the part the comet did well, kept
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = `rgba(${NODE_COLS[i]},${(0.38 * s.a).toFixed(2)})`;
+  ctx.lineWidth = d.r * 0.05;
+  ctx.beginPath(); ctx.arc(d.x, d.y, d.r, st.from, a, sweep < 0); ctx.stroke();
+  ctx.restore();
+  // Rides the rim at the pad's own radius, and does NOT rotate with the bearing:
+  // the hand is off-frame and a thumb pivots from a knuckle — one that spun to
+  // face its heading would read as a compass needle. Smaller than the gate's
+  // ghost (0.86), because this pad is already carrying the drill's mark, its
+  // bearing dot and its lock tick.
+  drawThumbGhost(d.x + Math.cos(a) * d.r, d.y + Math.sin(a) * d.r, side, s.down, s.a * 0.9, d.r * 0.55);
+}
 // WARP CALIBRATING: the lock-on, drawn around the destination itself.
 //
 // The first WARP_CAL seconds after launch, before there is any corridor. A ring closes
@@ -536,7 +620,9 @@ let tutFocusRef = null;           // which tut object the lesson state belongs t
 let tutLessonKind = null, tutLessonT0 = 0; // for the line's fade-in on change
 let tutDescNow = null;            // this frame's descriptor, for drawDials to read
 function tutFocusDesc(st, ten) {
-  if (tutFocusRef !== tut) { tutFocusRef = tut; tutLessonKind = null; }
+  // a fresh tutorial is a fresh pupil: the lesson line and any half-run
+  // demonstration both belong to the drill that started them
+  if (tutFocusRef !== tut) { tutFocusRef = tut; tutLessonKind = null; dragGhost = [null, null]; }
   // what is being taught RIGHT NOW — the enemy knows best (queue drills like the
   // killer ride inside the 'normal' stage), then the stage's own card
   let kind = ten ? ten.tut : null;
@@ -1038,7 +1124,7 @@ function drawHUD(g) {
       drawTutText('DANGER! AVOID!', gL.cx + Math.cos(lt.a) * rrL, gL.cy + Math.sin(lt.a) * rrL,
         '#ffb066', Math.round(Math.min(W, H) * 0.028));
     }
-    if (st.card === 'move') { // emphasize the dials — the ghost hints which way to drag
+    if (st.card === 'move') { // emphasize the dials — a ghost thumb shows the drag itself
       const A = tut.aim, TOLm = ARCFX.span * tolVis;
       for (let i = 0; i < 2; i++) {
         const d = dialCenter(i === 0 ? 'L' : 'R');
@@ -1046,10 +1132,10 @@ function drawHUD(g) {
         ctx.strokeStyle = `rgba(${NODE_COLS[i]},0.8)`;
         ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(d.x, d.y, pr, 0, TAU); ctx.stroke();
-        // a gesture ghost laps THIS dial toward its target, retiring on arrival
+        // a ghost thumb runs THIS rim to the mark and stops on it, retiring the
+        // moment the real one starts closing the gap (drawTutDragGhost decides)
         const tgt = A.targets && A.targets.find(t => t.node === i);
-        if (tgt && Math.abs(angDiff(nodes[i].angle, tgt.a)) > TOLm)
-          drawDialComet(i, Math.sign(angDiff(tgt.a, nodes[i].angle)) || 1);
+        if (tgt && Math.abs(angDiff(nodes[i].angle, tgt.a)) > TOLm) drawTutDragGhost(i, tgt.a);
       }
     }
     if (tut.spawned === 'pulse') { // a banked pulse waits on the dial — ring the ready core

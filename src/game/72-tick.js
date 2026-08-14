@@ -229,14 +229,23 @@ function update(dt) {
   if (boss && boss.dying !== undefined) sdt *= 0.25; // the kill plays in slow motion
   if (!tut && !inIntro) levelT += sdt;
 
-  // keyboard control (desktop testing) — controls always run at full speed
+  // keyboard control (desktop testing) — controls always run at full speed.
+  // A key drives its carriage by hand and so SUPERSEDES any pending bearing, or
+  // the slew would haul the node back the moment the key pushed it out.
   const kSpd = 4.5 * dt;
+  if (keys['a'] || keys['A'] || keys['d'] || keys['D']) nodes[0].slew = null;
   if (keys['a'] || keys['A']) nodes[0].angle -= kSpd;
   if (keys['d'] || keys['D']) nodes[0].angle += kSpd;
   if (!boss) {
+    if (keys['ArrowLeft'] || keys['ArrowRight']) nodes[1].slew = null;
     if (keys['ArrowLeft'])  nodes[1].angle -= kSpd;
     if (keys['ArrowRight']) nodes[1].angle += kSpd;
   }
+  // every scheme that named a bearing (a thumb landing on a pad, a deflected
+  // stick) runs one step closer to it. AHEAD of updateLatches on purpose: the
+  // ground a carriage covers this tick is ground the dead zones get to test.
+  // Full-speed dt like the keys above — a control is not slowed by hitStop.
+  slewNodes(dt);
 
   if (!inIntro) {
     if (tut) updateTutorial(sdt);

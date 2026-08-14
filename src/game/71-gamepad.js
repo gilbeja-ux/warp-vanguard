@@ -4,6 +4,10 @@
 // angle (up = top of the ring), triggers spend the matching pulse, START
 // pauses, A dismisses info discs. In menus the D-pad walks a focus ring
 // across the buttons and A presses the focused one.
+//
+// "Absolutely" means the stick names a BEARING, not that the carriage arrives
+// there this frame — it runs the rim to get there, at the one rate every control
+// scheme travels at. See NODE_SLEW / slewNodes in 41-geometry.
 let padPrev = { a: false, b: false, y: false, start: false, lt: false, rt: false, stick: false };
 let gpSel = 0, gpNav = false; // menu focus index + "a controller drives the menus"
 let gpStickDir = ''; // last stick step direction — a NEW direction steps again
@@ -447,8 +451,16 @@ function pollGamepad(dt) {
   for (let i = 0; i < 2; i++) {
     if (fused && i === 1) continue;
     const a = stick(i);
-    if (a === null) continue;
-    nodes[i].angle = a;
+    // A CENTRED STICK NAMES NOTHING, and must also UNname whatever it last said —
+    // otherwise releasing mid-sweep would let the carriage coast on to a bearing
+    // the operator has already let go of. It stops where it got to, as it always has.
+    if (a === null) { nodes[i].slew = null; continue; }
+    // THE EMITTER TRAVELS — it does not appear. The stick names the bearing here;
+    // slewNodes runs the rim to it, shortest way about, so every angle in between
+    // actually happens and a flick across the ring is no longer a free pass
+    // through a live wall. See the note over NODE_SLEW in 41-geometry — the
+    // finger names its bearing exactly the same way, through the same integrator.
+    nodes[i].slew = a;
     if (inIntro) padHold[i] = true;      // deflection alone is the operator's answer
   }
   if (inIntro) return;                   // no pulse triggers until the lane is live
