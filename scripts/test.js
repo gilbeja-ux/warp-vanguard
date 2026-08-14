@@ -3769,3 +3769,30 @@ async function runMusicUp() {
   console.log(failures === 0 ? '\nALL TESTS PASSED' : '\n' + failures + ' FAILURES');
   process.exit(failures === 0 ? 0 : 1);
 })();
+
+// ================= per-board behavioural fingerprint =================
+// The claim that replaced a whole-source hash, asserted rather than trusted: a
+// board's id must move when that board's numbers move, and must NOT move when
+// something the sim never reads changes. Both directions matter — the first is
+// the safety, the second is the entire reason for the rewrite.
+//
+// Run as a CHILD PROCESS (lib/fingerprint-probe.js) because computeLevels()
+// installs its own DOM stubs, and doing that in here replaces global.window and
+// fails an unrelated music test three thousand lines away.
+{
+  const { execFileSync } = require('child_process');
+  let r = null, err = '';
+  try {
+    const out = execFileSync(process.execPath, [path.join(__dirname, 'lib', 'fingerprint-probe.js')],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    r = JSON.parse(out.slice(out.indexOf('FPRESULT') + 8));
+  } catch (e) { err = String(e.stderr || e.message).split('\n')[0]; }
+  check('the fingerprint battery runs' + (err ? ' — ' + err : ''), !!r);
+  if (r) {
+    check(`every ranked board is fingerprinted (${r.boards})`, r.boards >= 40 && r.weekly);
+    check('and each board has its own id', r.unique === r.boards);
+    check('a comment in the HUD moves NO board id', r.artMoved === 0);
+    check("changing one relay's spawn rate moves exactly that relay",
+      r.simMoved.length === 1 && r.simMoved[0] === 'cargo-run:0');
+  }
+}

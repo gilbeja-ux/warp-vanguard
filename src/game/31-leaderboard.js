@@ -109,6 +109,18 @@ async function lbTrace(traceId) {
 // and REUSE it across launches via the stored refresh token, so a player's
 // scores stay under one id. identity.uid is that server id (the leaderboard's
 // player_id); identity.refresh persists in the save blob.
+// WHICH BOARD'S RULES THIS RUN PLAYED BY. Campaign boards are keyed exactly as
+// the server keys them; the weekly lane is fingerprinted once as its generator
+// rather than per week, since the week index is an input to that generator and
+// not a different game. Endless is unranked and unverifiable, so it has none.
+function boardSimId(run) {
+  const M = (typeof window !== 'undefined' && window.__SIM_LEVELS) || null;
+  if (!M || !run) return null;
+  if (run.mode === 'weekly') return M.weekly || null;
+  if (run.mode === 'campaign' && run.campId && Number.isInteger(run.levelIdx))
+    return M[run.campId + ':' + run.levelIdx] || null;
+  return null;
+}
 let lbStatus = ''; // human-readable submit status, shown on the END screen
 let lastRun = null; // snapshot of the run that just ended — the leaderboard submission payload (also resubmitted with a new name when the player sets a handle)
 async function lbSession() {
@@ -183,7 +195,12 @@ async function lbSubmit(run) {
       // instead of "this did not verify", which is the difference between a
       // prompt and an accusation. null on a dev build → the check is skipped.
       body: JSON.stringify({ run: payload, name: displayName(),
-        simId: (typeof window !== 'undefined' && window.__SIM_ID) || null })
+        simId: (typeof window !== 'undefined' && window.__SIM_ID) || null,
+        // …and the id of THE ONE BOARD this run is claiming. The build-wide id
+        // above moves whenever anything moves — a menu colour, a comment — and
+        // gating on it told players to update over changes that could not touch
+        // their score. This one moves only when this board's own numbers would.
+        boardSim: boardSimId(run) })
     }, LB_TIMEOUT_SUBMIT);
     const txt = await res.text();
     let d = null; try { d = JSON.parse(txt); } catch (e) {}

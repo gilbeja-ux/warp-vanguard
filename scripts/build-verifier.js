@@ -21,6 +21,10 @@ const campaigns = fs.readFileSync(path.join(root, 'src', 'campaigns.js'), 'utf8'
 // string, byte-identical to the single inline <script> it replaced.
 const game = require('./lib/game-source.js').gameSource(root);
 const SIM_ID = require('./lib/sim-id.js').simId(root);
+// PER-BOARD BEHAVIOURAL IDS. See lib/sim-fingerprint.js: each ranked board is
+// actually played here and its outcome hashed, so a board's id moves only when
+// that board would score a run differently. Art, menus and music move nothing.
+const SIM_LEVELS = require('./lib/sim-fingerprint.js').simLevels(root);
 // THE ROLLOUT WINDOW, AND WHY IT IS OPT-IN.
 //
 // Play ships an update over days, so for that whole window some players are on
@@ -154,6 +158,10 @@ export const SIM_ID = ${JSON.stringify(SIM_ID)};
 // staged rollout. Rejecting it would tell those players the leaderboard is
 // broken. See SIM_HISTORY in build-verifier.js for why the window is small.
 export const SIM_ACCEPT = ${JSON.stringify(SIM_ACCEPT)};
+// board -> behavioural id. The check the server actually makes: does the client
+// agree with us about THIS board? A relay whose numbers did not move keeps its
+// id across a release, so its players are never told to update.
+export const SIM_LEVELS = ${JSON.stringify(SIM_LEVELS)};
 // health check: confirm the sim loads + installs campaigns + runs in this runtime.
 export function _diag() {
   if (!__VG) return { simId: SIM_ID, loadError: globalThis.__loadErr || 'V undefined (sim exposed no __vg)' };
@@ -169,6 +177,7 @@ export function _diag() {
 const bundle = header + gameCode + footer;
 fs.writeFileSync(historyPath, JSON.stringify(SIM_HISTORY, null, 2) + '\n');
 console.log('  sim id: ' + SIM_ID);
+console.log('  boards: ' + Object.keys(SIM_LEVELS).length + ' behavioural ids');
 console.log('  accepts: ' + SIM_ACCEPT.join(', ') + (COMPATIBLE ? '  (--compatible)' : '  (strict)'));
 const outDir = path.join(root, 'supabase', 'functions', 'submit-run');
 fs.mkdirSync(outDir, { recursive: true });

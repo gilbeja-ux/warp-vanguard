@@ -120,16 +120,20 @@ prune('');
 // leaves the check off — dev builds are not trying to prove anything.
 {
   const simId = require('./lib/sim-id.js').simId(path.join(__dirname, '..'));
+  // …and the per-board behavioural ids, so a client can name the one id that
+  // matters for the board it is claiming instead of one id for the whole build.
+  const simLevels = require('./lib/sim-fingerprint.js').simLevels(path.join(__dirname, '..'));
   const idxPath = path.join(distDir, 'index.html');
   const before = fs.readFileSync(idxPath, 'utf8');
-  const after = before.replace('window.__SIM_ID = null;', 'window.__SIM_ID = ' + JSON.stringify(simId) + ';');
+  const after = before.replace('window.__SIM_ID = null;',
+    'window.__SIM_ID = ' + JSON.stringify(simId) + '; window.__SIM_LEVELS = ' + JSON.stringify(simLevels) + ';');
   if (after === before) {
     console.error('✗ could not stamp the sim id — the marker in src/index.html moved.');
     console.error('  The server can no longer tell an outdated client from a forged run. Fix before shipping.');
     process.exit(1);
   }
   fs.writeFileSync(idxPath, after);
-  console.log('✓ sim id stamped: ' + simId);
+  console.log('✓ sim id stamped: ' + simId + ' (+' + Object.keys(simLevels).length + ' board ids)');
 }
 
 console.log('✓ dist/ staged: ' + (bytes / 1048576).toFixed(1) + ' MB shippable'

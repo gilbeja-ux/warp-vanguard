@@ -183,20 +183,32 @@ Deno.serve(async (req) => {
     // Clients that send no id at all (dev builds) skip the check and are
     // verified normally — they will simply fail if they really are stale.
     const clientSim = typeof body?.simId === "string" ? body.simId : null;
-    // A ROLLOUT IS NOT A CHEAT. Play ships an update over days, so for that whole
-    // window some players are on yesterday's build through no choice of their
-    // own. Rejecting them would read as "the leaderboard is broken" — so the
-    // verifier accepts the id it was cut from AND its immediate predecessors.
+    const clientBoard = typeof body?.boardSim === "string" ? body.boardSim : null;
+    // THE CHECK IS PER BOARD. The old one compared a hash of the whole build, so
+    // a menu colour or a comment told every player their client was outdated and
+    // rejected scores that could not possibly have been affected. A board's
+    // behavioural id moves only when that board would score a run differently —
+    // see scripts/lib/sim-fingerprint.js.
     //
-    // This is not a loosening of trust. The trace is re-simulated in full against
-    // THIS bundle whatever id it carries; the id only decides whether to answer
-    // "your build is too old" instead of scoring a run whose numbers could never
-    // match. Widening the window can cost a rejected-looking score. It cannot
-    // admit a forged one.
-    const accepted: string[] = Array.isArray(m.SIM_ACCEPT) && m.SIM_ACCEPT.length
-      ? m.SIM_ACCEPT : (m.SIM_ID ? [m.SIM_ID] : []);
-    if (clientSim && accepted.length && !accepted.includes(clientSim))
-      return json({ error: "client outdated", clientSim, serverSim: m.SIM_ID }, 409);
+    // This is not a loosening of trust. The trace is still fully re-simulated
+    // against this bundle; the id only decides whether to answer "your build is
+    // too old" instead of scoring a run whose numbers could never match.
+    const boards = (m.SIM_LEVELS ?? null) as Record<string, string> | null;
+    const boardKeyForSim = run.mode === "weekly" ? "weekly"
+      : (run.mode === "campaign" && typeof run.campId === "string" && Number.isInteger(run.levelIdx))
+        ? `${run.campId}:${run.levelIdx}` : null;
+    const wantBoard = boards && boardKeyForSim ? boards[boardKeyForSim] ?? null : null;
+    if (clientBoard && wantBoard && clientBoard !== wantBoard)
+      return json({ error: "client outdated", board: boardKeyForSim, clientSim: clientBoard, serverSim: wantBoard }, 409);
+    // FALLBACK for a client built before per-board ids existed: the old
+    // build-wide comparison, with its rollout window. Once every client in the
+    // wild sends boardSim this branch stops being reachable.
+    if (!clientBoard && clientSim) {
+      const accepted: string[] = Array.isArray(m.SIM_ACCEPT) && m.SIM_ACCEPT.length
+        ? m.SIM_ACCEPT : (m.SIM_ID ? [m.SIM_ID] : []);
+      if (accepted.length && !accepted.includes(clientSim))
+        return json({ error: "client outdated", clientSim, serverSim: m.SIM_ID }, 409);
+    }
     let res;
     try { res = m.verifyRun(run); } catch (e) { return json({ error: "verify crashed", detail: String((e as any)?.stack ?? e) }, 500); }
     if (!res.ok) return json({ error: "verification failed", claimed: run.score, recomputed: res.recomputed, integrity: res.integrity, steps: res.steps, traceLen: run.trace.length }, 400);

@@ -84,3 +84,8 @@ bench-results/
 *.keystore
 key.properties
 android/key.properties
+
+# derived: the behavioural fingerprint's cache, keyed on a source hash.
+# Recomputing it is deterministic, so a committed copy would only ever be a
+# stale answer someone trusted.
+.sim-fingerprint.json
