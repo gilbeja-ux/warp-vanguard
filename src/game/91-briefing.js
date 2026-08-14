@@ -1110,69 +1110,113 @@ function enlistTypeDur(beat) {
   return ln.join(' ').length / ENLIST_TYPE;
 }
 // ---------- disc art ----------
-// Procedural, in the same language as the briefing glyphs above: these discs sit
-// beside those in the player's memory, so a photograph or an icon set would
-// announce itself as imported. Each one draws the thing the line is about.
+// NOTHING HAND-DRAWN. The first pass invented three little illustrations and they
+// looked exactly like what they were. Everything here is the game showing itself:
+// the shipped badge, a live zap, and the briefing glyphs the rest of this file
+// already draws. Reuse is not laziness on a disc — these sit in the player's
+// memory beside real briefings, and anything newly invented announces itself.
+
+// 1 — THE MARK. The real lockup, the same file the menu and the launcher use.
+function enlistArtLogo(r) {
+  const L = (typeof logoSm === 'function') ? logoSm() : null;
+  if (L && L.w) {
+    const sc = (r * 2.1) / Math.max(L.w, L.h);
+    const w = L.w * sc, h = L.h * sc;
+    ctx.drawImage(L.img, -w / 2, -h / 2, w, h);
+    return;
+  }
+  // the badge is a decode away on a cold first launch — hold its space with the
+  // ring rather than popping the layout when it lands
+  ctx.strokeStyle = `rgba(${ENLIST_COL},0.35)`; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
+}
+
+// 2 — THE JOB, PLAYED. A red runs the bore, an emitter sweeps onto it, it burns.
+// One loop of the only verb the game has.
+const ENL_RUN = 2.6; // seconds per repetition
+function enlistArtRun(r) {
+  const q = (time % ENL_RUN) / ENL_RUN;
+  const lane = -Math.PI / 2 + 0.55;          // where this one arrives
+  // the bore, receding
+  for (let k = 1; k <= 3; k++) {
+    ctx.strokeStyle = `rgba(${ENLIST_COL},${0.14 - k * 0.03})`;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(0, 0, r * (1 - k * 0.24), 0, TAU); ctx.stroke();
+  }
+  // the ring
+  ctx.strokeStyle = `rgba(${ENLIST_COL},0.30)`; ctx.lineWidth = Math.max(1.5, r * 0.05);
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
+  // the emitter sweeping to meet it — it ARRIVES just before the kill, which is
+  // the whole skill being demonstrated
+  const sweep = clamp(q / 0.55, 0, 1);
+  const ease = sweep * sweep * (3 - 2 * sweep);
+  const na = lane - 1.5 + 1.5 * ease;
+  ctx.strokeStyle = `rgba(${NODE_COLS[0]},0.95)`;
+  ctx.lineWidth = Math.max(2.5, r * 0.13);
+  ctx.beginPath(); ctx.arc(0, 0, r, na - 0.30, na + 0.30); ctx.stroke();
+  // the other emitter idles opposite, so the pair reads as a pair
+  ctx.strokeStyle = `rgba(${NODE_COLS[1]},0.55)`;
+  ctx.beginPath(); ctx.arc(0, 0, r, na + Math.PI - 0.24, na + Math.PI + 0.24); ctx.stroke();
+  // the threat, closing
+  if (q < 0.58) {
+    const z = 1 - q / 0.58;                   // 1 far → 0 at the ring
+    const d = r * (0.15 + 0.85 * (1 - z));
+    const x = Math.cos(lane) * d, y = Math.sin(lane) * d;
+    ctx.fillStyle = `rgba(255,90,110,${(0.45 + 0.55 * (1 - z)).toFixed(2)})`;
+    ctx.beginPath(); ctx.arc(x, y, Math.max(1.6, r * 0.10 * (0.45 + (1 - z))), 0, TAU); ctx.fill();
+  } else {
+    // the burn: a flash on the rim, fading
+    const f = (q - 0.58) / 0.42;
+    const x = Math.cos(lane) * r, y = Math.sin(lane) * r;
+    ctx.strokeStyle = `rgba(191,234,255,${(1 - f).toFixed(2)})`;
+    ctx.lineWidth = Math.max(1.5, r * 0.06);
+    ctx.beginPath(); ctx.arc(x, y, r * (0.10 + f * 0.42), 0, TAU); ctx.stroke();
+    for (let k = 0; k < 6; k++) {              // sparks
+      const a2 = k / 6 * TAU + f * 1.4, dd = r * (0.10 + f * 0.5);
+      ctx.fillStyle = `rgba(255,180,150,${(0.85 * (1 - f)).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a2) * dd, y + Math.sin(a2) * dd, Math.max(1, r * 0.035), 0, TAU);
+      ctx.fill();
+    }
+  }
+}
+
+// 3 — THE FIELD. The briefing glyphs for each threat, tracked slowly sideways so
+// the whole roster passes the window. Same infoTap hardware the mission discs
+// use, in each type's own palette.
+const ENL_FIELD = [
+  { pal: INFO_PAL.normal, dbl: false },
+  { pal: INFO_PAL.heavy,  dbl: true  },
+  { pal: INFO_PAL.lock,   dbl: true  },
+  { pal: INFO_PAL.frag,   dbl: false },
+  { pal: INFO_PAL.boss,   dbl: true  }
+];
+function enlistArtField(r) {
+  const step = r * 1.30, span = ENL_FIELD.length * step;
+  ctx.save();
+  // a soft window: the row runs past, clipped to the art's own circle
+  ctx.beginPath(); ctx.arc(0, 0, r * 1.20, 0, TAU); ctx.clip();
+  const drift = -((time * 0.16 * span) % span);
+  for (let pass = 0; pass < 2; pass++) {       // two copies make the scroll endless
+    for (let i = 0; i < ENL_FIELD.length; i++) {
+      const x = drift + pass * span + i * step - span * 0.5 + step * 0.5;
+      if (x < -r * 1.5 || x > r * 1.5) continue;
+      ctx.save();
+      ctx.translate(x, 0);
+      const fade = clamp(1 - Math.abs(x) / (r * 1.25), 0, 1);
+      ctx.globalAlpha = 0.25 + 0.75 * fade;   // the ends of the window dim out
+      infoTap(r * 0.34, ENL_FIELD[i].pal, ENL_FIELD[i].dbl);
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+}
 function enlistArt(beat, r) {
   ctx.save();
   ctx.lineCap = 'round';
-  if (beat === 0) {
-    // THE SQUADRON MARK: the ring, and the two emitters that ride it. This is
-    // the game's own shape — the first thing a new player is shown is the thing
-    // their thumbs will spend every run holding.
-    ctx.strokeStyle = `rgba(${ENLIST_COL},0.30)`; ctx.lineWidth = Math.max(1.5, r * 0.05);
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
-    for (let i = 0; i < 2; i++) {
-      const a = -Math.PI / 2 + i * Math.PI + time * 0.5;
-      ctx.strokeStyle = `rgba(${NODE_COLS[i]},0.95)`;
-      ctx.lineWidth = Math.max(2.5, r * 0.13);
-      ctx.beginPath(); ctx.arc(0, 0, r, a - 0.42, a + 0.42); ctx.stroke();
-    }
-    // the bore behind it, receding
-    for (let k = 1; k <= 3; k++) {
-      ctx.strokeStyle = `rgba(${ENLIST_COL},${0.16 - k * 0.04})`;
-      ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.arc(0, 0, r * (1 - k * 0.22), 0, TAU); ctx.stroke();
-    }
-  } else if (beat === 1) {
-    // THE LANE HELD: traffic running down the bore and stopping dead at the ring.
-    // Nothing gets past it — which is the sentence, drawn.
-    for (let k = 0; k < 7; k++) {
-      const q = (k / 7 + (time * 0.22) % (1 / 7));
-      const z = 1 - q, x = Math.cos(k * 2.1) * r * 1.5 * z, y = Math.sin(k * 2.1) * r * 1.5 * z;
-      const stopped = z < 0.62;
-      ctx.fillStyle = stopped ? 'rgba(255,90,110,0.25)' : 'rgba(255,90,110,0.85)';
-      const sz = Math.max(1.5, r * 0.09 * (0.4 + z));
-      ctx.beginPath(); ctx.arc(x, y, sz, 0, TAU); ctx.fill();
-    }
-    ctx.strokeStyle = `rgba(${ENLIST_COL},0.85)`; ctx.lineWidth = Math.max(2.5, r * 0.11);
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.62, 0, TAU); ctx.stroke();
-    // the shield flare where they break on it
-    ctx.strokeStyle = `rgba(126,226,98,${(0.35 + 0.35 * Math.sin(time * 3)).toFixed(2)})`;
-    ctx.lineWidth = Math.max(1.5, r * 0.05);
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.72, 0, TAU); ctx.stroke();
-  } else {
-    // THE COURSE: a live target, ranging in. Concentric rings closing on a lit
-    // centre, with the sweep hand of something that is already running.
-    for (let k = 0; k < 3; k++) {
-      ctx.strokeStyle = `rgba(${ENLIST_COL},${0.5 - k * 0.13})`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(0, 0, r * (0.42 + k * 0.29), 0, TAU); ctx.stroke();
-    }
-    const sw = time * 1.6;
-    ctx.strokeStyle = 'rgba(255,210,74,0.8)'; ctx.lineWidth = Math.max(2, r * 0.08);
-    ctx.beginPath(); ctx.arc(0, 0, r, sw - 0.5, sw); ctx.stroke();
-    ctx.fillStyle = `rgba(255,210,74,${(0.55 + 0.4 * Math.sin(time * 4)).toFixed(2)})`;
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.14, 0, TAU); ctx.fill();
-    for (let k = 0; k < 4; k++) { // range ticks
-      const a = k / 4 * TAU + Math.PI / 4;
-      ctx.strokeStyle = `rgba(${ENLIST_COL},0.45)`; ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(a) * r * 0.86, Math.sin(a) * r * 0.86);
-      ctx.lineTo(Math.cos(a) * r * 1.06, Math.sin(a) * r * 1.06);
-      ctx.stroke();
-    }
-  }
+  if (beat === 0) enlistArtLogo(r);
+  else if (beat === 1) enlistArtRun(r);
+  else enlistArtField(r);
   ctx.restore();
 }
 function drawEnlistment() {
