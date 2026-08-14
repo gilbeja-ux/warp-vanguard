@@ -16,6 +16,7 @@ colors:
   panel-glass: "#040e1e"
   readout-ice: "#cfeeff"
   body-ice: "#bee1ff"
+  strike-ice: "#bfeaff"
 typography:
   display:
     fontFamily: "Audiowide, Segoe UI, system-ui, sans-serif"
@@ -158,6 +159,9 @@ A void-dark field carrying six saturated signal colors, each of which means some
 - **Null Graphite** (`#2b3242`): Node-killer traps and fragments. Deliberately the calmest, least saturated body in the game — it looks harmless, and touching it fries a node for two seconds. The calm is the trap.
 - **Readout Ice** (`#cfeeff`): Panel titles and stamped callouts.
 - **Body Ice** (`#bee1ff` at 88%): Reading copy on discs and cards.
+- **Strike Ice** (`#bfeaff`): Impact light — the flash a landed hit throws off. Score popups, the kill burst, ignition sparks, and the emitter's own discharge. In a world where everything is emitted light, the moment a strike connects is its own event and gets its own ink; it is not text colour that happens to be used on effects.
+
+  It sits within a hair of Body Ice (`#bee1ff`) and that is not an accident to be tidied away: the two are the same ink doing different jobs, one reading copy and one impact. Collapsing them would be defensible as a palette cleanup, but it would move five shipped gameplay-feedback sites, so it should be a deliberate change and not a drive-by. Whichever way that goes, both names must keep pointing at whatever the answer is.
 
 ### Named Rules
 
