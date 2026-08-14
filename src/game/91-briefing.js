@@ -1271,6 +1271,12 @@ function enlistArtComms(x, y, w, h, covered, live) {
 // That is what makes the loop seamless: at the wrap every body, every emitter and
 // every kill is recomputed from zero, so the show cannot drift, cannot leave a body
 // half-killed behind a dropped frame, and needs no reset step.
+// PLAYBACK SPEED, and the only knob for it. Every time below — the schedule, the
+// travel, the ring flow, the fades — is authored at 1x and read through one scaled
+// clock, so the whole show slows or quickens together and nothing has to be retuned
+// against anything else. At 1x the traffic arrived faster than the eye could follow
+// what the emitters were doing to it.
+const ENL_RATE = 0.75;
 const ENL_SHOW = 12.5;            // the whole cycle…
 const ENL_IN = 0.9;               // …opening on this, and closing on ENL_FADE
 const ENL_FADE = 1.2;
@@ -1356,7 +1362,10 @@ function enlistArtRun(x, y, w, h, covered) {
   const cx = x + w / 2, cy = y + h / 2;
   const nodeR = (w / 2) * 0.955;              // just inside the mask, so the band clears the rim
   const g2 = { cx, cy, R0: nodeR * 2.5, nodeR, hitZ: 0.25, sw: 0, swy: 0 };
-  const show = time % ENL_SHOW;
+  // the show's own clock: real seconds through the rate above. Everything the run
+  // does is phased off THIS, never off `time` directly.
+  const st = time * ENL_RATE;
+  const show = st % ENL_SHOW;
   // THE DISSOLVE, BOTH ENDS. The run thins out over the last beat and the next pass
   // comes UP out of nothing rather than snapping on — a take that only faded out left
   // the loop with a hard cut at the top, which is the one frame of the cycle the eye
@@ -1374,7 +1383,7 @@ function enlistArtRun(x, y, w, h, covered) {
   // the rim, which is what hides the wrap: at both ends of its life it is invisible,
   // so the jump from near to far can never be seen.
   const RINGS = 9;
-  const flowP = (time * ENL_FLOW) % 1;
+  const flowP = (st * ENL_FLOW) % 1;
   for (let k = 0; k < RINGS; k++) {
     let u = k / RINGS - flowP;
     u -= Math.floor(u);                         // 0 = out at the rim, 1 = at the horizon
@@ -1417,7 +1426,7 @@ function enlistArtRun(x, y, w, h, covered) {
       dead: false, resolved: false, failed: false, partner: null });
     if (p < impact) {                            // inbound
       en.z = ENL_Z0 - (ENL_Z0 - g2.hitZ) * (p / impact);
-      en.spin = time * (c.type === 'heavy' ? 0.45 : 1.1);
+      en.spin = st * (c.type === 'heavy' ? 0.45 : 1.1);
       const rg = ring(Math.max(en.z, 0.02), g2);
       const ex = rg.x + Math.cos(c.a) * rg.r, ey = rg.y + Math.sin(c.a) * rg.r;
       scaledAt(ex, ey, () => drawEnemy(en, g2));
