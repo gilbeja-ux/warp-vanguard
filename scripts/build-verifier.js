@@ -21,6 +21,37 @@ const campaigns = fs.readFileSync(path.join(root, 'src', 'campaigns.js'), 'utf8'
 // string, byte-identical to the single inline <script> it replaced.
 const game = require('./lib/game-source.js').gameSource(root);
 const SIM_ID = require('./lib/sim-id.js').simId(root);
+// THE ROLLOUT WINDOW, AND WHY IT IS OPT-IN.
+//
+// Play ships an update over days, so for that whole window some players are on
+// yesterday's build through no choice of their own, and a strict id check tells
+// every one of them the leaderboard is broken. Accepting the previous ids fixes
+// that — but ONLY when the sim genuinely did not change.
+//
+// If it did change, an old client's trace re-simulated against this bundle
+// scores differently and the player gets "verification failed [48320 vs 52620]".
+// That is precisely the confusing failure sim-id was invented to prevent, and a
+// blunt 409 saying "your build is too old" is strictly better than it.
+//
+// Whether a diff altered the sim is a judgement no hash can make — which is the
+// whole reason the fingerprint covers every byte. So it is asserted by a human,
+// at build time, and the default is the safe one:
+//
+//   npm run build:verifier                 strict — only this exact build
+//   npm run build:verifier -- --compatible  …and the previous ids, because I have
+//                                           checked this release cannot score a
+//                                           replay differently
+//
+// A replay is fully re-simulated whatever id it carries. The id never grants
+// trust; it only chooses which error a mismatched client is told.
+const COMPATIBLE = process.argv.includes('--compatible');
+const SIM_KEEP = 3;
+const historyPath = path.join(root, 'supabase', 'functions', 'submit-run', 'sim-history.json');
+let SIM_HISTORY = [];
+try { SIM_HISTORY = JSON.parse(fs.readFileSync(historyPath, 'utf8')); } catch (e) { SIM_HISTORY = []; }
+if (SIM_HISTORY[0] !== SIM_ID) SIM_HISTORY.unshift(SIM_ID);
+SIM_HISTORY = SIM_HISTORY.slice(0, SIM_KEEP);
+const SIM_ACCEPT = COMPATIBLE ? SIM_HISTORY : [SIM_ID];
 
 // the minimal surface the verifier drives, exposed on globalThis by the sim
 const expose = `
@@ -118,6 +149,11 @@ export function verifyRun(run) {
 // make "is the deployed verifier stale?" answerable in one request instead of
 // inferred from rejected scores — see scripts/verifier-status.js.
 export const SIM_ID = ${JSON.stringify(SIM_ID)};
+// …and the ids this build still ACCEPTS. Play rolls an update out over days, so
+// a client on yesterday's build is not a cheat — it is the normal state of a
+// staged rollout. Rejecting it would tell those players the leaderboard is
+// broken. See SIM_HISTORY in build-verifier.js for why the window is small.
+export const SIM_ACCEPT = ${JSON.stringify(SIM_ACCEPT)};
 // health check: confirm the sim loads + installs campaigns + runs in this runtime.
 export function _diag() {
   if (!__VG) return { simId: SIM_ID, loadError: globalThis.__loadErr || 'V undefined (sim exposed no __vg)' };
@@ -131,7 +167,9 @@ export function _diag() {
 `;
 
 const bundle = header + gameCode + footer;
+fs.writeFileSync(historyPath, JSON.stringify(SIM_HISTORY, null, 2) + '\n');
 console.log('  sim id: ' + SIM_ID);
+console.log('  accepts: ' + SIM_ACCEPT.join(', ') + (COMPATIBLE ? '  (--compatible)' : '  (strict)'));
 const outDir = path.join(root, 'supabase', 'functions', 'submit-run');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, '_sim.mjs'), bundle);

@@ -183,7 +183,19 @@ Deno.serve(async (req) => {
     // Clients that send no id at all (dev builds) skip the check and are
     // verified normally — they will simply fail if they really are stale.
     const clientSim = typeof body?.simId === "string" ? body.simId : null;
-    if (clientSim && m.SIM_ID && clientSim !== m.SIM_ID)
+    // A ROLLOUT IS NOT A CHEAT. Play ships an update over days, so for that whole
+    // window some players are on yesterday's build through no choice of their
+    // own. Rejecting them would read as "the leaderboard is broken" — so the
+    // verifier accepts the id it was cut from AND its immediate predecessors.
+    //
+    // This is not a loosening of trust. The trace is re-simulated in full against
+    // THIS bundle whatever id it carries; the id only decides whether to answer
+    // "your build is too old" instead of scoring a run whose numbers could never
+    // match. Widening the window can cost a rejected-looking score. It cannot
+    // admit a forged one.
+    const accepted: string[] = Array.isArray(m.SIM_ACCEPT) && m.SIM_ACCEPT.length
+      ? m.SIM_ACCEPT : (m.SIM_ID ? [m.SIM_ID] : []);
+    if (clientSim && accepted.length && !accepted.includes(clientSim))
       return json({ error: "client outdated", clientSim, serverSim: m.SIM_ID }, 409);
     let res;
     try { res = m.verifyRun(run); } catch (e) { return json({ error: "verify crashed", detail: String((e as any)?.stack ?? e) }, 500); }
