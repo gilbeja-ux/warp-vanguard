@@ -111,7 +111,24 @@ function pressUI(rect, fn) { // micro-interaction: flash NOW, act on the beat
   sfx.tick();
   buzz(8);
 }
+// the enlistment runs on the RAW frame clock, not the sim: it is a screen, and
+// the world behind it is not being simulated.
+function tickEnlist(dt) {
+  if (!enlist) return;
+  enlist.t += dt;
+  if (!enlist.out) return;
+  enlist.out += dt;
+  if (enlist.out >= ENLIST_OUT) {
+    // he has posted them to the course. Record the meeting only now, on the way
+    // out: quitting halfway through should replay it, not silently consume it.
+    progress.enlisted = true;
+    saveState();
+    enlist = null;
+    startQualification();
+  }
+}
 function tickUI(dt) {
+  tickEnlist(dt);
   marqT += dt * 0.17; // the cameraless marquee clock — the lens ride's rate exactly
   // the NOW PLAYING strip holds while paused — skip a track from the pause panel
   // and the strip is still there to confirm it when the run resumes
@@ -395,6 +412,9 @@ function splashEnd(skip) {
   SPLASH.src = null; SPLASH.gain = null; SPLASH.buf = null;
   if (skip) fadeT = 0.35;  // screen-stitch over the jump cut
   playTrack('menu');       // …and the menu music takes over, fading in as normal
+  // A NEW PLAYER NEVER MEETS THE MENU FIRST. Nobody who has qualified sees this
+  // again; someone who has met him but not finished gets the short re-entry.
+  if (!progress.tutorialDone) startEnlistment(progress.enlisted);
 }
 function splashTap() {
   if (SPLASH.t < 0.3) return; // launch tap-through guard
@@ -1118,6 +1138,7 @@ function drawPostChain(rawDt, worldFx, g) {
   }
   else if (state === S.PAUSE) { drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawPause(); }
   else if (state === S.INFO) { drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawInfoCard(); }
+  else if (state === S.ENLIST) drawEnlistment();
   else if (state === S.GUIDE) drawGuide(g);
   else if (state === S.MENU) {
     if (SPLASH.on && SPLASH.t < SPL.wheel) { /* boot stage one: only the tunnel

@@ -239,6 +239,16 @@ function pollGamepad(dt) {
   }
   if (!gpSeen && (gp.buttons.some(b2 => b2 && b2.pressed) || gp.axes.some(v => Math.abs(v) > 0.3)))
     gpSeen = true; // first real input → button hints + controller boot gate
+  // the enlistment takes ANY button, the way the splash does. It has one verb —
+  // continue — so asking a controller player to find a specific face button for
+  // it would be ceremony with no choice behind it.
+  if (state === S.ENLIST) {
+    const anyE = gp.buttons.some(b2 => b2 && b2.pressed);
+    if (anyE && !padPrev.any) enlistTap();
+    padPrev.any = anyE;
+    padPrev.a = press(0); padPrev.b = press(1); padPrev.x = press(2); padPrev.y = press(3); padPrev.start = press(9);
+    return;
+  }
   // SELECT held on the route map = the ↺ reset hold, same commitment window
   if (press(8) && state === S.MENU && menuScreen === 'map' && !menuConfirm && !menuFx) {
     padSelHold += dt;

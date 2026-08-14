@@ -214,6 +214,7 @@ code = code.replace("'use strict';", '') + `
   getPreT: () => preT, isPreLaunch: () => preLaunch(),
   getBuzzN: () => buzzMonN, getBuzzLast: () => buzzMonLast, // counted before the haptics gate
   startQualification, getInfoCard: () => infoCard, isQual: () => qual,
+  startEnlistment, enlist: () => enlist, enlistTap, enlistScript,
   keys, setBeamAim: (x, y) => { beamAim.x = x; beamAim.y = y; }, getHeat: () => heat, isOverheat: () => overheat, startBossTest,
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
   stripAngle, startWeekly, isWeekly: () => weekly, weeklyIdx: () => weeklyIdx, weeklyLive,
@@ -404,6 +405,37 @@ drawOk('high-score takeover card', () => { G.setState(G.S.END); G.setEndT(3.2); 
 drawOk('high-score takeover (rank pending)', () => { G.setState(G.S.END); G.setEndT(3.2); G.setEndProvisional(null); G.setNameEntry({ board: 'endless' }); });
 G.setNameEntry(null); G.setEndProvisional(null); // don't leak the card into later END tests
 drawOk('main menu', () => { G.setState(G.S.MENU); });
+// THE ENLISTMENT. Every beat must render: it is the first screen a new player
+// ever sees, and a throw here is a black screen on first launch — the one crash
+// nobody recovers from, because there is no menu behind it to fall back to.
+drawOk('enlistment: opening beat', () => { G.startEnlistment(false); });
+drawOk('enlistment: mid-script, typed out', () => { G.startEnlistment(false); G.enlist().beat = 3; G.enlist().t = 9; });
+drawOk('enlistment: final beat', () => { G.startEnlistment(false); G.enlist().beat = G.enlistScript().length - 1; G.enlist().t = 9; });
+drawOk('enlistment: short re-entry', () => { G.startEnlistment(true); G.enlist().t = 9; });
+drawOk('enlistment: handing off', () => { G.startEnlistment(false); G.enlist().beat = G.enlistScript().length - 1; G.enlist().t = 9; G.enlist().out = 0.2; });
+{
+  // THE TAP GATE IS THE TYPING, not a stopwatch. An impatient player must not be
+  // able to outrun the transmission and skip a line they were never shown.
+  G.startEnlistment(false);
+  G.enlist().t = 0.05;
+  G.enlistTap();
+  check('a tap lands before the line has arrived and is ignored', G.enlist().beat === 0);
+  G.enlist().t = 99;
+  G.enlistTap();
+  check('once it has typed out, a tap advances', G.enlist().beat === 1);
+  // the final beat hands off to the course rather than advancing past the script
+  G.enlist().beat = G.enlistScript().length - 1; G.enlist().t = 99;
+  G.enlistTap();
+  check('the last beat begins the hand-off instead of advancing', G.enlist().out > 0);
+  const before = G.enlist().beat;
+  G.enlistTap();
+  check('taps during the hand-off do nothing', G.enlist().beat === before);
+  // the short re-entry is genuinely shorter — that is its whole reason to exist
+  G.startEnlistment(true);
+  const shortLen = G.enlistScript().length;
+  G.startEnlistment(false);
+  check('the re-entry script is shorter than the full one', shortLen < G.enlistScript().length);
+}
 drawOk('menu audio-config overlay', () => { G.setMenuSettings(true); });
 // dedicated leaderboard screen — every data state must render without throwing
 drawOk('leaderboard: syncing', () => { G.setMenuSettings(false); G.setState(G.S.MENU); G.setMenuScreen('board'); G.setBoardData(null); });

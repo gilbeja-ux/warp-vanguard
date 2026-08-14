@@ -1063,3 +1063,124 @@ function pauseTap(x, y, pid) {
     }
   }
 }
+
+// ---------- the enlistment (S.ENLIST) ----------
+// A VOICE, NOT A FACE. Every other character in this game is machinery; a
+// rendered human would be the only one and would look imported. So Lane Command
+// arrives the way it would actually reach a pilot — a channel opening, a
+// callsign, and a waveform that moves while someone talks.
+//
+// VANGUARD ACTUAL: in radio convention "Actual" means the commander in person
+// rather than the operator holding the handset. The callsign does the work of
+// saying who is speaking to you, which is the entire enlistment beat.
+//
+// HE NEVER NAMES YOU. The player's identity is the handle they type on a
+// leaderboard, and a commander who christened them something else would be
+// competing with it.
+const ENLIST_COL = '235,245,255';       // Lane Command's own colour, from CAMP.factions
+const ENLIST_IN = 0.5;                  // panel fade-in, seconds
+const ENLIST_TYPE = 26;                 // characters per second — a readable transmit rate
+const ENLIST_MIN = 0.55;                // a beat cannot be tapped away faster than this
+const ENLIST_OUT = 0.7;                 // hand-off fade before the course opens
+// The script. Terse-ops register, the same voice the in-run barks use: he is
+// briefing a professional, not welcoming a customer.
+const ENLIST_SCRIPT = [
+  ['Channel open.', 'Vanguard Actual. I run this squadron.'],
+  ['We go first.', 'Every lane on the chart was opened by someone in that chair.'],
+  ['A convoy pays us to walk in front of it.', 'We clear the bore and we hold it steady until they are through.'],
+  ['Everything that wants their cargo', 'has to come through you.'],
+  ['There is nothing behind you but the convoy.', 'You are the last line. That is the whole job.'],
+  ['Evaluation course is live.', 'Take the controls, rookie.']
+];
+const ENLIST_SHORT = [
+  ['Back on the course.', 'Take the controls.']
+];
+const enlistScript = () => (enlist && enlist.short) ? ENLIST_SHORT : ENLIST_SCRIPT;
+// how long this beat's text takes to type out — the tap gate waits for it, so a
+// player can never skip past a line they have not been shown
+function enlistTypeDur(beat) {
+  const ln = enlistScript()[beat];
+  if (!ln) return 0;
+  return ln.join(' ').length / ENLIST_TYPE;
+}
+function drawEnlistment() {
+  if (!enlist) return;
+  const lines = enlistScript()[enlist.beat] || [];
+  const t = enlist.t;
+  const inQ = clamp(t / ENLIST_IN, 0, 1);
+  const outQ = enlist.out ? clamp(enlist.out / ENLIST_OUT, 0, 1) : 0;
+  const a = inQ * (1 - outQ);
+
+  ctx.save();
+  // the bore is already behind us; sink it so the channel is the only lit thing
+  ctx.fillStyle = `rgba(2,5,12,${(0.78 * inQ).toFixed(2)})`;
+  ctx.fillRect(0, 0, W, H);
+
+  const pw = Math.min(W - 56, 560), ph = 168;
+  const px = (W - pw) / 2, py = H * 0.5 - ph * 0.5;
+  ctx.globalAlpha = a;
+  techRect(px, py, pw, ph, 10);
+  ctx.fillStyle = 'rgba(6,12,22,0.95)'; ctx.fill();
+  ctx.strokeStyle = `rgba(${ENLIST_COL},0.5)`; ctx.lineWidth = 1.5;
+  techRect(px, py, pw, ph, 10); ctx.stroke();
+
+  // header: who is on the channel
+  ctx.textAlign = 'left';
+  ctx.fillStyle = `rgba(${ENLIST_COL},0.95)`;
+  ctx.font = '700 11px Audiowide, system-ui';
+  try { ctx.letterSpacing = '2.5px'; } catch (e) {}
+  ctx.fillText('VANGUARD ACTUAL', px + 20, py + 26);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.fillStyle = 'rgba(150,180,210,0.55)';
+  ctx.font = '500 9px Audiowide, system-ui';
+  ctx.textAlign = 'right';
+  ctx.fillText('LANE COMMAND', px + pw - 20, py + 26);
+  ctx.textAlign = 'left';
+
+  // the waveform. It moves ONLY while characters are still arriving, so the
+  // channel visibly goes quiet when he stops talking — that silence is what
+  // tells the player the line is finished and a tap will advance it.
+  const typed = Math.min(lines.join(' ').length, Math.floor(t * ENLIST_TYPE));
+  const talking = typed < lines.join(' ').length && !enlist.out;
+  const wy = py + 40, ww = pw - 40;
+  ctx.strokeStyle = `rgba(${ENLIST_COL},${talking ? 0.7 : 0.22})`;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i <= 56; i++) {
+    const q = i / 56, x = px + 20 + q * ww;
+    // a pseudo-voice: three detuned sines, gated to nothing when he is silent
+    const amp = talking ? 7 * (0.35 + 0.65 * Math.abs(Math.sin(q * 9 + time * 7))) : 0.6;
+    const y = wy + Math.sin(q * 22 + time * 13) * amp * 0.5
+                 + Math.sin(q * 37 - time * 9) * amp * 0.3;
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  }
+  ctx.stroke();
+
+  // the lines, typed on
+  ctx.fillStyle = 'rgba(226,238,252,0.95)';
+  const fs = Math.min(W * 0.030, 17);
+  ctx.font = '500 ' + fs + 'px Audiowide, system-ui';
+  let used = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const whole = lines[i];
+    const take = clamp(typed - used, 0, whole.length);
+    used += whole.length + 1; // the joining space counts, so lines type in sequence
+    if (take <= 0) break;
+    ctx.fillText(whole.slice(0, take), px + 20, py + 78 + i * (fs * 1.65));
+  }
+
+  // the prompt — only once he has stopped, and never on the last beat, which
+  // hands off to the course instead of asking for another tap
+  if (!talking && !enlist.out) {
+    const br = 0.55 + 0.45 * Math.sin(time * 3.4);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = `rgba(${ENLIST_COL},${(0.30 + br * 0.45).toFixed(2)})`;
+    ctx.font = '700 10px Audiowide, system-ui';
+    try { ctx.letterSpacing = '3px'; } catch (e) {}
+    const last = enlist.beat >= enlistScript().length - 1;
+    ctx.fillText(last ? 'TAP TO REPORT' : 'TAP TO CONTINUE', W / 2, py + ph - 16);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    ctx.textAlign = 'left';
+  }
+  ctx.restore();
+}

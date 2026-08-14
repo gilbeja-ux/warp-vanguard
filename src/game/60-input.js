@@ -104,6 +104,7 @@ canvas.addEventListener('pointerdown', e => {
     if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); }
     return;
   }
+  if (state === S.ENLIST) { enlistTap(); return; } // no menu, no skip — forward only
   if (state === S.GUIDE) { guidePointer(P); return; }
   if (state === S.MENU) {
     // overlay + gear act immediately; the level list uses tap-vs-drag on release
@@ -575,6 +576,30 @@ function startLevel(i, brief) {
   if (brief && STORY[i]) showCard('story' + i); // the contract's next leg
 }
 // QUALIFICATION: the training run — movement, every enemy type, one power-up
+// THE ENLISTMENT, and the two ways in.
+//   full  — a genuine first run: nothing saved, nobody has qualified.
+//   short — they met him already but never finished the course. Replaying six
+//           beats at someone who has seen them, with no skip, is a punishment
+//           for closing the app; one line and back to work is not.
+// UNSKIPPABLE BY CONSTRUCTION: there is no skip control and no route to the
+// menu from S.ENLIST. The only exit is forward, into the course.
+function startEnlistment(short) {
+  enlist = { beat: 0, t: 0, short: !!short, out: 0 };
+  state = S.ENLIST;
+  sfx.tick();
+}
+// advance one beat, or hand off. The gate is the TYPING, not a stopwatch: a tap
+// can never skip a line that has not finished arriving, so every word is shown.
+function enlistTap() {
+  if (!enlist || enlist.out) return;
+  if (enlist.t < Math.max(ENLIST_MIN, enlistTypeDur(enlist.beat))) return;
+  if (enlist.beat < enlistScript().length - 1) {
+    enlist.beat++; enlist.t = 0; sfx.tick();
+    return;
+  }
+  enlist.out = 0.0001; // begins the hand-off fade; tickEnlist launches the course
+  sfx.tick();
+}
 function startQualification() {
   weekly = false; Math.random = sysRandom;
   levelIdx = -1; endless = false; qual = true; spawnRng = Math.random;

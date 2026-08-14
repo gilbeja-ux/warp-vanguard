@@ -1,7 +1,14 @@
 'use strict';
 // ---------- game state ----------
-const S = { MENU: 0, PLAY: 1, END: 2, PAUSE: 3, INFO: 4, GUIDE: 5 }; // INFO: frozen behind a briefing card · GUIDE: the Archive field manual
+const S = { MENU: 0, PLAY: 1, END: 2, PAUSE: 3, INFO: 4, GUIDE: 5, ENLIST: 6 }; // INFO: frozen behind a briefing card · GUIDE: the Archive field manual · ENLIST: the first-run enlistment
 let state = S.MENU;
+// THE ENLISTMENT — the first thing a new player ever sees. Lane Command takes a
+// rookie on, says what the job is, and posts them to the evaluation course. It
+// exists because the qualification already ENDED with a posting ("report to
+// Meridian Haulage"), which reads as though an enrolment happened off-screen.
+// This is that missing first half.
+//   { beat, t, short }  · short = the abbreviated re-entry, see startEnlistment
+let enlist = null;
 let levelIdx = 0, levelT = 0, spawnT = 0;
 let integrity = 100, score = 0, zaps = 0, misses = 0, combo = 0, perfects = 0, fragsHit = 0;
 let maxCombo = 0; // longest streak this run — a leaderboard display stat + tiebreaker

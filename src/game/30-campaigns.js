@@ -68,4 +68,4 @@ function bandCfg(level, t) {
 }
 // campaign progress lives per campaign id under progress.camp; the flat
 // pre-CMS fields (stars/bests/unlocked) migrate into camp['cargo-run']
-const progress = { camp: {}, tutorialDone: false, stripBriefed: false, wallBriefed: false, best: 0, weekly: { last: 0, streak: 0, best: 0 } };
+const progress = { camp: {}, enlisted: false, tutorialDone: false, stripBriefed: false, wallBriefed: false, best: 0, weekly: { last: 0, streak: 0, best: 0 } };
