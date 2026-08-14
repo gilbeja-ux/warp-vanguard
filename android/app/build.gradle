@@ -43,13 +43,24 @@ android {
     }
     buildTypes {
         release {
-            // R8 OFF, deliberately. This is a WebView game: the code that matters
-            // is JavaScript in assets/, which R8 never touches, so shrinking buys
-            // a negligible slice of a ~60MB package and costs a whole class of
-            // obscure runtime failures. Revisit only if size becomes a real
-            // problem, and then measure it first.
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // R8 ON. It was off on the theory that a WebView game has no Java worth
+            // shrinking — but the bundle disagreed: 6.2MB of the 52MB upload is dex,
+            // nearly all of it AndroidX and Capacitor the game never calls. Play
+            // Console grades this ("App optimization: Low") and, more to the point,
+            // every class in that dex is verified at cold start whether or not it
+            // is ever used.
+            //
+            // The failure mode that kept it off is real and lives in proguard-rules.pro:
+            // Capacitor finds plugins by REFLECTION, so nothing here is reachable by
+            // the call graph R8 can see. Those keep rules are load-bearing — read the
+            // reasoning there before touching them, and re-test the RELEASE build on
+            // a device after any Capacitor upgrade, because a broken bridge is silent
+            // at build time and fatal at launch.
+            minifyEnabled true
+            shrinkResources true
+            // -optimize, not the plain file: the plain one carries -dontoptimize, which
+            // leaves Console's "Optimization percentage" at zero even with R8 running.
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig keystoreFile.exists() ? signingConfigs.release : signingConfigs.debug
         }
     }

@@ -32,15 +32,22 @@ ios/App/App.xcodeproj/*
 !ios/App/Podfile
 # ---- the Android project ----
 # Capacitor regenerates most of this from capacitor.config.json, so build
-# output, Gradle caches and machine-local paths stay out. But four files carry
+# output, Gradle caches and machine-local paths stay out. But five files carry
 # DECISIONS rather than generated content — release signing, the SDK levels,
-# the manifest's landscape lock, and the generated version numbers — and if
-# those are untracked then a fresh clone (or a `cap add android`) silently
-# builds a differently-configured, unsigned app. They are re-included below.
+# the manifest's landscape lock, the generated version numbers, and the R8 keep
+# rules — and if those are untracked then a fresh clone (or a `cap add android`)
+# silently builds a differently-configured, unsigned app. They are re-included
+# below.
+#
+# proguard-rules.pro is the newest and the least obvious: build.gradle turns R8
+# ON, and the keep rules are the only reason that is safe. Tracking one without
+# the other ships minification with no bridge rules — which builds clean, installs
+# clean, and dies at launch.
 android/*
 !android/app/
 android/app/*
 !android/app/build.gradle
+!android/app/proguard-rules.pro
 !android/app/src/
 android/app/src/*
 !android/app/src/main/

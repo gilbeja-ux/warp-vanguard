@@ -2,15 +2,15 @@
 // The run pool: every audio file in src/audio/music/, in name order. Track
 // titles come from these filenames, so renaming a file renames the track.
 window.MUSIC_TRACKS = [
-  "audio/music/Atmospheric Drift.mp3",
-  "audio/music/Current Surge.mp3",
-  "audio/music/Cyber Sun.mp3",
-  "audio/music/Dark Neon.mp3",
-  "audio/music/Dont Blink.mp3",
-  "audio/music/Drifter.mp3",
-  "audio/music/Neon Dash.mp3",
-  "audio/music/Night Run.mp3",
-  "audio/music/Steel and Rain.mp3",
-  "audio/music/Sub Level Three.mp3",
-  "audio/music/Terminal Velocity.mp3"
+  "audio/music/Atmospheric Drift.m4a",
+  "audio/music/Current Surge.m4a",
+  "audio/music/Cyber Sun.m4a",
+  "audio/music/Dark Neon.m4a",
+  "audio/music/Dont Blink.m4a",
+  "audio/music/Drifter.m4a",
+  "audio/music/Neon Dash.m4a",
+  "audio/music/Night Run.m4a",
+  "audio/music/Steel and Rain.m4a",
+  "audio/music/Sub Level Three.m4a",
+  "audio/music/Terminal Velocity.m4a"
 ];

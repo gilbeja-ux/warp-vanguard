@@ -11,7 +11,7 @@ if (!fs.existsSync(srcDir)) {
 }
 
 // ---------- soundtrack manifest ----------
-// src/audio/music/ IS the run pool: drop an mp3 in, run the build, and it's in
+// src/audio/music/ IS the run pool: drop a track in, run the build, and it's in
 // rotation. Titles are derived from the filename at runtime (see prettyTrackName
 // in index.html), so renaming the file renames the track — there is no second
 // place to keep in sync. The generated file is committed so a fresh clone (or a

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-27T18:18:32Z",
+  "generatedAt": "2026-08-14T20:03:03Z",
   "title": "Design System: Warp Vanguard",
   "extensions": {
     "colorMeta": {
@@ -8,7 +8,7 @@
         "role": "primary",
         "displayName": "Signal Blue",
         "canonical": "oklch(70% 0.145 254)",
-        "note": "Load-bearing: must match the blue color-locked tap. Not available for aesthetic tuning.",
+        "note": "Load-bearing: must match the ⊕ phase-locked interdictor the player is asked to pair it with. Not available for aesthetic tuning.",
         "tonalRamp": ["oklch(15% 0.06 254)", "oklch(26% 0.09 254)", "oklch(37% 0.12 254)", "oklch(48% 0.14 254)", "oklch(59% 0.15 254)", "oklch(70% 0.145 254)", "oklch(82% 0.10 254)", "oklch(95% 0.04 254)"]
       },
       "arc-white": {
@@ -22,21 +22,21 @@
         "role": "secondary",
         "displayName": "Chrome Cyan",
         "canonical": "oklch(85% 0.108 218)",
-        "note": "The console's own light. Never on anything the player controls or must match.",
+        "note": "The console's own light. Cyan is the console talking to you; blue is your equipment in the world. Never on anything the player controls or must match.",
         "tonalRamp": ["oklch(15% 0.04 218)", "oklch(26% 0.06 218)", "oklch(37% 0.08 218)", "oklch(48% 0.09 218)", "oklch(60% 0.10 218)", "oklch(72% 0.11 218)", "oklch(85% 0.108 218)", "oklch(95% 0.05 218)"]
       },
       "breach-red": {
         "role": "secondary",
         "displayName": "Breach Red",
         "canonical": "oklch(65% 0.222 18)",
-        "note": "The threat baseline every other hazard color is read against.",
+        "note": "Unphased interdictors, alarms, hazard bars, and the warden's whole livery. The threat baseline every other hazard color is read against.",
         "tonalRamp": ["oklch(15% 0.07 18)", "oklch(26% 0.11 18)", "oklch(37% 0.15 18)", "oklch(48% 0.19 18)", "oklch(59% 0.21 18)", "oklch(65% 0.222 18)", "oklch(80% 0.15 18)", "oklch(94% 0.05 18)"]
       },
       "armor-violet": {
         "role": "tertiary",
         "displayName": "Armor Violet",
         "canonical": "oklch(70% 0.238 310)",
-        "note": "Appears only where the answer is dual-node coordination.",
+        "note": "Heavies and boss cores. Appears only where the answer is dual-node coordination.",
         "tonalRamp": ["oklch(15% 0.08 310)", "oklch(26% 0.12 310)", "oklch(37% 0.17 310)", "oklch(48% 0.21 310)", "oklch(59% 0.23 310)", "oklch(70% 0.238 310)", "oklch(83% 0.15 310)", "oklch(95% 0.05 310)"]
       },
       "payload-gold": {
@@ -50,7 +50,7 @@
         "role": "tertiary",
         "displayName": "Secure Green",
         "canonical": "oklch(83% 0.185 140)",
-        "note": "Never appears on a live threat.",
+        "note": "Secured runs, cleared relay lines, wins, and the TRACE speaker. Never appears on a live threat.",
         "tonalRamp": ["oklch(15% 0.06 140)", "oklch(27% 0.09 140)", "oklch(39% 0.12 140)", "oklch(51% 0.15 140)", "oklch(62% 0.17 140)", "oklch(73% 0.18 140)", "oklch(83% 0.185 140)", "oklch(95% 0.07 140)"]
       },
       "ember-amber": {
@@ -64,14 +64,14 @@
         "role": "neutral",
         "displayName": "Null Graphite",
         "canonical": "oklch(28% 0.028 265)",
-        "note": "The calmest body in the game and the most dangerous. Never brighten it.",
+        "note": "The calmest body in the game and the most dangerous. The calm is the trap. Never brighten it.",
         "tonalRamp": ["oklch(12% 0.015 265)", "oklch(20% 0.022 265)", "oklch(28% 0.028 265)", "oklch(38% 0.030 265)", "oklch(50% 0.028 265)", "oklch(64% 0.024 265)", "oklch(79% 0.016 265)", "oklch(94% 0.008 265)"]
       },
       "bore-void": {
         "role": "neutral",
         "displayName": "Bore Void",
         "canonical": "oklch(9% 0.020 265)",
-        "note": "The true base of the world — deep navy-black behind the tunnel circuitry.",
+        "note": "The true base of the world — deep navy-black behind the tunnel wall circuitry.",
         "tonalRamp": ["oklch(9% 0.020 265)", "oklch(18% 0.024 265)", "oklch(28% 0.026 265)", "oklch(39% 0.026 265)", "oklch(51% 0.024 265)", "oklch(65% 0.020 265)", "oklch(80% 0.014 265)", "oklch(95% 0.006 265)"]
       },
       "hull-black": {
@@ -85,7 +85,7 @@
         "role": "neutral",
         "displayName": "Panel Glass",
         "canonical": "oklch(16% 0.032 250)",
-        "note": "Always translucent (92%) — the tunnel must stay faintly visible through chrome.",
+        "note": "Always translucent (92%) — the lane must stay faintly visible through chrome.",
         "tonalRamp": ["oklch(10% 0.020 250)", "oklch(16% 0.032 250)", "oklch(25% 0.040 250)", "oklch(36% 0.044 250)", "oklch(48% 0.042 250)", "oklch(62% 0.036 250)", "oklch(78% 0.024 250)", "oklch(94% 0.010 250)"]
       },
       "readout-ice": {
@@ -99,15 +99,22 @@
         "role": "neutral",
         "displayName": "Body Ice",
         "canonical": "oklch(89% 0.046 235)",
-        "note": "Reading copy on discs and cards, set at 88% opacity.",
+        "note": "Reading copy on discs and cards, set at 88% opacity. Sits within a hair of Strike Ice; the two are the same ink doing different jobs.",
         "tonalRamp": ["oklch(15% 0.022 235)", "oklch(27% 0.032 235)", "oklch(39% 0.040 235)", "oklch(51% 0.046 235)", "oklch(63% 0.050 235)", "oklch(76% 0.050 235)", "oklch(89% 0.046 235)", "oklch(97% 0.018 235)"]
+      },
+      "strike-ice": {
+        "role": "neutral",
+        "displayName": "Strike Ice",
+        "canonical": "oklch(91% 0.043 224)",
+        "note": "Impact light — the ink a landed hit throws off: score popups, the kill burst, ignition sparks, the emitter's own discharge. Deliberately NOT a reuse of Body Ice; collapsing the two would move five shipped gameplay-feedback sites, so it must be a decision and not a drive-by cleanup.",
+        "tonalRamp": ["oklch(15% 0.020 224)", "oklch(27% 0.030 224)", "oklch(39% 0.038 224)", "oklch(51% 0.043 224)", "oklch(63% 0.047 224)", "oklch(77% 0.047 224)", "oklch(91% 0.043 224)", "oklch(98% 0.016 224)"]
       }
     },
     "typographyMeta": {
       "display": { "displayName": "Display", "purpose": "Brand wordmark, level titles, boss title stamps. Shrink-to-fit, never wrap." },
       "headline": { "displayName": "Headline", "purpose": "Briefing disc titles and victory report headings." },
       "title": { "displayName": "Panel Title", "purpose": "Console header bands. Widest tracking in the system — reads as an engraved label." },
-      "body": { "displayName": "Body", "purpose": "Case-file logs and card copy. Tight 3px extra leading because copy sits inside a circle." },
+      "body": { "displayName": "Body", "purpose": "Briefing lines and card copy. Tight 3px extra leading because copy sits inside a circle." },
       "label": { "displayName": "Label", "purpose": "Actions, mode names, TAP TO CONTINUE, stamped callouts." },
       "caption": { "displayName": "Caption", "purpose": "Sub-captions under mode keys and pad states." },
       "readout": { "displayName": "Readout", "purpose": "Machine telemetry only — range, boot status, hex garnish. Never language the player must comprehend." }
@@ -117,6 +124,7 @@
       { "name": "signal-halo", "value": "0 0 24px rgba(80,170,255,0.55)", "purpose": "Nodes, pickups, pulse waves. Radial falloff from the source color to fully transparent." },
       { "name": "halation", "value": "0 0 48px rgba(111,227,255,0.40)", "purpose": "Highest-energy moments only — arc discharge, pulse fire. Pairs with a long specular streak across the body." },
       { "name": "contact-line", "value": "0 1px 0 rgba(0,0,0,0.85)", "purpose": "Seating and levitation read as a tight dark line, never as a glow gap." },
+      { "name": "negative-halo", "value": "0 0 26px rgba(2,5,16,0.95)", "purpose": "The void packet only — a halo that swallows light instead of casting it. The inverse of signal-halo, and the reason a black body reads at all in a dark bore." },
       { "name": "vignette", "value": "radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 42%, rgba(0,0,0,0.38) 100%)", "purpose": "Cached finishing pass, applied before film grain. lowFX-gated." }
     ],
     "motion": [
@@ -124,9 +132,10 @@
       { "name": "disc-out", "value": "180ms cubic-bezier(0.4, 0, 1, 1)", "purpose": "Briefing disc retreat — faster than entry so dismissal feels responsive." },
       { "name": "smoothstep", "value": "t * t * (3 - 2 * t)", "purpose": "The world's default easing, used for the boot ring fly-in and every depth transition." },
       { "name": "wheel-spin", "value": "350ms quadratic, 1.5rad", "purpose": "Mode wheel spins out clockwise and crossfades on screen change; back reverses." },
-      { "name": "panels-in", "value": "600ms staggered", "purpose": "Route map: relay list flies in from the left staggered, dossier from the right." },
-      { "name": "teletype", "value": "46 characters/second", "purpose": "Case-file log typing, with a tick tone every other character." },
-      { "name": "prompt-pulse", "value": "4 rad/s, alpha 0.20 to 0.80", "purpose": "TAP TO CONTINUE and other waiting prompts." }
+      { "name": "panels-in", "value": "600ms staggered", "purpose": "Lane chart: the relay list flies in from the left staggered, the dossier from the right." },
+      { "name": "teletype", "value": "46 characters/second", "purpose": "Briefing lines type themselves in with a block cursor and a tick tone every other character." },
+      { "name": "prompt-pulse", "value": "4 rad/s, alpha 0.20 to 0.80", "purpose": "TAP TO CONTINUE and other waiting prompts." },
+      { "name": "urgency-ramp", "value": "final ~1.5s before the ring", "purpose": "Drives LED panic-blink, glow, ripple and sparks on the enemy body. The No-HUD Rule's replacement for a countdown tag — and the void packet is the one body exempt from it." }
     ],
     "breakpoints": [
       { "name": "none", "value": "n/a", "purpose": "Radial composition scales continuously from min(W,H). The far ring is pinned at 2.5x the node ring so the reaction window is identical on every aspect ratio — a fairness constraint, not a layout preference." }
@@ -161,8 +170,8 @@
       "name": "Briefing Disc",
       "kind": "custom",
       "refersTo": "briefing-disc",
-      "description": "The signature component. Story and instruction arrive as a disc that flies up to the operator, dissolving into the bore at its rim rather than ending on an edge.",
-      "html": "<div class=\"ds-disc\"><div class=\"ds-disc-rim\"></div><div class=\"ds-disc-inner\"><div class=\"ds-disc-kicker\">CASE FILE // LC-2209</div><div class=\"ds-disc-title\">THE CONTRACT</div><p class=\"ds-disc-body\">Meridian Haulage must deliver evidence<br>to Lane Command across one warp lane.<br>You were hired to keep it clean.<br>Interdictors are already in the lane.</p><div class=\"ds-disc-prompt\">TAP TO CONTINUE</div></div></div>",
+      "description": "The signature component. Story arrives as a disc that flies up to the operator, dissolving into the bore at its rim rather than ending on an edge. The kicker leads with the client and tier — gold marks a contract's story, cyan marks field instruction.",
+      "html": "<div class=\"ds-disc\"><div class=\"ds-disc-rim\"></div><div class=\"ds-disc-inner\"><div class=\"ds-disc-kicker\">MERIDIAN HAULAGE &middot; TIER 1&ndash;3</div><div class=\"ds-disc-title\">THE CONTRACT</div><p class=\"ds-disc-body\">Meridian moves freight the long way round,<br>and something out there knows the schedule.<br>Fly point. Keep the convoy in transit.</p><div class=\"ds-disc-prompt\">TAP TO CONTINUE</div></div></div>",
       "css": "@keyframes ds-disc-in { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } } @keyframes ds-disc-drift { to { transform: rotate(360deg); } } @keyframes ds-prompt-pulse { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.8; } } .ds-disc { position: relative; width: 320px; height: 320px; display: grid; place-items: center; text-align: center; font-family: Audiowide, 'Segoe UI', system-ui, sans-serif; background: radial-gradient(circle at 50% 50%, rgba(6,11,24,0.93) 25%, rgba(5,9,20,0.88) 82%, rgba(5,9,20,0) 100%); border-radius: 50%; animation: ds-disc-in 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both; } .ds-disc-rim { position: absolute; inset: 3%; border-radius: 50%; border: 1.5px solid rgba(120,200,255,0.3); } .ds-disc-rim::after { content: ''; position: absolute; inset: -1.5px; border-radius: 50%; border: 2.5px solid transparent; background: conic-gradient(rgba(140,230,255,0.75) 0 7%, transparent 0 25%, rgba(140,230,255,0.75) 0 32%, transparent 0 50%, rgba(140,230,255,0.75) 0 57%, transparent 0 75%, rgba(140,230,255,0.75) 0 82%, transparent 0) border-box; mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0); animation: ds-disc-drift 42s linear infinite; } .ds-disc-inner { position: relative; width: 60%; } .ds-disc-kicker { font-size: 11px; font-weight: 700; letter-spacing: 3px; color: rgba(255,210,74,0.8); margin-bottom: 26px; } .ds-disc-title { font-size: 22px; font-weight: 800; letter-spacing: 2px; color: #eafaff; margin-bottom: 20px; } .ds-disc-body { font-size: 15px; font-weight: 500; line-height: 1.2; color: rgba(190,225,255,0.88); margin-bottom: 30px; } .ds-disc-prompt { font-size: 12px; font-weight: 700; letter-spacing: 3px; color: rgba(140,230,255,1); animation: ds-prompt-pulse 1.6s ease-in-out infinite; }"
     },
     {
@@ -177,22 +186,30 @@
       "name": "Mode Sector",
       "kind": "nav",
       "refersTo": "mode-sector-primary",
-      "description": "The home screen's navigation: the ring's interior cut into color-coded sectors. Flattened here to a key; in-game the label curves along its own slice.",
-      "html": "<nav class=\"ds-modes\"><button class=\"ds-mode ds-mode-primary\"><span class=\"ds-mode-name\">STORY MODE</span><span class=\"ds-mode-cap\">the investigation &middot; 8 relays</span></button><button class=\"ds-mode ds-mode-locked\" disabled><span class=\"ds-mode-name\">FREE FLOW</span><span class=\"ds-mode-cap\">reach relay 04 to unlock</span></button></nav>",
-      "css": "@keyframes ds-mode-breathe { 0%, 100% { box-shadow: inset 0 0 0 1.5px rgba(126,226,98,0.55); } 50% { box-shadow: inset 0 0 0 1.5px rgba(126,226,98,0.95), 0 0 22px rgba(126,226,98,0.28); } } .ds-modes { display: flex; gap: 12px; font-family: Audiowide, 'Segoe UI', system-ui, sans-serif; } .ds-mode { --cut: 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 16px 20px; border: 0; background: rgba(8,18,34,0.9); cursor: pointer; text-align: left; clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); } .ds-mode-name { font-size: 12px; font-weight: 700; letter-spacing: 3px; } .ds-mode-cap { font-size: 9px; font-weight: 500; letter-spacing: 0.5px; } .ds-mode-primary { color: #7ee262; animation: ds-mode-breathe 2.4s ease-in-out infinite; } .ds-mode-primary .ds-mode-cap { color: rgba(126,226,98,0.65); } .ds-mode-primary:focus-visible { outline: 0; color: #a5f08c; } .ds-mode-locked { color: rgba(160,200,240,0.35); box-shadow: inset 0 0 0 1.5px rgba(160,200,240,0.18); cursor: default; } .ds-mode-locked .ds-mode-cap { color: rgba(160,200,240,0.28); }"
+      "description": "The home screen's navigation: the ring's interior cut into three color-coded sectors — LEADERBOARD at the top, CONTRACTS and FREE FLOW in the bottom corners. Flattened here to keys; in-game each label curves along its own slice.",
+      "html": "<nav class=\"ds-modes\"><button class=\"ds-mode ds-mode-board\"><span class=\"ds-mode-name\">&#9650; LEADERBOARD</span><span class=\"ds-mode-cap\">top runs</span></button><button class=\"ds-mode ds-mode-primary\"><span class=\"ds-mode-name\">CONTRACTS</span><span class=\"ds-mode-cap\">five clients &middot; 8 stages each</span></button><button class=\"ds-mode ds-mode-locked\" disabled><span class=\"ds-mode-name\">&#8734; FREE FLOW</span><span class=\"ds-mode-cap\">complete level 5 to unlock</span></button></nav>",
+      "css": "@keyframes ds-mode-breathe { 0%, 100% { box-shadow: inset 0 0 0 1.5px rgba(126,226,98,0.55); } 50% { box-shadow: inset 0 0 0 1.5px rgba(126,226,98,0.95), 0 0 22px rgba(126,226,98,0.28); } } .ds-modes { display: flex; gap: 12px; font-family: Audiowide, 'Segoe UI', system-ui, sans-serif; } .ds-mode { --cut: 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 16px 20px; border: 0; background: rgba(8,18,34,0.9); cursor: pointer; text-align: left; clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); } .ds-mode-name { font-size: 12px; font-weight: 700; letter-spacing: 3px; } .ds-mode-cap { font-size: 9px; font-weight: 500; letter-spacing: 0.5px; } .ds-mode-board { color: #ffd24a; box-shadow: inset 0 0 0 1.5px rgba(255,210,74,0.45); } .ds-mode-board .ds-mode-cap { color: rgba(255,210,74,0.6); } .ds-mode-board:focus-visible { outline: 0; color: #ffe08a; } .ds-mode-primary { color: #7ee262; animation: ds-mode-breathe 2.4s ease-in-out infinite; } .ds-mode-primary .ds-mode-cap { color: rgba(126,226,98,0.65); } .ds-mode-primary:focus-visible { outline: 0; color: #a5f08c; } .ds-mode-locked { color: rgba(160,200,240,0.35); box-shadow: inset 0 0 0 1.5px rgba(160,200,240,0.18); cursor: default; } .ds-mode-locked .ds-mode-cap { color: rgba(160,200,240,0.28); }"
     },
     {
       "name": "Arc Node Band",
       "kind": "custom",
       "refersTo": "arc-node",
-      "description": "The system's biggest unification: the player's node is a lit sector of the ring bounded by two machined bus-bars, and its angular span IS the zap tolerance. Visual equals mechanic.",
+      "description": "The system's biggest unification: the player's node is a lit sector of the ring bounded by two machined bus-bars, and its angular span IS the zap tolerance (ARCFX.span = 0.314). Visual equals mechanic.",
       "html": "<div class=\"ds-ring\"><div class=\"ds-ring-band\"></div><div class=\"ds-arc ds-arc-blue\"><span class=\"ds-bar ds-bar-a\"></span><span class=\"ds-bar ds-bar-b\"></span></div><div class=\"ds-arc ds-arc-white\"><span class=\"ds-bar ds-bar-a\"></span><span class=\"ds-bar ds-bar-b\"></span></div></div>",
       "css": "@keyframes ds-arc-breathe { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } } .ds-ring { position: relative; width: 240px; height: 240px; } .ds-ring-band { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from -110deg, #2c3340, #444d5c 18%, #1a1f28 38%, #383f4d 62%, #12161d 82%, #2c3340); mask: radial-gradient(circle, transparent 0 40%, #000 40% 50%, transparent 50%); } .ds-ring-band::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(200deg, rgba(255,255,255,0.16) 0%, transparent 42%); mask: radial-gradient(circle, transparent 0 40%, #000 40% 50%, transparent 50%); } .ds-arc { position: absolute; inset: 0; border-radius: 50%; mask: radial-gradient(circle, transparent 0 40%, #000 40% 50%, transparent 50%); animation: ds-arc-breathe 3.1s ease-in-out infinite; } .ds-arc-blue { background: conic-gradient(from 162deg, transparent 0 0%, rgba(80,170,255,0.25) 0 3%, rgba(140,205,255,0.95) 0 7%, rgba(80,170,255,0.25) 0 10%, transparent 0); filter: drop-shadow(0 0 12px rgba(80,170,255,0.8)); } .ds-arc-white { background: conic-gradient(from -18deg, transparent 0 0%, rgba(255,255,255,0.25) 0 3%, rgba(255,255,255,0.95) 0 7%, rgba(255,255,255,0.25) 0 10%, transparent 0); filter: drop-shadow(0 0 12px rgba(220,240,255,0.75)); animation-delay: -1.4s; } .ds-bar { position: absolute; top: 50%; left: 50%; width: 26px; height: 7px; margin: -3.5px 0 0 -13px; background: linear-gradient(180deg, #4a5364, #171c25); box-shadow: 0 1px 0 rgba(0,0,0,0.85); transform-origin: 50% 50%; } .ds-arc-blue .ds-bar-a { transform: rotate(162deg) translateX(107px); } .ds-arc-blue .ds-bar-b { transform: rotate(198deg) translateX(107px); } .ds-arc-white .ds-bar-a { transform: rotate(-18deg) translateX(107px); } .ds-arc-white .ds-bar-b { transform: rotate(18deg) translateX(107px); }"
+    },
+    {
+      "name": "Lane Chart Lens",
+      "kind": "custom",
+      "refersTo": "lane-chart",
+      "description": "The campaign map: a circular LENS over one continuous isometric lane chart, sized so no contract ever sees all of it. Wireframe skyline only — no opaque faces — with a dashed band perimeter and the selected run repeated OVER the towers so a dense core can never swallow it.",
+      "html": "<div class=\"ds-chart\"><div class=\"ds-chart-plane\"></div><div class=\"ds-chart-lattice\"></div><div class=\"ds-chart-trunk\"></div><div class=\"ds-chart-city\"><span class=\"ds-tower ds-t1\"></span><span class=\"ds-tower ds-t2\"></span><span class=\"ds-tower ds-t3\"></span><span class=\"ds-tower ds-t4\"></span><span class=\"ds-tower ds-t5 ds-t-magenta\"></span><span class=\"ds-tower ds-t6\"></span></div><div class=\"ds-chart-band\"></div><div class=\"ds-chart-run\"></div><div class=\"ds-chart-relay\"></div></div>",
+      "css": "@keyframes ds-relay-pulse { 0%, 100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.25); } } .ds-chart { position: relative; width: 300px; height: 300px; border-radius: 50%; overflow: hidden; background: #050a16; font-family: Audiowide, 'Segoe UI', system-ui, sans-serif; box-shadow: inset 0 0 60px rgba(0,0,0,0.9); } .ds-chart-plane { position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, rgba(24,58,92,0.55) 0%, rgba(8,16,32,0.2) 55%, rgba(4,8,18,0) 78%); } .ds-chart-lattice { position: absolute; inset: -30%; background-image: repeating-linear-gradient(60deg, rgba(111,227,255,0.07) 0 1px, transparent 1px 26px), repeating-linear-gradient(-60deg, rgba(111,227,255,0.07) 0 1px, transparent 1px 26px); mask: radial-gradient(circle at 50% 50%, #000 0 42%, rgba(0,0,0,0.25) 70%, transparent 88%); } .ds-chart-trunk { position: absolute; inset: 0; background-image: repeating-linear-gradient(60deg, rgba(111,227,255,0.34) 0 1.5px, transparent 1.5px 3px, rgba(111,227,255,0.34) 3px 4.5px, transparent 4.5px 130px); mask: radial-gradient(circle, #000 0 60%, transparent 82%); } .ds-chart-city { position: absolute; inset: 0; } .ds-tower { position: absolute; border: 1px solid rgba(111,227,255,0.5); background: rgba(111,227,255,0.06); transform: skewY(-30deg); } .ds-t1 { left: 44%; top: 40%; width: 15px; height: 46px; } .ds-t2 { left: 53%; top: 44%; width: 13px; height: 34px; } .ds-t3 { left: 37%; top: 48%; width: 16px; height: 26px; } .ds-t4 { left: 60%; top: 52%; width: 12px; height: 18px; } .ds-t5 { left: 48%; top: 35%; width: 11px; height: 58px; } .ds-t6 { left: 30%; top: 56%; width: 14px; height: 13px; } .ds-t-magenta { border-color: rgba(212,101,255,0.75); background: rgba(212,101,255,0.10); } .ds-chart-band { position: absolute; left: 50%; top: 50%; width: 210px; height: 105px; margin: -52px 0 0 -105px; border: 1.5px dashed rgba(126,226,98,0.55); border-radius: 50%; } .ds-chart-run { position: absolute; left: 50%; top: 50%; width: 118px; height: 1.5px; margin: -1px 0 0 -6px; background: linear-gradient(90deg, rgba(255,210,74,0.95), rgba(255,210,74,0.25)); transform: rotate(-30deg); transform-origin: 0 50%; box-shadow: 0 0 10px rgba(255,210,74,0.7); } .ds-chart-relay { position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: #ffd24a; box-shadow: 0 0 14px rgba(255,210,74,0.9); animation: ds-relay-pulse 2.2s ease-in-out infinite; }"
     }
   ],
   "narrative": {
     "northStar": "The Lit Bore",
-    "overview": "The world is a dead fiber-optic tunnel, and light is the only material in it. Nothing here is a painted surface — every visible thing is either emitting, catching a single key light, or falling away into void. This is not a stylistic preference; it is the hard-won result of four rejected attempts at painted surfaces (checkerboard carpets, rungs, painted decals, filled hazard planes). Painted fills read as mud at every value in this palette. Luminous bars over a faint additive haze read as real. Never paint a surface in this world. Draw the light it throws.\n\nThe register is cold, luminous, and machined. Chrome is glass and light over dark metal: translucent navy fills, luminous header bands, corner brackets that hold a panel rather than decorate it. Everything is built rather than styled — a hairline speculars-on-machined-edges discipline that came directly from photographic reference (lens barrels, plasma discharge tubes, Marx generators) after two rounds of work were rejected as \"too cartoony.\" What made cartoons: flat fills, colored rim-outline strokes, uniform lighting all the way around a circle, and saturated glow arcs. What fixed it: one world key light everything obeys, matte near-black metal with contrast only at machined edges, and no outlines anywhere.\n\nDensity is extreme in the center and empty at the edges. The player's whole field of attention is a bore roughly 88% of the screen's short side, and text, threats, instruments, and story all have to live inside that circle. There is no page, no scroll, no chrome rail — a single canvas, one ring, and the dark beyond it. Everything the system does is in service of a player reading depth, angle, and threat type in under a second.",
+    "overview": "The world is an unlit warp lane, and light is the only material in it. Nothing here is a painted surface — every visible thing is either emitting, catching a single key light, or falling away into void. This is not a stylistic preference; it is the hard-won result of four rejected attempts at painted surfaces (checkerboard carpets, rungs, painted decals, filled hazard planes). Painted fills read as mud at every value in this palette. Luminous bars over a faint additive haze read as real. Never paint a surface in this world. Draw the light it throws.\n\nThe register is cold, luminous, and machined. Chrome is glass and light over dark metal: translucent navy fills, luminous header bands, corner brackets that hold a panel rather than decorate it. Everything is built rather than styled — a hairline speculars-on-machined-edges discipline that came directly from photographic reference (lens barrels, plasma discharge tubes, Marx generators) after two rounds of work were rejected as \"too cartoony.\" What made cartoons: flat fills, colored rim-outline strokes, uniform lighting all the way around a circle, and saturated glow arcs. What fixed it: one world key light everything obeys, matte near-black metal with contrast only at machined edges, and no outlines anywhere.\n\nDensity is extreme in the center and empty at the edges. The player's whole field of attention is a bore roughly 88% of the screen's short side, and text, threats, instruments, and story all have to live inside that circle. There is no page, no scroll, no chrome rail — a single canvas, one ring, and the dark beyond it. Everything the system does is in service of a player reading depth, angle, and threat type in under a second.",
     "keyCharacteristics": [
       "One key light (LIGHT_A = -TAU * 0.31) that every metal surface in the game obeys",
       "No outlines, ever — form comes from value breaks at machined edges",
@@ -202,7 +219,7 @@
       "Film grain and vignette as the finishing pass, never as a texture layer underneath"
     ],
     "rules": [
-      { "name": "The Gold Rule", "body": "Payload Gold appears only where the player gains something: the bonus ribbon, pulse charge, score, the leaderboard, case-file value. Never on a hazard, never as decoration, never as a warm accent for contrast. This rule was paid for — the rim-wall hazard bars shipped in amber, read as inviting and bonus-like, and were recolored to Breach Red the same day. If gold is on screen, the player should be able to move toward it.", "section": "colors" },
+      { "name": "The Gold Rule", "body": "Payload Gold appears only where the player gains something: the bonus ribbon, pulse charge, score, the leaderboard, contract value. Never on a hazard, never as decoration, never as a warm accent for contrast. This rule was paid for — the rim-wall hazard bars shipped in amber, read as inviting and bonus-like, and were recolored to Breach Red the same day. If gold is on screen, the player should be able to move toward it.", "section": "colors" },
       { "name": "The Match Rule", "body": "Signal Blue and Arc White are reserved for the player's two nodes and the enemies keyed to them. No interface element, no marketing surface, and no effect may use a node color on something that is not a node or its matching lock. Ambiguity here is a gameplay bug, not a visual preference.", "section": "colors" },
       { "name": "The Calm Bait Rule", "body": "The most dangerous body in the game is the least saturated one. Threat level is not communicated through visual loudness — it is communicated through learned color meaning. Never brighten Null Graphite to \"warn\" the player.", "section": "colors" },
       { "name": "The Chord Rule", "body": "All in-bore text is clamped to the ring's clear chord at its own vertical position (ringChord(y)), then shrunk to fit (fitPx). Text never overlaps the ring band, and never wraps to a width the circle can't hold. Copy is authored short so the clamp rarely has to fight it — briefing lines are two lines of roughly forty characters.", "section": "typography" },
@@ -214,6 +231,8 @@
       { "name": "The No-Outline Rule", "body": "No element is ever given a colored rim stroke to define it. Contrast belongs on machined edges — hairline speculars, knurl bands, engraved index ticks.", "section": "elevation" },
       { "name": "The Glow-Plus-Texture Rule", "body": "When something must read as energized, add glow and texture, not line-drawn effects. Two styles of drawn electricity (random zigzags, harmonic ribbons) were both rejected; the shipped shield is a full-band glow plus film-grain scintillation composited at two speeds and scales, so the charge appears to boil inside the metal.", "section": "elevation" },
       { "name": "The Keyed-Corner Rule", "body": "Every cut-corner panel cuts the same two corners (top-left, bottom-right) in the same direction. A mirrored cut reads as a different manufacturer.", "section": "shapes" },
+      { "name": "The Cover Ladder", "body": "A relay's ring is its CONTRACT's band, not its exact pixel radius. Forty relays over ~1,000px of radius means junction-lattice noise is larger than one hop's worth of outward progress, so per-relay cover would jitter — the dossier would claim level 5 is safer than level 4. Bands are fitted to the relays that actually landed in them, and cover ramps monotonically across each case and hands off to the next: 93% at the first relay of case 01, 2% at the last of case 05.", "section": "components" },
+      { "name": "The Aberration Exception", "body": "The killer's chromatic fringe is the one colored rim in the game, and it is not an outline — it is a sub-pixel-to-2px additive artifact that sums back into the old pale hairline while the two fringes overlap. It exists because a black body in a dark bore had no findable silhouette, which is why the split carries a hard pixel floor and may never reach zero. Anything wider or more opaque becomes the rejected cartoon outline.", "section": "components" },
       { "name": "The Accumulating Phase Rule", "body": "Effect phases only ever accumulate (fxPh += dt * rate). Never multiply raw time by an urgency- or state-dependent rate, and never seed an effect from a value that advances. Both mistakes cause visible phase jumps — they shipped once as a strobing \"doubled lines\" artifact near the ring.", "section": "components" },
       { "name": "The Determinism Rule", "body": "No visual effect may consume a draw from the campaign's seeded spawn RNG. An extra draw shifts the entire level sequence and breaks replay equality. Derive effect seeds from static properties like spawn angle.", "section": "components" }
     ],
@@ -229,11 +248,11 @@
       "Do animate emphasis through ctx.scale at steady alpha, never by animating font size."
     ],
     "donts": [
-      "Don't add a colored rim outline to define a shape. This is the fastest route back to \"too cartoony,\" which has been rejected twice.",
+      "Don't add a colored rim outline to define a shape. This is the fastest route back to \"too cartoony,\" which has been rejected twice. The killer's chromatic fringe is the sole exception and only under The Aberration Exception — the first attempt at it was too wide and too strong, and read exactly like the rejected outlines.",
       "Don't light a circular object uniformly all the way around.",
       "Don't use flat fills plus saturated glow arcs as a material.",
       "Don't put gold on a hazard. Amber hazard bars shipped, read as an invitation, and were recolored to Breach Red the same day.",
-      "Don't brighten Null Graphite. The node-killer's calm appearance is the trap.",
+      "Don't brighten Null Graphite. The node-killer's calm appearance is the trap. Its only emitted light is the blown-out sliver left behind a dropped-out band, and that fires with an event, never as a state.",
       "Don't use a node color (Signal Blue, Arc White) on anything that is not a node or its matching lock.",
       "Don't add drawn-line electricity to convey energy — use glow plus texture (both zigzag and harmonic-ribbon filaments were rejected).",
       "Don't add hit-stop or screen shake to routine kills. World flinch reads as bad; kill feedback is burst, rim flash, node recoil, and haptics.",
