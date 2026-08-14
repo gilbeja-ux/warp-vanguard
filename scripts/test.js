@@ -191,7 +191,7 @@ code = code.replace("'use strict';", '') + `
     if (trips !== undefined) perfTrips = trips;
     perfAcc = 0; perfN = 0; perfWin = win === undefined ? 0 : win;
   },
-  PERF_CALM: () => PERF_CALM,
+  PERF_CALM: () => PERF_CALM, perfWork, perfWatch, PERF_BUSY: () => PERF_BUSY, setLowFX,
   getRunTrack: () => runTrack, setRunTrack: v => { runTrack = v; }, trackBagLen: () => trackBag.length,
   nowPlayingName: () => (npT < NP_DUR ? npName : null), announceTrack: nowPlaying,
   xfade: () => ({ src: xfSrc, gain: xfGain, t: xfT, next: nextTrack, loading: nextLoadKey, srcGain: musicSrcGain }),
@@ -559,6 +559,7 @@ for (let i = 0; i < 80; i++) G.frame(100000 + i * 40); // sustained 25fps
 check('perf watchdog trips lowFX after sustained slow frames', G.perf().lowFX === true);
 check('a trip is counted, so a relapse is harder to recover from', G.perf().perfTrips === 1);
 
+
 // AND IT MUST BE ABLE TO COME BACK. This was a one-way latch: one bad two-second
 // window and the sky stayed thin, the grain stayed off and the panel bloom stayed
 // off for the entire session. Recovery is gated on a MENU on purpose — the field
@@ -597,6 +598,32 @@ check('a trip is counted, so a relapse is harder to recover from', G.perf().perf
   check('after a relapse, the calm window that used to be enough is not', G.perf().lowFX === true);
   calmWindow(K * 2 - 1, 2);       // one short of the doubled bar
   check('sustained calm still wins it back eventually', G.perf().lowFX === false);
+
+// THE CASE THE WATCHDOG USED TO MISS ENTIRELY. A device can hit vsync perfectly
+// and still be at 90% utilisation — hot, and minutes away from throttling. The
+// old watchdog read only the gap BETWEEN frames, so this looked flawless to it
+// and nothing was ever shed. It is the exact profile behind "the phone warms up
+// and then the game becomes unplayable".
+{
+  G.setLowFX(false);
+  G.setState(G.S.MENU);
+  G.update(6);
+  // driven straight at the watchdog rather than through frame(), which would add
+  // its own ~0ms sample from the stub canvas and average the signal away
+  for (let i = 0; i < 200; i++) {
+    G.perfWork(14.5);         // 14.5ms of work…
+    G.perfWatch(1 / 60);      // …to hit a FLAWLESS 60fps gap. The old signal saw nothing.
+  }
+  check('a phone hitting 60fps but working at 87% still sheds detail', G.perf().lowFX === true);
+}
+{
+  // and the healthy case must stay untouched: same perfect gap, honest workload
+  G.setLowFX(false);
+  G.setState(G.S.MENU);
+  G.update(6);
+  for (let i = 0; i < 200; i++) { G.perfWork(4.0); G.perfWatch(1 / 60); }
+  check('a phone doing the same work cheaply is left alone', G.perf().lowFX === false);
+}
 }
 
 // ================= zap juice =================

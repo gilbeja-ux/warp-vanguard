@@ -22,6 +22,18 @@
 // of slack. Budgeting it would be machinery in service of a cost that isn't there.
 const PERF_DROP = 1 / 42;   // sustained worse than this and detail goes
 const PERF_RAISE = 1 / 57;  // sustained better than this and it may come back
+// HITTING VSYNC IS NOT THE SAME AS BEING FINE. Everything above measures the gap
+// BETWEEN frames, which is the frame RATE. A phone spending 15ms of every 16.7ms
+// doing work is at ~90% utilisation — hot, throttling soon — and its gap is a
+// perfect 16.7ms, so the watchdog above sees nothing and sheds nothing. It only
+// reacts once the heat has already forced frames to drop, which is exactly the
+// order a player reports it in: warms up first, unplayable second.
+//
+// So the frame's own WORK time is watched too. 11.7ms of a 16.7ms budget is the
+// line: comfortably above what a healthy frame costs, comfortably below the
+// point where the gap itself would have given it away.
+const PERF_BUSY = 0.0117;   // sustained work-per-frame above this = shed detail
+const PERF_IDLE = 0.0080;   // …and below this before it may come back
 const PERF_CALM = 3;        // calm 2s windows needed to restore — x perfTrips, so
                             // each relapse raises the bar and a weak device settles
 
@@ -36,6 +48,19 @@ function setLowFX(on) {
   initAmbTraffic();
 }
 
+// fed by frame(), once per PAINTED frame — an unpainted one does almost no work
+// and would only dilute the average toward "healthy"
+let workAcc = 0, workN = 0, workAvg = 0;
+function perfWork(ms) {
+  // SANITY-GATE THE SAMPLE. `spent` is performance.now() minus the timestamp rAF
+  // handed us, which is only a duration while both come from the same clock. A
+  // harness driving frame() with synthetic timestamps produces enormous negative
+  // values, and one of those poisons the rolling average into never tripping —
+  // which is exactly how this was found. In production a sample outside this
+  // range is a tab-switch or a clock step, and is equally not frame work.
+  if (!(ms > 0) || ms > 100) return;
+  workAcc += ms; workN++;
+}
 function perfWatch(rawDt) {
   // ignore startup jank, tab-switch gaps, and a clock that stepped BACKWARDS.
   // frame() already guards the sim against reverse time (see the clamp on dt), but
@@ -47,12 +72,17 @@ function perfWatch(rawDt) {
   perfAcc += rawDt; perfN++; perfWin += rawDt;
   if (perfWin < 2) return;             // ~2s rolling window
   const avg = perfAcc / perfN;
-  perfAcc = 0; perfN = 0; perfWin = 0;
+  workAvg = workN ? (workAcc / workN) / 1000 : 0; // ms -> seconds, same units as avg
+  perfAcc = 0; perfN = 0; perfWin = 0; workAcc = 0; workN = 0;
   if (!lowFX) {
-    if (avg > PERF_DROP) { setLowFX(true); perfTrips++; perfCalm = 0; }
+    // either signal is enough: dropping frames, OR making the budget but working
+    // far too hard to get there
+    if (avg > PERF_DROP || workAvg > PERF_BUSY) { setLowFX(true); perfTrips++; perfCalm = 0; }
     return;
   }
-  if (avg > PERF_RAISE) { perfCalm = 0; return; } // not calm enough — start over
+  // and BOTH must be calm to come back, or a device that is merely keeping up by
+  // burning itself would win its detail back and start the cycle again
+  if (avg > PERF_RAISE || workAvg > PERF_IDLE) { perfCalm = 0; return; }
   perfCalm++;
   // max(1, …) so a lowFX forced from outside the watchdog (a dev flag, the bench's
   // tier pin) still needs a real calm window rather than restoring on the first one
@@ -898,7 +928,13 @@ function frame(now) {
     s3Pump(Math.max(S3D_LIGHT.bakeMin, Math.min(S3D_LIGHT.bakeMs, 11 - used)));
   }
   if (PAD_TEST) drawPadTest(); // ?padtest — the controller diagnostic, over everything
-  if (profOn()) { profFrame(performance.now() - now); drawProfiler(); }
+  // THE FRAME'S OWN COST, measured at the very end so it includes everything —
+  // the bake pump and the profiler included. This is the number the watchdog
+  // needs and never had: what the device actually spent, as opposed to how long
+  // it waited for the next vsync.
+  const spent = performance.now() - now;
+  if (profOn()) { profFrame(spent); drawProfiler(); }
+  perfWork(spent);
   requestAnimationFrame(frame);
 }
 // Light ON the ring hardware: reactive rim segments, the shield collar and its
