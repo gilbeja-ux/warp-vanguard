@@ -107,7 +107,11 @@
   // the viewport is reported because it is NOT the --window-size you asked for —
   // headless subtracts its own chrome, and judging a layout against a canvas a
   // third shorter than a real phone's is how a disc gets tuned for nothing
-  const meta = 'beat ' + beat + ' t ' + (target / 1000).toFixed(2) + 's ' +
+  // the game clock is reported too: the shine sweep and the diorama's cycle are
+  // phased off `time`, not off the per-beat clock, so a shot aimed at a moment in
+  // either has to be aimed with this
+  let gameT = 0; try { gameT = eval('time'); } catch (e) {}
+  const meta = 'time ' + gameT.toFixed(2) + ' beat ' + beat + ' t ' + (target / 1000).toFixed(2) + 's ' +
     innerWidth + 'x' + innerHeight + ' dpr' + devicePixelRatio +
     ' frames ' + fired + ' err ' + (window.__err || 'none');
   try {

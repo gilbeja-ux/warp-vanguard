@@ -867,10 +867,18 @@ function frame(now) {
     ctx.fillRect(0, 0, W, H);
   }
 
-  const bz = drawHolderRing(g);
   // the field guide is its own page: the frozen run's world (ring FX, bodies,
   // pickups, nodes, HUD popups) stays out of sight while it's open
   const inGuide = state === S.GUIDE;
+  // …AND SO DO THE DISCS. The course is already running behind them, but none of
+  // its hardware has been sent for: the ring flies in with the warp start and the
+  // pads light with it, which is the moment the player is handed the controls.
+  // Drawing either early spends that moment early — and a pulse meter glowing at
+  // each edge while a disc is still talking is furniture for controls that do not
+  // work yet. drawHolderRing already stands its monolith down while parked; the
+  // pads come in under drawNodes, which is what `hw` gates.
+  const noRig = inGuide || state === S.ENLIST;
+  const bz = noRig ? Math.min(W, H) * 0.055 : drawHolderRing(g);
   // EVERYTHING ON THE BAND POWERS DOWN WITH THE RUN. rimFX and latches only
   // decay while the sim is in PLAY, so at the report they hang on the rim
   // forever — the last few hits frozen as bright arcs, and a banked shield still
@@ -880,7 +888,7 @@ function frame(now) {
   // are lighting ON that hardware: in a menu or the Archive there is no ring to
   // light, so a run's last hits were floating in the middle of the contract
   // chooser as bare arcs. Nothing on the band outlives the ring it sits on.
-  const hw = state === S.MENU || inGuide ? 0 : endPower();
+  const hw = state === S.MENU || noRig ? 0 : endPower();
   prof('bandFX');
   drawBandFX(now, g, bz, hw);
   prof('enemies');

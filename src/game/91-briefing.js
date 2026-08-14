@@ -1119,11 +1119,9 @@ function enlistTypeDur(beat) {
 // the WINDOW IT MUST FILL rather than a centre and a radius — a circular vignette
 // floating in the middle of a disc is the tell that gave the first pass away.
 //
-// `covered` is how much of that window's foot the caption plate will take, and
-// `topPad` is the band at its head that the VANGUARD ACTUAL ident owns. Painters
-// keep out of both: a kill that lands behind the plate is a kill the recruit never
-// sees, and the first pass had the emitters and the field guide's own title
-// crossing the callsign because the window was treated as free from edge to edge.
+// `covered` is how much of that window's foot the caption plate will take. The
+// painters bias their subject up out of it: a kill that lands behind the plate is
+// a kill the recruit never sees.
 
 // 1 — THE CHANNEL. A voice, not a face (see above) — so the picture is the thing
 // a voice actually looks like on a console: a spectrum running while he talks.
@@ -1167,16 +1165,24 @@ function enlistShinedLogo(L, x, y, w, h) {
   b.clearRect(0, 0, w, h);
   b.globalCompositeOperation = 'source-over';
   b.drawImage(L.img, 0, 0, w, h);
-  // the sweep: a narrow hot band raked across on a long cycle, travelling from
-  // off one edge to off the other so it enters and leaves rather than blinking
-  const P = 3.6, q = (time % P) / P;
-  const trav = -0.6 + q * 2.2;                  // in units of the badge's width
-  const gx = trav * w;
-  const gr = b.createLinearGradient(gx, y * 0 - h * 0.4, gx + w * 0.42, h * 1.4);
+  // THE SWEEP, AND WHY IT HAS AN ENVELOPE. A band whose position simply wraps
+  // modulo the cycle snaps: `time % P` is discontinuous, and the diagonal gradient
+  // was still carrying light at both ends of its travel, so every loop showed the
+  // glint teleporting back across the shield. Two fixes, and both are needed —
+  // the sweep occupies only part of the cycle (a glint is periodic, not constant),
+  // and its brightness rides a sine that is ZERO at both ends of that window, so
+  // whatever the position does at the wrap there is nothing lit to see move.
+  const P = 4.6, SW = 0.40;                     // cycle, and the share of it that sweeps
+  const q = (time % P) / P;
+  if (q >= SW) return ctx.drawImage(enlShineBuf, 0, 0, bw, bh, x, y, w, h); // resting
+  const s = q / SW;                             // 0..1 across the sweep
+  const amp = Math.sin(s * Math.PI);            // …lit only in the middle of it
+  const gx = (-0.55 + s * 2.1) * w;             // travels from off one edge to off the other
+  const gr = b.createLinearGradient(gx, -h * 0.4, gx + w * 0.42, h * 1.4);
   gr.addColorStop(0.00, 'rgba(255,255,255,0)');
-  gr.addColorStop(0.38, 'rgba(190,232,255,0.05)');
-  gr.addColorStop(0.50, 'rgba(255,255,255,0.42)');  // the hot line itself
-  gr.addColorStop(0.58, 'rgba(198,240,255,0.16)');
+  gr.addColorStop(0.38, `rgba(190,232,255,${(0.05 * amp).toFixed(3)})`);
+  gr.addColorStop(0.50, `rgba(255,255,255,${(0.46 * amp).toFixed(3)})`);  // the hot line itself
+  gr.addColorStop(0.58, `rgba(198,240,255,${(0.16 * amp).toFixed(3)})`);
   gr.addColorStop(1.00, 'rgba(255,255,255,0)');
   b.globalCompositeOperation = 'source-atop';       // metal only — never the space around it
   b.fillStyle = gr;
@@ -1184,7 +1190,7 @@ function enlistShinedLogo(L, x, y, w, h) {
   b.globalCompositeOperation = 'source-over';
   ctx.drawImage(enlShineBuf, 0, 0, bw, bh, x, y, w, h);
 }
-function enlistArtComms(x, y, w, h, covered, topPad, live) {
+function enlistArtComms(x, y, w, h, covered, live) {
   // the console field the meter sits on — the FULL window, ident band included, so
   // the callsign has something to sit on rather than a hole in the picture
   const bgG = ctx.createLinearGradient(x, y, x, y + h);
@@ -1192,9 +1198,8 @@ function enlistArtComms(x, y, w, h, covered, topPad, live) {
   bgG.addColorStop(0.6, 'rgba(4,10,22,0.96)');
   bgG.addColorStop(1, 'rgba(2,6,14,1)');
   ctx.fillStyle = bgG; ctx.fillRect(x, y, w, h);
-  const cTop = y + topPad;                      // …the meter itself keeps below it
-  const clearH = h - topPad - covered;          // what the ident and the plate leave
-  const midY = cTop + clearH * 0.5;             // the meter's zero line
+  const clearH = h - covered;                   // what the caption plate leaves
+  const midY = y + clearH * 0.5;                // the meter's zero line
   const halfH = clearH * 0.42;
   // a faint instrument grid, so the bands read as a READING rather than as decor
   ctx.strokeStyle = `rgba(${ENLIST_COL},0.06)`; ctx.lineWidth = 1;
@@ -1274,7 +1279,7 @@ const ENL_Z0 = 1.05;
 // as big keeps the projection honest while making the subject legible.
 const ENL_BODY_MUL = 1.9;
 const ENL_BODIES = {};            // cached, so each body's own fx phase persists
-function enlistArtRun(x, y, w, h, covered, topPad) {
+function enlistArtRun(x, y, w, h, covered) {
   // deep space behind the bore, the same grade the story disc's glam shot uses —
   // the FULL window, so the ident band is painted too
   const bgG = ctx.createLinearGradient(x, y, x, y + h);
@@ -1282,15 +1287,20 @@ function enlistArtRun(x, y, w, h, covered, topPad) {
   bgG.addColorStop(0.55, 'rgba(4,9,20,0.96)');
   bgG.addColorStop(1, 'rgba(2,5,12,1)');
   ctx.fillStyle = bgG; ctx.fillRect(x, y, w, h);
-  const cTop = y + topPad;
-  const clearH = h - topPad - covered;
-  const cx = x + w / 2, cy = cTop + clearH * 0.5;
+  const clearH = h - covered;
   // BIGGER THAN THE BAND, ON PURPOSE. In a real run the node ring is 0.88 of the
   // screen's short side — it runs off the top and bottom of the glass, and the
   // player only ever sees its flanks. A ring made to fit this window entirely would
-  // be a small circle floating in a rectangle, which is not what the game looks
-  // like. So it overhangs and gets cropped, exactly as it is cropped in play.
+  // be a small circle floating in a rectangle, which is not what the game looks like.
+  // So it overhangs and gets cropped, exactly as it is cropped in play — but the
+  // crop has to happen against the PLATE, not against the mask. Centred in the band
+  // its crown pushed through the rim, and a circle cut by a curve reads as a
+  // collision rather than as a frame edge. Seated one radius down from the window's
+  // top, the crown clears and the foot goes behind the plate, which is the honest
+  // half to lose: the action all arrives on the upper flanks.
+  const cx = x + w / 2;
   const nodeR = Math.min(w * 0.40, clearH * 0.62);
+  const cy = y + nodeR + w * 0.025;
   const g2 = { cx, cy, R0: nodeR * 2.5, nodeR, hitZ: 0.25, sw: 0, swy: 0 };
   // THE BORE, on the real projection: rings at receding depths, converging on the
   // horizon exactly as ring() converges them in the run
@@ -1378,19 +1388,37 @@ function enlistArtRun(x, y, w, h, covered, topPad) {
 // identical proportions to the page the player opens from the menu, nothing
 // colliding, just smaller. The window is close to the glass's own aspect (both are
 // wide landscape), so it fills without much waste.
-function enlistArtLegend(x, y, w, h, covered, topPad) {
+function enlistArtLegend(x, y, w, h, covered) {
   const bgG = ctx.createLinearGradient(x, y, x, y + h);
   bgG.addColorStop(0, 'rgba(7,17,34,0.94)');
   bgG.addColorStop(0.6, 'rgba(4,9,20,0.96)');
   bgG.addColorStop(1, 'rgba(2,5,12,1)');
   ctx.fillStyle = bgG; ctx.fillRect(x, y, w, h);
-  const cTop = y + topPad;
-  const clearH = h - topPad - covered;
+  const clearH = h - covered;
   const mL = 10 + SAFE.l, mR = 10 + SAFE.r, mT = 8 + SAFE.t, mB = 13 + SAFE.b;
-  // 0.94 leaves a hair of margin, so the outer specimens' glow does not sit on the rim
-  const s = Math.min(w / W, clearH / H) * 0.94;
+  // FITTED TO THE CIRCLE, NOT THE BOX. The page is a rectangle and the mask is a
+  // circle: scaled to the window's bounding width its top corners — and the title
+  // that sits between them — hang outside the rim and get cut. The disc's own
+  // geometry is recoverable from the window it handed us (the window spans the full
+  // mask), so shrink until all four corners are inside it.
+  // ANCHORED TO THE PLATE, NOT CENTRED IN THE BAND. The crown carries no width at
+  // all, so a page centred in the window puts its top corners exactly where the mask
+  // is narrowest and the fit then shrinks the whole page to buy them room. Sitting it
+  // ON the plate keeps it down near the disc's equator, which is the widest the mask
+  // ever gets — about a quarter more page for the same clearance, and no dead gap
+  // between the tip line and the plate.
+  const Rm = w / 2, dcx = x + Rm, dcy = y + Rm;
+  let s = Math.min(w / W, clearH / H), pcy = y + clearH / 2;
+  for (let i = 0; i < 40; i++) {
+    const hw2 = W * s / 2, hh2 = H * s / 2;
+    pcy = y + clearH - hh2;                     // the page's foot rides the plate's top
+    // the corner row furthest from the disc's centre is the one that escapes first
+    const dy = Math.max(Math.abs(pcy - hh2 - dcy), Math.abs(pcy + hh2 - dcy));
+    if (hw2 * hw2 + dy * dy <= Rm * Rm * 0.97) break;   // 0.97: a hair of rim margin
+    s *= 0.97;
+  }
   ctx.save();
-  ctx.translate(x + w / 2, cTop + clearH / 2);
+  ctx.translate(dcx, pcy);
   ctx.scale(s, s);
   ctx.translate(-W / 2, -H / 2);
   // the page's own box and its own type reference — every number here is the one
@@ -1401,12 +1429,12 @@ function enlistArtLegend(x, y, w, h, covered, topPad) {
     { titleMaxW: W - 2 * (mL + 46), hint: false });   // the disc carries its own TAP line
   ctx.restore();
 }
-function enlistArt(beat, x, y, w, h, covered, topPad, live) {
+function enlistArt(beat, x, y, w, h, covered, live) {
   ctx.save();
   ctx.lineCap = 'round';
-  if (beat === 0) enlistArtComms(x, y, w, h, covered, topPad, live);
-  else if (beat === 1) enlistArtRun(x, y, w, h, covered, topPad);
-  else enlistArtLegend(x, y, w, h, covered, topPad);
+  if (beat === 0) enlistArtComms(x, y, w, h, covered, live);
+  else if (beat === 1) enlistArtRun(x, y, w, h, covered);
+  else enlistArtLegend(x, y, w, h, covered);
   ctx.restore();
 }
 // ---------- the scan print ----------
@@ -1504,27 +1532,15 @@ function enlistDiscBody(g, R, lines, t) {
   const bh = Math.max((lines.length - 1) * lh + ls * 1.5,
     Math.min((lines.length * lh + 16) * BAR_SCALE, aH * 0.26));
   const bTop = artB - bh;
-  // THE IDENT IS MEASURED BEFORE THE PICTURE IS PAINTED, because the band it needs
-  // is one of the picture's own bounds — the painters lay out inside what the ident
-  // and the plate leave. Fitted to the CHORD, not the box: the mask is a circle, and
-  // at this height the disc is barely half its bounding width, so a callsign sized
-  // against the box loses a letter off each end behind the rim.
-  const csY = aTop + aH * 0.13;
-  try { ctx.letterSpacing = '3px'; } catch (e) {}   // BEFORE the fit, or it measures a narrower string
-  const csChord = half(csY - g.cy) * 2 - R * 0.10;
-  const csPx = fitPx('VANGUARD ACTUAL', '700', Math.max(9, Math.round(R * 0.052)), csChord, 7);
-  ctx.font = '700 ' + csPx + 'px Audiowide, system-ui';
-  const csW = Math.min(csChord, ctx.measureText('VANGUARD ACTUAL').width + csPx * 2.4);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  // sized off the type it actually holds rather than a share of the window — a
-  // fraction big enough to clear the ident on a tablet wastes a third of a phone's
-  const csBand = Math.min(aH * 0.20, (csY - aTop) + csPx * 1.3);
   ctx.save();
   ctx.beginPath(); ctx.arc(g.cx, g.cy, Rc, 0, TAU); ctx.clip();
   const full = lines.join(' ').length;
   const typed = Math.min(full, Math.floor((t - ENLIST_SCAN) * ENLIST_TYPE));
   const talking = typed < full && !enlist.out;
-  enlistArt(enlist.short ? 2 : enlist.beat, g.cx - Rc, aTop, Rc * 2, aH, bh, csBand, talking);
+  // NO CALLSIGN PLATE. It read as a caption pinned over the picture rather than as
+  // part of it, and it cost the art the whole top fifth of the window. Who is
+  // speaking is already carried by the line he speaks.
+  enlistArt(enlist.short ? 2 : enlist.beat, g.cx - Rc, aTop, Rc * 2, aH, bh, talking);
   // the grade the ENGINE adds, exactly as it adds it to forty authored keyframes:
   // scanlines and a vignette, so these discs sit in the same show as the briefings
   ctx.fillStyle = 'rgba(2,6,14,0.22)';
@@ -1533,30 +1549,16 @@ function enlistDiscBody(g, R, lines, t) {
   vg.addColorStop(0, 'rgba(0,0,0,0)');
   vg.addColorStop(1, 'rgba(2,5,12,0.62)');
   ctx.fillStyle = vg; ctx.fillRect(g.cx - Rc, aTop, Rc * 2, aH);
-  // THE CALLSIGN RIDES THE PICTURE. It is a channel ident, not a heading — which is
-  // where a comms overlay puts it, and it keeps the caption plate free for what he
-  // actually says. (Its metrics were measured above, before the art was laid out.)
-  ctx.textAlign = 'center';
-  ctx.font = '700 ' + csPx + 'px Audiowide, system-ui';
-  try { ctx.letterSpacing = '3px'; } catch (e) {}
-  ctx.fillStyle = 'rgba(3,8,18,0.72)';
-  ctx.fillRect(g.cx - csW / 2, csY - csPx * 1.15, csW, csPx * 1.9);
-  ctx.fillStyle = `rgba(${ENLIST_COL},0.95)`;
-  ctx.fillText('VANGUARD ACTUAL', g.cx, csY + csPx * 0.34);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  // a live carrier pip beside the ident, lit only while he is mid-sentence
-  const pipX = g.cx - csW / 2 + csPx * 0.9;
-  ctx.fillStyle = talking
-    ? `rgba(126,226,98,${(0.55 + 0.45 * Math.sin(time * 9)).toFixed(2)})`
-    : 'rgba(120,150,180,0.5)';
-  ctx.beginPath(); ctx.arc(pipX, csY + csPx * 0.02, csPx * 0.22, 0, TAU); ctx.fill();
-  // the caption plate on the picture's lower edge, full disc width — the mask gives
-  // it curved ends, so it reads as part of the disc rather than a floating panel
-  const cg = ctx.createLinearGradient(g.cx, bTop, g.cx, artB);
+  // THE PLATE IS THE DISC'S WHOLE LOWER BODY, not a bar with open space under it.
+  // It used to stop at the picture's foot, which left the bottom third of the mask
+  // showing the lane straight through — so the disc read as a ring with a panel
+  // wedged in it rather than as one solid object. It now runs to the mask's edge,
+  // and TAP TO CONTINUE sits ON it rather than in a hole below it.
+  const cg = ctx.createLinearGradient(g.cx, bTop, g.cx, g.cy + Rc);
   cg.addColorStop(0, 'rgba(3,7,16,0.80)');
-  cg.addColorStop(0.35, 'rgba(3,7,16,0.94)');
+  cg.addColorStop(0.14, 'rgba(3,7,16,0.94)');
   cg.addColorStop(1, 'rgba(3,7,16,0.94)');
-  ctx.fillStyle = cg; ctx.fillRect(g.cx - Rc, bTop, Rc * 2, bh);
+  ctx.fillStyle = cg; ctx.fillRect(g.cx - Rc, bTop, Rc * 2, (g.cy + Rc) - bTop);
   ctx.restore();
   // the art covered the disc's rim — lay the ring and its accent arcs back over
   ctx.strokeStyle = `rgba(${ENLIST_COL},0.28)`; ctx.lineWidth = 1.5;
