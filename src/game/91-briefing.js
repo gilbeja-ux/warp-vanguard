@@ -1086,17 +1086,20 @@ const ENLIST_OUT = 0.7;                 // hand-off fade before the course opens
 // briefing a professional, not welcoming a customer — which means SHORT. The
 // first draft ran six beats of two full sentences each and read as a manual.
 //
-// NO CLIENT IS NAMED AND NO CONVOY IS MENTIONED. What rides the lane changes
-// from contract to contract; "the client" is the only word that stays true.
+// NO CLIENT IS NAMED AND NO CONVOY IS MENTIONED. What rides the lane changes from
+// contract to contract, so anything specific said here would be wrong by the second
+// one — the lane itself is the only thing this speech can safely be about.
 //
-// HE ADDRESSES THE PLAYER AS "rookie" AND NEVER BY NAME. The distinction is the
-// one that matters: a rank is something a commander would say to anyone in that
-// chair, whereas a name would compete with the handle the player types on a
-// leaderboard — which is the only identity this game gives them.
+// HE NEVER NAMES THE PLAYER. A name would compete with the handle they type on a
+// leaderboard, which is the only identity this game gives them.
+//
+// EACH BEAT IS TWO LINES, and the break is authored rather than wrapped — the disc
+// sets them exactly as written (see enlistDiscBody), so the split is a pause in his
+// delivery, not a consequence of how wide the plate happens to be.
 const ENLIST_SCRIPT = [
-  ['Welcome to Vanguard Squadron,', 'rookie.'],
-  ['We protect the lane.', 'Nothing gets through us!'],
-  ['Evaluation course ready.', 'Start when ready.']
+  ['Welcome to Vanguard,', 'a unique squadron...'],
+  ['We protect Warp Lanes.', 'Nothing gets through us!'],
+  ['Evaluation course ready.', "Let's see what you're made of."]
 ];
 const ENLIST_SHORT = [
   ['Back on the course.', 'Start when ready.']
