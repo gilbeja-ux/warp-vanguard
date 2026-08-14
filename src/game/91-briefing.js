@@ -1083,14 +1083,20 @@ const ENLIST_TYPE = 26;                 // characters per second — a readable 
 const ENLIST_MIN = 0.55;                // a beat cannot be tapped away faster than this
 const ENLIST_OUT = 0.7;                 // hand-off fade before the course opens
 // The script. Terse-ops register, the same voice the in-run barks use: he is
-// briefing a professional, not welcoming a customer.
+// briefing a professional, not welcoming a customer — which means SHORT. The
+// first draft ran six beats of two full sentences each and read as a manual.
+//
+// NO CLIENT IS NAMED AND NO CONVOY IS MENTIONED. What rides the lane changes
+// from contract to contract; "the client" is the only word that stays true.
+//
+// AND HE NEVER ADDRESSES THE PLAYER. Not by name, not by rank, not as "rookie" —
+// the handle they type on a board is their identity, and a form of address here
+// would compete with it.
 const ENLIST_SCRIPT = [
-  ['Channel open.', 'Vanguard Actual. I run this squadron.'],
-  ['We go first.', 'Every lane on the chart was opened by someone in that chair.'],
-  ['A convoy pays us to walk in front of it.', 'We clear the bore and we hold it steady until they are through.'],
-  ['Everything that wants their cargo', 'has to come through you.'],
-  ['There is nothing behind you but the convoy.', 'You are the last line. That is the whole job.'],
-  ['Evaluation course is live.', 'Take the controls, rookie.']
+  ['Vanguard Actual.', 'I run this squadron.'],
+  ['We go first.', 'Clear the lane. Hold it open.'],
+  ['Whatever comes for the client', 'comes through you.'],
+  ['Evaluation course is live.', 'Take the controls.']
 ];
 const ENLIST_SHORT = [
   ['Back on the course.', 'Take the controls.']
@@ -1105,82 +1111,96 @@ function enlistTypeDur(beat) {
 }
 function drawEnlistment() {
   if (!enlist) return;
+  // THE SPLASH OWNS THE SCREEN UNTIL IT IS DONE. State is set to S.ENLIST before
+  // the first frame precisely so the menu wheel never builds behind the curtain —
+  // but that also means this panel exists during the whole boot theatre, so it
+  // stays out of sight until the curtain is actually up.
+  if (typeof SPLASH !== 'undefined' && SPLASH.on) return;
   const lines = enlistScript()[enlist.beat] || [];
+  const g = geo();
   const t = enlist.t;
   const inQ = clamp(t / ENLIST_IN, 0, 1);
   const outQ = enlist.out ? clamp(enlist.out / ENLIST_OUT, 0, 1) : 0;
-  const a = inQ * (1 - outQ);
 
   ctx.save();
-  // the bore is already behind us; sink it so the channel is the only lit thing
-  ctx.fillStyle = `rgba(2,5,12,${(0.78 * inQ).toFixed(2)})`;
-  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = Math.min(1, inQ) * (1 - outQ);
+  // dim UNSCALED, so the field darkens evenly while the disc flies in
+  ctx.fillStyle = 'rgba(3,6,14,0.55)'; ctx.fillRect(0, 0, W, H);
+  // A DISC, NOT A PANEL. Every briefing in this game arrives on one; a rectangle
+  // would have been a second visual language for the same job. Same ease-out-back
+  // zoom as drawInfoCard so it flies up to the operator exactly as those do.
+  const bk = 1.70158;
+  const zin = 1 + (bk + 1) * Math.pow(inQ - 1, 3) + bk * Math.pow(inQ - 1, 2);
+  const sc = (0.3 + 0.7 * zin) * (1 - 0.5 * outQ * outQ);
+  ctx.translate(g.cx, g.cy); ctx.scale(sc, sc); ctx.translate(-g.cx, -g.cy);
+  const R = g.nodeR * 0.9;
 
-  const pw = Math.min(W - 56, 560), ph = 168;
-  const px = (W - pw) / 2, py = H * 0.5 - ph * 0.5;
-  ctx.globalAlpha = a;
-  techRect(px, py, pw, ph, 10);
-  ctx.fillStyle = 'rgba(6,12,22,0.95)'; ctx.fill();
-  ctx.strokeStyle = `rgba(${ENLIST_COL},0.5)`; ctx.lineWidth = 1.5;
-  techRect(px, py, pw, ph, 10); ctx.stroke();
+  const bg = ctx.createRadialGradient(g.cx, g.cy, R * 0.25, g.cx, g.cy, R);
+  bg.addColorStop(0, 'rgba(7,13,26,0.94)');
+  bg.addColorStop(0.82, 'rgba(5,9,20,0.9)');
+  bg.addColorStop(1, 'rgba(5,9,20,0)');
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, R, 0, TAU); ctx.fill();
+  // the rim: a thin ring with four drifting accent arcs, in Lane Command's colour
+  ctx.strokeStyle = `rgba(${ENLIST_COL},0.28)`; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = `rgba(${ENLIST_COL},0.7)`; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    const a = k / 4 * TAU + Math.PI / 4 + time * 0.15;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, a - 0.22, a + 0.22); ctx.stroke();
+  }
 
-  // header: who is on the channel
-  ctx.textAlign = 'left';
+  ctx.textAlign = 'center';
+  // who is on the channel
   ctx.fillStyle = `rgba(${ENLIST_COL},0.95)`;
   ctx.font = '700 11px Audiowide, system-ui';
-  try { ctx.letterSpacing = '2.5px'; } catch (e) {}
-  ctx.fillText('VANGUARD ACTUAL', px + 20, py + 26);
+  try { ctx.letterSpacing = '3px'; } catch (e) {}
+  ctx.fillText('VANGUARD ACTUAL', g.cx, g.cy - R * 0.46);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
-  ctx.fillStyle = 'rgba(150,180,210,0.55)';
+  ctx.fillStyle = 'rgba(150,180,210,0.5)';
   ctx.font = '500 9px Audiowide, system-ui';
-  ctx.textAlign = 'right';
-  ctx.fillText('LANE COMMAND', px + pw - 20, py + 26);
-  ctx.textAlign = 'left';
+  ctx.fillText('LANE COMMAND', g.cx, g.cy - R * 0.33);
 
-  // the waveform. It moves ONLY while characters are still arriving, so the
-  // channel visibly goes quiet when he stops talking — that silence is what
-  // tells the player the line is finished and a tap will advance it.
-  const typed = Math.min(lines.join(' ').length, Math.floor(t * ENLIST_TYPE));
-  const talking = typed < lines.join(' ').length && !enlist.out;
-  const wy = py + 40, ww = pw - 40;
-  ctx.strokeStyle = `rgba(${ENLIST_COL},${talking ? 0.7 : 0.22})`;
+  // THE WAVEFORM MOVES ONLY WHILE HE IS TALKING. When the characters stop
+  // arriving the trace flattens, and that silence is what tells the player the
+  // line is finished — no separate "done" cue is needed.
+  const full = lines.join(' ').length;
+  const typed = Math.min(full, Math.floor(t * ENLIST_TYPE));
+  const talking = typed < full && !enlist.out;
+  const wy = g.cy - R * 0.20, ww = R * 1.05;
+  ctx.strokeStyle = `rgba(${ENLIST_COL},${talking ? 0.65 : 0.18})`;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  for (let i = 0; i <= 56; i++) {
-    const q = i / 56, x = px + 20 + q * ww;
-    // a pseudo-voice: three detuned sines, gated to nothing when he is silent
-    const amp = talking ? 7 * (0.35 + 0.65 * Math.abs(Math.sin(q * 9 + time * 7))) : 0.6;
-    const y = wy + Math.sin(q * 22 + time * 13) * amp * 0.5
-                 + Math.sin(q * 37 - time * 9) * amp * 0.3;
-    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  for (let i2 = 0; i2 <= 52; i2++) {
+    const q = i2 / 52, x = g.cx - ww / 2 + q * ww;
+    const amp = talking ? 7 * (0.35 + 0.65 * Math.abs(Math.sin(q * 9 + time * 7))) : 0.5;
+    const y = wy + Math.sin(q * 22 + time * 13) * amp * 0.5 + Math.sin(q * 37 - time * 9) * amp * 0.3;
+    i2 ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
   }
   ctx.stroke();
 
-  // the lines, typed on
-  ctx.fillStyle = 'rgba(226,238,252,0.95)';
-  const fs = Math.min(W * 0.030, 17);
+  // the line, typed on
+  ctx.fillStyle = 'rgba(228,240,254,0.96)';
+  const fs = Math.min(R * 0.115, 19);
   ctx.font = '500 ' + fs + 'px Audiowide, system-ui';
   let used = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const whole = lines[i];
+  for (let i2 = 0; i2 < lines.length; i2++) {
+    const whole = lines[i2];
     const take = clamp(typed - used, 0, whole.length);
-    used += whole.length + 1; // the joining space counts, so lines type in sequence
+    used += whole.length + 1; // the joining space counts, so the lines type in order
     if (take <= 0) break;
-    ctx.fillText(whole.slice(0, take), px + 20, py + 78 + i * (fs * 1.65));
+    ctx.fillText(whole.slice(0, take), g.cx, g.cy + R * 0.04 + i2 * (fs * 1.55));
   }
 
-  // the prompt — only once he has stopped, and never on the last beat, which
-  // hands off to the course instead of asking for another tap
   if (!talking && !enlist.out) {
     const br = 0.55 + 0.45 * Math.sin(time * 3.4);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = `rgba(${ENLIST_COL},${(0.30 + br * 0.45).toFixed(2)})`;
+    ctx.fillStyle = `rgba(${ENLIST_COL},${(0.28 + br * 0.45).toFixed(2)})`;
     ctx.font = '700 10px Audiowide, system-ui';
     try { ctx.letterSpacing = '3px'; } catch (e) {}
     const last = enlist.beat >= enlistScript().length - 1;
-    ctx.fillText(last ? 'TAP TO REPORT' : 'TAP TO CONTINUE', W / 2, py + ph - 16);
+    ctx.fillText(last ? 'TAP TO REPORT' : 'TAP TO CONTINUE', g.cx, g.cy + R * 0.52);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
-    ctx.textAlign = 'left';
   }
+  ctx.textAlign = 'left';
   ctx.restore();
 }

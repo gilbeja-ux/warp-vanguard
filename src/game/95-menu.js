@@ -886,12 +886,20 @@ function drawEnd(g) {
     // a duel lost offers THE CONTINUE first: retry the fight without the level,
     // with its price — the run stops ranking — printed right under the key
     const duelable = !endWin && bossFailed && !endless && !qual;
-    const primary = endWin && !endless && !qual && levelIdx + 1 < LEVELS.length
+    // QUALIFYING IS A LEVEL COMPLETED, not an errand finished. It used to offer
+    // RESTART and MENU, which sends a player who has just been cleared for warp
+    // back to a carousel to work out what to do with that. It now reads exactly
+    // like clearing a relay: forward into the first contract, with restart and
+    // menu behind it.
+    const qualDone = endWin && qual;
+    const primary = qualDone
+      ? { label: 'FIRST CONTRACT ▸', action: 'contract' }
+      : endWin && !endless && !qual && levelIdx + 1 < LEVELS.length
       ? { label: 'NEXT LEVEL ▸', action: 'next' }
       : duelable ? { label: 'RETRY DUEL ▸', action: 'duel' }
       : { label: endWin ? 'RESTART' : 'RETRY', action: 'retry' };
     const secondary = [];
-    if (primary.action === 'next') secondary.push({ label: 'RESTART', action: 'retry' });
+    if (primary.action === 'next' || primary.action === 'contract') secondary.push({ label: 'RESTART', action: 'retry' });
     if (primary.action === 'duel') secondary.push({ label: 'FULL RETRY', action: 'retry' });
     secondary.push({ label: 'MENU', action: 'menu' });
     const bcut = Math.min(12, bh * 0.28); // the button()'s own chamfer — the focus ring matches it

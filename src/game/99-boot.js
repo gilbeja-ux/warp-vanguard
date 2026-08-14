@@ -115,6 +115,7 @@ function pressUI(rect, fn) { // micro-interaction: flash NOW, act on the beat
 // the world behind it is not being simulated.
 function tickEnlist(dt) {
   if (!enlist) return;
+  if (SPLASH.on) return; // held behind the boot theatre — see drawEnlistment
   enlist.t += dt;
   if (!enlist.out) return;
   enlist.out += dt;
@@ -412,9 +413,6 @@ function splashEnd(skip) {
   SPLASH.src = null; SPLASH.gain = null; SPLASH.buf = null;
   if (skip) fadeT = 0.35;  // screen-stitch over the jump cut
   playTrack('menu');       // …and the menu music takes over, fading in as normal
-  // A NEW PLAYER NEVER MEETS THE MENU FIRST. Nobody who has qualified sees this
-  // again; someone who has met him but not finished gets the short re-entry.
-  if (!progress.tutorialDone) startEnlistment(progress.enlisted);
 }
 function splashTap() {
   if (SPLASH.t < 0.3) return; // launch tap-through guard
@@ -1226,3 +1224,13 @@ setTimeout(() => {
   if (SPLASH.on) splashBoot();
   else if (state === S.MENU) playTrack('menu');
 }, 0);
+
+// A NEW PLAYER NEVER SEES THE MENU. This is claimed HERE, at the end of boot and
+// before the first frame, rather than when the splash ends — the splash reveals
+// the menu underneath itself during its last two seconds (SPL.wheel), so routing
+// on splashEnd let the wheel build, show, and then get replaced. Owning `state`
+// up front means the menu is never constructed at all.
+//
+// Nobody who has qualified sees this again. Someone who met him but never
+// finished the course gets the short re-entry instead of the full script.
+if (!progress.tutorialDone) startEnlistment(progress.enlisted, true);

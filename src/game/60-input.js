@@ -485,6 +485,12 @@ function endTap(x, y) {
         warpT = 0;
       }));
       else if (b.action === 'next') pressUI(b, () => startTrans('warp', () => startLevel(levelIdx + 1, true)));
+      // straight out of the course and into the first contract — the same warp
+      // transition a relay-to-relay hand-off uses, because that is what it is
+      else if (b.action === 'contract') pressUI(b, () => startTrans('warp', () => {
+        switchCampaign(0);
+        startLevel(0, true);
+      }));
       else pressUI(b, () => { // home in style: the menu drives into view, no glitch
         // training lives in Story Mode now → the report zooms back out INTO its disc
         if (qual) { menuScreen = 'camps'; campScroll = campScrollTgt = 0; campPendingSync = null; }
@@ -583,10 +589,14 @@ function startLevel(i, brief) {
 //           for closing the app; one line and back to work is not.
 // UNSKIPPABLE BY CONSTRUCTION: there is no skip control and no route to the
 // menu from S.ENLIST. The only exit is forward, into the course.
-function startEnlistment(short) {
+// `quiet` is for the BOOT claim, which runs during script evaluation — before
+// the audio context exists and while the splash is playing its own score. A
+// tick there is both wrong (nothing was pressed) and a real hazard: an
+// exception thrown at module scope leaves the game half-booted.
+function startEnlistment(short, quiet) {
   enlist = { beat: 0, t: 0, short: !!short, out: 0 };
   state = S.ENLIST;
-  sfx.tick();
+  if (!quiet) sfx.tick();
 }
 // advance one beat, or hand off. The gate is the TYPING, not a stopwatch: a tap
 // can never skip a line that has not finished arriving, so every word is shown.
