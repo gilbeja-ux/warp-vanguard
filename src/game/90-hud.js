@@ -233,12 +233,19 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   // to knuckle. Every version that tapered read as a cone or a teardrop, because
   // taper is what cones have. The tip is simply a semicircle of the same width as
   // the shaft — nothing narrows.
-  const R = rad, HW = R * 0.58, END = R * 2.6;
+  // A THUMB, NOT A FINGER. Parallel sides fixed the cone, but a straight shaft is
+  // just a finger. What distinguishes a thumb is that it is SHORT and it has a
+  // WAIST: the distal phalanx is broad and spatulate, it narrows at the single
+  // interphalangeal joint, then flares again toward the hand. That pinch is the
+  // whole silhouette cue — without it the shape is anatomically a forefinger.
+  const R = rad, HW = R * 0.60, END = R * 2.45;
   ctx.beginPath();
-  ctx.arc(0, 0, HW, Math.PI * 0.5, Math.PI * 1.5);            // the tip: a half-round of shaft width
-  ctx.quadraticCurveTo(R * 0.9, -HW * 1.02, END, -HW * 1.10); // barely swells toward the hand
-  ctx.lineTo(END, HW * 1.10);
-  ctx.quadraticCurveTo(R * 0.9, HW * 1.02, 0, HW);
+  ctx.arc(0, 0, HW, Math.PI * 0.5, Math.PI * 1.5);                // broad spatulate tip
+  ctx.quadraticCurveTo(R * 0.60, -HW * 1.00, R * 1.15, -HW * 0.93); // in to the joint — a hint, not a pinch
+  ctx.quadraticCurveTo(R * 1.80, -HW * 1.02, END, -HW * 1.12);      // out again toward the hand
+  ctx.lineTo(END, HW * 1.12);
+  ctx.quadraticCurveTo(R * 1.80, HW * 1.02, R * 1.15, HW * 0.93);
+  ctx.quadraticCurveTo(R * 0.60, HW * 1.00, 0, HW);
   ctx.closePath();
   const fade = (a) => {
     const g = ctx.createLinearGradient(-R * 0.56, 0, END, 0);
@@ -277,14 +284,20 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   // well back from the end. A small inset plate reads as a bead. Built as four
   // curves: a round distal edge, sides that follow the shaft, and a narrower
   // cuticle, which is the proportion a real plate has.
-  const nW = HW * 0.74, nTip = -HW * 0.72, nBase = R * 0.62;
+  // THE HEART SHAPE WAS A TANGENT BUG, not a styling choice. Two quadratics met
+  // head-on at the distal midpoint with opposing tangents, which puts a CUSP
+  // exactly at the tip — a notch, and the eye reads a notch at the top of a
+  // rounded plate as a heart. Cubics with matched tangents fix it: vertical at
+  // the two x-extremes, horizontal at the two y-extremes, so every join is
+  // smooth by construction and the free edge is one clean curve.
+  const nW = HW * 0.70, nTip = -HW * 0.70, nBase = R * 0.56;
+  const nMid = nTip + (nBase - nTip) * 0.42;  // widest point sits forward, as a nail's does
   ctx.beginPath();
-  ctx.moveTo(nTip + R * 0.30, -nW);
-  ctx.quadraticCurveTo(nTip - R * 0.06, -nW * 0.86, nTip, 0);      // round the distal corner
-  ctx.quadraticCurveTo(nTip - R * 0.06, nW * 0.86, nTip + R * 0.30, nW);
-  ctx.quadraticCurveTo(nBase - R * 0.20, nW * 0.98, nBase, nW * 0.52); // sides follow the shaft
-  ctx.quadraticCurveTo(nBase + R * 0.10, 0, nBase, -nW * 0.52);        // the cuticle, narrower
-  ctx.quadraticCurveTo(nBase - R * 0.20, -nW * 0.98, nTip + R * 0.30, -nW);
+  ctx.moveTo(nTip, 0);
+  ctx.bezierCurveTo(nTip, -nW * 0.62, nMid - R * 0.16, -nW, nMid, -nW);
+  ctx.bezierCurveTo(nBase - R * 0.16, -nW, nBase, -nW * 0.46, nBase, 0);
+  ctx.bezierCurveTo(nBase, nW * 0.46, nBase - R * 0.16, nW, nMid, nW);
+  ctx.bezierCurveTo(nMid - R * 0.16, nW, nTip, nW * 0.62, nTip, 0);
   ctx.closePath();
   ctx.fillStyle = `rgba(255,255,255,${(0.17 * alpha).toFixed(3)})`;
   ctx.fill();
@@ -293,15 +306,15 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   ctx.stroke();
   // the lunula — the pale half-moon at the base, sitting just inside the cuticle
   ctx.beginPath();
-  ctx.moveTo(nBase - R * 0.16, -nW * 0.50);
-  ctx.quadraticCurveTo(nBase - R * 0.34, 0, nBase - R * 0.16, nW * 0.50);
+  ctx.moveTo(nBase - R * 0.10, -nW * 0.46);
+  ctx.quadraticCurveTo(nBase - R * 0.30, 0, nBase - R * 0.10, nW * 0.46);
   ctx.strokeStyle = `rgba(255,255,255,${(0.40 * alpha).toFixed(3)})`;
   ctx.lineWidth = 1.5;
   ctx.stroke();
   // the interphalangeal crease — where the thumb's one joint folds
   ctx.beginPath();
-  ctx.moveTo(R * 1.28, -HW * 0.92);
-  ctx.quadraticCurveTo(R * 1.46, 0, R * 1.28, HW * 0.92);
+  ctx.moveTo(R * 1.12, -HW * 0.90);
+  ctx.quadraticCurveTo(R * 1.30, 0, R * 1.12, HW * 0.90);
   ctx.strokeStyle = `rgba(${GHOST_COL},${(0.30 * alpha).toFixed(3)})`;
   ctx.lineWidth = 1.6;
   ctx.stroke();
