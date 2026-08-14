@@ -26,12 +26,16 @@ const SFX_FILES = {
   // end it would still be at three-quarter level with combat on top of it.
   bossArrive: ['audio/sfx/boss-arrival.mp3', 1.0],
   // ---- the warp trilogy: entering the lane, riding it, leaving it ----
-  // 0.38, down from 0.9 (-7.5dB), in two passes — 0.65 was still too hot on the device.
-  // Two reasons it runs loud: it fires on the SAME beat as `startup` (0.9) so the two
-  // takes stack, and its own envelope climbs for 1.8s and then sits on a plateau, so it
-  // is loudest exactly where the boot's other cues land. It also plays on the player's
-  // own touch now, which puts it where the ear is already paying attention.
-  warpIn:   ['audio/sfx/warp-in.mp3', 0.38],  // 2.44s — the spool-up, on the launch beat
+  // 0.27, down from 0.9 (-10.5dB), settled over three passes on the device: 0.65 and 0.38
+  // were both still too hot, 0.24 was a shade under, and this is that +1dB back. Two
+  // reasons it runs loud: it fires on the SAME beat as `startup` (0.9) so the two takes
+  // stack, and its own envelope climbs for 1.8s and then sits on a plateau, so it is
+  // loudest exactly where the boot's other cues land. It also plays on the player's own
+  // touch, which puts it where the ear is already paying attention. At 0.27 it sits ~10dB
+  // under `startup`: a BED the boot cues land on top of, which is the balance it was
+  // always meant to have. If it ever needs moving again, the trim is not the thing —
+  // the stack with `startup` is.
+  warpIn:   ['audio/sfx/warp-in.mp3', 0.27],  // 2.44s — the spool-up, on the launch beat
   inWarp:   ['audio/sfx/in-warp.mp3', 0.34],  // 8.93s — LOOPED under the whole run (see ambient())
   exitWarp: ['audio/sfx/exit-warp.mp3', 0.95] // 4.96s — dropping out of warp on a win
   // splash2.mp3 (8.1s) scores the boot splash — it has its own player there
