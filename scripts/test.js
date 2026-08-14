@@ -215,6 +215,7 @@ code = code.replace("'use strict';", '') + `
   getBuzzN: () => buzzMonN, getBuzzLast: () => buzzMonLast, // counted before the haptics gate
   startQualification, getInfoCard: () => infoCard, isQual: () => qual,
   startEnlistment, enlist: () => enlist, enlistTap, enlistScript, parkedSky,
+  getPaintN: () => paintN, getVsyncEst: () => vsyncEst,
   keys, setBeamAim: (x, y) => { beamAim.x = x; beamAim.y = y; }, getHeat: () => heat, isOverheat: () => overheat, startBossTest,
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
   stripAngle, startWeekly, isWeekly: () => weekly, weeklyIdx: () => weeklyIdx, weeklyLive,
@@ -1528,6 +1529,24 @@ function runFramerate(fps, targetSteps) {
   for (let i = 1; i <= frames; i++) G.rawFrame(i * stepMs);
   const s = G.stats();
   return { steps: Math.round((G.getTime() - t0) * 60), frames, score: s.score, integrity: s.integrity, misses: s.misses, zaps: s.zaps };
+}
+// ---------- the 60fps render cap ----------
+// A 120Hz panel painted every vsync: the same picture twice, twice the GPU, and
+// a phone that cooks. The sim must be untouched by this — see the frame-rate
+// independence checks below, which are what stop the cap from being a cheat.
+function paintsAt(hz, frames) {
+  G.startLevel(0); G.setState(G.S.PLAY); G.resetLoop(0);
+  const step = 1000 / hz, t0 = 1e6; // a clock far from any earlier run's
+  const before = G.getPaintN();
+  for (let i = 1; i <= frames; i++) G.rawFrame(t0 + i * step);
+  return G.getPaintN() - before;
+}
+{
+  const at60 = paintsAt(60, 120);
+  const at120 = paintsAt(120, 240);   // same wall time, twice the vsyncs
+  check(`60Hz paints every frame (${at60}/120)`, at60 >= 118);
+  check(`120Hz paints about half (${at120}/240)`, at120 > 100 && at120 < 150);
+  check('so a 120Hz panel does the same work a 60Hz one does', Math.abs(at120 - at60) < 22);
 }
 {
   const a = runFramerate(60, 900), b = runFramerate(144, 900); // 900 steps = 15s, long enough that traffic reaches the ring

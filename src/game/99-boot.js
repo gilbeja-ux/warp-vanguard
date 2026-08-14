@@ -654,7 +654,44 @@ const drawOrder = [];
 const EMPTY_DRAW = [];
 const byDepth = (a, b) => b.z - a.z;
 
+// ---------- the 60fps render cap ----------
+// A GALAXY S23 IS A 120Hz PANEL, and rAF fires at the panel's rate. The sim is
+// fixed-step at SIM_DT (1/60) and does not care, so every frame past 60 was a
+// second full render — same picture, twice the GPU, twice the heat. That is the
+// shape of a "the phone gets hot and the game becomes unplayable" report: not a
+// slow frame, a sustained one.
+//
+// THE RULE IS NOT A FLAT 16.7ms THRESHOLD. That would halve a 90Hz panel to 45,
+// which judders worse than the heat. Instead a frame is skipped only when the
+// NEXT vsync would still land inside the budget — so 120Hz renders every second
+// tick (60fps), while 90Hz and 60Hz render every tick and are left alone.
+const RENDER_MIN = 1 / 60;
+let vsyncEst = 0;    // observed refresh interval, seconds — a slowly decaying minimum
+let lastRender = 0;  // clock of the last frame actually drawn
+let prevTick = 0;    // clock of the previous rAF, drawn or not
+let paintN = 0;      // frames actually painted — the profiler's real fps, and what the cap is judged on
+// Answers "should this rAF paint?" — and NOTHING else. The sim is deliberately
+// left out of it: skipping simulation would make the game frame-rate dependent,
+// which is the one property the fixed timestep exists to guarantee and which the
+// leaderboard's replay verification is built on top of.
+function shouldRender(now) {
+  const gap = (now - lastRender) / 1000;
+  if (!lastRender || !prevTick) { prevTick = lastRender = now; return true; }
+  // the smallest gap that keeps recurring IS the refresh period. It decays upward
+  // by 2% a frame so a backgrounded tab re-learns rather than latching onto a
+  // stale fast estimate.
+  const g = (now - prevTick) / 1000;
+  if (g > 0.0005) vsyncEst = vsyncEst ? Math.min(vsyncEst * 1.02, g) : g;
+  prevTick = now;
+  // gap > 0 is not paranoia: a headless harness drives frame() with a fixed
+  // timestamp, and without it the cap would skip every draw and the render tests
+  // would pass by never rendering anything.
+  if (gap > 0 && gap < RENDER_MIN - vsyncEst * 0.5 - 1e-4) return false;
+  lastRender = now;
+  return true;
+}
 function frame(now) {
+  const painting = shouldRender(now);
   const rawDt = (now - last) / 1000;
   let dt = clamp(rawDt, 0, 0.05); // clock can step backwards (timer quirks) — never simulate in reverse
   frameDt = dt;
@@ -706,6 +743,12 @@ function frame(now) {
   // stops rather than coasting away under the report.
   ambient(state === S.PLAY, state === S.END && !endWin);
   prof('bg');
+
+  // THE CAP. Everything above ran: the clock, the sim, audio, input. Only the
+  // painting is skipped, and only on a panel fast enough that the skipped frame
+  // would have been an identical picture.
+  if (!painting) { requestAnimationFrame(frame); return; }
+  paintN++;
 
   ctx.save();
   if (shake > 0) ctx.translate(rand(-1, 1) * shake * 6, rand(-1, 1) * shake * 6);
