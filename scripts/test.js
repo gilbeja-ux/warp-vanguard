@@ -435,6 +435,15 @@ drawOk('enlistment: handing off', () => { G.startEnlistment(false); G.enlist().b
   const shortLen = G.enlistScript().length;
   G.startEnlistment(false);
   check('the re-entry script is shorter than the full one', shortLen < G.enlistScript().length);
+  // SEAMLESS MEANS THE COURSE IS ALREADY UNDER IT. The discs overlay a running
+  // qualification; the last tap uncovers a level rather than loading one. If the
+  // start ever moves back to the hand-off, this fails.
+  G.startEnlistment(false, true);
+  check('the course is already running behind the first disc', G.isQual() === true);
+  G.enlist().beat = G.enlistScript().length - 1; G.enlist().t = 99;
+  G.enlistTap();
+  G.rawFrame(performance.now ? performance.now() + 2000 : 2000);
+  check('the hand-off uncovers the run rather than reloading it', G.isQual() === true);
 }
 drawOk('menu audio-config overlay', () => { G.setMenuSettings(true); });
 // dedicated leaderboard screen — every data state must render without throwing

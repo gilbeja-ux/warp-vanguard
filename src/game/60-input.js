@@ -594,6 +594,15 @@ function startLevel(i, brief) {
 // tick there is both wrong (nothing was pressed) and a real hazard: an
 // exception thrown at module scope leaves the game half-booted.
 function startEnlistment(short, quiet) {
+  // THE COURSE IS ALREADY RUNNING BEHIND THE DISCS. It starts here, before the
+  // first one appears, so the lane, the ring and the pads are on screen the
+  // whole time he is talking — and the last tap does not load anything, it just
+  // clears the disc off a level that was there all along. That is what makes the
+  // hand-off seamless rather than a cut to a new screen.
+  //
+  // Nothing runs while the discs are up: the level parks itself until both
+  // thumbs land (preLaunch), and no thumb can land through a disc.
+  startQualification();
   enlist = { beat: 0, t: 0, short: !!short, out: 0 };
   state = S.ENLIST;
   if (!quiet) sfx.tick();

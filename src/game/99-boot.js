@@ -125,7 +125,7 @@ function tickEnlist(dt) {
     progress.enlisted = true;
     saveState();
     enlist = null;
-    startQualification();
+    state = S.PLAY; // the course was started when the discs went up — just uncover it
   }
 }
 function tickUI(dt) {
@@ -1136,7 +1136,7 @@ function drawPostChain(rawDt, worldFx, g) {
   }
   else if (state === S.PAUSE) { drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawPause(); }
   else if (state === S.INFO) { drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawInfoCard(); }
-  else if (state === S.ENLIST) drawEnlistment();
+  else if (state === S.ENLIST) { drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawEnlistment(); }
   else if (state === S.GUIDE) drawGuide(g);
   else if (state === S.MENU) {
     if (SPLASH.on && SPLASH.t < SPL.wheel) { /* boot stage one: only the tunnel

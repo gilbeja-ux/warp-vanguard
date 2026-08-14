@@ -1089,17 +1089,17 @@ const ENLIST_OUT = 0.7;                 // hand-off fade before the course opens
 // NO CLIENT IS NAMED AND NO CONVOY IS MENTIONED. What rides the lane changes
 // from contract to contract; "the client" is the only word that stays true.
 //
-// AND HE NEVER ADDRESSES THE PLAYER. Not by name, not by rank, not as "rookie" —
-// the handle they type on a board is their identity, and a form of address here
-// would compete with it.
+// HE ADDRESSES THE PLAYER AS "rookie" AND NEVER BY NAME. The distinction is the
+// one that matters: a rank is something a commander would say to anyone in that
+// chair, whereas a name would compete with the handle the player types on a
+// leaderboard — which is the only identity this game gives them.
 const ENLIST_SCRIPT = [
-  ['Vanguard Actual.', 'I run this squadron.'],
-  ['We go first.', 'Clear the lane. Hold it open.'],
-  ['Whatever comes for the client', 'comes through you.'],
-  ['Evaluation course is live.', 'Take the controls.']
+  ['Welcome to Vanguard Squadron,', 'rookie.'],
+  ['We protect the lane.', 'Nothing gets through us!'],
+  ['Evaluation course ready.', 'Start when ready.']
 ];
 const ENLIST_SHORT = [
-  ['Back on the course.', 'Take the controls.']
+  ['Back on the course.', 'Start when ready.']
 ];
 const enlistScript = () => (enlist && enlist.short) ? ENLIST_SHORT : ENLIST_SCRIPT;
 // how long this beat's text takes to type out — the tap gate waits for it, so a
@@ -1109,12 +1109,77 @@ function enlistTypeDur(beat) {
   if (!ln) return 0;
   return ln.join(' ').length / ENLIST_TYPE;
 }
+// ---------- disc art ----------
+// Procedural, in the same language as the briefing glyphs above: these discs sit
+// beside those in the player's memory, so a photograph or an icon set would
+// announce itself as imported. Each one draws the thing the line is about.
+function enlistArt(beat, r) {
+  ctx.save();
+  ctx.lineCap = 'round';
+  if (beat === 0) {
+    // THE SQUADRON MARK: the ring, and the two emitters that ride it. This is
+    // the game's own shape — the first thing a new player is shown is the thing
+    // their thumbs will spend every run holding.
+    ctx.strokeStyle = `rgba(${ENLIST_COL},0.30)`; ctx.lineWidth = Math.max(1.5, r * 0.05);
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
+    for (let i = 0; i < 2; i++) {
+      const a = -Math.PI / 2 + i * Math.PI + time * 0.5;
+      ctx.strokeStyle = `rgba(${NODE_COLS[i]},0.95)`;
+      ctx.lineWidth = Math.max(2.5, r * 0.13);
+      ctx.beginPath(); ctx.arc(0, 0, r, a - 0.42, a + 0.42); ctx.stroke();
+    }
+    // the bore behind it, receding
+    for (let k = 1; k <= 3; k++) {
+      ctx.strokeStyle = `rgba(${ENLIST_COL},${0.16 - k * 0.04})`;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(0, 0, r * (1 - k * 0.22), 0, TAU); ctx.stroke();
+    }
+  } else if (beat === 1) {
+    // THE LANE HELD: traffic running down the bore and stopping dead at the ring.
+    // Nothing gets past it — which is the sentence, drawn.
+    for (let k = 0; k < 7; k++) {
+      const q = (k / 7 + (time * 0.22) % (1 / 7));
+      const z = 1 - q, x = Math.cos(k * 2.1) * r * 1.5 * z, y = Math.sin(k * 2.1) * r * 1.5 * z;
+      const stopped = z < 0.62;
+      ctx.fillStyle = stopped ? 'rgba(255,90,110,0.25)' : 'rgba(255,90,110,0.85)';
+      const sz = Math.max(1.5, r * 0.09 * (0.4 + z));
+      ctx.beginPath(); ctx.arc(x, y, sz, 0, TAU); ctx.fill();
+    }
+    ctx.strokeStyle = `rgba(${ENLIST_COL},0.85)`; ctx.lineWidth = Math.max(2.5, r * 0.11);
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.62, 0, TAU); ctx.stroke();
+    // the shield flare where they break on it
+    ctx.strokeStyle = `rgba(126,226,98,${(0.35 + 0.35 * Math.sin(time * 3)).toFixed(2)})`;
+    ctx.lineWidth = Math.max(1.5, r * 0.05);
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.72, 0, TAU); ctx.stroke();
+  } else {
+    // THE COURSE: a live target, ranging in. Concentric rings closing on a lit
+    // centre, with the sweep hand of something that is already running.
+    for (let k = 0; k < 3; k++) {
+      ctx.strokeStyle = `rgba(${ENLIST_COL},${0.5 - k * 0.13})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(0, 0, r * (0.42 + k * 0.29), 0, TAU); ctx.stroke();
+    }
+    const sw = time * 1.6;
+    ctx.strokeStyle = 'rgba(255,210,74,0.8)'; ctx.lineWidth = Math.max(2, r * 0.08);
+    ctx.beginPath(); ctx.arc(0, 0, r, sw - 0.5, sw); ctx.stroke();
+    ctx.fillStyle = `rgba(255,210,74,${(0.55 + 0.4 * Math.sin(time * 4)).toFixed(2)})`;
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.14, 0, TAU); ctx.fill();
+    for (let k = 0; k < 4; k++) { // range ticks
+      const a = k / 4 * TAU + Math.PI / 4;
+      ctx.strokeStyle = `rgba(${ENLIST_COL},0.45)`; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * r * 0.86, Math.sin(a) * r * 0.86);
+      ctx.lineTo(Math.cos(a) * r * 1.06, Math.sin(a) * r * 1.06);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 function drawEnlistment() {
   if (!enlist) return;
-  // THE SPLASH OWNS THE SCREEN UNTIL IT IS DONE. State is set to S.ENLIST before
-  // the first frame precisely so the menu wheel never builds behind the curtain —
-  // but that also means this panel exists during the whole boot theatre, so it
-  // stays out of sight until the curtain is actually up.
+  // The splash owns the screen until it is done — the state is claimed before the
+  // first frame so the menu never builds, which means this exists during the
+  // whole boot theatre and has to stay out of sight for it.
   if (typeof SPLASH !== 'undefined' && SPLASH.on) return;
   const lines = enlistScript()[enlist.beat] || [];
   const g = geo();
@@ -1124,11 +1189,10 @@ function drawEnlistment() {
 
   ctx.save();
   ctx.globalAlpha = Math.min(1, inQ) * (1 - outQ);
-  // dim UNSCALED, so the field darkens evenly while the disc flies in
-  ctx.fillStyle = 'rgba(3,6,14,0.55)'; ctx.fillRect(0, 0, W, H);
-  // A DISC, NOT A PANEL. Every briefing in this game arrives on one; a rectangle
-  // would have been a second visual language for the same job. Same ease-out-back
-  // zoom as drawInfoCard so it flies up to the operator exactly as those do.
+  // A LIGHT DIM ONLY. The qualification is already parked and drawing behind
+  // this — the lane, the ring, the pads. Blacking it out would make the discs a
+  // separate screen again, and the whole point is that they are not.
+  ctx.fillStyle = 'rgba(3,6,14,0.5)'; ctx.fillRect(0, 0, W, H);
   const bk = 1.70158;
   const zin = 1 + (bk + 1) * Math.pow(inQ - 1, 3) + bk * Math.pow(inQ - 1, 2);
   const sc = (0.3 + 0.7 * zin) * (1 - 0.5 * outQ * outQ);
@@ -1141,7 +1205,6 @@ function drawEnlistment() {
   bg.addColorStop(1, 'rgba(5,9,20,0)');
   ctx.fillStyle = bg;
   ctx.beginPath(); ctx.arc(g.cx, g.cy, R, 0, TAU); ctx.fill();
-  // the rim: a thin ring with four drifting accent arcs, in Lane Command's colour
   ctx.strokeStyle = `rgba(${ENLIST_COL},0.28)`; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, 0, TAU); ctx.stroke();
   ctx.strokeStyle = `rgba(${ENLIST_COL},0.7)`; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
@@ -1151,35 +1214,22 @@ function drawEnlistment() {
   }
 
   ctx.textAlign = 'center';
-  // who is on the channel
   ctx.fillStyle = `rgba(${ENLIST_COL},0.95)`;
   ctx.font = '700 11px Audiowide, system-ui';
   try { ctx.letterSpacing = '3px'; } catch (e) {}
-  ctx.fillText('VANGUARD ACTUAL', g.cx, g.cy - R * 0.46);
+  ctx.fillText('VANGUARD ACTUAL', g.cx, g.cy - R * 0.62);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
-  ctx.fillStyle = 'rgba(150,180,210,0.5)';
-  ctx.font = '500 9px Audiowide, system-ui';
-  ctx.fillText('LANE COMMAND', g.cx, g.cy - R * 0.33);
 
-  // THE WAVEFORM MOVES ONLY WHILE HE IS TALKING. When the characters stop
-  // arriving the trace flattens, and that silence is what tells the player the
-  // line is finished — no separate "done" cue is needed.
+  // the art, sat between the callsign and the line
+  ctx.save();
+  ctx.translate(g.cx, g.cy - R * 0.20);
+  enlistArt(enlist.short ? 2 : enlist.beat, R * 0.27);
+  ctx.restore();
+
   const full = lines.join(' ').length;
   const typed = Math.min(full, Math.floor(t * ENLIST_TYPE));
   const talking = typed < full && !enlist.out;
-  const wy = g.cy - R * 0.20, ww = R * 1.05;
-  ctx.strokeStyle = `rgba(${ENLIST_COL},${talking ? 0.65 : 0.18})`;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  for (let i2 = 0; i2 <= 52; i2++) {
-    const q = i2 / 52, x = g.cx - ww / 2 + q * ww;
-    const amp = talking ? 7 * (0.35 + 0.65 * Math.abs(Math.sin(q * 9 + time * 7))) : 0.5;
-    const y = wy + Math.sin(q * 22 + time * 13) * amp * 0.5 + Math.sin(q * 37 - time * 9) * amp * 0.3;
-    i2 ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-  }
-  ctx.stroke();
 
-  // the line, typed on
   ctx.fillStyle = 'rgba(228,240,254,0.96)';
   const fs = Math.min(R * 0.115, 19);
   ctx.font = '500 ' + fs + 'px Audiowide, system-ui';
@@ -1187,9 +1237,9 @@ function drawEnlistment() {
   for (let i2 = 0; i2 < lines.length; i2++) {
     const whole = lines[i2];
     const take = clamp(typed - used, 0, whole.length);
-    used += whole.length + 1; // the joining space counts, so the lines type in order
+    used += whole.length + 1;
     if (take <= 0) break;
-    ctx.fillText(whole.slice(0, take), g.cx, g.cy + R * 0.04 + i2 * (fs * 1.55));
+    ctx.fillText(whole.slice(0, take), g.cx, g.cy + R * 0.30 + i2 * (fs * 1.5));
   }
 
   if (!talking && !enlist.out) {
@@ -1198,7 +1248,7 @@ function drawEnlistment() {
     ctx.font = '700 10px Audiowide, system-ui';
     try { ctx.letterSpacing = '3px'; } catch (e) {}
     const last = enlist.beat >= enlistScript().length - 1;
-    ctx.fillText(last ? 'TAP TO REPORT' : 'TAP TO CONTINUE', g.cx, g.cy + R * 0.52);
+    ctx.fillText(last ? 'TAP TO BEGIN' : 'TAP TO CONTINUE', g.cx, g.cy + R * 0.74);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   }
   ctx.textAlign = 'left';
