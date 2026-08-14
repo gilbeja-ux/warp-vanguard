@@ -221,31 +221,20 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   ctx.rotate(side === 'L' ? Math.PI * 0.75 : Math.PI * 0.25);
   const press = 1 - down * 0.12; // the pad flattens very slightly under contact
   ctx.scale(press, press);
-  // THE SILHOUETTE IS THE ONE THAT WORKED: a round tip swelling evenly into the
-  // knuckle. An earlier pass pushed the nose off the centre line on the theory
-  // that a thumb is asymmetric — anatomically true, and it read WORSE, because at
-  // this size the lopsidedness looks like a drawing mistake rather than a form.
-  // Asymmetry is carried by the shading instead, where it costs no silhouette.
+  // PARALLEL SIDES, and they stay that way. A thumb is a rounded-ended SHAFT
+  // whose width barely changes from tip to knuckle; the tip is a semicircle of
+  // the same width as the shaft and nothing narrows. Everything that tapered
+  // read as a cone, and a waisted version — anatomically the more correct one,
+  // since a real thumb does pinch at its joint — read as a mushroom. Both were
+  // tried, both were worse. Do not reintroduce either.
   // The far end is squared and then hidden by the gradients below, so the shape
   // runs off toward a hand out of frame rather than stopping in mid-air.
-  // PARALLEL SIDES. This is the correction that mattered most and the one I kept
-  // undoing: a thumb is a rounded-ended SHAFT whose width barely changes from tip
-  // to knuckle. Every version that tapered read as a cone or a teardrop, because
-  // taper is what cones have. The tip is simply a semicircle of the same width as
-  // the shaft — nothing narrows.
-  // A THUMB, NOT A FINGER. Parallel sides fixed the cone, but a straight shaft is
-  // just a finger. What distinguishes a thumb is that it is SHORT and it has a
-  // WAIST: the distal phalanx is broad and spatulate, it narrows at the single
-  // interphalangeal joint, then flares again toward the hand. That pinch is the
-  // whole silhouette cue — without it the shape is anatomically a forefinger.
-  const R = rad, HW = R * 0.60, END = R * 2.45;
+  const R = rad, HW = R * 0.58, END = R * 2.6;
   ctx.beginPath();
-  ctx.arc(0, 0, HW, Math.PI * 0.5, Math.PI * 1.5);                // broad spatulate tip
-  ctx.quadraticCurveTo(R * 0.60, -HW * 1.00, R * 1.15, -HW * 0.93); // in to the joint — a hint, not a pinch
-  ctx.quadraticCurveTo(R * 1.80, -HW * 1.02, END, -HW * 1.12);      // out again toward the hand
-  ctx.lineTo(END, HW * 1.12);
-  ctx.quadraticCurveTo(R * 1.80, HW * 1.02, R * 1.15, HW * 0.93);
-  ctx.quadraticCurveTo(R * 0.60, HW * 1.00, 0, HW);
+  ctx.arc(0, 0, HW, Math.PI * 0.5, Math.PI * 1.5);            // the tip: a half-round of shaft width
+  ctx.quadraticCurveTo(R * 0.9, -HW * 1.02, END, -HW * 1.10); // barely swells toward the hand
+  ctx.lineTo(END, HW * 1.10);
+  ctx.quadraticCurveTo(R * 0.9, HW * 1.02, 0, HW);
   ctx.closePath();
   const fade = (a) => {
     const g = ctx.createLinearGradient(-R * 0.56, 0, END, 0);
@@ -274,22 +263,19 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   if (!lowFX) { ctx.shadowColor = `rgba(${GHOST_COL},0.5)`; ctx.shadowBlur = 9; }
   ctx.stroke();
   ctx.shadowBlur = 0;
-  // THE NAIL. Not an ellipse floating mid-digit — that was the tell. A nail is a
-  // PLATE AT THE TIP whose free edge follows the curve of the fingertip, running
-  // very nearly to the silhouette, with a straighter cuticle behind it and a pale
-  // lunula at the base. Built from the same centre as the tip arc so the two
-  // curves are automatically concentric, which is what sells it: a nail that does
-  // not share the fingertip's curvature reads as a sticker.
-  // It is BROAD — in the reference it covers most of the digit's width and runs
-  // well back from the end. A small inset plate reads as a bead. Built as four
-  // curves: a round distal edge, sides that follow the shaft, and a narrower
-  // cuticle, which is the proportion a real plate has.
-  // THE HEART SHAPE WAS A TANGENT BUG, not a styling choice. Two quadratics met
-  // head-on at the distal midpoint with opposing tangents, which puts a CUSP
-  // exactly at the tip — a notch, and the eye reads a notch at the top of a
-  // rounded plate as a heart. Cubics with matched tangents fix it: vertical at
-  // the two x-extremes, horizontal at the two y-extremes, so every join is
-  // smooth by construction and the free edge is one clean curve.
+  // THE NAIL: a broad plate at the tip, covering most of the digit's width and
+  // running well back from the end. A small inset one reads as a bead.
+  //
+  // THE HEART SHAPE IT USED TO HAVE WAS A TANGENT BUG, not a styling choice. Two
+  // quadratics met head-on at the distal midpoint with opposing tangents, which
+  // puts a CUSP exactly at the tip — a notch, and the eye reads a notch at the
+  // top of a rounded plate as a heart. Cubics with matched tangents fix it:
+  // vertical at the two x-extremes, horizontal at the two y-extremes, so every
+  // join is smooth by construction and the free edge is one clean curve.
+  //
+  // No lunula. The half-moon at the base is real anatomy and it read as a stray
+  // ring floating inside the plate — detail that survives a photograph does not
+  // necessarily survive a 40px translucent overlay.
   const nW = HW * 0.70, nTip = -HW * 0.70, nBase = R * 0.56;
   const nMid = nTip + (nBase - nTip) * 0.42;  // widest point sits forward, as a nail's does
   ctx.beginPath();
@@ -304,17 +290,10 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   ctx.strokeStyle = `rgba(${GHOST_COL},${(0.95 * alpha).toFixed(3)})`;
   ctx.lineWidth = 2.2;
   ctx.stroke();
-  // the lunula — the pale half-moon at the base, sitting just inside the cuticle
-  ctx.beginPath();
-  ctx.moveTo(nBase - R * 0.10, -nW * 0.46);
-  ctx.quadraticCurveTo(nBase - R * 0.30, 0, nBase - R * 0.10, nW * 0.46);
-  ctx.strokeStyle = `rgba(255,255,255,${(0.40 * alpha).toFixed(3)})`;
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
   // the interphalangeal crease — where the thumb's one joint folds
   ctx.beginPath();
-  ctx.moveTo(R * 1.12, -HW * 0.90);
-  ctx.quadraticCurveTo(R * 1.30, 0, R * 1.12, HW * 0.90);
+  ctx.moveTo(R * 1.28, -HW * 0.92);
+  ctx.quadraticCurveTo(R * 1.46, 0, R * 1.28, HW * 0.92);
   ctx.strokeStyle = `rgba(${GHOST_COL},${(0.30 * alpha).toFixed(3)})`;
   ctx.lineWidth = 1.6;
   ctx.stroke();
