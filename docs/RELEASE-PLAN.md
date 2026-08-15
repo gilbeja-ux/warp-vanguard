@@ -21,6 +21,13 @@ alongside `progress`. Post-launch options: a cosmetic supporter pack (node
 skins via the `SPRITES` hook), and web-portal builds (Poki / CrazyGames /
 itch.io) as a funnel.
 
+**Sequencing note — see `docs/CLOUD-SAVE-PLAN.md`.** A Play entitlement is tied
+to the Google account and restores automatically on reinstall, but campaign
+progress is device-local and does not. Shipping billing first therefore ships a
+game where the player's *purchase* survives a new phone and their *progress*
+does not. Billing already forces an account rail onto the Android build, and
+cloud save wants the same one, so decide whether the two are one piece of work.
+
 ---
 
 ## Verified starting state (2026-08-13)

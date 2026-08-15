@@ -1,0 +1,169 @@
+<!doctype html>
+<!-- CAPTION COMPOSITOR (dev only, not shipped: scripts/, not src/).
+     Second pass of the store pipeline. shot-store.html captures RAW frames; this
+     lays the caption furniture over one and POSTs the finished asset.
+
+     Serve the REPO ROOT and open:
+       /scripts/shot-caption.html?src=bore&text=TWO%20THUMBS.%20ONE%20LINE.&name=01-bore
+
+       src    raw frame to load, without .png
+       text   caption. Keep it to ~32 characters — it is read at carousel size
+       name   output filename
+       sub    optional second line, smaller, beneath the caption
+       align  'right' to anchor bottom-right instead of bottom-left
+
+     ── WHY THIS IS A SEPARATE PASS ──────────────────────────────────────────────
+     Caption copy changes more than once, and a capture of this game costs about
+     two minutes of real play per frame. Splitting the passes makes every wording
+     revision free instead of a re-shoot — which is the difference between editing
+     the copy honestly and keeping a line nobody likes because re-running the set
+     is expensive.
+
+     ── THE FURNITURE ────────────────────────────────────────────────────────────
+     It is the game's own chrome, not a marketing overlay: a techRect cut-corner
+     plate, Panel Glass fill, a luminous cyan header band along its top edge, and
+     Audiowide tracked out. DESIGN.md's Gold Rule keeps Payload Gold off it
+     entirely — gold means a gain in this world, and a caption is not a gain.
+
+     The brief asks that captions never overlap the ring. In a 16:9 frame of this
+     game there is no region that is both prominent and empty — the ring fills the
+     middle and the dial pads hold both bottom corners — so what is honoured is the
+     intent: a gradient scrim carries the lower band down into black so the plate
+     never fights the art, and the ring's lit centre and both emitters stay clear.
+     The plate sits low-left, over the dimmest part of the frame. -->
+<html>
+<head>
+<meta charset="utf-8">
+<base href="../src/">
+<title>staging…</title>
+<style>
+  @font-face { font-family: 'Audiowide'; src: url('fonts/audiowide.woff2') format('woff2'); font-display: block; }
+  html,body{margin:0;background:#03060e;overflow:hidden}
+  canvas{display:block;max-width:100vw;max-height:100vh}
+</style>
+</head>
+<body>
+<canvas id="out"></canvas>
+<script>
+// Verbatim copy of 90-hud.js's techRect. Copied rather than imported on purpose:
+// pulling it in properly means booting the whole game (it is one function deep in
+// a file that assumes thirty globals), and this page has no game in it. Eight
+// lines, and the shape is the brand — cut top-left and bottom-right, always.
+function techRect(ctx, x, y, w, h, cut) {
+  ctx.beginPath();
+  ctx.moveTo(x + cut, y);
+  ctx.lineTo(x + w, y);
+  ctx.lineTo(x + w, y + h - cut);
+  ctx.lineTo(x + w - cut, y + h);
+  ctx.lineTo(x, y + h);
+  ctx.lineTo(x, y + cut);
+  ctx.closePath();
+}
+
+// DESIGN.md tokens, by name, so a palette change has one place to land here too
+const PANEL_GLASS = '#040e1e';
+const CHROME_CYAN = '111,227,255';
+const READOUT_ICE = '#cfeeff';
+const HULL_BLACK  = '3,6,14';
+
+(async () => {
+  const Q = new URLSearchParams(location.search);
+  const src = Q.get('src'), text = (Q.get('text') || '').toUpperCase();
+  const sub = (Q.get('sub') || '').toUpperCase();
+  const name = Q.get('name') || src;
+  if (!src) { document.title = 'FAILED no ?src'; return; }
+
+  // the raw frames live beside this file; shotserve resolves /scripts/* it does
+  // not have in the repo out of the capture directory
+  const img = new Image();
+  img.src = '/scripts/' + src + '.png';
+  try { await img.decode(); } catch (e) { document.title = 'FAILED cannot load ' + src + '.png'; return; }
+  // block on the real font: a caption composited against the fallback stack is a
+  // silently wrong asset, and it looks fine until it is next to a real one
+  try { await document.fonts.load('700 46px Audiowide'); await document.fonts.ready; } catch (e) {}
+
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const cv = document.getElementById('out');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  // ── the scrim ──────────────────────────────────────────────────────────────
+  // Not a bar. It carries the bottom third down into hull black so the plate has
+  // something to sit on at any brightness, and so the caption's legibility does
+  // not depend on which frame it landed on. Squared falloff, so the top of the
+  // gradient is genuinely invisible rather than a faint visible seam.
+  const scrimH = H * 0.40;
+  const g = ctx.createLinearGradient(0, H - scrimH, 0, H);
+  for (let i = 0; i <= 8; i++) {
+    const t = i / 8;
+    g.addColorStop(t, `rgba(${HULL_BLACK},${(t * t * 0.90).toFixed(3)})`);
+  }
+  ctx.fillStyle = g; ctx.fillRect(0, H - scrimH, W, scrimH);
+
+  // ── the plate ──────────────────────────────────────────────────────────────
+  const S = H / 1080;                       // every number below is authored at 1080p
+  const fs = Math.round(46 * S);
+  const trk = 3 * S * 2;                    // DESIGN.md title tracking, doubled for display size
+  const padX = Math.round(34 * S), padY = Math.round(26 * S);
+  const cut = Math.round(16 * S);           // rounded.cut-lg
+  const marginX = Math.round(64 * S), marginY = Math.round(58 * S);
+
+  ctx.font = `700 ${fs}px Audiowide, system-ui, sans-serif`;
+  ctx.textBaseline = 'alphabetic';
+  // canvas letterSpacing is honoured by Chrome and is what the game uses; measure
+  // WITH it applied or the plate is cut short of its own text
+  ctx.letterSpacing = trk + 'px';
+  const tw = ctx.measureText(text).width;
+  const subFs = Math.round(19 * S), subTrk = 3 * S;
+  let subW = 0;
+  if (sub) { ctx.font = `500 ${subFs}px Audiowide, system-ui, sans-serif`; ctx.letterSpacing = subTrk + 'px'; subW = ctx.measureText(sub).width; }
+
+  const plateW = Math.max(tw, subW) + padX * 2;
+  const plateH = padY * 2 + fs + (sub ? subFs + Math.round(14 * S) : 0);
+  // ?align=right for a frame whose own interface already owns the bottom-left.
+  // The leaderboard's relay rail runs to the bottom edge there, and a translucent
+  // plate laid over it let a row show THROUGH the caption — which does not read as
+  // depth, it reads as two panels colliding. Over the lane's art the transparency
+  // is the point; over another panel it is a bug.
+  const px = Q.get('align') === 'right' ? W - marginX - plateW : marginX;
+  const py = H - marginY - plateH;
+
+  // fill: Panel Glass, and deliberately not opaque — the world stays faintly
+  // visible through the console chrome everywhere else in this game
+  techRect(ctx, px, py, plateW, plateH, cut);
+  ctx.fillStyle = PANEL_GLASS; ctx.globalAlpha = 0.88; ctx.fill(); ctx.globalAlpha = 1;
+  // the 1.5px chrome stroke every panel in the game wears
+  techRect(ctx, px, py, plateW, plateH, cut);
+  ctx.strokeStyle = `rgba(${CHROME_CYAN},0.5)`; ctx.lineWidth = Math.max(1.5, 1.5 * S); ctx.stroke();
+  // luminous header band: the panel grammar's one bright edge, and what keeps the
+  // plate reading as an instrument rather than as a text box
+  ctx.save();
+  techRect(ctx, px, py, plateW, plateH, cut); ctx.clip();
+  const hb = ctx.createLinearGradient(0, py, 0, py + Math.round(5 * S));
+  hb.addColorStop(0, `rgba(${CHROME_CYAN},0.85)`);
+  hb.addColorStop(1, `rgba(${CHROME_CYAN},0)`);
+  ctx.fillStyle = hb; ctx.fillRect(px, py, plateW, Math.round(5 * S));
+  ctx.restore();
+
+  // ── the words ──────────────────────────────────────────────────────────────
+  ctx.font = `700 ${fs}px Audiowide, system-ui, sans-serif`;
+  ctx.letterSpacing = trk + 'px';
+  ctx.fillStyle = READOUT_ICE;
+  ctx.fillText(text, px + padX, py + padY + fs * 0.84);
+  if (sub) {
+    ctx.font = `500 ${subFs}px Audiowide, system-ui, sans-serif`;
+    ctx.letterSpacing = subTrk + 'px';
+    ctx.fillStyle = 'rgba(190,225,255,0.72)';
+    ctx.fillText(sub, px + padX, py + padY + fs + Math.round(14 * S) + subFs * 0.84);
+  }
+
+  try {
+    await fetch('/shot?name=' + encodeURIComponent(name) + '&meta=' + encodeURIComponent(src + ' "' + text + '" ' + W + 'x' + H),
+      { method: 'POST', body: cv.toDataURL('image/png') });
+  } catch (e) {}
+  document.title = 'READY ' + name + ' ' + W + 'x' + H + ' "' + text + '"';
+})();
+</script>
+</body>
+</html>

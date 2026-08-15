@@ -198,3 +198,31 @@ non-color cues at the cost of the language. Accessibility effort goes elsewhere 
 - ARCS remains fully wired behind `ALT_CONTROLS = false` and could return as an
   accessibility option — but never as a scored-competition scheme, since it was
   judged unfair against DIALS.
+
+### What the art already carries without color (audited 2026-08-15)
+
+The decision above is not "color is the only cue" — the bodies carry more
+non-color redundancy than the rule implies, and it is worth having on the record
+so a future pass does not go re-adding cues that already exist:
+
+- **Heavy / "purple" (dock both emitters)** is not painted as a purple disc. Its
+  ring is drawn in TWO HALVES, one blue and one white
+  (`85-enemy-art.js` `halves`) — a literal depiction of "both phases at once"
+  that survives hue loss entirely. It also carries **four** cores where a plain
+  tap has two, and a drill **1.35×** longer. Purple appears in its telegraph and
+  sprite, but the body never depends on it.
+- **The phase inverter (never touch)** is a void-black rounded diamond — the only
+  diamond silhouette in the vocabulary, so it is identified by shape, not by
+  being "the dark one".
+- **Locks and heavies** both take an outer machined ring, separating "keyed or
+  armored" from "plain" without color.
+
+**The one genuine color-only read** is `lock0` (blue, left emitter) vs `lock1`
+(white, right emitter): same silhouette, same machined ring, same core count,
+distinguished by hue and luminance alone. It is also the single most frequent
+decision in the game. This is accepted, not overlooked — it is a blue-vs-white
+pair, so it separates on luminance and survives red-green deficiency; the real
+exposure is monochromacy, a dim screen, or bright ambient light. If it is ever
+revisited, the lever is a silhouette difference on the lock ring (a notch count,
+say), **not** a palette swap — a palette swap would break the phase language the
+decision above protects, and a shape cue would not.

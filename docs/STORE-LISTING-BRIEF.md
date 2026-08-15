@@ -1,15 +1,14 @@
 # Store Listing Brief — Google Play
 
-**Status: shaped, awaiting sign-off on two open calls** (see the end of this file).
-Produced 2026-07-27 via `/impeccable shape store-listing`. Nothing has been built.
+**Status: BUILT 2026-08-15 → [STORE-LISTING.md](STORE-LISTING.md).**
+This file is the brief that was worked from and is kept as the record of the
+thinking. The built listing is the live document: copy, assets, and the three
+decisions taken (the two open calls at the end of this file, plus one more that
+came up during the build). Where the two disagree, the built listing wins.
 
-**To resume and build:**
+Produced 2026-07-27 via `/impeccable shape store-listing`.
 
-```
-/impeccable build the store listing from docs/STORE-LISTING-BRIEF.md
-```
-
-That skips discovery — the decisions below are already made. Authority for
+Authority for
 product truth is [PRODUCT.md](../PRODUCT.md); authority for materials and color
 is [DESIGN.md](../DESIGN.md); Play asset specs and brand tokens are in
 [BRAND.md](../BRAND.md).

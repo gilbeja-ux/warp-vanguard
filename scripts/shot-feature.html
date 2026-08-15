@@ -1,0 +1,136 @@
+<!doctype html>
+<!-- FEATURE GRAPHIC COMPOSITOR (dev only, not shipped: scripts/, not src/).
+     Builds Play's 1024x500 feature graphic from the bare bore plate that
+     shot-store.html?scene=feature captures.
+
+     Serve the REPO ROOT and open:
+       /scripts/shot-feature.html?src=feature&name=feature-graphic
+
+     ── THE COMPOSITION, AND WHY ─────────────────────────────────────────────────
+     THE BORE RUNS OFF-AXIS. Its vanishing point sits on the right third and the
+     left is held as clear space for the wordmark. Play crops this toward centre
+     for some placements and lays a play button over the middle of it for others,
+     so the middle carries nothing load-bearing on purpose: the lettering stops
+     well short of it and the bright point is past it.
+
+     THE WORDMARK IS TYPE, NOT THE BADGE. src/logo.webp would have been one line of
+     code, but the badge is what the app ICON already is, and Play shows the icon
+     directly beside this graphic — two shields in one row is a brand saying the
+     same thing twice and looking smaller for it. So the mark is set the way the
+     lockup sets it (BRAND.md: WARP in cyan-chrome, VANGUARD in gold beneath) with
+     the lockup's gold speed bars, and the shield is left to the icon.
+
+     Payload Gold on VANGUARD is not a breach of the Gold Rule: the rule governs
+     the LANE, where gold means a gain, and the mark has carried gold since the
+     badge was drawn. -->
+<html>
+<head>
+<meta charset="utf-8">
+<base href="../src/">
+<title>staging…</title>
+<style>
+  @font-face { font-family: 'Audiowide'; src: url('fonts/audiowide.woff2') format('woff2'); font-display: block; }
+  html,body{margin:0;background:#03060e;overflow:hidden}
+  canvas{display:block;max-width:100vw}
+</style>
+</head>
+<body>
+<canvas id="out"></canvas>
+<script>
+const CHROME_CYAN = '#6fe3ff';
+const PAYLOAD_GOLD = '#ffd24a';
+const HULL_BLACK = '3,6,14';
+
+(async () => {
+  const Q = new URLSearchParams(location.search);
+  const src = Q.get('src') || 'feature';
+  const name = Q.get('name') || 'feature-graphic';
+
+  const img = new Image();
+  img.src = '/scripts/' + src + '.png';
+  try { await img.decode(); } catch (e) { document.title = 'FAILED cannot load ' + src + '.png'; return; }
+  try { await document.fonts.load('700 84px Audiowide'); await document.fonts.ready; } catch (e) {}
+
+  // EXACTLY 1024x500. Play rejects anything else for this slot, so the canvas is
+  // the spec and the source is fitted into it rather than the other way round.
+  const W = 1024, H = 500;
+  const cv = document.getElementById('out');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#03060e'; ctx.fillRect(0, 0, W, H);
+
+  // ── the bore, off-axis ─────────────────────────────────────────────────────
+  // The plate's own centre IS the vanishing point, so placing the frame is just
+  // deciding where that point should land: the right third, a little above the
+  // midline. Scaled past full-bleed so the shifted draw still covers every edge.
+  const VPX = W * 0.70, VPY = H * 0.46;
+  const scale = (W / img.naturalWidth) * 1.56;
+  const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+  ctx.drawImage(img, VPX - dw / 2, VPY - dh / 2, dw, dh);
+
+  // ── the clear space ────────────────────────────────────────────────────────
+  // Not a panel behind the type — a field that the bore fades into, so the left
+  // reads as the same dead space the lane runs through rather than as a caption
+  // box laid on top of a screenshot. Squared falloff keeps its right edge invisible.
+  const g = ctx.createLinearGradient(0, 0, W * 0.66, 0);
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 10, a = Math.pow(1 - t, 1.25) * 0.985;   // holds darker further right, so the
+                                                        // pad ring left in the plate stays buried
+    g.addColorStop(t, `rgba(${HULL_BLACK},${a.toFixed(3)})`);
+  }
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W * 0.66, H);
+  // and a floor, so the bottom edge never strands a bright streak under the type
+  const gf = ctx.createLinearGradient(0, H, 0, H * 0.55);
+  gf.addColorStop(0, `rgba(${HULL_BLACK},0.85)`);
+  gf.addColorStop(1, `rgba(${HULL_BLACK},0)`);
+  ctx.fillStyle = gf; ctx.fillRect(0, H * 0.55, W, H * 0.45);
+
+  // ── the wordmark ───────────────────────────────────────────────────────────
+  const LX = 72;                     // left margin; the type never passes W*0.45
+  const warpSize = 92, vanSize = 43;
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+
+  // WARP — cyan chrome. A vertical light-to-cyan ramp is how the lockup renders
+  // it, and matching the mark matters more here than a general rule about flat
+  // fills: this is the brand's own metal, not decoration invented for a banner.
+  ctx.font = `700 ${warpSize}px Audiowide, system-ui, sans-serif`;
+  ctx.letterSpacing = '2px';
+  const warpY = H * 0.50;
+  const wm = ctx.measureText('WARP');
+  const chrome = ctx.createLinearGradient(0, warpY - warpSize * 0.82, 0, warpY + warpSize * 0.10);
+  chrome.addColorStop(0, '#ffffff');
+  chrome.addColorStop(0.46, '#dff4ff');
+  chrome.addColorStop(0.55, CHROME_CYAN);
+  chrome.addColorStop(1, '#2f9ad4');
+  ctx.fillStyle = chrome;
+  ctx.fillText('WARP', LX, warpY);
+
+  // the lockup's gold speed bars, riding the right of WARP — three stacked rules
+  // that shorten as they drop. They are why the badge, the lockup and this banner
+  // read as one family even with the shield absent.
+  const barX = LX + wm.width + 26;
+  ctx.fillStyle = PAYLOAD_GOLD;
+  // sized against WARP's cap height rather than by eye — at the first pass they
+  // were short enough to read as a stray mark instead of as the lockup's bars
+  [[0, 104], [15, 78], [30, 52]].forEach(([dy, len], i) => {
+    ctx.globalAlpha = 1 - i * 0.15;
+    ctx.fillRect(barX, warpY - 62 + dy, len, 9);
+  });
+  ctx.globalAlpha = 1;
+
+  // VANGUARD — gold, tracked out, sitting under WARP's baseline
+  ctx.font = `700 ${vanSize}px Audiowide, system-ui, sans-serif`;
+  ctx.letterSpacing = '9px';
+  ctx.fillStyle = PAYLOAD_GOLD;
+  ctx.fillText('VANGUARD', LX + 3, warpY + vanSize + 14);
+
+  try {
+    await fetch('/shot?name=' + encodeURIComponent(name) + '&meta=' + encodeURIComponent(W + 'x' + H + ' from ' + src),
+      { method: 'POST', body: cv.toDataURL('image/png') });
+  } catch (e) {}
+  document.title = 'READY ' + name + ' ' + W + 'x' + H;
+})();
+</script>
+</body>
+</html>

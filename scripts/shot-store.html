@@ -63,12 +63,33 @@
 //   warm    frames of REAL PLAY before anything is staged. This is what puts
 //           traffic, streak history, lane furniture and particle state in the
 //           world — a scene staged onto a cold boot reads as a diagram.
+//   pre     JS run in game scope BEFORE installCampaign — the only place a save
+//           state can be written, since the install reads progress as it runs
 //   stage   JS evaluated INSIDE the game's scope once warm-up ends
 //   auto    'play' (autopilot answers threats) | 'dock' (both thumbs together,
 //           which is how UNITE-VOLLEY is expressed) | 'off'
 //   hold    frames to run after staging, before the predicate starts being asked
+//   netWait true to yield real time between scan frames, so a live fetch can
+//           land — a cranked loop alone never yields and no promise ever settles
+//   bare    true to stub every chrome painter (HUD, dials, cal, cards) — for the
+//           feature graphic, which may carry no text but the wordmark
 //   want    JS expression in game scope; the first frame it is true is the frame
 //   scan    how many frames to keep asking before giving up (default 900)
+//   finish  JS run in game scope AFTER the predicate lands, on the captured frame
+//
+// `finish` exists for one job: clearing the run's TIMED overlays. Popups, the
+// comms ticker and the threat banners are all mid-animation at any given instant,
+// and freezing catches them there — the first bore capture came back with a comms
+// line stopped halfway through its own typewriter, which reads as a broken build
+// rather than as a moment. They are cleared, never rewritten; nothing that is part
+// of the lane is touched.
+//
+// THE NUMBERS LADDER ACROSS THE CAROUSEL. bore 12,480 -> volley 26,400 -> boss
+// 41,750 -> ribbon 61,900, with the combo multiplier climbing to its x10 cap only
+// at the far end. The first cut gave the TEACHING shot the highest score in the
+// set, so a player swiping the carousel watched a run get worse — which is the
+// Teach -> Escalate -> Promise thesis running backwards for the price of four
+// literals.
 //
 // `stage` and `want` are strings because they run in the GAME's scope, not this
 // page's — a later <script> shares the injected game's top-level `let`s, which is
@@ -81,21 +102,52 @@ const SCENES = {
   // genuinely different depths so the bore reads as a TUNNEL and not a dial.
   // Staggered z is the entire point: four bodies at one depth is a clock face.
   bore: {
-    camp: 0, level: 5, warm: 460, auto: 'play',
+    camp: 0, level: 5, warm: 360, auto: 'off',
     stage: `
-      combo = 27; maxCombo = 31; score = 41850;          // a run in good shape
-      enemies = enemies.filter(e => !e.dead && e.type === 'strip');
-      // four breaches, four depths, spread around the bore. The near one sits
-      // just off node 0's bearing so the tick's own zap path fires at it for
-      // real — that is where the discharge in this frame comes from.
-      [[0.31, 0.00, undefined], [0.62, 2.30, 0], [1.02, 4.05, undefined], [1.55, 5.42, 1]]
-        .forEach(([z, a, lock]) => { const e = spawnEnemy(a, 'normal'); e.z = e.z0 = z; e.lock = lock; e.age = 0.6; });
-      nodes[0].angle = 0.10; nodes[0].slew = null;
-      nodes[1].angle = 4.05; nodes[1].slew = null;
+      pulseCharge = [PULSE_MAX, PULSE_MAX];              // BOTH ARCS LIT — the brief's phrase, and
+                                                         // literally what a full purge orb each looks like
+      enemies = enemies.filter(() => false);             // the warm-up's traffic clears; the shot's is placed
+      spawnT = 999; ribbonT = 999;                       // and the spawner stands down, so the roster
+      patternQ = []; burstQ = null;                      // that gets photographed is the one placed here
+      // FOUR BREACHES, FOUR DEPTHS. Shallow enough that perspective has made them
+      // bodies rather than specks — the first capture put them near the horizon and
+      // the bore read as a dial with dust on it. Bearings are spread around the ring
+      // so the picture says "threats arrive anywhere", not "threats arrive here".
+      // …and placed DEEP enough to survive the settle. At lane speed the hold below
+      // carries everything about 0.17 closer, and the first cut put the nearest at
+      // 0.44 — it crossed the ring unanswered during the settle, took the miss, and
+      // reset the combo the shot was staged to show.
+      [[0.62, 5.30, undefined], [0.94, 2.05, 0], [1.28, 3.70, undefined], [1.72, 1.25, 1]]
+        .forEach(([z, a, lock]) => { const e = spawnEnemy(a, 'normal'); e.z = e.z0 = z; e.lock = lock; e.age = 0.9; });
+      // THE EMITTERS SIT AT THE RING'S WIDEST POINTS, opposed. It is the one
+      // placement where both carriages are unmistakably ON the ring, at full size,
+      // maximally apart — the first capture had them at bearings where they read as
+      // two more small dark objects among the traffic, which loses the whole shot.
+      nodes[0].angle = Math.PI; nodes[0].slew = null;    // blue, screen left
+      nodes[1].angle = 0;       nodes[1].slew = null;    // white, screen right
     `,
-    hold: 2,
-    want: 'bolts.length >= 1 && enemies.filter(e => !e.dead && e.type === "normal").length >= 3',
-    scan: 240
+    // frames for the stability meter and the pulse arcs to settle into the staged
+    // values before anything with a fuse is lit
+    hold: 26,
+    // THE DISCHARGE, LAST. A red is placed at the ring exactly on the blue emitter's
+    // bearing, and the game's own resolution path zaps it on the next tick — the bolt
+    // in this frame is a real kill by the real code, not a bolt drawn into a picture.
+    // The run's numbers are set HERE rather than in stage, so nothing that happens
+    // during the settle can walk them back — the combo is the one figure in this
+    // frame a player reads as "someone is playing well", and it was arriving at 1.
+    arm: `combo = 7; maxCombo = 11; score = 12480;
+          const kill = spawnEnemy(Math.PI, 'normal');
+          kill.z = kill.z0 = geo().hitZ + 0.010; kill.lock = undefined; kill.age = 1.2;`,
+    // a live bolt, and the placed roster still standing. Scanned over a few frames
+    // only — the first cut let 162 frames run and photographed a completely
+    // different lane than the one it had staged.
+    want: 'bolts.length >= 1 && enemies.filter(e => !e.dead && e.type === "normal").length >= 4',
+    scan: 30,
+    // ghosts too: the de-rez is deliberately BLOCKY art, and a body caught a couple
+    // of frames into it sits on the emitter as a smear of pink rectangles that
+    // reads as a corrupted texture rather than as a kill. The bolt and the burst
+    // carry the discharge on their own.
+    finish: 'popups = []; commCur = null; commT = 0; ghosts = [];'
   },
 
   // ── 2 · DOCK BOTH. CLEAR THE LANE. ────────────────────────────────────────
@@ -104,50 +156,140 @@ const SCENES = {
   // down — the picture has to answer "why would you ever give up half your
   // coverage" in one look, so the payoff must be visibly queued up.
   volley: {
-    camp: 0, level: 5, warm: 420, auto: 'dock',
+    camp: 0, level: 5, warm: 360, auto: 'dock',
     stage: `
-      combo = 18; score = 26400;
-      enemies = enemies.filter(e => !e.dead && e.type === 'strip');
-      // nose-to-tail down ONE lane, so the docked pair's aim reads as a decision
-      [0.40, 0.68, 0.98, 1.34].forEach(z => { const e = spawnEnemy(2.36, 'normal'); e.z = e.z0 = z; e.lock = undefined; e.age = 0.5; });
-      nodes[0].angle = 2.30; nodes[1].angle = 2.42;      // inside the 0.26 dock gap
+      combo = 14; score = 26400;
+      pulseCharge = [PULSE_MAX, PULSE_MAX];
+      enemies = enemies.filter(() => false);
+      spawnT = 999; ribbonT = 999; patternQ = []; burstQ = null;
+      // NOSE-TO-TAIL DOWN ONE LANE. The docked pair gives up all other coverage,
+      // so the frame has to show what that buys — a column queued in the exact
+      // lane the charge is aimed down. A scatter would make docking look careless.
+      [0.44, 0.72, 1.02, 1.38].forEach(z => { const e = spawnEnemy(2.36, 'normal'); e.z = e.z0 = z; e.lock = undefined; e.age = 0.7; });
+      nodes[0].angle = 2.30; nodes[1].angle = 2.42;      // inside the 0.26 rad dock gap
+      nodes[0].slew = null; nodes[1].slew = null;
+      volley.cd = 0;
     `,
-    hold: 6,
-    // charge caps at 0.5 (72-tick) — 0.40 is late enough that the core is
-    // white-hot and the arc window is full, without being the discharge frame
-    want: 'volley.charge > 0.40 && enemies.filter(e => !e.dead && e.type === "normal").length >= 4',
-    scan: 200
+    // the dock is HELD after staging (auto:'dock'), because the charge only builds
+    // while both carriages stay together — releasing it is what fires it
+    hold: 20,
+    // THE CHARGE IS SET, NOT WAITED FOR. updateVolley fires at exactly 0.5 and
+    // charges at 1.0/second, so a full cycle is half a second — and in that half
+    // second the nose-to-tail column marched into the ring and was gone, which is
+    // how the first attempt failed with one enemy left and nothing to aim at.
+    // Starting the charge near its top means the frame is reached before the lane
+    // has time to change. The value is a real state on a real cycle; only the
+    // waiting is skipped.
+    arm: 'volley.charge = 0.455; volley.aimA = 2.36;',
+    // 0.5 is the fire threshold, so this is the last instant before the discharge:
+    // the core white-hot, the arc window full, the column still queued
+    want: 'volley.charge > 0.44 && enemies.filter(e => !e.dead && e.type === "normal").length >= 4',
+    scan: 4,
+    finish: 'popups = []; commCur = null; commT = 0;'
   },
 
   // ── 3 · NOTHING GETS THROUGH YOU. ─────────────────────────────────────────
   // The interdictor. ?kind= picks which of the five, because the roster was
   // reworked recently and which one photographs best is a question for the
   // contact sheet, not for a guess made here.
+  // THE DUEL IS PLAYED, NOT ASSEMBLED.
+  //
+  // The first cut of this scene called spawnBoss() by hand and then wrote the
+  // fight's state straight into the object — introT past the ceremony, hp = 4,
+  // the lamp pinned on blue, and a swarm placed body by body. Every field was a
+  // real field with a plausible value, and the result was still a machine in a
+  // configuration its own fight never produces: the phase machine (mode, modeT,
+  // beams, sweepAdds, waveT) had never run, so the parts that read those were
+  // drawing a boss caught between states. It looked wrong because it WAS wrong.
+  //
+  // So this one only ever moves the LEVEL CLOCK. 72-tick spawns the leech itself
+  // the moment levelT passes the level's duration on a boss stage, the arrival
+  // ceremony plays, and the autopilot then fights it for real — zapping the swarm
+  // to bank charge and spending a full orb whenever the lamp allows. Every value
+  // in the captured frame was computed by the game.
   boss: {
-    camp: 0, level: 7, warm: 300, auto: 'play',
+    camp: 0, level: 7, warm: 240, auto: 'play',
     stage: `
-      combo = 12; score = 33200;
+      // ?kind= still chooses which of the five. The mimic leads because its LAMP is
+      // live — the tell naming whose pulse lands — so its core reads as a blue
+      // instrument rather than one more hostile red glow, which is also the brief's
+      // own description of this shot.
       LV = LV || LEVELS[levelIdx];
-      LV.bossKind = (new URLSearchParams(location.search)).get('kind') || 'leech';
-      spawnBoss();
-      boss.introT = BOSS_CER + 3;                        // past the arrival ceremony
-      boss.hp = 4;                                       // mid-duel: two pulses landed
-      boss.waveT = 0.05;                                 // a swarm on its way in
+      LV.bossKind = (new URLSearchParams(location.search)).get('kind') || 'mimic';
+      // …and that is the ONLY thing set. Push the clock to the stage's end and let
+      // 72-tick decide the machine has arrived.
+      levelT = LV.duration - 0.4;
+      enemies = enemies.filter(() => false);
+      combo = 19; score = 41750;
     `,
-    hold: 150,
-    // its own bodies on the lane, and the machine settled at the bore's centre
-    want: 'boss && boss.z < 1.6 && enemies.filter(e => !e.dead).length >= 3',
-    scan: 900
+    // long enough for the arrival ceremony, the first swarm, and at least two
+    // pulses to be banked and spent — the fight, at its own pace
+    hold: 60,
+    // A machine the GAME spawned, past its own arrival ceremony, eased down to the
+    // depth leechHold fights from, with a swarm it sent itself.
+    //
+    // It is at FULL HEALTH on purpose. The predicate first demanded hp < maxHp, on
+    // the theory that a wounded boss reads as further into the fight — but the
+    // autopilot is a poor duellist (it chases the nearest body every frame and
+    // rarely banks a whole orb), so 700 frames of real duel never landed a pulse
+    // and the shot could not be taken at all. Waiting is the wrong fix anyway: hp
+    // is a number in a corner gauge, and the frame is of the MOMENT THE DUEL OPENS
+    // — machine settled, swarm inbound, nothing spent yet. That state is real, the
+    // game computed every field of it, and it is the one a player actually meets.
+    // >=, not >. boss.introT is CLAMPED at BOSS_CER once the arrival finishes, so
+    // a strict > is a clause that can never be true — the duel ran correctly for
+    // 700 frames, landed pulses, and was refused every single frame on 3.4 > 3.4.
+    // …and the swarm has to be IN THE PICTURE, not merely alive. Counting live
+    // bodies alone passed on a frame where all five were still specks at the
+    // horizon, so the machine sat alone in an empty bore — the exact complaint the
+    // whole scene was rebuilt to answer. z < 1.15 is "near enough to read as a
+    // body", and two of them is a swarm arriving.
+    want: 'boss && boss.introT >= BOSS_CER && boss.dying === undefined && boss.z < 0.7 && enemies.filter(e => !e.dead && !e.resolved && e.z < 1.15).length >= 2',
+    scan: 700,
+    finish: 'popups = []; commCur = null; commT = 0; ghosts = [];'
   },
 
   // ── 4 · FIVE CONTRACTS. FORTY RELAYS. ─────────────────────────────────────
   // Scope, shown rather than claimed. The chart is a defended volume with the
   // cordons printed on it, so the picture carries the fiction's own reason for
   // why the outer work is harder.
-  chart: { screen: 'map', camp: 2, level: 3, hold: 150 },
+  chart: {
+    screen: 'map', camp: 0, level: 3, hold: 150,
+    // CAMPAIGN 0, NOT 2. The outer contracts are sited past the last cordon —
+    // deep space, which is exactly where the chart has almost nothing on it, so
+    // the frame came back as one lane crossing an empty circle. The inner cordon
+    // is where the survey lattice, the junction diamonds and the picket stations
+    // actually are, and it is also the contract a new player is being sold.
+    //
+    // And a campaign PART DONE, so the chart has cleared routes on it. This is a
+    // real save state — five relays flown, the sixth unlocked, three of them clean
+    // — not a decoration: the green is the game's own record of work finished, and
+    // an untouched chart is the one state that shows none of what the screen is for.
+    // `pre`, not `stage`: installCampaign() READS progress as it installs (33-loader
+    // fills in a fresh {unlocked:1} if it finds none), so a save written afterwards
+    // is a save the screen has already decided not to look at. The first attempt
+    // set it after the install and the chart came back with every relay but 01
+    // still locked.
+    pre: `progress.camp = progress.camp || {};
+          progress.camp[CAMPAIGNS[0].id] = { unlocked: 6, stars: [3, 3, 2, 3, 1], bests: [] };`
+  },
 
   // ── 5 · THE CONTRACT. ─────────────────────────────────────────────────────
-  disc: { screen: 'disc', camp: 0, level: 0, hold: 120 },
+  // The CAMPAIGN carousel, not a level's story card. The brief asked for the
+  // client name and tier in gold, and that is a property of the contract — the
+  // package carries title, tagline (HAULERS CONSORTIUM · TIER 1 -> 3), client and
+  // its own art plate. The per-level disc shot first had none of them: it drew
+  // relay 01's one-liner, "The journey begins", which is the thinnest sentence in
+  // the whole script and reads as placeholder copy in a store frame.
+  contract: {
+    screen: 'camps', camp: 0, level: 0, hold: 150,
+    // THE SAME SAVE THE CHART IS SHOT ON. These two frames sit next to each other
+    // in the carousel, and without this the chart showed five relays flown while
+    // the contract card beside it read 0/24 and 1/8 STAGES — two pictures of the
+    // same player disagreeing about what they had done.
+    pre: `progress.camp = progress.camp || {};
+          progress.camp[CAMPAIGNS[0].id] = { unlocked: 6, stars: [3, 3, 2, 3, 1], bests: [] };`
+  },
 
   // ── 6 · ROUTE AROUND. RIDE THE GOLD. ──────────────────────────────────────
   // The one shot about the lane rather than the traffic: a rim wall you must
@@ -155,31 +297,81 @@ const SCENES = {
   // is reserved for gains (DESIGN.md's Gold Rule), so the frame is legible as
   // "hazard here, reward there" without a single label.
   ribbon: {
-    camp: 0, level: 5, warm: 420, auto: 'play',
+    camp: 0, level: 5, warm: 360, auto: 'off',
     stage: `
-      combo = 21; score = 30900;
-      enemies = enemies.filter(e => !e.dead && e.type !== 'strip');
+      combo = 26; score = 61900;
+      pulseCharge = [PULSE_MAX, PULSE_MAX];
+      enemies = enemies.filter(() => false);
+      spawnT = 999; ribbonT = 999; patternQ = []; burstQ = null;
       latches = [];
       spawnWall(1.15, true);                             // force: no clash hops, we placed it
       const rb = spawnStrip();
-      rb.angle = 4.30; rb.len = 0.80; rb.amp = 0.34; rb.frq = 2.6; rb.ph = 0.4;
-      rb.z = rb.z0 = 1.35; rb.tracing = true;            // a node is on it — the ride is lit
-      nodes[1].angle = 4.30;
+      // CLOSE, AND SWEEPING. At z=1.35 the ribbon was a thread near the vanishing
+      // point and the shot had no gold in it at all. Brought into the near field it
+      // becomes what it is in play: a long gold ride arcing across the bore. amp is
+      // the meander's width — the sweep is what makes it read as a PATH to follow
+      // rather than as another piece of traffic.
+      // …but a wide meander at the top of the ring simply LEAVES the frame: at
+      // amp 0.46 the ride climbed out past 12 o'clock and read as a gold staircase
+      // running off the edge. Held to a shallower sweep, low on the ring, it stays
+      // a ride the eye can follow from end to end inside the picture.
+      rb.angle = 2.55; rb.len = 0.85; rb.amp = 0.26; rb.frq = 1.7; rb.ph = 0.2;
+      // AND NOT BEING RIDDEN. A ribbon under a node takes THAT NODE'S colour (see
+      // the tracing branch in 72-tick), so riding it with the white emitter turned
+      // the shot's one piece of gold silver. Left untaken it burns Payload Gold —
+      // which is the Gold Rule doing its job: gold means a gain, and the frame is
+      // an offer, not a trophy. "RIDE THE GOLD" is the invitation, so show the gold.
+      rb.z = rb.z0 = 0.46; rb.tracing = false;
+      nodes[1].angle = 2.98; nodes[1].slew = null;       // white, closing on the ride
+      nodes[0].angle = 1.15 + 2.2; nodes[0].slew = null; // blue, detoured clear of the wall
     `,
     hold: 40,
-    // the carpet has to be IN the bore, not still at the horizon, or the shot is
-    // of an empty lane with a rumour in it
+    // the carpet has to be IN the bore, not still at the horizon, or the shot is of
+    // an empty lane with a rumour in it
     want: 'latches.length >= 1 && latches[0].t > 0.9 && enemies.some(e => e.type === "strip" && !e.dead)',
-    scan: 400
+    scan: 400,
+    finish: 'popups = []; commCur = null; commT = 0;'
+  },
+
+  // ── THE FEATURE GRAPHIC'S PLATE ───────────────────────────────────────────
+  // Not a carousel shot: the raw bore, with every piece of chrome suppressed, for
+  // shot-feature.html to build the 1024x500 banner on. Play forbids nothing here,
+  // but the brief does — no text beyond the wordmark — and the score readout, the
+  // gauges and the two dial pads are all text or instrument furniture. They are
+  // stubbed for the shot rather than removed from the game: this harness monkey-
+  // patches the painters in its own page, and src/ never learns marketing exists.
+  feature: {
+    camp: 0, level: 5, warm: 360, auto: 'off', bare: true,
+    stage: `
+      enemies = enemies.filter(() => false);
+      spawnT = 999; ribbonT = 999; patternQ = []; burstQ = null;
+      // ONE HOSTILE MID-FLIGHT, near enough to catch the key light, placed off to
+      // the side the banner will crop toward. The rest of the bore stays empty —
+      // this is a wordmark plate, and a busy lane behind lettering is neither.
+      // bearings chosen against the BANNER's crop, not the plate's: shot-feature
+      // lands the plate's centre at 70% width / 46% height and scales past
+      // full-bleed, so a body high on the ring falls outside the 1024x500. The
+      // first cut put the near hostile at 5.05 and the banner clipped it in half.
+      [[0.58, 4.05], [1.30, 2.35]].forEach(([z, a]) => {
+        const e = spawnEnemy(a, 'normal'); e.z = e.z0 = z; e.lock = undefined; e.age = 0.9;
+      });
+      nodes[0].angle = Math.PI * 1.18; nodes[0].slew = null;
+      nodes[1].angle = Math.PI * 0.16; nodes[1].slew = null;
+    `,
+    hold: 20,
+    finish: 'popups = []; commCur = null; commT = 0; ghosts = [];'
   },
 
   // ── 7 · SAME LANE. EVERY PLAYER. ALL WEEK. ────────────────────────────────
-  // Shot on the board's TRUE pre-launch state. There is no player base yet, and
-  // a board of invented names would be exactly the fabricated social proof the
-  // brief rules out — so it is shot empty, which the game already has a real
-  // answer for: NO RUNS YET — BE THE FIRST. The top of the ladder being visibly
-  // unclaimed is a better closing frame than strangers' scores anyway.
-  board: { screen: 'board', camp: 0, level: 3, hold: 150 }
+  // The live weekly board, fetched. The brief's ban on fabricated social proof
+  // rules out INVENTING names; it never asked the shot to hide the real ones, and
+  // the first cut got that exactly backwards — it forged an empty board.
+  board: {
+    screen: 'board', camp: 0, level: 3, hold: 150,
+    netWait: true,      // the only scene waiting on the world rather than the sim
+    want: 'boardData && !boardData.loading && !boardData.error && boardData.rows && boardData.rows.length > 0',
+    scan: 90
+  }
 };
 
 (async () => {
@@ -203,14 +395,39 @@ const SCENES = {
   // which never matches the --window-size asked for anyway
   window.innerWidth = w; window.innerHeight = h;
 
-  // manifest order, not a scrape of index.html: the game is ordered topic files
-  const files = ['campaigns.js', 'audio/music/tracks.js'];
-  const man = await (await fetch('game/manifest.json')).json();
-  for (const f of man.files) files.push('game/' + f.file);
-  for (const f of files) {
-    const src = await (await fetch(f)).text();
+  // ── LOAD index.html, NOT A LIST OF ITS SCRIPTS ─────────────────────────────
+  // This used to walk game/manifest.json and inject only the topic files, which
+  // is most of the page and not the page. It cost a whole set of screenshots:
+  //
+  //   index.html's <style> carries the @font-face for AUDIOWIDE. Injecting only
+  //   the scripts left the rule undeclared, so every canvas fillText in the game
+  //   silently fell back to system-ui — score, combo, menu titles, the chart, the
+  //   board, the contract cards, the boss name. Every frame was captured in the
+  //   wrong typeface, and the result reads as a different, older build. Nothing
+  //   errored; it just quietly looked wrong.
+  //
+  // It also skipped the trailing inline block that defines window.MUSIC_DATA, and
+  // the :root safe-area custom properties resize() reads for SAFE.
+  //
+  // So: take the real page apart in document order and run all of it. The
+  // manifest is a BUILD artifact (build.js denylists it from shipping) and was
+  // never the runtime truth — index.html is.
+  const page = await (await fetch('index.html')).text();
+  for (const m of page.matchAll(/<style>([\s\S]*?)<\/style>/g)) {
+    const st = document.createElement('style');
+    st.textContent = m[1];
+    document.head.appendChild(st);
+  }
+  // document order matters: campaigns.js and tracks.js precede the topic files,
+  // and MUSIC_DATA's inline block follows all of them
+  const tags = [...page.matchAll(/<script(?:\s+src="([^"]+)")?[^>]*>([\s\S]*?)<\/script>/g)];
+  for (const [, srcAttr, inline] of tags) {
     const s = document.createElement('script');
-    s.textContent = src + '\n//# sourceURL=/' + f;   // a thrown file names ITSELF, not its victims
+    if (srcAttr) {
+      s.textContent = await (await fetch(srcAttr)).text() + '\n//# sourceURL=/' + srcAttr;
+    } else {
+      s.textContent = inline;
+    }
     document.body.appendChild(s);                    // executes synchronously
   }
   // real time, warming the game's own Image loads. Virtual time cannot skip past
@@ -218,9 +435,19 @@ const SCENES = {
   for (const f of ['logo.webp', 'logo-small.webp']) {
     try { await createImageBitmap(await (await fetch(f)).blob()); } catch (e) {}
   }
-  // raced, never awaited bare: a headless run with no font service leaves this
-  // pending forever and the harness hangs with nothing on screen
-  try { await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2500))]); } catch (e) {}
+  // Load the face EXPLICITLY and wait for it. document.fonts.ready alone resolves
+  // happily when nothing ever requested the font, which is exactly how this went
+  // unnoticed — the race below then "succeeded" against a document that had no
+  // Audiowide in it at all.
+  let fontOk = false;
+  try {
+    await document.fonts.load('700 46px Audiowide');
+    await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))]);
+    fontOk = document.fonts.check('700 46px Audiowide');
+  } catch (e) {}
+  // and REFUSE to shoot without it. A store set in the wrong typeface is worse
+  // than no store set: it looks finished.
+  if (!fontOk) { document.title = 'FAILED Audiowide did not load — every frame would be in the fallback face'; return; }
   await new Promise(r => setTimeout(r, 120));
 
   const poke = code => {
@@ -228,6 +455,40 @@ const SCENES = {
     s.textContent = code;
     document.body.appendChild(s);
   };
+  // ── BAKE THE STATION HARDWARE BEFORE ANYTHING ELSE ─────────────────────────
+  // 81-station3d bakes its software-3D sprites progressively, and 99-boot pumps
+  // that queue ONLY while state is MENU or GUIDE — deliberately, so the build
+  // happens while the player is picking a contract and never during a run.
+  //
+  // A harness that boots straight into S.PLAY therefore never pumps at all, and
+  // every consumer silently takes its fallback path. drawLeechMachine's fallback
+  // is a "procedural stand-in" of dark steel rings, which is why the boss came
+  // back as a flat grey disc with no orange rim, no plating and no lamps, and
+  // read as a low-detail build of a different game. Same trap for the chart's
+  // endpoint art and the destination at the end of the bore.
+  //
+  // s3Pump is budgeted in REAL milliseconds and returns true while work remains,
+  // so it can simply be run to completion here — the sprites are identical to the
+  // ones the menu would have produced, they are just not spread over a minute of
+  // someone choosing a contract.
+  poke(`window.__bake = function (ms) {
+    if (typeof s3Pump !== 'function') return { missing: true };
+    let more = true, rounds = 0;
+    while (more && rounds < 40) { more = s3Pump(ms); rounds++; }
+    return { more, blocked: typeof s3Blocked !== 'undefined' && s3Blocked,
+             queued: typeof s3Queue !== 'undefined' ? s3Queue.length : -1,
+             built: typeof s3Sprites !== 'undefined' ? Object.keys(s3Sprites).length : -1 };
+  };`);
+  let bake = { more: true };
+  for (let i = 0; i < 60 && bake.more; i++) {
+    bake = window.__bake(150);
+    await new Promise(r => setTimeout(r, 0));   // let the page breathe between slices
+  }
+  // and refuse to shoot on the fallback art, exactly as with the font
+  if (bake.blocked || bake.missing) {
+    document.title = 'FAILED station bake unavailable (' + JSON.stringify(bake) + ') — every frame would use stand-in hardware';
+    return;
+  }
   let t = 0;
   const crank = n => {
     for (let i = 0; i < n; i++) {
@@ -251,7 +512,16 @@ const SCENES = {
     // test — which is the whole reason 41-geometry forbids the shortcut.
     window.__auto = function (mode) {
       if (state !== S.PLAY) return;
-      integrity = 100;                        // nothing dies during a photo shoot
+      // NOTHING DIES DURING A PHOTO SHOOT — but topping this up EVERY frame is
+      // what produced the first bore capture's mangled readout at 12 o'clock: the
+      // stability meter animates its blocks, and re-slamming the value under it
+      // every tick left the thing permanently mid-transition. Refill only when it
+      // has actually fallen, and the meter is free to settle between refills.
+      if (integrity < 70) integrity = 100;
+      // 'off' still keeps the run alive — it only means HANDS OFF THE CARRIAGES.
+      // A scene that has placed its emitters deliberately must not have them
+      // dragged away by the autopilot on the very next frame.
+      if (mode === 'off' || !mode) return;
       const live = enemies
         .filter(e => !e.dead && !e.resolved && !e.failed && e.type !== 'frag' && e.type !== 'strip')
         .sort((a, b) => a.z - b.z);           // nearest first: real triage order
@@ -259,6 +529,19 @@ const SCENES = {
         const tgt = live[0] ? live[0].angle : nodes[0].angle;
         nodes[0].slew = tgt; nodes[1].slew = tgt;
         return;
+      }
+      // IN A DUEL, SPEND THE ORB. Wounding a leech is the whole verb of the fight,
+      // and an autopilot that only ever zaps the swarm banks charge forever and
+      // never lands a pulse — so the machine stays at full health and the frame
+      // has to be forged by writing boss.hp, which is what produced a boss in a
+      // state its own fight never reaches. The mimic's lamp says whose pulse
+      // lands; everyone else takes either.
+      if (typeof boss !== 'undefined' && boss && boss.introT >= BOSS_CER && boss.dying === undefined) {
+        for (let i = 0; i < 2; i++) {
+          if (pulseCharge[i] >= PULSE_MAX && !(nodes[i].deadT > 0) && (boss.lamp < 0 || boss.lamp === i)) {
+            firePulse(i); break;
+          }
+        }
       }
       const taken = [];
       for (let i = 0; i < 2; i++) {
@@ -271,9 +554,15 @@ const SCENES = {
     };
     window.__probe = function (expr) { try { return !!eval(expr); } catch (e) { return false; } };
     window.__stat = function () {
-      return 'st' + state + ' en' + enemies.filter(e => !e.dead).length +
-             ' bolt' + bolts.length + ' vol' + (volley.charge || 0).toFixed(2) +
-             ' combo' + combo + (boss ? ' bossHP' + boss.hp + ' z' + boss.z.toFixed(2) : '');
+      return 'T' + time.toFixed(3) + ' st' + state + ' en' + enemies.filter(e => !e.dead).length +
+             ' bolt' + bolts.length + ' vol' + (volley.charge || 0).toFixed(3) +
+             ' gap' + Math.abs(angDiff(nodes[0].angle, nodes[1].angle)).toFixed(3) +
+             ' cd' + (volley.cd || 0).toFixed(2) + ' dead' + (nodes[0].deadT||0).toFixed(1) + '/' + (nodes[1].deadT||0).toFixed(1) + ' intro' + introT.toFixed(0) +
+             ' combo' + combo + (boss ? ' bossHP' + boss.hp + ' z' + boss.z.toFixed(2) + ' cer' + boss.introT.toFixed(1) + '/' + BOSS_CER : '') +
+             (typeof boardData !== 'undefined' && boardData
+               ? ' | board key=' + boardData.key + ' loading=' + boardData.loading +
+                 ' error=' + boardData.error + ' rows=' + (boardData.rows ? boardData.rows.length : 'null')
+               : '');
     };
   `);
 
@@ -282,17 +571,53 @@ const SCENES = {
 
   if (screen === 'play') {
     poke(`SPLASH.on = false;
+          ${sc.pre || ''}
           try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
           startLevel(Math.min(${level}, (LEVELS || []).length - 1));
           introT = 999; introCd = 0;          // past the launch ceremony
           state = S.PLAY;`);
-    // warm-up: REAL PLAY, in slices, with the autopilot holding the thumbs. The
-    // slices exist because a straight crank with nobody playing loses the run and
-    // hands back a mission report instead of a lane.
+    // WARM-UP IS ALWAYS REAL PLAY. The autopilot holds the thumbs here no matter
+    // what the scene asks for afterwards, because this is the part that puts a
+    // history into the world — streak field, lane furniture, particles, a score
+    // that was earned. A scene staged onto a cold boot reads as a diagram.
     const warm = sc.warm || 300;
-    for (let i = 0; i < warm; i++) { window.__auto(sc.auto === 'off' ? null : (sc.auto || 'play')); crank(1); }
+    for (let i = 0; i < warm; i++) { window.__auto('play'); crank(1); }
+    // `bare` scenes lose every piece of chrome. Reassigning the painters is enough
+    // — they are top-level function declarations in a classic script, so the
+    // binding is writable and the frame() call site picks up the stub.
+    if (sc.bare) poke('drawHUD = () => {}; drawDials = () => {}; drawWarpCal = () => {}; drawIntroCard = () => {}; drawNowPlaying = () => {};');
+    // BOTH EMITTERS ONLINE, always, before any scene stages itself. The autopilot
+    // does not dodge emitter-killers, so warm-up regularly ends with a carriage
+    // fried and counting down — and a fried carriage is not a cosmetic detail:
+    // 72-tick's dock test reads bothAlive, so the volley scene silently refused to
+    // hold any charge at all, and the bore scene shot one dark arc where the brief
+    // asked for two lit ones. Both bugs were the same dead node. The field list is
+    // 60-input's own carriage reset, so this restores exactly what a respawn does.
+    poke(`for (const n of nodes) { n.deadT = 0; n.recoil = 0; n.formedFx = false; n.formAt = 0; n.slew = null; }
+          popups = []; commCur = null; commT = 0;
+          // AND THE RUN IS UNDERWAY, not six seconds old. The left-hand gauge is
+          // lane progress and the destination world's size is keyed off the same
+          // latch, so a freshly-started level photographs as an empty bar and a
+          // distant speck — beside a score and a x10 combo, which do not agree
+          // with it. levelT is the honest place to set this: laneProgress() only
+          // ever raises FROM it, so moving the clock moves the whole approach.
+          // 0.34, not the 0.55 tried first: the destination world grows with this,
+          // and past about a third of the lane it blows out the vanishing point and
+          // swallows the traffic nearest the centre. A third reads as "underway"
+          // and still leaves the bore its depth.
+          const _L = LV || LEVELS[levelIdx];
+          if (_L && _L.duration) { levelT = _L.duration * 0.34; lanePlanetProg = Math.max(lanePlanetProg, 0.34); }`);
+    crank(2);
     if (sc.stage) poke(sc.stage);
-    for (let i = 0; i < (sc.hold || 0); i++) { window.__auto(sc.auto === 'off' ? null : (sc.auto || 'play')); crank(1); }
+    // …and `auto` governs only what happens AFTER staging, which is usually
+    // 'off': the scene placed its emitters on purpose.
+    const after = sc.auto || 'play';
+    for (let i = 0; i < (sc.hold || 0); i++) { window.__auto(after); crank(1); }
+    // `arm` is the LAST thing set up, and it exists because the two are on
+    // different clocks: meters need frames to settle into the staged state, while
+    // a discharge lives 0.4s and would be long gone by the time they had. So the
+    // scene settles first, and only then is the thing with a fuse on it lit.
+    if (sc.arm) { poke(sc.arm); }
   } else if (screen === 'disc') {
     poke(`SPLASH.on = false;
           try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
@@ -303,15 +628,31 @@ const SCENES = {
     crank(sc.hold || 120);
   } else {
     poke(`SPLASH.on = false;
+          ${sc.pre || ''}
           try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
           state = S.MENU; menuScreen = '${screen}'; menuFx = null; menuCache = null;`);
+    // menu scenes stage too — the chart needs a campaign with history on it
+    if (sc.stage) poke(sc.stage);
+    if (screen === 'camps') {
+      // the carousel's own entry state (60-input's CAMPAIGN branch)
+      // disc 1, not 0: disc 0 is VANGUARD TRAINING (the qualification run), and the
+      // shot is about the CONTRACTS — the card carrying the client, the stage count
+      // and TIER 1 -> 3. Centred on 0 the contract sat half off the right edge.
+      poke('campScroll = campScrollTgt = 1; campPendingSync = null;');
+    }
     if (screen === 'board') {
-      // The board fetches over the network and there is none here. Rather than
-      // shoot SYNCING… or OFFLINE, hand it the state a real player meets on the
-      // first day of a week: loaded, and empty. Nothing is invented — the game
-      // draws its own NO RUNS YET — BE THE FIRST.
-      poke(`boardSel.mode = 'weekly';
-            boardData = { key: boardKeyFor(), loading: false, rows: [], error: false };`);
+      // FETCH THE REAL BOARD. This used to hand the screen a hand-made empty
+      // result, reasoning that a harness has no network and an empty board is the
+      // honest pre-launch state. Both halves were wrong: headless Chrome has a
+      // network, the live board has real runs on it, and a forged "NO RUNS YET"
+      // understated the game rather than protecting it. Every name that appears
+      // is a real entry on a public board — nothing here is staged.
+      // RELAY 01's BOARD, because that is where the runs are. The weekly ladder is
+      // the competitive spine and it is the board the brief asked for, but it was
+      // probed live and both rungs are genuinely empty — the field is on the
+      // campaign boards. Shooting the ladder would have meant photographing a real
+      // "NO RUNS YET" and calling it a leaderboard.
+      poke("boardPick('campaign', 0, 0);");   // sets the selection AND kicks loadBoard()
     }
     crank(sc.hold || 150);
     await new Promise(r => setTimeout(r, 400));   // the badge is a real Image load
@@ -323,16 +664,33 @@ const SCENES = {
   let scanned = 0, found = !sc.want;
   if (sc.want) {
     const limit = sc.scan || 900;
+    const after = sc.auto || 'play';
     for (; scanned < limit; scanned++) {
       if (window.__probe(sc.want)) { found = true; break; }
-      window.__auto(sc.auto === 'off' ? null : (sc.auto || 'play'));
+      // A cranked loop never yields, so a real fetch can NEVER settle inside it —
+      // which is half of why the board looked unreachable and got faked instead.
+      // netWait scenes hand the event loop back between frames.
+      if (sc.netWait) await new Promise(r => setTimeout(r, 140));
+      window.__auto(after);
       crank(1);
     }
   }
+  const statPre = window.__stat ? window.__stat() : '';
+  if (found) {
+    // FREEZE, THEN REPAINT. 99-boot's frame() honours globalThis.EDITOR_DRIVE —
+    // the Lane Designer's hook, where returning 0 holds the world and draws only.
+    // Without it the repaint that clears the overlays is a real sim step, and the
+    // captured frame is the one AFTER the predicate matched: the volley shot came
+    // back already fired, because the extra tick took its charge over the 0.5
+    // threshold. Now the frame photographed is exactly the frame that was chosen.
+    poke('globalThis.EDITOR_DRIVE = () => 0;' + (sc.finish || ''));
+    crank(1);
+  }
   const stat = window.__stat ? window.__stat() : '';
   const meta = key + ' ' + w + 'x' + h + ' dpr' + devicePixelRatio +
-    ' frames' + fired + (sc.want ? ' scan' + scanned : '') + ' ' + stat +
-    ' err ' + (window.__err || 'none');
+    ' frames' + fired + (sc.want ? ' scan' + scanned : '') +
+    ' [pre ' + statPre + '] [shot ' + stat + ']' +
+    ' bake' + (bake.built || 0) + ' err ' + (window.__err || 'none');
 
   if (!found) {
     // Loud, and NOT captured. A near-miss frame banked silently is how a store
