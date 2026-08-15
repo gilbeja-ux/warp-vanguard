@@ -1533,7 +1533,8 @@ function drawMenuFlow() {
     { key: 'endless', glyph: '∞', name: 'ENDLESS LANE', mid: -Math.PI / 2, locked: !endlessOpen, col: '255,210,74',
       cap: endlessOpen ? 'procedural · no mercy' + (progress.best > 0 ? ' · BEST ' + progress.best.toLocaleString() : '') : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock' },
     { key: 'weekly', glyph: '◈', name: 'WEEKLY LANE', mid: Math.PI / 2, locked: !weeklyOpen, col: '140,220,255',
-      cap: weeklyOpen ? 'one seeded lane all week' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : '') : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock' }
+      cap: weeklyOpen ? 'one seeded lane all week' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : '') : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock',
+      streak: weeklyOpen ? weeklyStreak() : null }
   ];
   ctx.save();
   ctx.globalAlpha = wheelAl;
@@ -1563,6 +1564,23 @@ function drawMenuFlow() {
       hv.locked ? 'rgba(150,180,210,0.45)' : '#eaf6ff', '800', Math.PI * 0.9);
     arcText(hv.cap, ccx, ccy, r0 + R * 0.075, mid, Math.max(8, Math.round(R * 0.04)),
       hv.locked ? 'rgba(140,170,200,0.4)' : 'rgba(160,215,255,0.75)', '500', Math.PI * 0.9);
+    // THE STREAK RIDES ITS OWN LINE. It is not a description of the lane — it is
+    // the player's standing in it — so it gets its own weight and its own colour
+    // rather than a third clause on a caption already carrying the mode and the
+    // best. Amber when the streak is alive but unfiled (this week still has to be
+    // earned, and that is the whole reason to be looking at this screen); the
+    // lane's own blue once the week is banked.
+    //
+    // It sits in the band BETWEEN the caption and the glyph. The obvious slot —
+    // just inside the caption, toward the hub — was tried and collided: the arc
+    // radii there are only R*0.05 apart and the two lines print into each other.
+    // This gap is the widest empty run in the sector.
+    if (hv.streak) {
+      const st = hv.streak;
+      arcText(st.held ? 'STREAK ' + st.n + ' WK — BANKED' : 'STREAK ' + st.n + ' WK — ENDS SUNDAY',
+        ccx, ccy, r0 + R * 0.155, mid, Math.max(8, Math.round(R * 0.037)),
+        st.held ? 'rgba(140,220,255,0.9)' : 'rgba(255,196,74,0.95)', '800', Math.PI * 0.9);
+    }
     menuButtons.push({ sector: { cx: ccx, cy: ccy, r0, r1, a0: hv.mid - Math.PI / 2 + 0.03, a1: hv.mid + Math.PI / 2 - 0.03 },
       endless: hv.key === 'endless', weekly: hv.key === 'weekly', locked: hv.locked });
   }

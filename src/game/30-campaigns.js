@@ -69,3 +69,23 @@ function bandCfg(level, t) {
 // campaign progress lives per campaign id under progress.camp; the flat
 // pre-CMS fields (stars/bests/unlocked) migrate into camp['cargo-run']
 const progress = { camp: {}, enlisted: false, tutorialDone: false, stripBriefed: false, wallBriefed: false, best: 0, weekly: { last: 0, streak: 0, best: 0 } };
+// THE RANKED STREAK, AND WHETHER IT IS STILL STANDING. progress.weekly.streak has
+// counted consecutive filed weeks since the ladder shipped and nothing ever drew
+// it — the one hook that rewards coming back was being earned invisibly.
+//
+// The count alone is not the motivating fact; the count PLUS its footing is. A
+// streak that already banked THIS week is safe and is a trophy. A streak whose
+// last file was LAST week is alive but expires when the week closes on Sunday —
+// that is the state worth putting in front of someone opening the menu, and the
+// only one that asks for a run. Anything older is broken, and the stale number
+// still sitting in the save is history: the next filed run resets it to 1 (see
+// endLevel), so it is never shown.
+//   held=true  → banked this week      held=false → alive, expires Sunday
+function weeklyStreak() {
+  const D = progress.weekly;
+  if (!D || !D.streak) return null;
+  const gap = weekNow() - D.last;
+  return gap === 0 ? { n: D.streak, held: true }
+    : gap === 1 ? { n: D.streak, held: false }
+    : null;
+}

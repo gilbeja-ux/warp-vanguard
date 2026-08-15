@@ -25,10 +25,32 @@ function withCanvas(cv, fn) {
 }
 
 let ROT = false; // landscape-only: on portrait screens the whole game renders rotated 90°
+let lastCw = -1, lastCh = -1, lastDpr = -1, lastRot = null; // what the canvas is CURRENTLY built for
 function resize() {
+  // A MOUNTED FIELD FREEZES THE GEOMETRY. The only thing that summons a soft
+  // keyboard is one of our own text fields (handle entry, MY DATA), and a
+  // keyboard is not a viewport change the game should answer:
+  //   · Android shrinks window.innerHeight to make room for it, and on a TABLET
+  //     held in portrait that shrink can leave the viewport WIDER THAN TALL —
+  //     flipping ROT and spinning the whole game 90° under the player, mid-type.
+  //     Phones never hit it (portrait stays taller even with a keyboard up),
+  //     which is exactly why it survived testing.
+  //   · the keyboard fires a BURST of resizes through its open animation, and
+  //     every one of them used to re-bake the sky (nine canvases, strips several
+  //     screens wide) and the menu cache.
+  // Frozen, the canvas simply keeps its pre-keyboard box and the keyboard covers
+  // the bottom of it — which is what the player expects to see. clearField()
+  // re-runs this once the field is gone, so a REAL rotation performed while
+  // typing is picked up the moment the keyboard closes.
+  if (overlayEl) return;
   DPR = Math.min(window.devicePixelRatio || 1, 2);
   const cw = window.innerWidth, ch = window.innerHeight;
   ROT = ch > cw;
+  // NOTHING MOVED → NOTHING TO REBUILD. A resize event does not imply the
+  // viewport actually changed: a scroll-driven URL-bar collapse fires them at
+  // the same size, and so does every no-op relayout.
+  if (cw === lastCw && ch === lastCh && DPR === lastDpr && ROT === lastRot) return;
+  lastCw = cw; lastCh = ch; lastDpr = DPR; lastRot = ROT;
   W = ROT ? ch : cw; H = ROT ? cw : ch;
   canvas.width = cw * DPR; canvas.height = ch * DPR;
   canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';

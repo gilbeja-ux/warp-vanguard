@@ -633,7 +633,13 @@ function mountField(kind, rect, opts) {
   }
   overlayField = kind; overlayInput(rect, opts);
 }
-function clearField() { overlayField = ''; hideOverlay(); }
+// Dropping the field is the ONE path back out of a mounted keyboard — every
+// dismiss site routes through here, and overlayInput()'s own hideOverlay() (the
+// swap-one-field-for-another case) deliberately does not. So this is where the
+// geometry freeze that resize() holds while a field is up gets lifted: re-run it
+// now that window.innerHeight means the viewport again, and pick up any real
+// rotation the player performed while the keyboard was covering the screen.
+function clearField() { overlayField = ''; hideOverlay(); resize(); }
 
 function drawEnd(g) {
   endButtons = [];
@@ -838,6 +844,34 @@ function drawEnd(g) {
         ctx.shadowColor = 'rgba(255,210,74,0.9)'; ctx.shadowBlur = lowFX ? 0 : 10 * br2;
         ctx.fillText('NEW BEST', 0, 0);
         ctx.shadowBlur = 0;
+        try { ctx.letterSpacing = '0px'; } catch (e) {}
+        ctx.restore();
+      }
+    } else if ((bestVal || 0) > 0 && score > 0 && !qual) {
+      // ---- THE MISS, MEASURED ----
+      // The badge only ever spoke on the way up: fall short and the screen said
+      // nothing about the line you were chasing, even though bestVal is sitting
+      // right here and the whole mode is built on beating your own number. A run
+      // that ends 900 short and never says so is a run that reads as merely over.
+      //
+      // Deliberately NOT an award: no plate, no glow, no overshoot — those belong
+      // to NEW BEST and would cheapen it by association. Just the gap, quiet, in
+      // the slot the badge would have taken, on the badge's own clock so it can
+      // never appear from under the high-score takeover card.
+      // A POSITIVE GAP OR NOTHING. Two ways this lands on zero-or-less and both
+      // print nonsense: an exact TIE with the best ("0 SHORT"), and a CONTINUED
+      // boss run, which is barred from the record book (see endLevel) and so can
+      // out-score a best that never moved — that one would read "-500 SHORT".
+      const shortBy = (bestVal || 0) - score;
+      if (nameEntry) nbHold = Math.max(nbHold, endT - T.best);
+      const k = shortBy > 0 ? ph(T.best + nbHold, T.best + nbHold + 0.42) : 0;
+      if (k > 0.001) {
+        ctx.save();
+        ctx.globalAlpha = pA * k * 0.85;
+        ctx.fillStyle = 'rgba(150,190,225,0.85)';
+        ctx.font = '600 ' + Math.round(fpxB * 0.82) + 'px Audiowide, system-ui';
+        try { ctx.letterSpacing = '2px'; } catch (e) {}
+        ctx.fillText(shortBy.toLocaleString() + ' SHORT OF BEST', g.cx, nbY);
         try { ctx.letterSpacing = '0px'; } catch (e) {}
         ctx.restore();
       }

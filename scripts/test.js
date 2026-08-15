@@ -221,6 +221,7 @@ code = code.replace("'use strict';", '') + `
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
   stripAngle, startWeekly, isWeekly: () => weekly, weeklyIdx: () => weeklyIdx, weeklyLive,
   weekNow, weekOf, weekLabel, weekStartMs, weekOfBoard, getPulse: () => pulseCharge,
+  weeklyStreak, drawMenuFlow, // the ranked streak's three states + the wheel that prints it
   getShield: () => shieldCharge, setShield: v => { shieldCharge = v; },
   setMenuScreen: v => { menuScreen = v; }, getMenuScreen: () => menuScreen, commCur: () => commCur,
   clearComm: () => { commCur = null; commT = 0; }, // so a test can watch for the NEXT line
@@ -410,7 +411,33 @@ drawOk('end screen', () => { G.setState(G.S.END); });
 drawOk('high-score takeover card', () => { G.setState(G.S.END); G.setEndT(3.2); G.setScore(38800); G.setEndProvisional({ rank: 7, total: 50 }); G.setNameEntry({ board: 'cargo-run:2' }); });
 drawOk('high-score takeover (rank pending)', () => { G.setState(G.S.END); G.setEndT(3.2); G.setEndProvisional(null); G.setNameEntry({ board: 'endless' }); });
 G.setNameEntry(null); G.setEndProvisional(null); // don't leak the card into later END tests
+// THE MISS, MEASURED. The end screen only ever spoke on the way up; falling short
+// now prints the gap. The two ways it can land on a non-positive gap both print
+// nonsense, so they are rendered here explicitly: an exact tie with the best, and
+// a continued boss run, which is barred from the record book and so can out-score
+// a best that never moved.
+{
+  // drive the CAMPAIGN path (PROG.bests), which needs no mode switch to reach
+  const P = G.getProg(), wasB = P.bests.slice();
+  const atBest = (best, sc) => () => { P.bests.fill(best); G.setScore(sc); G.setState(G.S.END); G.setEndT(9); };
+  drawOk('end screen: short of best', atBest(41250, 37560));
+  drawOk('end screen: exactly tying the best', atBest(41250, 41250));
+  drawOk('end screen: out-scoring a best that did not move', atBest(41250, 99999));
+  P.bests.length = 0; P.bests.push(...wasB); G.setScore(0);
+}
 drawOk('main menu', () => { G.setState(G.S.MENU); });
+// THE FREE FLOW WHEEL, in all three streak footings. The streak line is the only
+// thing on this screen drawn from saved state that can be absent, so each state
+// is rendered on its own — a banked count, an expiring one, and none at all.
+{
+  const D = G.progress.weekly, was = { ...D };
+  const flow = () => { G.setState(G.S.MENU); G.setMenuScreen('flow'); };
+  drawOk('free flow wheel: streak banked this week', () => { D.last = G.weekNow(); D.streak = 6; flow(); });
+  drawOk('free flow wheel: streak expiring Sunday', () => { D.last = G.weekNow() - 1; D.streak = 6; flow(); });
+  drawOk('free flow wheel: no streak', () => { D.last = 0; D.streak = 0; flow(); });
+  Object.assign(D, was);
+  G.setMenuScreen('home'); // hand the menu back the way the other draw tests expect it
+}
 // THE ENLISTMENT. Every beat must render: it is the first screen a new player
 // ever sees, and a throw here is a black screen on first launch — the one crash
 // nobody recovers from, because there is no menu behind it to fall back to.
@@ -482,6 +509,24 @@ drawOk('leaderboard: endless tab', () => { G.getBoardSel().mode = 'endless'; });
     G.getBoardSel().week === G.weekNow() && G.boardKeyFor() === 'weekly:' + G.weekNow());
   G.boardPick('weekly', G.weekNow() - 2);
   check('board: an older rung reads its own week\'s board', G.boardKeyFor() === 'weekly:' + (G.weekNow() - 2));
+  // THE RANKED STREAK. It was written every week and drawn nowhere, so these pin
+  // the read that now prints it: a streak is only worth showing while it is
+  // STANDING, and its footing is the gap between the week it was last filed and
+  // the live week. The stale count left in a save after a missed week is history
+  // (the next filed run resets it to 1) and must never reach the wheel.
+  {
+    const D = G.progress.weekly, was = { ...D };
+    const streakAt = (last, streak) => { D.last = last; D.streak = streak; return G.weeklyStreak(); };
+    const wk = G.weekNow();
+    const banked = streakAt(wk, 4);
+    check('streak: filed this week reads as banked', banked && banked.n === 4 && banked.held === true);
+    const alive = streakAt(wk - 1, 4);
+    check('streak: filed last week is alive but unbanked', alive && alive.n === 4 && alive.held === false);
+    check('streak: a week older than that is broken and shows nothing', streakAt(wk - 2, 4) === null);
+    check('streak: a long-dead streak never resurfaces', streakAt(wk - 40, 12) === null);
+    check('streak: no streak at all shows nothing', streakAt(wk, 0) === null);
+    Object.assign(D, was);
+  }
   const rungs = G.boardLeftItems().filter(i => i.kind === 'week');
   check(`board: the ladder lists weeks newest-first (${rungs.length} rung(s))`,
     rungs.length >= 1 && rungs[0].week === G.weekNow() &&
@@ -3707,6 +3752,28 @@ async function runMusicUp() {
     check('every game file after the first declares its own strict mode',
       manifestFiles.slice(1).every(f =>
         fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8').startsWith("'use strict';\n")));
+
+    // THE WORKER MUST NOT CACHE A FAILURE. A network-first worker only stays safe
+    // while the thing it writes to the cache is known-good. The failures that
+    // matter RESOLVE the fetch rather than rejecting it — a captive portal
+    // answering with its login page, a 500, a 404 — so without an explicit check
+    // each one gets written over a good file and then served back offline, and
+    // the game comes up broken and stays broken until storage is cleared by hand.
+    // This is a source-text guard because the worker never runs in this harness
+    // (it needs a browser); the behaviour itself was verified in Chrome offline.
+    {
+      const sw = fs.readFileSync(path.join(ROOT, 'src', 'sw.js'), 'utf8');
+      const put = /caches\.open\([^)]*\)[\s\S]{0,80}?\.put\(/.test(sw);
+      check('the service worker still writes to the cache at all', put);
+      check('the service worker gates that write on a good response',
+        /if\s*\(\s*res\.ok\b/.test(sw));
+      check('the service worker refuses opaque cross-origin responses',
+        /res\.type\s*!==\s*'opaque'/.test(sw));
+      // one page, so an offline launch carrying ?prof=1 (or any referrer) must
+      // still find the shell rather than dead-ending on an exact-match miss
+      check('the service worker falls back to the shell for offline navigations',
+        /mode\s*!==\s*'navigate'/.test(sw) && /ignoreSearch/.test(sw));
+    }
 
     // The labs lift `// >>> NAME` … `// <<< NAME` regions out of the game and
     // write them back, so a region MUST live inside one file. The first split
