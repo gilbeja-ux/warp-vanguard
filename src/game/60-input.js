@@ -634,6 +634,12 @@ function startEnlistment(short, quiet) {
   startQualification(true);
   enlist = { beat: 0, t: 0, short: !!short, out: 0 };
   state = S.ENLIST;
+  // and the first disc's keyframe starts decoding NOW rather than on the frame it
+  // is first drawn — the splash owns the screen for a second or so after this, so
+  // the fetch has somewhere to happen where nobody is looking. Without it the disc
+  // prints in as the painted console and the photograph pops in over it mid-scan.
+  // The short form never reaches beat 0, so it asks for nothing.
+  if (!short && typeof discArtImg === 'function') discArtImg({ art: ENLIST_KEYFRAME });
   if (!quiet) sfx.tick();
 }
 // advance one beat, or hand off. The gate is the TYPING, not a stopwatch: a tap

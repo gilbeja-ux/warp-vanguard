@@ -1065,10 +1065,11 @@ function pauseTap(x, y, pid) {
 }
 
 // ---------- the enlistment (S.ENLIST) ----------
-// A VOICE, NOT A FACE. Every other character in this game is machinery; a
-// rendered human would be the only one and would look imported. So Lane Command
-// arrives the way it would actually reach a pilot — a channel opening, a
-// callsign, and a waveform that moves while someone talks.
+// A VOICE OVER A ROOM. Nothing in this game RENDERS a human — the engine's whole
+// cast is machinery, and a modelled person would be the only one and would look
+// imported. But an authored keyframe is not the engine: the first disc is a
+// painted briefing room, the same kind of picture the forty mission discs are,
+// with the channel's own waveform running low over it while he talks.
 //
 // VANGUARD ACTUAL: in radio convention "Actual" means the commander in person
 // rather than the operator holding the handset. The callsign does the work of
@@ -1091,13 +1092,15 @@ const ENLIST_OUT = 0.7;                 // hand-off fade before the course opens
 // one — the lane itself is the only thing this speech can safely be about.
 //
 // HE NEVER NAMES THE PLAYER. A name would compete with the handle they type on a
-// leaderboard, which is the only identity this game gives them.
+// leaderboard, which is the only identity this game gives them. "rookies" is not a
+// name and not even singular — it is the room being addressed, which is what the
+// first disc's picture shows: a briefing, with more than one recruit in it.
 //
 // EACH BEAT IS TWO LINES, and the break is authored rather than wrapped — the disc
 // sets them exactly as written (see enlistDiscBody), so the split is a pause in his
 // delivery, not a consequence of how wide the plate happens to be.
 const ENLIST_SCRIPT = [
-  ['Welcome to Vanguard,', 'a unique squadron...'],
+  ['Welcome to Vanguard Squadron,', 'rookies'],
   ['We protect Warp Lanes.', 'Nothing gets through us!'],
   ['Evaluation course ready.', "Let's see what you're made of."]
 ];
@@ -1126,10 +1129,17 @@ function enlistTypeDur(beat) {
 // painters bias their subject up out of it: a kill that lands behind the plate is
 // a kill the recruit never sees.
 
-// 1 — THE CHANNEL. A voice, not a face (see above) — so the picture is the thing
-// a voice actually looks like on a console: a spectrum running while he talks.
-// The bands answer to `live`, which is the typing clock, so the meter genuinely
+// 1 — THE BRIEFING ROOM, WITH THE CHANNEL LAID OVER IT. This disc carries an
+// authored keyframe (`briefing.webp`), loaded through the same LRU the forty
+// mission discs use — so the first picture a recruit ever sees is a picture, and
+// the spectrum that used to BE the picture is now a comms overlay riding low on
+// it. The bands still answer to `live`, which is the typing clock, so the meter
 // moves with his sentence and settles the moment he stops.
+//
+// THE PAINTED CONSOLE IS STILL HERE, underneath, and is not dead code: keyframes
+// decode lazily and this disc is on screen within a frame of boot, so the first
+// pass through here almost always runs with no image yet. It carries the disc
+// until the picture lands, and it is what stands if the file is ever missing.
 //
 // NO Math.random() ANYWHERE IN HERE. The qualification course is live and parked
 // underneath this disc, and its spawns run off a seeded stream — a draw path that
@@ -1193,14 +1203,131 @@ function enlistShinedLogo(L, x, y, w, h) {
   b.globalCompositeOperation = 'source-over';
   ctx.drawImage(enlShineBuf, 0, 0, bw, bh, x, y, w, h);
 }
-function enlistArtComms(x, y, w, h, covered, live) {
-  // the console field the meter sits on — the FULL window, ident band included, so
-  // the callsign has something to sit on rather than a hole in the picture
+const ENLIST_KEYFRAME = 'briefing.webp';  // src/art/disc/ — see that folder's README
+// ---------- the holo table, running ----------
+// WHERE THE TABLE IS, IN THE PICTURE'S OWN COORDINATES — fractions of the keyframe,
+// never of the screen. The caller hands over the rectangle the image was actually
+// drawn into, so the push-in below carries all of this with it for free and there is
+// exactly one place that knows how the image is fitted.
+//
+// Measured off the keyframe rather than eyeballed: the file was gridded in normalised
+// coordinates and the ellipse read off the grid. If the art is ever regenerated these
+// numbers move with it — they are the ONE thing here tied to that particular image.
+const HOLO = {
+  cx: 0.518, cy: 0.570, rx: 0.168, ry: 0.065,   // the table's lit surface, as an ellipse
+  px: 0.506, py: 0.548, pr: 0.030               // the planet standing in the middle of it
+};
+// PROJECTOR BEHAVIOUR, NOT OBJECT MOTION — and that distinction is the whole design.
+// The asteroids in this field are painted into the image and cannot move. Anything
+// that ORBITS among them (motes, drifting rocks) would announce that the rest of the
+// field is a photograph. A sweep and a projection pulse belong to the machine doing
+// the projecting, so they read as the table being ON while its contents hold still.
+//
+// EVERYTHING IS A SINE OR A MODULO OF THE DISC'S OWN CLOCK. The qualification course
+// is parked and live underneath this disc and its spawns run off a seeded stream —
+// a draw path that pulled Math.random() would desync the replay the leaderboard
+// verifies. Same rule as enlistBand and popFrac; there is no randomness anywhere here.
+// THE THREE ALPHAS BELOW (0.14 sweep, 0.20 pulse, 0.15 bloom) ARE THE KNOBS. They
+// were set against a tablet-sized disc and then lifted a quarter, because on a phone
+// this table is barely 100px across and what read as restraint at that size read as
+// nothing at all. Judge them on the device, never on a desktop window.
+function enlistHolo(dx, dy, dw, dh, t) {
+  const cx = dx + HOLO.cx * dw, cy = dy + HOLO.cy * dh;
+  const rx = HOLO.rx * dw, ry = HOLO.ry * dh;
+  if (rx < 2 || ry < 1) return;
+  // a hologram is never quite steady. Two detuned rates, so the instability never
+  // repeats on a countable beat — the same trick enlistBand uses for the same reason.
+  const fl = 0.90 + 0.10 * Math.sin(t * 11.3) * Math.sin(t * 4.7);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';   // ADD light to the table, never paint over it
+  // the table's own plane: a circle of radius rx, squashed to the ellipse we see it
+  // as. Drawing in this space is what keeps the sweep lying ON the table instead of
+  // standing up out of it.
+  ctx.translate(cx, cy); ctx.scale(1, ry / rx);
+  // THE SWEEP, WITH A TAIL. Sliced rather than gradient-filled: a canvas radial
+  // gradient fades outward and the fade a radar reads by is ANGULAR, behind the head.
+  // …and it is an ANNULUS, not a pie. A wedge that closes on the centre comes to a
+  // hard bright point exactly where the planet stands, which is the one part of this
+  // hologram that is already the brightest thing on the table.
+  const a0 = t * 0.62;                        // radians a second — one turn per ~10s
+  const SLICES = 12, TAIL = 1.15, R0 = rx * 0.17, R1 = rx * 0.96;
+  for (let i = 0; i < SLICES; i++) {
+    const q = i / SLICES;                     // 0 at the head, 1 at the end of the tail
+    const al = (1 - q) * (1 - q) * 0.14 * fl;
+    const b = a0 - (q + 1 / SLICES) * TAIL, e = a0 - q * TAIL;
+    ctx.fillStyle = `rgba(150,235,255,${al.toFixed(3)})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, R1, b, e);
+    ctx.arc(0, 0, R0, e, b, true);
+    ctx.closePath(); ctx.fill();
+  }
+  // TWO PROJECTION PULSES, half a cycle apart, climbing out of the emitter to the
+  // rim. The brightness rides a sine that is ZERO at both ends of the travel, so
+  // whatever the position does at the wrap there is nothing lit to see jump — the
+  // lesson enlistShinedLogo's sweep learned the hard way.
+  ctx.lineWidth = Math.max(1, rx * 0.014);
+  for (let k = 0; k < 2; k++) {
+    const p = ((t / 3.6) + k * 0.5) % 1;
+    const al = 0.20 * Math.sin(p * Math.PI) * fl;
+    ctx.strokeStyle = `rgba(120,225,255,${al.toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(0, 0, rx * (0.14 + p * 0.84), 0, TAU); ctx.stroke();
+  }
+  ctx.restore();
+  // and the planet breathing in the middle of it — in SCREEN space, because a bloom
+  // is light in the air above the table rather than something lying on its surface
+  const px = dx + HOLO.px * dw, py = dy + HOLO.py * dh, pr = HOLO.pr * dw;
+  const br = (0.55 + 0.45 * Math.sin(t * 1.15)) * fl;
+  const bg = ctx.createRadialGradient(px, py, pr * 0.2, px, py, pr * 2.8);
+  bg.addColorStop(0, `rgba(175,240,255,${(0.15 * br).toFixed(3)})`);
+  bg.addColorStop(0.45, `rgba(120,215,255,${(0.07 * br).toFixed(3)})`);
+  bg.addColorStop(1, 'rgba(90,190,255,0)');
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(px, py, pr * 2.8, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function enlistArtComms(x, y, w, h, covered, live, t) {
+  // the console field, painted across the FULL window — the keyframe covers it
+  // whole, and until the keyframe is there this IS the picture
   const bgG = ctx.createLinearGradient(x, y, x, y + h);
   bgG.addColorStop(0, 'rgba(10,26,44,0.95)');
   bgG.addColorStop(0.6, 'rgba(4,10,22,0.96)');
   bgG.addColorStop(1, 'rgba(2,6,14,1)');
   ctx.fillStyle = bgG; ctx.fillRect(x, y, w, h);
+  // THE KEYFRAME, COVER-FIT — drawStoryDisc's arithmetic, deliberately, so this disc
+  // crops its picture the way the forty mission discs crop theirs. `discArtImg`
+  // returns null until the file has decoded, and on the frame after boot it usually
+  // has not: the painted console below carries the disc until it lands.
+  //
+  // NO METER OVER THE PICTURE. The spectrum was laid over it at low opacity and tried
+  // in three places — on the middle, at the foot of the clear zone, and hugging the
+  // caption seam. Low, it dissolved into the holo table's own cyan; high, where it was
+  // legible, it was a graph pasted on a photograph. A meter that has to be hidden to be
+  // tolerable is not carrying anything. What moves instead is the one thing in the
+  // frame that is SUPPOSED to move: the table (enlistHolo), plus the push below.
+  //
+  // THE PUSH-IN. A still held for the length of a speech is a slide; the same still
+  // creeping toward you is a shot. It eases onto an asymptote rather than running out
+  // — a move that finishes has a moment where the picture visibly stops, and a recruit
+  // who lingers on this beat would spend the rest of it looking at a frozen frame.
+  // The cover-fit already throws away 40% of the width, so there is a great deal of
+  // frame to push into and nothing new ever enters the mask.
+  const im = discArtImg({ art: ENLIST_KEYFRAME });
+  if (im) {
+    const k = 1 - Math.exp(-Math.max(0, t) / 4.5);
+    const s = Math.max(w / im.w, h / im.h) * (1 + 0.062 * k);
+    const dw = im.w * s, dh = im.h * s;
+    const dx = x + w / 2 - dw / 2 - 0.016 * w * k;   // …and drifts toward the commander
+    const dy = y + h / 2 - dh / 2;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    ctx.drawImage(im.img, dx, dy, dw, dh);
+    enlistHolo(dx, dy, dw, dh, t);
+    ctx.restore();
+    return;
+  }
+  // ---- and below: the painted console, when there is no picture ----
   const clearH = h - covered;                   // what the caption plate leaves
   const midY = y + clearH * 0.5;                // the meter's zero line
   const halfH = clearH * 0.42;
@@ -1550,10 +1677,13 @@ function enlistArtLegend(x, y, w, h, covered) {
     { titleMaxW: W - 2 * (mL + 46), hint: false });
   ctx.restore();
 }
-function enlistArt(beat, x, y, w, h, covered, live) {
+// `t` is the DISC's clock, not the frame's: it restarts on every beat, and the
+// outgoing snapshot is rendered with it pinned past the end (see enlistKeepPrev), so
+// a disc on its way out holds the pose it had when the player tapped it.
+function enlistArt(beat, x, y, w, h, covered, live, t) {
   ctx.save();
   ctx.lineCap = 'round';
-  if (beat === 0) enlistArtComms(x, y, w, h, covered, live);
+  if (beat === 0) enlistArtComms(x, y, w, h, covered, live, t);
   else if (beat === 1) enlistArtRun(x, y, w, h, covered);
   else enlistArtLegend(x, y, w, h, covered);
   ctx.restore();
@@ -1675,17 +1805,23 @@ function enlistDiscBody(g, R, lines, t, beat) {
   const half = y => Math.sqrt(Math.max(1, Rc * Rc - y * y));
   // THE SCRIPT'S OWN LINE BREAKS ARE KEPT. A mission disc wraps a sentence to the
   // chord because its text is authored as one string; these are authored as two
-  // deliberate halves ("Welcome to Vanguard Squadron," / "rookie."), and re-wrapping
+  // deliberate halves ("Welcome to Vanguard Squadron," / "rookies"), and re-wrapping
   // them to fit would throw away the pause the writer put there. So the only fitting
-  // done is shrink-to-chord — measured at the block's LOWEST row, the narrowest one.
+  // done is shrink-to-chord — EACH ROW AGAINST ITS OWN CHORD, not every row against
+  // the lowest and narrowest one. The plate sits below the disc's equator, so a
+  // circle gives the top row more width than the bottom, and the beats that fit
+  // both rows the same way could not tell the difference. The opening beat can: it
+  // is a long line over a short one ("Welcome to Vanguard Squadron," / "rookies"),
+  // so measuring it at the foot cost it 2-3px of type it had room for.
   const chordAt = y => half(y - g.cy) * 2 - R * 0.14;
   let ls = Math.max(10, Math.round(R * 0.095));
   for (;;) {
     ctx.font = '500 ' + ls + 'px Audiowide, system-ui';
-    const tw = chordAt(bTop + bh * 0.5 + (lines.length - 1) * (ls + 5) * 0.5);
-    let widest = 0;
-    for (const ln of lines) widest = Math.max(widest, ctx.measureText(ln).width);
-    if (widest <= tw || ls <= 9) break;
+    const mid = bTop + bh * 0.5, lh0 = ls + 5;
+    let fits = true;
+    for (let i = 0; i < lines.length && fits; i++)
+      fits = ctx.measureText(lines[i]).width <= chordAt(mid + (i - (lines.length - 1) / 2) * lh0);
+    if (fits || ls <= 9) break;
     ls--;
   }
   const lh = ls + 5;
@@ -1697,7 +1833,7 @@ function enlistDiscBody(g, R, lines, t, beat) {
   // NO CALLSIGN PLATE. It read as a caption pinned over the picture rather than as
   // part of it, and it cost the art the whole top fifth of the window. Who is
   // speaking is already carried by the line he speaks.
-  enlistArt(enlist.short ? 2 : beat, g.cx - Rc, aTop, Rc * 2, aH, bh, talking);
+  enlistArt(enlist.short ? 2 : beat, g.cx - Rc, aTop, Rc * 2, aH, bh, talking, t);
   // the grade the ENGINE adds, exactly as it adds it to forty authored keyframes:
   // scanlines and a vignette, so these discs sit in the same show as the briefings
   ctx.fillStyle = 'rgba(2,6,14,0.22)';
@@ -1762,6 +1898,15 @@ function enlistArtRelease() {
   for (const c of [enlBuf, enlPrevBuf, enlShineBuf]) if (c) { c.width = c.height = 0; }
   enlBuf = null; enlPrevBuf = null; enlShineBuf = null; enlPrevFor = -1;
   for (const k in ENL_BODIES) delete ENL_BODIES[k];
+  // and the briefing-room keyframe, for the same reason: decoded it is ~4MB of RGBA
+  // for a disc that will never be drawn again this session. The LRU would get to it
+  // eventually — after four missions — but there is nothing to wait for. Handlers
+  // off before src, exactly as the eviction path does it (see discArtImg).
+  const e = DISCIMG.get('art/disc/' + ENLIST_KEYFRAME);
+  if (e) {
+    DISCIMG.delete('art/disc/' + ENLIST_KEYFRAME);
+    if (e.img) { e.img.onload = e.img.onerror = null; e.img.src = ''; }
+  }
 }
 function drawEnlistment() {
   if (!enlist) return;

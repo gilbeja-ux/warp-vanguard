@@ -20,3 +20,11 @@ wash can be re-verified against a known image. `_`-prefixed files never ship (sc
 
 A level with no `art` is not broken — it draws a glam shot of that lane's actual
 destination world (`drawDiscWorld`), so art can land one disc at a time.
+
+`briefing.webp` is the exception to the first line: it belongs to no mission and is named
+in code, not in `campaigns.js` (`ENLIST_KEYFRAME`, src/game/91-briefing.js). It is the
+enlistment's opening disc — the room Lane Command is speaking from — and its window is
+**square**, not 3:2, because that disc's picture fills the whole mask. Cover-fit therefore
+keeps only the middle 59% of a 3:2 frame's width: compose it to survive that crop, and keep
+the subject out of the bottom third, which the caption plate takes. A live spectrum is laid
+over its upper wall, so leave that band quiet. `_briefing.png` is the master it came from.
