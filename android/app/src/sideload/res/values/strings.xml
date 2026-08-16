@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  Build-type source set: these override the same names in main/ for the `sideload`
+  variant only, so the store build is untouched. Only the two visible labels are
+  overridden — package_name and custom_url_scheme stay as main declares them,
+  since nothing in the manifest consumes them and a Cordova plugin might.
+-->
+<resources>
+    <string name="app_name">WarpTester</string>
+    <string name="title_activity_main">WarpTester</string>
+</resources>
