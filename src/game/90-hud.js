@@ -186,7 +186,7 @@ const GHOST_COL = '198,216,240'; // deliberately off the signal palette — a ha
 // wrong gesture, and teaches it at the exact moment the player is copying.
 function ghostKeysPlace(side) {
   const d = dialCenter(side);
-  const g = padDotXY(d);
+  const g = padDotXY(d, side === 'L' ? 0 : 1);
   const from = side === 'L' ? -d.r * 2.4 : W + d.r * 2.4;
   const rise = d.r * 1.15; // arrives from below, the way a thumb actually comes up
   return [

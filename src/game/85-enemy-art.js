@@ -2029,21 +2029,34 @@ function drawPulseOrbs(g) {
 // green and steady once it has. Drawn on the DORMANT console while the run is parked —
 // the pads are the only thing on screen the player can act on, so the ask belongs on
 // them — and again at the far end of the boot for the gamepad's two-stick grip.
-// WHERE THE THUMB ACTUALLY GOES: the breathing dot's point on the rim, facing
-// the bore. Shared rather than recomputed because the thumb ghost aims at this
-// same spot — two copies of the formula would drift, and the failure would be a
-// demonstration pointing at the wrong place, which is worse than none.
+// WHERE THE THUMB ACTUALLY GOES: the breathing dot's point on the rim, on the
+// pad's OUTBOARD side — left pad left, right pad right. Shared rather than
+// recomputed because the thumb ghost aims at this same spot — two copies of the
+// formula would drift, and the failure would be a demonstration pointing at the
+// wrong place, which is worse than none.
+//
+// OUTBOARD, NOT FACING THE BORE. It aimed inboard first, on the reasoning that
+// pointing at the ring drew the line between a pad and the thing it steers. But
+// the dot's job is not to explain the wiring, it is to say WHERE TO PUT YOUR
+// HAND — and a thumb arrives over the OUTSIDE edge of the device, so an inboard
+// target asks for a reach across the very pad it is trying to seat. Outboard
+// also throws the two dots apart to opposite edges of the frame, which is what
+// makes them read as left-hand and right-hand at a glance rather than as a pair
+// hovering near the middle.
+//
+// Pure horizontal (π and 0), not simply the mirror of the bore angle: the bore
+// sits high, so an away-from-bore dot would ride DOWN into the bottom outer
+// corner — which is exactly the arc the palm covers when the device is held.
 //
 // NOT THE PAD CENTRE. The centre is the PULSE tap; the rim is the grip. Landing
 // a teaching thumb in the middle teaches the wrong gesture entirely.
-function padDotXY(d) {
-  const gp = geo();
-  const pa = Math.atan2(gp.cy - d.y, gp.cx - d.x);
+function padDotXY(d, i) {
+  const pa = i === 0 ? Math.PI : 0;
   return { x: d.x + Math.cos(pa) * d.r, y: d.y + Math.sin(pa) * d.r, a: pa };
 }
 function drawPadPrompt(i, d, tut) {
   const okI = padHold[i];
-  // THE TARGET: a breathing dot on the RIM, on the side facing the BORE.
+  // THE TARGET: a breathing dot on the RIM, on the pad's OUTBOARD side.
   //
   // On the rim rather than in the middle because the rim is what a dial is steered by, and
   // a touch on the pad is ABSOLUTE — the node jumps to whatever angle the finger lands on,
@@ -2051,25 +2064,18 @@ function drawPadPrompt(i, d, tut) {
   //
   // Which is why it is not at nodes[i].angle, which was the first thing I tried: resetLevel
   // parks both angles pointing down-frame and the pads live in the bottom corners, so that
-  // rim point sits half off the screen. Aimed at the bore it is always fully in frame, and
-  // it draws the line between the pad and the ring it drives.
+  // rim point sits half off the screen. padDotXY chooses the side instead — the reasoning
+  // for why it faces OUT rather than at the bore lives there.
   //
   // Breath + sonar ping together: the breath says "alive", the outward rings say "touch".
   // A pulse on its own reads as a status light.
   if (!okI) {
-    // A DOT ON THE RIM, FACING THE BORE. For touch that is the whole job: a pad tap is
-    // ABSOLUTE — the node jumps to whatever angle the finger lands on — so any rim point
-    // works mechanically and the dot only has to be obvious. Aimed at the bore it is
-    // always fully in frame (nodes[i].angle parks pointing down-frame, and the pads live
-    // low, so that rim point sits half off-screen) and it draws the line between the pad
-    // and the ring it drives.
-    //
     // It briefly animated as a comet running outward, to teach the old stick pose. That
     // pose is gone — a stick now just moves its emitter and arms its own pad — so the
     // travelling dot was teaching a rule that no longer exists. Breath plus sonar ping:
     // the breath says "alive", the outward rings say "touch". A pulse alone reads as a
     // status light.
-    const dot = padDotXY(d);
+    const dot = padDotXY(d, i);
     const px2 = dot.x, py2 = dot.y;
     const br = 0.5 + 0.5 * Math.sin(time * 3.2);
     const ping = (time * 1.15) % 1;
