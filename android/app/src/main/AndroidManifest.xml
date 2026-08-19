@@ -1,8 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- appCategory is load-bearing, not metadata. From Android 16 the platform
+         ignores screenOrientation on displays ≥600dp — EXCEPT for apps that
+         declare themselves games. Without this line a tablet ignores the
+         sensorLandscape lock below and the game paints sideways through its 90°
+         portrait transform. The exemption survives API 37; the temporary
+         PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY opt-out does not.
+         Play Console still flags the orientation lock either way — that warning
+         is a large-screen quality score, and it is knowingly accepted. -->
     <application
         android:allowBackup="true"
+        android:appCategory="game"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

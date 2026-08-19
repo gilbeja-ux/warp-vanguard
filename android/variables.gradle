@@ -11,10 +11,16 @@ ext {
     //     windowOptOutEdgeToEdgeEnforcement; at 36 that flag is ignored. This
     //     game already lays its pads out against SAFE.l/r/b insets, which is why
     //     it survives the change — but it has to be seen on a gesture-nav device.
-    //   · ORIENTATION LOCKS ARE IGNORED on large screens (≥600dp). sensorLandscape
-    //     stops being honoured on tablets. This game already paints through a 90°
-    //     transform when the viewport is portrait — that is the "turn your device"
-    //     path and it is deliberate — so it degrades to sideways, not to broken.
+    //   · ORIENTATION LOCKS ARE IGNORED on large screens (≥600dp) — unless the app
+    //     declares android:appCategory="game", which is the one exemption Google
+    //     kept, and kept again for API 37. The manifest now declares it, so
+    //     sensorLandscape IS honoured on tablets: the window manager rotates the
+    //     activity and the game fills the display, no mattes. Drop that attribute
+    //     and a portrait tablet falls back to the 90° "turn your device" transform,
+    //     which is deliberate but is a far worse first impression on a tablet.
+    //     Play Console flags the lock regardless. That is a large-screen quality
+    //     score, not a release blocker, and it is knowingly accepted — clearing it
+    //     would mean a real portrait layout for a twin-pad landscape game.
     //   · 16 KB PAGE SIZE for native libraries. Nothing here ships any:
     //     mergeReleaseNativeLibs reports NO-SOURCE, so there is nothing to align.
     compileSdkVersion = 36
