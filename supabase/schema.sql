@@ -102,7 +102,7 @@ create or replace function public.leaderboard_top(p_board text, p_day int defaul
 returns table (
   rank int, id uuid, player_id text, player_name text, score int,
   max_combo int, combo_sec real, time_sec real, zaps int, misses int, perfects int,
-  verified boolean, trace_id text, created_at timestamptz
+  integrity int, verified boolean, trace_id text, created_at timestamptz
 )
 -- Every run is listed (anonymous model — no profiles gate), including several
 -- rows from the SAME player when they've set more than one record on the board.
@@ -116,7 +116,7 @@ language sql stable as $$
   select rank() over (order by r.score desc, r.zaps desc, r.perfects desc, r.created_at asc, r.id asc)::int as rank,
          r.id, r.player_id, r.player_name, r.score,
          r.max_combo, r.combo_sec, r.time_sec, r.zaps, r.misses, r.perfects,
-         r.verified, r.trace_id, r.created_at
+         r.integrity, r.verified, r.trace_id, r.created_at
   from public.runs r
   where r.board = p_board
     and (r.day = p_day or (p_day is null and r.day is null))

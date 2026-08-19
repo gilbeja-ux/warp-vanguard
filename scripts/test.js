@@ -209,6 +209,7 @@ code = code.replace("'use strict';", '') + `
   lbTop, lbRank, lbDay, LEADERBOARD, // leaderboard read client (Supabase)
   lbSubmit, lbStatus: () => lbStatus, // submission + the line the END screen prints
   boardKeyFor, boardPick, openBoard, boardLeftItems, weekLadder, getBoardSel: () => boardSel, setBoardData: v => { boardData = v; }, // board screen
+  fmtRunTime, runFinished, // the RUN TIME card's two rules: how it reads, and whether it goes green
   setBoardCollapsed: (k, v) => { boardCollapsed[k] = v; }, // the left list's folds
   setNameEntry: v => { nameEntry = v; }, setEndProvisional: v => { endProvisional = v; }, // high-score name card
   applyProvisional, getNameEntry: () => nameEntry, getEndSerial: () => endSerial, // …and the rule for a rank lookup landing late
@@ -525,6 +526,60 @@ drawOk('leaderboard: populated', () => {
     { rank: 3, player_id: 'z', player_name: 'RAYzor', score: 31100, max_combo: 11, time_sec: 47, verified: false, trace_id: null } ] });
 });
 drawOk('leaderboard: endless tab', () => { G.getBoardSel().mode = 'endless'; });
+// ---- RUN TIME: time spent in warp, and whether the run reached its destination ----
+// The row has carried `time_sec` since the table was written and the board simply
+// never showed it. The completion colour is the part with a rule behind it, so the
+// rule is pinned here rather than left to the painter.
+{
+  check('run time reads as mm:ss', G.fmtRunTime(158.6) === '2:39' && G.fmtRunTime(45.117) === '0:45');
+  check('run time pads the seconds', G.fmtRunTime(65) === '1:05' && G.fmtRunTime(3) === '0:03');
+  check('a missing time is 0:00, never NaN', G.fmtRunTime(undefined) === '0:00' && G.fmtRunTime(null) === '0:00');
+  // integrity IS the win flag — a run ends at the lane's duration (won) or at zero
+  // integrity (lost), and there is no third exit. See 72-tick.js.
+  G.getBoardSel().mode = 'campaign';
+  check('a campaign run that kept integrity counts as finished', G.runFinished({ integrity: 100 }) === true);
+  check('a campaign run that lost stability does not', G.runFinished({ integrity: 0 }) === false);
+  // …but the ladder and free flow only ever END at zero integrity, so painting them
+  // all "incomplete" would say nothing. They stay uncoloured.
+  G.getBoardSel().mode = 'weekly';
+  check('a weekly run is never coloured complete', G.runFinished({ integrity: 100 }) === false);
+  G.getBoardSel().mode = 'endless';
+  check('an endless run is never coloured complete', G.runFinished({ integrity: 100 }) === false);
+  G.getBoardSel().mode = 'campaign';
+}
+// the detail column runs to seven slots now (six stats + Replay) — draw it at the
+// smallest landscape viewport the game supports, where the vertical budget binds
+const boardWith1Row = () => {
+  G.setMenuScreen('board'); G.getBoardSel().mode = 'campaign';
+  G.setBoardData({ key: 'cargo-run:0', loading: false, error: false, rows: [
+    { rank: 1, player_id: 'x', player_name: 'ACE', score: 48200, max_combo: 22, combo_sec: 31,
+      time_sec: 45.117, zaps: 40, misses: 2, perfects: 18, integrity: 100, verified: true, trace_id: 't1' } ] });
+};
+drawOk('leaderboard: full detail column on a 320px-tall screen', () => { G.setViewport(568, 320); boardWith1Row(); });
+// ---- ONE KEY HEIGHT ON THE BOARD ----
+// BACK and MY DATA were a flat 38px while every other element keyed off H, so a
+// desktop window put 38px keys beside 56px rows and a 76px Replay. They scale now,
+// with 38 held as a floor so a phone keeps a thumb-sized target.
+{
+  const keys = () => {
+    const md = G.menuBtns().find(b => b.boardMyData), rep = G.menuBtns().find(b => b.boardReplaySel);
+    return { back: G.getBackRect(), md, rep };
+  };
+  G.setViewport(1728, 999); boardWith1Row(); G.frame(16);
+  const web = keys();
+  check('board keys share one height on a desktop window',
+    web.back.h === 56 && web.md.h === 56 && Math.round(web.rep.h) === 56);
+  check('…and that height tracks the left column, not a constant', web.back.h === Math.round(Math.min(999 * 0.070, 56)));
+  G.setViewport(844, 390); boardWith1Row(); G.frame(16);
+  const phone = keys();
+  check('a phone holds the 38px floor so the key stays tappable',
+    phone.back.h === 38 && phone.md.h === 38 && Math.round(phone.rep.h) === 38);
+  // MY DATA used to be 84px wide at every size while its type scaled with H, so the
+  // label ran out of the box on a desktop window. The box is measured from the words.
+  check('MY DATA is sized from its label, not fixed at 84', web.md.w !== 84 && phone.md.w !== 84);
+  check('…so a bigger key gets a wider box', web.md.w > phone.md.w);
+}
+G.setViewport(800, 450); // back to the harness frame for what follows
 // board navigation + key scheme (keys must match boardKey() the runs store under)
 {
   G.boardPick('campaign', 0, 1);

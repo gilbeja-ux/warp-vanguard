@@ -127,6 +127,23 @@ function boardReplayLaunch(r) {
     if (launchReplay(pkg, { name: r.player_name, score: r.score, mode: boardSel.mode }, true)) replayXfer = { dir: 1, t: 0 };
   });
 }
+// TIME SPENT IN WARP — mm:ss, because a run is minutes long and 158.6 reads as a
+// measurement rather than a duration. Rounds to the nearest second: the row stores
+// tenths, and a tenth is below what a player could act on.
+function fmtRunTime(sec) {
+  const t = Math.max(0, Math.round(+sec || 0));
+  return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+}
+// DID THIS RUN FINISH? A run ends in exactly two places — the lane's duration
+// running out with the bore clear, or integrity hitting zero (see the two endLevel
+// calls in 72-tick.js) — so `integrity > 0` IS the completion flag, and no column
+// had to be invented for it. It is also the SERVER's number: the verifier recomputes
+// integrity from the trace, so the colour cannot be claimed by a client.
+//
+// Endless and weekly have no finish to reach. They run until integrity is gone, so
+// every one of their rows would read as incomplete, which says nothing about the
+// run. They stay uncoloured rather than wearing a colour that means "failed".
+const runFinished = r => boardSel.mode !== 'endless' && boardSel.mode !== 'weekly' && ((r && r.integrity) | 0) > 0;
 function drawMenuBoard() {
   const fmtDate = ts => {
     if (!ts) return '—';
@@ -137,7 +154,7 @@ function drawMenuBoard() {
   // ---- proportional scale: the mock is 1748×804, so everything keys off H ----
   const F = v => Math.max(10, Math.round(v)); // font floor for readability
   const fTitle = F(H * 0.050), fLeft = F(H * 0.026), fRow = F(H * 0.030), fShow = F(H * 0.021);
-  const fLab = F(H * 0.024), fVal = F(H * 0.026), fName = F(H * 0.030);
+  const fName = F(H * 0.030); // the detail rows size their own label/value — see the column below
   const leftRowH = Math.min(H * 0.070, 56), leftGap = Math.min(H * 0.014, 12);
   const rowH = Math.min(H * 0.080, 64), rowGap = Math.min(H * 0.017, 14);
   const cardGap = Math.min(H * 0.017, 14);
@@ -191,15 +208,27 @@ function drawMenuBoard() {
   }
 
   // ---- BACK: the game's STANDARD back key (fades out with the board on the player transition) ----
-  const bk = menuBackRect = { x: W - 50 - SAFE.r, y: 12 + SAFE.t, w: 38, h: 38 };
+  // THE KEY SCALES WITH THE BOARD. It was a flat 38px while every other element on
+  // this screen keys off H, so on a desktop window it sat at 38 beside 56px mode
+  // rows and a 76px Replay key and read as a leftover. It now tracks the left
+  // column's own row height, with 38 held as a FLOOR: on a phone that expression
+  // falls to 27px, which is below what a thumb can reliably hit.
+  // Rounded, because these coordinates are laid out from it and a canvas draws a
+  // half-pixel edge soft.
+  const keyH = Math.round(Math.max(38, Math.min(H * 0.070, 56)));
+  const bk = menuBackRect = { x: W - keyH - 12 - SAFE.r, y: 12 + SAFE.t, w: keyH, h: keyH };
   ctx.save(); ctx.globalAlpha = backA;
   techRect(bk.x, bk.y, bk.w, bk.h, 8);
   ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
   ctx.strokeStyle = 'rgba(120,220,255,0.55)'; ctx.lineWidth = 1.5;
   techRect(bk.x, bk.y, bk.w, bk.h, 8); ctx.stroke();
-  ctx.strokeStyle = 'rgba(200,240,255,0.9)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(200,240,255,0.9)'; ctx.lineWidth = Math.max(2, keyH * 0.066); ctx.lineCap = 'round';
+  // the chevron is drawn in fractions of the key, not in pixels, so it stays the
+  // same glyph at every size instead of shrinking into a corner as the key grows
   ctx.beginPath();
-  ctx.moveTo(bk.x + 24, bk.y + 11); ctx.lineTo(bk.x + 14, bk.y + 19); ctx.lineTo(bk.x + 24, bk.y + 27);
+  ctx.moveTo(bk.x + keyH * 0.63, bk.y + keyH * 0.29);
+  ctx.lineTo(bk.x + keyH * 0.37, bk.y + keyH * 0.50);
+  ctx.lineTo(bk.x + keyH * 0.63, bk.y + keyH * 0.71);
   ctx.stroke();
   ctx.restore();
 
@@ -209,15 +238,23 @@ function drawMenuBoard() {
   // holds, across every board. The detail column describes one entry; this does
   // not belong in it. Always present, never gated on holding a row here: a
   // player with nothing on this board may still hold runs on five others.
-  { const mw = 84, mdk = { x: bk.x - 8 - mw, y: bk.y, w: mw, h: bk.h };
-    ctx.save(); ctx.globalAlpha = backA;
+  // THE BOX IS MEASURED FROM THE WORDS, not guessed. It was a fixed 84px wide while
+  // its type scaled with H, so on a desktop window 'MY DATA' was set at 19px in a
+  // box built for 10px type and ran straight out of both ends. Audiowide is a wide
+  // face and there is no width the label fits at every viewport — so the label is
+  // measured and the key is drawn around it.
+  const mdF = F(keyH * 0.34);
+  ctx.font = '700 ' + mdF + 'px Audiowide, system-ui';
+  const mdW = Math.round(ctx.measureText('MY DATA').width + mdF * 1.8);
+  const mdk = { x: bk.x - Math.round(Math.max(8, keyH * 0.21)) - mdW, y: bk.y, w: mdW, h: keyH };
+  { ctx.save(); ctx.globalAlpha = backA;
     techRect(mdk.x, mdk.y, mdk.w, mdk.h, 8);
     ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
     ctx.strokeStyle = 'rgba(120,220,255,0.4)'; ctx.lineWidth = 1.5;
     techRect(mdk.x, mdk.y, mdk.w, mdk.h, 8); ctx.stroke();
-    ctx.fillStyle = 'rgba(200,240,255,0.85)'; ctx.font = '700 ' + F(H * 0.019) + 'px Audiowide, system-ui';
+    ctx.fillStyle = 'rgba(200,240,255,0.85)'; ctx.font = '700 ' + mdF + 'px Audiowide, system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('MY DATA', mdk.x + mdk.w / 2, mdk.y + mdk.h / 2 + F(H * 0.019) * 0.36);
+    ctx.fillText('MY DATA', mdk.x + mdk.w / 2, mdk.y + mdk.h / 2 + mdF * 0.36);
     ctx.textAlign = 'left';
     ctx.restore();
     if (backA > 0.5) menuButtons.push({ x: mdk.x, y: mdk.y, w: mdk.w, h: mdk.h, boardMyData: true }); }
@@ -429,7 +466,10 @@ function drawMenuBoard() {
     { ctx.save(); ctx.translate(boardRowOff(0, 'right'), 0);
       const lX = archL(dy + nameCardH / 2), nm = ('' + (sel.player_name || 'ANON')).slice(0, 16);
       ctx.font = '700 ' + fName + 'px Audiowide, system-ui';
-      const nameW = Math.min(Math.min(bk.x - 12, rEdge) - lX, ctx.measureText(nm).width + 36); // shrink to fit the name
+      // clear of MY DATA, not merely of BACK. The handle card sits on the SAME row as
+      // both keys, and the old clamp stopped at the back key — so a long handle ran
+      // underneath MY DATA, which is the neighbour it actually meets first.
+      const nameW = Math.min(Math.min(mdk.x - 12, rEdge) - lX, ctx.measureText(nm).width + 36); // shrink to fit the name
       card(lX, dy, nameW, nameCardH, false);
       ctx.textAlign = 'left'; ctx.fillStyle = '#f2f9ff';
       ctx.fillText(nm, lX + 16, dy + nameCardH / 2 + fName * 0.36, nameW - 28);
@@ -447,36 +487,82 @@ function drawMenuBoard() {
                      'x' + AN(sel.max_combo) + (comboSec ? ' (' + AN(comboSec) + 'sec)' : '')],
       ['Hits', (sel.zaps || 0) + ' / ' + threats, AN(sel.zaps) + ' / ' + AN(threats)],
       ['Perfect', (sel.perfects || 0) + ' (' + pct + '%)', AN(sel.perfects) + ' (' + AN(pct) + '%)'],
+      // TIME SPENT IN WARP. Last, so it sits against the Replay key — the button
+      // that plays exactly this long. Green says the run reached its destination;
+      // gold, the panel's ordinary value colour, says it did not. A fourth slot in
+      // the tuple carries that, so no other card's colour had to change.
+      ['Run Time', fmtRunTime(sel.time_sec), fmtRunTime(AN(sel.time_sec)),
+                   runFinished(sel) ? '#7ee262' : '#ffd24a'],
     ];
-    // vertical budget: name + 5 detail cards + the Replay button (same height as a
-    // detail card) must all fit above the screen bottom — and now the report link
-    // under them, whose strip is RESERVED here rather than taken out of the slack,
-    // because there was none: the six slots divided up to `bottom` exactly.
+    // VERTICAL BUDGET: the name card, six stat rows, the Replay key and the report
+    // link must all fit above the screen bottom. Replay and the report strip are
+    // RESERVED off the top rather than taken out of the slack, because there is no
+    // slack to take them from — whatever is left divides among the six rows.
+    //
+    // SIX STATS IN BOXES DID NOT FIT A PHONE. Every card carried its own plate, its
+    // own outline and its own internal padding, so most of the column's height was
+    // spent on chrome around two short lines — and the pitch was the card PLUS a
+    // gap, because two adjacent plates need air between them or they read as one.
+    // Six of those crowded a 390px-tall screen.
+    //
+    // The plates are gone. A stat is now a dim label over a bright value, parted
+    // from the next by a hairline — the same reading the END screen's telemetry
+    // strip and the replay chrome's bottom row already use, so this is the third
+    // place wearing one design rather than a fourth invention. A rule needs no air
+    // around it, so the rows sit flush and the pitch IS the row. That bought enough
+    // back to make the VALUE bigger (H*0.030 against the old H*0.026) while still
+    // taking less height per stat than five boxed cards did.
+    const dLab = F(H * 0.020), dVal = F(H * 0.030);
+    const lvGap = Math.max(3, Math.round(H * 0.008));  // label baseline to value baseline
+    // A BASELINE IS NOT THE BOTTOM OF THE TYPE. Measuring a row as label + gap +
+    // value stops at the value's baseline, so its descenders hung into the air the
+    // row thought it had — which put the hairline about two pixels under the digits
+    // and made a column that fits look cramped. The tail is counted, and then real
+    // padding is added on top of it.
+    const valDrop = Math.round(dVal * 0.22);           // the value's tail, below its baseline
+    const rowPad = Math.max(4, Math.round(H * 0.011)); // clear air above the label, below the tail
+    const rowInk = dLab + lvGap + dVal + valDrop;      // cap-top of the label to the foot of the value
     const bottom = H - SAFE.b - H * 0.025;
-    const fRep = F(H * 0.020), repRes = fRep + 16;   // the report link's own strip
-    const dCardH = Math.min(Math.min(H * 0.092, 76), (bottom - dy - 6 * cardGap - repRes) / 6);
-    details.forEach(([label, fin, disp], i) => {
+    const fRep = F(H * 0.020), repRes = fRep + 16;     // the report link's own strip
+    // Replay stays a KEY, so it keeps its plate — it is the one thing here you press,
+    // and stripping its box would hide it among the readings. It takes keyH, the
+    // height BACK and MY DATA are drawn at, so every key on this screen is one size.
+    const repH2 = keyH, repGap = Math.max(10, Math.round(H * 0.018));
+    // The row is whichever is larger, the proportional height or the ink plus its
+    // padding — so the padding is a floor the row grows to meet, never something the
+    // proportional height can squeeze out. The fit still caps both: on a screen with
+    // genuinely too little room the padding gives way rather than the column
+    // overflowing, which is the right way round.
+    const dRowH = Math.min(Math.max(rowInk + rowPad * 2, Math.min(H * 0.082, 76)),
+                           (bottom - dy - repH2 - repGap - repRes) / details.length);
+    details.forEach(([label, fin, disp, col], i) => {
       ctx.save(); ctx.translate(boardRowOff(i + 1, 'right'), 0);
-      const lX = archL(dy + dCardH / 2);
-      ctx.font = '700 ' + fVal + 'px Audiowide, system-ui'; const wV = ctx.measureText(fin).width;
-      ctx.font = '600 ' + fLab + 'px Audiowide, system-ui'; const wL = ctx.measureText(label).width;
-      const cw = Math.min(rEdge - lX, Math.max(wV, wL) + 36); // content-fit
-      card(lX, dy, cw, dCardH, false);
-      ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(232,245,255,0.94)'; ctx.font = '600 ' + fLab + 'px Audiowide, system-ui';
-      ctx.fillText(label, lX + 16, dy + dCardH * 0.40);
-      ctx.fillStyle = '#ffd24a'; ctx.font = '700 ' + fVal + 'px Audiowide, system-ui';
-      ctx.fillText(disp, lX + 16, dy + dCardH * 0.82, cw - 32);
+      const lX = archL(dy + dRowH / 2), inkTop = dy + (dRowH - rowInk) / 2;
+      ctx.textAlign = 'left';
+      // the label's voice, borrowed verbatim from the replay chrome's stat row
+      ctx.fillStyle = 'rgba(150,190,225,0.62)'; ctx.font = '600 ' + dLab + 'px Audiowide, system-ui';
+      ctx.fillText(label, lX, inkTop + dLab, rEdge - lX);
+      ctx.fillStyle = col || '#ffd24a'; ctx.font = '700 ' + dVal + 'px Audiowide, system-ui';
+      ctx.fillText(disp, lX, inkTop + dLab + lvGap + dVal, rEdge - lX);
+      // the hairline goes BETWEEN readings only. One under the last row would draw a
+      // line directly above the Replay key, which already has an outline of its own.
+      if (i < details.length - 1) {
+        const ry2 = dy + dRowH;
+        ctx.strokeStyle = 'rgba(140,200,255,0.20)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(archL(ry2), ry2 + 0.5); ctx.lineTo(rEdge, ry2 + 0.5); ctx.stroke();
+      }
       ctx.restore();
-      dy += dCardH + cardGap;
+      dy += dRowH;
     });
+    dy += repGap;
 
     // Replay — the primary action: the standard dark card, but a GOLD outline
     // (+ faint gold glow) marks it as the button, in line with the rest of the UI
-    const can = !!sel.trace_id, repH2 = dCardH, repY = dy, repX = archL(repY + repH2 / 2), cyR = repY + repH2 / 2;
+    const can = !!sel.trace_id, repY = dy, repX = archL(repY + repH2 / 2), cyR = repY + repH2 / 2;
     const rf = F(H * 0.032), tri = repH2 * 0.24, triX = repX + repH2 * 0.55;
     ctx.font = '800 ' + rf + 'px Audiowide, system-ui';
     const repW = Math.min(rEdge - repX, triX + tri + 16 + ctx.measureText('Replay').width + 20 - repX);
-    ctx.save(); ctx.translate(boardRowOff(6, 'right'), 0);
+    ctx.save(); ctx.translate(boardRowOff(7, 'right'), 0);
     ctx.globalAlpha = can ? 1 : 0.4;
     techRect(repX, repY, repW, repH2, 8); ctx.fillStyle = 'rgba(8,18,36,0.82)'; ctx.fill();
     ctx.shadowColor = 'rgba(255,210,74,0.45)'; ctx.shadowBlur = (can && !lowFX) ? 12 : 0;
@@ -497,7 +583,7 @@ function drawMenuBoard() {
     if (sel.player_id !== meId) {
       const already = lbReported(sel.id);
       const ry = repY + repH2 + 12, rtx = archL(ry + fRep * 0.5) + 4;
-      ctx.save(); ctx.translate(boardRowOff(6, 'right'), 0);
+      ctx.save(); ctx.translate(boardRowOff(7, 'right'), 0);
       ctx.font = '600 ' + fRep + 'px Audiowide, system-ui'; ctx.textAlign = 'left';
       const label = already ? 'reported' : 'report this';
       ctx.fillStyle = already ? 'rgba(150,170,190,0.55)' : 'rgba(214,104,104,0.78)';
