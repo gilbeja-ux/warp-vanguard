@@ -498,8 +498,18 @@ function endTap(x, y) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
       closeNameEntry(); // leaving END dismisses the high-score card + its DOM field
       if (b.action === 'retry') pressUI(b, () => startTrans('derez', () => {
-        if (weekly) startWeekly(); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx);
+        // A CAMPAIGN RETRY KEEPS THE MODE IT JUST FLEW — until the lane is
+        // CLEARED. Losing assisted retries assisted: the player is still stuck,
+        // and that is the whole point of the ease. Clearing it spends the ease.
+        // The run that just landed filed no score and no star, so a restart from
+        // a won assisted lane is a player asking to fly it for real; handing them
+        // another unranked run would be the one thing they cannot want.
+        if (weekly) startWeekly(); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx, false, assist && !endWin);
         warpT = 0; // a re-sync doesn't travel — no warp dive on the way back in
+      }));
+      else if (b.action === 'assist') pressUI(b, () => startTrans('derez', () => {
+        startLevel(levelIdx, false, true); // the eased retry — unranked, no score, no stars
+        warpT = 0;
       }));
       else if (b.action === 'duel') pressUI(b, () => startTrans('derez', () => {
         startBossRetry(); // the continue: the duel replays, the run stops ranking
@@ -545,6 +555,8 @@ function resetRun() {
   // invincibility Gil reported. The flag's true owner is the replay system; everyone
   // else starting a run means it OFF.
   replaying = false;
+  assist = false;   // every mode starts clean — startLevel re-arms it AFTER this
+  heavyCue = null;  // the first-contact armor guides belong to one run only
   // modifiers stay locked until the campaign is cleared
   if (!anyCampaignCleared()) mutators.oneLife = mutators.fast = mutators.noPickups = false;
   // the player must never fly into an EMPTY tunnel: the first release fires on
@@ -588,7 +600,7 @@ function resetRun() {
   if (report) closeReport();
   state = S.PLAY;
 }
-function startLevel(i, brief) {
+function startLevel(i, brief, withAssist) {
   // seed BOTH random streams so a campaign run is FULLY reproducible — the
   // prerequisite for server-side replay verification. spawnRng drives the spawn
   // script; Math.random drives everything else the sim touches (e.g. wall-avoid
@@ -600,6 +612,13 @@ function startLevel(i, brief) {
   // fixed seed per level: the same drill, every run — endless is the exam
   spawnRng = mulberry32((0x51AB1E + i * 7919) >>> 0);
   resetRun();
+  // LANE ASSIST: re-armed AFTER resetRun (which clears it for every mode).
+  // The ease is a pure multiplier over a COPY — the authored table is never
+  // touched, and every consumer already reads LV, not LEVELS[i].
+  assist = !!withAssist;
+  if (assist) LV = Object.assign({}, LEVELS[i], {
+    spawnMin: LEVELS[i].spawnMin * 1.3, spawnMax: LEVELS[i].spawnMax * 1.3,
+    speed: LEVELS[i].speed * 0.9 });
   runTrack = pickTrack(); // the soundtrack is drawn fresh; the sim never reads it (campaign spawns are scripted)
   armRunMusic();
   if (brief && STORY[i]) showCard('story' + i); // the contract's next leg
@@ -704,7 +723,11 @@ function startBossTest() {
 // continue buys the ending, never the record.
 function startBossRetry() {
   const snap = bossSnap;
-  startLevel(levelIdx);
+  // the continue keeps the run's MODE: an assisted duel stays assisted (and
+  // stays out of the record book), a standard one stays standard. The global
+  // still holds the ended run's value here — resetRun clears it only inside
+  // startLevel, after this argument is read.
+  startLevel(levelIdx, false, assist);
   if (snap) {
     score = snap.score; zaps = snap.zaps; misses = snap.misses; perfects = snap.perfects;
     maxCombo = snap.maxCombo; maxComboSec = snap.maxComboSec; fragsHit = snap.fragsHit;

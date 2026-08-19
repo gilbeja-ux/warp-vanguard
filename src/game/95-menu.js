@@ -709,8 +709,9 @@ function drawEnd(g) {
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.restore();
 
-  // stars pop one by one, each with a chime
-  if (endWin && !qual && !endless) {
+  // stars pop one by one, each with a chime — an ASSISTED clear pops NONE:
+  // no shields on the end, exactly as the assist key said
+  if (endWin && !qual && !endless && !assist) {
     // the stars belong to the VERDICT, so they ride up with the banner rather than
     // sitting in the middle of the frame the destination is arriving through
     drawStars(g.cx, g.cy - R * 0.44, endStars, Math.min(W, H) * 0.045, endT - T.stars);
@@ -775,7 +776,7 @@ function drawEnd(g) {
   // the score counts itself up
   const cntP = 1 - Math.pow(1 - ph(T.cnt0, T.cnt1), 3);
   const shown = Math.round(score * cntP);
-  const counting = cntP > 0 && cntP < 1 && score > 0;
+  const counting = !assist && cntP > 0 && cntP < 1 && score > 0;
   if (counting && time - endTickT > 0.07) { endTickT = time; tone(1500, 0.025, 'square', 0.035); }
   // THE STANDING, ON TOP OF THE READING. It used to trail the best line as a footnote;
   // it is the answer to "where does that put me", so it introduces the number.
@@ -786,6 +787,18 @@ function drawEnd(g) {
     ctx.fillText('◈ ' + lbStatus, g.cx, rankY);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   }
+  if (assist) {
+    // an assisted run has NO score. The tag stands where the number would,
+    // so nobody hunts the report for missing points.
+    ctx.fillStyle = 'rgba(140,210,255,0.92)';
+    ctx.font = '700 ' + Math.max(15, Math.round(spx * 0.52)) + 'px Audiowide, system-ui';
+    ctx.fillText('LANE ASSIST', g.cx, scoreY);
+    ctx.fillStyle = 'rgba(160,215,255,0.7)';
+    ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
+    try { ctx.letterSpacing = '1.2px'; } catch (e) {}
+    ctx.fillText('EASED LANE — NO SCORE, ROUTE ONLY', g.cx, scLabelY);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+  } else {
   ctx.fillStyle = '#eaf4ff';
   ctx.font = '700 ' + (spx + (counting ? 2 : 0)) + 'px Audiowide, system-ui';
   ctx.fillText(shown.toLocaleString(), g.cx, scoreY);
@@ -795,6 +808,7 @@ function drawEnd(g) {
   try { ctx.letterSpacing = '1.2px'; } catch (e) {}
   ctx.fillText('SCORE', g.cx, scLabelY);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
+  }
 
   // ---- NEW BEST: a tag, and only when it IS one ----
   // It used to print 'NEW BEST 93,110' under the telemetry — the same number already
@@ -917,8 +931,13 @@ function drawEnd(g) {
     const margin = g.cx - g.nodeR;
     const bw = Math.min(Math.max(margin * 0.82, 120), 200), bh = 50;
     const lx = margin / 2, rx = W - margin / 2;
-    // a duel lost offers THE CONTINUE first: retry the fight without the level,
-    // with its price — the run stops ranking — printed right under the key
+    // THE OFFER SLOT. A duel lost and a lane lost twice are the same kind of
+    // choice: a costed way forward the game holds out only when the player is
+    // stuck. Both used to live in the side stacks wearing navigation's cyan —
+    // the continue as the primary key, the assist buried under it — and both
+    // were easy to miss. They share one amber key at centre-bottom now, above
+    // the standing line, with the price printed under it. The sides keep plain
+    // navigation: RETRY on the right, MENU on the left.
     const duelable = !endWin && bossFailed && !endless && !qual;
     // QUALIFYING IS A LEVEL COMPLETED, not an errand finished. It used to offer
     // RESTART and MENU, which sends a player who has just been cleared for warp
@@ -926,32 +945,74 @@ function drawEnd(g) {
     // like clearing a relay: forward into the first contract, with restart and
     // menu behind it.
     const qualDone = endWin && qual;
+    // LANE ASSIST joins the keys after two straight losses on a campaign
+    // lane. If THIS run was already assisted there is no second key: plain
+    // RETRY is the assist (the ease sticks until the lane is cleared).
+    const assistOffer = !endWin && !endless && !qual && !assist && levelIdx >= 0
+      && (laneFails[(CAMP ? CAMP.id : 'campaign') + ':' + levelIdx] || 0) >= 2;
+    // ONE OFFER AT A TIME, and the duel wins the slot: it is the narrower
+    // answer to the narrower failure (replay the fight, not the whole lane),
+    // and a boss lane lost twice satisfies both tests at once.
+    const offer = duelable
+      ? { label: 'RETRY DUEL ▸', action: 'duel', price: "SCORE WON'T QUALIFY FOR THE BOARD" }
+      : assistOffer
+      ? { label: 'LANE ASSIST ▸', action: 'assist', price: 'EASED LANE · NO SCORE · ROUTE ONLY' }
+      : null;
     const primary = qualDone
       ? { label: 'FIRST CONTRACT ▸', action: 'contract' }
       : endWin && !endless && !qual && levelIdx + 1 < LEVELS.length
       ? { label: 'NEXT LEVEL ▸', action: 'next' }
-      : duelable ? { label: 'RETRY DUEL ▸', action: 'duel' }
-      : { label: endWin ? 'RESTART' : 'RETRY', action: 'retry' };
+      // beside a duel offer the plain retry says FULL, so the two are told apart
+      // by their labels and not only by their colour
+      // A RESTART OFF A WON ASSISTED LANE IS RANKED, and says so: the run behind
+      // it showed no score anywhere, so 'RESTART' alone would not tell a player
+      // that THIS one counts. Losing assisted still says ASSIST — it stays eased.
+      : { label: endWin ? (assist ? 'RETRY RANKED' : 'RESTART') : duelable ? 'FULL RETRY' : assist ? 'RETRY ASSIST' : 'RETRY', action: 'retry' };
     const secondary = [];
-    if (primary.action === 'next' || primary.action === 'contract') secondary.push({ label: 'RESTART', action: 'retry' });
-    if (primary.action === 'duel') secondary.push({ label: 'FULL RETRY', action: 'retry' });
+    if (primary.action === 'next' || primary.action === 'contract') secondary.push({ label: assist ? 'RETRY RANKED' : 'RESTART', action: 'retry' });
     secondary.push({ label: 'MENU', action: 'menu' });
+    // THE GLOWING KEY IS THE A KEY — one rule, and the layout obeys it rather
+    // than the other way round. A is hard-mapped to the way FORWARD (see
+    // END_FORWARD in 71-gamepad), and a lost duel's continue outranks a level
+    // restart there: after the offer slot moved the continue off the right-hand
+    // side, the right-hand key went on glowing while carrying X, and A glowed
+    // nowhere. So `primary` follows the forward action wherever it is drawn.
+    // LANE ASSIST is NOT a forward action — plain RETRY is — so on that report
+    // the right key keeps the glow and the amber offer answers to X.
+    const offerIsFwd = !!offer && offer.action === 'duel';
     const bcut = Math.min(12, bh * 0.28); // the button()'s own chamfer — the focus ring matches it
-    button(rx - bw / 2, g.cy - bh / 2 + rise, bw, bh, primary.label, !gated, gated);
-    if (!gated) endButtons.push({ x: rx - bw / 2, y: g.cy - bh / 2, w: bw, h: bh, action: primary.action, cut: bcut });
-    if (primary.action === 'duel') { // the price, stated where the choice is made
-      const pa2 = ctx.textAlign;
-      ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(255,180,120,0.78)';
-      ctx.font = '600 10px Audiowide, system-ui';
-      ctx.fillText("SCORE WON'T QUALIFY FOR THE BOARD", rx, g.cy + bh / 2 + rise + 18);
-      ctx.textAlign = pa2;
-    }
+    button(rx - bw / 2, g.cy - bh / 2 + rise, bw, bh, primary.label, !gated && !offerIsFwd, gated);
+    if (!gated) endButtons.push({ x: rx - bw / 2, y: g.cy - bh / 2, w: bw, h: bh, action: primary.action, cut: bcut, primary: !offerIsFwd });
     let sy = g.cy - (secondary.length * bh + (secondary.length - 1) * 14) / 2;
     for (const b of secondary) {
       button(lx - bw / 2, sy + rise, bw, bh, b.label, false, gated);
       if (!gated) endButtons.push({ x: lx - bw / 2, y: sy, w: bw, h: bh, action: b.action, cut: bcut });
       sy += bh + 14;
+    }
+    // ---- THE OFFER, CENTRE-BOTTOM ----
+    // Anchored UPWARD off rankY, the top of the numbers block, so it can never
+    // land on the telemetry however short the frame gets. Horizontally it owns
+    // the middle column, which the side stacks never enter — so the vertical
+    // overlap with them is only apparent, and costs nothing.
+    if (offer) {
+      // THE SAME KEY, IN A DIFFERENT COLOUR. It takes `bh` and `bcut` from the
+      // side stacks rather than sizing itself off the viewport — a second height
+      // rule for one key is how it ended up visibly shorter than its neighbours.
+      // Only the WIDTH is its own: the offer labels are the longest on the screen.
+      const ofW = Math.min(Math.max(margin * 0.95, 158), 272);
+      const ofH = bh;
+      const ofCapPx = Math.max(9, Math.round(uB * 0.021));
+      const ofCapY = rankY - Math.max(18, Math.round(uB * 0.042));
+      const ofY = ofCapY - ofCapPx * 1.6 - ofH;
+      const ofCut = bcut;
+      button(g.cx - ofW / 2, ofY + rise, ofW, ofH, offer.label, !gated && offerIsFwd, gated, 'amber');
+      if (!gated) endButtons.push({ x: g.cx - ofW / 2, y: ofY, w: ofW, h: ofH, action: offer.action, cut: ofCut, primary: offerIsFwd });
+      const pa2 = ctx.textAlign;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,200,110,0.8)';
+      ctx.font = '600 ' + ofCapPx + 'px Audiowide, system-ui';
+      ctx.fillText(offer.price, g.cx, ofCapY + rise);
+      ctx.textAlign = pa2;
     }
   }
 

@@ -10,6 +10,22 @@
 // scheme travels at. See NODE_SLEW / slewNodes in 41-geometry.
 let padPrev = { a: false, b: false, y: false, start: false, lt: false, rt: false, stick: false };
 let gpSel = 0, gpNav = false; // menu focus index + "a controller drives the menus"
+// HOW LONG THE FOCUS RING DRIVES A. Once the player walks the keys, A stops
+// meaning its hard-mapped verb and starts meaning "press THIS one" — which is
+// what a focus ring promises, and what it used to break on the report, where A
+// fired FORWARD no matter which key wore the ring. The two readings of A cannot
+// both be advertised, so they take turns: while the ring is up the per-key
+// letter badges fade out, and five seconds after the last navigation the ring
+// fades instead and the badges come back with A on its own verb again.
+let gpNavAt = -99;             // when the ring was last driven
+const GP_NAV_HOLD = 5;         // seconds of stillness before it lets go
+const GP_NAV_FADE = 0.6;       // and how long the hand-back takes
+function gpNavA() {            // 1 while navigating → 0 once it has faded out
+  if (!gpNav) return 0;
+  return clamp(1 - (time - gpNavAt - GP_NAV_HOLD) / GP_NAV_FADE, 0, 1);
+}
+const gpNavLive = () => gpNavA() > 0;   // is the ring the thing A presses?
+function gpTouchNav() { gpNav = true; gpNavAt = time; }
 let gpStickDir = ''; // last stick step direction — a NEW direction steps again
 let gpStickOn = false, gpStickHeld = 0, gpStickGo = false; // menu-stick hysteresis + sustain — see menuStick()
 let gpSeen = false; // a controller has spoken — show button hints, arm the stick gate
@@ -50,8 +66,15 @@ function gpRestartAction() {
   if (state === S.PAUSE) {
     const b = pauseButtonsList.find(b2 => b2.action === 'restart');
     if (b) pauseTap(b.x + b.w / 2, b.y + b.h / 2, -7);
-  } else if (state === S.END && !nameEntry) gpEndPress('retry');
+  } else if (state === S.END && !nameEntry) {
+    gpEndPress(endRestartAction());
+  }
 }
+// WHAT X MEANS ON THE REPORT. Offered a LANE ASSIST, X is the assist: A already
+// owns plain RETRY there (it is the forward key on a loss), so X restarting too
+// spent the game's one spare face button on a verb that already had one.
+const endRestartAction = () =>
+  endButtons.some(b2 => b2.action === 'assist') ? 'assist' : 'retry';
 function gpMenuBack() { // one step back through the menu screens
   if (menuScreen === 'home' || menuFx) return;
   sfx.tick();
@@ -107,7 +130,7 @@ function gpCenter(b) { // pizza-wheel sectors carry geometry instead of a rect
   return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
 }
 function gpMove(list, dx, dy) { // nearest button lying in the pressed direction
-  gpNav = true;
+  gpTouchNav();
   if (gpSel < 0 || gpSel >= list.length) { gpSel = 0; return; }
   const from = gpCenter(list[gpSel]);
   let best = -1, bestD = 1e9;
@@ -165,12 +188,14 @@ function drawGpHints() { // once a controller speaks, keys wear their buttons
   // own; the route map draws its relay selection itself)
   // ...and never during a screen change: the ring is drawn from the key's current
   // rect, which is meaningless while the layout is flying in or out.
-  if (list && list.length && gpNav && !menuFx && !trans
+  const navA = gpNavA(); // the ring's presence — and the badges' absence
+  if (list && list.length && navA > 0 && !menuFx && !trans
     && !(state === S.MENU && menuScreen === 'map' && !menuSettings && !myData && !report)
     && !(state === S.END && nameEntry)) {
     const fb = list[Math.min(gpSel, list.length - 1)];
     if (fb && !fb.sector) {
       ctx.save();
+      ctx.globalAlpha *= navA;
       ctx.strokeStyle = 'rgba(140,235,255,0.9)'; ctx.lineWidth = 2;
       ctx.shadowColor = 'rgba(120,220,255,0.8)'; ctx.shadowBlur = lowFX ? 0 : 8;
       if (keyShapePath(fb, 2)) ctx.stroke();
@@ -180,7 +205,14 @@ function drawGpHints() { // once a controller speaks, keys wear their buttons
   // on the report, A is hard-mapped to FORWARD (next / retry duel / retry), Y exits
   const endAB = state === S.END && list ? endForward(list) : null;
   const endA = endAB ? endAB.action : null;
-  if (list) for (const b of list) {
+  // ...but only while the focus ring is DOWN. Walking the ring re-points A at
+  // whatever it lands on, so the per-key letters would be advertising a map
+  // that is not in force — they fade out for exactly as long as the ring is up.
+  const hintA = 1 - navA;
+  // the report's assist key owns X (see gpRestartAction) — so plain RETRY only
+  // wears the X badge on a report that is not offering one
+  const assistOffered = state === S.END && list && list.some(b2 => b2.action === 'assist');
+  if (list && hintA > 0.01) for (const b of list) {
     let h = null;
     if (b.deploy !== undefined || b.action === 'resume'
       || (endA ? b.action === endA : b.action === 'next')) h = 'A';
@@ -188,10 +220,14 @@ function drawGpHints() { // once a controller speaks, keys wear their buttons
     // restart is X on both screens; leaving is Y (and B does the same, but one glyph per
     // key is the honest hint — a button showing two letters teaches neither)
     else if (b.action === 'restart' && state === S.PAUSE) h = 'X';
-    else if (b.action === 'retry' && state === S.END) h = 'X'; // when A already owns retry the chain never gets here
+    else if (b.action === 'assist' && state === S.END) h = 'X';
+    else if (b.action === 'retry' && state === S.END && !assistOffered) h = 'X'; // when A already owns retry the chain never gets here
     else if (b.action === 'menu' && state !== S.MENU) h = 'Y';
     if (!h || b.sector) continue;
+    ctx.save();
+    ctx.globalAlpha *= hintA;
     drawPadHint(b.x + b.w / 2, b.y - 2, h);
+    ctx.restore();
   }
   if (state === S.MENU && menuScreen !== 'home' && menuBackRect && !menuSettings && !myData && !report)
     drawPadHint(menuBackRect.x + menuBackRect.w / 2, menuBackRect.y + menuBackRect.h + 9, 'Y');
@@ -333,7 +369,7 @@ function pollGamepad(dt) {
     const aC = press(0);
     if (aC && !padPrev.a && list) {
       const sy2 = list.find(b2 => b2.sync === Math.round(campScrollTgt));
-      if (sy2) { gpNav = true; const c = gpCenter(sy2); menuTap(c.x, c.y, -7); }
+      if (sy2) { gpTouchNav(); const c = gpCenter(sy2); menuTap(c.x, c.y, -7); }
     }
     padPrev.a = aC;
   } else if (list && list.length) {
@@ -346,7 +382,7 @@ function pollGamepad(dt) {
       const fb = list[Math.min(gpSel, list.length - 1)];
       const volKey = dx && fb && fb.key ? { sound: 'soundVol', music: 'musicVol' }[fb.key] : null;
       if (volKey) {
-        gpNav = true;
+        gpTouchNav();
         if (!settings[fb.key]) settings[fb.key] = true;
         settings[volKey] = clamp(settings[volKey] + dx * 0.125, 0, 1);
         applySettings(); sfx.tick();
@@ -385,7 +421,7 @@ function pollGamepad(dt) {
       });
       if (pointed >= 0) {
         if (pointed !== gpSel && gpNav) sfx.tick();
-        gpSel = pointed; gpNav = true;
+        gpSel = pointed; gpTouchNav();
       } else {
         // one push = one step; sweeping to a NEW direction steps again
         // without recentering
@@ -420,13 +456,16 @@ function pollGamepad(dt) {
       const sb = nameEntryBtns.find(b2 => b2.action === 'nameConfirm');
       if (sb) pressUI(sb, () => confirmNameEntry());
     } else if (list && list.length) { // A confirms: on the map that's DEPLOY,
-      // on the report it's always FORWARD (next / retry) — B is the menu exit
-      const target = onMap ? list.find(b2 => b2.deploy !== undefined) // elsewhere the focused key
-        : state === S.END
-          ? (endForward(list) || list[Math.min(gpSel, list.length - 1)])
-          : list[Math.min(gpSel, list.length - 1)];
+      // and everywhere else the FOCUSED key — once the player has walked the
+      // ring onto it. Standing still, the report falls back to its hard map
+      // (FORWARD: next / retry duel / retry), which is what the badges say.
+      const focused = list[Math.min(gpSel, list.length - 1)];
+      const target = onMap ? list.find(b2 => b2.deploy !== undefined)
+        : gpNavLive() ? focused
+        : state === S.END ? (endForward(list) || focused)
+        : focused;
       if (target) {
-        gpNav = true;
+        if (gpNav) gpTouchNav(); // confirming is activity — the ring keeps its clock
         const c = gpCenter(target);
         if (state === S.MENU) menuTap(c.x, c.y, -7);
         else if (state === S.PAUSE) pauseTap(c.x, c.y, -7);

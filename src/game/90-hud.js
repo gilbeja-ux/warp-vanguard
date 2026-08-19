@@ -832,7 +832,16 @@ function drawHUD(g) {
   // score (right) — suppressed while watching a replay; drawReplayChrome owns the
   // right side there (live score + the run's stat panel)
   const sy = H * 0.12;
-  if (!replaying) {
+  if (!replaying && assist) {
+    // the assisted lane flies without a score — the tag stands where the
+    // number would, so nobody hunts the HUD for missing points
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(140,210,255,0.85)'; ctx.font = '700 13px Audiowide, system-ui';
+    ctx.fillText('LANE ASSIST', W - pad - SAFE.r, sy + 8);
+    ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '600 9px Audiowide, system-ui';
+    ctx.fillText('NO SCORE', W - pad - SAFE.r, sy + 22);
+    ctx.textAlign = 'left';
+  } else if (!replaying) {
     ctx.textAlign = 'right';
     ctx.fillStyle = '#ffd24a'; ctx.font = '700 20px Audiowide, system-ui';
     ctx.fillText(score.toLocaleString(), W - pad - SAFE.r, sy + 8);
@@ -973,6 +982,24 @@ function drawHUD(g) {
 
   // qualification guides — the arrows do ALL the teaching, no captions
   // (held until the boot ceremony hands over the controls)
+  // FIRST CONTACT WITH ARMOR, outside the drill. The campaign lane that
+  // INTRODUCES heavies re-teaches the dock exactly where it first bites: the
+  // run's FIRST heavy wears the qualification's own guides — both arrows, the
+  // split dock spot, the words — until it resolves, and only while the lane
+  // is still unsecured (stars 0). Draw-only: the sim never reads any of it.
+  if (!tut && !endless && !qual && levelIdx >= 0 && introT >= INTRO_DUR
+      && PROG && PROG.stars && PROG.stars[levelIdx] === 0
+      && levelIdx === LEVELS.findIndex(l => (l.heavies || 0) > 0)) {
+    if (heavyCue === null) {
+      const hv = enemies.find(e => e.type === 'heavy' && !e.dead && !e.resolved && !e.failed);
+      if (hv) heavyCue = hv;
+    } else if (heavyCue !== 'done' && (heavyCue.dead || heavyCue.resolved || heavyCue.failed)) heavyCue = 'done';
+    if (heavyCue && heavyCue !== 'done') {
+      drawGuideArc(nodes[0], heavyCue.angle); drawGuideArc(nodes[1], heavyCue.angle);
+      drawDockSpot(heavyCue.angle);
+      drawRideLabel('USE BOTH EMITTERS', heavyCue, '#8fe0ff');
+    }
+  }
   tutDescNow = null; // stale ghosts must not survive the drill that made them
   if (tut && tut.stage >= 0 && introT >= INTRO_DUR) {
     const st = QUAL[tut.stage];

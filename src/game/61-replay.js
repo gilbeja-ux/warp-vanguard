@@ -11,6 +11,10 @@
 // anyone. The week index is in the key, so nothing has to be passed alongside it.
 function boardKey() {
   if (qual || levelIdx === -1 && !endless) return null;
+  // an LANE ASSIST run flies an EASED lane — it can never file a score,
+  // and saying so here covers every downstream path at once (capture, submit,
+  // provisional rank, local bests)
+  if (assist) return null;
   // A FINISHED WEEK IS UNRANKED, and saying so here rather than at the submit call
   // is what makes it airtight: every downstream path — the submit, the "you made the
   // top 50" name card, the rank lookup — already treats a null board as unranked, so
@@ -18,6 +22,17 @@ function boardKey() {
   if (weekly) return weeklyLive() ? 'weekly:' + weeklyIdx : null;
   if (endless) return 'endless';
   return (CAMP ? CAMP.id : 'campaign') + ':' + levelIdx;
+}
+// A RANK LOOKUP COMING HOME. Split out of endLevel's callback so the staleness
+// rule is a thing that can be stated and tested, rather than a condition buried
+// in a promise. Two ways to be stale, and both have bitten: the player has left
+// the report (state), or another run has ended since this call went out
+// (serial) — which is how an assisted run, whose own score is unranked and
+// unrecorded, was handed the previous run's high-score card.
+function applyProvisional(bk, serial, r) {
+  if (serial !== endSerial || state !== S.END) return;
+  endProvisional = r;
+  if (r && r.rank <= LB_SHOW) { nameEntry = { board: bk }; nameEntryDraft = identity.name || ''; }
 }
 // the week index out of a 'weekly:<n>' key, or null for any other board
 const weekOfBoard = key => {
@@ -362,18 +377,23 @@ function endLevel(win) {
   // name-entry card on the END screen — every qualifying run, pre-filled with the
   // player's last handle so returning players can keep it or type something new.
   endProvisional = null; nameEntry = null; nameEntryDraft = '';
+  const mySerial = ++endSerial;
   if (boardKey() && !qual && !bossTestRun && !bossRetried && score > 0) {
     const bk = boardKey();
-    lbProvisional(bk, score, zaps, perfects).then(r => {
-      endProvisional = r;
-      if (r && r.rank <= LB_SHOW && state === S.END) { nameEntry = { board: bk }; nameEntryDraft = identity.name || ''; }
-    });
+    lbProvisional(bk, score, zaps, perfects).then(r => applyProvisional(bk, mySerial, r));
   }
   endDropT = win ? 0 : -1;            // victory: the lane drops out of warp
   beamSound(false, 0); beamActive = false; stripSound(false, 0);
   endRunMusic();
   endWin = win; endT = 0; endFxStars = 0; endTickT = 0; nbHold = 0;
-  endStars = win && !endless && !qual ? (integrity >= 90 ? 3 : integrity >= 60 ? 2 : 1) : 0;
+  endStars = win && !endless && !qual && !assist ? (integrity >= 90 ? 3 : integrity >= 60 ? 2 : 1) : 0;
+  // LANE ASSIST bookkeeping: a campaign lane counts consecutive losses in
+  // this session; two invite the eased retry (the END screen reads the count).
+  // ANY clear of the lane — assisted or not — resets it.
+  if (!endless && !qual && levelIdx >= 0) {
+    const lk = (CAMP ? CAMP.id : 'campaign') + ':' + levelIdx;
+    if (win) delete laneFails[lk]; else laneFails[lk] = (laneFails[lk] || 0) + 1;
+  }
   if (qual) {
     sfx.win();
   } else if (endless) {
@@ -394,10 +414,13 @@ function endLevel(win) {
     // a CONTINUED win still completes — stars and the route are the point of
     // the continue — but the record book stays closed to it: no local best,
     // no NEW BEST badge, exactly as the RETRY DUEL button said.
-    PROG.stars[levelIdx] = Math.max(PROG.stars[levelIdx], endStars);
+    // an ASSISTED clear advances the ROUTE and nothing else: no stars, no
+    // best, no NEW BEST. The eased lane is a different lane, and its numbers
+    // don't belong in the record book (endStars is already 0 above).
+    if (!assist) PROG.stars[levelIdx] = Math.max(PROG.stars[levelIdx], endStars);
     PROG.unlocked = Math.max(PROG.unlocked, Math.min(levelIdx + 2, LEVELS.length));
-    endNewBest = !bossRetried && score > (PROG.bests[levelIdx] || 0);
-    if (!bossRetried) PROG.bests[levelIdx] = Math.max(PROG.bests[levelIdx] || 0, score);
+    endNewBest = !assist && !bossRetried && score > (PROG.bests[levelIdx] || 0);
+    if (!bossRetried && !assist) PROG.bests[levelIdx] = Math.max(PROG.bests[levelIdx] || 0, score);
     saveState();
     sfx.arrive();   // dropping out of warp, the sting rising through its tail
   } else { endNewBest = false; sfx.fail(); }

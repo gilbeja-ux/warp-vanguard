@@ -165,6 +165,14 @@ const BEAM_S = 5;
 let burstQ = null;            // pending burst-volley spawns
 let patternQ = [];            // beat-choreographed volley schedule
 let endless = false, qual = false, LV = null, runTrack = 0; // active run config + its soundtrack
+// LANE ASSIST — the eased retry a struggling lane offers after two straight
+// losses: spawn gaps ×1.3 and speed ×0.9 over a COPY of the authored table.
+// Unranked (boardKey → null), no score shown or recorded, no stars — only the
+// route unlock advances. laneFails is per-session ON PURPOSE: the offer meets
+// a player mid-struggle; it is not a saved difficulty setting.
+let assist = false;
+let laneFails = {};           // 'campId:levelIdx' → consecutive losses this session
+let heavyCue = null;          // the run's first campaign heavy, while it wears the dock guides ('done' after)
 let infoCard = null, infoShownAt = 0; // briefing card (S.INFO)
 let menuScroll = 0, menuPtr = null; // level-list scrolling
 let menuScreen = 'home'; // 'home' (mode select) | 'map' (campaign route) | 'flow' (free flow) | 'board' (leaderboard)
@@ -196,6 +204,14 @@ let endFxStars = 0, endTickT = 0; // ceremony bookkeeping (star chimes, count ti
 // post-run sign-in tease: where an unlisted (anonymous) player WOULD rank, and
 // whether they've dismissed the offer this run
 let endProvisional = null, nameEntryBtns = [];
+// WHICH REPORT A PENDING RANK LOOKUP BELONGS TO. The provisional-rank call is
+// fired at endLevel and lands whenever the network answers — up to ten seconds
+// later. Its callback only ever asked "are we on an END screen?", which is true
+// of the NEXT run's report too, so a ranked run's lookup could open the arcade
+// name card over a report that must never file a score: a LANE ASSIST run, a
+// duel continue, a drill. Every endLevel takes the next serial; a callback that
+// does not still hold it is stale and does nothing.
+let endSerial = 0;
 // When the buttons arrive. A win used to hold them to 2.9s because that is how
 // long the old green sweep took to roll to the horizon. The drop is over in under
 // a second now, so 2.9 was a second and a half of nothing happening.

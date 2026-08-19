@@ -871,7 +871,16 @@ function decompile(a, z, en, mul) {
     spr: en.noCharge ? null : SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.type] });
   ripples.push({ a, z, t: 0, mul: Math.sqrt(m) });
 }
-function popup(x, y, text, color) { popups.push({ x, y, text, color, life: 1 }); }
+function popup(x, y, text, color) {
+  // an LANE ASSIST run has no score, so the field feedback drops its
+  // arithmetic: '+120  x5' vanishes, 'PERFECT +240  x5' → 'PERFECT'. Words
+  // that carry no number ('STABILITY LOST') pass through whole.
+  if (assist) {
+    text = String(text).replace(/\s*\+[\d,]+/g, '').replace(/\s*x\d+\s*$/, '').trim();
+    if (!text) return;
+  }
+  popups.push({ x, y, text, color, life: 1 });
+}
 // the kill streak: the enemy, REPROGRAMMED, launches forward as a single
 // green tracer from wherever it died (angle + depth) — a bright head easing
 // toward the horizon with a tapering tail, riding the wall like it did

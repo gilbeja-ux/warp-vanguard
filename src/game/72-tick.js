@@ -597,13 +597,26 @@ function updateVolley(dt, docked, g) {
         buzz([30, 30, 50], { strong: 0, weak: 0 }); // WORLD telegraph — phone only
         break; // the bolt died on the trap
       }
-      // volley kills pay a flat bounty — no combo, no zap credit, no pulse
-      // feed: interception stays the scoring game, this is a TOOL
+      // A VOLLEY KILL IS A KILL. It advances the combo and takes the combo
+      // multiplier, and interdiction at RANGE pays a depth bonus on top —
+      // pre-clearing deep traffic is how a power player spends the dock, and
+      // how a defensive player buys room for the incoming interceptions.
+      // What it still never does: no perfect ×2 (a bore bolt has no aim
+      // grade) and no pulse feed — the pulse economy stays interception's
+      // alone. The real price is unchanged: both thumbs parked for the
+      // charge, then the 1.25s recharge gap.
       en.dead = true;
-      const vb = Math.round((en.type === 'heavy' ? 250 : 60) * mutMul());
+      if (combo === 0) comboStartT = levelT;
+      combo++;
+      if (combo > maxCombo) { maxCombo = combo; maxComboStart = comboStartT; }
+      if (comboStartT === maxComboStart) maxComboSec = levelT - maxComboStart;
+      const depthQ = clamp((en.z - g.hitZ) / (SPAWN_Z - g.hitZ), 0, 1);
+      const deep = Math.round(140 * depthQ);
+      const vb = Math.round(((en.type === 'heavy' ? 250 : 60) + deep) * mutMul()) * scoreMul();
       score += vb;
       decompile(en.angle, en.z, en);
-      popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : '+') + vb, '#bfeaff');
+      popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : deep >= 40 ? 'DEEP +' : '+') + vb
+        + (combo >= 3 ? '  x' + scoreMul() : ''), '#bfeaff');
       if (en.tut) popup(vx, vy - 30, 'NEUTRALIZED', '#7ee262'); // the label's verb, answered
       rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
       const volleyZapSampled = sfx.zap(1, Math.cos(en.angle) * 0.6);

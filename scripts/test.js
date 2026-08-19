@@ -155,6 +155,13 @@ code = code.replace("'use strict';", '') + `
   destKindFor, planetVariantFor, s3BuildFor, PLANET_TYPES, STAR_DECK,
   getLevels: () => LEVELS, migrateSaveShape, getInfoCards: () => INFO_CARDS,
   getGpSel: () => gpSel, setGpSel: v => { gpSel = v; },
+  // the focus ring's lifetime + what the report's face buttons resolve to
+  gpNavA, gpNavLive, gpTouchNav, setTime: v => { time = v; },
+  endRestartAction, endForward, getEndButtons: () => endButtons, setEndButtons: v => { endButtons = v; },
+  viewport: () => ({ W, H }), // the offer slot's layout is asserted against it
+  // drive a REAL phone viewport: the harness's 800x450 desk frame hid a mobile-only
+  // sizing bug once already, so the report is re-measured at a portrait phone too
+  setViewport: (cw, ch) => { window.innerWidth = cw; window.innerHeight = ch; resize(); },
   getMapSel: () => mapSel, getPadHold: () => padHold,
   getCampScroll: () => campScrollTgt, setCampScroll: v => { campScroll = campScrollTgt = v; }, CAMPS_SOON,
   getMenuFx: () => menuFx, setMenuFx: v => { menuFx = v; }, getBackRect: () => menuBackRect,
@@ -204,7 +211,10 @@ code = code.replace("'use strict';", '') + `
   boardKeyFor, boardPick, openBoard, boardLeftItems, weekLadder, getBoardSel: () => boardSel, setBoardData: v => { boardData = v; }, // board screen
   setBoardCollapsed: (k, v) => { boardCollapsed[k] = v; }, // the left list's folds
   setNameEntry: v => { nameEntry = v; }, setEndProvisional: v => { endProvisional = v; }, // high-score name card
+  applyProvisional, getNameEntry: () => nameEntry, getEndSerial: () => endSerial, // …and the rule for a rank lookup landing late
+  isAssist: () => assist, // is the LIVE run eased?
   getMaxCombo: () => maxCombo, endLevel, endBtnAt, endRevealAt, getEndT: () => endT, getNbHold: () => nbHold,
+  getLaneFails: () => laneFails, // the LANE ASSIST offer's loss counter
   simStep, startTrace, stopTrace, startReplay, stopReplay, dismissInfo, // run-trace record/replay
   launchReplay, getReplaying: () => replaying, // the watch-a-run viewer + its guard flag
   rawFrame: now => frame(now), // the real frame() incl. the accumulator (G.frame is the same)
@@ -237,7 +247,7 @@ eval(code);
 const G = globalThis.__g;
 // most tests exercise live gameplay — skip the level-intro countdown by default
 const rawStartLevel = G.startLevel;
-G.startLevel = i => { rawStartLevel(i); G.setIntro(999); };
+G.startLevel = (i, brief, withAssist) => { rawStartLevel(i, brief, withAssist); G.setIntro(999); };
 const rawStartEndless = G.startEndless;
 G.startEndless = () => { rawStartEndless(); G.setIntro(999); };
 const rawStartQual = G.startQualification;
@@ -317,7 +327,25 @@ en.z = 1.0;
 volleyShot(1.2, 12);
 for (let i = 0; i < 25 && !en.dead; i++) vstep();
 check('the volley punches through reds too', en.dead === true);
-check('volley kills pay flat bounty — combo untouched', G.stats().combo === comboV);
+check('volley kills advance the combo', G.stats().combo === comboV + 1);
+// interdiction at RANGE pays: the same red is worth more the deeper it dies.
+// Both targets are parked (speedMul 0) and the per-kill take is normalized by
+// the combo multiplier, so depth is the only thing the comparison can see.
+G.enemies().length = 0;
+en = G.spawnEnemy(0.6, 'normal');
+en.z = 0.6; // the bolt catches it low, well before the rim
+let sv0 = G.getScore();
+volleyShot(0.6, 12);
+for (let i = 0; i < 25 && !en.dead; i++) vstep();
+const nearPts = (G.getScore() - sv0) / Math.min(G.stats().combo, 10);
+G.enemies().length = 0;
+en = G.spawnEnemy(1.4, 'normal');
+en.z = 1.9; // the bolt meets it deep in the bore
+sv0 = G.getScore();
+volleyShot(1.4, 12);
+for (let i = 0; i < 30 && !en.dead; i++) vstep();
+const deepPts = (G.getScore() - sv0) / Math.min(G.stats().combo, 10);
+check('a deeper volley kill pays more', en.dead === true && deepPts > nearPts);
 // shooting a node killer REPLICATES it — that'll teach you
 G.enemies().length = 0;
 en = G.spawnEnemy(2.0, 'frag');
@@ -1076,8 +1104,30 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
     G.getState() === G.S.END && G.getEndWin() === false && G.isBossFailed() === true);
   G.setEndT(9); // past every reveal — the buttons are live
   drawOk('END screen with RETRY DUEL offered', () => {});
-  check('the END screen offers RETRY DUEL first, full retry second',
+  check('the END screen offers RETRY DUEL beside a full retry',
     G.endButtons().some(b2 => b2.action === 'duel') && G.endButtons().some(b2 => b2.action === 'retry'));
+  { // THE OFFER SLOT: centre column, clear of both side stacks, below the ring's
+    // middle. It shares that slot with LANE ASSIST, so proving it here proves both.
+    const V = G.viewport();
+    const of = G.endButtons().find(b2 => b2.action === 'duel');
+    const sides = G.endButtons().filter(b2 => b2.action !== 'duel');
+    check('the offer key is centred', Math.abs(of.x + of.w / 2 - V.W / 2) < 2);
+    // THE INVARIANT: exactly one key glows, and it is the one A presses. It
+    // broke the moment the continue moved off the right-hand side, so it is
+    // asserted rather than eyeballed — on every report shape below too.
+    const glow = G.endButtons().filter(b2 => b2.primary);
+    check('the duel report glows on the A key, and only there',
+      glow.length === 1 && glow[0].action === G.endForward(G.endButtons()).action
+      && glow[0].action === 'duel');
+    check('the offer key clears every side key',
+      sides.length > 0 && sides.every(b2 => b2.x + b2.w <= of.x || b2.x >= of.x + of.w));
+    // it is the same KEY in a different colour — a second height rule for one
+    // button is exactly how it shipped visibly shorter than its neighbours
+    check('the offer key is the same height as every side key',
+      sides.every(b2 => b2.h === of.h) && sides.every(b2 => b2.cut === of.cut));
+    check('the offer key sits in the lower half', of.y > V.H / 2);
+    check('and stays clear of the bottom edge', of.y + of.h < V.H);
+  }
   const prevRun2 = G.getLastRun();      // the failed run filed normally — it still ranked
   const bests0 = G.getProg().bests[7] || 0;
   { // THE PAD'S FORWARD KEY must be the continue. A is hard-mapped to whatever
@@ -1516,7 +1566,7 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
 
 // ================= campaign rim walls + bonus ribbon =================
 const quiet = () => { G.setSpawnT(60); G.setIntegrity(100); }; // hold the level script still
-G.startLevel(4); // SUBLANE DRIFT — the wall's home level
+G.startLevel(5); // the dead-zone lane — walls' home since the onboarding re-stage
 G.enemies().length = 0;
 G.setLatches([{ a: 1.0, span0: 0.5, t: 0, dur: 3, tele: 0.9, arm: 0.4 }]);
 aim(0, 1.0); aim(1, 2.5); // node 0 parked exactly where the wall will bite
@@ -1552,7 +1602,7 @@ for (let i = 0; i < 400 && G.enemies().some(e => e.type === 'strip' && !e.dead);
 check('an ignored ribbon costs nothing',
   G.stats().integrity === 100 && G.stats().combo === comboR && G.getPulse()[0] === 0 && G.getPulse()[1] === 0);
 // walls actually spawn from the level script
-G.startLevel(4);
+G.startLevel(5);
 let sawWall = false;
 for (let i = 0; i < 1400 && !sawWall; i++) { G.setIntegrity(100); G.update(0.05); sawWall = G.latches().length > 0; }
 check('SUBLANE DRIFT deploys rim walls from its script', sawWall);
@@ -3933,6 +3983,136 @@ async function runMusicUp() {
 })();
 
 // ================= per-board behavioural fingerprint =================
+// ================= controller focus ring =================
+// Walking the ring re-points A at the focused key; five seconds of stillness
+// hands A back to its hard map and brings the per-key letter badges back.
+{
+  const t0 = G.getTime();
+  G.gpTouchNav();
+  check('nav: the ring is fully up the moment focus moves', G.gpNavA() === 1 && G.gpNavLive());
+  G.setTime(t0 + 4.9);
+  check('nav: it holds for five seconds of stillness', G.gpNavA() === 1 && G.gpNavLive());
+  G.setTime(t0 + 5.3);
+  const mid = G.gpNavA();
+  check('nav: then it fades', mid > 0 && mid < 1 && G.gpNavLive());
+  G.setTime(t0 + 6);
+  check('nav: and hands A back once it is gone', G.gpNavA() === 0 && !G.gpNavLive());
+  G.setTime(t0);
+}
+// X on the report: the LANE ASSIST when one is offered, else the restart
+{
+  const saved = G.getEndButtons();
+  const mk = a => ({ x: 0, y: 0, w: 10, h: 10, action: a });
+  G.setEndButtons([mk('retry'), mk('menu')]);
+  check('report: with no assist offered, X restarts', G.endRestartAction() === 'retry');
+  check('report: and A forwards to RETRY', G.endForward(G.getEndButtons()).action === 'retry');
+  G.setEndButtons([mk('retry'), mk('assist'), mk('menu')]);
+  check('report: an offered assist takes X', G.endRestartAction() === 'assist');
+  check('report: while A still forwards to RETRY', G.endForward(G.getEndButtons()).action === 'retry');
+  G.setEndButtons(saved);
+}
+
+// ================= lane assist =================
+// the eased retry: unranked, no score record, no stars — only the route
+// advances. And the offer arms itself after two straight losses on a lane.
+{
+  const P0 = G.getProg();
+  const st1 = P0.stars[1], bs1 = P0.bests[1];
+  G.startLevel(1, false, true);
+  check('assist: the run is unranked', G.boardKey() === null);
+  check('assist: the lane is eased over a copy',
+    Math.abs(G.getLV().spawnMin - G.getLevels()[1].spawnMin * 1.3) < 1e-9
+    && Math.abs(G.getLV().speed - G.getLevels()[1].speed * 0.9) < 1e-9
+    && G.getLV() !== G.getLevels()[1]);
+  const runBefore = G.getLastRun();
+  G.setLevelT(1e9); G.endLevel(true);
+  check('assist: nothing is captured or submitted', G.getLastRun() === runBefore);
+  check('assist: and no high-score card opens', G.getNameEntry() === null);
+  const P1 = G.getProg();
+  check('assist: a clear advances the route', P1.unlocked >= 3);
+  { // A SPENT EASE IS SPENT. Restarting a lane the player just CLEARED assisted
+    // must fly it for real — that restart is the only way back to a record, and
+    // the run behind it filed no score at all. Pressed through the key, not the API.
+    G.setState(G.S.END); G.setEndT(9); G.frame(16);
+    const rb = G.endButtons().find(b2 => b2.action === 'retry');
+    check('a won assisted lane offers a RANKED restart', !!rb);
+    G.endTap(rb.x + rb.w / 2, rb.y + rb.h / 2);
+    let tg4 = 60;
+    while (tg4-- > 0 && G.getState() === G.S.END) G.update(0.05);
+    check('restarting a CLEARED assisted lane drops the ease', G.isAssist() === false);
+    check('...and the lane ranks again', G.boardKey() !== null);
+  }
+  { // LOSING assisted keeps it: the player is still stuck, which is the point
+    G.startLevel(2, false, true);
+    check('a losing assisted run is still eased', G.isAssist() === true);
+    G.setIntegrity(0); G.setLevelT(1e9); G.endLevel(false);
+    G.setState(G.S.END); G.setEndT(9); G.frame(16);
+    const rb2 = G.endButtons().find(b2 => b2.action === 'retry');
+    G.endTap(rb2.x + rb2.w / 2, rb2.y + rb2.h / 2);
+    let tg5 = 60;
+    while (tg5-- > 0 && G.getState() === G.S.END) G.update(0.05);
+    check('retrying a LOST assisted lane keeps the ease', G.isAssist() === true);
+    check('...and it still files no score', G.boardKey() === null);
+  }
+  check('assist: but writes no stars and no best', P1.stars[1] === st1 && P1.bests[1] === bs1);
+  G.startLevel(2);
+  check('a standard start clears the assist flag', G.boardKey() !== null);
+  const lf0 = G.getLaneFails()[G.getCamp().id + ':2'] || 0;
+  G.setLevelT(1e9); G.endLevel(false);
+  G.startLevel(2); G.setLevelT(1e9); G.endLevel(false);
+  check('two losses arm the LANE ASSIST offer', G.getLaneFails()[G.getCamp().id + ':2'] === lf0 + 2);
+  { // and the report actually draws it, in the shared offer slot
+    G.setEndT(9); // past every reveal — the keys are live
+    drawOk('END screen with LANE ASSIST offered', () => {});
+    const V = G.viewport();
+    const of = G.endButtons().find(b2 => b2.action === 'assist');
+    check('the report offers LANE ASSIST', !!of);
+    check('LANE ASSIST takes the centred offer slot',
+      !!of && Math.abs(of.x + of.w / 2 - V.W / 2) < 2 && of.y > V.H / 2);
+    check('LANE ASSIST is the same height as every side key',
+      G.endButtons().filter(b2 => b2.action !== 'assist').every(b2 => b2.h === of.h));
+    // …AT A REAL PHONE VIEWPORT TOO. The harness's 800x450 desk frame is wider
+    // than any phone, and the first height bug only showed below uB≈395 — the
+    // desk frame could not see it. Portrait phones rotate: W,H come back swapped.
+    for (const [cw, ch] of [[393, 852], [412, 915], [375, 667]]) {
+      G.setViewport(cw, ch);
+      G.frame(16);
+      const bm = G.endButtons();
+      const om = bm.find(b2 => b2.action === 'assist');
+      const sm = bm.filter(b2 => b2.action !== 'assist');
+      check('LANE ASSIST matches the side keys at ' + cw + 'x' + ch,
+        !!om && sm.length > 0 && sm.every(b2 => b2.h === om.h && b2.cut === om.cut));
+    }
+    G.setViewport(800, 450); G.frame(16); // back to the desk frame for what follows
+    check('A still forwards to RETRY, X takes the assist',
+      G.endForward(G.endButtons()).action === 'retry' && G.endRestartAction() === 'assist');
+    const glowA = G.endButtons().filter(b2 => b2.primary);
+    check('the assist report glows on the A key — the right-hand RETRY',
+      glowA.length === 1 && glowA[0].action === G.endForward(G.endButtons()).action
+      && glowA[0].action === 'retry');
+  }
+  G.startLevel(2, false, true); G.setLevelT(1e9); G.endLevel(true);
+  check('any clear resets the loss count', !G.getLaneFails()[G.getCamp().id + ':2']);
+  { // THE HIGH-SCORE CARD MUST NEVER FIND AN ASSISTED REPORT. A ranked run's
+    // rank lookup can land up to ten seconds late — over the next run's report.
+    // The callback used to check only "are we on an END screen", which an
+    // assisted report satisfies, so it handed one the previous run's name card.
+    G.setState(G.S.END);
+    G.setNameEntry(null);
+    const stale = G.getEndSerial() - 1;
+    G.applyProvisional('cargo-run:2', stale, { rank: 3, total: 40 });
+    check('a rank lookup from a previous run opens no card', G.getNameEntry() === null);
+    G.applyProvisional('cargo-run:2', G.getEndSerial(), { rank: 3, total: 40 });
+    check('...while the lookup this report fired still does', !!G.getNameEntry());
+    G.setNameEntry(null);
+    G.setState(G.S.MENU);
+    G.applyProvisional('cargo-run:2', G.getEndSerial(), { rank: 3, total: 40 });
+    check('and a lookup landing off the report opens none either', G.getNameEntry() === null);
+    G.setState(G.S.END);
+  }
+  G.setState(G.S.MENU);
+}
+
 // The claim that replaced a whole-source hash, asserted rather than trusted: a
 // board's id must move when that board's numbers move, and must NOT move when
 // something the sim never reads changes. Both directions matter — the first is

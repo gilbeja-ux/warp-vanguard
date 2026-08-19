@@ -44,23 +44,29 @@ const CAMPAIGN_PACKAGES = [{
   levels: [
     { tint: '80,160,255', duration: 40, spawnMin: 1.50, spawnMax: 2.30, speed: 0.34, doubles: 0.00, heavies: 0.00, lines: 0.00, colors: 0.00, track: 0,
       story: { line: 'The journey begins. Keep the convoy safe!' } },
-    { tint: '255,170,90', duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 1,
-      hint: 'NEW THREAT: heavy armor — dock both emitters and HOLD',
+    // THE ONBOARDING LADDER: one new demand per lane, ever since the players
+    // told us lane 2 lost them. Lane 2 used to stack doubles AND heavies onto
+    // a 30% traffic jump — two brand-new two-thumb skills in one leg. Now each
+    // leg teaches exactly the thing its hint names, and heavies (the purple
+    // armor) wait until the thumbs already work independently. The slot-by-slot
+    // traffic ramp (duration/spawn/speed) is untouched — only the mix moved.
+    { tint: '255,170,90', duration: 50, spawnMin: 1.05, spawnMax: 1.80, speed: 0.40, doubles: 0.30, heavies: 0.00, lines: 0.00, colors: 0.00, track: 1,
+      hint: 'NEW THREAT: paired traffic — one on each side, both thumbs',
       story: { line: 'So far so good! Let\'s keep it up.' } },
-    { tint: '110,230,200', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, frags: 0.12, track: 2, bursts: true,
-      hint: 'NEW THREAT: burst deployments — threats arrive in volleys',
+    { tint: '110,230,200', duration: 55, spawnMin: 0.95, spawnMax: 1.70, speed: 0.43, doubles: 0.30, heavies: 0.22, lines: 0.00, colors: 0.00, track: 2,
+      hint: 'NEW THREAT: heavy armor — dock both emitters and HOLD',
       story: { line: 'Moving into less protected space. Stay vigilant.' } },
-    { tint: '70,205,235', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.13, track: 0,
-      hint: 'NEW THREAT: barrier lines — one emitter on each end',
+    { tint: '70,205,235', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.00, colors: 0.00, frags: 0.13, track: 0, bursts: true,
+      hint: 'NEW THREAT: burst deployments — threats arrive in volleys',
       story: { line: 'A little detour through the belt.' } },
-    { tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35, speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, walls: 0.10, track: 1,
-      hint: 'NEW THREAT: dead zones — the rail closes, route around',
+    { tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35, speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, track: 1,
+      hint: 'NEW THREAT: barrier lines — one emitter on each end',
       story: { line: 'No turning back now...' } },
-    { tint: '255,205,80', duration: 65, spawnMin: 0.68, spawnMax: 1.25, speed: 0.48, doubles: 0.42, heavies: 0.18, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 2,
-      hint: 'NEW THREAT: phase-locked threats — match the emitter',
+    { tint: '255,205,80', duration: 65, spawnMin: 0.68, spawnMax: 1.25, speed: 0.48, doubles: 0.42, heavies: 0.18, lines: 0.18, colors: 0.00, frags: 0.16, walls: 0.10, track: 2,
+      hint: 'NEW THREAT: dead zones — the rail closes, route around',
       story: { line: 'Scoop some fuel at the star for our last leg of the run.' } },
     { tint: '255,70,100', duration: 70, spawnMin: 0.58, spawnMax: 1.10, speed: 0.54, doubles: 0.48, heavies: 0.22, lines: 0.22, colors: 0.36, frags: 0.20, walls: 0.15, track: 0, bursts: true,
-      hint: 'ALL THREATS ACTIVE — maximum traffic',
+      hint: 'NEW THREAT: phase-locked threats — match the emitter',
       story: { line: 'Last stretch before the exchange.' } },
     { tint: '212,101,255', duration: 45, spawnMin: 0.80, spawnMax: 1.40, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,
       hint: 'THE WARP LEECH — zap its swarm, bank the charge, six pulses',

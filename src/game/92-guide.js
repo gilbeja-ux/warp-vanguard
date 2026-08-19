@@ -99,7 +99,7 @@ function guidePointer(P) { // one pager: any tap hands back (the X is an afforda
 // The box's CENTRE is the axis for everything, and its width is what the columns
 // divide — which reproduces the page's long-standing behaviour of laying the
 // lineup out on the average of the two safe margins rather than on each one.
-const GUIDE_TIP = 'TIP: DOCK BOTH EMITTERS TOGETHER TO FIRE A SHOT';
+const GUIDE_TIP = 'TIP: DOCK BOTH EMITTERS TO FIRE \u2014 DEEP KILLS PAY A BONUS';
 function drawGuideLineup(box, u, opts) {
   const o = opts || {};
   const cx0 = box.x + box.w / 2;
@@ -249,11 +249,25 @@ function drawStars(cx, cy, count, size, t) {
   }
 }
 
-function button(x, y, w, h, label, primary, locked) {
+// A KEY'S COLOUR IS ITS CLASS. Cyan is navigation — every ordinary way through
+// a screen. Amber is an OFFER: a costed way forward the game holds out only when
+// the player is stuck (LANE ASSIST, RETRY DUEL). Two of those existed, in two
+// places, wearing navigation's colour, and both were easy to miss. One palette,
+// one slot, one meaning.
+const KEY_TONE = {
+  cyan: { on: 'rgba(30,120,190,0.35)', off: 'rgba(10,36,64,0.45)', glow: 'rgba(95,215,255,0.8)',
+    edge: 'rgba(150,238,255,0.95)', edge2: 'rgba(95,200,255,0.55)', bar: '#a8ecff', bar2: 'rgba(120,220,255,0.7)',
+    tick: 'rgba(168,236,255,0.9)', tick2: 'rgba(120,220,255,0.5)', text: '#eefaff', text2: '#bfeaff' },
+  amber: { on: 'rgba(150,96,10,0.38)', off: 'rgba(48,32,6,0.5)', glow: 'rgba(255,196,80,0.8)',
+    edge: 'rgba(255,214,120,0.95)', edge2: 'rgba(240,180,70,0.6)', bar: '#ffd88a', bar2: 'rgba(255,200,110,0.75)',
+    tick: 'rgba(255,214,140,0.9)', tick2: 'rgba(255,200,110,0.55)', text: '#fff3dc', text2: '#ffdfa8' }
+};
+function button(x, y, w, h, label, primary, locked, tone) {
   // holographic console key: chamfered glass slab, luminous edge, energy bar on the left
+  const T = KEY_TONE[tone] || KEY_TONE.cyan;
   const cut = Math.min(12, h * 0.28);
   techRect(x, y, w, h, cut);
-  ctx.fillStyle = locked ? 'rgba(90,160,255,0.05)' : primary ? 'rgba(30,120,190,0.35)' : 'rgba(10,36,64,0.45)';
+  ctx.fillStyle = locked ? 'rgba(90,160,255,0.05)' : primary ? T.on : T.off;
   ctx.fill();
   if (locked) {
     // hazard hatching across the disabled key
@@ -267,21 +281,21 @@ function button(x, y, w, h, label, primary, locked) {
     ctx.strokeStyle = 'rgba(120,180,255,0.20)'; ctx.lineWidth = 1;
     techRect(x, y, w, h, cut); ctx.stroke();
   } else {
-    ctx.shadowColor = 'rgba(95,215,255,0.8)'; ctx.shadowBlur = lowFX ? 0 : (primary ? 14 : 6);
-    ctx.strokeStyle = primary ? 'rgba(150,238,255,0.95)' : 'rgba(95,200,255,0.55)';
+    ctx.shadowColor = T.glow; ctx.shadowBlur = lowFX ? 0 : (primary ? 14 : 6);
+    ctx.strokeStyle = primary ? T.edge : T.edge2;
     ctx.lineWidth = 1.5;
     techRect(x, y, w, h, cut); ctx.stroke();
     ctx.shadowBlur = 0;
     // energy bar + bottom-right corner tick
-    ctx.fillStyle = primary ? '#a8ecff' : 'rgba(120,220,255,0.7)';
+    ctx.fillStyle = primary ? T.bar : T.bar2;
     ctx.fillRect(x + 6, y + h * 0.28, 3, h * 0.44);
-    ctx.strokeStyle = primary ? 'rgba(168,236,255,0.9)' : 'rgba(120,220,255,0.5)';
+    ctx.strokeStyle = primary ? T.tick : T.tick2;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(x + w - cut - 8, y + h - 3.5); ctx.lineTo(x + w - cut + 2, y + h - 3.5);
     ctx.stroke();
   }
-  ctx.fillStyle = locked ? 'rgba(160,200,255,0.3)' : primary ? '#eefaff' : '#bfeaff';
+  ctx.fillStyle = locked ? 'rgba(160,200,255,0.3)' : primary ? T.text : T.text2;
   try { ctx.letterSpacing = '2px'; } catch (e) {}
   ctx.font = '600 14px Audiowide, system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(label, x + w / 2, y + h / 2 + 1);
@@ -958,7 +972,7 @@ function drawMenuHome(ccx, ccy, R) {
     const sc = Object.assign({}, sc0, { mid: sc0.mid + rot });
     const a0 = sc.mid - THIRD / 2 + 0.02, a1 = sc.mid + THIRD / 2 - 0.02;
     // a controller's focus owns the glow; without one, progression suggests
-    const hot = gpNav ? myIdx === gpSel : sc.primary && !sc.locked;
+    const hot = gpNavLive() ? myIdx === gpSel : sc.primary && !sc.locked;
     // slice body
     ctx.beginPath();
     ctx.arc(ccx, ccy, r1, a0, a1);
@@ -1548,7 +1562,7 @@ function drawMenuFlow() {
     ctx.arc(ccx, ccy, r0, a1, a0, true);
     ctx.closePath();
     // a controller's focus owns the glow; without one, ENDLESS suggests
-    const hot = gpNav ? myIdx === gpSel : !hv.locked && hv.key === 'endless';
+    const hot = gpNavLive() ? myIdx === gpSel : !hv.locked && hv.key === 'endless';
     ctx.fillStyle = hv.locked ? 'rgba(8,16,30,0.55)'
       : hot ? `rgba(${hv.col},${(0.09 + Math.sin(time * 2.5) * 0.03).toFixed(2)})` : 'rgba(10,24,48,0.42)';
     ctx.fill();
@@ -1623,7 +1637,7 @@ function drawMenuFlow() {
     for (const [key, label, mult] of MUTS) {
       const r2 = { x: mx + mutOff(mi++), y: my2, w: mw, h: mh, key };
       const on = mutsOpen && mutators[key];
-      const hot = mutsOpen && gpNav && menuButtons[gpSel] && menuButtons[gpSel].mut === key;
+      const hot = mutsOpen && gpNavLive() && menuButtons[gpSel] && menuButtons[gpSel].mut === key;
       techRect(r2.x, r2.y, r2.w, r2.h, 6);
       ctx.fillStyle = on ? 'rgba(120,80,10,0.55)' : mutsOpen ? 'rgba(6,20,40,0.55)' : 'rgba(8,16,30,0.4)';
       ctx.fill();
