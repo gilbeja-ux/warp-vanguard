@@ -27,6 +27,8 @@ const port = process.env.PORT || 8015;
 // whole sessions — see the ports note in .claude/skills/dev-servers/SKILL.md.
 const SERVERS = [
   { port: 8000, name: 'Game',              cmd: 'npm run dev',      what: 'the game itself, served from src/ — also the LAN address for phone testing' },
+  { port: 8000, name: 'Lane Designer',     cmd: 'npm run dev',      path: 'editor.html',
+    what: 'the campaign editor: tunnel beats, bands and story cards, driving the real engine' },
   { port: 8010, name: 'Story lab',         cmd: 'npm run lab',      what: 'the campaign screenplay: briefing discs, radio barks, mission text' },
   { port: 8011, name: 'Destinations lab',  cmd: 'npm run lab:dest', what: 'the sky at each relay — suns, moons, planets, deep field' },
   { port: 8012, name: 'Tuning board',      cmd: 'npm run lab:tune', what: 'difficulty and feel knobs, live against the running sim' },
@@ -37,12 +39,16 @@ const SERVERS = [
 // A server is UP if it answers at all. Not "answers 200": the tuning board and the
 // labs return different things at /, and a 404 from a live server is still a live
 // server. What we are distinguishing is answered-vs-refused.
-async function ping(p) {
+//
+// A row with a `path` is the exception. The Lane Designer has no server of its own
+// — it is a page on the game dev server — so the thing that can go missing is the
+// page, not the port. There a 404 means down.
+async function ping(p, pagePath) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), 1200);
   try {
-    const r = await fetch('http://127.0.0.1:' + p + '/', { signal: ac.signal });
-    return { up: true, status: r.status };
+    const r = await fetch('http://127.0.0.1:' + p + '/' + (pagePath || ''), { signal: ac.signal });
+    return { up: pagePath ? r.status < 400 : true, status: r.status };
   } catch { return { up: false }; }
   finally { clearTimeout(t); }
 }
@@ -91,8 +97,15 @@ http.createServer(async (req, res) => {
   const url = req.url.split('?')[0];
   try {
     if (url === '/') return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(page));
+    // The GB mark, read from the game's own icon set rather than copied here, so
+    // there is one file to change if the logo ever changes.
+    if (url === '/favicon.png') {
+      const ico = path.join(root, 'src', 'icons', 'gb-logo.png');
+      if (!fs.existsSync(ico)) return send(res, 404, 'text/plain', 'no logo');
+      return send(res, 200, 'image/png', fs.readFileSync(ico));
+    }
     if (url === '/api/status') {
-      const pings = await Promise.all(SERVERS.map(s => ping(s.port)));
+      const pings = await Promise.all(SERVERS.map(s => ping(s.port, s.path)));
       const servers = SERVERS.map((s, i) => ({ ...s, ...pings[i] }));
       const admin = await adminSummary(servers.find(s => s.port === 8014).up);
       return send(res, 200, 'application/json',

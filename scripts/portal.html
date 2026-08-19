@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="/favicon.png">
 <title>Warp Vanguard — Portal</title>
 <style>
   :root {
@@ -115,10 +116,10 @@ async function load() {
 
   $('#verifier').innerHTML = verifierCard(d.verifier || {});
   $('#servers').innerHTML = d.servers.map(s => {
-    const url = 'http://localhost:' + s.port + '/';
+    const url = 'http://localhost:' + s.port + '/' + (s.path || '');
     const inner = '<span class="dot"></span>'
       + '<span class="who"><b>' + esc(s.name) + '</b><span>' + esc(s.what) + '</span></span>'
-      + '<span class="right"><span class="port">:' + s.port + '</span><br>'
+      + '<span class="right"><span class="port">:' + s.port + esc(s.path ? '/' + s.path : '') + '</span><br>'
       + (s.up ? '<span class="port" style="color:var(--grn)">live</span>'
               : '<span class="cmd" data-cmd="' + esc(s.cmd) + '">' + esc(s.cmd) + '</span>')
       + '</span>';
