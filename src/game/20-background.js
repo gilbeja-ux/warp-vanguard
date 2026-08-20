@@ -924,15 +924,8 @@ function initWarpSky() {
   warpHand = [];
   for (let i = 0; i < 48; i++) warpHand.push(starClass());
   warpStars = [];
-  // BY AREA, because this field is scattered on the FRAME and not on a strip —
-  // and CLAMPED HARD at both ends, which is where the judgement is. A phone's
-  // landscape frame is around a third of a laptop's, and the phone is the device
-  // least able to pay for a full one; but the game's whole layout is sized off
-  // min(W,H), so a sky that thinned in proportion would read as sparse against a
-  // composition that did not. The floor buys the small screen back most of its
-  // density, the ceiling stops a desktop window from dealing itself thousands.
-  const area = clamp(W * H / (1280 * 720), 0.5, 1.15);
-  for (let i = 0, n = lowFX ? 230 : Math.round(WARP_N * area); i < n; i++) {
+  warpEdit = null; // a full re-deal supersedes any staged population edit
+  for (let i = 0, n = warpPop(); i < n; i++) {
     const st = warpDeal({ hero: i < WARP_HERO }, cr);
     // spread over depth on the opening deal, or the lane launches with the whole
     // field marching in at one distance, in step, like a wall
@@ -940,9 +933,51 @@ function initWarpSky() {
     warpStars.push(st);
   }
 }
+// BY AREA, because this field is scattered on the FRAME and not on a strip —
+// and CLAMPED HARD at both ends, which is where the judgement is. A phone's
+// landscape frame is around a third of a laptop's, and the phone is the device
+// least able to pay for a full one; but the game's whole layout is sized off
+// min(W,H), so a sky that thinned in proportion would read as sparse against a
+// composition that did not. The floor buys the small screen back most of its
+// density, the ceiling stops a desktop window from dealing itself thousands.
+function warpPop() {
+  const area = clamp(W * H / (1280 * 720), 0.5, 1.15);
+  return lowFX ? 230 : Math.round(WARP_N * area);
+}
+// A TIER CHANGE IS NOT A NEW SKY. setLowFX used to re-deal this whole field, and
+// on the menu that is the one layer the eye is resting on: every star it was
+// tracking vanished and fifteen hundred strangers appeared — "the starfield
+// resets itself". A tier change now keeps every star it already has and stages
+// the population difference as an EDIT that rides a fade (applied in the draw):
+//   · shrinking marks the tail [from..] — it keeps flying, dims out over
+//     WARP_EDIT_FADE, and only then is cut;
+//   · growing deals the newcomers into the tail, spread over depth like the
+//     opening deal, and fades them up from nothing.
+// Heroes live at the head of the array by construction (initWarpSky), so a trim
+// from the tail can never eat a close pass mid-flight.
+let warpEdit = null; // {from, t, grow} — the staged edit, null when settled
+const WARP_EDIT_FADE = 1.2;
+function retargetWarpSky() {
+  if (!warpHand || !warpStars.length) return initWarpSky(); // never dealt — nothing to preserve
+  const n = warpPop(), cur = warpStars.length;
+  if (n === cur) { warpEdit = null; return; }
+  if (n < cur) { warpEdit = { from: n, t: 0, grow: false }; return; }
+  warpEdit = { from: cur, t: 0, grow: true };
+  const cr = Math.hypot(W, H) / 2 || 1;
+  for (let i = cur; i < n; i++) {
+    const st = warpDeal({ hero: false }, cr);
+    st.z = wrand(Math.min(0.95, st.rf + 0.03), WARP_Z0);
+    warpStars.push(st);
+  }
+}
 function drawWarpSky(vis, bdt) {
   const cx = W / 2, cy = H / 2, cr = Math.hypot(W, H) / 2;
-  const dive = clamp(warpT / WARP_DIVE, 0, 1);
+  // laneDive, NOT warpT read raw: warpT is HELD at full while a run is parked, and a
+  // held dive is not a dive happening. Read raw it ran the parked sky at 3.6x the
+  // menu crawl with warp-stretched smears — on the very screen whose claim is that
+  // the ship has not moved yet. Scaling by laneFlow (which laneDive does) is what the
+  // five painters in the lane already learned; this was the sixth, and the last.
+  const dive = laneDive();
   // ONE speed for the entire sky, because only one thing is moving: us. A star's
   // apparent rate comes from its depth alone — that is the whole physical claim
   // this layer makes, and it is what the per-layer drift rates could never say.
@@ -963,7 +998,21 @@ function drawWarpSky(vis, bdt) {
   const tailCap = cr * (0.5 + dive * 1.3);
   const M = 6;
   const baseAl = ctx.globalAlpha;   // the halo blit borrows it and must give it back
-  for (const st of warpStars) {
+  // the staged population edit (see retargetWarpSky): stars at or past editFrom
+  // wear editK on top of everything else — out for a trim, up for a top-up. The
+  // trim only truncates once its fade has finished, so nothing ever vanishes
+  // between two frames.
+  let editFrom = Infinity, editK = 1;
+  if (warpEdit) {
+    warpEdit.t += bdt;
+    const u = clamp(warpEdit.t / WARP_EDIT_FADE, 0, 1);
+    if (u >= 1) {
+      if (!warpEdit.grow) warpStars.length = warpEdit.from;
+      warpEdit = null;
+    } else { editFrom = warpEdit.from; editK = warpEdit.grow ? u : 1 - u; }
+  }
+  for (let si = 0; si < warpStars.length; si++) {
+    const st = warpStars[si];
     st.z -= v * bdt;
     if (st.z <= WARP_ZN) { warpDeal(st, cr); continue; }
     const rs = cr * st.rf / st.z;
@@ -982,8 +1031,9 @@ function drawWarpSky(vis, bdt) {
     // the near ones do not twinkle: their motion is their life, and a smear that
     // also blinks reads as a fault in the picture rather than as a star
     const tw = 1 + (k - 1) * clamp(1 - tail / 9, 0, 1);
-    const al = Math.min(1, st.L * (1 - WARP_GAIN + WARP_GAIN / st.z) * tw * vis
+    let al = Math.min(1, st.L * (1 - WARP_GAIN + WARP_GAIN / st.z) * tw * vis
       * clamp((WARP_Z0 - st.z) / WARP_FADE, 0, 1));   // fades up out of the far plane, never down
+    if (si >= editFrom) al *= editK;                  // the staged edit's own fade
     if (al < 0.006) continue;
     const col = warpRamp[st.ci][dopMap[Math.min(WARP_TONES - 1, (rs / cr * WARP_TONES) | 0)]];
     const grow = st.sz * (0.6 + 0.4 / st.z);

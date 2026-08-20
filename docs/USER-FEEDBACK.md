@@ -88,6 +88,64 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   assisted clear, since the run behind it showed no score anywhere and 'RESTART' alone
   would not say that this one counts.
 
+### F-008 · The mission disc was a redundant click-through
+- **Date:** 2026-08-20 · **Source:** Gil · **Status:** BUILT (2026-08-21)
+- **Feedback:** a briefed deploy was two screens — read the disc, tap it away, and only
+  then meet the pads and the wait for hands. Merge the disc into the pre-warp screen; the
+  only thing lost is the WARP LANE READY plate, and the thumb ghosts make it intuitive.
+- **Solution:** the pre-run disc IS the pre-warp screen. The pads are live under it, the
+  ghosts demonstrate on the real pads, and BOTH THUMBS DOWN releases the disc straight
+  into the boot. The disc's hint reads TAKE THE CONTROLS; its full-screen dim is gone so
+  the pads read as yours. Mid-run cards and the verdict keep TAP TO CONTINUE. A gamepad's
+  sticks grip through the disc the same way; A still dismisses to the plain parked screen,
+  which unbriefed starts (retries, endless, weekly) keep unchanged.
+- **Correction (2026-08-21, Gil, with reference shots):** the merged screen first drew the
+  pads as live in-warp consoles — `booting` in drawDials asked for S.PLAY, so S.INFO fell
+  through to the powered gauge. The disc screen now shows the same dormant consoles the
+  parked lane shows (dark ring, OFFLINE, the PLACE THUMB dot). And the lane-progress /
+  stability arcs no longer hang over the pre-warp screen at all: preLaunch() now outranks
+  the state check in their alpha, and they arrive on the power-up ramp with a small eased
+  diagonal slide — in from their upper outboard corners — instead of fading in place.
+  The score readout (and its COMBO / MODIFIERS / LANE ASSIST tags) rides the same ramp
+  and the right arc's diagonal: a zero lit over a parked ship was the same lie the full
+  integrity bar was. The PAUSE key stays: it is chrome, not console hardware.
+
+### F-009 · The pre-run disc undersold its screen
+- **Date:** 2026-08-20 · **Source:** Gil · **Status:** BUILT (2026-08-21)
+- **Feedback:** the disc was visibly smaller than the map lens the player just left, and
+  was not using the space.
+- **Solution:** story-layout discs (missions + the closure verdict) now share the map
+  lens's exact formula — min(H·0.47, W·0.30)·0.92 — so a deploy keeps one disc size from
+  selection through briefing. Field briefings keep the tighter plate, sized to sit inside
+  the live ring they interrupt.
+
+### F-010 · The parked sky flew too fast
+- **Date:** 2026-08-20 · **Source:** Gil · **Status:** BUILT (2026-08-21)
+- **Feedback:** on the pre-level screen the stars rush, but the ship has not launched —
+  they should move at menu speed until the warp engages.
+- **Cause:** warpT (the entry dive) is HELD at full while parked so the shove lands on the
+  dock — but drawWarpSky read it raw, so the parked blanket ran at 3.6× the menu crawl
+  with warp-stretched smears. Five painters had already learned this lesson via laneDive();
+  the sky was the sixth.
+- **Solution:** drawWarpSky reads laneDive() (the held dive scaled by laneFlow). Parked and
+  briefed screens now crawl at exactly the menu's station-keeping pace, and the dive still
+  lands with the dock.
+
+### F-011 · The menu starfield "reset itself" ~5s after load
+- **Date:** 2026-08-20 · **Source:** Gil · **Status:** BUILT (2026-08-21)
+- **Feedback:** about five seconds after the app loads, the menu's starfield pops — it
+  resets and flies on as a different sky.
+- **Cause:** the perf watchdog's grace ends at time 5 and its first 2s window closes ~7s in
+  — right when a warming device can still look slow. A trip called initWarpSky and
+  initDeepField outright: every star the eye was tracking vanished and a re-dealt field
+  appeared. The reset WAS the shed (and a later restore popped the same way).
+- **Solution:** two halves. The watchdog no longer samples until the deep-field warm queue
+  (one world-skin bake per frame) has drained, so warm-up cost cannot trip it. And a tier
+  change no longer re-deals the visible sky at all: the warp blanket and the deep field
+  retarget in place — the tail of the population fades out over 1.2s before it is cut, and
+  restored stars fade up from nothing (retargetWarpSky / retargetDeepField). The lane-only
+  layers (streaks, medium, traffic) still rebuild outright; they are invisible on menus.
+
 ---
 
 ## OPEN

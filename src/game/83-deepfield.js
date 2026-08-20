@@ -158,13 +158,48 @@ function mkDeepWisp() {
     sp: rand(0.85, 1.2)
   };
 }
+// ref 3's sky is DENSE — the old 210 read as a sparse sprinkle against it
+// FEWER WORLDS. Nine bodies in a sky is a solar system seen from inside it, and
+// it made the frame busy in the one layer that is supposed to be empty distance.
+// Four means the frame usually holds one or two, and each one is an event.
+const deepPop = () => lowFX
+  ? { s: 150, r: 2, w: 24 }
+  : { s: 430, r: 4, w: 74 };
+// A TIER CHANGE IS NOT A NEW SKY — the deep field's copy of the warp blanket's
+// rule (see retargetWarpSky). setLowFX used to call initDeepField outright, and
+// 280 stars vanishing between two frames is a pop on the one layer that holds
+// still on the menu. The population difference is staged as an edit instead:
+// the tail fades out before it is cut, newcomers fade up from nothing. One
+// clock for all three arrays, advanced where the field draws.
+let deepEdit = null; // {from: {s, r, w}, t, grow}
+const DEEP_EDIT_FADE = 1.2;
+function retargetDeepField() {
+  if (!deepStars.length) return initDeepField(); // never dealt — nothing to preserve
+  const want = deepPop();
+  if (want.s === deepStars.length && want.r === deepRocks.length && want.w === deepWisps.length) {
+    deepEdit = null;
+    return;
+  }
+  const grow = want.s > deepStars.length;
+  deepEdit = {
+    from: {
+      s: Math.min(want.s, deepStars.length),
+      r: Math.min(want.r, deepRocks.length),
+      w: Math.min(want.w, deepWisps.length)
+    },
+    t: 0, grow
+  };
+  // newcomers are fresh, unseeded deals — the seed pins the OPENING sky, and by
+  // the time a tier flips the field has been the live, drifting one for a while
+  while (deepStars.length < want.s) deepStars.push(mkDeepStar());
+  while (deepRocks.length < want.r) deepRocks.push(mkDeepRock());
+  while (deepWisps.length < want.w) deepWisps.push(mkDeepWisp());
+}
 function initDeepField() {
-  // ref 3's sky is DENSE — the old 210 read as a sparse sprinkle against it
-  // FEWER WORLDS. Nine bodies in a sky is a solar system seen from inside it, and
-  // it made the frame busy in the one layer that is supposed to be empty distance.
-  // Four means the frame usually holds one or two, and each one is an event.
-  const nS = lowFX ? 150 : 430, nR = lowFX ? 2 : 4, nW = lowFX ? 24 : 74;
+  const P = deepPop();
+  const nS = P.s, nR = P.r, nW = P.w;
   deepStars = []; deepRocks = []; deepWisps = [];
+  deepEdit = null; // a full re-deal supersedes any staged edit
   // SEEDED, same trick and same reason as buildBackground: this is the sky the
   // home screen opens on, and it must be the same sky every load. The layer
   // drifts and recycles off the live clock during play, so two long sessions
@@ -195,6 +230,20 @@ initDeepField();
 function drawDeepField(g, dt) {
   const SR = Math.min(W, H) * 0.5; // NOT S — that is the state enum, and shadowing it TDZs S.MENU above
   const dive = laneDive();
+  // the staged population edit (see retargetDeepField): one clock, three arrays
+  let edF = { s: Infinity, r: Infinity, w: Infinity }, edK = 1;
+  if (deepEdit) {
+    deepEdit.t += dt;
+    const u = clamp(deepEdit.t / DEEP_EDIT_FADE, 0, 1);
+    if (u >= 1) {
+      if (!deepEdit.grow) {
+        deepStars.length = deepEdit.from.s;
+        deepRocks.length = deepEdit.from.r;
+        deepWisps.length = deepEdit.from.w;
+      }
+      deepEdit = null;
+    } else { edF = deepEdit.from; edK = deepEdit.grow ? u : 1 - u; }
+  }
   const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5) * laneFlow;
   // THE ORBIT DRIFT, nearest-layer edition. The pads hang the wrap span past
   // both screen edges so the modulo jump always happens off-frame — a body
@@ -216,7 +265,8 @@ function drawDeepField(g, dt) {
   if (warmN < warmJobs.length) warmJobs[warmN++]();
   worldVis += clamp(dt / 0.5, 0, 1) * ((state === S.MENU || state === S.GUIDE ? 0 : 1) - worldVis);
   // --- worlds first, so stars always pass IN FRONT of them, never behind ---
-  if (worldVis > 0.004) for (const rk of deepRocks) {
+  if (worldVis > 0.004) for (let ri = 0; ri < deepRocks.length; ri++) {
+    const rk = deepRocks[ri];
     rk.rf *= 1 + dt * rate * rk.sp;
     if (rk.rf > DEEP_R1) { Object.assign(rk, mkDeepRock()); rk.rf = DEEP_R0; }
     // worlds drift slower than the loose stars — they are bigger and farther,
@@ -226,7 +276,8 @@ function drawDeepField(g, dt) {
     const rkEdge = clamp((DEEP_R1 - rk.rf) / DEEP_FADE, 0, 1) * clamp((rk.rf - DEEP_R0) / 0.30, 0, 1);
     if (rkEdge <= 0.01) continue; // faded both ends — never a pop, never a snap
     if (px < -rad * 3 || px > W + rad * 3 || py < -rad * 3 || py > H + rad * 3) continue;
-    const al = rk.al * rkEdge * worldVis;
+    let al = rk.al * rkEdge * worldVis;
+    if (ri >= edF.r) al *= edK;                   // the staged edit's own fade
     // ONE globalAlpha over a fully shaded sprite. The old code faded a dozen
     // hand-mixed colours independently, which is how a body ended up with a lit
     // limb brighter than its own daylight side. Dimming the finished world instead
@@ -253,7 +304,8 @@ function drawDeepField(g, dt) {
   // --- the cruise wisps: long soft smears drifting among the points ---
   // Radial, so they agree with the direction of travel, and longer the further
   // out they are — which falls out of scaling their length in rf units.
-  for (const wp of deepWisps) {
+  for (let wi = 0; wi < deepWisps.length; wi++) {
+    const wp = deepWisps[wi];
     wp.rf *= 1 + dt * rate * wp.sp;
     if (wp.rf > DEEP_R1) { Object.assign(wp, mkDeepWisp()); wp.rf = DEEP_R0; }
     const ca = Math.cos(wp.a), sa = Math.sin(wp.a); // wisps are transit smears — the lane's own motion owns them
@@ -264,7 +316,8 @@ function drawDeepField(g, dt) {
     if (Math.max(y0, y1) < -8 || Math.min(y0, y1) > H + 8) continue;
     const near = clamp((wp.rf - DEEP_R0) / 0.5, 0, 1) * clamp((DEEP_R1 - wp.rf) / DEEP_FADE, 0, 1);
     // × laneFlow: a wisp is a motion smear — a parked lane must not hang them
-    const al = wp.al * (0.35 + 0.65 * near) * (1 + dive * 2.2) * laneFlow;
+    let al = wp.al * (0.35 + 0.65 * near) * (1 + dive * 2.2) * laneFlow;
+    if (wi >= edF.w) al *= edK;                   // the staged edit's own fade
     const col = wp.warm ? '255,226,190' : '206,230,255';
     // PER-WISP GRADIENT, KEPT. The streak taper's unit-space trick was applied here
     // too and reverted after measuring: 74 gradients a frame is not enough to read
@@ -283,7 +336,8 @@ function drawDeepField(g, dt) {
   }
   // --- the slow starfield ---
   const baseAl = ctx.globalAlpha; // the halo blit borrows globalAlpha and must give it back
-  for (const st of deepStars) {
+  for (let sdi = 0; sdi < deepStars.length; sdi++) {
+    const st = deepStars[sdi];
     st.rf *= 1 + dt * rate * st.sp;
     if (st.rf > DEEP_R1) { Object.assign(st, mkDeepStar()); st.rf = DEEP_R0; }
     // deepPan: this layer is the NEAREST loose sky, so it drifts fastest — the
@@ -302,7 +356,8 @@ function drawDeepField(g, dt) {
     const tw = st.blink
       ? 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(time * st.tw * 0.22 + st.tp), 6) // long dim, brief return
       : 1 - depth + depth * (0.5 + 0.5 * Math.sin(time * st.tw + st.tp));
-    const al = st.al * (0.45 + 0.55 * near) * tw;
+    let al = st.al * (0.45 + 0.55 * near) * tw;
+    if (sdi >= edF.s) al *= edK;                  // the staged edit's own fade
     const col = st.warm ? '255,214,170' : '216,236,255';
     const R = st.sz * (0.7 + st.rf * 0.45);
     // past a point-sized core the rest of the light becomes scatter, so the star

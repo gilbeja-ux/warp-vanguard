@@ -273,16 +273,32 @@ function drawInfoCard() {
   const inQ = clamp((time - infoShownAt) / 0.28, 0, 1);
   const outQ = infoOutAt ? clamp((time - infoOutAt) / 0.18, 0, 1) : 0;
   const pop = 1 - Math.pow(1 - inQ, 3);
+  // THE CLOSURE DISC SHARES THE MISSION LAYOUT. `verdict` fires once per campaign, when the
+  // last relay's boss goes down, and it wants the same picture-over-caption shape a
+  // briefing has rather than the threat-model layout it used to borrow.
+  const isStory = /^story/.test(infoCard) || infoCard === 'verdict';
+  // a PRE-RUN disc is the pre-warp screen (72-tick): the pads under it are live,
+  // so it must not dim them — and its hint asks for the grip, not a tap
+  const preRun = preLaunch();
   ctx.save();
   ctx.globalAlpha = Math.min(pop, 1 - outQ);
-  // gentle dim — drawn UNSCALED so the field dims evenly while the disc flies
-  ctx.fillStyle = 'rgba(3,6,14,0.45)'; ctx.fillRect(0, 0, W, H);
+  // gentle dim — drawn UNSCALED so the field dims evenly while the disc flies.
+  // NOT on a pre-run disc: the pads, their dots and the thumb ghosts are the
+  // other half of that screen, and a wash over them reads as "not yet yours"
+  if (!preRun) { ctx.fillStyle = 'rgba(3,6,14,0.45)'; ctx.fillRect(0, 0, W, H); }
   const bk = 1.70158; // ease-out-back: the zoom lands with a breath of overshoot
   const zin = 1 + (bk + 1) * Math.pow(inQ - 1, 3) + bk * Math.pow(inQ - 1, 2);
   const sc2 = (0.3 + 0.7 * zin) * (1 - 0.75 * outQ * outQ);
   ctx.translate(g.cx, g.cy); ctx.scale(sc2, sc2); ctx.translate(-g.cx, -g.cy);
-  const R = g.nodeR * 0.9;
-  const maxW = g.nodeR * 2 * 0.6; // text never wider than 60% of the ring
+  // A STORY DISC IS THE WHOLE SCREEN'S JOB — size it like one. nodeR*0.9 was
+  // measurably smaller than the map lens the player just left (menuGeom's R at
+  // 0.92, the same rim the mode wheel wears), and the step down read as the
+  // picture shrinking on the way to the lane. Same formula, same 0.92, so the
+  // deploy keeps one disc size from selection through briefing. Field
+  // briefings keep the tighter plate: they interrupt a live lane, and a
+  // threat card wants to sit INSIDE the ring it is talking about.
+  const R = isStory ? Math.min(H * 0.47, W * 0.30) * 0.92 : g.nodeR * 0.9;
+  const maxW = R * 1.33; // text never wider than ~2/3 of the disc (the old 60%-of-ring, kept proportional)
   const bg = ctx.createRadialGradient(g.cx, g.cy, R * 0.25, g.cx, g.cy, R);
   bg.addColorStop(0, 'rgba(6,11,24,0.93)');
   bg.addColorStop(0.82, 'rgba(5,9,20,0.88)');
@@ -304,10 +320,6 @@ function drawInfoCard() {
     while (fs > 8 && ctx.measureText(text).width > maxW);
     return fs;
   };
-  // THE CLOSURE DISC SHARES THE MISSION LAYOUT. `verdict` fires once per campaign, when the
-  // last relay's boss goes down, and it wants the same picture-over-caption shape a
-  // briefing has rather than the threat-model layout it used to borrow.
-  const isStory = /^story/.test(infoCard) || infoCard === 'verdict';
   ctx.textAlign = 'center';
   if (isStory) drawStoryDisc(c, g, R);
   else { // FIELD BRIEFING: a threat model, named, with its drill
@@ -330,13 +342,17 @@ function drawInfoCard() {
     cl.forEach((ln, i) => ctx.fillText(ln, g.cx, g.cy + R * 0.2 + i * (lf + 3)));
   }
   // a mission disc spends its middle on art and readings, so the hint sits lower
-  // and quieter — down where the disc has narrowed to little else
+  // and quieter — down where the disc has narrowed to little else.
+  // A PRE-RUN disc asks for the launch grip, because the grip is what releases
+  // it now — the tap went with the screen it used to lead to. A controller
+  // keeps the tap wording: A still dismisses, and its sticks grip through.
+  const hint = preRun && !gpSeen ? 'TAKE THE CONTROLS' : 'TAP TO CONTINUE';
   const tapY = g.cy + R * (isStory ? TAP_K : 0.66);
   ctx.fillStyle = 'rgba(140,230,255,' + (0.5 + Math.sin(time * 4) * 0.3).toFixed(2) + ')';
   try { ctx.letterSpacing = isStory ? '2px' : '3px'; } catch (e) {}
-  fit('700', isStory ? 9 : 12, 'TAP TO CONTINUE');
-  ctx.fillText('TAP TO CONTINUE', g.cx, tapY);
-  if (gpSeen) drawPadHint(g.cx + ctx.measureText('TAP TO CONTINUE').width / 2 + 22, tapY - 4, 'A');
+  fit('700', isStory ? 9 : 12, hint);
+  ctx.fillText(hint, g.cx, tapY);
+  if (gpSeen) drawPadHint(g.cx + ctx.measureText(hint).width / 2 + 22, tapY - 4, 'A');
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.textAlign = 'left';
   ctx.restore();

@@ -465,6 +465,14 @@ function drawWarpCal() {
   ctx.restore();
 }
 function drawIntroCard() {
+  // A MISSION DISC OWNS ITS SCREEN. The disc and this card are one merged
+  // pre-warp screen now (72-tick): the disc carries the identity and the ask,
+  // the pads and ghosts carry the demonstration — the level title, the
+  // AWAITING RUNNER stamp and the WARP LANE READY plate would all be saying it
+  // again underneath. They return the moment the disc is gone: an unbriefed
+  // start never shows a disc, and a lifted grip after the disc's release still
+  // lands on the plain parked screen, plate and all.
+  if (state === S.INFO) return;
   const L = LV || LEVELS[levelIdx];
   // PARKED: the boot has not started. introT is pinned at 0, so the card's own clock is
   // preT — it fades in off the disc release and then simply holds, with no out-fade,
@@ -731,12 +739,29 @@ function drawHUD(g) {
   // whole assembly — ring, arcs, consoles, gauges — powers on as one machine. Parked,
   // there is nothing to hang them on, and a full integrity bar lit over an empty cockpit
   // was by some distance the loudest thing in a frame meant to be stars and a planet.
-  const gaugeA = (state !== S.PLAY && state !== S.PAUSE) ? 1
-    : preLaunch() ? 0
+  //
+  // preLaunch FIRST: it is true in S.PLAY, S.PAUSE and S.INFO alike, and the pre-run
+  // mission disc is the pre-warp screen now — the arcs must not hang over it any more
+  // than over the plain parked lane. The old order asked "which state" before asking
+  // "is a run armed", so S.INFO fell into the everything-else 1 and the disc screen
+  // wore a lit progress bar over a lane that had not moved. Mid-run cards still read
+  // 1 through the state line, exactly as before.
+  const gaugeA = preLaunch() ? 0
+    : (state !== S.PLAY && state !== S.PAUSE) ? 1
     : introT < INTRO_DUR ? clamp((introT - BOOT_LOCK) / (BOOT_ON - BOOT_LOCK), 0, 1) : 1;
+  // THE GAUGES ARRIVE, THEY DO NOT APPEAR. The power ramp used to be alpha alone —
+  // hardware fading in place reads as a screen element, not as a thing being raised.
+  // Each arc rides a small diagonal slide during the same ramp: in from its own upper
+  // outboard corner, settling down onto the ring as the alpha lands. Eased out, so
+  // the movement is over before the eye can measure it; zero everywhere but the boot
+  // (gaugeA is 0 or 1 there), so replays, cards and the report are byte-identical.
+  const gIn = 1 - Math.pow(1 - gaugeA, 3);
+  const gs = Math.min(W, H) * 0.035 * (1 - gIn);
   ctx.save();
   ctx.globalAlpha = gaugeA;
   ctx.lineCap = 'round';
+  ctx.save();
+  ctx.translate(-gs, -gs * 0.7); // the left arc's diagonal: in from the upper left
   ctx.strokeStyle = 'rgba(240,250,255,0.85)'; ctx.lineWidth = bw2 + 5;
   ctx.beginPath(); ctx.arc(g.cx, g.cy, barR, aL0, aL1); ctx.stroke();
   ctx.strokeStyle = '#050a12'; ctx.lineWidth = bw2 + 2;
@@ -790,11 +815,14 @@ function drawHUD(g) {
     ctx.fillStyle = '#eaf6ff'; ctx.beginPath(); ctx.arc(kx, ky, kr, 0, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(140,220,255,0.95)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(kx, ky, kr, 0, TAU); ctx.stroke();
   }
+  ctx.restore(); // end of the left arc's slide
 
   // right curved bar: 4 life blocks — or a continuous hitpoint bar during the
   // duel. Wears the SAME casing + capsule ends as the progress bar across the
   // bore (same length, same edge radius); only the seams inside stay flat.
   const aR0 = -Math.PI * 0.06, aR1 = -ELEV; // mirrored: lower-right → upper-right
+  ctx.save();
+  ctx.translate(gs, -gs * 0.7); // the right arc mirrors the slide: in from the upper right
   ctx.lineCap = 'round';
   ctx.strokeStyle = 'rgba(240,250,255,0.85)'; ctx.lineWidth = bw2 + 5;
   ctx.beginPath(); ctx.arc(g.cx, g.cy, barR, aR1, aR0); ctx.stroke();
@@ -826,11 +854,21 @@ function drawHUD(g) {
       ctx.beginPath(); ctx.arc(g.cx, g.cy, barR, ea - 0.0004, ea + 0.0004); ctx.stroke();
     }
   }
+  ctx.restore(); // end of the right arc's slide
   ctx.restore(); // end of the gauge assembly's power-up alpha
   ctx.lineCap = 'round';
 
   // score (right) — suppressed while watching a replay; drawReplayChrome owns the
-  // right side there (live score + the run's stat panel)
+  // right side there (live score + the run's stat panel).
+  // CONSOLE HARDWARE TOO (F-008 correction): a zero lit over a parked ship is the
+  // same lie the full integrity bar was. The readout rides the gauges' own power
+  // ramp and diagonal — hidden on the whole pre-warp screen, in from the upper
+  // right with the stability arc when the warp starts. The PAUSE key below stays
+  // out of this block on purpose: it is chrome, not hardware, and the parked
+  // screen still needs it.
+  ctx.save();
+  ctx.globalAlpha = gaugeA;
+  ctx.translate(gs, -gs * 0.7);
   const sy = H * 0.12;
   if (!replaying && assist) {
     // the assisted lane flies without a score — the tag stands where the
@@ -858,6 +896,7 @@ function drawHUD(g) {
     }
     ctx.textAlign = 'left';
   }
+  ctx.restore(); // end of the score readout's power-up ramp
 
   // while watching a replay the whole HUD-corner is replay chrome (EXIT top-right,
   // transport left, scrub bottom); otherwise the normal PAUSE button (top-left)

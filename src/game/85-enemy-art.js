@@ -2115,7 +2115,13 @@ function drawPadPrompt(i, d, tut) {
 function drawDials() {
   const bz = Math.min(W, H) * 0.055; // pad gauge width
   const parked = preLaunch();
-  const booting = state === S.PLAY && introT < INTRO_DUR;
+  // S.INFO included: the pre-run mission disc is the pre-warp screen (72-tick),
+  // and its pads are the SAME dormant consoles the parked lane shows — dark
+  // ring, OFFLINE, the PLACE THUMB dot. Without it the disc screen fell
+  // through to the live in-warp gauge, a console that claims power the ship
+  // does not have yet. Mid-run cards are unaffected: their introT is long past
+  // INTRO_DUR, so they keep the live consoles of the lane behind them.
+  const booting = (state === S.PLAY || state === S.INFO) && introT < INTRO_DUR;
   const padsLive = introT >= BOOT_LOCK; // consoles charge the moment the ring docks
   // (no !parked needed: parked pins introT at 0, which is already short of BOOT_LOCK)
   for (let i = 0; i < 2; i++) {

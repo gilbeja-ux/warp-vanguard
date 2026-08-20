@@ -474,7 +474,10 @@ function pollGamepad(dt) {
     }
   }
   padPrev.a = a0;
-  if (state !== S.PLAY) return;
+  // a PRE-RUN mission disc keeps its pads live (72-tick): the stick gate below
+  // runs under it, so a controller can grip straight through the disc — A still
+  // dismisses it the old way for whoever reads to the end first
+  if (state !== S.PLAY && !(state === S.INFO && preLaunch())) return;
   // THE LAUNCH GATE IS A CONTROLS CHECK, NOT A POSE. It used to require both sticks held
   // more than 2.1 rad APART — and that rule was both undiscoverable and pointless: the
   // separation is unchanged by pointing both in or both out (adding pi to two bearings

@@ -267,7 +267,30 @@ function aim(i, a) { G.nodes[i].angle = a; G.nodes[i].slew = null; }
 // tap through an INFO disc (boss/story briefings — the tutorial no longer uses them)
 // dismiss taps land mid-screen: (5,5) is INSIDE the pause button's padded
 // hitbox, and pause works over the discs now — that tap would pause, not dismiss
-function dismiss() { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 7, clientX: 400, clientY: 300, pointerType: 'touch' }); G.update(0.15); G.update(0.15); G.update(0.15); }
+// clearing a disc follows the game's contract by KIND: a PRE-RUN mission disc is
+// the pre-warp screen and releases on the GRIP — both pads down (72-tick) — while
+// mid-run cards and the verdict still take the tap. The grip is released after,
+// so no phantom thumbs leak into whatever a test asserts next.
+function dismiss() {
+  G.update(0.5);
+  if (G.getState() === G.S.INFO && G.isPreLaunch()) {
+    canvasHandlers.pointerdown({ pointerId: 7, clientX: 200, clientY: 300, pointerType: 'touch' });
+    canvasHandlers.pointerdown({ pointerId: 8, clientX: 600, clientY: 300, pointerType: 'touch' });
+    // one step more than the tap path: the tick notices the grip inside the first
+    // update, so the 0.18s out-animation clock starts one step later
+    G.update(0.15); G.update(0.15); G.update(0.15); G.update(0.15);
+    canvasHandlers.pointerup({ pointerId: 7, clientX: 200, clientY: 300, pointerType: 'touch' });
+    canvasHandlers.pointerup({ pointerId: 8, clientX: 600, clientY: 300, pointerType: 'touch' });
+    // …and the grip is really gone. releasePointer recomputes padHold from the
+    // whole pointer registry, and earlier suite blocks leak registered touches
+    // they never lift — harness dirt a real device cannot produce (every real
+    // touch ends in pointerup/cancel). Clear the pads outright.
+    G.setPadHold(false, false);
+    return;
+  }
+  canvasHandlers.pointerdown({ pointerId: 7, clientX: 400, clientY: 300, pointerType: 'touch' });
+  G.update(0.15); G.update(0.15); G.update(0.15);
+}
 function flushUI() { for (let i = 0; i < 16; i++) G.update(0.05); } // press beat + transition midpoint
 function cross(en) { // place at the ring and step one tick
   // (exactly hitZ so the hit check fires even when hit-stop slows the clock)
@@ -2139,11 +2162,21 @@ drawOk('mission disc (art plate fallback + plot line)', () => {});
     G.getState() === G.S.INFO && G.getResumeHold() === rh0);
 }
 G.update(0.5);
-canvasHandlers.pointerdown({ pointerId: 9, clientX: 400, clientY: 300, pointerType: 'touch' });
-G.update(0.15); G.update(0.15); G.update(0.15); // card animates out
+// THE MISSION DISC IS THE PRE-WARP SCREEN (72-tick): a lone tap is a GRIP on one
+// pad now, not a dismissal — the click-through step is gone by design
+canvasHandlers.pointerdown({ pointerId: 9, clientX: 600, clientY: 300, pointerType: 'touch' });
+G.update(0.15); G.update(0.15); G.update(0.15);
+check('one thumb does not release the mission disc', G.getState() === G.S.INFO && G.getPadHold()[1]);
+// …the second thumb does: the disc animates out and the still-held grip launches
+// (one extra step — the tick notices the grip inside the first update, so the
+// 0.18s out-animation clock starts one step later than a tap's did)
+canvasHandlers.pointerdown({ pointerId: 10, clientX: 200, clientY: 300, pointerType: 'touch' });
+G.update(0.15); G.update(0.15); G.update(0.15); G.update(0.15); // card animates out
+canvasHandlers.pointerup({ pointerId: 9, clientX: 600, clientY: 300, pointerType: 'touch' });
+canvasHandlers.pointerup({ pointerId: 10, clientX: 200, clientY: 300, pointerType: 'touch' });
 // the relay we SELECTED, not a name typed in here — level names are authoring
 // labels and get rewritten; what this test is about is landing on relay 2
-check('dismissing the log enters the relay', G.getState() === G.S.PLAY && G.getLV() === G.getLevels()[2]);
+check('gripping through the log enters the relay', G.getState() === G.S.PLAY && G.getLV() === G.getLevels()[2]);
 G.setIntro(999);
 {
   // THE LANE OPENS IN SILENCE. `deploy` used to bark at levelT > 1.5 with nothing having

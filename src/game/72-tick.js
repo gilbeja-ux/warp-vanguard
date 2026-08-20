@@ -1,4 +1,35 @@
 'use strict';
+// PARKED AWAITING THE RUNNER: per-pad ack, and the standby metronome.
+//
+// Each pad acks on the frame it lands — a fifth apart, low then high, so two pads are an
+// ascending pair that resolves into the warp take rather than the same blip twice. The
+// rumble goes to that hand's side only, which is the cheapest way to say WHICH pad
+// registered on a device with no cursor. Driven off an edge (`padArm`) and not off
+// padHold, or a held thumb would rumble sixty times a second while the other hand moves.
+//
+// The standby pip stands down as soon as any hand arrives. Once one pad is down the game
+// is not idling, it is waiting for one specific thing, and a metronome over that reads as
+// "still nothing happening".
+//
+// A FUNCTION because two screens are the parked wait now: the plain parked lane
+// (S.PLAY, below the resume hold) and the pre-run mission disc (S.INFO, near the
+// top of update) — one behavior, one place to keep it.
+function padParkAck(dt) {
+  for (let i = 0; i < 2; i++) {
+    if (padHold[i] === padArm[i]) continue;
+    padArm[i] = padHold[i];
+    if (!padHold[i]) continue;            // lifting is silent — no scolding
+    const other = padHold[i ? 0 : 1];
+    tone(other ? 1046 : 698, 0.05, 'square', 0.05);
+    tone(other ? 1568 : 1046, 0.04, 'sine', 0.03, null, null, 0.05);
+    buzz(other ? [30, 25, 55] : 30, { side: i, strong: other ? 0.8 : 0.5, weak: 0.6 });
+  }
+  if (padHold[0] || padHold[1]) gatePip = 1.1;
+  else {
+    gatePip -= dt;
+    if (gatePip <= 0) { gatePip = 1.1; tone(960, 0.03, 'sine', 0.03); }
+  }
+}
 function update(dt) {
   if (state === S.INFO && infoOutAt && time - infoOutAt >= 0.18) {
     const wasVerdict = infoCard === 'verdict';
@@ -39,6 +70,27 @@ function update(dt) {
   // dive, the take — is also parked by the wait for hands, and releasing the disc into
   // an empty cockpit changes nothing on screen.
   const laneHold = discHold || preLaunch();
+
+  // THE MISSION DISC IS THE PRE-WARP SCREEN. A briefed deploy used to be two
+  // screens: read the disc, tap it away, and only THEN meet the parked lane and
+  // its wait for hands — a click-through whose whole yield was the WARP LANE
+  // READY plate. Merged: under a PRE-RUN disc the pads are already live
+  // (60-input and the gamepad's stick gate feed them exactly as they feed the
+  // parked lane), preT runs so the thumb ghosts demonstrate on the real pads,
+  // and BOTH THUMBS DOWN is what releases the disc. The disc's out-animation
+  // hands straight into the boot: state flips to S.PLAY at the top of update,
+  // the still-held thumbs latch the ceremony, and the warp is the consequence
+  // of the player's own grip — same beat as an unbriefed launch.
+  //
+  // Scoped by preLaunch(), which is true under a disc ONLY before a run is
+  // armed: mid-run cards (a first wall, a boss arrival) and the closure verdict
+  // keep their tap-to-dismiss, and the second pad's ack doubles as the
+  // release's sound, so nothing extra fires here.
+  if (discHold && preLaunch()) {
+    preT += dt;
+    padParkAck(dt);
+    if (!infoOutAt && padHold[0] && padHold[1]) infoOutAt = time;
+  }
 
   // THE DIVE WAITS FOR THE DOCK. warpT is the level's entry shove — 0.9s of 5x bore
   // scroll, stretched smears and a lifted field. Released at launch it burned off during
@@ -175,38 +227,11 @@ function update(dt) {
   //
   // (no disc guard needed here: the `state !== S.PLAY` return above already makes this
   // block unreachable while a card is up — verified, not assumed)
-  // PARKED AWAITING THE RUNNER: per-pad ack, and the standby metronome.
-  //
-  // Each pad acks on the frame it lands — a fifth apart, low then high, so two pads are an
-  // ascending pair that resolves into the warp take rather than the same blip twice. The
-  // rumble goes to that hand's side only, which is the cheapest way to say WHICH pad
-  // registered on a device with no cursor. Driven off an edge (`padArm`) and not off
-  // padHold, or a held thumb would rumble sixty times a second while the other hand moves.
-  //
-  // This sits AHEAD of the latch deliberately. Downstream of it — keyed off the parked
-  // stage — the SECOND pad never acked at all: the frame it lands is the frame that
-  // launches, so the parked stage was already gone, and the one press that matters most
-  // was the only silent one.
-  //
-  // The standby pip stands down as soon as any hand arrives. Once one pad is down the game
-  // is not idling, it is waiting for one specific thing, and a metronome over that reads as
-  // "still nothing happening".
-  if (!introLatch) {
-    for (let i = 0; i < 2; i++) {
-      if (padHold[i] === padArm[i]) continue;
-      padArm[i] = padHold[i];
-      if (!padHold[i]) continue;            // lifting is silent — no scolding
-      const other = padHold[i ? 0 : 1];
-      tone(other ? 1046 : 698, 0.05, 'square', 0.05);
-      tone(other ? 1568 : 1046, 0.04, 'sine', 0.03, null, null, 0.05);
-      buzz(other ? [30, 25, 55] : 30, { side: i, strong: other ? 0.8 : 0.5, weak: 0.6 });
-    }
-    if (padHold[0] || padHold[1]) gatePip = 1.1;
-    else {
-      gatePip -= dt;
-      if (gatePip <= 0) { gatePip = 1.1; tone(960, 0.03, 'sine', 0.03); }
-    }
-  }
+  // The parked ack (see padParkAck above) sits AHEAD of the latch deliberately.
+  // Downstream of it — keyed off the parked stage — the SECOND pad never acked at
+  // all: the frame it lands is the frame that launches, so the parked stage was
+  // already gone, and the one press that matters most was the only silent one.
+  if (!introLatch) padParkAck(dt);
   if (!introLatch && introT <= 0 && padHold[0] && padHold[1]) introLatch = true;
   const introPrev = introT;
   if (introLatch) introT += dt;  // launched: the boot now runs clean through to handover

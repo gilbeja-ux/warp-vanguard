@@ -40,10 +40,16 @@ const PERF_CALM = 3;        // calm 2s windows needed to restore — x perfTrips
 function setLowFX(on) {
   if (lowFX === on) return;
   lowFX = on;
-  // the populations are read off lowFX at build time, so they all get rebuilt
+  // the populations are read off lowFX at build time, so they all change here.
+  // The two the eye can be RESTING ON when this fires — the deep field and the
+  // warp blanket, i.e. the whole visible sky on a menu — retarget in place and
+  // stage the difference behind a fade (see retargetWarpSky), because a re-deal
+  // there is a visible reset of the sky. The lane-only layers rebuild outright:
+  // they are invisible on the menus, and mid-run the frame is busy enough that
+  // their re-deal has never read as an event.
   initStreaks();
-  initDeepField();
-  initWarpSky();
+  retargetDeepField();
+  retargetWarpSky();
   initLaneMedium();
   initAmbTraffic();
 }
@@ -68,7 +74,15 @@ function perfWatch(rawDt) {
   // the watchdog then went blind for as long as it took to climb back, unable to
   // either shed load or restore it. It never showed up before because the old
   // one-way latch stopped reading this function the moment it fired.
-  if (time < 5 || rawDt > 0.5 || rawDt <= 0) return;
+  //
+  // …AND THE WARM-UP IS STARTUP JANK TOO. The 5s grace was measured against the
+  // splash, but the menu's first seconds bake a world skin per frame (warmJobs in
+  // drawDeepField) on top of JIT warm-up and the loader's decode GC — and those
+  // frames landed inside the first 2s window, tripping the shed on hardware that
+  // is fine at steady state. The trip called initWarpSky/initDeepField, and THAT
+  // was the "starfield resets itself ~5s after load" on the menu. So: no samples
+  // until the warm queue has drained.
+  if (time < 5 || (warmJobs && warmN < warmJobs.length) || rawDt > 0.5 || rawDt <= 0) return;
   perfAcc += rawDt; perfN++; perfWin += rawDt;
   if (perfWin < 2) return;             // ~2s rolling window
   const avg = perfAcc / perfN;

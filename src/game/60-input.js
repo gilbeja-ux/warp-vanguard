@@ -101,8 +101,14 @@ canvas.addEventListener('pointerdown', e => {
         P.y > pauseBtnRect.y - 8 && P.y < pauseBtnRect.y + pauseBtnRect.h + 8) {
       pressUI(pauseBtnRect); pausedFromInfo = true; state = S.PAUSE; return;
     }
-    if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); }
-    return;
+    // A PRE-RUN disc is the pre-warp screen (72-tick): this touch is a GRIP, not
+    // a dismissal — fall through to the boot gate below, which registers the
+    // pointer on its pad exactly as the parked lane would. Both thumbs down is
+    // what releases the disc. Mid-run cards still take the tap.
+    if (!preLaunch()) {
+      if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); }
+      return;
+    }
   }
   if (state === S.ENLIST) { enlistTap(); return; } // no menu, no skip — forward only
   if (state === S.GUIDE) { guidePointer(P); return; }
@@ -154,8 +160,9 @@ canvas.addEventListener('pointerdown', e => {
       P.y > pauseBtnRect.y - 8 && P.y < pauseBtnRect.y + pauseBtnRect.h + 8) {
     pressUI(pauseBtnRect); state = S.PAUSE; return;
   }
-  // boot gate: any grip during the intro registers as a placed thumb
-  if (state === S.PLAY && introT < INTRO_DUR) {
+  // boot gate: any grip during the intro registers as a placed thumb.
+  // (S.INFO reaches here only for a pre-run disc — see the fall-through above)
+  if ((state === S.PLAY || state === S.INFO) && introT < INTRO_DUR) {
     if (e.pointerType === 'mouse') { padHold[0] = padHold[1] = true; } // desktop fallback
     else if (P.x < W / 2) padHold[0] = true;
     else padHold[1] = true;
@@ -241,7 +248,9 @@ canvas.addEventListener('pointermove', e => {
     return;
   }
   const p = pointers[e.pointerId];
-  if (!p || state !== S.PLAY) return;
+  // a pre-run disc's pads are LIVE (see the pointerdown fall-through): the grip
+  // steers its parked emitter through the disc exactly as it will mid-run
+  if (!p || (state !== S.PLAY && !(state === S.INFO && preLaunch()))) return;
   const a = pointerAngle(p.side, P.x, P.y);
   const delta = angDiff(a, p.lastA);
   p.lastA = a;
