@@ -101,6 +101,11 @@ canvas.addEventListener('pointerdown', e => {
         P.y > pauseBtnRect.y - 8 && P.y < pauseBtnRect.y + pauseBtnRect.h + 8) {
       pressUI(pauseBtnRect); pausedFromInfo = true; state = S.PAUSE; return;
     }
+    // H-07: the BACK arrow (top-right) exits the pre-warp disc to the lane chart.
+    if (!infoOutAt && discBackRect && P.x > discBackRect.x - 8 && P.x < discBackRect.x + discBackRect.w + 8 &&
+        P.y > discBackRect.y - 8 && P.y < discBackRect.y + discBackRect.h + 8) {
+      pressUI(discBackRect); discBack(); return;
+    }
     // A PRE-RUN disc is the pre-warp screen (72-tick): this touch is a GRIP, not
     // a dismissal — fall through to the boot gate below, which registers the
     // pointer on its pad exactly as the parked lane would. Both thumbs down is
@@ -608,6 +613,18 @@ function resetRun() {
   if (myData) closeMyData();
   if (report) closeReport();
   state = S.PLAY;
+}
+// H-07: BACK off the pre-warp disc to the lane chart. The deploy is abandoned (the
+// run never armed) and the relay stays selected. Bound to the top-right arrow key
+// and to gamepad B. Mirrors the report's map-return transition.
+function discBack() {
+  const back = levelIdx;
+  infoOutAt = 0;
+  menuScreen = 'map';
+  mapSel = Math.max(0, Math.min(back, LEVELS.length - 1));
+  state = S.MENU; fadeT = 0.35;
+  menuFx = { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, zoom: true };
+  sfx.tick();
 }
 function startLevel(i, brief, withAssist) {
   // seed BOTH random streams so a campaign run is FULLY reproducible — the

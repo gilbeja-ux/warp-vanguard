@@ -914,6 +914,25 @@ function drawHUD(g) {
     ctx.fillRect(pauseBtnRect.x + 21, pauseBtnRect.y + 11, 5, 16);
   }
 
+  // H-07: BACK off the pre-warp disc — a left-arrow, top-right, bound to B. Only on
+  // the briefed pre-warp screen; every other S.INFO card is dismissed, not exited.
+  discBackRect = null;
+  if (state === S.INFO && preLaunch()) {
+    const bw = 38, bh2 = 38;
+    discBackRect = { x: W - 12 - SAFE.r - bw, y: 12 + SAFE.t, w: bw, h: bh2 };
+    techRect(discBackRect.x, discBackRect.y, bw, bh2, 8);
+    ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(120,220,255,0.55)'; ctx.lineWidth = 1.5;
+    techRect(discBackRect.x, discBackRect.y, bw, bh2, 8); ctx.stroke();
+    const cx3 = discBackRect.x + bw / 2, cy3 = discBackRect.y + bh2 / 2;
+    ctx.strokeStyle = 'rgba(220,245,255,0.92)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx3 + 7, cy3); ctx.lineTo(cx3 - 7, cy3);                                  // shaft
+    ctx.moveTo(cx3 - 2, cy3 - 6); ctx.lineTo(cx3 - 8, cy3); ctx.lineTo(cx3 - 2, cy3 + 6); // head
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
+
   // resume countdown after unpausing
   if (resumeHold > 0) {
     const d2 = Math.max(1, Math.ceil(resumeHold / 0.3));

@@ -274,6 +274,11 @@ function aim(i, a) { G.nodes[i].angle = a; G.nodes[i].slew = null; }
 function dismiss() {
   G.update(0.5);
   if (G.getState() === G.S.INFO && G.isPreLaunch()) {
+    // H-07: a briefed pre-warp disc HOLDS its grip-release until the story line has
+    // revealed and the pads have flown in (~1.7s). Parked, so nothing on the lane
+    // moves — just let that window pass before the grip lands. (Mid-run field cards
+    // take the else branch below and must NOT advance, or their live lane moves.)
+    for (let i = 0; i < 7; i++) G.update(0.5);
     canvasHandlers.pointerdown({ pointerId: 7, clientX: 200, clientY: 300, pointerType: 'touch' });
     canvasHandlers.pointerdown({ pointerId: 8, clientX: 600, clientY: 300, pointerType: 'touch' });
     // one step more than the tap path: the tick notices the grip inside the first
@@ -2161,7 +2166,9 @@ drawOk('mission disc (art plate fallback + plot line)', () => {});
   check('resume hands the briefing back, no count-in',
     G.getState() === G.S.INFO && G.getResumeHold() === rh0);
 }
-G.update(0.5);
+// H-07: the disc holds its grip-release until the line reveals and the pads fly in
+// (~1.7s). Parked, so nothing on the lane moves — advance past that before the grip.
+for (let i = 0; i < 7; i++) G.update(0.5);
 // THE MISSION DISC IS THE PRE-WARP SCREEN (72-tick): a lone tap is a GRIP on one
 // pad now, not a dismissal — the click-through step is gone by design
 canvasHandlers.pointerdown({ pointerId: 9, clientX: 600, clientY: 300, pointerType: 'touch' });

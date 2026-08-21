@@ -90,13 +90,27 @@ async function lbRpc(fn, args) {
 const lbTop = (board, limit = 100) => lbRpc('leaderboard_top', { p_board: board, p_day: lbDay(board), p_limit: limit });
 // one player's standing → [{ rank, score, total }] (empty if they have no entry)
 const lbRank = (board, playerId) => lbRpc('leaderboard_rank', { p_board: board, p_day: lbDay(board), p_player: playerId });
-// fetch a stored replay from the public traces bucket → { v, mode, levelIdx, seed,
-// campId, frames } (the verifier uploads one per verified run). Legacy bare-array
-// traces are wrapped so callers always get { frames }.
+// fetch a stored replay → { v, mode, levelIdx, seed, campId, frames } (the verifier
+// uploads one per verified run). Legacy bare-array traces are wrapped so callers
+// always get { frames }.
+// H-03: the traces bucket is PRIVATE now, so we mint a short-lived signed URL
+// through submit-run (which needs a session) and then fetch that. Watching any
+// replay is allowed — the server signs any valid trace id — but the bucket can no
+// longer be bulk-downloaded to steal and resubmit another player's input frames.
 async function lbTrace(traceId) {
   if (!traceId || typeof fetch === 'undefined') return null;
   try {
-    const res = await lbFetch(LEADERBOARD.url + '/storage/v1/object/public/traces/' + traceId, undefined, 15000);
+    const token = await lbSession();
+    if (!token) return null;
+    const sr = await lbFetch(LEADERBOARD.url + '/functions/v1/submit-run', {
+      method: 'POST',
+      headers: { apikey: LEADERBOARD.key, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'trace-url', traceId })
+    }, 15000);
+    if (!sr.ok) return null;
+    const { url } = await sr.json();
+    if (!url) return null;
+    const res = await lbFetch(url, undefined, 15000);
     if (!res.ok) return null;
     const j = await res.json();
     return Array.isArray(j) ? { frames: j } : j;

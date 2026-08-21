@@ -51,7 +51,10 @@ function gpBackAction() { // B: CANCEL (modal, panel, card) / LEAVE (pause + rep
     if (menuSettings) { menuSettings = false; sfx.tick(); return; } // close the settings panel
     gpMenuBack();
   }
-  else if (state === S.INFO) { if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); } }
+  else if (state === S.INFO) {
+    if (preLaunch()) discBack();                                              // H-07: B backs off the pre-warp disc to the chart
+    else if (!infoOutAt && time - infoShownAt > 0.35) { infoOutAt = time; sfx.tick(); } // a mid-run card: B dismisses it
+  }
   else if (state === S.GUIDE) closeGuide(); // B hands the wing back
   else if (state === S.END && nameEntry) { closeNameEntry(); sfx.tick(); } // cancel the card
   // ON PAUSE AND ON THE REPORT, B LEAVES — the same door as Y. Gil's call, and it matches
@@ -236,6 +239,8 @@ function drawGpHints() { // once a controller speaks, keys wear their buttons
     drawPadHint(b.x + b.w / 2, b.y - 2, b.action === 'nameConfirm' ? 'A' : 'B');
   if (state === S.PLAY && pauseBtnRect && introT >= INTRO_DUR)
     drawPadHint(pauseBtnRect.x + pauseBtnRect.w / 2, pauseBtnRect.y + pauseBtnRect.h + 10, 'START');
+  if (state === S.INFO && discBackRect && typeof preLaunch !== 'undefined' && preLaunch()) // H-07: B backs off the pre-warp disc
+    drawPadHint(discBackRect.x + discBackRect.w / 2, discBackRect.y + discBackRect.h + 10, 'B');
 }
 function pollGamepad(dt) {
   if (typeof navigator === 'undefined' || !navigator.getGamepads) return;

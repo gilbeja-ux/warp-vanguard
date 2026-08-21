@@ -64,11 +64,29 @@ lintReady = true;
 registerStoryCards();
 
 let infoOutAt = 0; // briefing dismissal animates out before play resumes
+// H-07 · THE PRE-WARP READ GATE. On a BRIEFED deploy the disc's story line fades
+// in first; the pads stay HIDDEN until it finishes, then fade in on a diagonal
+// slide from their lower outboard corners. The grip-release and the demo ghosts
+// both wait until the pads have landed, so a player who grips instantly still
+// reads the line. An unbriefed parked start (retry, endless, weekly) shows no disc
+// and no line, so padsRevealT() returns 1 there and none of this applies.
+let infoReadDur = 1.2;    // seconds the shown disc's line needs to fully reveal (set in showCard)
+const PADS_IN_DUR = 0.5;  // the pads' diagonal fade-in, after the line lands
+function padsRevealT() {  // 0 → 1: hidden while the line reveals, then the pad fly-in
+  if (!(state === S.INFO && preLaunch())) return 1; // not a briefed pre-warp disc → pads simply present
+  return clamp((time - infoShownAt - infoReadDur) / PADS_IN_DUR, 0, 1);
+}
+const padsLanded = () => padsRevealT() >= 1;
 function showCard(key) {
   if (key === 'strip' && !progress.stripBriefed) { progress.stripBriefed = true; saveState(); }
   if (key === 'wall' && !progress.wallBriefed) { progress.wallBriefed = true; saveState(); }
   infoOutAt = 0;
   infoCard = key; infoShownAt = time;
+  // measure how long THIS disc's line takes to fully fade in (LINE_* are in 91),
+  // so the pads wait exactly that long and no longer. Mirrors drawStoryDisc's body.
+  const cd = INFO_CARDS[key];
+  const body = cd ? (cd.line || (cd.lines || []).join(' ')) : '';
+  infoReadDur = LINE_LEAD + (body.length + 1) * LINE_STAGGER + LINE_FADE;
   state = S.INFO;
   sfx.tick();
 }

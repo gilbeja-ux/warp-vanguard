@@ -189,6 +189,22 @@ player-chosen handle, and run data to a server.
 
 ## §5 — Launch sequence
 
+> **⏰ PRE-BUILD DEPLOY GATE (every new version, before the AAB).** Run these two,
+> in this order, BEFORE `npm run aab`, or players on the new binary post into a
+> stale server / an unmigrated board:
+> 1. `npm run deploy:verifier` — required whenever a sim change moved a sim id.
+> 2. `supabase db push` — required whenever a migration is owed.
+>
+> **1.0.4 specifically** carries H-02 (boss board integrity) and H-03 (replay-stealing
+> fix). `deploy:verifier` ships the new sim bundle AND the changed submit-run function;
+> `db push` applies two migrations — `20260821000000_boss_board_time_tiebreak.sql` (H-02)
+> and `20260821000001_trace_owner_binding.sql` (H-03). Gil pre-authorized running both
+> commands automatically when he asks to create the 1.0.4 AAB.
+> ⚠ Two caveats: (1) neither migration was run against a live DB — review against
+> staging first if one exists; (2) H-03's migration takes the `traces` bucket PRIVATE,
+> which breaks replay playback on any client still fetching the public URL — so it must
+> ship WITH the 1.0.4 client (which fetches signed URLs), never ahead of it.
+
 1. Play Console account ($25, one-time). Identity verification can take days — **start this first**, it is the longest pole that involves waiting on someone else.
 2. Create the app; reserve `com.warpvanguard.game`.
 3. Upload the first AAB to **internal testing** (fastest track, no review wait) — proves signing, install, and the leaderboard path on real devices.

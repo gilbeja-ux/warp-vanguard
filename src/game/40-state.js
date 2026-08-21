@@ -362,6 +362,7 @@ const laneDive = () => clamp(warpT / 0.9, 0, 1) * laneFlow;
 // and became what it was really being used as.
 let endDropT = -1;
 let pauseBtnRect = null, pauseButtonsList = [], pauseSlidersList = [], pauseTogglesList = [];
+let discBackRect = null; // H-07: the pre-warp disc's BACK arrow (top-right), bound to B
 // pausing OVER the mission disc remembers the disc: resume returns to the
 // briefing, never into a run the player hasn't armed yet
 let pausedFromInfo = false;

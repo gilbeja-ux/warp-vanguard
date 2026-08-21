@@ -97,29 +97,43 @@ const ARRIVAL_DUCK = ARRIVAL_HOLD;
 // committed to is judged by the colour you committed at.
 const LAMP_HOLD = [2.8, 4.2]; // seconds a colour holds, before round-shrink
 const LAMP_BLINK = 0.6;       // blink telegraph before a flip
+// H-02 · THE BOSS DRAWS ITS OWN SEEDED STREAM, never Math.random. The renderer
+// drains Math.random ~481×/frame; the headless verifier renders nothing, so any
+// boss decision read off Math.random re-simulated to a different score and the
+// board REJECTED honest boss runs. bossRng is seeded per boss in spawnBoss and
+// consumed ONLY by the boss sim logic below, so live play and the verifier draw
+// the identical sequence. Cosmetic particle scatter (burst) stays on Math.random
+// by design — it never touches score, so its render-side desync cannot matter.
+// (Same discipline as spawnRng/beatStream: the sim must not hear the renderer.)
+let bossRng = Math.random;
+const bRand = (a, b) => a + bossRng() * (b - a);   // seeded range draw
+const bChance = p => bossRng() < p;                // seeded probability
+const bCoin = () => bossRng() < 0.5 ? 0 : 1;       // seeded 0/1 (node / colour pick)
 // the boss duel: the machine holds the bore's centre while the pulse economy
 // (the campaign's own verbs — controls never change hands) takes it apart
 function spawnBoss() {
   enemies = []; pickups = []; burstQ = null; patternQ = []; sched = []; latches = []; volley.shots = []; // the lane clears
   const kind = (LV || LEVELS[levelIdx]).bossKind || 'leech';
+  // seed the boss's own render-blind stream from the level (see bossRng above)
+  bossRng = mulberry32((0x805 ^ ((levelIdx + 1) * 2654435761)) >>> 0);
   boss = {
     kind,
     hp: 6, maxHp: 6, // six pulses close the contract (the blockade takes nine)
     // it surfaces from the deep, then claims the exact centre of the bore
-    ang: Math.random() * TAU, rad: 0.12, z: 1.55,
+    ang: bossRng() * TAU, rad: 0.12, z: 1.55,
     u: 0, v: 0, sx: W / 2, sy: H / 2, sSize: 40,
     spin: 0, hurtT: 0, shieldT: 0,
     round: 0,               // hits landed — every fight's escalation clock
     mode: 'idle', modeT: 0, // the sweep fights' phase machine
     beams: [],              // live/ghost sweeps: { a, dir, spd, phase, swept, rev }
-    addT: 0, addA: Math.random() * TAU, sweepAdds: 0,
+    addT: 0, addA: bossRng() * TAU, sweepAdds: 0, stallKills: 0, // stallKills: H-02 anti-stall clock
     lamp: -1, lampT: 0, lampBlink: 0, // -1: no lamp mechanic (core burns red)
     waveT: 1.6, // the first swarm lands just after the ceremony
     mergeT: 0, introT: 0 // controls never change hands — no fuse, ever
   };
   if (kind === 'mimic') {
-    boss.lamp = Math.random() < 0.5 ? 0 : 1;
-    boss.lampT = rand(LAMP_HOLD[0], LAMP_HOLD[1]);
+    boss.lamp = bCoin();
+    boss.lampT = bRand(LAMP_HOLD[0], LAMP_HOLD[1]);
   } else if (kind === 'blockade') {
     // nine pulses through four shed layers: 1 swarm, 2 siphon, 3 prism, 3 mimic
     boss.hp = boss.maxHp = 9;
@@ -141,6 +155,16 @@ function spawnBoss() {
 // the local escalation clock: the blockade re-zeroes it at each shed layer so
 // a layer starts at its own round 0; everyone else reads their lifetime rounds
 function bossRound(b) { return b.round - (b.round0 || 0); }
+// H-02 anti-stall: the swarm pays full for the first STALL_GRACE kills since the
+// last boss hit, then ramps to STALL_FLOOR over STALL_SPAN more. Refusing to fire
+// a pulse and farming the endless swarm stops paying; a landed pulse resets the
+// clock (bossPulseHit), so any real progress restores full value. Honest fights
+// never reach the grace. Pure function of sim state, so the verifier recomputes it.
+const STALL_GRACE = 30, STALL_SPAN = 50, STALL_FLOOR = 0.1;
+function bossStallMul(b) {
+  const over = (b.stallKills || 0) - STALL_GRACE;
+  return over <= 0 ? 1 : Math.max(STALL_FLOOR, 1 - over / STALL_SPAN);
+}
 // THE LAMP IS LIVE for the mimic always, and for the blockade once it is down
 // to its mimic layer — everywhere else the core just burns hostile red
 function bossLampLive() {
@@ -183,6 +207,7 @@ function bossPulseHit(wv) {
   b.hp -= 1;
   b.hurtT = 0.3;
   b.round++;
+  b.stallKills = 0; // H-02: landing a pulse is progress — the swarm pays full again
   burst(b.sx, b.sy, '#ffffff', 30, 6);
   burst(b.sx, b.sy, '#d465ff', 26, 5);
   burst(b.sx + rand(-1, 1) * b.sSize, b.sy + rand(-0.6, 0.6) * b.sSize, '#d465ff', 20, 5); // a plate shears off
@@ -232,8 +257,8 @@ function blockadeShift(b) {
   b.mode = 'shed'; b.modeT = 1.4; // the stagger: it re-arms, you breathe
   b.beams = []; b.sweepAdds = 0;
   if (ph === 3) {
-    b.lamp = Math.random() < 0.5 ? 0 : 1;
-    b.lampT = rand(LAMP_HOLD[0], LAMP_HOLD[1]);
+    b.lamp = bCoin();
+    b.lampT = bRand(LAMP_HOLD[0], LAMP_HOLD[1]);
     b.lampBlink = 0;
   }
   popup(W / 2, H * 0.3, 'IT SHEDS A LAYER — NEW PATTERN', '#d465ff');
@@ -282,7 +307,7 @@ function latchFreeArc(cand) {
 function leechLatchAngle() {
   const g2 = geo();
   const LIFE = 0.9 + 3 + 0.6; // telegraph + burn + detour buffer (spawnWall's contract)
-  let th = nodes[Math.random() < 0.5 ? 0 : 1].angle + (Math.random() < 0.5 ? -1 : 1) * rand(0.55, 1.0);
+  let th = nodes[bCoin()].angle + (bChance(0.5) ? -1 : 1) * bRand(0.55, 1.0);
   for (let k = 0; k < 10; k++) {
     const clash = enemies.some(en => {
       if (en.dead || en.resolved || en.failed) return false;
@@ -314,23 +339,23 @@ function leechWave(n, opts) {
   }
   const gapZ = 0.85 * (LV.speed || 0.5) * (mutLive('fast') ? 1.35 : 1);
   const GAP = 0.55; // seconds of arrival separation that reads as "same moment"
-  let prevA = Math.random() * TAU;
+  let prevA = bossRng() * TAU;
   let seatLock; // the window partner's colour, so a pair can never double-book a node
   for (let k = 0; k < n; k++) {
     let a;
     if (k & 1) { // seat 2: opposite-ish — and NEVER stacked on the partner,
-      a = clearOfWalls(prevA + Math.PI + rand(-0.6, 0.6)); // even when a wall
+      a = clearOfWalls(prevA + Math.PI + bRand(-0.6, 0.6)); // even when a wall
       for (let h = 0; h < 6 && Math.abs(angDiff(a, prevA)) < 1.2; h++)
         a = clearOfWalls(a + 2.399963); // hop shifted it — hop until honestly apart
-    } else a = clearOfWalls(prevA + 2.4 + rand(-0.4, 0.4)); // fresh window: hop onward
+    } else a = clearOfWalls(prevA + 2.4 + bRand(-0.4, 0.4)); // fresh window: hop onward
     // the colour economy: the machine decides which orb your kills may feed.
     // A lock feeds only its own node's orb; a purple pressure drone feeds NOTHING.
     let lock;
-    if (opts.locks && Math.random() < opts.locks) {
-      lock = Math.random() < 0.5 ? 0 : 1;
+    if (opts.locks && bChance(opts.locks)) {
+      lock = bCoin();
       if ((k & 1) && seatLock === lock) lock = 1 - lock; // partners never share a colour
     }
-    let purple = lock === undefined && !!opts.purple && Math.random() < opts.purple;
+    let purple = lock === undefined && !!opts.purple && bChance(opts.purple);
     // THE LEDGER IS THE LAW, across waves as well as within one. The cadence
     // overlaps waves in the pipe, so a seat must book against EVERYTHING still
     // inbound, not just its own wave's partner: spawnAllowed's window
@@ -406,7 +431,7 @@ function runSwarm(b, dt, opts) {
   b.waveT -= dt;
   const live = enemies.some(e => !e.dead && !e.resolved && !e.failed && e.type !== 'strip');
   if (b.waveT > 0 && live) return;
-  b.waveT = LEECH_WAVE_GAP + rand(0, 0.8);
+  b.waveT = LEECH_WAVE_GAP + bRand(0, 0.8);
   const r = bossRound(b);
   leechWave(Math.min(9, (opts.n0 || 5) + r), {
     locks: opts.locks, purple: opts.purple,
@@ -425,8 +450,8 @@ function runSwarm(b, dt, opts) {
 // colour worth reading, and what frees a thumb to work.
 function startSweeps(b, list) {
   b.beams = list.map(cfg => ({
-    a: cfg.a !== undefined ? cfg.a : Math.random() * TAU,
-    dir: cfg.dir !== undefined ? cfg.dir : (Math.random() < 0.5 ? -1 : 1),
+    a: cfg.a !== undefined ? cfg.a : bossRng() * TAU,
+    dir: cfg.dir !== undefined ? cfg.dir : (bChance(0.5) ? -1 : 1),
     spd: cfg.spd, phase: cfg.phase, swept: 0, done: false,
     rev: cfg.rev, reversed: false, warn: false
   }));
@@ -493,7 +518,7 @@ function sweepTrickle(b, dt) {
     || sched.some(s => s.purple && tA2 > s.t0 - PURPLE_CLEAR && tA2 < s.t1 + PURPLE_CLEAR)) { b.addT = 0.25; return; }
   b.addT = SWEEP_ADD_GAP;
   b.sweepAdds--;
-  b.addA = clearOfWalls(b.addA + 2.399963 + rand(-0.35, 0.35)); // hop onward, never stacked
+  b.addA = clearOfWalls(b.addA + 2.399963 + bRand(-0.35, 0.35)); // hop onward, never stacked
   const en = spawnEnemy(b.addA, 'normal');
   en.lock = undefined; en.drift = 0;
 }
@@ -508,7 +533,7 @@ function runLamp(b, dt) {
       // NO extra last-stand shrink any more: the hunting light IS the
       // desperation — a twitchier lamp on top of it was one read too many
       const shrink = Math.max(0.55, 1 - bossRound(b) * 0.06);
-      b.lampT = rand(LAMP_HOLD[0], LAMP_HOLD[1]) * shrink;
+      b.lampT = bRand(LAMP_HOLD[0], LAMP_HOLD[1]) * shrink;
       popup(W / 2, H * 0.3, (b.lamp === 0 ? 'BLUE' : 'WHITE') + ' KEY', NODE_HEX[b.lamp]);
       tone(b.lamp === 0 ? 520 : 660, 0.12, 'sine', 0.07, b.lamp === 0 ? 400 : 520);
       buzz(10);
@@ -537,7 +562,7 @@ function updateSiphonFight(dt, g) {
       b.mode = 'tele'; b.modeT = 1.7;
       const r = bossRound(b);
       startSweeps(b, [{
-        phase: Math.random() < 0.5 ? 0 : 1,
+        phase: bCoin(),
         spd: TAU / Math.max(4.0, 5.8 - r * 0.45),
         dir: (r & 1) ? 1 : -1
       }]);
@@ -590,7 +615,7 @@ function updatePrismFight(dt, g) {
       startSweeps(b, [
         { phase: 0, spd: TAU / Math.max(3.8, 6.0 - r * 0.35), dir: -1 },
         { phase: 1, spd: TAU / Math.max(3.8, 4.8 - r * 0.35), dir: 1,
-          rev: r >= 2 ? 0.45 + Math.random() * 0.25 : undefined } // the faster light learns to turn
+          rev: r >= 2 ? 0.45 + bossRng() * 0.25 : undefined } // the faster light learns to turn
       ]);
     }
     if (b.modeT <= 0) {
@@ -674,7 +699,7 @@ function updateLastStand(dt, g) {
   const b = boss;
   b.modeT -= dt;
   if (b.mode !== 'tele' && b.mode !== 'sweep') { // arm the next shift — and SWAP
-    b.lsPhase = b.lsPhase === undefined ? (Math.random() < 0.5 ? 0 : 1) : 1 - b.lsPhase;
+    b.lsPhase = b.lsPhase === undefined ? bCoin() : 1 - b.lsPhase;
     b.mode = 'tele'; b.modeT = 1.2;
     startSweeps(b, [{ phase: b.lsPhase, spd: TAU / 5.2 }]);
     popup(W / 2, H * 0.34,
@@ -699,7 +724,7 @@ function lastStandLine(b, dt) {
   const mates = windowMates(arrivalAt(SPAWN_Z, 1), 0.55);
   if (mates.length >= 1) { b.addT = 0.25; return; } // single-file: the window must be EMPTY
   b.addT = SWEEP_ADD_GAP;
-  b.addA = clearOfWalls(b.addA + 2.399963 + rand(-0.35, 0.35)); // hop onward, never stacked
+  b.addA = clearOfWalls(b.addA + 2.399963 + bRand(-0.35, 0.35)); // hop onward, never stacked
   const en = spawnEnemy(b.addA, 'normal');
   en.lock = 1 - b.lsPhase; en.drift = 0; // keyed to the free thumb — it feeds itself
   const bk = sched[sched.length - 1];    // and the ledger knows what it is

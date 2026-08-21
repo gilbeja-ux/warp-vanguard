@@ -1,0 +1,318 @@
+# Housekeeping backlog
+
+Every finding from the 2026-08-21 audit, one row per item, related findings
+combined. The `/housekeeping` skill reads this file, offers the open items in
+priority order, then walks the chosen one to a solution.
+
+**Item IDs are stable. Never renumber them.** Priority equals the ID order:
+H-01 is the most important, H-30 the least. Reorder by moving the priority note,
+not the ID.
+
+Status values: `TODO` → `IN PROGRESS` → `BLOCKED` → `DONE`.
+When an item ships, set `DONE`, add the version and a one-line result.
+
+Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md).
+
+---
+
+## Status board
+
+| ID | Status | Area | Sev | Title |
+|----|--------|------|-----|-------|
+| H-01 | TODO | Release | HIGH | Redeploy the stale verifier + add a CI staleness guard |
+| H-02 | IN PROGRESS | Backend | HIGH | Boss board integrity — code+SQL DONE & verified; only the release deploy remains (batched with H-01) |
+| H-03 | IN PROGRESS | Backend | HIGH | Replay-stealing — code DONE & built/linted; needs a live signed-URL test + coordinated deploy |
+| H-04 | DONE | Release | HIGH | Recover the deleted feature graphic — restored from HEAD 2026-08-21 |
+| H-05 | TODO | Release | HIGH | Turn DEV_KEYS off for production builds |
+| H-06 | TODO | Story | HIGH | Wire the dead story copy |
+| H-07 | DONE | Story | HIGH | Pre-run read gate — circle-sweep reveal + inner charge ring + back button; built+tested 2026-08-21 |
+| H-08 | TODO | Backend | MED | Weekly board fairness — lock out mutators + raise the ceiling |
+| H-09 | TODO | Release | MED | Clear the name + resolve the icon alpha |
+| H-10 | TODO | Balance | MED | Fix the sawtooth break between campaigns 2 and 3 |
+| H-11 | TODO | Balance | MED | Make CHAIN OVERDRIVE pay the combo multiplier |
+| H-12 | TODO | Juice | MED | Combo-scaled kill effects + a PERFECT flash + a first-x10 beat |
+| H-13 | TODO | Audio | MED | Audio mastering — master limiter + music through the compressor |
+| H-14 | TODO | Art | MED | Align the station sun to the world key light + darken the hull |
+| H-15 | TODO | Journey | MED | Home "re-enter lane" continue + a live weekly caption |
+| H-16 | TODO | Journey | MED | Board dead-end — FLY THIS LANE + weekly-retry rollover fix |
+| H-17 | TODO | Story | MED | Story line-edit pass + the C5 continuity fork |
+| H-18 | TODO | Story | MED | Meta polish — NEXT CONTRACT hook, week countdown, dossier, bark fade |
+| H-19 | TODO | Decision | MED | Settle the canon + the address term |
+| H-20 | TODO | Audio | MED | Audio breadth — fanfare tiers, boss-duel music, sonar phase, coverage |
+| H-21 | TODO | Art | LOW | Restore menu film grain |
+| H-22 | TODO | Art | LOW | Gate facing variants |
+| H-23 | TODO | Journey | LOW | Enlistment tap-to-complete |
+| H-24 | TODO | Journey | LOW | Delete dead code — scroll machinery + beam subsystem |
+| H-25 | TODO | Balance | LOW | Boss tuning pass + count volley zaps + split C1L7 lock intro |
+| H-26 | TODO | Backend | LOW | Backend hardening — name filter, delete residuals, admin auth |
+| H-27 | TODO | Art | LOW | Station bake polish — SPINE hoops + GATE aperture |
+| H-28 | TODO | Balance | LOW | Ship unused depth — crawlers drift, noCharge drone, more beats |
+| H-29 | TODO | Docs | LOW | Doc drift pass |
+| H-30 | TODO | Content | LOW | The 40 briefing-disc keyframes |
+
+---
+
+## H-01 · Redeploy the stale verifier + add a CI staleness guard
+- **Status:** TODO · **Area:** Release · **Sev:** HIGH
+- **Combines:** R-1, backend OP item
+- **⏰ PRE-VERSION DEPLOY GATE (Gil, 2026-08-21):** before any new version / AAB, run
+  BOTH `npm run deploy:verifier` AND `supabase db push`. `deploy:verifier` also
+  deploys the submit-run function, so it carries H-03's server changes too. 1.0.4
+  applies TWO migrations via `db push`: `20260821000000_boss_board_time_tiebreak.sql`
+  (H-02) and `20260821000001_trace_owner_binding.sql` (H-03). Gil pre-authorized
+  running both commands automatically when he asks to create the 1.0.4 AAB — do them
+  first, then build, no re-ask.
+  ⚠ Caveats to voice once at 1.0.4 build time: (1) both migrations are untested
+  against a live DB — check staging first if one exists; (2) H-03's migration takes
+  the traces bucket PRIVATE, which breaks replay playback on OLD clients the instant
+  it lands, so it MUST ship with the 1.0.4 client, never ahead of it. Also in memory
+  [[verifier-deploy-before-aab]] and docs/RELEASE-PLAN.md §5.
+- **Issue:** the deployed verifier grades a different game than the code. Local sim id `eee9f0f3f2ae`, server `6393ccefe431`. Commit c8945d7 changed sim source after the last deploy. Every campaign/weekly submission fails until you redeploy.
+- **Evidence:** `npm run verifier:status`; `.github/workflows/test.yml` builds the bundle but never checks staleness.
+- **My take:** redeploy now, then make CI fail a release when local ≠ server so this cannot recur silently. Deploy only when a score actually moved; a render-only change needs no deploy.
+- **Options:** (a) redeploy only; (b) redeploy + add the CI guard; (c) redeploy + CI guard + decide the current-plus-previous sim-id acceptance policy for live clients.
+
+## H-02 · Boss board integrity — seed the boss RNG + add anti-stall
+- **Status:** IN PROGRESS (chosen: RNG side-stream + bounty decay + timeSec board penalty) · **Area:** Backend/Balance · **Sev:** HIGH
+- **Progress (2026-08-21):**
+  - DONE in code — the RNG side-stream. A `bossRng` (mulberry32, seeded per boss from levelIdx) now feeds every score-relevant boss draw via `bRand`/`bChance`/`bCoin` (`52-bosses.js`). Cosmetic particle draws (52-bosses.js:213,812,872) stay on Math.random. `spawnRng` is untouched, so only the 5 boss boards' sim ids move.
+  - DONE in code — the bounty decay. `bossStallMul` decays the swarm-kill take after 30 kills without a boss hit, floor 0.1; a landed pulse resets `boss.stallKills` (`52-bosses.js` + `72-tick.js:885`).
+  - VERIFIED — `npm test` green; verifier bundle rebuilt (new sim id `63ad3a364ab9`) and reproduces every non-boss score; a boss-level record/verify passes for all 5 campaigns and is deterministic across two records.
+  - DONE in SQL (not applied) — the faster-run tiebreak. Gil chose the tiebreak over a full time penalty. Migration `supabase/migrations/20260821000000_boss_board_time_tiebreak.sql` adds `time_sec asc` before `created_at` for boss boards ONLY (keys ending `:7`, not weekly), in all 3 ranking sites (leaderboard_top, leaderboard_rank, submit_verified_run eviction) so the invariant holds. Non-boss boards are byte-identical. The client reads rank from these RPCs, so no game-code mirror is needed. Correction to the audit: boss board keys are `<campId>:7` (per-campaign index), not 7/15/23/31/39.
+  - OWED before release (batched, one deploy): (1) `npm run deploy:verifier` — the RNG+decay move the 5 boss-board sim ids; (2) `supabase db push` to apply the tiebreak migration. The migration is NOT tested against a live DB (the local harness cannot run these functions) — review against staging first. Nothing was deployed or pushed here.
+- **Combines:** A-1, A-4
+- **Issue:** the five boss boards reject honest scores AND are farmable. Boss logic draws score-relevant randomness from render-contaminated `Math.random`, not the insulated `spawnRng`, so a rendered fight and the headless re-simulation diverge. Separately, swarm waves respawn forever and pay full combo bounties, so a stalling player scores about 1.5k/s without bound.
+- **Evidence:** `52-bosses.js:285,317,329,330,333,405,409`; `72-tick.js:884,912`; verifier exact match `submit-run/index.ts:214`.
+- **My take:** fix both in one release, since both move the boss-board sim ids anyway. Route all boss RNG through a dedicated seeded side stream (the `beatStream` pattern). Then decay swarm bounty after round N, or make `timeSec` a ranking penalty on boss boards. Redeploy the verifier with it (ties to H-01).
+- **Options:** (a) RNG fix only, leave boards as-is on stall; (b) RNG fix + bounty decay after round N; (c) RNG fix + `timeSec` tiebreak penalty; (d) RNG fix + both anti-stall guards.
+
+## H-03 · Close the replay-stealing hole
+- **Status:** IN PROGRESS (chosen: private bucket + signed URLs + frame-hash binding + oracle fix) · **Area:** Backend · **Sev:** HIGH
+- **Combines:** A-2, the 400-body oracle leak
+- **Progress (2026-08-21) — all code DONE, built and linted:**
+  - Oracle fix — the 400 "verification failed" body no longer returns `recomputed`/`integrity`/`steps`/`claimed`/`traceLen` (`submit-run/index.ts`). The client keys "score not verified" off the `error` string, so its handling is unaffected.
+  - Frame-hash binding — submit-run SHA-256s the input frames, refuses a submission whose frames already belong to a different player (403), and stamps the hash on the winning row. New column + index in migration `20260821000001_trace_owner_binding.sql`. No ranking-function change (check before write, stamp after).
+  - Private bucket + signed URLs — the migration takes the `traces` bucket private; submit-run gained a `trace-url` action that mints a 60s signed URL; the client `lbTrace` now fetches through it (`31-leaderboard.js`). Watching any replay still works; the bucket can no longer be bulk-downloaded.
+  - VERIFIED locally: `npm run build` + `npm test` green (BOARD BOOTS); `deno lint` parses the function clean (only pre-existing `no-explicit-any` style warnings).
+  - HONEST LIMITS: the hash binding is evadable by perturbing one no-op input frame (the private bucket is the real barrier); no fix proves a human played a run (audit F3). NOT tested against live storage — the signed-URL round-trip and the bucket-privacy privilege need a staging check.
+  - OWED before release (batches into the 1.0.4 deploy): `npm run deploy:verifier` (which also deploys the submit-run function) + `supabase db push` (applies this migration). ⚠ COORDINATED: the instant the bucket goes private, OLD clients lose replay playback — ship it WITH the 1.0.4 client, never ahead.
+- **Issue:** the `traces` bucket is world-readable and nothing binds a trace to its recorder. An attacker downloads a top trace, brute-forces `w/h` + `mutators` against the reproducible sim, and resubmits under their own identity. It verifies and lands. The 400 error body even returns `recomputed`/`integrity`/`steps` as a brute-force oracle.
+- **Evidence:** public `traces` bucket; `31-leaderboard.js:99`; `submit-run/index.ts:214`.
+- **My take:** bind identity to the trace and stop leaking the oracle. Both are small server changes.
+- **Options:** (a) stamp the stored trace with `player_id` + `w/h` + `mutators`, reject a submission whose JWT `sub` differs; (b) dedupe by trace content hash so a trace verifies once; (c) make the bucket private, serve replays by signed URL (the original setup design); (d) do (a) or (b) now, plus stop returning `recomputed`/`integrity`/`steps` in the 400 body.
+
+## H-04 · Recover the deleted feature graphic
+- **Status:** DONE (2026-08-21) — `git restore -- docs/store/feature-graphic.png`. Working tree now matches HEAD: a valid 1024×500 8-bit RGB PNG (579,409 bytes, no alpha, the Play spec). No build or deploy involved. If a redesign is ever wanted, re-shoot via `scripts/shot-feature.html`. · **Area:** Release · **Sev:** HIGH
+- **Combines:** R-2
+- **Issue:** `docs/store/feature-graphic.png` is deleted in the working tree, not committed. It is a required Play asset. It is intact in HEAD.
+- **Evidence:** `git status`; `git show HEAD:docs/store/feature-graphic.png` is a valid 1024×500 PNG.
+- **My take:** confirm the deletion was not deliberate, then restore. If a re-shoot was intended, regenerate from `scripts/shot-feature.html`.
+- **Options:** (a) `git restore -- docs/store/feature-graphic.png`; (b) re-shoot via the rig, then commit; (c) leave deleted because a redesign is planned.
+
+## H-05 · Turn DEV_KEYS off for production builds
+- **Status:** TODO · **Area:** Release · **Sev:** HIGH (prod only)
+- **Combines:** R-3
+- **Issue:** `DEV_KEYS = true` ships a long-press boss-skip. Fine for tester builds. It must be off before production, and it will cross the relay-04 paywall when monetization lands.
+- **Evidence:** `40-state.js:148`; `startBossTest` `60-input.js:718`; `menuHold` `99-boot.js:198`.
+- **My take:** do not flip it globally now, since testers use it. Gate it to the release build and add it to the pre-production checklist.
+- **Options:** (a) flip to `false` now; (b) wire it to a build flag so `sideload`/release forces it off; (c) leave it, add a hard checklist gate before the production AAB.
+
+## H-06 · Wire the dead story copy
+- **Status:** TODO · **Area:** Story · **Sev:** HIGH (value)
+- **Combines:** S-1
+- **Issue:** the strongest writing never renders. The five verdict epilogue `lines` lose to a precedence bug, the five campaign `story` paragraphs render nowhere, and all 40 level `hint` strings render nowhere. The closure disc shows the weakest text instead.
+- **Evidence:** `91-briefing.js:513`; `campaigns.js:78`; `editor.js:1086`; `90-hud.js:509`.
+- **My take:** cheapest story win in the codebase. Start with the verdict lines: one precedence change on the closure disc, which was built with room for them.
+- **Options:** (a) verdict epilogue lines only; (b) verdict lines + the story paragraph on the carousel or a dossier tab; (c) all three, with the hint as a subtitle on the pre-run disc.
+
+## H-07 · Give the pre-run briefing a read gate
+- **Status:** DONE (2026-08-21) — Gil's design, iterated with him. On a BRIEFED deploy the pads stay hidden while the disc's story line reveals, then each console is uncovered by a WEDGE that sweeps around from the top — right pad clockwise, left counterclockwise — bringing in the ring, the OFFLINE label, the PLACE THUMB dot, AND the inner pulse-charge track ring (added on Gil's note; the live meter is otherwise held back pre-warp). The grip-release waits until the pads land, so an instant gripper still reads the line; the demo thumb-ghosts return at their normal 1.4s. A BACK arrow (top-right, gamepad B) exits the pre-warp disc to the lane chart. Unbriefed starts (retry/endless/weekly) are untouched. Files: `70-update.js` (`showCard` reveal time, `padsRevealT`/`padsLanded`), `85-enemy-art.js drawDials` (wedge + inner ring), `72-tick.js` (release gate), `90-hud.js` (back button + ghosts), `60-input.js` (`discBack` + touch), `71-gamepad.js` (B). NO sim/replay/deploy impact (pre-run timing + chrome only). `npm test` green (two harness helpers advance past the gate for pre-warp discs only). Tunable: `PADS_IN_DUR` 0.5s. The pulse orbs (`drawPulseOrbs`, gated in `85-enemy-art.js` drawNodes) were leaking empty charge rings at the pads during the come-up while `hw` was still nonzero; they are now held back until `padsLanded` too. Verified by driving a headless Chrome (puppeteer-core + system Chrome) to the real pre-warp screen and capturing the come-up frame by frame. Owed: a device eyeball on the sweep feel. · **Area:** Story · **Sev:** HIGH
+- **Combines:** S-2
+- **Issue:** both thumbs dismiss the pre-warp disc in 0.35s while a line takes about 1.2s to fade in. A player who does what the screen asks sees zero campaign story.
+- **Evidence:** `72-tick.js:89`; `60-input.js:109`; `91-briefing.js:385`.
+- **My take:** a soft gate, not a modal stop. Hold the grip-dismiss until the caption's char-fade completes, or keep the line on screen through the warp spool.
+- **Options:** (a) hold dismiss until the char-fade finishes; (b) keep the line visible through the warp spool after dismiss; (c) both, tuned so a returning player still launches fast.
+
+## H-08 · Weekly board fairness — lock out mutators + raise the ceiling
+- **Status:** TODO · **Area:** Backend/Balance · **Sev:** MED
+- **Combines:** A-3, A-5, C-4
+- **Issue:** the weekly board mixes mutator runs (up to ×3.9) with plain runs, so the meta forces mutator stacking. And endless/weekly difficulty plateaus near mid-campaign, so the ranked week is an endurance contest, not a skill wall.
+- **Evidence:** `mutLive` needs endless `10-audio.js:21`; server never filters `submit-run/index.ts:243`; `endlessCfg` caps at surge 6 `30-campaigns.js:37`.
+- **My take:** ship at a week boundary so frozen boards stay untouched. Force mutators off in `startWeekly` (no sim-id impact) and let surges 7+ keep raising density and mix.
+- **Options:** (a) mutators off only; (b) raise the ceiling only; (c) both, at a week boundary; (d) segment the board by mutator instead of forcing off.
+
+## H-09 · Clear the name + resolve the icon alpha
+- **Status:** TODO · **Area:** Release · **Sev:** MED
+- **Combines:** R-6, R-7
+- **Issue:** name clearance for "Warp Vanguard" / "Vanguard" is unrun and gates all store copy plus the feature-graphic wordmark. The 512 icon has an alpha channel; the Play spec is 32-bit no alpha.
+- **Evidence:** `STORE-LISTING.md` §5, §6; `src/icons/wv-512.png`.
+- **My take:** run the search before investing more in copy. Settle the icon at the first Console upload; a flattened variant on opaque `#03060e` is the fallback.
+- **Options:** (a) name clearance first; (b) icon alpha first; (c) both together as a "first Console upload" gate.
+
+## H-10 · Fix the sawtooth break between campaigns 2 and 3
+- **Status:** TODO · **Area:** Balance · **Sev:** MED
+- **Combines:** C-6
+- **Issue:** the difficulty-3 campaign never exceeds the difficulty-2 peak. Computed non-boss peaks: C1 1.89 → C2 3.63 → C3 3.17 → C4 5.28 → C5 8.03.
+- **Evidence:** `campaigns.js:96-119` vs `139-170`.
+- **My take:** nudge C3L6/L7 spawn/speed just past C2L7. Moves those two board ids, so batch with the next sim-id release.
+- **Options:** (a) raise C3L7 only; (b) raise C3L6 and C3L7; (c) re-slope all of C3's climb.
+
+## H-11 · Make CHAIN OVERDRIVE pay the combo multiplier
+- **Status:** TODO · **Area:** Balance · **Sev:** MED
+- **Combines:** C-5
+- **Issue:** a chained kill pays base×0.5 with no combo credit. At combo 10 it pays 50 where interception paid 1000–2000, so the pickup is score-negative for score-chasers. This is the same trap the volley just escaped in F-003.
+- **Evidence:** `72-tick.js:954`.
+- **My take:** pay chained kills ×`scoreMul()`, mirroring the volley fix. Moves ids on every board where the bag can appear, so batch into a sim-id release.
+- **Options:** (a) pay ×`scoreMul()`; (b) pay ×`scoreMul()` and advance the combo; (c) leave as a defensive-only tool and document it.
+
+## H-12 · Combo-scaled kill effects + a PERFECT flash + a first-x10 beat
+- **Status:** TODO · **Area:** Juice · **Sev:** MED (production value)
+- **Combines:** art findings 1, 2
+- **Issue:** at x10 the kill burst is byte-identical to x1. PERFECT differs only by popup text. The scoring system is invisible in the world.
+- **Evidence:** `72-tick.js:875-970`; `40-state.js:36`; `52-bosses.js:890`; `99-boot.js:1133`.
+- **My take:** highest visible-impact-per-effort item. Scale kill-streak/rim intensity with `scoreMul()`, add a white rim ping at the zap angle for a PERFECT, and give the first x10 a one-shot ring flourish.
+- **Options:** (a) combo-scaled burst only; (b) + PERFECT flash; (c) + first-x10 beat; (d) all three.
+
+## H-13 · Audio mastering — master limiter + music through the compressor
+- **Status:** TODO · **Area:** Audio · **Sev:** MED (production value)
+- **Combines:** audio HIGH finding
+- **Issue:** no limiter sits over the summed output, and music bypasses the sfx compressor. Boss-arrival is mastered hot and peaks above full scale.
+- **Evidence:** `11-music.js:241`; `52-bosses.js:87`.
+- **My take:** one graph change tames the hot bed and dense-wave stacking. Route `musicGain` through the existing compressor, or add a second one at destination.
+- **Options:** (a) route music through the existing compressor; (b) add a dedicated master limiter at destination; (c) both, and re-trim boss-arrival gain.
+
+## H-14 · Align the station sun to the world key light + darken the hull
+- **Status:** TODO · **Area:** Art · **Sev:** MED (production value)
+- **Combines:** art findings 2, 6
+- **Issue:** stations bake under `S3D_LIGHT` (screen-left, ~17° up); planets and enemy plates use `LIGHT_A` (~68° up). The arrival frame shows two suns, with the companion standing in front of the world. The hull also renders mid-grey, above the "matte near-black" rule.
+- **Evidence:** `80-tunnel.js:790`; `41-geometry.js:22`; `81-station3d.js:348`. Confirmed in the renders.
+- **My take:** rotate `S3D_LIGHT`'s azimuth to match `LIGHT_A`, keep the grazing elevation, rebake. Decide the hull value deliberately rather than inherit it. The dest lab drives these dials live.
+- **Options:** (a) sun alignment only; (b) + darken hull/hull2 one step; (c) alignment + accept the sunlit hull as the stations' own read, documented.
+
+## H-15 · Home "re-enter lane" continue + a live weekly caption
+- **Status:** TODO · **Area:** Journey · **Sev:** MED
+- **Combines:** journey findings 2, 3
+- **Issue:** every session is splash → home → CONTRACTS → dive → DEPLOY, though `lastCamp` and the frontier are persisted. The home weekly caption is static, so the daily reason to return is buried two screens deep.
+- **Evidence:** `40-state.js:178`; `92-guide.js:938`.
+- **My take:** add a "RE-ENTER LANE" key on home that deep-links to the frontier, and make the FREE FLOW caption dynamic ("week ends in 2d · streak 3").
+- **Options:** (a) re-enter key only; (b) dynamic caption only; (c) both.
+
+## H-16 · Board dead-end — FLY THIS LANE + weekly-retry rollover fix
+- **Status:** TODO · **Area:** Journey · **Sev:** MED
+- **Combines:** journey findings 5, 6
+- **Issue:** the board opens on the live weekly while FREE FLOW is locked, with no way to play the lane from it. And a weekly retry across the Monday UTC rollover restarts on the new week's lane.
+- **Evidence:** `93-board.js:62`; `60-input.js:516`; `startWeekly` `60-input.js:779`.
+- **My take:** add a gated FLY THIS LANE key to close the browse→play loop, and pin a weekly retry to its own week when still live.
+- **Options:** (a) FLY THIS LANE only; (b) rollover pin only; (c) both.
+
+## H-17 · Story line-edit pass + the C5 continuity fork
+- **Status:** TODO · **Area:** Story · **Sev:** MED (no code)
+- **Combines:** S-4, S-5
+- **Issue:** shown lines mix terse-ops with tour-guide ("So far so good! Let's keep it up."). Mechanical defects sit in shown strings. C5 forks on a shown surface: "president … she" vs "minister of Xeno Relations", plus an "antidote" leftover from the old virus fiction.
+- **Evidence:** `campaigns.js:55,95,150,167,234,243,244`.
+- **My take:** one Lane Designer pass to a single register, using the survey campaign's lines as the model. No code, gated on the canon decision (H-19).
+- **Options:** (a) fix mechanical defects + the C5 fork only; (b) full register pass across all 40 shown lines; (c) hold until H-19 settles canon.
+
+## H-18 · Meta polish — NEXT CONTRACT hook, week countdown, dossier, bark fade
+- **Status:** TODO · **Area:** Story/Meta · **Sev:** MED
+- **Combines:** S-3, story lower items (countdown, dossier, bark fade)
+- **Issue:** a finished contract gets RESTART/MENU, no "NEXT CONTRACT ▸". The ranked week shows no close countdown. The dossier omits client and cargo. Barks hard-cut without their fade.
+- **Evidence:** `95-menu.js:503,961`; `00-core.js:152`; `72-tick.js:250` vs `90-hud.js:961`.
+- **My take:** four small, independent surface wins. NEXT CONTRACT and the countdown are the two that most help retention.
+- **Options:** (a) NEXT CONTRACT hook only; (b) + week close countdown; (c) + dossier client/cargo; (d) all four including the bark-fade fix.
+
+## H-19 · Settle the canon + the address term
+- **Status:** TODO · **Area:** Decision · **Sev:** MED
+- **Combines:** naming forks
+- **Issue:** two forks block story work. The shipped game is episodic contracts; `story.json` drafts a Renke/Reyes/TRACE mystery serial with acts 2–5 empty. And "wolf/wolves" (PRODUCT.md) never appears in code, which ships "runner".
+- **Evidence:** `campaigns.js:3`; `docs/lab/story.json`; PRODUCT.md `:139` vs `:144`; `52-bosses.js:38`.
+- **My take:** decide both before H-06/H-17 touch story text. Episodic + "runner" is the lower-cost path and matches the shipped voice.
+- **Options:** (a) episodic contracts + "runner"; (b) episodic + switch to "wolf/wolves"; (c) commit to the mystery serial and schedule the writing; (d) decide canon now, defer the address term.
+
+## H-20 · Audio breadth — fanfare tiers, boss-duel music, sonar phase, coverage
+- **Status:** TODO · **Area:** Audio · **Sev:** MED (production value)
+- **Combines:** audio upgrades 3, 4, 6, 7 + coverage gaps + interruption handler
+- **Issue:** NEW BEST and 1/2/3-star share one cue. The boss duel has no music identity. The sonar tick uses one timbre for every threat. Briefings, unlocks, and combo milestones are silent. No phone-call interruption handler.
+- **Evidence:** `61-replay.js:422`; `52-bosses.js`; `72-tick.js:719`; `91-briefing.js`; `60-input.js:342`.
+- **My take:** a batch of small wins. Fanfare tiers and the interruption handler ship first. Sonar phase timbre adds threat identity to the one always-on channel.
+- **Options:** (a) fanfare tiers only; (b) + boss-duel music treatment (no new track); (c) + sonar phase vocabulary; (d) full batch including interruption handler + briefing tick.
+
+## H-21 · Restore menu film grain
+- **Status:** TODO · **Area:** Art · **Sev:** LOW (one line)
+- **Combines:** art finding 3
+- **Issue:** the menu is the only state finished without grain, against the "grain + vignette to finish" rule, on the most-stared-at sky.
+- **Evidence:** `99-boot.js:1235`.
+- **My take:** delete the `state !== S.MENU` test. Verify it stays inside the `lowFX` gate.
+- **Options:** (a) remove the state test; (b) remove it but keep the menu grain lighter than in-run.
+
+## H-22 · Gate facing variants
+- **Status:** TODO · **Area:** Art · **Sev:** LOW (medium effort)
+- **Combines:** the standing gate-facing open item
+- **Issue:** all gates face the camera. `rotZ` is wired end-to-end and unused. A yawed gate reads better than the face-on one (confirmed in a render).
+- **Evidence:** `81-station3d.js:152,1533,1725`.
+- **My take:** two baked facings per gate variant, not continuous rotZ. Record the aperture's projected ellipse at bake so the live spill/approach-light layers follow.
+- **Options:** (a) two baked facings + ellipse recording; (b) continuous rotZ with live-layer rework; (c) defer until a new gate relay needs it.
+
+## H-23 · Enlistment tap-to-complete
+- **Status:** TODO · **Area:** Journey · **Sev:** LOW
+- **Combines:** journey finding 8
+- **Issue:** a tap during enlistment typing does nothing, so a new player waits about 7s per beat with no fast-forward.
+- **Evidence:** `60-input.js:676`; `91-briefing.js:1131`.
+- **My take:** first tap completes the line, second advances. Standard convention, touches every new player's first minute.
+- **Options:** (a) first-tap-completes convention; (b) a small SKIP affordance after the first beat.
+
+## H-24 · Delete dead code — scroll machinery + beam subsystem
+- **Status:** TODO · **Area:** Journey/Cleanup · **Sev:** LOW
+- **Combines:** journey findings 4, 11
+- **Issue:** `menuScroll`, `mapListScroll`, `menuPtr.mapScroll0`, and an unreachable `menuLbRect` branch are written but read by no painter. The beam subsystem is flagged for removal.
+- **Evidence:** `60-input.js:240,311,238,430`; `92-guide.js:629`; `40-state.js:157`.
+- **My take:** pure removal, zero player impact, but it is live input code writing ghost state. Do the flagged focused removal.
+- **Options:** (a) scroll machinery only; (b) + beam subsystem; (c) both plus the `crawlers` dead knob (overlaps H-28).
+
+## H-25 · Boss tuning pass + count volley zaps + split C1L7 lock intro
+- **Status:** TODO · **Area:** Balance · **Sev:** LOW
+- **Combines:** C-7, boss tuning observations
+- **Issue:** prism's "unequal speeds" tell converges by round 5. The blockade last-stand sweep never accelerates. Volley kills do not increment `zaps`, undercounting volley styles in the tiebreak. C1L7 stacks the lock debut with bursts at the steepest jump.
+- **Evidence:** `52-bosses.js:591,679`; `72-tick.js:625`; `campaigns.js:68`.
+- **My take:** escalate the last-stand sweep with rounds, keep prism speeds honestly unequal, count volley zaps, and split C1's lock intro across L6/L7. Boss-board ids move, so batch with H-02.
+- **Options:** (a) volley zaps + C1L7 split only (cheap); (b) + boss escalation tuning; (c) full pass, batched with H-02.
+
+## H-26 · Backend hardening — name filter, delete residuals, admin auth
+- **Status:** TODO · **Area:** Backend · **Sev:** LOW
+- **Combines:** backend lower findings F5, F6, F7
+- **Issue:** the name filter is ASCII-only so homoglyphs are stripped not folded, with Scunthorpe false positives and no server min-length. Account delete leaves reports-filed-by and orphaned traces. The local admin `/api/act` runs destructive writes with no auth.
+- **Evidence:** `submit-run/index.ts:62`; `my-data/index.ts:129`; `scripts/admin.js:120`.
+- **My take:** three independent small hardenings. The admin auth is the one with a real (if bounded) exploit path.
+- **Options:** (a) admin auth only; (b) + name-filter NFKC/homoglyph folding + min-length; (c) all three including the delete residuals.
+
+## H-27 · Station bake polish — SPINE hoops + GATE aperture
+- **Status:** TODO · **Area:** Art · **Sev:** LOW
+- **Combines:** art findings 4, 5
+- **Issue:** SPINE reads as cogs at rest (36 cladding boxes per torus). GATE's baked aperture is a flat teal dish at rest and leans entirely on live layers.
+- **Evidence:** `81-station3d.js:656,368`.
+- **My take:** halve SPINE's pad count and vary pad lengths for an armour read. Raise GATE filament contrast or add a centre vortex. Lab-drivable, then rebake.
+- **Options:** (a) SPINE only; (b) GATE aperture only; (c) both.
+
+## H-28 · Ship unused depth — crawlers drift, noCharge drone, more beats
+- **Status:** TODO · **Area:** Balance · **Sev:** LOW (optional depth)
+- **Combines:** C-8, C-9, C-10
+- **Issue:** three built systems ship no content. `crawlers` is rolled and discarded though `en.drift` exists. The `noCharge` purple pressure drone is one flag from use. Only 3 of the 8 beat types are authored.
+- **Evidence:** `50-enemies.js:30`; `72-tick.js:717,856`; `52-bosses.js:56`; `51-linter.js`.
+- **My take:** genuine new reads from the two dials, no new inputs. Crawlers cost zero extra RNG draws if drift derives from the already-drawn `spin`. The drone and new beats move edited board ids.
+- **Options:** (a) crawlers only (zero sim-id cost on shipped levels); (b) + author enemy/lock beats into C2/C4; (c) + deploy the pressure drone into C5, batched with a sim-id release.
+
+## H-29 · Doc drift pass
+- **Status:** TODO · **Area:** Docs · **Sev:** LOW
+- **Combines:** doc drift across the audit
+- **Issue:** several docs describe what the code no longer does. PRODUCT.md wheel names + track count + screenshot line; PRIVACY-POLICY.md deletion paragraph; CLOUD-SAVE-PLAN.md monetization header; CREDITS.md format/cadence/symbol; RELEASE-PLAN.md iOS line; the `20-background.js:845` RNG comment.
+- **Evidence:** listed in the audit §7.
+- **My take:** one reconciliation pass. The CLOUD-SAVE-PLAN monetization header is the one that could mislead a future build (it names an ads/consent flow the game must not have).
+- **Options:** (a) fix only the two that could mislead a build (CLOUD-SAVE-PLAN, PRIVACY-POLICY); (b) full doc-drift sweep across all six.
+
+## H-30 · The 40 briefing-disc keyframes
+- **Status:** TODO · **Area:** Content · **Sev:** LOW (largest lift)
+- **Combines:** owed art
+- **Issue:** 0 of 40 per-mission disc keyframes exist. The destination glam-shot fallback covers it by design, so impact-per-effort is lowest despite being the biggest missing body of art.
+- **Evidence:** `src/art/disc/` holds only the enlistment + 5 verdicts; spec in `DISC-ART-SPEC.md`.
+- **My take:** lowest priority. The fallback is good. Revisit only after the cheaper story wins (H-06, H-18) land.
+- **Options:** (a) defer indefinitely, keep the fallback; (b) author a first batch for campaign 1 only; (c) commission all 40 against the spec.

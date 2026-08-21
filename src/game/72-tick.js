@@ -89,7 +89,7 @@ function update(dt) {
   if (discHold && preLaunch()) {
     preT += dt;
     padParkAck(dt);
-    if (!infoOutAt && padHold[0] && padHold[1]) infoOutAt = time;
+    if (!infoOutAt && padHold[0] && padHold[1] && padsLanded()) infoOutAt = time; // H-07: the pads must have arrived (line read) before a grip launches
   }
 
   // THE DIVE WAITS FOR THE DOCK. warpT is the level's entry shove — 0.9s of 5x bore
@@ -882,7 +882,13 @@ function updateEnemy(en, C) {
       const perfect = fx.auto <= 0 && boltPairs.length > 0 && err < TOL * 0.35;
       if (perfect) perfects++;
       const base = en.type === 'heavy' ? 250 : en.type === 'line' ? 300 : en.lock !== undefined ? 150 : 100;
-      const pts = Math.round(base * (perfect ? 2 : 1) * mutMul()) * scoreMul();
+      let pts = Math.round(base * (perfect ? 2 : 1) * mutMul()) * scoreMul();
+      // H-02 anti-stall: in a duel, a player who never fires a pulse can farm the
+      // endless swarm forever. Each swarm kill without boss progress decays the
+      // take toward a floor; a landed pulse (bossPulseHit) resets it. Normal
+      // fights never reach the grace, so honest play is untouched. The verifier
+      // recomputes this from the same sim state, so boss boards stay consistent.
+      if (boss && !en.tut) { boss.stallKills = (boss.stallKills || 0) + 1; pts = Math.round(pts * bossStallMul(boss)); }
       score += pts; zaps++;
       // each shooter banks the zap into ITS orb (both, on a shared kill) —
       // choosing which node fires is choosing which pulse you charge.

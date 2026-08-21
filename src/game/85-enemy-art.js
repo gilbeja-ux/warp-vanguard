@@ -1511,7 +1511,11 @@ function drawNodes(g) {
   // arcs ride the ring's fly-in as one assembly, so at a held introT of 0 they sit at
   // the same ~3.3x launch scale — which does not read as "not here yet", it reads as
   // two fat arcs parked across the corners of the frame. Nothing has been sent for.
-  if (preLaunch()) { drawPulseOrbs(g); return; }
+  // H-07: hold the pulse orbs back through a briefed pre-warp reveal too — they were
+  // flashing empty charge rings at the pads while the line was still reading, before
+  // the console swept in. They arrive with the console (padsLanded), or at once on an
+  // unbriefed lane (padsLanded is true there).
+  if (preLaunch()) { if (padsLanded()) drawPulseOrbs(g); return; }
   const bzn = Math.min(W, H) * 0.055;
   const bh = bzn * ARCFX.bandW;                   // the monolith band's half-width
   const fused = boss && boss.mergeT >= 1;
@@ -2115,6 +2119,7 @@ function drawPadPrompt(i, d, tut) {
 function drawDials() {
   const bz = Math.min(W, H) * 0.055; // pad gauge width
   const parked = preLaunch();
+  const pr = padsRevealT(); // H-07: 1 unless a briefed pre-warp disc is still revealing its line / landing the pads
   // S.INFO included: the pre-run mission disc is the pre-warp screen (72-tick),
   // and its pads are the SAME dormant consoles the parked lane shows — dark
   // ring, OFFLINE, the PLACE THUMB dot. Without it the disc screen fell
@@ -2129,6 +2134,22 @@ function drawDials() {
     const d = dialCenter(side);
     const n = nodes[i];
     if (booting && !padsLive) { // dormant console: a dark ring, standing by
+      // H-07: CIRCLE REVEAL. The whole dormant console — its ring (the OFFLINE
+      // circle), the OFFLINE label, the PLACE THUMB dot — is uncovered by a wedge
+      // that sweeps around from the top: the right pad clockwise, the left
+      // counterclockwise. So the ring draws itself in AND its contents arrive with
+      // it, together. Nothing shows until the line has read (pr<=0); the clip is
+      // dropped once the sweep closes (pr>=1), on an unbriefed lane, or once landed.
+      if (pr <= 0) continue;                          // line still revealing — nothing yet
+      const revealing = pr < 1;
+      if (revealing) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(d.x, d.y);
+        ctx.arc(d.x, d.y, d.r * 3, -Math.PI / 2, -Math.PI / 2 + (i ? 1 : -1) * pr * TAU, i === 0);
+        ctx.closePath();
+        ctx.clip();
+      }
       // A TOUCH LIGHTS THE PAD, whatever the emitters are doing.
       //
       // The startup ramp is the ship's business and does not finish until BOOT_ON; the
@@ -2149,6 +2170,15 @@ function drawDials() {
       ctx.strokeStyle = armed ? `rgba(${col0},0.8)` : 'rgba(90,120,160,0.22)';
       ctx.lineWidth = bz * 0.85;
       ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU); ctx.stroke();
+      // H-07: the PULSE-CHARGE TRACK — the inner ring that fills as you charge. The
+      // live meter (drawPulseOrbs) is held back until the warp starts, but Gil wants
+      // the empty track present on the pre-warp console so the pad reads complete. It
+      // reveals with the console under the sweep clip. Mirrors drawPulseOrbs's track.
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(${col0},0.22)`;
+      ctx.lineWidth = Math.max(7, d.r * 0.085);
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.44, 0, TAU); ctx.stroke();
+      ctx.lineCap = 'butt';
       ctx.textAlign = 'center';
       ctx.fillStyle = armed ? `rgba(${col0},0.95)` : 'rgba(120,150,185,0.45)';
       ctx.font = '600 9px Audiowide, system-ui';
@@ -2168,6 +2198,7 @@ function drawDials() {
         ctx.beginPath(); ctx.arc(kx2, ky2, bz * 0.20, 0, TAU); ctx.fill();
       }
       if (parked) drawPadPrompt(i, d, tut);
+      if (revealing) ctx.restore();                    // close the H-07 reveal wedge
       continue;
     }
     const col = NODE_COLS[i];

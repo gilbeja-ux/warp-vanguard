@@ -86,6 +86,15 @@ function jwtSub(token: string): string | null {
   } catch { return null; }
 }
 
+// SHA-256 hex of a string — fingerprints a run's input frames so a replay can be
+// bound to its first submitter (H-03). Not a proof on its own: an attacker can
+// perturb one no-op frame to change the hash. The PRIVATE traces bucket is the
+// real barrier; this catches the naive copy-paste resubmission.
+async function sha256hex(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 // THE WEEK, COMPUTED HERE, FROM THIS CLOCK. Mon–Sun, UTC. Epoch day 0 was a
 // Thursday, so week 0 opens on day -3 — hence the +3. Must stay identical to weekOf()
 // in src/game/00-core.js; it is duplicated rather than imported because this file is
@@ -138,6 +147,21 @@ Deno.serve(async (req) => {
   // 2) parse + shape-check
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
+
+  // REPLAY URL MINTING (H-03). The traces bucket is private, so a replay is
+  // fetched through a short-lived signed URL, not a public one. Any authenticated
+  // player may watch any replay — that is the social feature — so this only turns
+  // a trace id into a signed URL; it does not gate on ownership. The id pattern is
+  // pinned to `<board>/<file>.json` so nothing else in the bucket can be reached.
+  if (body && body.action === "trace-url") {
+    const tid = String(body.traceId ?? "");
+    if (!/^[A-Za-z0-9_\-]+\/[A-Za-z0-9_.\-]+\.json$/.test(tid)) return json({ error: "bad traceId" }, 400);
+    const { data: signed, error: sErr } = await svc.storage.from("traces").createSignedUrl(tid, 60);
+    if (sErr || !signed?.signedUrl) return json({ error: "not found" }, 404);
+    const url = signed.signedUrl.startsWith("http") ? signed.signedUrl : SB_URL + signed.signedUrl;
+    return json({ url });
+  }
+
   const run = body?.run;
   if (!run || typeof run !== "object") return json({ error: "no run" }, 400);
   if (!Number.isInteger(run.score) || run.score < 0) return json({ error: "bad score" }, 400);
@@ -158,6 +182,7 @@ Deno.serve(async (req) => {
   let verified = false;
   let score = run.score;
   let traceId: string | null = null;
+  let traceHash: string | null = null;
   // detail stats stored on the row (for the leaderboard details panel). For a
   // verified run these come from the SERVER's replay; for endless (trust-only)
   // they're the client's own claimed numbers.
@@ -211,10 +236,23 @@ Deno.serve(async (req) => {
     }
     let res;
     try { res = m.verifyRun(run); } catch (e) { return json({ error: "verify crashed", detail: String((e as any)?.stack ?? e) }, 500); }
-    if (!res.ok) return json({ error: "verification failed", claimed: run.score, recomputed: res.recomputed, integrity: res.integrity, steps: res.steps, traceLen: run.trace.length }, 400);
+    // H-03: a bare failure — no recomputed / integrity / steps. Those fields were
+    // a brute-force oracle: an attacker replaying a stolen trace could read back
+    // the server's numbers to search for the missing w/h + mutators. The client
+    // keys "score not verified" off the `error` string, so this stays sufficient.
+    if (!res.ok) return json({ error: "verification failed" }, 400);
     verified = true;
     score = res.recomputed; // write the SERVER's number, not the client's
     stat = { maxCombo: res.maxCombo | 0, comboSec: +res.comboSec || 0, zaps: res.zaps | 0, misses: res.misses | 0, perfects: res.perfects | 0, integrity: res.integrity | 0 };
+    // REPLAY-STEALING GUARD (H-03). Fingerprint the input frames and refuse a
+    // submission whose frames already belong to a DIFFERENT player. Verifying only
+    // proves "these inputs make this score", not "this player played it", so a
+    // stolen trace verifies. This binds a frame sequence to its first submitter.
+    // Only rows written since the migration carry a hash, so it protects going
+    // forward; the private bucket is what stops the frames being downloaded at all.
+    traceHash = await sha256hex(JSON.stringify(run.trace));
+    const { data: clash } = await svc.from("runs").select("player_id").eq("trace_hash", traceHash).neq("player_id", playerId).limit(1);
+    if (clash && clash.length) return json({ error: "replay already submitted by another player" }, 403);
     // persist the trace for the replay player
     // storage object names must avoid ':' (board keys like "investigation:4").
     // Upload via the REST API directly (storage-js was returning opaque errors).
@@ -244,6 +282,15 @@ Deno.serve(async (req) => {
     p_verified: verified, p_trace_id: traceId,
   });
   if (wErr) return json({ error: "write failed", detail: wErr.message }, 500);
+
+  // Stamp the frame-hash onto the row just written, so a later steal of THESE
+  // frames is caught (H-03). Best-effort: the score is already safely on the
+  // board, and the ownership CHECK above is the security gate — this only arms the
+  // check for the future, so a rare update miss must never fail the submission.
+  if (traceHash) {
+    await svc.from("runs").update({ trace_hash: traceHash })
+      .eq("board", board).is("day", null).eq("player_id", playerId).eq("run_id", cleanRunId(run.runId));
+  }
 
   // ---- PURGE THE REPLAYS THAT JUST FELL OFF THE BOARD ----
   // The write above evicts everything past the top 100 and hands back the trace
