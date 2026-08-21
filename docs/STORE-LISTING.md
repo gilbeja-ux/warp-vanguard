@@ -317,21 +317,25 @@ Recorded rather than quietly left. None of these block upload:
   authority contradicts it. It also still says "five wardens (core, triad,
   spinner, triad, core)" against the five distinct kinds in `52-bosses.js`.
   Reconcile before submission — the copy needs no change, the record does.
-- **The store icon's alpha channel is unverified against Play.** `wv-512.png` is
-  the badge at 94% on a transparent surround. If Play's icon slot rejects alpha,
-  neither shipped file is right — the maskable pair is cut at 62% for launcher
-  crops and is too small for the tile — and a third variant is needed: the badge
-  at ~94% on opaque `#03060e`.
+- **The store icon's alpha channel — RESOLVED (2026-08-21, H-09).** The third
+  variant now exists: `docs/store/wv-512-store.png` is the badge composited on
+  opaque `#03060e` (512×512 RGBA, every alpha byte 255 — 32-bit, zero
+  transparency). Upload THIS file to the Play icon slot, not `src/icons/wv-512.png`
+  (which keeps its transparent surround for the PWA manifest). Regenerate by
+  re-compositing `wv-512.png` over `#03060e` if the badge ever changes.
 
 ## 6. Still owed
 
 Two things gate submission, neither of them design work:
 
-1. **Name clearance is unrun.** The USPTO TESS and Play/App Store searches
-   BRAND.md calls for have not happened. Everything here assumes **WARP
-   VANGUARD** clears — check it and "Vanguard" alone, separately and as the full
-   lockup. This gates the copy, not the imagery: every screenshot survives a
-   rename, and only the feature graphic's wordmark would need a rebuild.
+1. **Name clearance — SCREENED CLEAR (2026-08-21, H-09).** A web screening
+   (Play, App Store, Steam, itch.io, USPTO via Justia/Trademarkia) found no
+   exact collision for **WARP VANGUARD** anywhere, and every "Vanguard"
+   near-mark rates LOW because the word is only ever protected as compounds.
+   Full findings and caveats: [NAME-CLEARANCE.md](NAME-CLEARANCE.md). One
+   standing rule: never brand with bare "Vanguard" — shorten to "Warp
+   Vanguard" or "WV". This was a screening, not an attorney search; re-screen
+   at launch.
 2. **Play's spec numbers should be re-verified in Play Console** before upload.
    The ones used here come from BRAND.md — icon 512×512, feature graphic exactly
    1024×500, 2–8 screenshots per device class between 16:9 and 9:16 — and store
