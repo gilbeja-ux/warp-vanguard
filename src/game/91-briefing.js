@@ -466,8 +466,10 @@ function drawDiscWorld(g, Rc, aTop, aH, bh, L) {
     const w = sp.S * (R / sp.R);
     ctx.drawImage(sp.cv, g.cx - w / 2, cy - w / 2, w, w);
     // the day/night line, so the body has a direction of light and a lit limb. A star
-    // has no night side to draw one on.
-    if (!V.emis) drawTerminatorCreep({ x: g.cx, y: cy }, R, 1, destLightA());
+    // has no night side to draw one on — and a swarm has no single face: the shadow's
+    // clip circle has no limb to hide behind, so it floats over the rocks as a ghost
+    // disc. Same rule the arrival path applies (82-destinations).
+    if (!V.emis && !V.field) drawTerminatorCreep({ x: g.cx, y: cy }, R, 1, destLightA());
   } else {
     // no ImageData (the headless harness stubs it): a lit disc, offset to the key light
     ctx.save();
