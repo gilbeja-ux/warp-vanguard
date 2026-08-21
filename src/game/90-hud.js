@@ -1013,7 +1013,7 @@ function drawHUD(g) {
   if (endless && !boss && state === S.PLAY) {
     const surge = Math.floor(levelT / 100);
     const toNext = (surge + 1) * 100 - levelT;
-    if (surge < 6 && toNext <= 4.2 && toNext > 0) {
+    if (toNext <= 4.2 && toNext > 0) {
       const cnt = Math.ceil(toNext);
       const ct = 1 - (toNext - Math.floor(toNext)); // 0..1 through the current second
       const pop = 1.6 - 0.6 * Math.min(ct / 0.25, 1);
@@ -1022,8 +1022,10 @@ function drawHUD(g) {
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(255,154,60,0.92)';
       try { ctx.letterSpacing = '4px'; } catch (e) {}
-      ctx.font = '700 ' + fitPx('SPEEDING UP', '700', 14, ringChord(H * 0.24, 60), 10) + 'px Audiowide, system-ui';
-      ctx.fillText('SPEEDING UP', W / 2, H * 0.24);
+      // surges past 6 press density, not speed — the header says which is coming
+      const hdr = surge >= 6 ? 'PRESSURE RISING' : 'SPEEDING UP';
+      ctx.font = '700 ' + fitPx(hdr, '700', 14, ringChord(H * 0.24, 60), 10) + 'px Audiowide, system-ui';
+      ctx.fillText(hdr, W / 2, H * 0.24);
       try { ctx.letterSpacing = '0px'; } catch (e) {}
       ctx.translate(W / 2, H * 0.36);
       ctx.scale(pop, pop);

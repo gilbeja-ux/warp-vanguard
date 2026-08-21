@@ -129,7 +129,7 @@ function update(dt) {
   runVis = runTgt > runVis ? 1 : Math.max(0, runVis - dt / 0.45);
   if (runVis <= 0 && enemies.length + ghosts.length + pickups.length + particles.length) {
     enemies.length = ghosts.length = pickups.length = particles.length = 0;
-    popups.length = 0; rimFX.length = 0; latches.length = 0; killStreaks.length = 0;
+    popups.length = 0; rimFX.length = 0; latches.length = 0; killStreaks.length = 0; x10FxT = 0;
   }
   // THE LAUNCH CURVE.
   //
@@ -366,14 +366,16 @@ function update(dt) {
   if (endless && !boss) {
     const surge = Math.floor(levelT / 100);
     const toNext = (surge + 1) * 100 - levelT;
-    if (surge < 6 && toNext <= 4.2) {
+    // no cap on the announcement: surges past 6 press density instead of speed
+    // (see endlessCfg's DEEP SURGES note) and they announce like every other
+    if (toNext <= 4.2) {
       const cnt = Math.ceil(toNext);
       if (cnt !== surgeCount) { surgeCount = cnt; sfx.count(); } // HUD draws the big digits
     }
     if (surge !== surgeLevel) {
       surgeLevel = surge; surgeCount = -1;
-      if (surge > 0 && surge <= 6) {
-        popup(W / 2, H * 0.26, 'LANE SURGE' + (surge === 6 ? ' — MAX' : ''), '#ff9a3c');
+      if (surge > 0) {
+        popup(W / 2, H * 0.26, surge > 6 ? 'DEEP SURGE' : 'LANE SURGE' + (surge === 6 ? ' — MAX' : ''), '#ff9a3c');
         surgeWaveZ = SPAWN_Z; // the surge rides in from the deep
         sfx.speedUp();
         buzz(20, { strong: 0, weak: 0 }); // WORLD telegraph — phone only. The lane
@@ -448,6 +450,7 @@ function update(dt) {
   enemies = enemies.filter(e => !e.dead && (e.type === 'strip' || e.z > 0.03)); // strip heads outlive z=0 while the tail crosses
   for (const fx2 of rimFX) fx2.t -= dt;
   rimFX = rimFX.filter(fx2 => fx2.t > 0);
+  x10FxT = Math.max(0, x10FxT - dt);
   for (const n of nodes) {
     n.recoil = Math.max(0, (n.recoil || 0) - dt * 4);
     n.dip = Math.max(0, (n.dip || 0) - dt / ARCFX.refill); // spent arc energy refills
@@ -926,10 +929,14 @@ function updateEnemy(en, C) {
           buzz(12);
         }
       }
-      decompile(en.angle, g.hitZ, en);
+      // the streak must be visible IN THE WORLD, not just the popup arithmetic:
+      // kill effects grow with the score multiplier. Render-only — the sim
+      // never reads kM, so no board id moves.
+      const kM = 1 + 0.07 * (scoreMul() - 1); // x1 → 1.0, x10 → 1.63
+      decompile(en.angle, g.hitZ, en, kM);
       if (en.partner) {
         en.partner.dead = true;
-        decompile(en.partner.angle, g.hitZ, en.partner);
+        decompile(en.partner.angle, g.hitZ, en.partner, kM);
       }
       for (const [n, a] of boltPairs) {
         const t0 = ringXY(a);
@@ -938,7 +945,22 @@ function updateEnemy(en, C) {
         if (n.tipB) spawnBolt(n.tipB.x, n.tipB.y, t0.x, t0.y);
         n.recoil = 1; // the arc flares white...
         n.dip = 1;    // ...and its energy visibly drains, then recovers
-        rimFX.push({ a, t: 0.45, col: '140,225,255' });
+        rimFX.push({ a, t: 0.45, col: '140,225,255', w: kM });
+      }
+      // a PERFECT answers in the world too — a white-gold ping on the rim
+      // segment that fired, plus a hot spark at the impact
+      if (perfect) {
+        for (const [, pa] of boltPairs) rimFX.push({ a: pa, t: 0.5, col: '255,241,205', w: 1.8 });
+        burst(ex, ey, '#fff1cd', 10, 3);
+      }
+      // the FIRST x10 of a run gets its own beat: a one-shot golden sweep
+      // around the whole band (drawBandFX), a call-out and a chime
+      if (!en.tut && !x10Seen && scoreMul() >= COMBO_CAP) {
+        x10Seen = true; x10FxT = 1.1; x10FxA = en.angle;
+        popup(W / 2, H * 0.30, 'OVERDRIVE x10', '#ffd24a');
+        tone(1046, 0.14, 'triangle', 0.09, 1568);
+        tone(1568, 0.2, 'triangle', 0.07, 2093, null, 0.1);
+        buzz(25);
       }
       // chain overdrive: the kill arcs to the nearest other hostile and
       // takes it too — locks and armor don't stop raw lightning
@@ -971,7 +993,7 @@ function updateEnemy(en, C) {
       }
       // no hit-stop, no screen shake on routine kills — the streak, rim
       // flash and haptics carry it
-      spawnKillStreak(en.angle, en.z);
+      spawnKillStreak(en.angle, en.z, kM);
       lastKillBeat(en);
       popup(ex, ey, (perfect ? 'PERFECT +' : '+') + pts + (combo >= 3 ? '  x' + scoreMul() : ''), perfect ? '#ffe9b0' : '#bfeaff');
       if (en.tut) popup(ex, ey - 30, 'INTERCEPTED', '#7ee262'); // the label's verb, answered

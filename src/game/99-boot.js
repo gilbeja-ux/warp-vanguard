@@ -964,13 +964,59 @@ function frame(now) {
 // flash. Scaled by hw, which is zero wherever the physical ring isn't drawn —
 // band FX must never outlive the ring they sit on.
 function drawBandFX(now, g, bz, hw) {
-  // reactive rim: zaps and misses light the segment they happened on
+  // reactive rim: zaps and misses light the segment they happened on.
+  // NOT a fat round-capped stroke (it read as a white box behind the emitter):
+  // a thin hot filament riding the band, inside a soft halo. Both are painted
+  // through a radial gradient centred on the hit angle, so the light falls off
+  // along the arc and across it — no edge, no cap, just a fading glow. A combo
+  // or a PERFECT (w) buys brightness and reach, never thickness.
   for (const fx2 of hw <= 0.004 ? [] : rimFX) {
-    const al = Math.min(1, (fx2.t / 0.45) * 0.85) * hw;
-    ctx.strokeStyle = 'rgba(' + fx2.col + ',' + al.toFixed(2) + ')';
-    ctx.lineWidth = bz * 0.7;
+    const wM = fx2.w || 1;
+    const al = Math.min(1, fx2.t / 0.45) * Math.min(1.3, 0.7 + wM * 0.3) * hw;
+    const R = g.nodeR + bz / 2;
+    const px = g.cx + Math.cos(fx2.a) * R, py = g.cy + Math.sin(fx2.a) * R;
+    const reach = R * 0.36 * (0.8 + wM * 0.3); // how far the light spills along the band
+    ctx.lineCap = 'butt';
+    // the halo: band-hugging, dying out well before the arc ends
+    const gh = ctx.createRadialGradient(px, py, 0, px, py, reach);
+    gh.addColorStop(0, 'rgba(' + fx2.col + ',' + (al * 0.60).toFixed(3) + ')');
+    gh.addColorStop(1, 'rgba(' + fx2.col + ',0)');
+    ctx.strokeStyle = gh;
+    ctx.lineWidth = bz * 1.15;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, R, fx2.a - 0.6, fx2.a + 0.6); ctx.stroke();
+    // the filament: thin, white-hot at the centre, cooling into the segment's colour
+    const gf = ctx.createRadialGradient(px, py, 0, px, py, reach);
+    gf.addColorStop(0, 'rgba(255,255,255,' + (al * 0.95).toFixed(3) + ')');
+    gf.addColorStop(0.35, 'rgba(' + fx2.col + ',' + (al * 0.80).toFixed(3) + ')');
+    gf.addColorStop(1, 'rgba(' + fx2.col + ',0)');
+    ctx.strokeStyle = gf;
+    ctx.lineWidth = Math.max(1, bz * 0.16);
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, R, fx2.a - 0.6, fx2.a + 0.6); ctx.stroke();
+  }
+  // the first-x10 flourish: two golden fronts race from the kill's angle both
+  // ways around the band and meet on the far side — one sweep, then gone
+  if (x10FxT > 0 && hw > 0.004) {
+    const q = smoothT(clamp(1 - x10FxT / 1.1, 0, 1));
+    const a0 = x10FxA - Math.PI * q, a1 = x10FxA + Math.PI * q;
+    const alf = Math.pow(1 - q, 0.6) * hw;
     ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bz / 2, fx2.a - 0.3, fx2.a + 0.3); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,210,74,' + (alf * 0.22).toFixed(2) + ')';
+    ctx.lineWidth = bz * 2.4;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bz / 2, a0, a1); ctx.stroke();
+    // the lip stays a filament — the same thin-light language as the rim flash
+    ctx.strokeStyle = 'rgba(255,232,150,' + (alf * 0.9).toFixed(2) + ')';
+    ctx.lineWidth = Math.max(1, bz * 0.3);
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bz / 2, a0, a1); ctx.stroke();
+    if (q > 0.01 && q < 0.99) for (const fa of [a0, a1]) { // the white-hot heads
+      const hx = g.cx + Math.cos(fa) * (g.nodeR + bz / 2), hy = g.cy + Math.sin(fa) * (g.nodeR + bz / 2);
+      const hr2 = bz * 1.5;
+      const gl2 = ctx.createRadialGradient(hx, hy, 0, hx, hy, hr2);
+      gl2.addColorStop(0, 'rgba(255,250,225,' + (alf * 0.9).toFixed(2) + ')');
+      gl2.addColorStop(1, 'rgba(255,210,74,0)');
+      ctx.fillStyle = gl2;
+      ctx.beginPath(); ctx.arc(hx, hy, hr2, 0, TAU); ctx.fill();
+    }
+    ctx.lineCap = 'butt';
   }
   // a wounded rim sputters
   if (state === S.PLAY && integrity <= 25 && Math.random() < 0.25) {
@@ -1136,6 +1182,7 @@ function drawEphemera(inGuide) {
     ctx.globalCompositeOperation = 'lighter';
     const DUR = 0.15, RUN = 0.62; // a comet: one hot zip down the bore, gone in a blink
     for (const st of killStreaks) {
+      const m = st.m || 1; // a high-combo kill launches a fatter, brighter comet
       const q = st.t / DUR;
       const heat = Math.pow(1 - q, 1.5);              // the head loses heat as it runs
       const glob = q < 0.7 ? 1 : (1 - q) / 0.3;       // the tail snuffs right after
@@ -1146,10 +1193,10 @@ function drawEphemera(inGuide) {
       for (let i = 0; i < SEG; i++) {
         const f0 = i / SEG, f1 = (i + 1) / SEG; // 0 = tail, 1 = head
         const z0 = Math.min(lerp(zTail, zHead, f0), SPAWN_Z), z1 = Math.min(lerp(zTail, zHead, f1), SPAWN_Z);
-        const wa0 = 0.075 * (0.35 + f0 * 0.65), wa1 = 0.075 * (0.35 + f1 * 0.65); // fat at the head
+        const wa0 = 0.075 * m * (0.35 + f0 * 0.65), wa1 = 0.075 * m * (0.35 + f1 * 0.65); // fat at the head
         const c00 = P(st.a - wa0, z0), c01 = P(st.a + wa0, z0);
         const c11 = P(st.a + wa1, z1), c10 = P(st.a - wa1, z1);
-        ctx.globalAlpha = glob * (0.30 + 0.70 * heat) * (0.05 + 0.14 * f0);
+        ctx.globalAlpha = glob * (0.30 + 0.70 * heat) * (0.05 + 0.14 * f0) * Math.min(1.4, m);
         ctx.fillStyle = 'rgb(126,226,98)';
         ctx.beginPath();
         ctx.moveTo(c00.x, c00.y); ctx.lineTo(c01.x, c01.y);
@@ -1162,12 +1209,12 @@ function drawEphemera(inGuide) {
         const p0 = P(st.a, lerp(zTail, zHead, i / SEG)), p1 = P(st.a, Math.min(lerp(zTail, zHead, (i + 1) / SEG), SPAWN_Z));
         ctx.globalAlpha = glob * heat * (0.08 + 0.40 * (i / SEG));
         ctx.strokeStyle = 'rgba(228,255,220,0.95)';
-        ctx.lineWidth = u * 0.0045 * (0.5 + (i / SEG));
+        ctx.lineWidth = u * 0.0045 * m * (0.5 + (i / SEG));
         ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
       }
       ctx.lineCap = 'butt';
       const hp = P(st.a, Math.min(zHead, SPAWN_Z)); // the head: a hot green mote
-      const hr = u * 0.016 * (hp.s / 0.4) * (0.45 + 0.55 * heat); // it shrinks as it cools
+      const hr = u * 0.016 * m * (hp.s / 0.4) * (0.45 + 0.55 * heat); // it shrinks as it cools
       const gl = ctx.createRadialGradient(hp.x, hp.y, 0, hp.x, hp.y, hr);
       gl.addColorStop(0, 'rgba(235,255,230,' + (0.8 * glob * heat).toFixed(2) + ')');
       gl.addColorStop(1, 'rgba(126,226,98,0)');

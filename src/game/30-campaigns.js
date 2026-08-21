@@ -36,17 +36,25 @@ const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
 // endless mode: difficulty is a function of survival time, rebuilt each frame
 function endlessCfg(t) {
   const k = clamp(t / 150, 0, 1); // fully spiced after 2.5 minutes
+  // DEEP SURGES (H-08): speed stays capped at surge 6 for playability, but the
+  // lane used to flatline there and the ranked week became an endurance test.
+  // Every surge past 6 now presses density and mix instead — announced like the
+  // speed steps, relief pickup and all — so a deep run ends on a skill wall.
+  // Pure in t, so weekly's seeded script stays a function of the week.
+  const press = 1 + Math.min(Math.max(0, Math.floor(t / 100) - 6) * 0.09, 0.8);
+  const pcap = (v, cap) => Math.min(v * press, cap);
   return {
     name: weekly ? 'WEEKLY LANE' : 'ENDLESS LANE', duration: Infinity, endless: true,
-    spawnMin: ramp(1.4, 0.55, k), spawnMax: ramp(2.2, 1.1, k),
+    spawnMin: ramp(1.4, 0.55, k) / press, spawnMax: ramp(2.2, 1.1, k) / press,
     // speed climbs in announced SURGE steps every 100s, hard-capped at 6
     speed: Math.min(0.38 + Math.floor(t / 100) * 0.035, 0.38 + 6 * 0.035),
-    doubles: ramp(0, 0.40, k),
-    heavies: ramp(0, 0.22, (k - 0.15) / 0.85),
-    lines: ramp(0, 0.22, (k - 0.3) / 0.7),
-    colors: ramp(0, 0.30, (k - 0.45) / 0.55),
-    frags: ramp(0, 0.18, (k - 0.25) / 0.75),
-    walls: ramp(0, 0.12, (k - 0.5) / 0.5),
+    doubles: pcap(ramp(0, 0.40, k), 0.62),
+    // lines + heavies share one roll in trySpawn — their caps must sum below 1
+    heavies: pcap(ramp(0, 0.22, (k - 0.15) / 0.85), 0.34),
+    lines: pcap(ramp(0, 0.22, (k - 0.3) / 0.7), 0.30),
+    colors: pcap(ramp(0, 0.30, (k - 0.45) / 0.55), 0.45),
+    frags: pcap(ramp(0, 0.18, (k - 0.25) / 0.75), 0.28),
+    walls: pcap(ramp(0, 0.12, (k - 0.5) / 0.5), 0.20),
     bursts: t > 70
   };
 }

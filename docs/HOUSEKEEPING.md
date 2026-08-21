@@ -19,18 +19,18 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 
 | ID | Status | Area | Sev | Title |
 |----|--------|------|-----|-------|
-| H-01 | TODO | Release | HIGH | Redeploy the stale verifier + add a CI staleness guard |
+| H-01 | DONE | Release | HIGH | Removed as a backlog item — the verifier deploy is the standing pre-AAB routine |
 | H-02 | IN PROGRESS | Backend | HIGH | Boss board integrity — code+SQL DONE & verified; only the release deploy remains (batched with H-01) |
-| H-03 | IN PROGRESS | Backend | HIGH | Replay-stealing — code DONE & built/linted; needs a live signed-URL test + coordinated deploy |
+| H-03 | IN PROGRESS | Backend | HIGH | Replay-stealing — code DONE; live storage test PASSED 2026-08-21; only the coordinated 1.0.4 deploy remains |
 | H-04 | DONE | Release | HIGH | Recover the deleted feature graphic — restored from HEAD 2026-08-21 |
 | H-05 | TODO | Release | HIGH | Turn DEV_KEYS off for production builds |
 | H-06 | TODO | Story | HIGH | Wire the dead story copy |
 | H-07 | DONE | Story | HIGH | Pre-run read gate — circle-sweep reveal + inner charge ring + back button; built+tested 2026-08-21 |
-| H-08 | TODO | Backend | MED | Weekly board fairness — lock out mutators + raise the ceiling |
-| H-09 | TODO | Release | MED | Clear the name + resolve the icon alpha |
+| H-08 | DONE | Backend | MED | Weekly board fairness — deep surges press density past surge 6 (Gil: mutators stay legal) |
+| H-09 | DONE | Release | MED | Name screened clear (docs/NAME-CLEARANCE.md) + opaque store icon built |
 | H-10 | TODO | Balance | MED | Fix the sawtooth break between campaigns 2 and 3 |
 | H-11 | TODO | Balance | MED | Make CHAIN OVERDRIVE pay the combo multiplier |
-| H-12 | TODO | Juice | MED | Combo-scaled kill effects + a PERFECT flash + a first-x10 beat |
+| H-12 | DONE | Juice | MED | Combo-scaled kill effects + a PERFECT flash + a first-x10 beat |
 | H-13 | TODO | Audio | MED | Audio mastering — master limiter + music through the compressor |
 | H-14 | TODO | Art | MED | Align the station sun to the world key light + darken the hull |
 | H-15 | TODO | Journey | MED | Home "re-enter lane" continue + a live weekly caption |
@@ -53,7 +53,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 ---
 
 ## H-01 · Redeploy the stale verifier + add a CI staleness guard
-- **Status:** TODO · **Area:** Release · **Sev:** HIGH
+- **Status:** DONE (2026-08-21) — removed as a backlog item on Gil's call. The verifier deploy + `db push` happen at EVERY AAB build as the standing pre-version gate (see the ⏰ note below and [[verifier-deploy-before-aab]]), so it is routine, not backlog. The CI staleness guard was dropped with it.
 - **Combines:** R-1, backend OP item
 - **⏰ PRE-VERSION DEPLOY GATE (Gil, 2026-08-21):** before any new version / AAB, run
   BOTH `npm run deploy:verifier` AND `supabase db push`. `deploy:verifier` also
@@ -94,7 +94,8 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
   - Frame-hash binding — submit-run SHA-256s the input frames, refuses a submission whose frames already belong to a different player (403), and stamps the hash on the winning row. New column + index in migration `20260821000001_trace_owner_binding.sql`. No ranking-function change (check before write, stamp after).
   - Private bucket + signed URLs — the migration takes the `traces` bucket private; submit-run gained a `trace-url` action that mints a 60s signed URL; the client `lbTrace` now fetches through it (`31-leaderboard.js`). Watching any replay still works; the bucket can no longer be bulk-downloaded.
   - VERIFIED locally: `npm run build` + `npm test` green (BOARD BOOTS); `deno lint` parses the function clean (only pre-existing `no-explicit-any` style warnings).
-  - HONEST LIMITS: the hash binding is evadable by perturbing one no-op input frame (the private bucket is the real barrier); no fix proves a human played a run (audit F3). NOT tested against live storage — the signed-URL round-trip and the bucket-privacy privilege need a staging check.
+  - HONEST LIMITS: the hash binding is evadable by perturbing one no-op input frame (the private bucket is the real barrier); no fix proves a human played a run (audit F3).
+  - LIVE STORAGE TEST PASSED (2026-08-21) — `node scripts/test-storage-privacy.mjs` proves against the LIVE project, via a scratch private bucket (created + deleted by the script, `traces` untouched, no deploy): anonymous reads denied on the /public/ path and the direct path; a service-role 60s signed URL serves the object to an anonymous fetch byte-for-byte; an expired signed URL is refused. All 5 checks pass. Re-run it after the 1.0.4 `db push` flips `traces` private. Storage quirks the script codes around: a nonexistent-bucket DELETE answers 400 not 404; the single-object DELETE path silently does nothing (use the batch `prefixes` remove, as submit-run does); bucket delete lags the object delete (retry).
   - OWED before release (batches into the 1.0.4 deploy): `npm run deploy:verifier` (which also deploys the submit-run function) + `supabase db push` (applies this migration). ⚠ COORDINATED: the instant the bucket goes private, OLD clients lose replay playback — ship it WITH the 1.0.4 client, never ahead.
 - **Issue:** the `traces` bucket is world-readable and nothing binds a trace to its recorder. An attacker downloads a top trace, brute-forces `w/h` + `mutators` against the reproducible sim, and resubmits under their own identity. It verifies and lands. The 400 error body even returns `recomputed`/`integrity`/`steps` as a brute-force oracle.
 - **Evidence:** public `traces` bucket; `31-leaderboard.js:99`; `submit-run/index.ts:214`.
@@ -134,7 +135,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) hold dismiss until the char-fade finishes; (b) keep the line visible through the warp spool after dismiss; (c) both, tuned so a returning player still launches fast.
 
 ## H-08 · Weekly board fairness — lock out mutators + raise the ceiling
-- **Status:** TODO · **Area:** Backend/Balance · **Sev:** MED
+- **Status:** DONE (2026-08-21, ships in 1.0.4) — Gil chose the ceiling raise ONLY; mutators stay legal on the weekly board (the mutator lockout and the segment idea are both rejected, do not reopen). DEEP SURGES: past surge 6 each 100s step now presses density (+9%/step, capped ×1.8) and the type mix (per-knob caps; lines+heavies stay under one shared roll) in `endlessCfg` (`30-campaigns.js`), pure in t so weekly stays deterministic. Every deep surge announces like a speed surge — countdown, popup 'DEEP SURGE', HUD header 'PRESSURE RISING' past 6 — and the surge-relief health pickup keeps riding in (`72-tick.js`, `90-hud.js`). `npm run build` + `npm test` green. Sim id moved to `81d7b26d0443`; the standing pre-AAB deploy carries it. · **Area:** Backend/Balance · **Sev:** MED
 - **Combines:** A-3, A-5, C-4
 - **Issue:** the weekly board mixes mutator runs (up to ×3.9) with plain runs, so the meta forces mutator stacking. And endless/weekly difficulty plateaus near mid-campaign, so the ranked week is an endurance contest, not a skill wall.
 - **Evidence:** `mutLive` needs endless `10-audio.js:21`; server never filters `submit-run/index.ts:243`; `endlessCfg` caps at surge 6 `30-campaigns.js:37`.
@@ -142,7 +143,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) mutators off only; (b) raise the ceiling only; (c) both, at a week boundary; (d) segment the board by mutator instead of forcing off.
 
 ## H-09 · Clear the name + resolve the icon alpha
-- **Status:** TODO · **Area:** Release · **Sev:** MED
+- **Status:** DONE (2026-08-21, no version — docs + one asset, nothing ships in the app). Name: a web screening found NO exact collision for "Warp Vanguard" on Play / App Store / Steam / itch.io / USPTO-as-indexed; every "Vanguard" near-mark rates LOW. Full record + caveats in docs/NAME-CLEARANCE.md; STORE-LISTING.md §6 updated. Standing rule: never brand with bare "Vanguard" (collides with Activision, Riot, Bushiroad, Vanguard Group) — use "Warp Vanguard" or "WV". This was a screening, not an attorney search; re-screen at launch. Icon: `docs/store/wv-512-store.png` is the Play upload — the badge composited on opaque `#03060e`, 512×512, 32-bit RGBA with every alpha byte 255. `src/icons/wv-512.png` keeps its transparency for the PWA. · **Area:** Release · **Sev:** MED
 - **Combines:** R-6, R-7
 - **Issue:** name clearance for "Warp Vanguard" / "Vanguard" is unrun and gates all store copy plus the feature-graphic wordmark. The 512 icon has an alpha channel; the Play spec is 32-bit no alpha.
 - **Evidence:** `STORE-LISTING.md` §5, §6; `src/icons/wv-512.png`.
@@ -166,7 +167,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) pay ×`scoreMul()`; (b) pay ×`scoreMul()` and advance the combo; (c) leave as a defensive-only tool and document it.
 
 ## H-12 · Combo-scaled kill effects + a PERFECT flash + a first-x10 beat
-- **Status:** TODO · **Area:** Juice · **Sev:** MED (production value)
+- **Status:** DONE (2026-08-21, ships in the next build) — all three landed. (1) Kill effects scale with `scoreMul()`: `kM = 1 + 0.07·(mul−1)` (x10 → 1.63) widens the rim flash, fattens/brightens the kill comet (`spawnKillStreak` gained a `mul`), and grows the decompile wash (`72-tick.js`, `52-bosses.js`, `99-boot.js`). (2) A PERFECT adds a white-gold rim ping (`w:1.8`) at each firing angle plus a hot spark at the impact. REWORKED on Gil's feedback (the fat round-capped stroke read as a white box behind the emitter): the rim flash is now a thin white-hot filament plus a soft halo, both painted through a radial gradient centred on the hit angle, so the light falls off along the band with no edge and no cap; `w` buys brightness and reach, never thickness. The x10 sweep's lip was thinned to the same filament language. Verified with headless-Chrome screenshots at kill angles (the emitter's own `recoil` flare carries the on-emitter flash; the rim light is the spill). (3) The first x10 of a run fires a one-shot golden sweep — two fronts race from the kill angle around the band and meet far side (`drawBandFX`), with an 'OVERDRIVE x10' popup, a two-tone chime and haptics; `x10Seen` re-arms in the run reset (`60-input.js`). RENDER-ONLY, PROVEN: the behavioral battery was run on a scratch copy with these edits reversed — all 41 board ids identical, so scores are untouched and no deploy is owed beyond the standing pre-AAB gate (the source-hash sim id moved to `a7e5132d9f02`, as any source edit does; the 1.0.4 deploy already carries it). `npm run build` + `npm test` green. Owed: a device eyeball on the sweep + comet feel; `kM`'s 0.07 slope and the 1.1s sweep are the tuning knobs. · **Area:** Juice · **Sev:** MED (production value)
 - **Combines:** art findings 1, 2
 - **Issue:** at x10 the kill burst is byte-identical to x1. PERFECT differs only by popup text. The scoring system is invisible in the world.
 - **Evidence:** `72-tick.js:875-970`; `40-state.js:36`; `52-bosses.js:890`; `99-boot.js:1133`.

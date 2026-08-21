@@ -597,6 +597,7 @@ function resetRun() {
   introT = 0; introCd = -1; introStage = -1; introLatch = false; padHold = [false, false]; gatePip = 0;
   preT = 0; padArm = [false, false]; // parked: introT does not move until both thumbs land
   rimFX = []; latches = []; killStreaks = []; resumeHold = 0; warpT = WARP_DIVE; fadeT = 0.35;
+  x10Seen = false; x10FxT = 0; // the first-x10 beat re-arms every run
   // slew last of all: a bearing named in the run being torn down must not still be
   // pulling a carriage off its parked angle on the first tick of the fresh one
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; n.slew = null; }

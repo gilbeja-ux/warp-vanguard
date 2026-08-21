@@ -912,7 +912,7 @@ function popup(x, y, text, color) {
 // deep kills (volley bolts down the bore) pull the comet's start back inside
 // the tunnel so the streak always gets its full run — killed at the horizon,
 // the zip would otherwise clip out instantly and read as "no effect"
-function spawnKillStreak(a, z) { killStreaks.push({ a, z: clamp(z, 0.05, SPAWN_Z - 0.75), t: 0 }); }
+function spawnKillStreak(a, z, mul) { killStreaks.push({ a, z: clamp(z, 0.05, SPAWN_Z - 0.75), t: 0, m: mul || 1 }); }
 // the LAST hostile of a finished campaign level dies on a beat — every level
 // ends like it means it (the boss has its own, bigger version)
 function lastKillBeat(justKilled) {

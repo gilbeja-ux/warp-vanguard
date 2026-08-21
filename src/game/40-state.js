@@ -60,7 +60,10 @@ let weeklyIdx = -1;
 // device that genuinely cannot carry the full look settles instead of oscillating.
 let lowFX = false, perfAcc = 0, perfN = 0, perfWin = 0, perfCalm = 0, perfTrips = 0;
 let hitStop = 0;              // brief slow-mo after a zap
-let rimFX = [];               // reactive rim lighting: {a, t, col}
+let rimFX = [];               // reactive rim lighting: {a, t, col, w?} — w scales width+alpha
+// the first-x10 beat: one golden sweep around the band the FIRST time a run's
+// combo reaches the score cap. Render-only — the sim never reads any of it.
+let x10Seen = false, x10FxT = 0, x10FxA = 0;
 let resumeHold = 0, resumeDigit = 0; // 3-2-1 after unpausing
 // THE WARP DIVE: the fly-IN at the start of a level, not the end. Set to
 // WARP_DIVE on entering a lane and decayed to 0 by update(); while it burns, the
