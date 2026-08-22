@@ -975,14 +975,20 @@ function updateEnemy(en, C) {
         if (cBest) {
           cBest.dead = true;
           if (cBest.partner) cBest.partner.dead = true;
+          // A CHAIN KILL IS A KILL (the volley's law, F-003): it advances the
+          // combo and takes the multiplier. The 0.5 haircut stays — the arc
+          // aimed itself, so it pays half the base the whole way up.
+          combo++;
+          if (combo > maxCombo) { maxCombo = combo; maxComboStart = comboStartT; }
+          if (comboStartT === maxComboStart) maxComboSec = levelT - maxComboStart;
           const rg2 = ring(Math.max(cBest.z, 0.02), g);
           const bx = g.cx + Math.cos(cBest.angle) * rg2.r, by = g.cy + Math.sin(cBest.angle) * rg2.r;
           spawnBolt(ex, ey, bx, by);
           decompile(cBest.angle, cBest.z, cBest, 0.8);
           const cb = cBest.type === 'heavy' ? 250 : cBest.type === 'line' ? 300 : cBest.lock !== undefined ? 150 : 100;
-          const cpts = Math.round(cb * 0.5 * mutMul());
+          const cpts = Math.round(cb * 0.5 * mutMul()) * scoreMul();
           score += cpts; zaps++;
-          popup(bx, by, 'CHAIN +' + cpts, '#d8b4ff');
+          popup(bx, by, 'CHAIN +' + cpts + (combo >= 3 ? '  x' + scoreMul() : ''), '#d8b4ff');
           spawnKillStreak(cBest.angle, cBest.z);
           tone(1976, 0.1, 'triangle', 0.08, 2960);
         }

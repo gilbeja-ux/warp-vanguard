@@ -29,7 +29,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-08 | DONE | Backend | MED | Weekly board fairness — deep surges press density past surge 6 (Gil: mutators stay legal) |
 | H-09 | DONE | Release | MED | Name screened clear (docs/NAME-CLEARANCE.md) + opaque store icon built |
 | H-10 | DONE | Balance | MED | Sawtooth fixed — C3 re-sloped, peak between C2 and C4; L7 softened after Gil's playthrough (ships in 1.0.4) |
-| H-11 | TODO | Balance | MED | Make CHAIN OVERDRIVE pay the combo multiplier |
+| H-11 | DONE | Balance | MED | CHAIN OVERDRIVE pays ×scoreMul() AND advances the combo (ships in 1.0.4) |
 | H-12 | DONE | Juice | MED | Combo-scaled kill effects + a PERFECT flash + a first-x10 beat |
 | H-13 | TODO | Audio | MED | Audio mastering — master limiter + music through the compressor |
 | H-14 | TODO | Art | MED | Align the station sun to the world key light + darken the hull |
@@ -160,7 +160,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) raise C3L7 only; (b) raise C3L6 and C3L7; (c) re-slope all of C3's climb.
 
 ## H-11 · Make CHAIN OVERDRIVE pay the combo multiplier
-- **Status:** TODO · **Area:** Balance · **Sev:** MED
+- **Status:** DONE (2026-08-22, ships in 1.0.4) — Gil chose option (b): pay ×`scoreMul()` AND advance the combo. The chain block in `72-tick.js` now mirrors the volley's law (F-003): `combo++` with the full maxCombo bookkeeping, then `cpts = Math.round(cb * 0.5 * mutMul()) * scoreMul()`; the popup shows the multiplier past combo 3. The 0.5 haircut stays — the arc aims itself, so it pays half base. No RNG touched; only scores move. `npm run build` + `npm test` green (752 PASS). Sim id moved to `20a7250eb27b`; the standing pre-AAB deploy carries it. · **Area:** Balance · **Sev:** MED
 - **Combines:** C-5
 - **Issue:** a chained kill pays base×0.5 with no combo credit. At combo 10 it pays 50 where interception paid 1000–2000, so the pickup is score-negative for score-chasers. This is the same trap the volley just escaped in F-003.
 - **Evidence:** `72-tick.js:954`.
