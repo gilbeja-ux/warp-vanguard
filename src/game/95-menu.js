@@ -77,11 +77,13 @@ function imgPin(i) { // a level's pin in image-world pixels (graceful when unset
   const p2 = l && l.mapPos ? l.mapPos : { x: 0.15 + 0.7 * (li / Math.max(1, n - 1)), y: 0.5 };
   return { x: p2.x * im.w, y: p2.y * im.h };
 }
-function imgSegs() { // runs lead away from each relay toward the next pin
+function imgSegs() { // runs arrive AT each relay from the previous pin — seg k is level k's own leg
   const segs = [];
   for (let k = 0; k < LEVELS.length; k++) {
-    const a = imgPin(k);
-    segs.push(k < LEVELS.length - 1 ? [a, imgPin(k + 1)] : [a, { x: a.x + 1, y: a.y + 1 }]);
+    const b = imgPin(k);
+    // the first relay has no charted approach on an image map: a degenerate
+    // stub, which the departure-ring pass skips (same guard as before)
+    segs.push(k > 0 ? [imgPin(k - 1), b] : [{ x: b.x - 1, y: b.y - 1 }, b]);
   }
   return segs;
 }
@@ -258,7 +260,7 @@ function drawMenuMap() {
     ctx.strokeStyle = done ? 'rgba(150,255,140,0.26)' : 'rgba(140,210,255,0.26)';
     ctx.lineWidth = 10; ctx.setLineDash([]);
     trace();
-    if (done) { // secured: solid green, chevrons marching toward the next relay
+    if (done) { // secured: solid green, chevrons marching toward the delivery
       ctx.strokeStyle = 'rgba(126,226,98,0.85)'; ctx.lineWidth = 3;
       trace();
       chevrons(pts2, 'rgba(215,255,185,0.9)', 4.5);
@@ -287,14 +289,16 @@ function drawMenuMap() {
     // LAYER 4: the selected run again, over the skyline — the line in focus
     drawRun(mapSel);
   }
-  // THE FAR END WEARS THE CIRCLE TOO: the leg runs ring to ring, delivery
-  // marked like departure. Skipped when the final seg is a degenerate stub
-  // (the last relay of the last contract has nowhere further to point).
+  // THE NEAR END WEARS THE CIRCLE TOO: the leg runs ring to ring, departure
+  // marked like delivery. The leg ENDS at the selected relay now, and that end
+  // already wears the selection circle below — so it is the departure that
+  // needs marking. Skipped when the seg is a degenerate stub (an image map's
+  // first relay has no charted approach).
   {
-    const sg = SEGS[mapSel], fin = sg[sg.length - 1];
-    if (Math.hypot(fin.x - sg[0].x, fin.y - sg[0].y) > 4) {
+    const sg = SEGS[mapSel], dep = sg[0], fin = sg[sg.length - 1];
+    if (Math.hypot(fin.x - dep.x, fin.y - dep.y) > 4) {
       ctx.strokeStyle = 'rgba(240,252,255,0.9)'; ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.arc(wx(fin), wy(fin), selR, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(wx(dep), wy(dep), selR, 0, TAU); ctx.stroke();
     }
   }
   // (The terminus marker is GONE. It drew a bordered box — green once delivered

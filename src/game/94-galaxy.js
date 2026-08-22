@@ -100,6 +100,12 @@ let cityBase = null, mapCamX = 0, mapCamY = 0, mapCamSnap = true, mapZoom = 1;
 const mapR = () => menuGeom().R * 0.92; // the lens rim MATCHES the mode wheel — seamless crossfade
 const CITY_W = 5200, CITY_H = 3100;
 const CITY_CORE = { x: CITY_W * 0.5, y: CITY_H * 0.5 };
+// THE HUB WORLD — the body at the core the first contract departs from. Every
+// other leg leaves a real relay world; the first left bare glow, so the
+// departure ring circled nothing. One dressed world at the point the chart
+// already names. HUB_SZ is in world px like every system planet's `sz` (their
+// deal runs 0.7–2.0); the capital sits just above the top of that range.
+const HUB_WORLD = 'EAR', HUB_SZ = 2.4;
 // the ground is an iso plane: a CIRCLE painted on it reads as a 2:1 ellipse on
 // the sheet, so ground distance counts y at double weight
 const groundR = (x, y) => Math.hypot(x - CITY_CORE.x, (y - CITY_CORE.y) * 2);
@@ -521,11 +527,22 @@ function buildCity() {
     const B2 = { x: pts[k + 1].dx !== undefined ? pts[k + 1].dx : pts[k + 1].x, y: pts[k + 1].dy !== undefined ? pts[k + 1].dy : pts[k + 1].y };
     segs.push(laneArc(A2, B2));
   }
+  // A CHAIN'S SEG k IS THE LEG *INTO* RELAY k — the lane level k actually flies.
+  // It used to be the leg OUT of relay k, which put the chart one relay ahead of
+  // the game: the ride flew away from the world being chosen, the "delivery"
+  // ring landed on the NEXT level's destination, and the briefing disc then
+  // looked like it showed the departure world. Level k delivers AT relay k
+  // (levelRouteName, the arrival, the disc all say so), so its leg arrives
+  // there: from the previous relay — the previous CAMPAIGN'S last relay across
+  // a contract boundary — and the very first leg leaves the core, which is
+  // where a contract's convoy forms up. No degenerate stub needed any more: the
+  // old convention had to invent one for the last relay of the last contract.
   CITY_CHAINS = counts.map((n, ci) => {
     const base = counts.slice(0, ci).reduce((s2, v) => s2 + v, 0);
-    const cp = pts.slice(base, base + n + 1), cs = segs.slice(base, base + n);
-    while (cp.length < n + 1) cp.push(cp[cp.length - 1] || pts[pts.length - 1]);
-    while (cs.length < n) cs.push([cp[cs.length], cp[cs.length + 1]]);
+    const cp = pts.slice(base, base + n);
+    const d0 = { x: cp[0].dx !== undefined ? cp[0].dx : cp[0].x, y: cp[0].dy !== undefined ? cp[0].dy : cp[0].y };
+    const cs = ci === 0 ? [laneArc(CITY_CORE, d0)].concat(segs.slice(0, n - 1))
+      : segs.slice(base - 1, base - 1 + n);
     return { pts: cp, segs: cs };
   });
   // the field: generated once, drawn live. Colours deal from the sky's ONE
@@ -795,6 +812,23 @@ function drawGalaxyOverlay(tf, ccx, ccy, R, labels) {
     const q = 1 - i / Math.max(1, RINGS.length);
     perimeter(ring2.r1, ringCol(i), 0.16 + q * 0.18);
   });
+
+  // the hub world itself, on the core point the first leg departs from — the
+  // same chip renderer and the same cull rules as any system body
+  {
+    const pr = HUB_SZ * z;
+    if (pr >= 0.45 && Math.hypot(cx2 - ccx, cy2 - ccy) <= R + pr + 24) {
+      const V = variantById(HUB_WORLD);
+      const chip = pr > 1.6 && V && planetChip(V);
+      if (chip) {
+        const w = chip.S * (pr / chip.R);
+        ctx.drawImage(chip.cv, cx2 - w / 2, cy2 - w / 2, w, w);
+      } else if (V) {
+        ctx.fillStyle = `rgba(${V.z},0.85)`;
+        ctx.beginPath(); ctx.arc(cx2, cy2, Math.max(0.5, pr), 0, TAU); ctx.fill();
+      }
+    }
+  }
 
   if (labels && RINGS.length) {
     ctx.textAlign = 'left';
