@@ -14,12 +14,15 @@ const SFX_FILES = {
   shutdown: ['audio/sfx/shutdown.mp3', 0.9],   // an emitter fried by a killer/wall
   restart:  ['audio/sfx/restarting.mp3', 0.9], // that node rebooting back online
   startup:  ['audio/sfx/startup1.mp3', 0.9], // boot sequence as the ring locks in (cut at 2s)
-  fail:   ['audio/sfx/failed.mp3', 1.0],
+  fail:   ['audio/sfx/failed.mp3', 0.95], // true peak +0.1 dBFS raw; the trim seats it under 0
   win:    ['audio/sfx/win.mp3', 1.0],
   // 5.11s — a 1.4s build, the blast at 1.43s, ringing out by 4s. It is STARTED
   // EARLY on purpose so its impact lands on the implosion rather than after it;
   // see BOSS_DEAD_IMPACT in 52-bosses, which is that 1.43s figure.
-  bossDead: ['audio/sfx/boss-dead.mp3', 1.0],
+  // H-13: the take true-peaks +0.8 dBFS — the ONLY take mastered over full
+  // scale — and at 1.0 it was also the loudest thing in the game (-10.5 LUFS).
+  // 0.85 seats the peak at -0.6 dBFS; it stays the ceremonial loudest.
+  bossDead: ['audio/sfx/boss-dead.mp3', 0.85],
   // 9.08s — a BED, not an impact: full level from 0.14s and swelling in waves
   // to ~7.5s. It opens on the frame the machine surfaces and is faded out over
   // the duel's first beat (ARRIVAL_HOLD/FADE in 52-bosses) — carried to its own

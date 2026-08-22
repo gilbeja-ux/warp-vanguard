@@ -31,7 +31,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-10 | DONE | Balance | MED | Sawtooth fixed — C3 re-sloped, peak between C2 and C4; L7 softened after Gil's playthrough (ships in 1.0.4) |
 | H-11 | DONE | Balance | MED | CHAIN OVERDRIVE pays ×scoreMul() AND advances the combo (ships in 1.0.4) |
 | H-12 | DONE | Juice | MED | Combo-scaled kill effects + a PERFECT flash + a first-x10 beat |
-| H-13 | TODO | Audio | MED | Audio mastering — master limiter + music through the compressor |
+| H-13 | DONE | Audio | MED | Audio mastering — master limiter over both buses + boss-dead re-trim + a pinned sfx level test |
 | H-14 | TODO | Art | MED | Align the station sun to the world key light + darken the hull |
 | H-15 | TODO | Journey | MED | Home "re-enter lane" continue + a live weekly caption |
 | H-16 | TODO | Journey | MED | Board dead-end — FLY THIS LANE + weekly-retry rollover fix |
@@ -176,7 +176,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) combo-scaled burst only; (b) + PERFECT flash; (c) + first-x10 beat; (d) all three.
 
 ## H-13 · Audio mastering — master limiter + music through the compressor
-- **Status:** TODO · **Area:** Audio · **Sev:** MED (production value)
+- **Status:** DONE (2026-08-22, ships in the next build) — Gil chose (c). (1) A master limiter now sits at the destination (threshold −2 dB, knee 0, ratio 20, attack 1 ms, release 100 ms) and EVERY bus exits through it via `masterBus()`: the sfx compressor chain (`10-audio.js`), the music bus + the crossfade reroute (`11-music.js`), and the splash score (`99-boot.js`). The sfx glue compressor is unchanged in front of it; music was deliberately NOT routed through the sfx compressor (4:1 at −18 would pump the track under every spike). (2) RE-TRIM CORRECTION: measurement (ffmpeg ebur128 true peak) shows boss-ARRIVAL is NOT over full scale (−0.2 dBFS; its 52-bosses comment is corrected) — the clipping take is boss-DEAD at +0.8 dBFS, also the loudest thing in the game at −10.5 LUFS. Its trim went 1.0 → 0.85 (peak −0.6, still the ceremonial loudest); `fail` (+0.1 dBFS) went 1.0 → 0.95. (3) Gil's mid-run ask — ALL sfx measured and pinned: new `scripts/test-sfx-levels.mjs` runs in `npm test`, parses the live SFX_FILES trims, and FAILS on any take that true-peaks over full scale at its shipped trim; it also prints a loudness board (integrated LUFS at trim, loud-first) that informs but never fails. No ffmpeg → clean SKIP, so CI stays green. Render-only, no score moves; the standing pre-AAB deploy covers the source-hash id as always. Board notes for later ears: `pulse` (the player's own shot, −11.5 LUFS eff) out-louds every ceremony, and `hit` (the kill confirmation, −20.1) sits ~8.6 LU under it — a deliberate-or-not gap Gil may want to audition; `warpIn` stays device-settled, untouched. `npm run build` + `npm test` green (789 PASS). Owed: a device listen for the limiter feel on a dense wave. · **Area:** Audio · **Sev:** MED (production value)
 - **Combines:** audio HIGH finding
 - **Issue:** no limiter sits over the summed output, and music bypasses the sfx compressor. Boss-arrival is mastered hot and peaks above full scale.
 - **Evidence:** `11-music.js:241`; `52-bosses.js:87`.

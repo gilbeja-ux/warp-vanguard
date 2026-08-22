@@ -433,7 +433,7 @@ function splashAudioTry() { // start (or join) the score the moment audio is all
   try {
     SPLASH.gain = AC.createGain();
     SPLASH.gain.gain.value = musicVolume();
-    SPLASH.gain.connect(AC.destination);
+    SPLASH.gain.connect(masterBus());
     if (SPLASH.t > 0.1 && SPLASH.gain.gain.setValueAtTime) { // joining mid-take — ease in, don't slam
       SPLASH.gain.gain.setValueAtTime(0.0001, AC.currentTime);
       SPLASH.gain.gain.exponentialRampToValueAtTime(Math.max(musicVolume(), 0.001), AC.currentTime + 0.3);

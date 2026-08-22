@@ -5,7 +5,7 @@
   "main": "index.html",
   "scripts": {
     "start": "npm run build",
-    "test": "node scripts/test.js && node scripts/test-board.js",
+    "test": "node scripts/test.js && node scripts/test-board.js && node scripts/test-sfx-levels.mjs",
     "build:verifier": "node scripts/build-verifier.js",
     "deploy:verifier": "node scripts/build-verifier.js && supabase functions deploy submit-run",
     "build": "node scripts/build.js",

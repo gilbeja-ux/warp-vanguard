@@ -1,6 +1,10 @@
 'use strict';
 // ---------- audio ----------
 let AC = null, sfxGain = null;
+// the master limiter every bus exits through (H-13); null only when the
+// browser has no DynamicsCompressor, so route via masterBus(), never directly
+let masterLim = null;
+const masterBus = () => masterLim || AC.destination;
 // smooth sfx-bus envelope (0 = muted, 1 = full). Slammed to 0 for the replay
 // enter + while the scrub knob is held, then eased back to 1 so sound doesn't
 // pop in. Applied to sfxGain every frame (see the frame loop); music is separate.
@@ -31,11 +35,22 @@ function initAC() {
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
     sfxGain = AC.createGain();
-    if (AC.createDynamicsCompressor) { // glue the layers, catch hot peaks
-      const comp = AC.createDynamicsCompressor();
+    // H-13 · THE CEILING OVER THE SUM. The sfx compressor below glues its own
+    // bus, but music (and the splash score) used to meet the sfx at the raw
+    // destination — a dense wave plus a hot take clipped at the output. This is
+    // a brickwall stage every bus routes through: threshold near full scale,
+    // max ratio, fastest attack, so it does nothing until the summed mix
+    // actually spikes. Per-bus character stays where it was.
+    if (AC.createDynamicsCompressor) {
+      masterLim = AC.createDynamicsCompressor();
+      masterLim.threshold.value = -2; masterLim.knee.value = 0;
+      masterLim.ratio.value = 20;
+      masterLim.attack.value = 0.001; masterLim.release.value = 0.1;
+      masterLim.connect(AC.destination);
+      const comp = AC.createDynamicsCompressor(); // glue the sfx layers, catch hot peaks
       comp.threshold.value = -18; comp.ratio.value = 4;
       comp.attack.value = 0.003; comp.release.value = 0.15;
-      sfxGain.connect(comp); comp.connect(AC.destination);
+      sfxGain.connect(comp); comp.connect(masterLim);
     } else sfxGain.connect(AC.destination);
     applySettings();
     loadSamples(); // recorded sfx decode in the background; synths cover until then

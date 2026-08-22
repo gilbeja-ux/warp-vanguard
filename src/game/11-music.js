@@ -137,7 +137,7 @@ function stopMusicSrc(fade) {
     try {
       g.disconnect();
       g.gain.value = musicGain ? musicGain.gain.value : 0; // carry the audible level across the reroute
-      g.connect(AC.destination);
+      g.connect(masterBus());
       g.gain.setTargetAtTime(0.0001, AC.currentTime, fade / 4);
       src.stop(AC.currentTime + fade);
       setTimeout(() => { try { src.disconnect(); g.disconnect(); } catch (e) {} }, fade * 1000 + 250);
@@ -238,7 +238,7 @@ function playTrack(key) {
   if (!window.MUSIC_DATA) return;
   initAC(); if (!AC) return;
   if (!musicGain) {
-    musicGain = AC.createGain(); musicGain.gain.value = 0; musicGain.connect(AC.destination);
+    musicGain = AC.createGain(); musicGain.gain.value = 0; musicGain.connect(masterBus());
     musicFilter = AC.createBiquadFilter(); // "system critical" muffle at low integrity
     musicFilter.type = 'lowpass'; musicFilter.frequency.value = 16000;
     musicFilter.connect(musicGain);
