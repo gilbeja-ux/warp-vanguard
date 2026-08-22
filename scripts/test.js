@@ -2755,6 +2755,16 @@ G.keys['ArrowUp'] = false;
     G.CAMPAIGNS.map(pk => pk.levels[7].bossKind).join(',') === 'leech,siphon,prism,mimic,blockade');
   check('every shipped campaign lints clean (beats + bands included)',
     G.CAMPAIGNS.every(pk => G.lintCampaign(pk).every(fl => fl.length === 0)));
+  // H-31: an orb must never show over a dead-zone carpet. Walk every level and
+  // assert no pickup lands inside any wall's occupied window (release-0.5 ..
+  // land+3.6, arc = half-span 0.5 + node tolerance 0.3). Pre-fix this found 5.
+  check('no power-up ever lands inside a wall carpet (all 40 levels)',
+    G.CAMPAIGNS.every(pk => pk.levels.every((lv, i) => {
+      if (lv.boss) return true;
+      const { picks, walls } = G.lintWalk(lv, i);
+      return picks.every(p => !walls.some(w =>
+        p.t > w.tRel - 0.5 && p.t < w.tLand + 3.6 && Math.abs(angDiff(w.a, p.angle)) < 0.8));
+    })));
 
   // ---- THE FROZEN DEAL ----
   // A relay's destination is data now (DEST_DEAL / DEST_ROLL in 80-tunnel), not the

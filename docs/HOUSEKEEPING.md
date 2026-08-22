@@ -49,6 +49,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-28 | TODO | Balance | LOW | Ship unused depth — crawlers drift, noCharge drone, more beats |
 | H-29 | TODO | Docs | LOW | Doc drift pass |
 | H-30 | TODO | Content | LOW | The 40 briefing-disc keyframes |
+| H-31 | DONE | Balance | MED | Power-ups never land inside a dead-zone carpet — both spawners fixed + a pinned test (ships in 1.0.4) |
 
 ---
 
@@ -317,3 +318,11 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Evidence:** `src/art/disc/` holds only the enlistment + 5 verdicts; spec in `DISC-ART-SPEC.md`.
 - **My take:** lowest priority. The fallback is good. Revisit only after the cheaper story wins (H-06, H-18) land.
 - **Options:** (a) defer indefinitely, keep the fallback; (b) author a first batch for campaign 1 only; (c) commission all 40 against the spec.
+
+## H-31 · Power-ups can land inside a dead-zone wall carpet
+- **Status:** DONE (2026-08-22, ships in 1.0.4) — both directions closed in `51-linter.js` (the file holds the LIVE spawners, not just the linter): (1) `spawnPickup` routes the orb angle through `clearOfWalls` (golden-angle hops, zero RNG consumed — the draw stream is byte-identical); (2) `spawnWall`'s clash scan now also dodges in-flight orbs (0.9× stream speed, same window law as enemies); (3) the linter walk mirrors both (`simPickup` relocates via `cow`, `simWall` scans `picks`). PROVEN: a whole-roster walk (73 orbs, 127 walls over all 40 levels) found 5 orb-over-wall violations pre-fix — including C3L7, where Gil saw it, plus C4L6 and C5L7 — and 0 after. The invariant is PINNED as a permanent check in `scripts/test.js` ('no power-up ever lands inside a wall carpet'). `npm test` green (752 PASS). Sim id moved to `4e71459899af` (orb angles shift only where an overlap existed); the standing pre-AAB deploy carries it. Tutorial's scripted drill drop is untouched (nothing else on the rim there). · **Area:** Balance · **Sev:** MED
+- **Combines:** Gil's playtest find, 2026-08-22 (during the H-10 C3 pass)
+- **Issue:** a power-up orb can show over a dead-zone/rim wall. Enemies relocate via `clearOfWalls`, but `spawnPickup` drops the orb at a raw `spawnRng() * TAU` angle, and `spawnWall`'s clash scan covers in-flight enemies only — so a wall can also park on an in-flight orb. Catching such an orb demands entering the carpet.
+- **Evidence:** `51-linter.js:476` (live spawnPickup, no clearance); `51-linter.js:415` (spawnWall clash scan, enemies only); the linter's pick verdict only fires for authored beats.
+- **My take:** close both directions with the existing reachability law: route the pickup angle through `clearOfWalls`, add in-flight pickups to `spawnWall`'s clash scan, and mirror both in the linter walk. No RNG draw is added, so the stream is unchanged; landed angles move only where an overlap existed.
+- **Options:** (a) pickup-side clearance only; (b) both directions + linter mirror (chosen).

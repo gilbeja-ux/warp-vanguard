@@ -135,6 +135,10 @@ function lintWalk(level, idx) {
         if (rec.type === 'strip') return tN < rec.t1 + 0.4 && wallBlocks(angDiff(rec.angle, a2), 0.5, 0.5);
         const tArr = rec.t - tN;
         return tArr > -0.5 && tArr < wallLife && wallBlocks(angDiff(rec.angle, a2), 0.5);
+      }) || picks.some(p => {
+        // mirror the live scan: an in-flight orb's landing arc joins the bound
+        const tArr = p.t - tN;
+        return tArr > -0.5 && tArr < wallLife && wallBlocks(angDiff(p.angle, a2), 0.5);
       });
       if (!clash) break;
       a2 += 2.399963;
@@ -143,7 +147,8 @@ function lintWalk(level, idx) {
   }
   function simPickup(tN, kind, beat) {
     if (kind === undefined) dr(); // kind roll
-    picks.push({ t: tN + (dropT !== null ? dropT : lead(0.9)), angle: dr() * TAU, beat });
+    // mirror the live clearance: the orb relocates off spawn-time carpets
+    picks.push({ t: tN + (dropT !== null ? dropT : lead(0.9)), angle: cow(dr() * TAU, tN), beat });
   }
   // --- the run: same tick order as update() (spawner → beats → burst →
   // pickup clock → ribbon clock), same draw order as resetRun/trySpawn ---
@@ -414,6 +419,12 @@ function spawnWall(forcedA, force, teleOverride) { // beats may pin the arc; for
       if (en.type === 'strip') return wallBlocks(angDiff(en.angle, a), 0.5, 0.5);
       const tArr = (en.z - g2.hitZ) / (trafficSpeed * (en.speedMul || 1));
       return tArr > -0.5 && tArr < wallLife && wallBlocks(angDiff(en.angle, a), 0.5);
+    }) || pickups.some(p => {
+      // an in-flight orb's landing arc joins the bound — a carpet must never
+      // park on a power-up (orbs ride at 0.9x stream speed)
+      if (p.done) return false;
+      const tArr = (p.z - g2.hitZ) / (trafficSpeed * 0.9);
+      return tArr > -0.5 && tArr < wallLife && wallBlocks(angDiff(p.angle, a), 0.5);
     });
     if (!clash) break;
     a += 2.399963;
@@ -473,5 +484,7 @@ function spawnPickup(kind) { // beats may pin the kind (skipping the bag)
     }
     kind = pickupBag.pop();
   }
-  pickups.push({ kind, z: z0, angle: spawnRng() * TAU, spin: 0, age: 0, done: false });
+  // an orb must never land inside a wall carpet — same reachability law as
+  // enemies (clearOfWalls consumes no RNG, so the stream is unchanged)
+  pickups.push({ kind, z: z0, angle: clearOfWalls(spawnRng() * TAU), spin: 0, age: 0, done: false });
 }
