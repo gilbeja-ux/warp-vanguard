@@ -139,6 +139,9 @@ function gpMove(list, dx, dy) { // nearest button lying in the pressed direction
   let best = -1, bestD = 1e9;
   list.forEach((b, i) => {
     if (i === gpSel) return;
+    // the OUTER arc slabs (H-15) answer LB/RB directly and stay OFF the focus
+    // walk — the stick and d-pad own the wheel, the bumpers own the slabs
+    if (b.sector && b.sector.outer) return;
     const c = gpCenter(b);
     const along = (c.x - from.x) * dx + (c.y - from.y) * dy;
     if (along <= 8) return;
@@ -234,6 +237,15 @@ function drawGpHints() { // once a controller speaks, keys wear their buttons
   }
   if (state === S.MENU && menuScreen !== 'home' && menuBackRect && !menuSettings && !myData && !report)
     drawPadHint(menuBackRect.x + menuBackRect.w / 2, menuBackRect.y + menuBackRect.h + 9, 'Y');
+  // the arc slabs beside the home wheel answer LB / RB — the badge rides each
+  // slab's top corner, and a locked slab stays bare (its bumper does nothing)
+  if (state === S.MENU && menuScreen === 'home' && !menuSettings && !myData && !report && !menuFx)
+    for (const b of menuButtons) {
+      if (!b.sector || !b.sector.outer || b.locked) continue;
+      const s = b.sector, mid = (s.a0 + s.a1) / 2, half = (s.a1 - s.a0) / 2;
+      const side = Math.cos(mid) < 0 ? -1 : 1, rm = (s.r0 + s.r1) / 2;
+      drawPadHint(s.cx + side * rm * Math.cos(half), s.cy - rm * Math.sin(half) - 10, side < 0 ? 'LB' : 'RB');
+    }
   // the high-score card: A saves (once live), B skips
   if (state === S.END && nameEntry) for (const b of nameEntryBtns)
     drawPadHint(b.x + b.w / 2, b.y - 2, b.action === 'nameConfirm' ? 'A' : 'B');
@@ -280,6 +292,7 @@ function pollGamepad(dt) {
     padPrev.any = anyBtn;
     // the skip press must not echo into the menu as a phantom A/B/Y/START
     padPrev.a = press(0); padPrev.b = press(1); padPrev.x = press(2); padPrev.y = press(3); padPrev.start = press(9);
+    padPrev.lb = press(4); padPrev.rb = press(5);
     return;
   }
   if (!gpSeen && (gp.buttons.some(b2 => b2 && b2.pressed) || gp.axes.some(v => Math.abs(v) > 0.3)))
@@ -292,6 +305,7 @@ function pollGamepad(dt) {
     if (anyE && !padPrev.any) enlistTap();
     padPrev.any = anyE;
     padPrev.a = press(0); padPrev.b = press(1); padPrev.x = press(2); padPrev.y = press(3); padPrev.start = press(9);
+    padPrev.lb = press(4); padPrev.rb = press(5);
     return;
   }
   // SELECT held on the route map = the ↺ reset hold, same commitment window
@@ -418,7 +432,10 @@ function pollGamepad(dt) {
     } else if (sa !== null) {
       let pointed = -1;
       list.forEach((b, i) => {
-        if (!b.sector) return;
+        // the OUTER arc keys (H-15) share every angle with a wheel slice, so a
+        // direction alone cannot name them — pointing stays a wheel gesture and
+        // the outer ring is walked onto with the d-pad (or a stick step)
+        if (!b.sector || b.sector.outer) return;
         const s = b.sector;
         let d0 = (sa - s.a0) % TAU; if (d0 < 0) d0 += TAU;
         let span = (s.a1 - s.a0) % TAU; if (span < 0) span += TAU;
@@ -448,6 +465,25 @@ function pollGamepad(dt) {
   const xx = press(2); // X — restart (pause + report)
   if (xx && !padPrev.x) gpRestartAction();
   padPrev.x = xx;
+  // LB / RB — the two arc slabs beside the home wheel (H-15). Direct triggers
+  // on the home screen ONLY, so no other screen's controls move; the slabs are
+  // excluded from the focus walk (gpMove) so the stick never wanders onto them.
+  const slabOK = state === S.MENU && menuScreen === 'home' && !menuFx
+    && !menuSettings && !myData && !report && !menuConfirm;
+  const lb = press(4);
+  if (lb && !padPrev.lb && slabOK) {
+    const b = menuButtons.find(b2 => b2.goMap);
+    if (b) { const c = gpCenter(b); menuTap(c.x, c.y, -7); }
+  }
+  padPrev.lb = lb;
+  const rb = press(5);
+  if (rb && !padPrev.rb && slabOK) {
+    // locked (FREE FLOW not yet open) pushes no `weekly` tag, so find() misses
+    // and the press falls silent — same answer a tap on the grey slab gives
+    const b = menuButtons.find(b2 => b2.weekly && b2.sector && b2.sector.outer);
+    if (b) { const c = gpCenter(b); menuTap(c.x, c.y, -7); }
+  }
+  padPrev.rb = rb;
   const a0 = press(0);
   if (a0 && !padPrev.a) {
     if (state === S.INFO) {

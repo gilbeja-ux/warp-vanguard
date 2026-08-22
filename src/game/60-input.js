@@ -479,6 +479,12 @@ function menuTap(x, y, pid) {
       }
       else if (b.mode === 'flow') pressUI(b, () => { menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'flow' }; });
       else if (b.mode === 'board') pressUI(b, () => openBoard('home'));
+      else if (b.goMap) pressUI(b, () => { // CONTINUE CONTRACT: straight to the relay map, target selected
+        switchCampaign(b.goMap.ci);
+        mapSel = Math.min(b.goMap.li, PROG.unlocked - 1);
+        campPendingSync = null;
+        menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'map' };
+      });
       else if (b.node !== undefined) { mapSel = b.node; sfx.tick(); }
       else if (b.deploy !== undefined) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: () => startLevel(b.deploy, true) }; tone(70, 0.45, 'sine', 0.12, 260); });
       else if (b.weekly) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startWeekly }; tone(70, 0.45, 'sine', 0.12, 260); });

@@ -3408,6 +3408,34 @@ G.keys['ArrowUp'] = false;
   tap(4); // LB
   check('LB slides it back', G.getCampScroll() === 0);
   G.setMenuScreen('home'); G.frame(16); G.update(0.05);
+  // ---- the H-15 arc slabs: LB / RB are their ONLY gamepad door ----
+  // The slabs sit outside the wheel and share every angle with a slice, so the
+  // stick and d-pad deliberately never reach them (gpMove skips sector.outer);
+  // LB fires CONTINUE CONTRACT, RB fires CLAIM TO FAME, home screen only.
+  {
+    const c1 = G.CAMPAIGNS[0].id;
+    const cs = G.progress.camp[c1] || (G.progress.camp[c1] = { unlocked: 1, stars: [], bests: [] });
+    const was = { stars: cs.stars.slice(), unlocked: cs.unlocked, lastCamp: G.progress.lastCamp };
+    const campWas = G.getCamp();
+    cs.stars = [3, 2, 3, 1, 1, 0, 0, 0]; cs.unlocked = 6; G.progress.lastCamp = c1; // mid-contract; star 5 opens FREE FLOW
+    G.setMenuScreen('home'); G.frame(16); G.update(0.05);
+    for (let k = 0; k < 8; k++) tap(15); // a full lap of focus steps around the wheel
+    const fb2 = G.menuBtns()[G.getGpSel()] || {};
+    check('the focus walk never lands on an outer slab', !(fb2.sector && fb2.sector.outer));
+    tap(4); // LB = CONTINUE CONTRACT
+    flushUI(); flushUI();
+    check('LB dives from home straight into the relay map', G.getMenuScreen() === 'map');
+    check('…with the frontier relay selected', G.getMapSel() === 5);
+    G.setState(G.S.MENU); G.setMenuScreen('home'); G.setMenuFx(null); G.frame(16); G.update(0.05);
+    tap(5); // RB = CLAIM TO FAME
+    flushUI(); flushUI(); // the launch zoom fires startWeekly at its end
+    check('RB launches the weekly lane from home',
+      (G.getState() === G.S.PLAY || G.getState() === G.S.INFO) && G.isEndless());
+    G.startLevel(1); G.update(0.05); // solid ground: the campaign streams replace weekly's seeded rng
+    G.setState(G.S.MENU); G.setMenuScreen('home'); G.setMenuFx(null); G.frame(16); G.update(0.05);
+    cs.stars = was.stars; cs.unlocked = was.unlocked; G.progress.lastCamp = was.lastCamp;
+    if (campWas) G.installCampaign(campWas); // leave the world as found
+  }
   // pause: the focus ring climbs from the buttons into the settings rows
   G.startLevel(1); G.update(0.05);
   tap(9); G.frame(16); G.update(0.05); // pause + draw builds buttons AND toggles

@@ -56,6 +56,20 @@ function campArtImg(pk) {
   }
   return e2.w ? e2 : null; // null until decoded — the chart crop stands in
 }
+// The CLAIM TO FAME key's backdrop (H-15): one baked shot of a live run, shipped as an
+// asset because the menu must not pay for a second simulated scene every frame. One
+// file, loaded once — and missing is a legal state (the arc key draws its own deep
+// space until the shot decodes, or forever on a build that never shipped one).
+const CLAIMART = { img: null, w: 0, h: 0 };
+function claimArtImg() {
+  if (typeof Image === 'undefined') return null;
+  if (!CLAIMART.img) {
+    CLAIMART.img = new Image();
+    CLAIMART.img.onload = () => { CLAIMART.w = CLAIMART.img.naturalWidth || 1; CLAIMART.h = CLAIMART.img.naturalHeight || 1; };
+    CLAIMART.img.src = 'art/menu/claim-fame.webp';
+  }
+  return CLAIMART.w ? CLAIMART : null;
+}
 // ---- image maps: a package may bring its OWN world (map.image + mapPos pins) ----
 const MAPIMG = {}; // decoded per campaign id
 function campMapImg(pk) {

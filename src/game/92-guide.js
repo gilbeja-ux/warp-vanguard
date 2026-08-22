@@ -999,6 +999,7 @@ function drawMenuHome(ccx, ccy, R) {
     try { ctx.letterSpacing = '0px'; } catch (e) {}
     menuButtons.push({ sector: { cx: ccx, cy: ccy, r0, r1, a0: sc0.mid - THIRD / 2 + 0.02, a1: sc0.mid + THIRD / 2 - 0.02 }, mode: sc.mode, locked: sc.locked });
   }
+  drawHomeSideKeys(ccx, ccy, R, wheelAl);
   // the HUB: the shield badge holds the wheel's center; the quiet text
   // core stands in until the badge file ships
   ctx.beginPath(); ctx.arc(ccx, ccy, r0 - R * 0.03, 0, TAU);
@@ -1054,6 +1055,179 @@ function drawMenuHome(ccx, ccy, R) {
   }
   ctx.restore();
   ctx.textAlign = 'left';
+}
+
+// ---- the two ARC KEYS that flank the mode wheel (H-15, Gil's design) -------
+// A bigger circle than the wheel, and the two keys take opposing parts of its
+// shape — the same annular-sector language as the slices inside. LEFT carries
+// the campaign forward: contract art up top, the next destination below, the
+// stage number between them. RIGHT is the ranked call to action: a shot from a
+// live run behind CLAIM TO FAME, and the week's closing date under it, because
+// the closing date is the reason to fly today rather than tomorrow.
+// Landscape proportions on Gil's call: radially WIDE, angularly SHORT — the
+// key reads as a slab beside the wheel, not a crescent hugging it, and every
+// text line fits horizontally so nothing has to curl along a rim.
+const SIDEKEY_R0 = 1.02, SIDEKEY_R1 = 1.50, SIDEKEY_HALF = 0.34;
+// Which lane does the left key offer? A fresh save STARTS at the first relay; a
+// fully-delivered ledger points at the lowest lane still under three stars
+// (PERFECT THE LANE); otherwise it is the frontier of the contract in hand — or
+// of the first undelivered contract, so a finished campaign hands the key to
+// the next client instead of parking on its own boss lane forever.
+function homeContractTarget() {
+  const anyStar = CAMPAIGNS.some(p => { const c = progress.camp[p.id]; return !!(c && c.stars && c.stars.some(s => s > 0)); });
+  if (!anyStar) return { kind: 'start', ci: 0, li: 0 };
+  if (CAMPAIGNS.every(p => campaignCleared(p.id))) {
+    for (let ci2 = 0; ci2 < CAMPAIGNS.length; ci2++) {
+      const pk2 = CAMPAIGNS[ci2], c2 = progress.camp[pk2.id];
+      for (let li2 = 0; li2 < pk2.levels.length; li2++)
+        if (((c2 && c2.stars[li2]) || 0) < 3) return { kind: 'perfect', ci: ci2, li: li2 };
+    }
+    // a flawless ledger — fall through to the frontier walk below
+  }
+  let ci = Math.max(0, CAMPAIGNS.findIndex(p => p.id === progress.lastCamp));
+  if (campaignCleared(CAMPAIGNS[ci].id)) {
+    const nxt = CAMPAIGNS.findIndex(p => !campaignCleared(p.id));
+    if (nxt >= 0) ci = nxt;
+  }
+  const c = progress.camp[CAMPAIGNS[ci].id];
+  return { kind: 'continue', ci, li: Math.min(((c && c.unlocked) || 1) - 1, CAMPAIGNS[ci].levels.length - 1) };
+}
+function sideKeyPath(cxk, cyk, r0k, r1k, mid) {
+  const a0 = mid - SIDEKEY_HALF, a1 = mid + SIDEKEY_HALF;
+  ctx.beginPath();
+  ctx.arc(cxk, cyk, r1k, a0, a1);
+  ctx.arc(cxk, cyk, r0k, a1, a0, true);
+  ctx.closePath();
+  return { a0, a1 };
+}
+function sideKeyCover(e2, x, y, w, h) { // cover-fit: fill the window, crop the rest
+  const s = Math.max(w / e2.w, h / e2.h), dw = e2.w * s, dh = e2.h * s;
+  ctx.drawImage(e2.img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+}
+function drawHomeSideKeys(ccx, ccy, R, wheelAl) {
+  const r0k = R * SIDEKEY_R0, r1k = R * SIDEKEY_R1;
+  const vert = r1k * Math.sin(SIDEKEY_HALF);
+  const drift = (1 - wheelAl) * R * 0.2; // choreography: the keys step outward while the wheel spins away
+  const tgt = homeContractTarget();
+  const pk = CAMPAIGNS[tgt.ci];
+  const flowOpen = flowUnlocked();
+  // the week's own closing moment, named by the player's local calendar — the
+  // one live number this screen carries. weekEndMs is the last millisecond of
+  // the Mon–Sun UTC week, so the formatted day is when the board truly freezes
+  // for THIS player, even where that lands after their local midnight.
+  const wkCap = 'CLOSES ' + new Date(weekEndMs(weekNow()))
+    .toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+    .replace(/,/g, '').toUpperCase();
+  // the VERB fills the middle band in two bold rows, with the small detail
+  // rows under it — all horizontal, the slab is wide enough now
+  const KEYS = [
+    { side: -1, mid: Math.PI, col: '126,226,98', locked: false,
+      big1: tgt.kind === 'start' ? 'START' : tgt.kind === 'perfect' ? 'PERFECT' : 'CONTINUE',
+      big2: tgt.kind === 'perfect' ? 'THE LANE' : 'CONTRACT',
+      smalls: [pk.title.replace(/^THE /, ''), 'STAGE ' + lvNum(levelNo(tgt.ci, tgt.li))],
+      goMap: { ci: tgt.ci, li: tgt.li } },
+    { side: 1, mid: 0, col: '255,210,74', locked: !flowOpen,
+      big1: 'CLAIM', big2: 'TO FAME',
+      smalls: flowOpen ? ['WEEKLY LANE', wkCap] : ['WEEKLY LANE', 'CLEAR STAGE ' + lvNum(FLOW_UNLOCK_LEVEL)],
+      weekly: !flowOpen ? undefined : true }
+  ];
+  for (const k of KEYS) {
+    const myIdx = menuButtons.length;
+    const cxk = ccx + k.side * drift;
+    const seg = sideKeyPath(cxk, ccy, r0k, r1k, k.mid);
+    // the sector's bounding box — every fill below is clipped to the arc anyway
+    const xIn = cxk + k.side * r0k * Math.cos(SIDEKEY_HALF);
+    const xOut = cxk + k.side * r1k;
+    const bx = Math.min(xIn, xOut), bw2 = Math.abs(xOut - xIn);
+    const by = ccy - vert, bh2 = vert * 2;
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = k.locked ? 'rgba(8,16,30,0.72)' : 'rgba(6,14,28,0.85)';
+    ctx.fillRect(bx, by, bw2, bh2);
+    if (k.goMap) {
+      // TOP — the client. The same 3:1 key art the contract disc wears; the arc
+      // shows its middle and the rim gradient below buys the label its ink.
+      const art = campArtImg(pk);
+      if (art) {
+        ctx.save(); ctx.globalAlpha = wheelAl * 0.9;
+        sideKeyCover(art, bx, by, bw2, vert);
+        ctx.restore();
+      }
+      // BOTTOM — the destination: deep space and the world the next lane ends
+      // at, off the same sprite family the briefing disc and the chart stamp,
+      // so the promise on the menu and the arrival in the lane cannot drift.
+      const g2 = ctx.createLinearGradient(0, ccy, 0, by + bh2);
+      g2.addColorStop(0, 'rgba(4,9,20,1)'); g2.addColorStop(1, 'rgba(2,5,12,1)');
+      ctx.fillStyle = g2; ctx.fillRect(bx, ccy, bw2, vert);
+      const rnd = mulberry32((levelNo(tgt.ci, tgt.li) * 7919) ^ 0x2c9);
+      for (let i = 0; i < 46; i++) {
+        ctx.fillStyle = 'rgba(214,236,255,' + (0.12 + rnd() * 0.55).toFixed(2) + ')';
+        ctx.beginPath(); ctx.arc(bx + rnd() * bw2, ccy + rnd() * vert, 0.4 + rnd() * 0.9, 0, TAU); ctx.fill();
+      }
+      const V = planetVariantFor(pk.id, tgt.li, tgt.li === pk.levels.length - 1);
+      const px2 = cxk + k.side * (r0k + (r1k - r0k) * 0.5), py2 = ccy + vert * 0.64, pr = R * 0.13;
+      const hz = ctx.createRadialGradient(px2, py2, pr * 0.9, px2, py2, pr * 2.2);
+      hz.addColorStop(0, 'rgba(' + V.atmo + ',0.30)'); hz.addColorStop(1, 'rgba(' + V.atmo + ',0)');
+      ctx.fillStyle = hz; ctx.beginPath(); ctx.arc(px2, py2, pr * 2.2, 0, TAU); ctx.fill();
+      const sp = discWorld(V);
+      if (sp) { const w2 = sp.S * (pr / sp.R); ctx.drawImage(sp.cv, px2 - w2 / 2, py2 - w2 / 2, w2, w2); }
+    } else {
+      // the CLAIM key wears a shot from a live run; until it decodes (or before
+      // the asset ships) deep space stands in, so the key never draws hollow
+      const fr = claimArtImg();
+      if (fr) {
+        ctx.save(); ctx.globalAlpha = wheelAl * (k.locked ? 0.25 : 0.8);
+        sideKeyCover(fr, bx, by, bw2, bh2);
+        ctx.restore();
+      } else {
+        const rnd = mulberry32(0x51ab1e ^ 977);
+        for (let i = 0; i < 60; i++) {
+          ctx.fillStyle = 'rgba(214,236,255,' + (0.10 + rnd() * 0.5).toFixed(2) + ')';
+          ctx.beginPath(); ctx.arc(bx + rnd() * bw2, by + rnd() * bh2, 0.4 + rnd() * 0.9, 0, TAU); ctx.fill();
+        }
+      }
+    }
+    // a soft vignette toward the outer edge keeps the slab from ending flat
+    const rg = ctx.createRadialGradient(cxk, ccy, r1k - R * 0.2, cxk, ccy, r1k);
+    rg.addColorStop(0, 'rgba(2,6,14,0)'); rg.addColorStop(1, 'rgba(2,6,14,0.6)');
+    ctx.fillStyle = rg; ctx.fillRect(bx, by, bw2, bh2);
+    // the text stack: verb rows (one shared size — the verb reads as a unit)
+    // then the small rows, centered as a block on the slab's radial middle
+    const bandCx = cxk + k.side * (r0k + r1k) / 2;
+    const maxW = (r1k - r0k) * 0.9;
+    const bigPx = Math.min(fitPx(k.big1, '800', Math.round(R * 0.078), maxW, 8),
+      fitPx(k.big2, '800', Math.round(R * 0.078), maxW, 8));
+    const smallPx = k.smalls.reduce((p2, t2) => Math.min(p2, fitPx(t2, '500', Math.round(R * 0.044), maxW, 8)), 99);
+    const rows = [
+      { t: k.big1, f: '800 ' + bigPx, h: bigPx * 1.3, c: k.locked ? 'rgba(150,180,210,0.5)' : `rgb(${k.col})` },
+      { t: k.big2, f: '800 ' + bigPx, h: bigPx * 1.3, c: k.locked ? 'rgba(150,180,210,0.5)' : `rgb(${k.col})` },
+      ...k.smalls.map(t2 => ({ t: t2, f: '500 ' + smallPx, h: smallPx * 1.45, c: k.locked ? 'rgba(140,170,200,0.45)' : 'rgba(207,232,255,0.9)' }))
+    ];
+    const stackH = rows.reduce((a2, r2) => a2 + r2.h, 0);
+    const bandH = stackH / 2 + R * 0.035;
+    const pg = ctx.createLinearGradient(0, ccy - bandH, 0, ccy + bandH);
+    pg.addColorStop(0, 'rgba(3,8,18,0)'); pg.addColorStop(0.22, 'rgba(3,8,18,0.88)');
+    pg.addColorStop(0.78, 'rgba(3,8,18,0.88)'); pg.addColorStop(1, 'rgba(3,8,18,0)');
+    ctx.fillStyle = pg; ctx.fillRect(bx, ccy - bandH, bw2, bandH * 2);
+    ctx.textAlign = 'center';
+    let rowY = ccy - stackH / 2;
+    for (const r2 of rows) {
+      ctx.font = r2.f + 'px Audiowide, system-ui';
+      ctx.fillStyle = r2.c;
+      ctx.fillText(r2.t, bandCx, rowY + r2.h * 0.78);
+      rowY += r2.h;
+    }
+    ctx.restore(); // unclip
+    sideKeyPath(cxk, ccy, r0k, r1k, k.mid);
+    const hot = gpNavLive() ? myIdx === gpSel : false;
+    ctx.strokeStyle = k.locked ? 'rgba(90,130,170,0.3)'
+      : hot ? `rgba(${k.col},${(0.75 + Math.sin(time * 2.5) * 0.2).toFixed(2)})`
+      : `rgba(${k.col},0.5)`;
+    ctx.lineWidth = hot ? 2.5 : 1.5;
+    ctx.stroke();
+    menuButtons.push({ sector: { cx: cxk, cy: ccy, r0: r0k, r1: r1k, a0: seg.a0, a1: seg.a1, outer: true },
+      locked: k.locked, goMap: k.goMap, weekly: k.weekly });
+  }
 }
 
 // contract carousel: every campaign is a DISC — a bore-ringed lens whose
