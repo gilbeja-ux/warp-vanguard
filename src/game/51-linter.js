@@ -150,6 +150,11 @@ function lintWalk(level, idx) {
     // mirror the live clearance: the orb relocates off spawn-time carpets
     picks.push({ t: tN + (dropT !== null ? dropT : lead(0.9)), angle: cow(dr() * TAU, tN), beat });
   }
+  // --- mirrors of the drain law (trySpawn): on a boss level nothing launches
+  // that cannot finish its whole ride before dur — same gate positions, so the
+  // draw order stays aligned when a shut window falls through to the next roll
+  const rl = mul => (SPAWN_Z - 0.03) / (level.speed * (mul || 1)); // rideLife mirror (RIDE_OUT = 0.03)
+  const fits = (life, tN) => !level.boss || tN + life <= level.duration;
   // --- the run: same tick order as update() (spawner → beats → burst →
   // pickup clock → ribbon clock), same draw order as resetRun/trySpawn ---
   let pkT = drr(16, 24), rbT = drr(11, 15); // resetRun's opening draws
@@ -181,15 +186,16 @@ function lintWalk(level, idx) {
         const cfg = bandCfg(level, lvT);
         spT = drr(cfg.spawnMin, cfg.spawnMax);
         let done = false;
-        if (dch(cfg.frags || 0) && allow('frag', lvT)) { simEnemy(cfg, lvT, undefined, 'frag'); done = true; }
-        if (!done && cfg.bursts && !bq && dch(0.3) && allow('line', lvT)) {
+        if (dch(cfg.frags || 0) && fits(rl(1), lvT) && allow('frag', lvT)) { simEnemy(cfg, lvT, undefined, 'frag'); done = true; }
+        if (!done && cfg.bursts && !bq && dch(0.3) && fits(rl(1) + 0.7, lvT) && allow('line', lvT)) {
           bq = { left: 2, t: 0.35 }; simEnemy(cfg, lvT); spT += 0.9; done = true;
         }
-        if (!done && dch(cfg.walls || 0) && !liveWalls(lvT).length) { simWall(lvT); done = true; }
+        if (!done && dch(cfg.walls || 0) && !liveWalls(lvT).length && fits(trav + 3.6, lvT)) { simWall(lvT); done = true; }
         if (!done) {
           const roll = dr();
-          if (roll < cfg.lines && allow('line', lvT)) simLine(cfg, lvT);
-          else if (roll < cfg.lines + cfg.heavies && allow('heavy', lvT)) simEnemy(cfg, lvT, undefined, 'heavy');
+          if (roll < cfg.lines && fits(rl(1), lvT) && allow('line', lvT)) simLine(cfg, lvT);
+          else if (roll < cfg.lines + cfg.heavies && fits(rl(0.82), lvT) && allow('heavy', lvT)) simEnemy(cfg, lvT, undefined, 'heavy');
+          else if (!fits(rl(1), lvT)) { /* the drain law — the lane empties into the duel */ }
           else if (!allow('normal', lvT)) spT = Math.min(spT, 0.35);
           else {
             const a2 = cow(dr() * TAU, lvT);
@@ -331,6 +337,25 @@ function lintVerdicts(bad, level, arr, picks, walls) {
   }
 }
 
+// ---------- THE DRAIN LAW ----------
+// On a boss level, the frame levelT crosses L.duration spawnBoss WIPES the
+// bore (52-bosses: the lane clears) — so a body still in transit would blink
+// out mid-bore, and a carpet would vanish mid-burn. Nothing launches that
+// cannot finish its WHOLE ride before that line (the pickup dropWindow's law,
+// made per-ride: a missed trap flies past the ring all the way to z=0.03,
+// armor rides at 0.82×, a carpet needs its approach plus its 3s burn). Slow
+// bodies stop first and plain traps keep landing almost to the line, so the
+// lane thins naturally into the arrival ceremony instead of cutting to it.
+// Guards sit AFTER each schance roll on purpose: the seeded stream advances
+// identically whether a window is open or shut. lintWalk mirrors every gate
+// in the same position (rl/fits), so the walk stays draw-for-draw.
+const RIDE_OUT = 0.03; // the update filter retires a body past this depth
+function rideFits(life) {
+  const L0 = LV || LEVELS[levelIdx];
+  return endless || !L0.boss || levelT + life <= L0.duration;
+}
+const rideLife = speedMul =>
+  (SPAWN_Z - RIDE_OUT) / ((LV || LEVELS[levelIdx]).speed * (mutLive('fast') ? 1.35 : 1) * (speedMul || 1));
 function trySpawn(dt) {
   spawnT -= dt;
   if (spawnT <= 0) {
@@ -361,19 +386,20 @@ function trySpawn(dt) {
       return;
     }
     // node-killer trap — the one thing you must NOT touch
-    if (schance(L.frags || 0) && spawnAllowed('frag')) { spawnEnemy(undefined, 'frag'); return; } // node killer
+    if (schance(L.frags || 0) && rideFits(rideLife(1)) && spawnAllowed('frag')) { spawnEnemy(undefined, 'frag'); return; } // node killer
     // burst transmissions: occasionally a volley of three in rapid succession
-    if (L.bursts && !burstQ && schance(0.3) && spawnAllowed('line')) { // volleys start from a clean window
+    if (L.bursts && !burstQ && schance(0.3) && rideFits(rideLife(1) + 0.7) && spawnAllowed('line')) { // volleys start from a clean window
       burstQ = { left: 2, t: 0.35 };
       spawnEnemy();
       spawnT += 0.9; // breathe after a volley
       return;
     }
     // rim wall: the rail itself closes for a stretch — one at a time
-    if (schance(L.walls || 0) && !latches.length) { spawnWall(); return; }
+    if (schance(L.walls || 0) && !latches.length && rideFits(travelTime() + 3.6)) { spawnWall(); return; }
     const roll = spawnRng();
-    if (roll < L.lines && spawnAllowed('line')) { spawnLine(); return; }
-    if (roll < L.lines + L.heavies && spawnAllowed('heavy')) { spawnEnemy(undefined, 'heavy'); return; }
+    if (roll < L.lines && rideFits(rideLife(1)) && spawnAllowed('line')) { spawnLine(); return; }
+    if (roll < L.lines + L.heavies && rideFits(rideLife(0.82)) && spawnAllowed('heavy')) { spawnEnemy(undefined, 'heavy'); return; }
+    if (!rideFits(rideLife(1))) return; // the last window shut — the lane drains into the duel
     if (!spawnAllowed('normal')) { spawnT = Math.min(spawnT, 0.35); return; } // wait out the jam
     const a = clearOfWalls(spawnRng() * TAU);
     spawnEnemy(a);

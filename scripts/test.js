@@ -982,6 +982,29 @@ check('heal lands on the fifth banked zap', G.stats().integrity === 50);
 const c0 = G.endlessCfg(0), c200 = G.endlessCfg(200);
 check('endless difficulty ramps with time', c200.speed > c0.speed && c200.spawnMin < c0.spawnMin && c200.heavies > 0 && c0.heavies === 0);
 
+// ================= the drain law (boss finales) =================
+// spawnBoss wipes the bore the frame levelT crosses duration, so the filler
+// must stop releasing anything that cannot finish its WHOLE ride first
+// (51-linter: rideFits). Walk every finale's closing stretch to the duel and
+// demand the wipe finds an empty lane: no body still in transit that would
+// blink out mid-bore, and no wall carpet mid-burn.
+for (let ci = 0; ci < G.CAMPAIGNS.length; ci++) {
+  G.installCampaign(G.CAMPAIGNS[ci]);
+  G.startLevel(7);
+  const dur = G.getLV().duration;
+  G.setLevelT(dur - 9); // inside the old despawn window, with room to spawn
+  let stranded = -1, wallLeft = -1, guard = 400;
+  while (!G.boss() && guard-- > 0) {
+    const enSnap = G.enemies().filter(e => !e.dead && e.z > 0.1).length;
+    const laSnap = G.latches().length;
+    G.setIntegrity(100); G.update(0.05);
+    if (G.boss()) { stranded = enSnap; wallLeft = laSnap; }
+  }
+  check('C' + (ci + 1) + ' finale: the lane drains before the duel — nothing blinks out',
+    !!G.boss() && stranded === 0 && wallLeft === 0);
+}
+G.installCampaign(G.CAMPAIGNS[0]); // back to the bundled default for everything downstream
+
 // ================= boss duel (THE WARP LEECH) =================
 // Campaign 1's finale is the family's teaching machine. Every leech shares one
 // contract — static at the bore centre, wounded ONLY by pulses, fed by its own
