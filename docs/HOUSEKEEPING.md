@@ -28,7 +28,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-07 | DONE | Story | HIGH | Pre-run read gate — circle-sweep reveal + inner charge ring + back button; built+tested 2026-08-21 |
 | H-08 | DONE | Backend | MED | Weekly board fairness — deep surges press density past surge 6 (Gil: mutators stay legal) |
 | H-09 | DONE | Release | MED | Name screened clear (docs/NAME-CLEARANCE.md) + opaque store icon built |
-| H-10 | TODO | Balance | MED | Fix the sawtooth break between campaigns 2 and 3 |
+| H-10 | DONE | Balance | MED | Sawtooth fixed — C3 re-sloped, peak between C2 and C4; L7 softened after Gil's playthrough (ships in 1.0.4) |
 | H-11 | TODO | Balance | MED | Make CHAIN OVERDRIVE pay the combo multiplier |
 | H-12 | DONE | Juice | MED | Combo-scaled kill effects + a PERFECT flash + a first-x10 beat |
 | H-13 | TODO | Audio | MED | Audio mastering — master limiter + music through the compressor |
@@ -151,7 +151,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) name clearance first; (b) icon alpha first; (c) both together as a "first Console upload" gate.
 
 ## H-10 · Fix the sawtooth break between campaigns 2 and 3
-- **Status:** TODO · **Area:** Balance · **Sev:** MED
+- **Status:** DONE (2026-08-22, ships in 1.0.4) — Gil chose the full C3 re-slope. All 7 non-boss C3 levels retuned in `src/campaigns.js`; the boss level is untouched. Metric (mirrors the sim: mean spawn rate × band intensity × speed × (1 + mix cost)) now climbs 1.69 → 4.70 → **5.30** → 6.68 → 10.45 across the campaigns; before, C3 peaked at 3.97 under C2's 4.70. Both C3 lane families climb inside the campaign (reading lanes 0.84 → 1.22 → 1.44; current lanes 2.51 → 3.41 → 4.49) and the L7 finale is now the campaign peak (was below L6). Level identity kept: only windows, speeds, and band intensities moved, plus one closing band on L7 (58–72s @2.2) and walls 0.18 → 0.15 on L5 (the linter's wall-carpet law forced it; L7 keeps 0.18 via a 0.54 window found by a clean-lint sweep). `npm run build` + `npm test` green (751 PASS); lintCampaign clean on all five. FEEL PASS (2026-08-22): Gil played all of C3 — good, except L7 was too hard versus its neighbours. Softened on his call: colors 0.40 → 0.32 (fewer keyed enemies) and the closing band 2.2 → 2.1; peak now 4.91 (was 5.30), still above C2's 4.70 and a gentler step from L6's 4.49. The 0.28/0.30 colors variants FAIL the wall-carpet lint at t≈43.8 — 0.32 is the floor for this config; to go softer, retune the window too (the sweep scripts live in the session scratchpad). `npm test` green (751 PASS); sim id now `2f9f5189dcd8`, carried by the standing pre-AAB deploy. Owed: Gil re-checks L7 on device. · **Area:** Balance · **Sev:** MED
 - **Combines:** C-6
 - **Issue:** the difficulty-3 campaign never exceeds the difficulty-2 peak. Computed non-boss peaks: C1 1.89 → C2 3.63 → C3 3.17 → C4 5.28 → C5 8.03.
 - **Evidence:** `campaigns.js:96-119` vs `139-170`.
