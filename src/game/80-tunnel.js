@@ -789,18 +789,26 @@ const S3D_LIGHT = {
   el: 0.56,          // camera elevation over the ring plane. The steep 3/4: low
                      // enough to see the top faces, high enough to read structure
   dist: 9,           // camera distance in station radii — mild perspective only
-  lx: -0.80, ly: -0.26, lz: 0.46,
+  lx: -0.32, ly: 0.02, lz: 0.95,
                      // THE SUN, and it is deliberately GRAZING. Relief is only
                      // visible where something can cast onto something else, and
                      // a key light down the view axis hides every shadow behind
                      // the thing that cast it.
+                     // CONSTRAINT: seen through the bake camera (screen up =
+                     // y·sin(el) + z·cos(el)) this vector must project to
+                     // LIGHT_A's screen angle — one world, one sun. The planets
+                     // light from ~68° up-left, so the station does too; the
+                     // grazing quality lives in the toward-camera component
+                     // (~0.49, unchanged from the old azimuth).
   sun: 2.55, sunG: 0.95, sunB: 0.855,  // key colour: white, a shade warm
   skyR: 0.052, skyG: 0.070, skyB: 0.125,  // ambient from above — cold starlight
   gndR: 0.012, gndG: 0.013, gndB: 0.020,  // and from below: the void, nearly nothing
   filR: 0.075, filG: 0.098, filB: 0.155,  // a dim cold bounce from the far side, so
                                           // the unlit half still turns and the
                                           // silhouette survives
-  filX: 0.62, filY: 0.55, filZ: -0.30,
+  filX: 0.47, filY: 0.32, filZ: -0.82,
+                     // rotated with the sun (same screen swing), so the bounce
+                     // still rises into the unlit half — now the lower right
   shadowFloor: 0.012, // vacuum shadows are HARD; almost nothing bounces into them
   aoK: 1.25,         // how hard the crevice occlusion bites
   aoR: 0.075,        // and how far it reaches, in station radii

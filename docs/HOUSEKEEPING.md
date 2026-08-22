@@ -32,7 +32,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-11 | DONE | Balance | MED | CHAIN OVERDRIVE pays ×scoreMul() AND advances the combo (ships in 1.0.4) |
 | H-12 | DONE | Juice | MED | Combo-scaled kill effects + a PERFECT flash + a first-x10 beat |
 | H-13 | DONE | Audio | MED | Audio mastering — master limiter over both buses + boss-dead re-trim + a pinned sfx level test |
-| H-14 | TODO | Art | MED | Align the station sun to the world key light + darken the hull |
+| H-14 | DONE | Art | MED | Station sun aligned to LIGHT_A + hull darkened + placeholder limb fixed (ships in the next build) |
 | H-15 | TODO | Journey | MED | Home "re-enter lane" continue + a live weekly caption |
 | H-16 | TODO | Journey | MED | Board dead-end — FLY THIS LANE + weekly-retry rollover fix |
 | H-17 | TODO | Story | MED | Story line-edit pass + the C5 continuity fork |
@@ -184,7 +184,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) route music through the existing compressor; (b) add a dedicated master limiter at destination; (c) both, and re-trim boss-arrival gain.
 
 ## H-14 · Align the station sun to the world key light + darken the hull
-- **Status:** TODO · **Area:** Art · **Sev:** MED (production value)
+- **Status:** DONE (2026-08-23, ships in the next build) — Gil chose sun alignment + darken the hull one step. (1) `S3D_LIGHT`'s sun is now `lx:-0.32, ly:0.02, lz:0.95` — through the bake camera (screen up = y·sin(el)+z·cos(el)) it projects to LIGHT_A's ~68° up-left, so stations and planets share one sun; the grazing quality is kept in the toward-camera component (~0.49, unchanged). The fill light rotated with it (`filX:0.47, filY:0.32, filZ:-0.82`) so the bounce still rises into the unlit half. A constraint comment pins the projection law at the dial. (2) `hull`/`hull2` albedos went one step down (×0.8: `[101,105,112]` / `[72,76,83]`), toward the matte-near-black rule. (3) BONUS FIND, fixed: `s3placeholder`'s lit limb used `−lx,−ly` — opposite the bake's sun and blind to the camera basis; it now projects the sun properly, so the placeholder agrees with the sprite that replaces it under ANY sun. VERIFIED: a headless bake harness (scratchpad `render-stations.js`, no browser, stubs the canvas per the headless-art-preview method) rendered all five endpoint builds before and after — all five differ, all five now light from the upper left with a darker hull; TRUSS/FORT/PORT read best, SPINE is moodiest but holds its silhouette on rim light + lamps. Render-only (draw-side files; no spawn/score path touched); the standing pre-AAB deploy covers the source-hash sim id as always. `npm run build` + `npm test` green (794 PASS). Owed: Gil's eyeball on device or in the dest lab (8011 drives these dials live); SPINE's darkness is the one to judge. · **Area:** Art · **Sev:** MED (production value)
 - **Combines:** art findings 2, 6
 - **Issue:** stations bake under `S3D_LIGHT` (screen-left, ~17° up); planets and enemy plates use `LIGHT_A` (~68° up). The arrival frame shows two suns, with the companion standing in front of the world. The hull also renders mid-grey, above the "matte near-black" rule.
 - **Evidence:** `80-tunnel.js:790`; `41-geometry.js:22`; `81-station3d.js:348`. Confirmed in the renders.

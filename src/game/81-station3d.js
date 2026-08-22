@@ -345,8 +345,8 @@ function s3array(M, o, ax, span, chord, mBoom, mPanel, out) {
 function s3palette(M, accent) {
   const RING_PL = { m: 'cyl', f: [104, 17, 0], w: 0.040 };
   return {
-    hull:  M.mat({ a: [126, 131, 140], g: 42, s: 0.46, pl: RING_PL, jit: 0.26, grime: 0.66 }),
-    hull2: M.mat({ a: [ 90,  95, 104], g: 34, s: 0.38, pl: RING_PL, jit: 0.30, grime: 0.76 }),
+    hull:  M.mat({ a: [101, 105, 112], g: 42, s: 0.46, pl: RING_PL, jit: 0.26, grime: 0.66 }),
+    hull2: M.mat({ a: [ 72,  76,  83], g: 34, s: 0.38, pl: RING_PL, jit: 0.30, grime: 0.76 }),
     // the greeble deck: no panel lines (they only bisect a 3cm crate), wide tonal
     // spread, so a hundred components never read as one moulded surface
     dark:  M.mat({ a: [ 46,  50,  58], g: 26, s: 0.26, jit: 0.42, grime: 0.78 }),
@@ -1835,7 +1835,10 @@ function s3drawLamps(sp, x, y, k, alpha) {
 function s3placeholder(x, y, R, alpha) {
   if (R < 0.6) return;
   const H = S3D_LIGHT;
-  const lx = -H.lx, ly = -H.ly;                 // toward the lit limb, on screen
+  // Toward the lit limb ON SCREEN — the sun projected through the bake camera
+  // (screen x = world x, canvas y = −(y·sin(el) + z·cos(el))). The old −lx,−ly
+  // shorthand pointed the limb AWAY from the bake's sun.
+  const lx = H.lx, ly = -(H.ly * Math.sin(H.el) + H.lz * Math.cos(H.el));
   const n = Math.hypot(lx, ly) || 1;
   ctx.save();
   if (alpha !== undefined && alpha < 1) ctx.globalAlpha = alpha;
