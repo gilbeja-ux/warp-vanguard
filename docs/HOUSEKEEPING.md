@@ -43,10 +43,10 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-22 | TODO | Art | LOW | Gate facing variants |
 | H-23 | TODO | Journey | LOW | Enlistment tap-to-complete |
 | H-24 | TODO | Journey | LOW | Delete dead code — scroll machinery + beam subsystem |
-| H-25 | TODO | Balance | LOW | Boss tuning pass + count volley zaps + split C1L7 lock intro |
+| H-25 | TODO | Balance | LOW | Boss tuning pass + count volley zaps + split C1L7 lock intro + author enemy/pickup beats (from H-28) |
 | H-26 | TODO | Backend | LOW | Backend hardening — name filter, delete residuals, admin auth |
-| H-27 | TODO | Art | LOW | Station bake polish — SPINE hoops + GATE aperture |
-| H-28 | TODO | Balance | LOW | Ship unused depth — crawlers drift, noCharge drone, more beats |
+| H-27 | DONE | Art | LOW | GATE aperture rebuilt (frame bug fixed + well + hoops); SPINE 18-pad preview declined by Gil, ribs stay |
+| H-28 | DONE | Balance | LOW | Unused depth resolved by deletion — crawlers knob + noCharge drone removed (zero sim cost, all 41 ids unchanged); beat authoring folded into H-25 |
 | H-29 | TODO | Docs | LOW | Doc drift pass |
 | H-30 | TODO | Content | LOW | The 40 briefing-disc keyframes |
 | H-31 | DONE | Balance | MED | Power-ups never land inside a dead-zone carpet — both spawners fixed + a pinned test (ships in 1.0.4) |
@@ -274,10 +274,11 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 
 ## H-25 · Boss tuning pass + count volley zaps + split C1L7 lock intro
 - **Status:** TODO · **Area:** Balance · **Sev:** LOW
-- **Combines:** C-7, boss tuning observations
+- **Combines:** C-7, boss tuning observations, H-28's beat authoring (2026-08-23)
 - **Issue:** prism's "unequal speeds" tell converges by round 5. The blockade last-stand sweep never accelerates. Volley kills do not increment `zaps`, undercounting volley styles in the tiebreak. C1L7 stacks the lock debut with bursts at the steepest jump.
 - **Evidence:** `52-bosses.js:591,679`; `72-tick.js:625`; `campaigns.js:68`.
 - **My take:** escalate the last-stand sweep with rounds, keep prism speeds honestly unequal, count volley zaps, and split C1's lock intro across L6/L7. Boss-board ids move, so batch with H-02.
+- **From H-28 (2026-08-23):** author `enemy` and `pickup` beats into C2/C4 while the ids are moving anyway — a placed heavy at a named second/angle, a shield before a hard band. The fairness linter judges every authored beat, so a bad placement fails `npm test`. No engine work: walls/strips already run through the same machinery.
 - **Options:** (a) volley zaps + C1L7 split only (cheap); (b) + boss escalation tuning; (c) full pass, batched with H-02.
 
 ## H-26 · Backend hardening — name filter, delete residuals, admin auth
@@ -289,16 +290,26 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) admin auth only; (b) + name-filter NFKC/homoglyph folding + min-length; (c) all three including the delete residuals.
 
 ## H-27 · Station bake polish — SPINE hoops + GATE aperture
-- **Status:** TODO · **Area:** Art · **Sev:** LOW
+- **Status:** DONE (2026-08-23, unreleased — ships in the next build) · **Area:** Art · **Sev:** LOW
 - **Combines:** art findings 4, 5
+- **Result:** GATE only, on Gil's call after a before/after preview (`docs/station-lab/h27-preview.png`).
+  - ROOT CAUSE of the flat dish: the gate is stood up with `rotX` AFTER its geometry is built, and the shader sampled the emissive pattern (`eCyl` filaments, `eRad` falloff) after that rotation — so the filaments lay across the wrong plane and never showed. Fix: `S3Mesh.rotX/rotZ` remember the angle (`M.rx`, `M.rz`) and `s3renderSteps` undoes it before sampling. Builds without a rotation are pixel-identical (SPINE before/after `cmp` equal).
+  - The dish got its own material: `eRing` (6 hoops packed toward the centre) and `eWell` (a bright core) are two new emissive shapes in the shader; the funnel deepened to `-0.12` with 10 rings. Dials in `s3_gate`: `eWell: [0.15, 2.2]` (radius, gain), `eRing: [6, 0.55, 0.6, 0.735]` (count, depth, packing, radius).
+  - SPINE: Gil saw the 18-pad plates+ribs variant and did not take it. The 36 ribs stay.
+  - `npm test` green (816 PASS). No sim cost (render only).
+  - Lab note: `docs/dest-lab/index.html` renders the gate WITHOUT `rotX` (flat, not stood up) — a pre-existing lab/game drift; with the frame fix both are self-consistent, but the lab still does not show what the game draws. `docs/station-lab/dials.js` was missing and is regenerated (derived file, now gitignored).
 - **Issue:** SPINE reads as cogs at rest (36 cladding boxes per torus). GATE's baked aperture is a flat teal dish at rest and leans entirely on live layers.
 - **Evidence:** `81-station3d.js:656,368`.
 - **My take:** halve SPINE's pad count and vary pad lengths for an armour read. Raise GATE filament contrast or add a centre vortex. Lab-drivable, then rebake.
 - **Options:** (a) SPINE only; (b) GATE aperture only; (c) both.
 
 ## H-28 · Ship unused depth — crawlers drift, noCharge drone, more beats
-- **Status:** TODO · **Area:** Balance · **Sev:** LOW (optional depth)
+- **Status:** DONE (2026-08-23, unreleased — ships in the next build) · **Area:** Balance · **Sev:** LOW (optional depth)
+- **Result:** resolved by DELETION, not by content. Gil's call: the crawlers knob and the `noCharge` pressure drone are gone; beat authoring moved to H-25. Board ids byte-identical before/after (all 41), `npm test` green (816 PASS). No verifier deploy needed for this item.
 - **Combines:** C-8, C-9, C-10
+- **Progress (2026-08-23):** crawlers RETIRED on Gil's call (removed, not shipped). The knob is gone from the loader's band-mix whitelist, the editor's mix list, the linter, and CMS-ROADMAP. The roll's RNG draw STAYS as a named burned draw in `spawnEnemy`/`simEnemy` — dropping it would shift every later `spawnRng()` and move all 41 board ids (proved: fingerprints byte-identical before/after, `npm test` green). Drop the burned draw only in a release that already moves every board.
+- **Progress (2026-08-23, later):** the `noCharge` pressure drone DELETED (pulled from the mimic on 2026-08-11, never set anywhere since). Gone: `PURPLE_CLEAR` + the purple law in `leechWave`/`sweepTrickle` (52-bosses.js), the both-thumbs zap branch + feed gate (72-tick.js), the violet palette + procedural-skin switch (85-enemy-art.js), the three purple test blocks + the `PURPLE_CLEAR` export (scripts/test.js), CMS-ROADMAP note. `bChance(opts.purple)` only drew when the option was set, so no board id moved. `en.drift` (72-tick.js:720) is now a pure orphan — left for H-24.
+- **Beats:** the engine takes `enemy` (6 types) / `wall` / `strip` / `pickup` / `lull` beats; the campaigns author only `wall` ×12, `strip` ×4, `lull` ×1 across 7 of 40 levels. No `enemy` or `pickup` beat exists. Authoring them is content work that moves each edited board's id → folded into H-25 to ride its verifier deploy.
 - **Issue:** three built systems ship no content. `crawlers` is rolled and discarded though `en.drift` exists. The `noCharge` purple pressure drone is one flag from use. Only 3 of the 8 beat types are authored.
 - **Evidence:** `50-enemies.js:30`; `72-tick.js:717,856`; `52-bosses.js:56`; `51-linter.js`.
 - **My take:** genuine new reads from the two dials, no new inputs. Crawlers cost zero extra RNG draws if drift derives from the already-drawn `spin`. The drone and new beats move edited board ids.

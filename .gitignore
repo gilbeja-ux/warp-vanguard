@@ -100,3 +100,6 @@ android/key.properties
 # Recomputing it is deterministic, so a committed copy would only ever be a
 # stale answer someone trusted.
 .sim-fingerprint.json
+
+# derived by lifting S3D_* out of DEST-DATA (see docs/station-lab/README.md)
+docs/station-lab/dials.js

@@ -132,6 +132,7 @@ class S3Mesh {
   // surface lit as though it still faced the old way — the shading would slide off
   // the geometry — and leave the blinking lamps hanging where the hull used to be.
   rotX(a) {
+    this.rx = (this.rx || 0) + a; // remembered, so emissive patterns can sample in build space
     const c = Math.cos(a), s = Math.sin(a);
     for (const A of [this.P, this.N]) {
       for (let i = 0; i < A.length; i += 3) {
@@ -150,6 +151,7 @@ class S3Mesh {
   // facing left or right — which is the axis a per-location facing would move.
   // Costs nothing until a build declares it.
   rotZ(a) {
+    this.rz = (this.rz || 0) + a;
     const c = Math.cos(a), s = Math.sin(a);
     for (const A of [this.P, this.N]) {
       for (let i = 0; i < A.length; i += 3) {
@@ -774,17 +776,22 @@ function s3_gate(M, seed, accent) {
       s3beam(M, [ca * 0.905, sa * 0.905, -0.16], [Math.cos(b2) * 0.99, Math.sin(b2) * 0.99, -0.02], 0.014, P.truss);
     }
   }
-  // the aperture, as a shallow dish of field: a surface that catches the eye,
-  // and real geometry, so the near half of the ring occludes it for free
+  // the aperture, as a dish of field: a surface that catches the eye, and real
+  // geometry, so the near half of the ring occludes it for free. At rest it is
+  // not flat: a bright well at the centre and hoops that tighten toward it,
+  // so the bake alone reads as a throat before a single live layer is drawn.
   {
     M.part();
-    const seg = 64, rings = 6, rMax = 0.735, zz = r => -0.055 * (1 - (r / rMax) * (r / rMax));
+    const DISH = M.mat({ a: [6, 16, 20], g: 20, s: 0.05, e: 0.70, ec: accent || [78, 226, 246],
+                         eCyl: [7.5, 2.6], eRad: [0.14, 0.80, 2.0], eRing: [6, 0.55, 0.6, 0.735], eWell: [0.15, 2.2],
+                         jit: 0, grime: 0, fx: 1 });
+    const seg = 64, rings = 10, rMax = 0.735, zz = r => -0.12 * Math.pow(1 - r / rMax, 1.5);
     for (let i = 0; i < rings; i++) {
       const r0 = rMax * (i / rings), r1 = rMax * ((i + 1) / rings);
       for (let j = 0; j < seg; j++) {
         const k0 = (j / seg) * 6.2831853, k1 = ((j + 1) / seg) * 6.2831853;
         M.quad([Math.cos(k0) * r0, Math.sin(k0) * r0, zz(r0)], [Math.cos(k0) * r1, Math.sin(k0) * r1, zz(r1)],
-               [Math.cos(k1) * r1, Math.sin(k1) * r1, zz(r1)], [Math.cos(k1) * r0, Math.sin(k1) * r0, zz(r0)], P.field);
+               [Math.cos(k1) * r1, Math.sin(k1) * r1, zz(r1)], [Math.cos(k1) * r0, Math.sin(k1) * r0, zz(r0)], DISH);
       }
     }
   }
@@ -923,6 +930,13 @@ function* s3renderSteps(M, opt) {
   const FIL = V3norm([H.filX, H.filY, H.filZ]);
   const SUN = [H.sun, H.sun * H.sunG, H.sun * H.sunB];
   const nP = M.P.length / 3, T = M.T, nT = T.length / 5;
+  // The inverse of the stand-up/yaw the build was given AFTER its geometry was
+  // described: an emissive pattern (a gate's radial filaments, its hoops) is
+  // authored on the builder's own ring plane, and has to be sampled there.
+  // Until 2026-08-23 it was sampled AFTER rotX, which laid the gate's filaments
+  // across the wrong plane — the "flat teal dish" of the audit (H-27).
+  const uRX = -(M.rx || 0), uRZ = -(M.rz || 0);
+  const uxc = Math.cos(uRX), uxs = Math.sin(uRX), uzc = Math.cos(uRZ), uzs = Math.sin(uRZ);
   // Triangles per slice. The driver checks the clock BETWEEN slices, so a slice
   // that takes longer than the whole budget overshoots it — the chunk has to be
   // small enough that one of them is cheap even on a slow phone.
@@ -1179,17 +1193,29 @@ function* s3renderSteps(M, opt) {
           const h1 = s3hash((gj[o] * 4096) | 0, 17, 5);
           fl = h1 < 0.13 ? 0.04 : 0.45 + 0.75 * s3hash((gj[o] * 4096) | 0, 29, 7);
         }
+        // back into build space: undo the yaw, then the stand-up
+        let bx = P0[0], by = P0[1], bz = P0[2];
+        if (uRZ) { const x = bx, y = by; bx = x * uzc - y * uzs; by = x * uzs + y * uzc; }
+        if (uRX) { const y = by, z = bz; by = y * uxc - z * uxs; bz = y * uxs + z * uxc; }
         if (m.eCyl) {
           // sampled in CYLINDRICAL coordinates, so the noise stretches into
           // radial filaments — a field being drawn toward its emitters
-          const ang = Math.atan2(P0[1], P0[0]), rr = Math.hypot(P0[0], P0[1]);
+          const ang = Math.atan2(by, bx), rr = Math.hypot(bx, by);
           const f1 = s3fbm(Math.cos(ang) * m.eCyl[0], Math.sin(ang) * m.eCyl[0], rr * m.eCyl[1], 3);
           const f2 = s3fbm(Math.cos(ang) * m.eCyl[0] * 2.7 + 5, Math.sin(ang) * m.eCyl[0] * 2.7, rr * m.eCyl[1] * 0.4, 2);
           fl *= 0.10 + 2.0 * Math.pow(s3clamp01(f1 * 0.65 + f2 * 0.55), 1.6);
         }
         if (m.eRad) {
-          const rr = Math.hypot(P0[0], P0[1]);
+          const rr = Math.hypot(bx, by);
           fl *= m.eRad[0] + (1 - m.eRad[0]) * Math.pow(s3clamp01(rr / m.eRad[1]), m.eRad[2] || 2.2);
+        }
+        if (m.eRing) { // concentric hoops, [count, depth, power, rMax]: power < 1 packs them toward the centre
+          const u = Math.pow(s3clamp01(Math.hypot(bx, by) / m.eRing[3]), m.eRing[2]);
+          fl *= 1 - m.eRing[1] * 0.5 * (1 - Math.cos(u * m.eRing[0] * 6.2831853));
+        }
+        if (m.eWell) { // a bright core, [radius, gain] — added, so the radial floor cannot dim it
+          const rr = Math.hypot(bx, by);
+          fl += m.eWell[1] * Math.exp(-(rr * rr) / (m.eWell[0] * m.eWell[0]));
         }
         const e = m.e * fl;
         r += m.el[0] * e; g += m.el[1] * e; b += m.el[2] * e;
