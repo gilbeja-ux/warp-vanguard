@@ -127,6 +127,31 @@ function boardReplayLaunch(r) {
     if (launchReplay(pkg, { name: r.player_name, score: r.score, mode: boardSel.mode }, true)) replayXfer = { dir: 1, t: 0 };
   });
 }
+// FLY THIS LANE — the board's one way OUT into play. The board used to be a dead
+// end: it opens on the live week, and a player who has not yet unlocked FREE FLOW
+// could read the field but never fly it (the mode wheel was the only door, and it
+// was locked). The key sits in the ring's TOP cap, mirroring Show my Run in the
+// bottom one, and flies whatever board is selected:
+//   endless   → the endless lane (gated by the FREE FLOW unlock, like the wheel)
+//   weekly    → that week's seeded lane; a CLOSED week flies as practice and says
+//               so — the submit path is hidden and the server refuses it anyway
+//   campaign  → that relay, briefed, if the campaign has unlocked it
+// A locked lane still draws the key, dimmed, with no button behind it: the wheel
+// and the relay map already say what unlocks it.
+function boardLane() {
+  const m = boardSel.mode;
+  if (m === 'endless') return { label: 'FLY THIS LANE', locked: !flowUnlocked(), go: startEndless };
+  if (m === 'weekly') {
+    const w = boardSel.week, live = w === weekNow();
+    return { label: live ? 'FLY THIS LANE' : 'PRACTICE THIS LANE', locked: !flowUnlocked(), go: () => startWeekly(w) };
+  }
+  if (m === 'campaign') {
+    const ci = boardSel.camp, li = boardSel.level, c = CAMPAIGNS[ci], pc = c && progress.camp[c.id];
+    const open = !!c && li < ((pc && pc.unlocked) || 1) && li < c.levels.length;
+    return { label: 'FLY THIS LANE', locked: !open, go: () => { switchCampaign(ci); startLevel(li, true); } };
+  }
+  return null;
+}
 // TIME SPENT IN WARP — mm:ss, because a run is minutes long and 158.6 reads as a
 // measurement rather than a duration. Rounds to the nearest second: the row stores
 // tenths, and a tenth is below what a player could act on.
@@ -185,7 +210,16 @@ function drawMenuBoard() {
   const titleW = ctx.measureText('LEADERBOARD').width + fTitle * 0.5; // + letter-spacing slack
   const Rin = R - bz * 0.55, halfNeed = titleW / 2 + 20;
   const tdy = Math.sqrt(Math.max(Rin * Rin * 0.25, Rin * Rin - halfNeed * halfNeed));
-  const titleBase = cy - tdy + fTitle * 0.28;  // nudged up to sit centered in its cap
+  // "Show my Run" baseline: inside the ring's inner edge, but never off-screen
+  // (the disc may overflow the bottom edge slightly, like the mock)
+  const showBase = Math.min(cy + R - bz * 0.9, H - SAFE.b) - H * 0.042;
+  const capBotY = showBase - fShow - H * 0.022; // the bottom cap's chord edge (exists only with my run)
+  // FLY THIS LANE mirrors Show my Run about the ring's center — same size, same
+  // distance in from the band — so the two caps read as one pair. The title then
+  // sinks below the key: it keeps its chord-width law, but never rises into it.
+  const lane = boardLane();
+  const flyBase = 2 * cy - showBase + fShow * 0.72;
+  const titleBase = Math.max(cy - tdy + fTitle * 0.28, lane ? flyBase + H * 0.012 + fTitle * 0.8 : -1e9);  // nudged up to sit centered in its cap
   const capTopY = titleBase + fTitle * 0.85;   // a clear gap between the title and the list
 
   // the right info column hugs the ring's outer edge, like the mock
@@ -375,10 +409,6 @@ function drawMenuBoard() {
     const rk = clamp(progress.myBoards[bd.key], 1, bd.rows.length);
     mine = bd.rows[rk - 1] || { rank: rk };
   }
-  // "Show my Run" baseline: inside the ring's inner edge, but never off-screen
-  // (the disc may overflow the bottom edge slightly, like the mock)
-  const showBase = Math.min(cy + R - bz * 0.9, H - SAFE.b) - H * 0.042;
-  const capBotY = showBase - fShow - H * 0.022; // the bottom cap's chord edge (exists only with my run)
   if (!boardSel.mode) { // nothing picked yet — the prompt, centered in the ring
     ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(185,218,246,0.82)'; ctx.font = '700 ' + Math.round(fRow * 0.9) + 'px Audiowide, system-ui';
     ['CHOOSE A LEVEL', 'TO SEE', 'LEADING SCORES'].forEach((w, i) => ctx.fillText(w, cx, cy + (i - 1) * fRow * 1.45));
@@ -424,6 +454,14 @@ function drawMenuBoard() {
   };
   // top cap: the title zone (the text itself draws LAST, on top of the ring)
   capSeg(cy - R, capTopY);
+  // …and FLY THIS LANE above the title, the mirror of Show my Run below
+  if (lane) {
+    ctx.font = '700 ' + fShow + 'px Audiowide, system-ui';
+    const tw = ctx.measureText(lane.label).width;
+    ctx.textAlign = 'center'; ctx.fillStyle = lane.locked ? 'rgba(90,190,255,0.32)' : 'rgba(90,190,255,0.95)';
+    ctx.fillText(lane.label, cx, flyBase);
+    if (!lane.locked) menuButtons.push({ x: cx - tw / 2 - 14, y: cy - R, w: tw + 28, h: flyBase + fShow * 0.5 - (cy - R), boardFly: lane.go });
+  }
   // bottom cap: a smaller segment carrying Show my Run — only when I'm on this board
   if (mine) {
     capSeg(capBotY, cy + R);

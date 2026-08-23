@@ -4364,3 +4364,71 @@ async function runMusicUp() {
   check('a bark nearing retirement has already faded out', late !== null && late < 0.2);
   G.setState(G.S.MENU);
 }
+
+// ================= H-16: the board is no longer a dead end =================
+// FLY THIS LANE sits in the ring's top cap (the mirror of Show my Run) and flies
+// whatever board is selected; a weekly retry stays on the week it just flew.
+{
+  const realNow = Date.now;
+  const flyKey = () => G.menuBtns().find(b => b.boardFly);
+  const drawBoard = () => { G.setState(G.S.MENU); G.setMenuScreen('board'); G.setMenuFx(null); G.frame(16); };
+  // with FREE FLOW locked, the key draws dimmed and has no button behind it
+  const first = G.CAMPAIGNS[0], saved = G.progress.camp[first.id];
+  G.progress.camp[first.id] = { unlocked: 1, stars: [], bests: [] };
+  try {
+    G.boardPick('weekly'); G.setBoardData({ key: G.boardKeyFor(), loading: false, rows: [], error: false });
+    drawBoard();
+    check('board: FLY THIS LANE has no button while FREE FLOW is locked', !flyKey());
+  } finally { G.progress.camp[first.id] = saved; }
+  // unlocked: the live week offers the key, and the tap flies THAT week
+  const sA = G.progress.camp[first.id] = G.progress.camp[first.id] || { unlocked: 1, stars: [], bests: [] };
+  const starsBefore = sA.stars.slice();
+  sA.stars[4] = Math.max(sA.stars[4] || 0, 1); // the FLOW_UNLOCK_LEVEL star
+  try {
+    Date.now = () => realNow() + 11 * 7 * 864e5; // deep into the ladder: history exists
+    const live = G.weekNow();
+    G.boardPick('weekly', live - 1); G.setBoardData({ key: G.boardKeyFor(), loading: false, rows: [], error: false });
+    drawBoard();
+    const past = flyKey();
+    check('board: a closed week offers the key too (practice)', !!past);
+    G.boardPick('weekly', live); G.setBoardData({ key: G.boardKeyFor(), loading: false, rows: [], error: false });
+    drawBoard();
+    const k = flyKey();
+    check('board: the live week offers FLY THIS LANE', !!k);
+    check('board: the key sits in the TOP cap, above the ring\'s center', !!k && k.y + k.h < G.viewport().H / 2);
+    G.menuTap(k.x + k.w / 2, k.y + k.h / 2, 1);
+    let tp = 30, fx = null; // the press beat, then the turn: catch it while it is still in flight
+    while (tp-- > 0 && !(fx = G.getMenuFx(), fx && fx.kind === 'boardOut')) G.update(0.02);
+    check('board: the tap turns the ring out (the BACK transition) with the lane armed', !!fx && fx.kind === 'boardOut' && typeof fx.action === 'function');
+    flushUI(); flushUI();
+    G.setIntro(999);
+    check('board: at the end of the turn the selected week starts', G.getState() === G.S.PLAY && G.isWeekly() && G.weeklyIdx() === live);
+    // A WEEKLY RETRY PINS ITS WEEK: the Monday rollover happens mid-run, the END
+    // retry must restart the SAME lane, not the new week's
+    G.setScore(1); G.setIntegrity(0); G.update(0.01);
+    check('board: the run ends on the report', G.getState() === G.S.END);
+    Date.now = () => realNow() + 12 * 7 * 864e5; // …and the week closed while the report was up
+    check('board: the clock has rolled over a week', G.weekNow() === live + 1);
+    G.setEndT(9); G.frame(16);
+    const rb = G.endButtons().find(b2 => b2.action === 'retry');
+    check('board: the report offers RETRY', !!rb);
+    G.endTap(rb.x + rb.w / 2, rb.y + rb.h / 2);
+    let tg = 60;
+    while (tg-- > 0 && G.getState() === G.S.END) G.update(0.05);
+    check('a weekly retry across the rollover stays on its OWN week', G.isWeekly() && G.weeklyIdx() === live);
+    check('...which is now a practice lane that files nothing', G.weeklyLive() === false && G.boardKey() === null);
+  } finally {
+    Date.now = realNow;
+    sA.stars = starsBefore;
+  }
+  // a campaign board flies its relay when unlocked, and offers nothing when not
+  G.installCampaign(G.CAMPAIGNS[0]);
+  const pc = G.progress.camp[first.id];
+  G.boardPick('campaign', 0, 0); G.setBoardData({ key: G.boardKeyFor(), loading: false, rows: [], error: false });
+  drawBoard();
+  check('board: the first relay\'s board offers FLY THIS LANE', !!flyKey());
+  G.boardPick('campaign', 0, Math.max(pc.unlocked, 1)); G.setBoardData({ key: G.boardKeyFor(), loading: false, rows: [], error: false });
+  drawBoard();
+  check('board: a relay not yet unlocked offers no key', !flyKey());
+  G.setMenuFx(null); G.setState(G.S.MENU); G.setMenuScreen('home');
+}

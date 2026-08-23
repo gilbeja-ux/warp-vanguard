@@ -229,7 +229,8 @@ function tickUI(dt) {
           : { kind: 'spinIn', t: 0, dur: 0.35, dir: f.dir || 1 };
       } else if (f.kind === 'boardOut') { // leaving the board → back to where it opened
         menuScreen = f.to;
-        menuFx = f.to === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: -1 }
+        if (f.action) f.action(); // FLY THIS LANE: the ring has turned out — start the lane
+        else menuFx = f.to === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: -1 }
           : { kind: 'spinIn', t: 0, dur: 0.35, dir: -1 };
       } else if (f.kind === 'discZoom') {
         // the disc became the tunnel — its relay map takes over

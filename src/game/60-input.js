@@ -499,6 +499,9 @@ function menuTap(x, y, pid) {
       });
       else if (b.boardRow) pressUI(b, () => { boardSelRank = b.boardRow; sfx.tick(); }); // select an entry → details
       else if (b.boardShowMe) pressUI(b, () => { boardSelRank = b.boardShowMe; boardScrollToRank(b.boardShowMe); sfx.tick(); });
+      // FLY THIS LANE: the ring turns out exactly as BACK would, then the lane starts
+      // at the end of the turn instead of the previous screen (see the boardOut completion)
+      else if (b.boardFly) pressUI(b, () => { menuFx = { kind: 'boardOut', t: 0, dur: 0.5, to: boardFrom, action: b.boardFly }; tone(70, 0.45, 'sine', 0.12, 260); });
       else if (b.boardMyData) pressUI(b, () => { openMyData(); sfx.tick(); });
       else if (b.boardReport) pressUI(b, () => { openReport(b.boardReport); sfx.tick(); });
       else if (b.boardReplaySel) pressUI(b, () => boardReplayLaunch(b.boardReplaySel)); // watch the selected run
@@ -524,7 +527,12 @@ function endTap(x, y) {
         // The run that just landed filed no score and no star, so a restart from
         // a won assisted lane is a player asking to fly it for real; handing them
         // another unranked run would be the one thing they cannot want.
-        if (weekly) startWeekly(); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx, false, assist && !endWin);
+        // A WEEKLY RETRY STAYS ON ITS OWN WEEK. startWeekly() with no argument
+        // takes weekNow(), so a retry that crossed the Monday rollover silently
+        // restarted on the NEW week's lane — a different seed under the same key.
+        // Passing the week just flown keeps the lane; if it closed meanwhile the
+        // retry is practice, which weeklyLive() already says and the server enforces.
+        if (weekly) startWeekly(weeklyIdx); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx, false, assist && !endWin);
         warpT = 0; // a re-sync doesn't travel — no warp dive on the way back in
       }));
       else if (b.action === 'assist') pressUI(b, () => startTrans('derez', () => {
