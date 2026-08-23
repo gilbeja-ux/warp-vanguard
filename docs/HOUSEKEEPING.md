@@ -37,7 +37,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-16 | TODO | Journey | MED | Board dead-end — FLY THIS LANE + weekly-retry rollover fix |
 | H-17 | TODO | Story | MED | Story line-edit pass + the C5 continuity fork |
 | H-18 | DONE | Story | MED | NEXT CONTRACT ▸ on the report + the bark fade fixed (countdown → H-15, dossier → H-06) |
-| H-19 | TODO | Decision | MED | Settle the canon + the address term |
+| H-19 | DONE | Decision | MED | Canon settled — episodic contracts; address is Vanguard/vanguards, "runner" only as accent; wolves retired |
 | H-20 | TODO | Audio | MED | Audio breadth — fanfare tiers, boss-duel music, sonar phase, coverage |
 | H-21 | TODO | Art | LOW | Restore menu film grain |
 | H-22 | TODO | Art | LOW | Gate facing variants |
@@ -225,7 +225,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) NEXT CONTRACT hook only; (b) + week close countdown; (c) + dossier client/cargo; (d) all four including the bark-fade fix.
 
 ## H-19 · Settle the canon + the address term
-- **Status:** TODO · **Area:** Decision · **Sev:** MED
+- **Status:** DONE (2026-08-23, no version — decision + docs only). Gil's ruling: (1) CANON = episodic contracts, exactly as `campaigns.js:1-6` states; the `story.json` mystery serial stays a parked draft (acts II–V were never written) and is NOT canon. (2) ADDRESS = the unit is **the vanguards**, comms address the player as *Vanguard*; "runner" survives only as an occasional accent nickname (the two shipped lines in `52-bosses.js` qualify); **wolf/wolves is retired** and must not return to shown text. Recorded in BRAND.md (Name bullet + the old "The wolves" section, now "The vanguards") and PRODUCT.md Brand Commitments. No code change — the shipped lines already obey the ruling. H-06 and H-17 are unblocked.
 - **Combines:** naming forks
 - **Issue:** two forks block story work. The shipped game is episodic contracts; `story.json` drafts a Renke/Reyes/TRACE mystery serial with acts 2–5 empty. And "wolf/wolves" (PRODUCT.md) never appears in code, which ships "runner".
 - **Evidence:** `campaigns.js:3`; `docs/lab/story.json`; PRODUCT.md `:139` vs `:144`; `52-bosses.js:38`.

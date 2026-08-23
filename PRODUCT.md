@@ -135,13 +135,13 @@ offline entitlement flag; no server for v1. Full plan in
 
 - Name: **WARP VANGUARD** — a squadron, because "we're an elite
   group, not a single hired gun." Short form WARP LANE. Tagline *Clear the lane.*
-  In-world the unit is **the wolves**, spoken "wolves", and comms address the player as
-  *wolf*.
+  In-world the unit is **the vanguards**, and comms address the player as
+  *Vanguard* (settled 2026-08-23, H-19; the earlier wolf/wolves callsign is retired).
 - Logo is the user's shield badge, loaded from `src/logo.webp`. **Done** — the badge
   reads WARP VANGUARD and the icon set carries the V monogram (`src/icons/wv-*.png`,
   renamed from the `df-` Dark Fiber prefix 2026-08-05; the monogram itself was a W
-  until 2026-08-14). No old lettering ships. The story voice may address the player as "runner"
-  (singular); every brand surface is the squadron.
+  until 2026-08-14). No old lettering ships. The story voice may use "runner" as an occasional
+  accent nickname; every brand surface is the squadron.
 - Voice: terse operational radio traffic. Four speakers — HAUL (Meridian Haulage
   Yards), CMD (Lane Command), TRACE (analyst), WARD (the hostile
   warden core). Lowercase clipped comms in-level; typewriter briefings on

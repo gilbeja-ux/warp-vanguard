@@ -2,10 +2,10 @@
 
 ## Name
 - **WARP VANGUARD** — one mark, no subtitle. Short enough to need no short form.
-- Unit callsign, in-world: **the wolves**. Not a marketing mark — comms address
-  the player as *wolf* (`"wolf two, lane is yours."`). It used to be justified by
-  an initialism; it no longer needs one, and the bible line below was always the
-  better reason anyway.
+- Unit callsign, in-world: **the vanguards**. Not a marketing mark — comms
+  address the player as *Vanguard* (`"Vanguard released, Godspeed."`). "Runner"
+  is a permitted accent nickname, used sparingly for texture
+  (`"bring it home, runner."`), never as the standard address.
 - Tagline: *Clear the lane.*
 - Store subtitle: *Run point. Kill the interdiction. Get the convoy through.*
 - Before store submission: run a USPTO TESS + Play/App Store search on the final
@@ -17,16 +17,13 @@
   risk entirely — this name's only exposure is the common word "Vanguard", which
   is weak on its own and is not the whole mark.
 
-## The wolves
-The pack is deliberate and the inversion is deliberate. Historically a wolfpack
-was the formation that *hunted* convoys. This squadron took the name from the
-raiders it replaced:
-
-> *They called the raiders wolves once. Now we run ahead of the convoy, and
-> we are what the raiders have to get past.*
-
-Use it for texture, never for exposition. One line of bible, then let the
-callsigns carry it.
+## The vanguards
+(Settled 2026-08-23, housekeeping H-19.) The unit is the vanguard; its members
+are vanguards. Comms address the player as *Vanguard* — the shipped lines
+already do ("Good job Vanguard!", "Vanguard released, Godspeed."). "Runner"
+survives as an occasional accent nickname: one line here and there for texture,
+never the standard address. The earlier wolf/wolves callsign is retired and
+must not return to shown text.
 
 ## Mark
 A **shield badge**: gold rim over a chamfered near-black body, with a receding
