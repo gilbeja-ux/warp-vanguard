@@ -7,7 +7,7 @@ const SFX_FILES = {
   ui:     ['audio/sfx/mini-hit.wav', 0.5],
   miss:   ['audio/sfx/miss.wav', 0.9],
   miss2:  ['audio/sfx/miss2.wav', 0.9],
-  pick:   ['audio/sfx/power-up.wav', 0.8],
+  pick:   ['audio/sfx/power-up.wav', 0.6], // 0.8 → 0.6 (-2.5 dB): it was the loudest take on the bus (Gil, on the phone)
   pulse:  ['audio/sfx/pulse.mp3', 1.0],
   pulseArm: ['audio/sfx/pulse_charge.mp3', 0.9], // an orb reaching full — ready to fire
   volley: ['audio/sfx/volley2.mp3', 1.0], // levelled in the edit — no trim needed
@@ -40,7 +40,10 @@ const SFX_FILES = {
   // the stack with `startup` is.
   warpIn:   ['audio/sfx/warp-in.mp3', 0.27],  // 2.44s — the spool-up, on the launch beat
   inWarp:   ['audio/sfx/in-warp.mp3', 0.34],  // 8.93s — LOOPED under the whole run (see ambient())
-  exitWarp: ['audio/sfx/exit-warp.mp3', 0.95] // 4.96s — dropping out of warp on a win
+  // 0.30, down from 0.95 (-10 dB): at 0.95 the drop was the loudest thing on the
+  // win's frame and buried everything under it — the sting riding at EXIT_STING,
+  // the keys, the first star. It is a BED for the verdict, not the verdict.
+  exitWarp: ['audio/sfx/exit-warp.mp3', 0.30] // 4.96s — dropping out of warp on a win
   // splash2.mp3 (8.1s) scores the boot splash — it has its own player there
 };
 // how far into the 4.96s exit-warp take the victory sting rises. Sitting it in the
@@ -118,14 +121,16 @@ const sfx = {
     [784, 1047, 1568].forEach((f, i) => tone(f, 0.09, 'triangle', 0.10, f * 1.12, null, i * 0.05));
     tone(3136, 0.12, 'sine', 0.05, 3520, null, 0.15);
   },
-  shieldUp() { tone(392, 0.18, 'triangle', 0.11, 523); tone(784, 0.3, 'sine', 0.09, 1047); },
+  // the collar charge and the repair both follow the pick take on its frame — 0.12s late, so they read as the SECOND sound
+  shieldUp() { tone(392, 0.18, 'triangle', 0.11, 523, null, 0.12); tone(784, 0.3, 'sine', 0.09, 1047, null, 0.12); },
   shieldHit() { tone(1047, 0.22, 'triangle', 0.13, 523); tone(196, 0.28, 'square', 0.09, 98); },
-  perfect() { tone(2093, 0.14, 'triangle', 0.13, 2637); tone(3136, 0.10, 'sine', 0.08, 3520); },
+  // 0.12s late on purpose: it fires on the zap's frame and was lost in the take's transient
+  perfect() { tone(2093, 0.14, 'triangle', 0.13, 2637, null, 0.12); tone(3136, 0.10, 'sine', 0.08, 3520, null, 0.12); },
   count() { tone(600, 0.12, 'square', 0.12, 560); },
   overheatWarn() { tone(220, 0.5, 'sawtooth', 0.13, 90); tone(110, 0.6, 'square', 0.1, 60); },
   bossShot() { tone(140, 0.22, 'sawtooth', 0.13, 70); },
   go()    { tone(880, 0.20, 'square', 0.14, 1320); tone(1760, 0.30, 'triangle', 0.10, 2200); },
-  heal()  { tone(523, 0.14, 'triangle', 0.12, 659); tone(784, 0.22, 'triangle', 0.10, 1047); },
+  heal()  { tone(523, 0.14, 'triangle', 0.12, 659, null, 0.12); tone(784, 0.22, 'triangle', 0.10, 1047, null, 0.12); },
   speedUp()  { tone(180, 0.45, 'sawtooth', 0.11, 880); tone(110, 0.55, 'triangle', 0.09, 440); },
   miss(pan) { // a dull thud + terse alarm blip — bad news without harshness
     if (playSample(misses & 1 ? 'miss2' : 'miss', 1, pan)) return; // two takes, alternating
@@ -203,6 +208,34 @@ const sfx = {
     tone(1319, 0.7, 'triangle', 0.10, null, null, 0.56);
     tone(2637, 0.5, 'sine', 0.04, null, null, 0.56);
     tone(330, 0.8, 'sine', 0.07, null, null, 0.56);
+  },
+  // ---- H-20 · THE VERDICT HAS TIERS. Every clear used to land on the same `win`
+  // sting and the same three-note star chime; the END card is where the grade is
+  // read, so the grade is voiced there. `star` is the per-pop chime (unchanged
+  // pitch ladder), `starsFull` is the resolve that follows the LAST star and
+  // grows with the count, `newBest` is the badge's own stamp, and `unlock` is
+  // the sound of the next lane's key landing. All triangle/sine, all short: the
+  // recorded `win` sting has already played by the time any of these fire.
+  star(n) { tone(760 + n * 220, 0.2, 'triangle', 0.13, 900 + n * 260); },
+  starsFull(n) {
+    if (n >= 3) { // full marks: a quick bright arpeggio into a held top note
+      [1047, 1319, 1568].forEach((f, i) => tone(f, 0.18, 'triangle', 0.10, f * 1.01, null, 0.12 + i * 0.07));
+      tone(2093, 0.55, 'sine', 0.07, null, null, 0.33);
+      tone(523, 0.6, 'sine', 0.06, null, null, 0.33);
+    } else if (n === 2) { // two: a rising fifth, confirmed
+      tone(1319, 0.14, 'triangle', 0.09, 1397, null, 0.12);
+      tone(1568, 0.3, 'triangle', 0.08, null, null, 0.24);
+    } // one star: the pop chime alone is the verdict
+  },
+  newBest() { // the badge stamps: a ping with a shimmer, over a low body
+    tone(2093, 0.12, 'sine', 0.11, 2349);
+    tone(2637, 0.10, 'sine', 0.07, 3136, null, 0.08);
+    tone(3136, 0.22, 'triangle', 0.05, 3520, null, 0.16);
+    tone(262, 0.5, 'sine', 0.07, 330);
+  },
+  unlock() { // a lane key turns: two rising notes, soft
+    tone(440, 0.16, 'triangle', 0.08, 880);
+    tone(880, 0.26, 'sine', 0.07, 1760, null, 0.08);
   },
   traced() { // ribbon ridden to the end — resolve the rising trace tone
     tone(880, 0.09, 'sine', 0.12, 1047);

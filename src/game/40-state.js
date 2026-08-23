@@ -204,6 +204,9 @@ let commNext = 0, commCur = null, commT = 0; // intercepted-transmission ticker
 let surgeLevel = 0, surgeCount = -1, surgeWaveZ = -1; // free-run speed surges (announced)
 let endWin = false, endStars = 0, endT = 0, endNewBest = false;
 let endFxStars = 0, endTickT = 0; // ceremony bookkeeping (star chimes, count ticks)
+// H-20 · one-shot latches for the report's voiced beats: the NEW BEST stamp, the
+// keys landing, and whether THIS run opened a new lane (the keys then say so)
+let nbFx = false, endKeysFx = false, endUnlocked = false;
 // post-run sign-in tease: where an unlisted (anonymous) player WOULD rank, and
 // whether they've dismissed the offer this run
 let endProvisional = null, nameEntryBtns = [];

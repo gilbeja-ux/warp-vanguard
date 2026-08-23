@@ -1098,7 +1098,10 @@ function pauseTap(x, y, pid) {
 // competing with it.
 const ENLIST_COL = '235,245,255';       // Lane Command's own colour, from CAMP.factions
 const ENLIST_SCAN = 0.52;               // the disc PRINTS in over this — see enlistScanRender
-const ENLIST_TYPE = 26;                 // characters per second — a readable transmit rate
+// NO TRANSMIT RATE ANY MORE. The line used to type at 26 characters a second; it now
+// arrives the way a mission disc's plot line does — each glyph on its own short fade,
+// staggered left to right (LINE_LEAD / LINE_STAGGER / LINE_FADE, shared with the disc
+// so the two voices of the briefing room resolve the same way). H-20.
 const ENLIST_MIN = 0.55;                // a beat cannot be tapped away faster than this
 const ENLIST_OUT = 0.7;                 // hand-off fade before the course opens
 // The script. Terse-ops register, the same voice the in-run barks use: he is
@@ -1126,14 +1129,15 @@ const ENLIST_SHORT = [
   ['Back on the course.', 'Start when ready.']
 ];
 const enlistScript = () => (enlist && enlist.short) ? ENLIST_SHORT : ENLIST_SCRIPT;
-// how long this beat's text takes to type out — the tap gate waits for it, so a
+// how long this beat's text takes to arrive — the tap gate waits for it, so a
 // player can never skip past a line they have not been shown. The scan lead is
 // part of the answer because the line does not START until the disc has finished
-// printing: leave it out and the gate opens while he is still mid-sentence.
+// printing: leave it out and the gate opens while he is still mid-sentence. The
+// figure is the last glyph's fade END: lead, the whole stagger, then one fade.
 function enlistTypeDur(beat) {
   const ln = enlistScript()[beat];
   if (!ln) return 0;
-  return ENLIST_SCAN + ln.join(' ').length / ENLIST_TYPE;
+  return ENLIST_SCAN + LINE_LEAD + ln.join(' ').length * LINE_STAGGER + LINE_FADE;
 }
 // ---------- disc art ----------
 // NOTHING HAND-DRAWN, and now nothing hand-LAID-OUT either. These three discs sit
@@ -1845,9 +1849,11 @@ function enlistDiscBody(g, R, lines, t, beat) {
   const lh = ls + 5;
   ctx.save();
   ctx.beginPath(); ctx.arc(g.cx, g.cy, Rc, 0, TAU); ctx.clip();
+  // the line's clock starts when the disc has printed; `talking` holds until the
+  // last glyph has fully arrived (the same figure enlistTypeDur gates the tap on)
+  const t3 = t - ENLIST_SCAN;
   const full = lines.join(' ').length;
-  const typed = Math.min(full, Math.floor((t - ENLIST_SCAN) * ENLIST_TYPE));
-  const talking = typed < full && !enlist.out;
+  const talking = t3 < LINE_LEAD + full * LINE_STAGGER + LINE_FADE && !enlist.out;
   // NO CALLSIGN PLATE. It read as a caption pinned over the picture rather than as
   // part of it, and it cost the art the whole top fifth of the window. Who is
   // speaking is already carried by the line he speaks.
@@ -1882,7 +1888,7 @@ function enlistDiscBody(g, R, lines, t, beat) {
   ctx.moveTo(g.cx - half(bTop - g.cy), bTop - 0.5);
   ctx.lineTo(g.cx + half(bTop - g.cy), bTop - 0.5);
   ctx.stroke();
-  // …and the line he is speaking, typed into the plate, centred on its ink
+  // …and the line he is speaking, arriving on the plate a glyph at a time, centred on its ink
   ctx.textAlign = 'center';
   ctx.font = '500 ' + ls + 'px Audiowide, system-ui';
   const m3 = ctx.measureText(lines[0] || 'M');
@@ -1895,16 +1901,24 @@ function enlistDiscBody(g, R, lines, t, beat) {
   // centring the speech in all of it dropped the second row onto the tap line.
   const tapTop = g.cy + R * TAP_K - R * 0.055;
   const base0 = bTop + Math.max(0, (tapTop - bTop - inkH) / 2) + capH;
-  ctx.fillStyle = 'rgba(228,240,254,0.96)';
-  let used = 0;
-  for (let i2 = 0; i2 < lines.length; i2++) {
-    const whole = lines[i2];
-    const take = clamp(typed - used, 0, whole.length);
-    used += whole.length + 1;
-    if (take <= 0) break;
-    ctx.fillText(whole.slice(0, take), g.cx, base0 + i2 * lh);
-  }
+  // per-glyph fade, the disc's own loop (drawStoryDisc): x per glyph from the cached
+  // prefix widths so kerning holds, and 20 alpha buckets so a settled line costs one
+  // fillStyle instead of one per character
   ctx.textAlign = 'left';
+  let ci = 0, lastA = -1;
+  for (let i2 = 0; i2 < lines.length; i2++) {
+    const whole = lines[i2], xs = charXs(whole, ctx.font), y = base0 + i2 * lh;
+    const x0 = g.cx - xs[whole.length] / 2;
+    for (let j = 0; j < whole.length; j++) {
+      const a = clamp((t3 - LINE_LEAD - ci * LINE_STAGGER) / LINE_FADE, 0, 1);
+      ci++;
+      if (a < 0.005 || whole[j] === ' ') continue;
+      const q = Math.round(a * 20) / 20;
+      if (q !== lastA) { ctx.fillStyle = 'rgba(228,240,254,' + (0.96 * q).toFixed(3) + ')'; lastA = q; }
+      ctx.fillText(whole[j], x0 + xs[j], y);
+    }
+    ci++; // the authored break stands in for a space — keep the stagger running across it
+  }
   return talking;
 }
 // HANDED BACK WHEN HE IS DONE. Between them these two hold a full-screen canvas at

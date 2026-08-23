@@ -735,7 +735,13 @@ function drawEnd(g) {
     drawStars(g.cx, g.cy - R * 0.44, endStars, Math.min(W, H) * 0.045, endT - T.stars);
     let popped = 0;
     for (let i = 0; i < endStars; i++) if (endT - T.stars > 0.4 + i * 0.35) popped++;
-    if (popped > endFxStars) { endFxStars = popped; tone(760 + popped * 220, 0.2, 'triangle', 0.13, 900 + popped * 260); }
+    if (popped > endFxStars) {
+      endFxStars = popped; sfx.star(popped);
+      // the LAST star resolves the grade (H-20): nothing extra on one, a fifth on
+      // two, a flourish on three. A skip pops them all in one frame and still
+      // lands here once, with the final count.
+      if (popped >= endStars) sfx.starsFull(endStars);
+    }
   }
 
   // ---- THE NUMBERS SIT ON THE BOTTOM EDGE ----
@@ -841,6 +847,7 @@ function drawEnd(g) {
       // keeps the hold monotonic, so it can never un-hold and fire mid-card.
       if (nameEntry) nbHold = Math.max(nbHold, endT - T.best);
       const k = ph(T.best + nbHold, T.best + nbHold + 0.42);
+      if (k > 0.001 && !nbFx) { nbFx = true; sfx.newBest(); } // the stamp is heard once (H-20)
       if (k > 0.001) {
         // overshoot: 1.35 -> 1, easing out. A tag that merely fades in does not read as
         // an award; the scale is what makes it land.
@@ -942,6 +949,8 @@ function drawEnd(g) {
   // registered as hit targets, so Continue waits until the player saves or skips.
   ctx.shadowBlur = 0; // the data's floating shadow stops here — keys shade themselves
   const bA = ph(btnAt, btnAt + 0.4);
+  // the keys land once; when this run opened a new lane, the landing says so (H-20)
+  if (bA > 0.001 && !endKeysFx) { endKeysFx = true; if (endUnlocked) sfx.unlock(); }
   if (bA > 0.001) {
     ctx.globalAlpha = pA * bA;
     const gated = !!nameEntry;

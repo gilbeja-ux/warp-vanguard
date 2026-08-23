@@ -9,6 +9,15 @@ const masterBus = () => masterLim || AC.destination;
 // enter + while the scrub knob is held, then eased back to 1 so sound doesn't
 // pop in. Applied to sfxGain every frame (see the frame loop); music is separate.
 let sfxFade = 1, sfxFadeTgt = 1, sfxFadeRate = 6; // rate: snappy (6) for scrub, slow (~1s) for the replay enter
+// THE ACCENT LIFT. Every synth voice (tone) used to enter the sfx bus at its own
+// 0.07-0.13 gain while the recorded takes enter at 0.8-1.0 — measured through the
+// real bus, the accents sat 10-15 dB under the takes, and every accent in the game
+// fires on the SAME frame as a take (the x10 chime under the zap, PERFECT under the
+// zap, shieldUp/heal under the pick). On a phone speaker that is "sometimes no
+// sound on x10". One gain on the way in lifts every accent together; tune it on
+// the device with the soundboard (scripts/soundboard.html), not by ear on the Mac.
+const ACCENT_LIFT = 3.16; // ×3.16 = +10 dB — set on the phone by Gil, 2026-08-23
+let accentGain = null;
 function sfxBusGain() { return (settings.sound ? settings.soundVol : 0) * sfxFade; }
 const settings = {
   sound: true, soundVol: 0.8, music: true, musicVol: 0.32, haptics: true // music sits low so sonar and cues read
@@ -35,6 +44,7 @@ function initAC() {
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
     sfxGain = AC.createGain();
+    accentGain = AC.createGain(); accentGain.gain.value = ACCENT_LIFT; accentGain.connect(sfxGain);
     // H-13 · THE CEILING OVER THE SUM. The sfx compressor below glues its own
     // bus, but music (and the splash score) used to meet the sfx at the raw
     // destination — a dense wave plus a hot take clipped at the output. This is
@@ -54,11 +64,27 @@ function initAC() {
     } else sfxGain.connect(AC.destination);
     applySettings();
     loadSamples(); // recorded sfx decode in the background; synths cover until then
+    // H-20 · THE PHONE CALL. A call (or Siri, or an alarm) takes the audio session
+    // from under the page WITHOUT a visibilitychange — WebKit parks the context in
+    // its own 'interrupted' state and nothing here ever fired. The game played on,
+    // silent, and kept playing when the call ended. So: an interruption mid-run
+    // pauses the run the way a hide does, and the resume paths below (the next
+    // gesture, the next show) ask for any state that is not 'running', not only
+    // 'suspended'. audioWake() is that one ask.
+    AC.addEventListener('statechange', () => {
+      if (AC.state === 'interrupted' && state === S.PLAY) state = S.PAUSE;
+    });
   } catch (e) {}
+}
+// resume the context from ANY parked state — 'suspended' (autoplay policy, a hide)
+// or WebKit's 'interrupted' (a call). Safe to call on every gesture; a running
+// context is a no-op.
+function audioWake() {
+  if (AC && AC.state !== 'running' && AC.state !== 'closed') AC.resume().catch(() => {});
 }
 function audio() {
   initAC();
-  if (AC && AC.state === 'suspended') AC.resume().catch(() => {});
+  audioWake();
   // during the boot splash its score owns the mix — the menu track would land
   // on top of it; splashAudioTry() picks the take up once the context runs
   if (SPLASH.on) return AC;
@@ -101,7 +127,7 @@ function tone(freq, dur, type, vol, slideTo, dest, delay, pan) {
     const p = ac.createStereoPanner(); p.pan.value = clamp(pan, -1, 1);
     g.connect(p); tail = p;
   }
-  o.connect(g); tail.connect(dest || sfxGain); o.start(t0); o.stop(t0 + dur);
+  o.connect(g); tail.connect(dest || accentGain || sfxGain); o.start(t0); o.stop(t0 + dur);
 }
 // filtered noise burst — the electric texture tones can't make. A cached
 // noise buffer runs through a swept bandpass with a tight envelope.

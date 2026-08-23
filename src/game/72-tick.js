@@ -949,8 +949,10 @@ function updateEnemy(en, C) {
       if (!en.tut && !x10Seen && scoreMul() >= COMBO_CAP) {
         x10Seen = true; x10FxT = 1.1; x10FxA = en.angle;
         popup(W / 2, H * 0.30, 'OVERDRIVE x10', '#ffd24a');
-        tone(1046, 0.14, 'triangle', 0.09, 1568);
-        tone(1568, 0.2, 'triangle', 0.07, 2093, null, 0.1);
+        // 0.12s AFTER the zap it rides on, not inside it: the chime and the hit
+        // take share the 1-2 kHz band, and on the same frame the take ate it
+        tone(1046, 0.14, 'triangle', 0.09, 1568, null, 0.12);
+        tone(1568, 0.2, 'triangle', 0.07, 2093, null, 0.22);
         buzz(25);
       }
       // chain overdrive: the kill arcs to the nearest other hostile and

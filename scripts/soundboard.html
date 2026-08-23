@@ -1,0 +1,231 @@
+<!doctype html>
+<!-- The sfx SOUNDBOARD (dev only, not shipped: scripts/, not src/).
+     Serve the repo root (npm run lab:sound → http://localhost:8012/). The page lifts
+     the real game out of src/index.html exactly as the shot harnesses do, so every
+     cue plays through the game's own sfx bus, its glue compressor and the H-13
+     master limiter — what you hear here is what the run plays, not a copy of it.
+
+     The game boots into a small canvas at the foot of the page with its music off
+     (the board's origin is port 8012, so its settings never touch the game's own
+     save on 8000). The first press of START is the audio gesture.
+
+     A meter under the buttons reads the PEAK of the summed output for the last
+     press, so a cue that the compressor ducks under a take shows as a number and
+     not only as a feeling. -->
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="../src/">
+<title>WV soundboard</title>
+<style>
+  html, body { margin: 0; background: #05080f; color: #d9ecff; font: 14px/1.4 system-ui, sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 18px 16px 40px; }
+  h1 { font: 600 18px/1.2 Audiowide, system-ui, sans-serif; letter-spacing: 2px; margin: 0 0 4px; color: #8fe0ff; }
+  p.sub { margin: 0 0 16px; color: #7f9bb8; }
+  section { margin: 0 0 22px; padding: 12px 12px 6px; border: 1px solid #15263a; border-radius: 8px; background: #080d18; }
+  section h2 { font: 600 12px/1 system-ui; letter-spacing: 2px; color: #ffd24a; margin: 0 0 10px; text-transform: uppercase; }
+  section.ref h2 { color: #8fe0ff; }
+  section.stack h2 { color: #ff8c6a; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+  button { background: #0d1a2c; color: #d9ecff; border: 1px solid #25415f; border-radius: 6px; padding: 10px 14px; font: 500 13px system-ui; cursor: pointer; min-width: 96px; }
+  button:hover { border-color: #8fe0ff; }
+  button:active { background: #163152; }
+  button.big { background: #ffd24a; color: #1a1200; border-color: #ffd24a; font-weight: 700; letter-spacing: 1px; }
+  button[disabled] { opacity: 0.35; cursor: default; }
+  .note { color: #7f9bb8; font-size: 12px; margin: 0 0 8px; }
+  #meter { display: flex; align-items: center; gap: 12px; margin: 8px 0 18px; font-variant-numeric: tabular-nums; }
+  #bar { flex: 1; height: 10px; background: #0d1a2c; border-radius: 5px; overflow: hidden; }
+  #fill { height: 100%; width: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, #2aa5ff, #ffd24a 70%, #ff5a3c); transition: transform 0.08s; }
+  #peak { width: 120px; text-align: right; color: #ffd24a; }
+  #status { color: #7f9bb8; font-size: 12px; }
+  /* !important: the game's own resize() writes the canvas style to the window size */
+  #game { width: 320px !important; height: 150px !important; display: block; margin: 12px 0 0; border: 1px solid #15263a; border-radius: 6px; background: #000; }
+  kbd { background: #0d1a2c; border: 1px solid #25415f; border-radius: 3px; padding: 0 5px; font-size: 11px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>WARP VANGUARD · SOUNDBOARD</h1>
+  <p class="sub">The H-20 cues, the cues they sit beside, and the stacks a run makes. Real bus, real limiter.</p>
+
+  <div class="row"><button class="big" id="start">START AUDIO</button> <span id="status">press once — the page needs a gesture before it can make a sound</span></div>
+  <div id="meter"><div id="bar"><div id="fill"></div></div><div id="peak">— dBFS</div></div>
+
+  <section>
+    <h2>New · the verdict (END card)</h2>
+    <p class="note">A star pops every 0.35s on the card; the LAST pop resolves the grade. The full-card rows play the whole sequence at card timing.</p>
+    <div class="row">
+      <button data-cue="star1">star pop 1</button>
+      <button data-cue="star2">star pop 2</button>
+      <button data-cue="star3">star pop 3</button>
+      <button data-cue="full2">resolve · 2 stars</button>
+      <button data-cue="full3">resolve · 3 stars</button>
+    </div>
+    <div class="row">
+      <button data-cue="card1">card · 1 star</button>
+      <button data-cue="card2">card · 2 stars</button>
+      <button data-cue="card3">card · 3 stars</button>
+      <button data-cue="card3nb">card · 3 stars + NEW BEST</button>
+    </div>
+    <p class="note">The NEW BEST stamp and the key landing on a fresh unlock.</p>
+    <div class="row">
+      <button data-cue="newBest">NEW BEST stamp</button>
+      <button data-cue="unlock">lane unlock</button>
+      <button data-cue="arriveNb">arrive → card 3★ → NEW BEST → unlock (the whole win)</button>
+    </div>
+  </section>
+
+  <section class="ref">
+    <h2>Reference · what already plays</h2>
+    <div class="row">
+      <button data-cue="arrive">arrive (exit-warp take + sting)</button>
+      <button data-cue="win">win sting alone</button>
+      <button data-cue="fail">fail</button>
+      <button data-cue="tick">ui tick</button>
+    </div>
+    <div class="row">
+      <button data-cue="x10">x10 chime alone (0.12s late, as shipped)</button>
+      <button data-cue="perfect">PERFECT alone</button>
+      <button data-cue="zap1">zap · x1</button>
+      <button data-cue="zap10">zap · x10</button>
+      <button data-cue="pick">pick</button>
+      <button data-cue="shieldUp">shieldUp alone</button>
+      <button data-cue="heal">heal alone</button>
+    </div>
+  </section>
+
+  <section class="stack">
+    <h2>Stacks · as the run fires them (the masking test)</h2>
+    <p class="note">Each of these is the pair 72-tick fires on one frame, with the shipped fix: the accent lift and the 0.12s offset. The OLD key plays the pair as it was.</p>
+    <div class="row">
+      <button data-cue="stackX10">zap x10 + x10 chime</button>
+      <button data-cue="stackPerfect">zap x10 + PERFECT</button>
+      <button data-cue="stackShield">pick + shieldUp</button>
+      <button data-cue="stackHeal">pick + heal</button>
+      <button data-cue="stackX10old">zap x10 + x10 chime, OLD same-frame timing</button>
+    </div>
+  </section>
+
+  <section class="ref">
+    <h2>Bus</h2>
+    <p class="note">The accent lift is the one gain every synth voice enters through (ACCENT_LIFT in 10-audio.js). Find the number on the phone here, then pin it in the source.</p>
+    <div class="row">
+      <button data-cue="lift0">lift 0 dB (old)</button>
+      <button data-cue="lift6">lift +6 dB</button>
+      <button data-cue="lift8">lift +8 dB</button>
+      <button data-cue="lift10">lift +10 dB (shipped)</button>
+      <button data-cue="lift12">lift +12 dB</button>
+      <span class="note" id="liftState">lift: +10 dB</span>
+    </div>
+    <div class="row">
+      <button data-cue="compOff">glue compressor BYPASS</button>
+      <button data-cue="compOn">glue compressor ON</button>
+      <span class="note" id="compState">compressor: on</span>
+    </div>
+  </section>
+
+  <canvas id="game"></canvas>
+  <p class="note">The small frame is the real game, booted so the bus exists. Leave it alone.</p>
+</main>
+<script>
+(async () => {
+  const $ = s => document.querySelector(s);
+  const status = $('#status');
+  // ---- lift the game, the shot-harness way ----
+  const html = await (await fetch('index.html')).text();
+  const srcs = [...html.matchAll(/<script[^>]+src="([^"]+)"[^>]*>/g)].map(m => m[1]).filter(u => u !== 'campaigns.js');
+  const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+  const fetched = await Promise.all(srcs.map(u => fetch(u).then(r => r.text())));
+  const camp = await (await fetch('campaigns.js')).text();
+  window.__err = '';
+  window.onerror = (m, s, l) => { window.__err += m + ' @' + l + '; '; };
+  const names = ['campaigns.js', ...srcs, ...inline.map((_, i) => 'inline#' + i)];
+  [camp, ...fetched, ...inline].forEach((src, i) => {
+    const s = document.createElement('script'); s.textContent = src;
+    const onerr = e => { window.__err += 'LOAD ' + names[i] + ': ' + e.message + '; '; };
+    window.addEventListener('error', onerr); document.body.appendChild(s); window.removeEventListener('error', onerr);
+  });
+  const poke = code => { const s = document.createElement('script'); s.textContent = code; document.body.appendChild(s); };
+  // the board's own hooks into the game's lexical scope: module-scope `let`s are not
+  // on window, so a poked script publishes what the buttons need
+  poke(`
+    window.__sb = {
+      start() {
+        initAC(); audioWake();
+        if (typeof SPLASH !== 'undefined' && SPLASH.on) splashEnd(true);
+        settings.music = false; applySettings();   // this origin's settings only (port 8012)
+        // a peak meter on the SUM: masterLim fans out to an analyser beside the destination
+        if (AC && masterLim && !window.__an) {
+          const an = AC.createAnalyser(); an.fftSize = 2048; masterLim.connect(an); window.__an = an;
+        }
+        return !!AC;
+      },
+      comp(on) {
+        // the glue compressor sits between sfxGain and masterLim; bypass = sfxGain straight to masterLim
+        if (!AC || !sfxGain || !masterLim) return;
+        try { sfxGain.disconnect(); } catch (e) {}
+        if (on) { const c = AC.createDynamicsCompressor(); c.threshold.value = -18; c.ratio.value = 4; c.attack.value = 0.003; c.release.value = 0.15; sfxGain.connect(c); c.connect(masterLim); }
+        else sfxGain.connect(masterLim);
+      },
+      x10() { tone(1046, 0.14, 'triangle', 0.09, 1568, null, 0.12); tone(1568, 0.2, 'triangle', 0.07, 2093, null, 0.22); }, // as 72-tick fires it (0.12s late)
+      x10old() { tone(1046, 0.14, 'triangle', 0.09, 1568); tone(1568, 0.2, 'triangle', 0.07, 2093, null, 0.1); },    // the old, same-frame timing
+      lift(db) { if (accentGain) accentGain.gain.value = Math.pow(10, db / 20); },
+      sfx, err: () => window.__err
+    };
+  `);
+  const SB = window.__sb;
+  if (!SB) { status.textContent = 'the game did not load: ' + window.__err; return; }
+  const later = (ms, f) => setTimeout(f, ms);
+  const card = n => { // the END card's own timing: pops 0.35s apart, the last one resolves
+    for (let i = 1; i <= n; i++) later((i - 1) * 350, () => { SB.sfx.star(i); if (i === n) SB.sfx.starsFull(n); });
+  };
+  const CUES = {
+    star1: () => SB.sfx.star(1), star2: () => SB.sfx.star(2), star3: () => SB.sfx.star(3),
+    full2: () => SB.sfx.starsFull(2), full3: () => SB.sfx.starsFull(3),
+    card1: () => card(1), card2: () => card(2), card3: () => card(3),
+    card3nb: () => { card(3); later(620, () => SB.sfx.newBest()); }, // badge at 2.62 vs third pop at 2.70 on the card
+    newBest: () => SB.sfx.newBest(), unlock: () => SB.sfx.unlock(),
+    arriveNb: () => { SB.sfx.arrive(); later(1900, () => SB.sfx.unlock()); later(2000, () => card(3)); later(2620, () => SB.sfx.newBest()); },
+    arrive: () => SB.sfx.arrive(), win: () => SB.sfx.win(), fail: () => SB.sfx.fail(), tick: () => SB.sfx.tick(),
+    x10: () => SB.x10(), perfect: () => SB.sfx.perfect(),
+    zap1: () => SB.sfx.zap(1, 0), zap10: () => SB.sfx.zap(10, 0),
+    pick: () => SB.sfx.pick(), shieldUp: () => SB.sfx.shieldUp(), heal: () => SB.sfx.heal(),
+    stackX10: () => { SB.sfx.zap(10, 0.3); SB.x10(); },
+    stackPerfect: () => { SB.sfx.zap(10, 0.3); SB.sfx.perfect(); },
+    stackShield: () => { SB.sfx.pick(); SB.sfx.shieldUp(); },
+    stackHeal: () => { SB.sfx.pick(); SB.sfx.heal(); },
+    stackX10old: () => { SB.sfx.zap(10, 0.3); SB.x10old(); },
+    lift0: () => { SB.lift(0); $('#liftState').textContent = 'lift: 0 dB'; },
+    lift6: () => { SB.lift(6); $('#liftState').textContent = 'lift: +6 dB'; },
+    lift8: () => { SB.lift(8); $('#liftState').textContent = 'lift: +8 dB'; },
+    lift10: () => { SB.lift(10); $('#liftState').textContent = 'lift: +10 dB'; },
+    lift12: () => { SB.lift(12); $('#liftState').textContent = 'lift: +12 dB'; },
+    compOff: () => { SB.comp(false); $('#compState').textContent = 'compressor: BYPASSED'; },
+    compOn: () => { SB.comp(true); $('#compState').textContent = 'compressor: on'; }
+  };
+  // ---- the meter: peak of the sum since the last press, held ----
+  let peak = 0, buf = null;
+  const meter = () => {
+    const an = window.__an;
+    if (an) {
+      if (!buf) buf = new Float32Array(an.fftSize);
+      an.getFloatTimeDomainData(buf);
+      let m = 0; for (let i = 0; i < buf.length; i++) { const v = Math.abs(buf[i]); if (v > m) m = v; }
+      if (m > peak) peak = m;
+      $('#fill').style.transform = 'scaleX(' + Math.min(1, m).toFixed(3) + ')';
+      $('#peak').textContent = (peak > 0.0001 ? (20 * Math.log10(peak)).toFixed(1) : '—') + ' dBFS';
+    }
+    requestAnimationFrame(meter);
+  };
+  requestAnimationFrame(meter);
+  let live = false;
+  const arm = () => { if (!live) { live = SB.start(); status.textContent = live ? 'audio live · ' + (SB.err() || 'no load errors') : 'no AudioContext: ' + SB.err(); } };
+  $('#start').onclick = arm;
+  document.querySelectorAll('button[data-cue]').forEach(b => {
+    b.onclick = () => { arm(); if (!live) return; peak = 0; CUES[b.dataset.cue](); };
+  });
+})();
+</script>
+</body>
+</html>

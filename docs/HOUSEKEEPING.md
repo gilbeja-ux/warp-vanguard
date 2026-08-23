@@ -38,7 +38,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-17 | TODO | Story | MED | Story line-edit pass + the C5 continuity fork |
 | H-18 | DONE | Story | MED | NEXT CONTRACT ▸ on the report + the bark fade fixed (countdown → H-15, dossier → H-06) |
 | H-19 | DONE | Decision | MED | Canon settled — episodic contracts; address is Vanguard/vanguards, "runner" only as accent; wolves retired |
-| H-20 | TODO | Audio | MED | Audio breadth — fanfare tiers, boss-duel music, sonar phase, coverage |
+| H-20 | DONE | Audio | MED | Audio breadth — verdict tiers + NEW BEST stamp + unlock cue, enlistment/bark typewriters → per-glyph fade, phone-call interruption handler (Gil's cut: no boss-duel music, no sonar phase) |
 | H-21 | TODO | Art | LOW | Restore menu film grain |
 | H-22 | TODO | Art | LOW | Gate facing variants |
 | H-23 | TODO | Journey | LOW | Enlistment tap-to-complete |
@@ -233,7 +233,10 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) episodic contracts + "runner"; (b) episodic + switch to "wolf/wolves"; (c) commit to the mystery serial and schedule the writing; (d) decide canon now, defer the address term.
 
 ## H-20 · Audio breadth — fanfare tiers, boss-duel music, sonar phase, coverage
-- **Status:** TODO · **Area:** Audio · **Sev:** MED (production value)
+- **Status:** DONE (2026-08-23, ships in the next build) · **Area:** Audio · **Sev:** MED (production value)
+- **Result:** Gil picked gaps 1, 4 and 5 and cut the ticks. (1) The END card voices the grade: `sfx.star` per pop, `sfx.starsFull` resolves the LAST star (nothing on one, a fifth on two, a flourish on three), `sfx.newBest` stamps the badge at its pop, `sfx.unlock` lands with the keys when THIS run opened a lane (`12-sfx.js`, `95-menu.js`, `61-replay.js`, latches in `40-state.js`). (4) No typewriter ticks — the typewriters themselves went: the enlistment beats (`91-briefing.js`, `ENLIST_TYPE` deleted, the tap gate waits for the last glyph's fade) and the in-run bark ticker (`90-hud.js`) now arrive per glyph on the disc's own LINE_LEAD/STAGGER/FADE. The first-x10 chime already existed (H-12). (5) `audioWake()` resumes the context from ANY parked state, WebKit's `interrupted` included, on the next gesture/show/boot; an interruption mid-run pauses the run (`10-audio.js`, `60-input.js`, `99-boot.js`). The bark-fade pin in `scripts/test.js` reads the alpha per glyph now. 816 checks green. Sim fingerprint HEAD vs working tree: all 41 board ids unchanged, so no verifier deploy is owed. Enlistment fade verified by headless shot at t=0.95 and t=2.2.
+- **Follow-up (2026-08-23, Gil: "sometimes no sound on x10 and others"):** measured through the real bus with an audio-thread worklet, the synth accents sat 10-15 dB under the takes they fire beside (x10 chime -21 dBFS under the zap at -9; PERFECT/shieldUp/heal likewise) — masking, not a dropped cue. The glue compressor (≤0.6 dB duck) and main-thread stalls (no loss up to 500 ms on the Mac) were tested and refuted. Fix: an ACCENT bus — every `tone()` enters through `accentGain` at ×3.16 (+10 dB, set by Gil on the phone; `10-audio.js`); the pick take trimmed 0.8 → 0.6; the x10 chime, PERFECT, shieldUp and heal fire 0.12 s after the take on their frame; the exit-warp bed trimmed 0.95 → 0.30 (-10 dB) so the verdict is not buried. Soundboard: `npm run lab:sound` → `scripts/soundboard.html` on 8012, real bus, peak meter, a lift knob to tune ACCENT_LIFT on the phone.
+- **Left out on Gil's call:** the boss-duel music treatment and the sonar phase timbre. Re-raise as a new row if wanted; both are render-side and cost no sim id.
 - **Combines:** audio upgrades 3, 4, 6, 7 + coverage gaps + interruption handler
 - **Issue:** NEW BEST and 1/2/3-star share one cue. The boss duel has no music identity. The sonar tick uses one timbre for every threat. Briefings, unlocks, and combo milestones are silent. No phone-call interruption handler.
 - **Evidence:** `61-replay.js:422`; `52-bosses.js`; `72-tick.js:719`; `91-briefing.js`; `60-input.js:342`.

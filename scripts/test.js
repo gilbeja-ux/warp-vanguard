@@ -4300,7 +4300,14 @@ async function runMusicUp() {
       get: () => alpha, set: v => { if (typeof v === 'number') alpha = v; }, configurable: true
     });
     const rawFT = ctxStub.fillText;
-    ctxStub.fillText = txt => { if (typeof txt === 'string' && txt.indexOf('bark fade pin') >= 0) seen = alpha; };
+    // H-20: the message paints a glyph per call now, after its speaker label — so the
+    // pin arms on the label and reads the alpha on the first glyph that follows it
+    let armed = false;
+    ctxStub.fillText = txt => {
+      if (typeof txt !== 'string') return;
+      if (txt.indexOf('CMD:') >= 0) armed = true;
+      else if (armed && txt.length === 1 && seen === null) seen = alpha;
+    };
     G.setState(G.S.PLAY);
     G.setComm({ s: 'CMD', m: 'the bark fade pin line' }, t);
     G.frame(16);

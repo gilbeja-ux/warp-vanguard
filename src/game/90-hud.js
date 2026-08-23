@@ -975,8 +975,9 @@ function drawHUD(g) {
   if (commCur && state === S.PLAY) {
     const SPK = SPKCOL; // speaker colors come with the campaign package
     const label = '\u00bb ' + commCur.s + ':';
-    const chars = Math.floor(commT * 38);
-    const txt = commCur.m.slice(0, chars);
+    // the message arrives a glyph at a time on the briefing's own fade (H-20) — the
+    // disc and the commander resolve this way too, so the line is one voice
+    // everywhere. No lead: a bark is live comms, it starts the instant it opens.
     // the fade-out must END at barkHold, where the tick retires the line — a
     // hard-coded 6 here once outlived a hold of 4, so every bark cut at full
     // alpha and the authored fade never played
@@ -1006,9 +1007,16 @@ function drawHUD(g) {
     ctx.fillStyle = `rgba(${spkCol},0.95)`;
     ctx.font = '700 ' + cfz + 'px Audiowide, system-ui';
     ctx.fillText(label, x0, cy2);
-    ctx.fillStyle = 'rgba(200,235,255,0.92)';
     ctx.font = '500 ' + cfz + 'px Audiowide, system-ui';
-    ctx.fillText(txt + (chars < commCur.m.length ? '\u258c' : ''), x0 + lw2 + 6, cy2);
+    const msg = commCur.m, xs = charXs(msg, ctx.font), mx0 = x0 + lw2 + 6;
+    let lastA = -1;
+    for (let j = 0; j < msg.length; j++) {
+      const a = clamp((commT - j * LINE_STAGGER) / LINE_FADE, 0, 1);
+      if (a < 0.005 || msg[j] === ' ') continue;
+      const q = Math.round(a * 20) / 20;
+      if (q !== lastA) { ctx.fillStyle = 'rgba(200,235,255,' + (0.92 * q).toFixed(3) + ')'; lastA = q; }
+      ctx.fillText(msg[j], mx0 + xs[j], cy2);
+    }
     ctx.restore();
   }
 

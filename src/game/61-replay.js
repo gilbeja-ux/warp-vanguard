@@ -386,6 +386,7 @@ function endLevel(win) {
   beamSound(false, 0); beamActive = false; stripSound(false, 0);
   endRunMusic();
   endWin = win; endT = 0; endFxStars = 0; endTickT = 0; nbHold = 0;
+  nbFx = false; endKeysFx = false; endUnlocked = false;
   endStars = win && !endless && !qual && !assist ? (integrity >= 90 ? 3 : integrity >= 60 ? 2 : 1) : 0;
   // LANE ASSIST bookkeeping: a campaign lane counts consecutive losses in
   // this session; two invite the eased retry (the END screen reads the count).
@@ -418,7 +419,9 @@ function endLevel(win) {
     // best, no NEW BEST. The eased lane is a different lane, and its numbers
     // don't belong in the record book (endStars is already 0 above).
     if (!assist) PROG.stars[levelIdx] = Math.max(PROG.stars[levelIdx], endStars);
-    PROG.unlocked = Math.max(PROG.unlocked, Math.min(levelIdx + 2, LEVELS.length));
+    const nextUnlocked = Math.min(levelIdx + 2, LEVELS.length);
+    endUnlocked = nextUnlocked > PROG.unlocked; // a NEW lane opened — the report's keys voice it
+    PROG.unlocked = Math.max(PROG.unlocked, nextUnlocked);
     endNewBest = !assist && !bossRetried && score > (PROG.bests[levelIdx] || 0);
     if (!bossRetried && !assist) PROG.bests[levelIdx] = Math.max(PROG.bests[levelIdx] || 0, score);
     saveState();

@@ -417,7 +417,7 @@ if (SPLASH.on) {
 function splashBoot() { // once at load: decode the score and try to run it
   brandLogo(); // and kick the badge's lazy decode NOW — card two needs it by SPL.df
   initAC(); if (!AC) return;
-  if (AC.state === 'suspended') AC.resume().catch(() => {}); // Capacitor allows it; browsers wait for a tap
+  audioWake(); // Capacitor allows it; browsers wait for a tap
   fetch('audio/sfx/splash2.mp3')
     .then(r => r.arrayBuffer()).then(a => AC.decodeAudioData(a))
     .then(buf => {

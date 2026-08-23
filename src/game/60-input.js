@@ -348,8 +348,8 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if (state === S.PLAY) state = S.PAUSE;
     if (AC && AC.state === 'running') AC.suspend().catch(() => {});
-  } else if (AC && AC.state === 'suspended') {
-    AC.resume().catch(() => {});
+  } else {
+    audioWake(); // 'suspended' from the hide, or 'interrupted' from a call that ended while hidden
   }
 });
 
