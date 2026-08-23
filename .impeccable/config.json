@@ -1,7 +1,9 @@
 {
   "detector": {
     "ignoreRules": [],
-    "ignoreFiles": [],
+    "ignoreFiles": [
+      "scripts/soundboard.html"
+    ],
     "ignoreValues": [
       {
         "rule": "single-font",
