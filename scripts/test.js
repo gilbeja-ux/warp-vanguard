@@ -4395,7 +4395,17 @@ async function runMusicUp() {
     drawBoard();
     const k = flyKey();
     check('board: the live week offers FLY THIS LANE', !!k);
-    check('board: the key sits in the TOP cap, above the ring\'s center', !!k && k.y + k.h < G.viewport().H / 2);
+    { // with my run on the board, the two keys share the cap side by side, no overlap
+      const me = G.getIdentity().id;
+      G.setBoardData({ key: G.boardKeyFor(), loading: false, rows: [{ rank: 1, player_id: me, player_name: 'me', score: 5 }], error: false });
+      drawBoard();
+      const f2 = flyKey(), s2 = G.menuBtns().find(b => b.boardShowMe);
+      check('board: FLY THIS LANE and Show my Run share the bottom cap', !!f2 && !!s2 && Math.abs(f2.y - s2.y) < 1);
+      check('board: ...side by side, FLY on the left, no overlap', !!f2 && !!s2 && f2.x + f2.w <= s2.x);
+      G.setBoardData({ key: G.boardKeyFor(), loading: false, rows: [], error: false });
+      drawBoard();
+    }
+    check('board: the key sits in the BOTTOM cap, below the ring\'s center', !!k && k.y > G.viewport().H / 2);
     G.menuTap(k.x + k.w / 2, k.y + k.h / 2, 1);
     let tp = 30, fx = null; // the press beat, then the turn: catch it while it is still in flight
     while (tp-- > 0 && !(fx = G.getMenuFx(), fx && fx.kind === 'boardOut')) G.update(0.02);

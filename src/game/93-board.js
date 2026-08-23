@@ -213,13 +213,11 @@ function drawMenuBoard() {
   // "Show my Run" baseline: inside the ring's inner edge, but never off-screen
   // (the disc may overflow the bottom edge slightly, like the mock)
   const showBase = Math.min(cy + R - bz * 0.9, H - SAFE.b) - H * 0.042;
-  const capBotY = showBase - fShow - H * 0.022; // the bottom cap's chord edge (exists only with my run)
-  // FLY THIS LANE mirrors Show my Run about the ring's center — same size, same
-  // distance in from the band — so the two caps read as one pair. The title then
-  // sinks below the key: it keeps its chord-width law, but never rises into it.
+  const capBotY = showBase - fShow - H * 0.022; // the bottom cap's chord edge (exists with my run or a lane to fly)
+  // FLY THIS LANE shares that bottom cap with Show my Run: the two keys split the
+  // chord side by side when both exist, and whichever is alone sits centered.
   const lane = boardLane();
-  const flyBase = 2 * cy - showBase + fShow * 0.72;
-  const titleBase = Math.max(cy - tdy + fTitle * 0.28, lane ? flyBase + H * 0.012 + fTitle * 0.8 : -1e9);  // nudged up to sit centered in its cap
+  const titleBase = cy - tdy + fTitle * 0.28;  // nudged up to sit centered in its cap
   const capTopY = titleBase + fTitle * 0.85;   // a clear gap between the title and the list
 
   // the right info column hugs the ring's outer edge, like the mock
@@ -454,22 +452,28 @@ function drawMenuBoard() {
   };
   // top cap: the title zone (the text itself draws LAST, on top of the ring)
   capSeg(cy - R, capTopY);
-  // …and FLY THIS LANE above the title, the mirror of Show my Run below
-  if (lane) {
-    ctx.font = '700 ' + fShow + 'px Audiowide, system-ui';
-    const tw = ctx.measureText(lane.label).width;
-    ctx.textAlign = 'center'; ctx.fillStyle = lane.locked ? 'rgba(90,190,255,0.32)' : 'rgba(90,190,255,0.95)';
-    ctx.fillText(lane.label, cx, flyBase);
-    if (!lane.locked) menuButtons.push({ x: cx - tw / 2 - 14, y: cy - R, w: tw + 28, h: flyBase + fShow * 0.5 - (cy - R), boardFly: lane.go });
-  }
-  // bottom cap: a smaller segment carrying Show my Run — only when I'm on this board
-  if (mine) {
+  // bottom cap: a smaller segment carrying the keys — FLY THIS LANE (left) and
+  // Show my Run (right, only when I'm on this board). Two keys split the chord
+  // at the cap's edge between them with a gap; one key alone sits centered.
+  if (mine || lane) {
     capSeg(capBotY, cy + R);
     ctx.font = '700 ' + fShow + 'px Audiowide, system-ui';
-    const tw = ctx.measureText('Show my Run').width;
-    ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(90,190,255,0.95)';
-    ctx.fillText('Show my Run', cx, showBase);
-    menuButtons.push({ x: cx - tw / 2 - 14, y: capBotY, w: tw + 28, h: cy + R - capBotY, boardShowMe: mine.rank });
+    const keys = [];
+    if (lane) keys.push({ label: lane.label, col: lane.locked ? 'rgba(90,190,255,0.32)' : 'rgba(90,190,255,0.95)', btn: lane.locked ? null : { boardFly: lane.go } });
+    if (mine) keys.push({ label: 'Show my Run', col: 'rgba(90,190,255,0.95)', btn: { boardShowMe: mine.rank } });
+    // the usable chord: measured at the text line, inside the band's INNER edge
+    // (the band paints over the rows' zone, so a label must stop short of it)
+    const Rin2 = R - bz * 0.55, dTxt = showBase - fShow * 0.36 - cy;
+    const half = Math.sqrt(Math.max(0, Rin2 * Rin2 - dTxt * dTxt)) - fShow * 0.6;
+    const gap = Math.min(W * 0.02, fShow * 1.4);
+    const slotW = keys.length > 1 ? (half * 2 - gap) / keys.length : half * 2;
+    keys.forEach((k, i) => {
+      const kx = keys.length > 1 ? cx - half + slotW * i + gap * i + slotW / 2 : cx;
+      const tw = ctx.measureText(k.label).width;
+      ctx.textAlign = 'center'; ctx.fillStyle = k.col;
+      ctx.fillText(k.label, kx, showBase, slotW - 8);
+      if (k.btn) menuButtons.push(Object.assign({ x: kx - Math.min(tw, slotW - 8) / 2 - 14, y: capBotY, w: Math.min(tw, slotW - 8) + 28, h: cy + R - capBotY }, k.btn));
+    });
   }
 
   // the thick matte-black ring band — drawn OVER the rows so they pass beneath
