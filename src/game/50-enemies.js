@@ -26,10 +26,15 @@ const beatFree = () => scripted() || weekly;
 function spawnEnemy(forcedAngle, type) {
   type = type || 'normal';
   const heavy = type === 'heavy';
-  const L = bandCfg(LV || LEVELS[levelIdx], levelT); // band mixes reach the lock/crawler rolls too
-  const crawler = type === 'normal' && schance(L.crawlers || 0);
+  const L = bandCfg(LV || LEVELS[levelIdx], levelT); // band mixes reach the lock roll too
+  // BURNED DRAW. This was the `crawlers` roll — a knob no level ever set, whose
+  // result was thrown away (H-28, 2026-08-23). The draw itself has to stay:
+  // every spawnRng() after it would shift, which moves the angle of every
+  // enemy on every board and turns each stored replay into a miss. Remove it
+  // only in a release that is already moving every board id.
+  if (type === 'normal') spawnRng();
   // color-locked traps only answer to one node: 0 = blue (left), 1 = white (right)
-  let lock = type === 'normal' && !crawler && schance(L.colors || 0)
+  let lock = type === 'normal' && schance(L.colors || 0)
     ? (schance(0.5) ? 0 : 1) : undefined;
   // fairness: a color whose node is already booked flips, or unlocks entirely
   if (lock !== undefined && !lockAllowed(lock)) lock = lockAllowed(1 - lock) ? 1 - lock : undefined;

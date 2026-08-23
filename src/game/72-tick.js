@@ -856,13 +856,6 @@ function updateEnemy(en, C) {
       const p = en.partner;
       if (covers(nodes[0], en.angle) && covers(nodes[1], p.angle)) { hit = true; boltPairs.push([nodes[0], en.angle], [nodes[1], p.angle]); }
       else if (covers(nodes[1], en.angle) && covers(nodes[0], p.angle)) { hit = true; boltPairs.push([nodes[1], en.angle], [nodes[0], p.angle]); }
-    } else if (en.noCharge) {
-      // the purple law: a pressure drone DEMANDS BOTH emitters — one node
-      // alone bounces off, heavy-style. And the kill still feeds NOTHING;
-      // its whole job is booking both hands at once (which is why the
-      // spawn ledger gives it an exclusive stretch of pipe).
-      hit = covers(nodes[0], en.angle) && covers(nodes[1], en.angle);
-      if (hit) boltPairs.push([nodes[0], en.angle], [nodes[1], en.angle]);
     } else if (en.lock !== undefined) {
       // color-locked: only the matching node can break it
       hit = covers(nodes[en.lock], en.angle);
@@ -895,9 +888,7 @@ function updateEnemy(en, C) {
       score += pts; zaps++;
       // each shooter banks the zap into ITS orb (both, on a shared kill) —
       // choosing which node fires is choosing which pulse you charge.
-      // A leech's pressure drone (noCharge) feeds NOTHING: it is pure threat,
-      // and killing it is lane upkeep rather than progress toward a shot.
-      if (!en.tut && !en.noCharge) {
+      if (!en.tut) {
         const fed = new Set();
         for (const [n2] of boltPairs) fed.add(n2 === nodes[0] ? 0 : 1);
         // duel economy: boss swarms run fat — richer feed keeps a six-pulse

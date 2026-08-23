@@ -230,7 +230,7 @@ const EDUI = {
 const EDTOOLS = ['select', 'normal', 'heavy', 'line', 'lock0', 'lock1', 'frag', 'wall', 'strip', 'pickup', 'lull'];
 const EDPICKUPS = ['', 'shield', 'wide', 'auto', 'inject', 'chain'];
 const EDKNOBS = ['doubles', 'heavies', 'lines', 'colors', 'frags', 'walls'];
-const EDMIX = ['doubles', 'heavies', 'lines', 'colors', 'frags', 'walls', 'crawlers'];
+const EDMIX = ['doubles', 'heavies', 'lines', 'colors', 'frags', 'walls'];
 
 function edq(id) { return document.getElementById(id); }
 function edLv() { return EDUI.pkg.levels[EDUI.li]; }

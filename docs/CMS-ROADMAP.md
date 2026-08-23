@@ -105,7 +105,7 @@ does not ship in the store build.
   `{ ...level, ...mix }` with `spawnMin/spawnMax` divided by `intensity`
   (1 = the level's base cadence, 2 = twice as dense, max 4). `mix` may only
   override the rate knobs (`doubles, heavies, lines, colors, frags, walls,
-  crawlers, bursts`) — never speed/duration. Outside every band the level's
+  bursts`) — never speed/duration. Outside every band the level's
   flat knobs apply unchanged; a level without bands is untouched
   (`bandCfg` returns the level object itself).
 
@@ -244,9 +244,8 @@ homing volley.
   bite. Finale: THE MIMIC (`bossKind: 'mimic'`) — its lamp flips blue/white
   (blink-telegraphed, locked while a pulse flies); only the matching pulse
   lands, and its swarm is colour-locked drones sorting your kills. (Purple
-  pressure drones were cut from this fight — too much screen at once. The
-  mechanic remains available under a global law: purple demands BOTH
-  emitters and books an exclusive stretch of pipe, PURPLE_CLEAR each side.)
+  pressure drones were cut from this fight — too much screen at once — and
+  the mechanic was deleted on 2026-08-23; git history has it.)
 - Campaign 5 THE DELEGATION (difficulty 5): escort the federation president
   from the core systems to tier 5. Finale: THE BLOCKADE
   (`bossKind: 'blockade'`) — nine pulses through four shed layers (swarm,

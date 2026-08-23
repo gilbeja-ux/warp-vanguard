@@ -241,7 +241,7 @@ code = code.replace("'use strict';", '') + `
   setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length, firePulse,
   latches: () => latches, setLatches: v => { latches = v; },
   spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; },
-  volley: () => volley, BOSS_CER: () => BOSS_CER, latchFreeArc, leechWave, PURPLE_CLEAR: () => PURPLE_CLEAR,
+  volley: () => volley, BOSS_CER: () => BOSS_CER, latchFreeArc, leechWave,
   startBossRetry, isBossFailed: () => bossFailed, isBossRetried: () => bossRetried, endButtons: () => endButtons,
   endTap, endForward, // the report's keys, and the pad's forward mapping over them
   bandCfg, lintLevel, lintCampaign, lintWalk, levelThreats, birthFade, getSched: () => sched
@@ -1092,40 +1092,7 @@ drawOk('leech duel frame (machine + swarm)', () => {});
   const fed = G.getPulse()[0];
   check('a duel zap feeds the orb at BOSS_FEED rate',
     en2.dead && fed >= 2 && fed === Math.min(G.stats().combo, 5) * 2);
-  // GIL'S PURPLE LAW, the mechanic half: a pressure drone DEMANDS BOTH
-  // emitters — one node alone bounces off, heavy-style — and pays nothing
-  const pc0 = G.getPulse()[0], pc1 = G.getPulse()[1];
-  const pd = G.spawnEnemy(1.0, 'normal'); pd.lock = undefined; pd.noCharge = true;
-  aim(0, 1.0); aim(1, 1.0 + Math.PI);
-  let pg = 200;
-  while (pg-- > 0 && !pd.dead && !pd.resolved) { bossQuiet(); G.setIntegrity(100); G.update(0.05); }
-  check('a purple demands BOTH emitters — one alone bounces off', !pd.dead && pd.resolved);
-  const pd2 = G.spawnEnemy(1.0, 'normal'); pd2.lock = undefined; pd2.noCharge = true;
-  aim(0, 1.0); aim(1, 1.0); // both docked on it — and the volley held off,
-  let pg2 = 200;            // so the ZAP does the killing, not the bore bolt
-  while (pg2-- > 0 && !pd2.dead && !pd2.resolved) {
-    G.volley().cd = 99;
-    bossQuiet(); G.setIntegrity(100); G.update(0.05);
-  }
-  aim(1, 1.0 + Math.PI); G.update(0.05);
-  check('both emitters together break it — and it still feeds NOTHING',
-    pd2.dead && G.getPulse()[0] === pc0 && G.getPulse()[1] === pc1);
   pac.dead = true; // the pacifier leaves with the block
-}
-// GIL'S PURPLE LAW, the ledger half: a purple books an EXCLUSIVE stretch of
-// pipe — nothing shares its window, nothing lands within PURPLE_CLEAR of it
-{
-  G.enemies().length = 0; G.setLatches([]);
-  G.getSched().length = 0; // a clean ledger, so the stretch geometry is exact
-  G.leechWave(6, { purple: 1 }); // every lock-less seat WANTS to be purple
-  const spd3 = G.getLV().speed;
-  const seats = G.enemies().filter(e => !e.dead && e.type === 'normal').map(e => ({ z: e.z, p: !!e.noCharge }));
-  const purs = seats.filter(v => v.p);
-  check('a forced-purple wave still seats at least one purple', purs.length >= 1);
-  check('every purple owns its stretch — nothing within PURPLE_CLEAR either side',
-    purs.every(pu => seats.every(o => o === pu
-      || Math.abs(o.z - pu.z) / spd3 >= G.PURPLE_CLEAR() - 1e-6)));
-  G.enemies().length = 0; G.setLatches([]);
 }
 // ONLY THE PULSE WOUNDS IT: the volley stays a lane tool in a duel
 {
@@ -1321,7 +1288,7 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
     const TAU2 = Math.PI * 2;
     const aDiff = (x, y) => { let d = (x - y) % TAU2; if (d > Math.PI) d -= TAU2; if (d < -Math.PI) d += TAU2; return d; };
     let arcOK = true, cleanArrivals = true, sawLatch = false, sawOverlap = false;
-    let winCountOK = true, lockLawOK = true, purpleLawOK = true, sawFlavours = false;
+    let winCountOK = true, lockLawOK = true, sawFlavours = false;
     const GAP = 0.55;
     for (let f = 0; f < frames; f++) {
       const b = G.boss();
@@ -1345,9 +1312,7 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
       }
       // THE WINDOW LAWS, read off the live pipe — across waves, not per spawner:
       // ≤2 hostiles share an arrival window; a colour never double-books its
-      // node; and a purple NEVER shares a window with a keyed drone (a lock
-      // binds one named thumb, a purple demands the other — both hands booked
-      // into upkeep with zero charge income is unfair by economy).
+      // node.
       const live = G.enemies().filter(e => !e.dead && !e.resolved && !e.failed && e.type !== 'strip');
       const spd2 = G.getLV().speed;
       for (let x = 0; x < live.length; x++) {
@@ -1355,23 +1320,20 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
         for (let y = 0; y < live.length; y++) {
           if (x === y) continue;
           const dtA = Math.abs(live[x].z - live[y].z) / spd2;
-          // the purple radius law: a pressure drone owns PURPLE_CLEAR of pipe
-          // either side — it demands both emitters, so nothing rides near it
-          if (y > x && (live[x].noCharge || live[y].noCharge) && dtA < G.PURPLE_CLEAR() - 1e-6) purpleLawOK = false;
           if (dtA >= GAP) continue;
           mates++;
           if (y < x) continue; // pair rules judged once
           if (live[x].lock !== undefined && live[x].lock === live[y].lock) lockLawOK = false;
         }
         if (mates > 1) winCountOK = false; // a third demand in one moment — two thumbs, never three asks
-        if (live[x].lock !== undefined || live[x].noCharge) sawFlavours = true;
+        if (live[x].lock !== undefined) sawFlavours = true;
       }
     }
     check('fairness soak (' + label + '): walls flowed and no drone arrived on one',
       sawLatch && sawOverlap && cleanArrivals);
     check('fairness soak (' + label + '): the dockable-arc law held throughout', arcOK);
-    check('fairness soak (' + label + '): ≤2 per window, colours never double-book, purple rides alone',
-      winCountOK && lockLawOK && purpleLawOK);
+    check('fairness soak (' + label + '): ≤2 per window, colours never double-book',
+      winCountOK && lockLawOK);
     return sawFlavours;
   }
   { // the teaching machine, wounded enough that every wave rides a latch
@@ -1558,31 +1520,20 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
     drawOk('mimic wrong-key fizzle frame', () => {});
   }
   { // the swarm sells the economy: colour-locked drones sort your kills.
-    // NO PURPLE — pulled from this fight (2026-08-11): with a lamp to read and
-    // keys to sort, a third drone class over-freighted the screen. The
-    // noCharge mechanic itself stays covered by the leech block's unit test.
-    let sawLock = false, sawPurple = false;
+    // (Purple pressure drones were pulled from this fight on 2026-08-11 and
+    // deleted from the game on 2026-08-23 — H-28.)
+    let sawLock = false;
     let sg = 400;
     while (sg-- > 0 && !sawLock) {
       G.enemies().length = 0; G.setLatches([]);
       MI.waveT = 0.01;
       G.setIntegrity(100); G.update(0.05);
-      for (const e of G.enemies()) {
-        if (e.lock !== undefined) sawLock = true;
-        if (e.noCharge) sawPurple = true;
-      }
-    }
-    for (let sg2 = 0; sg2 < 120; sg2++) { // and hold a while: purple stays OUT
-      G.enemies().length = 0; G.setLatches([]);
-      MI.waveT = 0.01;
-      G.setIntegrity(100); G.update(0.05);
-      if (G.enemies().some(e => e.noCharge)) sawPurple = true;
+      for (const e of G.enemies()) if (e.lock !== undefined) sawLock = true;
     }
     check('the mimic swarm carries colour-locked drones', sawLock);
-    check('and never a purple — pulled from this fight for screen load', !sawPurple);
     G.enemies().length = 0; G.setLatches([]);
   }
-  { // and its wall pressure obeys the laws under the full colour/purple mix
+  { // and its wall pressure obeys the laws under the full colour mix
     MI.round = 6; MI.round0 = 0;
     check('mimic soak exercised the keyed swarm (the laws were not vacuous)',
       bossFairSoak('mimic', 700) === true);
@@ -2637,7 +2588,7 @@ check('beat detection finds the tempo of a 120bpm click track', Math.abs(G.detec
 G.patternQ().push({ t: 0.01, angle: 2.2 });
 G.enemies().length = 0;
 G.update(0.05);
-check('choreographed volley entries spawn on schedule', G.enemies().some(e => Math.abs(e.angle - 2.2) < 0.1) && G.patternQ().length === 0); // crawler drift can nudge it within the tick
+check('choreographed volley entries spawn on schedule', G.enemies().some(e => Math.abs(e.angle - 2.2) < 0.1) && G.patternQ().length === 0);
 
 // ================= integrity tension =================
 G.setIntegrity(25);

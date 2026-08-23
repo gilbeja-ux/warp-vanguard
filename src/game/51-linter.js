@@ -96,8 +96,8 @@ function lintWalk(level, idx) {
   function simEnemy(cfg, tN, forcedA, type, beat) {
     type = type || 'normal';
     const heavy = type === 'heavy';
-    const crawler = type === 'normal' && dch(cfg.crawlers || 0);
-    let lock = type === 'normal' && !crawler && dch(cfg.colors || 0) ? (dch(0.5) ? 0 : 1) : undefined;
+    if (type === 'normal') dr(); // the burned draw (see spawnEnemy)
+    let lock = type === 'normal' && dch(cfg.colors || 0) ? (dch(0.5) ? 0 : 1) : undefined;
     if (lock !== undefined && !lockOk(tN, lock)) lock = lockOk(tN, 1 - lock) ? 1 - lock : undefined;
     const angle = forcedA !== undefined ? forcedA : cow(dr() * TAU, tN);
     dr(); // spin

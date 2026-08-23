@@ -52,13 +52,6 @@ const BOSS_DEFS = {
 // six-pulse fight lands at minutes, not tens of them. Read by the zap-credit
 // block in 72-tick. THE tuning knob for fight length.
 const BOSS_FEED = 2;
-// GIL'S PURPLE LAW (global): a pressure drone DEMANDS BOTH EMITTERS, so it
-// never shares an arrival window with ANYTHING — and it claims a clear stretch
-// of pipe before and after it. Both thumbs converge on it; nothing else can be
-// answered while they do. The radius is deliberately between a window's GAP
-// (0.55 — too short: the convergence takes longer than a moment) and heavy
-// armor's 2.4s spacing (too long: the lane would go slack around every one).
-const PURPLE_CLEAR = 1.0;     // seconds of exclusive pipe, each side
 const LEECH_WAVE_GAP = 2.6;   // seconds between swarm releases while the lane still has work
 const LEECH_LATCH_ARC = 1.6;  // the dockable-arc law: walls may never close the ring
 const SWEEP_BEAM_HALF = 0.13; // beam half-width at the ring (rad)
@@ -327,7 +320,7 @@ function leechLatchAngle() {
 // half-ring apart so both are reachable, windows arrive staggered down the
 // pipe — and same-colour locks never share a window, because one node cannot
 // be in two places when both seats arrive together.
-// opts: { locks: p(colour-locked), purple: p(pressure drone), latch: ride-along wall }
+// opts: { locks: p(colour-locked), latch: ride-along wall }
 function leechWave(n, opts) {
   opts = opts || {};
   if (opts.latch) { // the wall lands first so the wave spawns around it (reachability law)
@@ -349,24 +342,20 @@ function leechWave(n, opts) {
         a = clearOfWalls(a + 2.399963); // hop shifted it — hop until honestly apart
     } else a = clearOfWalls(prevA + 2.4 + bRand(-0.4, 0.4)); // fresh window: hop onward
     // the colour economy: the machine decides which orb your kills may feed.
-    // A lock feeds only its own node's orb; a purple pressure drone feeds NOTHING.
+    // A lock feeds only its own node's orb.
     let lock;
     if (opts.locks && bChance(opts.locks)) {
       lock = bCoin();
       if ((k & 1) && seatLock === lock) lock = 1 - lock; // partners never share a colour
     }
-    let purple = lock === undefined && !!opts.purple && bChance(opts.purple);
     // THE LEDGER IS THE LAW, across waves as well as within one. The cadence
     // overlaps waves in the pipe, so a seat must book against EVERYTHING still
     // inbound, not just its own wave's partner: spawnAllowed's window
-    // arithmetic (≤2 per window, a strip leaves only one free seat), the lock
-    // laws (a colour never double-books its node; nothing keyed shares a
-    // ribbon's window) — and the purple law: a pressure drone NEVER shares a
-    // window with a keyed one. A lock binds one named thumb and a purple
-    // demands the other, which books both hands into upkeep with zero charge
-    // income — legal by coverage, unfair by economy. When a window can't hold
-    // the flavour, the flavour demotes to plain; when it can't hold the SEAT,
-    // the seat slides a slot deeper down the pipe.
+    // arithmetic (≤2 per window, a strip leaves only one free seat) and the
+    // lock laws (a colour never double-books its node; nothing keyed shares a
+    // ribbon's window). When a window can't hold the flavour, the flavour
+    // demotes to plain; when it can't hold the SEAT, the seat slides a slot
+    // deeper down the pipe.
     //
     // AND THE GRID IS THE LAW'S FLOOR. The pairwise windowMates arithmetic has
     // a blind spot the overlapping cadence exposes: two legal pairs booked
@@ -384,14 +373,8 @@ function leechWave(n, opts) {
       if (tArr < horizonT - 1e-6) continue; // never shallower than the horizon
       const mates = sched.filter(s => tArr > s.t0 - GAP && tArr < s.t1 + GAP);
       const strips = mates.filter(s => s.type === 'strip').length;
-      // a booked purple OWNS every slot inside its exclusive stretch — slide past it
-      if (sched.some(s => s.purple && tArr > s.t0 - PURPLE_CLEAR && tArr < s.t1 + PURPLE_CLEAR)) continue;
       if (mates.length - strips >= (strips ? 1 : 2)) continue; // slot full — next one
       if (lock !== undefined && mates.some(s => s.lock === lock || s.type === 'strip')) lock = undefined;
-      // and a CANDIDATE purple needs its whole stretch already empty — both
-      // thumbs will converge on it, so nothing may arrive nearby, before or
-      // after. A stretch with traffic in it turns the drone plain instead.
-      if (purple && sched.some(s => tArr > s.t0 - PURPLE_CLEAR && tArr < s.t1 + PURPLE_CLEAR)) purple = false;
       // THE SPLIT LAW, slot-aware. The half-ring rule above only paired a seat
       // with its own wave's partner — but a slot can be shared ACROSS waves,
       // and slot-mates whose angles were never coordinated can arrive
@@ -414,14 +397,12 @@ function leechWave(n, opts) {
     const en = spawnEnemy(a, 'normal');
     en.lock = lock; en.drift = 0;
     en.z = geo().hitZ + (tSeat - levelT) * spd; // seated on its grid slot, deep in the pipe
-    if (purple) en.noCharge = true; // pure pressure: zappable by either node, worth nothing
     // re-book at the TRUE arrival: spawnEnemy booked a horizon arrival, but
     // this seat rides deeper — a ledger with wrong times can't referee the
     // next wave (patch the booking spawnEnemy just made, like fireBeat does)
     const bk = sched[sched.length - 1];
     bk.t0 = bk.t1 = tSeat;
     bk.lock = lock; bk.needsNode = lock !== undefined;
-    if (purple) bk.purple = true;
     if (!(k & 1)) { prevA = a; seatLock = lock; }
   }
 }
@@ -434,7 +415,7 @@ function runSwarm(b, dt, opts) {
   b.waveT = LEECH_WAVE_GAP + bRand(0, 0.8);
   const r = bossRound(b);
   leechWave(Math.min(9, (opts.n0 || 5) + r), {
-    locks: opts.locks, purple: opts.purple,
+    locks: opts.locks,
     latch: opts.latch !== undefined ? opts.latch : r >= 3
   });
   // NO SOUND ON A RELEASE. The first wave lands on the duel's opening frame, so
@@ -509,13 +490,11 @@ function sweepTrickle(b, dt) {
   b.addT -= dt;
   if (b.addT > 0) return;
   // the ledger applies here too: a trickled red arriving into an already-full
-  // window (wave leftovers still inbound) — or into a purple's exclusive
-  // stretch — would be a demand the thumbs can't answer. Hold and retry.
-  const tA2 = levelT + arrivalAt(SPAWN_Z, 1);
+  // window (wave leftovers still inbound) would be a demand the thumbs can't
+  // answer. Hold and retry.
   const mates = windowMates(arrivalAt(SPAWN_Z, 1), 0.55);
   const strips = mates.filter(s => s.type === 'strip').length;
-  if (mates.length - strips >= (strips ? 1 : 2)
-    || sched.some(s => s.purple && tA2 > s.t0 - PURPLE_CLEAR && tA2 < s.t1 + PURPLE_CLEAR)) { b.addT = 0.25; return; }
+  if (mates.length - strips >= (strips ? 1 : 2)) { b.addT = 0.25; return; }
   b.addT = SWEEP_ADD_GAP;
   b.sweepAdds--;
   b.addA = clearOfWalls(b.addA + 2.399963 + bRand(-0.35, 0.35)); // hop onward, never stacked
@@ -651,12 +630,12 @@ function updatePrismFight(dt, g) {
 // own node's orb — so target selection IS the fight: kill for the orb the
 // lamp is asking for, before it blinks.
 //
-// NO PURPLE HERE. Pressure drones were in the first cut and Gil pulled them
-// (2026-08-11): with a lamp to read and keys to sort, a third drone class
-// over-freighted the screen. Plain reds carry the slack — they pressure the
-// lane AND feed either orb, which keeps the fight about the lamp. The
-// noCharge mechanic itself stays wired (leechWave's purple law included) for
-// a future machine with a quieter screen.
+// NO PURPLE HERE. Pressure drones (`noCharge`: both thumbs to kill, feeds
+// nothing) were in the first cut and Gil pulled them (2026-08-11): with a lamp
+// to read and keys to sort, a third drone class over-freighted the screen.
+// Plain reds carry the slack — they pressure the lane AND feed either orb,
+// which keeps the fight about the lamp. The mechanic was deleted outright on
+// 2026-08-23 (H-28); git history has it if a quieter machine ever wants it.
 function updateMimicFight(dt, g) {
   const b = boss;
   runLamp(b, dt);
@@ -893,7 +872,7 @@ function decompile(a, z, en, mul) {
   const m = (mul || 1) * (en.sizeMul || 1) * (en.type === 'heavy' ? 1.3 : 1);
   z = Math.max(z, 0.02);
   ghosts.push({ a, z, t: 0, sizeMul: en.sizeMul || 1, pal: enemyPal(en),
-    spr: en.noCharge ? null : SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.type] });
+    spr: SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.type] });
   ripples.push({ a, z, t: 0, mul: Math.sqrt(m) });
 }
 function popup(x, y, text, color) {

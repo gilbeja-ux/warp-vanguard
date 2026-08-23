@@ -76,7 +76,7 @@ function validateCampaign(p) {
       if (b.force !== undefined && typeof b.force !== 'boolean') errs.push(tag + 'bad beat force');
     });
     // bands: only the rate knobs may be mixed — speed/duration stay level-wide
-    const MK = { doubles: 1, heavies: 1, lines: 1, colors: 1, frags: 1, walls: 1, crawlers: 1, bursts: 1 };
+    const MK = { doubles: 1, heavies: 1, lines: 1, colors: 1, frags: 1, walls: 1, bursts: 1 };
     if (l.bands !== undefined && !Array.isArray(l.bands)) errs.push(tag + 'bad bands');
     (Array.isArray(l.bands) ? l.bands : []).forEach(b => {
       if (!b || !(b.t0 >= 0 && b.t1 > b.t0 && b.t1 <= l.duration)) { errs.push(tag + 'bad band window'); return; }

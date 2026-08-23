@@ -395,13 +395,6 @@ function enemyPal(en) {
     ? { glow: '200,70,255',
         shades: ['#b03ae8', '#8a2ad4', '#d465ff', '#6f14b8', '#c44af0'],
         lights: ['#eab8ff', '#f3d4ff', '#d98cff'] }
-    : en.noCharge
-    // the boss's own pressure drone: deep interdiction violet — kill it to keep
-    // the lane, but it feeds the pulse NOTHING (darker than heavy's magenta,
-    // and heavies never share a duel lane with these, so the two can't collide)
-    ? { glow: '160,80,255',
-        shades: ['#7a2fd0', '#5a1ba8', '#9450ec', '#42128a', '#8640de'],
-        lights: ['#d4b0ff', '#e6d0ff', '#b88cff'] }
     : en.lock === 0
     ? { glow: '80,170,255',
         shades: ['#2f7fe0', '#1c4fae', '#4d9bff', '#12398a', '#3f8af0'],
@@ -600,9 +593,7 @@ function drawEnemy(en, g) {
     return;
   }
 
-  // a pressure drone (noCharge) skips the baked red skin and draws procedurally
-  // in the interdiction's own violet — the boss's drone, and worth nothing
-  const spr = en.noCharge ? null : SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.type];
+  const spr = SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.type];
 
   // hot glow at the wall point — except payload packets, which swallow light.
   // the glow breathes harder as arrival closes in: near threats burn brightest
