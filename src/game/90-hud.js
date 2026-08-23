@@ -977,7 +977,10 @@ function drawHUD(g) {
     const label = '\u00bb ' + commCur.s + ':';
     const chars = Math.floor(commT * 38);
     const txt = commCur.m.slice(0, chars);
-    const fade = commT < 0.2 ? commT / 0.2 : clamp((6 - commT) / 0.8, 0, 1);
+    // the fade-out must END at barkHold, where the tick retires the line — a
+    // hard-coded 6 here once outlived a hold of 4, so every bark cut at full
+    // alpha and the authored fade never played
+    const fade = commT < 0.2 ? commT / 0.2 : clamp((barkHold - commT) / 0.8, 0, 1);
     ctx.save();
     ctx.globalAlpha = Math.min(1, fade);
     const cy2 = Math.max(14 + SAFE.t + 38, H * 0.185); // inside the bore's clear width

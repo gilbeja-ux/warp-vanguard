@@ -963,6 +963,14 @@ function drawEnd(g) {
     // like clearing a relay: forward into the first contract, with restart and
     // menu behind it.
     const qualDone = endWin && qual;
+    // A DELIVERED CONTRACT HANDS OVER TO THE NEXT CLIENT, right here on the
+    // report — the same law as the home slab (homeContractTarget): the first
+    // undelivered contract takes the key. campaignCleared is truthful by now
+    // (stars save before S.END), and an ASSISTED boss clear files no star, so
+    // the contract is not delivered and the offer correctly stays away.
+    const nextCi = endWin && !endless && !qual && levelIdx + 1 >= LEVELS.length
+      && CAMP && campaignCleared(CAMP.id)
+      ? CAMPAIGNS.findIndex(p => !campaignCleared(p.id)) : -1;
     // LANE ASSIST joins the keys after two straight losses on a campaign
     // lane. If THIS run was already assisted there is no second key: plain
     // RETRY is the assist (the ease sticks until the lane is cleared).
@@ -980,6 +988,8 @@ function drawEnd(g) {
       ? { label: 'FIRST CONTRACT ▸', action: 'contract' }
       : endWin && !endless && !qual && levelIdx + 1 < LEVELS.length
       ? { label: 'NEXT LEVEL ▸', action: 'next' }
+      : nextCi >= 0
+      ? { label: 'NEXT CONTRACT ▸', action: 'nextCon' }
       // beside a duel offer the plain retry says FULL, so the two are told apart
       // by their labels and not only by their colour
       // A RESTART OFF A WON ASSISTED LANE IS RANKED, and says so: the run behind
@@ -987,7 +997,7 @@ function drawEnd(g) {
       // that THIS one counts. Losing assisted still says ASSIST — it stays eased.
       : { label: endWin ? (assist ? 'RETRY RANKED' : 'RESTART') : duelable ? 'FULL RETRY' : assist ? 'RETRY ASSIST' : 'RETRY', action: 'retry' };
     const secondary = [];
-    if (primary.action === 'next' || primary.action === 'contract') secondary.push({ label: assist ? 'RETRY RANKED' : 'RESTART', action: 'retry' });
+    if (primary.action === 'next' || primary.action === 'contract' || primary.action === 'nextCon') secondary.push({ label: assist ? 'RETRY RANKED' : 'RESTART', action: 'retry' });
     secondary.push({ label: 'MENU', action: 'menu' });
     // THE GLOWING KEY IS THE A KEY — one rule, and the layout obeys it rather
     // than the other way round. A is hard-mapped to the way FORWARD (see

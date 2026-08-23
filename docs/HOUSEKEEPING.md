@@ -36,7 +36,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-15 | DONE | Journey | MED | Two arc keys flank the mode wheel — CONTINUE CONTRACT deep-links the frontier, CLAIM TO FAME launches the weekly (ships in the next build) |
 | H-16 | TODO | Journey | MED | Board dead-end — FLY THIS LANE + weekly-retry rollover fix |
 | H-17 | TODO | Story | MED | Story line-edit pass + the C5 continuity fork |
-| H-18 | TODO | Story | MED | Meta polish — NEXT CONTRACT hook, week countdown, dossier, bark fade |
+| H-18 | DONE | Story | MED | NEXT CONTRACT ▸ on the report + the bark fade fixed (countdown → H-15, dossier → H-06) |
 | H-19 | TODO | Decision | MED | Settle the canon + the address term |
 | H-20 | TODO | Audio | MED | Audio breadth — fanfare tiers, boss-duel music, sonar phase, coverage |
 | H-21 | TODO | Art | LOW | Restore menu film grain |
@@ -125,6 +125,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Issue:** the strongest writing never renders. The five verdict epilogue `lines` lose to a precedence bug, the five campaign `story` paragraphs render nowhere, and all 40 level `hint` strings render nowhere. The closure disc shows the weakest text instead.
 - **Evidence:** `91-briefing.js:513`; `campaigns.js:78`; `editor.js:1086`; `90-hud.js:509`.
 - **My take:** cheapest story win in the codebase. Start with the verdict lines: one precedence change on the closure disc, which was built with room for them.
+- **Inherited from H-18 (2026-08-23):** the dossier client/cargo sub-item lands here. Wiring the `story` paragraph onto the contract disc delivers the client and the cargo with it — no new authored field needed.
 - **Options:** (a) verdict epilogue lines only; (b) verdict lines + the story paragraph on the carousel or a dossier tab; (c) all three, with the hint as a subtitle on the pre-run disc.
 
 ## H-07 · Give the pre-run briefing a read gate
@@ -216,7 +217,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) fix mechanical defects + the C5 fork only; (b) full register pass across all 40 shown lines; (c) hold until H-19 settles canon.
 
 ## H-18 · Meta polish — NEXT CONTRACT hook, week countdown, dossier, bark fade
-- **Status:** TODO · **Area:** Story/Meta · **Sev:** MED
+- **Status:** DONE (2026-08-23, ships in the next build) — replanned with Gil, then built. (1) NEXT CONTRACT ▸: winning the final lane of a campaign whose ledger shows the clear now ends on a NEXT CONTRACT ▸ forward key (`95-menu.js` primary chain, `nextCi`); the tap warps straight into the first undelivered contract's frontier, briefed — the home slab's law (`homeContractTarget`) on the report. Handler in `60-input.js` (`nextCon`, target resolved BEFORE the warp so the transition can never strand); gamepad A forwards to it via `END_FORWARD` (`71-gamepad.js`). An ASSISTED boss clear files no star, so the offer correctly stays away. (2) Bark fade: the HUD's fade-out now ends at `barkHold` where the tick retires the line (`90-hud.js`) — a hard-coded 6 had outlived the hold of 4, so every bark cut at full alpha. (3) The week countdown was already COVERED by H-15's CLAIM TO FAME caption (`92-guide.js:1118` prints `WEEKLY LANE · CLOSES <date>`). (4) The dossier client/cargo sub-item MOVED into H-06: no `cargo` field exists — the cargo lives only in each campaign's `story` paragraph, the exact dead copy H-06 wires; the client line was deliberately trimmed from the disc (`92-guide.js:1670`). PINNED in scripts/test.js: the delivered-contract report offers NEXT CONTRACT, A forwards to it, the tap lands on the first undelivered contract's frontier; a mid-life bark paints at full alpha and a bark nearing retirement has faded (a ctx alpha spy over the harness stub). Menu/HUD chrome only — no sim/score path touched; the standing pre-AAB deploy covers the source-hash id as always. `npm run build` + `npm test` green (ALL TESTS PASSED). · **Area:** Story/Meta · **Sev:** MED
 - **Combines:** S-3, story lower items (countdown, dossier, bark fade)
 - **Issue:** a finished contract gets RESTART/MENU, no "NEXT CONTRACT ▸". The ranked week shows no close countdown. The dossier omits client and cargo. Barks hard-cut without their fade.
 - **Evidence:** `95-menu.js:503,961`; `00-core.js:152`; `72-tick.js:250` vs `90-hud.js:961`.

@@ -542,6 +542,17 @@ function endTap(x, y) {
         switchCampaign(0);
         startLevel(0, true);
       }));
+      // a delivered contract hands over: warp straight into the next client's
+      // frontier lane, briefed — the same door FIRST CONTRACT opens. The target
+      // resolves BEFORE the warp starts, so the transition can never strand.
+      else if (b.action === 'nextCon') {
+        const nci = CAMPAIGNS.findIndex(p => !campaignCleared(p.id));
+        if (nci >= 0) pressUI(b, () => startTrans('warp', () => {
+          switchCampaign(nci);
+          const nc = progress.camp[CAMPAIGNS[nci].id];
+          startLevel(Math.min(((nc && nc.unlocked) || 1) - 1, CAMPAIGNS[nci].levels.length - 1), true);
+        }));
+      }
       else pressUI(b, () => { // home in style: the menu drives into view, no glitch
         // training lives in Story Mode now → the report zooms back out INTO its disc
         if (qual) { menuScreen = 'camps'; campScroll = campScrollTgt = 0; campPendingSync = null; }

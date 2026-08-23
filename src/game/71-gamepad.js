@@ -109,7 +109,7 @@ function gpEndPress(action) {
 // the A handler — and when the continue was added, only the screen learned
 // about it: A fell through to 'retry' and restarted the whole level, which is
 // exactly the wrong door. One list, one order, every consumer.
-const END_FORWARD = ['next', 'contract', 'duel', 'retry'];
+const END_FORWARD = ['next', 'nextCon', 'contract', 'duel', 'retry'];
 function endForward(list) {
   for (const a of END_FORWARD) {
     const b = (list || []).find(b2 => b2.action === a);

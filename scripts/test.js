@@ -151,6 +151,7 @@ code = code.replace("'use strict';", '') + `
   boss: () => boss, endlessCfg, tut: () => tut, isEndless: () => endless, getLV: () => LV,
   qualStage: () => tut ? QUAL[tut.stage] : null,
   getProg: () => PROG, getCamp: () => CAMP, validateCampaign, installCampaign, CAMPAIGNS,
+  getLevelIdx: () => levelIdx, campaignCleared, // the report's contract hand-over reads both
   DEST_DEAL, DEST_ROLL, S3D_FINAL, dealVariantId, dealBuildId, dealRoll, variantById,
   destKindFor, planetVariantFor, s3BuildFor, PLANET_TYPES, STAR_DECK,
   getLevels: () => LEVELS, migrateSaveShape, getInfoCards: () => INFO_CARDS,
@@ -236,6 +237,7 @@ code = code.replace("'use strict';", '') + `
   getShield: () => shieldCharge, setShield: v => { shieldCharge = v; },
   setMenuScreen: v => { menuScreen = v; }, getMenuScreen: () => menuScreen, commCur: () => commCur,
   clearComm: () => { commCur = null; commT = 0; }, // so a test can watch for the NEXT line
+  setComm: (v, t) => { commCur = v; commT = t || 0; }, barkHold: () => barkHold, // the bark-fade pin drives the ticker by hand
   setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length, firePulse,
   latches: () => latches, setLatches: v => { latches = v; },
   spawnStrip, spawnWall, PULSE_MAX: () => PULSE_MAX, setSpawnT: v => { spawnT = v; },
@@ -4293,4 +4295,72 @@ async function runMusicUp() {
     check("changing one relay's spawn rate moves exactly that relay",
       r.simMoved.length === 1 && r.simMoved[0] === 'cargo-run:0');
   }
+}
+
+// ================= H-18: the report hands over to the next contract =================
+// A DELIVERED CONTRACT ENDS ON NEXT CONTRACT ▸, not RESTART/MENU. Winning the
+// final lane of a campaign whose ledger now shows the clear offers a warp
+// straight into the first undelivered contract's frontier, briefed — the home
+// slab's law (homeContractTarget), applied to the report's forward key.
+{
+  const pks = G.CAMPAIGNS;
+  const camp0 = G.getCamp(), lastCamp0 = G.progress.lastCamp;
+  // make the offer deterministic whatever earlier tests delivered: keep one
+  // contract OTHER than the active one undelivered for the hand-over to target
+  const other = pks.find(p2 => p2 !== camp0);
+  const oc = G.progress.camp[other.id];
+  const oStar0 = oc ? oc.stars[other.levels.length - 1] : undefined;
+  if (oc) oc.stars[other.levels.length - 1] = 0;
+  const li = G.getLevels().length - 1;
+  const star0 = G.getProg().stars[li], best0 = G.getProg().bests[li], unl0 = G.getProg().unlocked;
+  G.startLevel(li);
+  G.setLevelT(1e9); G.endLevel(true);
+  check('winning the final lane delivers the contract', G.campaignCleared(camp0.id));
+  G.setEndT(9); G.frame(16);
+  const expCi = pks.findIndex(p2 => !G.campaignCleared(p2.id));
+  const nb = G.endButtons().find(b2 => b2.action === 'nextCon');
+  check('a delivered contract offers NEXT CONTRACT on the report', !!nb);
+  check('…and A forwards to it', !!nb && G.endForward(G.endButtons()) === nb);
+  check('…with RESTART kept in the side stack', G.endButtons().some(b2 => b2.action === 'retry'));
+  if (nb) {
+    G.endTap(nb.x + nb.w / 2, nb.y + nb.h / 2);
+    let tg = 120; while (tg-- > 0 && G.getState() === G.S.END) G.update(0.05);
+    check('the key warps into the first undelivered contract',
+      G.getState() !== G.S.END && G.getCamp() === pks[expCi]);
+    const cN = G.progress.camp[pks[expCi].id];
+    check('…at its frontier lane',
+      G.getLevelIdx() === Math.min(((cN && cN.unlocked) || 1) - 1, pks[expCi].levels.length - 1));
+  }
+  // hand the battery back the world it had: campaign, ledger, state
+  G.installCampaign(camp0); G.progress.lastCamp = lastCamp0;
+  G.getProg().stars[li] = star0; G.getProg().bests[li] = best0; G.getProg().unlocked = unl0;
+  if (oc && oStar0 !== undefined) oc.stars[other.levels.length - 1] = oStar0;
+  G.setState(G.S.MENU);
+}
+
+// ================= H-18: a bark retires THROUGH its fade =================
+// The tick retires a bark the moment commT passes barkHold; the HUD's fade-out
+// must END there too. A hard-coded 6 in the fade once outlived a hold of 4, so
+// every bark cut at full alpha and the authored fade never played.
+{
+  const alphaAt = t => {
+    let seen = null, alpha = 1;
+    Object.defineProperty(ctxStub, 'globalAlpha', {
+      get: () => alpha, set: v => { if (typeof v === 'number') alpha = v; }, configurable: true
+    });
+    const rawFT = ctxStub.fillText;
+    ctxStub.fillText = txt => { if (typeof txt === 'string' && txt.indexOf('bark fade pin') >= 0) seen = alpha; };
+    G.setState(G.S.PLAY);
+    G.setComm({ s: 'CMD', m: 'the bark fade pin line' }, t);
+    G.frame(16);
+    ctxStub.fillText = rawFT;
+    Object.defineProperty(ctxStub, 'globalAlpha', { get: () => noop, set: noop, configurable: true });
+    G.clearComm();
+    return seen;
+  };
+  const hold = G.barkHold();
+  const mid = alphaAt(hold / 2), late = alphaAt(hold - 0.05);
+  check('a mid-life bark paints at full alpha', mid !== null && mid > 0.95);
+  check('a bark nearing retirement has already faded out', late !== null && late < 0.2);
+  G.setState(G.S.MENU);
 }
