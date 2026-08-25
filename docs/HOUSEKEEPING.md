@@ -20,8 +20,8 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | ID | Status | Area | Sev | Title |
 |----|--------|------|-----|-------|
 | H-01 | DONE | Release | HIGH | Removed as a backlog item — the verifier deploy is the standing pre-AAB routine |
-| H-02 | IN PROGRESS | Backend | HIGH | Boss board integrity — code+SQL DONE & verified; only the release deploy remains (batched with H-01) |
-| H-03 | IN PROGRESS | Backend | HIGH | Replay-stealing — code DONE; live storage test PASSED 2026-08-21; only the coordinated 1.0.4 deploy remains |
+| H-02 | DONE | Backend | HIGH | Boss board integrity — RNG side-stream + bounty decay in code; time tiebreak migration APPLIED LIVE 2026-08-25 with the 1.0.4 deploy |
+| H-03 | DONE | Backend | HIGH | Replay-stealing closed — oracle fix + frame-hash binding + private traces bucket ALL LIVE 2026-08-25 with the 1.0.4 deploy |
 | H-04 | DONE | Release | HIGH | Recover the deleted feature graphic — restored from HEAD 2026-08-21 |
 | H-05 | TODO | Release | HIGH | Turn DEV_KEYS off for production builds |
 | H-06 | TODO | Story | HIGH | Wire the dead story copy |
@@ -75,7 +75,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) redeploy only; (b) redeploy + add the CI guard; (c) redeploy + CI guard + decide the current-plus-previous sim-id acceptance policy for live clients.
 
 ## H-02 · Boss board integrity — seed the boss RNG + add anti-stall
-- **Status:** IN PROGRESS (chosen: RNG side-stream + bounty decay + timeSec board penalty) · **Area:** Backend/Balance · **Sev:** HIGH
+- **Status:** DONE (2026-08-25) — the owed deploy shipped with the 1.0.4 release gate: `npm run deploy:verifier` (server sim id `bfbd7a2099d8`, IN SYNC) + `supabase db push` applied `20260821000000_boss_board_time_tiebreak.sql` to the live DB. End-to-end proven: a real recorded run submitted to the deployed function verified and ranked. · **Area:** Backend/Balance · **Sev:** HIGH
 - **Progress (2026-08-21):**
   - DONE in code — the RNG side-stream. A `bossRng` (mulberry32, seeded per boss from levelIdx) now feeds every score-relevant boss draw via `bRand`/`bChance`/`bCoin` (`52-bosses.js`). Cosmetic particle draws (52-bosses.js:213,812,872) stay on Math.random. `spawnRng` is untouched, so only the 5 boss boards' sim ids move.
   - DONE in code — the bounty decay. `bossStallMul` decays the swarm-kill take after 30 kills without a boss hit, floor 0.1; a landed pulse resets `boss.stallKills` (`52-bosses.js` + `72-tick.js:885`).
@@ -89,7 +89,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) RNG fix only, leave boards as-is on stall; (b) RNG fix + bounty decay after round N; (c) RNG fix + `timeSec` tiebreak penalty; (d) RNG fix + both anti-stall guards.
 
 ## H-03 · Close the replay-stealing hole
-- **Status:** IN PROGRESS (chosen: private bucket + signed URLs + frame-hash binding + oracle fix) · **Area:** Backend · **Sev:** HIGH
+- **Status:** DONE (2026-08-25) — the coordinated deploy shipped with the 1.0.4 release gate: `supabase db push` applied `20260821000001_trace_owner_binding.sql` (traces bucket now PRIVATE) and `deploy:verifier` carried the submit-run changes. The storage-privacy battery re-ran against the live project after the push: all 5 checks pass. Known cost, voiced and accepted: old clients lose replay playback until they update to 1.0.4. · **Area:** Backend · **Sev:** HIGH
 - **Combines:** A-2, the 400-body oracle leak
 - **Progress (2026-08-21) — all code DONE, built and linted:**
   - Oracle fix — the 400 "verification failed" body no longer returns `recomputed`/`integrity`/`steps`/`claimed`/`traceLen` (`submit-run/index.ts`). The client keys "score not verified" off the `error` string, so its handling is unaffected.
