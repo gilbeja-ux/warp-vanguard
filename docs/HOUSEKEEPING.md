@@ -39,17 +39,18 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-18 | DONE | Story | MED | NEXT CONTRACT ▸ on the report + the bark fade fixed (countdown → H-15, dossier → H-06) |
 | H-19 | DONE | Decision | MED | Canon settled — episodic contracts; address is Vanguard/vanguards, "runner" only as accent; wolves retired |
 | H-20 | DONE | Audio | MED | Audio breadth — verdict tiers + NEW BEST stamp + unlock cue, enlistment/bark typewriters → per-glyph fade, phone-call interruption handler (Gil's cut: no boss-duel music, no sonar phase) |
-| H-21 | TODO | Art | LOW | Restore menu film grain |
+| H-21 | DONE | Art | LOW | Menu stays grain-free — decision, no code (2026-08-24) |
 | H-22 | TODO | Art | LOW | Gate facing variants |
 | H-23 | TODO | Journey | LOW | Enlistment tap-to-complete |
-| H-24 | TODO | Journey | LOW | Delete dead code — scroll machinery + beam subsystem |
-| H-25 | TODO | Balance | LOW | Boss tuning pass + count volley zaps + split C1L7 lock intro + author enemy/pickup beats (from H-28) |
+| H-24 | DONE | Journey | LOW | Dead code deleted — scroll machinery, the whole ray-cannon subsystem, and the en.drift orphan; all 41 board ids unchanged |
+| H-25 | IN PROGRESS | Balance | LOW | Volley zaps + prism floors + last-stand shifts built — open: C1L7 (no second debut in L06), feel pass, beats |
 | H-26 | TODO | Backend | LOW | Backend hardening — name filter, delete residuals, admin auth |
 | H-27 | DONE | Art | LOW | GATE aperture rebuilt (frame bug fixed + well + hoops); SPINE 18-pad preview declined by Gil, ribs stay |
 | H-28 | DONE | Balance | LOW | Unused depth resolved by deletion — crawlers knob + noCharge drone removed (zero sim cost, all 41 ids unchanged); beat authoring folded into H-25 |
 | H-29 | TODO | Docs | LOW | Doc drift pass |
 | H-30 | TODO | Content | LOW | The 40 briefing-disc keyframes |
 | H-31 | DONE | Balance | MED | Power-ups never land inside a dead-zone carpet — both spawners fixed + a pinned test (ships in 1.0.4) |
+| H-32 | DONE | HUD | MED | Barks redesigned as a broadcast subtitle — tag on its own line, 13px wrapped message (F-012; ships in the next build) |
 
 ---
 
@@ -244,7 +245,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) fanfare tiers only; (b) + boss-duel music treatment (no new track); (c) + sonar phase vocabulary; (d) full batch including interruption handler + briefing tick.
 
 ## H-21 · Restore menu film grain
-- **Status:** TODO · **Area:** Art · **Sev:** LOW (one line)
+- **Status:** DONE (2026-08-24) — closed as a DECISION, no code change. Gil reviewed a live A/B bench (the real menu frame + the game’s own grain tile animated at alpha 0.02 / 0.012) and chose to keep the menu grain-free on purpose. The "grain + vignette to finish" rule now has a deliberate menu exception — do not re-flag it in a future audit. · **Area:** Art · **Sev:** LOW (one line)
 - **Combines:** art finding 3
 - **Issue:** the menu is the only state finished without grain, against the "grain + vignette to finish" rule, on the most-stared-at sky.
 - **Evidence:** `99-boot.js:1235`.
@@ -268,7 +269,13 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) first-tap-completes convention; (b) a small SKIP affordance after the first beat.
 
 ## H-24 · Delete dead code — scroll machinery + beam subsystem
-- **Status:** TODO · **Area:** Journey/Cleanup · **Sev:** LOW
+- **Status:** DONE (2026-08-24, ships in the next build) — Gil chose the full scope: scroll machinery + beam subsystem + the en.drift orphan from H-28.
+  - Scroll machinery: `menuScroll`, `mapListScroll`, the never-written `menuPtr.mapScroll0`/`scroll0`, and the unreachable `menuLbRect` tap branch are gone (`40-state.js`, `60-input.js`, `92-guide.js`). The desktop wheel handler now serves the board lists only. `menuGeom()` slimmed to `{ ccx, ccy, R }` — its list geometry (`maxScroll` etc.) served only the dead scroll. The drag's `moved` flag (tap vs swipe) is kept.
+  - Ray-cannon (fused duel) subsystem, whole: `heat`/`overheat`/`beamActive`/`beamAim`/`BEAM_S` state, `drawBeam` (was already uncalled), `beamGeometry`/`beamHitCore`, `beamSound` + `beamOscs`, `sfx.overheatWarn`, every `fused`/`fusedV`/`fireStick` branch (72-tick, 71-gamepad, 80-tunnel, 85-enemy-art), and `boss.mergeT` itself. The design record stays in docs/parked/RAY-CANNON.md.
+  - `en.drift` orphan (H-28's leftover): the read in `72-tick.js` and every `= 0` write are gone. No RNG draw was touched — the crawlers burned draw stays exactly as H-28 left it.
+  - PROVEN zero sim cost: all 41 board fingerprints byte-identical before/after (sim-fingerprint compare). `npm run build` + `npm test` green (814 PASS — two `mergeT === 0` "no fuse" checks were deleted with the field; the harness lost its `setMenuScroll`/`setBeamAim`/`getHeat`/`isOverheat` helpers, all unused). Verifier bundle rebuilt; the source-hash sim id moved to `f32e9171f2e6` as any source edit does — the standing pre-AAB deploy carries it, nothing is owed now.
+  - Untouched on purpose: `b.beams` (the LIVE boss sweep system), `drawLineBeam` (live line-pair art), and the untracked `src/game/80-tunnel.js.bak` (not mine to delete).
+- **Area:** Journey/Cleanup · **Sev:** LOW
 - **Combines:** journey findings 4, 11
 - **Issue:** `menuScroll`, `mapListScroll`, `menuPtr.mapScroll0`, and an unreachable `menuLbRect` branch are written but read by no painter. The beam subsystem is flagged for removal.
 - **Evidence:** `60-input.js:240,311,238,430`; `92-guide.js:629`; `40-state.js:157`.
@@ -276,7 +283,15 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) scroll machinery only; (b) + beam subsystem; (c) both plus the `crawlers` dead knob (overlaps H-28).
 
 ## H-25 · Boss tuning pass + count volley zaps + split C1L7 lock intro
-- **Status:** TODO · **Area:** Balance · **Sev:** LOW
+- **Status:** IN PROGRESS (items 1, 3, 4 BUILT 2026-08-24, ship in the next sim-id release; open: item 2 — Gil's live look at C1L7, no second debut in L06 — plus his feel pass on 3-4 and the beats sub-item) · **Area:** Balance · **Sev:** LOW
+- **Progress (2026-08-24), Gil's per-item ruling and what landed:**
+  1. DONE — volley zaps. A volley kill now does `zaps++` in `72-tick.js`, mirroring the H-11 chain fix, so the style tiebreak (`zaps desc`) sees volley players. Pinned: 'a volley kill counts a zap'.
+  2. OPEN, NOT BUILT — the C1 lock split. A first build put a colors trickle into L06; Gil rejected it the same day: **never two new enemy demands in one level** — L06 teaches dead zones, full stop. Both knobs are reverted (L06 `colors` 0.00, L07 0.36; campaigns.js is byte-identical to HEAD). Gil will look at L07 live and rule then. If L07 needs relief, the lane-legal levers are: drop `bursts` from L07, or soften its jump — never a second debut in L06.
+  3. DONE — prism convergence. Separate floors: slow light `TAU/max(4.8, 6.0−r·0.35)`, fast light keeps `TAU/max(3.8, ...)`. The lights start as before, escalate with rounds, and hold a permanent ~26% gap. Pinned at round 14.
+  4. DONE — last-stand escalation, gentle per Gil. `b.lsShifts` counts the swaps; sweep = `TAU/max(4.2, 5.2 − (shifts−1)·0.2)` — shift 1 is unchanged, floor at shift 6 (~24% faster, vs the prism's 3.8 floor). Pinned to the floor.
+  4b. DONE (2026-08-25, Gil's design) — the LAST-STAND PURPLE LAMP. The lamp goes steady interdiction violet (purple = the game's "both thumbs" word) with a thin split rim: blue half-arc LEFT, white half-arc RIGHT — the thumbs' own geography, stating the both-keys recipe literally (`leechLampCol` + the lamp draw in `85-enemy-art.js`). The old blue↔white breath was one read from the blink-warning vocabulary and could say "about to flip". RENDER-ONLY, PROVEN: fingerprint compare unchanged (same 7 moved boards as items 1+3, none from this). Pinned: drawOk 'last-stand purple lamp + split-rim frame'. Verified in the LIVE game by headless Chrome (forced blockade last stand via startBossTest + state); preview crop in docs/parked/h25-laststand-lamp.png (delete after Gil's device pass).
+  5. OPEN on Gil's call — authored enemy/pickup beats in C2/C4. Explained in full (plumbing complete, zero content); Gil kept it open for a later batch, not dropped.
+  - VERIFIED (after the item-2 revert): `npm run build` + `npm test` green (818 PASS, 4 new pins). Fingerprint compare vs pre-pass: 7/41 board ids moved — survey:7 (the prism boss floors) and cargo-run:0/2/6, survey:0/6, collector:6 (the battery's driver completes volleys there and the scoreboard's zaps stat moved). KNOWN BATTERY LIMIT, stated: shutdown:7 did NOT move — the driver never survives to the last stand, so the shift escalation is pinned through the boss test rig instead. Verifier bundle rebuilt (sim id `83d88d542ee4`); the standing pre-AAB deploy carries everything, nothing deploys early.
 - **Combines:** C-7, boss tuning observations, H-28's beat authoring (2026-08-23)
 - **Issue:** prism's "unequal speeds" tell converges by round 5. The blockade last-stand sweep never accelerates. Volley kills do not increment `zaps`, undercounting volley styles in the tiebreak. C1L7 stacks the lock debut with bursts at the steepest jump.
 - **Evidence:** `52-bosses.js:591,679`; `72-tick.js:625`; `campaigns.js:68`.
@@ -341,3 +356,10 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Evidence:** `51-linter.js:476` (live spawnPickup, no clearance); `51-linter.js:415` (spawnWall clash scan, enemies only); the linter's pick verdict only fires for authored beats.
 - **My take:** close both directions with the existing reachability law: route the pickup angle through `clearOfWalls`, add in-flight pickups to `spawnWall`'s clash scan, and mirror both in the linter walk. No RNG draw is added, so the stream is unchanged; landed angles move only where an overlap existed.
 - **Options:** (a) pickup-side clearance only; (b) both directions + linter mirror (chosen).
+
+## H-32 · In-run barks — cramped, small, glued to the speaker title
+- **Status:** DONE (2026-08-25, ships in the next build) — Gil's report (F-012 in docs/USER-FEEDBACK.md). ROOT CAUSE: chip + message shared one chord high in the bore, so the fitter shrank the line to 8-10px, and the chip's border ended 5px past the label while the message started at 6px — one pixel of air. REDESIGN: a broadcast subtitle in `90-hud.js` — the speaker chip (`» CMD`, letterspaced, real padding) stands centered on its own line at H*0.15; the message takes the whole chord beneath it at 13px, word-wrapped to two rows (three only at the 10px floor), the H-20 per-glyph fade kept with its stagger running through the wrap. Draw-only, PROVEN: fingerprint compare unchanged (same 7 moved boards as H-25's items, none from this), and the 'barks are draw-only' pin still holds. The bark-fade pin re-armed on the colon-less tag. `npm test` green. Verified live by headless Chrome — previews docs/parked/h32-bark-short.png + h32-bark-long.png (delete after Gil's device pass). Owed: Gil's device eyeball; knobs are the 13px base, LH 16, and the tag's H*0.15 anchor. · **Area:** HUD · **Sev:** MED (readability)
+- **Combines:** F-012
+- **Issue:** barks missed a space after the speaker title and read cramped and small.
+- **My take:** the single-chord layout was the cause; stacking tag over message returns the whole chord to the message.
+- **Options:** (a) stacked subtitle, 13px + wrap (chosen); (b) inline chip with bigger font and padding.

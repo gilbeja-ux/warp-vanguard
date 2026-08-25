@@ -530,9 +530,7 @@ function pollGamepad(dt) {
   // pushing a stick swings that pad's knob exactly as it will mid-run. That IS the check:
   // you move it, it moves, and the run starts when both have answered.
   const inIntro = introT < INTRO_DUR;
-  const fused = boss && boss.mergeT >= 1;
   for (let i = 0; i < 2; i++) {
-    if (fused && i === 1) continue;
     const a = stick(i);
     // A CENTRED STICK NAMES NOTHING, and must also UNname whatever it last said —
     // otherwise releasing mid-sweep would let the carriage coast on to a bearing

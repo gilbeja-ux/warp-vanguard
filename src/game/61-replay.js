@@ -183,7 +183,7 @@ function exitReplay() {
   sfxFade = sfxFadeTgt = 1; // leaving the player — restore the sfx bus for the menu
   replayMusicVol = 1; musicRate = 1; // restore the music multiplier/rate for the menu take
   const rc = replayReturnCamp; replayPkg = null; replayReturnCamp = null;
-  stopReplay(); stripSound(false, 0); beamSound(false, 0); beamActive = false;
+  stopReplay(); stripSound(false, 0);
   Math.random = sysRandom;
   if (rc && (!CAMP || CAMP.id !== rc)) { const cp = CAMPAIGNS.find(c => c.id === rc); if (cp) installCampaign(cp); } // back to the player's campaign
   state = S.MENU; menuScreen = 'board'; // back to the leaderboard we launched from
@@ -383,7 +383,7 @@ function endLevel(win) {
     lbProvisional(bk, score, zaps, perfects).then(r => applyProvisional(bk, mySerial, r));
   }
   endDropT = win ? 0 : -1;            // victory: the lane drops out of warp
-  beamSound(false, 0); beamActive = false; stripSound(false, 0);
+  stripSound(false, 0);
   endRunMusic();
   endWin = win; endT = 0; endFxStars = 0; endTickT = 0; nbHold = 0;
   nbFx = false; endKeysFx = false; endUnlocked = false;

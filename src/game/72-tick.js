@@ -541,7 +541,6 @@ function updateLatches(dt, inIntro, ringXY, nodeXY) {
   // sliding into the live clamp fries, node-killer style — route around it
   if (!inIntro) for (const lt of latches) lt.t += dt;
   latches = latches.filter(lt => lt.t < lt.tele + lt.dur);
-  const fused = boss && boss.mergeT >= 1;
   for (const lt of latches) {
     if (!lt.bit && lt.t >= lt.tele) { // the wall bites into the rail
       lt.bit = true;
@@ -558,15 +557,13 @@ function updateLatches(dt, inIntro, ringXY, nodeXY) {
     if (lt2 < lt.arm) continue; // a beat of grace before it can hurt
     const half = lt.span0 * (1 - lt2 / lt.dur);
     for (let i = 0; i < 2; i++) {
-      if (fused && i === 1) continue; // one fused carriage in the duel
       if (nodes[i].deadT > 0) continue;
       if (Math.abs(angDiff(nodes[i].angle, lt.a)) < half) { // crossed the clamp
         nodes[i].deadT = 2;
         fryDrain(i); // the fry tax: a dead zone bleeds the orb you were building
-        if (fused) { nodes[1].deadT = 2; fryDrain(1); }
         const p2 = nodeXY(nodes[i]);
         burst(p2.x, p2.y, '#ff9a3c', 22, 4);
-        popup(p2.x, p2.y - 24, fused ? 'CANNON FRIED' : 'EMITTER FRIED', '#ffb478');
+        popup(p2.x, p2.y - 24, 'EMITTER FRIED', '#ffb478');
         sfx.fry(Math.cos(nodes[i].angle) * 0.6);
         redFlash = Math.max(redFlash, 0.5);
         shake = Math.min(shake + 0.5, 1);
@@ -641,7 +638,7 @@ function updateVolley(dt, docked, g) {
       const depthQ = clamp((en.z - g.hitZ) / (SPAWN_Z - g.hitZ), 0, 1);
       const deep = Math.round(140 * depthQ);
       const vb = Math.round(((en.type === 'heavy' ? 250 : 60) + deep) * mutMul()) * scoreMul();
-      score += vb;
+      score += vb; zaps++; // a volley kill is a kill in the style tiebreak too (H-25)
       decompile(en.angle, en.z, en);
       popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : deep >= 40 ? 'DEEP +' : '+') + vb
         + (combo >= 3 ? '  x' + scoreMul() : ''), '#bfeaff');
@@ -717,7 +714,6 @@ function updateEnemy(en, C) {
   en.z -= L.speed * waveMul * (en.speedMul || 1) * sdt;
   en.spin += sdt * 4 * (en.spinMul || 1);
   en.age += sdt;
-  if (en.drift) en.angle += en.drift * sdt;
 
   // sonar tick: a quiet geiger blip per hostile, panned to its angle,
   // accelerating as it closes — the wave is audible before it's urgent

@@ -168,7 +168,7 @@ code = code.replace("'use strict';", '') + `
   getMenuFx: () => menuFx, setMenuFx: v => { menuFx = v; }, getBackRect: () => menuBackRect,
   startEndless, menuBtns: () => menuButtons, getEndWin: () => endWin,
   setLevelT: v => { levelT = v; }, setIntegrity: v => { integrity = v; }, setScore: v => { score = v; },
-  setMenuScroll: v => { menuScroll = v; }, tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
+  tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
   detectBeat, beatQuantize, setBeat: (p, at) => { beatPeriod = p; musicStartAt = at; },
   // swap beatQuantize for a spy. The harness cannot catch a run that WRONGLY reads
   // the music clock by comparing outcomes — FakeAC.currentTime is frozen at 0 and
@@ -229,7 +229,7 @@ code = code.replace("'use strict';", '') + `
   NODE_SLEW, dragGhostState, // the one travel rate, and the drill ghost's appear/retire logic
   startEnlistment, enlist: () => enlist, enlistTap, enlistScript, parkedSky,
   getPaintN: () => paintN, getVsyncEst: () => vsyncEst,
-  keys, setBeamAim: (x, y) => { beamAim.x = x; beamAim.y = y; }, getHeat: () => heat, isOverheat: () => overheat, startBossTest,
+  keys, startBossTest,
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
   stripAngle, startWeekly, isWeekly: () => weekly, weeklyIdx: () => weeklyIdx, weeklyLive,
   weekNow, weekOf, weekLabel, weekStartMs, weekOfBoard, getPulse: () => pulseCharge,
@@ -353,12 +353,16 @@ for (let i = 0; i < 25 && !en.dead; i++) vstep();
 check('the bolt reaches the horizon', en.dead === true);
 G.enemies().length = 0;
 const comboV = G.stats().combo;
+const zapsV = G.stats().zaps;
 en = G.spawnEnemy(1.2, 'normal');
 en.z = 1.0;
 volleyShot(1.2, 12);
 for (let i = 0; i < 25 && !en.dead; i++) vstep();
 check('the volley punches through reds too', en.dead === true);
 check('volley kills advance the combo', G.stats().combo === comboV + 1);
+// H-25: the style tiebreak (zaps desc) must see volley kills too, or the
+// volley player loses the tie their own kills earned
+check('a volley kill counts a zap', G.stats().zaps === zapsV + 1);
 // interdiction at RANGE pays: the same red is worth more the deeper it dies.
 // Both targets are parked (speedMul 0) and the per-kill take is normalized by
 // the combo multiplier, so depth is the only thing the comparison can see.
@@ -1044,7 +1048,6 @@ ceremonyOut();
 check('the ceremony drinks banked charge — every duel starts at zero',
   G.getPulse()[0] === 0 && G.getPulse()[1] === 0);
 check('the ceremony completes and the duel begins', G.boss().introT >= G.BOSS_CER());
-check('the dials never change hands — no fuse', G.boss().mergeT === 0);
 check('it holds the bore centre and does not wander', (() => {
   const b = G.boss();
   for (let i = 0; i < 40; i++) { G.setIntegrity(100); G.update(0.05); }
@@ -1150,7 +1153,6 @@ G.update(0.05);
 check('BOSS TEST key drops straight into the duel', !!G.boss());
 G.boss().introT = 99; // skip the ceremony for the shortcut check
 for (let i = 0; i < 4; i++) G.update(0.05);
-check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
 { // A DRILL NEVER FILES. The clock jump is invisible to the trace, so the
   // verifier would replay these inputs against the level from second zero and
   // reject with [0 vs score] — the exact wound Gil screenshotted. The drill
@@ -1476,6 +1478,17 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
     check('both lights out hands over to the charge swarm',
       PR.mode === 'adds' && G.enemies().some(e => !e.dead));
   }
+  { // H-25: the unequal-speeds tell survives deep rounds — separate floors.
+    // One shared 3.8 floor had both lights converge by round 5 and the read died.
+    PR.round = 14; PR.round0 = 0;
+    PR.mode = 'idle'; PR.beams = [];
+    G.enemies().length = 0; G.setLatches([]);
+    G.setIntegrity(100); G.update(0.05); // tele arms the deep-round sweeps
+    const s0 = PR.beams.find(bm => bm.phase === 0).spd, s1 = PR.beams.find(bm => bm.phase === 1).spd;
+    check('deep rounds keep the twin lights honestly unequal', s1 > s0 * 1.2);
+    check('the escalation clamps at separate floors',
+      Math.abs(s0 - Math.PI * 2 / 4.8) < 1e-9 && Math.abs(s1 - Math.PI * 2 / 3.8) < 1e-9);
+  }
 
   // ---------- THE MIMIC: read the lamp ----------
   enterBossLevel('mimic');
@@ -1572,6 +1585,7 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
     while (lg-- > 0 && !BL.beams.length) { G.enemies().length = 0; G.setIntegrity(100); G.update(0.05); }
     check('the last-stand light arms through a ghost telegraph', BL.beams.length >= 1 && BL.mode === 'tele');
     check('...aimed at one emitter while the line will feed the OTHER', BL.beams[0].phase === BL.lsPhase);
+    drawOk('last-stand purple lamp + split-rim frame', () => {});
   }
   { // the feeding line: single-file, keyed to the FREE thumb — never pairs
     G.enemies().length = 0; G.setLatches([]); G.getSched().length = 0;
@@ -1598,6 +1612,14 @@ check('shortcut duel is live and un-fused', G.boss().mergeT === 0);
     let sg3 = 40;
     while (sg3-- > 0 && !BL.beams.length) { G.enemies().length = 0; G.setIntegrity(100); G.update(0.05); }
     check('the next shift swaps the ray to the other emitter', BL.beams[0].phase === 1 - ph0);
+    G.enemies().length = 0; G.setLatches([]);
+  }
+  { // H-25: the machine spends its reserves — each shift's ray runs a touch
+    // faster, clamped at the 4.2s/rev floor so the finale tightens, gently
+    const shifts0 = BL.lsShifts;
+    for (let sw = 0; sw < 8; sw++) { BL.mode = 'idle'; BL.beams = []; G.enemies().length = 0; G.setIntegrity(100); G.update(0.05); }
+    check('the last-stand sweep tightens with the shifts, to its floor',
+      BL.lsShifts === shifts0 + 8 && Math.abs(BL.beams[0].spd - Math.PI * 2 / 4.2) < 1e-9);
     G.enemies().length = 0; G.setLatches([]);
   }
   check('a lone key fizzles at the last stand', pulseShot(0) === 0 && BL.shieldT > 0);
@@ -2650,14 +2672,6 @@ function soak(name, start, seconds) {
       if (live.length) { // crude autopilot
         aim(0, live[0].angle);
         aim(1, live[live.length - 1].angle);
-      } else if (G.boss() && G.boss().mergeT >= 1) {
-        const g2 = G.geo();
-        const bb = G.boss();
-        aim(0, G.nodes[0].angle + 0.05); // keep drifting so orbs miss sometimes
-        const dz = Math.max(0.06, bb.z - g2.hitZ);
-        const u0 = Math.cos(G.nodes[0].angle), v0 = Math.sin(G.nodes[0].angle);
-        G.setBeamAim((bb.u - u0) / (5 * dz), (bb.v - v0) / (5 * dz));
-        G.keys['ArrowUp'] = true;
       }
       G.update(0.05);
       simNow += 50;
@@ -4305,7 +4319,7 @@ async function runMusicUp() {
     let armed = false;
     ctxStub.fillText = txt => {
       if (typeof txt !== 'string') return;
-      if (txt.indexOf('CMD:') >= 0) armed = true;
+      if (txt.indexOf('CMD') >= 0) armed = true; // the H-32 tag is '» CMD', no colon
       else if (armed && txt.length === 1 && seen === null) seen = alpha;
     };
     G.setState(G.S.PLAY);

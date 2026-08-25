@@ -971,51 +971,74 @@ function drawHUD(g) {
     });
   }
 
-  // intercepted transmission ticker — voices on the line you're guarding
+  // intercepted transmission ticker — voices on the line you're guarding.
+  // H-32: a BROADCAST SUBTITLE — the speaker tag stands on its own line and the
+  // message takes the whole chord beneath it, wrapped on word gaps. The old form
+  // packed chip + message into ONE chord: the fitter shrank everything to 8-10px
+  // and the chip's border sat 1px off the first glyph, so every bark read
+  // cramped and glued to its title. Stacked, the message holds 13px.
   if (commCur && state === S.PLAY) {
     const SPK = SPKCOL; // speaker colors come with the campaign package
-    const label = '\u00bb ' + commCur.s + ':';
-    // the message arrives a glyph at a time on the briefing's own fade (H-20) — the
-    // disc and the commander resolve this way too, so the line is one voice
-    // everywhere. No lead: a bark is live comms, it starts the instant it opens.
+    const label = '\u00bb ' + commCur.s;
     // the fade-out must END at barkHold, where the tick retires the line — a
     // hard-coded 6 here once outlived a hold of 4, so every bark cut at full
     // alpha and the authored fade never played
     const fade = commT < 0.2 ? commT / 0.2 : clamp((barkHold - commT) / 0.8, 0, 1);
     ctx.save();
     ctx.globalAlpha = Math.min(1, fade);
-    const cy2 = Math.max(14 + SAFE.t + 38, H * 0.185); // inside the bore's clear width
-    // No portrait tile: only two of seven speakers ever had their own face, so the
-    // rest wore haulage's suit and the tile said less than the name chip does. The
-    // line is chip + message, centered on the bore.
-    // shrink the line until chip + message fit the chord here
-    let cfz = 10, lw2, tw2;
-    for (; cfz >= 8; cfz--) {
-      ctx.font = '700 ' + cfz + 'px Audiowide, system-ui';
-      lw2 = ctx.measureText(label).width;
-      ctx.font = '500 ' + cfz + 'px Audiowide, system-ui';
-      tw2 = ctx.measureText(commCur.m).width;
-      if (lw2 + 6 + tw2 <= ringChord(cy2, 26)) break;
-    }
-    const x0 = W / 2 - (lw2 + 6 + tw2) / 2;
     ctx.textAlign = 'left';
     const spkCol = SPK[commCur.s] || '160,215,255';
-    ctx.fillStyle = `rgba(${spkCol},0.14)`;
-    roundRect(x0 - 6, cy2 - 11, lw2 + 11, 15, 4); ctx.fill();
-    ctx.strokeStyle = `rgba(${spkCol},0.5)`; ctx.lineWidth = 1;
-    roundRect(x0 - 6, cy2 - 11, lw2 + 11, 15, 4); ctx.stroke();
+    // No portrait tile: only two of seven speakers ever had their own face, so the
+    // rest wore haulage's suit and the tile said less than the name chip does.
+    const tagY = Math.max(14 + SAFE.t + 32, H * 0.15); // tag baseline, inside the bore
+    ctx.font = '700 9px Audiowide, system-ui';
+    try { ctx.letterSpacing = '2px'; } catch (e) {}
+    const lw2 = ctx.measureText(label).width;
+    ctx.fillStyle = `rgba(${spkCol},0.16)`;
+    roundRect(W / 2 - lw2 / 2 - 9, tagY - 12, lw2 + 18, 17, 5); ctx.fill();
+    ctx.strokeStyle = `rgba(${spkCol},0.55)`; ctx.lineWidth = 1;
+    roundRect(W / 2 - lw2 / 2 - 9, tagY - 12, lw2 + 18, 17, 5); ctx.stroke();
     ctx.fillStyle = `rgba(${spkCol},0.95)`;
-    ctx.font = '700 ' + cfz + 'px Audiowide, system-ui';
-    ctx.fillText(label, x0, cy2);
-    ctx.font = '500 ' + cfz + 'px Audiowide, system-ui';
-    const msg = commCur.m, xs = charXs(msg, ctx.font), mx0 = x0 + lw2 + 6;
-    let lastA = -1;
-    for (let j = 0; j < msg.length; j++) {
-      const a = clamp((commT - j * LINE_STAGGER) / LINE_FADE, 0, 1);
-      if (a < 0.005 || msg[j] === ' ') continue;
-      const q = Math.round(a * 20) / 20;
-      if (q !== lastA) { ctx.fillStyle = 'rgba(200,235,255,' + (0.92 * q).toFixed(3) + ')'; lastA = q; }
-      ctx.fillText(msg[j], mx0 + xs[j], cy2);
+    ctx.fillText(label, W / 2 - lw2 / 2, tagY + 1);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    // the message: word-wrapped to the chord at each row's own y. 13px unless a
+    // long line forces smaller; two rows normally, three only at the 10px floor.
+    // (letterSpacing is reset above, so charXs's font-keyed cache stays honest)
+    const LH = 16, y1 = tagY + 18;
+    const wrapRows = (max) => {
+      const rows = []; let line = '';
+      for (const w2 of commCur.m.split(' ')) {
+        const cand = line ? line + ' ' + w2 : w2;
+        if (ctx.measureText(cand).width <= ringChord(y1 + rows.length * LH, 26)) { line = cand; continue; }
+        if (line) rows.push(line);
+        line = w2;
+        if (rows.length >= max) return null; // this size needs too many rows
+      }
+      if (line) rows.push(line);
+      return rows.length > max ? null : rows;
+    };
+    let rows = null;
+    for (let mfz = 13; !rows && mfz >= 10; mfz--) {
+      ctx.font = '500 ' + mfz + 'px Audiowide, system-ui';
+      rows = wrapRows(mfz > 10 ? 2 : 3);
+    }
+    if (!rows) rows = [commCur.m]; // pathological unbreakable line: draw it anyway
+    // the glyphs arrive on the briefing's own fade (H-20), the one voice all
+    // resolving text shares. No lead: a bark is live comms. The stagger index
+    // runs on through the wrap, so a wrapped line still reads as one breath.
+    let j0 = 0, lastA = -1;
+    for (let r2 = 0; r2 < rows.length; r2++) {
+      const row = rows[r2], yr = y1 + r2 * LH;
+      const xs = charXs(row, ctx.font);
+      const rx0 = W / 2 - xs[row.length] / 2;
+      for (let j = 0; j < row.length; j++) {
+        const a = clamp((commT - (j0 + j) * LINE_STAGGER) / LINE_FADE, 0, 1);
+        if (a < 0.005 || row[j] === ' ') continue;
+        const q = Math.round(a * 20) / 20;
+        if (q !== lastA) { ctx.fillStyle = 'rgba(200,235,255,' + (0.92 * q).toFixed(3) + ')'; lastA = q; }
+        ctx.fillText(row[j], rx0 + xs[j], yr);
+      }
+      j0 += row.length + 1; // the swallowed break space keeps the cadence
     }
     ctx.restore();
   }

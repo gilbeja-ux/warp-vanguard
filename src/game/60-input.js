@@ -141,7 +141,7 @@ canvas.addEventListener('pointerdown', e => {
       if (inR(boardRects.list)) { bZone = 'list'; bScroll0 = boardListScroll; }
       else if (inR(boardRects.left)) { bZone = 'left'; bScroll0 = boardLeftScroll; }
     }
-    menuPtr = { id: e.pointerId, x: P.x, y: P.y, scroll0: menuScroll, camp0: campScroll, lastX: P.x, lastT: e.timeStamp || 0, vx: 0, moved: false, bZone, bScroll0 };
+    menuPtr = { id: e.pointerId, x: P.x, y: P.y, camp0: campScroll, lastX: P.x, lastT: e.timeStamp || 0, vx: 0, moved: false, bZone, bScroll0 };
     return;
   }
   if (state === S.END)  { endTap(P.x, P.y); return; }
@@ -238,12 +238,7 @@ canvas.addEventListener('pointermove', e => {
       return;
     }
     const dy = P.y - menuPtr.y;
-    if (Math.abs(dy) > 6) menuPtr.moved = true;
-    if (menuScreen === 'map' && menuPtr.x < menuGeom().ccx - mapR() * 0.5) {
-      mapListScroll = (menuPtr.mapScroll0 || 0) - dy; // clamped when the list draws
-    } else {
-      menuScroll = clamp(menuPtr.scroll0 - dy, 0, menuGeom().maxScroll);
-    }
+    if (Math.abs(dy) > 6) menuPtr.moved = true; // a vertical drag is not a tap
     return;
   }
   const sl = pauseDrag[e.pointerId];
@@ -304,16 +299,12 @@ canvas.addEventListener('pointercancel', e => {
   resetHold = null;
   releasePointer(e);
 });
-// desktop: wheel scrolls the level list
+// desktop: wheel scrolls the board lists
 window.addEventListener('wheel', e => {
-  if (state !== S.MENU || menuSettings) return;
-  if (menuScreen === 'board') { // route to the list under the cursor
-    const P = evPos(e), inR = r => r && P.x > r.x && P.x < r.x + r.w && P.y > r.y && P.y < r.y + r.h;
-    if (inR(boardRects.list)) boardListScroll += e.deltaY * 0.5;
-    else boardLeftScroll += e.deltaY * 0.5; // left list is the default target
-    return;
-  }
-  menuScroll = clamp(menuScroll + e.deltaY * 0.5, 0, menuGeom().maxScroll);
+  if (state !== S.MENU || menuSettings || menuScreen !== 'board') return;
+  const P = evPos(e), inR = r => r && P.x > r.x && P.x < r.x + r.w && P.y > r.y && P.y < r.y + r.h;
+  if (inR(boardRects.list)) boardListScroll += e.deltaY * 0.5;
+  else boardLeftScroll += e.deltaY * 0.5; // left list is the default target
 }, { passive: true });
 
 // keyboard fallback for desktop testing
@@ -431,10 +422,6 @@ function menuTap(x, y, pid) {
   if (menuGuideRect && x > menuGuideRect.x - 8 && x < menuGuideRect.x + menuGuideRect.w + 8 &&
       y > menuGuideRect.y - 8 && y < menuGuideRect.y + menuGuideRect.h + 8) {
     pressUI(menuGuideRect); enterGuide('menu'); return;
-  }
-  if (menuLbRect && x > menuLbRect.x - 8 && x < menuLbRect.x + menuLbRect.w + 8 &&
-      y > menuLbRect.y - 8 && y < menuLbRect.y + menuLbRect.h + 8) {
-    pressUI(menuLbRect, () => openBoard(menuScreen)); return;
   }
   if (menuBackRect && x > menuBackRect.x - 8 && x < menuBackRect.x + menuBackRect.w + 8 &&
       y > menuBackRect.y - 8 && y < menuBackRect.y + menuBackRect.h + 8) {
@@ -618,7 +605,7 @@ function resetRun() {
   volley = { charge: 0, cd: 0, shots: [] };
   enemies = []; particles = []; popups = []; bolts = []; pickups = []; ghosts = []; ripples = [];
   boss = null; burstQ = null; patternQ = []; hitStop = 0;
-  heat = 0; overheat = false; beamActive = false; beamSound(false, 0); stripSound(false, 0);
+  stripSound(false, 0);
   introT = 0; introCd = -1; introStage = -1; introLatch = false; padHold = [false, false]; gatePip = 0;
   preT = 0; padArm = [false, false]; // parked: introT does not move until both thumbs land
   rimFX = []; latches = []; killStreaks = []; resumeHold = 0; warpT = WARP_DIVE; fadeT = 0.35;

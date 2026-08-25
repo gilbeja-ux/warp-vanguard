@@ -1014,8 +1014,12 @@ function lampMix(c1, c2, t) {
     + Math.round(lerp(+a[2], +b2[2], t));
 }
 function leechLampCol(b) {
-  // the LAST STAND wants BOTH keys: the lamp breathes between blue and white
-  if (b.lastStand) return lampMix(NODE_COLS[0], NODE_COLS[1], 0.5 + 0.5 * Math.sin(time * 5));
+  // the LAST STAND wants BOTH keys, and purple is the game's word for "both
+  // thumbs" (the pressure drone's old colour; the popups already speak it).
+  // The first build breathed blue↔white here — but a two-colour oscillation IS
+  // the blink-warning vocabulary, so the finale read as "about to flip". A
+  // steady violet cannot be misread; the split rim below states the recipe.
+  if (b.lastStand) return '212,101,255';
   if (!bossLampLive()) // at rest: hostile red with a slow violet breath in it
     return lampMix('255,60,90', '212,101,255', 0.3 + 0.3 * Math.sin(time * 2));
   if (b.lampBlink > 0) // the flip warning: smooth surges toward the NEXT colour
@@ -1149,6 +1153,18 @@ function drawLeechMachine(g) {
     ctx[k ? 'lineTo' : 'moveTo'](Math.cos(a2) * bR, Math.sin(a2) * bR);
   }
   ctx.closePath(); ctx.stroke();
+  // LAST STAND: a thin split rim around the purple lamp — blue half on the
+  // LEFT, white half on the RIGHT, the thumbs' own geography. It states the
+  // kill recipe literally: both keys, one on each side, fired as one.
+  if (b.lastStand && dieQ < 0) {
+    const rr = lampR * 1.16, gap2 = 0.14;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(1.2, size * 0.025);
+    ctx.strokeStyle = `rgba(${NODE_COLS[0]},0.85)`; // blue — the left key
+    ctx.beginPath(); ctx.arc(0, 0, rr, Math.PI / 2 + gap2, Math.PI * 1.5 - gap2); ctx.stroke();
+    ctx.strokeStyle = `rgba(${NODE_COLS[1]},0.85)`; // white — the right key
+    ctx.beginPath(); ctx.arc(0, 0, rr, -Math.PI / 2 + gap2, Math.PI / 2 - gap2); ctx.stroke();
+  }
   ctx.restore();
   // chromatic ghost rims when wounded or dying — it can't hold its own outline
   if (dmg > 0.5 || dieQ > 0.2) {
@@ -1340,67 +1356,6 @@ function drawLeechBeam(g, b, bm, ghost) {
   }
   ctx.restore();
 }
-// the fused ray cannon: aim barrel + a straight perspective-tapered beam
-function drawBeam(g) {
-  const b = boss;
-  if (!b || b.mergeT < 1) return;
-  const seg = beamGeometry(g);
-  const size = Math.min(W, H) * 0.038;
-  const heatCol = heat < 0.5 ? '140,225,255' : heat < 0.8 ? '255,190,90' : '255,90,70';
-  const bAng = Math.atan2(seg.ty - seg.sy, seg.tx - seg.sx);
-  // barrel tracks the ray
-  ctx.save();
-  ctx.translate(seg.sx, seg.sy);
-  ctx.rotate(bAng);
-  ctx.fillStyle = '#0d1626';
-  roundRect(0, -size * 0.24, size * 1.5, size * 0.48, 4); ctx.fill();
-  ctx.strokeStyle = 'rgba(' + heatCol + ',0.9)'; ctx.lineWidth = 1.5;
-  roundRect(0, -size * 0.24, size * 1.5, size * 0.48, 4); ctx.stroke();
-  ctx.fillStyle = 'rgba(' + heatCol + ',' + (0.35 + heat * 0.6).toFixed(2) + ')';
-  ctx.fillRect(size * 0.25, -size * 0.12, size * 1.1 * heat, size * 0.24); // heat window
-  ctx.restore();
-  if (!beamActive) return;
-  // endpoint: the core when the ray connects, else the wall/deep exit
-  const hit = beamHitCore(g);
-  const dx = seg.tx - seg.sx, dy = seg.ty - seg.sy;
-  const len = Math.hypot(dx, dy) || 1;
-  let ex, ey, endScale;
-  if (hit) {
-    ex = seg.sx + dx / len * hit.t;
-    ey = seg.sy + dy / len * hit.t;
-    endScale = Math.max(0.15, ring(b.z, g).s / ring(g.hitZ, g).s);
-  } else {
-    ex = seg.tx; ey = seg.ty;
-    endScale = Math.max(0.12, seg.endS);
-  }
-  const bx0 = seg.sx + Math.cos(bAng) * size * 1.4, by0 = seg.sy + Math.sin(bAng) * size * 1.4;
-  const wob = Math.sin(time * 40) * 1.5;
-  ctx.lineCap = 'round';
-  const SEGS = 10;
-  for (const [wBase, col] of [[13 + wob, 'rgba(' + heatCol + ',0.30)'], [6, 'rgba(' + heatCol + ',0.7)'], [2.2, 'rgba(255,255,255,0.95)']]) {
-    ctx.strokeStyle = col;
-    for (let i = 1; i <= SEGS; i++) {
-      const t0 = (i - 1) / SEGS, t1 = i / SEGS;
-      ctx.lineWidth = Math.max(0.4, wBase * lerp(1, endScale, (t0 + t1) / 2));
-      ctx.beginPath();
-      ctx.moveTo(lerp(bx0, ex, t0), lerp(by0, ey, t0));
-      ctx.lineTo(lerp(bx0, ex, t1), lerp(by0, ey, t1));
-      ctx.stroke();
-    }
-  }
-  if (hit) { // impact bloom on the core
-    const ig = ctx.createRadialGradient(b.sx, b.sy, 0, b.sx, b.sy, b.sSize * 1.5);
-    ig.addColorStop(0, 'rgba(255,255,255,0.85)');
-    ig.addColorStop(0.4, 'rgba(' + heatCol + ',0.5)');
-    ig.addColorStop(1, 'rgba(' + heatCol + ',0)');
-    ctx.fillStyle = ig;
-    ctx.beginPath(); ctx.arc(b.sx, b.sy, b.sSize * 1.5, 0, TAU); ctx.fill();
-  } else if (seg.zExit < 0.99) { // scorch spark where the ray rakes the tunnel wall
-    ctx.fillStyle = 'rgba(' + heatCol + ',0.7)';
-    ctx.beginPath(); ctx.arc(ex, ey, Math.max(2, 9 * endScale), 0, TAU); ctx.fill();
-    if (Math.random() < 0.4) burst(ex, ey, '#ffd9a0', 1, 2);
-  }
-}
 
 
 // THE NODE HOLDER RING — the physical hardware the arcs are mounted on: the
@@ -1509,7 +1464,6 @@ function drawNodes(g) {
   if (preLaunch()) { if (padsLanded()) drawPulseOrbs(g); return; }
   const bzn = Math.min(W, H) * 0.055;
   const bh = bzn * ARCFX.bandW;                   // the monolith band's half-width
-  const fused = boss && boss.mergeT >= 1;
   // boot: the arcs fly in mounted on the ring, one piece of hardware
   const bs0 = bootRingS(g);
   if (bs0 !== 1) {
@@ -1518,7 +1472,6 @@ function drawNodes(g) {
     ctx.globalAlpha = 0.35 + 0.65 * clamp(introT / BOOT_LOCK, 0, 1);
   }
   for (let i = 0; i < 2; i++) {
-    if (fused && i === 1) continue; // one combined cannon arc
     const n = nodes[i];
     const vel = angDiff(n.angle, n.prevA === undefined ? n.angle : n.prevA);
     n.trailV = (n.trailV || 0) * 0.8 + vel * 0.2;
@@ -1530,7 +1483,7 @@ function drawNodes(g) {
     const bootRb = state !== S.MENU && introT < INTRO_DUR
       ? 0.88 * clamp((BOOT_ON - introT) / (BOOT_ON - BOOT_LOCK), 0, 1) : 0;
     const rb = Math.max(clamp((n.deadT || 0) / 2, 0, 1), bootRb);
-    drawArcNode(n, g, i, rb, fused, bh);
+    drawArcNode(n, g, i, rb, bh);
   }
   if (bs0 !== 1) { ctx.restore(); ctx.globalAlpha = 1; }
   drawPulseOrbs(g);
@@ -1540,10 +1493,10 @@ function drawNodes(g) {
 // machined bus-bars — a living sector of the ring itself. Its span IS the
 // zap window (ARCFX.span · tolVis), so what glows is exactly what covers.
 // Design + tuning were locked in the arc lab; ARCFX above is the record.
-function drawArcNode(n, g, i, rb, fused, bh) {
+function drawArcNode(n, g, i, rb, bh) {
   const a = n.angle;
-  const col = fused ? '160,240,255' : NODE_COLS[i];
-  const hex = fused ? '#a0f0ff' : NODE_HEX[i];
+  const col = NODE_COLS[i];
+  const hex = NODE_HEX[i];
   const zapK = clamp(n.recoil || 0, 0, 1);        // discharge flare (recoil decays fast)
   let spanK = 1, energyK = 1;
   if (rb > 0.88)      spanK = lerp(1, 0.045, smoothT((1 - rb) / 0.12));   // the snap
@@ -1555,7 +1508,7 @@ function drawArcNode(n, g, i, rb, fused, bh) {
   }
   if (rb > 0.1)     energyK = 0;                                          // grown but cold
   else if (rb > 0)  energyK = smoothT((0.1 - rb) / 0.1) * (0.35 + 0.65 * Math.random()); // ignition sputter
-  const span = ARCFX.span * tolVis * (fused ? 1.5 : 1) * Math.max(spanK, 0.04);
+  const span = ARCFX.span * tolVis * Math.max(spanK, 0.04);
   // energy breathes at idle, surges when hostiles near this sector, dips on a zap
   let th = 0;
   if (state === S.PLAY || state === S.PAUSE) {
@@ -1630,7 +1583,7 @@ function drawArcNode(n, g, i, rb, fused, bh) {
     }
     // wide-arc overcharge: the golden shimmer rides the arc's outer edge
     const wideGlow = clamp((tolVis - 1) / 0.7, 0, 1);
-    if (wideGlow > 0.02 && !fused) {
+    if (wideGlow > 0.02) {
       ctx.strokeStyle = `rgba(255,210,74,${(wideGlow * (0.35 + Math.sin(time * 6) * 0.15)).toFixed(2)})`;
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR + bh * 1.35, ia0, ia1); ctx.stroke();
@@ -1767,11 +1720,10 @@ function drawVolley(g) {
       : nodes[0].angle + angDiff(nodes[1].angle, nodes[0].angle) / 2;
     const q = volley.charge / 0.5; // 0..1 through the half-second charge
     const bh = Math.min(W, H) * 0.055 * ARCFX.bandW;
-    const fusedV = boss && boss.mergeT >= 1;
     // the charge condenses IN the band: both docked arcs pour into a
     // white-hot core sector growing out of the aim point — when it fills
     // the arc window, the bolt flies (the in-world progress read)
-    const segHalf = Math.max(0.02, ARCFX.span * tolVis * (fusedV ? 1.5 : 1) * 0.85 * q);
+    const segHalf = Math.max(0.02, ARCFX.span * tolVis * 0.85 * q);
     ctx.lineCap = 'round';
     for (const [lw, colr, al] of [
       [bh * 2.6, '140,225,255', 0.10 + q * 0.16],
@@ -1783,7 +1735,7 @@ function drawVolley(g) {
       ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, a - segHalf, a + segHalf); ctx.stroke();
     }
     // crackle feeders: every electrode discharges into the growing core
-    for (const n of (fusedV ? [nodes[0]] : nodes)) {
+    for (const n of nodes) {
       for (const [tip, sN] of [[n.tipA, -1], [n.tipB, 1]]) {
         if (!tip || Math.random() > 0.3 + q * 0.5) continue;
         const end = a + sN * segHalf;
@@ -2231,26 +2183,10 @@ function drawDials() {
       ctx.lineTo(d.x + Math.cos(a2) * (d.r + bz * 0.42 * wMul), d.y + Math.sin(a2) * (d.r + bz * 0.42 * wMul));
       ctx.stroke();
     }
-    // boss duel: the right dial is the fire stick — heat ring + aim knob
-    const fireStick = boss && boss.mergeT >= 1 && side === 'R';
-    if (fireStick) {
-      const hcol = heat < 0.5 ? '111,227,255' : heat < 0.8 ? '255,180,80' : '255,70,70';
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = 'rgba(' + hcol + ',' + (overheat ? (Math.sin(time * 12) > 0 ? 0.95 : 0.3) : 0.85).toFixed(2) + ')';
-      ctx.lineWidth = 5;
-      if (heat > 0.005) {
-        ctx.beginPath(); ctx.arc(d.x, d.y, d.r + 7, -Math.PI / 2, -Math.PI / 2 + heat * TAU); ctx.stroke();
-      }
-      if (overheat) {
-        ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,80,80,0.9)'; ctx.font = '700 11px Audiowide, system-ui';
-        ctx.fillText('OVERHEAT', d.x, d.y - d.r - 14);
-        ctx.textAlign = 'left';
-      }
-    }
-    // thumb — during the duel the right thumb is the stick position itself
-    const kx = fireStick ? d.x + beamAim.x * d.r : d.x + Math.cos(n.angle) * d.r;
-    const ky = fireStick ? d.y + beamAim.y * d.r : d.y + Math.sin(n.angle) * d.r;
-    const ts = bz * (held || fireStick ? 0.4 : 0.3);
+    // thumb knob
+    const kx = d.x + Math.cos(n.angle) * d.r;
+    const ky = d.y + Math.sin(n.angle) * d.r;
+    const ts = bz * (held ? 0.4 : 0.3);
     const gl = ctx.createRadialGradient(kx, ky, 0, kx, ky, ts * 2.2);
     gl.addColorStop(0, `rgba(${col},0.6)`);
     gl.addColorStop(1, `rgba(${col},0)`);
@@ -2262,7 +2198,7 @@ function drawDials() {
     ctx.beginPath(); ctx.arc(kx, ky, ts, 0, TAU); ctx.stroke();
     // virtual extension: a drifted grip re-projects the gauge under the finger —
     // the bigger wheel IS the fine-aim leverage, now visible
-    if (held && !fireStick && ptr.px !== undefined) {
+    if (held && ptr.px !== undefined) {
       const fr = Math.hypot(ptr.px - d.x, ptr.py - d.y);
       if (fr > d.r + bz * 0.7) {
         const fa = Math.atan2(ptr.py - d.y, ptr.px - d.x);

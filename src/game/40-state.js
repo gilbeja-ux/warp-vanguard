@@ -157,14 +157,6 @@ let bossRetried = false;      // a continue was taken: completion counts, the bo
 let bossSnap = null;          // score/tally snapshot at boss arrival — what a retry restores
 const BOSS_CER = 3.4;         // arrival ceremony length — the core emerges before it fights
 let latches = [];             // boss rail clamps: {a, span0, t, dur} — orange arcs that fry a crossing node
-// DEAD SUBSYSTEM — the fused ray-cannon duel is disabled ("no fuse, ever": boss.mergeT
-// is never raised, beamActive never set). Its input is already removed; the render side
-// (drawBeam/beamGeometry/beamHitCore + `fused` branches in drawArcNode & boss draw) is
-// slated for a focused removal. beamAim is now written nowhere — kept only so the dead
-// render branches still reference a valid value.
-let heat = 0, overheat = false, beamActive = false; // ray-cannon duel state (dead)
-const beamAim = { x: 0, y: 0 };
-const BEAM_S = 5;
 let burstQ = null;            // pending burst-volley spawns
 let patternQ = [];            // beat-choreographed volley schedule
 let endless = false, qual = false, LV = null, runTrack = 0; // active run config + its soundtrack
@@ -177,9 +169,8 @@ let assist = false;
 let laneFails = {};           // 'campId:levelIdx' → consecutive losses this session
 let heavyCue = null;          // the run's first campaign heavy, while it wears the dock guides ('done' after)
 let infoCard = null, infoShownAt = 0; // briefing card (S.INFO)
-let menuScroll = 0, menuPtr = null; // level-list scrolling
+let menuPtr = null; // the menu's live pointer (taps, carousel swipes, board drags)
 let menuScreen = 'home'; // 'home' (mode select) | 'map' (campaign route) | 'flow' (free flow) | 'board' (leaderboard)
-let mapListScroll = 0;   // relay column scroll (arc scrollbar rides the rim)
 // dedicated leaderboard screen: internal mode/level navigation + async board data
 // which board is on screen (mode null = none picked yet). `week` is the Mon–Sun index
 // of the selected ladder rung — a board key in its own right, so browsing history is
@@ -197,7 +188,6 @@ let boardReqId = 0;    // guards against a stale async response overwriting a ne
 let boardFrom = 'flow'; // the screen to return to on back
 let replayLoading = null; // trace_id currently being fetched (spinner + de-dupe)
 let replayErr = '';       // transient message when a replay can't be fetched
-let menuLbRect = null;  // the LEADERBOARD entry key drawn on the flow/map screens
 let mapListSelLast = -1; // snap-to-selection only when the selection moves
 let mapSel = 0;          // selected relay on the campaign map
 let commNext = 0, commCur = null, commT = 0; // intercepted-transmission ticker

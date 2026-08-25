@@ -127,7 +127,6 @@ const sfx = {
   // 0.12s late on purpose: it fires on the zap's frame and was lost in the take's transient
   perfect() { tone(2093, 0.14, 'triangle', 0.13, 2637, null, 0.12); tone(3136, 0.10, 'sine', 0.08, 3520, null, 0.12); },
   count() { tone(600, 0.12, 'square', 0.12, 560); },
-  overheatWarn() { tone(220, 0.5, 'sawtooth', 0.13, 90); tone(110, 0.6, 'square', 0.1, 60); },
   bossShot() { tone(140, 0.22, 'sawtooth', 0.13, 70); },
   go()    { tone(880, 0.20, 'square', 0.14, 1320); tone(1760, 0.30, 'triangle', 0.10, 2200); },
   heal()  { tone(523, 0.14, 'triangle', 0.12, 659, null, 0.12); tone(784, 0.22, 'triangle', 0.10, 1047, null, 0.12); },

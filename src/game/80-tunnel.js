@@ -229,7 +229,6 @@ function drawRangeRings(g) {
   // radius than the body: the line sat in front of the trap it belonged to and
   // read as misaligned. The band is a depth read — it has to cut the body.
   if (state !== S.PLAY && state !== S.PAUSE && state !== S.INFO) return;
-  if (boss && boss.mergeT >= 1) return; // the duel has its own instrumentation
   ctx.save();
   ctx.lineCap = 'butt';
   for (const en of enemies) {

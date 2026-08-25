@@ -122,7 +122,7 @@ function spawnBoss() {
     addT: 0, addA: bossRng() * TAU, sweepAdds: 0, stallKills: 0, // stallKills: H-02 anti-stall clock
     lamp: -1, lampT: 0, lampBlink: 0, // -1: no lamp mechanic (core burns red)
     waveT: 1.6, // the first swarm lands just after the ceremony
-    mergeT: 0, introT: 0 // controls never change hands — no fuse, ever
+    introT: 0 // the arrival ceremony clock — controls never change hands
   };
   if (kind === 'mimic') {
     boss.lamp = bCoin();
@@ -132,7 +132,6 @@ function spawnBoss() {
     boss.hp = boss.maxHp = 9;
     boss.phase = 0; boss.round0 = 0;
   }
-  heat = 0; overheat = false; beamActive = false; beamAim.x = 0; beamAim.y = 0;
   // the continue's ledger: what the level EARNED before the duel began — a
   // RETRY DUEL restores exactly this, so only the fight itself is replayed
   bossSnap = { score, zaps, misses, perfects, maxCombo, maxComboSec, fragsHit };
@@ -221,7 +220,6 @@ function bossPulseHit(wv) {
     latches = []; volley.shots = [];
     score += Math.round(2000 * mutMul());
     popup(W / 2, H * 0.3, bd.down + '  +' + Math.round(2000 * mutMul()), '#ffd24a');
-    beamSound(false, 0);
     return;
   }
   if (b.kind === 'blockade') {
@@ -395,7 +393,7 @@ function leechWave(n, opts) {
     }
     if (!seatOK) continue; // no legal slot within reach — the wave thins by one
     const en = spawnEnemy(a, 'normal');
-    en.lock = lock; en.drift = 0;
+    en.lock = lock;
     en.z = geo().hitZ + (tSeat - levelT) * spd; // seated on its grid slot, deep in the pipe
     // re-book at the TRUE arrival: spawnEnemy booked a horizon arrival, but
     // this seat rides deeper — a ledger with wrong times can't referee the
@@ -499,7 +497,7 @@ function sweepTrickle(b, dt) {
   b.sweepAdds--;
   b.addA = clearOfWalls(b.addA + 2.399963 + bRand(-0.35, 0.35)); // hop onward, never stacked
   const en = spawnEnemy(b.addA, 'normal');
-  en.lock = undefined; en.drift = 0;
+  en.lock = undefined;
 }
 // THE MIMIC'S LAMP: hold, blink, flip — and NEVER while a pulse is in flight,
 // so the shot you committed to is judged by the colour you committed at
@@ -591,8 +589,10 @@ function updatePrismFight(dt, g) {
     if (b.mode === 'idle') {
       b.mode = 'tele'; b.modeT = 1.7;
       const r = bossRound(b);
+      // H-25: SEPARATE floors keep the "unequal speeds" tell alive at any round —
+      // one shared 3.8 floor had both lights converge by round 5 and the read died
       startSweeps(b, [
-        { phase: 0, spd: TAU / Math.max(3.8, 6.0 - r * 0.35), dir: -1 },
+        { phase: 0, spd: TAU / Math.max(4.8, 6.0 - r * 0.35), dir: -1 },
         { phase: 1, spd: TAU / Math.max(3.8, 4.8 - r * 0.35), dir: 1,
           rev: r >= 2 ? 0.45 + bossRng() * 0.25 : undefined } // the faster light learns to turn
       ]);
@@ -679,8 +679,11 @@ function updateLastStand(dt, g) {
   b.modeT -= dt;
   if (b.mode !== 'tele' && b.mode !== 'sweep') { // arm the next shift — and SWAP
     b.lsPhase = b.lsPhase === undefined ? bCoin() : 1 - b.lsPhase;
+    b.lsShifts = (b.lsShifts || 0) + 1;
     b.mode = 'tele'; b.modeT = 1.2;
-    startSweeps(b, [{ phase: b.lsPhase, spd: TAU / 5.2 }]);
+    // H-25: the machine spends its reserves — each shift's ray runs a touch
+    // faster, gently (5.2s/rev down to a 4.2 floor at shift 6, ~24% at most)
+    startSweeps(b, [{ phase: b.lsPhase, spd: TAU / Math.max(4.2, 5.2 - (b.lsShifts - 1) * 0.2) }]);
     popup(W / 2, H * 0.34,
       (b.lsPhase === 0 ? 'BLUE RUNS — WHITE FEEDS' : 'WHITE RUNS — BLUE FEEDS'),
       NODE_HEX[1 - b.lsPhase]);
@@ -705,7 +708,7 @@ function lastStandLine(b, dt) {
   b.addT = SWEEP_ADD_GAP;
   b.addA = clearOfWalls(b.addA + 2.399963 + bRand(-0.35, 0.35)); // hop onward, never stacked
   const en = spawnEnemy(b.addA, 'normal');
-  en.lock = 1 - b.lsPhase; en.drift = 0; // keyed to the free thumb — it feeds itself
+  en.lock = 1 - b.lsPhase; // keyed to the free thumb — it feeds itself
   const bk = sched[sched.length - 1];    // and the ledger knows what it is
   bk.lock = en.lock; bk.needsNode = true;
 }
@@ -814,37 +817,6 @@ function updateBossDeath(dt, g) {
     showCard('verdict');
   }
 }
-// the beam is a straight screen-space ray: from the cannon toward where the
-// stick-deflected direction exits the tunnel (far end or wall). Hit testing
-// runs against this exact ray, so what you see is what you hit.
-// (parked ray-cannon machinery — see docs/parked/RAY-CANNON.md)
-function beamGeometry(g) {
-  const z0 = g.hitZ;
-  const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
-  const A = nodes[0].angle;
-  const sx = g.cx + Math.cos(A) * railR, sy = g.cy + Math.sin(A) * railR;
-  const u0x = Math.cos(A), u0y = Math.sin(A);
-  let zExit = 1.0;
-  for (let z = z0 + 0.02; z < 1; z += 0.02) {
-    if (Math.hypot(u0x + beamAim.x * BEAM_S * (z - z0), u0y + beamAim.y * BEAM_S * (z - z0)) > 1.02) { zExit = z; break; }
-  }
-  const rg = ring(zExit, g);
-  const tx = rg.x + (u0x + beamAim.x * BEAM_S * (zExit - z0)) * rg.r;
-  const ty = rg.y + (u0y + beamAim.y * BEAM_S * (zExit - z0)) * rg.r;
-  return { sx, sy, tx, ty, zExit, endS: rg.s / ring(z0, g).s };
-}
-// distance/reach test of the machine against the ray; null when clear
-function beamHitCore(g) {
-  const b = boss;
-  const seg = beamGeometry(g);
-  const dx = seg.tx - seg.sx, dy = seg.ty - seg.sy;
-  const len = Math.hypot(dx, dy) || 1;
-  const t = ((b.sx - seg.sx) * dx + (b.sy - seg.sy) * dy) / len;
-  const perp = Math.abs((-dy * (b.sx - seg.sx) + dx * (b.sy - seg.sy)) / len);
-  if (t > 0 && seg.zExit >= b.z - 0.03 && perp < b.sSize * 1.25) return { seg, t: Math.min(t, len) };
-  return null;
-}
-
 // ---------- particles ----------
 function burst(x, y, color, n, spd) {
   for (let i = 0; i < n; i++) {

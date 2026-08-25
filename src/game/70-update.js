@@ -148,7 +148,6 @@ function qualSpawn(kind) {
     en.lock = kind === 'lock0' ? 0 : 1;
   } else en = spawnEnemy(undefined, kind); // normal | heavy | frag
   en.tut = kind;
-  en.drift = 0;
   // killers are pure dodge drills — the DANGER! AVOID! label states the
   // consequence instead of making the pupil feel the fry
 }

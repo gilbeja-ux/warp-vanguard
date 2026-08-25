@@ -722,27 +722,3 @@ function buzz(pattern, fx) {
   } catch (e) {}
   padRumble(pattern, fx);
 }
-// continuous ray-cannon drone — pitch rises with heat
-let beamOscs = null;
-function beamSound(on, heatVal) {
-  if (!AC || !sfxGain) return;
-  if (simMuted && on) return; // silent during the muted pre-run
-  if (on && !beamOscs) {
-    try {
-      const o1 = AC.createOscillator(), g1 = AC.createGain();
-      o1.type = 'sawtooth'; o1.frequency.value = 60; g1.gain.value = 0.045;
-      o1.connect(g1); g1.connect(sfxGain); o1.start();
-      const o2 = AC.createOscillator(), g2 = AC.createGain();
-      o2.type = 'square'; o2.frequency.value = 240; g2.gain.value = 0.02;
-      o2.connect(g2); g2.connect(sfxGain); o2.start();
-      beamOscs = { o1, o2 };
-    } catch (e) { beamOscs = null; }
-  } else if (!on && beamOscs) {
-    try { beamOscs.o1.stop(); beamOscs.o2.stop(); } catch (e) {}
-    beamOscs = null;
-  }
-  if (beamOscs) {
-    beamOscs.o1.frequency.value = 60 + heatVal * 55;
-    beamOscs.o2.frequency.value = 240 + heatVal * 230 + Math.sin(time * 30) * 12;
-  }
-}

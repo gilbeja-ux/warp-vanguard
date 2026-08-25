@@ -146,6 +146,18 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   restored stars fade up from nothing (retargetWarpSky / retargetDeepField). The lane-only
   layers (streaks, medium, traffic) still rebuild outright; they are invisible on menus.
 
+### F-012 · In-run barks are cramped, small, and glued to the speaker title
+- **Date:** 2026-08-25 · **Source:** Gil · **Status:** BUILT (2026-08-25)
+- **Feedback:** the barks during a run miss a space after the speaker title, and the line
+  reads cramped and small — a better, easier-to-read design is wanted.
+- **Cause:** chip + message shared ONE chord high in the bore. The fitter shrank the whole
+  line to 8-10px to fit, and the chip's border ended 5px past the label while the message
+  started at 6px — one pixel of air, so the title read glued to the text.
+- **Solution (H-32):** a broadcast subtitle. The speaker chip (`» CMD`, letterspaced, real
+  padding) stands centered on its own line; the message takes the whole chord beneath it at
+  13px, word-wrapped to two rows (three only at the 10px floor). The per-glyph H-20 fade is
+  kept, its stagger running through the wrap. Draw-only — board ids unchanged.
+
 ---
 
 ## OPEN

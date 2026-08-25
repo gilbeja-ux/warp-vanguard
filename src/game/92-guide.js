@@ -395,13 +395,7 @@ function menuGeom() {
   // margin, and every screen that shares this geometry (the map lens, the
   // free-flow wheel, the leaderboard) follows from this one number.
   const R = Math.min(H * 0.47, W * 0.30);
-  const bw = Math.min(R * 1.4, W * 0.42), bh = 46, gap = 13;
-  const items = LEVELS.length + 4; // + qualification, endless, weekly, and the TEMP boss-test key
-  const listY = ccy - R + 52;
-  const contentH = items * (bh + gap) - gap;
-  const viewH = H - listY - 6;
-  const maxScroll = Math.max(0, contentH - viewH);
-  return { ccx, ccy, R, bw, bh, gap, items, listY, contentH, viewH, maxScroll };
+  return { ccx, ccy, R };
 }
 // static menu furniture — repainted only on resize, blitted every frame
 function paintMenuStatic() {
@@ -506,7 +500,7 @@ function drawMenu(g) {
     ctx.drawImage(menuCache, 0, 0, W, H);
     ctx.globalAlpha = 1;
   }
-  const { ccx, ccy, R, bw, bh, gap, listY, contentH, viewH, maxScroll } = menuGeom();
+  const { ccx, ccy, R } = menuGeom();
 
   ctx.font = '10px monospace'; ctx.textAlign = 'left';
   // bottom-left: diagnostic carousel — count up fast, hold ~5s, then the next block
@@ -623,10 +617,6 @@ function drawMenu(g) {
     ctx.moveTo(bk.x + 24, bk.y + 11); ctx.lineTo(bk.x + 14, bk.y + 19); ctx.lineTo(bk.x + 24, bk.y + 27);
     ctx.stroke();
   }
-
-  // LEADERBOARD now lives as a ring quarter on the home wheel (drawMenuHome),
-  // so there's no side rect to draw here anymore.
-  menuLbRect = null;
 
   if (menuScreen === 'map') drawMenuMap();
   else if (menuScreen === 'flow') drawMenuFlow();
