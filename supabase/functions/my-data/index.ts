@@ -38,6 +38,61 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 // ---------------------------------------------------------------------------
+// TRACE PURGE (H-26). Two passes, because the row list and the bucket can
+// disagree.
+//
+// Pass 1 removes the keys the deleted rows handed us, 100 at a time, with one
+// retry per batch. The batching is not decoration: `remove` takes an array and a
+// single oversized call that fails takes every key in it down with it, so a
+// player with a long history had an all-or-nothing purge.
+//
+// Pass 2 is the part that closes the residual. Every trace is stored as
+// `<board>/<playerId>-<uuid>.json`, so the player's own id is the search prefix.
+// Listing each board folder for it finds objects that pass 1 never knew about —
+// a trace whose row was evicted off the bottom of a board before the player asked
+// to be deleted, or a batch that failed twice. What comes back is removed by the
+// same call, and whatever still refuses is returned so the caller can say so.
+async function purgeTraces(svc: any, keys: string[], playerId: string): Promise<{ deleted: number; left: string[] }> {
+  const left = new Set<string>();
+  let deleted = 0;
+
+  const remove = async (batch: string[]) => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const { data, error } = await svc.storage.from("traces").remove(batch);
+      if (!error) { deleted += data?.length ?? 0; return true; }
+      if (attempt === 1) console.warn("[my-data] trace remove failed: " + error.message);
+    }
+    return false;
+  };
+
+  for (let i = 0; i < keys.length; i += 100) {
+    const batch = keys.slice(i, i + 100);
+    if (!(await remove(batch))) for (const k of batch) left.add(k);
+  }
+
+  // The folders worth sweeping: the ones this player's own rows pointed into.
+  // A player only ever has traces under boards they played, so this is the whole
+  // search space and there is no need to enumerate the bucket.
+  const folders = new Set(keys.map((k) => k.split("/")[0]).filter(Boolean));
+  for (const folder of folders) {
+    const { data: found, error } = await svc.storage.from("traces")
+      .list(folder, { limit: 1000, search: playerId + "-" });
+    if (error) { console.warn("[my-data] trace sweep failed in " + folder + ": " + error.message); continue; }
+    // `search` is a contains match, not a strict prefix, so the name is re-checked
+    // here. A player id that happened to appear mid-filename is not this player's.
+    const stragglers = (found ?? [])
+      .map((o: any) => String(o?.name ?? ""))
+      .filter((n: string) => n.startsWith(playerId + "-"))
+      .map((n: string) => folder + "/" + n);
+    if (!stragglers.length) continue;
+    if (await remove(stragglers)) for (const k of stragglers) left.delete(k);
+    else for (const k of stragglers) left.add(k);
+  }
+
+  return { deleted, left: [...left] };
+}
+
+// ---------------------------------------------------------------------------
 // Name moderation. DUPLICATED from submit-run rather than shared, for the same
 // reason weekOf() is duplicated there: this file is a trust boundary and must be
 // able to answer "is this name allowed on a public board" on its own. A rename
@@ -126,16 +181,20 @@ Deno.serve(async (req) => {
       .map((r: any) => r?.trace_id)
       .filter((t: unknown): t is string => typeof t === "string" && !!t);
 
-    // Purge the replay objects. Best-effort and NOT fatal: the rows are already
-    // gone, so the entries are off every board either way, and failing the whole
-    // request here would tell a player their data survived when the visible part
-    // of it did not. Orphans are logged for a sweep, not surfaced.
-    let tracesDeleted = 0;
-    if (traces.length) {
-      const { data: gone, error: sErr } = await svc.storage.from("traces").remove(traces);
-      if (sErr) console.warn("[my-data] trace purge failed for " + playerId + ": " + sErr.message);
-      else tracesDeleted = gone?.length ?? 0;
-    }
+    // Purge the replay objects. Still NOT fatal — the rows are already gone, so the
+    // entries are off every board either way, and failing the whole request here
+    // would tell a player their data survived when the visible part of it did not.
+    //
+    // But "best effort" used to mean one call, one console.warn, and a response
+    // that reported success regardless (H-26). A trace key is
+    // `<board>/<playerId>-<uuid>.json`, so a surviving object carries the player's
+    // id in its own filename — the exact identifier this whole delete exists to
+    // remove. So: batch it, retry once, then SWEEP the folders by prefix to catch
+    // anything the row list did not name, and report what is left rather than
+    // logging it away.
+    const { deleted: tracesDeleted, left } = await purgeTraces(svc, traces, playerId);
+    const tracesLeft = left.length;
+    if (tracesLeft) console.warn("[my-data] " + tracesLeft + " trace(s) survived the purge for " + playerId + ": " + left.slice(0, 5).join(", "));
 
     // Finally the anonymous user itself. Without this the rows are gone but the
     // identifier that tied them together still exists in auth.users — which is
@@ -150,7 +209,10 @@ Deno.serve(async (req) => {
     // `rows` counts every entry removed; `traces` is the subset that had a replay
     // (endless runs carry none), so they are reported separately rather than one
     // standing in for the other.
-    return json({ ok: true, action, rows: rows?.length ?? 0, tracesDeleted, identityDeleted });
+    // `tracesLeft` is reported, not hidden. A player who asks what happened to their
+    // data deserves the number that is still true, and a non-zero one is the signal
+    // to re-run the delete — which is idempotent and will sweep the remainder.
+    return json({ ok: true, action, rows: rows?.length ?? 0, tracesDeleted, tracesLeft, identityDeleted });
   }
 
   return json({ error: "bad action" }, 400);

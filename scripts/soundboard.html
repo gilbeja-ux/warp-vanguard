@@ -77,6 +77,27 @@
   </section>
 
   <section class="ref">
+    <h2>H-33 · the boss ray + the dying plates</h2>
+    <p class="note">The ray is a <b>sustained</b> voice fed from live beam state, so these buttons animate a real sweep — the pitch bend and the pan are the sound. Headphones: the light should cross the stereo field, and the reversal should bend as it turns.</p>
+    <div class="row">
+      <button data-cue="rayCharge">charge alone (0.44s wind-up)</button>
+      <button data-cue="rayChargeX3">charge ×3 (left · centre · right)</button>
+      <button data-cue="raySlow">sweep · slow light (prism, TAU/6.0)</button>
+      <button data-cue="rayFast">sweep · fast light (prism, TAU/3.8)</button>
+      <button data-cue="rayReverse">sweep · REVERSAL at 2.4s</button>
+      <button data-cue="rayPrism">both prism lights at once (the unequal-speed tell)</button>
+      <button data-cue="rayStop">stop the ray</button>
+    </div>
+    <p class="note">The plates walk heavier off the <code>dyingN</code> counter — plate 0 is the lightest, plate 5 the last before the implosion.</p>
+    <div class="row">
+      <button data-cue="plate0">plate 0 (first)</button>
+      <button data-cue="plate5">plate 5 (last)</button>
+      <button data-cue="plateAll">all six, as the death fires them</button>
+      <button data-cue="deathWhole">the whole death · six plates → implosion take</button>
+    </div>
+  </section>
+
+  <section class="ref">
     <h2>Reference · what already plays</h2>
     <div class="row">
       <button data-cue="arrive">arrive (exit-warp take + sting)</button>
@@ -171,6 +192,29 @@
       x10() { tone(1046, 0.14, 'triangle', 0.09, 1568, null, 0.12); tone(1568, 0.2, 'triangle', 0.07, 2093, null, 0.22); }, // as 72-tick fires it (0.12s late)
       x10old() { tone(1046, 0.14, 'triangle', 0.09, 1568); tone(1568, 0.2, 'triangle', 0.07, 2093, null, 0.1); },    // the old, same-frame timing
       lift(db) { if (accentGain) accentGain.gain.value = Math.pow(10, db / 20); },
+      // H-33 · drive a FAKE sweep through the real voice. The ray is a sustained
+      // voice fed from live beam state, so a button that just fires it once would
+      // audition nothing — the pitch bend and the pan ARE the sound. This animates
+      // beams exactly the way updateBossFight does, so what you hear on the board
+      // is what the fight plays.
+      ray(list, dur, revAt) {
+        raySweepKill();
+        var t0 = performance.now(), last = t0;
+        var bs = list.map(function (c) { return { phase: c.phase, a: c.a || 0, spd: c.spd, dir: c.dir || 1, liveT: 0, done: false, rev: false }; });
+        (function step(now) {
+          var dt = Math.min(0.05, (now - last) / 1000); last = now;
+          var el = (now - t0) / 1000;
+          if (el > dur) { raySweepKill(); return; }
+          bs.forEach(function (b) {
+            b.liveT += dt;
+            if (revAt && !b.rev && el > revAt) { b.rev = true; b.dir *= -1; }
+            if (b.liveT > 0.30) b.a += b.spd * dt * b.dir;
+          });
+          raySweep(bs);
+          requestAnimationFrame(step);
+        })(t0);
+      },
+      rayStop() { raySweepKill(); },
       sfx, err: () => window.__err
     };
   `);
@@ -201,6 +245,20 @@
     lift8: () => { SB.lift(8); $('#liftState').textContent = 'lift: +8 dB'; },
     lift10: () => { SB.lift(10); $('#liftState').textContent = 'lift: +10 dB'; },
     lift12: () => { SB.lift(12); $('#liftState').textContent = 'lift: +12 dB'; },
+    // H-33 · the boss ray and the dying plates
+    rayCharge:  () => SB.sfx.rayCharge(0),
+    rayChargeX3: () => { SB.sfx.rayCharge(-0.7); later(700, () => SB.sfx.rayCharge(0)); later(1400, () => SB.sfx.rayCharge(0.7)); },
+    raySlow:    () => { SB.sfx.rayCharge(0); SB.ray([{ phase: 0, spd: 6.283 / 6.0 }], 6.6); },
+    rayFast:    () => { SB.sfx.rayCharge(0); SB.ray([{ phase: 0, spd: 6.283 / 3.8 }], 4.4); },
+    rayReverse: () => { SB.sfx.rayCharge(0); SB.ray([{ phase: 0, spd: 6.283 / 4.6 }], 5.2, 2.4); },
+    rayPrism:   () => { SB.sfx.rayCharge(-0.5); SB.sfx.rayCharge(0.5);
+                        SB.ray([{ phase: 0, spd: 6.283 / 6.0, dir: -1 }, { phase: 1, spd: 6.283 / 3.8, a: 3.14, dir: 1 }], 6.6); },
+    rayStop:    () => SB.rayStop(),
+    plate0:     () => SB.sfx.bossPlate(0, 0),
+    plate5:     () => SB.sfx.bossPlate(5, 0),
+    plateAll:   () => { for (let i = 0; i < 6; i++) later(i * 320, () => SB.sfx.bossPlate(i, (i % 2 ? 0.5 : -0.5))); },
+    deathWhole: () => { for (let i = 0; i < 6; i++) later(i * 320, () => SB.sfx.bossPlate(i, (i % 2 ? 0.5 : -0.5)));
+                        later(2100, () => { if (!SB.sfx.bossDeadTake()) SB.sfx.bossDown(); }); },
     compOff: () => { SB.comp(false); $('#compState').textContent = 'compressor: BYPASSED'; },
     compOn: () => { SB.comp(true); $('#compState').textContent = 'compressor: on'; }
   };

@@ -20,6 +20,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 const root = path.join(__dirname, '..');
@@ -107,6 +108,41 @@ async function act(action, runId, opts) {
   return { message: await r.json() };
 }
 
+// ---------------------------------------------------------------------------
+// AUTH. Binding to 127.0.0.1 keeps this off the LAN, but it does NOT keep it away
+// from the browser: any page open in any tab can POST to http://localhost:8014,
+// and /api/act holds the service key and deletes rows. So every request carries a
+// per-process token that only the page this process served can know.
+//
+// The token is a HEADER, not a cookie or a form field, and that choice is the
+// whole defence. A cross-origin <form> cannot set a custom header at all, and a
+// cross-origin fetch that tries to set one must first pass a CORS preflight —
+// which this server answers for nothing. There is no Access-Control-Allow-* here
+// on purpose: a foreign page cannot read our replies even if it does reach us.
+//
+// The Host check is the second half. A DNS-rebinding attack resolves an attacker
+// domain to 127.0.0.1 to make its own origin same-origin with us; the connection
+// still arrives with THEIR hostname in Host, so we refuse anything that is not a
+// loopback name. Fresh token per start — nothing to leak into a file, nothing to
+// commit, and a restarted console invalidates every stale tab.
+const TOKEN = crypto.randomBytes(24).toString('hex');
+const HOST_OK = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+
+// timing-safe, and safe on a length mismatch — timingSafeEqual THROWS on unequal
+// buffer lengths, so the length is compared first and a short guess is rejected
+// before it can raise.
+function tokenOk(v) {
+  const got = Buffer.from(String(v || ''));
+  const want = Buffer.from(TOKEN);
+  return got.length === want.length && crypto.timingSafeEqual(got, want);
+}
+
+// One gate for both API routes. The page itself is served without a token — it has
+// to be, it is what carries the token — and it holds no data of its own.
+function authed(req) {
+  return HOST_OK.test(req.headers.host || '') && tokenOk(req.headers['x-admin-token']);
+}
+
 // Two statements, not `writeHead(...) || end(...)`. writeHead RETURNS the response
 // object, which is truthy, so the `||` short-circuits and end() never runs: the
 // socket connects, the request is accepted, and nothing is ever sent back. It
@@ -120,7 +156,14 @@ function send(res, code, type, body) {
 http.createServer(async (req, res) => {
   const url = req.url.split('?')[0];
   try {
-    if (url === '/' ) return send(res, 200, 'text/html; charset=utf-8', fs.readFileSync(page));
+    if (url === '/' ) {
+      if (!HOST_OK.test(req.headers.host || '')) return send(res, 403, 'text/plain', 'forbidden');
+      // The one place the token crosses into the browser. Stamped per response, so
+      // the page a tab is holding is always the token this process is checking.
+      return send(res, 200, 'text/html; charset=utf-8',
+        fs.readFileSync(page, 'utf8').replace('__ADMIN_TOKEN__', TOKEN));
+    }
+    if (!authed(req)) return send(res, 403, 'application/json', JSON.stringify({ error: 'forbidden — reload http://localhost:' + port }));
     if (url === '/api/data') return send(res, 200, 'application/json', JSON.stringify(await readAll()));
     if (url === '/api/act' && req.method === 'POST') {
       let body = '';
@@ -135,5 +178,5 @@ http.createServer(async (req, res) => {
 }).listen(port, '127.0.0.1', () => {
   console.log(`\n  Admin console  →  http://localhost:${port}`);
   console.log(`  project ${PROJECT_REF} · service key held in this process only`);
-  console.log(`  localhost only — do not expose this port.\n`);
+  console.log(`  localhost only, token-gated — a reload is needed after any restart.\n`);
 });

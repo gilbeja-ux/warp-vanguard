@@ -783,6 +783,10 @@ function frame(now) {
   sfxFade += (sfxFadeTgt - sfxFade) * Math.min(1, rawDt * sfxFadeRate);
   if (sfxGain) sfxGain.gain.value = sfxBusGain();
   if (state !== S.PLAY) stripSound(false, 0); // pause/menus never hold the drone
+  // H-33: same guard for the ray. updateBossFight stops it on the mode change and
+  // on death, but a run that ENDS mid-sweep — a loss, a quit, a pause, a replay
+  // exit — never reaches either, and a held oscillator would sing on into the menu.
+  if (state !== S.PLAY || !boss) raySweepKill();
   // The engine bed runs for exactly as long as the lane does, and one call per frame
   // is what makes that true of EVERY exit — win, loss, quit, pause into a menu. On a
   // collapsed lane it cuts hard (the second argument): nothing arrived, so the engine

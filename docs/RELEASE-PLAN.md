@@ -6,7 +6,7 @@ Target: **Google Play, v1.0.0.** iOS follows as a second phase.
 
 | | Decision | Why |
 |---|---|---|
-| **Store** | Google Play first | Android already builds and installs. iOS costs a project that does not exist yet, a $99/yr account, and a stricter review — all before any real feedback. |
+| **Store** | Google Play first | Android already builds and installs. iOS now has a project (`ios/App/`), but it builds for the **simulator only** — a device or App Store build needs a $99/yr Apple Developer enrolment and a stricter review, all before any real feedback. |
 | **Money** | **Free, no IAP in v1** | Fastest route to live: no billing plugin, no entitlement store, no restore-purchase flow, no IAP review. The free-demo + one-time-unlock model (below) lands in 1.1, priced against real retention numbers instead of a guess. |
 | **Leaderboards** | Ship them | Built, verified, deployed; the weekly ladder is the retention hook. The price is real compliance work — §2 — and it is worth paying. |
 
@@ -35,11 +35,11 @@ cloud save wants the same one, so decide whether the two are one piece of work.
 | Fact | Value | Consequence |
 |---|---|---|
 | App id | `com.warpvanguard.game` | Permanent once published — **cannot be changed**. Confirm before first upload. |
-| Version | `1.0.0`, versionCode `1`, versionName `1.0` | Needs a bump discipline (§4). |
-| Signing | **Debug only** | Blocker. Play refuses debug-signed uploads. |
+| Version | `1.0.4`, versionCode `10004`, versionName `1.0.4` | ✅ The discipline landed: `scripts/sync-version.js` writes both from `package.json`, so a hand-edited number cannot drift (§4). |
+| Signing | **Release keystore, with a debug fallback** | ✅ `signingConfigs.release` is used when the keystore is present, debug otherwise (`android/app/build.gradle:64`). The signed 1.0.4 bundle was cut. |
 | `targetSdk` | 34 | Play enforces a rolling minimum; 34 is very likely below it now. **Verify current requirement.** |
 | `minSdk` | 22 | Fine — wide reach. |
-| iOS project | **Does not exist** | `@capacitor/ios` is a devDependency but `npx cap add ios` was never run. Phase 2. |
+| iOS project | **Exists, simulator only** | `ios/App/` was added; `npm run ios:build` runs in the simulator. A device or App Store build is blocked on Apple Developer enrolment. Phase 2. |
 | Orientation | `sensorLandscape` in the manifest | ✅ Already correct — the `@capacitor/screen-orientation` item in the old plan is **not needed**. |
 | Icons | Launcher + adaptive + web manifest, regenerated from the new brand | ✅ Done 2026-08-12. |
 | Data collected | Anonymous Supabase id, self-chosen handle, scores/stats, input traces | Drives §2 entirely. No ads, no analytics, no tracking SDKs, no email/provider sign-in. |

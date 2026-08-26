@@ -443,6 +443,7 @@ function bossBeams(b, dt, g) {
     if (bm.done) continue;
     // THE BURST: the ray erupts before it turns — no rotation and NO FRY until
     // the light has visibly reached the ring (WYSIWYG danger, held during birth)
+    if (!bm.liveT) sfx.rayCharge(Math.cos(bm.a) * 0.6); // H-33: the wind-up, once, on birth
     bm.liveT = (bm.liveT || 0) + dt;
     if (bm.liveT < BEAM_BURST) { allDone = false; continue; }
     // the telegraphed mid-sweep reversal: chevrons flip (warn) well before the
@@ -774,6 +775,12 @@ function updateBossFight(dt, g) {
   }
   // DEATH CEREMONY
   if (b.dying !== undefined) { updateBossDeath(dt, g); return; }
+  // H-33: the sustained ray voice. DRIVEN FROM HERE, not from bossBeams — that
+  // function only runs while the fight is in 'sweep' mode, so a voice started
+  // inside it would never be told to stop when the mode moved on. This runs every
+  // frame of every fight and hands over the live list, empty or not. It reads boss
+  // state and writes none, so it stays draw-only.
+  raySweep(b.beams);
   leechHold(b, dt, g);
   if (b.kind === 'leech') updateLeechFight(dt, g);
   else if (b.kind === 'siphon') updateSiphonFight(dt, g);
@@ -785,6 +792,7 @@ function updateBossFight(dt, g) {
 // lamp guttering out, implosion, shockwave — the world runs at quarter speed
 function updateBossDeath(dt, g) {
   const b = boss;
+  raySweepKill(); // H-33: no light survives the machine that cast it
   b.dying += dt;
   b.hurtT = 0.1;
   b.sx += Math.sin(time * 47) * b.sSize * 0.06;
@@ -793,8 +801,11 @@ function updateBossDeath(dt, g) {
     b.dyingN++;
     const pa = Math.random() * TAU;
     burst(b.sx + Math.cos(pa) * b.sSize * 1.2, b.sy + Math.sin(pa) * b.sSize * 0.8, '#d465ff', 24, 6);
-    crackle(0.2, 1800, 300, 3, 0.6);
-    tone(220 - b.dyingN * 20, 0.15, 'square', 0.1, 90);
+    // H-33: was one identical crackle + square tone, six times. Now a real blast
+    // per plate — sub shockwave, body, crack, debris — walking heavier off the
+    // dyingN COUNTER (never a roll, see docs/IN-RUN-VOICE.md rule 2), so the six
+    // ramp into the implosion instead of repeating. Panned to the plate that tore.
+    sfx.bossPlate(b.dyingN - 1, Math.cos(pa) * 0.5);
     shake = Math.min(shake + 0.4, 1);
     buzz(20);
   }

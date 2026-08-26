@@ -21,6 +21,11 @@ Worth knowing, because the code has to keep these true:
   that phones home means updating both the policy and the Play Data Safety form.
 - Collected: an anonymous player id, the chosen display name, run results, and
   a replay trace. Nothing else.
-- **Deletion is by email** (`gilbeja.int@gmail.com`), handled by hand.
-  See RELEASE-PLAN §2 — an in-game deletion control is owed before public
-  launch, and the policy has to change on the same day it ships.
+- **Deletion is in the game.** The MY DATA panel renames or erases every entry
+  the player holds, and `privacy.html` documents it (see its *Your choices*
+  table). Erasing takes the rows, their replay traces, and the anonymous id
+  itself. Reports the player *filed* join that list when H-26's migration is
+  deployed; today they survive. The email route
+  (`gilbeja.int@gmail.com`) survives as the secondary path and is stated in the
+  policy with its real limit: an entry is linked to no name or account anyone
+  can look a person up by.

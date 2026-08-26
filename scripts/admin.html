@@ -142,6 +142,12 @@
 <div id="toast"></div>
 
 <script>
+// Stamped into this page by scripts/admin.js on every GET /. It is the ONLY thing
+// that proves a request came from a page this process served, so it rides on every
+// API call as a custom header — a header specifically, because a foreign page
+// cannot set one on us without a CORS preflight the server never answers.
+const TOKEN = '__ADMIN_TOKEN__';
+const api = (path, opts) => fetch(path, { ...opts, headers: { ...(opts && opts.headers), 'X-Admin-Token': TOKEN } });
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let busy = false;
@@ -215,7 +221,7 @@ function card(r) {
 }
 
 async function load() {
-  const d = await (await fetch('/api/data')).json();
+  const d = await (await api('/api/data')).json();
   const o = d.overview || {};
   $('#tiles').innerHTML = TILES.map(([k, label]) =>
     '<div class="tile"><b>' + (o[k] ?? '—') + '</b><span>' + label + '</span></div>').join('');
@@ -277,7 +283,7 @@ document.addEventListener('click', async e => {
 
   busy = true; b.disabled = true;
   try {
-    const r = await (await fetch('/api/act', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const r = await (await api('/api/act', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, runId, name, all }) })).json();
     if (r.error) toast(r.error, true); else toast(r.message || 'done');
     await load();

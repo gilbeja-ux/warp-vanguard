@@ -87,7 +87,7 @@ function makeBuf() {
   return { sampleRate: 1000, length: 10000, duration: 10, getChannelData: () => d };
 }
 class FakeGain {
-  constructor() { this.gain = { value: 1, setValueAtTime() {}, exponentialRampToValueAtTime() {} }; }
+  constructor() { this.gain = { value: 1, setValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime() {} }; }
   connect() {} disconnect() {}
 }
 class FakeSrc {
@@ -103,9 +103,16 @@ class FakeAC {
   constructor() { this.state = 'running'; this.destination = {}; this.currentTime = 0; }
   createGain() { return new FakeGain(); }
   createBufferSource() { return new FakeSrc(); }
-  createBiquadFilter() { return { type: '', frequency: { value: 0 }, Q: { value: 1 }, connect() {}, disconnect() {} }; }
+  // H-33: the ray voice is the first cue to use a peaking filter's gain, an
+  // oscillator's detune, and a raw createBuffer — the stub grew to match, so the
+  // pins exercise the real code path instead of an early bail.
+  createBiquadFilter() { return { type: '', frequency: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime() {} }, Q: { value: 1 }, gain: { value: 0 }, connect() {}, disconnect() {} }; }
+  createBuffer(ch, len) { const d = new Float32Array(len); return { numberOfChannels: ch, length: len, sampleRate: 44100, getChannelData: () => d }; }
+  createStereoPanner() { return { pan: { value: 0, setTargetAtTime() {} }, connect() {}, disconnect() {} }; }
   createOscillator() {
-    return { type: '', frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, start() {}, stop() {} };
+    return { type: '', detune: { value: 0 },
+      frequency: { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime() {} },
+      connect() {}, start() {}, stop() {} };
   }
   decodeAudioData() { return Promise.resolve(makeBuf()); }
   resume() { this.state = 'running'; return Promise.resolve(); }
@@ -2505,6 +2512,70 @@ const runA = timeline(), runB = timeline();
 check('barks are draw-only: the arrival timeline is identical run to run', runA === runB && runA.length > 0);
 check('the drill still spawns through the run', runA.split('|').length >= 4);
 
+// ================= H-33 · the boss ray + the dying plates =================
+// Two rules, both correctness rather than taste.
+//
+// 1. THE RAY VOICE IS DRAW-ONLY AND CANNOT LEAK. It is the game's first sustained
+//    voice driven from live sim state, so it has two ways to go wrong that a
+//    one-shot cannot: it could consume a draw, or it could be started and never
+//    told to stop. The second is the likely one — bossBeams only runs while the
+//    fight is in 'sweep' mode, which is exactly why the driver had to move up to
+//    updateBossFight.
+// 2. THE PLATES VARY BY A COUNTER, NEVER A ROLL. docs/IN-RUN-VOICE.md rule 2.
+{
+  const bs = fs.readFileSync(path.join(ROOT, 'src', 'game', '52-bosses.js'), 'utf8');
+  const au = fs.readFileSync(path.join(ROOT, 'src', 'game', '10-audio.js'), 'utf8');
+  const sx = fs.readFileSync(path.join(ROOT, 'src', 'game', '12-sfx.js'), 'utf8');
+  const bt = fs.readFileSync(path.join(ROOT, 'src', 'game', '99-boot.js'), 'utf8');
+
+  // the driver sits in updateBossFight, NOT inside bossBeams — a voice started in
+  // a mode-gated function would sing on after the mode moved
+  const inBeams = bs.slice(bs.indexOf('function bossBeams('), bs.indexOf('\n}', bs.indexOf('function bossBeams(')));
+  check('the ray voice is NOT driven from the mode-gated bossBeams', !/raySweep\(/.test(inBeams));
+  check('the ray voice is driven every frame from updateBossFight',
+    /raySweep\(b\.beams\)/.test(bs.slice(bs.indexOf('function updateBossFight'))));
+  check('the ray is killed when the machine dies', /raySweepKill\(\)/.test(bs));
+  check('the ray is killed when the run leaves the lane', /state !== S\.PLAY \|\| !boss\) raySweepKill/.test(bt));
+
+  // draw-only: the voice may read boss state, never write it, and never roll
+  const voice = au.slice(au.indexOf('let rayVoices'), au.indexOf('function sonarTick'));
+  check('the ray voice draws no sim randomness',
+    !/spawnRng\(/.test(voice) && !/bossRng\(/.test(voice)
+    // the ONE Math.random is the cached noise buffer crackle already builds
+    && (voice.match(/Math\.random/g) || []).length <= 1);
+  check('the ray voice honours the pre-run mute', /simMuted/.test(voice));
+  check('the ray reads speed, angle and direction — the motion IS the sound',
+    /bm\.spd/.test(voice) && /bm\.a/.test(voice) && /bm\.dir/.test(voice));
+
+  // the plates: a counter, never a roll
+  const plate = sx.slice(sx.indexOf('bossPlate(n, pan)'), sx.indexOf('pulseFire()'));
+  check('the plate blast varies by the dyingN counter, not a roll',
+    /n \| 0/.test(plate) && !/Math\.random/.test(plate));
+  check('the plate blast carries a sub shockwave', /'sine'/.test(plate));
+  check('the death fires one blast per plate, panned to the tear',
+    /sfx\.bossPlate\(b\.dyingN - 1, Math\.cos\(pa\)/.test(bs));
+  check('the six identical crackle+square pops are gone',
+    !/crackle\(0\.2, 1800, 300, 3, 0\.6\)/.test(bs));
+
+  // THE CHARGE MUST BUILD, NOT DECAY (Gil, 2026-08-26). The first pass read thin
+  // because it was made of tone/crackle, which ramp gain DOWN from sample one — it
+  // decayed while the picture said it was loading. The swell primitives are the
+  // fix, so the pin guards the shape rather than the numbers.
+  const charge = sx.slice(sx.indexOf('rayCharge(pan)'), sx.indexOf('bossPlate(n, pan)'));
+  check('the ray charge is built from swelling voices, not decaying ones',
+    /swell\(/.test(charge) && /swellNoise\(/.test(charge));
+  check('the swell envelope peaks at the END of the window, not the start',
+    /exponentialRampToValueAtTime\(vol, peak\)/.test(au));
+  check('the ray charge stays low — no sci-fi beep in the top register',
+    !/swell\(\s*\d{4,}/.test(charge) && /swell\(38,/.test(charge));
+
+  // the declared-but-absent takes must stay fail-soft
+  check('the pending takes are declared and fall back to synth',
+    /rayCharge: \['audio\/sfx\/ray-charge\.mp3'/.test(sx)
+    && /bossPlate: \['audio\/sfx\/boss-plate\.mp3'/.test(sx)
+    && /if \(playSample\('rayCharge'/.test(sx) && /if \(playSample\('bossPlate'/.test(sx));
+}
+
 // ================= control scheme =================
 function pdown(id, x, y) { canvasHandlers.pointerdown({ pointerId: id, clientX: x, clientY: y, pointerType: 'touch' }); }
 function pmove(id, x, y) { canvasHandlers.pointermove({ pointerId: id, clientX: x, clientY: y }); }
@@ -4015,6 +4086,94 @@ async function runMusicUp() {
       // the freeze itself: the server must key a weekly run off ITS clock, not the run's
       check('the Edge Function refuses a weekly run whose seed is not the live week',
         /run\.seed !== live/.test(ts) && /weekOf\(Date\.now\(\)\)/.test(ts));
+
+      // THE NAME FILTER, RUN FOR REAL (H-26). It is the last gate before a string
+      // lands on a public board, and it is the only piece of moderation that runs
+      // with nobody watching. Lifting it out of the TypeScript and exercising it —
+      // rather than grepping for the words — is what catches the two failures this
+      // rewrite was for: a homoglyph that walks past the list, and an innocent
+      // handle the list eats. Same trick as weekOf above: slice the source, drop
+      // the type annotations, run it in Node.
+      {
+        const from = ts.indexOf('const BLOCKED_SUB');
+        const to = ts.indexOf('\n}', ts.indexOf('function cleanName'));
+        check('the Edge Function still defines cleanName', from >= 0 && to > from);
+        if (from >= 0 && to > from) {
+          const js = ts.slice(from, to + 2)
+            .replace(/: Record<string, string>/g, '')
+            .replace(/: unknown/g, '').replace(/: string/g, '').replace(/\): \w+ \{/g, ') {');
+          const cleanName = new Function(js + '; return cleanName;')();
+
+          // 1. the words still get caught, plain and dressed up
+          const filthy = ['nigger', 'FUCK', 'f u c k', 'n_i_g_g_a', 'SH1T', '$h!t', 'Hitler',
+            'sex', 'S E X', 'PEDO', 'p3d0', '4sshole'];
+          const missed = filthy.filter(n => cleanName(n) !== 'REDACTED');
+          check('the name filter redacts every blocked handle'
+            + (missed.length ? ' — missed: ' + missed.join(', ') : ''), missed.length === 0);
+
+          // 2. HOMOGLYPHS ARE FOLDED, NOT STRIPPED. The old filter deleted the
+          //    Cyrillic letter and matched the wreckage, so these all passed.
+          const spoofed = ['FUСK', 'НITLER', 'ＮIGGER', 'ѕhit', 'реdo'];
+          const slipped = spoofed.filter(n => cleanName(n) !== 'REDACTED');
+          check('the name filter folds confusables before it matches'
+            + (slipped.length ? ' — slipped: ' + slipped.join(', ') : ''), slipped.length === 0);
+
+          // 3. THE SCUNTHORPE SET. A false redaction has no appeal route — the
+          //    player just finds their handle replaced — so these matter as much
+          //    as the misses above.
+          const innocent = ['Scunthorpe', 'ESSEX', 'RACCOON', 'TYCOON', 'TORPEDO', 'CRISIS',
+            'SPICE', 'GRAPE', 'COCKPIT', 'PEACOCK', 'DICKENS', 'URANUS', 'SCUM', 'ANALYST',
+            'Hancock', 'Suspicion'];
+          const eaten = innocent.filter(n => cleanName(n) === 'REDACTED');
+          check('the name filter leaves innocent handles alone'
+            + (eaten.length ? ' — ate: ' + eaten.join(', ') : ''), eaten.length === 0);
+
+          // 4. the server min-length, which only the client used to enforce
+          check('the name filter degrades a sub-2-character handle to ANON',
+            cleanName('A') === '' && cleanName(' x ') === '' && cleanName('') === '' && cleanName('AB') === 'AB');
+
+          // 5. a normal handle survives intact, accents and all
+          check('the name filter passes an ordinary handle through unchanged',
+            cleanName('VanguardZero') === 'VanguardZero' && cleanName('Jos\u00e9') === 'Jose'
+            && cleanName('a-very-long-handle-indeed').length === 14);
+        }
+      }
+
+      // THE ADMIN CONSOLE HOLDS THE SERVICE KEY (H-26). Binding to 127.0.0.1 keeps
+      // it off the LAN but not out of the browser: any open tab can POST to
+      // localhost:8014, and /api/act deletes rows. The token gate is what stops
+      // that, so the harness asserts the gate is still in front of BOTH API routes
+      // — a refactor that moves a route above the guard would otherwise be silent.
+      {
+        const adm = fs.readFileSync(path.join(ROOT, 'scripts', 'admin.js'), 'utf8');
+        const guard = adm.indexOf('if (!authed(req))');
+        check('the admin console gates its API routes on a token',
+          guard > 0 && guard < adm.indexOf("url === '/api/data'") && guard < adm.indexOf("url === '/api/act'"));
+        check('the admin token is minted per process, never stored',
+          /crypto\.randomBytes\(\d+\)\.toString\('hex'\)/.test(adm) && !/ADMIN_TOKEN\s*=\s*process\.env/.test(adm));
+        check('the admin console refuses a rebinding hostname',
+          /HOST_OK\s*=\s*\/\^\(localhost/.test(adm) && /HOST_OK\.test\(req\.headers\.host/.test(adm));
+        check('the admin page sends the token as a header, not a query or a body',
+          /'X-Admin-Token': TOKEN/.test(fs.readFileSync(path.join(ROOT, 'scripts', 'admin.html'), 'utf8')));
+      }
+
+      // A DELETED PLAYER LEAVES NO REPORTER ID (H-26). reports.reporter_id has no
+      // foreign key to cascade through, so this has to be an explicit delete inside
+      // the function — and the newest definition of it is the one that runs.
+      {
+        const dir = path.join(ROOT, 'supabase', 'migrations');
+        const latest = fs.readdirSync(dir).sort()
+          .filter(f => fs.readFileSync(path.join(dir, f), 'utf8').includes('function public.delete_my_runs')).pop();
+        const sql = latest ? fs.readFileSync(path.join(dir, latest), 'utf8') : '';
+        check('the newest delete_my_runs also withdraws the reports the player filed',
+          /delete\s+from\s+public\.reports\s+where\s+reporter_id\s*=\s*p_player/.test(sql));
+        check('the newest delete_my_runs still returns its trace keys for the Storage purge',
+          /returning\s+r\.trace_id/.test(sql) && /returns table \(trace_id text\)/.test(sql));
+        // and the Edge Function must actually sweep, not fire one hopeful call
+        const md = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'my-data', 'index.ts'), 'utf8');
+        check('the trace purge retries, sweeps by player prefix, and reports what is left',
+          /async function purgeTraces/.test(md) && /\.list\(folder/.test(md) && /tracesLeft/.test(md));
+      }
     }
 
     // EVERY TOOL THAT EMBEDS THE GAME MUST STILL FIND IT. The split broke two

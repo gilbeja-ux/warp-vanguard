@@ -43,8 +43,17 @@ const SFX_FILES = {
   // 0.30, down from 0.95 (-10 dB): at 0.95 the drop was the loudest thing on the
   // win's frame and buried everything under it — the sting riding at EXIT_STING,
   // the keys, the first star. It is a BED for the verdict, not the verdict.
-  exitWarp: ['audio/sfx/exit-warp.mp3', 0.30] // 4.96s — dropping out of warp on a win
+  exitWarp: ['audio/sfx/exit-warp.mp3', 0.30], // 4.96s — dropping out of warp on a win
   // splash2.mp3 (8.1s) scores the boot splash — it has its own player there
+  // ---- H-33 · DECLARED, NOT YET DELIVERED ----
+  // These two paths hold a place for takes Gil is sourcing. Nothing breaks while
+  // the file is absent: loadSamples' .catch swallows the 404, playSample returns
+  // false, and the synth voice below covers the cue — which is the same fail-soft
+  // path every other entry already relies on. Drop the file in and it takes over
+  // on the next load with no code change. `scripts/test-sfx-levels.mjs` reports an
+  // absent declared take as PENDING rather than failing the run.
+  rayCharge: ['audio/sfx/ray-charge.mp3', 0.9], // the ray winding up, ~0.3s, hard tail
+  bossPlate: ['audio/sfx/boss-plate.mp3', 0.85] // one torn plate: crack, body, sub
 };
 // how far into the 4.96s exit-warp take the victory sting rises. Sitting it in the
 // drop's tail is what makes the two read as one arrival instead of a queue.
@@ -142,6 +151,66 @@ const sfx = {
     crackle(0.28, 1400, 220, 3, 2.0, 0, pan);
     crackle(0.10, 900, 500, 5, 1.2, 0.10, pan);
     tone(220, 0.30, 'sawtooth', 0.07, 55, null, 0, pan);
+  },
+  // ---- H-33 · THE RAY ----
+  // The wind-up, fired the frame a light is born. It runs under BEAM_BURST — the
+  // 0.30s the ray spends erupting before it is allowed to turn or fry — so the
+  // charge and the visible growth are one event. Synth here is the PLACEHOLDER;
+  // the declared `rayCharge` take takes over the moment it lands.
+  rayCharge(pan) {
+    if (playSample('rayCharge', 1, pan)) return;
+    // DEEP, AND IT BUILDS (Gil, 2026-08-26 — the first pass was thin).
+    //
+    // The rewrite is one idea: everything here SWELLS. The first version was made
+    // of `tone` and `crackle`, which ramp their gain down from the first sample, so
+    // it decayed while the picture said it was loading — and it climbed to 470 Hz,
+    // which is the register a sci-fi beep lives in. Both are gone.
+    //
+    // Mass comes from the bottom and from the FILTER, not from pitch. The three
+    // layers barely move in frequency (38→52, 82→104, 150→300); what changes is how
+    // much of each one gets through as its lowpass opens. That is what a real
+    // machine loading up does — it thickens, it does not rise.
+    //
+    // RUNS PAST BEAM_BURST ON PURPOSE. The burst window is 0.30s, which is only
+    // about eleven cycles of a 38 Hz sub — too tight for anything that has to read
+    // as deep. These run 0.44s, so the charge releases INTO the rotation rather
+    // than stopping dead the instant the light moves. It costs no gameplay timing:
+    // the sustained sweep voice fades in over its own 0.22s, so the two crossfade.
+    const D = 0.44;
+    swell(38, 52, D, 'sine', 0.20, 120, 190, 0, pan);        // the sub: the mass loading
+    swell(82, 104, D, 'sawtooth', 0.115, 160, 900, 0, pan);  // the coil, thickening as it fills
+    swell(150, 300, D * 0.9, 'triangle', 0.055, 300, 1500, 0.03, pan); // the harmonic that arrives late
+    swellNoise(D, 90, 520, 7, 0.085, 0, pan);                // pressure behind it, resonant and low
+    // and the release — a hard low thud as it lets go into the sweep. This one is
+    // a decay, correctly: it is a hit, not a build.
+    tone(120, 0.16, 'sine', 0.14, 46, null, D * 0.93, pan);
+    crackle(0.07, 1600, 420, 5, 0.085, D * 0.93, pan);
+  },
+  // ---- H-33 · ONE TORN PLATE ----
+  // Six of these walk the machine apart before the implosion. They used to be one
+  // identical `crackle` + square tone, six times — no low end, no shockwave, and
+  // no way to tell the first plate from the last.
+  //
+  // `n` is `b.dyingN`, a COUNTER, never a roll (docs/IN-RUN-VOICE.md rule 2): a
+  // random variation here would draw from the sim stream and desync the verifier.
+  // The counter also earns its keep dramatically — each plate lands lower and
+  // heavier than the one before, so the six read as a machine coming apart on a
+  // ramp toward the implosion instead of six copies of one pop.
+  bossPlate(n, pan) {
+    const i = Math.max(0, Math.min(5, n | 0)), k = i / 5;
+    // the take, pitched DOWN as the sequence walks — one file, six weights
+    if (playSample('bossPlate', 0.8 + 0.2 * k, pan, 1.12 - 0.24 * k)) return;
+    // THE SHOCKWAVE. This is the part that was missing: a sub that drops an
+    // octave and rings out well past the crack. Without it a blast is all
+    // paper and no air.
+    tone(74 - 16 * k, 0.55 + 0.25 * k, 'sine', 0.15 + 0.05 * k, 26 - 6 * k, null, 0, pan);
+    // the body — broadband, falling, the mass of the thing
+    crackle(0.34 + 0.14 * k, 900 - 260 * k, 70, 1.1, 0.30 + 0.08 * k, 0, pan);
+    // the crack that fronts it — short, bright, gone before the body peaks
+    crackle(0.07, 5200 - 900 * k, 1500, 4, 0.20, 0, pan);
+    // metal letting go, staggered off the counter so no two plates land alike
+    crackle(0.10, 2600 + i * 260, 700, 7, 0.10, 0.05 + i * 0.012, pan);
+    crackle(0.13, 1500 - i * 120, 380, 5, 0.08, 0.13 + i * 0.018, pan);
   },
   pulseFire() { // the purge: sub drop under a rising pressure sweep
     if (playSample('pulse')) return;

@@ -7,13 +7,18 @@ with **as little friction as possible** — the target is *zero sign-in UI*. The
 in-game reset stays the escape hatch, which imposes a specific requirement on
 the merge (see §5, and read it before building anything).
 
-**Monetization context (decided 2026-08-15):** free with ads, one purchase
-removes them, through Play Billing / StoreKit. This supersedes the free-demo +
-relay-04 unlock model in `docs/RELEASE-PLAN.md`. It also reverses
-`docs/PRIVACY-POLICY.md`'s "no advertising — must stay true" and forces an EEA/UK
-consent flow (Google's certified-CMP requirement) plus an iOS ATT prompt if IDFA
-is used. Those are separate work items, not this document's, but they land on the
-same first-launch screen this plan is trying to keep clean. See §8.
+**Monetization context (decided 2026-08-17, REVERSING 2026-08-15):** a free demo
+and one **$2.99** unlock, through Play Billing / StoreKit. **No ads, ever.** The
+earlier free-with-ads model held for two days and is dead; this restores the
+free-demo + relay-04 unlock shape of `docs/RELEASE-PLAN.md` rather than
+superseding it.
+
+That reversal is the reason this paragraph is worth reading. The ads model would
+have forced an EEA/UK certified-CMP consent flow and an iOS ATT prompt onto the
+first-launch screen this plan is trying to keep clean, and it would have
+contradicted `docs/PRIVACY-POLICY.md`'s "no advertising — must stay true". None of
+that is owed now. **Do not wire a consent CMP, an ATT prompt, or an ad SDK into
+this game.** See §8.
 
 ---
 
@@ -189,12 +194,13 @@ Tier 0 adds **no personal data to our database** and no new processing: the OS
 copies the app's own data to the player's own cloud account. It should not
 change the Data Safety form or the privacy policy.
 
-The **ads decision does both**, and independently of this plan: an ad SDK
-collects the Advertising ID, which changes the Play Data Safety declaration and
-the App Store privacy labels, requires a certified CMP in the EEA/UK, and
-contradicts `docs/PRIVACY-POLICY.md:20` as written. The Art. 6(1)(f) basis for
-*leaderboard* data can survive — bases are per-purpose — but that argument has to
-be made deliberately rather than inherited.
+**The ads decision was reversed on 2026-08-17, so none of this is owed.** Kept
+here as the record of what the alternative cost, because it is the reason the
+answer is no: an ad SDK collects the Advertising ID, which changes the Play Data
+Safety declaration and the App Store privacy labels, requires a certified CMP in
+the EEA/UK, and contradicts `docs/PRIVACY-POLICY.md` as written. A paid unlock
+does none of those things. The Art. 6(1)(f) basis for *leaderboard* data stands
+on its own and is unaffected either way.
 
 ---
 

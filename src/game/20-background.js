@@ -843,12 +843,16 @@ if (typeof location !== 'undefined') {
 }
 let warpStars = [];
 // SYSRANDOM, NOT MATH.RANDOM, EVERYWHERE BELOW — the one rule this layer cannot
-// break. Campaign and weekly reseed Math.random for the sim, and in weekly
-// `spawnRng = Math.random` outright: the day's seed lives on Math.random itself.
-// This field recycles a couple of hundred stars a second AT DRAW TIME, so a
-// backdrop rolling on that stream would deal the player a different level on a
-// slow phone than on a fast one, and a different one again to the headless
-// verifier that renders nothing. A sky may not be able to change the game.
+// break. Campaign and weekly both reseed Math.random for the sim. Weekly used to
+// point `spawnRng` at Math.random as well, and that is exactly the bug the split
+// fixed: draw code consumes Math.random hundreds of times a frame, so the spawn
+// script and the renderer shared one generator and every weekly submission was
+// checked against a lane the player never saw. Both modes now run a spawn stream
+// of their own (`60-input.js:822`). This field recycles a couple of hundred stars
+// a second AT DRAW TIME, so a backdrop rolling on the sim's stream would deal the
+// player a different level on a slow phone than on a fast one, and a different one
+// again to the headless verifier that renders nothing. A sky may not be able to
+// change the game.
 const wrand = (a, b) => a + sysRandom() * (b - a);
 // And the twinkle classes are DEALT INTO A HAND at build time rather than rolled
 // per recycle: starClass() is eight rolls, which at this turnover is the most

@@ -36,6 +36,15 @@ It takes the `service_role` key from the linked Supabase CLI (or
 the page talks only to localhost, never to Supabase, so the key is never in the
 browser.
 
+**Both API routes need a token.** Binding to `127.0.0.1` keeps the console off the
+LAN, but it does not keep it away from the browser: any page in any tab can POST to
+`http://localhost:8014`, and that route deletes rows with the service key. So the
+server mints a fresh random token at start, stamps it into the page it serves, and
+requires it as an `X-Admin-Token` header on `/api/data` and `/api/act`. A foreign
+page cannot set that header without a CORS preflight the server never answers, and
+a `Host` check refuses a DNS-rebinding hostname. Nothing to configure. If a tab
+ever answers `forbidden`, the console was restarted — reload the page.
+
 The rest of this file is the same work done by hand in the **Supabase dashboard →
 SQL Editor** ([project](https://supabase.com/dashboard/project/ghkbjlgcdrszkawfbxdr/sql)),
 for when you would rather see the tables directly. The console's buttons call the

@@ -10,6 +10,8 @@ not the ID.
 
 Status values: `TODO` → `IN PROGRESS` → `BLOCKED` → `DONE`.
 When an item ships, set `DONE`, add the version and a one-line result.
+`MERGED` means the item was folded into another one and is not worked here.
+Its ID is never reused and its original finding is kept under its heading.
 
 Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md).
 
@@ -24,7 +26,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-03 | DONE | Backend | HIGH | Replay-stealing closed — oracle fix + frame-hash binding + private traces bucket ALL LIVE 2026-08-25 with the 1.0.4 deploy |
 | H-04 | DONE | Release | HIGH | Recover the deleted feature graphic — restored from HEAD 2026-08-21 |
 | H-05 | TODO | Release | HIGH | Turn DEV_KEYS off for production builds |
-| H-06 | TODO | Story | HIGH | Wire the dead story copy |
+| H-06 | TODO | Story | HIGH | **THE STORY LADDER** — the single story item. Absorbs H-17 and H-30. Fill the three dead rungs, line-edit the live one, drop the hints |
 | H-07 | DONE | Story | HIGH | Pre-run read gate — circle-sweep reveal + inner charge ring + back button; built+tested 2026-08-21 |
 | H-08 | DONE | Backend | MED | Weekly board fairness — deep surges press density past surge 6 (Gil: mutators stay legal) |
 | H-09 | DONE | Release | MED | Name screened clear (docs/NAME-CLEARANCE.md) + opaque store icon built |
@@ -35,7 +37,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-14 | DONE | Art | MED | Station sun aligned to LIGHT_A + hull darkened + placeholder limb fixed (ships in the next build) |
 | H-15 | DONE | Journey | MED | Two arc keys flank the mode wheel — CONTINUE CONTRACT deep-links the frontier, CLAIM TO FAME launches the weekly (ships in the next build) |
 | H-16 | DONE | Journey | MED | FLY THIS LANE shares the ring's bottom cap with Show my Run + a weekly retry pinned to its own week (ships in the next build) |
-| H-17 | TODO | Story | MED | Story line-edit pass + the C5 continuity fork |
+| H-17 | MERGED | Story | — | Folded into H-06 (2026-08-26, Gil's call) — the register pass is rung 2 of the ladder |
 | H-18 | DONE | Story | MED | NEXT CONTRACT ▸ on the report + the bark fade fixed (countdown → H-15, dossier → H-06) |
 | H-19 | DONE | Decision | MED | Canon settled — episodic contracts; address is Vanguard/vanguards, "runner" only as accent; wolves retired |
 | H-20 | DONE | Audio | MED | Audio breadth — verdict tiers + NEW BEST stamp + unlock cue, enlistment/bark typewriters → per-glyph fade, phone-call interruption handler (Gil's cut: no boss-duel music, no sonar phase) |
@@ -44,13 +46,14 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-23 | TODO | Journey | LOW | Enlistment tap-to-complete |
 | H-24 | DONE | Journey | LOW | Dead code deleted — scroll machinery, the whole ray-cannon subsystem, and the en.drift orphan; all 41 board ids unchanged |
 | H-25 | IN PROGRESS | Balance | LOW | Volley zaps + prism floors + last-stand shifts built — open: C1L7 (no second debut in L06), feel pass, beats |
-| H-26 | TODO | Backend | LOW | Backend hardening — name filter, delete residuals, admin auth |
+| H-26 | DONE | Backend | LOW | Backend hardening — all three built (admin token gate, homoglyph-folding name filter, filed-report + trace residuals); the migration and both function deploys ride the next deploy |
 | H-27 | DONE | Art | LOW | GATE aperture rebuilt (frame bug fixed + well + hoops); SPINE 18-pad preview declined by Gil, ribs stay |
 | H-28 | DONE | Balance | LOW | Unused depth resolved by deletion — crawlers knob + noCharge drone removed (zero sim cost, all 41 ids unchanged); beat authoring folded into H-25 |
-| H-29 | TODO | Docs | LOW | Doc drift pass |
-| H-30 | TODO | Content | LOW | The 40 briefing-disc keyframes |
+| H-29 | DONE | Docs | LOW | Doc drift swept — 10 stale statements across 6 files + 2 stale code comments; sim id moves (comments only), all 41 board ids unchanged |
+| H-30 | MERGED | Content | — | Folded into H-06 (2026-08-26, Gil's call) — the disc art is the ladder's art rung, still deferred |
 | H-31 | DONE | Balance | MED | Power-ups never land inside a dead-zone carpet — both spawners fixed + a pinned test (ships in 1.0.4) |
 | H-32 | DONE | HUD | MED | Barks redesigned as a broadcast subtitle — tag on its own line, 13px wrapped message (F-012; ships in the next build) |
+| H-33 | IN PROGRESS | Audio | MED | Boss audio realism — the ray has no charge and no sweep voice; the six dying plates are one repeated synth crackle (Gil, 2026-08-26) |
 
 ---
 
@@ -120,14 +123,42 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **My take:** do not flip it globally now, since testers use it. Gate it to the release build and add it to the pre-production checklist.
 - **Options:** (a) flip to `false` now; (b) wire it to a build flag so `sideload`/release forces it off; (c) leave it, add a hard checklist gate before the production AAB.
 
-## H-06 · Wire the dead story copy
+## H-06 · THE STORY LADDER — the one story item
 - **Status:** TODO · **Area:** Story · **Sev:** HIGH (value)
-- **Combines:** S-1
-- **Issue:** the strongest writing never renders. The five verdict epilogue `lines` lose to a precedence bug, the five campaign `story` paragraphs render nowhere, and all 40 level `hint` strings render nowhere. The closure disc shows the weakest text instead.
-- **Evidence:** `91-briefing.js:513`; `campaigns.js:78`; `editor.js:1086`; `90-hud.js:509`.
-- **My take:** cheapest story win in the codebase. Start with the verdict lines: one precedence change on the closure disc, which was built with room for them.
-- **Inherited from H-18 (2026-08-23):** the dossier client/cargo sub-item lands here. Wiring the `story` paragraph onto the contract disc delivers the client and the cargo with it — no new authored field needed.
-- **Options:** (a) verdict epilogue lines only; (b) verdict lines + the story paragraph on the carousel or a dossier tab; (c) all three, with the hint as a subtitle on the pre-run disc.
+- **Combines:** S-1, S-4, S-5 · **absorbs H-17** (register pass + C5 fork) and **H-30** (the 40 disc keyframes) · **inherits H-18's** dossier client/cargo sub-item
+- **MERGED 2026-08-26 on Gil's call:** every story finding is one item now, because they are four rungs of one delivery ladder and fixing them separately hides the shape.
+
+### The ladder — what exists, and what a player actually sees
+
+| Rung | Cadence | Field | Written | State |
+|---|---|---|---|---|
+| 1 · contract dossier | 5× | `campaign.story` paragraph | 5 paragraphs | **DEAD** — no consumer anywhere in `src/game/` |
+| 2 · pre-run disc | 40× | `level.story.line` | 40 lines | **LIVE** — the only rung a player sees |
+| 3 · in-run channel | reactive, 4–6/run | `BARKS` in `83-deepfield.js:710` | 14 triggers | LIVE |
+| 4 · verdict epilogue | 5× | `verdict.lines` | 5 × 4 lines | **DEAD** — loses to `verdict.line` |
+
+The diagnosis in one comparison. Contract 01 currently ends on *"Good job! The system's economy is now booming!"* One `||` away sits *"Eight legs, one hold, nothing lost. / The consortium paid on arrival and / asked no questions about the wreckage / we left in the lane behind us."*
+
+**The format is not the problem.** Gil asked whether a better delivery exists (2026-08-26). It does not, and the one-liner stays: a 40–60s leg with both thumbs occupied cannot carry more, and `91-briefing.js:412` already states the rule — *one thing said per mission; the in-run comms carry the scene from here* — which is correct. The story reads thin because the one live rung carries the weakest writing while the strongest sits unrendered. **Fill the ladder, do not replace it.**
+
+### FINDING THAT REVERSES THE OLD PLAN — the 39 hints stay dead
+The original H-06 said to wire all 40 level `hint` strings. **Do not.** The reactive barks already say the same thing at a better moment:
+
+| `hint` (dead) | bark (live) |
+|---|---|
+| `NEW THREAT: heavy armor — dock both emitters and HOLD` | `armor inbound. both emitters.` |
+| `NEW THREAT: barrier lines — one emitter on each end` | `barrier strung. take an end each.` |
+| `NEW THREAT: dead zones — the rail closes, route around` | `wall forming. reroute.` |
+
+`docs/IN-RUN-VOICE.md` deleted 113 scripted lines for exactly this reason, and wiring the hints onto the disc would break the one-thing-per-mission rule as well. Only **two** threat debuts have no bark — paired traffic (C1 L02) and phase-lock (C1 L07) — so the real work is two bark triggers, not 39 revived strings. The hints stay in `campaigns.js` as the Lane Designer's own authoring note.
+
+### The work, rung by rung
+1. **Rung 4 — the verdict epilogue.** One precedence change at `91-briefing.js:515`: `const body = c.line || (c.lines || []).join(' ')` prefers the weak line. Prefer `lines`. The closure disc was built with room for it (`isClosure`, no readings band). **Cheapest win in the codebase.**
+2. **Rung 1 — the contract dossier.** Wire `campaign.story` onto the contract disc / carousel. This delivers H-18's owed client and cargo with it — no new authored field.
+3. **Rung 2 — the register pass (was H-17).** One Lane Designer pass to a single register across the 40 shown lines, using the survey campaign as the model. Fix the mechanical defects and the C5 fork ("president … she" vs "minister of Xeno Relations", plus the "antidote" leftover from the retired virus fiction). Evidence: `campaigns.js:55,95,150,167,234,243,244`. **Aim higher than tone:** make the eight legs of a contract CONTINUOUS, so leg 08 pays off leg 01, instead of 40 isolated captions. Canon is settled (H-19 DONE), so nothing gates this.
+4. **Rung 3 — two missing barks.** `firstDouble` and `firstColor`, matching the existing terse-ops voice and the draw-only / counter-not-roll rules in `IN-RUN-VOICE.md`.
+5. **Art rung (was H-30) — still deferred.** 0 of 40 per-mission disc keyframes exist; `src/art/disc/` holds only the enlistment and the 5 verdicts, spec in `DISC-ART-SPEC.md`. The destination glam-shot fallback is good by design and covers it. Revisit only after rungs 1–4 land.
+- **Options:** (a) rung 4 only — the one-line precedence fix; (b) rungs 4 + 1 + 3 — every code change, no writing; (c) rungs 4 + 1 + 3 + 2 — the full ladder including the register pass, art still deferred; (d) all five, commissioning the 40 keyframes.
 
 ## H-07 · Give the pre-run briefing a read gate
 - **Status:** DONE (2026-08-21) — Gil's design, iterated with him. On a BRIEFED deploy the pads stay hidden while the disc's story line reveals, then each console is uncovered by a WEDGE that sweeps around from the top — right pad clockwise, left counterclockwise — bringing in the ring, the OFFLINE label, the PLACE THUMB dot, AND the inner pulse-charge track ring (added on Gil's note; the live meter is otherwise held back pre-warp). The grip-release waits until the pads land, so an instant gripper still reads the line; the demo thumb-ghosts return at their normal 1.4s. A BACK arrow (top-right, gamepad B) exits the pre-warp disc to the lane chart. Unbriefed starts (retry/endless/weekly) are untouched. Files: `70-update.js` (`showCard` reveal time, `padsRevealT`/`padsLanded`), `85-enemy-art.js drawDials` (wedge + inner ring), `72-tick.js` (release gate), `90-hud.js` (back button + ghosts), `60-input.js` (`discBack` + touch), `71-gamepad.js` (B). NO sim/replay/deploy impact (pre-run timing + chrome only). `npm test` green (two harness helpers advance past the gate for pre-warp discs only). Tunable: `PADS_IN_DUR` 0.5s. The pulse orbs (`drawPulseOrbs`, gated in `85-enemy-art.js` drawNodes) were leaking empty charge rings at the pads during the come-up while `hw` was still nonzero; they are now held back until `padsLanded` too. Verified by driving a headless Chrome (puppeteer-core + system Chrome) to the real pre-warp screen and capturing the come-up frame by frame. Owed: a device eyeball on the sweep feel. · **Area:** Story · **Sev:** HIGH
@@ -210,7 +241,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) FLY THIS LANE only; (b) rollover pin only; (c) both.
 
 ## H-17 · Story line-edit pass + the C5 continuity fork
-- **Status:** TODO · **Area:** Story · **Sev:** MED (no code)
+- **Status:** MERGED INTO [H-06](#h-06--the-story-ladder--the-one-story-item) (2026-08-26, Gil's call) — it is rung 2 of the ladder. Do not work it here; the detail below is kept as the original finding. · **Area:** Story · **Sev:** MED (no code)
 - **Combines:** S-4, S-5
 - **Issue:** shown lines mix terse-ops with tour-guide ("So far so good! Let's keep it up."). Mechanical defects sit in shown strings. C5 forks on a shown surface: "president … she" vs "minister of Xeno Relations", plus an "antidote" leftover from the old virus fiction.
 - **Evidence:** `campaigns.js:55,95,150,167,234,243,244`.
@@ -300,7 +331,12 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) volley zaps + C1L7 split only (cheap); (b) + boss escalation tuning; (c) full pass, batched with H-02.
 
 ## H-26 · Backend hardening — name filter, delete residuals, admin auth
-- **Status:** TODO · **Area:** Backend · **Sev:** LOW
+- **Status:** DONE (option c — all three, built 2026-08-26 against 1.0.4) · **Area:** Backend · **Sev:** LOW
+- **Result (2026-08-26):** all three hardenings built, `npm test` green, 13 new pins.
+  1. **Admin auth.** `scripts/admin.js` mints a fresh random token per start, stamps it into the page it serves, and requires it as an `X-Admin-Token` header on BOTH `/api/data` and `/api/act`. A header is the whole defence: a cross-origin form cannot set one, and a cross-origin fetch that tries must pass a CORS preflight this server answers for nothing. A `Host` allow-list refuses a DNS-rebinding hostname. Verified live against a throwaway instance on 8099: no token, wrong token, and a foreign `Host` all answered `forbidden`; the served token worked. Documented in `docs/MODERATION.md`.
+  2. **Name filter.** `cleanName` in `submit-run/index.ts` was rebuilt. Confusables are FOLDED to Latin before the ASCII strip, so "FUСK" with a Cyrillic С normalises to `fuck` instead of displaying as "FUK"; NFKC and NFD-plus-mark-strip cover the width, ligature and accent families, and a `FOLD` table covers the Cyrillic/Greek lookalikes Unicode will never merge. Leet mapping now runs BEFORE the punctuation strip, which is what makes the long-dead `@`, `$` and `!` entries fire. The word list is split in two: unambiguous slurs match anywhere, embeddable words match only at a word boundary — so SCUNTHORPE, ESSEX, RACCOON, TORPEDO, CRISIS, SPICE and PEACOCK stop being redacted. A server min-length of 2 was added; under it degrades to `""`, which the boards already print as ANON. **Accepted cost, stated:** "CUMLORD" now passes; the three-reporter auto-redact is the second line, and a false redaction has no appeal route.
+  3. **Delete residuals.** New migration `20260826000000_delete_takes_filed_reports.sql` — `delete_my_runs` now also deletes `reports where reporter_id = p_player`. `reports.reporter_id` has no foreign key, so a departed player's id used to survive in every report they ever filed. **Consequence, on purpose:** withdrawing those reports can take a run back under the three-reporter threshold; an auto-redaction that already fired is untouched, because it set `name_locked`. `my-data/index.ts` gained `purgeTraces()`: 100-key batches with one retry each, then a second pass that lists each board folder for `<playerId>-` and removes the stragglers a row list never named. The response now carries `tracesLeft` instead of logging the failure away.
+- **DEPLOY DEFERRED TO THE NEXT RELEASE (Gil, 2026-08-26).** Nothing in items 2 and 3 is live. It needs `supabase db push` plus `supabase functions deploy submit-run --use-api` and `supabase functions deploy my-data --use-api`. No sim ids move — no game source was touched — so this rides the standing pre-build deploy routine rather than needing one of its own. Nothing here fixes a live break: the old name filter still catches the common cases, and the residuals are a tidy-up. Item 1 needs no deploy at all — the admin console is local, so the token gate is live at the next `npm run admin`.
 - **Combines:** backend lower findings F5, F6, F7
 - **Issue:** the name filter is ASCII-only so homoglyphs are stripped not folded, with Scunthorpe false positives and no server min-length. Account delete leaves reports-filed-by and orphaned traces. The local admin `/api/act` runs destructive writes with no auth.
 - **Evidence:** `submit-run/index.ts:62`; `my-data/index.ts:129`; `scripts/admin.js:120`.
@@ -334,7 +370,21 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) crawlers only (zero sim-id cost on shipped levels); (b) + author enemy/lock beats into C2/C4; (c) + deploy the pressure drone into C5, batched with a sim-id release.
 
 ## H-29 · Doc drift pass
-- **Status:** TODO · **Area:** Docs · **Sev:** LOW
+- **Status:** DONE (option b — full sweep, 2026-08-26) · **Area:** Docs · **Sev:** LOW
+- **Result (2026-08-26):** every claim was checked against the code first. All six audit items were real; two read worse than the audit said and one read better.
+  | # | Where | Said | Now says |
+  |---|-------|------|----------|
+  | 1 | `PRODUCT.md:62` | wheel is TUTORIAL / CAMPAIGN / FREE FLOW | LEADERBOARD / CONTRACTS / FREE FLOW |
+  | 2 | `PRODUCT.md:165` | "all four music tracks", a menu track owed | twelve tracks, the menu track shipped, nothing owed |
+  | 3 | `PRODUCT.md:171` | screenshots and feature graphic "do not exist yet" | they exist in `docs/store/`; only the preview video is still missing |
+  | 4 | `docs/PRIVACY-POLICY.md:24` | "deletion is by email", an in-game control owed | the MY DATA panel shipped; email is the secondary path |
+  | 5 | `docs/CLOUD-SAVE-PLAN.md` header + §8 | monetization is "free with ads"; reverses the no-ads line | free demo + $2.99, NO ads; both places now say **do not wire a CMP, an ATT prompt, or an ad SDK** |
+  | 6 | `CREDITS.md:10,19,37` | menu is `.mp3`, mode is "daily", map is `SFX_SRC` | `.m4a`, the ranked week, `SFX_FILES` in `src/game/12-sfx.js` |
+  | 7 | `docs/RELEASE-PLAN.md:9,42` | the iOS project "does not exist" | `ios/App/` exists, simulator-only, blocked on Apple enrolment |
+  | 8 | `src/game/20-background.js:845` | weekly sets `spawnRng = Math.random` | the two streams were split; points at `60-input.js:822` |
+- **Three corrections to the audit's own reading.** RELEASE-PLAN states the iOS line **twice** (`:9` and `:42`), not once — both were fixed. CREDITS is **narrower** than the audit says: only the music line was wrong, because the AAC conversion deliberately left the sfx as `.mp3`/`.wav`, and the sfx table was already correct. PRIVACY-POLICY's "no advertising — must stay true" is **not** drift; it agrees with the settled no-ads decision, and it was CLOUD-SAVE-PLAN that contradicted it.
+- **Four extra drifts found while sweeping, in the same tables, fixed:** `RELEASE-PLAN.md` said version `1.0.0` / versionCode `1` (it is 1.0.4 / 10004, generated by `scripts/sync-version.js`) and Signing **"Debug only"** (`signingConfigs.release` is used when the keystore is present, and the signed 1.0.4 bundle was cut). `92-guide.js:921` called the middle sector "STORY MODE" two lines above the code that names it `CONTRACTS`.
+- **SIM ID MOVES, SCORING DOES NOT.** Two of these were comments inside game source, and `scripts/lib/sim-id.js` hashes every byte of that source — comments included — so the id went `bfbd7a2099d8` → `6151e052dc5c`. A `sim-fingerprint` compare against HEAD proves it is cosmetic: **41 boards, 0 moved.** The next verifier build must therefore be `npm run build:verifier -- --compatible`, which is exactly the case that flag exists for.
 - **Combines:** doc drift across the audit
 - **Issue:** several docs describe what the code no longer does. PRODUCT.md wheel names + track count + screenshot line; PRIVACY-POLICY.md deletion paragraph; CLOUD-SAVE-PLAN.md monetization header; CREDITS.md format/cadence/symbol; RELEASE-PLAN.md iOS line; the `20-background.js:845` RNG comment.
 - **Evidence:** listed in the audit §7.
@@ -342,7 +392,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) fix only the two that could mislead a build (CLOUD-SAVE-PLAN, PRIVACY-POLICY); (b) full doc-drift sweep across all six.
 
 ## H-30 · The 40 briefing-disc keyframes
-- **Status:** TODO · **Area:** Content · **Sev:** LOW (largest lift)
+- **Status:** MERGED INTO [H-06](#h-06--the-story-ladder--the-one-story-item) (2026-08-26, Gil's call) — it is the ladder's art rung, and still deferred behind rungs 1–4. Do not work it here; the detail below is kept as the original finding. · **Area:** Content · **Sev:** LOW (largest lift)
 - **Combines:** owed art
 - **Issue:** 0 of 40 per-mission disc keyframes exist. The destination glam-shot fallback covers it by design, so impact-per-effort is lowest despite being the biggest missing body of art.
 - **Evidence:** `src/art/disc/` holds only the enlistment + 5 verdicts; spec in `DISC-ART-SPEC.md`.
@@ -363,3 +413,39 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Issue:** barks missed a space after the speaker title and read cramped and small.
 - **My take:** the single-chord layout was the cause; stacking tag over message returns the whole chord to the message.
 - **Options:** (a) stacked subtitle, 13px + wrap (chosen); (b) inline chip with bigger font and padding.
+
+---
+
+## H-33 · Boss audio realism — the ray's voice + the dying plates
+- **Status:** IN PROGRESS (option b — hybrid, blended ray; PLUMBING + SYNTH BUILT 2026-08-26, open: Gil's ear on the soundboard, then the two takes he is sourcing) · **Area:** Audio · **Sev:** MED · **Raised by:** Gil, 2026-08-26 (not from the 2026-08-21 audit)
+- **Gil's choices, 2026-08-26:** sourcing = **hybrid** (I synth now, he sources the charge and the explosion takes); ray character = **both references blended** — a doppler hum under a resonant metallic formant.
+- **BUILT 2026-08-26.** `npm test` green, 10 new pins, **41 boards, 0 moved** (draw-only, as required).
+  1. **The sweep is a SUSTAINED synth voice** — `raySweep()` / `raySweepKill()` in `10-audio.js`, one voice per node index so the prism's two lights speak at their own two speeds. Layer A is two sawtooths detuned 16 cents into a resonant lowpass (the saber waver); layer B is looped noise through a high-Q bandpass with a peaking formant (the tripod howl). `RAY_SABER` / `RAY_TRIPOD` are the blend knobs. Pitch, filter and pan are driven from `bm.spd`, `bm.a` and `bm.dir` every frame, so a reversal bends the doppler as it turns instead of firing a 0.2s blip. **Synth was the right call here regardless of sourcing:** the speed varies per boss and per round and the beam reverses mid-flight, so no fixed take can track it.
+  2. **The driver sits in `updateBossFight`, not `bossBeams`** — and that placement is load-bearing. `bossBeams` only runs while the fight is in `'sweep'` mode, so a voice started inside it would never be told to stop when the mode moved on. Pinned. A second guard in `99-boot.js` kills the voice whenever the run leaves the lane, which covers a loss, a quit, a pause and a replay exit.
+  3. **The charge** — `sfx.rayCharge()`, fired once on beam birth. **REBUILT 2026-08-26 on Gil's note: "should be something more deep and realistic."** The first pass was made of `tone` and `crackle`, which ramp their gain DOWN from the first sample — so it decayed while the picture said it was loading, and it climbed to 470 Hz, which is where a sci-fi beep lives. Two new primitives in `10-audio.js`, `swell()` and `swellNoise()`, are the mirror of those: the gain peaks at the END of the window and a LOWPASS opens alongside it. Mass now comes from the bottom and from the filter, not from pitch — the three layers barely move (38→52, 82→104, 150→300) and what changes is how much of each gets through as it thickens, which is what a machine loading up actually does. It runs **0.44s, past the 0.30s `BEAM_BURST` on purpose**: 0.30s is about eleven cycles of a 38 Hz sub, too tight to read as deep, so the charge releases INTO the rotation instead of stopping dead. No gameplay timing changed — the sweep voice fades in over its own 0.22s, so the two crossfade.
+  4. **The plates** — `sfx.bossPlate(n, pan)` replaces the six identical `crackle` + square tones. Each blast is a sub shockwave (74→26 Hz, ringing past the crack — **the part that was missing**), a falling broadband body, a bright crack, and staggered metal debris. It walks heavier off `b.dyingN`, a COUNTER not a roll, so the six ramp into the implosion. Panned to the plate that tore.
+  5. **The takes are DECLARED but absent.** `rayCharge: 'audio/sfx/ray-charge.mp3'` and `bossPlate: 'audio/sfx/boss-plate.mp3'` are in `SFX_FILES`. Nothing breaks while the files are missing — `loadSamples`' `.catch` swallows the 404, `playSample` returns false, the synth covers. Drop a file in and it takes over on the next load with **no code change**. `scripts/test-sfx-levels.mjs` now reports an absent declared take as `PEND` instead of failing, so the plumbing could ship before the audio.
+  6. **The soundboard grew a section** (port 8012): charge alone, slow light, fast light, reversal at 2.4s, both prism lights at once, stop; plate 0, plate 5, all six, and the whole death into the implosion take. The ray buttons **animate a real sweep** through the real voice, because a one-shot button would audition nothing — the bend and the pan are the sound.
+- **SIM ID MOVES, SCORING DOES NOT.** `40122838d969`. Audio is draw-only; a fingerprint compare against HEAD gives 41 boards, 0 moved. The next verifier build takes `-- --compatible` (see the same note on H-29).
+- **OPEN — needs Gil:** (a) an ear on the soundboard, on the phone not the Mac, and a call on the `RAY_SABER`/`RAY_TRIPOD` blend and `RAY_LEVEL`; (b) the two CC0 takes; (c) the `BEAM_BURST` question is now ANSWERED without touching gameplay — the charge simply runs 0.44s and crossfades into the sweep, so the 0.30s burst window stays exactly as it was.
+- **Issue, in Gil's words:** the synth voices are not realistic enough. The ray should feel like a **charge-up** and then a **lightsaber "voom"** as it moves, or the mechanical ray of a *War of the Worlds* tripod. The boss's end-of-fight part explosions should be **more explodey — shockwaves**.
+
+### Part 1 — the sweeping ray has almost no voice
+| Beat | Where | Sound today |
+|---|---|---|
+| birth / charge (`BEAM_BURST` = 0.30s) | `52-bosses.js:447`, const at `:64` | **silent** |
+| the sweep rotation (the "voom") | `52-bosses.js:458` | **silent** |
+| mid-sweep reversal | `52-bosses.js:452` | one 0.2s `tone(240, 0.2, 'sawtooth', 0.1, 120)` |
+| contact fry | `52-bosses.js:468` | `sfx.fry` → reuses `shutdown.mp3`, an emitter *reboot* take |
+| retraction | `52-bosses.js:479` | **silent** |
+
+The whole ray therefore reads as a silent visual with one blip on reversal, and its only real cue is a sound authored for a different event.
+
+### Part 2 — six identical plate pops
+`52-bosses.js:791-799`. Each of the six torn plates fires exactly `crackle(0.2, 1800, 300, 3, 0.6)` plus `tone(220 - dyingN*20, 0.15, 'square', 0.1, 90)`. No low end, no shockwave, no variation across the six. The comment at `:784` already promises more than the audio delivers: *"the machine dies like a star: convulsions, plates torn away one by one, the lamp guttering out, implosion, shockwave"*. The implosion itself is fine — it plays `boss-dead.mp3` (H-13 levelled it as the ceremonial loudest take).
+
+- **My take — the two parts want OPPOSITE treatments, and that is the whole design call.**
+  - The **sweep** must be **synthesised, not sampled**. `bm.spd` varies per boss and per round, the sweep reverses mid-flight (`bm.dir *= -1`), and its duration is a full `TAU` of rotation at a speed the fight sets. A fixed one-shot cannot track any of that; a synth voice reading `bm.a`, `bm.spd` and `bm.dir` can — pitch and filter follow the angular velocity, and the reversal becomes a real doppler turn instead of a blip. That is also how a lightsaber "voom" works: the pitch IS the motion.
+  - The **charge-up** and the **plate explosions** want **recorded takes**. Explosions are the hardest thing to fake with oscillators, and this is exactly the split `CREDITS.md` already describes: *reactive sounds are synthesized, big moments use recorded one-shots*.
+- **Constraints that already apply:** any new cue must obey the draw-only / no-`Math.random` rule in `docs/IN-RUN-VOICE.md` (a sound that draws from the sim RNG desyncs the replay verifier). Vary the six plates by the existing `b.dyingN` counter, never by a roll. Level any new take through the H-13 master limiter and pin it in `scripts/test-sfx-levels.mjs`; the soundboard on 8012 is the instrument (see the sfx-soundboard memory).
+- **Options:** (a) synth-only — build the sweep voice and re-voice the plates with better synthesis, no new files; (b) hybrid — synth sweep + recorded charge and plate takes that Gil sources; (c) recorded-only — Gil sources every cue and the sweep take is retriggered/pitched to approximate the rotation.

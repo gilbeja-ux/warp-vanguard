@@ -59,8 +59,8 @@ Played on a phone held **landscape** in two hands, both thumbs resting on
 bottom-corner dial pads. Sessions are short and repeated. Play works fully
 offline; the only network dependency is the leaderboard work in flight.
 
-Structure the player moves through: a mode wheel (TUTORIAL / CAMPAIGN / FREE
-FLOW) → for campaign, the lane chart with a relay list and dossier → briefing
+Structure the player moves through: a mode wheel (LEADERBOARD / CONTRACTS / FREE
+FLOW) → for contracts, the lane chart with a relay list and dossier → briefing
 disc → in-lane run → mission report. The chart is a defended volume: the core
 systems wrapped in patrol cordons, and the five campaigns spiral outward through
 them, each case working a thinner belt of escort cover than the last — the
@@ -162,15 +162,15 @@ offline entitlement flag; no server for v1. Full plan in
   verbatim, and what art is owed — is [docs/THEME-SHIFT.md](docs/THEME-SHIFT.md).
 - Complete narrative script for all campaigns in [src/campaigns.js](src/campaigns.js)
   — every briefing, hint and comm line in reading order.
-- All four music tracks are composed by the author (AI-assisted), no licensing
-  risk; logged in [CREDITS.md](CREDITS.md). A replacement menu track is still
-  owed by the author (spec in BRAND.md).
+- All twelve music tracks are composed by the author (AI-assisted), no licensing
+  risk; logged in [CREDITS.md](CREDITS.md) — eleven level tracks in
+  `src/audio/music/` plus the menu track, which shipped. Nothing is owed.
 - The prototype tuning labs were removed on 2026-07-28 once their looks were
   settled and locked into the game's `*FX` constant blocks. They live on in git
   history (`git log -- src/arclab.html`) and new ones get built as needed.
-- Store screenshots, feature graphic, and preview video do **not** exist yet.
-  There are no players, reviews, download counts, press, or testimonials —
-  future work must not fabricate any.
+- Store screenshots and the feature graphic exist, in `docs/store/`. A preview
+  video does **not**. There are no players, reviews, download counts, press, or
+  testimonials — future work must not fabricate any.
 
 ## Product Principles
 

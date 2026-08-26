@@ -7,7 +7,7 @@
 // ffmpeg is a local instrument, not a repo dependency: no ffmpeg → SKIP, exit 0,
 // so CI and a fresh machine stay green. Run `brew install ffmpeg` to arm it.
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -35,7 +35,19 @@ check('SFX_FILES parsed from 12-sfx.js', entries.length >= 15);
 
 const dB = t => 20 * Math.log10(t);
 const board = [];
+let pending = 0;
 for (const e of entries) {
+  // A DECLARED TAKE THAT HAS NOT LANDED YET IS PENDING, NOT A FAILURE (H-33).
+  // The roster is allowed to name a file Gil is still sourcing: loadSamples'
+  // .catch swallows the 404, playSample returns false, and the synth voice covers
+  // the cue — the same fail-soft path every entry relies on. Failing the run here
+  // would mean the plumbing could not be committed before the audio arrived, which
+  // is exactly backwards. It IS reported, so a pending take cannot be forgotten.
+  if (!existsSync(join(root, 'src', e.file))) {
+    console.log('PEND  sfx take not delivered yet: ' + e.key + ' (' + e.file + ') — synth voice covers it');
+    pending++;
+    continue;
+  }
   let tp = NaN, lufs = NaN;
   // the ebur128 summary lands on STDERR — that is the stream to parse
   const r = spawnSync(
@@ -57,6 +69,8 @@ for (const e of entries) {
   // 0.05 dB of air over the gate: win.mp3 legitimately masters to exactly 0.0
   check('no clip at shipped trim: ' + e.key + ' (' + effTP.toFixed(1) + ' dBFS)', effTP <= 0.05);
 }
+
+if (pending) console.log('\n  ' + pending + ' declared take(s) still pending — the synth voice is what ships until they land');
 
 board.sort((a, b) => b.effI - a.effI);
 console.log('\n  loudness board (integrated LUFS at shipped trim, loud first — ears judge family, not this script)');

@@ -7,20 +7,24 @@ AI-assisted tools) and is owned by the project. No third-party music license is
 required. That statement covers the folder as a whole, so tracks can be added,
 renamed, or replaced without a per-file entry here.
 
-- **Menu:** `src/audio/Warp Lane Drift.mp3` (215s), wired at `MUSIC_DATA.menu`.
+- **Menu:** `src/audio/Warp Lane Drift.m4a` (215s), wired at `MUSIC_DATA.menu`.
   It replaced *Midnight Terminal Wait* (116s) in commit `262be2d`; the older file
   is no longer referenced and is excluded from the shipped build.
+- **Format:** music ships as **112 kbit/s AAC (`.m4a`)**. The mp3 masters live in
+  git history only. The recorded sound effects were deliberately left alone and
+  are still `.mp3` and `.wav` — they are short, so the re-encode would have cost
+  more in quality than it saved in bytes.
 - **Run pool:** everything in `src/audio/music/`. `npm run build` scans that
   folder and writes the list to `src/audio/music/tracks.js`; the display title of
   each track is derived from its filename at runtime. Adding music is a drop-in
   plus a build — renaming the file renames the track, with nothing to keep in sync.
 
 Every run draws its opening track at random from the pool — a shuffled bag, so
-all of them play once before any repeats. FREE FLOW (endless and daily) keeps
-drawing for as long as the run lasts: the next track is decoded ~14s ahead of
-the seam and crossfaded in over 4s under the outgoing one, so a long run never
-hears a gap or a hard cut. The daily's *opening* track is derived from the day
-number instead, so everyone shares the same first minutes. The track names itself
+all of them play once before any repeats. FREE FLOW (endless and the ranked
+week) keeps drawing for as long as the run lasts: the next track is decoded ~14s
+ahead of the seam and crossfaded in over 4s under the outgoing one, so a long run
+never hears a gap or a hard cut. The ranked week's *opening* track is derived from
+the week number instead, so everyone on that week shares the same first minutes. The track names itself
 on screen for a few seconds at the start of a run and at each crossfade, and can
 be skipped from the pause panel.
 
@@ -34,8 +38,8 @@ itself rather than hard-cutting.
 ## Sound effects
 Hybrid. Reactive sounds — zaps, sonar ticks, UI tones, boot pips — are
 synthesized at runtime with the Web Audio API. Big moments use **recorded
-one-shots**, shipped in `src/audio/sfx/` and wired through the `SFX_SRC` map in
-`src/index.html`:
+one-shots**, shipped in `src/audio/sfx/` and wired through the `SFX_FILES` map in
+`src/game/12-sfx.js`:
 
 All recorded one-shots are drawn from **CC0 / royalty-free libraries** — the
 Sonniss GameAudioGDC bundles, Kenney CC0 packs, and Freesound CC0.

@@ -918,8 +918,8 @@ function drawMenuHome(ccx, ccy, R) {
   const campDone = anyCampaignCleared();
   const flowOpen = flowUnlocked();
   const r1 = R * 0.92, r0 = R * 0.38;
-  // three slices now: LEADERBOARD owns the top, STORY MODE + FREE FLOW the
-  // bottom corners (training moved into Story Mode as its lead disc).
+  // three slices now: LEADERBOARD owns the top, CONTRACTS + FREE FLOW the
+  // bottom corners (training moved into CONTRACTS as its lead disc).
   const SECTORS = [
     { mode: 'board', name: 'LEADERBOARD', glyph: '▲', cap: 'top runs',
       mid: -Math.PI / 2, locked: false, primary: false, col: '255,210,74' },

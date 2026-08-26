@@ -157,6 +157,74 @@ function crackle(dur, f0, f1, q, vol, delay, pan) {
   src.connect(bp); bp.connect(g); tail === g ? g.connect(sfxGain) : tail.connect(sfxGain);
   src.start(t0); src.stop(t0 + dur);
 }
+// ---------- SWELL: a sound that ARRIVES (H-33) ----------
+//
+// `tone` and `crackle` both ramp their gain DOWN from the first sample. That is
+// exactly right for a hit — a zap, a pop, a plate coming off — and exactly wrong
+// for anything that WINDS UP. The first ray charge was built out of them and it
+// read as thin and synthetic for that one reason: it was decaying while the
+// picture said it was building.
+//
+// These two are the mirror. The gain climbs to its peak at the END of the window
+// and releases from there, and a LOWPASS opens alongside it — which is the part
+// that sells mass. A real machine loading up does not get higher, it gets THICKER:
+// more harmonics arrive as more energy goes in. Pitch that climbs into the top of
+// the register is the sci-fi beep this is trying not to be, so the frequency ramps
+// stay low and the filter does the work.
+function swell(f0, f1, dur, type, vol, lp0, lp1, delay, pan) {
+  if (simMuted) return;
+  const ac = AC; if (!ac || !sfxGain || !ac.createBiquadFilter) return;
+  const t0 = ac.currentTime + (delay || 0);
+  const o = ac.createOscillator(), g = ac.createGain(), lp = ac.createBiquadFilter();
+  o.type = type || 'sawtooth';
+  o.frequency.setValueAtTime(f0, t0);
+  if (f1 && o.frequency.exponentialRampToValueAtTime) o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+  lp.type = 'lowpass'; lp.Q.value = 4;
+  lp.frequency.setValueAtTime(lp0 || 300, t0);
+  if (lp1 && lp.frequency.exponentialRampToValueAtTime) lp.frequency.exponentialRampToValueAtTime(lp1, t0 + dur);
+  // the peak lands at 88% and holds to the end, so the loudest instant is the
+  // RELEASE — the moment the thing lets go — not the moment it started
+  const peak = t0 + dur * 0.88;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, peak);
+  g.gain.setValueAtTime(vol, t0 + dur);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 0.07);
+  let tail = g;
+  if (pan && ac.createStereoPanner) {
+    const p = ac.createStereoPanner(); p.pan.value = clamp(pan, -1, 1);
+    g.connect(p); tail = p;
+  }
+  o.connect(lp); lp.connect(g); tail.connect(sfxGain);
+  o.start(t0); o.stop(t0 + dur + 0.12);
+}
+// the noise half of the same idea: a resonant band that opens as the charge loads
+function swellNoise(dur, f0, f1, q, vol, delay, pan) {
+  if (simMuted) return;
+  const ac = AC; if (!ac || !sfxGain || !ac.createBuffer) return;
+  const t0 = ac.currentTime + (delay || 0);
+  if (!noiseBuf) {
+    noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+  const bp = ac.createBiquadFilter();
+  bp.type = 'bandpass'; bp.Q.value = q;
+  bp.frequency.setValueAtTime(f0, t0);
+  if (f1 && bp.frequency.exponentialRampToValueAtTime) bp.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + dur * 0.88);
+  g.gain.setValueAtTime(vol, t0 + dur);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 0.07);
+  let tail = g;
+  if (pan && ac.createStereoPanner) {
+    const p = ac.createStereoPanner(); p.pan.value = clamp(pan, -1, 1);
+    g.connect(p); tail = p;
+  }
+  src.connect(bp); bp.connect(g); tail.connect(sfxGain);
+  src.start(t0); src.stop(t0 + dur + 0.12);
+}
 // THE ENGINE BED — the tunnel's own voice, held for the length of a run.
 //
 // in-warp.mp3 is the engine now: a recorded 8.9s bed on a seamless loop, sitting
@@ -267,6 +335,115 @@ function stripSound(on, prog) {
       stripOsc.g.gain.setTargetAtTime(0.075, ac.currentTime, 0.06);
     } else { stripOsc.o.frequency.value = f; stripOsc.g.gain.value = 0.075; }
   }
+}
+// ---------- THE SWEEPING RAY (H-33) ----------
+//
+// A SUSTAINED VOICE, NOT A ONE-SHOT, and that is the whole reason this is synth
+// rather than a take. The light's speed is set per boss and per round (`bm.spd`),
+// it can REVERSE mid-rotation (`bm.dir *= -1`), and a rotation lasts however long
+// a full TAU takes at that speed. No fixed recording can follow any of that — it
+// would drift away from the light on screen within a second. An oscillator reading
+// `bm.a`, `bm.spd` and `bm.dir` every frame cannot drift, because the motion IS
+// the sound.
+//
+// TWO LAYERS, BLENDED (Gil's call, 2026-08-26):
+//
+//   A — THE SABER. Two sawtooths a few cents apart into a low, resonant lowpass.
+//       The beating between the detuned pair is the characteristic waver; the
+//       filter is what turns a buzz into a "voom". Carries the MOTION.
+//   B — THE TRIPOD. Looped noise through a high-Q bandpass with a peaking formant
+//       above it — the metallic resonant howl. Carries the MENACE.
+//
+// The two are separate gains on purpose (RAY_SABER / RAY_TRIPOD) so the blend is
+// one number to retune on the soundboard, not a rebuild.
+//
+// THE DOPPLER IS THE POINT. The light crosses the screen laterally, so its lateral
+// velocity is `-sin(a) * dir * spd` — the pitch rides that, and the pan rides
+// `cos(a)`. Together they put the ray in the stereo field and bend it as it comes
+// round. When the sweep reverses, the bend reverses with it, so the telegraphed
+// turn becomes something you HEAR rather than a 0.2s blip.
+//
+// DRAW-ONLY. This reads boss state and never writes any; it consumes no
+// `spawnRng()` and no `Math.random()` beyond the one cached noise buffer that
+// `crackle` already builds. See docs/IN-RUN-VOICE.md rule 1.
+let rayVoices = {};
+const RAY_SPD_LO = 0.95, RAY_SPD_HI = 1.70; // rad/s — the span startSweeps covers
+const RAY_LEVEL  = 0.052;  // the bed's ceiling: audible under combat, never over it
+const RAY_SABER  = 0.60, RAY_TRIPOD = 0.34; // the blend
+function rayVoiceNew(ac) {
+  if (!ac.createBuffer || !ac.createBiquadFilter) return null; // no filters, no ray — silence, not a throw
+  if (!noiseBuf) {
+    noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  // A — the saber
+  const oa = ac.createOscillator(), ob = ac.createOscillator();
+  oa.type = 'sawtooth'; ob.type = 'sawtooth';
+  if (oa.detune) { oa.detune.value = -7; ob.detune.value = 9; } // the waver, in cents
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700; lp.Q.value = 7;
+  const ga = ac.createGain(); ga.gain.value = RAY_SABER;
+  oa.connect(lp); ob.connect(lp); lp.connect(ga);
+  // B — the tripod
+  const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+  const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 500; bp.Q.value = 13;
+  const pk = ac.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 1450; pk.Q.value = 6;
+  if (pk.gain) pk.gain.value = 9;
+  const gb = ac.createGain(); gb.gain.value = RAY_TRIPOD;
+  src.connect(bp); bp.connect(pk); pk.connect(gb);
+  // the shared envelope + placement
+  const g = ac.createGain(); g.gain.value = 0.0001;
+  ga.connect(g); gb.connect(g);
+  let pan = null;
+  if (ac.createStereoPanner) { pan = ac.createStereoPanner(); g.connect(pan); pan.connect(sfxGain); }
+  else g.connect(sfxGain);
+  oa.start(); ob.start(); src.start();
+  return { oa, ob, lp, bp, ga, gb, g, pan, src };
+}
+function rayVoiceStop(v, fast) {
+  const ac = AC; if (!ac) return;
+  const tc = fast ? 0.03 : 0.09;  // the retraction: the spent light fades INTO the machine
+  if (v.g.gain.setTargetAtTime) v.g.gain.setTargetAtTime(0.0001, ac.currentTime, tc);
+  else v.g.gain.value = 0;
+  setTimeout(() => { try { v.oa.stop(); v.ob.stop(); v.src.stop(); } catch (e) {} }, fast ? 200 : 500);
+}
+// Called every frame with the LIVE beams. One voice per node index, so the prism's
+// two lights speak at their own two speeds — which is that boss's entire tell, and
+// a single summed voice would flatten it back into one sound.
+function raySweep(list) {
+  const ac = AC; if (!ac || !sfxGain) return;
+  const live = (simMuted || !list) ? [] : list;
+  const held = {};
+  for (const bm of live) {
+    if (bm.done) continue;
+    held[bm.phase] = 1;
+    let v = rayVoices[bm.phase];
+    if (!v) { v = rayVoiceNew(ac); if (!v) continue; rayVoices[bm.phase] = v; }
+    // how fast this light is running, 0..1 across the range the fights use
+    const k = clamp((bm.spd - RAY_SPD_LO) / (RAY_SPD_HI - RAY_SPD_LO), 0, 1);
+    // the lateral doppler — direction flips it, which is what makes a reversal audible
+    const dop = 1 - 0.055 * Math.sin(bm.a) * bm.dir;
+    const f = (64 + 32 * k) * dop;
+    const t = ac.currentTime, TC = 0.03; // a per-frame glide, so nothing zippers
+    const set = (prm, val) => { prm.setTargetAtTime ? prm.setTargetAtTime(val, t, TC) : (prm.value = val); };
+    set(v.oa.frequency, f);
+    set(v.ob.frequency, f * 1.005);          // the pair stays detuned at any pitch
+    set(v.lp.frequency, 480 + 900 * k);      // faster light, brighter voom
+    set(v.bp.frequency, (430 + 300 * k) * dop);
+    if (v.pan) set(v.pan.pan, clamp(Math.cos(bm.a) * 0.7, -1, 1));
+    // the birth swell: the ray erupts before it turns, so it arrives rather than snaps
+    const born = clamp((bm.liveT || 0) / 0.22, 0, 1);
+    set(v.g.gain, Math.max(0.0001, RAY_LEVEL * (0.55 + 0.45 * k) * born));
+  }
+  for (const key of Object.keys(rayVoices)) {
+    if (held[key]) continue;
+    const v = rayVoices[key]; delete rayVoices[key];
+    rayVoiceStop(v, simMuted);
+  }
+}
+// hard stop — the fight ended, the boss died, or the run left the lane
+function raySweepKill() {
+  for (const key of Object.keys(rayVoices)) { const v = rayVoices[key]; delete rayVoices[key]; rayVoiceStop(v, true); }
 }
 // whisper-quiet approach blip, stereo-panned to the threat's angle
 function sonarTick(freq, pan) {
