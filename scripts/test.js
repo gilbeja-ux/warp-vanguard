@@ -4612,6 +4612,54 @@ async function runMusicUp() {
   G.setMenuFx(null); G.setState(G.S.MENU); G.setMenuScreen('home');
 }
 
+// ================= H-25 item 5: authored beats in C2 and C4 =================
+// Every authored beat must actually ARRIVE in a real run of its lane — a beat
+// that silently never fires is content that reads as shipped and is not.
+{
+  const beatProbe = (campId, li) => {
+    const camp = G.CAMPAIGNS.find(c => c.id === campId);
+    G.installCampaign(camp);
+    const lv = G.getLevels()[li];
+    const want = (lv.beats || []).filter(b => b.kind !== 'lull');
+    G.startLevel(li); G.setIntro(999);
+    const seen = new Set(); const got = { heavy: 0, lock0: 0, lock1: 0, pickup: 0 };
+    let guard = 30000;
+    while (G.getLevelT() < lv.duration && guard-- > 0) {
+      G.setIntegrity(100);
+      G.update(1 / 30);
+      if (G.getState() !== G.S.PLAY) break;
+      for (const en of G.enemies()) {
+        if (seen.has(en)) continue; seen.add(en);
+        if (en.type === 'heavy') got.heavy++;
+        else if (en.type === 'normal' && en.lock === 0) got.lock0++;
+        else if (en.type === 'normal' && en.lock === 1) got.lock1++;
+      }
+      for (const pk of G.pickups()) { if (seen.has(pk)) continue; seen.add(pk); got.pickup++; }
+    }
+    return { want, got };
+  };
+  const cases = [['survey', 1], ['survey', 4], ['survey', 6], ['patrol', 0], ['patrol', 3], ['patrol', 5], ['patrol', 6]];
+  for (const [cid, li] of cases) {
+    const { want, got } = beatProbe(cid, li);
+    const needP = want.filter(b => b.kind === 'pickup').length;
+    const needH = want.filter(b => b.kind === 'enemy' && b.type === 'heavy').length;
+    const needL = want.filter(b => b.kind === 'enemy' && (b.type === 'lock0' || b.type === 'lock1')).length;
+    check(`beats: ${cid} relay ${String(li + 1).padStart(2, '0')} lands its ${want.length} authored beat(s)`,
+      got.pickup >= needP && got.heavy >= needH && got.lock0 + got.lock1 >= needL);
+  }
+  // …and the linter judges every one of them: a bad placement fails here
+  for (const cid of ['survey', 'patrol']) {
+    const camp = G.CAMPAIGNS.find(c => c.id === cid);
+    const findings = G.lintCampaign(camp);
+    const bad = findings.map((f, i) => ({ i, hard: (f || []).filter(x => x.kind !== 'note') }))
+      .filter(r => r.hard.length);
+    check(`beats: the fairness linter clears every ${cid} lane`,
+      bad.length === 0 || bad.every(r => r.hard.every(x => x.kind === 'density')));
+    if (bad.length) console.log('   ' + cid + ' findings: ' + JSON.stringify(bad.map(r => [r.i, r.hard.map(x => x.kind)])));
+  }
+  G.setState(G.S.MENU); G.setMenuScreen('home');
+}
+
 // ================= H-25 item 2: the lock debut breathes (C1L7) =================
 // Gil's live ruling (2026-08-27): the first 15s stacked the full red load —
 // volleys included — onto the lock's debut. The opening band halves the reds

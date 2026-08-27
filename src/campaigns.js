@@ -105,6 +105,9 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '255,160,80', duration: 55, spawnMin: 0.68, spawnMax: 1.20, speed: 0.49, doubles: 0.50, heavies: 0.10, lines: 0.00, colors: 0.00, frags: 0.10, track: 2, bursts: true,
       hint: 'the loop runs HOT — pure traffic, find your rhythm',
       bands: [{ t0: 16, t1: 32, intensity: 1.5 }, { t0: 44, t1: 53, intensity: 1.8 }],
+      // authored punctuation (H-25 item 5): one heavy in the trough between the
+      // bands, and a shield handed over just before the hot finish
+      beats: [{ t: 36, kind: 'enemy', type: 'heavy' }, { t: 42, kind: 'pickup', type: 'shield' }],
       story: { line: 'Charting a lane nobody has flown in forty years.' } },
     { tint: '120,230,190', duration: 60, spawnMin: 0.62, spawnMax: 1.10, speed: 0.52, doubles: 0.50, heavies: 0.10, lines: 0.00, colors: 0.15, frags: 0.12, track: 0,
       hint: 'phase locks in the flood — glance, match, keep moving',
@@ -117,6 +120,7 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '150,120,255', duration: 65, spawnMin: 0.55, spawnMax: 0.95, speed: 0.57, doubles: 0.55, heavies: 0.10, lines: 0.08, colors: 0.18, frags: 0.14, walls: 0.06, track: 2,
       hint: 'walls in the current — reroute without losing the beat',
       bands: [{ t0: 28, t1: 46, intensity: 1.6 }],
+      beats: [{ t: 25, kind: 'lull', dur: 3 }], // three still seconds, then the current
       story: { line: 'Deep space. None of this was on the last survey.' } },
     { tint: '255,90,110', duration: 70, spawnMin: 0.50, spawnMax: 0.90, speed: 0.60, doubles: 0.60, heavies: 0.14, lines: 0.08, colors: 0.18, frags: 0.16, walls: 0.08, track: 0, bursts: true,
       hint: 'blacksite pace — the fastest lane yet',
@@ -125,6 +129,9 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '255,70,160', duration: 75, spawnMin: 0.48, spawnMax: 0.85, speed: 0.63, doubles: 0.60, heavies: 0.15, lines: 0.10, colors: 0.20, frags: 0.18, walls: 0.08, track: 1, bursts: true,
       hint: 'his ledger floods the lane — survive the torrent',
       bands: [{ t0: 18, t1: 38, intensity: 1.7 }, { t0: 52, t1: 70, intensity: 2.1, mix: { doubles: 0.65 } }],
+      // the trough between the torrents: one placed heavy keeps it honest, then
+      // a shield right before the biggest band this campaign throws
+      beats: [{ t: 44, kind: 'enemy', type: 'heavy' }, { t: 50, kind: 'pickup', type: 'shield' }],
       story: { line: 'Tier 4. The expedition before this one filed no report.' } },
     { tint: '212,101,255', duration: 50, spawnMin: 0.70, spawnMax: 1.25, speed: 0.55, doubles: 0.45, heavies: 0.16, lines: 0.10, colors: 0.22, frags: 0.14, walls: 0.08, track: 2, boss: true, bossKind: 'siphon',
       hint: 'THE SIPHON — one light hunts one emitter. steal its streams',
@@ -202,6 +209,9 @@ const CAMPAIGN_PACKAGES = [{
   levels: [
     { tint: '255,190,90', duration: 45, spawnMin: 0.90, spawnMax: 1.45, speed: 0.52, doubles: 0.35, heavies: 0.12, lines: 0.10, colors: 0.35, frags: 0.10, track: 0,
       hint: 'the cargo is BAIT now — dress it in his phases, make him bite',
+      // the campaign's thesis, authored: one blue bait, one white, early and
+      // unmistakable — the random flood picks up from there
+      beats: [{ t: 12, kind: 'enemy', type: 'lock0' }, { t: 15, kind: 'enemy', type: 'lock1' }],
       story: { line: 'Flotilla running dark. We are their sweep.' } },
     { tint: '126,200,110', duration: 50, spawnMin: 0.80, spawnMax: 1.32, speed: 0.55, doubles: 0.40, heavies: 0.14, lines: 0.12, colors: 0.45, frags: 0.12, track: 1,
       hint: 'match the bait to the mark — wrong phase, no bite',
@@ -215,6 +225,7 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '255,150,70', duration: 60, spawnMin: 0.62, spawnMax: 1.05, speed: 0.60, doubles: 0.50, heavies: 0.16, lines: 0.16, colors: 0.45, frags: 0.14, walls: 0.08, track: 0, bursts: true,
       hint: 'blood in the water — the whole pack answers at once',
       bands: [{ t0: 22, t1: 40, intensity: 1.7, mix: { colors: 0.6 } }],
+      beats: [{ t: 20, kind: 'pickup', type: 'shield' }], // armour handed over as the water reddens
       story: { line: 'Edge of the charted lanes. Check for pirate activity.' } },
     { tint: '120,160,255', duration: 60, spawnMin: 0.56, spawnMax: 0.96, speed: 0.63, doubles: 0.50, heavies: 0.18, lines: 0.18, colors: 0.50, frags: 0.16, walls: 0.10, track: 1,
       hint: 'follow the bite home — phase-locked traffic all the way down',
@@ -223,10 +234,14 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '255,205,90', duration: 65, spawnMin: 0.52, spawnMax: 0.90, speed: 0.65, doubles: 0.55, heavies: 0.18, lines: 0.20, colors: 0.55, frags: 0.18, walls: 0.12, track: 2, bursts: true,
       hint: 'the nest — every phase at once, and it is awake',
       bands: [{ t0: 20, t1: 38, intensity: 1.8 }, { t0: 50, t1: 63, intensity: 2.0, mix: { colors: 0.65 } }],
+      beats: [{ t: 44, kind: 'enemy', type: 'heavy' }, { t: 48, kind: 'pickup', type: 'shield' }],
       story: { line: 'Our lanes are being targeted, tracing...' } },
     { tint: '255,90,110', duration: 70, spawnMin: 0.48, spawnMax: 0.82, speed: 0.68, doubles: 0.58, heavies: 0.22, lines: 0.22, colors: 0.50, frags: 0.20, walls: 0.15, track: 0, bursts: true,
       hint: 'he has committed everything — this is the whole swarm',
       bands: [{ t0: 16, t1: 36, intensity: 1.9 }, { t0: 50, t1: 68, intensity: 2.1, mix: { colors: 0.6, doubles: 0.65 } }],
+      // the eye of it: three still seconds after the first wave breaks, a health
+      // cell before the second — the swarm's last act should be beatable hurt
+      beats: [{ t: 40, kind: 'lull', dur: 3 }, { t: 47, kind: 'pickup', type: 'health' }],
       story: { line: 'Use the star\'s energy to burn our stalkers.' } },
     { tint: '212,120,255', duration: 50, spawnMin: 0.72, spawnMax: 1.28, speed: 0.60, doubles: 0.45, heavies: 0.20, lines: 0.18, colors: 0.40, frags: 0.16, walls: 0.10, track: 1, boss: true, bossKind: 'mimic',
       hint: 'THE MIMIC — its lamp picks your pulse. wrong colour feeds nothing',
