@@ -1020,8 +1020,28 @@ function leechLampCol(b) {
   // the blink-warning vocabulary, so the finale read as "about to flip". A
   // steady violet cannot be misread; the split rim below states the recipe.
   if (b.lastStand) return '212,101,255';
-  if (!bossLampLive()) // at rest: hostile red with a slow violet breath in it
-    return lampMix('255,60,90', '212,101,255', 0.3 + 0.3 * Math.sin(time * 2));
+  // THE REGULAR PHASES BREATHE RED → EMBER, NOT RED → VIOLET (Gil, 2026-08-27).
+  //
+  // This used to mix toward '212,101,255' — which is the LAST STAND's colour, the
+  // line directly above. Purple is the game's word for "both thumbs", so a lamp
+  // that drifted into pink-violet every three seconds was quietly speaking the
+  // finale's vocabulary during an ordinary phase. It read as a state change that
+  // was not happening.
+  //
+  // Red into near-black cannot be misread, because it changes only BRIGHTNESS and
+  // never hue: the lamp is red the whole way down. The dark end is a deep ember
+  // rather than true black — `36,3,9` keeps a red tint at the bottom, so the lamp
+  // dims rather than switching off, which would be its own false signal.
+  //
+  // The lamp does not vanish at the dark end. Its core gradient holds a white-hot
+  // centre (see drawLeechMachine) and both halos are additive, so the swing reads
+  // as the light breathing OUT and back in — which is the whole point.
+  //
+  // The rate dropped from 2 to 1.7 (period ~3.7s) because the swing is now the
+  // full range instead of a third of it; at the old rate that much travel read as
+  // agitated rather than as breathing. Both numbers are the knob.
+  if (!bossLampLive()) // at rest: a hostile red ember, breathing
+    return lampMix('255,60,90', '36,3,9', 0.5 - 0.5 * Math.cos(time * 1.7));
   if (b.lampBlink > 0) // the flip warning: smooth surges toward the NEXT colour
     return lampMix(NODE_COLS[b.lamp], NODE_COLS[1 - b.lamp], 0.5 - 0.5 * Math.cos(time * 16));
   return NODE_COLS[b.lamp];

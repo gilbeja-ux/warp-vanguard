@@ -2557,6 +2557,27 @@ check('the drill still spawns through the run', runA.split('|').length >= 4);
   check('the six identical crackle+square pops are gone',
     !/crackle\(0\.2, 1800, 300, 3, 0\.6\)/.test(bs));
 
+  // THE REGULAR-PHASE LAMP MUST NOT SPEAK THE FINALE'S COLOUR (Gil, 2026-08-27).
+  // '212,101,255' is the LAST STAND's violet and the game's word for "both
+  // thumbs". A resting lamp that breathed into it was announcing a state change
+  // that was not happening. The rest phase now moves in BRIGHTNESS only, so the
+  // pin guards the hue: the violet may appear on the last-stand line and nowhere
+  // else in this function.
+  {
+    const ea = fs.readFileSync(path.join(ROOT, 'src', 'game', '85-enemy-art.js'), 'utf8');
+    const fn = ea.slice(ea.indexOf('function leechLampCol'), ea.indexOf('function drawLeechMachine'));
+    const rest = fn.slice(fn.indexOf('if (!bossLampLive())'));
+    check('the resting boss lamp never mixes toward the last-stand violet',
+      !/212,101,255/.test(rest));
+    check('the resting boss lamp breathes red into a dark ember',
+      /'255,60,90',\s*'\d{1,2},\d{1,2},\d{1,2}'/.test(rest));
+    // and the ember must stay RED-dominant, or the hue moves after all
+    const m = /'255,60,90',\s*'(\d+),(\d+),(\d+)'/.exec(rest);
+    check('the ember end is dark and still red-dominant',
+      !!m && +m[1] <= 70 && +m[1] > +m[2] && +m[1] > +m[3]);
+    check('the last stand keeps its violet', /if \(b\.lastStand\) return '212,101,255'/.test(fn));
+  }
+
   // THE CHARGE MUST BUILD, NOT DECAY (Gil, 2026-08-26). The first pass read thin
   // because it was made of tone/crackle, which ramp gain DOWN from sample one — it
   // decayed while the picture said it was loading. The swell primitives are the

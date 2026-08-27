@@ -54,6 +54,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-31 | DONE | Balance | MED | Power-ups never land inside a dead-zone carpet — both spawners fixed + a pinned test (ships in 1.0.4) |
 | H-32 | DONE | HUD | MED | Barks redesigned as a broadcast subtitle — tag on its own line, 13px wrapped message (F-012; ships in the next build) |
 | H-33 | IN PROGRESS | Audio | MED | Boss audio realism — the ray has no charge and no sweep voice; the six dying plates are one repeated synth crackle (Gil, 2026-08-26) |
+| H-34 | DONE | Art | MED | Boss lamp misled — the resting phase breathed into the LAST STAND's violet; now red → near-black ember, brightness only (Gil, 2026-08-27) |
 
 ---
 
@@ -449,3 +450,15 @@ The whole ray therefore reads as a silent visual with one blip on reversal, and 
   - The **charge-up** and the **plate explosions** want **recorded takes**. Explosions are the hardest thing to fake with oscillators, and this is exactly the split `CREDITS.md` already describes: *reactive sounds are synthesized, big moments use recorded one-shots*.
 - **Constraints that already apply:** any new cue must obey the draw-only / no-`Math.random` rule in `docs/IN-RUN-VOICE.md` (a sound that draws from the sim RNG desyncs the replay verifier). Vary the six plates by the existing `b.dyingN` counter, never by a roll. Level any new take through the H-13 master limiter and pin it in `scripts/test-sfx-levels.mjs`; the soundboard on 8012 is the instrument (see the sfx-soundboard memory).
 - **Options:** (a) synth-only — build the sweep voice and re-voice the plates with better synthesis, no new files; (b) hybrid — synth sweep + recorded charge and plate takes that Gil sources; (c) recorded-only — Gil sources every cue and the sweep take is retriggered/pitched to approximate the rotation.
+
+---
+
+## H-34 · The resting boss lamp breathed the finale's colour
+- **Status:** DONE (2026-08-27) · **Area:** Art · **Sev:** MED · **Raised by:** Gil, 2026-08-27 (not from the 2026-08-21 audit)
+- **Issue, in Gil's words:** the red light phase "breathes from red to pink/purple which is misleading — it needs to breathe red → dark red (almost black) so it's clear (on the regular phases)".
+- **Evidence:** `85-enemy-art.js:1024` mixed `'255,60,90'` toward `'212,101,255'` at t = 0.3…0.6.
+- **Why it mattered more than it looked.** `212,101,255` is the LAST STAND lamp's colour, set on the line directly above, and purple is the game's word for "both thumbs". A resting boss was drifting into the finale's vocabulary every three seconds. The ramp also never actually reached red: it ran `rgb(242,72,140)` → `rgb(229,85,189)`, hot pink into magenta.
+- **Fix.** `lampMix('255,60,90', '36,3,9', 0.5 - 0.5 * Math.cos(time * 1.7))`. The breath now changes **brightness only, never hue** — red stays the dominant channel the whole way down, so it cannot be misread. The dark end is a deep ember rather than true black, because a lamp that switched fully off would be its own false signal; the core keeps a white-hot pinpoint and both halos are additive, so the swing reads as the light breathing OUT and back in. The rate dropped 2 → 1.7 (period ~3.7s) because the swing is now the full range instead of a third of it, and at the old rate that much travel read as agitated rather than as breathing. Both numbers are the knob, on the same line.
+- **`255,60,90` was NOT touched** — it is the game's hostile-red identity across five files. Only the mix target changed.
+- **Verified.** `npm test` green, 4 new pins (one fails if the resting branch ever names the last-stand violet again). A real boss test was driven in headless Chrome and both ends of the breath were looked at: bright is a clear red lamp, dark is a near-black ember with only the white pinpoint left. **41 boards, 0 moved** — render-only.
+- **FOUND, NOT CHANGED — open for Gil.** A violet ring hugs the lamp in both frames. It is not the lamp: it is the housing's machined mouth at `85-enemy-art.js:1122`, stroked with `gCol`, the accent that deliberately glitches between the hostile red and the interdiction violet and grows as the boss is wounded. It flickers on `time * 11` rather than breathing, so it is a different rhythm from the one Gil described — but it sits right against the lamp. Asked, not yet answered: leave the glitch, or pull the violet out of the accent too.
