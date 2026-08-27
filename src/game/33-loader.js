@@ -27,7 +27,7 @@ function validateCampaign(p) {
     if (!(l.duration > 0 && l.duration <= 600)) errs.push(tag + 'bad duration');
     if (!(l.speed > 0 && l.speed <= 2)) errs.push(tag + 'bad speed');
     if (!(l.spawnMin > 0 && l.spawnMax >= l.spawnMin)) errs.push(tag + 'bad spawn window');
-    for (const k of ['doubles', 'heavies', 'lines', 'colors', 'frags', 'walls'])
+    for (const k of ['doubles', 'heavies', 'lines', 'colors', 'walls'])
       if (l[k] !== undefined && !(l[k] >= 0 && l[k] <= 1)) errs.push(tag + 'bad ' + k + ' rate');
     // boss finales may pick their intruder; the engine defaults to 'core'
     if (!/^\d{1,3},\d{1,3},\d{1,3}$/.test(l.tint || '')) errs.push(tag + 'bad tint');
@@ -62,7 +62,7 @@ function validateCampaign(p) {
     // beats: hand-placed timeline events (structural checks only — fairness
     // findings are lintCampaign WARNINGS, never rejection grounds)
     const BK = { enemy: 1, wall: 1, strip: 1, pickup: 1, lull: 1 };
-    const ET = { normal: 1, heavy: 1, line: 1, lock0: 1, lock1: 1, frag: 1 };
+    const ET = { normal: 1, heavy: 1, line: 1, lock0: 1, lock1: 1 };
     const PK = { shield: 1, wide: 1, auto: 1, inject: 1, chain: 1, health: 1 }; // mirrors PICKUPS (declared later — TDZ at boot)
     if (l.beats !== undefined && !Array.isArray(l.beats)) errs.push(tag + 'bad beats');
     (Array.isArray(l.beats) ? l.beats : []).forEach(b => {
@@ -76,7 +76,7 @@ function validateCampaign(p) {
       if (b.force !== undefined && typeof b.force !== 'boolean') errs.push(tag + 'bad beat force');
     });
     // bands: only the rate knobs may be mixed — speed/duration stay level-wide
-    const MK = { doubles: 1, heavies: 1, lines: 1, colors: 1, frags: 1, walls: 1, bursts: 1 };
+    const MK = { doubles: 1, heavies: 1, lines: 1, colors: 1, walls: 1, bursts: 1 };
     if (l.bands !== undefined && !Array.isArray(l.bands)) errs.push(tag + 'bad bands');
     (Array.isArray(l.bands) ? l.bands : []).forEach(b => {
       if (!b || !(b.t0 >= 0 && b.t1 > b.t0 && b.t1 <= l.duration)) { errs.push(tag + 'bad band window'); return; }

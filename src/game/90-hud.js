@@ -609,7 +609,6 @@ function drawIntroCard() {
 const TUT_LESSON = {
   move:   'SLIDE THE DIALS \u2014 RIDE THE RING',
   normal: 'ALIGN EITHER EMITTER ON THE RED',
-  frag:   'EMITTER KILLER \u2014 LET IT PASS',
   wall:   'DEAD ZONE \u2014 GO AROUND',
   heavy:  'DOCK BOTH EMITTERS TOGETHER',
   line:   'COVER BOTH ENDS \u2014 ONE EACH',
@@ -620,7 +619,7 @@ const TUT_LESSON = {
   pulse:  'TAP THE GLOWING CORE'
 };
 const TUT_ACCENT = {
-  move: '143,224,255', normal: '255,96,120', frag: '255,154,60', wall: '255,154,60',
+  move: '143,224,255', normal: '255,96,120', wall: '255,154,60',
   heavy: '143,224,255', line: '111,227,255', lock0: '95,150,255', lock1: '235,244,255',
   pickup: '255,210,74', strip: '255,210,74', pulse: '255,210,74'
 };
@@ -668,7 +667,7 @@ function tutFocusDesc(st, ten) {
                 Math.abs(angDiff(nodes[1].angle, aS)) ? 0 : 1;
       ghosts.push({ i, a: aS, col: '255,210,74' });
     }
-    // frag and the dead zone ghost nothing — the drill is DODGE, and a ghost says "go here"
+    // the dead zone ghosts nothing — its drill is DODGE, and a ghost says "go here"
   }
   return { kind, ghosts };
 }
@@ -1203,11 +1202,6 @@ function drawHUD(g) {
         }
       }
       else if (ten.lock !== undefined) drawGuideArc(nodes[ten.lock], ten.angle);
-      // killers wear a landing signal — the drill is DODGE, the label says so
-      else if (ten.type === 'frag') {
-        drawKillerSignal(ten);
-        drawRideLabel('DANGER! AVOID!', ten, '#ffb066'); // rides it from spawn
-      }
       else drawGuideArc(nn(ten.angle), ten.angle);
       if (st.card === 'normal' && ten.type === 'normal' && ten.lock === undefined) {
         // the tooltip tracks the trap's ANGLE from the moment it spawns, held

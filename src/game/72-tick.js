@@ -443,9 +443,9 @@ function update(dt) {
   for (const wv of pulseWaves) {
     wv.z += dt * 1.6;
     for (const en of enemies) {
-      // never purge payloads or the golden bonus ribbon — the wave that the
-      // ribbon itself charged shouldn't eat the next one
-      if (en.dead || en.resolved || en.type === 'frag' || en.type === 'strip') continue;
+      // never purge the golden bonus ribbon — the wave that the ribbon itself
+      // charged shouldn't eat the next one
+      if (en.dead || en.resolved || en.type === 'strip') continue;
       if (en.z <= wv.z) {
         en.dead = true;
         if (en.partner) en.partner.dead = true;
@@ -596,6 +596,100 @@ function updateLatches(dt, inIntro, ringXY, nodeXY) {
   }
 
 }
+// ---------- THE VOLLEY'S BLAST ----------
+// The unite-volley costs both thumbs for half a second and then 1.25s of
+// recharge, and for all that it used to delete exactly one red. In a busy lane
+// that is a losing trade, which is why the shot was the one mechanic nobody
+// spent. It now DETONATES on whatever it hits.
+//
+// The reach is bounded on BOTH axes, unlike a purge wave: this is a burst around
+// the impact, not a sweep of the bore. A blast bounded in depth alone would be a
+// full ring at that depth, which is far too much for an ordinary kill.
+//
+// THE REGION IS AN ELLIPSE, not a box. A box would reach its full depth even at
+// the far edge of its angle, which is a corner no blast has — a detonation falls
+// off in every direction at once. The two constants are its semi-axes, so a
+// neighbour straight ahead still gets the full depth reach and one off to the
+// side has to be nearer to be taken.
+//
+// What the blast takes is exactly what the BOLT takes: single plain reds and
+// heavy armor. Barrier pairs and phase-locked taps stay keyed work for the nodes
+// themselves — that law predates this and an area weapon that broke it would
+// hollow out every lock lane.
+//
+// It pays like any volley kill (volleyKill), so the pulse economy stays
+// interception's alone, and the blast never chains: only the bolt's own direct
+// hit detonates.
+const VOLLEY_BLAST_Z = 0.20;  // semi-axis along the bore
+const VOLLEY_BLAST_A = 0.90;  // semi-axis around the ring, radians
+const volleyFX = [];          // draw-only, see drawVolleyBlasts
+// Whether the blast may take this one. Kept beside the bolt's own filter above,
+// which must stay in step with it — one law, two callers.
+const blastTakes = en => !(en.dead || en.resolved || en.failed)
+  && en.type !== 'strip' && en.type !== 'line' && !en.partner && en.lock === undefined;
+// inside the ellipse: the two reaches are semi-axes, so this is 1 on the boundary
+const blastReaches = (en, hit) => {
+  const dz = (en.z - hit.z) / VOLLEY_BLAST_Z;
+  const da = angDiff(en.angle, hit.angle) / VOLLEY_BLAST_A;
+  return dz * dz + da * da <= 1;
+};
+// ONE KILL, ONE LEDGER. The bolt's own hit and the blast both come through here,
+// so a blast kill can never drift from a bolt kill.
+// A VOLLEY KILL IS A KILL. It advances the combo and takes the combo
+// multiplier, and interdiction at RANGE pays a depth bonus on top —
+// pre-clearing deep traffic is how a power player spends the dock, and
+// how a defensive player buys room for the incoming interceptions.
+// What it still never does: no perfect ×2 (a bore bolt has no aim
+// grade) and no pulse feed — the pulse economy stays interception's
+// alone. The real price is unchanged: both thumbs parked for the
+// charge, then the 1.25s recharge gap.
+// Returns true for armor, which is the one thing that stops the bolt.
+function volleyKill(en, g, vx, vy) {
+  en.dead = true;
+  if (combo === 0) comboStartT = levelT;
+  combo++;
+  if (combo > maxCombo) { maxCombo = combo; maxComboStart = comboStartT; }
+  if (comboStartT === maxComboStart) maxComboSec = levelT - maxComboStart;
+  const depthQ = clamp((en.z - g.hitZ) / (SPAWN_Z - g.hitZ), 0, 1);
+  const deep = Math.round(140 * depthQ);
+  const vb = Math.round(((en.type === 'heavy' ? 250 : 60) + deep) * mutMul()) * scoreMul();
+  score += vb; zaps++; // a volley kill is a kill in the style tiebreak too (H-25)
+  decompile(en.angle, en.z, en);
+  popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : deep >= 40 ? 'DEEP +' : '+') + vb
+    + (combo >= 3 ? '  x' + scoreMul() : ''), '#bfeaff');
+  if (en.tut) popup(vx, vy - 30, 'NEUTRALIZED', '#7ee262'); // the label's verb, answered
+  rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
+  const volleyZapSampled = sfx.zap(1, Math.cos(en.angle) * 0.6);
+  buzz(en.type === 'heavy' ? 25 : 12, en.type === 'heavy'
+    ? { strong: 0.7, weak: 0.4 } : { strong: 0.18, weak: 0.45 });
+  spawnKillStreak(en.angle, en.z);
+  lastKillBeat(en);
+  if (en.type === 'heavy' && !volleyZapSampled) tone(110, 0.2, 'square', 0.13, 60); // synth-era armor thump
+  return en.type === 'heavy';
+}
+// The detonation itself. `hit` is what the bolt struck and is already dead —
+// this takes its NEIGHBOURS. Returns how many it took.
+function volleyBlast(hit, g) {
+  let n = 0;
+  for (const en of enemies) {
+    if (en === hit || !blastTakes(en) || !blastReaches(en, hit)) continue;
+    const rgB = ring(Math.max(en.z, 0.02), g);
+    volleyKill(en, g, rgB.x + Math.cos(en.angle) * rgB.r, rgB.y + Math.sin(en.angle) * rgB.r);
+    n++;
+  }
+  const rgH = ring(Math.max(hit.z, 0.02), g);
+  const hx = rgH.x + Math.cos(hit.angle) * rgH.r, hy = rgH.y + Math.sin(hit.angle) * rgH.r;
+  burst(hx, hy, '#bfeaff', 20 + n * 8, 4.5);
+  burst(hx, hy, '#ffffff', 10, 3);
+  volleyFX.push({ z: hit.z, a: hit.angle, t0: time, kills: n });
+  if (n) {
+    popup(hx, hy - 52, 'BLAST \u00d7' + n, '#bfeaff');
+    shake = Math.min(shake + 0.12 + n * 0.06, 1);
+    crackle(0.18, 900, 2600, 2, 0.45);
+    buzz(14 + n * 6, { strong: 0.25, weak: 0.5 });
+  }
+  return n;
+}
 // The UNITE-VOLLEY, once docking has been decided: charge, fire, and fly the
 // bolt down the bore. Whether the nodes are docked is update()'s call — this
 // is what happens afterwards.
@@ -627,53 +721,12 @@ function updateVolley(dt, docked, g) {
       if (Math.abs(angDiff(en.angle, sh.a)) > 0.30 || Math.abs(en.z - sh.z) > 0.09) continue;
       const rgV = ring(Math.max(en.z, 0.02), g);
       const vx = rgV.x + Math.cos(en.angle) * rgV.r, vy = rgV.y + Math.sin(en.angle) * rgV.r;
-      if (en.type === 'frag') {
-        // shooting a trap REPLICATES it — one becomes two. The lesson costs.
-        sh.dead = true;
-        en.dead = true;
-        for (const s3 of [-1, 1]) {
-          enemies.push({ type: 'frag', lock: undefined, z: Math.min(SPAWN_Z - 0.06, en.z + 0.22),
-            angle: en.angle + s3 * 0.32, sizeMul: 0.8, speedMul: 1,
-            spin: Math.random() * TAU, spinMul: 1, age: 0, dead: false, partner: null });
-        }
-        burst(vx, vy, '#4a5568', 26, 4);
-        burst(vx, vy, '#ff9a3c', 12, 3);
-        popup(vx, vy, 'TRAP REPLICATED ×2', '#ff9a3c');
-        tone(150, 0.3, 'sawtooth', 0.13, 60);
-        crackle(0.3, 2600, 500, 3, 0.7);
-        shake = Math.min(shake + 0.5, 1);
-        buzz([30, 30, 50], { strong: 0, weak: 0 }); // WORLD telegraph — phone only
-        break; // the bolt died on the trap
-      }
-      // A VOLLEY KILL IS A KILL. It advances the combo and takes the combo
-      // multiplier, and interdiction at RANGE pays a depth bonus on top —
-      // pre-clearing deep traffic is how a power player spends the dock, and
-      // how a defensive player buys room for the incoming interceptions.
-      // What it still never does: no perfect ×2 (a bore bolt has no aim
-      // grade) and no pulse feed — the pulse economy stays interception's
-      // alone. The real price is unchanged: both thumbs parked for the
-      // charge, then the 1.25s recharge gap.
-      en.dead = true;
-      if (combo === 0) comboStartT = levelT;
-      combo++;
-      if (combo > maxCombo) { maxCombo = combo; maxComboStart = comboStartT; }
-      if (comboStartT === maxComboStart) maxComboSec = levelT - maxComboStart;
-      const depthQ = clamp((en.z - g.hitZ) / (SPAWN_Z - g.hitZ), 0, 1);
-      const deep = Math.round(140 * depthQ);
-      const vb = Math.round(((en.type === 'heavy' ? 250 : 60) + deep) * mutMul()) * scoreMul();
-      score += vb; zaps++; // a volley kill is a kill in the style tiebreak too (H-25)
-      decompile(en.angle, en.z, en);
-      popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : deep >= 40 ? 'DEEP +' : '+') + vb
-        + (combo >= 3 ? '  x' + scoreMul() : ''), '#bfeaff');
-      if (en.tut) popup(vx, vy - 30, 'NEUTRALIZED', '#7ee262'); // the label's verb, answered
-      rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
-      const volleyZapSampled = sfx.zap(1, Math.cos(en.angle) * 0.6);
-      buzz(en.type === 'heavy' ? 25 : 12, en.type === 'heavy'
-        ? { strong: 0.7, weak: 0.4 } : { strong: 0.18, weak: 0.45 });
-      spawnKillStreak(en.angle, en.z);
-      lastKillBeat(en);
-      if (en.type === 'heavy') { // armor stops the bolt; reds it punches through
-        if (!volleyZapSampled) tone(110, 0.2, 'square', 0.13, 60); // synth-era armor thump
+      // the ledger lives in volleyKill, so the bolt and its blast can never pay
+      // differently for the same enemy. The blast fires from the DIRECT hit only
+      // and takes the neighbours, so it can never cascade.
+      const wasArmor = volleyKill(en, g, vx, vy);
+      volleyBlast(en, g);
+      if (wasArmor) { // armor stops the bolt; reds it punches through
         sh.dead = true;
         break;
       }
@@ -745,7 +798,7 @@ function updateEnemy(en, C) {
 
   // sonar tick: a quiet geiger blip per hostile, panned to its angle,
   // accelerating as it closes — the wave is audible before it's urgent
-  if (!en.dead && !en.resolved && !en.failed && en.type !== 'frag' && en.type !== 'strip' && en.z > g.hitZ && en.z < 1.9) {
+  if (!en.dead && !en.resolved && !en.failed && en.type !== 'strip' && en.z > g.hitZ && en.z < 1.9) {
     en.tickT = (en.tickT || 0) - sdt;
     if (en.tickT <= 0) {
       const tArr = (en.z - g.hitZ) / (trafficSpeed * (en.speedMul || 1));
@@ -819,50 +872,6 @@ function updateEnemy(en, C) {
   }
 
   if (!en.dead && !en.resolved && en.z <= g.hitZ) {
-    // node killer: a hacker trap — touching it IS the mistake
-    if (en.type === 'frag') {
-      const touched = covers(nodes[0], en.angle) || covers(nodes[1], en.angle);
-      const { x: fx2, y: fy } = ringXY(en.angle);
-      if (touched) {
-        en.dead = true;
-        burst(fx2, fy, '#4a5568', 22, 3.5);
-        if (en.tut && en.touchMe) { // the lesson: feel the fry, no penalty beyond it
-          if (tut) tut.fragTaught = true;
-          for (const n of nodes) if (covers(n, en.angle)) n.deadT = 2;
-          popup(fx2, fy, 'FRIED — 2s REBOOT. now you know', '#ff9a3c');
-          sfx.fry(Math.cos(en.angle) * 0.7);
-          buzz([40, 40, 60]);
-        } else if (en.tut) { // practice: it fries here too — dodge means dodge
-          if (tut) { tut.retry = en.tut; tut.t = 0; }
-          for (const n of nodes) if (covers(n, en.angle)) n.deadT = 2;
-          popup(fx2, fy, 'FRIED — dodge it. AGAIN', '#ff9a3c');
-          sfx.fry(Math.cos(en.angle) * 0.7);
-          buzz([40, 40, 60]);
-        } else {
-          combo = 0; comboHeal = 0; fragsHit++;
-          if (!shieldAbsorb(fx2, fy)) {
-            // the trap fries every node that touched it — 2s forced reboot,
-            // and the fry tax bleeds the orb it was banking
-            for (let ni = 0; ni < 2; ni++) if (covers(nodes[ni], en.angle)) { nodes[ni].deadT = 2; fryDrain(ni); }
-            popup(fx2, fy, 'EMITTER FRIED — REBOOTING', '#ff4a5e');
-            redFlash = 1; shake = Math.min(shake + 0.6, 1);
-            sfx.fry(Math.cos(en.angle) * 0.7);
-            buzz([40, 40, 60]);
-          }
-        }
-      } else {
-        en.resolved = true;
-        if (en.tut && en.touchMe) { // the lesson requires contact — again
-          if (tut) { tut.retry = en.tut; tut.t = 0; }
-          popup(fx2, fy, 'TOUCH it this once — feel what it does', '#ff9a3c');
-        } else {
-          const bonus = Math.round(50 * mutMul());
-          score += bonus;
-          popup(fx2, fy, (en.tut ? 'DODGED +' : 'trap avoided +') + bonus, en.tut ? '#7ee262' : '#9aa7bd');
-        }
-      }
-      return;
-    }
     let hit = false;
     const boltPairs = []; // [node, targetAngle] — where the lightning jumps from/to
     if (fx.auto > 0) {
@@ -985,7 +994,7 @@ function updateEnemy(en, C) {
         let cBest = null, cd = 9;
         for (const c of enemies) {
           if (c === en || c === en.partner || c.dead || c.resolved || c.failed) continue;
-          if (c.type === 'frag' || c.type === 'strip') continue; // never into payloads or ribbons
+          if (c.type === 'strip') continue; // never into ribbons
           const dA = Math.abs(angDiff(c.angle, en.angle));
           if (dA < cd) { cd = dA; cBest = c; }
         }

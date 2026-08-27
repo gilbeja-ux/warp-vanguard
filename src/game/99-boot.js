@@ -920,6 +920,7 @@ function frame(now) {
   if (runVis < 1) { ctx.save(); ctx.globalAlpha *= runVis; }
   for (const en of sorted) if (en.lineLead) drawLineBeam(en, g); // beams sit under the traps
   for (const en of sorted) drawEnemy(en, g);
+  drawVolleyBlasts(g); // the blast sits OVER the traffic it just swallowed
   for (const gh of (inGuide || runVis <= 0.004) ? [] : ghosts) drawGhost(gh, g); // dead bodies de-rezzing in place
   for (const p of (inGuide || runVis <= 0.004) ? [] : pickups) drawPickup(p, g);
   if (runVis < 1) ctx.restore();

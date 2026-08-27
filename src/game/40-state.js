@@ -15,7 +15,7 @@ let enlist = null;
 // four hand-written comparisons is how one of them gets missed.
 const parkedSky = () => state === S.MENU || state === S.ENLIST;
 let levelIdx = 0, levelT = 0, spawnT = 0;
-let integrity = 100, score = 0, zaps = 0, misses = 0, combo = 0, perfects = 0, fragsHit = 0;
+let integrity = 100, score = 0, zaps = 0, misses = 0, combo = 0, perfects = 0;
 let maxCombo = 0; // longest streak this run — a leaderboard display stat + tiebreaker
 let comboStartT = 0, maxComboStart = 0, maxComboSec = 0; // duration the record streak held — a replay-panel stat
 let simMuted = false; // true during the silent stat pre-run of a replay — gates all sfx

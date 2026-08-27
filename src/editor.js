@@ -44,7 +44,7 @@ const ED = {
     return {
       tint: '80,160,255', duration: 45,
       spawnMin: 1.2, spawnMax: 2.0, speed: 0.4,
-      doubles: 0, heavies: 0, lines: 0, colors: 0, frags: 0, track: 0,
+      doubles: 0, heavies: 0, lines: 0, colors: 0, track: 0,
       story: { title: 'LOG — NEW RELAY', lines: ['edit this briefing'] },
       comms: []
     };
@@ -63,7 +63,7 @@ const ED = {
     if (tool === 'strip') return { t, kind: 'strip' };
     if (tool === 'pickup') return { t, kind: 'pickup' };
     if (tool === 'lull') return { t, kind: 'lull', dur: 4 };
-    return { t, kind: 'enemy', type: tool, angle }; // normal|heavy|line|lock0|lock1|frag
+    return { t, kind: 'enemy', type: tool, angle }; // normal|heavy|line|lock0|lock1
   },
 
   // ---------- beat mutators (always keep beats sorted by t) ----------
@@ -197,12 +197,11 @@ const ED = {
   // (255,150,60), bonus stream + power-up GOLD, lull neutral gray-blue
   colors: {
     normal: '#ff5468', heavy: '#d465ff', line: '#ff5468', lock0: '#4d9bff',
-    lock1: '#ffffff', frag: '#0b0e16', wall: '#ff963c', strip: '#ffd24a',
+    lock1: '#ffffff', wall: '#ff963c', strip: '#ffd24a',
     pickup: '#ffd24a', lull: '#46608c'
   },
   chip(key) {
     const c = ED.colors[key] || '#46608c';
-    if (key === 'frag') return { bg: c, bd: '#7ea2d8', tick: '#7ea2d8' };  // the black trap needs an outline on a dark UI
     if (key === 'pickup') return { bg: 'transparent', bd: c, tick: c };    // gold RING — the solid gold chip is the strip
     if (key === 'line') return { bg: c, bd: '#ff8ba0', tick: c };          // red base, pinkish beam accent
     if (key === 'lock1') return { bg: c, bd: '#5a6a85', tick: c };
@@ -227,10 +226,10 @@ const EDUI = {
   commRows: [], closedTracks: new Set(), dlg: null,
   dragging: false, booted: false
 };
-const EDTOOLS = ['select', 'normal', 'heavy', 'line', 'lock0', 'lock1', 'frag', 'wall', 'strip', 'pickup', 'lull'];
+const EDTOOLS = ['select', 'normal', 'heavy', 'line', 'lock0', 'lock1', 'wall', 'strip', 'pickup', 'lull'];
 const EDPICKUPS = ['', 'shield', 'wide', 'auto', 'inject', 'chain'];
-const EDKNOBS = ['doubles', 'heavies', 'lines', 'colors', 'frags', 'walls'];
-const EDMIX = ['doubles', 'heavies', 'lines', 'colors', 'frags', 'walls'];
+const EDKNOBS = ['doubles', 'heavies', 'lines', 'colors', 'walls'];
+const EDMIX = ['doubles', 'heavies', 'lines', 'colors', 'walls'];
 
 function edq(id) { return document.getElementById(id); }
 function edLv() { return EDUI.pkg.levels[EDUI.li]; }
@@ -558,7 +557,7 @@ function edBuildStatic() {
 
   // beat tool palette (short labels — eleven tools share one bar)
   const toolNames = { select: 'SEL', normal: 'NORM', heavy: 'HVY', line: 'LINE', lock0: 'LK0',
-    lock1: 'LK1', frag: 'FRAG', wall: 'WALL', strip: 'STRIP', pickup: 'PICK', lull: 'LULL' };
+    lock1: 'LK1', wall: 'WALL', strip: 'STRIP', pickup: 'PICK', lull: 'LULL' };
   const tools = edq('edTools');
   for (const t of EDTOOLS) {
     const b = edEl('button', t === 'select' ? 'on' : '', tools);
@@ -1245,7 +1244,7 @@ function edRenderBeatList() {
     const tag = edEl('span', '', row); tag.textContent = b.kind;
     if (b.kind === 'enemy' || b.kind === 'pickup') {
       const s = edEl('select', '', row);
-      const opts = b.kind === 'enemy' ? ['normal', 'heavy', 'line', 'lock0', 'lock1', 'frag'] : EDPICKUPS;
+      const opts = b.kind === 'enemy' ? ['normal', 'heavy', 'line', 'lock0', 'lock1'] : EDPICKUPS;
       for (const o of opts) { const op = edEl('option', '', s); op.value = o; op.textContent = o || '(random)'; }
       s.value = b.type || '';
       s.addEventListener('change', e => {

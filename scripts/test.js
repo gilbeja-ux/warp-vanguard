@@ -388,14 +388,31 @@ volleyShot(1.4, 12);
 for (let i = 0; i < 30 && !en.dead; i++) vstep();
 const deepPts = (G.getScore() - sv0) / Math.min(G.stats().combo, 10);
 check('a deeper volley kill pays more', en.dead === true && deepPts > nearPts);
-// shooting a node killer REPLICATES it — that'll teach you
+// THE VOLLEY'S BLAST: the bolt detonates on what it hits and takes the
+// neighbours inside a small wedge — bounded in depth AND angle.
 G.enemies().length = 0;
-en = G.spawnEnemy(2.0, 'frag');
-en.z = 1.0;
-volleyShot(2.0, 12);
-for (let i = 0; i < 25 && !en.dead; i++) vstep();
-check('shooting a trap replicates it (1 -> 2)',
-  en.dead === true && G.enemies().filter(e => e.type === 'frag' && !e.dead).length === 2);
+G.volley().cd = 0;
+{
+  const hit = G.spawnEnemy(2.0, 'normal'); hit.z = 1.2; hit.lock = undefined;
+  const near = G.spawnEnemy(2.0 + 0.30, 'normal'); near.z = 1.25; near.lock = undefined; // inside both bounds
+  const wideA = G.spawnEnemy(2.0 + 1.40, 'normal'); wideA.z = 1.20; wideA.lock = undefined; // angle too far
+  const deepZ = G.spawnEnemy(2.0 + 0.20, 'normal'); deepZ.z = 1.60; deepZ.lock = undefined; // depth too far
+  // THE CORNER. Inside the box on both axes (0.18 < 0.20, 0.80 < 0.90) and
+  // outside the ELLIPSE, which is the whole point of the rounded region.
+  const corner = G.spawnEnemy(2.0 + 0.80, 'normal'); corner.z = 1.38; corner.lock = undefined;
+  const keyed = G.spawnEnemy(2.0 - 0.25, 'normal'); keyed.z = 1.22; keyed.lock = 0;        // keyed work stays keyed
+  volleyShot(2.0, 12);
+  for (let i = 0; i < 30 && !hit.dead; i++) vstep();
+  check('the bolt still kills what it hits', hit.dead === true);
+  check('the blast takes a neighbour inside the ellipse', near.dead === true);
+  check('and leaves one too far around the ring', wideA.dead !== true);
+  check('and leaves one too far down the bore', deepZ.dead !== true);
+  check('the region is ROUND: a corner inside the box is still outside the reach',
+    corner.dead !== true);
+  check('a phase-locked tap is never taken by the blast', keyed.dead !== true);
+}
+G.enemies().length = 0;
+G.volley().cd = 0;
 // keyed work stays keyed: the bolt ignores barrier pairs and color locks
 G.enemies().length = 0;
 G.volley().cd = 0;
@@ -2367,15 +2384,6 @@ function zapPractice() {
   check('landing both nodes on their targets completes the control check', G.qualStage().card === 'normal');
 }
 check('practice trap 1 spawns and dies', waitLive(4) && zapPractice());
-// the node killer rides with the early traps — STEER CLEAR: dodge it
-waitLive(4);
-{
-  const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
-  check('the killer joins the early flow', !!pen && pen.type === 'frag');
-  aim(0, pen.angle + 1.5); aim(1, pen.angle - 1.5);
-  cross(pen);
-  check('letting the killer pass banks the dodge', pen.resolved === true && !pen.dead);
-}
 check('practice trap 2 spawns and dies', waitLive(4) && zapPractice());
 // the practice wall lands in the same flow — steer clear until it burns off
 {
@@ -2697,25 +2705,15 @@ s0 = G.getScore();
 cross(en);
 check('edge zap scores normal (combo 2 → 200, no perfect)', G.getScore() - s0 === 200 && G.getPerfects() === 1);
 
-// ================= payload fragments =================
+// ================= the node reboot =================
+// The node killer is gone (2026-08-27), so the dead zone is the only thing left
+// that fries a node. The reboot itself is unchanged and still has to hold.
 G.startLevel(3);
 G.enemies().length = 0;
-en = G.spawnEnemy(1.2, 'frag');
-aim(0, Math.PI); aim(1, 2.6); // leave it alone
-s0 = G.getScore();
-const int0 = G.stats().integrity;
-cross(en);
-check('untouched packet pays a small bonus', en.resolved && G.getScore() - s0 === 50 && G.stats().integrity === int0);
-en = G.spawnEnemy(1.2, 'frag');
-aim(1, 1.2); // touch the trap — the mistake
-G.setShield(0); // no shield: this block measures the fry, not the save
-G.setPulse([8, 8]); // and the fry tax: the burned pad's orb bleeds 3
-cross(en);
-check('touching a node killer fries the node, not the payload',
-  en.dead && G.nodes[1].deadT > 0 && G.stats().integrity === int0 && G.stats().combo === 0);
-check('the fry tax bleeds the fried orb by 3 — the other is untouched',
-  G.getPulse()[1] === 5 && G.getPulse()[0] === 8);
+G.setShield(0);
+G.nodes[1].deadT = 2; // a fried optic, however it was earned
 en = G.spawnEnemy(1.2, 'normal');
+aim(1, 1.2);
 cross(en);
 check('a rebooting node cannot zap', !en.dead);
 G.enemies().length = 0;
@@ -2953,7 +2951,7 @@ G.keys['ArrowUp'] = false;
       { name: 'CLEAN', ...knobs },
       { name: 'PAD', ...knobs },
       { name: 'SUBLANE TWIN', tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35,
-        speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14,
+        speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00,
         comms: [{ t: 6, s: 'OMNI', m: 'they are walling the rail.' },
                 { t: 20, s: 'OMNI', m: 'deployment key holds clearance.' },
                 { t: 34, s: 'OMNI', m: 'log it. tell no one.' }],
@@ -3206,10 +3204,10 @@ G.keys['ArrowUp'] = false;
   check('wallFits allows an opposite arc inside the window', ED.wallFits(wl, 21, 1.0 + Math.PI, trav).ok === true);
   // color language: every chip resolves, and the game's code is spoken exactly
   check('every tool speaks the in-game color language',
-    ['normal', 'heavy', 'line', 'lock0', 'lock1', 'frag', 'wall', 'strip', 'pickup', 'lull']
+    ['normal', 'heavy', 'line', 'lock0', 'lock1', 'wall', 'strip', 'pickup', 'lull']
       .every(k => { const c = ED.chip(k); return !!(c.bg && c.bd && c.tick); }) &&
     ED.colors.heavy === '#d465ff' && ED.colors.wall === '#ff963c' &&
-    ED.colors.lock0 === '#4d9bff' && ED.colors.frag === '#0b0e16' && ED.colors.normal === '#ff5468');
+    ED.colors.lock0 === '#4d9bff' && ED.colors.normal === '#ff5468');
 
   // track packing (video-editor semantics): sequential beats share TRACK 1,
   // genuinely simultaneous ones open a new track; touching edges still share
@@ -4692,8 +4690,13 @@ async function runMusicUp() {
   check('C1L7 carries exactly one band: the 0–15s debut breath',
     Array.isArray(l7.bands) && l7.bands.length === 1 && l7.bands[0].t0 === 0 && l7.bands[0].t1 === 15);
   const inB = G.bandCfg(l7, 10), outB = G.bandCfg(l7, 15);
-  check('inside the breath: no volleys, keyed share re-tuned to 0.25',
-    inB.bursts === false && inB.colors === 0.25 && inB.spawnMin === l7.spawnMin);
+  // spawnMin/Max are STRETCHED here, not held: the node killer's removal (2026-08-27)
+  // handed this lane's frags share back to the reds, so the breath needs a wider
+  // gap as well as a thinner mix to keep halving anything. intensity 0.8 = ×1.25.
+  check('inside the breath: no volleys, keyed share 0.25, gaps stretched a quarter',
+    inB.bursts === false && inB.colors === 0.25
+    && Math.abs(inB.spawnMin - l7.spawnMin / 0.8) < 1e-9
+    && Math.abs(inB.spawnMax - l7.spawnMax / 0.8) < 1e-9);
   check('at 0:15 sharp the lane is the authored config itself', outB === l7);
   // the empirical half: fly the same deterministic run and count red arrivals in
   // the breath against the following 15s (same knobs, volleys back on). The seed

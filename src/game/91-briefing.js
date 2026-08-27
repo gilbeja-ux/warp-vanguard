@@ -4,8 +4,7 @@ const INFO_PAL = {
   boss:   { glow: '200,70,255',  shades: ['#b03ae8', '#8a2ad4', '#d465ff', '#6f14b8', '#c44af0'], core: '#b03ae8' },
   normal: { glow: '255,60,90',   shades: ['#e8274b', '#ff5a3c', '#d81f6e', '#b3123a', '#ff8c5a'], core: '#ff5a3c' },
   heavy:  { glow: '200,70,255',  shades: ['#b03ae8', '#8a2ad4', '#d465ff', '#6f14b8', '#c44af0'], core: '#b03ae8' },
-  lock:   { glow: '80,170,255',  shades: ['#2f7fe0', '#1c4fae', '#4d9bff', '#12398a', '#3f8af0'], core: '#2f7fe0' },
-  frag:   { glow: '90,110,140', shades: ['#2b3242', '#151a26', '#3a4354', '#0d1119', '#232a38'], core: '#2b3242' }
+  lock:   { glow: '80,170,255',  shades: ['#2f7fe0', '#1c4fae', '#4d9bff', '#12398a', '#3f8af0'], core: '#2f7fe0' }
 };
 // a miniature of the live tap hardware, for briefing cards
 function infoTap(r, pal, double) {
@@ -92,12 +91,6 @@ function drawInfoGlyph(kind, cx, cy, r) {
     ctx.moveTo(s2 * 0.3, -s2); ctx.lineTo(-s2 * 0.45, s2 * 0.15); ctx.lineTo(0, s2 * 0.15);
     ctx.lineTo(-s2 * 0.3, s2); ctx.lineTo(s2 * 0.45, -0.15 * s2); ctx.lineTo(0, -0.15 * s2);
     ctx.closePath(); ctx.fill();
-  } else if (kind === 'frag') {
-    // the same failing body the bore shows — the card that TEACHES the killer
-    // can't be the one surface still drawing a clean diamond. Its clock is raw
-    // time at a fixed rate, which is safe here: the packet's cadence is
-    // constant by design, so there is no state-dependent rate to leap.
-    voidPacket(r * 1.05, time * 0.25, time, 7.3);
   } else if (kind === 'line') {
     // two full-size taps torn open along a running crack — the pair IS the
     // threat, so each end is the same hardware the 'normal' glyph shows
@@ -810,27 +803,6 @@ function drawParkSpot(a, col) {
   ctx.strokeStyle = col; ctx.lineWidth = 2.5;
   ctx.setLineDash([5, 4]); ctx.lineDashOffset = -time * 20;
   ctx.beginPath(); ctx.arc(px, py, r, 0, TAU); ctx.stroke();
-  ctx.restore();
-}
-
-// mini landing signal for tutorial node killers, in the rim wall's hazard
-// language: once a defender has been fried by one, killers telegraph the arc
-// they'll land on — the drill becomes DODGE, not decode
-function drawKillerSignal(e) {
-  const g2 = geo();
-  const near = 1 - clamp((e.z - 1) / (SPAWN_Z - 1), 0, 1); // 0 far → 1 landing
-  const span = 0.13, blink = 0.5 + 0.5 * Math.sin(time * 9);
-  ctx.save();
-  ctx.lineCap = 'butt';
-  // soft underglow, then striped hazard ticks — sharper as it closes in
-  ctx.strokeStyle = 'rgba(255,120,40,' + (0.10 + 0.16 * near).toFixed(2) + ')';
-  ctx.lineWidth = 11;
-  ctx.beginPath(); ctx.arc(g2.cx, g2.cy, g2.nodeR, e.angle - span, e.angle + span); ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,150,60,' + ((0.35 + 0.45 * near) * (0.55 + 0.45 * blink)).toFixed(2) + ')';
-  ctx.lineWidth = 4;
-  ctx.setLineDash([6, 5]);
-  ctx.lineDashOffset = -time * 30;
-  ctx.beginPath(); ctx.arc(g2.cx, g2.cy, g2.nodeR, e.angle - span, e.angle + span); ctx.stroke();
   ctx.restore();
 }
 

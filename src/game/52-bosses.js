@@ -134,7 +134,7 @@ function spawnBoss() {
   }
   // the continue's ledger: what the level EARNED before the duel began — a
   // RETRY DUEL restores exactly this, so only the fight itself is replayed
-  bossSnap = { score, zaps, misses, perfects, maxCombo, maxComboSec, fragsHit };
+  bossSnap = { score, zaps, misses, perfects, maxCombo, maxComboSec };
   // THE DRAMA, on the frame the machine surfaces. The take is full level from
   // its first tenth of a second, so it belongs HERE rather than at any later
   // beat of the ceremony — the sound and the rising hull are one arrival.

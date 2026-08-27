@@ -21,7 +21,7 @@ function archTapSpec(key, type, lock, cx, cy, r, k) {
   // mounted at the BOTTOM of the private bore (angle +π/2, axis above), so the
   // body reads floor-standing: drill rising into the bore, beam venting down
   const en = archBody(key, () => ({ type, lock, z: 0.25, z0: SPAWN_Z, angle: Math.PI / 2, arch: true,
-    sizeMul: type === 'frag' ? 0.8 : type === 'heavy' ? 1.2 : 1, speedMul: 1,
+    sizeMul: type === 'heavy' ? 1.2 : 1, speedMul: 1,
     spin: 0, spinMul: 1, age: 9, dead: false, resolved: false, failed: false, partner: null }));
   en.spin = time * (type === 'heavy' ? 0.45 : 1);
   const g2 = archWallG(cx, cy, r * 2.4, Math.PI / 2);
@@ -43,8 +43,6 @@ const GUIDE_ITEMS = [
     draw: (cx, cy, r) => archTapSpec('lk0', 'normal', 0, cx, cy, r, 0.5) },
   { cap: ['HIT WITH', 'WHITE ⊖'], col: '235,245,255',
     draw: (cx, cy, r) => archTapSpec('lk1', 'normal', 1, cx, cy, r, 0.5) },
-  { cap: ['DANGER!', 'STEER CLEAR'], col: '160,175,200',
-    draw: (cx, cy, r) => archTapSpec('frag', 'frag', undefined, cx, cy, r, 0.95) },
   { cap: ['RIDE TO', 'CHARGE PULSE'], col: '255,210,74',
     draw: (cx, cy, r) => { // the ribbon in its true 3D form: a STATIC snake of
       // wall arcs receding into a private bore (real wallPatch projection),

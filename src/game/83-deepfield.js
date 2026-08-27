@@ -719,8 +719,6 @@ const BARKS = {
                 'two ends, two emitters.'],
   firstWall:   ['wall forming. reroute.', "they're sealing the rail. move.",
                 'clamp coming down. get off it.'],
-  firstFrag:   ["black charge. don't touch it.", 'emitter killer on the rail. steer.',
-                'that one bites. go around.'],
   ribbon:      ['clean current. ride it.', 'gold on the lane. take it.',
                 'free charge. go get it.'],
   pickup:      ['good grab.', "that'll hold.", 'logged.', 'useful.'],
@@ -742,7 +740,6 @@ const BARK_CFG = {
   firstHeavy:  { pri: 3, cd: 8,  once: 1 },
   firstLine:   { pri: 3, cd: 8,  once: 1 },
   firstWall:   { pri: 2, cd: 8,  once: 1 },
-  firstFrag:   { pri: 2, cd: 8,  once: 1 },
   ribbon:      { pri: 4, cd: 12, once: 1 },
   pickup:      { pri: 6, cd: 20, once: 0 },
   streak:      { pri: 4, cd: 25, once: 0 },
@@ -787,7 +784,6 @@ function updateBarks(dt) {
   for (const e of enemies) {
     if (e.dead || e.resolved) continue;
     if (e.type === 'heavy') bark('firstHeavy');
-    else if (e.type === 'frag') bark('firstFrag');
     else if (e.type === 'line') bark('firstLine');
     else if (e.type === 'strip') bark('ribbon');
   }

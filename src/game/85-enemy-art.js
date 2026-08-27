@@ -387,11 +387,7 @@ const birthFade = o => clamp((o.age || 0) / 0.35, 0, 1);
 // shared by the body renderer and the decompile, so a death speaks in the
 // body's own inks
 function enemyPal(en) {
-  return en.type === 'frag'
-    ? { glow: '90,110,140',
-        shades: ['#2b3242', '#151a26', '#3a4354', '#0d1119', '#232a38'],
-        lights: ['#4a5568', '#5a6a80', '#3a4354'] }
-    : en.type === 'heavy'
+  return en.type === 'heavy'
     ? { glow: '200,70,255',
         shades: ['#b03ae8', '#8a2ad4', '#d465ff', '#6f14b8', '#c44af0'],
         lights: ['#eab8ff', '#f3d4ff', '#d98cff'] }
@@ -440,129 +436,59 @@ function drawGhost(gh, g) {
   ctx.globalAlpha = 1;
 }
 
-// the node killer's body: SIGNAL LOSS.
-// The void packet keeps its mass, its light-swallowing halo and its slow rim
-// glint (the glint is what sells the BAIT — a beautiful object you must not
-// touch). What it does now is FAIL: horizontal tear bands displace sideways and
-// drop out entirely, and the rim splits into red/cyan chromatic fringes, which
-// is what finally gives the void an edge you can find at the horizon — being
-// black-on-black in a dark bore was its old weakness.
-// Deliberately CONSTANT with depth: it never escalates as it closes, because
-// escalation reads as "hostile, shoot it" and this one has to stay bait. It is
-// not angrier up close; it is just wrong, the whole way in.
-// Shared by the live body, the field guide specimen and the briefing card, so
-// no surface can show a clean diamond the enemy no longer is. The caller
-// translates to the body centre; everything here is local.
-function voidPacket(pr, rot, ph, seed) {
-  if (pr < 1) return;
-  // corruption clock: events fire often, but `burst` is a STRENGTH rolled once
-  // per event off the STATIC seed, not a flag — most events are a one-band
-  // nudge, a few are a full tear. A fast cadence at one fixed intensity reads
-  // as a blinking light; the variety is what makes it read as a bad signal.
-  // bands need real pixels to read as slices — the level card's traffic legend
-  // draws this at r≈8, where ten of them would be mush. Too small to slice =
-  // no corruption at all, which is also true of a horizon spawn.
-  const bands = Math.max(1, Math.min(lowFX ? 6 : FRAGFX.vBands, Math.floor(pr / 3)));
-  const period = FRAGFX.vHold + FRAGFX.vBurst;
-  const clk = ph * (0.85 + 0.3 * fhash(seed));
-  const ev = Math.floor(clk / period);
-  const burst = bands < 4 ? 0
-    : (clk % period) > FRAGFX.vHold ? 0.28 + 0.72 * fhash(seed * 1.7 + ev * 17.3) : 0;
-  const tk = Math.floor(ph * FRAGFX.vStep); // stepped re-roll
 
-  const diamond = r => {
-    ctx.beginPath();
-    ctx.moveTo(0, -r);
-    ctx.quadraticCurveTo(r * 0.55, -r * 0.55, r, 0);
-    ctx.quadraticCurveTo(r * 0.55, r * 0.55, 0, r);
-    ctx.quadraticCurveTo(-r * 0.55, r * 0.55, -r, 0);
-    ctx.quadraticCurveTo(-r * 0.55, -r * 0.55, 0, -r);
-    ctx.closePath();
-  };
-  // built once in local space and reused by every band — the gradient travels
-  // with a displaced slice, which is what a torn image actually does
-  const fg = ctx.createRadialGradient(0, 0, 0, 0, 0, pr);
-  fg.addColorStop(0, '#0a0c1a');
-  fg.addColorStop(0.55, '#04050d');
-  fg.addColorStop(1, '#010104');
-  // a sub-pixel split vanishes at horizon size, which is exactly where the void
-  // used to disappear — so the fringe has a hard pixel FLOOR. Not an escalation:
-  // the same look, just never allowed to reach zero.
-  const cs = Math.max(Math.min(0.7, pr * 0.08), pr * FRAGFX.vChroma * (1 + burst * (FRAGFX.vChromaB - 1)));
-  const rimW = Math.max(0.8, pr * 0.045);
-  const ext = pr * 1.04;                     // the diamond never reaches past pr
-  const bh = 2 * ext / bands;
-  for (let i = 0; i < bands; i++) {
-    const hTorn = fhash(seed * 7.3 + i * 13.1 + tk * 3.77);
-    const hMag  = fhash(seed * 3.1 + i * 29.3 + tk * 5.13);
-    const hDrop = fhash(seed * 5.9 + i * 41.7 + tk * 2.31);
-    if (hDrop < FRAGFX.vDrop * burst) {        // dropout — the tunnel shows THROUGH the body
-      // a blown-out sliver where the signal died: the only light this thing
-      // ever emits, and what lets an event punch at mid-bore distance
-      if (FRAGFX.vFlash > 0.02 && hMag < 0.55) {
-        ctx.fillStyle = `rgba(170,190,225,${(0.3 * FRAGFX.vFlash * burst).toFixed(2)})`;
-        ctx.fillRect(-pr * 0.9, -ext + i * bh + bh * 0.35, pr * 1.8, Math.max(1, bh * 0.3));
-      }
-      continue;
-    }
-    const dx = hTorn < FRAGFX.vTearN * burst ? (hMag - 0.5) * 2 * FRAGFX.vTear * burst * pr : 0;
+// THE VOLLEY'S BLAST, seen. The region around the impact, drawn as the rule
+// defines it. It grows to full reach in a third of its life and fades out over
+// the rest, so the eye reads the reach and not just a flash. Draw-only — the
+// kills landed on the frame the bolt did.
+function drawVolleyBlasts(g) {
+  for (let i = volleyFX.length - 1; i >= 0; i--) {
+    const w = volleyFX[i];
+    const k = (time - w.t0) / 0.32;
+    if (k >= 1) { volleyFX.splice(i, 1); continue; }
+    const grow = Math.min(1, k * 3);         // out to full reach, then hold
+    const al = (1 - k) * (1 - k);
+    // THE OUTLINE IS THE RULE, WALKED. The region is an ellipse in (depth, angle),
+    // and that is not a shape the canvas can draw directly — depth is a radius
+    // here and angle is an arc, so a circle in the rule is a lens on screen.
+    // So walk the ellipse's own boundary and project each point through ring(),
+    // exactly as blastReaches measures it. Nothing on screen can then disagree
+    // with what the blast actually took.
     ctx.save();
-    // the tear is a SCANLINE, so the clip is screen-horizontal — taken before
-    // the body's own slow rotation
-    ctx.beginPath(); ctx.rect(-pr * 2.4, -ext + i * bh, pr * 4.8, bh + 0.6); ctx.clip();
-    ctx.translate(dx, 0);
-    ctx.rotate(rot);
-    diamond(pr);
-    ctx.fillStyle = fg; ctx.fill();
-    diamond(pr * 0.94);
-    ctx.strokeStyle = 'rgba(70,85,120,0.32)'; ctx.lineWidth = Math.max(1.2, pr * 0.09); ctx.stroke();
-    // chromatic aberration on the rim, drawn ADDITIVE: while the two fringes
-    // overlap they sum back into the old pale hairline edge, and as the split
-    // widens they peel apart into red and cyan. One value walks the whole way
-    // from "clean diamond" to "broken transmission".
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.lineWidth = rimW;
-    for (const [ox, col] of [[-cs, '210,60,80'], [cs, '60,175,220']]) {
-      ctx.save(); ctx.translate(ox, 0);
-      diamond(pr);
-      ctx.strokeStyle = `rgba(${col},${FRAGFX.vChromaI.toFixed(2)})`; ctx.stroke();
-      ctx.restore();
+    ctx.beginPath();
+    const STEPS = 48;
+    for (let s2 = 0; s2 <= STEPS; s2++) {
+      const th = s2 / STEPS * TAU;
+      // clamped at the ring: past it the projection balloons outward and the
+      // outline reads as a blob reaching behind the player. Nothing there can be
+      // taken anyway — an enemy inside hitZ has already resolved.
+      const ez = Math.max(w.z + VOLLEY_BLAST_Z * grow * Math.cos(th), g.hitZ);
+      const ea = w.a + VOLLEY_BLAST_A * grow * Math.sin(th);
+      const rz = ring(ez, g);
+      const px = rz.x + Math.cos(ea) * rz.r, py = rz.y + Math.sin(ea) * rz.r;
+      s2 ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
     }
-    diamond(pr);
-    ctx.strokeStyle = `rgba(120,140,175,${(0.2 + 0.45 * FRAGFX.vChromaI).toFixed(2)})`; ctx.stroke();
-    ctx.globalCompositeOperation = 'source-over';
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(150,220,255,' + (al * 0.26).toFixed(3) + ')';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(200,240,255,' + (al * 0.85).toFixed(2) + ')';
+    ctx.lineWidth = Math.max(1.5, ring(Math.max(w.z, 0.02), g).r * 0.02 * (1 - k) + 1);
+    ctx.stroke();
     ctx.restore();
-  }
-  // finishes that read across the whole body: the nebular sheen deep inside, a
-  // dim scan sweep so it is never fully STILL between events, then the glint
-  ctx.save();
-  ctx.rotate(rot);
-  diamond(pr); ctx.clip();
-  ctx.fillStyle = 'rgba(90,70,160,0.12)';
-  ctx.beginPath(); ctx.ellipse(-pr * 0.25, -pr * 0.2, pr * 0.5, pr * 0.35, 0.6, 0, TAU); ctx.fill();
-  ctx.rotate(-rot);                            // the sweep is screen-horizontal too
-  if (FRAGFX.vScan > 0.02 && !lowFX) {
-    ctx.fillStyle = `rgba(150,170,205,${(0.09 * FRAGFX.vScan).toFixed(3)})`;
-    for (let k = 0; k < 2; k++) {
-      const sy = ((ph * 0.19 + k * 0.5) % 1) * 2.4 * pr - 1.2 * pr;
-      ctx.fillRect(-pr * 1.3, sy, pr * 2.6, Math.max(1, pr * 0.1));
+    // the core flash, gone inside the first third
+    const fl = clamp(1 - k * 3, 0, 1);
+    if (fl > 0.01) {
+      const rc = ring(Math.max(w.z, 0.02), g);
+      const cx2 = rc.x + Math.cos(w.a) * rc.r, cy2 = rc.y + Math.sin(w.a) * rc.r;
+      const fg = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, rc.r * 0.30 * fl + 6);
+      fg.addColorStop(0, 'rgba(255,255,255,' + (fl * 0.9).toFixed(2) + ')');
+      fg.addColorStop(0.4, 'rgba(190,235,255,' + (fl * 0.45).toFixed(2) + ')');
+      fg.addColorStop(1, 'rgba(150,220,255,0)');
+      ctx.fillStyle = fg;
+      ctx.beginPath(); ctx.arc(cx2, cy2, rc.r * 0.30 * fl + 6, 0, TAU); ctx.fill();
     }
-  }
-  ctx.restore();
-  if (FRAGFX.vGlint > 0.02) {                  // light caught on the edge — the bait
-    const ga = rot * 3;
-    const gr = pr * (1 - 0.22 * Math.pow(Math.sin(2 * ga), 2));
-    const gx = Math.cos(ga) * gr, gy = Math.sin(ga) * gr;
-    const gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, pr * 0.3);
-    gg.addColorStop(0, `rgba(220,235,255,${(0.7 * FRAGFX.vGlint).toFixed(2)})`);
-    gg.addColorStop(1, 'rgba(220,235,255,0)');
-    ctx.fillStyle = gg;
-    ctx.beginPath(); ctx.arc(gx, gy, pr * 0.3, 0, TAU); ctx.fill();
   }
 }
-// cheap deterministic hash for the packet's corruption rolls — no RNG stream is
-// touched, so the campaign's spawn sequence can never shift because of an FX draw
-const fhash = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
 function drawEnemy(en, g) {
   const rg = ring(Math.max(en.z, 0.02), g);
@@ -600,37 +526,15 @@ function drawEnemy(en, g) {
   const urg = urgency(en, g);
   const pulse = 1 + Math.sin(en.spin * 2) * 0.08 + urg * 0.1 * Math.sin(time * 10);
   const gl = ctx.createRadialGradient(x, y, 0, x, y, size * 2.4 * pulse);
-  if (en.type === 'frag') {
-    gl.addColorStop(0, 'rgba(1,2,8,0.75)');
-    gl.addColorStop(0.55, 'rgba(2,4,12,0.35)');
-    gl.addColorStop(1, 'rgba(4,6,16,0)');
-  } else {
-    gl.addColorStop(0, `rgba(${PAL.glow},${(0.5 + urg * 0.3).toFixed(2)})`);
-    gl.addColorStop(0.5, `rgba(${PAL.glow},${(0.16 + urg * 0.12).toFixed(2)})`);
-    gl.addColorStop(1, `rgba(${PAL.glow},0)`);
-  }
+  gl.addColorStop(0, `rgba(${PAL.glow},${(0.5 + urg * 0.3).toFixed(2)})`);
+  gl.addColorStop(0.5, `rgba(${PAL.glow},${(0.16 + urg * 0.12).toFixed(2)})`);
+  gl.addColorStop(1, `rgba(${PAL.glow},0)`);
   ctx.fillStyle = gl;
   ctx.beginPath(); ctx.arc(x, y, size * 2.4 * pulse, 0, TAU); ctx.fill();
 
   if (spr) {
     // sprite skin replaces the procedural body (glow + sigils stay live)
     ctx.drawImage(spr, x - size * 1.7, y - size * 1.7, size * 3.4, size * 3.4);
-  } else if (en.type === 'frag') {
-    // payload packet: a void-black rounded diamond FLOATING in the bore — the
-    // payload rides the stream; only corruption clings to the walls. It renders
-    // as a failing signal (voidPacket) on a clock that is its own: a STATIC
-    // seed off the spawn angle, and a phase that only ever ACCUMULATES, with no
-    // urgency term — this body is bait and must not escalate as it closes.
-    if (en.fxSeed === undefined) {
-      en.fxSeed = 3 + ((en.angle * 39.7) % 10) * 9.7;
-      en.fxPh = (en.angle * 7.3) % 3;          // stagger the start, no RNG draw
-      en.fxT = time;
-    }
-    en.fxPh += clamp(time - en.fxT, 0, 0.1); en.fxT = time;
-    ctx.save();
-    ctx.translate(x, y);
-    voidPacket(size * (1 + Math.sin(en.spin * 2) * 0.06), en.spin * 0.3, en.fxPh, en.fxSeed);
-    ctx.restore();
   } else {
     drawNailBreach(en, g, fade, PAL);
   }
@@ -664,8 +568,7 @@ function drawArrivalPings(g) {
   };
   for (const en of enemies) {
     if (en.dead || en.resolved) continue;
-    const col = en.type === 'frag' ? '140,150,170'
-      : en.type === 'heavy' ? '200,70,255'
+    const col = en.type === 'heavy' ? '200,70,255'
       : en.lock === 0 ? '80,170,255'
       : en.lock === 1 ? '240,248,255'
       : '255,60,90';
@@ -1801,7 +1704,7 @@ function drawArcNode(n, g, i, rb, bh) {
   let th = 0;
   if (state === S.PLAY || state === S.PAUSE) {
     for (const en of enemies) {
-      if (en.dead || en.resolved || en.failed || en.type === 'frag' || en.type === 'strip') continue;
+      if (en.dead || en.resolved || en.failed || en.type === 'strip') continue;
       const near = clamp(1 - Math.abs(angDiff(en.angle, a)) / 1.1, 0, 1) *
                    clamp((0.7 - en.z) / 0.7 + 0.35, 0, 1);
       if (near > th) th = near;
@@ -2546,9 +2449,7 @@ function drawDials() {
         ctx.strokeStyle = `rgba(255,80,110,${al * 0.6})`; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(p2.x, p2.y); ctx.stroke();
       }
-      ctx.fillStyle = en.type === 'frag'
-        ? `rgba(140,150,170,${al})`
-        : en.type === 'heavy'
+      ctx.fillStyle = en.type === 'heavy'
         ? `rgba(200,80,255,${al})`
         : en.lock === 0
         ? `rgba(80,170,255,${al})`

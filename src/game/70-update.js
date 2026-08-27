@@ -14,7 +14,7 @@ const QUAL = [
   { card: 'move' },
   // the hazards ride WITH the early traps: intercept the reds, STEER CLEAR
   // of the killer and the wall — no dedicated stages, one flowing lesson
-  { card: 'normal', queue: ['normal', 'frag', 'normal', 'wall'] },
+  { card: 'normal', queue: ['normal', 'normal', 'wall'] },
   { card: 'heavy',  queue: ['heavy'] },
   { card: 'line',   queue: ['line'] },
   { card: 'lock',   queue: ['lock0', 'lock1'] },
@@ -36,7 +36,6 @@ const INFO_CARDS = {
   heavy:  { title: 'ARMORED INTERDICTOR', lines: ['Dock BOTH emitters together', 'to collapse it.'] },
   line:   { title: 'BARRIER NET', lines: ['Cover BOTH ends —', 'one emitter on each.'] },
   lock:   { title: 'PHASE-LOCKED', lines: ['Only the MATCHING phase', 'collapses it.'] },
-  frag:   { title: 'EMITTER KILLER', lines: ['It INVERTS the emitter that', 'strikes it. Let it pass.'] },
   pickup: { title: 'POWER-UP', lines: ['Golden relays arm powers.', 'Catch one with any emitter.'] },
   strip:  { title: 'BONUS RIBBON', lines: ['Optional: ride its crossing point.', 'A full ride banks a full PULSE.'] },
   wall:   { title: 'DEAD ZONE', lines: ['It seizes part of your rail.', 'Crossing FRIES — go around.'] },
@@ -146,10 +145,8 @@ function qualSpawn(kind) {
   if (kind === 'lock0' || kind === 'lock1') {
     en = spawnEnemy(undefined, 'normal');
     en.lock = kind === 'lock0' ? 0 : 1;
-  } else en = spawnEnemy(undefined, kind); // normal | heavy | frag
+  } else en = spawnEnemy(undefined, kind); // normal | heavy
   en.tut = kind;
-  // killers are pure dodge drills — the DANGER! AVOID! label states the
-  // consequence instead of making the pupil feel the fry
 }
 function advanceQual() {
   tut.stage++;

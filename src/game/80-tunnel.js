@@ -170,7 +170,7 @@ function drawWarpField(g, reach) {
 // 0→1 as a hostile closes its last ~1.5s to the rim; 1 inside the zap zone.
 // The body itself carries the urgency — LED, glow, sparks all key off this.
 function urgency(en, g) {
-  if (en.resolved || en.failed || en.type === 'frag' || en.type === 'strip') return 0;
+  if (en.resolved || en.failed || en.type === 'strip') return 0;
   if (en.z <= g.hitZ) return 1;
   const spd = trafficSpeed * (en.speedMul || 1);
   if (spd <= 0) return 0;
@@ -178,7 +178,7 @@ function urgency(en, g) {
 }
 
 function rangeInfo(en, g) {
-  if (en.dead || en.resolved || en.failed || en.type === 'frag') return null; // payloads stay calm
+  if (en.dead || en.resolved || en.failed) return null;
   if (en.z <= g.hitZ) return null; // already in the zone — the body itself is the alarm
   const spd = trafficSpeed * (en.speedMul || 1);
   if (spd <= 0) return null;

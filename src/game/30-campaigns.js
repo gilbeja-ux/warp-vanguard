@@ -53,7 +53,6 @@ function endlessCfg(t) {
     heavies: pcap(ramp(0, 0.22, (k - 0.15) / 0.85), 0.34),
     lines: pcap(ramp(0, 0.22, (k - 0.3) / 0.7), 0.30),
     colors: pcap(ramp(0, 0.30, (k - 0.45) / 0.55), 0.45),
-    frags: pcap(ramp(0, 0.18, (k - 0.25) / 0.75), 0.28),
     walls: pcap(ramp(0, 0.12, (k - 0.5) / 0.5), 0.20),
     bursts: t > 70
   };

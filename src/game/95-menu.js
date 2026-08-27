@@ -561,7 +561,6 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   if (L2.lines) kinds.push('line');
   if (L2.colors) kinds.push('lock');
   if (L2.walls) kinds.push('wall');
-  if (L2.frags) kinds.push('frag');
   // how much of the city's shield still reaches this relay — the cover thins
   // with every perimeter you leave behind, and the traffic thickens to match
   if (!campMapImg(CAMP)) {

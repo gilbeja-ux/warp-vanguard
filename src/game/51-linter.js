@@ -81,7 +81,6 @@ function lintWalk(level, idx) {
       for (const s of sched2) if (s.needsNode && s.t1 > tA - GAP && s.t0 < tA1 + GAP) return false;
       return mates(tA, GAP).length <= 1;
     }
-    if (type === 'frag') return mates(tA, 0.4).length === 0;
     const m = mates(tA, GAP);
     if (m.some(s => s.type === 'heavy' || s.type === 'line')) return false;
     const strips = m.filter(s => s.type === 'strip').length;
@@ -104,7 +103,7 @@ function lintWalk(level, idx) {
     const tA = tN + (dropT !== null ? dropT : lead(heavy ? 0.82 : 1));
     const rec = { t: tA, t1: tA, type, lock, needsNode: type !== 'normal' || lock !== undefined, angle, beat };
     arr.push(rec);
-    if (type !== 'strip' && type !== 'frag')
+    if (type !== 'strip')
       sched2.push({ t0: tA, t1: tA, type, lock, needsNode: rec.needsNode });
     return rec;
   }
@@ -172,7 +171,7 @@ function lintWalk(level, idx) {
     if (b.kind === 'enemy') {
       const lk = b.type === 'lock0' ? 0 : b.type === 'lock1' ? 1 : undefined;
       const ty = lk !== undefined ? 'normal' : (b.type || 'normal');
-      if (ty !== 'frag') sched2.push({ t0: b.t, t1: b.t, type: ty, lock: lk, needsNode: ty !== 'normal' || lk !== undefined, beat: bi });
+      sched2.push({ t0: b.t, t1: b.t, type: ty, lock: lk, needsNode: ty !== 'normal' || lk !== undefined, beat: bi });
     } else if (b.kind === 'strip') sched2.push({ t0: b.t, t1: b.t + 0.85 / level.speed, type: 'strip', lock: undefined, needsNode: true, beat: bi });
   });
   const dt = 1 / 60;
@@ -194,8 +193,7 @@ function lintWalk(level, idx) {
         const cfg = bandCfg(level, lvT);
         spT = drr(cfg.spawnMin, cfg.spawnMax);
         let done = false;
-        if (dch(cfg.frags || 0) && fits(rl(1), lvT) && allow('frag', lvT)) { simEnemy(cfg, lvT, undefined, 'frag'); done = true; }
-        if (!done && cfg.bursts && !bq && dch(0.3) && fits(rl(1) + 0.7, lvT) && allow('line', lvT)) {
+        if (cfg.bursts && !bq && dch(0.3) && fits(rl(1) + 0.7, lvT) && allow('line', lvT)) {
           bq = { left: 2, t: 0.35 }; simEnemy(cfg, lvT); spT += 0.9; done = true;
         }
         if (!done && dch(cfg.walls || 0) && !liveWalls(lvT).length && fits(trav + 3.6, lvT)) { simWall(lvT); done = true; }
@@ -281,7 +279,7 @@ function lintVerdicts(bad, level, arr, picks, walls) {
   // aware, mirroring the asymmetric live gates (a dual released later needs a
   // 0.825s-clear window; a single landing after a booked dual only needs 0.55)
   const isDual = r => r.type === 'heavy' || r.type === 'line';
-  const host = arr.filter(r => r.type !== 'strip' && r.type !== 'frag');
+  const host = arr.filter(r => r.type !== 'strip');
   const beaty = (...rs) => rs.some(r => r.beat !== undefined);
   for (let i = 0; i < host.length; i++) for (let j = i + 1; j < host.length; j++) {
     const a2 = host[i], b2 = host[j]; // arr is in spawn order
@@ -296,11 +294,6 @@ function lintVerdicts(bad, level, arr, picks, walls) {
     else if (a2.lock !== undefined && a2.lock === b2.lock && d2 < GAP)
       bad(b2.t, 'dual-conflict', 'same-color locks double-book one node');
   }
-  // a trap parked on a mandatory dock: the player MUST be there — and dies
-  for (const f of arr) if (f.type === 'frag') for (const h of host) {
-    if (beaty(f, h) && h.needsNode && Math.abs(h.t - f.t) < 0.35 && Math.abs(angDiff(h.angle, f.angle)) < 0.5)
-      bad(f.t, 'dual-conflict', 'node killer parked on a mandatory dock');
-  }
   // wall clearance — REACHABILITY (the designer's ruling, the law everywhere):
   // an arrival may share a live wall's window as long as its demanded dock arc
   // stays out of the dead zone (wallBlocks: half-span + node tolerance). Checked
@@ -308,12 +301,12 @@ function lintVerdicts(bad, level, arr, picks, walls) {
   // surface exactly what an OVERRIDE (force) or a late-landing wall swallowed.
   // Barrier ends are separate arrivals — a pair flags when EITHER demanded end
   // is swallowed; nodes route around any sub-π dead zone from either side, so a
-  // clear dock arc is always attainable. Frags demand avoidance, not a dock —
-  // exempt. Filler-vs-filler stays exempt (the live gates replayed clean).
+  // clear dock arc is always attainable. Filler-vs-filler stays exempt (the live
+  // gates replayed clean).
   const wallHit = (t2, ang) => walls.find(w =>
     t2 > w.tRel - 0.5 && t2 < w.tLand + 3.6 && wallBlocks(angDiff(w.a, ang), 0.5));
   for (const rec of arr) {
-    if (rec.type === 'strip' || rec.type === 'frag') continue;
+    if (rec.type === 'strip') continue;
     const w = wallHit(rec.t, rec.angle);
     if (w && (rec.beat !== undefined || w.beat !== undefined))
       bad(rec.t, 'wall-conflict', 'arrival unreachable inside a dead zone');
@@ -397,8 +390,6 @@ function trySpawn(dt) {
       spawnT += pat.steps.length * beatPeriod * 0.8; // give the volley room
       return;
     }
-    // node-killer trap — the one thing you must NOT touch
-    if (schance(L.frags || 0) && rideFits(rideLife(1)) && spawnAllowed('frag')) { spawnEnemy(undefined, 'frag'); return; } // node killer
     // burst transmissions: occasionally a volley of three in rapid succession
     if (L.bursts && !burstQ && schance(0.3) && rideFits(rideLife(1) + 0.7) && spawnAllowed('line')) { // volleys start from a clean window
       burstQ = { left: 2, t: 0.35 };

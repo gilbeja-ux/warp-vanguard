@@ -23,6 +23,10 @@ const beatFree = () => scripted() || weekly;
 //   'normal' — any node zaps it
 //   'heavy'  — must be covered by BOTH nodes at the same time
 //   'line'   — spawned as a linked pair at the same depth; each end needs its own node
+// The node killer ('frag') is GONE, 2026-08-27. Two fixes for it failed and the
+// dead zone is the game's one avoid object now. Its spawn branch used to consume
+// a tick and return, so its removal fills those ticks with real traffic on its
+// own — no compensating knob was added anywhere.
 function spawnEnemy(forcedAngle, type) {
   type = type || 'normal';
   const heavy = type === 'heavy';
@@ -48,13 +52,13 @@ function spawnEnemy(forcedAngle, type) {
     type, lock, z: z0, z0, angle: forcedAngle !== undefined ? forcedAngle : clearOfWalls(spawnRng() * TAU),
     // heavy reads as the bigger threat, but only SLIGHTLY — its multiplier
     // stacks on ENEMYFX.size, so the old 1.6 blew up once bodies grew (2026-07-26)
-    sizeMul: type === 'frag' ? 0.8 : heavy ? 1.2 : 1, speedMul,
+    sizeMul: heavy ? 1.2 : 1, speedMul,
     spin: spawnRng() * TAU, spinMul: heavy ? 0.45 : 1, age: 0, dead: false, partner: null
   };
   enemies.push(en);
   // book the TRUE arrival in the fairness ledger (strips book in spawnStrip
   // with their length; friendlies never book — parity with the live-enemy scan)
-  if (type !== 'strip' && type !== 'frag') {
+  if (type !== 'strip') {
     const tA = levelT + arrivalAt(en.z, en.speedMul);
     sched.push({ t0: tA, t1: tA, type, lock, needsNode: type !== 'normal' || lock !== undefined });
   }
@@ -119,7 +123,6 @@ function spawnAllowed(type) {
     }
     return windowMates(tNew, GAP).length <= 1;
   }
-  if (type === 'frag') return windowMates(tNew, 0.4).length === 0;
   // plain trap (may become a lock — see lockAllowed)
   const mates = windowMates(tNew, GAP);
   if (mates.some(s => s.type === 'heavy' || s.type === 'line')) return false;
@@ -190,8 +193,7 @@ function initBeats() {
     if (b.kind === 'enemy') {
       const lock = b.type === 'lock0' ? 0 : b.type === 'lock1' ? 1 : undefined;
       const type = lock !== undefined ? 'normal' : (b.type || 'normal');
-      if (type !== 'frag')
-        sched.push({ t0: b.t, t1: b.t, type, lock, needsNode: type !== 'normal' || lock !== undefined, beat: bi });
+      sched.push({ t0: b.t, t1: b.t, type, lock, needsNode: type !== 'normal' || lock !== undefined, beat: bi });
     } else if (b.kind === 'strip') { // longest possible ride (len ≤ 0.85)
       sched.push({ t0: b.t, t1: b.t + 0.85 / LV.speed, type: 'strip', lock: undefined, needsNode: true, beat: bi });
     }

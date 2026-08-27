@@ -35,24 +35,6 @@ const ENEMYFX = {
   mDrill: 1.35, mSpin: 3.50,   // auger length / flute crawl speed
   mCrack: 1.00,  // impact crack reach
 };
-// node killer (void packet) — SIGNAL LOSS. Tuned in the enemy lab, whose
-// "copy values" button emitted this block verbatim — which is why every key
-// still carries the lab's v-prefix. The lab is gone; the prefix is just history.
-const FRAGFX = {
-  vBands: 10,      // horizontal slices the body tears along
-  vHold: 0.45,     // quiet seconds between corruption events
-  vBurst: 0.18,    // how long one event lasts
-  vStep: 14,       // offsets re-roll at this Hz — stepped reads digital, per-frame reads fizzy
-  vTear: 0.35,     // sideways shift of a torn band (× body radius)
-  vTearN: 0.45,    // fraction of bands that tear at full event strength
-  vDrop: 0.18,     // fraction that drop out entirely (the tunnel shows through)
-  vChroma: 0.02,   // rim chromatic split at rest (× radius, with a hard pixel floor)
-  vChromaB: 4.00,  // how far the split widens during an event
-  vChromaI: 0.35,  // fringe strength
-  vFlash: 0.45,    // blown-out sliver left where a band dropped out
-  vScan: 0.50,     // scan sweep crawling the body between events
-  vGlint: 0.70,    // the rim glint — the bait
-};
 const enGun = l => { l *= ENEMYFX.mMetal; return `rgb(${Math.round(l * 0.92)},${Math.round(l * 0.96)},${Math.round(Math.min(255, l * 1.04))})`; };
 
 // nodes: [left(blue), right(white)]
@@ -183,7 +165,7 @@ function bootRingS(g) {
 }
 
 // ---------- optional sprite skins (OFF unless asked for) ----------
-// Drop PNGs into src/sprites/ (normal, heavy, lock0, lock1, frag, boss) and they
+// Drop PNGs into src/sprites/ (normal, heavy, lock0, lock1, boss) and they
 // replace the procedural bodies automatically; missing files fall back.
 //
 // OPT-IN, because this ran unconditionally at script-parse time and src/sprites/
@@ -195,7 +177,7 @@ const SPRITES = {};
 if (typeof Image !== 'undefined' &&
     ((typeof window !== 'undefined' && window.VG_SPRITES) ||
      (typeof location !== 'undefined' && /[?&]sprites/.test(location.search)))) {
-  for (const k of ['normal', 'heavy', 'lock0', 'lock1', 'frag', 'boss']) {
+  for (const k of ['normal', 'heavy', 'lock0', 'lock1', 'boss']) {
     const img = new Image();
     img.onload = () => { SPRITES[k] = img; };
     img.onerror = () => {};

@@ -594,7 +594,7 @@ function resetRun() {
   commNext = 0; commCur = null; commT = 0;
   surgeLevel = 0; surgeCount = -1; surgeWaveZ = -1;
   integrity = mutLive('oneLife') ? 25 : 100; // flow loadout — a campaign hull is always whole
-  score = 0; zaps = 0; misses = 0; combo = 0; maxCombo = 0; perfects = 0; fragsHit = 0; comboHeal = 0;
+  score = 0; zaps = 0; misses = 0; combo = 0; maxCombo = 0; perfects = 0; comboHeal = 0;
   comboStartT = 0; maxComboStart = 0; maxComboSec = 0;
   lbStatus = ''; lastSubmit = null; // clear last run's leaderboard status
   bossTestRun = false; // every real start clears the drill flag (startBossTest re-sets it)
@@ -748,7 +748,7 @@ function startQualification(holdMusic) {
   weekly = false; Math.random = sysRandom;
   levelIdx = -1; endless = false; qual = true; spawnRng = Math.random;
   LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.40,
-         doubles: 0, heavies: 0, lines: 0, colors: 0, frags: 0 };
+         doubles: 0, heavies: 0, lines: 0, colors: 0 };
   tut = { stage: 0, t: 0, queue: [], retry: null, spawned: null };
   resetRun();
   // CONTROLS CHECK: bring each node onto a lit target on the ring — the
@@ -793,7 +793,7 @@ function startBossRetry() {
   startLevel(levelIdx, false, assist);
   if (snap) {
     score = snap.score; zaps = snap.zaps; misses = snap.misses; perfects = snap.perfects;
-    maxCombo = snap.maxCombo; maxComboSec = snap.maxComboSec; fragsHit = snap.fragsHit;
+    maxCombo = snap.maxCombo; maxComboSec = snap.maxComboSec;
   }
   levelT = LEVELS[levelIdx].duration; // the level is already flown — straight to the duel
   introT = 999; introCd = 0;
