@@ -29,7 +29,8 @@
     "admin": "node scripts/admin.js",
     "portal": "node scripts/portal.js",
     "aab": "bash scripts/build-aab.sh",
-    "version:sync": "node scripts/sync-version.js"
+    "version:sync": "node scripts/sync-version.js",
+    "test:coverage": "node scripts/test-fingerprint-coverage.mjs"
   },
   "keywords": [
     "game",

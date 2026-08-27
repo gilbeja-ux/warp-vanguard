@@ -192,7 +192,12 @@ player-chosen handle, and run data to a server.
 > **⏰ PRE-BUILD DEPLOY GATE (every new version, before the AAB).** Run these two,
 > in this order, BEFORE `npm run aab`, or players on the new binary post into a
 > stale server / an unmigrated board:
-> 1. `npm run deploy:verifier` — required whenever a sim change moved a sim id.
+> 1. `npm run deploy:verifier` — required whenever ANYTHING under `src/game/` or
+>    `src/campaigns.js` changed. NOT "whenever a sim id moved": that shortcut is
+>    retired (Gil, 2026-08-27). The fingerprint is evidence, never permission to
+>    skip — BATTERY_V 1 played only the first 4–14s of every lane and reported
+>    late-lane sim changes as "nothing moved". See H-35 and `npm run test:coverage`,
+>    which replays all 40 boards and fails if any does not play out.
 > 2. `supabase db push` — required whenever a migration is owed.
 >
 > **1.0.4 specifically** carries H-02 (boss board integrity) and H-03 (replay-stealing
