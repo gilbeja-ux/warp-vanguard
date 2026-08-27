@@ -1,0 +1,972 @@
+diff --git a/scripts/test.js b/scripts/test.js
+index e14308d..070c749 100644
+--- a/scripts/test.js
++++ b/scripts/test.js
+@@ -388,14 +388,37 @@ volleyShot(1.4, 12);
+ for (let i = 0; i < 30 && !en.dead; i++) vstep();
+ const deepPts = (G.getScore() - sv0) / Math.min(G.stats().combo, 10);
+ check('a deeper volley kill pays more', en.dead === true && deepPts > nearPts);
+-// shooting a node killer REPLICATES it — that'll teach you
++// THE OVERCHARGE. A bolt landed DEEP releases the charge, and the discharge
++// takes everything inside a quarter-lane slab — the red beside it included.
+ G.enemies().length = 0;
+ en = G.spawnEnemy(2.0, 'frag');
+ en.z = 1.0;
++const ocMate = G.spawnEnemy(2.0 + 2.0944, 'normal'); // same depth, other side of the bore
++ocMate.z = 1.0;
++const ocFar = G.spawnEnemy(2.0 + 1.0, 'normal');     // outside the slab, must survive
++ocFar.z = 1.6;
+ volleyShot(2.0, 12);
+ for (let i = 0; i < 25 && !en.dead; i++) vstep();
+-check('shooting a trap replicates it (1 -> 2)',
+-  en.dead === true && G.enemies().filter(e => e.type === 'frag' && !e.dead).length === 2);
++check('a deep bolt releases the charge instead of feeding it',
++  en.dead === true && G.enemies().filter(e => e.type === 'frag' && !e.dead).length === 0);
++check('the discharge takes the traffic inside its slab', ocMate.dead === true);
++check('and leaves what is outside it', ocFar.dead !== true);
++check('the discharge never shorts the emitters that fired it',
++  G.nodes[0].deadT <= 0 && G.nodes[1].deadT <= 0);
++// …and the same bolt inside OC_SAFE_Z earths through the ring instead
++G.enemies().length = 0;
++G.setShield(0);
++en = G.spawnEnemy(2.0, 'frag');
++en.z = 0.55; // nearer than OC_SAFE_Z (0.71)
++const ocNearMate = G.spawnEnemy(2.0 + 2.0944, 'normal');
++ocNearMate.z = 0.55;
++volleyShot(2.0, 12);
++for (let i = 0; i < 12 && !en.dead; i++) vstep();
++check('a late bolt shorts the emitters instead of paying',
++  en.dead === true && (G.nodes[0].deadT > 0 || G.nodes[1].deadT > 0));
++check('and there is no discharge to collect', ocNearMate.dead !== true);
++G.enemies().length = 0;
++for (let i = 0; i < 50; i++) { G.setIntegrity(100); G.update(0.05); } // ride out the reboot
+ // keyed work stays keyed: the bolt ignores barrier pairs and color locks
+ G.enemies().length = 0;
+ G.volley().cd = 0;
+@@ -2367,15 +2390,6 @@ function zapPractice() {
+   check('landing both nodes on their targets completes the control check', G.qualStage().card === 'normal');
+ }
+ check('practice trap 1 spawns and dies', waitLive(4) && zapPractice());
+-// the node killer rides with the early traps — STEER CLEAR: dodge it
+-waitLive(4);
+-{
+-  const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
+-  check('the killer joins the early flow', !!pen && pen.type === 'frag');
+-  aim(0, pen.angle + 1.5); aim(1, pen.angle - 1.5);
+-  cross(pen);
+-  check('letting the killer pass banks the dodge', pen.resolved === true && !pen.dead);
+-}
+ check('practice trap 2 spawns and dies', waitLive(4) && zapPractice());
+ // the practice wall lands in the same flow — steer clear until it burns off
+ {
+@@ -2390,6 +2404,30 @@ check('practice trap 2 spawns and dies', waitLive(4) && zapPractice());
+ settle();
+ check('heavy drill begins without a disc stop', G.getState() === G.S.PLAY && G.qualStage().card === 'heavy');
+ check('heavy practice: dock together breaks it at the rim', waitLive(4) && zapPractice());
++// THE ARMOR DRILL LEAVES BOTH THUMBS PARKED ON THE KILL, and a parked dock keeps
++// firing volleys. Split them before the next stage opens, or a stray bolt blows
++// the fresh drill's charge before the drill has been looked at.
++aim(1, G.nodes[0].angle + Math.PI);
++settle();
++// THE OVERCHARGE DRILL SITS BEHIND THE ARMOR. Its answer is a HELD DOCK, and
++// the armor stage is where the dock is taught — the charge asks for a skill the
++// pupil already has, which is what keeps the lane to one new demand.
++check('the overcharge drill follows the armor', G.qualStage().card === 'frag');
++{
++  waitLive(4);
++  const oc = G.enemies().find(e => e.type === 'frag' && e.tut && !e.dead);
++  const mate = G.enemies().find(e => e.type === 'normal' && e.tut === 'frag' && !e.dead);
++  check('the drill spawns the charge', !!oc);
++  check('and a red beside it, so the discharge has something to take', !!mate);
++  // 0.02s steps: the bolt closes on the charge at ~2.9 z/s and the hit window is
++  // 0.18 deep, so a coarser step can march the bolt straight over it
++  G.volley().cd = 0;
++  let g3 = 900;
++  while (g3-- > 0 && oc && !oc.dead && !oc.resolved) { aim(0, oc.angle); aim(1, oc.angle); G.update(0.02); }
++  check('docking both thumbs releases the charge', !!oc && oc.dead === true);
++  check('and the discharge takes the red with it', !!mate && mate.dead === true);
++  aim(1, G.nodes[0].angle + Math.PI); // split again, for the barrier stage behind it
++}
+ settle();
+ check('barrier drill begins', G.qualStage().card === 'line');
+ check('barrier practice: node per end', waitLive(4) && zapPractice());
+@@ -2705,13 +2743,14 @@ aim(0, Math.PI); aim(1, 2.6); // leave it alone
+ s0 = G.getScore();
+ const int0 = G.stats().integrity;
+ cross(en);
+-check('untouched packet pays a small bonus', en.resolved && G.getScore() - s0 === 50 && G.stats().integrity === int0);
++check('a swerved overcharge still pays, and pays less than a discharge',
++  en.resolved && G.getScore() - s0 === 25 && G.stats().integrity === int0);
+ en = G.spawnEnemy(1.2, 'frag');
+ aim(1, 1.2); // touch the trap — the mistake
+ G.setShield(0); // no shield: this block measures the fry, not the save
+ G.setPulse([8, 8]); // and the fry tax: the burned pad's orb bleeds 3
+ cross(en);
+-check('touching a node killer fries the node, not the payload',
++check('touching an overcharge fries the node, not the payload',
+   en.dead && G.nodes[1].deadT > 0 && G.stats().integrity === int0 && G.stats().combo === 0);
+ check('the fry tax bleeds the fried orb by 3 — the other is untouched',
+   G.getPulse()[1] === 5 && G.getPulse()[0] === 8);
+diff --git a/src/campaigns.js b/src/campaigns.js
+index 332afe8..2514b08 100644
+--- a/src/campaigns.js
++++ b/src/campaigns.js
+@@ -57,7 +57,20 @@ const CAMPAIGN_PACKAGES = [{
+       hint: 'NEW THREAT: heavy armor — dock both emitters and HOLD',
+       story: { line: 'Moving into less protected space. Stay vigilant.' } },
+     { tint: '70,205,235', duration: 60, spawnMin: 0.85, spawnMax: 1.55, speed: 0.46, doubles: 0.35, heavies: 0.20, lines: 0.00, colors: 0.00, frags: 0.13, track: 0, bursts: true,
+-      hint: 'NEW THREAT: burst deployments — threats arrive in volleys',
++      // THE OVERCHARGE LANE. This lane always carried the charge; what it never
++      // did was NAME it, because the hint was spent on the burst modifier and
++      // the charge slipped in silently behind it. That silence is half of why
++      // players never learned it. The charge asks for a HELD DOCK, which L03's
++      // armor already taught, so it is the same skill on a new target and not a
++      // new skill — but it is still a real demand, and it takes the hint now.
++      // The bursts stay in the lane and lose only their announcement. The
++      // opening band silences them for 15s while the lesson lands, which is
++      // exactly the lever L07 uses for the lock debut.
++      // OPEN: C1's seven lanes are full, so the burst debut gave up its hint
++      // rather than the ladder growing an eighth lane. An eighth is the clean
++      // fix if the shape of C1 is ever allowed to move.
++      bands: [{ t0: 0, t1: 15, mix: { bursts: false } }],
++      hint: 'NEW THREAT: overcharges — volley them DEEP, or swerve',
+       story: { line: 'A little detour through the belt.' } },
+     { tint: '150,110,255', duration: 60, spawnMin: 0.72, spawnMax: 1.35, speed: 0.46, doubles: 0.40, heavies: 0.20, lines: 0.20, colors: 0.00, frags: 0.14, track: 1,
+       hint: 'NEW THREAT: barrier lines — one emitter on each end',
+@@ -134,7 +147,10 @@ const CAMPAIGN_PACKAGES = [{
+       bands: [{ t0: 18, t1: 38, intensity: 1.7 }, { t0: 52, t1: 70, intensity: 2.1, mix: { doubles: 0.65 } }],
+       // the trough between the torrents: one placed heavy keeps it honest, then
+       // a shield right before the biggest band this campaign throws
+-      beats: [{ t: 44, kind: 'enemy', type: 'heavy' }, { t: 50, kind: 'pickup', type: 'shield' }],
++      // 44.0 -> 44.5: the overcharge's new spawn window reshuffled this lane's
++      // seeded filler, and a red landed 0.73s ahead of this armor — inside the
++      // 0.825s a later-released dual demands. Half a second of air clears it.
++      beats: [{ t: 44.5, kind: 'enemy', type: 'heavy' }, { t: 50, kind: 'pickup', type: 'shield' }],
+       story: { line: 'Tier 4. The expedition before this one filed no report.' } },
+     { tint: '212,101,255', duration: 50, spawnMin: 0.70, spawnMax: 1.25, speed: 0.55, doubles: 0.45, heavies: 0.16, lines: 0.10, colors: 0.22, frags: 0.14, walls: 0.08, track: 2, boss: true, bossKind: 'siphon',
+       hint: 'THE SIPHON — one light hunts one emitter. steal its streams',
+diff --git a/src/game/12-sfx.js b/src/game/12-sfx.js
+index 91a724f..0779aba 100644
+--- a/src/game/12-sfx.js
++++ b/src/game/12-sfx.js
+@@ -146,7 +146,7 @@ const sfx = {
+     tone(500, 0.09, 'square', 0.05, 470, null, 0.06, pan);
+     crackle(0.08, 300, 120, 2, 0.5, 0, pan);
+   },
+-  fry(pan) { // node killer: electricity dying in the coil
++  fry(pan) { // the overcharge earthing: electricity dying in the coil
+     if (playSample('shutdown', 1, pan)) return;
+     crackle(0.28, 1400, 220, 3, 2.0, 0, pan);
+     crackle(0.10, 900, 500, 5, 1.2, 0.10, pan);
+diff --git a/src/game/41-geometry.js b/src/game/41-geometry.js
+index baee484..5359a03 100644
+--- a/src/game/41-geometry.js
++++ b/src/game/41-geometry.js
+@@ -35,7 +35,7 @@ const ENEMYFX = {
+   mDrill: 1.35, mSpin: 3.50,   // auger length / flute crawl speed
+   mCrack: 1.00,  // impact crack reach
+ };
+-// node killer (void packet) — SIGNAL LOSS. Tuned in the enemy lab, whose
++// overcharge (void packet) — SIGNAL LOSS. Tuned in the enemy lab, whose
+ // "copy values" button emitted this block verbatim — which is why every key
+ // still carries the lab's v-prefix. The lab is gone; the prefix is just history.
+ const FRAGFX = {
+diff --git a/src/game/50-enemies.js b/src/game/50-enemies.js
+index 30915bd..290dcbb 100644
+--- a/src/game/50-enemies.js
++++ b/src/game/50-enemies.js
+@@ -57,7 +57,7 @@ function spawnEnemy(forcedAngle, type) {
+   if (type !== 'strip' && type !== 'frag') {
+     const tA = levelT + arrivalAt(en.z, en.speedMul);
+     sched.push({ t0: tA, t1: tA, type, lock, needsNode: type !== 'normal' || lock !== undefined });
+-  }
++  } else if (type === 'frag') fragSched.push(levelT + arrivalAt(en.z, en.speedMul));
+   return en;
+ }
+ // barrier line: two linked traps at the same depth with an energy wall strung between them
+@@ -83,6 +83,38 @@ const PATTERNS = [
+ // perspective alone supplies the acceleration feel, so arrival is extrapolable
+ const SPAWN_Z = 2.1;
+ const travelTime = () => (SPAWN_Z - geo().hitZ) / ((LV || LEVELS[levelIdx]).speed * (mutLive('fast') ? 1.35 : 1));
++// ---------- THE OVERCHARGE ----------
++// It is a live charge, not a bomb somebody planted. Contact still shorts the
++// emitter that touches it — that never changed and is still the thing it is
++// famous for. What changed is that a volley bolt landed DEEP now RELEASES the
++// charge instead of feeding it, and the discharge takes the traffic around it.
++//
++// The lane runs from the ring (hitZ 0.25) to the horizon (SPAWN_Z 2.1), a depth
++// of 1.85. Both numbers below are one quarter of that lane, which is the whole
++// design stated in one figure.
++//
++// OC_SAFE_Z is the gate. Deeper than it, the bolt pays a blast. Nearer, the
++// charge is close enough to earth itself through the ring, so a late bolt
++// shorts you exactly as contact would. The near band is also where the hazard
++// glyph glitches in (85-enemy-art), so the icon and the rule are ONE number: an
++// object that shows the hazard mark can no longer be shot, and that is the lesson.
++//
++// OC_BLAST_R is the discharge's half-depth. The blast is a ring bounded in
++// DEPTH and never in angle — the question this object asks is WHEN, and the
++// bolt already taxes aim on its way out to the target.
++//
++// The two constants agree by construction and MUST keep agreeing:
++// OC_SAFE_Z - OC_BLAST_R = 0.48, comfortably clear of the ring at 0.25, so a
++// LEGAL shot can never short you. Only a late one can. Widen the shooting
++// window by raising OC_SAFE_Z; enrich the harvest by raising OC_BLAST_R, and
++// re-check that subtraction whenever either moves.
++const OC_SAFE_Z = 0.71;   // ring + 1/4 lane: deeper pays, nearer shorts
++const OC_BLAST_R = 0.23;  // 1/4 lane is the blast's WIDTH, so half of it either way
++// A caught overcharge detonating in turn. BUILT AND OFF: the cascade is fun and
++// it is also the one part of this that can run away from the player, so it ships
++// dark until a lane is tuned around it.
++const OC_CHAIN = false;
++const OC_CHAIN_MAX = 3;   // links, so a dense field can never sweep the whole lane
+ // ---------- spawn fairness ----------
+ // never schedule an arrival pattern two nodes can't physically cover:
+ //  · heavies/lines demand BOTH nodes at once — their window must be empty
+@@ -98,6 +130,15 @@ function arrivalAt(z, speedMul) {
+ // live enemies — kills don't free a window, so a level's spawn script plays
+ // out identically no matter how the player performs
+ let sched = [];
++// The overcharge's OWN ledger. Charges never enter `sched` — they book no node,
++// so every other gate is right to ignore them — but they must see EACH OTHER.
++// One charge answered costs a dock: 0.5s of charge plus the 1.25s recharge, so
++// a second charge landing inside that window is a demand the player cannot meet
++// however well they read it. The separation below is that cycle, rounded up.
++// This mattered nothing while the window gate kept charges rare and isolated.
++// Now that they ride WITH traffic, two can stack, and this is what stops it.
++let fragSched = [];
++const OC_SEPARATION = 1.8;
+ function windowMates(tNew, gap) {
+   const tA = levelT + tNew;
+   return sched.filter(s => tA > s.t0 - gap && tA < s.t1 + gap);
+@@ -119,7 +160,21 @@ function spawnAllowed(type) {
+     }
+     return windowMates(tNew, GAP).length <= 1;
+   }
+-  if (type === 'frag') return windowMates(tNew, 0.4).length === 0;
++  if (type === 'frag') {
++    // THE OVERCHARGE WANTS COMPANY — this gate is INVERTED from what it was.
++    // It used to demand an empty 0.4s window, because the only right answer was
++    // "do nothing" and a lone charge is the cleanest dodge there is. A deep bolt
++    // now pays a blast, and a blast with no neighbours pays nothing, so plain
++    // reds are welcome alongside as the discharge's harvest.
++    // Still barred: armor, barrier pairs and ribbons. The shot parks BOTH thumbs
++    // for half a second and not one of those three can be answered without them.
++    // Allowing any of them would set two demands the player cannot both meet.
++    const tA = levelT + tNew;
++    if (fragSched.some(t2 => Math.abs(t2 - tA) < OC_SEPARATION)) return false; // one dock, one charge
++    const mates = windowMates(tNew, 0.4);
++    if (mates.some(s => s.type === 'heavy' || s.type === 'line' || s.type === 'strip')) return false;
++    return mates.length <= 2; // enough of a harvest to be worth the dock, never a crowd
++  }
+   // plain trap (may become a lock — see lockAllowed)
+   const mates = windowMates(tNew, GAP);
+   if (mates.some(s => s.type === 'heavy' || s.type === 'line')) return false;
+diff --git a/src/game/51-linter.js b/src/game/51-linter.js
+index 32346eb..fbbf25d 100644
+--- a/src/game/51-linter.js
++++ b/src/game/51-linter.js
+@@ -56,6 +56,7 @@ function lintWalk(level, idx) {
+   const picks = []; // pickup arrivals {t, angle, beat}
+   const walls = []; // {tRel, tLand, a, beat} — live on the rim tLand..tLand+3
+   let sched2 = [];
++  const fragSched2 = []; // mirrors fragSched — charges see each other, nothing else
+   // --- mirrors of the live fairness helpers, on local state ---
+   const liveWalls = tN => walls.filter(w => tN >= w.tRel && tN < w.tLand + 3);
+   const cow = (a2, tN, extra) => { // clearOfWalls mirror — same reachability law
+@@ -81,7 +82,12 @@ function lintWalk(level, idx) {
+       for (const s of sched2) if (s.needsNode && s.t1 > tA - GAP && s.t0 < tA1 + GAP) return false;
+       return mates(tA, GAP).length <= 1;
+     }
+-    if (type === 'frag') return mates(tA, 0.4).length === 0;
++    if (type === 'frag') { // mirrors spawnAllowed: the overcharge wants a harvest
++      if (fragSched2.some(t2 => Math.abs(t2 - tA) < OC_SEPARATION)) return false;
++      const m2 = mates(tA, 0.4);
++      if (m2.some(s => s.type === 'heavy' || s.type === 'line' || s.type === 'strip')) return false;
++      return m2.length <= 2;
++    }
+     const m = mates(tA, GAP);
+     if (m.some(s => s.type === 'heavy' || s.type === 'line')) return false;
+     const strips = m.filter(s => s.type === 'strip').length;
+@@ -106,6 +112,7 @@ function lintWalk(level, idx) {
+     arr.push(rec);
+     if (type !== 'strip' && type !== 'frag')
+       sched2.push({ t0: tA, t1: tA, type, lock, needsNode: rec.needsNode });
++    else if (type === 'frag') fragSched2.push(tA);
+     return rec;
+   }
+   function simLine(cfg, tN, forcedA, beat, force) {
+@@ -299,7 +306,7 @@ function lintVerdicts(bad, level, arr, picks, walls) {
+   // a trap parked on a mandatory dock: the player MUST be there — and dies
+   for (const f of arr) if (f.type === 'frag') for (const h of host) {
+     if (beaty(f, h) && h.needsNode && Math.abs(h.t - f.t) < 0.35 && Math.abs(angDiff(h.angle, f.angle)) < 0.5)
+-      bad(f.t, 'dual-conflict', 'node killer parked on a mandatory dock');
++      bad(f.t, 'dual-conflict', 'overcharge parked on a mandatory dock');
+   }
+   // wall clearance — REACHABILITY (the designer's ruling, the law everywhere):
+   // an arrival may share a live wall's window as long as its demanded dock arc
+@@ -398,7 +405,7 @@ function trySpawn(dt) {
+       return;
+     }
+     // node-killer trap — the one thing you must NOT touch
+-    if (schance(L.frags || 0) && rideFits(rideLife(1)) && spawnAllowed('frag')) { spawnEnemy(undefined, 'frag'); return; } // node killer
++    if (schance(L.frags || 0) && rideFits(rideLife(1)) && spawnAllowed('frag')) { spawnEnemy(undefined, 'frag'); return; } // the overcharge
+     // burst transmissions: occasionally a volley of three in rapid succession
+     if (L.bursts && !burstQ && schance(0.3) && rideFits(rideLife(1) + 0.7) && spawnAllowed('line')) { // volleys start from a clean window
+       burstQ = { left: 2, t: 0.35 };
+diff --git a/src/game/52-bosses.js b/src/game/52-bosses.js
+index 173cd9d..f632e6a 100644
+--- a/src/game/52-bosses.js
++++ b/src/game/52-bosses.js
+@@ -105,7 +105,7 @@ const bCoin = () => bossRng() < 0.5 ? 0 : 1;       // seeded 0/1 (node / colour
+ // the boss duel: the machine holds the bore's centre while the pulse economy
+ // (the campaign's own verbs — controls never change hands) takes it apart
+ function spawnBoss() {
+-  enemies = []; pickups = []; burstQ = null; patternQ = []; sched = []; latches = []; volley.shots = []; // the lane clears
++  enemies = []; pickups = []; burstQ = null; patternQ = []; sched = []; fragSched = []; latches = []; volley.shots = []; // the lane clears
+   const kind = (LV || LEVELS[levelIdx]).bossKind || 'leech';
+   // seed the boss's own render-blind stream from the level (see bossRng above)
+   bossRng = mulberry32((0x805 ^ ((levelIdx + 1) * 2654435761)) >>> 0);
+diff --git a/src/game/60-input.js b/src/game/60-input.js
+index 5342810..ea489d1 100644
+--- a/src/game/60-input.js
++++ b/src/game/60-input.js
+@@ -616,7 +616,7 @@ function resetRun() {
+   fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24); pickupBag = [];
+   lastPickT = -1e9; // the spacing law starts every run with a clear lane
+   ribbonT = srand(11, 15); // first golden ribbon EARLY — its pulse should serve the whole run
+-  sched = [];
++  sched = []; fragSched = [];
+   initBeats(); // authored timeline: arm the beat queue + pre-book its windows
+   nodes[0].angle = Math.PI * 0.75;
+   nodes[1].angle = Math.PI * 0.25;
+diff --git a/src/game/70-update.js b/src/game/70-update.js
+index 101bc99..4bba6a4 100644
+--- a/src/game/70-update.js
++++ b/src/game/70-update.js
+@@ -14,8 +14,14 @@ const QUAL = [
+   { card: 'move' },
+   // the hazards ride WITH the early traps: intercept the reds, STEER CLEAR
+   // of the killer and the wall — no dedicated stages, one flowing lesson
+-  { card: 'normal', queue: ['normal', 'frag', 'normal', 'wall'] },
++  { card: 'normal', queue: ['normal', 'normal', 'wall'] },
+   { card: 'heavy',  queue: ['heavy'] },
++  // THE OVERCHARGE SITS HERE ON PURPOSE, directly behind the armor. Its answer
++  // is a HELD dock, and the armor drill is where the dock is taught — one new
++  // demand per lane, so the charge may only ask for a skill the pupil already
++  // has. It used to ride inside the 'normal' stage as a dodge, which is the one
++  // thing it can no longer be taught as.
++  { card: 'frag',   queue: ['frag'] },
+   { card: 'line',   queue: ['line'] },
+   { card: 'lock',   queue: ['lock0', 'lock1'] },
+   // NO VOLLEY DRILL. The unite-volley — dock both emitters on one lane, hold,
+@@ -36,7 +42,7 @@ const INFO_CARDS = {
+   heavy:  { title: 'ARMORED INTERDICTOR', lines: ['Dock BOTH emitters together', 'to collapse it.'] },
+   line:   { title: 'BARRIER NET', lines: ['Cover BOTH ends —', 'one emitter on each.'] },
+   lock:   { title: 'PHASE-LOCKED', lines: ['Only the MATCHING phase', 'collapses it.'] },
+-  frag:   { title: 'EMITTER KILLER', lines: ['It INVERTS the emitter that', 'strikes it. Let it pass.'] },
++  frag:   { title: 'OVERCHARGE', lines: ['A live charge. Contact SHORTS you.', 'VOLLEY it DEEP — dock both, hold.'] },
+   pickup: { title: 'POWER-UP', lines: ['Golden relays arm powers.', 'Catch one with any emitter.'] },
+   strip:  { title: 'BONUS RIBBON', lines: ['Optional: ride its crossing point.', 'A full ride banks a full PULSE.'] },
+   wall:   { title: 'DEAD ZONE', lines: ['It seizes part of your rail.', 'Crossing FRIES — go around.'] },
+@@ -148,8 +154,23 @@ function qualSpawn(kind) {
+     en.lock = kind === 'lock0' ? 0 : 1;
+   } else en = spawnEnemy(undefined, kind); // normal | heavy | frag
+   en.tut = kind;
+-  // killers are pure dodge drills — the DANGER! AVOID! label states the
+-  // consequence instead of making the pupil feel the fry
++  if (kind === 'frag') {
++    // A CHARGE WITH NOTHING AROUND IT TEACHES NOTHING. The drill hands the
++    // pupil the harvest as well: one plain red at the same depth, a third of a
++    // turn away, so the discharge visibly takes something and the point of the
++    // dock lands in one rep. It is placed off both carriages for the same
++    // reason the pulse drill places its column off them — a red that dies for
++    // free on a parked thumb teaches slightly the wrong thing.
++    let ha = en.angle + 2.0944;
++    for (let h = 0; h < 8; h++) {
++      if (!nodes.some(n => Math.abs(angDiff(n.angle, ha)) < 0.45)) break;
++      ha += 0.5;
++    }
++    const mate = spawnEnemy(clearOfWalls(ha), 'normal');
++    mate.lock = undefined;
++    mate.z = en.z;      // same slab, so one discharge answers both
++    mate.tut = 'frag';  // practice: missing it costs nothing and repeats THIS drill
++  }
+ }
+ function advanceQual() {
+   tut.stage++;
+diff --git a/src/game/72-tick.js b/src/game/72-tick.js
+index a63a0fe..4ebff16 100644
+--- a/src/game/72-tick.js
++++ b/src/game/72-tick.js
+@@ -322,8 +322,10 @@ function update(dt) {
+   const waveMul = mutLive('fast') ? 1.35 : 1; // constant clock — surges live in endless L.speed
+   trafficSpeed = L.speed * waveMul; // tunnel bands, hoops, river and glyphs all ride this
+   const TOL = ARCFX.span * tolVis; // the arc IS the window — same span the node renders
+-  // a rebooting node (node-killer hit) covers nothing until it's back online
+-  const covers = (n, a) => !(n.deadT > 0) && Math.abs(angDiff(n.angle, a)) < TOL;
++  // a rebooting node (overcharge hit) covers nothing until it's back online.
++  // The test itself is nodeCovers, up by updateVolley: the late-bolt short needs
++  // the same "close enough" and two copies of it would drift.
++  const covers = nodeCovers;
+   const ringXY = a => ({ x: g.cx + Math.cos(a) * g.nodeR, y: g.cy + Math.sin(a) * g.nodeR });
+   const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
+   const nodeXY = n => ({ x: g.cx + Math.cos(n.angle) * railR, y: g.cy + Math.sin(n.angle) * railR });
+@@ -596,6 +598,103 @@ function updateLatches(dt, inIntro, ringXY, nodeXY) {
+   }
+ 
+ }
++// A node covers a bearing when it is online and inside the arc it renders. This
++// used to be a local inside update(); the overcharge's late-bolt short needs the
++// SAME test from updateVolley, and two copies of "close enough" is exactly the
++// drift this file keeps warning about. One definition, both callers.
++const nodeCovers = (n, a) => !(n.deadT > 0) && Math.abs(angDiff(n.angle, a)) < ARCFX.span * tolVis;
++// ONE KILL, ONE LEDGER. The bolt's own hit and the overcharge's discharge both
++// come through here, so a blast kill can never drift from a bolt kill.
++// A VOLLEY KILL IS A KILL. It advances the combo and takes the combo
++// multiplier, and interdiction at RANGE pays a depth bonus on top —
++// pre-clearing deep traffic is how a power player spends the dock, and
++// how a defensive player buys room for the incoming interceptions.
++// What it still never does: no perfect ×2 (a bore bolt has no aim
++// grade) and no pulse feed — the pulse economy stays interception's
++// alone. The real price is unchanged: both thumbs parked for the
++// charge, then the 1.25s recharge gap.
++// Returns true for armor, which is the one thing that stops the bolt.
++function volleyKill(en, g, vx, vy) {
++  en.dead = true;
++  if (combo === 0) comboStartT = levelT;
++  combo++;
++  if (combo > maxCombo) { maxCombo = combo; maxComboStart = comboStartT; }
++  if (comboStartT === maxComboStart) maxComboSec = levelT - maxComboStart;
++  const depthQ = clamp((en.z - g.hitZ) / (SPAWN_Z - g.hitZ), 0, 1);
++  const deep = Math.round(140 * depthQ);
++  const vb = Math.round(((en.type === 'heavy' ? 250 : 60) + deep) * mutMul()) * scoreMul();
++  score += vb; zaps++; // a volley kill is a kill in the style tiebreak too (H-25)
++  decompile(en.angle, en.z, en);
++  popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : deep >= 40 ? 'DEEP +' : '+') + vb
++    + (combo >= 3 ? '  x' + scoreMul() : ''), '#bfeaff');
++  if (en.tut) popup(vx, vy - 30, 'NEUTRALIZED', '#7ee262'); // the label's verb, answered
++  rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
++  const volleyZapSampled = sfx.zap(1, Math.cos(en.angle) * 0.6);
++  buzz(en.type === 'heavy' ? 25 : 12, en.type === 'heavy'
++    ? { strong: 0.7, weak: 0.4 } : { strong: 0.18, weak: 0.45 });
++  spawnKillStreak(en.angle, en.z);
++  lastKillBeat(en);
++  if (en.type === 'heavy' && !volleyZapSampled) tone(110, 0.2, 'square', 0.13, 60); // synth-era armor thump
++  return en.type === 'heavy';
++}
++// THE DISCHARGE. A ring bounded in DEPTH and never in angle: the question the
++// overcharge asks is WHEN, and the bolt already taxes aim on its way out. Every
++// threat inside the slab dies, barrier pairs and phase locks included — this is
++// an area discharge, not the bolt's own keyed work. A barrier's two ends sit at
++// the same z, so the slab always takes both and can never leave a dangling half.
++//
++// Three things it never takes, each for its own reason:
++//  · ribbons and gold relays — they are YOURS, and a correct action must never
++//    destroy the player's own reward (relays live in `pickups`, so they are out
++//    of this loop already; ribbons ride `enemies` and are skipped by name)
++//  · dead zones — they are terrain, they live in `latches`, and they are now the
++//    game's ONLY remaining dodge lesson
++//  · the boss — it never enters `enemies`, so it needs no guard here, and the
++//    pulse economy stays interception's alone
++//
++// `link` is the chain depth. OC_CHAIN ships false, so the recursion is dark; a
++// caught overcharge simply dies with the rest. See the note by the constants.
++const ocWaves = []; // the visible shockwave rings — draw-only, see drawOcWaves
++function overchargeBlast(z0, ang, g, link) {
++  const caught = [];
++  for (const en of enemies) {
++    if (en.dead || en.resolved || en.failed || en.type === 'strip') continue;
++    if (Math.abs(en.z - z0) > OC_BLAST_R) continue;
++    caught.push(en);
++  }
++  const rgB = ring(Math.max(z0, 0.02), g);
++  for (const en of caught) {
++    const bx = rgB.x + Math.cos(en.angle) * rgB.r, by = rgB.y + Math.sin(en.angle) * rgB.r;
++    if (en.type === 'frag') {
++      en.dead = true;
++      burst(bx, by, '#ff9a3c', 18, 3.5);
++      // the cascade, when a lane is ever tuned for it: a caught charge that is
++      // still deep enough to be legal releases in turn, under the same gate
++      if (OC_CHAIN && link < OC_CHAIN_MAX && en.z >= OC_SAFE_Z) overchargeBlast(en.z, en.angle, g, link + 1);
++      continue;
++    }
++    volleyKill(en, g, bx, by);
++  }
++  // the shockwave itself: a ring at the pop depth, plus a scatter that reads as
++  // the charge leaving the shell in every direction
++  const px = rgB.x + Math.cos(ang) * rgB.r, py = rgB.y + Math.sin(ang) * rgB.r;
++  burst(px, py, '#ffd88a', 34, 5.5);
++  burst(px, py, '#ff9a3c', 22, 4);
++  ocWaves.push({ z: z0, t0: time, kills: caught.length });
++  return caught.length;
++}
++// The late bolt, and contact at the ring, are the SAME failure and say so with
++// the same voice: the charge earths through every emitter that covers it.
++// `ang` is where it earths. Returns nothing — the caller has no choice to make.
++function overchargeShort(ang, x, y) {
++  combo = 0; comboHeal = 0; fragsHit++;
++  if (shieldAbsorb(x, y, ang)) return;
++  for (let ni = 0; ni < 2; ni++) if (nodeCovers(nodes[ni], ang)) { nodes[ni].deadT = 2; fryDrain(ni); }
++  popup(x, y, 'EMITTER FRIED — REBOOTING', '#ff4a5e');
++  redFlash = 1; shake = Math.min(shake + 0.6, 1);
++  sfx.fry(Math.cos(ang) * 0.7);
++  buzz([40, 40, 60]);
++}
+ // The UNITE-VOLLEY, once docking has been decided: charge, fire, and fly the
+ // bolt down the bore. Whether the nodes are docked is update()'s call — this
+ // is what happens afterwards.
+@@ -628,52 +727,34 @@ function updateVolley(dt, docked, g) {
+       const rgV = ring(Math.max(en.z, 0.02), g);
+       const vx = rgV.x + Math.cos(en.angle) * rgV.r, vy = rgV.y + Math.sin(en.angle) * rgV.r;
+       if (en.type === 'frag') {
+-        // shooting a trap REPLICATES it — one becomes two. The lesson costs.
++        // THE OVERCHARGE, ANSWERED AT RANGE. The bolt does not destroy this
++        // thing — it RELEASES it. Deep in the bore the charge blows outward and
++        // takes the traffic around it. Inside OC_SAFE_Z it is already close
++        // enough to earth through the ring, so the same bolt shorts you exactly
++        // as contact would. The gate is one number and the glyph shows it: an
++        // overcharge wearing the hazard mark can no longer be shot.
+         sh.dead = true;
+         en.dead = true;
+-        for (const s3 of [-1, 1]) {
+-          enemies.push({ type: 'frag', lock: undefined, z: Math.min(SPAWN_Z - 0.06, en.z + 0.22),
+-            angle: en.angle + s3 * 0.32, sizeMul: 0.8, speedMul: 1,
+-            spin: Math.random() * TAU, spinMul: 1, age: 0, dead: false, partner: null });
++        if (en.z < OC_SAFE_Z) {
++          burst(vx, vy, '#4a5568', 26, 4);
++          popup(vx, vy, 'TOO CLOSE — CHARGE EARTHED', '#ff4a5e');
++          crackle(0.3, 2600, 500, 3, 0.7);
++          overchargeShort(en.angle, vx, vy);
++          if (tut) { tut.retry = en.tut || 'frag'; tut.t = 0; } // the drill repeats
++        } else {
++          const n2 = overchargeBlast(en.z, en.angle, g, 0);
++          popup(vx, vy - 30, n2 ? 'DISCHARGE ×' + n2 : 'CHARGE RELEASED', '#ffd88a');
++          tone(150, 0.3, 'sawtooth', 0.13, 60);
++          crackle(0.25, 500, 3200, 3, 0.6); // rising: a charge leaving, not dying
++          shake = Math.min(shake + 0.5, 1);
++          buzz([30, 30, 50], { strong: 0, weak: 0 }); // WORLD telegraph — phone only
++          if (en.tut && tut) tut.fragTaught = true;
+         }
+-        burst(vx, vy, '#4a5568', 26, 4);
+-        burst(vx, vy, '#ff9a3c', 12, 3);
+-        popup(vx, vy, 'TRAP REPLICATED ×2', '#ff9a3c');
+-        tone(150, 0.3, 'sawtooth', 0.13, 60);
+-        crackle(0.3, 2600, 500, 3, 0.7);
+-        shake = Math.min(shake + 0.5, 1);
+-        buzz([30, 30, 50], { strong: 0, weak: 0 }); // WORLD telegraph — phone only
+-        break; // the bolt died on the trap
++        break; // the bolt is spent either way
+       }
+-      // A VOLLEY KILL IS A KILL. It advances the combo and takes the combo
+-      // multiplier, and interdiction at RANGE pays a depth bonus on top —
+-      // pre-clearing deep traffic is how a power player spends the dock, and
+-      // how a defensive player buys room for the incoming interceptions.
+-      // What it still never does: no perfect ×2 (a bore bolt has no aim
+-      // grade) and no pulse feed — the pulse economy stays interception's
+-      // alone. The real price is unchanged: both thumbs parked for the
+-      // charge, then the 1.25s recharge gap.
+-      en.dead = true;
+-      if (combo === 0) comboStartT = levelT;
+-      combo++;
+-      if (combo > maxCombo) { maxCombo = combo; maxComboStart = comboStartT; }
+-      if (comboStartT === maxComboStart) maxComboSec = levelT - maxComboStart;
+-      const depthQ = clamp((en.z - g.hitZ) / (SPAWN_Z - g.hitZ), 0, 1);
+-      const deep = Math.round(140 * depthQ);
+-      const vb = Math.round(((en.type === 'heavy' ? 250 : 60) + deep) * mutMul()) * scoreMul();
+-      score += vb; zaps++; // a volley kill is a kill in the style tiebreak too (H-25)
+-      decompile(en.angle, en.z, en);
+-      popup(vx, vy, (en.type === 'heavy' ? 'ARMOR DOWN +' : deep >= 40 ? 'DEEP +' : '+') + vb
+-        + (combo >= 3 ? '  x' + scoreMul() : ''), '#bfeaff');
+-      if (en.tut) popup(vx, vy - 30, 'NEUTRALIZED', '#7ee262'); // the label's verb, answered
+-      rimFX.push({ a: en.angle, t: 0.4, col: '140,225,255' });
+-      const volleyZapSampled = sfx.zap(1, Math.cos(en.angle) * 0.6);
+-      buzz(en.type === 'heavy' ? 25 : 12, en.type === 'heavy'
+-        ? { strong: 0.7, weak: 0.4 } : { strong: 0.18, weak: 0.45 });
+-      spawnKillStreak(en.angle, en.z);
+-      lastKillBeat(en);
+-      if (en.type === 'heavy') { // armor stops the bolt; reds it punches through
+-        if (!volleyZapSampled) tone(110, 0.2, 'square', 0.13, 60); // synth-era armor thump
++      // the ledger lives in volleyKill, so the bolt and the discharge can never
++      // pay differently for the same enemy
++      if (volleyKill(en, g, vx, vy)) { // armor stops the bolt; reds it punches through
+         sh.dead = true;
+         break;
+       }
+@@ -819,46 +900,46 @@ function updateEnemy(en, C) {
+   }
+ 
+   if (!en.dead && !en.resolved && en.z <= g.hitZ) {
+-    // node killer: a hacker trap — touching it IS the mistake
++    // THE OVERCHARGE at the ring. It is a live charge: touching it IS the
++    // mistake, and that has never changed. What the ring cannot do is answer it
++    // — the answer was spent, or missed, a second and a half ago out in the bore
++    // (see the volley branch in updateVolley). By here the only outcomes left
++    // are the short and the swerve.
+     if (en.type === 'frag') {
+       const touched = covers(nodes[0], en.angle) || covers(nodes[1], en.angle);
+       const { x: fx2, y: fy } = ringXY(en.angle);
+       if (touched) {
+         en.dead = true;
+         burst(fx2, fy, '#4a5568', 22, 3.5);
+-        if (en.tut && en.touchMe) { // the lesson: feel the fry, no penalty beyond it
+-          if (tut) tut.fragTaught = true;
+-          for (const n of nodes) if (covers(n, en.angle)) n.deadT = 2;
+-          popup(fx2, fy, 'FRIED — 2s REBOOT. now you know', '#ff9a3c');
+-          sfx.fry(Math.cos(en.angle) * 0.7);
+-          buzz([40, 40, 60]);
+-        } else if (en.tut) { // practice: it fries here too — dodge means dodge
++        if (en.tut) { // practice: it shorts here too — the drill repeats
+           if (tut) { tut.retry = en.tut; tut.t = 0; }
+           for (const n of nodes) if (covers(n, en.angle)) n.deadT = 2;
+-          popup(fx2, fy, 'FRIED — dodge it. AGAIN', '#ff9a3c');
++          popup(fx2, fy, 'SHORTED — 2s REBOOT. AGAIN', '#ff9a3c');
+           sfx.fry(Math.cos(en.angle) * 0.7);
+           buzz([40, 40, 60]);
+-        } else {
+-          combo = 0; comboHeal = 0; fragsHit++;
+-          if (!shieldAbsorb(fx2, fy)) {
+-            // the trap fries every node that touched it — 2s forced reboot,
+-            // and the fry tax bleeds the orb it was banking
+-            for (let ni = 0; ni < 2; ni++) if (covers(nodes[ni], en.angle)) { nodes[ni].deadT = 2; fryDrain(ni); }
+-            popup(fx2, fy, 'EMITTER FRIED — REBOOTING', '#ff4a5e');
+-            redFlash = 1; shake = Math.min(shake + 0.6, 1);
+-            sfx.fry(Math.cos(en.angle) * 0.7);
+-            buzz([40, 40, 60]);
+-          }
+-        }
++        } else overchargeShort(en.angle, fx2, fy);
+       } else {
+         en.resolved = true;
+-        if (en.tut && en.touchMe) { // the lesson requires contact — again
+-          if (tut) { tut.retry = en.tut; tut.t = 0; }
+-          popup(fx2, fy, 'TOUCH it this once — feel what it does', '#ff9a3c');
++        // THE SWERVE IS STILL LEGAL, and it still pays — just less than the
++        // discharge does, which is the whole pull toward the dock. It was 50
++        // when a swerve was the only right answer in the game.
++        if (en.tut && tut && !tut.fragTaught) {
++          // the drill wants the SHOT. It relents after three passes: a swerve is
++          // a real answer, and a pupil who cannot find the dock must not be
++          // parked here forever — the wall drill's own mercy, applied here.
++          tut.fragTries = (tut.fragTries || 0) + 1;
++          if (tut.fragTries < 3) {
++            tut.retry = en.tut; tut.t = 0;
++            popup(fx2, fy, 'VOLLEY IT — DOCK BOTH, DEEP', '#ff9a3c');
++          } else {
++            tut.fragTaught = true;
++            popup(fx2, fy, 'SWERVED — that works too +', '#7ee262');
++          }
+         } else {
+-          const bonus = Math.round(50 * mutMul());
++          const bonus = Math.round(25 * mutMul());
+           score += bonus;
+-          popup(fx2, fy, (en.tut ? 'DODGED +' : 'trap avoided +') + bonus, en.tut ? '#7ee262' : '#9aa7bd');
++          popup(fx2, fy, (en.tut ? 'SWERVED +' : 'overcharge swerved +') + bonus,
++            en.tut ? '#7ee262' : '#9aa7bd');
+         }
+       }
+       return;
+diff --git a/src/game/83-deepfield.js b/src/game/83-deepfield.js
+index 68a1802..df1455c 100644
+--- a/src/game/83-deepfield.js
++++ b/src/game/83-deepfield.js
+@@ -719,8 +719,8 @@ const BARKS = {
+                 'two ends, two emitters.'],
+   firstWall:   ['wall forming. reroute.', "they're sealing the rail. move.",
+                 'clamp coming down. get off it.'],
+-  firstFrag:   ["black charge. don't touch it.", 'emitter killer on the rail. steer.',
+-                'that one bites. go around.'],
++  firstFrag:   ['live charge. blow it early.', 'overcharge on the lane. volley it deep.',
++                "let that close and it's yours to swerve."],
+   ribbon:      ['clean current. ride it.', 'gold on the lane. take it.',
+                 'free charge. go get it.'],
+   pickup:      ['good grab.', "that'll hold.", 'logged.', 'useful.'],
+diff --git a/src/game/85-enemy-art.js b/src/game/85-enemy-art.js
+index 308b184..cfd03cb 100644
+--- a/src/game/85-enemy-art.js
++++ b/src/game/85-enemy-art.js
+@@ -440,20 +440,22 @@ function drawGhost(gh, g) {
+   ctx.globalAlpha = 1;
+ }
+ 
+-// the node killer's body: SIGNAL LOSS.
++// the overcharge's body: SIGNAL LOSS.
+ // The void packet keeps its mass, its light-swallowing halo and its slow rim
+-// glint (the glint is what sells the BAIT — a beautiful object you must not
+-// touch). What it does now is FAIL: horizontal tear bands displace sideways and
++// glint. What it does is FAIL: horizontal tear bands displace sideways and
+ // drop out entirely, and the rim splits into red/cyan chromatic fringes, which
+ // is what finally gives the void an edge you can find at the horizon — being
+ // black-on-black in a dark bore was its old weakness.
+-// Deliberately CONSTANT with depth: it never escalates as it closes, because
+-// escalation reads as "hostile, shoot it" and this one has to stay bait. It is
+-// not angrier up close; it is just wrong, the whole way in.
+-// Shared by the live body, the field guide specimen and the briefing card, so
+-// no surface can show a clean diamond the enemy no longer is. The caller
+-// translates to the body centre; everything here is local.
+-function voidPacket(pr, rot, ph, seed) {
++// IT NOW ESCALATES, and that reversal is deliberate. This body used to be held
++// CONSTANT with depth on the grounds that escalation reads as "hostile, shoot
++// it" and the object had to stay bait. Shooting it is the CORRECT answer now,
++// so "shoot it" is exactly the right read, and the build-up is the telegraph
++// that says shoot it NOW: `chg` runs 0 at the horizon to 1 at OC_SAFE_Z, where
++// the window shuts and the hazard glyph takes over (drawOcHazard).
++// `chg` is optional and defaults to 0, so the field guide specimen and the
++// briefing card still get the calm body — a still life has no closing distance.
++// The caller translates to the body centre; everything here is local.
++function voidPacket(pr, rot, ph, seed, chg) {
+   if (pr < 1) return;
+   // corruption clock: events fire often, but `burst` is a STRENGTH rolled once
+   // per event off the STATIC seed, not a flag — most events are a one-band
+@@ -488,7 +490,11 @@ function voidPacket(pr, rot, ph, seed) {
+   // a sub-pixel split vanishes at horizon size, which is exactly where the void
+   // used to disappear — so the fringe has a hard pixel FLOOR. Not an escalation:
+   // the same look, just never allowed to reach zero.
+-  const cs = Math.max(Math.min(0.7, pr * 0.08), pr * FRAGFX.vChroma * (1 + burst * (FRAGFX.vChromaB - 1)));
++  // the charge term rides ON TOP of the corruption's own roll, so the packet
++  // still tears at its own irregular cadence — it simply tears WIDER the nearer
++  // it gets. A smooth ramp under a ragged clock reads as pressure, not a dimmer.
++  const cs = Math.max(Math.min(0.7, pr * 0.08),
++    pr * FRAGFX.vChroma * (1 + burst * (FRAGFX.vChromaB - 1)) * (1 + (chg || 0) * 1.2));
+   const rimW = Math.max(0.8, pr * 0.045);
+   const ext = pr * 1.04;                     // the diamond never reaches past pr
+   const bh = 2 * ext / bands;
+@@ -564,6 +570,86 @@ function voidPacket(pr, rot, ph, seed) {
+ // touched, so the campaign's spawn sequence can never shift because of an FX draw
+ const fhash = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+ 
++// THE HAZARD MARK. An overlay, never a body change: a bolt in a triangle, the
++// symbol a machine uses to say "live charge", stamped over the packet once it
++// crosses OC_SAFE_Z. It means one thing exactly — the shot is no longer legal,
++// so swerve. It glitches because our own read-out is glitching: the mark tears
++// on the same stepped clock the body does, and splits amber against white.
++// Drawn AFTER the body and at full alpha, per the overlay-text-on-top rule.
++function drawOcHazard(x, y, size, seed) {
++  const r = size * 0.78;
++  const tk = Math.floor(time * 14);                 // stepped, so it stutters
++  const jx = (fhash(seed + tk) - 0.5) * size * 0.30;
++  const jy = (fhash(seed * 1.7 + tk) - 0.5) * size * 0.12;
++  const flick = fhash(seed * 3.1 + tk) > 0.12 ? 1 : 0.25; // the odd dropped frame
++  const tri = (ox, oy, col, w) => {
++    ctx.strokeStyle = col;
++    ctx.lineWidth = w;
++    ctx.lineJoin = 'round';
++    ctx.beginPath();
++    ctx.moveTo(x + ox, y + oy - r);
++    ctx.lineTo(x + ox + r * 0.92, y + oy + r * 0.72);
++    ctx.lineTo(x + ox - r * 0.92, y + oy + r * 0.72);
++    ctx.closePath();
++    ctx.stroke();
++    ctx.beginPath();                                 // the bolt inside it
++    ctx.moveTo(x + ox + r * 0.20, y + oy - r * 0.42);
++    ctx.lineTo(x + ox - r * 0.16, y + oy + r * 0.04);
++    ctx.lineTo(x + ox + r * 0.08, y + oy + r * 0.04);
++    ctx.lineTo(x + ox - r * 0.20, y + oy + r * 0.52);
++    ctx.stroke();
++  };
++  ctx.save();
++  ctx.globalAlpha = flick;
++  ctx.shadowColor = 'rgba(255,154,60,0.9)';
++  ctx.shadowBlur = size * 0.5;
++  tri(jx, jy, 'rgba(255,154,60,0.95)', Math.max(1.4, size * 0.13)); // the mark
++  ctx.shadowBlur = 0;
++  ctx.globalAlpha = flick * 0.55;
++  tri(-jx * 0.7, -jy * 0.7, 'rgba(255,255,255,0.8)', Math.max(1, size * 0.07)); // the split
++  ctx.restore();
++}
++// THE DISCHARGE, seen. A ring at the pop depth that races outward along the
++// bore and dies. Draw-only: the kills landed on the frame the bolt did, and
++// this says so. Depth-bounded exactly as the blast is, so what the player sees
++// swallowed is what the rule actually swallowed.
++function drawOcWaves(g) {
++  for (let i = ocWaves.length - 1; i >= 0; i--) {
++    const w = ocWaves[i];
++    const k = (time - w.t0) / 0.45;
++    if (k >= 1) { ocWaves.splice(i, 1); continue; }
++    const al = (1 - k) * (1 - k);
++    // TWO EDGES IN DEPTH ARE NOT ENOUGH. Perspective squeezes ±0.23 of z into a
++    // few pixels of radius out here, so the honest pair of rings read as one ring
++    // going soft. What the player has to see is the SLAB — so the volume between
++    // the two edges is FILLED, as an annulus down the bore, and the edges ride on
++    // top of it. The fill is the swallowed depth, drawn as the thing it is.
++    const rN = ring(Math.max(w.z - OC_BLAST_R * k, 0.02), g); // nearer edge = larger
++    const rF = ring(Math.max(w.z + OC_BLAST_R * k, 0.02), g);
++    ctx.save();
++    ctx.beginPath();
++    ctx.arc(rN.x, rN.y, rN.r, 0, TAU);
++    ctx.arc(rF.x, rF.y, rF.r, 0, TAU, true); // reverse-wound: punches the far hole
++    ctx.fillStyle = 'rgba(255,190,90,' + (al * 0.30).toFixed(3) + ')';
++    ctx.fill('evenodd');
++    ctx.restore();
++    // the edges themselves: the wave front walking out, and its trailing wall
++    for (const rz of [rN, rF]) {
++      ctx.strokeStyle = 'rgba(255,226,160,' + (al * 0.9).toFixed(2) + ')';
++      ctx.lineWidth = Math.max(2, rz.r * 0.03 * (1 - k) + 1.5);
++      ctx.beginPath(); ctx.arc(rz.x, rz.y, rz.r, 0, TAU); ctx.stroke();
++    }
++    // the flash at the pop depth: hot, white, and gone inside the first third
++    const fl = clamp(1 - k * 3, 0, 1);
++    if (fl > 0.01) {
++      const rc = ring(Math.max(w.z, 0.02), g);
++      ctx.strokeStyle = 'rgba(255,255,255,' + (fl * 0.85).toFixed(2) + ')';
++      ctx.lineWidth = Math.max(2, rc.r * 0.07 * fl);
++      ctx.beginPath(); ctx.arc(rc.x, rc.y, rc.r, 0, TAU); ctx.stroke();
++    }
++  }
++}
++
+ function drawEnemy(en, g) {
+   const rg = ring(Math.max(en.z, 0.02), g);
+   const x = rg.x + Math.cos(en.angle) * rg.r;
+@@ -600,10 +686,18 @@ function drawEnemy(en, g) {
+   const urg = urgency(en, g);
+   const pulse = 1 + Math.sin(en.spin * 2) * 0.08 + urg * 0.1 * Math.sin(time * 10);
+   const gl = ctx.createRadialGradient(x, y, 0, x, y, size * 2.4 * pulse);
++  // the overcharge's charge term: 0 at the horizon, 1 the moment the shooting
++  // window shuts. Everything that escalates on this body reads it, and nothing
++  // else does — one ramp, so the halo, the tearing and the glyph agree.
++  const ocChg = en.type === 'frag'
++    ? clamp((SPAWN_Z - en.z) / (SPAWN_Z - OC_SAFE_Z), 0, 1) : 0;
+   if (en.type === 'frag') {
++    // still a light-swallowing core. The charge shows as an amber bloom AROUND
++    // the void, which is a shell holding something in, not a body turning red.
+     gl.addColorStop(0, 'rgba(1,2,8,0.75)');
+-    gl.addColorStop(0.55, 'rgba(2,4,12,0.35)');
+-    gl.addColorStop(1, 'rgba(4,6,16,0)');
++    gl.addColorStop(0.55, 'rgba(2,4,12,' + (0.35 - ocChg * 0.1).toFixed(2) + ')');
++    gl.addColorStop(0.8, 'rgba(255,154,60,' + (ocChg * 0.22).toFixed(2) + ')');
++    gl.addColorStop(1, 'rgba(255,154,60,0)');
+   } else {
+     gl.addColorStop(0, `rgba(${PAL.glow},${(0.5 + urg * 0.3).toFixed(2)})`);
+     gl.addColorStop(0.5, `rgba(${PAL.glow},${(0.16 + urg * 0.12).toFixed(2)})`);
+@@ -616,11 +710,12 @@ function drawEnemy(en, g) {
+     // sprite skin replaces the procedural body (glow + sigils stay live)
+     ctx.drawImage(spr, x - size * 1.7, y - size * 1.7, size * 3.4, size * 3.4);
+   } else if (en.type === 'frag') {
+-    // payload packet: a void-black rounded diamond FLOATING in the bore — the
+-    // payload rides the stream; only corruption clings to the walls. It renders
+-    // as a failing signal (voidPacket) on a clock that is its own: a STATIC
+-    // seed off the spawn angle, and a phase that only ever ACCUMULATES, with no
+-    // urgency term — this body is bait and must not escalate as it closes.
++    // the overcharge: a void-black rounded diamond FLOATING in the bore — it
++    // rides the stream; only corruption clings to the walls. It renders as a
++    // failing signal (voidPacket) on a clock that is its own: a STATIC seed off
++    // the spawn angle, and a phase that only ever ACCUMULATES. The charge ramp
++    // rides on top of that clock, so the packet tears at its own irregular
++    // cadence and simply tears wider the nearer it gets.
+     if (en.fxSeed === undefined) {
+       en.fxSeed = 3 + ((en.angle * 39.7) % 10) * 9.7;
+       en.fxPh = (en.angle * 7.3) % 3;          // stagger the start, no RNG draw
+@@ -629,8 +724,11 @@ function drawEnemy(en, g) {
+     en.fxPh += clamp(time - en.fxT, 0, 0.1); en.fxT = time;
+     ctx.save();
+     ctx.translate(x, y);
+-    voidPacket(size * (1 + Math.sin(en.spin * 2) * 0.06), en.spin * 0.3, en.fxPh, en.fxSeed);
++    voidPacket(size * (1 + Math.sin(en.spin * 2) * 0.06), en.spin * 0.3, en.fxPh, en.fxSeed, ocChg);
+     ctx.restore();
++    // the window has shut: the mark says swerve, and it is the LAST thing drawn
++    // on this body so nothing in the bore can bury it
++    if (!en.resolved && !en.dead && en.z < OC_SAFE_Z) drawOcHazard(x, y, size, en.fxSeed);
+   } else {
+     drawNailBreach(en, g, fade, PAL);
+   }
+diff --git a/src/game/90-hud.js b/src/game/90-hud.js
+index f8d14a2..ea8db81 100644
+--- a/src/game/90-hud.js
++++ b/src/game/90-hud.js
+@@ -609,7 +609,7 @@ function drawIntroCard() {
+ const TUT_LESSON = {
+   move:   'SLIDE THE DIALS \u2014 RIDE THE RING',
+   normal: 'ALIGN EITHER EMITTER ON THE RED',
+-  frag:   'EMITTER KILLER \u2014 LET IT PASS',
++  frag:   'VOLLEY IT DEEP \u2014 DOCK BOTH THUMBS',
+   wall:   'DEAD ZONE \u2014 GO AROUND',
+   heavy:  'DOCK BOTH EMITTERS TOGETHER',
+   line:   'COVER BOTH ENDS \u2014 ONE EACH',
+@@ -633,7 +633,10 @@ function tutFocusDesc(st, ten) {
+   if (tutFocusRef !== tut) { tutFocusRef = tut; tutLessonKind = null; dragGhost = [null, null]; }
+   // what is being taught RIGHT NOW — the enemy knows best (queue drills like the
+   // killer ride inside the 'normal' stage), then the stage's own card
+-  let kind = ten ? ten.tut : null;
++  // The overcharge drill ships a plain red alongside as the discharge's harvest.
++  // Both carry the drill's key so a miss costs the pupil nothing, but the LESSON
++  // has to name what the eye is actually on — a red is a red, whoever sent it.
++  let kind = ten ? (ten.tut === 'frag' && ten.type !== 'frag' ? 'normal' : ten.tut) : null;
+   if (!kind && st.card === 'move' && tut.aim && tut.aim.targets) kind = 'move';
+   if (!kind && tut.spawned === 'wall' && latches.length) kind = 'wall';
+   if (!kind) return null;
+@@ -667,8 +670,14 @@ function tutFocusDesc(st, ten) {
+       const i = Math.abs(angDiff(nodes[0].angle, aS)) <
+                 Math.abs(angDiff(nodes[1].angle, aS)) ? 0 : 1;
+       ghosts.push({ i, a: aS, col: '255,210,74' });
++    } else if (kind === 'frag' && ten.type === 'frag' && ten.z >= OC_SAFE_Z) {
++      // BOTH pads, together, on the charge's own bearing — the same shape the
++      // armor drill uses, because it is the same demand: dock and hold. It cuts
++      // out the moment the charge crosses OC_SAFE_Z, because from there a ghost
++      // would be pointing at a shot that is no longer legal.
++      ghosts.push({ i: 0, a: ten.angle, col: NODE_COLS[0] }, { i: 1, a: ten.angle, col: NODE_COLS[1] });
+     }
+-    // frag and the dead zone ghost nothing — the drill is DODGE, and a ghost says "go here"
++    // the dead zone ghosts nothing — its drill is DODGE, and a ghost says "go here"
+   }
+   return { kind, ghosts };
+ }
+@@ -1203,13 +1212,17 @@ function drawHUD(g) {
+         }
+       }
+       else if (ten.lock !== undefined) drawGuideArc(nodes[ten.lock], ten.angle);
+-      // killers wear a landing signal — the drill is DODGE, the label says so
++      // the overcharge wears a landing signal — the arc it will earth through if
++      // the shot never comes — and a label that FLIPS on the one number that
++      // governs it. Deep: the shot is on. Inside OC_SAFE_Z: the window has shut.
+       else if (ten.type === 'frag') {
+         drawKillerSignal(ten);
+-        drawRideLabel('DANGER! AVOID!', ten, '#ffb066'); // rides it from spawn
++        const shootable = ten.z >= OC_SAFE_Z;
++        drawRideLabel(shootable ? 'VOLLEY IT \u2014 DOCK BOTH' : 'TOO CLOSE \u2014 SWERVE',
++          ten, shootable ? '#ffd88a' : '#ffb066');
+       }
+       else drawGuideArc(nn(ten.angle), ten.angle);
+-      if (st.card === 'normal' && ten.type === 'normal' && ten.lock === undefined) {
++      if ((st.card === 'normal' || st.card === 'frag') && ten.type === 'normal' && ten.lock === undefined) {
+         // the tooltip tracks the trap's ANGLE from the moment it spawns, held
+         // at a minimum radius so a deep (near-center) trap's label still reads
+         // against the bore instead of collapsing onto the axis
+diff --git a/src/game/91-briefing.js b/src/game/91-briefing.js
+index 8bcdb9c..8560bc3 100644
+--- a/src/game/91-briefing.js
++++ b/src/game/91-briefing.js
+@@ -813,7 +813,7 @@ function drawParkSpot(a, col) {
+   ctx.restore();
+ }
+ 
+-// mini landing signal for tutorial node killers, in the rim wall's hazard
++// mini landing signal for tutorial overcharges, in the rim wall's hazard
+ // language: once a defender has been fried by one, killers telegraph the arc
+ // they'll land on — the drill becomes DODGE, not decode
+ function drawKillerSignal(e) {
+diff --git a/src/game/92-guide.js b/src/game/92-guide.js
+index 1924dde..331bd10 100644
+--- a/src/game/92-guide.js
++++ b/src/game/92-guide.js
+@@ -43,7 +43,7 @@ const GUIDE_ITEMS = [
+     draw: (cx, cy, r) => archTapSpec('lk0', 'normal', 0, cx, cy, r, 0.5) },
+   { cap: ['HIT WITH', 'WHITE ⊖'], col: '235,245,255',
+     draw: (cx, cy, r) => archTapSpec('lk1', 'normal', 1, cx, cy, r, 0.5) },
+-  { cap: ['DANGER!', 'STEER CLEAR'], col: '160,175,200',
++  { cap: ['VOLLEY DEEP', 'OR STEER CLEAR'], col: '255,154,60',
+     draw: (cx, cy, r) => archTapSpec('frag', 'frag', undefined, cx, cy, r, 0.95) },
+   { cap: ['RIDE TO', 'CHARGE PULSE'], col: '255,210,74',
+     draw: (cx, cy, r) => { // the ribbon in its true 3D form: a STATIC snake of
+diff --git a/src/game/99-boot.js b/src/game/99-boot.js
+index fb1710b..cc5e777 100644
+--- a/src/game/99-boot.js
++++ b/src/game/99-boot.js
+@@ -920,6 +920,7 @@ function frame(now) {
+   if (runVis < 1) { ctx.save(); ctx.globalAlpha *= runVis; }
+   for (const en of sorted) if (en.lineLead) drawLineBeam(en, g); // beams sit under the traps
+   for (const en of sorted) drawEnemy(en, g);
++  drawOcWaves(g); // the discharge ring sits OVER the traffic it just swallowed
+   for (const gh of (inGuide || runVis <= 0.004) ? [] : ghosts) drawGhost(gh, g); // dead bodies de-rezzing in place
+   for (const p of (inGuide || runVis <= 0.004) ? [] : pickups) drawPickup(p, g);
+   if (runVis < 1) ctx.restore();
