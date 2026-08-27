@@ -194,7 +194,7 @@ function swell(f0, f1, dur, type, vol, lp0, lp1, delay, pan) {
     const p = ac.createStereoPanner(); p.pan.value = clamp(pan, -1, 1);
     g.connect(p); tail = p;
   }
-  o.connect(lp); lp.connect(g); tail.connect(sfxGain);
+  o.connect(lp); lp.connect(g); tail.connect(accentGain || sfxGain); // the accent bus, like tone()
   o.start(t0); o.stop(t0 + dur + 0.12);
 }
 // the noise half of the same idea: a resonant band that opens as the charge loads
@@ -222,7 +222,7 @@ function swellNoise(dur, f0, f1, q, vol, delay, pan) {
     const p = ac.createStereoPanner(); p.pan.value = clamp(pan, -1, 1);
     g.connect(p); tail = p;
   }
-  src.connect(bp); bp.connect(g); tail.connect(sfxGain);
+  src.connect(bp); bp.connect(g); tail.connect(accentGain || sfxGain); // the accent bus, like tone()
   src.start(t0); src.stop(t0 + dur + 0.12);
 }
 // THE ENGINE BED — the tunnel's own voice, held for the length of a run.
@@ -395,8 +395,20 @@ function rayVoiceNew(ac) {
   const g = ac.createGain(); g.gain.value = 0.0001;
   ga.connect(g); gb.connect(g);
   let pan = null;
-  if (ac.createStereoPanner) { pan = ac.createStereoPanner(); g.connect(pan); pan.connect(sfxGain); }
-  else g.connect(sfxGain);
+  // THE RAY ENTERS THROUGH THE ACCENT BUS, like every other synth voice.
+  // It did not, and that is the whole reason the ray "didn't apply" in a real
+  // fight (Gil, 2026-08-27). ACCENT_LIFT exists because a synth voice enters at
+  // 0.05-0.13 while a recorded take enters at 0.27-1.0, which measured 10-15 dB
+  // apart through the real bus — the exact "sometimes no sound on x10" problem.
+  // `tone` was routed through the lift; `swell`, `swellNoise` and this voice were
+  // written later, for the ray, and went straight to sfxGain. So the ray sat ~10 dB
+  // under every other accent and ~20 dB under the takes it plays beside, and the
+  // charge was 10 dB under its OWN release thud, which is a `tone`. It sounded
+  // right in the soundboard because a cue auditioned alone has nothing to hide
+  // behind. In the duel, with takes and music over it, it was buried.
+  const rayDest = accentGain || sfxGain;
+  if (ac.createStereoPanner) { pan = ac.createStereoPanner(); g.connect(pan); pan.connect(rayDest); }
+  else g.connect(rayDest);
   oa.start(); ob.start(); src.start();
   return { oa, ob, lp, bp, ga, gb, g, pan, src };
 }
@@ -414,16 +426,11 @@ function raySweep(list) {
   const ac = AC; if (!ac || !sfxGain) return;
   const live = (simMuted || !list) ? [] : list;
   const held = {};
-  // TWO LIGHTS ARE NOT TWICE ONE LIGHT (Gil, 2026-08-27: "the new ray sounds
-  // didn't apply here" — said in the PRISM, the only fight that runs two rays at
-  // once). Each voice was written to sit at RAY_LEVEL, so the prism summed two of
-  // them into a bed at twice the ceiling. The master limiter then pulled the whole
-  // mix down to fit, and what reaches the ear is a duck, not a ray — the sound is
-  // there and is the first thing the limiter spends. The bed is shared instead of
-  // stacked: n lights split one ceiling, weighted so two still read louder than
-  // one without doubling it.
-  const nLive = live.reduce((n, bm) => n + (bm.done ? 0 : 1), 0);
-  const share = nLive > 1 ? 1 / Math.sqrt(nLive) : 1;
+  // NO PER-COUNT DUCKING HERE. An earlier pass this day divided each voice by
+  // sqrt(n) on the theory that the prism's two rays summed past the limiter. That
+  // was an inference, never measured, and it was wrong twice over: the real fault
+  // was the missing accent bus below, and dividing made the quiet ray quieter. Two
+  // lights are meant to be louder than one — that is the prism's whole picture.
   for (const bm of live) {
     if (bm.done) continue;
     held[bm.phase] = 1;
@@ -443,7 +450,7 @@ function raySweep(list) {
     if (v.pan) set(v.pan.pan, clamp(Math.cos(bm.a) * 0.7, -1, 1));
     // the birth swell: the ray erupts before it turns, so it arrives rather than snaps
     const born = clamp((bm.liveT || 0) / 0.22, 0, 1);
-    set(v.g.gain, Math.max(0.0001, RAY_LEVEL * share * (0.55 + 0.45 * k) * born));
+    set(v.g.gain, Math.max(0.0001, RAY_LEVEL * (0.55 + 0.45 * k) * born));
   }
   for (const key of Object.keys(rayVoices)) {
     if (held[key]) continue;

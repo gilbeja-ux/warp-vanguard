@@ -700,7 +700,7 @@ function updatePickups(dt, sdt, L, g, covers, ringXY) {
           shieldCharge = 1;
           shieldUpT = 0.6; shieldUpA = p.angle; // the collar charges up FROM the catch
           sfx.pick(); sfx.shieldUp(); // shared pickup sparkle, then the collar charge
-        } else if (p.kind === 'inject') { // both purge orbs snap to ready
+        } else if (p.kind === 'inject') { // both emitters snap to ready
           pulseCharge = [PULSE_MAX, PULSE_MAX];
           pulseFx[0].bank = pulseFx[1].bank = 1; // both pads swallow at once
           // the pickup sparkle every other relay gets, then both coils arming.

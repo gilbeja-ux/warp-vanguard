@@ -7,7 +7,7 @@
 // no game state is touched. Geometry uses a nominal hitZ (the real one moves
 // ±0.02 with viewport aspect and never flips a verdict). Codes:
 //   dual-conflict     two simultaneous demands both nodes can't cover
-//   wall-conflict     an arrival left UNREACHABLE inside a wall carpet (the
+//   wall-conflict     an arrival left UNREACHABLE inside a dead zone (the
 //                     reachability law: half-span + node tolerance; landed
 //                     positions, so force-overridden beats are judged too)
 //   lull-violation    a beat scheduled inside another beat's lull
@@ -130,7 +130,7 @@ function lintWalk(level, idx) {
     const auth = a2; // the AUTHORED arc — the clash hops below may move the real one
     const teleT = tele !== undefined ? tele : trav;
     const wallLife = teleT + 3 + 0.6;
-    let clear2 = force || beat !== undefined; // authored carpets stay and get reported
+    let clear2 = force || beat !== undefined; // authored dead zones stay and get reported
     for (let k = 0; !force && k < WALL_HOPS; k++) {
       const clash = arr.some(rec => {
         if (rec.type === 'strip') return tN < rec.t1 + 0.4 && wallBlocks(angDiff(rec.angle, a2), 0.5, 0.5);
@@ -155,7 +155,7 @@ function lintWalk(level, idx) {
   function simPickup(tN, kind, beat) {
     lastPk = tN;
     if (kind === undefined) dr(); // kind roll
-    // mirror the live clearance: the orb relocates off spawn-time carpets
+    // mirror the live clearance: the orb relocates off spawn-time dead zones
     picks.push({ t: tN + (dropT !== null ? dropT : lead(0.9)), angle: cow(dr() * TAU, tN), beat });
   }
   // --- mirrors of the drain law (trySpawn): on a boss level nothing launches
@@ -303,11 +303,11 @@ function lintVerdicts(bad, level, arr, picks, walls) {
   }
   // wall clearance — REACHABILITY (the designer's ruling, the law everywhere):
   // an arrival may share a live wall's window as long as its demanded dock arc
-  // stays out of the carpet (wallBlocks: half-span + node tolerance). Checked
+  // stays out of the dead zone (wallBlocks: half-span + node tolerance). Checked
   // on LANDED positions: relocation already saves unforced spawns, so findings
   // surface exactly what an OVERRIDE (force) or a late-landing wall swallowed.
   // Barrier ends are separate arrivals — a pair flags when EITHER demanded end
-  // is swallowed; nodes route around any sub-π carpet from either side, so a
+  // is swallowed; nodes route around any sub-π dead zone from either side, so a
   // clear dock arc is always attainable. Frags demand avoidance, not a dock —
   // exempt. Filler-vs-filler stays exempt (the live gates replayed clean).
   const wallHit = (t2, ang) => walls.find(w =>
@@ -316,12 +316,12 @@ function lintVerdicts(bad, level, arr, picks, walls) {
     if (rec.type === 'strip' || rec.type === 'frag') continue;
     const w = wallHit(rec.t, rec.angle);
     if (w && (rec.beat !== undefined || w.beat !== undefined))
-      bad(rec.t, 'wall-conflict', 'arrival unreachable inside a wall carpet');
+      bad(rec.t, 'wall-conflict', 'arrival unreachable inside a dead zone');
   }
   for (const p2 of picks) {
     const w = wallHit(p2.t, p2.angle);
     if (w && (p2.beat !== undefined || w.beat !== undefined))
-      bad(p2.t, 'wall-conflict', 'power-up unreachable inside a wall carpet');
+      bad(p2.t, 'wall-conflict', 'power-up unreachable inside a dead zone');
   }
   // strips: the full ride must stay ownable and clear of walls
   for (const st of arr) {
@@ -332,7 +332,7 @@ function lintVerdicts(bad, level, arr, picks, walls) {
     // meander amplitude joins the reachability bound for rides
     for (const w of walls) if ((st.beat !== undefined || w.beat !== undefined) &&
       st.t1 > w.tLand && st.t < w.tLand + 3 && wallBlocks(angDiff(w.a, st.angle), 0.5, 0.5)) {
-      bad(st.t, 'unreachable-strip', 'bonus ride crosses a wall carpet'); break;
+      bad(st.t, 'unreachable-strip', 'bonus ride crosses a dead zone'); break;
     }
   }
   // beats inside lulls / comm windows (authored times — the runtime slides
@@ -352,10 +352,10 @@ function lintVerdicts(bad, level, arr, picks, walls) {
 // ---------- THE DRAIN LAW ----------
 // On a boss level, the frame levelT crosses L.duration spawnBoss WIPES the
 // bore (52-bosses: the lane clears) — so a body still in transit would blink
-// out mid-bore, and a carpet would vanish mid-burn. Nothing launches that
+// out mid-bore, and a dead zone would vanish mid-burn. Nothing launches that
 // cannot finish its WHOLE ride before that line (the pickup dropWindow's law,
 // made per-ride: a missed trap flies past the ring all the way to z=0.03,
-// armor rides at 0.82×, a carpet needs its approach plus its 3s burn). Slow
+// armor rides at 0.82×, a dead zone needs its approach plus its 3s burn). Slow
 // bodies stop first and plain traps keep landing almost to the line, so the
 // lane thins naturally into the arrival ceremony instead of cutting to it.
 // Guards sit AFTER each schance roll on purpose: the seeded stream advances
@@ -418,7 +418,7 @@ function trySpawn(dt) {
     if (schance(L.doubles) && spawnAllowed('normal')) spawnEnemy(clearOfWalls(a + Math.PI + srand(-0.6, 0.6)));
   }
 }
-// rim wall: a hazard carpet seizes part of the rail — telegraphed, then live
+// rim wall: a hazard dead zone seizes part of the rail — telegraphed, then live
 // for 3s while it burns off. Crossing it fries the node (node-killer, in area
 // form).
 // ---------- THE REACHABILITY LAW ----------
@@ -426,11 +426,11 @@ function trySpawn(dt) {
 // occupied arc: half-span + node zap tolerance (+ the demand's own extra —
 // a ribbon's meander amplitude, a barrier's half-gap, a second wall's own
 // half-span). This single bound IS the 100%-completable law around walls:
-// spawns may coexist with a live carpet as long as the player can still
+// spawns may coexist with a live dead zone as long as the player can still
 // REACH them. The filler gates, beat firing, wall clash hops and the linter
 // all share this one definition (the linter mirrors it via wallBlocks too).
 const WALL_TOL = 0.3; // node zap tolerance margin
-const WALL_HOPS = 8; // golden-angle attempts before a carpet stands down
+const WALL_HOPS = 8; // golden-angle attempts before a dead zone stands down
 const wallBlocks = (d, span, extra) => Math.abs(d) < span + WALL_TOL + (extra || 0);
 // keep a candidate angle reachable past every wall arc — deterministic
 // golden-angle hops, no RNG consumed, so campaign replays stay identical
@@ -445,23 +445,23 @@ function clearOfWalls(a, extra) {
 
 function spawnWall(forcedA, force, teleOverride, beatArc) { // beats may pin the arc; force = verbatim, no hops
   // (No first-encounter disc. Training already drills the rim wall, and the
-  // carpet telegraphs itself — a card here just stopped the run to repeat it.)
+  // dead zone telegraphs itself — a card here just stopped the run to repeat it.)
   let a = forcedA !== undefined ? forcedA : spawnRng() * TAU;
   const g2 = geo();
-  const trav = travelTime(); // the carpet is world traffic: horizon to rim at stream speed
+  const trav = travelTime(); // the dead zone is world traffic: horizon to rim at stream speed
   const tele = teleOverride !== undefined ? teleOverride : trav; // early-clamped beats bite sooner
   const wallLife = tele + 3 + 0.6; // approach + burn + detour buffer
-  // A CARPET THAT FINDS NO CLEAR ARC STANDS DOWN. The hop loop breaks on success
+  // A DEAD ZONE THAT FINDS NO CLEAR ARC STANDS DOWN. The hop loop breaks on success
   // and simply fell out on failure, so an exhausted search used its last hop
-  // UNCHECKED — the carpet parked on whatever was there. It went unnoticed while
+  // UNCHECKED — the dead zone parked on whatever was there. It went unnoticed while
   // the eight golden-angle steps happened to succeed; the power-up spacing law
-  // moved filler orbs into new windows and two lanes immediately grew a carpet
+  // moved filler orbs into new windows and two lanes immediately grew a dead zone
   // sitting on an orb (survey relay 05, patrol relay 04). Widening the search is
-  // not the fix: it only moves which lane loses. A cycle without a carpet is a
-  // quieter lane. A carpet on top of a demand is an unreachable one, and the
+  // not the fix: it only moves which lane loses. A cycle without a dead zone is a
+  // quieter lane. A dead zone on top of a demand is an unreachable one, and the
   // reachability law is the thing that makes a lane 100% completable.
   // The arc draw above is already spent, so standing down keeps the stream aligned.
-  // …but only a FILLER carpet stands down. An AUTHORED one (a beat) keeps its
+  // …but only a FILLER dead zone stands down. An AUTHORED one (a beat) keeps its
   // place even when it clashes: the linter's job is to tell the author their wall
   // is unfair, and a wall that quietly deleted itself would hide the mistake
   // instead of reporting it.
@@ -474,7 +474,7 @@ function spawnWall(forcedA, force, teleOverride, beatArc) { // beats may pin the
       const tArr = (en.z - g2.hitZ) / (trafficSpeed * (en.speedMul || 1));
       return tArr > -0.5 && tArr < wallLife && wallBlocks(angDiff(en.angle, a), 0.5);
     }) || pickups.some(p => {
-      // an in-flight orb's landing arc joins the bound — a carpet must never
+      // an in-flight orb's landing arc joins the bound — a dead zone must never
       // park on a power-up (orbs ride at 0.9x stream speed)
       if (p.done) return false;
       const tArr = (p.z - g2.hitZ) / (trafficSpeed * 0.9);
@@ -483,9 +483,9 @@ function spawnWall(forcedA, force, teleOverride, beatArc) { // beats may pin the
     if (!clash) { clear = true; break; }
     a += 2.399963;
   }
-  if (!clear) return; // no reachable arc — the lane simply gets no carpet this cycle
+  if (!clear) return; // no reachable arc — the lane simply gets no dead zone this cycle
   latches.push({ a, span0: 0.5, t: 0, dur: 3, tele, arm: 0.4, z0: SPAWN_Z });
-  // warning: dry double tick + static as the carpet enters the tunnel
+  // warning: dry double tick + static as the dead zone enters the tunnel
   tone(1180, 0.02, 'square', 0.05); tone(1180, 0.02, 'square', 0.05, null, null, 0.22);
   crackle(0.25, 500, 1800, 2, 0.3);
 }
@@ -516,7 +516,7 @@ const PICKUPS = {
   shield: { dur: 0,  label: 'DEFLECTOR SHIELD' }, // absorbs the next breach (one charge)
   wide:   { dur: 10, label: 'WIDE ARC' },
   auto:   { dur: 5,  label: 'AUTO-ZAP' },
-  inject: { dur: 0,  label: 'PULSE INJECTED' },  // both purge orbs snap to ready
+  inject: { dur: 0,  label: 'PULSE INJECTED' },  // both emitters snap to ready
   chain:  { dur: 6,  label: 'CHAIN OVERDRIVE' }, // zaps arc to the nearest hostile
   health: { dur: 0,  label: 'STABILITY +25' }    // one stability block back — SCHEDULED, never rolled
 };
@@ -543,7 +543,7 @@ function spawnPickup(kind) { // beats may pin the kind (skipping the bag)
     }
     kind = pickupBag.pop();
   }
-  // an orb must never land inside a wall carpet — same reachability law as
+  // an orb must never land inside a dead zone — same reachability law as
   // enemies (clearOfWalls consumes no RNG, so the stream is unchanged)
   pickups.push({ kind, z: z0, angle: clearOfWalls(spawnRng() * TAU), spin: 0, age: 0, done: false });
 }

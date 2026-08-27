@@ -1030,7 +1030,7 @@ check('endless difficulty ramps with time', c200.speed > c0.speed && c200.spawnM
 // must stop releasing anything that cannot finish its WHOLE ride first
 // (51-linter: rideFits). Walk every finale's closing stretch to the duel and
 // demand the wipe finds an empty lane: no body still in transit that would
-// blink out mid-bore, and no wall carpet mid-burn.
+// blink out mid-bore, and no dead zone mid-burn.
 for (let ci = 0; ci < G.CAMPAIGNS.length; ci++) {
   G.installCampaign(G.CAMPAIGNS[ci]);
   G.startLevel(7);
@@ -2620,7 +2620,7 @@ check('the drill still spawns through the run', runA.split('|').length >= 4);
   // because it was made of tone/crackle, which ramp gain DOWN from sample one — it
   // decayed while the picture said it was loading. The swell primitives are the
   // fix, so the pin guards the shape rather than the numbers.
-  const charge = sx.slice(sx.indexOf('rayCharge(pan, at)'), sx.indexOf('bossPlate(n, pan)'));
+  const charge = sx.slice(sx.indexOf('rayCharge(pan)'), sx.indexOf('bossPlate(n, pan)'));
   check('the ray charge is built from swelling voices, not decaying ones',
     /swell\(/.test(charge) && /swellNoise\(/.test(charge));
   check('the swell envelope peaks at the END of the window, not the start',
@@ -2875,10 +2875,10 @@ G.keys['ArrowUp'] = false;
     G.CAMPAIGNS.map(pk => pk.levels[7].bossKind).join(',') === 'leech,siphon,prism,mimic,blockade');
   check('every shipped campaign lints clean (beats + bands included)',
     G.CAMPAIGNS.every(pk => G.lintCampaign(pk).every(fl => fl.length === 0)));
-  // H-31: an orb must never show over a dead-zone carpet. Walk every level and
+  // H-31: an orb must never show over a dead zone. Walk every level and
   // assert no pickup lands inside any wall's occupied window (release-0.5 ..
   // land+3.6, arc = half-span 0.5 + node tolerance 0.3). Pre-fix this found 5.
-  check('no power-up ever lands inside a wall carpet (all 40 levels)',
+  check('no power-up ever lands inside a dead zone (all 40 levels)',
     G.CAMPAIGNS.every(pk => pk.levels.every((lv, i) => {
       if (lv.boss) return true;
       const { picks, walls } = G.lintWalk(lv, i);
@@ -3049,15 +3049,15 @@ G.keys['ArrowUp'] = false;
   check('lint: simultaneous heavy + line beats → dual-conflict',
     has({ ...lintBase, beats: [{ t: 10, kind: 'enemy', type: 'heavy' }, { t: 10, kind: 'enemy', type: 'line' }] }, 'dual-conflict'));
   // REACHABILITY (designer ruling): enemies may share a wall's window as long
-  // as their dock arc stays out of the carpet. An unforced on-carpet beat is
+  // as their dock arc stays out of the dead zone. An unforced on-dead zone beat is
   // relocated to safety by the engine (no finding); only a FORCE-overridden
   // beat actually lands unreachable — and the linter tells the truth about it.
-  check('lint: a FORCED beat left on a wall carpet → wall-conflict',
+  check('lint: a FORCED beat left on a dead zone → wall-conflict',
     has({ ...lintBase, beats: [{ t: 10, kind: 'wall', angle: 2.0, force: true }, { t: 12, kind: 'enemy', type: 'normal', angle: 2.0, force: true }] }, 'wall-conflict'));
   check('lint: the same beat unforced relocates to safety — no finding',
     !has({ ...lintBase, beats: [{ t: 10, kind: 'wall', angle: 2.0, force: true }, { t: 12, kind: 'enemy', type: 'normal', angle: 2.0 }] }, 'wall-conflict'));
   {
-    // near-but-not-ON a carpet is now legal EVERYWHERE: an authored angle a
+    // near-but-not-ON a dead zone is now legal EVERYWHERE: an authored angle a
     // node-width clear of the wall stays verbatim (no relocation, no finding)
     const nearL = { ...lintBase, beats: [{ t: 10, kind: 'wall', angle: 2.0, force: true }, { t: 12, kind: 'enemy', type: 'normal', angle: 2.9 }] };
     const nearR = G.lintWalk(nearL, 0).arr.find(r => r.beat === 1);
@@ -3195,7 +3195,7 @@ G.keys['ArrowUp'] = false;
     check('a plot line past the disc budget is rejected',
       G.validateCampaign(dc).some(e => /story line too long/.test(e)));
   }
-  // wall authoring guard: one carpet per rim window (release..burn-off) —
+  // wall authoring guard: one dead zone per rim window (release..burn-off) —
   // an overlapping window + arc would be golden-angle hopped by the engine
   const wl = ED.newLevel('WALLS'); wl.duration = 60;
   ED.addBeat(wl, ED.makeBeat('wall', 20, 1.0));
@@ -3272,7 +3272,7 @@ G.keys['ArrowUp'] = false;
   check('...and still arrives on the authored cue (t=2 ±0.4)', earlyT > 1.6 && earlyT < 2.45);
   let fEn = null; g3 = 300;
   while (g3-- > 0 && !fEn) { G.setIntegrity(100); G.update(0.05); fEn = G.enemies().find(e => e.angle === 2.0); }
-  check('a forced beat lands EXACTLY on its authored angle, on the carpet',
+  check('a forced beat lands EXACTLY on its authored angle, on the dead zone',
     !!fEn && fEn.angle === 2.0 && G.latches().length === 1 && Math.abs(G.latches()[0].a - 2.0) < 1e-9);
   check('the linter still tells the truth about the override',
     G.lintLevel(FP.levels[0], 0).some(v => v.code === 'wall-conflict'));
@@ -4730,7 +4730,7 @@ async function runMusicUp() {
   G.setState(G.S.MENU); G.setMenuScreen('home');
 }
 
-// ============ the power-up spacing law + the carpet stand-down ============
+// ============ the power-up spacing law + the dead zone stand-down ============
 // Gil's rule after a live pass (2026-08-27): "space out power ups! never have two
 // of them show within 10s of each other" — and "there's a pointless life pickup
 // on the last enemy". Three sources drop orbs and none could see the others.
@@ -4791,10 +4791,22 @@ async function runMusicUp() {
     /spawnPickup\('inject'\)/.test(prismSweep));
   check('...drawn from the boss side stream, so the lane script stays aligned',
     /spawnRng = bossRng;[\s\S]*?spawnPickup\('inject'\)/.test(prismSweep));
-  // two lights must not sum into one clipped thump
+  // THE RAY MUST ENTER THROUGH THE ACCENT BUS. ACCENT_LIFT exists because a synth
+  // voice enters at 0.05-0.13 while a recorded take enters at 0.27-1.0 — measured
+  // 10-15 dB apart through the real bus. `swell`, `swellNoise` and the sustained
+  // ray voice were written for H-33 and went straight to sfxGain, so the whole ray
+  // sat ~10 dB under every other accent and the charge sat under its own release
+  // thud. Auditioned alone in the soundboard it sounded right; in a duel it was
+  // buried. Every synth path the ray uses is pinned to the lifted bus.
   const au = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'game', '10-audio.js'), 'utf8');
-  check('two live rays share one bed instead of stacking two',
-    /const share = nLive > 1 \? 1 \/ Math\.sqrt\(nLive\) : 1;/.test(au) && /RAY_LEVEL \* share/.test(au));
-  check('...and the second charge is offset so the pair reads as two machines',
-    /idx \* 0\.09/.test(src));
+  const onAccentBus = fn => {
+    const body = au.slice(au.indexOf('function ' + fn + '('));
+    return /tail\.connect\(accentGain \|\| sfxGain\)/.test(body.slice(0, body.indexOf('\n}')));
+  };
+  check('the ray charge enters through the accent bus (swell)', onAccentBus('swell'));
+  check('...and its noise layer does too (swellNoise)', onAccentBus('swellNoise'));
+  check('...and so does the sustained sweep voice', /const rayDest = accentGain \|\| sfxGain;/.test(au));
+  // and the guess that replaced it is gone: two lights are meant to be louder
+  check('no per-count ducking survives on the ray bed',
+    !/Math\.sqrt\(nLive\)/.test(au) && /RAY_LEVEL \* \(0\.55/.test(au));
 }

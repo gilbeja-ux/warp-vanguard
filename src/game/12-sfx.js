@@ -157,11 +157,8 @@ const sfx = {
   // 0.30s the ray spends erupting before it is allowed to turn or fry — so the
   // charge and the visible growth are one event. Synth here is the PLACEHOLDER;
   // the declared `rayCharge` take takes over the moment it lands.
-  // `at` offsets the whole wind-up. The prism births both its lights on one frame;
-  // without a stagger the two swells stack into a single clipped thump.
-  rayCharge(pan, at) {
-    const A = at || 0;
-    if (playSample('rayCharge', 1, pan, 1, A)) return;
+  rayCharge(pan) {
+    if (playSample('rayCharge', 1, pan)) return;
     // DEEP, AND IT BUILDS (Gil, 2026-08-26 — the first pass was thin).
     //
     // The rewrite is one idea: everything here SWELLS. The first version was made
@@ -180,14 +177,14 @@ const sfx = {
     // than stopping dead the instant the light moves. It costs no gameplay timing:
     // the sustained sweep voice fades in over its own 0.22s, so the two crossfade.
     const D = 0.44;
-    swell(38, 52, D, 'sine', 0.20, 120, 190, A, pan);        // the sub: the mass loading
-    swell(82, 104, D, 'sawtooth', 0.115, 160, 900, A, pan);  // the coil, thickening as it fills
-    swell(150, 300, D * 0.9, 'triangle', 0.055, 300, 1500, A + 0.03, pan); // the harmonic that arrives late
-    swellNoise(D, 90, 520, 7, 0.085, A, pan);                // pressure behind it, resonant and low
+    swell(38, 52, D, 'sine', 0.20, 120, 190, 0, pan);        // the sub: the mass loading
+    swell(82, 104, D, 'sawtooth', 0.115, 160, 900, 0, pan);  // the coil, thickening as it fills
+    swell(150, 300, D * 0.9, 'triangle', 0.055, 300, 1500, 0.03, pan); // the harmonic that arrives late
+    swellNoise(D, 90, 520, 7, 0.085, 0, pan);                // pressure behind it, resonant and low
     // and the release — a hard low thud as it lets go into the sweep. This one is
     // a decay, correctly: it is a hit, not a build.
-    tone(120, 0.16, 'sine', 0.14, 46, null, A + D * 0.93, pan);
-    crackle(0.07, 1600, 420, 5, 0.085, A + D * 0.93, pan);
+    tone(120, 0.16, 'sine', 0.14, 46, null, D * 0.93, pan);
+    crackle(0.07, 1600, 420, 5, 0.085, D * 0.93, pan);
   },
   // ---- H-33 · ONE TORN PLATE ----
   // Six of these walk the machine apart before the implosion. They used to be one

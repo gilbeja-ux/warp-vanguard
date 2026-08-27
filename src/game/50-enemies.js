@@ -229,7 +229,7 @@ function fireBeat(b, bi, eff) {
   spawnRng = beatStream(levelIdx, bi); // side stream — the main script's draws stay aligned
   dropTravel = eff !== undefined ? eff : null; // clamped release: spawn partway down, constant speed
   // reachability: an authored angle relocates only when its dock arc is truly
-  // ON a carpet (walls add their own half-span); force skips even that
+  // ON a dead zone (walls add their own half-span); force skips even that
   const a = b.angle !== undefined
     ? (b.force ? b.angle : clearOfWalls(b.angle, b.kind === 'wall' ? 0.5 : 0))
     : undefined;

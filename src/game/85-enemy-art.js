@@ -812,20 +812,20 @@ function drawLatches(g, bz) {
   ctx.save();
   ctx.lineCap = 'butt';
   for (const lt of latches) {
-    // the carpet is CONTINUOUS: its depth-length is exactly dur seconds of
+    // the dead zone is CONTINUOUS: its depth-length is exactly dur seconds of
     // travel, so what remains on the tunnel is what remains of the clamp —
     // one object approaching, crossing, and being consumed at the ring.
-    // (boss grapples have tele=0: no carpet, the dart is their telegraph)
+    // (boss grapples have tele=0: no dead zone, the dart is their telegraph)
     if (lt.tele > 0) {
       const z0 = lt.z0 || 1.35;
       const v2 = (z0 - g.hitZ) / lt.tele;      // approach speed
-      const len = v2 * lt.dur;                 // 3s worth of carpet
+      const len = v2 * lt.dur;                 // 3s worth of dead zone
       const headZ = z0 - v2 * lt.t;
       const tailZ = headZ + len;
       const zA = Math.max(headZ, g.hitZ), zB = Math.min(tailZ, 2.08);
       if (zB > zA + 0.01) {
         const fadeIn = clamp(lt.t / 0.35, 0, 1);
-        // the carpet's width at depth z = the clamp's width at the moment that
+        // the dead zone's width at depth z = the clamp's width at the moment that
         // piece reaches the ring — a tapering tongue whose shape IS the timer,
         // matching the rim arc exactly as it feeds through
         const wAt = z => lt.span0 * clamp(1 - (lt.t + (z - g.hitZ) / v2 - lt.tele) / lt.dur, 0, 1);

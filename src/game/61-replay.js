@@ -356,7 +356,7 @@ function endLevel(win) {
   const frames = stopTrace(); // close the recording started in resetRun
   // THE BORE EMPTIES WITH THE RUN. Belt-and-braces behind the spawn windows: a
   // win already requires enemies.length === 0, but anything else still in
-  // transit — a drop nobody took, a clamp carpet mid-feed — would ride out the
+  // transit — a drop nobody took, a clamp dead zone mid-feed — would ride out the
   // whole ceremony hanging in open space next to the destination. It goes here,
   // on the frame the run ends, under the victory flash. (Replays too: they play
   // the same finish.) A failed run keeps its traps — you are still in the lane.

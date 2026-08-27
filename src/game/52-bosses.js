@@ -444,14 +444,8 @@ function bossBeams(b, dt, g) {
     // THE BURST: the ray erupts before it turns — no rotation and NO FRY until
     // the light has visibly reached the ring (WYSIWYG danger, held during birth)
     // H-33: the wind-up, once, on birth. The prism births BOTH its lights on the
-    // same frame, and two identical 0.44s swells starting at the same instant sum
-    // into one clipped thump the limiter then ducks — so the second one is offset
-    // by a beat and its pan is pushed wider. Two machines waking, not one twice.
-    if (!bm.liveT) {
-      const idx = b.beams.indexOf(bm);
-      sfx.rayCharge(clamp(Math.cos(bm.a) * (b.beams.length > 1 ? 0.85 : 0.6), -1, 1),
-        b.beams.length > 1 ? idx * 0.09 : 0);
-    }
+    // same frame; their own angles pan them apart, which is the read.
+    if (!bm.liveT) sfx.rayCharge(Math.cos(bm.a) * 0.6);
     bm.liveT = (bm.liveT || 0) + dt;
     if (bm.liveT < BEAM_BURST) { allDone = false; continue; }
     // the telegraphed mid-sweep reversal: chevrons flip (warn) well before the
@@ -618,7 +612,7 @@ function updatePrismFight(dt, g) {
       // THE PRISM'S OWN SHORTCUT (Gil, 2026-08-27: the duel "feels a little slow").
       // The sweep is the fight's dead time — both thumbs are dodging and neither is
       // charging, so the only way through was to wait it out. An injector rides in
-      // with the lights: taking it snaps both purge orbs to ready, which is a whole
+      // with the lights: taking it snaps both emitters to ready, which is a whole
       // pulse bought back, and the cost is going to fetch it UNDER two rays with a
       // condemned emitter. It is not a gift. It is a risk the player may choose,
       // and choosing it well is what ends the duel early.
