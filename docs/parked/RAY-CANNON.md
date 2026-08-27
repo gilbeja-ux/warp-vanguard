@@ -61,6 +61,10 @@ The last two residues went on 2026-08-27:
   `if (boss && boss.mergeT >= 1)`. Moved to `docs/parked/80-tunnel.js.bak` so no
   copy of the era is left under `src/`.
 
+`docs/parked/BEAM-WELD-SCAR.md` briefly sat beside this file and is gone: that
+was art for the LIVE boss sweep, it was finished on 2026-08-27 and it shipped.
+Nothing about it belongs here.
+
 **Do not confuse this with the live boss sweep.** `b.beams`, `bossBeams()`,
 `raySweep()`, `beamPal()` and `drawLeechBeam()` are the BOSS firing at the
 player, which is current and correct. `drawLeechBeam` is named for the leech

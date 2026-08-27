@@ -939,7 +939,10 @@ function drawBoss(g) {
     ctx.fillStyle = `rgba(2,1,8,${(cerQ0 * 0.4).toFixed(2)})`;
     ctx.fillRect(0, 0, W, H);
   }
-  // the sweeps draw first — the light comes OUT of the machine, so it sits under it
+  // the ring's own heat first: it is IN the band, so the light lies over it —
+  // and it keeps cooling after the machine that made it is gone
+  drawRayScars(g);
+  // the sweeps draw next — the light comes OUT of the machine, so it sits under it
   if (b.dying === undefined) {
     for (const bm of b.beams) if (!bm.done) drawLeechBeam(g, b, bm, b.mode === 'tele');
     for (const f3 of (b.beamFx || [])) drawLeechBeam(g, b, f3, false); // spent light, retreating
@@ -1279,16 +1282,151 @@ function drawBossOverlays(g) {
 // the telegraph as well as the sweep — the tell has to be readable BEFORE the
 // lamp fires, or the phase is a coin toss instead of a read.
 function beamPal(ph) {
+  // ADDITIVE LIGHT RUNS TO WHITE. Four passes stacked with 'lighter' saturate
+  // wherever they overlap, so the blue ray's own blue only survived at its very
+  // edges and the two carriages both read white (Gil, 2026-08-27). The blue is
+  // pulled down to the blue carriage's own value, and its white-hot filament is
+  // both narrower (coreW) and off-white (core) — a thin white thread inside a
+  // blue channel, instead of a blue outline around a white one.
   return ph === 0
-    // blue carriage condemned: unmistakably its blue, with a white-hot core
-    ? { wide: '90,180,255', mid: '150,215,255', hot: '235,248,255', rim: '80,150,255' }
+    // blue carriage condemned: unmistakably its blue, all the way through
+    ? { wide: '48,140,255', mid: '96,186,255', hot: '150,214,255', rim: '80,150,255',
+        core: '206,238,255', coreW: 0.6 }
     // white carriage: cooled to silver so it never reads as "no colour", and the
     // rim goes steel rather than blue so the two are told apart at a glance
-    : { wide: '196,214,232', mid: '232,242,252', hot: '255,255,255', rim: '190,206,224' };
+    : { wide: '196,214,232', mid: '232,242,252', hot: '255,255,255', rim: '190,206,224',
+        core: '255,255,255', coreW: 1 };
 }
-// one sweep of light — ghost (telegraph) or live — drawn as LIGHT, never a
-// surface: a white-hot filament in a soft additive wedge from the lamp to
-// beyond the ring, plus a hazard bloom where it rakes the rail (WYSIWYG danger)
+// ---- THE WELD SCAR ----
+// A ray does not touch the ring, it HEATS it. Where the light stands the band
+// runs white; when the light moves on that spot cools through the light's own
+// colour and dies about a third of a second later — the same thing a weld does
+// to steel. The trail is what makes a sweep read as a cutting torch instead of
+// a wiper blade, and it is the whole reason the contact point is no longer a
+// rounded rectangle parked on the rim.
+//
+// The scar lives in the art file and NEVER on the boss: the sim must not be able
+// to see a picture. Samples are laid down by the live ray only, always BEHIND
+// its head so nothing is scorched before the light gets there, and they keep
+// cooling after the light dies, so a retreat leaves its last mark behind.
+//
+// TWO CLOCKS, BECAUSE A BURN HAS TWO. The glow of the pool is gone almost at
+// once; the discolouration it leaves in the metal outlives it by a long way and
+// goes cold slowly. One fast curve and one slow curve over the same samples is
+// what makes the mark read as damage instead of a painted band.
+const SCAR_LIFE = 1.9;    // seconds until the residue is finally cold
+const SCAR_STEP = 0.018;  // rad between samples — a parked ray just reheats one spot
+const SCAR_MAX = 180;
+const SCAR_BANDS = 6;     // age bands: one arc each, never one arc per sample
+let rayScars = [];
+// returns true when a NEW spot was heated (the caller then remembers the angle)
+function scarHeat(A, phase, prevA) {
+  for (let i = rayScars.length - 1, n = 0; i >= 0 && n < 6; i--, n++) {
+    const s = rayScars[i];
+    if (s.phase === phase && Math.abs(s.a - A) < SCAR_STEP) { s.t = time; return false; }
+  }
+  rayScars.push({ a: A, from: prevA, phase, t: time });
+  if (rayScars.length > SCAR_MAX) rayScars.shift();
+  return true;
+}
+// the burnt metal, drawn before the light that burnt it
+function drawRayScars(g) {
+  if (!rayScars.length) return;
+  // age < 0 catches a fresh run: `time` restarts and every old scar is history
+  rayScars = rayScars.filter(s => { const age = time - s.t; return age >= 0 && age < SCAR_LIFE; });
+  if (!rayScars.length) return;
+  // ONE ARC PER AGE BAND, NEVER ONE PER SAMPLE. A hundred short additive arcs in
+  // a row double up at every seam, and a hundred bright seams read as a
+  // staircase welded onto the rim. Every pass holds ONE width for the same
+  // reason: a width that shrank with age stepped down band by band.
+  const span = [];  // [lo, hi] per phase per age band, gathered in one sweep
+  for (let i = 0; i < 2 * SCAR_BANDS * 2; i++) span.push(i & 1 ? -Infinity : Infinity);
+  for (const s of rayScars) {
+    const k = Math.min(SCAR_BANDS - 1, Math.floor((time - s.t) / SCAR_LIFE * SCAR_BANDS));
+    const j = (s.phase * SCAR_BANDS + k) * 2;
+    const gap = s.from !== undefined && Math.abs(s.from - s.a) < 0.3;
+    span[j] = Math.min(span[j], s.a, gap ? s.from : s.a - 0.02);
+    span[j + 1] = Math.max(span[j + 1], s.a, gap ? s.from : s.a + 0.02);
+  }
+  const bz = Math.min(W, H) * 0.055;
+  ctx.save();
+  ctx.lineCap = 'butt';
+  // THE SCORCH, first and flat: burnt metal goes DARK. Additive light alone made
+  // the trail read as a lit band rather than damage, and light is not what a
+  // torch leaves behind.
+  for (let j = 0; j < span.length; j += 2) {
+    if (span[j] === Infinity) continue;
+    const q = ((j / 2) % SCAR_BANDS + 0.5) / SCAR_BANDS;
+    const dk = 0.36 * Math.pow(1 - q, 0.9);
+    if (dk < 0.02) continue;
+    ctx.strokeStyle = `rgba(8,10,18,${dk.toFixed(3)})`;
+    ctx.lineWidth = bz * 0.70;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, span[j] - 0.003, span[j + 1] + 0.003); ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'lighter';
+  for (let j = 0; j < span.length; j += 2) {
+    if (span[j] === Infinity) continue;
+    const ph = Math.floor(j / 2 / SCAR_BANDS);
+    const P = beamPal(ph);
+    const q = ((j / 2) % SCAR_BANDS + 0.5) / SCAR_BANDS; // 0 just burnt, 1 cold
+    const a0 = span[j] - 0.003, a1 = span[j + 1] + 0.003;
+    // the residue: a narrow blue-steel heat tint INSIDE the band, so unburnt
+    // metal still shows either side of it, and it goes cold slowly
+    const res = 0.10 * Math.pow(1 - q, 1.1);
+    if (res > 0.015) {
+      ctx.strokeStyle = `rgba(${q < 0.15 ? P.wide : '58,104,168'},${res.toFixed(3)})`;
+      ctx.lineWidth = bz * 0.5;
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, a0, a1); ctx.stroke();
+    }
+    // the bead itself: still glowing, and gone in a moment
+    const hot = Math.pow(1 - q, 4.5);
+    if (hot > 0.04) {
+      ctx.strokeStyle = `rgba(${q < 0.06 ? P.core : P.hot},${(0.5 * hot).toFixed(3)})`;
+      ctx.lineWidth = bz * 0.34;
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, a0, a1); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+// THE MARK ON THE CONDEMNED EMITTER. It was a plain circle, which is the one
+// shape this game does not speak — and a circle says "here", not "you are the
+// target". A seeker's bracket rig replaced it and read as a lock, but at ring
+// scale it was furniture (Gil, 2026-08-27). What is left is the caret: one
+// triangle hanging in the bore over the emitter, aimed at it, breathing. The
+// colour law is untouched, because the mark IS the phase read.
+function drawEmitterLock(g, n, P) {
+  const bz = Math.min(W, H) * 0.055;
+  const bob = Math.sin(time * 2.6) * bz * 0.20;
+  const cr = g.nodeR - bz * 1.55 - bob;
+  const s = bz * 0.46;
+  const al = 0.6 + 0.35 * Math.sin(time * 6);
+  ctx.save();
+  ctx.translate(g.cx, g.cy);
+  ctx.rotate(n.angle); // +x is out through the emitter, +y runs along the band
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineJoin = 'miter';
+  const caret = (sc) => {
+    ctx.beginPath();
+    ctx.moveTo(cr + s * sc, 0);
+    ctx.lineTo(cr - s * sc * 0.6, s * sc * 0.75);
+    ctx.lineTo(cr - s * sc * 0.6, -s * sc * 0.75);
+    ctx.closePath();
+  };
+  caret(1.55); // the glow it sits in, so a small shape still carries at speed
+  ctx.fillStyle = `rgba(${P.rim},${(al * 0.22).toFixed(2)})`;
+  ctx.fill();
+  caret(1);
+  ctx.fillStyle = `rgba(${P.hot},${al.toFixed(2)})`;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = `rgba(${P.rim},0.75)`;
+  ctx.stroke();
+  ctx.restore();
+}
+// one sweep of light — ghost (telegraph) or live. A live ray is EMITTED ENERGY,
+// never a surface and never a ruled line: a plasma channel that writhes and
+// flickers, a bloom that breathes with it, charge packets running its length,
+// and a mouth that burns for as long as it fires.
 function drawLeechBeam(g, b, bm, ghost) {
   const A = bm.a;
   const P = beamPal(bm.phase);
@@ -1311,20 +1449,10 @@ function drawLeechBeam(g, b, bm, ghost) {
       ctx.lineWidth = 4.5;
       ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, a2 - 0.05, a2 + 0.05); ctx.stroke();
     }
-    // and the condemned carriage is marked ON ITSELF — a halo around the thumb
-    // that has to run, not a colour somewhere else asking to be remembered
-    const cRail = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
+    // and the condemned carriage is marked ON ITSELF — a lock on the thumb that
+    // has to run, not a colour somewhere else asking to be remembered
     const cn = nodes[bm.phase];
-    if (cn) {
-      const cxx = g.cx + Math.cos(cn.angle) * cRail, cyy = g.cy + Math.sin(cn.angle) * cRail;
-      const rr = Math.min(W, H) * (0.032 + 0.010 * Math.sin(time * 9));
-      ctx.strokeStyle = `rgba(${P.hot},${(0.45 + pl * 0.55).toFixed(2)})`;
-      ctx.lineWidth = 2.6;
-      ctx.beginPath(); ctx.arc(cxx, cyy, rr, 0, TAU); ctx.stroke();
-      ctx.strokeStyle = `rgba(${P.rim},${(0.28 + pl * 0.35).toFixed(2)})`;
-      ctx.lineWidth = 5.5;
-      ctx.beginPath(); ctx.arc(cxx, cyy, rr * 1.5, 0, TAU); ctx.stroke();
-    }
+    if (cn) drawEmitterLock(g, cn, P);
     ctx.restore();
     return;
   }
@@ -1334,49 +1462,168 @@ function drawLeechBeam(g, b, bm, ghost) {
   // back home. `reach` is how far out the light extends this frame; the fry
   // (and its hazard bloom) only exists at full reach, so the danger stays
   // exactly what the picture says.
-  const born = bm.dying === undefined ? clamp((bm.liveT || 0) / BEAM_BURST, 0, 1) : 1;
-  const die = bm.dying !== undefined ? clamp(bm.dying / BEAM_FADE, 0, 1) : 0;
+  const live = bm.dying === undefined;
+  const born = live ? clamp((bm.liveT || 0) / BEAM_BURST, 0, 1) : 1;
+  const die = live ? 0 : clamp(bm.dying / BEAM_FADE, 0, 1);
   const reach = (1 - Math.pow(1 - born, 3)) * (1 - Math.pow(die, 2));
   if (reach <= 0.02) { ctx.restore(); return; }
-  ctx.globalAlpha *= Math.min(1, 0.35 + reach * 0.65) * (1 - die * die);
+  const I = Math.min(1, 0.35 + reach * 0.65) * (1 - die * die); // the ray's own intensity
+  // an emitter is never steady: the channel flickers the way an arc does
+  const fl = 0.80 + 0.20 * Math.sin(time * 47 + A * 3) * Math.sin(time * 23.3);
   const rx = lerp(b.sx, ex, reach), ry = lerp(b.sy, ey2, reach); // the light's far end
-  // the glow wedge, only as far as the light has reached
-  const wr = Math.hypot(rx - b.sx, ry - b.sy);
-  const wg2 = ctx.createRadialGradient(b.sx, b.sy, b.sSize * 0.3, b.sx, b.sy, Math.max(wr, b.sSize * 0.6));
-  wg2.addColorStop(0, `rgba(${P.hot},0.5)`);
-  wg2.addColorStop(0.35, `rgba(${P.mid},0.22)`);
-  wg2.addColorStop(1, `rgba(${P.wide},0.05)`);
+  const dx = rx - b.sx, dy = ry - b.sy;
+  const len = Math.hypot(dx, dy) || 1;
+  const tx = -dy / len, ty = dx / len;   // unit across the channel
+  const wob = Math.min(W, H) * 0.011;    // how far the channel is allowed to writhe
+  // one point on the writhing channel, at q along it
+  const PT = [0, 0];
+  const cpt = (q, amp, sd) => {
+    const off = amp * Math.sin(q * Math.PI) *
+      (Math.sin(time * 27 + q * 8.5 + sd) * 0.62 + Math.sin(time * 44 + q * 19 + sd * 2.7) * 0.38);
+    PT[0] = b.sx + dx * q + tx * off;
+    PT[1] = b.sy + dy * q + ty * off;
+    return PT;
+  };
+  // the air around the channel lights up — kept flat-composited, because a
+  // screen-wide additive wedge is fill rate a phone cannot spare
+  const wg2 = ctx.createRadialGradient(b.sx, b.sy, b.sSize * 0.25, b.sx, b.sy, Math.max(len, b.sSize * 0.6));
+  wg2.addColorStop(0, `rgba(${P.hot},${(0.30 * I).toFixed(3)})`);
+  wg2.addColorStop(0.35, `rgba(${P.mid},${(0.11 * I * fl).toFixed(3)})`);
+  wg2.addColorStop(1, `rgba(${P.wide},0.02)`);
   ctx.fillStyle = wg2;
-  const HW = 0.16; // wedge half-angle
+  const HW = 0.095 + 0.014 * Math.sin(time * 9.3); // the wedge breathes with the ray
   const wR = lerp(b.sSize * 0.6, exR, reach);
   ctx.beginPath();
   ctx.moveTo(b.sx, b.sy);
   ctx.lineTo(g.cx + Math.cos(A - HW) * wR, g.cy + Math.sin(A - HW) * wR);
   ctx.arc(g.cx, g.cy, wR, A - HW, A + HW);
   ctx.closePath(); ctx.fill();
-  // the filament — constant angular speed, readable and fair
-  ctx.lineCap = 'round';
-  for (const [lw, col] of [[9, `rgba(${P.wide},0.35)`], [4, `rgba(${P.mid},0.8)`], [1.6, `rgba(${P.hot},0.98)`]]) {
-    ctx.strokeStyle = col;
+  // THE CHANNEL: four additive passes over the same writhing path — a soft
+  // discharge halo, a body, and a white core that never quite holds still. The
+  // body and the core share one wobble so the core rides inside the plasma.
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const mn = Math.min(W, H);
+  // …and it LANDS: every pass is graded along its own length so the light is at
+  // its hottest where it meets the band and thins out past it. A ray that stayed
+  // at full brightness to the screen edge read as a laser pointer, not a weapon.
+  const hx0 = g.cx + Math.cos(A) * g.nodeR, hy0 = g.cy + Math.sin(A) * g.nodeR;
+  const ringQ = clamp(Math.hypot(hx0 - b.sx, hy0 - b.sy) / len, 0.06, 0.9);
+  const graded = (col, al) => {
+    const lg = ctx.createLinearGradient(b.sx, b.sy, rx, ry);
+    lg.addColorStop(0, `rgba(${col},${(al * 0.7).toFixed(3)})`);
+    lg.addColorStop(ringQ, `rgba(${col},${al.toFixed(3)})`);
+    lg.addColorStop(1, `rgba(${col},${(al * 0.3).toFixed(3)})`);
+    return lg;
+  };
+  for (const [lw, col, al, amp, sd] of [
+    [mn * 0.040, P.wide, 0.15, wob * 0.4, 0.0],
+    [mn * 0.019, P.wide, 0.28, wob * 0.9, 1.7],
+    [mn * 0.0095, P.mid, 0.60, wob * 1.4, 1.7],
+    [mn * 0.0040 * P.coreW, P.core, 0.98, wob * 1.4, 1.7],
+  ]) {
+    ctx.strokeStyle = graded(col, al * I * fl);
     ctx.lineWidth = lw;
-    ctx.beginPath(); ctx.moveTo(b.sx, b.sy); ctx.lineTo(rx, ry); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(b.sx, b.sy);
+    for (let k = 1; k <= 12; k++) { const p = cpt(k / 12, amp, sd); ctx.lineTo(p[0], p[1]); }
+    ctx.stroke();
   }
-  // the mouth flares while it is emitting or swallowing the light
-  const surge2 = bm.dying !== undefined ? die : 1 - born;
-  if (surge2 > 0.02) {
-    ctx.globalCompositeOperation = 'lighter';
-    const mg = ctx.createRadialGradient(b.sx, b.sy, 0, b.sx, b.sy, b.sSize * (0.6 + surge2 * 1.1));
-    mg.addColorStop(0, `rgba(${P.hot},${(0.55 * surge2).toFixed(2)})`);
-    mg.addColorStop(1, `rgba(${P.mid},0)`);
-    ctx.fillStyle = mg;
-    ctx.beginPath(); ctx.arc(b.sx, b.sy, b.sSize * (0.6 + surge2 * 1.1), 0, TAU); ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
+  // CHARGE PACKETS run the channel outward. This is the detail that says the
+  // machine is EMITTING and not merely lit: matter leaves it, at speed.
+  for (let k = 0; k < 3; k++) {
+    const q1 = (time * (1.2 + k * 0.29) + k * 0.41) % 1;
+    const q0 = Math.max(0.02, q1 - 0.07);
+    const env = Math.sin(q1 * Math.PI);
+    if (env < 0.05) continue;
+    const p0 = cpt(q0, wob * 1.4, 1.7), x0 = p0[0], y0 = p0[1];
+    const p1 = cpt(q1, wob * 1.4, 1.7);
+    for (const [w2, cl, a2] of [[mn * 0.013, P.mid, 0.35], [mn * 0.005, P.hot, 0.95]]) {
+      ctx.strokeStyle = `rgba(${cl},${(a2 * env * I * reach).toFixed(3)})`;
+      ctx.lineWidth = w2 * (0.6 + q1);
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+    }
   }
-  if (reach >= 0.999 && bm.dying === undefined) { // full reach: the light BURNS
-    // hazard bloom where the light crosses the ring
-    ctx.strokeStyle = `rgba(${P.rim},${(0.55 + Math.sin(time * 22) * 0.2).toFixed(2)})`;
-    ctx.lineWidth = Math.min(W, H) * 0.02;
-    ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, A - SWEEP_BEAM_HALF, A + SWEEP_BEAM_HALF); ctx.stroke();
+  // ARC-OVER: the channel spits short filaments sideways, re-rolled on a clock.
+  // arcHash, never a random draw — draw code must not spend the spawn stream.
+  const tick = Math.floor(time * 14);
+  ctx.lineWidth = 1.4;
+  for (let k = 0; k < 2; k++) {
+    const h = arcHash(tick * 7 + k * 31 + bm.phase * 13);
+    if (h < 0.35) continue;
+    const q = 0.2 + h * 0.7;
+    const sgn = arcHash(tick * 3 + k * 17) < 0.5 ? -1 : 1;
+    const p = cpt(q, wob * 1.5, 1.7);
+    ctx.strokeStyle = `rgba(${P.mid},${(0.55 * I).toFixed(2)})`;
+    ctx.beginPath();
+    ctx.moveTo(p[0], p[1]);
+    for (let j = 1; j <= 3; j++) {
+      const hj = arcHash(tick * 11 + k * 5 + j);
+      ctx.lineTo(p[0] + tx * sgn * mn * 0.012 * j + dx * (hj - 0.5) * 0.03,
+                 p[1] + ty * sgn * mn * 0.012 * j + dy * (hj - 0.5) * 0.03);
+    }
+    ctx.stroke();
+  }
+  // THE MOUTH burns the whole time it fires — it surges on the birth and on the
+  // swallow, and idles hot in between
+  const surge2 = live ? Math.max(1 - born, 0.34 + 0.16 * Math.sin(time * 30)) : die;
+  const mR = b.sSize * (0.6 + surge2 * 1.1);
+  const mg = ctx.createRadialGradient(b.sx, b.sy, 0, b.sx, b.sy, mR);
+  mg.addColorStop(0, `rgba(${P.hot},${(0.62 * surge2 * I).toFixed(2)})`);
+  mg.addColorStop(0.5, `rgba(${P.mid},${(0.24 * surge2 * I).toFixed(2)})`);
+  mg.addColorStop(1, `rgba(${P.mid},0)`);
+  ctx.fillStyle = mg;
+  ctx.beginPath(); ctx.arc(b.sx, b.sy, mR, 0, TAU); ctx.fill();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = `rgba(${P.hot},${(0.5 * surge2 * I).toFixed(2)})`; // starburst on the muzzle
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let k = 0; k < 4; k++) {
+    const a2 = A + k * Math.PI / 2 + time * 0.6;
+    const l2 = b.sSize * (0.5 + surge2 * (k % 2 ? 0.5 : 0.9));
+    ctx.moveTo(b.sx, b.sy);
+    ctx.lineTo(b.sx + Math.cos(a2) * l2, b.sy + Math.sin(a2) * l2);
+  }
+  ctx.stroke();
+  if (reach >= 0.999 && live) { // full reach: the light BURNS the band
+    if (scarHeat(A, bm.phase, bm.sA)) bm.sA = A; // lay the weld down for the trail
+    const bz = Math.min(W, H) * 0.055;
+    const hx = g.cx + Math.cos(A) * g.nodeR, hy = g.cy + Math.sin(A) * g.nodeR;
+    const pulse = 0.85 + 0.15 * Math.sin(time * 33);
+    // the band still glows across the exact width that kills (WYSIWYG danger),
+    // but feathered out of four nested arcs — a butt-capped band is a rectangle,
+    // and a rectangle parked on the rim was the whole complaint
+    ctx.lineCap = 'butt';
+    for (let k = 0; k < 4; k++) {
+      const hf = SWEEP_BEAM_HALF * (1 - k * 0.19);
+      ctx.strokeStyle = `rgba(${k > 1 ? P.hot : P.rim},${((0.07 + k * 0.06) * pulse).toFixed(2)})`;
+      ctx.lineWidth = bz * (1.05 - k * 0.16);
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, A - hf, A + hf); ctx.stroke();
+    }
+    // THE POOL: metal running white under the light. Drawn in the band's own
+    // frame — long along the rim, thin across it — so it is a soft-edged pool
+    // and never a shape with corners. It TRAILS the head: metal in front of the
+    // light has not been heated yet, and a pool centred on the head scorched the
+    // rim before the ray arrived.
+    const back = A - (bm.dir || 1) * SWEEP_BEAM_HALF * 0.45;
+    const px3 = g.cx + Math.cos(back) * g.nodeR, py3 = g.cy + Math.sin(back) * g.nodeR;
+    ctx.save();
+    ctx.translate(px3, py3); ctx.rotate(back); ctx.scale(0.42, 1);
+    const pool = ctx.createRadialGradient(0, 0, 0, 0, 0, bz * 1.15);
+    pool.addColorStop(0, `rgba(${P.core},${(0.8 * pulse).toFixed(2)})`);
+    pool.addColorStop(0.3, `rgba(${P.hot},${(0.55 * pulse).toFixed(2)})`);
+    pool.addColorStop(0.65, `rgba(${P.mid},0.18)`);
+    pool.addColorStop(1, `rgba(${P.wide},0)`);
+    ctx.fillStyle = pool;
+    ctx.beginPath(); ctx.arc(0, 0, bz * 1.15, 0, TAU); ctx.fill();
+    ctx.restore();
+    // the heat haze standing off the band
+    const pg = ctx.createRadialGradient(hx, hy, 0, hx, hy, bz * 2.4);
+    pg.addColorStop(0, `rgba(${P.mid},${(0.22 * pulse).toFixed(2)})`);
+    pg.addColorStop(0.5, `rgba(${P.wide},0.07)`);
+    pg.addColorStop(1, `rgba(${P.wide},0)`);
+    ctx.fillStyle = pg;
+    ctx.beginPath(); ctx.arc(hx, hy, bz * 2.4, 0, TAU); ctx.fill();
     // the telegraphed reversal: chevrons flip to the OTHER side of the light and
     // blink until the turn lands — an unannounced turn would be a coin toss
     if (bm.warn) {
@@ -1388,10 +1635,12 @@ function drawLeechBeam(g, b, bm, ghost) {
         ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, a2 - 0.05, a2 + 0.05); ctx.stroke();
       }
     }
-    const hx = g.cx + Math.cos(A) * g.nodeR, hy = g.cy + Math.sin(A) * g.nodeR;
     // sysRandom, not Math.random: in a seeded lane Math.random IS the spawn stream, and
     // the server replays without ever drawing a frame. Draw code must not spend it.
-    if (sysRandom() < 0.5) burst(hx, hy, `rgb(${P.hot})`, 1, 2.5);
+    if (sysRandom() < 0.75) { // spatter off the weld, the way cut metal throws
+      const sa = A + (sysRandom() - 0.5) * 0.35;
+      burst(g.cx + Math.cos(sa) * g.nodeR, g.cy + Math.sin(sa) * g.nodeR, `rgb(${P.hot})`, 1, 3);
+    }
   }
   ctx.restore();
 }
