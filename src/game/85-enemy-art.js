@@ -711,14 +711,21 @@ function drawPickup(p, g) {
   ctx.save();
   ctx.globalAlpha = fade;
   ctx.translate(x, y);
-  // the STABILITY PATCH wears the integrity gauge's own blue — relief must
-  // read as THAT gauge from across the bore; everything else stays pickup gold
-  const heal2 = p.kind === 'health';
-  const glowC = heal2 ? '143,199,255' : '255,210,74';
+  // ONE SHELL FOR EVERY POWER-UP: GOLD. The stability patch used to wear the
+  // integrity gauge's blue so relief would read as THAT gauge from across the
+  // bore, and that split the vocabulary in two for one orb's sake. Gold now
+  // means the one thing worth knowing at a distance — REACH FOR IT — and the
+  // glyph alone says which power arrives. (Gil, 2026-08-27.)
+  //
+  // The glyph is the only channel left, so it does two jobs. It names the power,
+  // and on a patch it also names the PAYOUT: a patch caught at full stability
+  // converts (healYield in 51-linter), so its face is read LIVE, every frame.
+  // Take a hit mid-flight and the shield turns back into a cross on that frame.
+  const gk = p.kind === 'health' ? healYield() : p.kind;
   const pulse = 1 + Math.sin(time * 5 + p.spin) * 0.1;
   const gl = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 2.6 * pulse);
-  gl.addColorStop(0, `rgba(${glowC},0.55)`);
-  gl.addColorStop(1, `rgba(${glowC},0)`);
+  gl.addColorStop(0, 'rgba(255,210,74,0.55)');
+  gl.addColorStop(1, 'rgba(255,210,74,0)');
   ctx.fillStyle = gl;
   ctx.beginPath(); ctx.arc(0, 0, size * 2.6 * pulse, 0, TAU); ctx.fill();
   ctx.rotate(p.spin * 0.6);
@@ -728,41 +735,51 @@ function drawPickup(p, g) {
     i ? ctx.lineTo(Math.cos(a2) * size, Math.sin(a2) * size) : ctx.moveTo(Math.cos(a2) * size, Math.sin(a2) * size);
   }
   ctx.closePath();
-  ctx.fillStyle = heal2 ? 'rgba(8,24,44,0.85)' : 'rgba(60,40,5,0.85)'; ctx.fill();
-  ctx.strokeStyle = heal2 ? '#8fc7ff' : '#ffd24a'; ctx.lineWidth = Math.max(1, size * 0.14); ctx.stroke();
+  ctx.fillStyle = 'rgba(60,40,5,0.85)'; ctx.fill();
+  ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = Math.max(1, size * 0.14); ctx.stroke();
+  // THE SHELL SPINS, THE GLYPH NEVER DOES. The rotation is wound back off here,
+  // so every face below is drawn in the lane's own upright frame and reads the
+  // same way from the horizon to the ring. A glyph that turned with the shell
+  // would be a symbol the player has to re-read on every frame.
   ctx.rotate(-p.spin * 0.6);
-  ctx.strokeStyle = heal2 ? '#dcecff' : '#ffe9b0'; ctx.fillStyle = heal2 ? '#dcecff' : '#ffe9b0';
+  ctx.strokeStyle = '#ffe9b0'; ctx.fillStyle = '#ffe9b0';
   ctx.lineWidth = Math.max(1, size * 0.12); ctx.lineCap = 'round';
   const s2 = size * 0.52;
-  if (p.kind === 'shield') { // heater shield
+  if (gk === 'shield') { // heater shield: FLAT TOP, point at the chin
+    // It was a stroked outline with a peak at the top, which is a hexagon by
+    // another name — inside a hexagonal shell it vanished into its own frame.
+    // Filled, and with a straight crown over square shoulders, the silhouette
+    // is a shield at any size and cannot be confused with the shell.
     ctx.beginPath();
-    ctx.moveTo(0, -s2);
-    ctx.lineTo(s2 * 0.8, -s2 * 0.5); ctx.lineTo(s2 * 0.8, s2 * 0.15);
-    ctx.quadraticCurveTo(s2 * 0.8, s2 * 0.7, 0, s2);
-    ctx.quadraticCurveTo(-s2 * 0.8, s2 * 0.7, -s2 * 0.8, s2 * 0.15);
-    ctx.lineTo(-s2 * 0.8, -s2 * 0.5);
-    ctx.closePath(); ctx.stroke();
-  } else if (p.kind === 'inject') { // charged orb, ready core
+    ctx.moveTo(-s2 * 0.80, -s2 * 0.74);
+    ctx.lineTo(s2 * 0.80, -s2 * 0.74);            // the crown
+    ctx.lineTo(s2 * 0.80, s2 * 0.02);             // square shoulders, straight flanks
+    ctx.quadraticCurveTo(s2 * 0.76, s2 * 0.70, 0, s2 * 1.00);
+    ctx.quadraticCurveTo(-s2 * 0.76, s2 * 0.70, -s2 * 0.80, s2 * 0.02);
+    ctx.closePath(); ctx.fill();
+  } else if (gk === 'inject') { // charged orb, ready core
     ctx.beginPath(); ctx.arc(0, 0, s2 * 0.95, 0, TAU); ctx.stroke();
     ctx.beginPath(); ctx.arc(0, 0, s2 * 0.38, 0, TAU); ctx.fill();
-  } else if (p.kind === 'chain') { // twin bolts — the arc jumps
+  } else if (gk === 'chain') { // twin bolts — the arc jumps
     for (const ox of [-s2 * 0.42, s2 * 0.42]) {
       ctx.beginPath();
       ctx.moveTo(ox + s2 * 0.2, -s2 * 0.75); ctx.lineTo(ox - s2 * 0.3, s2 * 0.1); ctx.lineTo(ox, s2 * 0.1);
       ctx.lineTo(ox - s2 * 0.2, s2 * 0.75); ctx.lineTo(ox + s2 * 0.3, -0.1 * s2); ctx.lineTo(ox, -0.1 * s2);
       ctx.closePath(); ctx.fill();
     }
-  } else if (p.kind === 'wide') { // widening arcs
+  } else if (gk === 'wide') { // widening arcs
     ctx.beginPath(); ctx.arc(0, 0, s2 * 0.55, -0.9, 0.9); ctx.stroke();
     ctx.beginPath(); ctx.arc(0, 0, s2 * 1.05, -0.7, 0.7); ctx.stroke();
     ctx.beginPath(); ctx.arc(0, 0, s2 * 0.55, Math.PI - 0.9, Math.PI + 0.9); ctx.stroke();
     ctx.beginPath(); ctx.arc(0, 0, s2 * 1.05, Math.PI - 0.7, Math.PI + 0.7); ctx.stroke();
-  } else if (p.kind === 'health') { // the patch: a bold stability cross
-    ctx.lineWidth = Math.max(1.4, size * 0.2);
-    ctx.beginPath();
-    ctx.moveTo(-s2 * 0.7, 0); ctx.lineTo(s2 * 0.7, 0);
-    ctx.moveTo(0, -s2 * 0.7); ctx.lineTo(0, s2 * 0.7);
-    ctx.stroke();
+  } else if (gk === 'health') { // the patch: a PHARMACY cross
+    // Two filled bars, not two strokes. The stroked version wore the round line
+    // cap this function sets for the arcs, so its arms ended in four soft nubs
+    // and the whole mark read thin. Square ends and a fat waist are what make a
+    // cross read as MEDICAL rather than as a plus sign.
+    const arm = s2 * 0.92, th = s2 * 0.34;
+    ctx.fillRect(-arm, -th, arm * 2, th * 2);
+    ctx.fillRect(-th, -arm, th * 2, arm * 2);
   } else { // lightning bolt
     ctx.beginPath();
     ctx.moveTo(s2 * 0.3, -s2); ctx.lineTo(-s2 * 0.45, s2 * 0.15); ctx.lineTo(0, s2 * 0.15);

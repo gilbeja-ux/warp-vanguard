@@ -520,6 +520,18 @@ const PICKUPS = {
   chain:  { dur: 6,  label: 'CHAIN OVERDRIVE' }, // zaps arc to the nearest hostile
   health: { dur: 0,  label: 'STABILITY +25' }    // one stability block back — SCHEDULED, never rolled
 };
+// THE PATCH NEVER GOES TO WASTE. Reaching for relief you don't need used to pay
+// nothing, so a full-stability lane taught the player to ignore the orb — and
+// then to ignore ALL orbs, because the reach is the same reach. So the patch
+// hands over the next thing that still has somewhere to go: the shield, and
+// behind that the pulse. Read LIVE, every frame: the orb's glyph tracks the
+// gauge while it flies, so a hit taken mid-flight turns the shield back into a
+// cross. Consumes no RNG, so a seeded stream cannot move.
+function healYield() {
+  if (integrity < (mutLive('oneLife') ? 25 : 100)) return 'health';
+  if (shieldCharge <= 0) return 'shield';
+  return 'inject';
+}
 // kinds come from a seeded shuffle-bag: every kind appears once before any
 // repeats. A plain uniform roll + per-level fixed seeds froze whole kinds out
 // of entire levels forever (chain, chain — and never a shield, on any replay)

@@ -696,28 +696,33 @@ function updatePickups(dt, sdt, L, g, covers, ringXY) {
       if (covers(nodes[0], p.angle) || covers(nodes[1], p.angle)) {
         p.dead = true;
         const { x, y } = ringXY(p.angle);
-        if (p.kind === 'shield') {
+        // a patch caught at full stability pays out as the next useful thing —
+        // see healYield() in 51-linter. Every other kind is itself.
+        const kind = p.kind === 'health' ? healYield() : p.kind;
+        if (kind === 'shield') {
           shieldCharge = 1;
           shieldUpT = 0.6; shieldUpA = p.angle; // the collar charges up FROM the catch
           sfx.pick(); sfx.shieldUp(); // shared pickup sparkle, then the collar charge
-        } else if (p.kind === 'inject') { // both emitters snap to ready
+        } else if (kind === 'inject') { // both emitters snap to ready
           pulseCharge = [PULSE_MAX, PULSE_MAX];
           pulseFx[0].bank = pulseFx[1].bank = 1; // both pads swallow at once
           // the pickup sparkle every other relay gets, then both coils arming.
           // It played heal() alone before, which is the sound of being repaired.
           sfx.pick(); sfx.pulseArmed();
-        } else if (p.kind === 'health') { // the patch: one stability block back
+        } else if (kind === 'health') { // the patch: one stability block back
           const cap = mutLive('oneLife') ? 25 : 100;
           integrity = Math.min(cap, integrity + 25);
           sfx.pick(); sfx.heal(); // the sparkle, then the sound of being repaired
         } else {
-          fx[p.kind] = PICKUPS[p.kind].dur;
+          fx[kind] = PICKUPS[kind].dur;
           sfx.pick();
         }
-        // the patch wears the stability gauge's own blue; everything else is gold
-        const pc2 = p.kind === 'health' ? '#8fc7ff' : '#ffd24a';
+        // every power-up orb is gold now, so its catch is gold too — the burst
+        // answers the thing the player reached for. See drawPickup in
+        // 85-enemy-art. The blue is the integrity gauge's alone.
+        const pc2 = '#ffd24a';
         burst(x, y, pc2, 24, 4);
-        popup(x, y, PICKUPS[p.kind].label, pc2);
+        popup(x, y, PICKUPS[kind].label, pc2);
         if (p.tut) popup(x, y - 30, 'PICKED UP', '#7ee262'); // the label's verb, answered
         buzz(15);
       }
