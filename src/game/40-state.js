@@ -127,6 +127,19 @@ let shieldUpA = 0;    // where the shield pickup was caught (the spread's origin
 // desyncs a seeded lane from the verifier. Test the effect by catching the pickup.)
 let killStreaks = []; // kill streaks: reprogrammed packets tracing home
 let pickups = [], pickupT = 20;
+// THE POWER-UP SPACING LAW (Gil, 2026-08-27, after a live pass).
+// Two orbs may never arrive within PICKUP_GAP seconds of each other. Three
+// independent sources drop them — the filler's own clock, an authored beat, and
+// band/surge relief — and none of them could see the others, so a shield landed
+// 0.1s beside a wide on survey relay 02 and 0.2s beside a chain on patrol relay
+// 04. A player cannot use two at once; the second one is waste dressed as a
+// reward. Every drop now passes through pickAllowed(), and a refused drop is
+// DEFERRED, never dropped: filler re-arms its clock, a beat slides late exactly
+// as it already does around a comm window, and relief holds its ledger entry.
+// All three defer on levelT alone, so no seeded draw moves and every lane stays
+// reproducible.
+const PICKUP_GAP = 10;
+let lastPickT = -1e9; // levelT of the last orb released, whatever released it
 let ribbonT = 30; // bonus ribbon cadence — golden ribbons on levels 5+ / endless
 let tut = null;               // tutorial controller (level 1, first run)
 let boss = null;              // the warp leech (levels with boss: true)

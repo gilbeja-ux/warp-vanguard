@@ -130,7 +130,8 @@ function lintWalk(level, idx) {
     const auth = a2; // the AUTHORED arc — the clash hops below may move the real one
     const teleT = tele !== undefined ? tele : trav;
     const wallLife = teleT + 3 + 0.6;
-    for (let k = 0; !force && k < 8; k++) {
+    let clear2 = force || beat !== undefined; // authored carpets stay and get reported
+    for (let k = 0; !force && k < WALL_HOPS; k++) {
       const clash = arr.some(rec => {
         if (rec.type === 'strip') return tN < rec.t1 + 0.4 && wallBlocks(angDiff(rec.angle, a2), 0.5, 0.5);
         const tArr = rec.t - tN;
@@ -140,12 +141,19 @@ function lintWalk(level, idx) {
         const tArr = p.t - tN;
         return tArr > -0.5 && tArr < wallLife && wallBlocks(angDiff(p.angle, a2), 0.5);
       });
-      if (!clash) break;
+      if (!clash) { clear2 = true; break; }
       a2 += 2.399963;
     }
+    if (!clear2) return; // mirrors the live stand-down
     walls.push({ tRel: tN, tLand: tN + teleT, a: a2, aA: auth, beat });
   }
+  // MIRROR OF THE SPACING LAW (PICKUP_GAP, 40-state). The walk has to refuse
+  // exactly what the live spawner refuses, or the fairness verdicts describe a
+  // lane nobody flies. lastPk is the walk's own copy of lastPickT.
+  let lastPk = -1e9;
+  const pkAllowed = tN => tN - lastPk >= PICKUP_GAP;
   function simPickup(tN, kind, beat) {
+    lastPk = tN;
     if (kind === undefined) dr(); // kind roll
     // mirror the live clearance: the orb relocates off spawn-time carpets
     picks.push({ t: tN + (dropT !== null ? dropT : lead(0.9)), angle: cow(dr() * TAU, tN), beat });
@@ -226,7 +234,7 @@ function lintWalk(level, idx) {
         : undefined;
       if (b.kind === 'wall') simWall(lvT, a2, bi, b.force, dropT !== null ? dropT : undefined);
       else if (b.kind === 'strip') simStrip(bandCfg(level, lvT), lvT, bi);
-      else if (b.kind === 'pickup') simPickup(lvT, b.type, bi);
+      else if (b.kind === 'pickup') { if (!pkAllowed(lvT)) { fired[bi] = false; continue; } simPickup(lvT, b.type, bi); }
       else if (b.type === 'line') simLine(bandCfg(level, lvT), lvT, a2, bi, b.force);
       else if (b.type === 'lock0' || b.type === 'lock1') {
         let lk = b.type === 'lock1' ? 1 : 0;
@@ -247,7 +255,11 @@ function lintWalk(level, idx) {
     }
     // pickup + ribbon clocks (ribbons only exist from level 5 up)
     pkT -= dt;
-    if (pkT <= 0) { pkT = drr(20, 32); simPickup(lvT); }
+    if (pkT <= 0) {
+      const wait = drr(20, 32); // spent either way — the guard sits AFTER the roll
+      if (!pkAllowed(lvT)) pkT = PICKUP_GAP - (lvT - lastPk);
+      else { pkT = wait; simPickup(lvT); }
+    }
     if (idx >= 4) {
       rbT -= dt;
       if (rbT <= 0) {
@@ -418,6 +430,7 @@ function trySpawn(dt) {
 // REACH them. The filler gates, beat firing, wall clash hops and the linter
 // all share this one definition (the linter mirrors it via wallBlocks too).
 const WALL_TOL = 0.3; // node zap tolerance margin
+const WALL_HOPS = 8; // golden-angle attempts before a carpet stands down
 const wallBlocks = (d, span, extra) => Math.abs(d) < span + WALL_TOL + (extra || 0);
 // keep a candidate angle reachable past every wall arc — deterministic
 // golden-angle hops, no RNG consumed, so campaign replays stay identical
@@ -430,7 +443,7 @@ function clearOfWalls(a, extra) {
   return a;
 }
 
-function spawnWall(forcedA, force, teleOverride) { // beats may pin the arc; force = verbatim, no hops
+function spawnWall(forcedA, force, teleOverride, beatArc) { // beats may pin the arc; force = verbatim, no hops
   // (No first-encounter disc. Training already drills the rim wall, and the
   // carpet telegraphs itself — a card here just stopped the run to repeat it.)
   let a = forcedA !== undefined ? forcedA : spawnRng() * TAU;
@@ -438,7 +451,22 @@ function spawnWall(forcedA, force, teleOverride) { // beats may pin the arc; for
   const trav = travelTime(); // the carpet is world traffic: horizon to rim at stream speed
   const tele = teleOverride !== undefined ? teleOverride : trav; // early-clamped beats bite sooner
   const wallLife = tele + 3 + 0.6; // approach + burn + detour buffer
-  for (let k = 0; !force && k < 8; k++) {
+  // A CARPET THAT FINDS NO CLEAR ARC STANDS DOWN. The hop loop breaks on success
+  // and simply fell out on failure, so an exhausted search used its last hop
+  // UNCHECKED — the carpet parked on whatever was there. It went unnoticed while
+  // the eight golden-angle steps happened to succeed; the power-up spacing law
+  // moved filler orbs into new windows and two lanes immediately grew a carpet
+  // sitting on an orb (survey relay 05, patrol relay 04). Widening the search is
+  // not the fix: it only moves which lane loses. A cycle without a carpet is a
+  // quieter lane. A carpet on top of a demand is an unreachable one, and the
+  // reachability law is the thing that makes a lane 100% completable.
+  // The arc draw above is already spent, so standing down keeps the stream aligned.
+  // …but only a FILLER carpet stands down. An AUTHORED one (a beat) keeps its
+  // place even when it clashes: the linter's job is to tell the author their wall
+  // is unfair, and a wall that quietly deleted itself would hide the mistake
+  // instead of reporting it.
+  let clear = force || beatArc;
+  for (let k = 0; !force && k < WALL_HOPS; k++) {
     const clash = enemies.some(en => {
       if (en.dead || en.resolved || en.failed) return false;
       // a live ribbon meanders — its whole ride corridor must stay reachable
@@ -452,9 +480,10 @@ function spawnWall(forcedA, force, teleOverride) { // beats may pin the arc; for
       const tArr = (p.z - g2.hitZ) / (trafficSpeed * 0.9);
       return tArr > -0.5 && tArr < wallLife && wallBlocks(angDiff(p.angle, a), 0.5);
     });
-    if (!clash) break;
+    if (!clash) { clear = true; break; }
     a += 2.399963;
   }
+  if (!clear) return; // no reachable arc — the lane simply gets no carpet this cycle
   latches.push({ a, span0: 0.5, t: 0, dur: 3, tele, arm: 0.4, z0: SPAWN_Z });
   // warning: dry double tick + static as the carpet enters the tunnel
   tone(1180, 0.02, 'square', 0.05); tone(1180, 0.02, 'square', 0.05, null, null, 0.22);
@@ -495,7 +524,11 @@ const PICKUPS = {
 // repeats. A plain uniform roll + per-level fixed seeds froze whole kinds out
 // of entire levels forever (chain, chain — and never a shield, on any replay)
 let pickupBag = [];
+// Is the lane clear for another orb? Consumes no RNG, reads only the clock, so
+// a refusal cannot move a seeded stream. See PICKUP_GAP in 40-state.
+const pickAllowed = () => levelT - lastPickT >= PICKUP_GAP;
 function spawnPickup(kind) { // beats may pin the kind (skipping the bag)
+  lastPickT = levelT; // stamped for the spacing law — callers gate with pickAllowed()
   // health never rides the bag: relief is SENT — after hot bands, behind
   // surges, mid-duel — so it lands where the lane just hurt, not at random
   const kinds = Object.keys(PICKUPS).filter(k => k !== 'health');

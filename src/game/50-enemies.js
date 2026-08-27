@@ -215,6 +215,10 @@ function runBeats() {
     // like filler does — it slides late, never disappears
     const tArr = levelT + eff;
     if (cl.some(c => tArr > c.t - 0.5 && tArr < c.t + 3.2)) continue;
+    // the spacing law: an authored orb waits for the lane to clear rather than
+    // landing beside another one. It slides late, never disappears — the same
+    // treatment the comm window above gives it (see PICKUP_GAP in 40-state).
+    if (b.kind === 'pickup' && !pickAllowed()) continue;
     beatSt.fired[bi] = true;
     fireBeat(b, bi, eff < lead - 1e-9 ? eff : undefined);
   }
@@ -229,7 +233,7 @@ function fireBeat(b, bi, eff) {
   const a = b.angle !== undefined
     ? (b.force ? b.angle : clearOfWalls(b.angle, b.kind === 'wall' ? 0.5 : 0))
     : undefined;
-  if (b.kind === 'wall') spawnWall(a, b.force, eff);
+  if (b.kind === 'wall') spawnWall(a, b.force, eff, true); // authored: never stands down
   else if (b.kind === 'strip') spawnStrip();
   else if (b.kind === 'pickup') { if (!mutLive('noPickups')) spawnPickup(b.type); }
   else if (b.type === 'line') spawnLine(a, b.force);

@@ -414,6 +414,16 @@ function raySweep(list) {
   const ac = AC; if (!ac || !sfxGain) return;
   const live = (simMuted || !list) ? [] : list;
   const held = {};
+  // TWO LIGHTS ARE NOT TWICE ONE LIGHT (Gil, 2026-08-27: "the new ray sounds
+  // didn't apply here" — said in the PRISM, the only fight that runs two rays at
+  // once). Each voice was written to sit at RAY_LEVEL, so the prism summed two of
+  // them into a bed at twice the ceiling. The master limiter then pulled the whole
+  // mix down to fit, and what reaches the ear is a duck, not a ray — the sound is
+  // there and is the first thing the limiter spends. The bed is shared instead of
+  // stacked: n lights split one ceiling, weighted so two still read louder than
+  // one without doubling it.
+  const nLive = live.reduce((n, bm) => n + (bm.done ? 0 : 1), 0);
+  const share = nLive > 1 ? 1 / Math.sqrt(nLive) : 1;
   for (const bm of live) {
     if (bm.done) continue;
     held[bm.phase] = 1;
@@ -433,7 +443,7 @@ function raySweep(list) {
     if (v.pan) set(v.pan.pan, clamp(Math.cos(bm.a) * 0.7, -1, 1));
     // the birth swell: the ray erupts before it turns, so it arrives rather than snaps
     const born = clamp((bm.liveT || 0) / 0.22, 0, 1);
-    set(v.g.gain, Math.max(0.0001, RAY_LEVEL * (0.55 + 0.45 * k) * born));
+    set(v.g.gain, Math.max(0.0001, RAY_LEVEL * share * (0.55 + 0.45 * k) * born));
   }
   for (const key of Object.keys(rayVoices)) {
     if (held[key]) continue;

@@ -251,7 +251,7 @@ code = code.replace("'use strict';", '') + `
   volley: () => volley, BOSS_CER: () => BOSS_CER, latchFreeArc, leechWave,
   startBossRetry, isBossFailed: () => bossFailed, isBossRetried: () => bossRetried, endButtons: () => endButtons,
   endTap, endForward, // the report's keys, and the pad's forward mapping over them
-  bandCfg, lintLevel, lintCampaign, lintWalk, levelThreats, birthFade, getSched: () => sched
+  bandCfg, lintLevel, lintCampaign, lintWalk, levelThreats, birthFade, getSched: () => sched, PICKUP_GAP
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -937,13 +937,26 @@ G.spawnPickup('health');
     G.pickups().every(pk2 => pk2.kind !== 'health'));
   G.pickups().length = 0;
 }
-{ // BAND RELIEF: a hot band (intensity >= 1.7) ends -> a patch rides in behind it
-  G.installCampaign(G.CAMPAIGNS[1]); // THE SURVEY: level 2 carries a 1.8 band at [44,53]
+{ // BAND RELIEF: a hot band (intensity >= 1.7) ends -> a patch rides in behind it,
+  // but ONLY while there is still lane left for the patch to help with. Survey
+  // level 2 is 55s long and its 1.8 band ends at 53 — relief there would arrive as
+  // litter at the finish, which is the defect Gil reported as "a pointless life
+  // pickup on the last enemy". Both halves are pinned.
+  G.installCampaign(G.CAMPAIGNS[1]); // THE SURVEY
   G.startLevel(1);
-  G.setLevelT(54.2); // past t1 + the 1s beat
+  G.pickups().length = 0;
+  G.setLevelT(54.2); // past t1 + the 1s beat, but past the drop window too
   G.setIntegrity(100); G.update(0.05);
-  const relief = G.pickups().filter(pk2 => pk2.kind === 'health');
-  check('a hot band sends its patch — and the mild band (1.5) sends none', relief.length === 1);
+  check('a hot band that ends at the finish sends NO patch — it would be litter',
+    G.pickups().filter(pk2 => pk2.kind === 'health').length === 0);
+  // …and a hot band with lane left after it does send one. Survey level 7 is 75s
+  // and carries a 1.7 band at [18,38]: relief lands at 39, deep inside the run.
+  G.startLevel(6);
+  G.pickups().length = 0;
+  G.setLevelT(39.2);
+  G.setIntegrity(100); G.update(0.05);
+  check('a hot band with lane left after it sends its patch', 
+    G.pickups().filter(pk2 => pk2.kind === 'health').length === 1);
   G.installCampaign(G.CAMPAIGNS[0]); // back to the bundled default for everything downstream
 }
 { // the Lane Designer may hand-place one: the loader accepts the type
@@ -1638,12 +1651,20 @@ for (let i = 0; i < 4; i++) G.update(0.05);
     check('the next shift swaps the ray to the other emitter', BL.beams[0].phase === 1 - ph0);
     G.enemies().length = 0; G.setLatches([]);
   }
-  { // H-25: the machine spends its reserves — each shift's ray runs a touch
-    // faster, clamped at the 4.2s/rev floor so the finale tightens, gently
+  { // The machine spends its reserves — each shift's ray runs faster, to a
+    // 3.6s/rev floor. The step was 0.2s with a floor at shift 6; Gil flew it and
+    // felt nothing, because a real duel ends before shift 6 and 4% per shift is
+    // below noticing. 0.45s steps put the floor at shift 5 and make shift 2
+    // already 9% faster. Both the ramp and the floor are pinned.
     const shifts0 = BL.lsShifts;
+    const sweepAt = n => Math.PI * 2 / Math.max(3.6, 5.2 - (n - 1) * 0.45);
+    BL.mode = 'idle'; BL.beams = []; G.enemies().length = 0; G.setIntegrity(100); G.update(0.05);
+    const early = BL.beams[0].spd, earlyN = BL.lsShifts;
+    check('the sweep tightens measurably by the second shift, not the sixth',
+      Math.abs(early - sweepAt(earlyN)) < 1e-9 && sweepAt(2) / sweepAt(1) > 1.08);
     for (let sw = 0; sw < 8; sw++) { BL.mode = 'idle'; BL.beams = []; G.enemies().length = 0; G.setIntegrity(100); G.update(0.05); }
     check('the last-stand sweep tightens with the shifts, to its floor',
-      BL.lsShifts === shifts0 + 8 && Math.abs(BL.beams[0].spd - Math.PI * 2 / 4.2) < 1e-9);
+      BL.lsShifts === shifts0 + 9 && Math.abs(BL.beams[0].spd - Math.PI * 2 / 3.6) < 1e-9);
     G.enemies().length = 0; G.setLatches([]);
   }
   check('a lone key fizzles at the last stand', pulseShot(0) === 0 && BL.shieldT > 0);
@@ -2599,7 +2620,7 @@ check('the drill still spawns through the run', runA.split('|').length >= 4);
   // because it was made of tone/crackle, which ramp gain DOWN from sample one — it
   // decayed while the picture said it was loading. The swell primitives are the
   // fix, so the pin guards the shape rather than the numbers.
-  const charge = sx.slice(sx.indexOf('rayCharge(pan)'), sx.indexOf('bossPlate(n, pan)'));
+  const charge = sx.slice(sx.indexOf('rayCharge(pan, at)'), sx.indexOf('bossPlate(n, pan)'));
   check('the ray charge is built from swelling voices, not decaying ones',
     /swell\(/.test(charge) && /swellNoise\(/.test(charge));
   check('the swell envelope peaks at the END of the window, not the start',
@@ -4695,9 +4716,85 @@ async function runMusicUp() {
     }
     return { reds, keyed };
   };
-  const breath = countWin(0, 15), tail = countWin(15, 30);
-  check(`the breath spawns roughly half the tail's reds (${breath.reds} vs ${tail.reds})`,
-    breath.reds > 0 && breath.reds <= Math.ceil(tail.reds * 0.65));
+  // Measured against the SAME window with the band removed, which is the claim
+  // itself. Comparing the breath to a later stretch of the lane compared two
+  // different scripts and moved whenever anything downstream shifted.
+  const bandsSaved = l7.bands;
+  const breath = countWin(0, 15);
+  l7.bands = undefined;                 // the same 15 seconds, unbreathed
+  const raw = countWin(0, 15);
+  l7.bands = bandsSaved;
+  check(`the breath roughly halves the opening's reds (${breath.reds} vs ${raw.reds} unbreathed)`,
+    breath.reds > 0 && breath.reds <= Math.ceil(raw.reds * 0.62));
   check(`…and still teaches the lock (${breath.keyed} keyed in the breath)`, breath.keyed >= 2);
   G.setState(G.S.MENU); G.setMenuScreen('home');
+}
+
+// ============ the power-up spacing law + the carpet stand-down ============
+// Gil's rule after a live pass (2026-08-27): "space out power ups! never have two
+// of them show within 10s of each other" — and "there's a pointless life pickup
+// on the last enemy". Three sources drop orbs and none could see the others.
+{
+  const orbTimeline = (cid, li) => {
+    const camp = G.CAMPAIGNS.find(c => c.id === cid);
+    G.installCampaign(camp);
+    const lv = G.getLevels()[li];
+    G.startLevel(li); G.setIntro(999);
+    const seen = new Set(), drops = [];
+    let guard = 30000;
+    while (G.getLevelT() < lv.duration && guard-- > 0) {
+      G.setIntegrity(100);
+      G.update(1 / 30);
+      if (G.getState() !== G.S.PLAY) break;
+      for (const pk of G.pickups()) if (!seen.has(pk)) { seen.add(pk); drops.push({ t: G.getLevelT(), kind: pk.kind }); }
+    }
+    return { lv, drops };
+  };
+  // every ranked lane, every source, one law
+  const offenders = [], litter = [];
+  for (const camp of G.CAMPAIGNS) {
+    for (let li = 0; li < camp.levels.length; li++) {
+      if (camp.levels[li].boss) continue; // the duel drops its own relief on the round clock
+      const { lv, drops } = orbTimeline(camp.id, li);
+      for (let i = 1; i < drops.length; i++) {
+        if (drops[i].t - drops[i - 1].t < G.PICKUP_GAP - 1e-6)
+          offenders.push(`${camp.id}:${li} ${drops[i - 1].t.toFixed(1)}→${drops[i].t.toFixed(1)}`);
+      }
+      // …and nothing that cannot be reached: the filler's own drop window is the
+      // bound, and relief now obeys it too
+      for (const d of drops) if (d.t > lv.duration - 4) litter.push(`${camp.id}:${li} @${d.t.toFixed(1)} of ${lv.duration}`);
+    }
+  }
+  check(`no two power-ups land within ${G.PICKUP_GAP}s of each other (all 40 lanes)`,
+    offenders.length === 0);
+  if (offenders.length) console.log('   crowded: ' + offenders.join(' | '));
+  check('no orb is released so late that it cannot be reached', litter.length === 0);
+  if (litter.length) console.log('   litter: ' + litter.join(' | '));
+  // the law is a deferral, never a deletion: an authored orb still arrives
+  {
+    const camp = G.CAMPAIGNS.find(c => c.id === 'patrol');
+    G.installCampaign(camp);
+    const { drops } = orbTimeline('patrol', 3); // relay 04: one authored shield
+    check('a deferred authored orb still arrives (patrol relay 04 keeps its shield)',
+      drops.some(d => d.kind === 'shield'));
+  }
+  G.installCampaign(G.CAMPAIGNS[0]);
+  G.setState(G.S.MENU); G.setMenuScreen('home');
+}
+
+// ============ the prism's shortcut, and a felt last stand ============
+{
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'game', '52-bosses.js'), 'utf8');
+  // the injector rides in with the lights — a pulse bought back, under two rays
+  const prismSweep = src.slice(src.indexOf("b.sweepAdds = bossRound(b) >= 3"), src.indexOf('function updateMimicFight'));
+  check('the prism sweep offers a pulse injector — a way to end the duel sooner',
+    /spawnPickup\('inject'\)/.test(prismSweep));
+  check('...drawn from the boss side stream, so the lane script stays aligned',
+    /spawnRng = bossRng;[\s\S]*?spawnPickup\('inject'\)/.test(prismSweep));
+  // two lights must not sum into one clipped thump
+  const au = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'game', '10-audio.js'), 'utf8');
+  check('two live rays share one bed instead of stacking two',
+    /const share = nLive > 1 \? 1 \/ Math\.sqrt\(nLive\) : 1;/.test(au) && /RAY_LEVEL \* share/.test(au));
+  check('...and the second charge is offset so the pair reads as two machines',
+    /idx \* 0\.09/.test(src));
 }

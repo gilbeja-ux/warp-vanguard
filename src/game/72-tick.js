@@ -293,7 +293,15 @@ function update(dt) {
   // beats keep their own timing, which is the designer's call.
   const dropWindow = endless || levelT < L.duration - travelTime() - 2;
   if (!inIntro && dropWindow) pickupT -= sdt;
-  if (!tut && dropWindow && pickupT <= 0) { pickupT = srand(20, 32); if (!mutLive('noPickups')) spawnPickup(); }
+  // …and the spacing law: a filler drop that would crowd a beat or a relief orb
+  // re-arms for the remainder of the gap instead of landing on top of it. The
+  // srand() draw is spent either way, so the seeded stream is identical whether
+  // the guard fires or not (the same law the ride-fits guards follow).
+  if (!tut && dropWindow && pickupT <= 0) {
+    const wait = srand(20, 32);
+    if (!pickAllowed()) pickupT = PICKUP_GAP - (levelT - lastPickT);
+    else { pickupT = wait; if (!mutLive('noPickups')) spawnPickup(); }
+  }
   // golden bonus streams ride in on their own clock, once the campaign has
   // taught them (level 5+) — free flow gets them throughout. None spawn near
   // a level's end: a ribbon must have time to be ridden AND spent
@@ -384,7 +392,7 @@ function update(dt) {
         // spawns at the horizon as the surge lands, so it arrives a breath
         // into the harder water. Time-fixed (the 100s marks), so weekly's
         // seeded script stays a pure function of the week.
-        if (!mutLive('noPickups')) spawnPickup('health');
+        if (!mutLive('noPickups') && pickAllowed()) spawnPickup('health');
       }
     }
   }
@@ -398,6 +406,21 @@ function update(dt) {
       const bd2 = LV.bands[bi];
       if ((bd2.intensity || 1) < 1.7 || reliefFired[bi]) continue;
       if (levelT < bd2.t1 + 1.0) continue;
+      // RELIEF MUST BE ABLE TO MATTER. The drop had no end-of-lane guard, so a
+      // hot band ending near the finish sent a patch that arrived after the run
+      // was effectively over — measured as litter at 69.0s of a 70s lane, and on
+      // three others. It now obeys the same dropWindow the filler does; a band
+      // that ends too late simply sends nothing, because there is nothing left
+      // for the patch to help with. (Gil, 2026-08-27: "a pointless life pickup
+      // on the last enemy".)
+      if (!dropWindow) { reliefFired[bi] = true; continue; }
+      // …and the spacing law: hold the ledger entry open and try again next
+      // frame rather than crowding an orb the player is still flying toward.
+      // But relief EXPIRES. Its whole claim is that it lands where the lane just
+      // hurt; one that waited out a crowded stretch and arrived 20s downstream
+      // is no longer relief, it is a stray orb in calm water. If the gap never
+      // opens within PICKUP_GAP of the band's own end, the patch is not sent.
+      if (!pickAllowed()) { if (levelT > bd2.t1 + 1.0 + PICKUP_GAP) reliefFired[bi] = true; continue; }
       reliefFired[bi] = true;
       if (!mutLive('noPickups')) {
         const keep = spawnRng;

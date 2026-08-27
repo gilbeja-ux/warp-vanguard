@@ -82,14 +82,30 @@ function installStubs() {
     documentElement: {}, addEventListener() {}, hidden: false
   };
   const makeBuf = () => { const d = new Float32Array(10000); for (let i = 500; i < 9000; i++) d[i] = 0.5; return { sampleRate: 1000, length: 10000, duration: 10, getChannelData: () => d }; };
-  class FakeGain { constructor() { this.gain = { value: 1, setValueAtTime() {}, exponentialRampToValueAtTime() {} }; } connect() {} disconnect() {} }
+  // AN AUDIO PARAM HAS ALL FIVE SCHEDULING METHODS. The stub used to carry only
+  // the two that the code reached at the time, so any voice that scheduled a
+  // filter or glided a value threw — and a boss duel does exactly that (the H-33
+  // sweeping ray sets targets on a lowpass every frame). BATTERY_V 1 never got
+  // that far because its pilot died in seconds; V2 plays a boss board past its
+  // duration, so the shortfall became reachable. A stub that is missing a method
+  // fails the battery for a reason that has nothing to do with the sim.
+  const param = (v) => ({ value: v === undefined ? 0 : v,
+    setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {},
+    setTargetAtTime() {}, cancelScheduledValues() {} });
+  class FakeGain { constructor() { this.gain = param(1); } connect() {} disconnect() {} }
   class FakeSrc { constructor() { this.buffer = null; this.loop = false; this.loopStart = 0; this.loopEnd = 0; this.playbackRate = { value: 1 }; } connect() {} disconnect() {} start() { this.started = true; } stop() {} }
   class FakeAC {
-    constructor() { this.state = 'running'; this.destination = {}; this.currentTime = 0; }
+    constructor() { this.state = 'running'; this.destination = {}; this.currentTime = 0; this.sampleRate = 48000; this.listener = {}; }
     createGain() { return new FakeGain(); }
     createBufferSource() { return new FakeSrc(); }
-    createBiquadFilter() { return { type: '', frequency: { value: 0 }, Q: { value: 1 }, connect() {}, disconnect() {} }; }
-    createOscillator() { return { type: '', frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, start() {}, stop() {} }; }
+    createBiquadFilter() { return { type: '', frequency: param(0), Q: param(1), gain: param(0), detune: param(0), connect() {}, disconnect() {} }; }
+    createOscillator() { return { type: '', frequency: param(440), detune: param(0), connect() {}, disconnect() {}, start() {}, stop() {} }; }
+    createStereoPanner() { return { pan: param(0), connect() {}, disconnect() {} }; }
+    createDelay() { return { delayTime: param(0), connect() {}, disconnect() {} }; }
+    createWaveShaper() { return { curve: null, oversample: 'none', connect() {}, disconnect() {} }; }
+    createDynamicsCompressor() { return { threshold: param(-24), knee: param(30), ratio: param(12), attack: param(0), release: param(0.25), reduction: 0, connect() {}, disconnect() {} }; }
+    createBuffer(ch, len, rate) { const d = new Float32Array(len); return { sampleRate: rate, length: len, duration: len / rate, numberOfChannels: ch, getChannelData: () => d }; }
+    createAnalyser() { return { fftSize: 2048, frequencyBinCount: 1024, connect() {}, disconnect() {}, getByteFrequencyData() {}, getByteTimeDomainData() {} }; }
     decodeAudioData() { return Promise.resolve(makeBuf()); }
     resume() { return Promise.resolve(); } suspend() { return Promise.resolve(); }
   }
@@ -119,7 +135,7 @@ function loadSim(root) {
   S, setState: v => { state = v; }, setIntro: v => { introT = v; introCd = 0; },
   startLevel, startWeekly, simStep, resetCanonical, setViewport, markBriefingsSeen,
   CAMPAIGNS, installCampaign, LEVELS: () => LEVELS,
-  enemies: () => enemies, pickups: () => pickups, nodes, getState: () => state,
+  enemies: () => enemies, pickups: () => pickups, nodes, getState: () => state, levelT: () => levelT,
   setPadHold: (a, b) => { padHold[0] = a; padHold[1] = b; },
   pinIntegrity: () => { integrity = 100; },
   firePulse, getPulse: () => pulseCharge, PULSE_MAX: () => PULSE_MAX,

@@ -443,7 +443,15 @@ function bossBeams(b, dt, g) {
     if (bm.done) continue;
     // THE BURST: the ray erupts before it turns — no rotation and NO FRY until
     // the light has visibly reached the ring (WYSIWYG danger, held during birth)
-    if (!bm.liveT) sfx.rayCharge(Math.cos(bm.a) * 0.6); // H-33: the wind-up, once, on birth
+    // H-33: the wind-up, once, on birth. The prism births BOTH its lights on the
+    // same frame, and two identical 0.44s swells starting at the same instant sum
+    // into one clipped thump the limiter then ducks — so the second one is offset
+    // by a beat and its pan is pushed wider. Two machines waking, not one twice.
+    if (!bm.liveT) {
+      const idx = b.beams.indexOf(bm);
+      sfx.rayCharge(clamp(Math.cos(bm.a) * (b.beams.length > 1 ? 0.85 : 0.6), -1, 1),
+        b.beams.length > 1 ? idx * 0.09 : 0);
+    }
     bm.liveT = (bm.liveT || 0) + dt;
     if (bm.liveT < BEAM_BURST) { allDone = false; continue; }
     // the telegraphed mid-sweep reversal: chevrons flip (warn) well before the
@@ -607,6 +615,21 @@ function updatePrismFight(dt, g) {
       // both thumbs are dodging: the double sweep stays clean until late rounds
       b.sweepAdds = bossRound(b) >= 3 ? 2 : 0;
       b.addT = 1.2;
+      // THE PRISM'S OWN SHORTCUT (Gil, 2026-08-27: the duel "feels a little slow").
+      // The sweep is the fight's dead time — both thumbs are dodging and neither is
+      // charging, so the only way through was to wait it out. An injector rides in
+      // with the lights: taking it snaps both purge orbs to ready, which is a whole
+      // pulse bought back, and the cost is going to fetch it UNDER two rays with a
+      // condemned emitter. It is not a gift. It is a risk the player may choose,
+      // and choosing it well is what ends the duel early.
+      // Fixed to the sweep's own clock, never a roll, so a seeded duel stays a pure
+      // function of its lane (docs/IN-RUN-VOICE.md rule 2, same law relief follows).
+      if (!mutLive('noPickups')) {
+        const keep = spawnRng;
+        spawnRng = bossRng;            // the boss side stream: the lane script stays aligned
+        spawnPickup('inject');
+        spawnRng = keep;
+      }
     }
     return;
   }
@@ -682,9 +705,20 @@ function updateLastStand(dt, g) {
     b.lsPhase = b.lsPhase === undefined ? bCoin() : 1 - b.lsPhase;
     b.lsShifts = (b.lsShifts || 0) + 1;
     b.mode = 'tele'; b.modeT = 1.2;
-    // H-25: the machine spends its reserves — each shift's ray runs a touch
-    // faster, gently (5.2s/rev down to a 4.2 floor at shift 6, ~24% at most)
-    startSweeps(b, [{ phase: b.lsPhase, spd: TAU / Math.max(4.2, 5.2 - (b.lsShifts - 1) * 0.2) }]);
+    // THE MACHINE SPENDS ITS RESERVES — and it has to be FELT, not merely true.
+    // H-25 shipped 5.2s/rev easing to a 4.2 floor in 0.2s steps, so shift 2 was 4%
+    // faster than shift 1 and the floor sat at shift 6. Gil flew it and reported
+    // exactly what that predicts: "last stand feels good, didn't feel any
+    // tightening" — a duel that ends in three or four shifts never left the range
+    // where the change is below noticing.
+    //
+    // The step is now 0.45s and the floor 3.6s/rev, so shift 2 is already 9%
+    // faster, shift 4 is 28% faster, and the floor lands at shift 5 where a real
+    // duel actually reaches. The telegraph is untouched: the swap popup, the
+    // colours and the 1.2s tele window all still call the shift before it runs.
+    // The last stand stays winnable at the floor — 3.6s/rev is still slower than
+    // the prism's fast light, which the same player already beat two layers ago.
+    startSweeps(b, [{ phase: b.lsPhase, spd: TAU / Math.max(3.6, 5.2 - (b.lsShifts - 1) * 0.45) }]);
     popup(W / 2, H * 0.34,
       (b.lsPhase === 0 ? 'BLUE RUNS — WHITE FEEDS' : 'WHITE RUNS — BLUE FEEDS'),
       NODE_HEX[1 - b.lsPhase]);

@@ -614,6 +614,7 @@ function resetRun() {
   // pulling a carriage off its parked angle on the first tick of the fresh one
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; n.slew = null; }
   fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24); pickupBag = [];
+  lastPickT = -1e9; // the spacing law starts every run with a clear lane
   ribbonT = srand(11, 15); // first golden ribbon EARLY — its pulse should serve the whole run
   sched = [];
   initBeats(); // authored timeline: arm the beat queue + pre-book its windows

@@ -120,7 +120,10 @@ const CAMPAIGN_PACKAGES = [{
     { tint: '150,120,255', duration: 65, spawnMin: 0.55, spawnMax: 0.95, speed: 0.57, doubles: 0.55, heavies: 0.10, lines: 0.08, colors: 0.18, frags: 0.14, walls: 0.06, track: 2,
       hint: 'walls in the current — reroute without losing the beat',
       bands: [{ t0: 28, t1: 46, intensity: 1.6 }],
-      beats: [{ t: 25, kind: 'lull', dur: 3 }], // three still seconds, then the current
+      // Gil flew the 3s hush here and ruled it out: an empty lane is not a beat.
+      // Three plain arrivals keep the lane moving through the same window without
+      // asking anything new of the thumbs — presence, not difficulty.
+      beats: [{ t: 25, kind: 'enemy' }, { t: 26, kind: 'enemy' }, { t: 27, kind: 'enemy' }],
       story: { line: 'Deep space. None of this was on the last survey.' } },
     { tint: '255,90,110', duration: 70, spawnMin: 0.50, spawnMax: 0.90, speed: 0.60, doubles: 0.60, heavies: 0.14, lines: 0.08, colors: 0.18, frags: 0.16, walls: 0.08, track: 0, bursts: true,
       hint: 'blacksite pace — the fastest lane yet',
