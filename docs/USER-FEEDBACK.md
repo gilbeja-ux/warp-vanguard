@@ -158,11 +158,68 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   13px, word-wrapped to two rows (three only at the 10px floor). The per-glyph H-20 fade is
   kept, its stagger running through the wrap. Draw-only — board ids unchanged.
 
+### F-013 · Three sourced takes; the sonar cut, then restored as weather
+- **Date:** 2026-08-27 · **Source:** Gil · **Status:** BUILT (2026-08-27)
+- **Feedback:** three downloaded sfx, mapped by Gil. The sonar beep "needs to be cut so it
+  doesn't overload the soundstage". The sci-fi charge-up is the boss ray's wind-up, and
+  "the ray should start when this ends". The space explosion is the mini explosion before
+  the boss's main blast, "multiplied instead of the current synthes... with different
+  pitches so it sounds different, like explosions of different parts".
+- **Cause:** not a defect. `rayCharge` and `bossPlate` were DECLARED paths waiting on takes
+  (H-33); the sonar had no declared path at all and was a bare 0.05s sine.
+- **Solution:** three cut takes in `src/audio/sfx/`, all fail-soft over the synth voices,
+  which stay as the fallback.
+  - `sonar-ping.mp3` (0.20s, trim **0.05**) — **cut, then restored at a whisper, same day.**
+    Gil flew the first build and cut the cue outright: "especially on the later stages, it
+    just becomes an annoyance. always beeping." Then: "maybe we can reinstate the sonar
+    pulses but lower the volume a lot so it's just a background indicator."
+    **The volume was only half of it.** The complaint was a LATE STAGE, where a dozen live
+    hostiles each run their own blip train — a continuous tone at any level. So the restore
+    is two changes, not one:
+      - trim 0.16 → **0.05** (true peak −29.3 dBFS): the quietest take on the roster by
+        ~9 dB, and about 4 dB under the bare sine it replaced. Every other take is an
+        EVENT; this one is weather.
+      - **`SONAR_GAP = 0.26`**, a LANE-WIDE floor between any two pings, timed on the
+        audio clock. The take is re-cut to 0.20s — shorter than the gap — so a ping always
+        ends before the next may start and the cue can never overlap into a drone.
+    Measured on a real stage 07 run, 20s with the pads held: the scheduler asked for **157
+    pings (7.8/s)**, **53 sounded (2.6/s)**, smallest observed gap **0.267s**. Hard ceiling
+    3.8/s however dense the lane gets.
+    The per-hostile scheduler in `72-tick.js` is byte-identical to before the cue was cut,
+    which is what makes both the removal and the restore provably board-neutral (0 of 41,
+    checked both ways). The density fix lives on the audio side and touches no sim state.
+  - `ray-charge.mp3` (1.225s, trim 0.7) — and **`BEAM_BURST` is now the take's length**.
+    `RAY_CHARGE_RELEASE` (1.05s) is where the take peaks and lets go; the rotation starts
+    there, so the wind-up and the launch are one event. The sustained bed's crossfade
+    (`RAY_BED_FADE`) was moved to end on that release too.
+  - `boss-plate.mp3` (1.22s, trim 0.6) — one file played six times down the `dyingN`
+    ladder, pitched 1.20 → 0.85. The source's 4s reverb is cut at 0.85s, or six of them
+    under the death take is a wash.
+- **THIS IS A FIGHT CHANGE, NOT ONLY A SOUND ONE.** The telegraph before a light may turn
+  or fry went 0.30s → 1.05s. Every sweep round is 0.75s longer per light and reads easier.
+- **THE RANKED FINGERPRINT DID NOT SEE IT.** The battery reported 0 of 41 boards moved, and
+  that is wrong here: on the boss lanes of THE SURVEY and THE COLLECTOR (level 08 of each,
+  board keys `survey:7` and `collector:7` — a board key holds a zero-based INDEX, never a
+  level's name) the boss surfaces at step 3000 and
+  the first ray at step 3206, against a 3240-step budget — the ray never finishes its birth
+  inside the battery. Driven to 6000 steps the same lanes score 1342→1322 and 1235→935.
+  Deploy the verifier STRICT. See OPEN below.
+
+
 ---
 
 ## OPEN
 
-(none)
+### O-001 · The sim fingerprint is blind to every boss fight
+- **Found:** 2026-08-27, while checking F-013's blast radius.
+- The battery plays each lane for `duration * 60 + 240` steps. On the five lanes that carry
+  a boss (level 08 of each contract) the machine surfaces at about step 3000 against a
+  3240-step budget, so the fight
+  is 240 steps of an encounter that runs 3000. `BEAM_BURST` moved 0.30s → 1.05s, which
+  re-scores two of those lanes outright, and `simDigest` still reported 0 of 41 boards
+  moved. Every "nothing moved" answer about boss code is currently worthless.
+- The fix is a bigger step budget on boss lanes, or a boss-aware signature. Neither is in
+  F-013's scope. Until then, treat `--compatible` as unavailable for any boss change.
 
 ---
 

@@ -497,7 +497,7 @@ function drawIntroCard() {
       try { ctx.letterSpacing = '6px'; } catch (e) {}
       const titleMaxW = ringChord(H * 0.30) / scale;
       ctx.fillStyle = 'rgba(200,235,255,0.85)'; ctx.font = '600 13px Audiowide, system-ui';
-      ctx.fillText(endless ? 'SURVIVE' : qual ? 'TRAINING' : 'LEVEL ' + lvNum(curLevelNo(levelIdx)), 0, -34);
+      ctx.fillText(endless ? 'SURVIVE' : qual ? 'TRAINING' : 'STAGE ' + lvNum(curLevelNo(levelIdx)), 0, -34);
       // the level IS its route: where the convoy forms up, and where it delivers
       const lname = curRouteName();
       const tpx = fitPx(lname, '800', Math.min(W * 0.055, 32), titleMaxW, 15);

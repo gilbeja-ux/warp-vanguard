@@ -193,7 +193,7 @@ function replayLevelName() {
   if (replayMeta.mode === 'weekly') return 'WEEK ' + weekLabel(replayMeta.seed | 0);
   if (replayMeta.mode === 'endless') return 'FREE FLOW';
   const ci = CAMP ? CAMPAIGNS.indexOf(CAMP) : -1; // reseed already switched CAMP to the run's campaign
-  return 'CAMPAIGN ' + (ci + 1) + '   |   LEVEL ' + lvNum(levelNo(ci, replayMeta.levelIdx || 0));
+  return 'CAMPAIGN ' + (ci + 1) + '   |   STAGE ' + lvNum(levelNo(ci, replayMeta.levelIdx || 0));
 }
 // seek to an absolute frame. Forward is a cheap continue; backward rewinds to 0
 // and fast-forwards (the sim is stateful — you can't jump without replaying).

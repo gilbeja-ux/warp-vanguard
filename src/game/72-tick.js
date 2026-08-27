@@ -796,8 +796,22 @@ function updateEnemy(en, C) {
   en.spin += sdt * 4 * (en.spinMul || 1);
   en.age += sdt;
 
-  // sonar tick: a quiet geiger blip per hostile, panned to its angle,
-  // accelerating as it closes — the wave is audible before it's urgent
+  // SONAR TICK: a whisper-quiet approach blip per hostile, panned to its angle,
+  // accelerating as it closes — the wave is audible before it's urgent.
+  //
+  // THIS SCHEDULER IS UNCHANGED from before the cue was cut and restored, on
+  // purpose: it is what makes an individual threat tighten as it comes in, and
+  // leaving it byte-identical is what keeps the removal and the restore both
+  // provably board-neutral. `en.tickT` is read nowhere else and no draw here is
+  // random, so this block cannot move a board id (checked against the ranked
+  // battery both ways: 0 of 41).
+  //
+  // WHAT CHANGED IS DOWNSTREAM. `sonarTick` now refuses any ping within SONAR_GAP
+  // of the last one, lane-wide, on the audio clock — so a late stage running a
+  // dozen hostiles gets ONE shared pulse instead of a dozen overlapping trains.
+  // That, plus a trim about 10 dB down, is what turns this from a beep into
+  // weather. Do not move the density fix in here: it belongs to the ear, not
+  // the sim.
   if (!en.dead && !en.resolved && !en.failed && en.type !== 'strip' && en.z > g.hitZ && en.z < 1.9) {
     en.tickT = (en.tickT || 0) - sdt;
     if (en.tickT <= 0) {

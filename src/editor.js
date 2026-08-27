@@ -45,7 +45,7 @@ const ED = {
       tint: '80,160,255', duration: 45,
       spawnMin: 1.2, spawnMax: 2.0, speed: 0.4,
       doubles: 0, heavies: 0, lines: 0, colors: 0, track: 0,
-      story: { title: 'LOG — NEW RELAY', lines: ['edit this briefing'] },
+      story: { title: 'LOG — NEW STAGE', lines: ['edit this briefing'] },
       comms: []
     };
   },
@@ -1146,7 +1146,7 @@ function edRouteName(li) {
     const n = levelRouteName(EDUI.srcIdx || 0, li);
     if (n) return n;
   } catch (e) { /* no chart yet */ }
-  return 'RELAY ' + String(li + 1).padStart(2, '0');
+  return 'STAGE ' + String(li + 1).padStart(2, '0');
 }
 function edRenderLevel() {
   const lv = edLv();

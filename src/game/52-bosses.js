@@ -61,7 +61,20 @@ const SWEEP_ADD_GAP = 1.15;   // trickle spacing for reds released under a sweep
 // fully out: burned by a beam mid-birth would be a coin toss), and a spent
 // rotation's light fades back INTO the mouth it came from (BEAM_FADE, pure
 // spectacle riding b.beamFx — the fight machinery is already done with it).
-const BEAM_BURST = 0.30;
+//
+// THE BURST IS THE CHARGE TAKE'S LENGTH (Gil, 2026-08-27: "the ray should start
+// when this ends"). It was 0.30s while the wind-up was a synth stub. ray-charge.mp3
+// builds for a full second and lets go at RAY_CHARGE_RELEASE, so the rotation now
+// starts on that release: the sound loads the machine, the machine fires, and the
+// two are one event instead of a short burst with 0.75s of audio trailing after it.
+// Re-cut the take and move RAY_CHARGE_RELEASE with it — they are the same number.
+//
+// THIS IS A FIGHT NUMBER, NOT ONLY A SOUND ONE. The telegraph before a light may
+// turn or fry went 0.30s → 1.05s, so every sweep round is 0.75s longer per light
+// and reads easier. The picture follows on its own: the ray's growth (85-enemy-art)
+// and the sustained bed's crossfade (10-audio) are both keyed to BEAM_BURST.
+const RAY_CHARGE_RELEASE = 1.05; // where ray-charge.mp3 peaks and lets go, in seconds
+const BEAM_BURST = RAY_CHARGE_RELEASE;
 const BEAM_FADE = 0.35;
 // THE DEATH TAKE, aligned to the picture. boss-dead.mp3 is 5.11s with a 1.4s
 // build and its blast at 1.43s, so the take is started that far BEFORE the

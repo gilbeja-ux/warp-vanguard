@@ -156,6 +156,9 @@ code = code.replace("'use strict';", '') + `
   music: () => ({ src: musicSrc, gain: musicGain, key: currentTrackKey, ac: AC, warm: warmKey }),
   bolts: () => bolts, hitStop: () => hitStop, fx, pickups: () => pickups, spawnPickup,
   boss: () => boss, endlessCfg, tut: () => tut, isEndless: () => endless, getLV: () => LV,
+  BEAM_BURST: () => BEAM_BURST, // the ray's birth window — it is ray-charge.mp3's length, so it moves when the take is re-cut
+  // the ONE renderer for a level's display name — pinned end to end at the bottom of this file
+  lvNum, levelNo, curLevelNo,
   qualStage: () => tut ? QUAL[tut.stage] : null,
   getProg: () => PROG, getCamp: () => CAMP, validateCampaign, installCampaign, CAMPAIGNS,
   getLevelIdx: () => levelIdx, campaignCleared, // the report's contract hand-over reads both
@@ -1444,7 +1447,12 @@ for (let i = 0; i < 4; i++) G.update(0.05);
     aim(0, 1.0); aim(1, 1.0 + Math.PI); // parked dead in the light's birthplace
     G.setIntegrity(100); G.update(0.05);
     check('a half-born ray cannot fry', G.nodes[0].deadT <= 0);
-    for (let i = 0; i < 8; i++) { G.setIntegrity(100); G.update(0.05); }
+    // STEP TO JUST PAST THE BURST, AND NOT A FRAME FURTHER. This was a hard 8
+    // frames while BEAM_BURST was 0.30s; the window is ray-charge.mp3's length
+    // now, so the count is derived. The upper bound is real too: once the light
+    // starts turning it clears the parked node's SWEEP_BEAM_HALF in about 0.12s.
+    const burstSteps = Math.ceil(G.BEAM_BURST() / 0.05);
+    for (let i = 0; i < burstSteps; i++) { G.setIntegrity(100); G.update(0.05); }
     check('...and at full reach it burns', G.nodes[0].deadT > 0);
     G.nodes[0].deadT = G.nodes[1].deadT = 0;
   }
@@ -2584,7 +2592,13 @@ check('the drill still spawns through the run', runA.split('|').length >= 4);
   check('the ray is killed when the run leaves the lane', /state !== S\.PLAY \|\| !boss\) raySweepKill/.test(bt));
 
   // draw-only: the voice may read boss state, never write it, and never roll
-  const voice = au.slice(au.indexOf('let rayVoices'), au.indexOf('function sonarTick'));
+  // TO THE END OF THE FILE. This used to stop at `function sonarTick`, which was the
+  // next thing in 10-audio.js — until the sonar was cut on 2026-08-27 and indexOf
+  // started returning -1, which silently turned the slice into "everything but the
+  // last character". The ray voice is now the last thing in that file, so the tail
+  // IS the region; if something is ever appended after it, give this a real end
+  // marker rather than letting the pins scan code they were not written for.
+  const voice = au.slice(au.indexOf('let rayVoices'));
   check('the ray voice draws no sim randomness',
     !/spawnRng\(/.test(voice) && !/bossRng\(/.test(voice)
     // the ONE Math.random is the cached noise buffer crackle already builds
@@ -4847,4 +4861,148 @@ async function runMusicUp() {
     (code.match(/sfx\.rayCharge\(/g) || []).length === 1);
   check('no per-count ducking survives on the ray bed',
     !/Math\.sqrt\(nLive\)/.test(au) && /RAY_LEVEL \* \(0\.55/.test(au));
+
+  // ---- THE SONAR IS A BACKGROUND INDICATOR, NOT A BEEP ----
+  // Gil cut it outright on 2026-08-27 — "always beeping" — then brought it back the
+  // same day at a much lower level: "just a background indicator". Both halves of
+  // that are pinned, because the failure mode is a soft one. Nothing throws when the
+  // trim creeps up or the rate cap is refactored away; it just becomes a drone again.
+  const tk = fs.readFileSync(path.join(ROOT, 'src', 'game', '72-tick.js'), 'utf8');
+  const sxf = fs.readFileSync(path.join(ROOT, 'src', 'game', '12-sfx.js'), 'utf8');
+  // 1 · IT IS THE QUIETEST TAKE ON THE ROSTER. Every other entry is an EVENT; this
+  // one fires per hostile for the whole run, so it must sit under all of them.
+  const trims = [...sxf.matchAll(/(\w+):\s*\['audio\/sfx\/[^']+',\s*([\d.]+)\]/g)]
+    .map(m => ({ key: m[1], trim: +m[2] }));
+  const son = trims.find(t => t.key === 'sonar');
+  check('the sonar take is declared', !!son);
+  check('...and no take on the roster is quieter than it',
+    !!son && trims.every(t => t.key === 'sonar' || t.trim > son.trim));
+  check('...at a whisper — a tenth of the loudest take or less',
+    !!son && son.trim <= Math.max(...trims.map(t => t.trim)) * 0.1);
+  // 2 · THE RATE CAP. This is what makes the cue survivable on a late stage: a dozen
+  // live hostiles each run their own blip train, and only a LANE-WIDE floor stops the
+  // sum becoming a continuous tone. Volume alone never fixed it.
+  check('a lane-wide floor gates every ping', /SONAR_GAP/.test(au) && /t - sonarLast < SONAR_GAP/.test(au));
+  check('the floor is timed on the AUDIO clock, never the sim clock',
+    /const t = ac\.currentTime;[\s\S]{0,120}sonarLast/.test(au));
+  // ...and a ping must END before the next may start, or the gap buys nothing
+  {
+    const gap = +(/const SONAR_GAP = ([\d.]+)/.exec(au) || [])[1];
+    const f = path.join(ROOT, 'src', 'audio', 'sfx', 'sonar-ping.mp3');
+    check('the take is shorter than the floor, so pings never overlap',
+      !!gap && (!fs.existsSync(f) || gap > 0.2 - 1e-9));
+  }
+  // 3 · THE SCHEDULER STAYS IN THE SIM AND STAYS BOARD-NEUTRAL. It writes `en.tickT`,
+  // which nothing else reads, and draws no randomness. The density fix must NOT be
+  // moved in here — a lane-wide counter in the sim step would move every board.
+  check('the per-hostile scheduler still fires the cue', /sonarTick\(1150 \+ 350/.test(tk));
+  const tkCode = tk.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+  check('the enemy step draws no randomness for the sonar',
+    !/tickT[\s\S]{0,200}?(spawnRng|Math\.random)\(/.test(tkCode));
+  check('no lane-wide sonar state leaked into the sim step',
+    !/sonarLast|SONAR_GAP/.test(tkCode));
+}
+
+// ================= STAGE NUMBERS: THERE IS NO STAGE 0 =================
+//
+// Gil, 2026-08-27, for at least the third time: "there is no level 0!!! ...fix it
+// once and for all". The game already has ONE correct renderer — `lvNum(levelNo(
+// ci, li))`, which is `li + 1` zero-padded — and the bugs are never in it. They are
+// in the call sites that skip it, and in the humans and docs that quote a
+// ZERO-BASED index as if it were a display number.
+//
+// The NOUN was settled the same day: STAGE, on every screen. The code keeps its own
+// vocabulary (`levelIdx`, `levelNo`, `LEVELS`, `FLOW_UNLOCK_LEVEL`) — only the drawn
+// strings had to move, which is why the noun pin below reads STRINGS, not identifiers.
+//
+// Two different things wear a level's index and only one of them is a name:
+//
+//   `levelIdx` / a board key like `cargo-run:2`   an INDEX. Zero-based, stored in
+//                                                 the leaderboard, never renamed.
+//   `lvNum(levelNo(ci, li))`  →  '03'             a NAME. What a player reads.
+//
+// The trap that keeps firing is writing an index in the NAME's clothes — `survey:07`
+// for what a player calls level 08. A bare `:7` is at least honestly an id. These
+// pins guard the renderer and every call site; the humans are on their own.
+{
+  const files = ['90-hud.js', '91-briefing.js', '92-guide.js', '93-board.js', '94-galaxy.js', '95-menu.js', '61-replay.js'];
+  const codeOf = f => fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8')
+    .split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+
+  const loader = fs.readFileSync(path.join(ROOT, 'src', 'game', '33-loader.js'), 'utf8');
+  check('levelNo is one-based — index 0 is level 1',
+    /const levelNo = \(ci, li\) => campBase\(ci\) \+ li \+ 1;/.test(loader));
+  check('lvNum zero-pads a single digit, so the first level reads 01',
+    /const lvNum = n => \(n < 10 \? '0' : ''\) \+ n;/.test(loader));
+
+  // EVERY call site must go through lvNum. A raw levelNo/curLevelNo landing in a
+  // string or a draw call is the bug: it renders 1..9 beside 01..09 elsewhere, and
+  // the star map's relay plates shipped exactly that until this pin existed.
+  const bare = [];
+  for (const f of files) {
+    const src2 = codeOf(f);
+    // \b anchors the name, or `curLevelNo` matches twice — once whole, once at its
+    // own `LevelNo` — and the second hit sees `cur` in front of it instead of the
+    // `lvNum(` that is actually there. That false alarm fired on all four correct
+    // call sites the first time this pin ran.
+    for (const m of src2.matchAll(/\b(?:curLevelNo|levelNo)\(/g)) {
+      const at = m.index;
+      if (src2.slice(Math.max(0, at - 6), at) === 'lvNum(') continue; // wrapped — correct
+      const whole = src2.split('\n')[src2.slice(0, at).split('\n').length - 1].trim();
+      // a level number used as DATA (a seed, a comparison, a lookup) is fine;
+      // only a number that becomes TEXT has to be padded
+      if (/String\(|fillText|\+ '|' \+|`|smalls|numStr|const num/.test(whole)) bare.push(`${f}  ${whole}`);
+    }
+  }
+  check('every level number a player reads goes through lvNum', bare.length === 0);
+  if (bare.length) console.log('   unpadded: ' + bare.join(', '));
+
+  // the star map's relay plates — the one that was wrong
+  const menu = codeOf('95-menu.js');
+  check('the star map plates the relays with a padded number',
+    /const num = lvNum\(curLevelNo\(i\)\);/.test(menu));
+  // ...and a plate rides the world its level DEPARTS from (Gil's ruling, after the
+  // chart read as off-by-one twice). Level 01's plate lands on the core, which is
+  // not a relay and has no index — so the position comes off the level's own leg,
+  // `SEGS[i][0]`, and never off `relayDestPos`.
+  check('a plate rides the world its level departs from',
+    /const levelPin = i => SEGS\[i\]\[0\];/.test(menu) && /const dp = levelPin\(i\);/.test(menu));
+  check('no plate is placed by destination any more', !/const dp = relayDestPos\(i\)/.test(menu));
+  // the chain's last world ends a lane and starts none, so it is captioned, never
+  // plated — a hexagon there would read as a ninth level
+  check("the chain's last world is captioned, not numbered", /fillText\('DESTINATION'/.test(menu));
+
+  // ---- ONE NOUN: STAGE (Gil, 2026-08-27) ----
+  // The game used to say LEVEL on the HUD, the map panel, the leaderboard and the
+  // replay banner, and STAGE in the Archive — two words for one thing. STAGE won.
+  // Guarded as a drawn STRING, so `levelIdx`, `levelNo` and `FLOW_UNLOCK_LEVEL`
+  // keep their names: the code's vocabulary is not the player's.
+  const shown = [];
+  for (const f of files) {
+    const src2 = codeOf(f);
+    for (const m of src2.matchAll(/'[^']*\bLEVEL\b[^']*'/g)) shown.push(f + '  ' + m[0]);
+  }
+  check('no screen says LEVEL — the noun is STAGE', shown.length === 0);
+  if (shown.length) console.log('   still LEVEL: ' + shown.join(', '));
+  check('the HUD names the run STAGE nn', /'STAGE ' \+ lvNum\(curLevelNo\(levelIdx\)\)/.test(codeOf('90-hud.js')));
+  check('the Archive already spoke STAGE, and still does', /'STAGE ' \+ lvNum/.test(codeOf('92-guide.js')));
+  // the unlock captions took the noun AND the padding — they printed a bare `5`
+  check('the FREE FLOW / WEEKLY unlock captions pad their number too',
+    !/complete level /.test(codeOf('92-guide.js'))
+    && (codeOf('92-guide.js').match(/'complete stage ' \+ lvNum\(FLOW_UNLOCK_LEVEL\)/g) || []).length === 3);
+  check('the DEPART caption is gone — the plate says it now', !/'DEPART'/.test(menu));
+  check('nothing on the chart draws a level 00', !/'00'|"00"/.test(menu));
+
+  // the live renderer, end to end: campaign 1 owns 01-08, campaign 2 picks up at 09
+  G.installCampaign(G.CAMPAIGNS[0]);
+  const first = G.CAMPAIGNS[0], second = G.CAMPAIGNS[1];
+  check('the first level of the first contract is named 01', G.lvNum(G.levelNo(0, 0)) === '01');
+  check('its boss level is named 08, not 07', G.lvNum(G.levelNo(0, first.levels.length - 1)) === '08');
+  check('the second contract picks up at 09, with no gap and no repeat',
+    G.lvNum(G.levelNo(1, 0)) === '0' + (first.levels.length + 1));
+  check('no level anywhere is named 00',
+    !G.CAMPAIGNS.some((c, ci) => c.levels.some((_, li) => G.lvNum(G.levelNo(ci, li)) === '00')));
+  if (second) check('every level across the whole story has a unique name',
+    new Set(G.CAMPAIGNS.flatMap((c, ci) => c.levels.map((_, li) => G.lvNum(G.levelNo(ci, li))))).size
+      === G.CAMPAIGNS.reduce((n, c) => n + c.levels.length, 0));
 }

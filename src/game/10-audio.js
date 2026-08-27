@@ -20,7 +20,7 @@ const ACCENT_LIFT = 3.16; // ×3.16 = +10 dB — set on the phone by Gil, 2026-0
 let accentGain = null;
 function sfxBusGain() { return (settings.sound ? settings.soundVol : 0) * sfxFade; }
 const settings = {
-  sound: true, soundVol: 0.8, music: true, musicVol: 0.32, haptics: true // music sits low so sonar and cues read
+  sound: true, soundVol: 0.8, music: true, musicVol: 0.32, haptics: true // music sits low so the cues read over it
 };
 // score-chase modifiers — unlocked with the campaign, toggled on the menu
 const mutators = { oneLife: false, fast: false, noPickups: false };
@@ -369,6 +369,7 @@ function stripSound(on, prog) {
 let rayVoices = {};
 const RAY_SPD_LO = 0.95, RAY_SPD_HI = 1.70; // rad/s — the span startSweeps covers
 const RAY_LEVEL  = 0.052;  // the bed's ceiling: audible under combat, never over it
+const RAY_BED_FADE = 0.30; // the bed's crossfade in, ending on the charge's release
 const RAY_SABER  = 0.60, RAY_TRIPOD = 0.34; // the blend
 function rayVoiceNew(ac) {
   if (!ac.createBuffer || !ac.createBiquadFilter) return null; // no filters, no ray — silence, not a throw
@@ -448,8 +449,14 @@ function raySweep(list) {
     set(v.lp.frequency, 480 + 900 * k);      // faster light, brighter voom
     set(v.bp.frequency, (430 + 300 * k) * dop);
     if (v.pan) set(v.pan.pan, clamp(Math.cos(bm.a) * 0.7, -1, 1));
-    // the birth swell: the ray erupts before it turns, so it arrives rather than snaps
-    const born = clamp((bm.liveT || 0) / 0.22, 0, 1);
+    // THE BIRTH SWELL: the bed arrives ON THE CHARGE'S RELEASE, not 0.22s after
+    // birth. It used to fade in over a fixed 0.22s, which was right while the
+    // wind-up was a 0.44s synth under a 0.30s burst. ray-charge.mp3 builds for a
+    // full second now, and a bed at full level for the charge's last 0.8s would
+    // give the release away long before it happened. It rides the last
+    // RAY_BED_FADE of the burst window instead, so the two crossfade exactly where
+    // the picture starts to turn. A short BEAM_BURST degrades to the old shape.
+    const born = clamp(((bm.liveT || 0) - (BEAM_BURST - RAY_BED_FADE)) / RAY_BED_FADE, 0, 1);
     set(v.g.gain, Math.max(0.0001, RAY_LEVEL * (0.55 + 0.45 * k) * born));
   }
   for (const key of Object.keys(rayVoices)) {
@@ -462,17 +469,46 @@ function raySweep(list) {
 function raySweepKill() {
   for (const key of Object.keys(rayVoices)) { const v = rayVoices[key]; delete rayVoices[key]; rayVoiceStop(v, true); }
 }
-// whisper-quiet approach blip, stereo-panned to the threat's angle
+// ---------- THE SONAR · a background indicator ----------
+//
+// A whisper-quiet approach blip per hostile, panned to its angle and tightening as
+// it closes. Cut once (Gil, 2026-08-27: "always beeping"), then brought back at a
+// much lower level on his call — "just a background indicator".
+//
+// THE RATE CAP IS WHY IT CAN COME BACK. Volume alone would not have fixed it: the
+// complaint was a LATE STAGE, where a dozen live hostiles each run their own blip
+// train and the sum is a continuous tone at any level. `updateEnemy` still schedules
+// per hostile, because that is what makes an individual threat tighten as it closes
+// — but no two pings may sound within SONAR_GAP of each other, across the whole
+// lane. One hostile or twelve, the cue can never exceed ~4 pings a second.
+//
+// The take is 0.20s and the gap is 0.26s, so a ping always ENDS before the next may
+// start. The silence between them is the whole design: a drone is what overlapping
+// pings make, and there is no overlap now.
+//
+// THE CLOCK IS THE AUDIO CLOCK, never the sim clock. This gate lives entirely on
+// the audio side, so it reads no sim state, writes none, and cannot move a board id.
+const SONAR_MID = 1250;  // the freq that plays sonar-ping.mp3 at its own pitch
+const SONAR_GAP = 0.26;  // seconds — the floor between any two pings, lane-wide
+let sonarLast = -1;      // AC.currentTime of the last ping that actually sounded
 function sonarTick(freq, pan) {
   const ac = AC; if (!ac || !sfxGain || state !== S.PLAY || simMuted) return; // muted stat pre-run schedules these at a frozen clock → a squawk; skip them
+  const t = ac.currentTime;
+  if (t - sonarLast < SONAR_GAP) return; // the lane-wide floor: density cannot stack
+  sonarLast = t;
+  // THE PITCH IS THE URGENCY. The caller ramps `freq` from 1150 Hz to 1500 Hz as a
+  // hostile closes; the take reads that ramp as a playback rate around SONAR_MID, so
+  // a closing threat still tightens even though the rate cap holds the tempo down.
+  if (playSample('sonar', 1, pan, clamp(freq / SONAR_MID, 0.85, 1.25))) return;
+  // the fallback sine, at the same whisper the take ships at
   const o = ac.createOscillator(), g = ac.createGain();
   o.type = 'sine'; o.frequency.value = freq;
-  g.gain.setValueAtTime(0.045, ac.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.05);
+  g.gain.setValueAtTime(0.014, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
   let tail = g;
   if (ac.createStereoPanner) {
     const p = ac.createStereoPanner(); p.pan.value = clamp(pan, -1, 1);
     g.connect(p); tail = p;
   }
-  o.connect(g); tail.connect(sfxGain); o.start(); o.stop(ac.currentTime + 0.05);
+  o.connect(g); tail.connect(sfxGain); o.start(); o.stop(t + 0.05);
 }

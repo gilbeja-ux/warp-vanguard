@@ -45,15 +45,37 @@ const SFX_FILES = {
   // the keys, the first star. It is a BED for the verdict, not the verdict.
   exitWarp: ['audio/sfx/exit-warp.mp3', 0.30], // 4.96s — dropping out of warp on a win
   // splash2.mp3 (8.1s) scores the boot splash — it has its own player there
-  // ---- H-33 · DECLARED, NOT YET DELIVERED ----
-  // These two paths hold a place for takes Gil is sourcing. Nothing breaks while
-  // the file is absent: loadSamples' .catch swallows the 404, playSample returns
-  // false, and the synth voice below covers the cue — which is the same fail-soft
-  // path every other entry already relies on. Drop the file in and it takes over
-  // on the next load with no code change. `scripts/test-sfx-levels.mjs` reports an
-  // absent declared take as PENDING rather than failing the run.
-  rayCharge: ['audio/sfx/ray-charge.mp3', 0.9], // the ray winding up, ~0.3s, hard tail
-  bossPlate: ['audio/sfx/boss-plate.mp3', 0.85] // one torn plate: crack, body, sub
+  // ---- H-33 · DELIVERED 2026-08-27 (Gil's takes) ----
+  // These two paths held a place for months and the synth voices below covered
+  // them. The takes have landed, so the synth voices are now what they always
+  // said they were: the fallback for a 404 or a failed decode. Keep them.
+  //
+  // 1.225s. It BUILDS for a full second and lets go at RAY_CHARGE_RELEASE, and
+  // that figure is BEAM_BURST in 52-bosses — the light launches on the release,
+  // so the wind-up and the launch are one event. Re-cut the take and move that
+  // constant with it. 0.7 keeps the telegraph clearly audible over combat without
+  // sitting on top of the boss's own cues, which is a 1.0s bed's real risk.
+  rayCharge: ['audio/sfx/ray-charge.mp3', 0.7],
+  // 1.22s — a blast and its near tail. The source rang out for 4s; six of those,
+  // 0.3s apart, under the death take is mush, so the reverb is cut at 0.85s and
+  // faded. Six plays of ONE file, pitched down the dyingN ladder, is what makes
+  // the six read as different parts of one machine coming apart (Gil's call).
+  bossPlate: ['audio/sfx/boss-plate.mp3', 0.6],
+  // ---- THE SONAR · A BACKGROUND INDICATOR, NOT A CUE ----
+  // Built, cut for beeping, and brought back at a whisper on Gil's call
+  // (2026-08-27): "lower the volume a lot so it's just a background indicator".
+  //
+  // 0.05 is roughly 10 dB under where it first shipped and about 4 dB under the
+  // bare sine it replaced — the quietest thing on the roster by a wide margin, and
+  // deliberately so. It fires per hostile, over and over, for the whole run. Every
+  // other take on this list is an EVENT; this one is weather.
+  //
+  // THE LEVEL WAS ONLY HALF THE PROBLEM. What made it unbearable on a late stage
+  // was DENSITY: a dozen live hostiles each running their own blip train is a
+  // continuous tone at any volume. The rate cap in `sonarTick` is the other half,
+  // and the take is cut to 0.20s so a ping always ENDS before the cap lets the next
+  // one start. Silence between pings is what stops it becoming a drone.
+  sonar: ['audio/sfx/sonar-ping.mp3', 0.05]
 };
 // how far into the 4.96s exit-warp take the victory sting rises. Sitting it in the
 // drop's tail is what makes the two read as one arrival instead of a queue.
@@ -154,9 +176,14 @@ const sfx = {
   },
   // ---- H-33 · THE RAY ----
   // The wind-up, fired the frame a light is born. It runs under BEAM_BURST — the
-  // 0.30s the ray spends erupting before it is allowed to turn or fry — so the
-  // charge and the visible growth are one event. Synth here is the PLACEHOLDER;
-  // the declared `rayCharge` take takes over the moment it lands.
+  // window the ray spends erupting before it is allowed to turn or fry — so the
+  // charge and the visible growth are one event.
+  //
+  // THE TAKE NOW SETS THAT WINDOW, not the other way round. BEAM_BURST is
+  // RAY_CHARGE_RELEASE, the point ray-charge.mp3 peaks and lets go, so the light
+  // launches on the release. The synth below is the FALLBACK — it is 0.44s, so if
+  // the take ever fails to decode the picture still grows for the full window and
+  // the charge simply ends early. That is a quiet degrade, not a break.
   rayCharge(pan) {
     if (playSample('rayCharge', 1, pan)) return;
     // DEEP, AND IT BUILDS (Gil, 2026-08-26 — the first pass was thin).
@@ -198,8 +225,13 @@ const sfx = {
   // ramp toward the implosion instead of six copies of one pop.
   bossPlate(n, pan) {
     const i = Math.max(0, Math.min(5, n | 0)), k = i / 5;
-    // the take, pitched DOWN as the sequence walks — one file, six weights
-    if (playSample('bossPlate', 0.8 + 0.2 * k, pan, 1.12 - 0.24 * k)) return;
+    // THE TAKE, PITCHED DOWN AS THE SEQUENCE WALKS — one file, six weights. This
+    // is the whole cue now that boss-plate.mp3 has landed: Gil asked for the one
+    // explosion MULTIPLIED at different pitches so the six read as different parts
+    // of the machine, rather than six copies of one pop. The spread is 1.20 down
+    // to 0.85 (about five semitones) — wide enough to tell plate 0 from plate 5,
+    // narrow enough that the last one still ends before the verdict card at 3.2s.
+    if (playSample('bossPlate', 0.82 + 0.18 * k, pan, 1.20 - 0.35 * k)) return;
     // THE SHOCKWAVE. This is the part that was missing: a sub that drops an
     // octave and rings out well past the crack. Without it a blast is all
     // paper and no air.

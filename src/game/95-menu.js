@@ -303,16 +303,30 @@ function drawMenuMap() {
     // LAYER 4: the selected run again, over the skyline — the line in focus
     drawRun(mapSel);
   }
-  // THE NEAR END WEARS THE CIRCLE TOO: the leg runs ring to ring, departure
-  // marked like delivery. The leg ENDS at the selected relay now, and that end
-  // already wears the selection circle below — so it is the departure that
-  // needs marking. Skipped when the seg is a degenerate stub (an image map's
-  // first relay has no charted approach).
+  // A PLATE MARKS WHERE ITS LEVEL DEPARTS (Gil, 2026-08-27, picking the rule
+  // himself after the chart read as off-by-one twice).
+  //
+  //   plate 01  ->  the core, where level 01's convoy forms up
+  //   plate 02  ->  DRAOS MINOR I, which level 01 delivered to and level 02 leaves
+  //   ...
+  //   plate 08  ->  VEGA DEEP, the boss run's departure
+  //   the last world  ->  the contract's DELIVERY. It ends a lane, it never starts
+  //                       one, so it carries no number.
+  //
+  // The chart therefore reads as a numbered chain of hops: pick 01 and you see 01
+  // under the camera immediately, and the lane runs from 01 to 02. The old rule
+  // plated the DESTINATION, which is what the level list still names it by — Gil's
+  // ruling is that the map's job is "which lane is this", and the list's job is
+  // "where does it go". Those two are allowed to differ.
+  //
+  // The departure ring and the DEPART caption are both GONE from here: the near end
+  // now wears the level's own plate and its own selection circle, so this block
+  // marks the FAR end — where the chosen lane delivers.
   {
     const sg = SEGS[mapSel], dep = sg[0], fin = sg[sg.length - 1];
     if (Math.hypot(fin.x - dep.x, fin.y - dep.y) > 4) {
       ctx.strokeStyle = 'rgba(240,252,255,0.9)'; ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.arc(wx(dep), wy(dep), selR, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(wx(fin), wy(fin), selR, 0, TAU); ctx.stroke();
     }
   }
   // (The terminus marker is GONE. It drew a bordered box — green once delivered
@@ -325,11 +339,22 @@ function drawMenuMap() {
   // lit world was hard to read AND hid the thing it was labelling — so the body
   // sits clear below and a short leader points down at it. (nr / dR / selR are
   // hoisted above drawRun — the lanes trim against the same circle.)
+  // WHERE LEVEL i's PLATE RIDES: the world it DEPARTS from. `SEGS[i]` is level i's
+  // own leg and `[0]` is its near end, which is the previous level's delivered
+  // world — or, for level 01, the core the convoy forms up at. Reading it off the
+  // leg rather than off `relayDestPos(i - 1)` is what makes level 01 work at all:
+  // the core is not a relay and has no index to look up.
+  const levelPin = i => SEGS[i][0];
+  // An image-map package has no charted origin, so its first leg is a degenerate
+  // stub and level 01's plate would land on top of relay 01's. Skip it there; a
+  // package that wants the plate should author an origin pin.
+  const pinReal = i => { const sg = SEGS[i];
+    return Math.hypot(sg[sg.length - 1].x - sg[0].x, sg[sg.length - 1].y - sg[0].y) > 4; };
   for (let i = 0; i < LEVELS.length; i++) {
-    // Cull on the DESTINATION, which is where the marker actually draws — the
-    // system centre can sit well outside the lens while the planet it holds is
-    // dead centre of it.
-    { const dp0 = relayDestPos(i);
+    if (!pinReal(i)) continue;
+    // Cull on the PLATE's own world — the system centre can sit well outside the
+    // lens while the planet it holds is dead centre of it.
+    { const dp0 = levelPin(i);
       if (Math.hypot(wx(dp0) - ccx, wy(dp0) - ccy) > R + nr * 8) continue; }
     const locked = i + 1 > PROG.unlocked;
     const cleared = PROG.stars[i] > 0;
@@ -337,14 +362,14 @@ function drawMenuMap() {
     const isBoss = !!LEVELS[i].boss;
     // 40% smaller than the first cut: at full size the bodies crowded each other
     // and left no room for the systems and lanes around them
-    // ---- the destination body ----
-    // It is NOT drawn here any more. The body is a planet on an orbit (or the
-    // star) inside the system that drawSystemsLive already paints, at the same
-    // scale as every other world on the chart — a destination is a place in a
-    // system, not a system-sized object sitting where a system should be. All
-    // this pass adds is a reticle saying WHICH body, and the camera closes in far
+    // ---- the body under the plate ----
+    // It is NOT drawn here. The body is a planet on an orbit (or the star) inside
+    // the system that drawSystemsLive already paints, at the same scale as every
+    // other world on the chart — a world is a place in a system, not a
+    // system-sized object sitting where a system should be. All this pass adds is
+    // a plate saying WHICH lane leaves from it, and the camera closes in far
     // enough to read it.
-    const dp = relayDestPos(i);
+    const dp = levelPin(i);
     const mx2 = wx(dp), my2 = wy(dp);
     // (the reticle is GONE — four broken arcs hugging every body read as a
     // target lock on the whole chart. The circle, the plate and its leader
@@ -380,7 +405,13 @@ function drawMenuMap() {
     ctx.beginPath(); ctx.moveTo(mx2, py3 + r); ctx.lineTo(mx2, my2 - selR * 1.02); ctx.stroke();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = locked ? 'rgba(200,225,255,0.35)' : '#f2faff';
-    const num = String(curLevelNo(i));
+    // ZERO-PADDED, LIKE EVERY OTHER SURFACE (Gil, 2026-08-27). The plates read
+    // 1..8 while the relay list beside them, the level panel, the HUD, the board
+    // and the Archive all read 01..08 — one screen speaking two dialects about
+    // the same eight lanes. `lvNum` is the ONE renderer for a level number and
+    // this was the one call site that skipped it. There is no level 0, and the
+    // padding is what makes 01 read as a name rather than a count.
+    const num = lvNum(curLevelNo(i));
     ctx.font = '800 ' + Math.round(r * (num.length > 1 ? 0.6 : 0.75)) + 'px Audiowide, system-ui';
     ctx.fillText(locked ? '·' : num, mx2, py3 + 1);
     ctx.textBaseline = 'alphabetic';
@@ -393,6 +424,25 @@ function drawMenuMap() {
     // A SEALED relay is not a destination you can look at — selection stops at
     // the frontier.
     menuButtons.push({ x: mx2 - 22, y: py3 - r - 18, w: 44, h: (my2 + dR + 12) - (py3 - r - 18), node: i, locked });
+  }
+  // ---- THE CONTRACT'S DELIVERY ----
+  // The chain's last world ENDS a lane and never starts one, so no plate rides it.
+  // Left bare it would be the mirror of the bug this rule fixed — one unmarked
+  // world standing among eight plated ones — so it is named for what it is. A
+  // caption, never a hexagon: a hexagon here would read as a ninth stage.
+  {
+    const last = LEVELS.length - 1;
+    const fin = SEGS[last][SEGS[last].length - 1];
+    const fx = wx(fin), fy = wy(fin);
+    if (Math.hypot(fx - ccx, fy - ccy) <= R + nr * 8) {
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = PROG.stars[last] > 0 ? 'rgba(150,235,130,0.85)' : 'rgba(190,225,255,0.62)';
+      ctx.font = '700 ' + Math.round(nr * 0.38) + 'px Audiowide, system-ui';
+      ctx.fillText('DESTINATION', fx, fy + selR + nr * 0.42);
+      ctx.restore();
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    }
   }
   // lens optics: an inner vignette. The rotating radar needle is GONE — it swept
   // a bright wedge across everything twice a minute and there is nothing on this
@@ -532,7 +582,7 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   techRect(px2, py2, pw, ph, 10); ctx.stroke();
   ctx.fillStyle = locked ? 'rgba(220,240,255,0.5)' : 'rgba(140,200,255,0.6)';
   ctx.font = '700 9px Audiowide, system-ui';
-  ctx.fillText('LEVEL ' + lvNum(curLevelNo(li)), px2 + 14, py2 + 20);
+  ctx.fillText('STAGE ' + lvNum(curLevelNo(li)), px2 + 14, py2 + 20);
   if (locked) {
     ctx.fillStyle = 'rgba(220,240,255,0.55)'; ctx.font = '700 12px Audiowide, system-ui';
     ctx.fillText('SEALED', px2 + 14, py2 + 44);
@@ -995,7 +1045,7 @@ function drawEnd(g) {
     const primary = qualDone
       ? { label: 'FIRST CONTRACT ▸', action: 'contract' }
       : endWin && !endless && !qual && levelIdx + 1 < LEVELS.length
-      ? { label: 'NEXT LEVEL ▸', action: 'next' }
+      ? { label: 'NEXT STAGE ▸', action: 'next' }
       : nextCi >= 0
       ? { label: 'NEXT CONTRACT ▸', action: 'nextCon' }
       // beside a duel offer the plain retry says FULL, so the two are told apart

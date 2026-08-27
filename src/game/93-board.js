@@ -369,8 +369,10 @@ function drawMenuBoard() {
       } else {
         card(cardX, yy, cw, rh, !!it.sel);
         if (f > 0.5) {
-          // level index rides the gutter LEFT of the card, right-aligned into a
-          // scannable column — kept out of the card so the name's width is untouched
+          // the level NUMBER rides the gutter LEFT of the card, right-aligned into
+          // a scannable column — kept out of the card so the name's width is
+          // untouched. Number, not index: `it.level` is zero-based, `lvNum(levelNo(
+          // ...))` is what a player calls that lane. There is no level 00.
           const numStr = lvNum(levelNo(it.camp, it.level));
           const numPad = Math.round(leftRowH * 0.12);
           const fNum = fitPx(numStr, '700', Math.round(fLeft * 0.82), ind - numPad * 1.5, 8); // two digits still fit the indent
@@ -409,7 +411,7 @@ function drawMenuBoard() {
   }
   if (!boardSel.mode) { // nothing picked yet — the prompt, centered in the ring
     ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(185,218,246,0.82)'; ctx.font = '700 ' + Math.round(fRow * 0.9) + 'px Audiowide, system-ui';
-    ['CHOOSE A LEVEL', 'TO SEE', 'LEADING SCORES'].forEach((w, i) => ctx.fillText(w, cx, cy + (i - 1) * fRow * 1.45));
+    ['CHOOSE A STAGE', 'TO SEE', 'LEADING SCORES'].forEach((w, i) => ctx.fillText(w, cx, cy + (i - 1) * fRow * 1.45));
   }
   else if (!bd || bd.loading) centerMsg('SYNCING…', 'rgba(140,220,255,0.7)');
   else if (bd.error) centerMsg('OFFLINE', 'rgba(255,150,90,0.85)');

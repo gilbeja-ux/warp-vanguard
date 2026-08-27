@@ -923,7 +923,7 @@ function drawMenuHome(ccx, ccy, R) {
       mid: -Math.PI / 2, locked: false, primary: false, col: '255,210,74' },
     { mode: 'campaign', name: 'CONTRACTS', glyph: 'C', cap: 'five clients · ' + LEVELS.length + ' stages each',
       mid: Math.PI * 5 / 6, locked: false, primary: !campDone, col: '126,226,98' },
-    { mode: 'flow', name: 'FREE FLOW', glyph: '∞', cap: flowOpen ? 'endless · the ranked week' : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock',
+    { mode: 'flow', name: 'FREE FLOW', glyph: '∞', cap: flowOpen ? 'endless · the ranked week' : 'complete stage ' + lvNum(FLOW_UNLOCK_LEVEL) + ' to unlock',
       mid: Math.PI / 6, locked: !flowOpen, primary: campDone, col: '120,220,255' }
   ];
   const THIRD = TAU / SECTORS.length; // slice width (name kept for the arc-width math below)
@@ -1707,9 +1707,9 @@ function drawMenuFlow() {
   if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = -(menuFx.dir || 1) * 1.5 * Math.pow(1 - q, 2); wheelAl = q; }
   const HALVES = [
     { key: 'endless', glyph: '∞', name: 'ENDLESS LANE', mid: -Math.PI / 2, locked: !endlessOpen, col: '255,210,74',
-      cap: endlessOpen ? 'procedural · no mercy' + (progress.best > 0 ? ' · BEST ' + progress.best.toLocaleString() : '') : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock' },
+      cap: endlessOpen ? 'procedural · no mercy' + (progress.best > 0 ? ' · BEST ' + progress.best.toLocaleString() : '') : 'complete stage ' + lvNum(FLOW_UNLOCK_LEVEL) + ' to unlock' },
     { key: 'weekly', glyph: '◈', name: 'WEEKLY LANE', mid: Math.PI / 2, locked: !weeklyOpen, col: '140,220,255',
-      cap: weeklyOpen ? 'one seeded lane all week' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : '') : 'complete level ' + FLOW_UNLOCK_LEVEL + ' to unlock',
+      cap: weeklyOpen ? 'one seeded lane all week' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : '') : 'complete stage ' + lvNum(FLOW_UNLOCK_LEVEL) + ' to unlock',
       streak: weeklyOpen ? weeklyStreak() : null }
   ];
   ctx.save();
