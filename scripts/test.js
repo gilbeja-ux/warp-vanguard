@@ -4834,6 +4834,14 @@ async function runMusicUp() {
     !/crackle\(0\.5, 400, 2600/.test(code) && !/crackle\(0\.5, 820, 190/.test(code));
   check('no sawtooth glide fires in front of the ray either',
     !/tone\(180, 0\.5, 'sawtooth'/.test(code));
+  // ONE WIND-UP PER BIRTH. The charge sat inside the per-beam loop, so the prism —
+  // the only fight that births two lights on one frame — played two IDENTICAL 0.44s
+  // wind-ups at the same instant. Double amplitude through the accent lift and the
+  // limiter is a pinched whistle, not a deep build, which is why it was correct on
+  // the soundboard (fires once) and wrong in the duel (fires twice).
+  check('the ray wind-up fires once per birth, not once per light',
+    /const newborn = b\.beams\.filter/.test(code) &&
+    (code.match(/sfx\.rayCharge\(/g) || []).length === 1);
   check('no per-count ducking survives on the ray bed',
     !/Math\.sqrt\(nLive\)/.test(au) && /RAY_LEVEL \* \(0\.55/.test(au));
 }

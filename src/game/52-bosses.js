@@ -439,13 +439,24 @@ function startSweeps(b, list) {
 function bossBeams(b, dt, g) {
   const railR = g.nodeR - Math.min(W, H) * 0.055 * 0.86;
   let allDone = b.beams.length > 0;
+  // ONE WIND-UP PER BIRTH, NOT ONE PER LIGHT (Gil, 2026-08-27: "the short voo…
+  // when a ray is starting"). The charge fired inside the per-beam loop, so the
+  // PRISM — the only fight that births two lights on the same frame — played two
+  // IDENTICAL 0.44s wind-ups at the same instant: same layers, same frequencies,
+  // same phase. That is not two machines, it is one sound at double amplitude, and
+  // through the accent lift and the master limiter it collapses into a pinched
+  // whistle instead of the deep build the charge actually is. Auditioned alone on
+  // the soundboard it was always correct, because the board fires it once.
+  // The wind-up is one event now, panned to the centre of the lights being born.
+  const newborn = b.beams.filter(bm => !bm.done && !bm.liveT);
+  if (newborn.length) {
+    const px = newborn.reduce((n, bm) => n + Math.cos(bm.a), 0) / newborn.length;
+    sfx.rayCharge(px * 0.6);
+  }
   for (const bm of b.beams) {
     if (bm.done) continue;
     // THE BURST: the ray erupts before it turns — no rotation and NO FRY until
     // the light has visibly reached the ring (WYSIWYG danger, held during birth)
-    // H-33: the wind-up, once, on birth. The prism births BOTH its lights on the
-    // same frame; their own angles pan them apart, which is the read.
-    if (!bm.liveT) sfx.rayCharge(Math.cos(bm.a) * 0.6);
     bm.liveT = (bm.liveT || 0) + dt;
     if (bm.liveT < BEAM_BURST) { allDone = false; continue; }
     // the telegraphed mid-sweep reversal: chevrons flip (warn) well before the
