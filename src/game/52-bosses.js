@@ -553,17 +553,13 @@ function updateSiphonFight(dt, g) {
       const r = bossRound(b);
       popup(W / 2, H * 0.3, (bm.phase === 0 ? 'BLUE' : 'WHITE') + ' EMITTER CONDEMNED', NODE_HEX[bm.phase]);
       tone(180, 0.5, 'sawtooth', 0.13, 90);
-      // THE SWEEP MARKER FALLS. It used to climb — 0.5s of bandpassed noise ramping
-      // 400 Hz UP TO 2600 Hz at vol 0.5 — which is the "weird ding" heard at the
-      // start of every sweep (Gil, 2026-08-27). It is older than the ray: H-33 gave
-      // the light a deep wind-up and this marker, one frame ahead of it, was left
-      // climbing into the register that same pass had just banned. Gil's own rule
-      // for the ray reads "mass comes from the bottom and from the FILTER, not from
-      // pitch — it thickens, it does not rise", and 2600 Hz is five times above the
-      // 470 Hz he called the sci-fi-beep register. It now falls instead of climbing,
-      // stays under that line for most of its length, and drops to less than half
-      // its level so it introduces the charge rather than covering it.
-      crackle(0.5, 820, 190, 2, 0.20);
+      // NO MARKER HERE. A sweep is announced by the LIGHT — the ray's own 0.44s
+      // wind-up fires a frame later and is the sound of a sweep starting. This slot
+      // held half a second of bandpassed noise climbing 400 Hz to 2600 Hz at vol
+      // 0.5, older than the ray itself, and it was the "weird ding" Gil kept hearing
+      // over the charge. Retuning it downward was not the answer either: he does not
+      // want a marker in front of the ray at all (2026-08-27). The popup carries the
+      // read on screen and the pad carries it in the hand; the ear gets the machine.
       buzz([30, 30, 50]);
       if (r & 1) { // odd rounds: reds for the free thumb
         b.sweepAdds = 2 + Math.min(3, r);
@@ -614,17 +610,13 @@ function updatePrismFight(dt, g) {
       b.mode = 'sweep';
       popup(W / 2, H * 0.3, 'TWIN SWEEP — EACH LIGHT HUNTS ITS OWN', '#eab8ff');
       tone(180, 0.5, 'sawtooth', 0.13, 90);
-      // THE SWEEP MARKER FALLS. It used to climb — 0.5s of bandpassed noise ramping
-      // 400 Hz UP TO 2600 Hz at vol 0.5 — which is the "weird ding" heard at the
-      // start of every sweep (Gil, 2026-08-27). It is older than the ray: H-33 gave
-      // the light a deep wind-up and this marker, one frame ahead of it, was left
-      // climbing into the register that same pass had just banned. Gil's own rule
-      // for the ray reads "mass comes from the bottom and from the FILTER, not from
-      // pitch — it thickens, it does not rise", and 2600 Hz is five times above the
-      // 470 Hz he called the sci-fi-beep register. It now falls instead of climbing,
-      // stays under that line for most of its length, and drops to less than half
-      // its level so it introduces the charge rather than covering it.
-      crackle(0.5, 820, 190, 2, 0.20);
+      // NO MARKER HERE. A sweep is announced by the LIGHT — the ray's own 0.44s
+      // wind-up fires a frame later and is the sound of a sweep starting. This slot
+      // held half a second of bandpassed noise climbing 400 Hz to 2600 Hz at vol
+      // 0.5, older than the ray itself, and it was the "weird ding" Gil kept hearing
+      // over the charge. Retuning it downward was not the answer either: he does not
+      // want a marker in front of the ray at all (2026-08-27). The popup carries the
+      // read on screen and the pad carries it in the hand; the ear gets the machine.
       buzz([30, 30, 50]);
       // both thumbs are dodging: the double sweep stays clean until late rounds
       b.sweepAdds = bossRound(b) >= 3 ? 2 : 0;

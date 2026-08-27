@@ -4821,8 +4821,10 @@ async function runMusicUp() {
     check('no noise sweep in a duel climbs — every one of them falls', risers.length === 0);
     if (risers.length) console.log('   rising: ' + risers.join(', '));
   }
-  check('the sweep marker falls into the ray\'s own register, under it in level',
-    /crackle\(0\.5, 820, 190, 2, 0\.20\);/.test(src));
+  // …and the sweep announcement carries NO noise marker of its own. Gil cut it
+  // outright rather than have it retuned: the light announces itself.
+  check('no noise marker fires in front of the ray at a sweep announcement',
+    !/crackle\(0\.5, 400, 2600/.test(src) && !/crackle\(0\.5, 820, 190/.test(src));
   check('no per-count ducking survives on the ray bed',
     !/Math\.sqrt\(nLive\)/.test(au) && /RAY_LEVEL \* \(0\.55/.test(au));
 }
