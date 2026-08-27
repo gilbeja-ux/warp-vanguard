@@ -4807,6 +4807,22 @@ async function runMusicUp() {
   check('...and its noise layer does too (swellNoise)', onAccentBus('swellNoise'));
   check('...and so does the sustained sweep voice', /const rayDest = accentGain \|\| sfxGain;/.test(au));
   // and the guess that replaced it is gone: two lights are meant to be louder
+  // NO CUE IN A DUEL CLIMBS INTO THE BEEP REGISTER. Gil's law for the ray reads
+  // "mass comes from the bottom and from the FILTER, not from pitch — it thickens,
+  // it does not rise", and he named ~470 Hz as where the sci-fi beep lives. The
+  // sweep marker broke it: 0.5s of bandpassed noise climbing 400 Hz to 2600 Hz at
+  // vol 0.5, fired one frame BEFORE the ray's deep wind-up, so the moment read as a
+  // ding no matter what the charge did. It is older than H-33, which is why making
+  // the charge deeper did not fix it. Every noise sweep in a duel must fall.
+  {
+    const risers = [];
+    for (const m of src.matchAll(/crackle\(\s*[\d.]+\s*,\s*([\d.]+)\s*,\s*([\d.]+)/g))
+      if (+m[2] > +m[1]) risers.push(`${m[1]}->${m[2]}Hz`);
+    check('no noise sweep in a duel climbs — every one of them falls', risers.length === 0);
+    if (risers.length) console.log('   rising: ' + risers.join(', '));
+  }
+  check('the sweep marker falls into the ray\'s own register, under it in level',
+    /crackle\(0\.5, 820, 190, 2, 0\.20\);/.test(src));
   check('no per-count ducking survives on the ray bed',
     !/Math\.sqrt\(nLive\)/.test(au) && /RAY_LEVEL \* \(0\.55/.test(au));
 }
