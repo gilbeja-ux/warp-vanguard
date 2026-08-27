@@ -66,6 +66,15 @@ const CAMPAIGN_PACKAGES = [{
       hint: 'NEW THREAT: dead zones — the rail closes, route around',
       story: { line: 'Scoop some fuel at the star for our last leg of the run.' } },
     { tint: '255,70,100', duration: 70, spawnMin: 0.58, spawnMax: 1.10, speed: 0.54, doubles: 0.48, heavies: 0.22, lines: 0.22, colors: 0.36, frags: 0.20, walls: 0.15, track: 0, bursts: true,
+      // THE DEBUT BREATHES (H-25 item 2, Gil's live ruling 2026-08-27): the
+      // lock's first 15 seconds carried the full red load — volleys included —
+      // on the campaign's steepest jump, and the stack drowned the lesson. The
+      // opening band halves the reds and silences the volleys while the lock
+      // cadence stays the lane's own: no volleys (bursts off frees ~24% of
+      // ticks into the normal branch, so colors drops to 0.25 to keep keyed
+      // arrivals/second at the lane's 0.36-share rate). After 0:15 the lane is
+      // exactly as authored. One demand, one lane — L06 stays untouched.
+      bands: [{ t0: 0, t1: 15, mix: { bursts: false, colors: 0.25 } }],
       hint: 'NEW THREAT: phase-locked threats — match the emitter',
       story: { line: 'Last stretch before the exchange.' } },
     { tint: '212,101,255', duration: 45, spawnMin: 0.80, spawnMax: 1.40, speed: 0.50, doubles: 0.35, heavies: 0.20, lines: 0.20, colors: 0.30, frags: 0.15, walls: 0.10, track: 2, boss: true,

@@ -4611,3 +4611,45 @@ async function runMusicUp() {
   check('board: a relay not yet unlocked offers no key', !flyKey());
   G.setMenuFx(null); G.setState(G.S.MENU); G.setMenuScreen('home');
 }
+
+// ================= H-25 item 2: the lock debut breathes (C1L7) =================
+// Gil's live ruling (2026-08-27): the first 15s stacked the full red load —
+// volleys included — onto the lock's debut. The opening band halves the reds
+// and silences the volleys; the keyed cadence stays the lane's own. After 0:15
+// the lane is byte-for-byte the authored config again.
+{
+  G.installCampaign(G.CAMPAIGNS[0]);
+  const l7 = G.getLevels()[6];
+  check('C1L7 carries exactly one band: the 0–15s debut breath',
+    Array.isArray(l7.bands) && l7.bands.length === 1 && l7.bands[0].t0 === 0 && l7.bands[0].t1 === 15);
+  const inB = G.bandCfg(l7, 10), outB = G.bandCfg(l7, 15);
+  check('inside the breath: no volleys, keyed share re-tuned to 0.25',
+    inB.bursts === false && inB.colors === 0.25 && inB.spawnMin === l7.spawnMin);
+  check('at 0:15 sharp the lane is the authored config itself', outB === l7);
+  // the empirical half: fly the same deterministic run and count red arrivals in
+  // the breath against the following 15s (same knobs, volleys back on). The seed
+  // is fixed per level, so these counts are exact, not statistical.
+  const countWin = (t0, t1) => {
+    G.startLevel(6); G.setIntro(999);
+    const seen = new Set(); let reds = 0, keyed = 0;
+    let guard = 20000;
+    while (G.getLevelT() < t1 && guard-- > 0) {
+      G.setIntegrity(100); // nobody is flying — keep the convoy alive through the count
+      G.update(1 / 30);
+      if (G.getState() !== G.S.PLAY) break;
+      for (const en of G.enemies()) {
+        if (seen.has(en)) continue; seen.add(en);
+        if (en.type !== 'normal') continue;
+        const t = G.getLevelT();
+        if (t < t0 || t >= t1) continue;
+        if (en.lock === undefined) reds++; else keyed++;
+      }
+    }
+    return { reds, keyed };
+  };
+  const breath = countWin(0, 15), tail = countWin(15, 30);
+  check(`the breath spawns roughly half the tail's reds (${breath.reds} vs ${tail.reds})`,
+    breath.reds > 0 && breath.reds <= Math.ceil(tail.reds * 0.65));
+  check(`…and still teaches the lock (${breath.keyed} keyed in the breath)`, breath.keyed >= 2);
+  G.setState(G.S.MENU); G.setMenuScreen('home');
+}
