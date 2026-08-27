@@ -1103,6 +1103,12 @@ const ENLIST_SCAN = 0.52;               // the disc PRINTS in over this — see 
 // staggered left to right (LINE_LEAD / LINE_STAGGER / LINE_FADE, shared with the disc
 // so the two voices of the briefing room resolve the same way). H-20.
 const ENLIST_MIN = 0.55;                // a beat cannot be tapped away faster than this
+// H-23 · after a tap SNAPS a line to full, it has to stand for this long before a
+// second tap will advance. Without it a mashed double-tap completes and advances
+// inside two frames, and the words are on screen for 16ms — which is not "shown"
+// in any sense the unskippable rule meant. A player who simply WAITED through the
+// typing is not affected: the hold applies only to a line that was force-completed.
+const ENLIST_HOLD = 0.35;
 const ENLIST_OUT = 0.7;                 // hand-off fade before the course opens
 // The script. Terse-ops register, the same voice the in-run barks use: he is
 // briefing a professional, not welcoming a customer — which means SHORT. The

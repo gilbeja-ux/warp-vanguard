@@ -702,11 +702,34 @@ function startEnlistment(short, quiet) {
 }
 // advance one beat, or hand off. The gate is the TYPING, not a stopwatch: a tap
 // can never skip a line that has not finished arriving, so every word is shown.
+//
+// H-23 · FIRST TAP COMPLETES, SECOND ADVANCES. This used to `return` in silence
+// while a line was still arriving, which is worse than doing nothing: a first-time
+// player taps, gets no sound and no movement, and learns that taps do not work on
+// this screen. Now the first tap snaps the line to full and answers with the same
+// tick the advance uses, so the input is always acknowledged.
+//
+// IT DOES NOT BREAK THE UNSKIPPABLE RULE ABOVE. That rule exists so every word is
+// SHOWN, not so the player must wait — completing the line still shows all of it,
+// just at once. Nothing is skipped, and there is still no route out of S.ENLIST.
+//
+// The whole disc reads one clock (`enlist.t`): the per-glyph fade, the `talking`
+// flag that drives the comms meter, and this gate. So "complete the line" is one
+// assignment rather than a second code path through the painter — jump the clock
+// to the instant the last glyph finishes and everything downstream agrees.
 function enlistTap() {
   if (!enlist || enlist.out) return;
-  if (enlist.t < Math.max(ENLIST_MIN, enlistTypeDur(enlist.beat))) return;
+  const need = Math.max(ENLIST_MIN, enlistTypeDur(enlist.beat));
+  if (enlist.t < need) {
+    enlist.t = need;      // the line lands whole, and `talking` goes false with it
+    enlist.snapped = true; // …and it must stand for ENLIST_HOLD before a tap advances
+    sfx.tick();
+    return;
+  }
+  // a line the player SNAPPED has to hold; a line they sat through does not
+  if (enlist.snapped && enlist.t < need + ENLIST_HOLD) return;
   if (enlist.beat < enlistScript().length - 1) {
-    enlist.beat++; enlist.t = 0; sfx.tick();
+    enlist.beat++; enlist.t = 0; enlist.snapped = false; sfx.tick();
     return;
   }
   // THE LAST TAP IS THE DEPLOY PRESS, so it gets a deploy's music: the menu piece

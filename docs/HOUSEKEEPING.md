@@ -43,7 +43,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-20 | DONE | Audio | MED | Audio breadth — verdict tiers + NEW BEST stamp + unlock cue, enlistment/bark typewriters → per-glyph fade, phone-call interruption handler (Gil's cut: no boss-duel music, no sonar phase) |
 | H-21 | DONE | Art | LOW | Menu stays grain-free — decision, no code (2026-08-24) |
 | H-22 | TODO | Art | LOW | Gate facing variants |
-| H-23 | TODO | Journey | LOW | Enlistment tap-to-complete |
+| H-23 | DONE | Journey | LOW | Enlistment tap-to-complete — first tap completes the line, second advances; a dead tap was the real defect, not the wait |
 | H-24 | DONE | Journey | LOW | Dead code deleted — scroll machinery, the whole ray-cannon subsystem, and the en.drift orphan; all 41 board ids unchanged |
 | H-25 | IN PROGRESS | Balance | LOW | Volley zaps + prism floors + last-stand shifts built — open: C1L7 (no second debut in L06), feel pass, beats |
 | H-26 | DONE | Backend | LOW | Backend hardening — all three built (admin token gate, homoglyph-folding name filter, filed-report + trace residuals); the migration and both function deploys ride the next deploy |
@@ -53,7 +53,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-30 | MERGED | Content | — | Folded into H-06 (2026-08-26, Gil's call) — the disc art is the ladder's art rung, still deferred |
 | H-31 | DONE | Balance | MED | Power-ups never land inside a dead-zone carpet — both spawners fixed + a pinned test (ships in 1.0.4) |
 | H-32 | DONE | HUD | MED | Barks redesigned as a broadcast subtitle — tag on its own line, 13px wrapped message (F-012; ships in the next build) |
-| H-33 | IN PROGRESS | Audio | MED | Boss audio realism — the ray has no charge and no sweep voice; the six dying plates are one repeated synth crackle (Gil, 2026-08-26) |
+| H-33 | BLOCKED | Audio | MED | Boss audio realism — ray voice, charge and plates BUILT and Gil's ear pass PASSED; blocked only on the two CC0 takes he is sourcing |
 | H-34 | DONE | Art | MED | Boss lamp misled — the resting phase breathed into the LAST STAND's violet; now red → near-black ember, brightness only (Gil, 2026-08-27) |
 
 ---
@@ -293,7 +293,13 @@ The original H-06 said to wire all 40 level `hint` strings. **Do not.** The reac
 - **Options:** (a) two baked facings + ellipse recording; (b) continuous rotZ with live-layer rework; (c) defer until a new gate relay needs it.
 
 ## H-23 · Enlistment tap-to-complete
-- **Status:** TODO · **Area:** Journey · **Sev:** LOW
+- **Status:** DONE (option a, 2026-08-27) · **Area:** Journey · **Sev:** LOW
+- **THE AUDIT'S NUMBER WAS WRONG, and it changes the diagnosis.** The finding says "about 7s per beat". The real figure is `ENLIST_SCAN + LINE_LEAD + chars × LINE_STAGGER + LINE_FADE` — 1.70s, 1.85s and 1.99s for the three beats, so about **7s TOTAL, not per beat**. The wait was never the problem.
+- **The real defect was a DEAD TAP.** `enlistTap()` returned in silence while a line was arriving: no sound, no movement, no prompt. A first-time player taps, gets nothing, and learns that taps do not work on this screen. And `TAP TO CONTINUE` already existed on the plate — they simply never saw it until the wait was already over.
+- **Fix.** The first tap snaps the line to full and answers with the same `sfx.tick()` the advance uses; the second advances. The whole disc reads one clock (`enlist.t`), so "complete the line" is a single assignment — the per-glyph fade, the `talking` flag that drives the comms meter, and the gate itself all follow. No second path through the painter.
+- **It does NOT break the unskippable rule** at `60-input.js:671`. That rule exists so every word is SHOWN, not so the player must wait; a completed line still shows all of it, at once. There is still no skip control and no route out of `S.ENLIST`. Option (b), a SKIP affordance, WOULD have broken it and was declined for that reason.
+- **A mash cannot flash the line.** `ENLIST_HOLD` (0.35s) makes a force-completed line stand before a tap will advance it; without it a double-tap completes and advances inside two frames, and the words are on screen for 16ms — which is not "shown" in any sense the rule meant. A player who simply waited through the typing pays no hold, because the wait was the hold.
+- **Verified.** `npm test` green, 6 pins (the old "a tap is ignored" pin was rewritten to the new contract, asserting both that the beat does not advance AND that the line lands whole). Driven in the LIVE game with headless Chrome: mid-sentence → first tap → line complete, `beat` still 0, `snapped` true → second tap held → after the hold, advanced. Both touch and gamepad go through the one `enlistTap()`. **41 boards, 0 moved.**
 - **Combines:** journey finding 8
 - **Issue:** a tap during enlistment typing does nothing, so a new player waits about 7s per beat with no fast-forward.
 - **Evidence:** `60-input.js:676`; `91-briefing.js:1131`.
@@ -428,7 +434,9 @@ The original H-06 said to wire all 40 level `hint` strings. **Do not.** The reac
   5. **The takes are DECLARED but absent.** `rayCharge: 'audio/sfx/ray-charge.mp3'` and `bossPlate: 'audio/sfx/boss-plate.mp3'` are in `SFX_FILES`. Nothing breaks while the files are missing — `loadSamples`' `.catch` swallows the 404, `playSample` returns false, the synth covers. Drop a file in and it takes over on the next load with **no code change**. `scripts/test-sfx-levels.mjs` now reports an absent declared take as `PEND` instead of failing, so the plumbing could ship before the audio.
   6. **The soundboard grew a section** (port 8012): charge alone, slow light, fast light, reversal at 2.4s, both prism lights at once, stop; plate 0, plate 5, all six, and the whole death into the implosion take. The ray buttons **animate a real sweep** through the real voice, because a one-shot button would audition nothing — the bend and the pan are the sound.
 - **SIM ID MOVES, SCORING DOES NOT.** `40122838d969`. Audio is draw-only; a fingerprint compare against HEAD gives 41 boards, 0 moved. The next verifier build takes `-- --compatible` (see the same note on H-29).
-- **OPEN — needs Gil:** (a) an ear on the soundboard, on the phone not the Mac, and a call on the `RAY_SABER`/`RAY_TRIPOD` blend and `RAY_LEVEL`; (b) the two CC0 takes; (c) the `BEAM_BURST` question is now ANSWERED without touching gameplay — the charge simply runs 0.44s and crossfades into the sweep, so the 0.30s burst window stays exactly as it was.
+- **Gil's ear pass: PASSED (2026-08-27).** First listen: "everything sounds good but the charge up sound... it should be something more deep and realistic." The charge was rebuilt on the swell primitives; second listen: "much better." The `RAY_SABER` / `RAY_TRIPOD` blend and `RAY_LEVEL` stand as built. No knob changed.
+- **`BEAM_BURST` question: ANSWERED without touching gameplay.** The charge runs 0.44s and crossfades into the sweep, so the 0.30s burst window stays exactly as it was.
+- **ONLY REMAINING WORK — the two CC0 takes, on Gil.** `ray-charge.mp3` and `boss-plate.mp3` are declared in `SFX_FILES` and reported as `PEND` by `test-sfx-levels`. The synth is what ships until they land, and dropping a file in takes over with no code change. **Nothing here is workable without him**, so this item sits until he has the audio.
 - **Issue, in Gil's words:** the synth voices are not realistic enough. The ray should feel like a **charge-up** and then a **lightsaber "voom"** as it moves, or the mechanical ray of a *War of the Worlds* tripod. The boss's end-of-fight part explosions should be **more explodey — shockwaves**.
 
 ### Part 1 — the sweeping ray has almost no voice

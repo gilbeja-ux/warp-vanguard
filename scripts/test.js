@@ -234,7 +234,7 @@ code = code.replace("'use strict';", '') + `
   getBuzzN: () => buzzMonN, getBuzzLast: () => buzzMonLast, // counted before the haptics gate
   startQualification, getInfoCard: () => infoCard, isQual: () => qual,
   NODE_SLEW, dragGhostState, // the one travel rate, and the drill ghost's appear/retire logic
-  startEnlistment, enlist: () => enlist, enlistTap, enlistScript, parkedSky,
+  startEnlistment, enlist: () => enlist, enlistTap, enlistScript, enlistTypeDur, ENLIST_HOLD, ENLIST_MIN, parkedSky,
   getPaintN: () => paintN, getVsyncEst: () => vsyncEst,
   keys, startBossTest,
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
@@ -519,13 +519,30 @@ drawOk('enlistment: handing off', () => { G.startEnlistment(false); G.enlist().b
 {
   // THE TAP GATE IS THE TYPING, not a stopwatch. An impatient player must not be
   // able to outrun the transmission and skip a line they were never shown.
+  //
+  // H-23 changed what a too-early tap DOES, not what it is allowed to skip: it
+  // now completes the line instead of being swallowed in silence. The rule the
+  // old pin was protecting — no word goes unseen — is unchanged, so these pins
+  // assert both halves: the beat must not advance, AND the line must land whole.
+  const need0 = () => Math.max(G.ENLIST_MIN, G.enlistTypeDur(G.enlist().beat));
   G.startEnlistment(false);
   G.enlist().t = 0.05;
   G.enlistTap();
-  check('a tap lands before the line has arrived and is ignored', G.enlist().beat === 0);
+  check('a tap before the line has arrived does NOT advance the beat', G.enlist().beat === 0);
+  check('…it completes the line instead of being ignored', G.enlist().t >= need0());
+  // and the completed line has to STAND — a mash must not flash it for two frames
+  G.enlistTap();
+  check('a second tap during the hold does not advance', G.enlist().beat === 0);
+  G.enlist().t += G.ENLIST_HOLD + 0.01;
+  G.enlistTap();
+  check('once the snapped line has stood, the next tap advances', G.enlist().beat === 1);
+  // a player who SAT THROUGH the typing pays no hold — the wait was the hold
+  G.startEnlistment(false);
   G.enlist().t = 99;
   G.enlistTap();
-  check('once it has typed out, a tap advances', G.enlist().beat === 1);
+  check('once it has typed out, a tap advances with no extra hold', G.enlist().beat === 1);
+  // the snap flag must not survive into the next beat, or that beat inherits a hold
+  check('advancing clears the snapped flag', !G.enlist().snapped);
   // the final beat hands off to the course rather than advancing past the script
   G.enlist().beat = G.enlistScript().length - 1; G.enlist().t = 99;
   G.enlistTap();
