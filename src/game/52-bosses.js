@@ -552,14 +552,18 @@ function updateSiphonFight(dt, g) {
       const bm = b.beams[0];
       const r = bossRound(b);
       popup(W / 2, H * 0.3, (bm.phase === 0 ? 'BLUE' : 'WHITE') + ' EMITTER CONDEMNED', NODE_HEX[bm.phase]);
-      tone(180, 0.5, 'sawtooth', 0.13, 90);
-      // NO MARKER HERE. A sweep is announced by the LIGHT — the ray's own 0.44s
-      // wind-up fires a frame later and is the sound of a sweep starting. This slot
-      // held half a second of bandpassed noise climbing 400 Hz to 2600 Hz at vol
-      // 0.5, older than the ray itself, and it was the "weird ding" Gil kept hearing
-      // over the charge. Retuning it downward was not the answer either: he does not
-      // want a marker in front of the ray at all (2026-08-27). The popup carries the
-      // read on screen and the pad carries it in the hand; the ear gets the machine.
+      // NOTHING SOUNDS BUT THE LIGHT (Gil, 2026-08-27). Two cues used to fire the
+      // instant a sweep was called, both in FRONT of the ray's own wind-up, and
+      // between them they were every complaint about "the ray charge":
+      //   crackle(0.5, 400, 2600, 2, 0.5)  — bandpassed noise CLIMBING to 2600 Hz,
+      //     older than the ray itself. The "weird ding".
+      //   tone(180, 0.5, 'sawtooth', 0.13, 90) — half a second of sawtooth gliding
+      //     down through the accent lift. The "short voo". A glide is a whistle; it
+      //     cannot help reading as one.
+      // Neither was the charge, which builds and thickens across 0.44s and is the
+      // sound Gil approved on 2026-08-26. Both are deleted rather than retuned: a
+      // sweep is announced BY THE LIGHT. The popup carries the read on screen, the
+      // pad carries it in the hand, and the ear gets the machine.
       buzz([30, 30, 50]);
       if (r & 1) { // odd rounds: reds for the free thumb
         b.sweepAdds = 2 + Math.min(3, r);
@@ -609,14 +613,18 @@ function updatePrismFight(dt, g) {
     if (b.modeT <= 0) {
       b.mode = 'sweep';
       popup(W / 2, H * 0.3, 'TWIN SWEEP — EACH LIGHT HUNTS ITS OWN', '#eab8ff');
-      tone(180, 0.5, 'sawtooth', 0.13, 90);
-      // NO MARKER HERE. A sweep is announced by the LIGHT — the ray's own 0.44s
-      // wind-up fires a frame later and is the sound of a sweep starting. This slot
-      // held half a second of bandpassed noise climbing 400 Hz to 2600 Hz at vol
-      // 0.5, older than the ray itself, and it was the "weird ding" Gil kept hearing
-      // over the charge. Retuning it downward was not the answer either: he does not
-      // want a marker in front of the ray at all (2026-08-27). The popup carries the
-      // read on screen and the pad carries it in the hand; the ear gets the machine.
+      // NOTHING SOUNDS BUT THE LIGHT (Gil, 2026-08-27). Two cues used to fire the
+      // instant a sweep was called, both in FRONT of the ray's own wind-up, and
+      // between them they were every complaint about "the ray charge":
+      //   crackle(0.5, 400, 2600, 2, 0.5)  — bandpassed noise CLIMBING to 2600 Hz,
+      //     older than the ray itself. The "weird ding".
+      //   tone(180, 0.5, 'sawtooth', 0.13, 90) — half a second of sawtooth gliding
+      //     down through the accent lift. The "short voo". A glide is a whistle; it
+      //     cannot help reading as one.
+      // Neither was the charge, which builds and thickens across 0.44s and is the
+      // sound Gil approved on 2026-08-26. Both are deleted rather than retuned: a
+      // sweep is announced BY THE LIGHT. The popup carries the read on screen, the
+      // pad carries it in the hand, and the ear gets the machine.
       buzz([30, 30, 50]);
       // both thumbs are dodging: the double sweep stays clean until late rounds
       b.sweepAdds = bossRound(b) >= 3 ? 2 : 0;
@@ -728,7 +736,8 @@ function updateLastStand(dt, g) {
     popup(W / 2, H * 0.34,
       (b.lsPhase === 0 ? 'BLUE RUNS — WHITE FEEDS' : 'WHITE RUNS — BLUE FEEDS'),
       NODE_HEX[1 - b.lsPhase]);
-    tone(180, 0.5, 'sawtooth', 0.13, 90);
+    // …and the same at the shift swap: the ray IS the announcement (see the sweep
+    // sites above). The popup names which thumb runs; the pad buzzes the change.
     buzz([30, 30, 50]);
     return;
   }

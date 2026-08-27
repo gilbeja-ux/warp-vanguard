@@ -4816,15 +4816,24 @@ async function runMusicUp() {
   // the charge deeper did not fix it. Every noise sweep in a duel must fall.
   {
     const risers = [];
-    for (const m of src.matchAll(/crackle\(\s*[\d.]+\s*,\s*([\d.]+)\s*,\s*([\d.]+)/g))
+    const codeOnly = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+    for (const m of codeOnly.matchAll(/crackle\(\s*[\d.]+\s*,\s*([\d.]+)\s*,\s*([\d.]+)/g))
       if (+m[2] > +m[1]) risers.push(`${m[1]}->${m[2]}Hz`);
     check('no noise sweep in a duel climbs — every one of them falls', risers.length === 0);
     if (risers.length) console.log('   rising: ' + risers.join(', '));
   }
-  // …and the sweep announcement carries NO noise marker of its own. Gil cut it
-  // outright rather than have it retuned: the light announces itself.
+  // …and NOTHING sounds in front of the ray. Two cues fired the instant a sweep was
+  // called, both ahead of the wind-up, and between them they were every complaint
+  // Gil made about "the ray charge": a noise sweep climbing to 2600 Hz (the ding)
+  // and a half-second sawtooth glide (the short voo). Both deleted, at all three
+  // sites a ray is born. A ray announces itself.
+  // read the CODE, not the comments — the comments quote the removed cues verbatim
+  // so the record of what was cut survives, and a raw text match would find those
+  const code = src.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
   check('no noise marker fires in front of the ray at a sweep announcement',
-    !/crackle\(0\.5, 400, 2600/.test(src) && !/crackle\(0\.5, 820, 190/.test(src));
+    !/crackle\(0\.5, 400, 2600/.test(code) && !/crackle\(0\.5, 820, 190/.test(code));
+  check('no sawtooth glide fires in front of the ray either',
+    !/tone\(180, 0\.5, 'sawtooth'/.test(code));
   check('no per-count ducking survives on the ray bed',
     !/Math\.sqrt\(nLive\)/.test(au) && /RAY_LEVEL \* \(0\.55/.test(au));
 }
