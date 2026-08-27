@@ -1,7 +1,17 @@
-# Parked: the fused ray cannon
+# RETIRED: the fused ray cannon
 
-Kept as an option, not deleted. This is the one boss control scheme the game has
-tried and reverted, and the reasons are worth keeping next to the code.
+> **This boss type is retired. Do not revive it, and do not build against it.**
+> Gil closed it on 2026-08-27: *"remove all the remains of the 'we fire beams at
+> the boss' type"*. The code is gone, this file is the whole record, and nothing
+> in the game refers to it any more.
+
+The current bosses are the opposite arrangement, and they stay: **you hit a boss
+with PULSES, and it sometimes fires a ray at your emitters.** The player never
+fires a beam. Anything that reads the other way round is a remain, and belongs
+in this file or in the bin.
+
+This is the one boss control scheme the game tried and reverted, and the reasons
+are worth keeping.
 
 ## What it was
 
@@ -35,32 +45,28 @@ Only as an opt-in mode, never inside a campaign — a separate arcade mode, a
 mutator, or a bonus fight the player chooses. As soon as it is one relay among
 forty it is teaching against the game.
 
-## Where the code still is
+## Where the code went
 
-It is disabled but not removed: `mergeT` is never raised and `beamActive` is
-never set, so every branch below is unreachable. Listed so a revival or a
-deliberate removal can find all of it — 45 sites, 9 files.
+**Nowhere. It is deleted.** The 45 sites across 9 files that this section used to
+list were removed whole by **H-24** on 2026-08-24 (`docs/HOUSEKEEPING.md`), with
+all 41 board fingerprints byte-identical before and after: `heat`, `overheat`,
+`beamActive`, `beamAim`, `BEAM_S`, `drawBeam`, `beamGeometry`, `beamHitCore`,
+`beamSound`, `beamOscs`, `sfx.overheatWarn`, every `fused` / `fusedV` /
+`fireStick` branch, and `boss.mergeT` itself.
 
-| file | what |
-| --- | --- |
-| `40-state.js:117-124` | `heat`, `overheat`, `beamActive`, `beamAim` |
-| `52-bosses.js:42,66,195-222` | `mergeT`, `beamGeometry`, `beamHitCore` |
-| `85-enemy-art.js:1364-1400` | `drawBeam` — barrel, beam, heat window |
-| `85-enemy-art.js:1529-1660` | `fused` branches in `drawNodes` / `drawArcNode` |
-| `85-enemy-art.js:2189-2210` | the fire-stick dial: heat ring + aim knob |
-| `72-tick.js:480-504` | the fused carriage's fry handling (**sim code**) |
-| `71-gamepad.js:400-402` | pad mapping skips node 1 while fused |
-| `80-tunnel.js:232` | range rings defer to the duel's own instrumentation |
-| `11-music.js:725-...` | `beamSound` — the drone, pitch rising with heat |
-| `61-replay.js:166,363` | teardown resets `beamActive` |
+The last two residues went on 2026-08-27:
 
-⚠️ `99-boot.js:1019-1051` also has a `heat` — a **local** const for a warp
-streak's head cooling as it runs. Unrelated. Do not touch it.
+- a stale comment in `85-enemy-art.js` that said a rail clamp "fries the cannon";
+- `src/game/80-tunnel.js.bak`, an untracked backup that still held
+  `if (boss && boss.mergeT >= 1)`. Moved to `docs/parked/80-tunnel.js.bak` so no
+  copy of the era is left under `src/`.
 
-Removing this is its own change: it reaches into `72-tick.js`, so it moves
-`SIM_ID` and needs the verifier redeployed. Worth doing before any boss gains a
-real heat mechanic, so the new one is not built next to a corpse that shares its
-vocabulary.
+**Do not confuse this with the live boss sweep.** `b.beams`, `bossBeams()`,
+`raySweep()`, `beamPal()` and `drawLeechBeam()` are the BOSS firing at the
+player, which is current and correct. `drawLeechBeam` is named for the leech
+FAMILY, not the leech boss; the sweep is the verb of **siphon**, **prism** and
+the blockade's last stand. `drawLineBeam` is the live line-pair enemy. None of
+those are remains. Leave them alone.
 
 ## The idea it was reaching for, done a legal way
 

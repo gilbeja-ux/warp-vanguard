@@ -822,8 +822,10 @@ function drawLineBeam(en, g) {
   ctx.restore();
 }
 
-// boss rail clamps: molten orange arcs seizing part of the ring — crossing one
-// fries the cannon. They burn away from both ends and are gone within 3s.
+// boss rail clamps: molten orange arcs seizing part of the ring — sliding an
+// emitter into one fries it, node-killer style. They burn away from both ends
+// and are gone within 3s. (It said "fries the cannon" until 2026-08-27: a
+// leftover from the fused ray cannon, which H-24 deleted. There is no cannon.)
 function drawLatches(g, bz) {
   if (!latches.length) return;
   ctx.save();
