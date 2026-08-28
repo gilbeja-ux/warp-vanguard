@@ -15,25 +15,35 @@ const QUAL = [
   // the hazards ride WITH the early traps: intercept the reds, STEER CLEAR
   // of the killer and the wall — no dedicated stages, one flowing lesson
   { card: 'normal', queue: ['normal', 'normal', 'wall'] },
-  { card: 'heavy',  queue: ['heavy'] },
+  // THE VOLLEY RIDES THE ARMOR STAGE. It is not a topic of its own: docking both
+  // emitters IS the armor's answer, and the volley is that same dock held half a
+  // second longer. Teaching it here costs no new stage and breaks no lane law —
+  // the demand is unchanged, only the depth of it. It went untaught between
+  // 4668d95 and this; the call on 2026-08-28 was to teach it after all, because a
+  // bolt that DETONATES is not something a player finds by accident.
+  { card: 'heavy',  queue: ['heavy', 'volley'] },
   { card: 'line',   queue: ['line'] },
   { card: 'lock',   queue: ['lock0', 'lock1'] },
-  // NO VOLLEY DRILL. The unite-volley — dock both emitters on one lane, hold,
-  // and a bolt clears the column — is still in the game and always was; it is
-  // simply not taught. It is the one mechanic that rewards being found, and the
-  // drill spent a whole stage on something the curriculum never needs again.
   { card: 'pickup', queue: ['pickup'] },
   { card: 'strip',  queue: ['strip'] },        // the ride charges a pulse...
   { card: 'pulse',  queue: ['pulse'] },        // ...which this column spends
   { card: 'done' }
 ];
-// the tutorial never stops the run: the arrows, dock spots and riding labels do
-// ALL the teaching. (The per-stage banners are gone — they stacked text over the
-// bore center, which is exactly where the traffic arrives from.)
+// EVERY DRILL IS SHOWN BEFORE IT IS ASKED FOR. One disc opens each lesson, and the
+// disc DEMONSTRATES rather than describes: its upper three quarters run a live
+// diorama of the ring playing the correct move on a loop, and only the bottom
+// quarter carries words (drawDiscDemo, 91-briefing).
+//
+// The banners this replaces were text stacked over the bore center — the one place
+// the traffic arrives from — which is why they went in 6572c74. A disc is not that:
+// it STOPS the lane, says its piece where nothing else is happening, and hands the
+// run back. The riding labels and dock spots stay exactly as they are; they are the
+// reminder, and the disc is the lesson.
 const INFO_CARDS = {
   move:   { title: 'DUAL EMITTERS', lines: ['Left thumb — BLUE ⊕. Right — WHITE ⊖.', 'Slide the dials to ride the ring.'] },
   normal: { title: 'INTERDICTOR', lines: ['Align ANY emitter as it crosses.', 'Dead center pays ×2.'] },
   heavy:  { title: 'ARMORED INTERDICTOR', lines: ['Dock BOTH emitters together', 'to collapse it.'] },
+  volley: { title: 'UNITE VOLLEY', lines: ['Dock both and HOLD — a bolt fires.', 'It detonates on what it hits.'] },
   line:   { title: 'BARRIER NET', lines: ['Cover BOTH ends —', 'one emitter on each.'] },
   lock:   { title: 'PHASE-LOCKED', lines: ['Only the MATCHING phase', 'collapses it.'] },
   pickup: { title: 'POWER-UP', lines: ['Golden relays arm powers.', 'Catch one with any emitter.'] },
@@ -89,6 +99,31 @@ function showCard(key) {
   state = S.INFO;
   sfx.tick();
 }
+// ---------- one disc per lesson ----------
+// Which disc opens which drill. Both colour locks share PHASE-LOCKED, because the
+// lesson is the same one twice; every other drill has its own. `move` has no spawn
+// of its own, so updateTutorial fires that one by hand.
+const QUAL_DISC = {
+  move: 'move', normal: 'normal', wall: 'wall', heavy: 'heavy', volley: 'volley',
+  line: 'line', lock0: 'lock', lock1: 'lock', pickup: 'pickup', strip: 'strip', pulse: 'pulse'
+};
+// ONCE PER COURSE, NEVER ON A REPEAT. `tut.seen` lives on the tut object, so a fresh
+// qualification is a fresh pupil and a failed drill's do-over never re-shows its disc.
+// Returns true when the disc took the frame — the caller must then do nothing else.
+function qualDisc(kind) {
+  const key = QUAL_DISC[kind];
+  if (!key || !tut || tut.seen[key]) return false;
+  tut.seen[key] = 1;
+  showCard(key);
+  return true;
+}
+// SHOW, THEN SPAWN. The disc parks the run in S.INFO; the pending kind spawns on the
+// first tutorial step after it lifts, so the hazard is never already inbound behind
+// the words describing it.
+function qualNext(kind) {
+  if (qualDisc(kind)) { tut.pending = kind; return; }
+  qualSpawn(kind);
+}
 function qualSpawn(kind) {
   tut.spawned = kind;
   if (kind === 'pickup') {
@@ -123,6 +158,28 @@ function qualSpawn(kind) {
       e3.lock = undefined; e3.tut = 'pulse';
       e3.z = SPAWN_Z - 0.05 - k * 0.22; // staggered inside the purge wave's reach
       pa += 2.399963; // golden hop, so the four are never bunched
+    }
+    return;
+  }
+  if (kind === 'volley') {
+    // THE DOCK, HELD. One armored tap with a plain red either side of it, all three
+    // on the same lane and all three slowed, so there is room to dock, hold half a
+    // second and watch the bolt take the trio. The offsets sit inside the blast's
+    // angular semi-axis (VOLLEY_BLAST_A, 72-tick) and share the armor's depth, so a
+    // hit on the armor reaches both neighbours — that is the whole lesson.
+    //
+    // CLEAR OF BOTH CARRIAGES, like the purge column: a trap that materialises on a
+    // parked emitter dies for free and demonstrates nothing.
+    let va = nodes[0].angle + Math.PI;
+    for (let h = 0; h < 8; h++) {
+      if (!nodes.some(n => Math.abs(angDiff(n.angle, va)) < 0.7)) break;
+      va += 0.5;
+    }
+    va = clearOfWalls(va);
+    for (const [da, ty] of [[0, 'heavy'], [-0.5, 'normal'], [0.5, 'normal']]) {
+      const ev = spawnEnemy(va + da, ty);
+      ev.lock = undefined; ev.tut = 'volley';
+      ev.z = SPAWN_Z; ev.speedMul = 0.55; // the long approach is the room to hold
     }
     return;
   }
@@ -174,13 +231,19 @@ function advanceQual() {
   tut.queue = (QUAL[tut.stage].queue || []).slice();
   sfx.tick();
   // pre-spawned drills: the hazard is already inbound as the stage opens
-  if (c === 'pulse') { tut.queue = []; qualSpawn(c); }
+  if (c === 'pulse') { tut.queue = []; qualNext(c); }
 }
 const AIM_HOLD = 0.3; // seconds a node must sit on a target to lock it in
 function updateTutorial(dt) {
+  // the drill a disc was holding back, released on the first step after it lifted
+  if (tut.pending) { const k = tut.pending; tut.pending = null; qualSpawn(k); return; }
   tut.t += dt;
   const st = QUAL[tut.stage];
   if (st.card === 'move') {
+    // the control check has no hazard to gate on, so its disc is fired by hand.
+    // updateTutorial runs only outside the boot intro, so this lands the moment the
+    // warp-in settles and the pads are already the player's.
+    if (qualDisc('move')) return;
     // land each lit target's assigned node inside the zap window, and HOLD;
     // the final rep lights both at once (both must be covered together)
     const A = tut.aim, TOLm = ARCFX.span * tolVis;
@@ -247,7 +310,7 @@ function updateTutorial(dt) {
     return;
   }
   if (!live && !tut.retry) {
-    if (tut.queue.length) { if (tut.t > 0.7) { tut.t = 0; qualSpawn(tut.queue.shift()); } }
+    if (tut.queue.length) { if (tut.t > 0.7) { tut.t = 0; qualNext(tut.queue.shift()); } }
     else if (tut.t > 0.8) advanceQual();
   }
 }

@@ -221,6 +221,62 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
 - The fix is a bigger step budget on boss lanes, or a boss-aware signature. Neither is in
   F-013's scope. Until then, treat `--compatible` as unavailable for any boss change.
 
+### F-014 · The streamlined course does not teach players
+- **Date:** 2026-08-28 · **Source:** Gil, from player reports · **Status:** BUILT (2026-08-28)
+- **Feedback:** "we need to reinstate the tutorial explanation discs, the current
+  streamlined run doesn't work for players." A disc per lesson, and the disc must show
+  what to do **in animation**: emitter movement, interception, the three special
+  interdictors (purple, blue/white, linked), the volley, the power-up, the stream charge
+  and the pulse.
+- **Cause:** 6572c74 deleted the stage banners for a good reason — they stacked text over
+  the bore center, where the traffic arrives from. Nothing replaced the lesson; the riding
+  labels are a reminder, not an explanation. The disc renderer, the card table and
+  `showCard` all survived, unused by the course.
+- **Decision (Gil):** discs in the **qualification run only** — no campaign lane stops.
+  The volley gets a disc and a rep, but **on the armor stage**, not a stage of its own.
+  The dead zone gets a tenth disc. Each disc is a **full-size live diorama**, with the
+  words confined to the bottom quarter and the action kept clear of them.
+- **Solution:** ten field-briefing discs, one per drill kind, fired from the curriculum by
+  `qualDisc`/`qualNext` (70-update) and shown once per course via `tut.seen`. The disc's
+  upper three quarters run `drawDiscDemo` (91-briefing): a head-on diorama of the ring —
+  the rail, the two emitter carriages, traffic climbing out of the bore — looping the
+  correct move. `DISC_PLATE` fixes the words at the bottom quarter and the diorama's own
+  radius keeps the action off them. A field briefing is now the same size as a story disc.
+  - The volley rep is an armored tap with a plain red either side, all on one lane, all
+    inside `VOLLEY_BLAST_A`/`_Z`, slowed to `speedMul 0.55` so there is room to dock and
+    hold. Pinned in `scripts/test.js`.
+  - `TUT_LESSON`/`TUT_ACCENT` gained a volley line; its pad ghosts mark the ARMOR's
+    bearing, which is the only bearing the bolt should take.
+  - The demonstrations are draw-only and read the clock alone. They consume no RNG, so no
+    seeded board can move; the qualification is unranked in any case (`boardKey` → null).
+- **Two review fixes (Gil, same day):**
+  - A hostile in the diorama is a **TRIANGLE**, and it wears its **base toward the ring**
+    — the broad edge out where the player is, the apex tapering back down the bore. The
+    first attempt pointed the apex outward and read as an arrow flying AWAY; Gil caught it
+    on sight. The gold relay keeps the round body, so "coming at me" and "go and get it"
+    never share a silhouette.
+  - The ribbon lesson was a fixed squiggle with a dot walking down it: a picture of a
+    stream, not a ride. It is the sim's model now — the ribbon has a LENGTH in z, its
+    head closes on the ring, and from then on the ring plane walks along the ribbon. The
+    crossing angle wanders, the emitter holds it, and the gold ring on that carriage only
+    fills while the ribbon is actually running through the ring.
+- **Three more review fixes (Gil, same day):**
+  - **The purge wave ran backwards.** `firePulse` pushes a wave at `hitZ` and its depth
+    grows to the horizon, so `drawPulseWave` draws a front whose radius CLOSES toward the
+    middle — it is leaving. The demo expanded outward from the centre, which is the
+    picture of something arriving. Reversed, wake rings and all.
+  - **A loop dissolves, it does not cut.** `DEMO_FADE_IN`/`DEMO_FADE_OUT` run an envelope
+    over the whole lesson, so it fades out over the tail of its loop and back in over the
+    head. The BORE does not fade — it is the room, not the lesson, and a room that blinks
+    on every repeat is worse than the cut it replaced. Every loop length was retuned so no
+    payoff is still landing while the envelope closes.
+  - **The ribbon was a caricature.** `spawnStrip` rolls len 0.5–0.85, amp 0.22–0.5,
+    frq 2.2–4.2. The demo ran amp 0.80 over 2.2 of length — a hairpin no lane ever spawns.
+    It uses real rolls off that table now (0.85 / 0.30 / 3.0), and `shape()` is
+    `stripAngle` verbatim.
+- **Bench:** the ten discs, live, at the Drill Disc Bench artifact.
+
+
 ---
 
 ## DONE

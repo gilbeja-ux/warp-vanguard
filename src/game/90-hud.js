@@ -611,6 +611,7 @@ const TUT_LESSON = {
   normal: 'ALIGN EITHER EMITTER ON THE RED',
   wall:   'DEAD ZONE \u2014 GO AROUND',
   heavy:  'DOCK BOTH EMITTERS TOGETHER',
+  volley: 'DOCK BOTH AND HOLD \u2014 THE BOLT DETONATES',
   line:   'COVER BOTH ENDS \u2014 ONE EACH',
   lock0:  'ONLY THE MATCHING PHASE COLLAPSES IT',
   lock1:  'ONLY THE MATCHING PHASE COLLAPSES IT',
@@ -620,7 +621,7 @@ const TUT_LESSON = {
 };
 const TUT_ACCENT = {
   move: '143,224,255', normal: '255,96,120', wall: '255,154,60',
-  heavy: '143,224,255', line: '111,227,255', lock0: '95,150,255', lock1: '235,244,255',
+  heavy: '143,224,255', volley: '191,234,255', line: '111,227,255', lock0: '95,150,255', lock1: '235,244,255',
   pickup: '255,210,74', strip: '255,210,74', pulse: '255,210,74'
 };
 let tutFocusRef = null;           // which tut object the lesson state belongs to
@@ -644,8 +645,13 @@ function tutFocusDesc(st, ten) {
       const i = nodes[0] === (Math.abs(angDiff(nodes[0].angle, ten.angle)) <
         Math.abs(angDiff(nodes[1].angle, ten.angle)) ? nodes[0] : nodes[1]) ? 0 : 1;
       ghosts.push({ i, a: ten.angle, col: NODE_COLS[i] });
-    } else if (kind === 'heavy') {
-      ghosts.push({ i: 0, a: ten.angle, col: NODE_COLS[0] }, { i: 1, a: ten.angle, col: NODE_COLS[1] });
+    } else if (kind === 'heavy' || kind === 'volley') {
+      // the volley's mark is the ARMOR's bearing, not a neighbour's: that is where
+      // the dock has to sit for the bolt to hit the one body worth detonating on
+      const bod = kind === 'volley'
+        ? (enemies.find(e => e.tut === 'volley' && e.type === 'heavy' && !e.dead && !e.resolved) || ten)
+        : ten;
+      ghosts.push({ i: 0, a: bod.angle, col: NODE_COLS[0] }, { i: 1, a: bod.angle, col: NODE_COLS[1] });
     } else if (kind === 'line' && ten.partner) {
       // each pad takes the end its node is nearer — the same neutral the guide uses
       const aA = ten.angle, aB = ten.partner.angle;

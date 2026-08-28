@@ -258,6 +258,514 @@ function drawWarpCollapse(g) {
 // (the green wash, its secured hoops, its clean-traffic motes and its wavefront
 // are all gone with it — about 60 lines of ring and gradient work per frame that
 // the arrival is better without)
+// ---------- THE FIELD BRIEFING'S DEMONSTRATION ----------
+// A drill disc does not show a PICTURE of the threat any more. It shows the MOVE.
+//
+// The upper three quarters of the disc are a live diorama of the ring, seen down
+// the bore exactly as the player sees it: the rail is a circle, the two emitters
+// are arcs riding it, and traffic climbs out of the middle toward you. A short
+// loop then plays the correct answer — slide, dock, hold, dodge, tap — over and
+// over, so the lesson is a gesture rather than a sentence about one. The words
+// keep the bottom quarter and nothing above it (see DISC_PLATE).
+//
+// Everything here is DRAW-ONLY and reads the clock alone. No RNG, no sim state:
+// a disc that consumed a draw would move every seeded board (see the note over
+// drawDiscWorld, and the RNG law in the memory this repo keeps).
+const DISC_STAGE_Y = -0.16;   // the diorama's centre, as a share of R off the disc's
+const DISC_STAGE_R = 0.66;    // …and its radius. Its rail's floor (0.32R) clears the plate.
+const DISC_PLATE = 0.40;      // the words start here — the bottom quarter, no higher
+
+// the bore's perspective, one line, shared by every mark in the diorama: z is the
+// sim's own depth, 1 far away and 0 at the ring
+const dPersp = z => 1 / (1 + Math.max(0, z) * 2.6);
+const dSeg = (t, a, b) => clamp((t - a) / (b - a), 0, 1);      // a phase's own 0→1
+const dEase = t => t * t * (3 - 2 * t);                        // smoothstep
+const dSlide = (t, a, b, a0, a1) => a0 + angDiff(a1, a0) * dEase(dSeg(t, a, b)); // shortest way round
+// A LOOP EACH, TUNED TO ITS OWN STORY. A demonstration that restarts before its
+// point lands teaches nothing, and one that idles afterwards reads as broken.
+// Each is its own payoff plus one short breath — a loop that idles after its point
+// lands reads as a picture that has stopped working.
+// Each is its own payoff, then a breath, then DEMO_FADE_OUT to dissolve in — a
+// payoff still landing while the envelope is closing reads as the loop cutting it off.
+const DEMO_LOOP = {
+  move: 4.0, normal: 3.5, wall: 4.9, heavy: 4.0, volley: 4.1,
+  line: 4.2, lock: 4.5, pickup: 3.8, strip: 5.2, pulse: 4.4
+};
+// the colour coding is the game's, not the diorama's — a red here that is not the
+// lane's red teaches the wrong tell
+const DEMO_COL = {
+  normal: '255,60,90', heavy: '200,70,255', lock0: '80,170,255',
+  lock1: '235,244,255', gold: '255,210,74'
+};
+const dRail = Rs => Rs * 0.72;
+const DOCK_GAP = 0.13;   // half the sim's dock window — see the armor lesson
+
+// the bore: rings receding to the middle, and the rail the emitters ride
+function demoBore(Rs) {
+  const rail = dRail(Rs);
+  for (let k = 1; k <= 5; k++) {
+    const z = k / 5 * 1.6;
+    ctx.strokeStyle = 'rgba(96,158,224,' + (0.16 - k * 0.022).toFixed(3) + ')';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(0, 0, rail * dPersp(z), 0, TAU); ctx.stroke();
+  }
+  const gl = ctx.createRadialGradient(0, 0, 0, 0, 0, rail * 0.5);
+  gl.addColorStop(0, 'rgba(120,190,255,0.16)');
+  gl.addColorStop(1, 'rgba(120,190,255,0)');
+  ctx.fillStyle = gl;
+  ctx.beginPath(); ctx.arc(0, 0, rail * 0.5, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(120,200,255,0.34)';
+  ctx.lineWidth = Math.max(1.5, Rs * 0.016);
+  ctx.beginPath(); ctx.arc(0, 0, rail, 0, TAU); ctx.stroke();
+}
+// an emitter carriage on the rail, with the arc it covers
+function demoNode(Rs, i, a, span) {
+  const rail = dRail(Rs), col = NODE_COLS[i], sp = span || 0.30;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(' + col + ',0.20)';
+  ctx.lineWidth = Rs * 0.12;
+  ctx.beginPath(); ctx.arc(0, 0, rail, a - sp, a + sp); ctx.stroke();
+  ctx.strokeStyle = 'rgba(' + col + ',0.80)';
+  ctx.lineWidth = Rs * 0.038;
+  ctx.beginPath(); ctx.arc(0, 0, rail, a - sp, a + sp); ctx.stroke();
+  const x = Math.cos(a) * rail, y = Math.sin(a) * rail;
+  ctx.fillStyle = NODE_HEX[i];
+  ctx.beginPath(); ctx.arc(x, y, Rs * 0.055, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.beginPath(); ctx.arc(x, y, Rs * 0.020, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+// a hostile in the bore. `kind` picks its colour, `z` its depth.
+function demoThreat(Rs, a, z, kind, opt) {
+  const o = opt || {}, p = dPersp(z), rail = dRail(Rs);
+  const x = Math.cos(a) * rail * p, y = Math.sin(a) * rail * p;
+  const s = Rs * 0.185 * (0.40 + 0.60 * p) * (o.scale || 1);
+  const col = DEMO_COL[kind] || DEMO_COL.normal;
+  ctx.save();
+  if (o.alpha !== undefined) ctx.globalAlpha *= o.alpha; // multiply: the loop envelope is already on
+  const gl = ctx.createRadialGradient(x, y, 0, x, y, s * 2.4);
+  gl.addColorStop(0, 'rgba(' + col + ',0.42)');
+  gl.addColorStop(1, 'rgba(' + col + ',0)');
+  ctx.fillStyle = gl;
+  ctx.beginPath(); ctx.arc(x, y, s * 2.4, 0, TAU); ctx.fill();
+  // A HOSTILE IS A TRIANGLE, and it wears its BASE toward the ring — the broad edge
+  // out where you are, the apex tapering back down the bore. Gil's call, 2026-08-28,
+  // and the second half of it corrected the first: apex-outward read as an arrow
+  // flying AWAY. A relay is the one round body in the diorama (opt.hex), so
+  // "coming at me" and "go and get it" never share a silhouette.
+  ctx.translate(x, y);
+  ctx.rotate(a - (o.hex ? -time * 0.5 : Math.PI / 2));
+  ctx.beginPath();
+  if (o.hex) {
+    for (let i = 0; i < 6; i++) {
+      const ha = i / 6 * TAU + Math.PI / 6;
+      i ? ctx.lineTo(Math.cos(ha) * s, Math.sin(ha) * s) : ctx.moveTo(Math.cos(ha) * s, Math.sin(ha) * s);
+    }
+  } else { // after the quarter turn local -y is INWARD: apex up the bore, base at the ring
+    ctx.moveTo(0, -s * 1.15);
+    ctx.lineTo(s * 0.98, s * 0.72);
+    ctx.lineTo(-s * 0.98, s * 0.72);
+  }
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(10,6,16,0.88)'; ctx.fill();
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgb(' + col + ')';
+  ctx.lineWidth = Math.max(1.2, s * 0.24); ctx.stroke();
+  ctx.restore();
+  return { x, y, s };
+}
+// the interception arc, carriage to hostile
+function demoZap(Rs, a, z, i, k) {
+  if (k >= 1) return;                    // spent — the same guard demoPop keeps
+  const rail = dRail(Rs), p = dPersp(z);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = 'rgba(' + NODE_COLS[i] + ',' + (0.95 * (1 - k)).toFixed(2) + ')';
+  ctx.lineWidth = Math.max(1.5, Rs * 0.030 * (1 - k));
+  ctx.beginPath();
+  for (let s2 = 0; s2 <= 6; s2++) {
+    const q = s2 / 6, r = lerp(rail, rail * p, q);
+    const w = Math.sin(q * 9 + time * 30) * Rs * 0.030 * Math.sin(q * Math.PI);
+    const x = Math.cos(a) * r - Math.sin(a) * w, y = Math.sin(a) * r + Math.cos(a) * w;
+    s2 ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+// what a kill leaves behind: one expanding ring, gone in a third of a second
+function demoPop(Rs, a, z, k, col) {
+  if (k >= 1) return;
+  const rail = dRail(Rs), p = dPersp(z);
+  const x = Math.cos(a) * rail * p, y = Math.sin(a) * rail * p;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = 'rgba(' + (col || '191,234,255') + ',' + (0.9 * (1 - k)).toFixed(2) + ')';
+  ctx.lineWidth = Math.max(1, Rs * 0.026 * (1 - k));
+  ctx.beginPath(); ctx.arc(x, y, Rs * (0.05 + k * 0.22), 0, TAU); ctx.stroke();
+  ctx.restore();
+}
+// A DIAL, MINIATURISED. Only the movement disc draws these: every other lesson is
+// about the ring, and this one is about the thing the thumb does to it.
+function demoDial(Rs, i, a, moving) {
+  // OUTBOARD AND LOW, where the real dials sit and clear of the rail — a dial drawn
+  // inside the bore reads as one more thing flying at you
+  const dx = (i ? 1 : -1) * Rs * 1.02, dy = Rs * 0.46, dr = Rs * 0.16;
+  ctx.save();
+  ctx.translate(dx, dy);
+  ctx.fillStyle = 'rgba(8,14,28,0.72)';
+  ctx.beginPath(); ctx.arc(0, 0, dr * 1.5, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(120,200,255,0.26)'; ctx.lineWidth = Math.max(1.5, Rs * 0.030);
+  ctx.beginPath(); ctx.arc(0, 0, dr, 0, TAU); ctx.stroke();
+  const x = Math.cos(a) * dr, y = Math.sin(a) * dr;
+  // the thumb first, the knob over it — a pad UNDER the finger is what a thumb looks like
+  ctx.fillStyle = 'rgba(230,245,255,' + (moving ? 0.26 : 0.12) + ')';
+  ctx.beginPath(); ctx.arc(x, y, dr * 0.62, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(' + NODE_COLS[i] + ',' + (moving ? 1 : 0.6) + ')';
+  ctx.beginPath(); ctx.arc(x, y, dr * 0.26, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+
+// ---------- the ten lessons ----------
+// Each takes (Rs, t) with t already wrapped to that lesson's own loop.
+const DEMO = {
+  // SLIDE THE DIALS. One thumb at a time, then the ring answers — the only lesson
+  // that draws the dials, because the dial IS the lesson.
+  move(Rs, t) {
+    const bMove = t > 0.4 && t < 1.8, wMove = t > 2.0 && t < 3.4;
+    const aB = dSlide(t, 0.4, 1.8, -2.45, -0.95);
+    const aW = dSlide(t, 2.0, 3.4, 0.95, 2.45);
+    demoNode(Rs, 0, aB); demoNode(Rs, 1, aW);
+    demoDial(Rs, 0, aB, bMove); demoDial(Rs, 1, aW, wMove);
+  },
+  // ALIGN EITHER EMITTER. The nearest thumb goes and meets it at the rim.
+  normal(Rs, t) {
+    const A = -1.9, hit = 2.4;
+    const aB = dSlide(t, 0.5, 1.9, A + 1.9, A);
+    demoNode(Rs, 1, 1.4);
+    demoNode(Rs, 0, aB);
+    if (t < hit) demoThreat(Rs, A, 1 - dSeg(t, 0, hit), 'normal');
+    else { demoZap(Rs, A, 0, 0, dSeg(t, hit, hit + 0.28)); demoPop(Rs, A, 0, dSeg(t, hit, hit + 0.55)); }
+  },
+  // DOCK BOTH. Two thumbs converge on one bearing and the armor gives.
+  // DOCK_GAP: docked is docked to within 0.26 rad in the sim, and the diorama keeps
+  // the outside of that — two carriages landing on the same pixel read as one.
+  heavy(Rs, t) {
+    const A = -1.6, hit = 2.8;
+    demoNode(Rs, 0, dSlide(t, 0.6, 2.0, A - 2.2, A - DOCK_GAP));
+    demoNode(Rs, 1, dSlide(t, 0.9, 2.3, A + 2.2, A + DOCK_GAP));
+    if (t < hit) demoThreat(Rs, A, 1 - dSeg(t, 0, hit), 'heavy');
+    else {
+      demoZap(Rs, A, 0, 0, dSeg(t, hit, hit + 0.28));
+      demoZap(Rs, A, 0, 1, dSeg(t, hit, hit + 0.28));
+      demoPop(Rs, A, 0, dSeg(t, hit, hit + 0.6), '200,70,255');
+    }
+  },
+  // DOCK AND HOLD. The same dock, kept — and the bolt takes the neighbours too.
+  volley(Rs, t) {
+    const A = -1.6, zHold = 0.42, rail = dRail(Rs);
+    const z = 1 - dSeg(t, 0, 2.2) * (1 - zHold);
+    const dock = dSeg(t, 0.4, 1.6);
+    demoNode(Rs, 0, dSlide(t, 0.4, 1.6, A - 2.0, A - DOCK_GAP));
+    demoNode(Rs, 1, dSlide(t, 0.4, 1.6, A + 2.0, A + DOCK_GAP));
+    // the charge: a white coil winding tighter on the docked bearing
+    if (dock >= 1 && t < 2.2) {
+      const k = dSeg(t, 1.6, 2.2);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = 'rgba(220,242,255,' + (0.25 + 0.6 * k).toFixed(2) + ')';
+      ctx.lineWidth = Math.max(1.5, Rs * 0.030);
+      ctx.beginPath(); ctx.arc(Math.cos(A) * rail, Math.sin(A) * rail, Rs * (0.20 - 0.13 * k), 0, TAU);
+      ctx.stroke();
+      ctx.restore();
+    }
+    const gone = t >= 2.9;
+    if (!gone) {
+      // scaled down: at the trio's depth a full-size mark is wider than the 0.5 rad
+      // gap between them, and three bodies that overlap read as one
+      for (const [da, ty] of [[0, 'heavy'], [-0.5, 'normal'], [0.5, 'normal']])
+        demoThreat(Rs, A + da, z, ty, { scale: 0.68 });
+      // the bolt, running down the bore on the docked bearing
+      if (t > 2.2) {
+        const bz = lerp(0, zHold, dSeg(t, 2.2, 2.9));
+        const p = dPersp(bz);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = 'rgba(230,248,255,0.95)';
+        ctx.beginPath(); ctx.arc(Math.cos(A) * rail * p, Math.sin(A) * rail * p, Rs * 0.05, 0, TAU); ctx.fill();
+        ctx.restore();
+      }
+    } else { // THE DETONATION. One flash over the whole trio, then the three pops —
+      // three lone rings read as three separate kills, which is the opposite of the
+      // point: this is ONE shot taking three bodies.
+      const k = dSeg(t, 2.9, 3.5);
+      const p = dPersp(zHold);
+      const fx2 = Math.cos(A) * rail * p, fy2 = Math.sin(A) * rail * p;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const fg = ctx.createRadialGradient(fx2, fy2, 0, fx2, fy2, Rs * (0.16 + k * 0.42));
+      fg.addColorStop(0, 'rgba(240,252,255,' + (0.85 * (1 - k)).toFixed(2) + ')');
+      fg.addColorStop(0.45, 'rgba(150,210,255,' + (0.35 * (1 - k)).toFixed(2) + ')');
+      fg.addColorStop(1, 'rgba(120,190,255,0)');
+      ctx.fillStyle = fg;
+      ctx.beginPath(); ctx.arc(fx2, fy2, Rs * (0.16 + k * 0.42), 0, TAU); ctx.fill();
+      ctx.restore();
+      for (const da of [0, -0.5, 0.5]) demoPop(Rs, A + da, zHold, k, '191,234,255');
+    }
+  },
+  // COVER BOTH ENDS. One emitter per end, and the tether between them is the tell.
+  line(Rs, t) {
+    const A = -2.3, B = A + 1.5, hit = 3.0;
+    demoNode(Rs, 0, dSlide(t, 0.5, 1.9, A - 1.8, A));
+    demoNode(Rs, 1, dSlide(t, 0.8, 2.2, B + 1.8, B));
+    if (t < hit) {
+      const z = 1 - dSeg(t, 0, hit), p = dPersp(z), rail = dRail(Rs);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,60,90,0.55)';
+      ctx.lineWidth = Math.max(1.5, Rs * 0.026);
+      ctx.setLineDash([Rs * 0.07, Rs * 0.05]);
+      ctx.lineDashOffset = -time * Rs * 0.9;
+      ctx.beginPath(); ctx.arc(0, 0, rail * p, A, B); ctx.stroke();
+      ctx.restore();
+      demoThreat(Rs, A, z, 'normal'); demoThreat(Rs, B, z, 'normal');
+    } else {
+      const k = dSeg(t, hit, hit + 0.6);
+      demoZap(Rs, A, 0, 0, dSeg(t, hit, hit + 0.28));
+      demoZap(Rs, B, 0, 1, dSeg(t, hit, hit + 0.28));
+      demoPop(Rs, A, 0, k); demoPop(Rs, B, 0, k);
+    }
+  },
+  // ONLY THE MATCHING PHASE. The wrong emitter is shown ARRIVING and being refused
+  // — a lesson about a rejection has to show the rejection.
+  lock(Rs, t) {
+    const A = -1.7, hit = 3.4, rail = dRail(Rs);
+    const z = t < hit ? 1 - dSeg(t, 0, hit) : 0;
+    // white goes first and is turned away; blue, the matching phase, collapses it
+    const aW = t < 1.9 ? dSlide(t, 0.3, 1.3, A + 2.2, A) : dSlide(t, 1.9, 2.5, A, A + 2.2);
+    demoNode(Rs, 1, aW);
+    demoNode(Rs, 0, dSlide(t, 2.2, 3.2, A - 2.2, A));
+    if (t < hit) {
+      demoThreat(Rs, A, z, 'lock0');
+      if (t > 1.5 && t < 1.95) { // refused: a bar across the wrong emitter's approach
+        const k = dSeg(t, 1.5, 1.95), p = dPersp(z);
+        const x = Math.cos(A) * rail * p, y = Math.sin(A) * rail * p, s = Rs * 0.15;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,120,140,' + (0.9 * (1 - k)).toFixed(2) + ')';
+        ctx.lineWidth = Math.max(2, Rs * 0.030); ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x - s, y - s); ctx.lineTo(x + s, y + s);
+        ctx.moveTo(x + s, y - s); ctx.lineTo(x - s, y + s);
+        ctx.stroke();
+        ctx.restore();
+      }
+    } else {
+      demoZap(Rs, A, 0, 0, dSeg(t, hit, hit + 0.28));
+      demoPop(Rs, A, 0, dSeg(t, hit, hit + 0.6), '80,170,255');
+    }
+  },
+  // CATCH THE GOLD RELAY — and then watch what it bought: both arcs grow.
+  pickup(Rs, t) {
+    const A = -2.0, hit = 2.4;
+    const wide = 0.30 + 0.16 * dEase(dSeg(t, hit, hit + 0.5));
+    demoNode(Rs, 0, dSlide(t, 0.5, 1.9, A + 1.8, A), wide);
+    demoNode(Rs, 1, 1.5, wide);
+    if (t < hit) demoThreat(Rs, A, 1 - dSeg(t, 0, hit), 'gold', { scale: 0.85, hex: true });
+    else demoPop(Rs, A, 0, dSeg(t, hit, hit + 0.5), '255,210,74');
+  },
+  // RIDE THE CROSSING POINT. The ribbon meanders, the emitter tracks its head, and
+  // the meter that fills is the pulse the ride is paying for.
+  strip(Rs, t) {
+    // THE RIBBON FLIES IN AND IS EATEN AT THE RING. It used to be drawn as a fixed
+    // squiggle with a dot walking down it, which is a picture of a stream, not a
+    // ride: nothing was being consumed and the emitter had nothing to chase.
+    //
+    // Now it is the sim's own model. The ribbon has a LENGTH in z. Its head closes
+    // on the ring first; from then on the RING PLANE walks along the ribbon, and the
+    // crossing point is wherever the ribbon happens to be at that instant. That
+    // wandering angle is the thing the emitter has to hold, and holding it is the ride.
+    const A = -1.5, rail = dRail(Rs);
+    // THE GAME'S OWN RIBBON, NOT A CARICATURE OF ONE. `spawnStrip` rolls len 0.5–0.85,
+    // amp 0.22–0.5 and frq 2.2–4.2, and `stripAngle` is angle + amp·sin(k·frq + ph).
+    // The first pass ran amp 0.80 over 2.2 of length — nearly a full cycle at more
+    // than three times the amplitude, a hairpin no lane ever spawns. These are real
+    // rolls off that table, at the generous end so the ride still has somewhere to go.
+    const LEN = 0.85, AMP = 0.30, FRQ = 3.0, PH = 0.45;
+    const zFar = 1.8;                    // where the head starts
+    const IN0 = 0.2, IN1 = 1.3;          // the approach…
+    const RIDE1 = 4.0;                   // …and the ride, which ends when the tail passes
+    const shape = ss => A + AMP * Math.sin(ss * FRQ + PH);   // stripAngle, verbatim
+    // the head's depth: down to the ring, then on past it as the tail is drawn through
+    const zh = t < IN1 ? lerp(zFar, 0, dEase(dSeg(t, IN0, IN1)))
+                       : -LEN * dSeg(t, IN1, RIDE1);
+    const sCross = Math.max(0, -zh);     // which part of the ribbon is at the ring NOW
+    const aCross = shape(sCross);
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (const [w2, col, al] of [[Rs * 0.062, '255,180,40', 0.45], [Rs * 0.022, '255,235,170', 0.9]]) {
+      ctx.strokeStyle = 'rgba(' + col + ',' + al + ')';
+      ctx.lineWidth = w2;
+      ctx.beginPath();
+      for (let k = 0; k <= 30; k++) {    // only the part still in front of you
+        const ss = lerp(sCross, LEN, k / 30), p = dPersp(zh + ss), aa = shape(ss);
+        const x = Math.cos(aa) * rail * p, y = Math.sin(aa) * rail * p;
+        k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    // THE CROSSING POINT. On the approach it is the head, out in the bore; once the
+    // ride starts it is pinned to the rail, because that is where the ring is.
+    const cz = Math.max(0, zh), cp = dPersp(cz);
+    const cx2 = Math.cos(aCross) * rail * cp, cy2 = Math.sin(aCross) * rail * cp;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const hg = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, Rs * 0.14);
+    hg.addColorStop(0, 'rgba(255,255,255,0.95)');
+    hg.addColorStop(1, 'rgba(255,210,74,0)');
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.arc(cx2, cy2, Rs * 0.14, 0, TAU); ctx.fill();
+    ctx.restore();
+    demoNode(Rs, 1, A + Math.PI);       // the other thumb, parked well clear of the ride
+    demoNode(Rs, 0, aCross);            // …and this one glued to the live crossing point
+    // WHAT THE RIDE PAYS, shown on the carriage that earned it: a gold ring closing
+    // around the blue emitter, and it only fills while the ribbon is actually running
+    // through the ring.
+    const fill = dSeg(t, IN1, RIDE1);
+    const nx = Math.cos(aCross) * rail, ny = Math.sin(aCross) * rail;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,210,74,' + (0.5 + 0.45 * fill).toFixed(2) + ')';
+    ctx.lineWidth = Math.max(2, Rs * 0.028); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(nx, ny, Rs * 0.105, -Math.PI / 2, -Math.PI / 2 + TAU * fill); ctx.stroke();
+    ctx.restore();
+    if (t > RIDE1) demoPop(Rs, aCross, 0, dSeg(t, RIDE1, RIDE1 + 0.6), '255,210,74'); // banked
+  },
+  // A GLOWING ORB: TAP TO FIRE. The crowd is held, the pad pings, and the wave
+  // leaves the ring and races AWAY down the bore.
+  //
+  // DIRECTION MATTERS AND IT WAS WRONG. `firePulse` pushes a wave at `hitZ` and its
+  // depth grows to the horizon (72-tick), so `drawPulseWave` draws a front whose
+  // radius is ring(wv.z) — starting wide at the rail and CLOSING toward the middle.
+  // The first pass here expanded outward from the centre, which is the picture of
+  // something arriving at you. Gil caught it on sight.
+  pulse(Rs, t) {
+    const AS = [-2.6, -1.6, -0.5, 0.7, 2.0], rail = dRail(Rs);
+    const z = 0.62 - 0.44 * dSeg(t, 0, 1.6);   // the crowd closes, then the hold
+    const fired = t >= 2.2;
+    const wz = fired ? lerp(0, 1.5, dEase(dSeg(t, 2.2, 3.3))) : 0;  // the front's own depth
+    demoNode(Rs, 1, 2.6);
+    demoNode(Rs, 0, -0.05);
+    if (fired) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const k2 = dSeg(t, 2.2, 3.3);
+      // the wake: rings trailing BEHIND the front, so nearer you and therefore wider
+      for (let w = 4; w >= 1; w--) {
+        const zt = wz - w * 0.10;
+        if (zt < 0) continue;
+        ctx.strokeStyle = 'rgba(255,210,74,' + (0.30 * (1 - w / 5) * (1 - k2)).toFixed(2) + ')';
+        ctx.lineWidth = Math.max(1.5, Rs * 0.05 * dPersp(zt));
+        ctx.beginPath(); ctx.arc(0, 0, rail * dPersp(zt), 0, TAU); ctx.stroke();
+      }
+      // the front itself, hot and closing
+      for (const [w2, col] of [[0.075, '255,210,74'], [0.030, '255,244,200'], [0.010, '255,255,255']]) {
+        ctx.strokeStyle = 'rgba(' + col + ',' + (0.9 * (1 - k2 * 0.5)).toFixed(2) + ')';
+        ctx.lineWidth = Math.max(1, Rs * w2 * (0.4 + dPersp(wz)));
+        ctx.beginPath(); ctx.arc(0, 0, rail * dPersp(wz), 0, TAU); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    for (const a of AS) {
+      // a body is taken once the front has gone PAST its depth
+      if (fired && wz >= z) { demoPop(Rs, a, z, dSeg(t, 2.2 + z * 0.7, 2.2 + z * 0.7 + 0.5), '255,210,74'); continue; }
+      demoThreat(Rs, a, z, 'normal');
+    }
+    if (!fired) { // the charged pad, pinging for the tap
+      const pu = 1 + Math.sin(time * 7) * 0.14;
+      const x = Math.cos(-0.05) * rail, y = Math.sin(-0.05) * rail;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const og = ctx.createRadialGradient(x, y, 0, x, y, Rs * 0.22 * pu);
+      og.addColorStop(0, 'rgba(255,255,255,0.95)');
+      og.addColorStop(0.45, 'rgba(255,210,74,0.75)');
+      og.addColorStop(1, 'rgba(255,210,74,0)');
+      ctx.fillStyle = og;
+      ctx.beginPath(); ctx.arc(x, y, Rs * 0.22 * pu, 0, TAU); ctx.fill();
+      ctx.restore();
+      if (t > 1.7) { // the tap ripple that spends it
+        const k = dSeg(t, 1.7, 2.2);
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * (1 - k)).toFixed(2) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, Rs * (0.08 + k * 0.22), 0, TAU); ctx.stroke();
+        ctx.restore();
+      }
+    }
+  },
+  // GO AROUND. The one drill whose answer is NOT to arrive: the emitter reaches the
+  // clamp's edge, is refused, and takes the long way instead.
+  wall(Rs, t) {
+    const A = 1.4, span = 0.5, rail = dRail(Rs);
+    // the clamp: a hazard-striped span the rail has lost
+    ctx.save();
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = 'rgba(255,120,30,0.40)'; ctx.lineWidth = Rs * 0.16;
+    ctx.beginPath(); ctx.arc(0, 0, rail, A - span, A + span); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,154,60,0.95)'; ctx.lineWidth = Rs * 0.075;
+    ctx.beginPath(); ctx.arc(0, 0, rail, A - span, A + span); ctx.stroke();
+    ctx.strokeStyle = 'rgba(30,12,4,0.7)'; ctx.lineWidth = Math.max(1, Rs * 0.016);
+    for (let k = 0; k <= 6; k++) {
+      const a = A - span + k * (span * 2 / 6);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a - 0.05) * rail * 0.92, Math.sin(a - 0.05) * rail * 0.92);
+      ctx.lineTo(Math.cos(a + 0.05) * rail * 1.08, Math.sin(a + 0.05) * rail * 1.08);
+      ctx.stroke();
+    }
+    ctx.restore();
+    const edge = A - span - 0.25;                 // the near lip of the seized span
+    // THE LONG WAY IS THE POINT, so it is a sweep the short way is not allowed to
+    // take: the carriage reaches the near lip, is refused, and then travels the
+    // whole rest of the rail to arrive at the far lip.
+    const aIn = dSlide(t, 0.4, 1.6, edge - 2.0, edge);
+    const aRound = edge - (TAU - (span * 2 + 0.5)) * dEase(dSeg(t, 2.1, 4.4));
+    // ONE CARRIAGE ONLY. The lesson is a route, and a second emitter parked on that
+    // route is read as part of it.
+    demoNode(Rs, 0, t < 2.1 ? aIn : aRound);
+    if (t > 1.6 && t < 2.15) { // refused at the edge
+      const k = dSeg(t, 1.6, 2.15), s = Rs * 0.12;
+      const x = Math.cos(edge + 0.18) * rail, y = Math.sin(edge + 0.18) * rail;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,120,30,' + (0.95 * (1 - k)).toFixed(2) + ')';
+      ctx.lineWidth = Math.max(2, Rs * 0.030); ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x - s, y - s); ctx.lineTo(x + s, y + s);
+      ctx.moveTo(x + s, y - s); ctx.lineTo(x - s, y + s);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+};
+// ONE ENTRY POINT, and it never draws outside its own stage: the caller has already
+// clipped to the disc, and DISC_STAGE_R keeps the action clear of the plate.
+// A LOOP DISSOLVES, IT DOES NOT CUT. A demonstration that snaps back to frame one
+// reads as a glitch, and the eye goes to the snap instead of the move. So the
+// lesson fades out over the tail of its loop and fades back in over the head.
+// The BORE does not fade: it is the room, not the lesson, and a room that blinks
+// with every repeat is worse than the cut it replaced.
+const DEMO_FADE_IN = 0.32, DEMO_FADE_OUT = 0.55;
+function drawDiscDemo(kind, cx, cy, Rs) {
+  const play = DEMO[kind] || DEMO.normal;
+  const loop = DEMO_LOOP[kind] || 4;
+  // the clock restarts with the disc, so the demonstration always opens on its
+  // first beat rather than halfway through whatever the sim clock happened to be
+  const t = Math.max(0, time - infoShownAt) % loop;
+  const env = Math.min(dSeg(t, 0, DEMO_FADE_IN), 1 - dSeg(t, loop - DEMO_FADE_OUT, loop));
+  ctx.save();
+  ctx.translate(cx, cy);
+  demoBore(Rs);
+  ctx.globalAlpha = env;
+  play(Rs, t);
+  ctx.restore();
+}
 function drawInfoCard() {
   const c = INFO_CARDS[infoCard];
   if (!c) return;
@@ -283,14 +791,18 @@ function drawInfoCard() {
   const zin = 1 + (bk + 1) * Math.pow(inQ - 1, 3) + bk * Math.pow(inQ - 1, 2);
   const sc2 = (0.3 + 0.7 * zin) * (1 - 0.75 * outQ * outQ);
   ctx.translate(g.cx, g.cy); ctx.scale(sc2, sc2); ctx.translate(-g.cx, -g.cy);
-  // A STORY DISC IS THE WHOLE SCREEN'S JOB — size it like one. nodeR*0.9 was
+  // A DISC IS THE WHOLE SCREEN'S JOB — size it like one. nodeR*0.9 was
   // measurably smaller than the map lens the player just left (menuGeom's R at
   // 0.92, the same rim the mode wheel wears), and the step down read as the
   // picture shrinking on the way to the lane. Same formula, same 0.92, so the
-  // deploy keeps one disc size from selection through briefing. Field
-  // briefings keep the tighter plate: they interrupt a live lane, and a
-  // threat card wants to sit INSIDE the ring it is talking about.
-  const R = isStory ? Math.min(H * 0.47, W * 0.30) * 0.92 : g.nodeR * 0.9;
+  // deploy keeps one disc size from selection through briefing.
+  //
+  // A FIELD BRIEFING IS THE SAME SIZE NOW. It used to keep a tighter plate, on the
+  // grounds that it interrupted a live lane and wanted to sit inside the ring it
+  // was talking about. It no longer interrupts anything: the only cards left are
+  // the qualification's drill discs, and each one parks the course to run a
+  // DEMONSTRATION (drawDiscDemo). A demonstration needs the room.
+  const R = Math.min(H * 0.47, W * 0.30) * 0.92;
   const maxW = R * 1.33; // text never wider than ~2/3 of the disc (the old 60%-of-ring, kept proportional)
   const bg = ctx.createRadialGradient(g.cx, g.cy, R * 0.25, g.cx, g.cy, R);
   bg.addColorStop(0, 'rgba(6,11,24,0.93)');
@@ -307,32 +819,58 @@ function drawInfoCard() {
     ctx.beginPath(); ctx.arc(g.cx, g.cy, R * 0.97, a - 0.22, a + 0.22); ctx.stroke();
   }
   // shrink type until it honors the width budget
-  const fit = (weight, px2, text) => {
+  const fit = (weight, px2, text, wLim) => {
+    const lim = wLim || maxW;
     let fs = px2 + 1;
     do { fs--; ctx.font = weight + ' ' + fs + 'px Audiowide, system-ui'; }
-    while (fs > 8 && ctx.measureText(text).width > maxW);
+    while (fs > 8 && ctx.measureText(text).width > lim);
     return fs;
   };
   ctx.textAlign = 'center';
   if (isStory) drawStoryDisc(c, g, R);
-  else { // FIELD BRIEFING: a threat model, named, with its drill
+  else { // FIELD BRIEFING: the move, demonstrated, over a plate that names it
+    const Rc = R * 0.965;                                   // the mask, just inside the border ring
+    const half = y => Math.sqrt(Math.max(1, Rc * Rc - y * y)); // the chord, half-width
+    const plateTop = g.cy + R * DISC_PLATE;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, Rc, 0, TAU); ctx.clip();
+    drawDiscDemo(infoCard, g.cx, g.cy + R * DISC_STAGE_Y, R * DISC_STAGE_R);
+    // THE PLATE. It fades in over the last of the stage rather than butting against
+    // it, so the demonstration is not cut off by a hard edge, and it is opaque from
+    // its own top down — words on a moving field are words nobody reads.
+    const cg = ctx.createLinearGradient(g.cx, plateTop - R * 0.08, g.cx, plateTop + R * 0.04);
+    cg.addColorStop(0, 'rgba(3,7,16,0)');
+    cg.addColorStop(1, 'rgba(3,7,16,0.94)');
+    ctx.fillStyle = cg;
+    ctx.fillRect(g.cx - Rc, plateTop - R * 0.08, Rc * 2, R * 0.12);
+    ctx.fillStyle = 'rgba(3,7,16,0.94)';
+    ctx.fillRect(g.cx - Rc, plateTop + R * 0.04, Rc * 2, Rc);
+    ctx.restore();
+    // the seam, the same hairline a mission disc draws where its art meets its caption
+    ctx.strokeStyle = 'rgba(140,230,255,0.20)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(g.cx - half(R * DISC_PLATE), plateTop - 0.5);
+    ctx.lineTo(g.cx + half(R * DISC_PLATE), plateTop - 0.5);
+    ctx.stroke();
     try { ctx.letterSpacing = '3px'; } catch (e) {}
     ctx.fillStyle = 'rgba(140,210,255,0.7)';
-    fit('700', 11, 'FIELD BRIEFING');
-    ctx.fillText('FIELD BRIEFING', g.cx, g.cy - R * 0.64);
+    fit('700', Math.max(9, Math.round(R * 0.052)), 'FIELD BRIEFING', R * 0.9);
+    ctx.fillText('FIELD BRIEFING', g.cx, g.cy - R * 0.855);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
-    drawInfoGlyph(infoCard, g.cx, g.cy - R * 0.33, Math.min(R * 0.16, 40));
+    // the words live in the bottom quarter and nowhere else — every baseline below
+    // is measured off the plate, so moving DISC_PLATE moves the whole block with it
+    const tw = half(R * 0.74) * 2 - R * 0.10;
     ctx.fillStyle = '#eafaff';
     try { ctx.letterSpacing = '2px'; } catch (e) {}
-    fit('800', 22, c.title);
-    ctx.fillText(c.title, g.cx, g.cy + R * 0.06);
+    fit('800', Math.max(11, Math.round(R * 0.105)), c.title, tw);
+    ctx.fillText(c.title, g.cx, g.cy + R * 0.53);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
     ctx.fillStyle = 'rgba(190,225,255,0.88)';
     const cl = c.lines || [];
-    let lf = 15;
+    let lf = Math.max(9, Math.round(R * 0.062)) + 1;
     do { lf--; ctx.font = '500 ' + lf + 'px Audiowide, system-ui'; }
-    while (lf > 8 && Math.max(0, ...cl.map(l => ctx.measureText(l).width)) > maxW);
-    cl.forEach((ln, i) => ctx.fillText(ln, g.cx, g.cy + R * 0.2 + i * (lf + 3)));
+    while (lf > 8 && Math.max(0, ...cl.map(l => ctx.measureText(l).width)) > tw);
+    cl.forEach((ln, i) => ctx.fillText(ln, g.cx, g.cy + R * 0.645 + i * (lf + 4)));
   }
   // a mission disc spends its middle on art and readings, so the hint sits lower
   // and quieter — down where the disc has narrowed to little else.
@@ -340,10 +878,10 @@ function drawInfoCard() {
   // it now — the tap went with the screen it used to lead to. A controller
   // keeps the tap wording: A still dismisses, and its sticks grip through.
   const hint = preRun && !gpSeen ? 'TAKE THE CONTROLS' : 'TAP TO CONTINUE';
-  const tapY = g.cy + R * (isStory ? TAP_K : 0.66);
+  const tapY = g.cy + R * (isStory ? TAP_K : 0.87);
   ctx.fillStyle = 'rgba(140,230,255,' + (0.5 + Math.sin(time * 4) * 0.3).toFixed(2) + ')';
   try { ctx.letterSpacing = isStory ? '2px' : '3px'; } catch (e) {}
-  fit('700', isStory ? 9 : 12, hint);
+  fit('700', isStory ? 9 : Math.max(9, Math.round(R * 0.048)), hint);
   ctx.fillText(hint, g.cx, tapY);
   if (gpSeen) drawPadHint(g.cx + ctx.measureText(hint).width / 2 + 22, tapY - 4, 'A');
   try { ctx.letterSpacing = '0px'; } catch (e) {}

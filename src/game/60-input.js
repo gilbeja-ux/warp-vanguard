@@ -749,7 +749,10 @@ function startQualification(holdMusic) {
   levelIdx = -1; endless = false; qual = true; spawnRng = Math.random;
   LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.40,
          doubles: 0, heavies: 0, lines: 0, colors: 0 };
-  tut = { stage: 0, t: 0, queue: [], retry: null, spawned: null };
+  // `seen` is the disc ledger and `pending` the drill a disc is holding back —
+  // both live on the tut object, so a fresh course is a fresh pupil (qualDisc,
+  // 70-update).
+  tut = { stage: 0, t: 0, queue: [], retry: null, spawned: null, seen: {}, pending: null };
   resetRun();
   // CONTROLS CHECK: bring each node onto a lit target on the ring — the
   // control lesson in the game's OWN language (position a node; then both

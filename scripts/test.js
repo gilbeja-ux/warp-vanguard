@@ -155,6 +155,8 @@ code = code.replace("'use strict';", '') + `
   WARP_LAUNCH: () => WARP_LAUNCH, BOOT_LOCK: () => BOOT_LOCK, INTRO_DUR: () => INTRO_DUR,
   music: () => ({ src: musicSrc, gain: musicGain, key: currentTrackKey, ac: AC, warm: warmKey }),
   bolts: () => bolts, hitStop: () => hitStop, fx, pickups: () => pickups, spawnPickup,
+  // the volley blast's two semi-axes — the volley drill's trio is pinned against them
+  VOLLEY_BLAST_A, VOLLEY_BLAST_Z,
   boss: () => boss, endlessCfg, tut: () => tut, isEndless: () => endless, getLV: () => LV,
   BEAM_BURST: () => BEAM_BURST, // the ray's birth window — it is ray-charge.mp3's length, so it moves when the take is re-cut
   // the ONE renderer for a level's display name — pinned end to end at the bottom of this file
@@ -235,7 +237,7 @@ code = code.replace("'use strict';", '') + `
   setPadHold: (a, b) => { padHold[0] = a; padHold[1] = b; }, isLaunched: () => introLatch,
   getPreT: () => preT, isPreLaunch: () => preLaunch(),
   getBuzzN: () => buzzMonN, getBuzzLast: () => buzzMonLast, // counted before the haptics gate
-  startQualification, getInfoCard: () => infoCard, isQual: () => qual,
+  startQualification, getInfoCard: () => infoCard, showInfoCard: showCard, isQual: () => qual,
   NODE_SLEW, dragGhostState, // the one travel rate, and the drill ghost's appear/retire logic
   startEnlistment, enlist: () => enlist, enlistTap, enlistScript, enlistTypeDur, ENLIST_HOLD, ENLIST_MIN, parkedSky,
   getPaintN: () => paintN, getVsyncEst: () => vsyncEst,
@@ -2312,14 +2314,38 @@ check('weekly defeat records the weekly best and streak', G.getState() === G.S.E
   G.progress.weekly.best === 777 && G.progress.weekly.streak >= 1 && Math.random !== undefined);
 
 // ================= qualification =================
-// the FREE-FLOW curriculum: no briefing discs — stage banners + in-world
-// guides while the run keeps moving; the pulse drill freezes the run for
-// the FIRE-PULSE moment
+// THE CURRICULUM SHOWS BEFORE IT ASKS. Every drill opens on one disc that runs a
+// live demonstration of the move (drawDiscDemo, 91-briefing) and then hands the
+// course back; the in-world labels, dock spots and pad ghosts still carry the
+// reminder while the run moves. The pulse drill additionally freezes the run for
+// the FIRE-PULSE moment.
 G.progress.tutorialDone = false;
 G.startQualification();
 G.update(0.05);
-check('qualification opens straight into play on the movement drill',
-  G.getState() === G.S.PLAY && G.isQual() && G.qualStage().card === 'move');
+check('qualification opens on the movement disc',
+  G.getState() === G.S.INFO && G.isQual() && G.getInfoCard() === 'move'
+  && G.qualStage().card === 'move');
+// EVERY DISC IS DRAWN, not just fired: the demonstration is 300 lines of new canvas
+// work per lesson and a throw in any one of them takes the whole course down.
+for (const k of ['move', 'normal', 'wall', 'heavy', 'volley', 'line', 'lock', 'pickup', 'strip', 'pulse'])
+  drawOk('field briefing disc: ' + k, () => { G.setState(G.S.INFO); G.showInfoCard(k); });
+G.setState(G.S.INFO); G.showInfoCard('move'); // put the course back where it was
+// pass a disc: assert the right one is up, dismiss it, and let the run resume
+function passDisc(key) {
+  let dg = 240;
+  while (dg-- > 0 && G.getState() !== G.S.INFO) G.update(0.05);
+  check('the ' + key + ' drill opens on its own disc',
+    G.getState() === G.S.INFO && G.getInfoCard() === key);
+  G.dismissInfo();
+  for (let i = 0; i < 8; i++) G.update(0.05); // the out-animation, then S.PLAY
+  return G.getState() === G.S.PLAY;
+}
+check('dismissing the movement disc hands the course back',
+  passDisc('move') && G.qualStage().card === 'move');
+// A DISC SHOWS ONCE PER COURSE. The colour locks share one, and no do-over repeats
+// any of them — that ledger is `tut.seen`, and it lives on the tut object so a
+// fresh qualification is a fresh pupil.
+check('the movement disc does not fire twice', G.tut().seen.move === 1);
 
 // THE DRILL GHOST: a thumb that demonstrates the drag, for whoever is stuck.
 // Every gate here has an inverted twin that silently shows nothing (or shows it
@@ -2391,10 +2417,13 @@ function zapPractice() {
   }
   check('landing both nodes on their targets completes the control check', G.qualStage().card === 'normal');
 }
+passDisc('normal');
 check('practice trap 1 spawns and dies', waitLive(4) && zapPractice());
+// …and the SECOND rep of the same drill gets no second disc
 check('practice trap 2 spawns and dies', waitLive(4) && zapPractice());
 // the practice wall lands in the same flow — steer clear until it burns off
 {
+  passDisc('wall');
   let wg0 = 200;
   while (wg0-- > 0 && !G.latches().length) G.update(0.05);
   check('the practice wall lands in the early flow', G.latches().length === 1);
@@ -2404,25 +2433,52 @@ check('practice trap 2 spawns and dies', waitLive(4) && zapPractice());
   check('routing around the practice wall completes the lesson', !G.latches().length && G.tut() && !G.tut().retry);
 }
 settle();
-check('heavy drill begins without a disc stop', G.getState() === G.S.PLAY && G.qualStage().card === 'heavy');
+check('armor drill begins', G.qualStage().card === 'heavy');
+passDisc('heavy');
 check('heavy practice: dock together breaks it at the rim', waitLive(4) && zapPractice());
+// THE VOLLEY RIDES THE ARMOR STAGE — one disc, one rep, no stage of its own. The
+// trio is an armored tap with a plain red either side, all on one lane and all
+// inside the blast's reach, so the held dock takes three bodies at once. If the
+// volley is ever promoted to a stage of its own this fails, and so does the
+// one-demand-per-lane law it was folded in to respect.
+{
+  passDisc('volley');
+  check('the volley rep still belongs to the armor stage', G.qualStage().card === 'heavy');
+  check('the volley trio spawns', waitLive(5));
+  const vol = G.enemies().filter(e => e.tut === 'volley' && !e.dead);
+  const armor = vol.filter(e => e.type === 'heavy');
+  check(`the trio is one armor plus two reds (${vol.length} bodies, ${armor.length} armored)`,
+    vol.length === 3 && armor.length === 1);
+  // every neighbour inside the blast's ellipse, on both axes — the lesson is the
+  // detonation, and a trio the blast cannot reach demonstrates a plain bolt
+  const reach = armor.length === 1 && vol.every(e =>
+    Math.abs(angDiff(e.angle, armor[0].angle)) <= G.VOLLEY_BLAST_A
+    && Math.abs(e.z - armor[0].z) <= G.VOLLEY_BLAST_Z);
+  check('and every body sits inside the blast the bolt will make', reach);
+  // fly it the way the disc demonstrates: dock both emitters on the armor, hold
+  let vg = 400;
+  while (vg-- > 0 && G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved)) {
+    const live = G.enemies().find(e => e.tut === 'volley' && e.type === 'heavy' && !e.dead) ||
+                 G.enemies().find(e => e.tut === 'volley' && !e.dead);
+    if (live) { aim(0, live.angle); aim(1, live.angle); }
+    G.update(0.05);
+  }
+  check('the held dock clears the whole trio',
+    !G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved));
+}
 settle();
 check('barrier drill begins', G.qualStage().card === 'line');
+passDisc('line');
 check('barrier practice: node per end', waitLive(4) && zapPractice());
 settle();
 check('color-lock drill begins', G.qualStage().card === 'lock');
+passDisc('lock');
 check('blue-lock practice', waitLive(4) && zapPractice());
+// the two locks are one lesson, so the second rep gets no disc of its own
 check('white-lock practice', waitLive(4) && zapPractice());
 settle();
-// THE VOLLEY DRILL IS GONE ON PURPOSE — the curriculum steps straight from the
-// colour locks to the power-up. The unite-volley itself is untouched and still
-// covered above ("the volley punches through reds too"); what was removed is
-// only the stage that taught it. This assertion is the guard: if a volley drill
-// ever creeps back into QUAL, the pickup stage stops following the locks and
-// this fails.
-check('the curriculum steps from colour locks straight to the power-up',
-  G.qualStage().card === 'pickup'
-  && !G.enemies().some(e => e.tut === 'volley'));
+check('the power-up follows the colour locks', G.qualStage().card === 'pickup');
+passDisc('pickup');
 waitLive(4);
 {
   const pp = G.pickups().find(p2 => p2.tut && !p2.done);
@@ -2434,6 +2490,7 @@ waitLive(4);
 settle();
 check('bonus-stream drill begins', G.qualStage().card === 'strip');
 {
+  passDisc('strip');
   // ride the ribbon: keep the blue node glued to the crossing point
   const spawned = waitLive(5);
   let sGuard = 600, st;
@@ -2466,6 +2523,9 @@ check('bonus-stream drill begins', G.qualStage().card === 'strip');
 {
   let oGuard = 200; // ~10s; the advance needs !live && tut.t > 0.8
   while (oGuard-- > 0 && G.qualStage().card !== 'pulse') G.update(0.05);
+  // the purge column is pre-spawned, so its disc opens the stage and the column
+  // lands on the step after it lifts
+  passDisc('pulse');
   const vol = G.enemies().filter(e => e.tut === 'pulse');
   const live = vol.filter(e => !e.dead);
   check(`pulse drill: the purge volley is already inbound (${live.length} traps, card ${G.qualStage().card})`,
