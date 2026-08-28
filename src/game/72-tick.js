@@ -666,8 +666,22 @@ function updateLatches(dt, inIntro, ringXY, nodeXY) {
 // It pays like any volley kill (volleyKill), so the pulse economy stays
 // interception's alone, and the blast never chains: only the bolt's own direct
 // hit detonates.
-const VOLLEY_BLAST_Z = 0.20;  // semi-axis along the bore
-const VOLLEY_BLAST_A = 0.90;  // semi-axis around the ring, radians
+// THE SIZE, MEASURED (2026-08-28). 0.20 / 0.90 was a blast in name only. Across
+// 4062 traffic snapshots taken from every non-boss lane, live neighbours sit a
+// MEDIAN 0.61 apart in depth and 1.66 rad apart in angle, so an ellipse with a
+// 0.20 semi-axis in depth reached past nobody: it paid 0.03 extra kills on a
+// well-aimed shot and the bolt's own 0.30 rad corridor did all the work. A
+// weapon that parks both thumbs for half a second and then sits out 1.25s has
+// to pay more than one red, or nobody spends it — and nobody did.
+//
+// 0.70 / 2.00 is the settled size. It pays about 1.0 extra kills on a well-aimed
+// shot, takes three or more bodies on 38% of them, and tops out near 8 on a
+// crowded lane. The bench keeps climbing above that, but the DRAWN region is the
+// limit, not the arithmetic: at 1.00 / 2.40 the ellipse swallows the whole bore
+// and reads as a screen wipe, which is the objection that rules out a full ring
+// above.
+const VOLLEY_BLAST_Z = 0.70;  // semi-axis along the bore
+const VOLLEY_BLAST_A = 2.00;  // semi-axis around the ring, radians
 const volleyFX = [];          // draw-only, see drawVolleyBlasts
 // Whether the blast may take this one. Kept beside the bolt's own filter above,
 // which must stay in step with it — one law, two callers.

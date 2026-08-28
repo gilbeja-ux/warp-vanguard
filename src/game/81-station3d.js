@@ -146,6 +146,26 @@ class S3Mesh {
     }
     return this;
   }
+  // SCALE IN THE WALL PLANE ONLY. A breach body has two directions it may grow in
+  // freely — down the lane and into the bore — and one it may not, because that is
+  // the axis the player aims along. This scales X and Y and leaves Z alone, so a
+  // hull can be widened without its plate turning into a block.
+  //
+  // Normals take the INVERSE scale, not the same one: a diagonal transform sends a
+  // normal to n/s, renormalised. Scaling them forward tilts every lit face the
+  // wrong way and the shading slides off the geometry.
+  scaleXY(k) {
+    if (!k || k === 1) return this;
+    for (let i = 0; i < this.P.length; i += 3) { this.P[i] *= k; this.P[i + 1] *= k; }
+    const ik = 1 / k;
+    for (let i = 0; i < this.N.length; i += 3) {
+      const x = this.N[i] * ik, y = this.N[i + 1] * ik, z = this.N[i + 2];
+      const l = Math.hypot(x, y, z) || 1;
+      this.N[i] = x / l; this.N[i + 1] = y / l; this.N[i + 2] = z / l;
+    }
+    for (const L of this.lamps) L.p = [L.p[0] * k, L.p[1] * k, L.p[2]];
+    return this;
+  }
   // …and YAW, for pointing a stood-up gate somewhere other than straight at the lens.
   // Applied after rotX, so a gate's mouth swings from facing the camera round to
   // facing left or right — which is the axis a per-location facing would move.
@@ -889,6 +909,298 @@ function s3_lchhub(M, seed) {
   return M;
 }
 
+// ---------------------------------------------------------------- THE BREACH
+// A breach tap is the same KIND of object as a station — machined hardware with a
+// sun on it — and it is built here so it shares one renderer, one shadow map and
+// one set of materials with everything else in the lane. What differs is where it
+// sits. A tap lies FLUSH on the tunnel wall, so its camera is not the stations'
+// steep 3/4. It grazes the plate at exactly the foreshortening the live painter
+// has always applied to on-wall parts:
+//
+//   plate in XY   ->  screen (x, -y * sin el)   squashed onto the wall
+//   auger on +Z   ->  screen (0, -z * cos el)   standing into the bore
+//
+// with `el = asin(ENEMYFX.squash)`. A sprite rotated in 2D onto the tunnel's
+// inward direction then lands exactly where the procedural body drew, and the
+// game never carries two ideas of the camera. The number is written out rather
+// than read from ENEMYFX because this region is lifted into labs that hold no
+// game state; scripts/test.js pins the two together.
+const S3_BREACH_SQ = 0.36;                    // == ENEMYFX.squash
+const S3_BREACH_EL = Math.asin(S3_BREACH_SQ);
+//
+// HOW BIG A BODY MAY GET, AND IN WHICH DIRECTION.
+//
+// A tap sits on a wall with two axes, and only ONE of them is the axis the player
+// aims along. Growing ACROSS the lane eats into the emitter's coverage window and
+// starts telling the player to STRADDLE a trap the rule says to centre on — the
+// breach lab's aim gate measures exactly that, against ARCFX.span. Growing INTO
+// the bore costs nothing: a drill reaching for the axis is pure presence.
+//
+// So the two dials are separate on purpose. `wide` is rationed, and rationed per
+// hull because the heavy starts closest to the line. `tall` is where the size
+// actually comes from.
+const BR_WIDE = { BRTAP: 1.08, BRHVY: 1.00, BRANC: 1.02 };
+const BR_TALL = 2.35;                        // drill and horn reach, into the bore
+//
+// THE ORIGIN IS THE PUNCTURE. World [0,0,0] is the point the tap is driven
+// through, and it projects to the sprite's centre — so the draw side needs no
+// anchor table, only a translate and a rotate.
+//
+// COLOUR IS NEVER BAKED. Red, blue, white and purple are the gameplay language
+// and belong to the instance, not to the hull. Every type-coloured surface is an
+// `fx` material: the bake hands back a coverage mask and the live draw tints
+// through it — the same bargain the gate's throat and the leech's lamp make. In
+// the sprite those surfaces are dark machined channels, which is what they are.
+//
+// THE ORANGE IS DELIBERATELY QUIET. A station wears hazard paint to be seen; a
+// tap wearing it competes with the one colour the player has to read, so here it
+// is worn trim on a corner, never a band round the hull.
+function s3brPal(M) {
+  const CUT = { m: 'cyl', f: [104, 17, 0], w: 0.05 };
+  return {
+    case:  M.mat({ a: [ 52,  55,  62], g: 44, s: 0.50, pl: CUT, jit: 0.26, grime: 0.84 }),
+    case2: M.mat({ a: [ 33,  35,  41], g: 34, s: 0.38, pl: CUT, jit: 0.32, grime: 0.90 }),
+    dark:  M.mat({ a: [ 17,  19,  23], g: 24, s: 0.24, jit: 0.42, grime: 0.92 }),
+    steel: M.mat({ a: [146, 150, 158], g: 66, s: 0.68, jit: 0.34, grime: 0.52 }),
+    mid:   M.mat({ a: [ 74,  78,  86], g: 40, s: 0.46, jit: 0.44, grime: 0.78 }),
+    haz:   M.mat({ a: [150,  70,  28], g: 28, s: 0.32, jit: 0.24, grime: 0.78 }),
+    // the cutting edge and the bite points stay bright: they are the only parts
+    // still being worn, so they are the only parts still clean
+    bite:  M.mat({ a: [198, 200, 205], g: 74, s: 0.74, jit: 0.18, grime: 0.26 }),
+    // THE LIVE SURFACE, and there is a lot of it. Recognisability is the whole job
+    // of the type colour, so it does not get one small light in the middle — it
+    // gets the WIDEST parts of the hull: the seat's rim band, veins across the
+    // deck, a lamp on every claw. Set into the metal and glossy, so the sprite
+    // still shows a machined channel with a specular in it and the live tint
+    // lights the channel rather than painting a flat outline on the hull.
+    live:  M.mat({ a: [ 20,  22,  27], g: 46, s: 0.40, e: 0, jit: 0, grime: 0.14, fx: 1 })
+  };
+}
+// A TRUNCATED CONE. The primitive set has no taper, and a drill built out of
+// stacked cylinders is a wedding cake: every step catches the key and the eye
+// counts the tiers instead of reading one point.
+function s3brCone(M, o, r0, r1, z0, z1, seg, m) {
+  M.part();
+  const dz = z1 - z0, dr = r1 - r0, sl = Math.hypot(dz, dr) || 1;
+  const nr = dz / sl, nz = -dr / sl;
+  const V = [];
+  for (let i = 0; i < seg; i++) {
+    const a = i / seg * 6.2831853, ca = Math.cos(a), sa = Math.sin(a);
+    const n = V3norm([ca * nr, sa * nr, nz]);
+    V.push([M.vert([o[0] + ca * r0, o[1] + sa * r0, z0], n, [i / seg * 2, 0]),
+            M.vert([o[0] + ca * r1, o[1] + sa * r1, z1], n, [i / seg * 2, 1])]);
+  }
+  for (let i = 0; i < seg; i++) {
+    const j = (i + 1) % seg;
+    M.tri(V[i][0], V[j][0], V[j][1], m); M.tri(V[i][0], V[j][1], V[i][1], m);
+  }
+}
+// THE AUGER — one long taper to a bare point, with three thin helical ribs
+// crawling it. No collar at the tip and no bead: the cutting edge is the last
+// stretch of the shaft, kept bright because it is the only part still in use.
+function s3brAuger(M, P, ox, oy, z0, len, r0) {
+  const o = [ox, oy, 0];
+  // A SHAFT, THEN A POINT — not one long taper. The old painter's spike held its
+  // thickness two thirds of the way up and then cut to nothing, and that is why it
+  // survived the horizon: a needle is detail, and detail is the first thing depth
+  // takes away.
+  s3brCone(M, o, r0,        r0 * 0.74, z0,              z0 + len * 0.46, 18, P.case);
+  s3brCone(M, o, r0 * 0.74, r0 * 0.44, z0 + len * 0.46, z0 + len * 0.78, 18, P.mid);
+  s3brCone(M, o, r0 * 0.44, 0.0,       z0 + len * 0.78, z0 + len,        18, P.bite);
+  for (let f = 0; f < 3; f++) for (let i = 0; i < 8; i++) {
+    const t = (i + 0.5) / 8;
+    if (t > 0.82) continue;
+    const a = f / 3 * 6.2831853 + t * 4.1;
+    const rr = r0 * (1 - t * 0.52) * 1.03;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    s3box(M, [ox + ca * rr, oy + sa * rr, z0 + len * t],
+      V3scl([ca, sa, 0], r0 * 0.13), V3scl([-sa, ca, 0], r0 * 0.22),
+      [0, 0, len * 0.036], t > 0.55 ? P.steel : P.mid);
+  }
+}
+// THE CLAWS. A plate with no fixings floats however well it is shaded, so every
+// hull is held down by hardware that reaches OUTSIDE its own skirt and bites.
+function s3brClaws(M, P, n, R, phase, big) {
+  const w = big ? 0.104 : 0.086, l = big ? 0.180 : 0.152;
+  for (let i = 0; i < n; i++) {
+    const a = i / n * 6.2831853 + phase, ca = Math.cos(a), sa = Math.sin(a);
+    const rad = [ca, sa, 0], tan = [-sa, ca, 0];
+    s3box(M, [ca * R, sa * R, 0.052], V3scl(rad, l), V3scl(tan, w), [0, 0, 0.044], P.case);
+    s3box(M, [ca * (R + l * 0.62), sa * (R + l * 0.62), 0.026],
+      V3scl(rad, l * 0.44), V3scl(tan, w * 0.72), [0, 0, 0.026], P.case2);
+    s3box(M, [ca * (R + l * 1.02), sa * (R + l * 1.02), 0.014],
+      V3scl(rad, l * 0.26), V3scl(tan, w * 0.54), [0, 0, 0.014], P.bite);   // the bite
+  }
+}
+// BOLT HEADS round a rim — the cheapest thing that says "this was driven in".
+function s3brBolts(M, m, n, R, z, r) {
+  for (let i = 0; i < n; i++) {
+    const a = (i + 0.5) / n * 6.2831853;
+    s3cyl(M, [Math.cos(a) * R, Math.sin(a) * R, z], [0, 0, 1], r, r * 0.55, 6, m, true);
+  }
+}
+// THE VEINS — the tap's haul running from the breech out to the rim, cut into the
+// deck as recessed channels. Six lines of colour crossing the widest face of the
+// hull. They stop short of the greeble deck so the hardware still reads on top.
+function s3brVeins(M, P, n, r0, r1, z, halfW, phase, ox) {
+  ox = ox || 0;
+  for (let i = 0; i < n; i++) {
+    const a = i / n * 6.2831853 + (phase || 0), ca = Math.cos(a), sa = Math.sin(a);
+    const rm = (r0 + r1) / 2;
+    s3box(M, [ox + ca * rm, sa * rm, z], V3scl([ca, sa, 0], (r1 - r0) / 2),
+      V3scl([-sa, ca, 0], halfW), [0, 0, 0.014], P.live);
+  }
+}
+// A CLAW LAMP — one live block on the upper face of each claw. These sit at the
+// OUTER silhouette, which is the part that survives the horizon, so they are what
+// still says "blue" when the body is nine pixels across.
+function s3brClawLamps(M, P, n, R, phase, big) {
+  const w = big ? 0.104 : 0.086, l = big ? 0.180 : 0.152;
+  for (let i = 0; i < n; i++) {
+    const a = i / n * 6.2831853 + phase, ca = Math.cos(a), sa = Math.sin(a);
+    s3box(M, [ca * (R + l * 0.10), sa * (R + l * 0.10), 0.098],
+      V3scl([ca, sa, 0], l * 0.52), V3scl([-sa, ca, 0], w * 0.60), [0, 0, 0.012], P.live);
+  }
+}
+
+// BRTAP — the standard tap. One seat, one breech, one drill. It is the
+// silhouette the other two are read against, so it is deliberately the plainest.
+function s3_brtap(M, seed) {
+  const rnd = s3rng(seed || 3313), P = s3brPal(M);
+  s3cyl(M, [0, 0, 0.026], [0, 0, 1], 0.700, 0.026, 6, P.case2, true);      // the seat
+  // THE RIM BAND — the widest ring on the hull, and the first thing that
+  // resolves out of the deep. It is a recess between the skirt and the armour,
+  // not a stripe painted round the outside.
+  s3brCone(M, [0, 0, 0], 0.712, 0.628, 0.044, 0.132, 6, P.live);
+  s3brCone(M, [0, 0, 0], 0.618, 0.520, 0.128, 0.176, 6, P.case);           // armoured rim
+  s3cyl(M, [0, 0, 0.166], [0, 0, 1], 0.516, 0.020, 18, P.dark, true);      // recessed deck
+  s3brVeins(M, P, 6, 0.344, 0.492, 0.176, 0.044, 0.524);
+  s3brClaws(M, P, 6, 0.700, 0.524, false);
+  s3brClawLamps(M, P, 6, 0.700, 0.524, false);
+  s3brBolts(M, P.steel, 6, 0.600, 0.126, 0.044);
+  s3greebleRing(M, 0.36, 0.50, 0.184, 7, [P.mid, P.dark, P.steel], rnd, { h: 0.070, h0: 0.026 });
+  s3box(M, [0.548, 0, 0.146], [0.082, 0, 0], [0, 0.066, 0], [0, 0, 0.018], P.haz);  // worn trim
+  // FOUR RECOIL STRUTS — the breech is braced back onto the seat, so the machine
+  // reads as something that was DRIVEN, not set down. They carry the silhouette
+  // between the plate and the shaft, which is where a flat decal used to be.
+  for (let i = 0; i < 4; i++) {
+    const a = i / 4 * 6.2831853 + 0.785, ca = Math.cos(a), sa = Math.sin(a);
+    s3beam(M, [ca * 0.500, sa * 0.500, 0.146], [ca * 0.250, sa * 0.250, 0.320], 0.048, P.mid);
+  }
+  s3cyl(M, [0, 0, 0.248], [0, 0, 1], 0.290, 0.086, 20, P.case, true);      // the breech
+  s3cyl(M, [0, 0, 0.196], [0, 0, 1], 0.342, 0.046, 20, P.live, false);     // breech channel
+  s3cyl(M, [0, 0, 0.346], [0, 0, 1], 0.208, 0.026, 20, P.steel, true);     // bearing cap
+  s3cyl(M, [0, 0, 0.386], [0, 0, 1], 0.196, 0.028, 18, P.live, false);     // the drill's collar
+  s3brAuger(M, P, 0, 0, 0.404, 0.660 * BR_TALL, 0.205);
+  return M.scaleXY(BR_WIDE.BRTAP);
+}
+
+// BRHVY — the heavy. TWIN drills, and that is the whole read: a trap that needs
+// two nodes is a trap with two heads.
+//
+// IT SPENDS ITS SIZE ON DEPTH AND HEIGHT, NEVER ON ANGLE. The wall has two axes
+// and only one of them is the thing the player aims at. A body wider than a
+// node's coverage window invites the player to STRADDLE it with the two
+// emitters, and the rule is the opposite — both nodes go on its one angle. So
+// the slab runs long down the LANE (build Y, which the wall foreshortens) and
+// stays inside the tap's angular footprint (build X), and the extra menace is
+// bought with taller drills instead. The lab's GATE overlay measures this
+// against ARCFX.span, so it can never drift back on somebody's eye.
+function s3_brhvy(M, seed) {
+  const rnd = s3rng(seed || 5119), P = s3brPal(M);
+  const X = [1, 0, 0], Y = [0, 1, 0];
+  const HX = 0.600, HY = 0.680;                       // half-extents: narrow, deep
+  s3box(M, [0, 0, 0.026], V3scl(X, HX), V3scl(Y, HY), [0, 0, 0.026], P.case2);
+  // THE EDGE BAND — segments cut into the perimeter, set UNDER the deck's
+  // overhang. An unbroken frame at deck height is a red outline painted round a
+  // grey box, which is the cartoon read this approach exists to avoid.
+  for (const sx of [-1, 1]) for (let i = 0; i < 4; i++)
+    s3box(M, [sx * (HX + 0.006), (i - 1.5) * 0.318, 0.064], V3scl(X, 0.026),
+      V3scl(Y, 0.112), [0, 0, 0.024], P.live);
+  for (const sy of [-1, 1]) for (let i = 0; i < 3; i++)
+    s3box(M, [(i - 1) * 0.352, sy * (HY + 0.006), 0.064], V3scl(X, 0.124),
+      V3scl(Y, 0.026), [0, 0, 0.024], P.live);
+  s3box(M, [0, 0, 0.114], V3scl(X, HX + 0.020), V3scl(Y, HY + 0.020), [0, 0, 0.026], P.case);
+  s3box(M, [0, 0, 0.156], V3scl(X, 0.472), V3scl(Y, 0.548), [0, 0, 0.020], P.dark);
+  // THE CLAWS. Four down the lane, where reach costs nothing the player reads,
+  // and one on each side kept inside the tap's own footprint.
+  for (const sy of [-1, 1]) for (const px of [-0.330, 0.330]) {
+    s3box(M, [px, sy * 0.700, 0.052], V3scl(X, 0.116), V3scl(Y, sy * 0.170), [0, 0, 0.044], P.case);
+    s3box(M, [px, sy * 0.858, 0.018], V3scl(X, 0.066), V3scl(Y, sy * 0.066), [0, 0, 0.018], P.bite);
+    s3box(M, [px, sy * 0.696, 0.100], V3scl(X, 0.078), V3scl(Y, sy * 0.136), [0, 0, 0.012], P.live);
+  }
+  for (const sx of [-1, 1]) {
+    s3box(M, [sx * 0.634, 0, 0.052], V3scl(X, sx * 0.086), V3scl(Y, 0.200), [0, 0, 0.044], P.case);
+    s3box(M, [sx * 0.744, 0, 0.018], V3scl(X, sx * 0.044), V3scl(Y, 0.084), [0, 0, 0.018], P.bite);
+    s3box(M, [sx * 0.630, 0, 0.100], V3scl(X, sx * 0.062), V3scl(Y, 0.164), [0, 0, 0.012], P.live);
+  }
+  // THE SPINE — an armoured cowl over the run between the two breeches, laid
+  // across the lane. It is the second silhouette read: a tap with a BACK, not
+  // two taps sharing a tray.
+  s3box(M, [0, 0, 0.226], V3scl(X, 0.176), V3scl(Y, 0.300), [0, 0, 0.086], P.case);
+  s3box(M, [0, 0, 0.324], V3scl(X, 0.126), V3scl(Y, 0.216), [0, 0, 0.026], P.mid);
+  for (const sy of [-1, 1])
+    s3box(M, [0, sy * 0.306, 0.256], V3scl(X, 0.166), V3scl(Y, 0.020), [0, 0, 0.046], P.live);
+  s3box(M, [0, 0.208, 0.202], V3scl(X, 0.084), V3scl(Y, 0.026), [0, 0, 0.030], P.haz);
+  s3greebleRing(M, 0.34, 0.50, 0.178, 7, [P.mid, P.dark, P.steel], rnd, { h: 0.064, h0: 0.024 });
+  for (const sx of [-1, 1]) {                         // TWO HEADS
+    s3brVeins(M, P, 5, 0.268, 0.392, 0.184, 0.038, 0.628, sx * 0.335);
+    s3cyl(M, [sx * 0.335, 0, 0.242], [0, 0, 1], 0.238, 0.086, 18, P.case, true);
+    s3cyl(M, [sx * 0.335, 0, 0.192], [0, 0, 1], 0.288, 0.044, 18, P.live, false);
+    s3cyl(M, [sx * 0.335, 0, 0.336], [0, 0, 1], 0.170, 0.024, 18, P.steel, true);
+    s3cyl(M, [sx * 0.335, 0, 0.374], [0, 0, 1], 0.160, 0.026, 16, P.live, false);
+    // taller than the tap's — the heavy buys its menace in HEIGHT, which costs
+    // the player nothing to read, instead of in width, which costs them the aim
+    s3brAuger(M, P, sx * 0.335, 0, 0.390, 0.780 * BR_TALL, 0.152);
+  }
+  return M.scaleXY(BR_WIDE.BRHVY);
+}
+
+const BR_ANC_TOP = 0.168 + (0.680 - 0.168) * BR_TALL;   // where the horns end
+// BRANC — the barrier anchor. No drill at all: it is a MOORING, and what it moors
+// is the energy wall strung to its partner. The horns stand clear of everything
+// else so the beam has somewhere visible to be tied to.
+function s3_branc(M, seed) {
+  const rnd = s3rng(seed || 7723), P = s3brPal(M);
+  s3cyl(M, [0, 0, 0.026], [0, 0, 1], 0.740, 0.026, 6, P.case2, true);
+  s3brCone(M, [0, 0, 0], 0.752, 0.668, 0.044, 0.128, 6, P.live);           // the rim band
+  s3brCone(M, [0, 0, 0], 0.658, 0.578, 0.124, 0.170, 6, P.case);
+  s3cyl(M, [0, 0, 0.160], [0, 0, 1], 0.572, 0.018, 18, P.dark, true);
+  s3brVeins(M, P, 6, 0.352, 0.532, 0.170, 0.046, 0.524);
+  s3brClaws(M, P, 6, 0.740, 0.524, true);
+  s3brClawLamps(M, P, 6, 0.740, 0.524, true);
+  s3brBolts(M, P.steel, 6, 0.640, 0.122, 0.046);
+  s3greebleRing(M, 0.32, 0.50, 0.176, 6, [P.mid, P.dark], rnd, { h: 0.058, h0: 0.022 });
+  s3box(M, [0.596, 0, 0.140], [0.082, 0, 0], [0, 0.062, 0], [0, 0, 0.016], P.haz);
+  // the winch: a drum lying across the plate, which is what the wall pays out from
+  s3cyl(M, [0, 0, 0.272], [1, 0, 0], 0.150, 0.230, 18, P.dark, true);
+  // THE SPOOL is the barrier itself, wound. So every other wrap is live: the
+  // colour on the drum is the wall it has not paid out yet, and it reads as
+  // wound hardware rather than a lens staring down the bore.
+  for (let i = 0; i < 7; i++)
+    s3cyl(M, [(i - 3) * 0.058, 0, 0.272], [1, 0, 0], i & 1 ? 0.182 : 0.174, 0.024, 18,
+      i & 1 ? P.live : P.case, false);
+  for (const sx of [-1, 1]) {
+    s3cyl(M, [sx * 0.252, 0, 0.272], [1, 0, 0], 0.196, 0.022, 14, P.case, true);  // cheeks
+    // THE HORNS, standing well clear of the drum so the outline reads as a
+    // MOORING and not as a lump. They lean apart, the way a bollard pair does.
+    // THE HORNS CARRY THE ANCHOR'S REACH. It has no drill, so its whole claim on
+    // the bore is how far these stand into it — the same free axis, spent the only
+    // way this hull can spend it.
+    s3beam(M, [sx * 0.330, 0, 0.168], [sx * 0.470, 0, BR_ANC_TOP], 0.062, P.case);
+    s3box(M, [sx * 0.470, 0, BR_ANC_TOP + 0.040], V3scl([1, 0, 0], 0.104), [0, 0.078, 0],
+      [0, 0, 0.044], P.steel);
+    // the horn's own channel, so the colour climbs the post to the tie bar
+    s3box(M, [sx * 0.418, 0, (0.168 + BR_ANC_TOP) / 2], V3scl([1, 0, 0], 0.024), [0, 0.066, 0],
+      [0, 0, (BR_ANC_TOP - 0.168) * 0.46], P.live);
+  }
+  // THE TIE POINT — the live bar the beam runs through, and the only coloured
+  // surface on the anchor. It sits at the horn tops, so the wall reads as strung
+  // between two posts rather than as light leaking out of a plate.
+  s3box(M, [0, 0, BR_ANC_TOP + 0.046], [0.386, 0, 0], [0, 0.048, 0], [0, 0, 0.030], P.live);
+  return M.scaleXY(BR_WIDE.BRANC);
+}
+
 const S3D_BUILDS = [
   { id: 'TRUSS', n: 'truss disc',    kind: 'station', cam: 0.40,  fn: s3_truss },
   { id: 'FORT',  n: 'fortress ring', kind: 'station', cam: 0.40,  fn: s3_fortress },
@@ -910,7 +1222,13 @@ const S3D_BUILDS = [
   // vertical degenerates the camera basis (cross with Z-up goes to zero).
   { id: 'LCHRIM',  n: 'leech sprocket', kind: 'boss', cam: 0.66, fn: s3_lchrim,  el: 1.45 },
   { id: 'LCHGEAR', n: 'leech bearing',  kind: 'boss', cam: 1.05, fn: s3_lchgear, el: 1.45 },
-  { id: 'LCHHUB',  n: 'leech housing',  kind: 'boss', cam: 1.02, fn: s3_lchhub,  el: 1.45 }
+  { id: 'LCHHUB',  n: 'leech housing',  kind: 'boss', cam: 1.02, fn: s3_lchhub,  el: 1.45 },
+  // kind 'breach' — the tunnel-wall hardware. Its camera GRAZES the plate (see
+  // S3_BREACH_EL) rather than standing over it, which is what lets a sprite
+  // rotated onto the bore's inward direction land flush on the wall.
+  { id: 'BRTAP', n: 'breach tap',     kind: 'breach', cam: 0.36, fn: s3_brtap, el: S3_BREACH_EL, oy: 0.78 },
+  { id: 'BRHVY', n: 'heavy tap',      kind: 'breach', cam: 0.33, fn: s3_brhvy, el: S3_BREACH_EL, oy: 0.86 },
+  { id: 'BRANC', n: 'barrier anchor', kind: 'breach', cam: 0.40, fn: s3_branc, el: S3_BREACH_EL, oy: 0.46 }
 ];
 
 // ---------------------------------------------------------------- the render
@@ -922,12 +1240,22 @@ function* s3renderSteps(M, opt) {
   const SS = opt.ss || 2;
   const W = (opt.w || 300) * SS, HH = (opt.h || 300) * SS;
   const S = (opt.scale || 120) * SS;
-  const cx = W * 0.5, cy = HH * 0.5;
+  // THE ORIGIN NEED NOT BE THE SPRITE'S CENTRE. A breach body is nearly all ABOVE
+  // its puncture — a drill reaching for the axis — so centring the origin throws
+  // away the bottom half of the sprite and renders the hull at half the pixels it
+  // could have had. `oy` slides the camera so the BODY centres instead, and the
+  // bake hands back `ay`: where the origin ended up, in output pixels below the
+  // middle. The draw side puts that point on the wall.
+  const cx = W * 0.5, cy = HH * 0.5 + (opt.oy || 0) * S;
   const el = opt.el === undefined ? H.el : opt.el, D = opt.dist || H.dist;
   const d = [0, -Math.cos(el), Math.sin(el)];
   const camR = V3norm(V3cross(S3_ZUP, d)), camU = V3cross(d, camR), V = V3scl(d, -1);
-  const L = V3norm([H.lx, H.ly, H.lz]);
-  const FIL = V3norm([H.filX, H.filY, H.filZ]);
+  // THE SUN, per bake. A build that is drawn at many orientations — a breach tap
+  // rides the whole way round the bore — needs one sprite per light direction, and
+  // patching the global between bakes cannot work: the generator reads S3D_LIGHT on
+  // its FIRST step, which is a frame after the driver set it up.
+  const L = V3norm(opt.sun || [H.lx, H.ly, H.lz]);
+  const FIL = V3norm(opt.fil || [H.filX, H.filY, H.filZ]);
   const SUN = [H.sun, H.sun * H.sunG, H.sun * H.sunB];
   const nP = M.P.length / 3, T = M.T, nT = T.length / 5;
   // The inverse of the stand-up/yaw the build was given AFTER its geometry was
@@ -1319,7 +1647,7 @@ function* s3renderSteps(M, opt) {
     const fc = field.getContext('2d');
     if (fc) fc.putImageData(fimg, 0, 0); else field = null;
   }
-  return { cv, S: outW, R: S / SS, lamps, field };
+  return { cv, S: outW, R: S / SS, lamps, field, ay: (opt.oy || 0) * (S / SS) };
 }
 // depth-only raster, for the shadow pass
 function s3rasterDepth(buf, W, H, ax, ay, az, bx, by, bz, cx, cy, cz) {
@@ -1714,13 +2042,28 @@ function s3mips(cv) {
   }
   return out;
 }
+// The breach queue, as a value rather than a side effect — one key per hull per
+// sun direction. Pinned by scripts/test.js: enqueue the bare ids instead and
+// every body draws with a highlight that orbits the player.
+function s3BreachKeys() {
+  const out = [];
+  for (const b of S3D_BUILDS) if (b.kind === 'breach')
+    for (let k = 0; k < BREACHFX.sunViews; k++) out.push(b.id + '@' + k);
+  return out;
+}
 function s3Enqueue() {
   if (s3Started) return;
   s3Started = true;
   // endpoints first — they are the ones a player is flying toward — then the rest
   const first = Object.keys(S3D_FINAL).map(c => S3D_FINAL[c]);
-  s3Queue = first.concat(S3D_BUILDS.map(b => b.id).filter(id => first.indexOf(id) < 0))
-    .filter((id, i, a) => a.indexOf(id) === i);
+  const rest = S3D_BUILDS.filter(b => b.kind !== 'breach').map(b => b.id);
+  // THE BREACH HULLS BAKE ONCE PER SUN DIRECTION, and their keys carry the view:
+  // `BRTAP@0`. A tap rides the whole way round the bore, so one sprite would carry
+  // its highlight round with it and the sun would orbit the player. Traffic goes
+  // LAST in the queue — a station is on screen the moment a contract opens, while
+  // a tap has a horizon to travel and a procedural stand-in until it arrives.
+  s3Queue = first.concat(rest.filter(id => first.indexOf(id) < 0))
+    .filter((id, i, a) => a.indexOf(id) === i).concat(s3BreachKeys());
 }
 // Spend up to `budget` ms. Returns true while there is still work to do.
 function s3Pump(budget) {
@@ -1732,9 +2075,17 @@ function s3Pump(budget) {
       const id = s3Queue.shift();
       if (!id) return false;
       if (s3Sprites[id]) continue;
-      const B = s3build(id);
-      const M = new S3Mesh();
+      // `BRTAP@2` is build BRTAP lit from sun direction 2. Everything else is a
+      // bare id and takes view -1, which means "the world's own sun".
+      const at = id.indexOf('@');
+      const view = at < 0 ? -1 : +id.slice(at + 1);
+      const B = s3build(at < 0 ? id : id.slice(0, at));
       const slow = typeof lowFX !== 'undefined' && lowFX;
+      // On a device asking for reduced effects, thin the sun strip out first: it
+      // is the one cost here that buys polish rather than legibility, and half a
+      // strip still beats a highlight that orbits.
+      if (view > 0 && slow && (view & 1)) { s3Sprites[id] = 'skip'; continue; }
+      const M = new S3Mesh();
       const ss = slow ? 1 : 2, ref = slow ? 200 : S3D_REF;
       // On a device already asking for reduced effects, thin the hardware out
       // too: the mesh build is the one step that cannot be sliced, so the only
@@ -1752,7 +2103,26 @@ function s3Pump(budget) {
       }
       catch (e) { S3D_LIGHT.detail = keep; s3Sprites[id] = 'fail'; continue; }
       S3D_LIGHT.detail = keep;
-      s3Job = { id, it: s3renderSteps(M, { w: ref, h: ref, ss, scale: ref * B.cam, el: B.el }) };
+      const opt = { w: ref, h: ref, ss, scale: ref * B.cam, el: B.el, oy: B.oy };
+      let beta;
+      if (view >= 0) {
+        // The key swung round the plate's own plane. `beta` is where that sun
+        // lands on the SPRITE in screen terms, which is the number the draw side
+        // needs to choose a view once the body has been rotated onto the bore.
+        const az = view / BREACHFX.sunViews * TAU, ce = Math.cos(BREACHFX.sunElev);
+        const L = [Math.cos(az) * ce, Math.sin(az) * ce, Math.sin(BREACHFX.sunElev)];
+        opt.sun = L;
+        opt.fil = [-L[0] * 0.6, -L[1] * 0.6, 0.55];
+        opt.sm = 640;
+        beta = Math.atan2(-(L[1] * Math.sin(B.el) + L[2] * Math.cos(B.el)), L[0]);
+      }
+      let reach;
+      if (view >= 0) {
+        let z1 = 0;
+        for (let i = 2; i < M.P.length; i += 3) if (M.P[i] > z1) z1 = M.P[i];
+        reach = z1 * Math.cos(B.el);
+      }
+      s3Job = { id, beta, reach, it: s3renderSteps(M, opt) };
       // Constructing the geometry is one long unchunked call — 38k triangles for
       // the drydock — so it gets the frame to itself. Rendering on the same slice
       // is what turns a long frame into a visibly dropped one.
@@ -1772,8 +2142,14 @@ function s3Pump(budget) {
         // the mouth moves to XZ, facing the lens, and the squash becomes cos(el):
         // nearly a circle. s3warp used to hardcode sin(el), which was right only for
         // as long as every gate lay flat.
-        const B2 = s3build(s3Job.id);
+        const at2 = s3Job.id.indexOf('@');
+        const B2 = s3build(at2 < 0 ? s3Job.id : s3Job.id.slice(0, at2));
         v.apUp = !!(B2 && B2.rotX);
+        if (s3Job.beta !== undefined) v.beta = s3Job.beta;
+        // HOW FAR THIS HULL REACHES INTO THE BORE, in world units on screen —
+        // the length the live core light runs. Taken off the bake so a longer
+        // drill lights its whole length without a second number to keep in step.
+        if (s3Job.reach !== undefined) v.reach = s3Job.reach;
         s3Sprites[s3Job.id] = v;
       }
       else { s3Sprites[s3Job.id] = 'fail'; s3Blocked = true; s3Job = null; return false; }
@@ -1784,8 +2160,26 @@ function s3Pump(budget) {
 }
 const s3SpriteFor = id => {
   const s = s3Sprites[id];
-  return s && s !== 'fail' ? s : null;
+  return s && s !== 'fail' && s !== 'skip' ? s : null;
 };
+// WHICH BAKED SUN TO USE, once a hull has been turned onto the bore.
+//
+// The sprite is rotated by `phi` to put its drill on the tunnel's inward
+// direction, and that carries its baked highlight round with it. So pick the view
+// whose sun, after that same rotation, lands closest to LIGHT_A — the one screen
+// angle every lit thing in this game agrees on. Falls back to whatever HAS baked,
+// so a half-finished strip still draws with one sun rather than none.
+function s3BreachView(id, phi) {
+  let best = null, bd = 1e9;
+  for (let k = 0; k < BREACHFX.sunViews; k++) {
+    const sp = s3SpriteFor(id + '@' + k);
+    if (!sp || sp.beta === undefined) continue;
+    let d = sp.beta + phi - LIGHT_A;
+    d = Math.abs(Math.atan2(Math.sin(d), Math.cos(d)));
+    if (d < bd) { bd = d; best = sp; }
+  }
+  return best;
+}
 
 // ---------- DRAWING ONE ----------
 // The sprite is the metal; the lamps go over it live. That split is the entire

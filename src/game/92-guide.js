@@ -16,6 +16,11 @@ function archBody(key, mk) { return ARCH_SPECIMENS[key] || (ARCH_SPECIMENS[key] 
 // its cell entirely and only the ring around it would grow. Rebase the scale on
 // the cell radius (0.135·min side is the reference cell these k values were
 // drawn against), so art and cage grow together.
+// The 0.135 reference IS the body scale — min(W,H)·0.06·ENEMYFX.size — so this
+// already tracks a change in ENEMYFX.size. The `k` values below do not: they were
+// tuned while the baked hull drew at 0.533 of its proper size, and putting the
+// body scale right made every specimen overflow its cell. They were re-tuned once,
+// against the corrected body, on 2026-08-28.
 const archArtK = (r, k) => k * r / (Math.min(W, H) * 0.135);
 function archTapSpec(key, type, lock, cx, cy, r, k) {
   // mounted at the BOTTOM of the private bore (angle +π/2, axis above), so the
@@ -33,16 +38,37 @@ function archTapSpec(key, type, lock, cx, cy, r, k) {
 }
 // (the dashed containment ring is gone — it cost every specimen the room it
 // enclosed, and the bodies read better at full size with their label beneath)
+// THE BARRIER, which needs both its ends at once and so cannot be one specimen.
+// Two anchors on one private bore with the running crack strung between them —
+// the same drawLineBeam the lane uses, so the page teaches the shape the lane
+// actually shows. The gap is tight on purpose: the pair has to sit in one column.
+function archLineSpec(key, cx, cy, r, k) {
+  const gap = 0.30;
+  const g2 = archWallG(cx, cy, r * 2.15, Math.PI / 2);
+  const mk = (kk, a) => archBody(kk, () => ({ type: 'line', lock: undefined, z: 0.25, z0: SPAWN_Z,
+    angle: a, arch: true, sizeMul: 1, speedMul: 1, spin: 0, spinMul: 1, age: 9,
+    dead: false, resolved: false, failed: false, partner: null }));
+  const e1 = mk(key + 'a', Math.PI / 2 - gap), e2 = mk(key + 'b', Math.PI / 2 + gap);
+  e1.partner = e2; e2.partner = e1; e1.lineLead = true;
+  ctx.save();
+  const s = archArtK(r, k);
+  ctx.translate(cx, cy); ctx.scale(s, s); ctx.translate(-cx, -cy);
+  drawLineBeam(e1, g2);
+  drawEnemy(e1, g2); drawEnemy(e2, g2);
+  ctx.restore();
+}
 // the lineup — color IS the guidance, so each caption wears its type's ink
 const GUIDE_ITEMS = [
   { cap: ['HIT WITH', 'ANY EMITTER'], col: '255,96,120',
-    draw: (cx, cy, r) => archTapSpec('n1', 'normal', undefined, cx, cy, r, 0.5) },
+    draw: (cx, cy, r) => archTapSpec('n1', 'normal', undefined, cx, cy, r, 0.395) },
   { cap: ['HIT WITH', 'BOTH EMITTERS'], col: '212,101,255',
-    draw: (cx, cy, r) => archTapSpec('hv', 'heavy', undefined, cx, cy, r, 0.46) },
+    draw: (cx, cy, r) => archTapSpec('hv', 'heavy', undefined, cx, cy, r, 0.329) },
   { cap: ['HIT WITH', 'BLUE ⊕'], col: '80,170,255',
-    draw: (cx, cy, r) => archTapSpec('lk0', 'normal', 0, cx, cy, r, 0.5) },
+    draw: (cx, cy, r) => archTapSpec('lk0', 'normal', 0, cx, cy, r, 0.395) },
   { cap: ['HIT WITH', 'WHITE ⊖'], col: '235,245,255',
-    draw: (cx, cy, r) => archTapSpec('lk1', 'normal', 1, cx, cy, r, 0.5) },
+    draw: (cx, cy, r) => archTapSpec('lk1', 'normal', 1, cx, cy, r, 0.395) },
+  { cap: ['ONE EMITTER', 'ON EACH END'], col: '255,96,120',
+    draw: (cx, cy, r) => archLineSpec('bar', cx, cy, r, 0.276) },
   { cap: ['RIDE TO', 'CHARGE PULSE'], col: '255,210,74',
     draw: (cx, cy, r) => { // the ribbon in its true 3D form: a STATIC snake of
       // wall arcs receding into a private bore (real wallPatch projection),

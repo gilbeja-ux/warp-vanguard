@@ -6,8 +6,18 @@ const INFO_PAL = {
   heavy:  { glow: '200,70,255',  shades: ['#b03ae8', '#8a2ad4', '#d465ff', '#6f14b8', '#c44af0'], core: '#b03ae8' },
   lock:   { glow: '80,170,255',  shades: ['#2f7fe0', '#1c4fae', '#4d9bff', '#12398a', '#3f8af0'], core: '#2f7fe0' }
 };
-// a miniature of the live tap hardware, for briefing cards
-function infoTap(r, pal, double) {
+// A MINIATURE OF THE LIVE TAP HARDWARE, for briefing cards.
+//
+// It draws the REAL baked hull wherever the strip has landed. A card that carries
+// its own idea of a tap teaches a shape the lane never shows, and the two drift
+// apart the moment either is touched. The vector miniature below is the stand-in
+// for a cold start, exactly as drawNailBreach stands in for the body itself.
+//
+// Mounted the way the field guide mounts a specimen — drill rising into the bore
+// — which is the sprite's own upright orientation, so it needs no rotation.
+function infoTap(r, pal, double, hull) {
+  if (typeof drawBreachHull === 'function' &&
+      drawBreachHull(hull || 'BRTAP', 0, 0, Math.PI / 2, r * 1.5, pal.glow, 1, null)) return;
   ctx.save();
   ctx.rotate(0.55);
   // hex port plate, squashed for depth
@@ -102,7 +112,7 @@ function drawInfoGlyph(kind, cx, cy, r) {
     ctx.setLineDash([]);
     for (const sx of [-off, off]) {
       ctx.save(); ctx.translate(sx, 0);
-      infoTap(r, INFO_PAL.normal, false);
+      infoTap(r, INFO_PAL.normal, false, 'BRANC');   // a barrier end is an ANCHOR
       ctx.restore();
     }
   } else if (kind === 'wall') {
@@ -162,7 +172,8 @@ function drawInfoGlyph(kind, cx, cy, r) {
   } else {
     // the live threat models: tap hardware in the type's color
     const pal = kind === 'heavy' ? INFO_PAL.heavy : kind === 'lock' ? INFO_PAL.lock : INFO_PAL.normal;
-    infoTap(r * (kind === 'heavy' ? 1.15 : 1), pal, kind === 'heavy' || kind === 'lock');
+    infoTap(r * (kind === 'heavy' ? 1.15 : 1), pal, kind === 'heavy' || kind === 'lock',
+      kind === 'heavy' ? 'BRHVY' : 'BRTAP');
     if (kind === 'heavy') { // both node colors demanded
       ctx.strokeStyle = 'rgba(230,245,255,0.55)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(0, 0, r * 1.6, 0, TAU); ctx.stroke();
@@ -297,6 +308,12 @@ const DEMO_COL = {
   normal: '255,60,90', heavy: '200,70,255', lock0: '80,170,255',
   lock1: '235,244,255', gold: '255,210,74'
 };
+// which baked hull a drill's threat wears. A phase-locked trap is the SAME
+// hardware in another ink — the colour is the whole difference, and putting a
+// second shape on it would teach a distinction the lane does not make.
+const DEMO_HULL = {
+  normal: 'BRTAP', heavy: 'BRHVY', lock0: 'BRTAP', lock1: 'BRTAP'
+};
 const dRail = Rs => Rs * 0.72;
 const DOCK_GAP = 0.13;   // half the sim's dock window — see the armor lesson
 
@@ -354,6 +371,16 @@ function demoThreat(Rs, a, z, kind, opt) {
   // and the second half of it corrected the first: apex-outward read as an arrow
   // flying AWAY. A relay is the one round body in the diorama (opt.hex), so
   // "coming at me" and "go and get it" never share a silhouette.
+  // THE REAL HULL, wherever its strip has baked. The disc teaches a MOVE, but the
+  // thing the move is performed on is a trap the player will meet in the lane, and
+  // a disc that shows a shape the lane never draws teaches the wrong silhouette.
+  // The abstract triangle stays as the stand-in for a cold start, and a RELAY
+  // (o.hex) is never a hull — it is the one round friendly body in the diorama.
+  if (!o.hex && typeof drawBreachHull === 'function' &&
+      drawBreachHull(o.hull || DEMO_HULL[kind] || 'BRTAP', x, y, a, s * 1.55, col, 1, null)) {
+    ctx.restore();
+    return { x, y, s };
+  }
   ctx.translate(x, y);
   ctx.rotate(a - (o.hex ? -time * 0.5 : Math.PI / 2));
   ctx.beginPath();
@@ -527,7 +554,8 @@ const DEMO = {
       ctx.lineDashOffset = -time * Rs * 0.9;
       ctx.beginPath(); ctx.arc(0, 0, rail * p, A, B); ctx.stroke();
       ctx.restore();
-      demoThreat(Rs, A, z, 'normal'); demoThreat(Rs, B, z, 'normal');
+      demoThreat(Rs, A, z, 'normal', { hull: 'BRANC' });   // a barrier end is an ANCHOR
+      demoThreat(Rs, B, z, 'normal', { hull: 'BRANC' });
     } else {
       const k = dSeg(t, hit, hit + 0.6);
       demoZap(Rs, A, 0, 0, dSeg(t, hit, hit + 0.28));
@@ -1990,11 +2018,16 @@ const ENL_Z0 = 1.80;
 // THE BODIES RUN LARGE FOR THEIR BORE, and that is deliberate. drawEnemy sizes a
 // body as a fixed fraction of the RING it sits on, which is right in a run where
 // the ring is most of the glass — but this bore is a fifth of that, so a
-// proportionally honest body lands at nine pixels and teaches nothing. A quarter
-// again keeps the projection nearly honest while making the subject legible — 1.9
-// was tuned against a bore half this size and now paints a de-rezzing body as a
-// forty-pixel slab across a ninety-pixel ring.
-const ENL_BODY_MUL = 1.25;
+// proportionally honest body lands at nine pixels and teaches nothing. Half again
+// keeps the projection nearly honest while making the subject legible.
+//
+// THE NUMBER MOVED WITHOUT THE INTENT MOVING, 2026-08-28. It reads against
+// min(W,H)·0.44 — the real ring — but the BODY is drawn at min(W,H)·0.06·
+// ENEMYFX.size (see bodyR in 85-enemy-art.js), and the baked hull shipped missing
+// that factor. Putting the body scale right multiplied every body here by 2.25, so
+// 1.25 became a slab across the disc. 0.62 is the same "half again" against a body
+// that is finally the size it claims to be.
+const ENL_BODY_MUL = 0.816;
 const ENL_BODIES = {};            // cached, so each body's own fx phase persists
 // the two emitters. Real node objects, because drawArcNode reads them — only
 // `trailV` carries across frames, and that is a smoothed velocity that self-corrects.

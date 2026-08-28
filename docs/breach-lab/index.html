@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Breach lab — Warp Vanguard</title>
+<style>
+  @font-face {
+    font-family: 'Audiowide';
+    src: url('/fonts/audiowide.woff2') format('woff2');
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+  :root {
+    --bg: #06080d; --panel: #0d1119; --line: #1c2430; --ink: #c8d4e4;
+    --dim: #6f7f95; --hot: #4d9bff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    display: flex; height: 100vh; overflow: hidden;
+  }
+  #stage { flex: 1; position: relative; min-width: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #panel {
+    width: 296px; flex: none; background: var(--panel);
+    border-left: 1px solid var(--line); overflow-y: auto; padding: 14px 14px 40px;
+  }
+  h1 {
+    font: 400 15px/1.2 Audiowide, system-ui; letter-spacing: .06em;
+    margin: 0 0 2px; color: #eaf2ff;
+  }
+  .sub { color: var(--dim); margin: 0 0 16px; font-size: 11px; }
+  h2 {
+    font: 400 10px/1 Audiowide, system-ui; letter-spacing: .14em; color: var(--hot);
+    margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+  }
+  .row { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
+  .row label { flex: 1; color: var(--dim); }
+  .row input[type=range] { flex: 1.5; accent-color: var(--hot); min-width: 0; }
+  .row .val { width: 46px; text-align: right; color: #eaf2ff; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 4px; }
+  button {
+    font: 400 10px/1 Audiowide, system-ui; letter-spacing: .1em;
+    background: #141b26; color: var(--ink); border: 1px solid var(--line);
+    padding: 8px 10px; cursor: pointer; border-radius: 3px;
+  }
+  button:hover { border-color: var(--hot); color: #fff; }
+  button.on { background: var(--hot); border-color: var(--hot); color: #04101f; }
+  .wide { width: 100%; margin-top: 8px; }
+  #out {
+    width: 100%; height: 150px; margin-top: 10px; background: #04070c;
+    color: #8fb4e0; border: 1px solid var(--line); font: 11px/1.45 ui-monospace, monospace;
+    padding: 8px; resize: vertical;
+  }
+  #status {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 14px;
+    background: rgba(4,7,12,.92); border-top: 1px solid var(--line);
+    color: var(--dim); font-size: 11px;
+  }
+  #fail {
+    position: absolute; inset: 0; background: #0b0407; color: #ffb8c2;
+    padding: 28px; white-space: pre-wrap; display: none; overflow: auto;
+    font-size: 12px; line-height: 1.6;
+  }
+  .note { color: #5d6b7e; font-size: 10.5px; line-height: 1.5; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv"></canvas>
+  <div id="status">booting…</div>
+  <div id="fail"></div>
+</div>
+<div id="panel">
+  <h1>BREACH LAB</h1>
+  <p class="sub">The enemy bodies, built rather than drawn.</p>
+
+  <h2>VIEW</h2>
+  <div class="tabs">
+    <button data-view="wall" class="on">IN THE BORE</button>
+    <button data-view="sheet">THE SHEET</button>
+    <button data-view="ladder">THE LADDER</button>
+  </div>
+  <p class="note">IN THE BORE stages the hulls on a real tunnel wall. THE SHEET
+  judges the metal up close. THE LADDER runs one hull from the horizon to the ring.</p>
+
+  <h2>THE BAKE</h2>
+  <div class="row"><label>sun views</label><input type="range" id="k_sunViews" min="1" max="8" step="1"><span class="val" id="v_sunViews"></span></div>
+  <div class="row"><label>sun height</label><input type="range" id="k_sunElev" min="0.05" max="1.45" step="0.01"><span class="val" id="v_sunElev"></span></div>
+  <div class="row"><label>detail</label><input type="range" id="k_detail" min="0.3" max="1.8" step="0.05"><span class="val" id="v_detail"></span></div>
+  <div class="row"><label>exposure</label><input type="range" id="k_exposure" min="0.2" max="1.2" step="0.02"><span class="val" id="v_exposure"></span></div>
+  <div class="row"><label>sprite px</label><input type="range" id="k_ref" min="128" max="384" step="32"><span class="val" id="v_ref"></span></div>
+  <button class="wide" id="rebake">REBAKE</button>
+  <p class="note">Sun views: how many light directions get baked. 1 means the sun
+  rides the body round the bore. More views keep it fixed in the world, and cost
+  one bake each.</p>
+
+  <h2>THE LIVE HALF</h2>
+  <div class="row"><label>size</label><input type="range" id="k_size" min="1.0" max="3.6" step="0.05"><span class="val" id="v_size"></span></div>
+  <div class="row"><label>tint</label><input type="range" id="k_tint" min="0" max="2" step="0.05"><span class="val" id="v_tint"></span></div>
+  <div class="row"><label>bloom</label><input type="range" id="k_bloom" min="0" max="1.6" step="0.05"><span class="val" id="v_bloom"></span></div>
+  <div class="row"><label>ground</label><input type="range" id="k_ground" min="0" max="2" step="0.05"><span class="val" id="v_ground"></span></div>
+  <div class="row"><label>halo</label><input type="range" id="k_halo" min="0" max="2" step="0.05"><span class="val" id="v_halo"></span></div>
+  <p class="note">Colour is never baked. Every type-coloured surface is a dark
+  machined channel in the sprite; the tint is poured in live through the bake's
+  own coverage mask, so red / blue / white / purple stay the instance's business.</p>
+
+  <h2>THE BORE</h2>
+  <div class="row"><label>depth</label><input type="range" id="k_depth" min="0.03" max="1.6" step="0.01"><span class="val" id="v_depth"></span></div>
+  <div class="row"><label>spin</label><input type="range" id="k_spin" min="0" max="6.28" step="0.01"><span class="val" id="v_spin"></span></div>
+  <div class="row"><label>aim gate</label><input type="range" id="k_gate" min="0" max="1" step="1"><span class="val" id="v_gate"></span></div>
+  <p class="note">The aim gate draws the arc ONE emitter covers, and beside it the
+  arc the hull actually spans. Green fits inside the window. Red is a body telling
+  the player to straddle what the rule says to centre on.</p>
+  <div class="tabs" style="margin-top:10px">
+    <button data-hull="BRTAP" class="on">TAP</button>
+    <button data-hull="BRHVY">HEAVY</button>
+    <button data-hull="BRANC">ANCHOR</button>
+  </div>
+
+  <h2>VALUES</h2>
+  <button class="wide" id="copy">COPY VALUES</button>
+  <textarea id="out" readonly></textarea>
+</div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const cv = $('#cv'), ctx = cv.getContext('2d');
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const LIGHT_A = -TAU * 0.31;          // the world's key light, on screen
+
+// ---------------------------------------------------------------- the knobs
+const K = {
+  view: 'wall', hull: 'BRTAP',
+  sunViews: 4, sunElev: 0.62, detail: 1.00, exposure: 0.50, ref: 224,
+  size: 2.25, tint: 1.10, bloom: 0.70, ground: 1.00, halo: 0.70,
+  depth: 0.42, spin: 0, gate: 1
+};
+const BAKE_KEYS = ['sunViews', 'sunElev', 'detail', 'exposure', 'ref'];
+
+const HULLS = [
+  { id: 'BRTAP', n: 'TAP',    say: 'one head — any node takes it' },
+  { id: 'BRHVY', n: 'HEAVY',  say: 'two heads — it takes two nodes' },
+  { id: 'BRANC', n: 'ANCHOR', say: 'no head — it moors the barrier' }
+];
+// the gameplay inks, straight out of enemyPal
+const INKS = [
+  { k: 'red',    css: '255,60,90',    n: 'ANY NODE' },
+  { k: 'blue',   css: '80,170,255',   n: 'LEFT NODE' },
+  { k: 'white',  css: '225,240,255',  n: 'RIGHT NODE' },
+  { k: 'purple', css: '200,70,255',   n: 'BOTH NODES' }
+];
+
+// SHOT MODE. `?shot=NAME&view=wall&...` bakes everything in one go, draws one
+// frame and POSTs the canvas to the lab server, which writes the PNG. That is how
+// this art gets looked at without a person at the keyboard.
+const QS = new URLSearchParams(location.search);
+const SHOT = QS.get('shot');
+let shotPending = false, shotSent = false;
+function sendShot() {
+  document.title = 'SHOT ' + SHOT;
+  fetch('/api/shot?name=' + encodeURIComponent(SHOT), {
+    method: 'POST', body: cv.toDataURL('image/png')
+  }).then(() => { document.title = 'DONE ' + SHOT; shotSent = true; });
+}
+let G = null, SQ = 0.36, EL = Math.asin(0.36), SPAN = 0.314;
+let BAKED = {};            // id -> [{ cv, field, S, R, beta }]
+let baking = null, W = 0, H = 0, t0 = performance.now();
+
+function fail(msg) { $('#fail').style.display = 'block'; $('#fail').textContent = msg; }
+function status(s) { $('#status').textContent = s; }
+
+// ---------------------------------------------------------------- the sandbox
+// The game's own region, in a scope holding only what it is allowed to reach.
+// If a build ever grabs another game global it fails loudly here rather than
+// drawing something subtly wrong.
+async function boot() {
+  let src;
+  try {
+    const r = await fetch('/api/breach-src');
+    if (!r.ok) throw new Error(await r.text());
+    src = await r.json();
+  } catch (e) { return fail('The lab server did not answer:\n\n' + (e.message || e)); }
+
+  const NEED = ['rng', 'data', 's3d', 'pick', 'bore'];
+  const missing = NEED.filter(k => typeof src[k] !== 'string');
+  if (missing.length) {
+    return fail('The lab SERVER is running older code than this page.\n\n' +
+      'It did not send: ' + missing.join(', ') + '\n\n' +
+      'Restart it — node re-reads scripts/breach-lab.js only at startup:\n\n' +
+      '    npm run lab:breach');
+  }
+  SQ = src.squash; EL = Math.asin(SQ);
+  if (typeof src.span === 'number') SPAN = src.span;
+
+  try {
+    G = new Function(`
+      const TAU = Math.PI * 2;
+      const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+      const lerp = (a, b, t) => a + (b - a) * t;
+      const LIGHT_A = ${LIGHT_A};
+      let ctx = null, time = 0, lowFX = false, W = 1280, H = 720;
+      let CAMP = { id: 'cargo-run' }, levelIdx = 0, LV = null;
+      const CAMPAIGNS = [];
+      ${src.rng}
+      ${src.data}
+      ${src.s3d}
+      ${src.pick}
+      ${src.bore}
+      return {
+        S3Mesh, s3render, s3renderSteps, s3build, S3D_BUILDS, S3D_LIGHT,
+        S3_BREACH_EL, S3_BREACH_SQ, geo, ring,
+        set: o => { if (o.ctx !== undefined) ctx = o.ctx;
+                    if (o.time !== undefined) time = o.time;
+                    if (o.W !== undefined) W = o.W;
+                    if (o.H !== undefined) H = o.H; }
+      };
+    `)();
+  } catch (e) { return fail('The lifted region would not run:\n\n' + (e.stack || e)); }
+
+  if (Math.abs(G.S3_BREACH_SQ - SQ) > 1e-6) {
+    return fail('THE CAMERA AND THE PAINTER DISAGREE.\n\n' +
+      'ENEMYFX.squash is ' + SQ + ' but S3_BREACH_SQ is ' + G.S3_BREACH_SQ + '.\n\n' +
+      'The bake grazes the plate at asin(squash). If the two drift apart the baked\n' +
+      'body no longer lies on the wall the game draws. Put them back in step.');
+  }
+  wire();
+  for (const [k, v] of QS) {                 // every knob is settable from the URL
+    if (k in K) K[k] = (typeof K[k] === 'number') ? +v : v;
+  }
+  rebake();
+  requestAnimationFrame(frame);
+}
+
+// ---------------------------------------------------------------- the bake
+// One sprite per hull PER SUN DIRECTION. A breach rides round the bore, and a
+// single bake carries its highlight round with it — so the sun would orbit the
+// player. Baking a few light directions and picking the nearest keeps one sun
+// over the whole lane, which is the law the stations already live under.
+function sunFor(az, elev) {
+  const c = Math.cos(elev);
+  return [Math.cos(az) * c, Math.sin(az) * c, Math.sin(elev)];
+}
+// where that sun lands on the SPRITE, in screen terms — the number the draw
+// side needs to choose a view
+function betaFor(L) {
+  return Math.atan2(-(L[1] * Math.sin(EL) + L[2] * Math.cos(EL)), L[0]);
+}
+function rebake() {
+  const jobs = [];
+  const H0 = G.S3D_LIGHT;
+  const keep = { lx: H0.lx, ly: H0.ly, lz: H0.lz, filX: H0.filX, filY: H0.filY, filZ: H0.filZ,
+                 detail: H0.detail, exposure: H0.exposure };
+  BAKED = {};
+  for (const h of HULLS) {
+    BAKED[h.id] = [];
+    for (let k = 0; k < K.sunViews; k++) {
+      const az = K.sunViews === 1 ? -TAU * 0.31 : (k / K.sunViews) * TAU;
+      jobs.push({ id: h.id, k, az });
+    }
+  }
+  baking = { jobs, i: 0, keep, it: null, done: 0 };
+}
+// One unit of bake work. Returns false when the queue is empty. Split out from
+// the budgeted pump because the SHOT path has no usable clock: Chrome's
+// --virtual-time-budget freezes performance.now(), and a pump that asks the clock
+// whether to stop then never stops.
+function pumpBake(budget, all) {
+  if (!baking) return false;
+  const B = baking, H0 = G.S3D_LIGHT, tS = performance.now();
+  while (all || performance.now() - tS < budget) {
+    if (B.i >= B.jobs.length) {
+      Object.assign(H0, B.keep);
+      baking = null;
+      emit();
+      return false;
+    }
+    const J = B.jobs[B.i];
+    if (!B.it) {
+      const L = sunFor(J.az, K.sunElev);
+      H0.lx = L[0]; H0.ly = L[1]; H0.lz = L[2];
+      H0.filX = -L[0] * 0.6; H0.filY = -L[1] * 0.6; H0.filZ = 0.55;
+      H0.detail = K.detail; H0.exposure = K.exposure;
+      const b = G.s3build(J.id), M = new G.S3Mesh();
+      try { b.fn(M, 4801 + J.id.charCodeAt(0) * 131); }
+      catch (e) { fail('build ' + J.id + ' threw:\n\n' + (e.stack || e)); baking = null; return false; }
+      if (b.rotX) M.rotX(b.rotX);
+      B.it = G.s3renderSteps(M, {
+        w: K.ref, h: K.ref, ss: 2, sm: 640, scale: K.ref * b.cam, el: b.el
+      });
+      B.beta = betaFor(L);
+      if (!all) return true;             // the mesh build gets the frame to itself
+      continue;
+    }
+    let r;
+    try { r = B.it.next(); }
+    catch (e) { fail('bake ' + J.id + ' threw:\n\n' + (e.stack || e)); baking = null; return false; }
+    if (r.done) {
+      const v = r.value;
+      if (!v || !v.cv) { fail('the bake produced nothing for ' + J.id); baking = null; return false; }
+      v.beta = B.beta; v.tints = {};
+      BAKED[J.id].push(v);
+      B.it = null; B.i++; B.done++;
+    }
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------- the tint
+// The bake hands back a COVERAGE MASK of every `fx` surface. The type colour is
+// poured through it live, so one hull serves every ink and the gameplay language
+// never gets baked into the metal.
+function tintOf(sp, ink) {
+  let t = sp.tints[ink.k];
+  if (t) return t;
+  const mk = (blur) => {
+    const c = document.createElement('canvas');
+    c.width = sp.cv.width; c.height = sp.cv.height;
+    const x = c.getContext('2d');
+    if (sp.field) {
+      if (blur) x.filter = 'blur(' + blur + 'px)';
+      x.drawImage(sp.field, 0, 0);
+      x.filter = 'none';
+      x.globalCompositeOperation = 'source-in';
+      x.fillStyle = 'rgb(' + ink.css + ')';
+      x.fillRect(0, 0, c.width, c.height);
+    }
+    return c;
+  };
+  t = { core: mk(0), glow: mk(Math.max(2, sp.cv.width * 0.035)) };
+  sp.tints[ink.k] = t;
+  return t;
+}
+
+// ------------------------------------------------------------ the aim check
+// HOW WIDE A BODY DRAWS, IN THE ONLY AXIS THE PLAYER AIMS IN.
+//
+// The sprite's horizontal axis IS the wall tangent once the body is rotated onto
+// the bore, so the half-extent of its own opaque pixels, divided by the bake's
+// pixels-per-world-unit, is the hull's angular footprint in world units. Measured
+// off the bake rather than written down, so it can never drift from the geometry.
+//
+// It is judged against ARCFX.span — the arc a node renders AND the tolerance it
+// zaps within. A body drawn wider than that window invites the player to STRADDLE
+// it with the two emitters, and the rule is the opposite: both nodes go on its one
+// angle. That is the confusion this measurement exists to catch.
+function spriteHalfW(sp) {
+  if (sp.halfW !== undefined) return sp.halfW;
+  const c = document.createElement('canvas');
+  c.width = sp.cv.width; c.height = sp.cv.height;
+  const x = c.getContext('2d');
+  x.drawImage(sp.cv, 0, 0);
+  if (sp.field) x.drawImage(sp.field, 0, 0);
+  let d;
+  try { d = x.getImageData(0, 0, c.width, c.height).data; }
+  catch (e) { sp.halfW = 1; return 1; }
+  const cx = c.width / 2;
+  let lo = cx, hi = cx;
+  for (let py = 0; py < c.height; py++) for (let px = 0; px < c.width; px++) {
+    if (d[(py * c.width + px) * 4 + 3] > 24) { if (px < lo) lo = px; if (px > hi) hi = px; }
+  }
+  sp.halfW = Math.max(hi - cx, cx - lo) / sp.R;
+  return sp.halfW;
+}
+// the body's half-width as an ANGLE on its own depth ring
+function halfAngle(id, R, g, z) {
+  const v = BAKED[id];
+  if (!v || !v.length) return 0;
+  return spriteHalfW(v[0]) * R / Math.max(1, G.ring(Math.max(z, 0.02), g).r);
+}
+// THE GATE — the window a node actually covers, drawn on the ring beside the
+// body's own reach. Green means the hull fits inside one emitter's coverage;
+// red means the outline is telling the player to straddle what they must centre.
+function drawGate(g, x, y, a, rr, id, R, z) {
+  const ha = halfAngle(id, R, g, z);
+  const fits = ha <= SPAN;
+  ctx.save();
+  ctx.lineCap = 'butt';
+  ctx.strokeStyle = 'rgba(150,190,235,0.42)';           // the zap window
+  ctx.lineWidth = Math.max(1.5, rr * 0.016);
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, rr * 1.10, a - SPAN, a + SPAN); ctx.stroke();
+  for (const e of [-1, 1]) {                            // its edges, ticked
+    const ea = a + e * SPAN;
+    ctx.beginPath();
+    ctx.moveTo(g.cx + Math.cos(ea) * rr * 1.06, g.cy + Math.sin(ea) * rr * 1.06);
+    ctx.lineTo(g.cx + Math.cos(ea) * rr * 1.15, g.cy + Math.sin(ea) * rr * 1.15);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = fits ? 'rgba(96,224,150,0.85)' : 'rgba(255,90,70,0.95)';
+  ctx.lineWidth = Math.max(2, rr * 0.022);              // what the hull actually spans
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, rr * 1.19, a - ha, a + ha); ctx.stroke();
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- the draw
+// THE ONE ROTATION. A breach sits on the wall at bore angle `a`; the direction
+// into the bore is -(cos a, sin a). The sprite was baked with its auger standing
+// straight up and its plate already squashed to `SQ`, so putting the sprite's up
+// axis on that direction is the whole placement — no second idea of the camera,
+// and the squash lands radially exactly as the painter always applied it.
+function pickView(sp, phi) {
+  const list = sp; let best = 0, bd = 1e9;
+  for (let i = 0; i < list.length; i++) {
+    let d = list[i].beta + phi - LIGHT_A;
+    d = Math.abs(Math.atan2(Math.sin(d), Math.cos(d)));
+    if (d < bd) { bd = d; best = i; }
+  }
+  return list[best];
+}
+function drawBreach(id, x, y, a, R, ink, alpha) {
+  const views = BAKED[id];
+  if (!views || !views.length) return;
+  const ux = -Math.cos(a), uy = -Math.sin(a);
+  const phi = Math.atan2(ux, -uy);
+  const sp = pickView(views, phi);
+  const w = sp.S * (R / sp.R);
+  const al = alpha === undefined ? 1 : alpha;
+
+  // THE GROUNDING, and it stays live: one soft pool squashed onto the wall.
+  // Scorch under the plate, the tap's own light bleeding into the surface. A
+  // baked shadow would be a grey patch that never matches the tunnel it lands on.
+  if (K.ground > 0.02) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(phi); ctx.scale(1, SQ);
+    const rr = w * 0.62 * K.ground;
+    const sh = ctx.createRadialGradient(0, 0, 0, 0, 0, rr);
+    sh.addColorStop(0, 'rgba(1,2,8,' + (0.82 * al).toFixed(3) + ')');
+    sh.addColorStop(0.42, 'rgba(0,2,8,' + (0.34 * al).toFixed(3) + ')');
+    sh.addColorStop(1, 'rgba(0,2,8,0)');
+    ctx.fillStyle = sh;
+    ctx.beginPath(); ctx.arc(0, 0, rr, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  // the type halo, on the wall — the read from across the bore, before any
+  // hardware has resolved
+  if (K.halo > 0.02) {
+    const hr = w * 0.62 * K.halo;
+    const gl = ctx.createRadialGradient(x, y, 0, x, y, hr);
+    gl.addColorStop(0, 'rgba(' + ink.css + ',' + (0.34 * al).toFixed(3) + ')');
+    gl.addColorStop(0.5, 'rgba(' + ink.css + ',' + (0.11 * al).toFixed(3) + ')');
+    gl.addColorStop(1, 'rgba(' + ink.css + ',0)');
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = gl;
+    ctx.beginPath(); ctx.arc(x, y, hr, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  ctx.save();
+  ctx.globalAlpha = al;
+  ctx.translate(x, y); ctx.rotate(phi);
+  ctx.drawImage(sp.cv, -w / 2, -w / 2, w, w);
+  if (sp.field && K.tint > 0.02) {
+    const t = tintOf(sp, ink);
+    ctx.globalCompositeOperation = 'lighter';
+    if (K.bloom > 0.02) {
+      ctx.globalAlpha = al * K.bloom;
+      ctx.drawImage(t.glow, -w / 2, -w / 2, w, w);
+    }
+    ctx.globalAlpha = al * K.tint;
+    ctx.drawImage(t.core, -w / 2, -w / 2, w, w);
+  }
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- the bore
+// The game's own geo() and ring(), lifted — a lab that guesses the projection
+// judges the wrong shape.
+function bore(g) {
+  ctx.fillStyle = '#04060b';
+  ctx.fillRect(0, 0, W, H);
+  ctx.lineCap = 'butt';
+  for (let i = 0; i < 34; i++) {          // the hoops
+    const z = 0.02 + Math.pow(i / 33, 1.6) * 1.9;
+    const r = G.ring(z, g).r;
+    if (r < 2) continue;
+    const k = clamp(1 - z / 1.9, 0, 1);
+    ctx.strokeStyle = 'rgba(56,86,124,' + (0.05 + k * 0.16).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(0.6, r * 0.004);
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, r, 0, TAU); ctx.stroke();
+  }
+  for (let s = 0; s < 14; s++) {          // the seams
+    const a = s / 14 * TAU;
+    const r0 = G.ring(1.9, g).r, r1 = G.ring(0.02, g).r;
+    const gr = ctx.createLinearGradient(g.cx + Math.cos(a) * r0, g.cy + Math.sin(a) * r0,
+                                        g.cx + Math.cos(a) * r1, g.cy + Math.sin(a) * r1);
+    gr.addColorStop(0, 'rgba(56,86,124,0.02)');
+    gr.addColorStop(1, 'rgba(56,86,124,0.13)');
+    ctx.strokeStyle = gr; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(g.cx + Math.cos(a) * r0, g.cy + Math.sin(a) * r0);
+    ctx.lineTo(g.cx + Math.cos(a) * r1, g.cy + Math.sin(a) * r1);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(120,160,210,0.5)';   // the node ring
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, 0, TAU); ctx.stroke();
+}
+// the size the game gives a body at this depth, so the lab never flatters it
+function sizeAt(z, g, mul) {
+  const rg = G.ring(Math.max(z, 0.02), g);
+  return Math.min(W, H) * 0.06 * clamp(rg.r / g.nodeR, 0.045, 2) * (mul || 1) * K.size;
+}
+
+function label(s, x, y, px, col) {
+  ctx.font = '400 ' + px + 'px Audiowide, system-ui';
+  ctx.fillStyle = col || 'rgba(180,200,225,0.75)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(s, x, y);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+}
+
+function viewWall(t) {
+  const g = G.geo();
+  bore(g);
+  // one of each hull, in its own ink, spread round the ring at the chosen depth
+  const cast = [
+    { id: 'BRTAP', ink: INKS[0], a: -TAU * 0.25, mul: 1 },
+    { id: 'BRTAP', ink: INKS[1], a: -TAU * 0.25 + TAU / 6, mul: 1 },
+    { id: 'BRTAP', ink: INKS[2], a: -TAU * 0.25 + TAU / 3, mul: 1 },
+    { id: 'BRHVY', ink: INKS[3], a: -TAU * 0.25 + TAU / 2, mul: 1.2 },
+    { id: 'BRANC', ink: INKS[0], a: -TAU * 0.25 + TAU * 2 / 3, mul: 1 },
+    { id: 'BRANC', ink: INKS[0], a: -TAU * 0.25 + TAU * 5 / 6, mul: 1 }
+  ];
+  // THE BARRIER RUNS ALONG THE WALL, NOT ACROSS THE BORE. It is a crack in the
+  // tunnel between two ruptures, so it is an ARC on the depth ring taking the
+  // short way round — the same shape drawLineBeam has always drawn. A chord
+  // between the two anchors reads as a wire strung through open space, which is
+  // the one thing this enemy is not.
+  const rg = G.ring(Math.max(K.depth, 0.02), g);
+  const aA = cast[4].a + K.spin, aB = cast[5].a + K.spin;
+  let d = (aB - aA) % TAU;                       // the short way, signed
+  if (d > Math.PI) d -= TAU; else if (d < -Math.PI) d += TAU;
+  const lw = Math.max(1.5, clamp(rg.r / g.nodeR, 0.08, 2) * 6);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = 'rgba(255,60,90,0.75)';
+  ctx.lineWidth = lw * 2.2;
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, rg.r, aA, aA + d, d < 0); ctx.stroke();
+  ctx.globalAlpha = 0.9;
+  ctx.strokeStyle = 'rgba(255,180,195,0.95)';
+  ctx.lineWidth = Math.max(1, lw * 0.55);
+  ctx.setLineDash([lw * 2.2, lw * 1.4]);
+  ctx.lineDashOffset = -t * 90 * Math.sign(d || 1);
+  ctx.beginPath(); ctx.arc(g.cx, g.cy, rg.r, aA, aA + d, d < 0); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  for (const c of cast) {
+    const a = c.a + K.spin;
+    const x = g.cx + Math.cos(a) * rg.r, y = g.cy + Math.sin(a) * rg.r;
+    const R = sizeAt(K.depth, g, c.mul);
+    drawBreach(c.id, x, y, a, R, c.ink, 1);
+    if (K.gate) drawGate(g, x, y, a, rg.r, c.id, R, K.depth);
+  }
+  label('DEPTH ' + K.depth.toFixed(2) + '   ·   ' + K.sunViews + ' SUN VIEW' +
+    (K.sunViews > 1 ? 'S' : ''), W / 2, 26, 12);
+  if (K.gate) {
+    const rows = HULLS.map(h => {
+      const mul = h.id === 'BRHVY' ? 1.2 : 1;
+      const ha = halfAngle(h.id, sizeAt(K.depth, g, mul), g, K.depth);
+      return h.n + ' ' + ha.toFixed(3) + (ha <= SPAN ? ' OK' : ' WIDE');
+    });
+    label('ZAP WINDOW ' + SPAN.toFixed(3) + ' rad   ·   ' + rows.join('   ·   '),
+      W / 2, H - 22, 11);
+  }
+}
+
+function viewSheet() {
+  ctx.fillStyle = '#05070c'; ctx.fillRect(0, 0, W, H);
+  const g = G.geo();
+  const cols = HULLS.length;
+  const cw = W / cols;
+  for (let i = 0; i < cols; i++) {
+    const h = HULLS[i], x = cw * (i + 0.5);
+    // the hero, big enough to judge the metal
+    drawBreach(h.id, x, H * 0.40, -TAU * 0.25, Math.min(cw * 0.30, H * 0.24), INKS[0], 1);
+    label(h.n, x, H * 0.66, 17, '#eaf2ff');
+    label(h.say, x, H * 0.70, 11);
+    // the ink strip: the same hardware in all four gameplay colours
+    for (let j = 0; j < INKS.length; j++) {
+      const px = x + (j - 1.5) * cw * 0.21;
+      drawBreach(h.id, px, H * 0.85, -TAU * 0.25, cw * 0.075, INKS[j], 1);
+      label(INKS[j].n, px, H * 0.93, 8.5, 'rgba(' + INKS[j].css + ',0.8)');
+    }
+  }
+}
+
+function viewLadder() {
+  const g = G.geo();
+  bore(g);
+  // ONE hull, walked from the horizon to the ring, on the same wall line. This
+  // is the read that matters: a body has to GROW the whole way in and still be
+  // the same object when it arrives.
+  // spread by RING RADIUS, not by z — z is not linear on screen, and stepping it
+  // evenly piles every body into the far half and runs the nearest off the frame
+  const N = 6, rNear = G.ring(0.30, g).r, rFar = G.ring(1.45, g).r;
+  for (let i = 0; i < N; i++) {
+    const rWant = rFar + (rNear - rFar) * (i / (N - 1));
+    let z = 1.45, lo = 0.02, hi = 1.6;
+    for (let it = 0; it < 30; it++) { z = (lo + hi) / 2; if (G.ring(z, g).r > rWant) lo = z; else hi = z; }
+    const rg = G.ring(z, g);
+    const a = -TAU * 0.25 + K.spin;
+    const x = g.cx + Math.cos(a) * rg.r, y = g.cy + Math.sin(a) * rg.r;
+    drawBreach(K.hull, x, y, a, sizeAt(z, g, K.hull === 'BRHVY' ? 1.2 : 1), INKS[0], 1);
+  }
+  label(K.hull + '   HORIZON → RING', W / 2, 26, 12);
+}
+
+function frame() {
+  const t = (performance.now() - t0) / 1000;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const r = cv.getBoundingClientRect();
+  if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(r.height * dpr)) {
+    cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  }
+  W = cv.width / dpr; H = cv.height / dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  G.set({ ctx, time: t, W, H });
+
+  if (SHOT && baking) { pumpBake(0, true); shotPending = true; }
+  const busy = pumpBake(12);
+  ctx.fillStyle = '#04060b'; ctx.fillRect(0, 0, W, H);
+  if (busy) {
+    const done = baking.done, all = baking.jobs.length;
+    label('BAKING  ' + done + ' / ' + all, W / 2, H / 2, 18, '#eaf2ff');
+    status('baking ' + done + ' of ' + all + ' sprites…');
+  } else {
+    if (K.view === 'wall') viewWall(t);
+    else if (K.view === 'sheet') viewSheet();
+    else viewLadder();
+    const n = Object.values(BAKED).reduce((s, v) => s + v.length, 0);
+    status(n + ' sprites baked at ' + K.ref + 'px · camera grazes the plate at ' +
+      (G.S3_BREACH_EL * 180 / Math.PI).toFixed(1) + '° (asin ' + SQ + ')');
+    if (shotPending) { shotPending = false; sendShot(); }
+  }
+  // SHOT MODE STOPS. A page that keeps asking for frames burns the whole virtual
+  // time budget re-drawing a picture that has already been sent.
+  if (SHOT && shotSent) return;
+  requestAnimationFrame(frame);
+}
+
+// ---------------------------------------------------------------- the panel
+function emit() {
+  $('#out').value =
+    '// BREACHFX — the live half of the baked tap. Paste beside ENEMYFX.\n' +
+    'const BREACHFX = {\n' +
+    '  sunViews: ' + K.sunViews + ',      // baked light directions, so one sun serves the whole bore\n' +
+    '  sunElev: ' + K.sunElev.toFixed(2) + ',      // how far the key stands out of the plate plane\n' +
+    '  detail: ' + K.detail.toFixed(2) + ',       // greeble density at bake time\n' +
+    '  exposure: ' + K.exposure.toFixed(2) + ',     // bake exposure\n' +
+    '  ref: ' + K.ref + ',          // sprite side, CSS px\n' +
+    '  size: ' + K.size.toFixed(2) + ',         // body scale — the ENEMYFX.size role\n' +
+    '  tint: ' + K.tint.toFixed(2) + ',         // type colour poured through the fx mask\n' +
+    '  bloom: ' + K.bloom.toFixed(2) + ',        // its blurred pass\n' +
+    '  ground: ' + K.ground.toFixed(2) + ',       // contact pool on the wall\n' +
+    '  halo: ' + K.halo.toFixed(2) + '          // the read from across the bore\n' +
+    '};\n';
+}
+function wire() {
+  for (const key of Object.keys(K)) {
+    const el = $('#k_' + key);
+    if (!el) continue;
+    el.value = K[key];
+    const show = () => { const v = $('#v_' + key); if (v) v.textContent = (+el.value).toFixed(el.step.includes('.') ? 2 : 0); };
+    show();
+    el.addEventListener('input', () => {
+      K[key] = +el.value; show(); emit();
+      if (BAKE_KEYS.includes(key)) { clearTimeout(el._t); el._t = setTimeout(rebake, 260); }
+    });
+  }
+  for (const b of document.querySelectorAll('[data-view]')) {
+    b.addEventListener('click', () => {
+      K.view = b.dataset.view;
+      document.querySelectorAll('[data-view]').forEach(o => o.classList.toggle('on', o === b));
+    });
+  }
+  for (const b of document.querySelectorAll('[data-hull]')) {
+    b.addEventListener('click', () => {
+      K.hull = b.dataset.hull;
+      document.querySelectorAll('[data-hull]').forEach(o => o.classList.toggle('on', o === b));
+    });
+  }
+  $('#rebake').addEventListener('click', rebake);
+  $('#copy').addEventListener('click', () => {
+    $('#out').select(); document.execCommand('copy');
+    $('#copy').textContent = 'COPIED'; setTimeout(() => $('#copy').textContent = 'COPY VALUES', 900);
+  });
+  emit();
+}
+boot();
+</script>
+</body>
+</html>

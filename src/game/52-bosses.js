@@ -927,7 +927,10 @@ const DECOMP = {
 function decompile(a, z, en, mul) {
   const m = (mul || 1) * (en.sizeMul || 1) * (en.type === 'heavy' ? 1.3 : 1);
   z = Math.max(z, 0.02);
+  // The hull and the rotation it was WEARING go with the ghost. Without them the
+  // de-rez would tear a body that no longer matches the one that just died.
   ghosts.push({ a, z, t: 0, sizeMul: en.sizeMul || 1, pal: enemyPal(en),
+    hull: en.type === 'strip' ? null : breachHull(en), rot: breachPhi(a),
     spr: SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.type] });
   ripples.push({ a, z, t: 0, mul: Math.sqrt(m) });
 }

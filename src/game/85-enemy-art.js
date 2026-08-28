@@ -415,6 +415,30 @@ function drawGhost(gh, g) {
   const x = rg.x + Math.cos(gh.a) * rg.r, y = rg.y + Math.sin(gh.a) * rg.r;
   const size = Math.min(W, H) * 0.06 * clamp(rg.r / g.nodeR, 0.1, 2) * gh.sizeMul;
   const S = DECOMP.slices;
+  // A BAKED BODY TEARS AS ITSELF. The hull is handed over at death (see decompile)
+  // with the rotation it was wearing, so the strips are the body's own rows and it
+  // de-rezzes where it stood — not snapped upright for the last half second of it.
+  if (gh.hull) {
+    const sp = s3BreachView(gh.hull, gh.rot);
+    if (sp) {
+      const w = sp.S * (bodyR(size) / sp.R);   // the same one scale the live body uses
+      const top = -w / 2 - (sp.ay || 0) * w / sp.S;   // the same anchor the live body uses
+      ctx.save();
+      ctx.translate(x, y); ctx.rotate(gh.rot);
+      const sh = sp.cv.height;
+      for (let i = 0; i < S; i++) {
+        if (Math.random() < k * 0.6) continue;
+        const jx = (Math.random() - 0.5) * w * DECOMP.jitter * 0.5 * (0.3 + k);
+        const y0 = top + w * (i / S), hh = w / S;
+        ctx.globalAlpha = (1 - k) * (0.5 + Math.random() * 0.5);
+        ctx.drawImage(sp.cv, 0, sh * (i / S), sp.cv.width, sh / S,
+          -w / 2 + jx, y0 + (0 - y0) * Math.max(0, (k - 0.55) / 0.45) * 0.8, w, hh);
+      }
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      return;
+    }
+  }
   const half = gh.spr ? size * 1.7 : size; // sprite skins draw on a wider box
   const collapse = Math.max(0, (k - 0.55) / 0.45) * 0.8; // the strips fall into the midline
   for (let i = 0; i < S; i++) {
@@ -490,6 +514,198 @@ function drawVolleyBlasts(g) {
   }
 }
 
+// ---------- THE BAKED BREACH BODY ----------
+//
+// The hardware is geometry now (see THE BREACH in 81-station3d.js). What is left
+// here is the half that must NOT be baked: where the body sits, which sun it
+// borrows, what colour runs in its channels, and the shadow it lays on the wall.
+//
+// THE ONE ROTATION. A tap sits on the wall at `en.angle`, and the direction into
+// the bore is the vector from the body to the axis. The sprite was baked with its
+// drill standing straight up and its plate already squashed to ENEMYFX.squash, so
+// putting the sprite's up axis on that vector IS the whole placement. There is no
+// second idea of the camera, and the squash lands radially exactly where the
+// painter always applied it.
+const breachHull = en => en.type === 'heavy' ? 'BRHVY' : en.type === 'line' ? 'BRANC' : 'BRTAP';
+
+// THE BODY SCALE, AND THERE IS ONLY ONE.
+//
+// `size` in drawEnemy is the wall FOOTPRINT — the number the glow, the warp-in
+// flash and the de-rez all measure against. The ART is drawn at ENEMYFX.size
+// times that, and always has been: drawNailBreach has applied it since the day it
+// was written. The baked hull shipped without it and so drew at 0.533 of the art
+// it replaced — half the body, which is exactly why it read as small and as hard
+// to hit however much geometry went into it.
+//
+// BREACHFX.scale is the hull's own trim on that shared knob — a baked body carries
+// a drill, a ring and a beam where the painter carried a flat plate, so it fills
+// more of the same footprint. See the note on it in 41-geometry.js.
+//
+// Everything downstream is keyed to this one call: the target ring is BREACHFX.ring
+// of it and lands on ARCFX.span, the aim gate measures against it, and
+// scripts/test.js fails if they drift. Change the scale here, never at a call site.
+const bodyR = size => size * ENEMYFX.size * BREACHFX.scale;
+// where the sprite's up axis has to point, given a body's angle on the ring
+const breachPhi = a => Math.atan2(-Math.cos(a), Math.sin(a));
+
+// THE TYPE COLOUR, poured through the bake's own coverage mask. Colour is the
+// gameplay language and belongs to the instance, not the hull — so one hull
+// serves red, blue, white and purple, and nothing about which node takes a trap
+// is ever baked into metal. Built once per hull per ink and kept on the sprite.
+function breachTint(sp, glow) {
+  if (!sp.field) return null;
+  sp.tints = sp.tints || {};
+  let t = sp.tints[glow];
+  if (t) return t;
+  const w = sp.cv.width, h = sp.cv.height;
+  const mk = spread => {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    if (!x) return null;
+    if (spread > 0) {
+      // A BOX-ISH BLUR BY ACCUMULATION rather than ctx.filter — the filter
+      // property is not everywhere this game runs, and this is built at most
+      // twelve times in a session, so its cost does not matter.
+      x.globalAlpha = 0.34;
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * TAU;
+        x.drawImage(sp.field, Math.cos(a) * spread, Math.sin(a) * spread);
+      }
+      x.globalAlpha = 0.55;
+      x.drawImage(sp.field, 0, 0);
+      x.globalAlpha = 1;
+    } else x.drawImage(sp.field, 0, 0);
+    x.globalCompositeOperation = 'source-in';
+    x.fillStyle = 'rgb(' + glow + ')';
+    x.fillRect(0, 0, w, h);
+    return c;
+  };
+  t = { core: mk(0), glow: mk(Math.max(2, w * 0.035)) };
+  sp.tints[glow] = t;
+  return t;
+}
+// Stamp one hull. Returns false when its strip has not baked yet, and the caller
+// falls back to drawNailBreach — the procedural body is the STAND-IN now, not a
+// dead branch: it covers the first seconds of a cold start and every device the
+// bake fails on.
+function drawBreachHull(id, x, y, a, size, glow, alpha, g) {
+  const phi = breachPhi(a);
+  const sp = s3BreachView(id, phi);
+  if (!sp) return false;
+  const w = sp.S * (size / sp.R);
+  if (w < 1) return true;                 // too small to draw, but it IS handled
+  // pick the mip nearest above the target — a body at the horizon is a few
+  // pixels, and point-sampling a 224px sprite that far down is confetti
+  let cv = sp.cv, k = 1;
+  if (sp.mips && w < sp.S * 0.6) {
+    for (const m of sp.mips) { if (m.width >= w) { cv = m; k = m.width / sp.S; } else break; }
+  }
+  // THE EXFIL BEAM, under everything: the haul leaving through the wall. It is
+  // drawn from the plate AWAY from the axis, so it never touches the arc the
+  // player is aiming into — presence bought on the one free axis.
+  if (BREACHFX.beamI > 0.02 && g) {
+    const ux = (g.cx - x) / (Math.hypot(g.cx - x, g.cy - y) || 1);
+    const uy = (g.cy - y) / (Math.hypot(g.cx - x, g.cy - y) || 1);
+    const tx = -uy, ty = ux;
+    const BL = size * 2.5 * BREACHFX.beam;
+    const fl = 0.82 + 0.18 * Math.sin(time * 6.5 + x * 0.03);
+    const w0 = size * 0.60, w1 = size * 0.07;
+    const ex = x - ux * BL, ey = y - uy * BL;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [wm, am] of [[1.6, 0.09], [1.0, 0.20], [0.45, 0.34]]) {
+      const bg = ctx.createLinearGradient(x, y, ex, ey);
+      bg.addColorStop(0, 'rgba(' + glow + ',' + (am * BREACHFX.beamI * fl * alpha).toFixed(3) + ')');
+      bg.addColorStop(0.3, 'rgba(' + glow + ',' + (am * 0.55 * BREACHFX.beamI * fl * alpha).toFixed(3) + ')');
+      bg.addColorStop(1, 'rgba(' + glow + ',0)');
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.moveTo(x + tx * w0 * wm, y + ty * w0 * wm);
+      ctx.lineTo(ex + tx * w1 * wm, ey + ty * w1 * wm);
+      ctx.lineTo(ex - tx * w1 * wm, ey - ty * w1 * wm);
+      ctx.lineTo(x - tx * w0 * wm, y - ty * w0 * wm);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+  // THE GROUNDING STAYS LIVE: one soft pool squashed onto the wall, scorch under
+  // the plate melting into contact shadow. A baked shadow is a grey patch that
+  // never matches the tunnel it lands on.
+  if (BREACHFX.ground > 0.02 && g) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(phi); ctx.scale(1, ENEMYFX.squash);
+    const rr = w * 0.62 * BREACHFX.ground;
+    const sh = ctx.createRadialGradient(0, 0, 0, 0, 0, rr);
+    sh.addColorStop(0, 'rgba(1,2,8,' + (0.82 * alpha).toFixed(3) + ')');
+    sh.addColorStop(0.42, 'rgba(0,2,8,' + (0.34 * alpha).toFixed(3) + ')');
+    sh.addColorStop(1, 'rgba(0,2,8,0)');
+    ctx.fillStyle = sh;
+    ctx.beginPath(); ctx.arc(0, 0, rr, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  // The puncture is not the sprite's middle any more — the bake slides the camera
+  // so the BODY centres and hands back `ay`, where the origin ended up. Put THAT
+  // point on the wall, or the hull floats off its own hole.
+  const dy = -w / 2 - (sp.ay || 0) * w / sp.S;
+  // THE TARGET RING, on the wall under the hull. A machine tells you WHAT a trap
+  // is; a ring tells you WHERE it is, and that is the read the player aims with.
+  // Drawn in the wall's own frame so it squashes with the bore, and breathing so
+  // it separates from the tunnel's static lattice.
+  if (BREACHFX.ringI > 0.02) {
+    const rr = size * BREACHFX.ring;
+    const br = 0.72 + 0.28 * Math.sin(time * 2.6 + x * 0.02 + y * 0.02);
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(phi); ctx.scale(1, ENEMYFX.squash);
+    ctx.globalCompositeOperation = 'lighter';
+    // the halo blooms OUTWARD of the line, never inward — the crisp edge is the
+    // reach, and a soft band centred on it would put half the glow inside the arc
+    // and read as a wider window than the rule actually gives
+    ctx.strokeStyle = 'rgba(' + glow + ',' + (0.15 * BREACHFX.ringI * br * alpha).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(2, rr * 0.44);
+    ctx.beginPath(); ctx.arc(0, 0, rr * 1.20, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = 'rgba(' + glow + ',' + (0.95 * BREACHFX.ringI * br * alpha).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(1.3, rr * 0.075);
+    ctx.beginPath(); ctx.arc(0, 0, rr, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y); ctx.rotate(phi);
+  ctx.drawImage(cv, -w / 2, dy, w, w);
+  // THE SHAFT'S CORE LIGHT. A dark drill against a dark bore is a hole in the
+  // picture; one stroke of the type's own ink down its length gives it an edge to
+  // be seen by, and puts the colour on the part that reaches for the player.
+  if (BREACHFX.spine > 0.02) {
+    const L = (sp.reach || 1.4) * size;
+    const g2 = ctx.createLinearGradient(0, 0, 0, -L);
+    g2.addColorStop(0, 'rgba(' + glow + ',0)');
+    g2.addColorStop(0.35, 'rgba(' + glow + ',' + (0.55 * BREACHFX.spine * alpha).toFixed(3) + ')');
+    g2.addColorStop(0.9, 'rgba(' + glow + ',' + (0.95 * BREACHFX.spine * alpha).toFixed(3) + ')');
+    g2.addColorStop(1, 'rgba(' + glow + ',0)');
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = g2;
+    ctx.lineWidth = Math.max(1.2, size * 0.055);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -L); ctx.stroke();
+    ctx.restore();
+  }
+  const t = BREACHFX.tint > 0.02 ? breachTint(sp, glow) : null;
+  if (t) {
+    ctx.globalCompositeOperation = 'lighter';
+    if (t.glow && BREACHFX.bloom > 0.02) {
+      ctx.globalAlpha = alpha * BREACHFX.bloom;
+      ctx.drawImage(t.glow, -w / 2, dy, w, w);
+    }
+    if (t.core) {
+      ctx.globalAlpha = alpha * BREACHFX.tint;
+      ctx.drawImage(t.core, -w / 2, dy, w, w);
+    }
+  }
+  ctx.restore();
+  return true;
+}
+
 function drawEnemy(en, g) {
   const rg = ring(Math.max(en.z, 0.02), g);
   const x = rg.x + Math.cos(en.angle) * rg.r;
@@ -535,8 +751,8 @@ function drawEnemy(en, g) {
   if (spr) {
     // sprite skin replaces the procedural body (glow + sigils stay live)
     ctx.drawImage(spr, x - size * 1.7, y - size * 1.7, size * 3.4, size * 3.4);
-  } else {
-    drawNailBreach(en, g, fade, PAL);
+  } else if (!drawBreachHull(breachHull(en), x, y, en.angle, bodyR(size), PAL.glow, fade, g)) {
+    drawNailBreach(en, g, fade, PAL);   // the stand-in, until the strip has baked
   }
   // warp-in flash — ONLY for authored mid-bore drops, which genuinely appear out
   // of nothing and need the telegraph. A horizon spawn must never announce

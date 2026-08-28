@@ -166,6 +166,10 @@ code = code.replace("'use strict';", '') + `
   getLevelIdx: () => levelIdx, campaignCleared, // the report's contract hand-over reads both
   DEST_DEAL, DEST_ROLL, S3D_FINAL, dealVariantId, dealBuildId, dealRoll, variantById,
   destKindFor, planetVariantFor, s3BuildFor, PLANET_TYPES, STAR_DECK,
+  // the breach hulls: the roster, and the one number their camera shares with the painter
+  S3D_BUILDS, S3_BREACH_SQ, S3_BREACH_EL, ENEMYFX, BREACHFX, breachHull,
+  s3BreachKeys,
+  ARCFX, geo, ring, screen: () => ({ W, H }), bodyR,
   getLevels: () => LEVELS, migrateSaveShape, getInfoCards: () => INFO_CARDS,
   getGpSel: () => gpSel, setGpSel: v => { gpSel = v; },
   // the focus ring's lifetime + what the report's face buttons resolve to
@@ -397,17 +401,30 @@ const deepPts = (G.getScore() - sv0) / Math.min(G.stats().combo, 10);
 check('a deeper volley kill pays more', en.dead === true && deepPts > nearPts);
 // THE VOLLEY'S BLAST: the bolt detonates on what it hits and takes the
 // neighbours inside a small wedge — bounded in depth AND angle.
+//
+// EVERY PROBE IS A MULTIPLE OF THE REACH, never a literal offset. The reach is a
+// tuning number and it moved once already (0.20/0.90 -> 0.70/2.00 on 2026-08-28);
+// literals turned that tuning pass into three red pins that said nothing about
+// the rule. What is pinned here is the SHAPE — in, out, and the corner — at
+// whatever size the two semi-axes carry.
+//
+// Every probe also sits clear of the bolt's own 0.30 rad corridor, so a body
+// that dies here died to the BLAST and not to the bolt flying past it.
 G.enemies().length = 0;
 G.volley().cd = 0;
 {
-  const hit = G.spawnEnemy(2.0, 'normal'); hit.z = 1.2; hit.lock = undefined;
-  const near = G.spawnEnemy(2.0 + 0.30, 'normal'); near.z = 1.25; near.lock = undefined; // inside both bounds
-  const wideA = G.spawnEnemy(2.0 + 1.40, 'normal'); wideA.z = 1.20; wideA.lock = undefined; // angle too far
-  const deepZ = G.spawnEnemy(2.0 + 0.20, 'normal'); deepZ.z = 1.60; deepZ.lock = undefined; // depth too far
-  // THE CORNER. Inside the box on both axes (0.18 < 0.20, 0.80 < 0.90) and
-  // outside the ELLIPSE, which is the whole point of the rounded region.
-  const corner = G.spawnEnemy(2.0 + 0.80, 'normal'); corner.z = 1.38; corner.lock = undefined;
-  const keyed = G.spawnEnemy(2.0 - 0.25, 'normal'); keyed.z = 1.22; keyed.lock = 0;        // keyed work stays keyed
+  const bz = G.VOLLEY_BLAST_Z, ba = G.VOLLEY_BLAST_A;
+  const hit = G.spawnEnemy(2.0, 'normal'); hit.z = 1.0; hit.lock = undefined;
+  const near = G.spawnEnemy(2.0 + 0.30 * ba, 'normal'); near.z = 1.0 + 0.25 * bz; near.lock = undefined; // inside both bounds
+  // clamped just under a half-turn: an angular semi-axis at or past PI would be
+  // a full ring, which the blast is never allowed to be (see 72-tick)
+  const wideA = G.spawnEnemy(2.0 + Math.min(1.30 * ba, Math.PI - 0.02), 'normal');
+  wideA.z = 1.0; wideA.lock = undefined;                                                    // angle too far
+  const deepZ = G.spawnEnemy(2.0 + 0.30 * ba, 'normal'); deepZ.z = 1.0 + 1.15 * bz; deepZ.lock = undefined; // depth too far
+  // THE CORNER. Inside the box on both axes (0.85 of each) and outside the
+  // ELLIPSE (0.85^2 + 0.85^2 > 1), which is the whole point of the rounded region.
+  const corner = G.spawnEnemy(2.0 + 0.85 * ba, 'normal'); corner.z = 1.0 + 0.85 * bz; corner.lock = undefined;
+  const keyed = G.spawnEnemy(2.0 - 0.25 * ba, 'normal'); keyed.z = 1.02; keyed.lock = 0;    // keyed work stays keyed
   volleyShot(2.0, 12);
   for (let i = 0; i < 30 && !hit.dead; i++) vstep();
   check('the bolt still kills what it hits', hit.dead === true);
@@ -2979,6 +2996,70 @@ G.keys['ArrowUp'] = false;
     })));
   check('the deal and S3D_FINAL agree on every endpoint',
     G.CAMPAIGNS.every(pk => G.dealBuildId(pk.id, pk.levels.length - 1) === G.S3D_FINAL[pk.id]));
+  // ---- THE BREACH HULLS ----
+  // The bake camera GRAZES the wall plate at asin(ENEMYFX.squash), which is the
+  // same foreshortening the live painter applies to on-wall parts. If the two ever
+  // drift the baked body stops lying on the wall the game draws, and nothing else
+  // in the build would say so — the sprite just quietly sits at the wrong angle.
+  check('the breach camera and the wall painter share one squash',
+    Math.abs(G.S3_BREACH_SQ - G.ENEMYFX.squash) < 1e-9 &&
+    Math.abs(G.S3_BREACH_EL - Math.asin(G.ENEMYFX.squash)) < 1e-9);
+  check('the three breach hulls are registered, and every one grazes the plate',
+    ['BRTAP', 'BRHVY', 'BRANC'].every(id => {
+      const b = G.S3D_BUILDS.find(x => x.id === id);
+      return b && b.kind === 'breach' && typeof b.fn === 'function' &&
+             Math.abs(b.el - G.S3_BREACH_EL) < 1e-9;
+    }));
+  // A breach hull is NOT scenery. s3BuildFor deals only from kind 'station', and
+  // the moment one of these turns up moored at a relay the mistake is silent.
+  check('no breach hull can be dealt to a relay',
+    G.S3D_BUILDS.filter(b => b.kind === 'station').every(b => !/^BR/.test(b.id)) &&
+    G.CAMPAIGNS.every(pk => pk.levels.every((lv, i) =>
+      !/^BR/.test(G.s3BuildFor(pk.id, i, 'station')))));
+  // EVERY TRAP THAT HAS A BODY HAS A HULL. breachHull is the one mapping, and a
+  // type that falls through it would draw the wrong hardware in the lane, in the
+  // field guide, on the briefing disc and in the menu's traffic legend at once.
+  check('every trap type maps to a registered hull',
+    ['normal', 'heavy', 'line'].every(t => {
+      const id = G.breachHull({ type: t });
+      return G.S3D_BUILDS.some(b => b.id === id && b.kind === 'breach');
+    }) &&
+    G.breachHull({ type: 'heavy' }) === 'BRHVY' &&
+    G.breachHull({ type: 'line' }) === 'BRANC' &&
+    G.breachHull({ type: 'normal', lock: 0 }) === 'BRTAP');
+  // THE TARGET RING IS THE ZAP WINDOW, DRAWN. A hoop that is not the reach is a
+  // hoop that lies about it, and it would lie in the one place the player is
+  // looking while they aim. Computed through the shipped geo()/ring(), so it
+  // fails if the body scale, the node ring or the tolerance moves without the
+  // other two.
+  {
+    const g = G.geo();
+    const sc = G.screen();
+    // the body scale at the node ring, through the ONE function that sets it —
+    // so the pin cannot describe a scale the game does not use, which is the exact
+    // way it went wrong the first time
+    const size = G.bodyR(Math.min(sc.W, sc.H) * 0.06);
+    check('the target ring is exactly one emitter\'s reach',
+      Math.abs(G.ring(g.hitZ, g).r - g.nodeR) < 1e-6 &&
+      Math.abs(size * G.BREACHFX.ring / g.nodeR - G.ARCFX.span) < 0.006);
+  }
+  // THE HULL IS DRAWN AT THE BODY SCALE, not at the wall footprint. This is the
+  // defect that shipped: `size` is the footprint and the ART has always been
+  // ENEMYFX.size times it, so a hull hooked to `size` drew at 0.533 of the body it
+  // replaced. Everything else here — the ring, the aim gate, the width budget —
+  // is quoted against the body scale, so if this slips they all start lying at once.
+  check('a body draws at the body scale, not the wall footprint',
+    Math.abs(G.bodyR(100) - 100 * G.ENEMYFX.size * G.BREACHFX.scale) < 1e-9 &&
+    G.bodyR(100) > 100);   // and the trim never inverts it back below the footprint
+  // The bake queue must carry one entry per hull PER SUN DIRECTION. Enqueue only
+  // the bare ids and every body draws with a highlight that orbits the player.
+  check('the bake queue holds a sun strip for every hull',
+    G.s3BreachKeys().length === 3 * G.BREACHFX.sunViews &&
+    ['BRTAP', 'BRHVY', 'BRANC'].every(id => {
+      for (let k = 0; k < G.BREACHFX.sunViews; k++) if (G.s3BreachKeys().indexOf(id + '@' + k) < 0) return false;
+      return true;
+    }));
+
   check('a relay is a star exactly when its frozen variant is one',
     G.CAMPAIGNS.every(pk => pk.levels.every((lv, i) => {
       const isStar = G.destKindFor(pk.id, i, i === pk.levels.length - 1) === 'star';

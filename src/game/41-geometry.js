@@ -35,6 +35,64 @@ const ENEMYFX = {
   mDrill: 1.35, mSpin: 3.50,   // auger length / flute crawl speed
   mCrack: 1.00,  // impact crack reach
 };
+// THE BAKED BREACH BODIES — the live half of them. The hardware itself is
+// geometry (see THE BREACH in 81-station3d.js); these are the numbers the game
+// still decides every frame, because they are the ones that must not be baked.
+//
+// `size` is deliberately absent: a baked body scales off the SAME `size` drawEnemy
+// already computes from ENEMYFX.size, so the two families can never end up at
+// different scales on the same wall.
+const BREACHFX = {
+  // Baked light directions per hull. A tap rides the whole way round the bore, so
+  // one sprite carries its highlight round with it and the sun appears to orbit
+  // the player. Six holds it still. Costs six bakes a hull, on the menu, with a
+  // procedural stand-in until they land — and lowFX bakes every other one.
+  sunViews: 6,
+  sunElev: 0.55,  // how far the key stands out of the plate's plane, in radians
+  // THE HULL'S OWN TRIM ON THE SHARED BODY SCALE. `ENEMYFX.size` sets how big a
+  // body is and both renderers obey it, but a baked hull is not a flat painting:
+  // it carries a drill standing into the bore, a target ring and an exfil beam,
+  // so it fills far more of the same footprint than the painter it replaced. At
+  // the bare shared scale it crowded the bore. A fifth off puts the HARDWARE just
+  // over the old art's plate, while the RING — the aim cue, measured separately
+  // below — stays exactly on the emitter's reach.
+  scale: 0.76,
+  ref: 224,       // sprite side in CSS px — a tap is never a station on screen
+  tint: 1.10,     // the type colour poured through the bake's coverage mask
+  bloom: 0.70,    // and its blurred pass, so the channels bleed into the metal
+  ground: 1.00,   // the contact pool squashed onto the wall
+  // THE EXFIL BEAM. On the far side of the wall the tap transmits its haul OUT to
+  // whoever sent it — a type-coloured cone rising AWAY from the bore, wide at the
+  // plate and converging as it recedes. It was in the old painter and dropping it
+  // is most of why the baked bodies read smaller than the ones they replaced.
+  //
+  // It is also free: the cone points radially outward, so it adds presence in the
+  // one direction that costs the player nothing to read. Nothing about the aim
+  // moves — see BR_WIDE in 81-station3d.js for the axis that is rationed.
+  beam: 1.00,     // its length, in body sizes
+  beamI: 0.62,    // and its brightness
+  // THE TARGET RING — a type-coloured hoop laid on the WALL around the plate,
+  // breathing. This is the single cue the old painter had that the baked hull did
+  // not, and losing it is most of why the new bodies were hard to pick out and
+  // hard to aim at: a hull is a machine, but a ring is a TARGET. It lives in wall
+  // space, so it foreshortens with the bore like everything else on it.
+  //
+  // ITS RADIUS IS THE ZAP WINDOW, DRAWN. An emitter takes a trap when it is within
+  // ARCFX.span of the trap's angle, and 1.342 body sizes IS that arc at every
+  // depth — because `size` and the depth ring's radius both scale with the same
+  // wall fraction, so the ratio never moves:
+  //
+  //     ring * scale * 0.06 * ENEMYFX.size / 0.44  ==  ARCFX.span
+  //
+  // So the hoop is not decoration and it is not a guess at one: it is the coverage
+  // rule painted on the wall, the same bargain the emitter's own arc already makes.
+  // Keep the three numbers in step, or the ring starts lying about the reach.
+  ring: 1.342,    // its radius, in body sizes — see above before changing it
+  ringI: 0.85,    // and how hard it burns
+  // the drill's own core light, so the shaft reads against a dark bore instead
+  // of disappearing into it — the old body's siphon line, in one stroke
+  spine: 0.70
+};
 const enGun = l => { l *= ENEMYFX.mMetal; return `rgb(${Math.round(l * 0.92)},${Math.round(l * 0.96)},${Math.round(Math.min(255, l * 1.04))})`; };
 
 // nodes: [left(blue), right(white)]
@@ -76,6 +134,10 @@ function slewNodes(dt) {
 }
 
 // ---------- geometry ----------
+// >>> BORE-PROJ
+// The bore's whole projection, in two functions. Marked as a region because the
+// breach lab stages bodies in a real bore rather than a drawn approximation of
+// one — a lab that guesses the projection is a lab that judges the wrong shape.
 function geo() {
   const cx = W / 2, cy = H / 2;
   const nodeR = Math.min(W, H) * 0.44;            // the fixed node holder ring — nearly touches top/bottom
@@ -109,6 +171,7 @@ function ring(z, g) {
   const off = Math.min(W, H) * 0.25;
   return { x: g.cx + g.sw * off * q, y: g.cy + g.swy * off * 0.7 * q, r: g.R0 * s, s };
 }
+// <<< BORE-PROJ
 
 // typography helpers: text lives INSIDE the bore — shrink to the clear chord
 function ringChord(y, margin) {

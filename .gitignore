@@ -103,3 +103,7 @@ android/key.properties
 
 # derived by lifting S3D_* out of DEST-DATA (see docs/station-lab/README.md)
 docs/station-lab/dials.js
+
+# The breach lab writes its captures here (?shot=NAME). Regenerable output, not
+# source — the lab rebuilds any of them in a second.
+docs/breach-lab/shots/
