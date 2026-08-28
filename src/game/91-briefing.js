@@ -1574,7 +1574,9 @@ function pauseTap(x, y, pid) {
         if (pausedFromInfo) { pausedFromInfo = false; state = S.INFO; }
         else { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; }
       }
-      else if (b.action === 'restart') { pausedFromInfo = false; if (qual) startQualification(); else if (weekly) startWeekly(weeklyIdx); else if (endless) startEndless(); else startLevel(levelIdx); } // the week just flown, not weekNow() — see the END retry
+      // RESTART TRAVELS, here as on the report: one warp, the same one the NEXT
+      // STAGE key runs. This used to be a hard cut with no transition at all.
+      else if (b.action === 'restart') startTrans('warp', () => { pausedFromInfo = false; if (qual) startQualification(); else if (weekly) startWeekly(weeklyIdx); else if (endless) startEndless(); else startLevel(levelIdx); }); // the week just flown, not weekNow() — see the END retry
       else { // QUIT rides the same drive-back the end-screen MENU key uses
         pausedFromInfo = false;
         weekly = false; Math.random = sysRandom;

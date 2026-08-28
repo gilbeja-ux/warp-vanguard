@@ -117,32 +117,19 @@ let frameDt = 0; // this frame's wall-clock dt — drives UI fx even when the si
 const SIM_DT = 1 / 60, SIM_MAX_SUB = 5;
 let simAcc = 0;
 // ---------- screen transitions + button press feedback ----------
-// glitch: quick chromatic slice cut for menu screens. warp: a dive down the
-// the lane for deploys. The action fires at the covered midpoint.
+// warp: a dive down the lane. It is the ONE screen transition a level change
+// uses — a restart travels exactly like a hand-off to the next stage. The old
+// derez shred (a retry de-rezzing the failed frame in place) is deleted; it
+// read as a fault, not as a departure. The action fires at the covered midpoint.
 let trans = null;   // {mode, t, dur, mid, fired}
-let transSnap = null; // derez: snapshot of the last frame, shredded strip by strip
 let uiPress = null; // {x,y,w,h | sector, t, fn}
 // choreographed menu moves: the wheel spins out/in, map panels fly in/out,
 // deploys LAUNCH the whole menu at the viewer
 let menuFx = null;  // {kind:'spinOut'|'spinIn'|'panelsIn'|'panelsOut'|'launch', t, dur, to, action}
 function startTrans(mode, fn) {
   if (trans) { if (fn) fn(); return; }
-  trans = { mode, t: 0, dur: mode === 'warp' ? 0.62 : mode === 'derez' ? 0.55 : 0.26, mid: fn, fired: false };
-  if (mode === 'derez') {
-    // RETRY = re-sync, not travel: freeze the failed frame and de-rez it in
-    // place (the enemy-decompile language) while the fresh run boots beneath
-    transSnap = null;
-    try {
-      transSnap = document.createElement('canvas');
-      transSnap.width = canvas.width; transSnap.height = canvas.height;
-      transSnap.getContext('2d').drawImage(canvas, 0, 0);
-    } catch (e) { transSnap = null; }
-    trans.mid = null; trans.fired = true;
-    if (fn) fn();                       // the new run starts NOW, under the shreds
-    tone(150, 0.4, 'square', 0.07, 48); // power-down thump...
-    crackle(0.4, 2600, 220, 2, 0.5);    // ...through a burst of static
-  }
-  else if (mode === 'warp') {
+  trans = { mode, t: 0, dur: mode === 'warp' ? 0.62 : 0.26, mid: fn, fired: false };
+  if (mode === 'warp') {
     // packet flush: a descending whoosh as the run's data dives to the node,
     // then a bright rising ping at the switch as the next node blooms open
     tone(300, 0.34, 'sine', 0.12, 55); crackle(0.34, 2600, 380, 1.4, 0.35);
@@ -297,44 +284,7 @@ function drawTrans() {
   if (!trans) return;
   const q = trans.t / trans.dur;
   const cover = 1 - Math.abs(q * 2 - 1); // 0 -> 1 (switch) -> 0
-  if (trans.mode === 'derez') {
-    // the failed frame de-rezzes in place: displaced strips, dropout, chroma
-    // ghosts — drawn in the canvas's native space so it shreds the raw display
-    if (transSnap && transSnap.width) {
-      const cw2 = transSnap.width, ch2 = transSnap.height;
-      const SN = 26, sh2 = ch2 / SN;
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      for (let i = 0; i < SN; i++) {
-        if (Math.random() < q * 0.75) continue;              // strips wink out
-        const jx = (Math.random() - 0.5) * cw2 * 0.3 * q;
-        const yd = i * sh2 + (ch2 / 2 - i * sh2) * q * 0.12; // slight collapse
-        ctx.globalAlpha = (1 - q) * (0.55 + Math.random() * 0.45);
-        ctx.drawImage(transSnap, 0, i * sh2, cw2, sh2, jx, yd, cw2, Math.max(1, sh2 * (1 - q * 0.3)));
-        if (i % 3 === 0) { // chromatic ghost trailing the strip
-          ctx.globalAlpha = (1 - q) * 0.10;
-          ctx.fillStyle = i % 6 === 0 ? 'rgb(255,60,90)' : 'rgb(111,227,255)';
-          ctx.fillRect(jx * 1.6, yd, cw2, sh2 * 0.5);
-        }
-      }
-      ctx.restore();
-      ctx.globalAlpha = 1;
-    }
-    return;
-  }
-  if (trans.mode === 'glitch') {
-    ctx.fillStyle = `rgba(2,4,10,${(cover * 0.9).toFixed(2)})`;
-    ctx.fillRect(-20, -20, W + 40, H + 40);
-    for (let i = 0; i < 9; i++) { // chromatic slices tearing sideways
-      const y0 = i / 9 * H + Math.sin(i * 37.7 + trans.t * 90) * 4;
-      const hh = H / 9 * (0.3 + 0.7 * Math.abs(Math.sin(i * 91.3 + trans.t * 47)));
-      const off = Math.sin(i * 13.7 + trans.t * 71) * W * 0.2 * cover;
-      ctx.fillStyle = i % 3 === 0 ? `rgba(255,60,90,${(cover * 0.22).toFixed(2)})`
-        : i % 3 === 1 ? `rgba(111,227,255,${(cover * 0.22).toFixed(2)})`
-        : `rgba(220,235,255,${(cover * 0.15).toFixed(2)})`;
-      ctx.fillRect(off, y0, W, hh * cover);
-    }
-  } else { // warp: PACKET FLUSH — the run's data dives down the bore to the
+  { // warp: PACKET FLUSH — the run's data dives down the bore to the
     // next node, which blooms back out toward the player. Directional, diegetic:
     // everything travels toward the vanishing point in the first half, then out
     // of it in the second, so it reads as ARRIVAL at a new node (not a starburst).

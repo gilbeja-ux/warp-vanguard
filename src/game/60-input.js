@@ -507,7 +507,7 @@ function endTap(x, y) {
   for (const b of endButtons) {
     if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
       closeNameEntry(); // leaving END dismisses the high-score card + its DOM field
-      if (b.action === 'retry') pressUI(b, () => startTrans('derez', () => {
+      if (b.action === 'retry') pressUI(b, () => startTrans('warp', () => {
         // A CAMPAIGN RETRY KEEPS THE MODE IT JUST FLEW — until the lane is
         // CLEARED. Losing assisted retries assisted: the player is still stuck,
         // and that is the whole point of the ease. Clearing it spends the ease.
@@ -519,16 +519,16 @@ function endTap(x, y) {
         // restarted on the NEW week's lane — a different seed under the same key.
         // Passing the week just flown keeps the lane; if it closed meanwhile the
         // retry is practice, which weeklyLive() already says and the server enforces.
+        // A RESTART TRAVELS. It used to freeze and shred the failed frame, then
+        // hold warpT at 0 so the lane did not fly in. Both are gone: a restart now
+        // runs the SAME warp the NEXT STAGE key runs, dive included.
         if (weekly) startWeekly(weeklyIdx); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx, false, assist && !endWin);
-        warpT = 0; // a re-sync doesn't travel — no warp dive on the way back in
       }));
-      else if (b.action === 'assist') pressUI(b, () => startTrans('derez', () => {
+      else if (b.action === 'assist') pressUI(b, () => startTrans('warp', () => {
         startLevel(levelIdx, false, true); // the eased retry — unranked, no score, no stars
-        warpT = 0;
       }));
-      else if (b.action === 'duel') pressUI(b, () => startTrans('derez', () => {
+      else if (b.action === 'duel') pressUI(b, () => startTrans('warp', () => {
         startBossRetry(); // the continue: the duel replays, the run stops ranking
-        warpT = 0;
       }));
       else if (b.action === 'next') pressUI(b, () => startTrans('warp', () => startLevel(levelIdx + 1, true)));
       // straight out of the course and into the first contract — the same warp
