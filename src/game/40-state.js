@@ -15,6 +15,33 @@ let enlist = null;
 // four hand-written comparisons is how one of them gets missed.
 const parkedSky = () => state === S.MENU || state === S.ENLIST;
 let levelIdx = 0, levelT = 0, spawnT = 0;
+// ---------- THE LANE CLOCK ----------
+// L.duration is when the lane stops RELEASING traffic, not when it ends. The last
+// wave still has to fly the whole bore and pass the ring, and endLevel only fires
+// once the lane is empty (72-tick) — so a stage runs three to five seconds past its
+// authored duration, and a countdown to `duration` would read zero with the player
+// still fighting.
+//
+// laneEnd is the sim time the lane will ACTUALLY close. It is the one number the
+// HUD countdown and the progress arc both divide by, so the digits and the picture
+// can never disagree. It has two regimes:
+//
+//   spawning open   → an honest UPPER BOUND. The last legal release is at duration,
+//                     a burst queue can trail it by BURST_DRAIN, and the slowest
+//                     body (a heavy, 0.82×) then flies the whole bore.
+//   spawning closed → the EXACT answer. Every body that will ever fly is already on
+//                     the lane or sitting in the burst queue, so the end is arithmetic.
+//
+// The handover between them is a step DOWN, and it is seconds wide when the final
+// release happened early. laneEndShow is the display follower that absorbs it. It
+// eases toward laneEnd in the REMAINING domain, and that is what makes it land on
+// zero at the exact frame the lane closes however hard the player clears the tail —
+// a multiplier on a remaining time cannot overshoot the end it is measured from.
+//
+// Display only. Nothing in the sim reads either value, so no board id moves.
+let laneEnd = 0, laneEndShow = 0;
+const LANE_EXIT_Z = 0.03; // where a body finally leaves `enemies` — 72-tick's filter
+const BURST_DRAIN = 0.70; // a burst volley's two queued releases, 0.35s apart (51-linter)
 let integrity = 100, score = 0, zaps = 0, misses = 0, combo = 0, perfects = 0;
 let maxCombo = 0; // longest streak this run — a leaderboard display stat + tiebreaker
 let comboStartT = 0, maxComboStart = 0, maxComboSec = 0; // duration the record streak held — a replay-panel stat

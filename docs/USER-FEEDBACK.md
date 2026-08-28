@@ -205,6 +205,53 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   inside the battery. Driven to 6000 steps the same lanes score 1342→1322 and 1235→935.
   Deploy the verifier STRICT. See OPEN below.
 
+### F-015 · No way to know how long a stage still has to run
+- **Asked:** 2026-08-28. Gil: "add a nice countdown timer next to the lane progress bar,
+  that will countdown the seconds to lane out.. so players can know how long they have to
+  survive to finish."
+- **The trap, and Gil's ruling on it.** `L.duration` is where the lane stops RELEASING
+  traffic, not where it ends. `endLevel(true)` fires only once the bore is empty, so a
+  stage runs three to five seconds past its authored duration. A countdown to `duration`
+  would read `0:00` with the last wave still inbound. Gil settled it: "it should represent
+  the exact time the level will take, meaning after the last enemy has passed the ring…
+  it'll be identical on the counter and level timer."
+- **THE LANE CLOCK.** `laneEnd` (40-state, stepped by `laneClock` in 72-tick) is the sim
+  time the lane will actually close. It has two regimes:
+  - spawning open → an honest UPPER BOUND: a release at the last legal instant, its burst
+    queue behind it, and the slowest body then flying the whole bore.
+  - spawning closed → the EXACT answer, walked off the live bodies plus `burstQ`/`patternQ`.
+  It only ever moves DOWN, so a countdown can never rewind. `laneEndShow` is the display
+  follower that absorbs the handover step; it eases in the REMAINING domain, which is what
+  makes it land on zero at the exact frame the lane closes however hard the tail is
+  cleared. The last second is never smoothed.
+- **ONE NUMBER, TWO READINGS.** The progress arc divides by `laneEndShow` now, not by
+  `L.duration` — the old bar sat pinned at 100% while the player was still under fire.
+  The digits and the picture cannot disagree because they are the same value.
+- **The readout rides the head.** Gil: "attached to the progress location, top of the
+  filling bar.. and moving with it". It sits outboard of the fill's leading edge and
+  travels with it. Where the screen edge would clip it, it trades height for width and
+  slides further outboard rather than dropping onto the bar.
+- **What it says, one thing at a time:**
+  | Case | Reads |
+  | --- | --- |
+  | a lane | `LANE OUT` + seconds to the lane closing |
+  | a boss lane, before the duel | `LANE OUT` + seconds to the machine |
+  | the duel | `PULSES` + landed / needed (Gil's ask: "1/6 pulses etc") |
+  | a replay | `REMAINING` + the trace's own seconds, on the scrub knob |
+  | free flow, the drill course | nothing — neither has an end to count to |
+- **THE SIM DID NOT MOVE.** The clock reads sim state and writes only its own two values.
+  It draws no randomness, spawning still gates on `L.duration`, and every stage's measured
+  end time is byte-identical before and after. No board id moves; no replay is invalidated.
+- **Pinned by** `npm test`, section **THE LANE CLOCK: ZERO MEANS THE LANE IS OUT** —
+  the three promises flown end to end on stages 01, 02 and 04, plus the arc's divisor, the
+  boss and replay handovers, and the placement.
+- **Settled — ONE CAPTION.** A second word for a boss lane's timed half (`CONTACT`) was
+  drafted and cut by Gil the same day: `LANE OUT` stands on stage 08 too. The five machines
+  carry five names, so no second word covers them all, and a caption a player meets once
+  per contract buys less than a countdown that means one thing everywhere. What arrives at
+  zero is said by the arrival itself, and the readout hands over to `PULSES` on the next
+  frame. `npm test` fails if `CONTACT` comes back.
+
 
 ---
 

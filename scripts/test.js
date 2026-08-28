@@ -242,6 +242,8 @@ code = code.replace("'use strict';", '') + `
   startEnlistment, enlist: () => enlist, enlistTap, enlistScript, enlistTypeDur, ENLIST_HOLD, ENLIST_MIN, parkedSky,
   getPaintN: () => paintN, getVsyncEst: () => vsyncEst,
   keys, startBossTest,
+  // the lane clock: the ONE number the countdown prints and the arc divides by
+  laneClock: () => ({ end: laneEnd, show: laneEndShow }),
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
   stripAngle, startWeekly, isWeekly: () => weekly, weeklyIdx: () => weeklyIdx, weeklyLive,
   weekNow, weekOf, weekLabel, weekStartMs, weekOfBoard, getPulse: () => pulseCharge,
@@ -4963,6 +4965,103 @@ async function runMusicUp() {
     !/sonarLast|SONAR_GAP/.test(tkCode));
 }
 
+// ================= THE LANE CLOCK: ZERO MEANS THE LANE IS OUT =================
+//
+// Gil asked for a countdown beside the progress bar, and then for the hard part:
+// "it should represent the exact time the level will take, meaning after the last
+// enemy has passed the ring… it'll be identical on the counter and level timer".
+//
+// The trap the clock exists to avoid: L.duration is where SPAWNING stops, not where
+// the lane ends. endLevel only fires once the bore is empty (72-tick), so a stage
+// runs three to five seconds past its authored duration. A countdown to duration
+// would read zero with the last wave still inbound, and the arc it sits on would sit
+// pinned at 100% while the player was still fighting.
+//
+// So there is ONE number — laneEndShow — that the digits print and the arc divides
+// by, and these pins hold its three promises: it never rewinds, it lands on zero at
+// the exact frame the lane closes, and it costs the sim nothing.
+{
+  const tc = fs.readFileSync(path.join(ROOT, 'src', 'game', '72-tick.js'), 'utf8');
+  const hd = fs.readFileSync(path.join(ROOT, 'src', 'game', '90-hud.js'), 'utf8');
+  const DT = 1 / 60;
+
+  // 1 · THE THREE PROMISES, flown end to end on real stages. No input, so every
+  // hostile slips past and the tail runs as long as it ever can.
+  for (const li of [0, 1, 3]) {
+    G.startLevel(li, false, false);
+    const L = G.getLevels()[li];
+    G.setPadHold(true, true); G.update(DT); G.setPadHold(false, false);
+    let n = 0, prev = Infinity, rewound = false, remain = 0, lt = 0;
+    while (G.getState() === G.S.PLAY && n++ < 60 * 200) {
+      G.setIntegrity(100); G.update(DT);
+      lt = G.getLevelT();
+      remain = G.laneClock().show - lt;
+      if (remain > prev + 1e-6) rewound = true;
+      prev = remain;
+    }
+    const st = G.lvNum(li + 1);
+    check('stage ' + st + ': the lane really does outlive its duration', lt > L.duration + 2);
+    check('stage ' + st + ': the countdown never rewinds', !rewound);
+    // one frame of slack: the lane closes inside a step, and mmss ceilings anyway
+    check('stage ' + st + ': zero lands on the frame the lane closes', remain < DT * 2);
+  }
+
+  // 2 · THE DIGITS AND THE PICTURE ARE ONE READING. The campaign arc must divide by
+  // the clock, never by L.duration — that division is the bug this whole section is
+  // about, and it reads as a full bar over a lane still under fire.
+  check('the progress arc divides by the lane clock', /clamp\(levelT \/ Math\.max\(0\.001, laneEndShow/.test(hd));
+  check('nothing in the HUD still divides by L.duration', !/levelT \/ L\.duration/.test(hd));
+
+  // 3 · THE CLOCK COSTS THE SIM NOTHING. It runs after the frame's spawns and kills,
+  // it draws no randomness, and it writes only its own two values — so no score, no
+  // trace and no board id can move because a countdown was added to the HUD.
+  const lc = (tc.match(/function laneClock\(L, g, dt\) \{[\s\S]*?\n\}/) || [''])[0];
+  check('laneClock exists and is one function', lc.length > 200);
+  check('the lane clock draws no randomness', !/spawnRng|Math\.random|srand|schance/.test(lc));
+  check('the lane clock writes only its own two values',
+    (lc.match(/^\s*(\w+) =(?!=)/gm) || []).every(m => /lane(End|EndShow)|laneEnd = laneEndShow/.test(m)));
+  check('the sim still gates spawning on L.duration, not on the clock',
+    /levelT < L\.duration\) \{ trySpawn/.test(tc));
+
+  // 4 · MODES WITHOUT AN END SHOW NOTHING. Free flow has no lane to run out of, and
+  // the qualification course is a drill — a countdown on either would be a promise
+  // the mode cannot keep.
+  G.startEndless(); G.setPadHold(true, true); G.update(DT); G.setPadHold(false, false);
+  for (let i = 0; i < 60; i++) G.update(DT);
+  check('free flow runs no lane clock', G.laneClock().show === 0);
+
+  // 5 · A BOSS LANE'S CLOCK ENDS AT DURATION. spawnBoss wipes the bore the frame the
+  // clock expires, so nothing trails it — what arrives at zero is the machine, and
+  // the readout hands over to the duel's own progress.
+  const bi = G.getLevels().length - 1;
+  G.startLevel(bi, false, false);
+  G.setPadHold(true, true); G.update(DT); G.setPadHold(false, false);
+  G.update(DT);
+  check('a boss lane counts down to the machine, not past it',
+    Math.abs(G.laneClock().end - G.getLevels()[bi].duration) < 1e-9);
+  check('the duel replaces the countdown with its pulses', /'PULSES'/.test(hd) && /boss\.maxHp - boss\.hp/.test(hd));
+  // Gil, 2026-08-28: the drafted second word for a boss lane's timed half is cut.
+  // LANE OUT is the countdown's ONE caption, stage 08 included. Comments are stripped
+  // first — the note recording the cut names the dead word, and must be free to.
+  const hdCode = hd.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+  check('the countdown wears one caption on every lane', !/CONTACT/.test(hdCode)
+    && /: \{ n: mmss\(laneEndShow - levelT\), l: 'LANE OUT'/.test(hdCode));
+  check('a replay keeps the readout on its own trace seconds', /replayMeta\.total - \(tracePlay/.test(hd));
+
+  // 6 · THE READOUT RIDES THE HEAD. Gil: "attached to the progress location, top of
+  // the filling bar.. and moving with it". Its angle must be the FILL's angle.
+  check('the readout is placed at the fill head, not in a corner',
+    /const ka2 = aL0 \+ \(aL1 - aL0\) \* prog/.test(hd));
+  check('…and it is pulled inside the safe area rather than clipped',
+    /const yTop = SAFE\.t[\s\S]{0,200}push \* 0\.9/.test(hd));
+
+  // this block flew whole stages and left the game mid-run. The async music suite
+  // above resumes AFTER every synchronous section, and updateMusic decides who owns
+  // the bus from the LIVE state — a run left on the lane takes the menu track away
+  // from it mid-measurement. Hand the state back to the menu.
+  G.setState(G.S.MENU);
+}
+
 // ================= STAGE NUMBERS: THERE IS NO STAGE 0 =================
 //
 // Gil, 2026-08-27, for at least the third time: "there is no level 0!!! ...fix it
@@ -5065,4 +5164,75 @@ async function runMusicUp() {
   if (second) check('every level across the whole story has a unique name',
     new Set(G.CAMPAIGNS.flatMap((c, ci) => c.levels.map((_, li) => G.lvNum(G.levelNo(ci, li))))).size
       === G.CAMPAIGNS.reduce((n, c) => n + c.levels.length, 0));
+}
+
+// ================= THE SYNTH ROSTER STAYS TRUE TO THE GAME =================
+// scripts/sfx-roster.js is the soundboard's list of every cue still spoken by an
+// oscillator. A cue that lives inside `sfx` is auditioned by CALLING it, so it
+// cannot drift. A cue written inline in the middle of a game file has no function
+// to call, so the roster holds a COPY of those lines — and a copy rots silently.
+//
+// Every `pin` line is checked byte for byte against the file the roster names. If
+// a cue is retuned in the game and not in the roster, this fails, and the board
+// stops auditioning a sound the game no longer makes.
+{
+  const { SFX_ROSTER, TAKE_ROSTER } = require(path.join(ROOT, 'scripts', 'sfx-roster.js'));
+  const srcOf = {};
+  const read = f => srcOf[f] || (srcOf[f] = fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8'));
+  check('the synth roster is not empty', SFX_ROSTER.length > 10);
+  check('every roster entry has a key, a status and something to play',
+    SFX_ROSTER.every(e => e.key && e.status && Array.isArray(e.code) && e.code.length));
+  check('no two roster entries share a key',
+    new Set(SFX_ROSTER.map(e => e.key)).size === SFX_ROSTER.length);
+  check('every status is one of live / fallback / keep / dead',
+    SFX_ROSTER.every(e => ['live', 'fallback', 'keep', 'dead'].includes(e.status)));
+
+  // ---- THE TAKE ROSTER MIRRORS SFX_FILES, IN BOTH DIRECTIONS ----
+  // The board could only swap the oscillators until 2026-08-28, so the menu press
+  // — `sfx.tick()`, which is mini-hit.wav and not a synth at all — had no row.
+  // These two checks are what stop that gap reopening: a take added to the game
+  // and not to the board fails here, and so does a board row for a take the game
+  // no longer loads.
+  const sfxFilesSrc = fs.readFileSync(path.join(ROOT, 'src', 'game', '12-sfx.js'), 'utf8');
+  const filesBlock = sfxFilesSrc.slice(sfxFilesSrc.indexOf('const SFX_FILES'), sfxFilesSrc.indexOf('const EXIT_STING'));
+  const gameKeys = [...filesBlock.matchAll(/^ {2}([a-zA-Z0-9]+):\s*\['audio\/sfx\/([^']+)',\s*([0-9.]+)\]/gm)]
+    .map(m => ({ key: m[1], file: m[2], trim: +m[3] }));
+  const boardKeys = new Set(TAKE_ROSTER.map(e => e.key));
+  const unlisted = gameKeys.filter(g => !boardKeys.has(g.key)).map(g => g.key);
+  check('every recorded take in SFX_FILES has a board row' + (unlisted.length ? ' — MISSING: ' + unlisted.join(', ') : ''),
+    unlisted.length === 0);
+  const ghosts = TAKE_ROSTER.filter(e => !gameKeys.some(g => g.key === e.key)).map(e => e.key);
+  check('no board row names a take the game does not load' + (ghosts.length ? ' — GHOSTS: ' + ghosts.join(', ') : ''),
+    ghosts.length === 0);
+  const wrong = TAKE_ROSTER.filter(e => {
+    const g = gameKeys.find(g2 => g2.key === e.key);
+    return g && (g.file !== e.file || g.trim !== e.trim);
+  }).map(e => e.key);
+  check('every board row quotes the take\'s real file and trim' + (wrong.length ? ' — STALE: ' + wrong.join(', ') : ''),
+    wrong.length === 0);
+  check('the take roster is all status take and has something to play',
+    TAKE_ROSTER.every(e => e.status === 'take' && Array.isArray(e.code) && e.code.length && e.label && e.brief));
+  check('the menu press is on the board — it is a TAKE, not a synth',
+    TAKE_ROSTER.some(e => e.key === 'ui' && e.file === 'mini-hit.wav'));
+  check('no key is claimed by both rosters',
+    !SFX_ROSTER.some(e => boardKeys.has(e.key)));
+  let pinned = 0, drift = [];
+  for (const e of SFX_ROSTER) {
+    const pins = e.pin !== undefined ? e.pin : (e.pinFile ? e.code : []);
+    if (!pins.length) continue;
+    if (!e.pinFile) { drift.push(e.key + ': pinned lines with no pinFile'); continue; }
+    const src = read(e.pinFile);
+    for (const p of pins) { pinned++; if (!src.includes(p)) drift.push(e.key + ' ← ' + e.pinFile + ': ' + p); }
+  }
+  check('every inline cue the board copies still reads that way in the game'
+    + (drift.length ? ' — DRIFTED: ' + drift.join(' | ') : ''), drift.length === 0);
+  check('the roster actually pins a meaningful number of inline lines', pinned > 25);
+  // an `sfx.x()` row must name a method that exists — a typo would fail silently
+  // in the browser, where a thrown error only lands in the board's status line
+  const sfxSrc = read('12-sfx.js');
+  const missing = SFX_ROSTER.concat(TAKE_ROSTER).flatMap(e => (e.code.join('\n').match(/sfx\.([a-zA-Z]+)\(/g) || []))
+    .map(m => m.slice(4, -1))
+    .filter(m => !new RegExp('^  ' + m + '\\s*\\(', 'm').test(sfxSrc));
+  check('every sfx.* method the roster calls exists' + (missing.length ? ' — MISSING: ' + missing.join(', ') : ''),
+    missing.length === 0);
 }

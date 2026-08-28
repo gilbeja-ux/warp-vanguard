@@ -727,6 +727,13 @@ function drawTutLessonLine(desc) {
   ctx.restore();
   ctx.textAlign = 'left';
 }
+// M:SS for the lane clock. Ceiling, not floor: a lane with 0.4s left still has to
+// be flown, and a readout that says 0 while traffic is inbound is the exact lie
+// this whole clock exists to stop. Zero appears only when the lane is truly out.
+function mmss(sec) {
+  const t = Math.max(0, Math.ceil(sec));
+  return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+}
 function drawHUD(g) {
   const L = LV || LEVELS[levelIdx];
   const pad = 14;
@@ -773,8 +780,13 @@ function drawHUD(g) {
   ctx.beginPath(); ctx.arc(g.cx, g.cy, barR, aL0, aL1); ctx.stroke();
   // left arc: level progress · endless ramp · CORE health during the duel — or,
   // while watching a replay, the run's position (so it doubles as the scrub bar)
+  // the campaign fill divides by the LANE CLOCK, never by L.duration — duration is
+  // where spawning stops, and a bar that filled there sat pinned at 100% while the
+  // last wave was still inbound. laneEndShow is the same number the countdown below
+  // prints, so the picture and the digits are one reading.
   const prog = replaying ? clamp(tracePlay ? tracePlay.i / Math.max(1, replayMeta.total) : 1, 0, 1)
-    : boss ? clamp(boss.hp / boss.maxHp, 0, 1) : endless ? clamp(levelT / 150, 0, 1) : clamp(levelT / L.duration, 0, 1);
+    : boss ? clamp(boss.hp / boss.maxHp, 0, 1) : endless ? clamp(levelT / 150, 0, 1)
+    : clamp(levelT / Math.max(0.001, laneEndShow || L.duration), 0, 1);
   if (prog > 0.005) {
     const aEnd = aL0 + (aL1 - aL0) * prog;
     ctx.strokeStyle = boss ? '#d465ff' : endless ? '#ff9a3c' : '#7ee262';
@@ -819,6 +831,55 @@ function drawHUD(g) {
     const kr = replayScrub ? 12 : 9;
     ctx.fillStyle = '#eaf6ff'; ctx.beginPath(); ctx.arc(kx, ky, kr, 0, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(140,220,255,0.95)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(kx, ky, kr, 0, TAU); ctx.stroke();
+  }
+
+  // THE READOUT RIDES THE HEAD. A driver reads a gauge and its needle in one look,
+  // so the number travels with the fill instead of parking in a corner — and it
+  // divides by the same laneEndShow the fill does, so the two can never disagree.
+  //
+  // Three things stand here, one at a time:
+  //   the duel   → PULSES landed over needed, the only progress a duel has
+  //   a replay   → the trace's own seconds, riding the scrub knob like a scrubber
+  //   a lane     → seconds until the lane is out, zero on LANE SECURED
+  // Free flow has no end to count to and shows nothing.
+  //
+  // ONE WORD, EVERY LANE. A boss lane's timed half runs out into the leech rather than
+  // into open space, and CONTACT was drafted for exactly that case. Gil cut it on
+  // 2026-08-28: LANE OUT stands on stage 08 too. The five machines carry five names, so
+  // no second word covers them all, and a word the player meets once per contract buys
+  // less than a countdown that means the same thing everywhere. What arrives at zero is
+  // said by the arrival itself — the ceremony, the bark, and the readout's own handover
+  // to PULSES on the very next frame.
+  const clk = replaying
+      ? { n: mmss((replayMeta.total - (tracePlay ? tracePlay.i : replayMeta.total)) * SIM_DT), l: 'REMAINING', c: '#eaf6ff' }
+    : boss ? { n: (boss.maxHp - boss.hp) + '/' + boss.maxHp, l: 'PULSES', c: '#e8b5ff' }
+    : (endless || !laneEndShow) ? null
+    : { n: mmss(laneEndShow - levelT), l: 'LANE OUT', c: '#bff5a8' };
+  if (clk) {
+    const ka2 = aL0 + (aL1 - aL0) * prog, off = bw2 * 0.9 + 26;
+    const bx = g.cx + Math.cos(ka2) * (barR + off), by = g.cy + Math.sin(ka2) * (barR + off);
+    // A CLIPPED READOUT TRADES HEIGHT FOR WIDTH. The arc's upper tip rides close to
+    // the screen edge on a short viewport, and a plain vertical clamp there drops the
+    // block straight back onto the fill it is meant to label. So whatever the top
+    // edge takes off the Y, the block gives itself back in X — it slides further
+    // outboard instead of onto the bar, and stays legible at every fill.
+    const yTop = SAFE.t + 26, push = Math.max(0, yTop - by);
+    const tx = clamp(bx - push * 0.9, SAFE.l + 36, W - SAFE.r - 36);
+    const ty = clamp(by, yTop, H - SAFE.b - 18);
+    ctx.textAlign = 'center';
+    ctx.font = '700 17px Audiowide, system-ui';
+    ctx.fillStyle = 'rgba(5,10,18,0.6)';
+    ctx.fillText(clk.n, tx + 1, ty + 1); // a hair of shadow — the lane behind it is bright
+    ctx.fillStyle = clk.c;
+    ctx.fillText(clk.n, tx, ty);
+    // the caption sits ABOVE the number, on the far side from the arc — under it, it
+    // lay across the fill at both ends of the sweep
+    ctx.font = '600 8px Audiowide, system-ui';
+    ctx.fillStyle = 'rgba(5,10,18,0.6)';
+    ctx.fillText(clk.l, tx + 1, ty - 13);
+    ctx.fillStyle = 'rgba(255,255,255,0.62)';
+    ctx.fillText(clk.l, tx, ty - 14);
+    ctx.textAlign = 'left';
   }
   ctx.restore(); // end of the left arc's slide
 

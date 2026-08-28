@@ -487,11 +487,57 @@ function update(dt) {
     if (!boss || state !== S.PLAY) return; // victory mid-update
   }
 
+  laneClock(L, g, dt);
+
   if (integrity <= 0) { endLevel(false); return; }
   if (!tut && !endless && levelT >= L.duration) {
     if (L.boss) { if (!boss) spawnBoss(); }
     else if (enemies.length === 0) endLevel(true);
   }
+}
+// ONE STEP OF THE LANE CLOCK — the number the HUD countdown prints and the number
+// the progress arc divides by, which is why there is only one of it. See laneEnd
+// in 40-state for the two regimes and why the follower exists.
+//
+// It runs AFTER the frame's spawns, kills and the enemies filter, so `enemies`,
+// `burstQ` and `patternQ` already hold this frame's truth. It writes nothing the
+// sim reads, so a run's score, its trace and its board id are untouched.
+function laneClock(L, g, dt) {
+  if (tut || endless) { laneEnd = laneEndShow = 0; return; } // neither mode has an end to count to
+  // the bound: a release at the last legal instant, its burst queue behind it, and
+  // the slowest body then covering the whole bore. Constant for the level — bandCfg
+  // never retunes speed or duration. ARMOUR is the slow body (0.82×), so a lane that
+  // can never produce one gets the tighter, still honest bound; that alone halves the
+  // handover step on the early stages. A ribbon is slower still, but it stops
+  // spawning a full 14s before duration and can never be the last thing flying.
+  const armour = L.heavies > 0 || (L.bands || []).some(b => b.mix && b.mix.heavies > 0);
+  const bound = L.duration + BURST_DRAIN + (SPAWN_Z - LANE_EXIT_Z) / (L.speed * (armour ? 0.82 : 1));
+  if (L.boss) laneEnd = L.duration;      // spawnBoss WIPES the bore at duration — nothing trails the clock
+  else if (levelT < L.duration) laneEnd = bound;
+  else {
+    // spawning is over: walk what is left and take the last one out
+    let end = levelT;
+    const run = (SPAWN_Z - LANE_EXIT_Z) / trafficSpeed; // a still-queued release's own trip
+    if (burstQ) end = Math.max(end, levelT + burstQ.t + 0.35 * (burstQ.left - 1) + run);
+    for (const q of patternQ) end = Math.max(end, levelT + q.t + run);
+    for (const e of enemies) {
+      const spd = trafficSpeed * (e.speedMul || 1);
+      if (spd <= 0) continue;
+      // a ribbon dies when its TAIL clears the ring; every other body when it
+      // passes the exit plane
+      const d = e.type === 'strip' ? e.z + e.len - g.hitZ : e.z - LANE_EXIT_Z;
+      if (d > 0) end = Math.max(end, levelT + d / spd);
+    }
+    laneEnd = Math.min(laneEnd || bound, end); // only ever DOWN — a countdown may not rewind
+  }
+  const want = Math.max(0, laneEnd - levelT);
+  const shown = Math.max(0, laneEndShow - levelT);
+  // THE LAST SECOND IS NEVER SMOOTHED. A follower still closing on the truth when the
+  // lane shuts would print 0:01 over LANE SECURED — the exact lie the clock exists to
+  // stop. Inside a second the correction is smaller than the readout's own rounding,
+  // so the snap cannot be seen; outside it, the ease absorbs the handover step.
+  laneEndShow = want < 1 ? laneEnd
+    : levelT + (laneEndShow ? shown + (want - shown) * Math.min(1, dt * 1.5) : want);
 }
 // The boot sequence's stage transitions: ring lock-on, nodes powering up, the
 // systems check signing off. Fires only on the frame a stage actually changes.

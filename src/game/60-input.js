@@ -589,6 +589,7 @@ function resetRun() {
   // the first post-boot tick at full horizon depth, so traffic is visibly
   // inbound from second zero (natural speed — first CONTACT comes at travel time)
   levelT = 0; spawnT = 0.01;
+  laneEnd = laneEndShow = 0; // the lane clock re-measures itself on the first tick
   lanePlanetProg = 0; // the destination starts far away again
   resetBarks();
   commNext = 0; commCur = null; commT = 0;
