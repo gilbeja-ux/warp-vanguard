@@ -62,6 +62,11 @@ const NEVER_SHIP = [
   // GB-logo-hollow.png is NOT here: 99-boot loads it as the studio mark.
   'icons/logo.png', 'icons/logo-small.png',
   'icons/gb-logo.png',                 // the solid studio mark — only the hollow one is loaded
+  // THE SOUNDBOARD'S DROP ZONE. Candidate takes wait here to be auditioned
+  // against a synth cue (see docs/SFX-SYNTH-ROSTER.md). A take that is chosen is
+  // MOVED up into audio/sfx/ and named in SFX_FILES; nothing in the drop zone is
+  // ever fetched by the game, so shipping it would be dead megabytes.
+  'audio/sfx/incoming',
   '.DS_Store',
 ];
 const SKIP_EXT = /\.(bak|stale-bak|orig|rej|md)$/i; // .md: notes-to-authors, never a game asset

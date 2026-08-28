@@ -42,6 +42,30 @@
   /* !important: the game's own resize() writes the canvas style to the window size */
   #game { width: 320px !important; height: 150px !important; display: block; margin: 12px 0 0; border: 1px solid #15263a; border-radius: 6px; background: #000; }
   kbd { background: #0d1a2c; border: 1px solid #25415f; border-radius: 3px; padding: 0 5px; font-size: 11px; }
+  /* ---- the synth roster ---- */
+  section.roster { border-color: #3a2f10; }
+  section.roster h2 { color: #ffd24a; }
+  .grp { margin: 14px 0 6px; font: 600 11px/1 system-ui; letter-spacing: 2px; color: #8fe0ff; text-transform: uppercase; border-bottom: 1px solid #15263a; padding-bottom: 5px; }
+  .cue { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid #0f1a29; }
+  .cue .id { font: 600 13px system-ui; color: #d9ecff; }
+  .cue .id .where { font: 400 11px ui-monospace, monospace; color: #55708c; margin-left: 8px; }
+  .cue .brief { grid-column: 1 / -1; font-size: 12px; color: #7f9bb8; margin: -2px 0 4px; }
+  .cue .pick { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .cue button { min-width: 0; padding: 6px 10px; font-size: 12px; }
+  .cue select, .cue input[type=text] { background: #0d1a2c; color: #d9ecff; border: 1px solid #25415f; border-radius: 6px; padding: 6px 8px; font: 12px system-ui; }
+  .cue select { min-width: 170px; }
+  .cue input[type=text] { flex: 1; min-width: 120px; }
+  .cue input[type=range] { width: 96px; accent-color: #ffd24a; }
+  .cue .trimv { font: 12px ui-monospace, monospace; color: #ffd24a; width: 34px; text-align: right; }
+  .cue.armed { background: #0c1626; }
+  .pill { display: inline-block; font: 700 9px/1 system-ui; letter-spacing: 1px; padding: 3px 5px; border-radius: 3px; vertical-align: 2px; margin-right: 6px; }
+  .pill.live { background: #1d4a2a; color: #7ee262; }
+  .pill.fallback { background: #14344d; color: #8fe0ff; }
+  .pill.keep { background: #4a3a10; color: #ffd24a; }
+  .pill.dead { background: #3a1620; color: #ff8c6a; }
+  .pill.take { background: #2b1c44; color: #d0a8ff; }
+  #orderBar { position: sticky; bottom: 0; background: #05080fee; border-top: 1px solid #25415f; padding: 10px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  #orderState { color: #7f9bb8; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -51,6 +75,32 @@
 
   <div class="row"><button class="big" id="start">START AUDIO</button> <span id="status">press once — the page needs a gesture before it can make a sound</span></div>
   <div id="meter"><div id="bar"><div id="fill"></div></div><div id="peak">— dBFS</div></div>
+
+  <section class="roster">
+    <h2>The sound roster · pick a replacement for anything the game says</h2>
+    <p class="note">
+      <b>Every sound in the game is here</b> — the 46 still spoken by an oscillator, then the 21 that are
+      already recordings. <b>SYNTH</b> (or <b>CURRENT</b>) plays what the game plays today.
+      To replace one: drop a candidate into <code>src/audio/sfx/incoming/</code>, press <b>RESCAN</b>,
+      choose it in that cue's list, set the trim, and press <b>FILE</b> or <b>A/B</b> to hear it on the
+      real bus. When the list is right press <b>SAVE ORDER</b> and tell me:
+      <b>&ldquo;implement the sfx order&rdquo;</b>.
+    </p>
+    <p class="note">
+      <span class="pill live">LIVE</span> the synth is what you hear — a take replaces it.
+      <span class="pill fallback">FALLBACK</span> a take already covers this; the synth is the 404 net.
+      <span class="pill keep">KEEP</span> a number IS the sound — no recording can follow it.
+      <span class="pill dead">DEAD</span> defined and never called — wire it or delete it, do not record it.
+      <span class="pill take">TAKE</span> already a recording — picking a file here is a re-record.
+    </p>
+    <div id="roster"></div>
+    <div id="orderBar">
+      <button id="rescan">RESCAN incoming/</button>
+      <button class="big" id="saveOrder">SAVE ORDER</button>
+      <button id="clearOrder">clear all picks</button>
+      <span id="orderState">no picks yet</span>
+    </div>
+  </section>
 
   <section>
     <h2>New · the verdict (END card)</h2>
@@ -237,6 +287,26 @@
       // ...and a way to hear the cap doing its job. Setting sonarLast back in time
       // lets every ping through, which is exactly the drone the cap exists to stop.
       sonarUncap() { sonarLast = -1; },
+      // ---- audition ANY file on the real bus -------------------------------
+      // A candidate in incoming/ is not in SFX_FILES, so playSample cannot reach
+      // it. This is the same graph playSample builds — buffer → gain → sfxGain —
+      // so a take auditioned here meets the glue compressor and the H-13 limiter
+      // exactly as a shipped one does. Decoded buffers are cached by url.
+      __buf: {},
+      async playUrl(url, trim) {
+        if (!AC || !sfxGain) return 'no audio';
+        let buf = this.__buf[url];
+        if (!buf) {
+          try {
+            const a = await (await fetch(url)).arrayBuffer();
+            buf = this.__buf[url] = await AC.decodeAudioData(a);
+          } catch (e) { return 'decode failed: ' + e.message; }
+        }
+        const src = AC.createBufferSource(); src.buffer = buf;
+        const g = AC.createGain(); g.gain.value = trim === undefined ? 1 : trim;
+        src.connect(g); g.connect(sfxGain); src.start();
+        return buf.duration.toFixed(2) + 's';
+      },
       sfx, err: () => window.__err
     };
   `);
@@ -321,6 +391,108 @@
   document.querySelectorAll('button[data-cue]').forEach(b => {
     b.onclick = () => { arm(); if (!live) return; peak = 0; CUES[b.dataset.cue](); };
   });
+
+  // ==========================================================================
+  // THE SYNTH ROSTER
+  //
+  // The rows come from scripts/sfx-roster.js — the same file npm test pins
+  // against the game's own sources, so a row can never quietly drift away from
+  // the cue it claims to audition. A `sfx.*` row calls the real method. An
+  // inline row runs its `code` through `new Function`, which executes in global
+  // scope: `tone`, `crackle` and `swell` are top-level function declarations and
+  // `sfx`, `AC` and `BOOT_LOCK` are top-level bindings, so all of them are in
+  // reach without a single copy of the audio engine living on this page.
+  // ==========================================================================
+  await new Promise(r => { const s = document.createElement('script'); s.src = '/scripts/sfx-roster.js'; s.onload = r; s.onerror = r; document.head.appendChild(s); });
+  // the synth cues first, then the sounds that are already recordings — one list
+  // to the board, one picks object, one order file. A re-record and a first
+  // record are the same gesture.
+  const ROSTER = (window.SFX_ROSTER || []).concat(window.TAKE_ROSTER || []);
+  const INBOX = 'audio/sfx/incoming/';   // resolved against <base href="../src/">
+  let incoming = [], picks = {};
+
+  const synthFn = {};
+  for (const e of ROSTER) {
+    try { synthFn[e.key] = new Function(e.code.join('\n')); }
+    catch (err) { synthFn[e.key] = () => { status.textContent = e.key + ': ' + err.message; }; }
+  }
+
+  const orderState = $('#orderState');
+  const countPicks = () => Object.keys(picks).filter(k => picks[k] && picks[k].file).length;
+  const refreshState = (msg) => {
+    const n = countPicks();
+    orderState.textContent = (msg ? msg + ' · ' : '') + n + ' pick' + (n === 1 ? '' : 's') + ' · '
+      + incoming.length + ' file' + (incoming.length === 1 ? '' : 's') + ' in incoming/';
+  };
+
+  function drawRoster() {
+    const host = $('#roster'); host.innerHTML = '';
+    let grp = null;
+    for (const e of ROSTER) {
+      if (e.group !== grp) { grp = e.group; const h = document.createElement('div'); h.className = 'grp'; h.textContent = grp; host.appendChild(h); }
+      const p = picks[e.key] || {};
+      const row = document.createElement('div');
+      row.className = 'cue' + (p.file ? ' armed' : '');
+      const opts = ['<option value="">— no file —</option>']
+        .concat(incoming.map(f => '<option value="' + f + '"' + (p.file === f ? ' selected' : '') + '>' + f + '</option>')).join('');
+      const trim = p.trim === undefined ? (e.trim === undefined ? 0.9 : e.trim) : p.trim;
+      row.innerHTML =
+        '<div class="id"><span class="pill ' + e.status + '">' + e.status + '</span>' + e.label
+          + '<span class="where">' + e.key + ' · ' + e.where + '</span></div><div></div>'
+        + '<div class="brief">' + (e.file ? '<b>' + e.file + '</b> @ ' + e.trim + ' — ' : '') + e.brief + '</div>'
+        + '<div class="pick">'
+          + '<button data-act="synth">' + (e.status === 'take' ? 'CURRENT' : 'SYNTH') + '</button>'
+          + '<select data-act="file">' + opts + '</select>'
+          + '<button data-act="play">FILE</button>'
+          + '<button data-act="ab">A / B</button>'
+          + '<input type="range" min="0" max="1.5" step="0.05" value="' + trim + '" data-act="trim">'
+          + '<span class="trimv">' + trim.toFixed(2) + '</span>'
+          + '<input type="text" placeholder="note for Claude — what it must do" value="' + (p.note || '').replace(/"/g, '&quot;') + '" data-act="note">'
+        + '</div>';
+      const sel = row.querySelector('[data-act=file]'), rng = row.querySelector('[data-act=trim]');
+      const trimv = row.querySelector('.trimv'), note = row.querySelector('[data-act=note]');
+      const set = () => {
+        const f = sel.value;
+        if (!f && !note.value) delete picks[e.key];
+        else picks[e.key] = { file: f, trim: +rng.value, note: note.value };
+        row.className = 'cue' + (f ? ' armed' : '');
+        refreshState();
+      };
+      const playFile = async () => {
+        if (!sel.value) return void (status.textContent = e.key + ': choose a file first');
+        peak = 0;
+        status.textContent = e.key + ' ← ' + sel.value + ' · ' + await SB.playUrl(INBOX + sel.value, +rng.value);
+      };
+      row.querySelector('[data-act=synth]').onclick = () => { arm(); if (live) { peak = 0; synthFn[e.key](); } };
+      row.querySelector('[data-act=play]').onclick = () => { arm(); if (live) playFile(); };
+      row.querySelector('[data-act=ab]').onclick = () => {
+        arm(); if (!live) return;
+        peak = 0; synthFn[e.key](); status.textContent = e.key + (e.status === 'take' ? ': CURRENT…' : ': SYNTH…');
+        later(1400, () => { status.textContent = e.key + ': …FILE'; playFile(); });
+      };
+      sel.onchange = set; note.oninput = set;
+      rng.oninput = () => { trimv.textContent = (+rng.value).toFixed(2); set(); };
+      host.appendChild(row);
+    }
+  }
+
+  async function rescan() {
+    try { incoming = (await (await fetch('/__incoming')).json()).files || []; }
+    catch (err) { incoming = []; }
+    drawRoster(); refreshState('rescanned');
+  }
+  $('#rescan').onclick = rescan;
+  $('#saveOrder').onclick = async () => {
+    try {
+      const r = await (await fetch('/__order', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ picks }) })).json();
+      refreshState(r.ok ? 'SAVED to docs/sfx-order.json — now tell Claude "implement the sfx order"' : 'save failed: ' + r.err);
+    } catch (err) { refreshState('save failed: ' + err.message); }
+  };
+  $('#clearOrder').onclick = () => { picks = {}; drawRoster(); refreshState('cleared — press SAVE ORDER to write it'); };
+
+  try { picks = (await (await fetch('/__order')).json()).picks || {}; } catch (err) { picks = {}; }
+  await rescan();
 })();
 </script>
 </body>
