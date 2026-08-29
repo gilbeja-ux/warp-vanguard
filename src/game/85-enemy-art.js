@@ -509,7 +509,9 @@ function drawGhost(gh, g) {
 //   the front runs for the WHOLE life and never holds at the boundary (1.00)
 //   the band is deep enough to fill nearly the whole region (TAIL 0.95)
 //   …and thins SLOWLY across it (FALL 0.5), so the body stays solid
-//   …behind one thin hot rim (HOT 0.04) in a pale blue over a deep navy
+//   …behind one hairline hot rim (HOT 0.02) in pale blue
+//   and the body's ink is all but BLACK (2,11,29), so the region reads as a dark
+//   compressed shell rather than as a glow — the rim is the only light in it
 //   and it leaves NOTHING behind (WASH 0) — the wave passes and the wall is clean
 //   40 bands, because a gentle falloff over a wide band shows its steps
 //
@@ -519,12 +521,12 @@ const BLAST_LIFE = 0.55;       // seconds the whole event lasts
 const BLAST_FRONT_END = 1.00;  // share of the life the front spends reaching full reach
 const BLAST_TAIL = 0.95;       // the band behind the front, as a share of its radius
 const BLAST_BANDS = 40;        // annuli across that band
-const BLAST_PEAK = 0.40;       // alpha at the leading edge
+const BLAST_PEAK = 0.59;       // alpha at the leading edge
 const BLAST_WASH = 0.000;      // what the wave leaves on the ground it crossed
-const BLAST_HOT = 0.04;        // share of the band that runs the hot ink
+const BLAST_HOT = 0.02;        // share of the band that runs the hot ink
 const BLAST_FALL = 0.5;        // how sharply the tail thins — 1 is linear, higher is snappier
 const BLAST_FRONT_INK = '155,191,238';  // the edge runs hot…
-const BLAST_BODY_INK = '6,43,116';      // …and cools into the volley's own blue
+const BLAST_BODY_INK = '2,11,29';       // …and the body behind it is all but black
 function drawVolleyBlasts(g) {
   for (let i = volleyFX.length - 1; i >= 0; i--) {
     const w = volleyFX[i];
