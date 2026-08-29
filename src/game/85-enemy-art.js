@@ -484,22 +484,53 @@ function drawGhost(gh, g) {
 // defines it. It grows to full reach in a third of its life and fades out over
 // the rest, so the eye reads the reach and not just a flash. Draw-only — the
 // kills landed on the frame the bolt did.
+//
+// IT IS A CLOUD, NOT AN OUTLINE. It used to be a flat wash inside one hard bright
+// rim, which read as a drawn line rather than as something detonating. Gil's call,
+// 2026-08-29: a filled region, low opacity, falling off gradually toward its edge.
+// So the fill is BLAST_LAYERS nested copies of the region, each a thin wash. Where
+// they stack — the middle — they compound to BLAST_CORE; at the boundary exactly
+// one contributes almost nothing, so the density fades out instead of stopping at
+// a line.
+//
+// THE BOUNDARY IS STILL THE RULE. Only the OUTER contour is walked and projected;
+// the inner ones are that same polygon pulled toward the impact point, which costs
+// a path replay instead of 48 more projections. The falloff is decoration, so an
+// approximate inner contour is free; the edge a player learns the reach from is
+// the honest one, measured exactly as blastReaches measures it.
+const BLAST_LAYERS = 22;    // nested washes that build the falloff
+const BLAST_CORE = 0.40;    // opacity where they all overlap — the body of the cloud
+// How far in the falloff reaches. The washes are spread over the OUTER BLAST_EDGE
+// of the region only, so everything inside is covered by all of them and sits at
+// the full BLAST_CORE — a body with a soft shoulder, not a cone. Spread over the
+// whole radius instead, the 40% lands on a single point at the middle and the
+// region (2 radians wide, most of the bore deep) reads as a faint tint of the
+// whole screen rather than as something detonating.
+const BLAST_EDGE = 0.38;    // the shoulder, as a share of the region's own radius
 function drawVolleyBlasts(g) {
+  // per-wash alpha, so BLAST_LAYERS of them compound to BLAST_CORE and no more
+  const wash = 1 - Math.pow(1 - BLAST_CORE, 1 / BLAST_LAYERS);
   for (let i = volleyFX.length - 1; i >= 0; i--) {
     const w = volleyFX[i];
     const k = (time - w.t0) / 0.32;
     if (k >= 1) { volleyFX.splice(i, 1); continue; }
     const grow = Math.min(1, k * 3);         // out to full reach, then hold
-    const al = (1 - k) * (1 - k);
+    // THE ENVELOPE HOLDS UNTIL THE REGION IS OUT. It used to decay from the first
+    // frame, which fought the growth: the cloud was at its densest while it was
+    // still a dot, and by the time it reached full reach it had already lost half
+    // its weight. Now it blooms to full reach at full density and dissipates from
+    // there — flat until k = 1/3, then a square fade over the rest.
+    const al = Math.pow(clamp((1 - k) / 0.66, 0, 1), 2);
+    const rc = ring(Math.max(w.z, 0.02), g);
+    const cx2 = rc.x + Math.cos(w.a) * rc.r, cy2 = rc.y + Math.sin(w.a) * rc.r;
     // THE OUTLINE IS THE RULE, WALKED. The region is an ellipse in (depth, angle),
     // and that is not a shape the canvas can draw directly — depth is a radius
     // here and angle is an arc, so a circle in the rule is a lens on screen.
     // So walk the ellipse's own boundary and project each point through ring(),
     // exactly as blastReaches measures it. Nothing on screen can then disagree
     // with what the blast actually took.
-    ctx.save();
-    ctx.beginPath();
     const STEPS = 48;
+    const pts = [];
     for (let s2 = 0; s2 <= STEPS; s2++) {
       const th = s2 / STEPS * TAU;
       // clamped at the ring: past it the projection balloons outward and the
@@ -508,21 +539,24 @@ function drawVolleyBlasts(g) {
       const ez = Math.max(w.z + VOLLEY_BLAST_Z * grow * Math.cos(th), g.hitZ);
       const ea = w.a + VOLLEY_BLAST_A * grow * Math.sin(th);
       const rz = ring(ez, g);
-      const px = rz.x + Math.cos(ea) * rz.r, py = rz.y + Math.sin(ea) * rz.r;
-      s2 ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      pts.push(rz.x + Math.cos(ea) * rz.r, rz.y + Math.sin(ea) * rz.r);
     }
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(150,220,255,' + (al * 0.26).toFixed(3) + ')';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(200,240,255,' + (al * 0.85).toFixed(2) + ')';
-    ctx.lineWidth = Math.max(1.5, ring(Math.max(w.z, 0.02), g).r * 0.02 * (1 - k) + 1);
-    ctx.stroke();
+    ctx.save();
+    ctx.fillStyle = 'rgba(150,220,255,' + (al * wash).toFixed(4) + ')';
+    for (let L = 0; L < BLAST_LAYERS; L++) {
+      const f = 1 - BLAST_EDGE * (L / (BLAST_LAYERS - 1)); // 1 at the boundary, in to the body
+      ctx.beginPath();
+      for (let s2 = 0; s2 < pts.length; s2 += 2) {
+        const px = cx2 + (pts[s2] - cx2) * f, py = cy2 + (pts[s2 + 1] - cy2) * f;
+        s2 ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.restore();
     // the core flash, gone inside the first third
     const fl = clamp(1 - k * 3, 0, 1);
     if (fl > 0.01) {
-      const rc = ring(Math.max(w.z, 0.02), g);
-      const cx2 = rc.x + Math.cos(w.a) * rc.r, cy2 = rc.y + Math.sin(w.a) * rc.r;
       const fg = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, rc.r * 0.30 * fl + 6);
       fg.addColorStop(0, 'rgba(255,255,255,' + (fl * 0.9).toFixed(2) + ')');
       fg.addColorStop(0.4, 'rgba(190,235,255,' + (fl * 0.45).toFixed(2) + ')');
