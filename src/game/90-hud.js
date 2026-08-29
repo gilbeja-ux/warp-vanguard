@@ -602,6 +602,17 @@ function drawIntroCard() {
 }
 
 // ---------- tutorial focus layer ----------
+// THE ROLLING SHINE. One device, worn by both halves of the pulse call to action —
+// the ready ring on the dial and the FIRE PULSE NOW! label above it. Nothing moves
+// and nothing changes size; a bright head travels through a still shape instead.
+// It replaced a bob-and-zoom pair that read as a cartoon (Gil, 2026-08-29), and the
+// drill disc's charged orb wears the same device (DEMO.pulse, 91-briefing) so the
+// briefing and the lane say "ready" the same way.
+const PULSE_CTA = 'FIRE PULSE NOW!';
+const CTA_INK = '#8fe0ff';
+const CTA_SWEEP = 1.7;   // seconds per pass through the letters, tail included
+const SHINE_TAIL = 12;   // segments the ring's head trails
+const SHINE_SPAN = 1.4;  // radians the tail covers
 // One descriptor of the live drill feeds both the pad ghosts and the lesson line, so
 // the two aids cannot drift apart. Everything here is render-side; the only state is
 // which lesson is showing, and that resets when a fresh tutorial starts (the tut
@@ -1324,32 +1335,57 @@ function drawHUD(g) {
       for (let i = 0; i < 2; i++) {
         if (pulseCharge[i] < PULSE_MAX || nodes[i].deadT > 0) continue;
         const d = dialCenter(i === 0 ? 'L' : 'R');
-        const pr = d.r * 0.5 + 8 + Math.sin(time * 6) * 4;
-        ctx.strokeStyle = `rgba(${NODE_COLS[i]},0.85)`;
+        // THE READY RING HOLDS ITS RADIUS. It used to breathe +/-4px, which is the
+        // same cartoon squash Gil pulled off the drill disc's charged orb
+        // (91-briefing, 2026-08-29). The ring is a fixed circle now and a bright
+        // head ROLLS around it — a moving highlight on a still shape.
+        const pr = d.r * 0.5 + 10;
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = `rgba(${NODE_COLS[i]},0.28)`;
         ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(d.x, d.y, pr, 0, TAU); ctx.stroke();
+        for (let k = 0; k < SHINE_TAIL; k++) {          // the head, plus a tail falling off behind it
+          const q = k / SHINE_TAIL;
+          const a0 = time * 2.1 - SHINE_SPAN * q, a1 = a0 - SHINE_SPAN / SHINE_TAIL - 0.01;
+          ctx.strokeStyle = `rgba(${NODE_COLS[i]},${(0.95 * Math.pow(1 - q, 2.2)).toFixed(3)})`;
+          ctx.beginPath(); ctx.arc(d.x, d.y, pr, a1, a0); ctx.stroke();
+        }
+        ctx.restore();
         if (tut.frozen) { // the hold: the whole run waits on this tap
-          const bob = Math.sin(time * 6) * 5;
-          // big, breathing, unmissable — the one instruction on a frozen
-          // screen. Fixed raster size breathing via SMOOTH ctx.scale (per-
-          // frame font-px rounding stepped visibly) at steady alpha (the
-          // drawTutText 5Hz flicker read as chopping). Clamped on-screen.
+          // THE ONE INSTRUCTION ON A FROZEN SCREEN, AND IT HOLDS STILL. It used to
+          // bob on a sine AND breathe its scale at the same time. Two moving
+          // properties on one label fight each other — the eye tracks the movement
+          // instead of reading the words — and together they read as a cartoon.
+          // Gil, 2026-08-29, the same call he made on the drill disc's orb.
+          //
+          // The attention is a SHINE now: a bright head sweeping left to right
+          // through the letters, painted straight into the fill as a gradient, so
+          // nothing moves and nothing changes size. No offscreen canvas and no
+          // compositing mode — the gradient IS the fill style.
           const u2 = Math.min(W, H);
           const bpx = Math.round(u2 * 0.042);
-          const br = 1 + 0.06 * Math.sin(time * 3.2);
           ctx.save();
           ctx.font = '700 ' + bpx + 'px Audiowide, system-ui';
-          const halfT = ctx.measureText('FIRE PULSE NOW!').width / 2 + 10;
-          ctx.translate(clamp(d.x, halfT * br, W - halfT * br), d.y - d.r - u2 * 0.085 + bob);
-          ctx.scale(br, br);
+          const wT = ctx.measureText(PULSE_CTA).width, halfT = wT / 2 + 10;
+          ctx.translate(clamp(d.x, halfT, W - halfT), d.y - d.r - u2 * 0.085);
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
           ctx.strokeStyle = 'rgba(2,4,12,0.85)'; ctx.lineWidth = 4;
-          ctx.strokeText('FIRE PULSE NOW!', 0, 0);
-          ctx.fillStyle = '#8fe0ff';
-          ctx.fillText('FIRE PULSE NOW!', 0, 0);
+          ctx.strokeText(PULSE_CTA, 0, 0);
+          // the head runs -0.35 -> 1.55 over CTA_SWEEP seconds. Past 1.2 it has left
+          // the last letter, so the tail of every cycle is a beat of plain colour —
+          // a shine that never rests reads as a shimmer, not a sweep.
+          const q = (time / CTA_SWEEP % 1) * 1.9 - 0.35;
+          const gT = ctx.createLinearGradient(-wT / 2, 0, wT / 2, 0);
+          const stop = (v, c) => gT.addColorStop(clamp(v, 0, 1), c);
+          stop(0, CTA_INK);
+          if (q > -0.2 && q < 1.2) { stop(q - 0.2, CTA_INK); stop(q, '#ffffff'); stop(q + 0.2, CTA_INK); }
+          stop(1, CTA_INK);
+          ctx.fillStyle = gT;
+          ctx.fillText(PULSE_CTA, 0, 0);
           ctx.restore();
           ctx.save();
-          ctx.translate(d.x, d.y - d.r * 0.62 - 12 + bob);
+          ctx.translate(d.x, d.y - d.r * 0.62 - 12);
           ctx.fillStyle = 'rgba(143,224,255,0.95)';
           ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(-7, -6); ctx.lineTo(7, -6); ctx.closePath(); ctx.fill();
           ctx.restore();
