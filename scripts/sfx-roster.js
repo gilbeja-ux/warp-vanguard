@@ -251,7 +251,7 @@ const TAKE_ROSTER = [
     brief: 'EMITTER FRIED — a dead zone or a boss light takes an emitter down',
     code: ['sfx.fry(0);'] },
   { key: 'restart', label: 'an emitter comes back online', group: 'TAKES · the run', status: 'take',
-    file: 'restart.wav', trim: 0.9,
+    file: 'restarting.mp3', trim: 0.9,
     where: '12-sfx.js · fires 72-tick.js:341, 520',
     brief: 'EMITTER ONLINE — and the same whir carries the boot ramp',
     code: ["playSample('restart', 1, 0);"] },

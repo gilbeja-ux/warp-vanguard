@@ -12,13 +12,7 @@ const SFX_FILES = {
   pulseArm: ['audio/sfx/pulse_charge.mp3', 0.9], // an orb reaching full — ready to fire
   volley: ['audio/sfx/volley2.mp3', 1.0], // levelled in the edit — no trim needed
   shutdown: ['audio/sfx/shutdown.mp3', 0.9],   // an emitter fried by a killer/wall
-  // RE-RECORDED 2026-08-29 (Gil's charge-up), cut to 1.42s — its whole body, with
-  // the 1.1s of dead air after it removed. THE CUT IS LOAD-BEARING: updateNodes
-  // plays this take so its ENDING lands on the emitter popping back online, and
-  // it starts `rs.end - rs.start` seconds before that. Dead air on the end would
-  // have delayed the start by the same amount and left the whir finishing into
-  // silence. The reboot itself is 2.0s (`n.deadT = 2`), so 1.42s fits inside it.
-  restart:  ['audio/sfx/restart.wav', 0.9], // an emitter coming back online
+  restart:  ['audio/sfx/restarting.mp3', 0.9], // that node rebooting back online
   startup:  ['audio/sfx/startup1.mp3', 0.9], // boot sequence as the ring locks in (cut at 2s)
   fail:   ['audio/sfx/failed.mp3', 0.95], // true peak +0.1 dBFS raw; the trim seats it under 0
   win:    ['audio/sfx/win.mp3', 1.0],
