@@ -142,7 +142,7 @@ pre{
         <input type="range" id="k_tail" min="0.04" max="0.95" step="0.01">
         <span class="note">how deep the band is behind the front</span></div>
       <div class="knob"><label>BLAST_BANDS</label><span class="v" id="v_bands"></span>
-        <input type="range" id="k_bands" min="3" max="40" step="1">
+        <input type="range" id="k_bands" min="3" max="90" step="1">
         <span class="note">annuli across the band — raise for a smoother falloff</span></div>
       <div class="knob"><label>BLAST_PEAK</label><span class="v" id="v_peak"></span>
         <input type="range" id="k_peak" min="0" max="1" step="0.01">
@@ -154,7 +154,7 @@ pre{
         <input type="range" id="k_hot" min="0" max="0.6" step="0.01">
         <span class="note">share of the band that runs the hot ink</span></div>
       <div class="knob"><label>BLAST_FALL</label><span class="v" id="v_fall"></span>
-        <input type="range" id="k_fall" min="0.4" max="5" step="0.1">
+        <input type="range" id="k_fall" min="0.4" max="14" step="0.1">
         <span class="note">how sharply the tail thins — 1 is linear, higher is snappier</span></div>
     </div>
 
@@ -228,9 +228,9 @@ function ring(z, g) {
 // rather than from a default nobody chose. Gil's tuning, 2026-08-30 — keep this
 // in step with the constants at the top of drawVolleyBlasts.
 const K = {
-  life: 0.55, fend: 1.00, tail: 0.95, bands: 40, peak: 0.59, wash: 0.000,
-  hot: 0.02, fall: 0.5,
-  ci: '155,191,238', cb: '2,11,29',
+  life: 0.55, fend: 1.00, tail: 0.95, bands: 40, peak: 0.90, wash: 0.000,
+  hot: 0.02, fall: 5.0,
+  ci: '27,90,238', cb: '117,147,234',
   bz: 0.70, ba: 2.00,
   hz: 0.55, ha: 1.35
 };
