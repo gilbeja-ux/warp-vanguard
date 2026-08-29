@@ -503,22 +503,28 @@ function drawGhost(gh, g) {
 //
 // THE KNOBS BELOW ARE THE WHOLE LOOK, and docs/blast-lab.html drives this same
 // code with sliders on them — tune there, paste back here.
-// TUNED ON THE BENCH, 2026-08-30. Gil's settings, and they change what the effect
-// IS: a front that runs for the whole life (FRONT_END 1.00, so it never holds at
-// the boundary), a band deep enough to nearly fill the region (TAIL 0.95) with a
-// steep thinning behind it (FALL 3.5), and a heavy trace on the ground it crossed
-// (WASH 0.60). The inks went deep blue. Do not "restore" these to the thin bright
-// ring the first pass shipped — that shape was rejected.
+// TUNED ON THE BENCH (docs/blast-lab.html), 2026-08-30. These are Gil's, and they
+// describe the effect as much as they tune it:
+//
+//   the front runs for the WHOLE life and never holds at the boundary (1.00)
+//   the band is deep enough to fill nearly the whole region (TAIL 0.95)
+//   …and thins SLOWLY across it (FALL 0.5), so the body stays solid
+//   …behind one thin hot rim (HOT 0.04) in a pale blue over a deep navy
+//   and it leaves NOTHING behind (WASH 0) — the wave passes and the wall is clean
+//   40 bands, because a gentle falloff over a wide band shows its steps
+//
+// Do not "restore" these to the thin bright ring or to the soft cloud that came
+// before it. Both shapes were looked at and rejected.
 const BLAST_LIFE = 0.55;       // seconds the whole event lasts
 const BLAST_FRONT_END = 1.00;  // share of the life the front spends reaching full reach
 const BLAST_TAIL = 0.95;       // the band behind the front, as a share of its radius
-const BLAST_BANDS = 12;        // annuli across that band
-const BLAST_PEAK = 0.44;       // alpha at the leading edge
-const BLAST_WASH = 0.600;      // what the wave leaves on the ground it crossed
-const BLAST_HOT = 0.50;        // share of the band that runs the hot ink
-const BLAST_FALL = 3.5;        // how sharply the tail thins — 1 is linear, higher is snappier
-const BLAST_FRONT_INK = '20,43,215';  // the edge runs hot…
-const BLAST_BODY_INK = '0,148,240';   // …and cools into the volley's own blue
+const BLAST_BANDS = 40;        // annuli across that band
+const BLAST_PEAK = 0.40;       // alpha at the leading edge
+const BLAST_WASH = 0.000;      // what the wave leaves on the ground it crossed
+const BLAST_HOT = 0.04;        // share of the band that runs the hot ink
+const BLAST_FALL = 0.5;        // how sharply the tail thins — 1 is linear, higher is snappier
+const BLAST_FRONT_INK = '155,191,238';  // the edge runs hot…
+const BLAST_BODY_INK = '6,43,116';      // …and cools into the volley's own blue
 function drawVolleyBlasts(g) {
   for (let i = volleyFX.length - 1; i >= 0; i--) {
     const w = volleyFX[i];
