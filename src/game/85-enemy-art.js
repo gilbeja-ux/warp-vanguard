@@ -481,54 +481,51 @@ function drawGhost(gh, g) {
 
 
 // THE VOLLEY'S BLAST, seen. The region around the impact, drawn as the rule
-// defines it. It grows to full reach in a third of its life and fades out over
-// the rest, so the eye reads the reach and not just a flash. Draw-only — the
-// kills landed on the frame the bolt did.
+// defines it. Draw-only — the kills landed on the frame the bolt did.
 //
-// IT IS A CLOUD, NOT AN OUTLINE. It used to be a flat wash inside one hard bright
-// rim, which read as a drawn line rather than as something detonating. Gil's call,
-// 2026-08-29: a filled region, low opacity, falling off gradually toward its edge.
-// So the fill is BLAST_LAYERS nested copies of the region, each a thin wash. Where
-// they stack — the middle — they compound to BLAST_CORE; at the boundary exactly
-// one contributes almost nothing, so the density fades out instead of stopping at
-// a line.
+// IT IS A SHOCKWAVE ON THE WALL, NOT A CLOUD IN THE BORE. Gil, 2026-08-30, with a
+// reference: a detonation throws a thin bright ring outward through the plane it
+// sits in, hot at the leading edge, thinning behind it, and the ground it has
+// already crossed is left washed rather than filled. Two earlier passes drew the
+// region as a body — first a flat wash inside a hard rim, then a soft-edged cloud
+// — and both read as a drawn shape rather than as something detonating. A blast
+// is an EVENT that travels; the shape is only where it has got to.
 //
-// THE BOUNDARY IS STILL THE RULE. Only the OUTER contour is walked and projected;
-// the inner ones are that same polygon pulled toward the impact point, which costs
-// a path replay instead of 48 more projections. The falloff is decoration, so an
-// approximate inner contour is free; the edge a player learns the reach from is
-// the honest one, measured exactly as blastReaches measures it.
-const BLAST_LAYERS = 22;    // nested washes that build the falloff
-const BLAST_CORE = 0.40;    // opacity where they all overlap — the body of the cloud
-// How far in the falloff reaches. The washes are spread over the OUTER BLAST_EDGE
-// of the region only, so everything inside is covered by all of them and sits at
-// the full BLAST_CORE — a body with a soft shoulder, not a cone. Spread over the
-// whole radius instead, the 40% lands on a single point at the middle and the
-// region (2 radians wide, most of the bore deep) reads as a faint tint of the
-// whole screen rather than as something detonating.
-const BLAST_EDGE = 0.38;    // the shoulder, as a share of the region's own radius
+// So the front RUNS. It leaves the impact point, reaches the rule's own boundary
+// at BLAST_FRONT_END of the life, and dies there. Behind it, BLAST_BANDS annuli
+// fall off into the tail, and inside the tail a faint wash marks what the wave
+// has already crossed.
+//
+// THE BOUNDARY IS STILL THE RULE. Only the outer contour is walked and projected
+// through ring(), exactly as blastReaches measures it; every contour behind it is
+// that same polygon pulled toward the impact point, which costs a path replay
+// instead of another 48 projections. The front therefore stops exactly where the
+// blast stopped, and nothing on screen disagrees with what it took.
+const BLAST_LIFE = 0.42;       // seconds the whole event lasts
+const BLAST_FRONT_END = 0.70;  // share of the life the front spends reaching full reach
+const BLAST_TAIL = 0.34;       // the band behind the front, as a share of its radius
+const BLAST_BANDS = 12;        // annuli across that band
+const BLAST_PEAK = 0.55;       // alpha at the leading edge
+const BLAST_WASH = 0.11;       // what the wave leaves on the ground it crossed
+const BLAST_FRONT_INK = '235,250,255';  // the edge runs hot…
+const BLAST_BODY_INK = '150,220,255';   // …and cools into the volley's own blue
 function drawVolleyBlasts(g) {
-  // per-wash alpha, so BLAST_LAYERS of them compound to BLAST_CORE and no more
-  const wash = 1 - Math.pow(1 - BLAST_CORE, 1 / BLAST_LAYERS);
   for (let i = volleyFX.length - 1; i >= 0; i--) {
     const w = volleyFX[i];
-    const k = (time - w.t0) / 0.32;
+    const k = (time - w.t0) / BLAST_LIFE;
     if (k >= 1) { volleyFX.splice(i, 1); continue; }
-    const grow = Math.min(1, k * 3);         // out to full reach, then hold
-    // THE ENVELOPE HOLDS UNTIL THE REGION IS OUT. It used to decay from the first
-    // frame, which fought the growth: the cloud was at its densest while it was
-    // still a dot, and by the time it reached full reach it had already lost half
-    // its weight. Now it blooms to full reach at full density and dissipates from
-    // there — flat until k = 1/3, then a square fade over the rest.
-    const al = Math.pow(clamp((1 - k) / 0.66, 0, 1), 2);
+    // the front decelerates into the boundary the way a real one does, then holds
+    // there for the last of the life while the whole event fades out
+    const run = Math.min(1, k / BLAST_FRONT_END);
+    const fr = 1 - (1 - run) * (1 - run);
+    const al = 1 - k * k;
     const rc = ring(Math.max(w.z, 0.02), g);
     const cx2 = rc.x + Math.cos(w.a) * rc.r, cy2 = rc.y + Math.sin(w.a) * rc.r;
     // THE OUTLINE IS THE RULE, WALKED. The region is an ellipse in (depth, angle),
     // and that is not a shape the canvas can draw directly — depth is a radius
     // here and angle is an arc, so a circle in the rule is a lens on screen.
     // So walk the ellipse's own boundary and project each point through ring(),
-    // exactly as blastReaches measures it. Nothing on screen can then disagree
-    // with what the blast actually took.
+    // exactly as blastReaches measures it.
     const STEPS = 48;
     const pts = [];
     for (let s2 = 0; s2 <= STEPS; s2++) {
@@ -536,22 +533,39 @@ function drawVolleyBlasts(g) {
       // clamped at the ring: past it the projection balloons outward and the
       // outline reads as a blob reaching behind the player. Nothing there can be
       // taken anyway — an enemy inside hitZ has already resolved.
-      const ez = Math.max(w.z + VOLLEY_BLAST_Z * grow * Math.cos(th), g.hitZ);
-      const ea = w.a + VOLLEY_BLAST_A * grow * Math.sin(th);
+      const ez = Math.max(w.z + VOLLEY_BLAST_Z * Math.cos(th), g.hitZ);
+      const ea = w.a + VOLLEY_BLAST_A * Math.sin(th);
       const rz = ring(ez, g);
       pts.push(rz.x + Math.cos(ea) * rz.r, rz.y + Math.sin(ea) * rz.r);
     }
-    ctx.save();
-    ctx.fillStyle = 'rgba(150,220,255,' + (al * wash).toFixed(4) + ')';
-    for (let L = 0; L < BLAST_LAYERS; L++) {
-      const f = 1 - BLAST_EDGE * (L / (BLAST_LAYERS - 1)); // 1 at the boundary, in to the body
-      ctx.beginPath();
+    // one contour of the region, scaled toward the impact point
+    const emit = f => {
       for (let s2 = 0; s2 < pts.length; s2 += 2) {
         const px = cx2 + (pts[s2] - cx2) * f, py = cy2 + (pts[s2 + 1] - cy2) * f;
         s2 ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
       }
       ctx.closePath();
-      ctx.fill();
+    };
+    ctx.save();
+    // THE WASH, under everything: the ground the front has already crossed, tinted
+    // and thinning as the event dies. Without it the wave leaves no trace and the
+    // eye cannot tell how far it reached once the band has gone past.
+    const inner = fr * (1 - BLAST_TAIL);
+    if (inner > 0.01) {
+      ctx.fillStyle = 'rgba(' + BLAST_BODY_INK + ',' + (al * al * BLAST_WASH).toFixed(4) + ')';
+      ctx.beginPath(); emit(inner); ctx.fill();
+    }
+    // THE FRONT AND ITS TAIL. Each band is a true annulus — outer contour, inner
+    // contour, even-odd — so the density belongs to the ring and not to the disc
+    // inside it. Nested FILLS would stack toward the middle, which is a body again.
+    for (let b = 0; b < BLAST_BANDS; b++) {
+      const q = b / BLAST_BANDS, q1 = (b + 1) / BLAST_BANDS;
+      const o = fr * (1 - BLAST_TAIL * q), n = fr * (1 - BLAST_TAIL * q1);
+      if (o <= 0.004) break;
+      const dens = Math.pow(1 - q, 2.0);          // hot at the edge, gone by the tail
+      const ink = q < 0.18 ? BLAST_FRONT_INK : BLAST_BODY_INK;
+      ctx.fillStyle = 'rgba(' + ink + ',' + (al * BLAST_PEAK * dens).toFixed(4) + ')';
+      ctx.beginPath(); emit(o); emit(n); ctx.fill('evenodd');
     }
     ctx.restore();
     // the core flash, gone inside the first third
