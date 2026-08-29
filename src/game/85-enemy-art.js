@@ -496,19 +496,23 @@ function drawGhost(gh, g) {
 // fall off into the tail, and inside the tail a faint wash marks what the wave
 // has already crossed.
 //
-// THE BOUNDARY IS STILL THE RULE. Only the outer contour is walked and projected
-// through ring(), exactly as blastReaches measures it; every contour behind it is
-// that same polygon pulled toward the impact point, which costs a path replay
-// instead of another 48 projections. The front therefore stops exactly where the
-// blast stopped, and nothing on screen disagrees with what it took.
+// EVERY CONTOUR IS THE RULE. All of them are walked in the rule's own (depth,
+// angle) space and projected through ring(), exactly as blastReaches measures it.
+// The front therefore stops exactly where the blast stopped, and nothing on screen
+// disagrees with what it took.
+//
+// THE KNOBS BELOW ARE THE WHOLE LOOK, and docs/blast-lab.html drives this same
+// code with sliders on them — tune there, paste back here.
 const BLAST_LIFE = 0.42;       // seconds the whole event lasts
 const BLAST_FRONT_END = 0.70;  // share of the life the front spends reaching full reach
 const BLAST_TAIL = 0.34;       // the band behind the front, as a share of its radius
 const BLAST_BANDS = 12;        // annuli across that band
 const BLAST_PEAK = 0.55;       // alpha at the leading edge
-const BLAST_WASH = 0.11;       // what the wave leaves on the ground it crossed
-const BLAST_FRONT_INK = '235,250,255';  // the edge runs hot…
-const BLAST_BODY_INK = '150,220,255';   // …and cools into the volley's own blue
+const BLAST_WASH = 0.20;       // what the wave leaves on the ground it crossed
+const BLAST_HOT = 0.18;        // share of the band that runs the hot ink
+const BLAST_FALL = 2.0;        // how sharply the tail thins — 1 is linear, higher is snappier
+const BLAST_FRONT_INK = '50,200,255';  // the edge runs hot…
+const BLAST_BODY_INK = '50,100,255';   // …and cools into the volley's own blue
 function drawVolleyBlasts(g) {
   for (let i = volleyFX.length - 1; i >= 0; i--) {
     const w = volleyFX[i];
@@ -521,27 +525,29 @@ function drawVolleyBlasts(g) {
     const al = 1 - k * k;
     const rc = ring(Math.max(w.z, 0.02), g);
     const cx2 = rc.x + Math.cos(w.a) * rc.r, cy2 = rc.y + Math.sin(w.a) * rc.r;
-    // THE OUTLINE IS THE RULE, WALKED. The region is an ellipse in (depth, angle),
-    // and that is not a shape the canvas can draw directly — depth is a radius
-    // here and angle is an arc, so a circle in the rule is a lens on screen.
-    // So walk the ellipse's own boundary and project each point through ring(),
-    // exactly as blastReaches measures it.
-    const STEPS = 48;
-    const pts = [];
-    for (let s2 = 0; s2 <= STEPS; s2++) {
-      const th = s2 / STEPS * TAU;
-      // clamped at the ring: past it the projection balloons outward and the
-      // outline reads as a blob reaching behind the player. Nothing there can be
-      // taken anyway — an enemy inside hitZ has already resolved.
-      const ez = Math.max(w.z + VOLLEY_BLAST_Z * Math.cos(th), g.hitZ);
-      const ea = w.a + VOLLEY_BLAST_A * Math.sin(th);
-      const rz = ring(ez, g);
-      pts.push(rz.x + Math.cos(ea) * rz.r, rz.y + Math.sin(ea) * rz.r);
-    }
-    // one contour of the region, scaled toward the impact point
-    const emit = f => {
-      for (let s2 = 0; s2 < pts.length; s2 += 2) {
-        const px = cx2 + (pts[s2] - cx2) * f, py = cy2 + (pts[s2 + 1] - cy2) * f;
+    // EVERY CONTOUR IS THE RULE, WALKED — not the boundary scaled on screen. The
+    // region is an ellipse in (depth, angle), and that is not a shape the canvas
+    // can draw directly: depth is a radius here and angle is an arc, so a circle
+    // in the rule is a lens on screen. Walk the ellipse at each fraction and
+    // project every point through ring(), exactly as blastReaches measures it.
+    //
+    // The first pass pulled ONE walked boundary toward the impact point to get the
+    // inner contours, which is a screen-space scaling of a shape that lives on a
+    // curved wall — the tail bands then floated off the wall and the whole thing
+    // read as the wrong shape. (Gil, 2026-08-30.) BANDS+1 honest contours cost
+    // about 470 projections for an effect that runs under half a second, and every
+    // band now sits where the rule says it sits.
+    const STEPS = 36;
+    const walk = f => {
+      for (let s2 = 0; s2 <= STEPS; s2++) {
+        const th = s2 / STEPS * TAU;
+        // clamped at the ring: past it the projection balloons outward and the
+        // outline reads as a blob reaching behind the player. Nothing there can be
+        // taken anyway — an enemy inside hitZ has already resolved.
+        const ez = Math.max(w.z + VOLLEY_BLAST_Z * f * Math.cos(th), g.hitZ);
+        const ea = w.a + VOLLEY_BLAST_A * f * Math.sin(th);
+        const rz = ring(ez, g);
+        const px = rz.x + Math.cos(ea) * rz.r, py = rz.y + Math.sin(ea) * rz.r;
         s2 ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
       }
       ctx.closePath();
@@ -553,7 +559,7 @@ function drawVolleyBlasts(g) {
     const inner = fr * (1 - BLAST_TAIL);
     if (inner > 0.01) {
       ctx.fillStyle = 'rgba(' + BLAST_BODY_INK + ',' + (al * al * BLAST_WASH).toFixed(4) + ')';
-      ctx.beginPath(); emit(inner); ctx.fill();
+      ctx.beginPath(); walk(inner); ctx.fill();
     }
     // THE FRONT AND ITS TAIL. Each band is a true annulus — outer contour, inner
     // contour, even-odd — so the density belongs to the ring and not to the disc
@@ -562,10 +568,10 @@ function drawVolleyBlasts(g) {
       const q = b / BLAST_BANDS, q1 = (b + 1) / BLAST_BANDS;
       const o = fr * (1 - BLAST_TAIL * q), n = fr * (1 - BLAST_TAIL * q1);
       if (o <= 0.004) break;
-      const dens = Math.pow(1 - q, 2.0);          // hot at the edge, gone by the tail
-      const ink = q < 0.18 ? BLAST_FRONT_INK : BLAST_BODY_INK;
+      const dens = Math.pow(1 - q, BLAST_FALL);    // hot at the edge, gone by the tail
+      const ink = q < BLAST_HOT ? BLAST_FRONT_INK : BLAST_BODY_INK;
       ctx.fillStyle = 'rgba(' + ink + ',' + (al * BLAST_PEAK * dens).toFixed(4) + ')';
-      ctx.beginPath(); emit(o); emit(n); ctx.fill('evenodd');
+      ctx.beginPath(); walk(o); walk(n); ctx.fill('evenodd');
     }
     ctx.restore();
     // the core flash, gone inside the first third

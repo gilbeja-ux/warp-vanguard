@@ -1,0 +1,417 @@
+<title>Blast Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Audiowide&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bore:#04070e; --panel:#090f1c; --panel2:#0d1526; --panel3:#111c30;
+  --line:rgba(140,230,255,.16); --line2:rgba(140,230,255,.34);
+  --ink:#e6f2ff; --mute:#8ba5c2; --dim:#5d7691;
+  --cyan:#6fe3ff; --gold:#ffd24a; --red:#ff5070; --ok:#7ee2a8;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bore); color:var(--ink);
+  font:400 15px/1.55 "IBM Plex Sans",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.shell{display:grid;grid-template-columns:1fr 372px;min-height:100vh}
+@media (max-width:980px){.shell{grid-template-columns:1fr}}
+
+/* ---- the stage ---- */
+.stage{padding:22px 22px 26px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+h1{font:400 26px/1 Audiowide,system-ui,sans-serif;margin:0;letter-spacing:.01em}
+.sub{color:var(--mute);font-size:13.5px}
+.viewport{
+  position:relative;border:1px solid var(--line);background:#020509;
+  border-radius:2px;overflow:hidden;
+}
+canvas{display:block;width:100%;height:auto}
+.hud{
+  position:absolute;left:12px;top:12px;display:flex;gap:8px;align-items:center;
+  font:600 10.5px/1 "IBM Plex Mono",monospace;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--dim);background:rgba(4,7,14,.72);border:1px solid var(--line);padding:6px 10px;
+}
+.hud b{color:var(--cyan);font-weight:600}
+
+/* ---- transport ---- */
+.transport{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+button{
+  font:600 11px/1 "IBM Plex Mono",monospace;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink);background:var(--panel2);border:1px solid var(--line);
+  padding:9px 15px;cursor:pointer;border-radius:2px;transition:background .15s,border-color .15s;
+}
+button:hover{background:var(--panel3);border-color:var(--line2)}
+button:focus-visible{outline:none;box-shadow:0 0 0 1px var(--cyan)}
+button.on{background:rgba(111,227,255,.14);border-color:var(--line2);color:var(--cyan)}
+.scrub{flex:1;min-width:200px;display:flex;align-items:center;gap:10px}
+.scrub input{flex:1}
+.tval{font:600 12px/1 "IBM Plex Mono",monospace;color:var(--cyan);min-width:74px;text-align:right;font-variant-numeric:tabular-nums}
+
+/* ---- the desk ---- */
+.desk{
+  border-left:1px solid var(--line);background:var(--panel);
+  padding:20px 20px 34px;display:flex;flex-direction:column;gap:20px;overflow-y:auto;
+}
+.grp{display:flex;flex-direction:column;gap:11px}
+.grp>h2{
+  font:600 10.5px/1 "IBM Plex Mono",monospace;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--cyan);margin:0;padding-bottom:9px;border-bottom:1px solid var(--line);
+}
+.grp>p{margin:0;color:var(--dim);font-size:12.5px;line-height:1.5}
+.knob{display:grid;grid-template-columns:1fr auto;gap:3px 10px;align-items:center}
+.knob label{font-size:13px;color:var(--mute)}
+.knob .v{font:600 12px/1 "IBM Plex Mono",monospace;color:var(--ink);font-variant-numeric:tabular-nums}
+.knob input[type=range]{grid-column:1/-1;width:100%}
+.knob .note{grid-column:1/-1;font-size:11.5px;color:var(--dim);margin-top:-2px}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;height:3px;background:var(--line);
+  border-radius:2px;outline:none;cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+  background:var(--cyan);border:2px solid #061019;cursor:pointer;
+}
+input[type=range]::-moz-range-thumb{
+  width:14px;height:14px;border-radius:50%;background:var(--cyan);
+  border:2px solid #061019;cursor:pointer;
+}
+input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 3px rgba(111,227,255,.3)}
+.inkrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+.inkrow label{font-size:13px;color:var(--mute)}
+.inkrow input[type=color]{
+  width:38px;height:26px;padding:0;border:1px solid var(--line);
+  background:none;cursor:pointer;border-radius:2px;
+}
+.inkrow .v{font:600 11.5px/1 "IBM Plex Mono",monospace;color:var(--dim)}
+
+.warn{
+  border:1px solid rgba(255,210,74,.3);background:rgba(255,210,74,.06);
+  padding:11px 13px;font-size:12.5px;color:#e8d9ac;line-height:1.55;
+}
+.warn b{color:var(--gold);font-weight:600}
+
+pre{
+  margin:0;background:#050a14;border:1px solid var(--line);padding:13px;
+  font:400 11.5px/1.62 "IBM Plex Mono",monospace;color:#bfe6ff;
+  overflow-x:auto;white-space:pre;border-radius:2px;
+}
+.copied{color:var(--ok)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="shell">
+  <div class="stage">
+    <div class="head">
+      <h1>Blast Lab</h1>
+      <span class="sub">The volley shockwave, running the game's own <code>drawVolleyBlasts</code> and its own <code>ring()</code> projection.</span>
+    </div>
+
+    <div class="viewport">
+      <canvas id="cv" width="1800" height="1000"></canvas>
+      <div class="hud">k <b id="hk">0.00</b> · front <b id="hf">0.00</b> · <b id="hp">projections/frame</b></div>
+    </div>
+
+    <div class="transport">
+      <button id="fire">Fire</button>
+      <button id="loop" class="on">Loop</button>
+      <button id="hold">Scrub</button>
+      <div class="scrub">
+        <input type="range" id="t" min="0" max="0.999" step="0.001" value="0">
+        <span class="tval" id="tv">k 0.000</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="desk">
+    <div class="grp">
+      <h2>The event</h2>
+      <div class="knob"><label>BLAST_LIFE</label><span class="v" id="v_life"></span>
+        <input type="range" id="k_life" min="0.15" max="1.2" step="0.01">
+        <span class="note">seconds the whole thing lasts</span></div>
+      <div class="knob"><label>BLAST_FRONT_END</label><span class="v" id="v_fend"></span>
+        <input type="range" id="k_fend" min="0.2" max="1" step="0.01">
+        <span class="note">share of the life the front spends travelling</span></div>
+    </div>
+
+    <div class="grp">
+      <h2>The wave</h2>
+      <div class="knob"><label>BLAST_TAIL</label><span class="v" id="v_tail"></span>
+        <input type="range" id="k_tail" min="0.04" max="0.95" step="0.01">
+        <span class="note">how deep the band is behind the front</span></div>
+      <div class="knob"><label>BLAST_BANDS</label><span class="v" id="v_bands"></span>
+        <input type="range" id="k_bands" min="3" max="40" step="1">
+        <span class="note">annuli across the band — raise for a smoother falloff</span></div>
+      <div class="knob"><label>BLAST_PEAK</label><span class="v" id="v_peak"></span>
+        <input type="range" id="k_peak" min="0" max="1" step="0.01">
+        <span class="note">alpha at the leading edge</span></div>
+      <div class="knob"><label>BLAST_WASH</label><span class="v" id="v_wash"></span>
+        <input type="range" id="k_wash" min="0" max="0.6" step="0.005">
+        <span class="note">what the wave leaves on the ground it crossed</span></div>
+      <div class="knob"><label>BLAST_HOT</label><span class="v" id="v_hot"></span>
+        <input type="range" id="k_hot" min="0" max="0.6" step="0.01">
+        <span class="note">share of the band that runs the hot ink</span></div>
+      <div class="knob"><label>BLAST_FALL</label><span class="v" id="v_fall"></span>
+        <input type="range" id="k_fall" min="0.4" max="5" step="0.1">
+        <span class="note">how sharply the tail thins — 1 is linear, higher is snappier</span></div>
+    </div>
+
+    <div class="grp">
+      <h2>Ink</h2>
+      <div class="inkrow"><label>front</label><input type="color" id="k_ci"><span class="v" id="v_ci"></span></div>
+      <div class="inkrow"><label>body</label><input type="color" id="k_cb"><span class="v" id="v_cb"></span></div>
+    </div>
+
+    <div class="grp">
+      <h2>The reach</h2>
+      <div class="warn"><b>This is gameplay, not paint.</b> These two are the blast's real reach — what it actually takes. The drawing follows them, so changing one here changes what the volley kills. Move them only if the region itself is wrong, and expect to retune the boards.</div>
+      <div class="knob"><label>VOLLEY_BLAST_Z</label><span class="v" id="v_bz"></span>
+        <input type="range" id="k_bz" min="0.1" max="1.6" step="0.01">
+        <span class="note">semi-axis along the bore</span></div>
+      <div class="knob"><label>VOLLEY_BLAST_A</label><span class="v" id="v_ba"></span>
+        <input type="range" id="k_ba" min="0.2" max="3.14" step="0.01">
+        <span class="note">semi-axis around the ring, radians</span></div>
+    </div>
+
+    <div class="grp">
+      <h2>Where it goes off</h2>
+      <p>Not a knob in the game — the bolt decides. Move it to see the shape at different depths and bearings.</p>
+      <div class="knob"><label>impact depth</label><span class="v" id="v_hz"></span>
+        <input type="range" id="k_hz" min="0.02" max="1.2" step="0.01"></div>
+      <div class="knob"><label>impact bearing</label><span class="v" id="v_ha"></span>
+        <input type="range" id="k_ha" min="-3.14" max="3.14" step="0.01"></div>
+    </div>
+
+    <div class="grp">
+      <h2>Paste back</h2>
+      <p>These are the eight constants at the top of <code>drawVolleyBlasts</code> in src/game/85-enemy-art.js.</p>
+      <pre id="out"></pre>
+      <button id="copy">Copy constants</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W = cv.width, H = cv.height;
+
+// ---------- THE GAME'S OWN GEOMETRY, ported verbatim from src/game/41-geometry.js ----------
+// A lab that reimplements the renderer starts lying the first time the renderer
+// changes, so these two are copied byte for byte rather than approximated. If
+// 41-geometry moves, this block has to move with it.
+function geo() {
+  const cx = W / 2, cy = H / 2;
+  const nodeR = Math.min(W, H) * 0.44;
+  const R0 = nodeR * 2.5;
+  const hitZ = (R0 / nodeR - 1) / 6;   // 0.25 exactly
+  const sw = 0, swy = 0;
+  return { cx, cy, R0, nodeR, hitZ, sw, swy };
+}
+function ring(z, g) {
+  const d = Math.max(0, z - g.hitZ);
+  const s = 1 / (1 + z * 6 + d * d * 5);
+  let q = (z - g.hitZ) / (1 - g.hitZ);
+  if (q < 0) q *= 0.4;
+  const off = Math.min(W, H) * 0.25;
+  return { x: g.cx + g.sw * off * q, y: g.cy + g.swy * off * 0.7 * q, r: g.R0 * s, s };
+}
+
+// ---------- the knobs ----------
+const K = {
+  life: 0.42, fend: 0.70, tail: 0.34, bands: 12, peak: 0.55, wash: 0.20,
+  hot: 0.18, fall: 2.0,
+  ci: '50,200,255', cb: '50,100,255',
+  bz: 0.70, ba: 2.00,
+  hz: 0.55, ha: 1.35
+};
+let projections = 0;
+
+// ---------- THE BLAST, the same code as drawVolleyBlasts ----------
+// One difference only: the constants come off K instead of module scope, and the
+// caller hands in k rather than reading a clock. Everything the pixels depend on
+// — the run curve, the envelope, the walked contours, the even-odd annuli, the
+// wash and the core flash — is the shipped code.
+function drawBlast(g, w, k) {
+  const run = Math.min(1, k / K.fend);
+  const fr = 1 - (1 - run) * (1 - run);
+  const al = 1 - k * k;
+  const rc = ring(Math.max(w.z, 0.02), g);
+  const cx2 = rc.x + Math.cos(w.a) * rc.r, cy2 = rc.y + Math.sin(w.a) * rc.r;
+  const STEPS = 36;
+  const walk = f => {
+    for (let s2 = 0; s2 <= STEPS; s2++) {
+      const th = s2 / STEPS * TAU;
+      const ez = Math.max(w.z + K.bz * f * Math.cos(th), g.hitZ);
+      const ea = w.a + K.ba * f * Math.sin(th);
+      const rz = ring(ez, g);
+      const px = rz.x + Math.cos(ea) * rz.r, py = rz.y + Math.sin(ea) * rz.r;
+      s2 ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.closePath();
+    projections += STEPS + 1;
+  };
+  ctx.save();
+  const inner = fr * (1 - K.tail);
+  if (inner > 0.01) {
+    ctx.fillStyle = 'rgba(' + K.cb + ',' + (al * al * K.wash).toFixed(4) + ')';
+    ctx.beginPath(); walk(inner); ctx.fill();
+  }
+  const NB = Math.round(K.bands);
+  for (let b = 0; b < NB; b++) {
+    const q = b / NB, q1 = (b + 1) / NB;
+    const o = fr * (1 - K.tail * q), n = fr * (1 - K.tail * q1);
+    if (o <= 0.004) break;
+    const dens = Math.pow(1 - q, K.fall);
+    const ink = q < K.hot ? K.ci : K.cb;
+    ctx.fillStyle = 'rgba(' + ink + ',' + (al * K.peak * dens).toFixed(4) + ')';
+    ctx.beginPath(); walk(o); walk(n); ctx.fill('evenodd');
+  }
+  ctx.restore();
+  const fl = clamp(1 - k * 3, 0, 1);
+  if (fl > 0.01) {
+    const fg = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, rc.r * 0.30 * fl + 6);
+    fg.addColorStop(0, 'rgba(255,255,255,' + (fl * 0.9).toFixed(2) + ')');
+    fg.addColorStop(0.4, 'rgba(190,235,255,' + (fl * 0.45).toFixed(2) + ')');
+    fg.addColorStop(1, 'rgba(150,220,255,0)');
+    ctx.fillStyle = fg;
+    ctx.beginPath(); ctx.arc(cx2, cy2, rc.r * 0.30 * fl + 6, 0, TAU); ctx.fill();
+  }
+  return { fr, cx2, cy2 };
+}
+
+// ---------- a plausible bore to judge it against ----------
+// Not the game's tunnel art — a stand-in with the RIGHT geometry: depth rings
+// through the same ring(), the emitter rail at hitZ, and a couple of traps on the
+// wall for scale. The blast has to read against something or every setting looks
+// fine on black.
+function drawBore(g) {
+  ctx.fillStyle = '#03060c';
+  ctx.fillRect(0, 0, W, H);
+  const bg = ctx.createRadialGradient(g.cx, g.cy, 0, g.cx, g.cy, g.nodeR * 1.5);
+  bg.addColorStop(0, 'rgba(24,52,86,0.55)');
+  bg.addColorStop(0.55, 'rgba(12,26,46,0.35)');
+  bg.addColorStop(1, 'rgba(4,8,16,0)');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+  for (let i = 1; i <= 14; i++) {
+    const z = i / 14 * 2.2;
+    const r = ring(z, g);
+    ctx.strokeStyle = 'rgba(96,158,224,' + (0.16 - i * 0.009).toFixed(3) + ')';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, TAU); ctx.stroke();
+  }
+  for (let s = 0; s < 24; s++) {           // the wall's own lattice, so depth reads
+    const a = s / 24 * TAU;
+    const r0 = ring(0.02, g), r1 = ring(2.2, g);
+    ctx.strokeStyle = 'rgba(96,158,224,0.055)';
+    ctx.beginPath();
+    ctx.moveTo(r0.x + Math.cos(a) * r0.r, r0.y + Math.sin(a) * r0.r);
+    ctx.lineTo(r1.x + Math.cos(a) * r1.r, r1.y + Math.sin(a) * r1.r);
+    ctx.stroke();
+  }
+  const rr = ring(g.hitZ, g);              // the emitter rail
+  ctx.strokeStyle = 'rgba(140,210,255,0.5)';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(rr.x, rr.y, rr.r, 0, TAU); ctx.stroke();
+  for (const [i, a] of [[0, -2.4], [1, 0.9]]) {   // two carriages, for scale
+    const col = i ? '235,244,255' : '80,170,255';
+    ctx.strokeStyle = 'rgba(' + col + ',0.85)';
+    ctx.lineWidth = 16; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(rr.x, rr.y, rr.r, a - 0.24, a + 0.24); ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
+  for (const [z, a] of [[0.45, 2.3], [0.85, -0.6], [1.3, 0.2]]) {  // traps, for scale
+    const r = ring(z, g);
+    const x = r.x + Math.cos(a) * r.r, y = r.y + Math.sin(a) * r.r;
+    const sz = Math.max(3, 26 * r.s / ring(g.hitZ, g).s * 0.5);
+    ctx.fillStyle = 'rgba(255,60,90,0.9)';
+    ctx.beginPath(); ctx.arc(x, y, sz, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,120,150,0.5)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, sz * 2.1, 0, TAU); ctx.stroke();
+  }
+}
+
+// ---------- transport ----------
+let playing = true, scrubbing = false, t0 = performance.now(), kNow = 0;
+const $ = id => document.getElementById(id);
+
+function frame(now) {
+  const g = geo();
+  if (!scrubbing) {
+    kNow = (now - t0) / 1000 / K.life;
+    if (kNow >= 1) {
+      if (playing) { t0 = now; kNow = 0; } else kNow = 0.999;
+    }
+    $('t').value = kNow.toFixed(3);
+  }
+  projections = 0;
+  drawBore(g);
+  const res = drawBlast(g, { z: K.hz, a: K.ha }, kNow);
+  $('hk').textContent = kNow.toFixed(2);
+  $('hf').textContent = res.fr.toFixed(2);
+  $('hp').textContent = projections + ' projections/frame';
+  $('tv').textContent = 'k ' + kNow.toFixed(3);
+  requestAnimationFrame(frame);
+}
+
+// ---------- wiring ----------
+const FMT = { life: 2, fend: 2, tail: 2, bands: 0, peak: 2, wash: 3, hot: 2, fall: 1, bz: 2, ba: 2, hz: 2, ha: 2 };
+function refresh() {
+  for (const key of Object.keys(FMT)) {
+    const el = $('v_' + key);
+    if (el) el.textContent = Number(K[key]).toFixed(FMT[key]);
+  }
+  $('v_ci').textContent = K.ci;
+  $('v_cb').textContent = K.cb;
+  $('out').textContent =
+    'const BLAST_LIFE = ' + K.life.toFixed(2) + ';       // seconds the whole event lasts\n' +
+    'const BLAST_FRONT_END = ' + K.fend.toFixed(2) + ';  // share of the life the front spends reaching full reach\n' +
+    'const BLAST_TAIL = ' + K.tail.toFixed(2) + ';       // the band behind the front, as a share of its radius\n' +
+    'const BLAST_BANDS = ' + Math.round(K.bands) + ';        // annuli across that band\n' +
+    'const BLAST_PEAK = ' + K.peak.toFixed(2) + ';       // alpha at the leading edge\n' +
+    'const BLAST_WASH = ' + K.wash.toFixed(3) + ';      // what the wave leaves on the ground it crossed\n' +
+    'const BLAST_HOT = ' + K.hot.toFixed(2) + ';        // share of the band that runs the hot ink\n' +
+    'const BLAST_FALL = ' + K.fall.toFixed(1) + ';        // how sharply the tail thins\n' +
+    "const BLAST_FRONT_INK = '" + K.ci + "';  // the edge runs hot…\n" +
+    "const BLAST_BODY_INK = '" + K.cb + "';   // …and cools into the volley's own blue" +
+    (Math.abs(K.bz - 0.70) > 1e-6 || Math.abs(K.ba - 2.00) > 1e-6
+      ? '\n\n// …and in src/game/72-tick.js — THIS CHANGES WHAT THE VOLLEY KILLS:\n' +
+        'const VOLLEY_BLAST_Z = ' + K.bz.toFixed(2) + ';  // semi-axis along the bore\n' +
+        'const VOLLEY_BLAST_A = ' + K.ba.toFixed(2) + ';  // semi-axis around the ring, radians'
+      : '');
+}
+function bind(id, key) {
+  const el = $('k_' + id);
+  el.value = K[key];
+  el.addEventListener('input', () => { K[key] = parseFloat(el.value); refresh(); });
+}
+for (const id of ['life', 'fend', 'tail', 'bands', 'peak', 'wash', 'hot', 'fall', 'bz', 'ba', 'hz', 'ha']) bind(id, id);
+
+const hex = rgb => '#' + rgb.split(',').map(n => (+n).toString(16).padStart(2, '0')).join('');
+const rgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16)).join(',');
+for (const [id, key] of [['k_ci', 'ci'], ['k_cb', 'cb']]) {
+  const el = $(id);
+  el.value = hex(K[key]);
+  el.addEventListener('input', () => { K[key] = rgb(el.value); refresh(); });
+}
+
+$('fire').addEventListener('click', () => { t0 = performance.now(); scrubbing = false; $('hold').classList.remove('on'); });
+$('loop').addEventListener('click', e => { playing = !playing; e.target.classList.toggle('on', playing); if (playing) t0 = performance.now(); });
+$('hold').addEventListener('click', e => { scrubbing = !scrubbing; e.target.classList.toggle('on', scrubbing); });
+$('t').addEventListener('input', e => { scrubbing = true; $('hold').classList.add('on'); kNow = parseFloat(e.target.value); });
+$('copy').addEventListener('click', async e => {
+  try { await navigator.clipboard.writeText($('out').textContent); e.target.textContent = 'Copied'; e.target.classList.add('copied'); }
+  catch (err) { e.target.textContent = 'Select the block above'; }
+  setTimeout(() => { e.target.textContent = 'Copy constants'; e.target.classList.remove('copied'); }, 1600);
+});
+
+refresh();
+requestAnimationFrame(frame);
+</script>
