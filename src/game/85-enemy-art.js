@@ -717,13 +717,22 @@ function drawEnemy(en, g) {
   // spawn is a couple of pixels — it has to GROW the whole way in, never arrive
   // half-grown. Birth ramps scale as well as alpha so mid-bore drops swell out
   // of the deep instead of blinking on at their local size.
-  let size = Math.min(W, H) * 0.06 * clamp(rg.r / g.nodeR, 0.045, 2) * (en.sizeMul || 1) * (0.45 + 0.55 * birth);
-  // missed traps balloon past the ring and dissolve; fresh ones fade in from the deep
+  //
+  // A BODY THAT SLIPPED THE RING KEEPS ITS ARRIVAL SIZE. Past the node ring the
+  // projection alone doubles the wall factor, and a balloon term used to multiply
+  // that again — so a miss ended as a swelling blob parked in the player's face
+  // instead of something flying by. Gil, 2026-08-29. Capping the factor at the
+  // node ring's own 1 touches the SIZE only: the position is still rg.r, which
+  // keeps carrying the body outward along the heading it already had, and the
+  // fade below does the exit. Do not put the balloon back — growth reads as an
+  // arrival, and this thing is leaving.
+  const wall = clamp(rg.r / g.nodeR, 0.045, en.resolved ? 1 : 2);
+  const size = Math.min(W, H) * 0.06 * wall * (en.sizeMul || 1) * (0.45 + 0.55 * birth);
+  // missed traps drift past the ring and dissolve; fresh ones fade in from the deep
   let fade = en.resolved ? clamp(en.z / g.hitZ, 0, 1) : 1;
   fade *= clamp((SPAWN_Z - 0.02 - en.z) / 0.45, 0, 1); // long, soft entrance at the horizon
   fade *= birth;
   if (fade <= 0.005) return;
-  if (en.resolved) size *= 1 + (1 - clamp(en.z / g.hitZ, 0, 1)) * 1.6;
   const PAL = enemyPal(en);
 
   ctx.save();

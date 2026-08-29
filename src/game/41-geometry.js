@@ -56,7 +56,12 @@ const BREACHFX = {
   // the bare shared scale it crowded the bore. A fifth off puts the HARDWARE just
   // over the old art's plate, while the RING — the aim cue, measured separately
   // below — stays exactly on the emitter's reach.
-  scale: 0.76,
+  //
+  // TRIMMED 5% ON 2026-08-29 (Gil): 0.76 -> 0.722. The hulls read a touch heavy
+  // in the bore. `ring` below was multiplied by the SAME 1/0.95 in the same edit,
+  // so the aim cue did not move a pixel — only the hardware inside it did. Any
+  // future trim here has to pay the ring the same way, and npm test says so.
+  scale: 0.722,
   ref: 224,       // sprite side in CSS px — a tap is never a station on screen
   tint: 1.10,     // the type colour poured through the bake's coverage mask
   bloom: 0.70,    // and its blurred pass, so the channels bleed into the metal
@@ -87,7 +92,7 @@ const BREACHFX = {
   // So the hoop is not decoration and it is not a guess at one: it is the coverage
   // rule painted on the wall, the same bargain the emitter's own arc already makes.
   // Keep the three numbers in step, or the ring starts lying about the reach.
-  ring: 1.342,    // its radius, in body sizes — see above before changing it
+  ring: 1.4126,   // its radius, in body sizes — see above before changing it
   ringI: 0.85,    // and how hard it burns
   // the drill's own core light, so the shaft reads against a dark bore instead
   // of disappearing into it — the old body's siphon line, in one stroke
