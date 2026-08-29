@@ -224,10 +224,13 @@ function ring(z, g) {
 }
 
 // ---------- the knobs ----------
+// The bench opens on what is SHIPPED, so a fresh session starts from the lane
+// rather than from a default nobody chose. Gil's tuning, 2026-08-30 — keep this
+// in step with the constants at the top of drawVolleyBlasts.
 const K = {
-  life: 0.42, fend: 0.70, tail: 0.34, bands: 12, peak: 0.55, wash: 0.20,
-  hot: 0.18, fall: 2.0,
-  ci: '50,200,255', cb: '50,100,255',
+  life: 0.55, fend: 1.00, tail: 0.95, bands: 12, peak: 0.44, wash: 0.600,
+  hot: 0.50, fall: 3.5,
+  ci: '20,43,215', cb: '0,148,240',
   bz: 0.70, ba: 2.00,
   hz: 0.55, ha: 1.35
 };

@@ -503,16 +503,22 @@ function drawGhost(gh, g) {
 //
 // THE KNOBS BELOW ARE THE WHOLE LOOK, and docs/blast-lab.html drives this same
 // code with sliders on them — tune there, paste back here.
-const BLAST_LIFE = 0.42;       // seconds the whole event lasts
-const BLAST_FRONT_END = 0.70;  // share of the life the front spends reaching full reach
-const BLAST_TAIL = 0.34;       // the band behind the front, as a share of its radius
+// TUNED ON THE BENCH, 2026-08-30. Gil's settings, and they change what the effect
+// IS: a front that runs for the whole life (FRONT_END 1.00, so it never holds at
+// the boundary), a band deep enough to nearly fill the region (TAIL 0.95) with a
+// steep thinning behind it (FALL 3.5), and a heavy trace on the ground it crossed
+// (WASH 0.60). The inks went deep blue. Do not "restore" these to the thin bright
+// ring the first pass shipped — that shape was rejected.
+const BLAST_LIFE = 0.55;       // seconds the whole event lasts
+const BLAST_FRONT_END = 1.00;  // share of the life the front spends reaching full reach
+const BLAST_TAIL = 0.95;       // the band behind the front, as a share of its radius
 const BLAST_BANDS = 12;        // annuli across that band
-const BLAST_PEAK = 0.55;       // alpha at the leading edge
-const BLAST_WASH = 0.20;       // what the wave leaves on the ground it crossed
-const BLAST_HOT = 0.18;        // share of the band that runs the hot ink
-const BLAST_FALL = 2.0;        // how sharply the tail thins — 1 is linear, higher is snappier
-const BLAST_FRONT_INK = '50,200,255';  // the edge runs hot…
-const BLAST_BODY_INK = '50,100,255';   // …and cools into the volley's own blue
+const BLAST_PEAK = 0.44;       // alpha at the leading edge
+const BLAST_WASH = 0.600;      // what the wave leaves on the ground it crossed
+const BLAST_HOT = 0.50;        // share of the band that runs the hot ink
+const BLAST_FALL = 3.5;        // how sharply the tail thins — 1 is linear, higher is snappier
+const BLAST_FRONT_INK = '20,43,215';  // the edge runs hot…
+const BLAST_BODY_INK = '0,148,240';   // …and cools into the volley's own blue
 function drawVolleyBlasts(g) {
   for (let i = volleyFX.length - 1; i >= 0; i--) {
     const w = volleyFX[i];
