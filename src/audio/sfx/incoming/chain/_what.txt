@@ -1,0 +1,12 @@
+CUE: chain  —  chain overdrive
+STATUS: take   (today: chain.wav @ 0.9)
+FIRES: 72-tick.js:1033
+
+CHAIN OVERDRIVE — the zap arcs to the nearest interdictor and takes it too
+
+LOOK FOR: a fast electric arc that reads as a JUMP to a second target.
+LENGTH:   0.1–0.25s
+SEARCH:   electric arc  ·  chain lightning  ·  zap arc short  ·  electric spark
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

@@ -1,0 +1,12 @@
+CUE: bossPlate  —  one plate tears off
+STATUS: take   (today: boss-plate.mp3 @ 0.6)
+FIRES: 12-sfx.js:226 · six plays, pitched down the dyingN ladder
+
+ONE file played six times at 1.20 down to 0.85 — that spread is the effect
+
+LOOK FOR: one blast that still reads pitched from 1.20 down to 0.85 — it is played six times down that ladder. Cut the reverb tail short or six of them are mush.
+LENGTH:   0.8–1.3s
+SEARCH:   metal explosion  ·  debris impact  ·  hull breach  ·  armor explosion
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

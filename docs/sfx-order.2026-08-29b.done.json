@@ -1,0 +1,245 @@
+{
+  "picks": {
+    "speedUp": {
+      "file": "speedUp/dragon-studio-whoosh-cinematic-376875.mp3",
+      "trim": 0.9,
+      "note": ""
+    },
+    "count": {
+      "file": "",
+      "trim": 0.9,
+      "note": "this is good"
+    },
+    "gatePip": {
+      "file": "",
+      "trim": 0.9,
+      "note": "this is good"
+    },
+    "volleyCharge": {
+      "file": "volleyCharge/freesound_community-sci-fi-charge-up-37395.mp3",
+      "trim": 0.9,
+      "note": "need to cut it when the volley fires"
+    },
+    "volleyFizzle": {
+      "file": "volleyFizzle/freesound_community-handgun-clip-out-106437.mp3",
+      "trim": 0.9,
+      "note": "use (cut) the audible part only. (in the center)"
+    },
+    "latchWarn": {
+      "file": "latchWarn/the-vampires-monster-horror-orchestra-warning-338415.mp3",
+      "trim": 0.4,
+      "note": ""
+    },
+    "star": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "starsFull3": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "starsFull2": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "newBest": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "unlock": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "traced": {
+      "file": "traced/01__interface__maximize_004__0.42s.wav",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "menuLaunch": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "bootGodspeed": {
+      "file": "bootGodspeed/alexis_gaming_cam-radio-338296.mp3",
+      "trim": 0.9,
+      "note": ""
+    },
+    "restart": {
+      "file": "restart/humordome-laser-charge-up-452847.mp3",
+      "trim": 0.9,
+      "note": "cut to fit actual timing"
+    },
+    "sonar": {
+      "file": "",
+      "trim": 0.05,
+      "note": "good"
+    },
+    "shutdown": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "volley": {
+      "file": "",
+      "trim": 1,
+      "note": "good"
+    },
+    "pulseArm": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "rayCharge": {
+      "file": "",
+      "trim": 0.7,
+      "note": "good"
+    },
+    "bossPlate": {
+      "file": "",
+      "trim": 0.6,
+      "note": "good"
+    },
+    "bossArrive": {
+      "file": "",
+      "trim": 1,
+      "note": "good"
+    },
+    "bossDead": {
+      "file": "",
+      "trim": 0.85,
+      "note": "good"
+    },
+    "warpIn": {
+      "file": "",
+      "trim": 0.25,
+      "note": "good"
+    },
+    "inWarp": {
+      "file": "",
+      "trim": 0.35,
+      "note": "can't hear it"
+    },
+    "exitWarp": {
+      "file": "",
+      "trim": 0.3,
+      "note": "accidentaly connected with the victory sting"
+    },
+    "startup": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "win": {
+      "file": "",
+      "trim": 1,
+      "note": "good"
+    },
+    "fail": {
+      "file": "",
+      "trim": 0.95,
+      "note": "good"
+    },
+    "shieldUp": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "heal": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "shieldHit": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "padPress1": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "padPress2": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "x10": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "chain": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "volleyBlast": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "armorThump": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "railLatched": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "leechHit": {
+      "file": "",
+      "trim": 1,
+      "note": "good"
+    },
+    "wrongKey": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "lampCall": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "lastStand": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "shedLayer": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "sweepReversed": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "bossCalm": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "laneSecured": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    },
+    "bossDown": {
+      "file": "",
+      "trim": 0.9,
+      "note": "good"
+    }
+  },
+  "saved": "2026-08-29T10:37:09.206Z"
+}

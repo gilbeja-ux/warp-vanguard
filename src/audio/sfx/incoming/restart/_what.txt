@@ -1,0 +1,12 @@
+CUE: restart  —  an emitter comes back online
+STATUS: take   (today: restart.wav @ 0.9)
+FIRES: 12-sfx.js · fires 72-tick.js:341, 520
+
+EMITTER ONLINE — and the same whir carries the boot ramp
+
+LOOK FOR: a machine spooling back up — a whir with a thump in it. It also carries the boot ramp.
+LENGTH:   0.6–1.0s
+SEARCH:   machine reboot  ·  system startup  ·  power up whir  ·  engine spool
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

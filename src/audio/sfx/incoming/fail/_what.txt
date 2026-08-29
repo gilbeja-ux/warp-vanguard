@@ -1,0 +1,12 @@
+CUE: fail  —  the run is lost
+STATUS: take   (today: failed.mp3 @ 0.95)
+FIRES: 12-sfx.js:345
+
+the raw take true-peaks +0.1 dBFS; the trim is what seats it under 0
+
+LOOK FOR: a descending failure. The run is lost — final, not cruel.
+LENGTH:   1–2s
+SEARCH:   game over  ·  fail descending  ·  defeat sound  ·  power down sad
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

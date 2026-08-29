@@ -1,0 +1,12 @@
+CUE: bossArrive  —  the warp leech surfaces
+STATUS: take   (today: boss-arrival.mp3 @ 1)
+FIRES: 12-sfx.js:277 · fires from spawnBoss
+
+WARP LEECH ONLINE — a 9.08s BED, faded out over the duel’s first beat
+
+LOOK FOR: a swelling BED. Arrival and dread, no transient — it is faded out over the duel’s first beat and never heard to its end.
+LENGTH:   8–10s
+SEARCH:   sci fi drone rise  ·  dark riser long  ·  ominous swell  ·  boss arrival
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

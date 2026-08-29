@@ -33,12 +33,23 @@ http.createServer((req, res) => {
   let u = decodeURIComponent(req.url.split('?')[0]);
   if (u === '/') u = '/scripts/soundboard.html';
   if (u === '/__incoming') {
-    let files = [];
-    try {
-      files = fs.readdirSync(INCOMING)
-        .filter(n => AUDIO_EXT.includes(path.extname(n).toLowerCase()))
-        .sort();
-    } catch (e) {} // no folder yet is not an error — it just means nothing is dropped
+    // ONE LEVEL DEEP, AND THE PATH IS THE ANSWER. `npm run sfx:fetch` files
+    // candidates into incoming/<cue>/, so a returned name is either `x.wav`
+    // (unsorted, offered to every cue) or `shieldUp/x.wav` (that cue's own).
+    // The board splits on the slash; the server just reports what is there.
+    const files = [];
+    const walk = (dir, prefix, depth) => {
+      let names;
+      try { names = fs.readdirSync(dir); } catch (e) { return; } // no folder yet is not an error
+      for (const n of names.sort()) {
+        const abs = path.join(dir, n);
+        let st;
+        try { st = fs.statSync(abs); } catch (e) { continue; }
+        if (st.isDirectory()) { if (depth > 0) walk(abs, prefix + n + '/', depth - 1); continue; }
+        if (AUDIO_EXT.includes(path.extname(n).toLowerCase())) files.push(prefix + n);
+      }
+    };
+    walk(INCOMING, '', 1);
     return serveJSON(res, { files });
   }
   if (u === '/__order' && req.method === 'GET') {

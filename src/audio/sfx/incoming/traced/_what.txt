@@ -1,0 +1,12 @@
+CUE: traced  —  the bonus ribbon is ridden
+STATUS: take   (today: traced.wav @ 0.9)
+FIRES: 12-sfx.js:340 · fires 72-tick.js:870
+
+a full ride of the BONUS RIBBON, head to tail — it banks a whole pulse
+
+LOOK FOR: a rising three-note resolve. It ends the ribbon drone, so it must sit on top of a 880 Hz tone.
+LENGTH:   0.3s
+SEARCH:   collect complete  ·  sparkle rise short  ·  bonus collected
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

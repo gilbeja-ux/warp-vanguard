@@ -1,0 +1,12 @@
+CUE: gatePip  —  the parked pip
+STATUS: live
+FIRES: 72-tick.js:30
+
+the lane waits in open space and pips once a second
+
+LOOK FOR: a soft single pip. It repeats once a second for as long as the lane waits, so it must not ring.
+LENGTH:   0.05–0.12s
+SEARCH:   radar pip  ·  sonar blip soft  ·  idle beep subtle
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

@@ -1,0 +1,12 @@
+CUE: pulseArm  —  an orb reaches full
+STATUS: take   (today: pulse_charge.mp3 @ 0.9)
+FIRES: 12-sfx.js:263 · fires 72-tick.js:952, 879, 764
+
+PULSE CHARGED — panned to the pad that owns the orb, so which side is armed is audible
+
+LOOK FOR: a coil topping out, then an octave snap. It must NOT sound like heal() — this says ARMED, not repaired.
+LENGTH:   0.3–0.5s
+SEARCH:   weapon ready  ·  charge complete  ·  power up ready  ·  energy armed
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

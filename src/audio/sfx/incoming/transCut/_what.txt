@@ -1,0 +1,12 @@
+CUE: transCut  —  the quick screen cut
+STATUS: take   (today: trans-cut.wav @ 0.55)
+FIRES: 12-sfx.js · startTrans() at 99-boot.js:129
+
+the 0.26s non-warp transition — a screen swaps, the player does not travel
+
+LOOK FOR: a short dry cut. A screen swaps; the player does not travel.
+LENGTH:   0.15–0.3s
+SEARCH:   ui swoosh short  ·  transition click  ·  digital cut
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

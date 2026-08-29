@@ -1,0 +1,12 @@
+CUE: volley  —  the volley launches
+STATUS: take   (today: volley2.mp3 @ 1)
+FIRES: 12-sfx.js · fires 85-enemy-art.js:1896
+
+the bolt leaves the ring and flies the bore
+
+LOOK FOR: a capacitor snap into a discharge with a sub kick under it.
+LENGTH:   0.3–0.5s
+SEARCH:   laser cannon  ·  energy shot heavy  ·  plasma fire  ·  railgun
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

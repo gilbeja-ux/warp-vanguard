@@ -1,0 +1,12 @@
+CUE: exitWarp  —  dropping out of warp
+STATUS: take   (today: exit-warp.mp3 @ 0.3)
+FIRES: 12-sfx.js:294 · the win sting rises through it at EXIT_STING
+
+a BED for the verdict, not the verdict — WARP_COLLAPSE.at is its 0.44s swell
+
+LOOK FOR: a drop out of warp that swells over its first 0.44s. The win sting rises inside it at 2.2s.
+LENGTH:   ~5s
+SEARCH:   hyperspace exit  ·  warp drop out  ·  sci fi deceleration
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

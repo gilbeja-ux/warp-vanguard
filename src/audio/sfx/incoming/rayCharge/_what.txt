@@ -1,0 +1,12 @@
+CUE: rayCharge  —  the ray winds up
+STATUS: take   (today: ray-charge.mp3 @ 0.7)
+FIRES: 12-sfx.js:187 · its release IS BEAM_BURST in 52-bosses
+
+RE-CUT THIS AND BEAM_BURST MOVES WITH IT — the light launches on the release
+
+LOOK FOR: a build that PEAKS and lets go. WARNING: the release point IS the game constant BEAM_BURST — tell me the new figure or the light stops launching on the release.
+LENGTH:   ~1.2s
+SEARCH:   laser charge up  ·  energy charge deep  ·  weapon windup  ·  beam charge
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

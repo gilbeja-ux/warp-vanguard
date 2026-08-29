@@ -1,0 +1,12 @@
+CUE: bootLock  —  boot · the lock
+STATUS: fallback
+FIRES: 72-tick.js:511
+
+plays only when startup1.mp3 is absent
+
+LOOK FOR: FALLBACK ONLY — startup1.mp3 covers this. A low lock with accelerating ticks.
+LENGTH:   ~1.2s
+SEARCH:   machine startup  ·  power lock  ·  sci fi boot
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

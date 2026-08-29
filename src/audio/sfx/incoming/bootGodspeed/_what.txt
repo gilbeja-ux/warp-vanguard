@@ -1,0 +1,12 @@
+CUE: bootGodspeed  —  GODSPEED ack
+STATUS: take   (today: boot-godspeed.mp3 @ 0.9)
+FIRES: 72-tick.js:529
+
+squelch, a terse double ack, and the release — no take covers it
+
+LOOK FOR: radio squelch, two short acks, a low engage. Command hands the lane over.
+LENGTH:   0.6s
+SEARCH:   radio squelch  ·  comm beep  ·  transmission start  ·  walkie talkie click
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

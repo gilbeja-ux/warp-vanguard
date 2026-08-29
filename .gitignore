@@ -107,3 +107,16 @@ docs/station-lab/dials.js
 # The breach lab writes its captures here (?shot=NAME). Regenerable output, not
 # source — the lab rebuilds any of them in a second.
 docs/breach-lab/shots/
+
+# ---- SFX CANDIDATES — regenerable, and heavy ----
+# `npm run sfx:fetch` downloads Kenney's CC0 packs into .cache/ and files the
+# candidates into src/audio/sfx/incoming/<cue>/. Both are DERIVED: the pack URLs
+# and the cue→candidate map are the source (scripts/sfx-candidates.js), and the
+# audio is ~30MB of material that never ships. The `_what.txt` note in each cue
+# folder IS tracked — it keeps the drop tree in a fresh clone and tells whoever
+# opens the folder what the cue needs.
+.cache/
+src/audio/sfx/incoming/**/*.wav
+src/audio/sfx/incoming/**/*.mp3
+src/audio/sfx/incoming/**/*.m4a
+src/audio/sfx/incoming/**/*.ogg

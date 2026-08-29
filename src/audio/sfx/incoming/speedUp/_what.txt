@@ -1,0 +1,12 @@
+CUE: speedUp  —  lane surge
+STATUS: take   (today: speed-up.mp3 @ 0.9)
+FIRES: 12-sfx.js:164 · fires 72-tick.js:388
+
+LANE SURGE / DEEP SURGE — the lane steps up a speed
+
+LOOK FOR: a rising whoosh with weight behind it. Acceleration, not a laser.
+LENGTH:   0.4–0.8s
+SEARCH:   speed boost  ·  acceleration whoosh  ·  turbo boost  ·  power surge rise
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

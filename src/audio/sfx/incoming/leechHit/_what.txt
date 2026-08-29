@@ -1,0 +1,12 @@
+CUE: leechHit  —  the warp leech is hit
+STATUS: take   (today: leech-hit.wav @ 1)
+FIRES: 52-bosses.js:223
+
+LEECH HIT — a pulse lands on the WARP LEECH, the only thing that wounds it
+
+LOOK FOR: a deep sub-heavy impact into a machine. This is the ONLY thing that wounds the boss — it must feel like damage.
+LENGTH:   0.35–0.6s
+SEARCH:   deep impact bass  ·  mech hit heavy  ·  sci fi impact deep  ·  bass hit
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

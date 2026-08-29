@@ -1,0 +1,12 @@
+CUE: keyChime  —  a phase-locked interdictor
+STATUS: fallback
+FIRES: 72-tick.js:1051
+
+a PHASE-LOCKED interdictor collapses — layered only without the hit take
+
+LOOK FOR: a clean keyed chime — a lock releasing.
+LENGTH:   0.1–0.25s
+SEARCH:   unlock chime  ·  key confirm  ·  digital lock open
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

@@ -1,0 +1,12 @@
+CUE: laneSecured  —  LANE SECURED
+STATUS: take   (today: lane-secured.wav @ 0.9)
+FIRES: 52-bosses.js:959
+
+LANE SECURED — the last interdictor of a wave is gone
+
+LOOK FOR: a two-note rising confirm, brief and clean. It fires every wave, so it cannot be a fanfare.
+LENGTH:   0.35s
+SEARCH:   success chime short  ·  confirm two note  ·  objective complete short
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

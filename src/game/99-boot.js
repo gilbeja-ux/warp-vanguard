@@ -132,10 +132,9 @@ function startTrans(mode, fn) {
   if (mode === 'warp') {
     // packet flush: a descending whoosh as the run's data dives to the node,
     // then a bright rising ping at the switch as the next node blooms open
-    tone(300, 0.34, 'sine', 0.12, 55); crackle(0.34, 2600, 380, 1.4, 0.35);
-    tone(760, 0.2, 'sine', 0.11, 1240, undefined, 0.30);
+    sfx.transWarp();
   }
-  else crackle(0.09, 1200, 3200, 2, 0.35);
+  else sfx.transCut();
 }
 function pressUI(rect, fn) { // micro-interaction: flash NOW, act on the beat
   uiPress = Object.assign({ t: 0, fn }, rect);

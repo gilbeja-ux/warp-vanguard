@@ -1,0 +1,12 @@
+CUE: newBest  —  NEW BEST stamp
+STATUS: live
+FIRES: 12-sfx.js:330 · fires 95-menu.js:899
+
+the badge stamps once
+
+LOOK FOR: a stamp: a bright ping over a low body. It lands ONCE, on the badge.
+LENGTH:   0.3–0.5s
+SEARCH:   stamp impact  ·  achievement ping  ·  record set  ·  seal stamp
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

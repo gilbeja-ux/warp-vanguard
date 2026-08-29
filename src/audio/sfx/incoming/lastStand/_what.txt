@@ -1,0 +1,12 @@
+CUE: lastStand  —  LAST STAND
+STATUS: take   (today: last-stand.wav @ 0.9)
+FIRES: 52-bosses.js:246
+
+the final gesture is called — both keys, as one
+
+LOOK FOR: a low drop with a big noise burst over it. The machine commits everything.
+LENGTH:   0.5s
+SEARCH:   sci fi alarm dark  ·  threat riser  ·  power surge dark  ·  danger stinger
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

@@ -191,8 +191,7 @@ function bossPulseHit(wv) {
       b.shieldT = 0.6;
       burst(b.sx, b.sy, '#8fe0ff', 16, 4);
       popup(b.sx, b.sy - b.sSize, 'BOTH KEYS — FIRE THEM TOGETHER', '#eab8ff');
-      tone(620, 0.12, 'sine', 0.08, 340); // fizzle, not thunder
-      crackle(0.15, 1600, 700, 1, 0.3);
+      sfx.wrongKey(); // fizzle, not thunder
       buzz(10);
       return;
     }
@@ -204,8 +203,7 @@ function bossPulseHit(wv) {
     b.shieldT = 0.6;
     burst(b.sx, b.sy, '#8fe0ff', 16, 4);
     popup(b.sx, b.sy - b.sSize, 'WRONG KEY — READ THE LAMP', NODE_HEX[b.lamp]);
-    tone(620, 0.12, 'sine', 0.08, 340); // fizzle, not thunder
-    crackle(0.15, 1600, 700, 1, 0.3);
+    sfx.wrongKey(); // fizzle, not thunder
     buzz(10);
     return;
   }
@@ -220,8 +218,7 @@ function bossPulseHit(wv) {
   popup(b.sx, b.sy - b.sSize, 'LEECH HIT ' + (b.maxHp - b.hp) + '/' + b.maxHp, '#eab8ff');
   shake = 1;
   hitStop = Math.min(hitStop + 0.1, 0.14);
-  tone(70, 0.3, 'sine', 0.2, 40);
-  crackle(0.35, 2000, 300, 2, 0.8);
+  sfx.leechHit();
   buzz([40, 30, 60], { strong: 0.9, weak: 0.5 });
   // THE PATCH POD. Every second wound, the convoy answers: a stability pickup
   // rides the lane. Duels are where the hull bleeds hardest, so relief is
@@ -243,8 +240,7 @@ function bossPulseHit(wv) {
       b.lastStand = true;
       b.lampBlink = 0; b.mode = 'idle'; b.beams = []; b.sweepAdds = 0;
       popup(W / 2, H * 0.3, 'LAST STAND — BOTH KEYS, AS ONE', '#d465ff');
-      tone(160, 0.5, 'sawtooth', 0.14, 60);
-      crackle(0.45, 3200, 700, 6, 1.0, 0.1);
+      sfx.lastStand();
       buzz([50, 40, 70]);
     }
   }
@@ -266,8 +262,7 @@ function blockadeShift(b) {
     b.lampBlink = 0;
   }
   popup(W / 2, H * 0.3, 'IT SHEDS A LAYER — NEW PATTERN', '#d465ff');
-  tone(150, 0.5, 'sawtooth', 0.13, 70);
-  crackle(0.4, 2600, 600, 4, 0.8);
+  sfx.shedLayer();
   buzz([40, 30, 60]);
 }
 // ---------- shared machinery ----------
@@ -338,7 +333,7 @@ function leechWave(n, opts) {
     const th = leechLatchAngle();
     if (th !== null) {
       latches.push({ a: th, span0: 0.5, t: 0, dur: 3, tele: 0.9, arm: 0.4, z0: SPAWN_Z });
-      tone(1180, 0.02, 'square', 0.05); tone(1180, 0.02, 'square', 0.05, null, null, 0.22);
+      sfx.latchWarn();
     }
   }
   const gapZ = 0.85 * (LV.speed || 0.5) * (mutLive('fast') ? 1.35 : 1);
@@ -478,7 +473,7 @@ function bossBeams(b, dt, g) {
     if (bm.rev !== undefined && !bm.reversed && bm.swept >= bm.rev * TAU) {
       bm.reversed = true; bm.dir *= -1;
       popup(W / 2, H * 0.34, 'SWEEP REVERSED', NODE_HEX[bm.phase]);
-      tone(240, 0.2, 'sawtooth', 0.1, 120);
+      sfx.sweepReversed();
       buzz(15);
     }
     const dA = bm.spd * dt;
@@ -539,7 +534,7 @@ function runLamp(b, dt) {
       const shrink = Math.max(0.55, 1 - bossRound(b) * 0.06);
       b.lampT = bRand(LAMP_HOLD[0], LAMP_HOLD[1]) * shrink;
       popup(W / 2, H * 0.3, (b.lamp === 0 ? 'BLUE' : 'WHITE') + ' KEY', NODE_HEX[b.lamp]);
-      tone(b.lamp === 0 ? 520 : 660, 0.12, 'sine', 0.07, b.lamp === 0 ? 400 : 520);
+      sfx.lampCall(b.lamp);
       buzz(10);
     }
     return;
@@ -611,7 +606,7 @@ function updateSiphonFight(dt, g) {
   const live = enemies.some(e => !e.dead && !e.resolved && !e.failed && e.type !== 'strip');
   if ((!live && !latches.length) || b.modeT <= 0) {
     b.mode = 'idle';
-    tone(960, 0.04, 'sine', 0.06); tone(960, 0.04, 'sine', 0.06, null, null, 0.16);
+    sfx.bossCalm();
   }
 }
 // THE PRISM — it splits the light: TWO beams, one per colour, each frying only
@@ -684,7 +679,7 @@ function updatePrismFight(dt, g) {
   const live = enemies.some(e => !e.dead && !e.resolved && !e.failed && e.type !== 'strip');
   if ((!live && !latches.length) || b.modeT <= 0) {
     b.mode = 'idle';
-    tone(960, 0.04, 'sine', 0.06); tone(960, 0.04, 'sine', 0.06, null, null, 0.16);
+    sfx.bossCalm();
   }
 }
 // THE MIMIC — the lamp picks the pulse: only the matching colour lands, and
@@ -959,8 +954,7 @@ function lastKillBeat(justKilled) {
       && !e.dead && !e.resolved && !e.failed && e.type !== 'strip')) return;
   hitStop = Math.min(hitStop + 0.5, 0.5);
   popup(W / 2, H * 0.36, 'LANE SECURED', '#7ee262');
-  tone(784, 0.18, 'triangle', 0.1, 1046);
-  tone(1046, 0.22, 'triangle', 0.08, 1568, null, 0.12);
+  sfx.laneSecured();
   buzz([20, 30, 60]);
 }
 // THE FRY TAX. Anything that fries an emitter also bleeds its pulse orb —

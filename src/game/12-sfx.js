@@ -12,7 +12,13 @@ const SFX_FILES = {
   pulseArm: ['audio/sfx/pulse_charge.mp3', 0.9], // an orb reaching full — ready to fire
   volley: ['audio/sfx/volley2.mp3', 1.0], // levelled in the edit — no trim needed
   shutdown: ['audio/sfx/shutdown.mp3', 0.9],   // an emitter fried by a killer/wall
-  restart:  ['audio/sfx/restarting.mp3', 0.9], // that node rebooting back online
+  // RE-RECORDED 2026-08-29 (Gil's charge-up), cut to 1.42s — its whole body, with
+  // the 1.1s of dead air after it removed. THE CUT IS LOAD-BEARING: updateNodes
+  // plays this take so its ENDING lands on the emitter popping back online, and
+  // it starts `rs.end - rs.start` seconds before that. Dead air on the end would
+  // have delayed the start by the same amount and left the whir finishing into
+  // silence. The reboot itself is 2.0s (`n.deadT = 2`), so 1.42s fits inside it.
+  restart:  ['audio/sfx/restart.wav', 0.9], // an emitter coming back online
   startup:  ['audio/sfx/startup1.mp3', 0.9], // boot sequence as the ring locks in (cut at 2s)
   fail:   ['audio/sfx/failed.mp3', 0.95], // true peak +0.1 dBFS raw; the trim seats it under 0
   win:    ['audio/sfx/win.mp3', 1.0],
@@ -38,8 +44,8 @@ const SFX_FILES = {
   // under `startup`: a BED the boot cues land on top of, which is the balance it was
   // always meant to have. If it ever needs moving again, the trim is not the thing —
   // the stack with `startup` is.
-  warpIn:   ['audio/sfx/warp-in.mp3', 0.27],  // 2.44s — the spool-up, on the launch beat
-  inWarp:   ['audio/sfx/in-warp.mp3', 0.34],  // 8.93s — LOOPED under the whole run (see ambient())
+  warpIn:   ['audio/sfx/warp-in.mp3', 0.25],  // 2.44s — the spool-up, on the launch beat
+  inWarp:   ['audio/sfx/in-warp.mp3', 0.35],  // 8.93s — LOOPED under the whole run (see ambient())
   // 0.30, down from 0.95 (-10 dB): at 0.95 the drop was the loudest thing on the
   // win's frame and buried everything under it — the sting riding at EXIT_STING,
   // the keys, the first star. It is a BED for the verdict, not the verdict.
@@ -75,7 +81,86 @@ const SFX_FILES = {
   // continuous tone at any volume. The rate cap in `sonarTick` is the other half,
   // and the take is cut to 0.20s so a ping always ENDS before the cap lets the next
   // one start. Silence between pings is what stops it becoming a drone.
-  sonar: ['audio/sfx/sonar-ping.mp3', 0.05]
+  sonar: ['audio/sfx/sonar-ping.mp3', 0.05],
+  // ---- THE 2026-08-29 ORDER (Gil, off the soundboard) ----------------------
+  // Nineteen cues that were oscillators until now. Source: Kenney's CC0 audio
+  // packs, auditioned on the board and picked there; the trims are the ones the
+  // sliders were left at. THE SYNTH BODIES ALL STAY — every one of these is
+  // `playSample(...) || <the tones>`, so a failed decode degrades to what the
+  // game said yesterday rather than to silence. See docs/SFX-SYNTH-ROSTER.md.
+  //
+  // THEY WERE THE SAME TAKE, AND IT READ AS A BUG. heal, x10 and laneSecured were
+  // all picked as interface/confirmation_004, and Gil reported it as "the x10
+  // chime sounds more than once during the run". It was not the x10 gate — that
+  // fires once per run and always did. It was `heal` (every stability pickup and
+  // every emitter reboot) and `laneSecured` (every wave cleared) playing the
+  // SAME RECORDING many times over.
+  //
+  // They are now three different members of ONE confirmation family — same voice,
+  // different words. x10 keeps confirmation_004 because that is the sound Gil
+  // named; heal takes _001 and laneSecured takes _003.
+  //
+  // THE RULE THIS BUYS: a cue that fires ONCE per run and a cue that fires every
+  // few seconds must never share a recording. The rare one gets blamed for the
+  // common one, because the rare one is the one with a name on screen.
+  shieldUp:   ['audio/sfx/shield-up.wav', 0.9],
+  heal:       ['audio/sfx/heal.wav', 0.9],
+  shieldHit:  ['audio/sfx/shield-hit.wav', 0.9],
+  // two takes, one per thumb — the pair is the ack, so they must stay siblings
+  padPress1:  ['audio/sfx/pad-press-1.wav', 0.9],
+  padPress2:  ['audio/sfx/pad-press-2.wav', 0.9],
+  x10:        ['audio/sfx/x10.wav', 0.9],
+  chain:      ['audio/sfx/chain.wav', 0.9],
+  volleyBlast:['audio/sfx/volley-blast.wav', 0.9],
+  armorThump: ['audio/sfx/armor-thump.wav', 0.9],
+  railLatched:['audio/sfx/rail-latched.wav', 0.9],
+  // GIL ASKED FOR 1.5 AND THE FILE CANNOT GIVE IT. The take already true-peaks at
+  // -0.82 dBFS, so 1.5 (+3.5 dB) puts it at +2.7 dBFS — clipped, and caught by
+  // scripts/test-sfx-levels.mjs. 0.98 seats it at -1.0 dBFS, which is as loud as
+  // this master goes.
+  //
+  // The intent was right: this is the only thing that wounds the boss and it
+  // should land like it. But the lever is not the trim, it is the MASTER — a take
+  // that peaks at -0.8 dBFS with a low average is all transient and no body.
+  // A compressed-and-limited version is auditioning in the drop folder as
+  // `00__LIMITED__leech-hit.wav`; if it wins, it replaces this file at 0.98.
+  leechHit:   ['audio/sfx/leech-hit.wav', 1.0],
+  wrongKey:   ['audio/sfx/wrong-key.wav', 0.9],
+  lampCall:   ['audio/sfx/lamp-call.wav', 0.9],
+  lastStand:  ['audio/sfx/last-stand.wav', 0.9],
+  shedLayer:  ['audio/sfx/shed-layer.wav', 0.9],
+  sweepReversed: ['audio/sfx/sweep-reversed.wav', 0.9],
+  bossCalm:   ['audio/sfx/boss-calm.wav', 0.9],
+  laneSecured:['audio/sfx/lane-secured.wav', 0.9],
+  bossDown:   ['audio/sfx/boss-down.wav', 0.9],
+  // ---- THE 2026-08-29 SECOND ORDER (Gil's own downloads) -------------------
+  // These are takes Gil found himself, not pack candidates. Three carry a cut he
+  // asked for; the cut figure is a GAME constant in each case, named below.
+  speedUp:    ['audio/sfx/speed-up.mp3', 0.9],   // 2.12s — a surge is rare, it can breathe
+  // 4.03s, but only its first 1.4s is above -26 dB. It is cued on a hazard that
+  // lives 3s, and it plays at 0.4, so the tail sits under everything.
+  latchWarn:  ['audio/sfx/latch-warn.mp3', 0.4],
+  traced:     ['audio/sfx/traced.wav', 0.9],
+  bootGodspeed: ['audio/sfx/boot-godspeed.mp3', 0.9], // 0.38s radio — Gil's own find
+  // CUT TO 0.50s, WHICH IS THE DOCK. `volley.charge` fills to 0.5 and then the
+  // bolt flies, so the take is exactly that long and its end lands on the shot.
+  // It is also STOPPED early when the dock breaks — see sfx.volleyCharge.
+  volleyCharge: ['audio/sfx/volley-charge.wav', 0.9],
+  // CUT TO ITS AUDIBLE MIDDLE (0.55-0.78s of the source). The take was 1.27s of
+  // dead air around one event, exactly as Gil described it.
+  volleyFizzle: ['audio/sfx/volley-fizzle.wav', 0.9],
+  // ---- THE STAGE TRANSITION (Gil's swoosh, 2026-08-29) ---------------------
+  // CUT SO ITS PEAK LANDS ON THE PICTURE CUT. The source swoosh was 1.90s and
+  // peaked at 0.60s; the transition is 0.62s and flips the screen at 0.30s. Left
+  // whole, its loudest moment would have arrived as the next stage was already
+  // up, and it would still have been playing 1.3s into the new lane.
+  //
+  // The take starts 0.30s into the source, so the peak arrives 0.30s in — ON the
+  // switch — and runs 0.70s so the tail resolves just past the transition instead
+  // of stopping dead. MOVE THE TRANSITION AND THIS CUT MOVES WITH IT: the figures
+  // are `dur: 0.62` and the 0.30s midpoint in startTrans (99-boot.js:129).
+  transWarp:  ['audio/sfx/trans-warp.wav', 0.9],
+  transCut:   ['audio/sfx/trans-cut.wav', 0.55]
 };
 // how far into the 4.96s exit-warp take the victory sting rises. Sitting it in the
 // drop's tail is what makes the two read as one arrival instead of a queue.
@@ -103,10 +188,29 @@ function loadSamples() {
       .catch(() => {}); // the synth voice keeps covering this one
   }
 }
+// SOME CUES MUST STOP ON AN EVENT, NOT ON A CLOCK. `cut` below can end a take at
+// a time known when it starts; the volley charge is not that. It runs while both
+// emitters stay docked and has to stop the instant that stops being true, which
+// may be any frame. So a named voice can be held and killed later.
+const liveVoices = {};
+function stopSample(name, fade) {
+  const v = liveVoices[name];
+  if (!v) return false;
+  delete liveVoices[name];
+  const ac = AC, t = ac ? ac.currentTime : 0, f = fade === undefined ? 0.04 : fade;
+  try {
+    if (v.g.gain.setValueAtTime && v.g.gain.linearRampToValueAtTime) {
+      v.g.gain.setValueAtTime(v.g.gain.value, t);
+      v.g.gain.linearRampToValueAtTime(0.0001, t + f);
+      v.src.stop(t + f + 0.02);
+    } else v.src.stop();
+  } catch (e) {} // already ended on its own — that is the normal case
+  return true;
+}
 // play a decoded sample through the sfx bus; false = not ready, use the synth.
 // offset skips into the take; fadeIn ramps the entry instead of a hard start;
 // cut ends the take early — hold `cut` seconds, then a `fadeOut`-second ramp
-function playSample(name, vol, pan, rate, delay, offset, fadeIn, cut, fadeOut) {
+function playSample(name, vol, pan, rate, delay, offset, fadeIn, cut, fadeOut, hold) {
   if (simMuted) return false;
   const ac = AC, buf = sampleBufs[name];
   if (!ac || !sfxGain || !buf) return false;
@@ -125,6 +229,7 @@ function playSample(name, vol, pan, rate, delay, offset, fadeIn, cut, fadeOut) {
     g.connect(p); tail = p;
   }
   src.connect(g); tail.connect(sfxGain);
+  if (hold) { stopSample(hold, 0); liveVoices[hold] = { src, g }; src.onended = () => { if (liveVoices[hold] && liveVoices[hold].src === src) delete liveVoices[hold]; }; }
   // no offset given → skip the take's leading silence so the attack is instant
   const tr = sampleTrim[name];
   src.start(t0, offset !== undefined ? offset : tr ? tr.start : 0);
@@ -153,15 +258,27 @@ const sfx = {
     tone(3136, 0.12, 'sine', 0.05, 3520, null, 0.15);
   },
   // the collar charge and the repair both follow the pick take on its frame — 0.12s late, so they read as the SECOND sound
-  shieldUp() { tone(392, 0.18, 'triangle', 0.11, 523, null, 0.12); tone(784, 0.3, 'sine', 0.09, 1047, null, 0.12); },
-  shieldHit() { tone(1047, 0.22, 'triangle', 0.13, 523); tone(196, 0.28, 'square', 0.09, 98); },
+  shieldUp() {
+    if (playSample('shieldUp')) return;
+    tone(392, 0.18, 'triangle', 0.11, 523, null, 0.12); tone(784, 0.3, 'sine', 0.09, 1047, null, 0.12);
+  },
+  shieldHit() {
+    if (playSample('shieldHit')) return;
+    tone(1047, 0.22, 'triangle', 0.13, 523); tone(196, 0.28, 'square', 0.09, 98);
+  },
   // 0.12s late on purpose: it fires on the zap's frame and was lost in the take's transient
   perfect() { tone(2093, 0.14, 'triangle', 0.13, 2637, null, 0.12); tone(3136, 0.10, 'sine', 0.08, 3520, null, 0.12); },
   count() { tone(600, 0.12, 'square', 0.12, 560); },
   bossShot() { tone(140, 0.22, 'sawtooth', 0.13, 70); },
   go()    { tone(880, 0.20, 'square', 0.14, 1320); tone(1760, 0.30, 'triangle', 0.10, 2200); },
-  heal()  { tone(523, 0.14, 'triangle', 0.12, 659, null, 0.12); tone(784, 0.22, 'triangle', 0.10, 1047, null, 0.12); },
-  speedUp()  { tone(180, 0.45, 'sawtooth', 0.11, 880); tone(110, 0.55, 'triangle', 0.09, 440); },
+  heal()  {
+    if (playSample('heal')) return;
+    tone(523, 0.14, 'triangle', 0.12, 659, null, 0.12); tone(784, 0.22, 'triangle', 0.10, 1047, null, 0.12);
+  },
+  speedUp()  {
+    if (playSample('speedUp')) return;
+    tone(180, 0.45, 'sawtooth', 0.11, 880); tone(110, 0.55, 'triangle', 0.09, 440);
+  },
   miss(pan) { // a dull thud + terse alarm blip — bad news without harshness
     if (playSample(misses & 1 ? 'miss2' : 'miss', 1, pan)) return; // two takes, alternating
     tone(130, 0.22, 'sine', 0.13, 50, null, 0, pan);
@@ -281,7 +398,8 @@ const sfx = {
   // decoded — the caller then falls back to bossDown() ON the implosion frame,
   // because the synth voice has no build-up to schedule against.
   bossDeadTake() { return playSample('bossDead'); },
-  bossDown() { // fallback: broadband blast into a long sub tail
+  bossDown() { // the implosion when boss-dead.mp3 did not decode — now a take of its own
+    if (playSample('bossDown')) return;
     crackle(0.7, 1200, 90, 1.4, 2.6);
     tone(90, 0.9, 'sine', 0.16, 30);
     crackle(0.4, 4000, 600, 4, 1.2, 0.15);
@@ -337,7 +455,8 @@ const sfx = {
     tone(440, 0.16, 'triangle', 0.08, 880);
     tone(880, 0.26, 'sine', 0.07, 1760, null, 0.08);
   },
-  traced() { // ribbon ridden to the end — resolve the rising trace tone
+  traced() { // BONUS RIBBON ridden to the end — resolve the rising trace tone
+    if (playSample('traced')) return;
     tone(880, 0.09, 'sine', 0.12, 1047);
     tone(1319, 0.14, 'sine', 0.10, 1760, null, 0.07);
     tone(2637, 0.10, 'triangle', 0.05, 3136, null, 0.13);
@@ -345,6 +464,176 @@ const sfx = {
   fail() {
     if (playSample('fail')) return;
     [330, 262, 196].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'sawtooth', 0.1), i * 180));
+  },
+  // ======================================================================
+  // THE 2026-08-29 ORDER — cues that used to be written inline in the middle
+  // of a game file. Each moved here so it could have a take at all: an inline
+  // `tone()` has no name to hang a sample on. THE SYNTH LINES ARE VERBATIM —
+  // the roster in scripts/sfx-roster.js pins them byte for byte, so a cue that
+  // was retuned in the game and not here fails the build.
+  // ======================================================================
+  // ======================================================================
+  // FOUND 2026-08-29, LATE. Gil asked "what about the level transition, the one
+  // with the mini warp effect?" — and it was not on the roster at all. Nor were
+  // six others: my first sweep of the game for inline `tone()` calls was piped
+  // through `head -30` and silently lost everything after 72-tick.js. These are
+  // the rest of it. They are lifted here on the same rule as the others: the
+  // synth lines are verbatim, a take goes in front when one exists.
+  // ======================================================================
+  // THE STAGE TRANSITION — the mini warp. 0.62s, and the ONE screen change that
+  // carries the player between lanes: NEXT STAGE, RETRY, RETRY ASSIST, the duel
+  // CONTINUE, FIRST CONTRACT, NEXT CONTRACT and the pause menu's RESTART all run
+  // it (7 call sites). A packet flush: the run's data dives to the node, then a
+  // bright ping at the switch as the next node blooms open. The ping is at 0.30s,
+  // which is the MIDPOINT of the 0.62s transition — a take must put its own
+  // switch there or the sound and the picture disagree.
+  transWarp() {
+    if (playSample('transWarp')) return;
+    tone(300, 0.34, 'sine', 0.12, 55); crackle(0.34, 2600, 380, 1.4, 0.35);
+    tone(760, 0.2, 'sine', 0.11, 1240, undefined, 0.30);
+  },
+  // the OTHER transition: a 0.26s cut, no warp. Used where a screen swaps rather
+  // than the player travelling.
+  transCut() {
+    if (playSample('transCut')) return;
+    crackle(0.09, 1200, 3200, 2, 0.35);
+  },
+  // QUALIFIED — the course's own ceremony. A rising clearance chord: the line
+  // accepts its defender. It plays once per player, ever.
+  qualified() {
+    if (playSample('qualified')) return;
+    tone(330, 0.5, 'sine', 0.10);
+    tone(415, 0.5, 'sine', 0.09, null, null, 0.14);
+    tone(494, 0.6, 'sine', 0.09, null, null, 0.28);
+    tone(659, 1.1, 'sine', 0.08, null, null, 0.42);
+  },
+  // a drill rep is held long enough — the lock-in confirm
+  drillLock() {
+    if (playSample('drillLock')) return;
+    tone(880, 0.12, 'sine', 0.08, 1320);
+  },
+  // THE COURSE HOLDS ITS BREATH. The pulse drill freezes the run to teach the
+  // release; these two are a matched PAIR, down then up, and a take for one
+  // without the other leaves the freeze unresolved.
+  tutFreeze() {
+    if (playSample('tutFreeze')) return;
+    tone(720, 0.9, 'sine', 0.10, 70);
+  },
+  tutRelease() {
+    if (playSample('tutRelease')) return;
+    tone(90, 0.5, 'sine', 0.08, 660);
+  },
+  // the END card's score rolling up — every 0.07s while the number climbs, so it
+  // is the most REPEATED cue in the game after the menu press. It must be tiny.
+  endCount() {
+    if (playSample('endCount')) return;
+    tone(1500, 0.025, 'square', 0.035);
+  },
+  // ---- the second 2026-08-29 order ----
+  // THE VOLLEY CHARGE, held so it can be killed. The dock lasts 0.5s and the take
+  // is cut to exactly that, so on a completed dock it ends on the shot by itself.
+  // A BROKEN DOCK IS THE CASE THAT NEEDED THE HANDLE: the thumbs can part on any
+  // frame, and a charge that keeps whining after the dock is gone is the game
+  // lying about its own state. `sfx.volleyStop()` is called on that frame.
+  volleyCharge() {
+    if (playSample('volleyCharge', 1, 0, 1, 0, undefined, 0, 0, 0, 'volleyCharge')) return;
+    crackle(0.5, 300, 2200, 2, 0.28);
+  },
+  volleyStop() { return stopSample('volleyCharge', 0.05); },
+  volleyFizzle() { // the dock broke before the charge completed
+    if (playSample('volleyFizzle')) return;
+    tone(600, 0.08, 'sine', 0.04, 380);
+  },
+  // A DEAD ZONE ENTERS THE LANE. Three call sites — the linter's own hazard, the
+  // boss's wall, and the tutorial's scripted one — all said this in triplicate.
+  latchWarn() {
+    if (playSample('latchWarn')) return;
+    tone(1180, 0.02, 'square', 0.05); tone(1180, 0.02, 'square', 0.05, null, null, 0.22);
+    crackle(0.25, 500, 1800, 2, 0.3);
+  },
+  // GODSPEED — the release. The take is a radio, which is what the synth was
+  // always imitating: a squelch, two acks and a low engage.
+  bootGodspeed() {
+    if (playSample('bootGodspeed')) return;
+    crackle(0.07, 1300, 2700, 2, 0.4);
+    tone(740, 0.05, 'square', 0.09, null, null, 0.08);
+    tone(740, 0.05, 'square', 0.09, null, null, 0.17);
+    tone(58, 0.4, 'sine', 0.22, 42);
+  },
+  // A THUMB LANDS. Two takes, not one pitched twice: the pair IS the ack, and
+  // the second thumb has always answered a fifth above the first. `other` is
+  // true when the OTHER pad is already held, which is the completing press.
+  padPress(other, side) {
+    if (playSample(other ? 'padPress2' : 'padPress1')) return;
+    tone(other ? 1046 : 698, 0.05, 'square', 0.05);
+    tone(other ? 1568 : 1046, 0.04, 'sine', 0.03, null, null, 0.05);
+  },
+  // the run's FIRST x10. It rides 0.12s behind the zap take it answers, which
+  // is why the sample is delayed too — on the same frame the hit ate it.
+  x10() {
+    if (playSample('x10', 1, 0, 1, 0.12)) return;
+    tone(1046, 0.14, 'triangle', 0.09, 1568, null, 0.12);
+    tone(1568, 0.2, 'triangle', 0.07, 2093, null, 0.22);
+  },
+  chain() { // CHAIN OVERDRIVE: the zap arcs to the nearest interdictor
+    if (playSample('chain')) return;
+    tone(1976, 0.1, 'triangle', 0.08, 2960);
+  },
+  volleyBlast() { // BLAST xN — the bolt takes the interdictors around its mark
+    if (playSample('volleyBlast')) return;
+    crackle(0.18, 900, 2600, 2, 0.45);
+  },
+  // AN ARMORED INTERDICTOR COLLAPSES. The synth thump was an accent that only
+  // played when the hit take was ABSENT, so with hit-1.wav decoding it never
+  // sounded at all. The take is not gated that way — it was picked to be heard,
+  // and it layers under the kill. The synth keeps its old condition, which the
+  // caller still applies, so a no-sample build sounds exactly as it did.
+  armorThump() { return playSample('armorThump'); },
+  armorThumpSynth() { tone(110, 0.2, 'square', 0.13, 60); },
+  railLatched(pan) { // RAIL LATCHED — a dead zone seizes part of the rail
+    if (playSample('railLatched', 1, pan)) return;
+    tone(140, 0.3, 'sawtooth', 0.12, 70);
+    crackle(0.3, 2400, 500, 4, 0.6);
+  },
+  leechHit() { // LEECH HIT — a pulse lands on the machine
+    if (playSample('leechHit')) return;
+    tone(70, 0.3, 'sine', 0.2, 40);
+    crackle(0.35, 2000, 300, 2, 0.8);
+  },
+  wrongKey() { // WRONG KEY / BOTH KEYS — a fizzle, not thunder
+    if (playSample('wrongKey')) return;
+    tone(620, 0.12, 'sine', 0.08, 340);
+    crackle(0.15, 1600, 700, 1, 0.3);
+  },
+  // THE LAMP NAMES A KEY. The pitch said which one, so the take carries the
+  // same information by playback RATE — blue low, white a fourth above it.
+  // Same trick as bossPlate: one file, the reading is in the interval.
+  lampCall(lamp) {
+    if (playSample('lampCall', 1, 0, lamp === 0 ? 1 : 1.27)) return;
+    tone(lamp === 0 ? 520 : 660, 0.12, 'sine', 0.07, lamp === 0 ? 400 : 520);
+  },
+  lastStand() { // LAST STAND — the machine commits everything
+    if (playSample('lastStand')) return;
+    tone(160, 0.5, 'sawtooth', 0.14, 60);
+    crackle(0.45, 3200, 700, 6, 1.0, 0.1);
+  },
+  shedLayer() { // IT SHEDS A LAYER — a round ends
+    if (playSample('shedLayer')) return;
+    tone(150, 0.5, 'sawtooth', 0.13, 70);
+    crackle(0.4, 2600, 600, 4, 0.8);
+  },
+  sweepReversed() { // SWEEP REVERSED — the light turns back
+    if (playSample('sweepReversed')) return;
+    tone(240, 0.2, 'sawtooth', 0.1, 120);
+  },
+  bossCalm() { // a pattern is survived — back to idle
+    if (playSample('bossCalm')) return;
+    tone(960, 0.04, 'sine', 0.06); tone(960, 0.04, 'sine', 0.06, null, null, 0.16);
+  },
+  laneSecured() { // LANE SECURED — the last interdictor of a wave is gone
+    if (playSample('laneSecured')) return;
+    tone(784, 0.18, 'triangle', 0.1, 1046);
+    tone(1046, 0.22, 'triangle', 0.08, 1568, null, 0.12);
   },
   tick() { // techy UI click: a crisp tap with a tiny body
     if (playSample('ui')) return;

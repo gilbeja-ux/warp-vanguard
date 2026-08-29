@@ -1,0 +1,12 @@
+CUE: warpIn  —  the spool-up
+STATUS: take   (today: warp-in.mp3 @ 0.25)
+FIRES: 12-sfx.js · fires 72-tick.js:507
+
+a BED under the boot — it stacks with `startup` on the same beat, ~10 dB down
+
+LOOK FOR: a spool-up that climbs and then PLATEAUS. It is a bed under the boot, ~10 dB below the other cues.
+LENGTH:   ~2.4s
+SEARCH:   warp jump  ·  hyperspace enter  ·  engine spool up  ·  sci fi launch
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

@@ -1,0 +1,12 @@
+CUE: bossDown  —  implosion (fallback)
+STATUS: take   (today: boss-down.wav @ 0.9)
+FIRES: 12-sfx.js:284 · fires 52-bosses.js:894
+
+plays only when boss-dead.mp3 fails to decode
+
+LOOK FOR: a broadband blast into a long sub tail. FALLBACK ONLY — boss-dead.mp3 covers this unless it fails to decode.
+LENGTH:   1.5–3s
+SEARCH:   huge explosion  ·  sci fi explosion deep  ·  implosion
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

@@ -1,0 +1,12 @@
+CUE: starsFull2  —  grade resolves · 2★
+STATUS: live
+FIRES: 12-sfx.js:320 · fires 95-menu.js:792
+
+the two-star resolve — a rising fifth
+
+LOOK FOR: a rising fifth, confirmed. The TWO-star verdict — good, not perfect.
+LENGTH:   0.4–0.6s
+SEARCH:   success short  ·  confirm rise  ·  level complete modest
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

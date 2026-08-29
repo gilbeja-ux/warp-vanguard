@@ -188,7 +188,7 @@ function qualSpawn(kind) {
     latches.length = 0;
     const away = nodes[0].angle + Math.PI * (Math.random() < 0.5 ? 0.55 : -0.55);
     latches.push({ a: away, span0: 0.5, t: 0, dur: 3.2, tele: 2.0, arm: 0.4, z0: 1.3 });
-    tone(1180, 0.02, 'square', 0.05); tone(1180, 0.02, 'square', 0.05, null, null, 0.22);
+    sfx.latchWarn();
     return;
   }
   if (kind === 'line') {
@@ -220,10 +220,7 @@ function advanceQual() {
   if (c === 'done') { // no info disc — a QUALIFIED ceremony plays in-world
     tut.queue = [];
     // rising clearance chord: the line accepts its defender
-    tone(330, 0.5, 'sine', 0.10);
-    tone(415, 0.5, 'sine', 0.09, null, null, 0.14);
-    tone(494, 0.6, 'sine', 0.09, null, null, 0.28);
-    tone(659, 1.1, 'sine', 0.08, null, null, 0.42);
+    sfx.qualified();
     buzz([30, 40, 90]);
     return;
   }
@@ -252,7 +249,7 @@ function updateTutorial(dt) {
     A.hold = A.targets.every(covered) ? A.hold + dt : 0;
     if (A.hold >= AIM_HOLD) {
       A.idx++; A.targets = null; A.hold = 0;
-      tone(880, 0.12, 'sine', 0.08, 1320); buzz(12); // lock-in confirm
+      sfx.drillLock(); buzz(12); // lock-in confirm
       if (A.idx >= A.reps.length) advanceQual();
     }
     return;
@@ -285,7 +282,7 @@ function updateTutorial(dt) {
         && !(pulseCharge[1] >= PULSE_MAX && nodes[1].deadT <= 0)) {
         pulseCharge[nodes[0].deadT <= 0 ? 0 : 1] = PULSE_MAX;
       }
-      tone(720, 0.9, 'sine', 0.10, 70); // tape-warp down: the run holds its breath
+      sfx.tutFreeze(); // tape-warp down: the run holds its breath
       buzz([15, 40, 25]);
     }
     return;

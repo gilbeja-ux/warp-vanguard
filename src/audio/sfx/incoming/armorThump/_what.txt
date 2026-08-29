@@ -1,0 +1,12 @@
+CUE: armorThump  —  an armored interdictor
+STATUS: take   (today: armor-thump.wav @ 0.9)
+FIRES: 72-tick.js:1050, 667
+
+an ARMORED INTERDICTOR collapses — layered only when the hit take is absent
+
+LOOK FOR: a low metallic thump — mass giving way.
+LENGTH:   0.15–0.3s
+SEARCH:   metal thud  ·  heavy impact  ·  armor break
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

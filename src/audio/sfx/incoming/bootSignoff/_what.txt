@@ -1,0 +1,12 @@
+CUE: bootSignoff  —  boot · sign-off clicks
+STATUS: fallback
+FIRES: 72-tick.js:551
+
+plays only when the reboot take (restart.wav) is absent
+
+LOOK FOR: FALLBACK ONLY — the reboot take (restart.wav) covers this. Flat sign-off clicks.
+LENGTH:   0.3s
+SEARCH:   relay click  ·  switch click  ·  terminal beep
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

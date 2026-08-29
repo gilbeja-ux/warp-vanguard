@@ -5293,10 +5293,57 @@ async function runMusicUp() {
     wrong.length === 0);
   check('the take roster is all status take and has something to play',
     TAKE_ROSTER.every(e => e.status === 'take' && Array.isArray(e.code) && e.code.length && e.label && e.brief));
+  // ---- NO TWO CUES MAY SHARE A RECORDING ----
+  // heal, x10 and laneSecured all shipped as the same file on 2026-08-29, and it
+  // surfaced as "the OVERDRIVE x10 chime sounds more than once during the run".
+  // It was never the x10 gate — that fires once per run. It was the two COMMON
+  // cues playing the rare one's sound. The rare cue gets blamed, because it is
+  // the one with a name on the screen.
+  const crypto = require('crypto');
+  const byHash = {};
+  for (const g of gameKeys) {
+    const f = path.join(ROOT, 'src', 'audio', 'sfx', g.file);
+    if (!fs.existsSync(f)) continue;
+    const h = crypto.createHash('md5').update(fs.readFileSync(f)).digest('hex');
+    (byHash[h] = byHash[h] || []).push(g.key);
+  }
+  const shared = Object.values(byHash).filter(v => v.length > 1);
+  check('no two cues play the same recording'
+    + (shared.length ? ' — SHARED: ' + shared.map(v => v.join('=')).join(' | ') : ''),
+    shared.length === 0);
+  const paths = gameKeys.map(g => g.file);
+  check('no two cues name the same file', new Set(paths).size === paths.length);
+
   check('the menu press is on the board — it is a TAKE, not a synth',
     TAKE_ROSTER.some(e => e.key === 'ui' && e.file === 'mini-hit.wav'));
   check('no key is claimed by both rosters',
     !SFX_ROSTER.some(e => boardKeys.has(e.key)));
+
+  // ---- THE CANDIDATE MAP AND THE SEARCH BRIEFS NAME REAL CUES ----
+  // `npm run sfx:fetch` files candidates into incoming/<key>/ off this map, and
+  // the board reads that folder by the SAME key. A typo would silently create a
+  // folder no row ever lists — 40 files sitting where nothing looks for them.
+  const { CANDIDATES } = require(path.join(ROOT, 'scripts', 'sfx-candidates.js'));
+  const { SFX_SEARCH } = require(path.join(ROOT, 'scripts', 'sfx-search.js'));
+  const allKeys = new Set(SFX_ROSTER.concat(TAKE_ROSTER).map(e => e.key));
+  const badCand = Object.keys(CANDIDATES).filter(k => !allKeys.has(k));
+  check('every candidate folder names a real cue' + (badCand.length ? ' — STRAY: ' + badCand.join(', ') : ''),
+    badCand.length === 0);
+  const badSearch = Object.keys(SFX_SEARCH).filter(k => !allKeys.has(k));
+  check('every search brief names a real cue' + (badSearch.length ? ' — STRAY: ' + badSearch.join(', ') : ''),
+    badSearch.length === 0);
+  // a `keep` cue cannot be a recording and a `dead` one has no caller — neither
+  // may be handed candidates, or the board invites a pick that cannot be wired
+  const wrongStatus = Object.keys(CANDIDATES)
+    .map(k => SFX_ROSTER.concat(TAKE_ROSTER).find(e => e.key === k))
+    .filter(e => e && (e.status === 'keep' || e.status === 'dead')).map(e => e.key);
+  check('no keep or dead cue is offered candidates' + (wrongStatus.length ? ' — ' + wrongStatus.join(', ') : ''),
+    wrongStatus.length === 0);
+  check('every candidate list is ordered and non-empty',
+    Object.values(CANDIDATES).every(v => Array.isArray(v) && v.length >= 3));
+  // the menu press is the cue Gil raised; it gets the deepest bench
+  check('the menu press has the most candidates of any cue',
+    CANDIDATES.ui.length >= Math.max(...Object.values(CANDIDATES).map(v => v.length)));
   let pinned = 0, drift = [];
   for (const e of SFX_ROSTER) {
     const pins = e.pin !== undefined ? e.pin : (e.pinFile ? e.code : []);
@@ -5307,7 +5354,13 @@ async function runMusicUp() {
   }
   check('every inline cue the board copies still reads that way in the game'
     + (drift.length ? ' — DRIFTED: ' + drift.join(' | ') : ''), drift.length === 0);
-  check('the roster actually pins a meaningful number of inline lines', pinned > 25);
+  // The floor drops as cues graduate: an inline cue that gets a take moves into
+  // `sfx` as a method, so the board calls it instead of copying it and there is
+  // nothing left to pin. 19 graduated on 2026-08-29. What must never happen is
+  // the pins quietly reaching zero while inline cues still exist.
+  const inlineLeft = SFX_ROSTER.filter(e => e.pinFile).length;
+  check('every inline cue left on the roster is pinned (' + pinned + ' lines over '
+    + inlineLeft + ' cues)', inlineLeft > 0 && pinned >= inlineLeft);
   // an `sfx.x()` row must name a method that exists — a typo would fail silently
   // in the browser, where a thrown error only lands in the board's status line
   const sfxSrc = read('12-sfx.js');

@@ -1,0 +1,12 @@
+CUE: bossCalm  —  the warp leech goes idle
+STATUS: take   (today: boss-calm.wav @ 0.9)
+FIRES: 52-bosses.js:614, 687
+
+a pattern is survived — a flat double blip back to idle
+
+LOOK FOR: a flat electronic double blip. All clear, no celebration.
+LENGTH:   0.2s
+SEARCH:   ui double beep  ·  system idle  ·  all clear tone
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

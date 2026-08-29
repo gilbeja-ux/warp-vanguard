@@ -27,6 +27,8 @@
     "lab:disc": "node scripts/disc-lab.js",
     "lab:breach": "node scripts/breach-lab.js",
     "lab:sound": "node scripts/soundboard.js",
+    "sfx:folders": "node scripts/sfx-folders.js",
+    "sfx:fetch": "node scripts/sfx-fetch.js",
     "admin": "node scripts/admin.js",
     "portal": "node scripts/portal.js",
     "aab": "bash scripts/build-aab.sh",

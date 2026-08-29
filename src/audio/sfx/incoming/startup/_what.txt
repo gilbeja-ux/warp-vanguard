@@ -1,0 +1,12 @@
+CUE: startup  —  the boot sequence
+STATUS: take   (today: startup1.mp3 @ 0.9)
+FIRES: 12-sfx.js · fires 72-tick.js:509
+
+cut at 2s — the ring locking in. The boot’s synth cues hide behind it
+
+LOOK FOR: a boot sequence — power finding its lock.
+LENGTH:   ~2s
+SEARCH:   computer startup  ·  sci fi boot up  ·  system online  ·  machine power on
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

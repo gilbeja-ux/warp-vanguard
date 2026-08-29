@@ -850,7 +850,7 @@ function drawEnd(g) {
   const cntP = 1 - Math.pow(1 - ph(T.cnt0, T.cnt1), 3);
   const shown = Math.round(score * cntP);
   const counting = !assist && cntP > 0 && cntP < 1 && score > 0;
-  if (counting && time - endTickT > 0.07) { endTickT = time; tone(1500, 0.025, 'square', 0.035); }
+  if (counting && time - endTickT > 0.07) { endTickT = time; sfx.endCount(); }
   // THE STANDING, ON TOP OF THE READING. It used to trail the best line as a footnote;
   // it is the answer to "where does that put me", so it introduces the number.
   if (lbStatus && !qual) {

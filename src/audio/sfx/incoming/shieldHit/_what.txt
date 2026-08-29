@@ -1,0 +1,12 @@
+CUE: shieldHit  —  the shield absorbs a breach
+STATUS: take   (today: shield-hit.wav @ 0.9)
+FIRES: 12-sfx.js:157 · fires 52-bosses.js:991
+
+SHIELD ABSORBED THE BREACH — it spends the charge instead of the run
+
+LOOK FOR: a bright impact ON a shell — glassy and absorbed. It must not read as a hull hit.
+LENGTH:   0.2–0.4s
+SEARCH:   shield hit  ·  force field impact  ·  energy deflect  ·  sci fi block
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

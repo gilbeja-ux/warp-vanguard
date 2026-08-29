@@ -1,0 +1,12 @@
+CUE: transWarp  —  the stage transition (the mini warp)
+STATUS: take   (today: trans-warp.wav @ 0.9)
+FIRES: 12-sfx.js · startTrans() at 99-boot.js:129 · 7 call sites
+
+NEXT STAGE, RETRY, RETRY ASSIST, the duel CONTINUE, FIRST CONTRACT, NEXT CONTRACT and pause RESTART all ride this. 0.62s, and its switch is at 0.30s.
+
+LOOK FOR: a MINI WARP: a descending dive, then a bright switch at the halfway point as the next lane opens. The switch must land at 0.30s of 0.62s — that is where the picture cuts.
+LENGTH:   0.6–0.7s
+SEARCH:   warp transition  ·  whoosh transition  ·  sci fi swoosh  ·  teleport short
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

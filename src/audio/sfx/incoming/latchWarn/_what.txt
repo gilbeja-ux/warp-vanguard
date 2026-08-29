@@ -1,0 +1,12 @@
+CUE: latchWarn  —  a dead zone enters the lane
+STATUS: take   (today: latch-warn.mp3 @ 0.4)
+FIRES: 51-linter.js:480 · also 52-bosses.js:341
+
+a dry double tick and static as the dead zone arrives
+
+LOOK FOR: a dry double tick with static behind it. A WARNING, not an alarm — it fires often.
+LENGTH:   0.25s
+SEARCH:   static burst short  ·  warning tick  ·  radio interference  ·  glitch blip
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

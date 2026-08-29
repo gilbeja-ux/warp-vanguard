@@ -20,8 +20,7 @@ function padParkAck(dt) {
     padArm[i] = padHold[i];
     if (!padHold[i]) continue;            // lifting is silent — no scolding
     const other = padHold[i ? 0 : 1];
-    tone(other ? 1046 : 698, 0.05, 'square', 0.05);
-    tone(other ? 1568 : 1046, 0.04, 'sine', 0.03, null, null, 0.05);
+    sfx.padPress(other, i);
     buzz(other ? [30, 25, 55] : 30, { side: i, strong: other ? 0.8 : 0.5, weak: 0.6 });
   }
   if (padHold[0] || padHold[1]) gatePip = 1.1;
@@ -572,10 +571,7 @@ function introStageChange(dt, introPrev, inIntro, stageNow) {
       }
       buzz(35);
     } else if (stageNow === 4) { // GODSPEED: squelch open, terse double ack, engage
-      crackle(0.07, 1300, 2700, 2, 0.4);
-      tone(740, 0.05, 'square', 0.09, null, null, 0.08);
-      tone(740, 0.05, 'square', 0.09, null, null, 0.17);
-      tone(58, 0.4, 'sine', 0.22, 42);
+      sfx.bootGodspeed();
       buzz([20, 30, 50]);
       // the handover line. Not 'godspeed, runner.' any more: the deploy barks 1.5s later
       // already speak to the runner, so Command's own line names the RELEASE — the thing
@@ -617,8 +613,7 @@ function updateLatches(dt, inIntro, ringXY, nodeXY) {
         const hp2 = ringXY(lt.a);
         burst(hp2.x, hp2.y, '#ff9a3c', 18, 4);
         popup(hp2.x, hp2.y - 20, 'RAIL LATCHED', '#ffb478');
-        tone(140, 0.3, 'sawtooth', 0.12, 70);
-        crackle(0.3, 2400, 500, 4, 0.6);
+        sfx.railLatched(Math.cos(lt.a) * 0.6);
         buzz(25, { strong: 0, weak: 0 }); // WORLD telegraph — phone only
       }
     }
@@ -724,7 +719,8 @@ function volleyKill(en, g, vx, vy) {
     ? { strong: 0.7, weak: 0.4 } : { strong: 0.18, weak: 0.45 });
   spawnKillStreak(en.angle, en.z);
   lastKillBeat(en);
-  if (en.type === 'heavy' && !volleyZapSampled) tone(110, 0.2, 'square', 0.13, 60); // synth-era armor thump
+  // the take layers under the kill; the synth accent still only fills a gap
+  if (en.type === 'heavy' && !sfx.armorThump() && !volleyZapSampled) sfx.armorThumpSynth();
   return en.type === 'heavy';
 }
 // The detonation itself. `hit` is what the bolt struck and is already dead —
@@ -745,7 +741,7 @@ function volleyBlast(hit, g) {
   if (n) {
     popup(hx, hy - 52, 'BLAST \u00d7' + n, '#bfeaff');
     shake = Math.min(shake + 0.12 + n * 0.06, 1);
-    crackle(0.18, 900, 2600, 2, 0.45);
+    sfx.volleyBlast();
     buzz(14 + n * 6, { strong: 0.25, weak: 0.5 });
   }
   return n;
@@ -755,13 +751,17 @@ function volleyBlast(hit, g) {
 // is what happens afterwards.
 function updateVolley(dt, docked, g) {
   if (docked && volley.cd <= 0) {
-    if (volley.charge === 0) { crackle(0.5, 300, 2200, 2, 0.28); buzz(8); } // capacitor whine
+    if (volley.charge === 0) { sfx.volleyCharge(); buzz(8); } // capacitor whine
     volley.charge = Math.min(0.5, volley.charge + dt);
     // the shot goes where you're AIMING while docked
     volley.aimA = nodes[0].angle + angDiff(nodes[1].angle, nodes[0].angle) / 2;
     if (volley.charge >= 0.5) fireVolley(g); // half a second of full commitment, then it flies
   } else if (volley.charge > 0) {
-    tone(600, 0.08, 'sine', 0.04, 380); // fizzle — dock broken before the charge completed
+    // the dock broke mid-charge: kill the whine on THIS frame, then say so. The
+    // take is cut to the dock's own length, so a completed dock needs no stop —
+    // this is the only path where the charge would outlive the thing it reports.
+    sfx.volleyStop();
+    sfx.volleyFizzle();
     volley.charge = 0;
   }
   for (const sh of volley.shots) {
@@ -1058,8 +1058,7 @@ function updateEnemy(en, C) {
         popup(W / 2, H * 0.30, 'OVERDRIVE x10', '#ffd24a');
         // 0.12s AFTER the zap it rides on, not inside it: the chime and the hit
         // take share the 1-2 kHz band, and on the same frame the take ate it
-        tone(1046, 0.14, 'triangle', 0.09, 1568, null, 0.12);
-        tone(1568, 0.2, 'triangle', 0.07, 2093, null, 0.22);
+        sfx.x10();
         buzz(25);
       }
       // chain overdrive: the kill arcs to the nearest other hostile and
@@ -1090,7 +1089,7 @@ function updateEnemy(en, C) {
           score += cpts; zaps++;
           popup(bx, by, 'CHAIN +' + cpts + (combo >= 3 ? '  x' + scoreMul() : ''), '#d8b4ff');
           spawnKillStreak(cBest.angle, cBest.z);
-          tone(1976, 0.1, 'triangle', 0.08, 2960);
+          sfx.chain();
         }
       }
       if (en.type === 'line' && en.partner) { // the wall snaps
@@ -1107,7 +1106,7 @@ function updateEnemy(en, C) {
       // the tunnel only twitches when something goes WRONG
       const zapSampled = sfx.zap(combo, Math.cos(en.angle) * 0.7);
       // synth-era accents — the recorded hit stands alone
-      if (!zapSampled && en.type === 'heavy') tone(110, 0.2, 'square', 0.13, 60); // armor thump
+      if (en.type === 'heavy' && !sfx.armorThump() && !zapSampled) sfx.armorThumpSynth(); // armor thump
       if (!zapSampled && en.lock !== undefined) tone(1568, 0.12, 'triangle', 0.09, 1976); // key chime
       { // the hand that zapped feels the kill — a clean red is a crack in the
         // light motor, armor collapsing is the heavy one. Solo zaps name their

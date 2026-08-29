@@ -1,0 +1,12 @@
+CUE: shedLayer  —  it sheds a layer
+STATUS: take   (today: shed-layer.wav @ 0.9)
+FIRES: 52-bosses.js:269
+
+a round ends — NEW PATTERN
+
+LOOK FOR: metal shearing off — a whole stage falling away.
+LENGTH:   0.5s
+SEARCH:   metal tear  ·  armor break heavy  ·  debris shed  ·  mechanical rip
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

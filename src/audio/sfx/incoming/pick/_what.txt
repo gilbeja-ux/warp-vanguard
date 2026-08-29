@@ -1,0 +1,12 @@
+CUE: pick  —  a pickup
+STATUS: take   (today: power-up.wav @ 0.6)
+FIRES: 12-sfx.js:150 · fires 72-tick.js:758, 764, 768
+
+the shared sparkle — the shield, the stability patch and the pulse arm ride 0.12s behind it
+
+LOOK FOR: a quick ascending sparkle, three notes or fewer. Three other cues ride 0.12s behind it, so it must clear out fast.
+LENGTH:   0.25–0.45s
+SEARCH:   power up collect  ·  pickup sparkle  ·  item collect short
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

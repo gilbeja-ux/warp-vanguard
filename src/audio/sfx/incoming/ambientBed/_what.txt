@@ -1,0 +1,12 @@
+CUE: ambientBed  —  in-warp bed (fallback)
+STATUS: fallback
+FIRES: 10-audio.js:286
+
+in-warp.mp3 owns the bed; the synth runs only until it decodes
+
+LOOK FOR: (no brief written yet)
+LENGTH:   —
+SEARCH:   
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

@@ -1,0 +1,12 @@
+CUE: qualified  —  QUALIFIED
+STATUS: live
+FIRES: 12-sfx.js · fires 70-update.js:223
+
+a rising clearance chord — the line accepts its defender. It plays ONCE per player, ever.
+
+LOOK FOR: a rising clearance chord. It plays ONCE per player, ever, so it can be the warmest thing in the game.
+LENGTH:   1.5–2s
+SEARCH:   achievement unlocked  ·  graduation chime  ·  success chord rise  ·  ceremony
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

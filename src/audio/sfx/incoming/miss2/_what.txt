@@ -1,0 +1,12 @@
+CUE: miss2  —  a miss · the other take
+STATUS: take   (today: miss2.wav @ 0.9)
+FIRES: 12-sfx.js:165
+
+the odd-numbered miss — replace it WITH its partner or the pair stops matching
+
+LOOK FOR: the SIBLING of miss — clearly a different take, obviously the same family. They alternate; replace them together or not at all.
+LENGTH:   0.2–0.35s
+SEARCH:   error thud  ·  alarm blip short  ·  negative impact
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

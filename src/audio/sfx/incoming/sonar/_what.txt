@@ -1,0 +1,12 @@
+CUE: sonar  —  the sonar ping
+STATUS: take   (today: sonar-ping.mp3 @ 0.05)
+FIRES: 10-audio.js:494 · fires per interdictor from updateEnemy
+
+WEATHER, not an event — the quietest take by ~9 dB, and rate-capped lane-wide
+
+LOOK FOR: ONE short soft ping that does NOT ring. It fires per interdictor for the whole run; the 0.26s rate cap only works because the take ends before the next one starts.
+LENGTH:   UNDER 0.20s — hard limit
+SEARCH:   sonar ping short  ·  radar blip  ·  submarine ping
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

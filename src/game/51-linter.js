@@ -477,8 +477,7 @@ function spawnWall(forcedA, force, teleOverride, beatArc) { // beats may pin the
   if (!clear) return; // no reachable arc — the lane simply gets no dead zone this cycle
   latches.push({ a, span0: 0.5, t: 0, dur: 3, tele, arm: 0.4, z0: SPAWN_Z });
   // warning: dry double tick + static as the dead zone enters the tunnel
-  tone(1180, 0.02, 'square', 0.05); tone(1180, 0.02, 'square', 0.05, null, null, 0.22);
-  crackle(0.25, 500, 1800, 2, 0.3);
+  sfx.latchWarn();
 }
 
 // bonus stream: a golden ribbon riding the wall — entirely OPTIONAL. Keep a

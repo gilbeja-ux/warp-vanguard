@@ -1,0 +1,12 @@
+CUE: shutdown  —  an emitter is fried
+STATUS: take   (today: shutdown.mp3 @ 0.9)
+FIRES: 12-sfx.js:171 · fires 72-tick.js:590, 52-bosses.js:495
+
+EMITTER FRIED — a dead zone or a boss light takes an emitter down
+
+LOOK FOR: electricity dying in a coil — a crackle collapsing into nothing.
+LENGTH:   0.4–0.7s
+SEARCH:   power down electric  ·  short circuit  ·  electricity die  ·  system failure
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

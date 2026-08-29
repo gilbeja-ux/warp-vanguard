@@ -1,0 +1,12 @@
+CUE: volleyBlast  —  the blast
+STATUS: take   (today: volley-blast.wav @ 0.9)
+FIRES: 72-tick.js:688
+
+BLAST ×n — the bolt reaches its mark and takes the interdictors around it
+
+LOOK FOR: a wide bright detonation with air in it. Energy, not a gunshot.
+LENGTH:   0.2–0.5s
+SEARCH:   energy explosion  ·  plasma blast  ·  sci fi explosion short
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

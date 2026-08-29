@@ -1,0 +1,12 @@
+CUE: sweepReversed  —  SWEEP REVERSED
+STATUS: take   (today: sweep-reversed.wav @ 0.9)
+FIRES: 52-bosses.js:481
+
+the light turns back — the one cue that fires under the ray
+
+LOOK FOR: a short bend downward — a direction change you hear before you see it.
+LENGTH:   0.2s
+SEARCH:   reverse whoosh short  ·  servo turn  ·  pitch bend down
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

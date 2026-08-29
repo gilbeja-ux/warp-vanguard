@@ -1,0 +1,12 @@
+CUE: inWarp  —  the lane bed
+STATUS: take   (today: in-warp.mp3 @ 0.35)
+FIRES: 10-audio.js:243 · LOOPED under the whole run
+
+loops inside its audible region — a take with a click at the seam is unusable
+
+LOOK FOR: an engine bed that LOOPS SEAMLESSLY. It plays for the whole run — a click at the seam makes it unusable.
+LENGTH:   8–10s
+SEARCH:   spaceship engine loop  ·  warp drive loop  ·  sci fi ambience loop
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

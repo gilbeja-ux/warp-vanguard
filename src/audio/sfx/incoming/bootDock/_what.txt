@@ -1,0 +1,12 @@
+CUE: bootDock  —  boot · the dock
+STATUS: fallback
+FIRES: 72-tick.js:522
+
+plays only when startup1.mp3 is absent
+
+LOOK FOR: FALLBACK ONLY — startup1.mp3 covers this. A thump with everything charging behind it.
+LENGTH:   0.7s
+SEARCH:   machine dock  ·  power up thump  ·  system charge
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

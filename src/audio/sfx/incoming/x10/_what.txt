@@ -1,0 +1,12 @@
+CUE: x10  —  OVERDRIVE x10 chime
+STATUS: take   (today: x10.wav @ 0.9)
+FIRES: 72-tick.js:1001
+
+the run’s first x10 — rides 0.12s behind the zap take
+
+LOOK FOR: a two-note rising chime, bright and short. It rides 0.12s behind the kill take.
+LENGTH:   0.3–0.5s
+SEARCH:   power up chime  ·  level up short  ·  achievement bright  ·  bonus chime
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

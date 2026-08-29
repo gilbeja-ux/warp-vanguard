@@ -1,0 +1,12 @@
+CUE: bossDead  —  the implosion
+STATUS: take   (today: boss-dead.mp3 @ 0.85)
+FIRES: 12-sfx.js:283 · started 1.43s EARLY so its blast lands on the implosion
+
+the ceremonial loudest thing in the game — BOSS_DEAD_IMPACT is its 1.43s figure
+
+LOOK FOR: a build that BLASTS at about 1.4s and rings out by 4s. It starts EARLY so the blast lands on the implosion — tell me the new blast time.
+LENGTH:   ~5s
+SEARCH:   huge explosion  ·  building explosion  ·  implosion deep  ·  destruction
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

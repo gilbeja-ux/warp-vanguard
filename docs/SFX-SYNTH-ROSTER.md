@@ -1,7 +1,51 @@
 # Every sound in the game
 
-67 sounds. 46 are still spoken by an oscillator. 21 are already recordings. Both
-lists are on the soundboard, both are swappable, and both go through one order file.
+73 cues. **48 are recordings. 9 are oscillators Gil listened to and kept. 5 are
+still open.**
+
+The five open: `qualified` `drillLock` `tutFreeze` `tutRelease` `endCount` — all
+in the qualification course and the END card, all with candidates waiting.
+
+> **The roster was incomplete until 2026-08-29.** The grep that built it was piped
+> through `head -30` and silently lost everything after `72-tick.js`. Gil found the
+> first gap by ear — *"what about the level transition, the one with the mini warp?"*
+> Seven cues were missing: `transWarp` `transCut` `qualified` `drillLock`
+> `tutFreeze` `tutRelease` `endCount`. All seven are now lifted into `sfx`
+> methods, rostered, and have candidate folders.
+>
+> **`transWarp` is the stage transition** — NEXT STAGE, RETRY, RETRY ASSIST, the
+> duel CONTINUE, FIRST CONTRACT, NEXT CONTRACT and pause RESTART all ride it.
+> 0.62s, and **its switch is at 0.30s**: that is where the picture cuts, so a take
+> must put its own switch there or sound and picture disagree.
+>
+> **It is now Gil's swoosh, cut to that figure.** The source was 1.90s and peaked
+> at 0.60s — left whole, its loudest moment would have landed after the next stage
+> was already up, and it would still have been playing 1.3s into the new lane. The
+> take starts 0.30s into the source so the peak arrives ON the switch, and runs
+> 0.70s so the tail resolves just past the transition. Traced through the real
+> `startTrans('warp')` call: loudest at 0.25s, silent by 0.72s.
+
+> **Two cues must never share a recording** if they fire at different rates. `heal`,
+> `x10` and `laneSecured` all shipped as `confirmation_004` and it surfaced as
+> *"the OVERDRIVE x10 chime sounds more than once during the run"*. The x10 gate
+> was never wrong — it fires once per run. The two COMMON cues were playing the
+> rare one's sound, and the rare one got blamed because it is the one with a name
+> on screen. `npm test` now fails on any two cues sharing a recording. Both lists are on the soundboard, both are swappable, and both
+go through one order file.
+
+> **2026-08-29, second order.** Six more became recordings — `speedUp` `traced`
+> `latchWarn` `bootGodspeed` `volleyCharge` `volleyFizzle` — and `restart` was
+> re-recorded. Three carry a cut, and in each case the cut length **is a game
+> constant**: the volley dock (0.50s) and the emitter reboot (2.0s). Gil listened
+> to the remaining nine oscillators and kept them; they now carry a `verdict` in
+> the roster and are settled. Archived at `docs/sfx-order.2026-08-29b.done.json`.
+>
+> **2026-08-29 — the first order shipped.** Nineteen oscillators became recordings:
+> `shieldUp` `heal` `shieldHit` `padPress1` `padPress2` `x10` `chain` `volleyBlast`
+> `armorThump` `railLatched` `leechHit` `wrongKey` `lampCall` `lastStand`
+> `shedLayer` `sweepReversed` `bossCalm` `laneSecured` `bossDown`.
+> The order is archived at `docs/sfx-order.2026-08-29.done.json`. Every one keeps
+> its synth body as the failed-decode fallback.
 
 The machine-readable copy is `scripts/sfx-roster.js`. It is the single source: the
 soundboard draws its rows from it, and `npm test` pins it against the game — every
@@ -31,21 +75,69 @@ and `hostile` are code words. Neither is ever drawn on a screen.
 
 ---
 
+## The candidates are already there
+
+308 CC0 candidates are filed, 3 to 10 per cue:
+
+```
+src/audio/sfx/incoming/ui/01__ui__click2__0.06s.wav
+                          02__ui__click5__0.03s.wav
+                          06__~ui__click1__0.09s.wav   ← `~` = over the length brief
+                          _what.txt                    ← the brief, for Finder
+```
+
+The filename carries the rank, the pack, the original name and the **measured
+duration**. The rank is the recommendation and it is sorted by FIT: every take
+inside the cue's length brief comes before every take that overruns, so `01` is
+always something that could ship. An overrun is marked `~` and kept, not deleted —
+some of them are the right character and only need a cut.
+
+Four cues have no candidate inside their brief, and the fetch says so when it runs:
+`keyChime`, `hit`, `volley` and `warpIn`. Each is a near miss against a tight
+figure I wrote. Audition them anyway and I will cut the winner to length.
+
+Regenerate the tree at any time:
+
+```
+npm run sfx:folders   # the folders and their _what.txt notes
+npm run sfx:fetch     # download (cached), convert, file the candidates
+```
+
+### Where they come from
+
+Kenney's audio packs, **Creative Commons CC0** — public domain, commercial use,
+no attribution. Six packs, 504 sounds: `sci-fi-sounds`, `interface-sounds`,
+`ui-audio`, `digital-audio`, `impact-sounds`, `music-jingles`.
+
+Not Pixabay. Their public API covers images and videos only, and pixabay.com
+answers an automated client with a Cloudflare bot check. Their sound effects are
+still worth browsing by hand — every cue's row on the board carries one-click
+Pixabay search links built from `scripts/sfx-search.js`.
+
+**Every candidate is converted to WAV on the way in.** The packs are Ogg Vorbis and
+iOS Safari cannot decode it. An ogg would audition perfectly in Chrome on the board
+and then be silent on the phone.
+
+---
+
 ## The workflow
 
-1. Drop candidate files into `src/audio/sfx/incoming/`. Any name. `.wav`, `.mp3`,
-   `.m4a` or `.ogg`.
-2. Run `npm run lab:sound` and open http://localhost:8012/.
-3. Press **START AUDIO** once. The page needs a gesture before it can sound.
-4. Press **RESCAN incoming/** when you add more files.
-5. For each cue: press **SYNTH** (or **CURRENT**, on a row that is already a take)
-   to hear what ships today. Choose a file. Press **FILE** to hear the candidate on
-   the same bus. Press **A / B** to hear both, 1.4 seconds apart.
+1. Run `npm run lab:sound` and open http://localhost:8012/.
+2. Press **START AUDIO** once. The page needs a gesture before it can sound.
+3. For each cue: press **SYNTH** (or **CURRENT**, on a row that is already a take)
+   to hear what ships today.
+4. Press **NEXT ▸** to step through that cue's own candidates. Each press selects
+   the next file and plays it, so comparing six takes is six presses.
+5. Press **A / B** to put the chosen candidate against what ships today.
 6. Set the trim slider until the peak meter agrees with your ear.
 7. Type a note for me in the row if the take needs work. Example: `cut the tail at
    0.4s`, or `pitch it down a third`.
 8. Press **SAVE ORDER**. It writes `docs/sfx-order.json`.
 9. Tell me: **implement the sfx order**.
+
+Anything you drop in the **root** of `incoming/` is offered to every cue, so a
+download of your own needs no filing. Press **RESCAN incoming/** after you add
+files.
 
 Everything plays through the game's own sfx bus, its glue compressor, and the H-13
 master limiter. What you hear on the board is what a run plays.
@@ -56,8 +148,9 @@ master limiter. What you hear on the board is what a run plays.
 
 For each pick in `docs/sfx-order.json`, in this order:
 
-1. Move the file from `src/audio/sfx/incoming/` to `src/audio/sfx/`. I rename it
-   after the cue key, so `shieldUp` becomes `shield-up.mp3`.
+1. Move the file from `src/audio/sfx/incoming/<cue>/` to `src/audio/sfx/`. I rename
+   it after the cue key, so `shieldUp` becomes `shield-up.wav`, and I drop the rank
+   and duration from the name.
 2. Add or update the entry in `SFX_FILES` in [12-sfx.js](src/game/12-sfx.js) with
    your trim.
 3. Wire the cue:
@@ -93,11 +186,20 @@ different length re-times the whole title sequence. Ask me before you swap it.
 
 | Status | Count | Meaning |
 | --- | --- | --- |
-| **live** | 32 | the synth is what you hear — a take replaces it |
-| **fallback** | 7 | a take already covers it; the synth is the 404 net |
-| **keep** | 4 | a number IS the sound; no recording can follow it |
+| **take** | 46 | a recording; a pick here is a re-record |
+| **live** | 9 | still an oscillator — **all nine are settled**, see below |
+| **fallback** | 5 | a take already covers it; the synth is the 404 net |
+| **keep** | 3 | a number IS the sound; no recording can follow it |
 | **dead** | 3 | defined and never called — wire it or delete it |
-| **take** | 21 | already a recording; a pick here is a re-record |
+
+### Settled synth
+
+`count` `gatePip` `pulseMissed` `star` `starsFull2` `starsFull3` `newBest`
+`unlock` `menuLaunch`.
+
+Gil auditioned each of these against candidates on the board and kept the
+oscillator. They carry `verdict:` in `scripts/sfx-roster.js`. **Do not put
+candidates in front of them again** unless he reopens one.
 
 ---
 
@@ -154,7 +256,7 @@ different length re-times the whole title sequence. Ask me before you swap it.
 
 | Cue | Status | Fires | What it says |
 | --- | --- | --- | --- |
-| `star1` / `star3` | live | [12-sfx.js:319](src/game/12-sfx.js#L319) · [95-menu.js:788](src/game/95-menu.js#L788) | one star lands; the ladder rises per star |
+| `star` | live | [12-sfx.js:319](src/game/12-sfx.js#L319) · [95-menu.js:788](src/game/95-menu.js#L788) | **one cue, three pops** — the ladder rises with the grade |
 | `starsFull3` | live | [12-sfx.js:320](src/game/12-sfx.js#L320) · [95-menu.js:792](src/game/95-menu.js#L792) | follows the LAST star — the grade itself |
 | `starsFull2` | live | [12-sfx.js:320](src/game/12-sfx.js#L320) | the two-star resolve — a rising fifth |
 | `newBest` | live | [12-sfx.js:330](src/game/12-sfx.js#L330) · [95-menu.js:899](src/game/95-menu.js#L899) | the badge stamps once |
@@ -181,6 +283,11 @@ The menu **press** is not here. It is a recording. See `ui` below.
 | `stripDrone` | [10-audio.js:312](src/game/10-audio.js#L312) | 220 Hz to 880 Hz as the BONUS RIBBON is ridden |
 | `rayVoice` | [10-audio.js:374](src/game/10-audio.js#L374) | pitch and pan are driven per frame off the light's own rotation |
 | `ambientBed` | [10-audio.js:286](src/game/10-audio.js#L286) | `in-warp.mp3` already owns the bed |
+
+**There is no `star2`.** `sfx.star(n)` is a single cue with a pitch ladder — 760 Hz,
+then 980, then 1200 — so one take serves all three pops, the way one `boss-plate`
+take serves six plates. It was listed as `star1` and `star3`, which read as a set
+with the middle one missing. It is now one row that plays the whole ladder.
 
 ### Dead — defined, never called
 

@@ -1,0 +1,12 @@
+CUE: pulseMissed  —  a pulse answers nothing
+STATUS: live
+FIRES: 72-tick.js:857
+
+PULSE MISSED — a pulse fired and answered nothing
+
+LOOK FOR: a hollow soft miss. Disappointment without harshness — the player already lost the shot.
+LENGTH:   0.15–0.3s
+SEARCH:   error soft  ·  whiff miss  ·  negative blip gentle
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

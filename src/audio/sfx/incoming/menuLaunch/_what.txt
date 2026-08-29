@@ -1,0 +1,12 @@
+CUE: menuLaunch  —  menu launch thump
+STATUS: live
+FIRES: 33-loader.js:205, 211 · 60-input.js:476-491
+
+a disc is synced or a lane is deployed — the screen leaves
+
+LOOK FOR: a low thump with an upward tail — a screen departing, under the UI tick.
+LENGTH:   0.45s
+SEARCH:   ui whoosh deep  ·  transition thump  ·  sub drop short  ·  menu swoosh
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

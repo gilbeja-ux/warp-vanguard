@@ -1,0 +1,12 @@
+CUE: volleyCharge  —  the emitters dock
+STATUS: take   (today: volley-charge.wav @ 0.9)
+FIRES: 72-tick.js:698
+
+both emitters dock — half a second of whine before the bolt
+
+LOOK FOR: a capacitor whine that RISES and stops. The dock lasts half a second and the sound is the timer.
+LENGTH:   0.5s exactly
+SEARCH:   capacitor charge  ·  weapon charge up  ·  energy charge short
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

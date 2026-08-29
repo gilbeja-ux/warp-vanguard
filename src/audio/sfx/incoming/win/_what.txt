@@ -1,0 +1,12 @@
+CUE: win  —  the victory sting
+STATUS: take   (today: win.mp3 @ 1)
+FIRES: 12-sfx.js:302 · scheduled inside the exit-warp drop
+
+the END card’s star chimes land on top of it
+
+LOOK FOR: a rising fanfare into a held bright chord. It plays INSIDE the exit-warp drop, so it must cut through a bed.
+LENGTH:   1.5–2.5s
+SEARCH:   victory fanfare  ·  level complete  ·  success orchestral short
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

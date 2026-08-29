@@ -1,0 +1,12 @@
+CUE: padPress2  —  second thumb lands
+STATUS: take   (today: pad-press-2.wav @ 0.9)
+FIRES: 72-tick.js:23
+
+the pair completes — the same ack, a fifth up
+
+LOOK FOR: the partner of padPress1, higher. Find both in one pack so they match.
+LENGTH:   0.03–0.08s
+SEARCH:   ui tap soft  ·  button click dry  ·  touch blip high
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

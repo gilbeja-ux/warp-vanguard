@@ -1,0 +1,12 @@
+CUE: lampCall  —  the lamp calls a key
+STATUS: take   (today: lamp-call.wav @ 0.9)
+FIRES: 52-bosses.js:542
+
+BLUE KEY / WHITE KEY — the pitch says which
+
+LOOK FOR: a single clean tone that still reads when pitched two ways (520 Hz and 660 Hz).
+LENGTH:   0.12s
+SEARCH:   ui tone soft  ·  notification blip  ·  marimba single note
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

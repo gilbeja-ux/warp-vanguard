@@ -1,0 +1,12 @@
+CUE: shieldUp  —  the shield arms
+STATUS: take   (today: shield-up.wav @ 0.9)
+FIRES: 12-sfx.js:156 · fires 72-tick.js:758
+
+DEFLECTOR SHIELD caught — the shield arms 0.12s behind the pickup sparkle
+
+LOOK FOR: an energy shell powering up — a rising shimmer that ENDS. Not a pad, not a drone.
+LENGTH:   0.3–0.6s
+SEARCH:   shield activate  ·  energy shield up  ·  force field on  ·  sci fi power up short
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

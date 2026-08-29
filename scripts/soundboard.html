@@ -50,6 +50,9 @@
   .cue .id { font: 600 13px system-ui; color: #d9ecff; }
   .cue .id .where { font: 400 11px ui-monospace, monospace; color: #55708c; margin-left: 8px; }
   .cue .brief { grid-column: 1 / -1; font-size: 12px; color: #7f9bb8; margin: -2px 0 4px; }
+  .cue .want { display: inline-block; margin-top: 3px; color: #62809c; font-size: 11px; }
+  .cue .want a { color: #8fe0ff; text-decoration: none; border-bottom: 1px dotted #2c4a68; }
+  .cue .want a:hover { border-bottom-color: #8fe0ff; }
   .cue .pick { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .cue button { min-width: 0; padding: 6px 10px; font-size: 12px; }
   .cue select, .cue input[type=text] { background: #0d1a2c; color: #d9ecff; border: 1px solid #25415f; border-radius: 6px; padding: 6px 8px; font: 12px system-ui; }
@@ -81,10 +84,12 @@
     <p class="note">
       <b>Every sound in the game is here</b> — the 46 still spoken by an oscillator, then the 21 that are
       already recordings. <b>SYNTH</b> (or <b>CURRENT</b>) plays what the game plays today.
-      To replace one: drop a candidate into <code>src/audio/sfx/incoming/</code>, press <b>RESCAN</b>,
-      choose it in that cue's list, set the trim, and press <b>FILE</b> or <b>A/B</b> to hear it on the
-      real bus. When the list is right press <b>SAVE ORDER</b> and tell me:
-      <b>&ldquo;implement the sfx order&rdquo;</b>.
+      Every cue already has candidates: <code>npm run sfx:fetch</code> filed them into
+      <code>src/audio/sfx/incoming/&lt;cue&gt;/</code> from Kenney's CC0 packs. <b>NEXT ▸</b> steps through
+      that cue's own candidates and plays each one, so comparing six takes is six presses.
+      <b>FILE</b> replays the chosen one and <b>A/B</b> puts it against what ships today.
+      Set the trim, then press <b>SAVE ORDER</b> and tell me: <b>&ldquo;implement the sfx order&rdquo;</b>.
+      Anything you drop in the root of <code>incoming/</code> is offered to every cue.
     </p>
     <p class="note">
       <span class="pill live">LIVE</span> the synth is what you hear — a take replaces it.
@@ -403,7 +408,11 @@
   // `sfx`, `AC` and `BOOT_LOCK` are top-level bindings, so all of them are in
   // reach without a single copy of the audio engine living on this page.
   // ==========================================================================
-  await new Promise(r => { const s = document.createElement('script'); s.src = '/scripts/sfx-roster.js'; s.onload = r; s.onerror = r; document.head.appendChild(s); });
+  const loadScript = src => new Promise(r => { const s = document.createElement('script'); s.src = src; s.onload = r; s.onerror = r; document.head.appendChild(s); });
+  await loadScript('/scripts/sfx-roster.js');
+  await loadScript('/scripts/sfx-search.js');
+  const SEARCH = window.SFX_SEARCH || {};
+  const SEARCH_URL = window.SFX_SEARCH_URL || (t => '#');
   // the synth cues first, then the sounds that are already recordings — one list
   // to the board, one picks object, one order file. A re-record and a first
   // record are the same gesture.
@@ -433,17 +442,32 @@
       const p = picks[e.key] || {};
       const row = document.createElement('div');
       row.className = 'cue' + (p.file ? ' armed' : '');
+      // THIS CUE'S OWN FOLDER FIRST. `npm run sfx:fetch` files candidates into
+      // incoming/<key>/, so `mine` is what was chosen FOR this cue and `loose`
+      // is anything dropped in the root, which stays offered to every cue.
+      const mine = incoming.filter(f => f.startsWith(e.key + '/'));
+      const loose = incoming.filter(f => f.indexOf('/') < 0);
+      const opt = f => '<option value="' + f + '"' + (p.file === f ? ' selected' : '') + '>'
+        + f.slice(f.indexOf('/') + 1) + '</option>';
       const opts = ['<option value="">— no file —</option>']
-        .concat(incoming.map(f => '<option value="' + f + '"' + (p.file === f ? ' selected' : '') + '>' + f + '</option>')).join('');
+        .concat(mine.length ? ['<optgroup label="for ' + e.key + ' (' + mine.length + ')">'].concat(mine.map(opt), '</optgroup>') : [])
+        .concat(loose.length ? ['<optgroup label="unsorted">'].concat(loose.map(opt), '</optgroup>') : [])
+        .join('');
       const trim = p.trim === undefined ? (e.trim === undefined ? 0.9 : e.trim) : p.trim;
       row.innerHTML =
         '<div class="id"><span class="pill ' + e.status + '">' + e.status + '</span>' + e.label
           + '<span class="where">' + e.key + ' · ' + e.where + '</span></div><div></div>'
-        + '<div class="brief">' + (e.file ? '<b>' + e.file + '</b> @ ' + e.trim + ' — ' : '') + e.brief + '</div>'
+        + '<div class="brief">' + (e.file ? '<b>' + e.file + '</b> @ ' + e.trim + ' — ' : '') + e.brief
+          + (SEARCH[e.key] ? '<br><span class="want">' + SEARCH[e.key].len + ' · ' + SEARCH[e.key].want
+              + ' &nbsp;' + (SEARCH[e.key].terms || []).map(t =>
+                  '<a href="' + SEARCH_URL(t) + '" target="_blank" rel="noopener">' + t + '</a>').join(' · ')
+              + '</span>' : '')
+          + '</div>'
         + '<div class="pick">'
           + '<button data-act="synth">' + (e.status === 'take' ? 'CURRENT' : 'SYNTH') + '</button>'
           + '<select data-act="file">' + opts + '</select>'
           + '<button data-act="play">FILE</button>'
+          + '<button data-act="next">NEXT ▸</button>'
           + '<button data-act="ab">A / B</button>'
           + '<input type="range" min="0" max="1.5" step="0.05" value="' + trim + '" data-act="trim">'
           + '<span class="trimv">' + trim.toFixed(2) + '</span>'
@@ -462,6 +486,16 @@
         if (!sel.value) return void (status.textContent = e.key + ': choose a file first');
         peak = 0;
         status.textContent = e.key + ' ← ' + sel.value + ' · ' + await SB.playUrl(INBOX + sel.value, +rng.value);
+      };
+      // NEXT is how you choose BETWEEN candidates: it steps to the following
+      // file in this cue's own folder and plays it immediately, so comparing six
+      // takes is six presses of one button instead of six trips to the list.
+      const ring = mine.concat(loose);
+      row.querySelector('[data-act=next]').onclick = () => {
+        arm(); if (!live || !ring.length) return;
+        const at = ring.indexOf(sel.value);
+        sel.value = ring[(at + 1) % ring.length];
+        set(); playFile();
       };
       row.querySelector('[data-act=synth]').onclick = () => { arm(); if (live) { peak = 0; synthFn[e.key](); } };
       row.querySelector('[data-act=play]').onclick = () => { arm(); if (live) playFile(); };

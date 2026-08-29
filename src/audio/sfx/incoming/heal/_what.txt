@@ -1,0 +1,12 @@
+CUE: heal  —  stability restored
+STATUS: take   (today: heal.wav @ 0.9)
+FIRES: 12-sfx.js:163 · fires 72-tick.js:768, 966, 347
+
+STABILITY RESTORED — and it stands in for EMITTER ONLINE when the reboot take is absent
+
+LOOK FOR: a warm two-note confirm. It says REPAIRED, not REWARD — keep it away from a coin chime.
+LENGTH:   0.3–0.5s
+SEARCH:   repair complete  ·  system restored  ·  positive confirm soft  ·  heal sound
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

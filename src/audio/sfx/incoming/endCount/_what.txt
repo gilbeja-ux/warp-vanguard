@@ -1,0 +1,12 @@
+CUE: endCount  —  the score rolls up
+STATUS: live
+FIRES: 12-sfx.js · fires 95-menu.js:853
+
+every 0.07s while the number climbs — the most repeated cue in the game after the menu press. It must be tiny.
+
+LOOK FOR: a single tiny tick. It fires every 0.07s for as long as the score counts — anything with a pitch or a tail becomes a machine-gun.
+LENGTH:   UNDER 0.05s
+SEARCH:   counter tick  ·  ui tick tiny  ·  score count blip
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

@@ -1,0 +1,12 @@
+CUE: drillLock  —  a drill rep locks in
+STATUS: live
+FIRES: 12-sfx.js · fires 70-update.js:255
+
+both emitters held on target long enough — the rep is banked
+
+LOOK FOR: a crisp lock-in confirm. It fires per rep, so it cannot be a fanfare.
+LENGTH:   0.1–0.2s
+SEARCH:   lock on  ·  target confirm  ·  ui confirm short
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

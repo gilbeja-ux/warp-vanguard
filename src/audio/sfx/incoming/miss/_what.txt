@@ -1,0 +1,12 @@
+CUE: miss  —  a miss
+STATUS: take   (today: miss.wav @ 0.9)
+FIRES: 12-sfx.js:165 · fires 72-tick.js:1073, 850
+
+an interdictor got through — two takes alternate off the miss counter
+
+LOOK FOR: a dull thud with a terse alarm blip. Bad news without harshness.
+LENGTH:   0.2–0.35s
+SEARCH:   error thud  ·  alarm blip short  ·  negative impact
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

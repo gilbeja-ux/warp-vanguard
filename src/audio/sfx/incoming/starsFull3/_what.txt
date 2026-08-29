@@ -1,0 +1,12 @@
+CUE: starsFull3  —  grade resolves · 3★
+STATUS: live
+FIRES: 12-sfx.js:320 · fires 95-menu.js:792
+
+follows the LAST star — the grade itself
+
+LOOK FOR: a short arpeggio into a held bright note. Full marks — the biggest thing on the card.
+LENGTH:   0.5–0.8s
+SEARCH:   success fanfare short  ·  level complete  ·  reward arpeggio  ·  achievement unlocked
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

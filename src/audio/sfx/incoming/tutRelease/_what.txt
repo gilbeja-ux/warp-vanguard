@@ -1,0 +1,12 @@
+CUE: tutRelease  —  the course breathes again
+STATUS: live
+FIRES: 12-sfx.js · fires 85-enemy-art.js:2207
+
+the freeze releases — a tape-warp UP. Replace it WITH tutFreeze or the pair stops matching.
+
+LOOK FOR: the tape-warp UP that answers tutFreeze. The pair must obviously be one gesture.
+LENGTH:   0.4–0.7s
+SEARCH:   tape start  ·  speed up warp  ·  power up slow  ·  vinyl spin up
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

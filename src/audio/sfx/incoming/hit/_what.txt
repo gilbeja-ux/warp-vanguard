@@ -1,0 +1,12 @@
+CUE: hit  —  the kill
+STATUS: take   (today: hit-1.wav @ 0.8)
+FIRES: 12-sfx.js:141 · fires 72-tick.js:1048, 662
+
+an interdictor collapses — the combo winds its playback rate up to x12
+
+LOOK FOR: a tight digital confirmation that STILL READS when its playback rate is pushed 40% up — the combo pitches this take from x1 to x12.
+LENGTH:   0.08–0.2s
+SEARCH:   laser hit  ·  digital zap short  ·  sci fi impact short  ·  blaster hit
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

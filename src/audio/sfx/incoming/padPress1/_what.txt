@@ -1,0 +1,12 @@
+CUE: padPress1  —  first thumb lands
+STATUS: take   (today: pad-press-1.wav @ 0.9)
+FIRES: 72-tick.js:23
+
+one thumb on a pad — the lower of the two acks
+
+LOOK FOR: a tiny dry contact tick. The pair needs TWO takes about a fifth apart.
+LENGTH:   0.03–0.08s
+SEARCH:   ui tap soft  ·  button click dry  ·  touch blip
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

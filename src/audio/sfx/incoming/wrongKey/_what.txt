@@ -1,0 +1,12 @@
+CUE: wrongKey  —  wrong key fizzle
+STATUS: take   (today: wrong-key.wav @ 0.9)
+FIRES: 52-bosses.js:194, 207
+
+the lamp was misread — a fizzle, not thunder
+
+LOOK FOR: a short fizzle. Corrective, never punishing — a misread costs a shot, not the turn.
+LENGTH:   0.15s
+SEARCH:   error soft short  ·  deny blip  ·  wrong buzz gentle
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

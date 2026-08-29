@@ -1,0 +1,12 @@
+CUE: tutFreeze  —  the course holds its breath
+STATUS: live
+FIRES: 12-sfx.js · fires 70-update.js:288
+
+the pulse drill freezes the run — a tape-warp DOWN. Pairs with tutRelease.
+
+LOOK FOR: a tape-warp DOWN — everything slowing to a stop. Pairs with tutRelease; find both in one pack.
+LENGTH:   0.6–1s
+SEARCH:   tape stop  ·  slow down warp  ·  power down slow  ·  vinyl brake
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

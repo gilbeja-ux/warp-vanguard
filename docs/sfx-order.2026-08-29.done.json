@@ -1,0 +1,120 @@
+{
+  "picks": {
+    "shieldUp": {
+      "file": "shieldUp/05__~sci-fi__forceField_001__0.95s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "heal": {
+      "file": "heal/02__interface__confirmation_004__0.49s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "shieldHit": {
+      "file": "shieldHit/06__~sci-fi__forceField_002__0.96s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "padPress1": {
+      "file": "padPress1/03__~ui__click1__0.09s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "padPress2": {
+      "file": "padPress2/01__ui__click2__0.06s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "x10": {
+      "file": "x10/01__interface__confirmation_004__0.49s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "chain": {
+      "file": "chain/03__~sci-fi__laserSmall_003__0.30s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "volleyBlast": {
+      "file": "volleyBlast/04__~sci-fi__lowFrequency_explosion_001__1.00s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "armorThump": {
+      "file": "armorThump/04__~sci-fi__impactMetal_000__0.63s.wav",
+      "trim": 0.9,
+      "note": "find more options"
+    },
+    "keyChime": {
+      "file": "",
+      "trim": 0.9,
+      "note": "find more options"
+    },
+    "count": {
+      "file": "",
+      "trim": 0.9,
+      "note": "find more options"
+    },
+    "latchWarn": {
+      "file": "",
+      "trim": 0.9,
+      "note": "find more options"
+    },
+    "railLatched": {
+      "file": "railLatched/05__~impact__impactMining_000__0.94s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "leechHit": {
+      "file": "leechHit/03__~sci-fi__lowFrequency_explosion_001__1.00s.wav",
+      "trim": 1.5,
+      "note": ""
+    },
+    "wrongKey": {
+      "file": "wrongKey/02__interface__error_008__0.14s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "lampCall": {
+      "file": "lampCall/04__~digital__pepSound2__0.55s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "lastStand": {
+      "file": "lastStand/04__~digital__lowThreeTone__1.02s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "shedLayer": {
+      "file": "shedLayer/01__sci-fi__impactMetal_003__0.78s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "sweepReversed": {
+      "file": "sweepReversed/05__~digital__lowDown__0.78s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "bossCalm": {
+      "file": "bossCalm/05__~digital__pepSound4__0.63s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "laneSecured": {
+      "file": "laneSecured/01__interface__confirmation_004__0.49s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "bossDown": {
+      "file": "bossDown/02__sci-fi__explosionCrunch_004__1.98s.wav",
+      "trim": 0.9,
+      "note": ""
+    },
+    "bootGodspeed": {
+      "file": "",
+      "trim": 0.9,
+      "note": "find more options, radio communication, crackle sound, message notification digital"
+    }
+  },
+  "saved": "2026-08-29T08:50:34.786Z"
+}

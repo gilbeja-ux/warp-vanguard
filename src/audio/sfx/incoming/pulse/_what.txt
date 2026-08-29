@@ -1,0 +1,12 @@
+CUE: pulse  —  the pulse fires
+STATUS: take   (today: pulse.mp3 @ 1)
+FIRES: 12-sfx.js:247 · fires 85-enemy-art.js:1987
+
+PULSE PURGE ×n — an armed orb is spent
+
+LOOK FOR: a sub drop under a rising pressure sweep. The biggest offensive thing the player owns.
+LENGTH:   0.5–0.8s
+SEARCH:   emp blast  ·  shockwave  ·  energy pulse blast  ·  sci fi boom
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

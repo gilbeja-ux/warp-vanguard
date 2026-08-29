@@ -1,0 +1,12 @@
+CUE: ui  —  menu press · the advance tick
+STATUS: take   (today: mini-hit.wav @ 0.5)
+FIRES: 12-sfx.js:349 · pressUI() at 99-boot.js:155
+
+EVERY press on every menu, panel, star-map plate and board row goes through here
+
+LOOK FOR: a crisp DRY tick with a tiny body. This is every press on every screen — hundreds a session. Nothing tonal, nothing that rings, nothing anyone could tire of.
+LENGTH:   0.03–0.08s
+SEARCH:   ui click  ·  menu tap  ·  button click subtle  ·  interface tick
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

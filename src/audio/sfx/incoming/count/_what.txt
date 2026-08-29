@@ -1,0 +1,12 @@
+CUE: count  —  countdown digit
+STATUS: live
+FIRES: 12-sfx.js:160 · fires 72-tick.js:207, 381
+
+one digit of the resume count and of the surge count
+
+LOOK FOR: one flat electronic tick, identical every time. It plays three times in a row.
+LENGTH:   0.05–0.15s
+SEARCH:   countdown beep  ·  timer tick  ·  digital blip short
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.

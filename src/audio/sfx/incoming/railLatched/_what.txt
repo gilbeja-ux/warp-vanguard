@@ -1,0 +1,12 @@
+CUE: railLatched  —  the rail is latched
+STATUS: take   (today: rail-latched.wav @ 0.9)
+FIRES: 72-tick.js:574
+
+RAIL LATCHED — the dead zone seizes part of the rail
+
+LOOK FOR: a heavy clamp closing on metal, with a low sweep under it.
+LENGTH:   0.3s
+SEARCH:   metal clamp  ·  heavy lock  ·  mechanism latch  ·  industrial clank
+
+Drop candidates in THIS folder. Any name, .wav/.mp3/.m4a/.ogg.
+Then: npm run lab:sound  →  RESCAN  →  this cue lists them  →  SAVE ORDER.
