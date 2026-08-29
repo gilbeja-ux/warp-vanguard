@@ -120,3 +120,12 @@ src/audio/sfx/incoming/**/*.wav
 src/audio/sfx/incoming/**/*.mp3
 src/audio/sfx/incoming/**/*.m4a
 src/audio/sfx/incoming/**/*.ogg
+
+# ---- the sfx soundboard's live order ----
+# scripts/soundboard.js writes docs/sfx-order.json on SAVE ORDER, and the
+# implementer CONSUMES it — it renames the file to sfx-order.<date>.done.json
+# with an `implemented` block appended. The dated done-file is the record and is
+# tracked; the pending one is a scratch pad between the two halves of that
+# handover. Three rounds ran that way before it was written down, and committing
+# the pending file (2026-08-29) left a finished order looking unfinished.
+docs/sfx-order.json
