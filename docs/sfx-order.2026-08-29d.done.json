@@ -1,0 +1,26 @@
+{
+  "picks": {
+    "bossDown": {
+      "file": "bossDown/47313572-sci-fi-launch-351236.mp3",
+      "trim": 0.9,
+      "note": "need the silences cut so it hits on time. i think this sound uses us for volley hitting multiple enemies.. if not let me know please"
+    }
+  },
+  "saved": "2026-08-29T19:45:34.234Z",
+  "implemented": {
+    "when": "2026-08-29",
+    "redirected": {
+      "from": "bossDown",
+      "to": "volleyBlast",
+      "why": "bossDown is the boss-death implosion, and it only sounds when boss-dead.mp3 fails to decode. The cue for a volley that takes several interdictors at once is volleyBlast — the BLAST xN popup at 72-tick.js:744. Gil asked for the pick to go to that event instead."
+    },
+    "bossDown": "untouched — it keeps boss-down.wav at 0.9",
+    "volleyBlast": {
+      "file": "audio/sfx/volley-blast.wav",
+      "trim": 0.9,
+      "cut": "0.200s to 1.530s of the source, 60ms fade out, mono downmix, +2.4 dB",
+      "result": "1.33s, no head silence, peak -1.0 dBFS — the same peak as the take it replaces",
+      "code": "no change: the cue was already a take on this file name at this trim"
+    }
+  }
+}
