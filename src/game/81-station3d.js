@@ -2023,7 +2023,10 @@ function s3BuildFor(campId, lv, kind) {
 // a few milliseconds a frame until it is done.
 const S3D_REF = 300;              // sprite side, in CSS pixels
 const s3Sprites = {};             // id -> { cv, S, R, lamps, mips } | 'fail'
-let s3Job = null, s3Queue = [], s3Started = false;
+// s3Queue is CONSUMED — a pump shifts it — so the order it was built in is kept
+// beside it. The order is the thing worth pinning, and by the time anything can
+// look at the queue the head of it has already gone.
+let s3Job = null, s3Queue = [], s3Order = [], s3Started = false;
 let s3Blocked = false;            // set once if this environment has no ImageData
 // Mip chain: the chart draws these at three or four pixels, and downscaling a
 // 300px sprite that far in one step aliases into confetti. Halving repeatedly
@@ -2059,11 +2062,33 @@ function s3Enqueue() {
   const rest = S3D_BUILDS.filter(b => b.kind !== 'breach').map(b => b.id);
   // THE BREACH HULLS BAKE ONCE PER SUN DIRECTION, and their keys carry the view:
   // `BRTAP@0`. A tap rides the whole way round the bore, so one sprite would carry
-  // its highlight round with it and the sun would orbit the player. Traffic goes
-  // LAST in the queue — a station is on screen the moment a contract opens, while
-  // a tap has a horizon to travel and a procedural stand-in until it arrives.
-  s3Queue = first.concat(rest.filter(id => first.indexOf(id) < 0))
-    .filter((id, i, a) => a.indexOf(id) === i).concat(s3BreachKeys());
+  // its highlight round with it and the sun would orbit the player.
+  //
+  // TRAFFIC GOES FIRST NOW, and that reverses the original order. It went last
+  // while a stand-in body covered the wait — which meant the bake's tail landed
+  // during play and the enemy CHANGED SHAPE mid-session. Gil, 2026-08-29: every
+  // player gets the same body, so the hulls are a boot REQUIREMENT and the splash
+  // holds until they land. A station is not gated, so it may finish behind them.
+  s3Order = s3BreachKeys().concat(
+    first.concat(rest.filter(id => first.indexOf(id) < 0))
+      .filter((id, i, a) => a.indexOf(id) === i));
+  s3Queue = s3Order.slice();
+}
+// EVERY BREACH HULL RESOLVED — the boot gate's one question.
+//
+// A skipped sun view and a failed bake both count as resolved, and a BLOCKED
+// renderer answers yes outright. The gate asks "is the queue done with the
+// hulls", never "did they all succeed": a device that cannot bake at all must
+// reach the menu, not hold on a splash forever.
+const s3BreachReady = () => s3Blocked || s3BreachKeys().every(k => s3Sprites[k] !== undefined);
+// Bake the hulls on THIS call, for the contexts that have no splash to hide the
+// wait behind: the Lane Designer, the store-shot pages, any harness driving the
+// game's clock itself. Capped so a broken environment cannot hang the page.
+function s3BreachDrain(capMs) {
+  const now = () => (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  const t0 = now();
+  while (!s3BreachReady() && now() - t0 < capMs) if (!s3Pump(50)) break;
+  return s3BreachReady();
 }
 // Spend up to `budget` ms. Returns true while there is still work to do.
 function s3Pump(budget) {

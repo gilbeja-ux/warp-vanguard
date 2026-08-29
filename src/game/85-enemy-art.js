@@ -752,7 +752,14 @@ function drawEnemy(en, g) {
     // sprite skin replaces the procedural body (glow + sigils stay live)
     ctx.drawImage(spr, x - size * 1.7, y - size * 1.7, size * 3.4, size * 3.4);
   } else if (!drawBreachHull(breachHull(en), x, y, en.angle, bodyR(size), PAL.glow, fade, g)) {
-    drawNailBreach(en, g, fade, PAL);   // the stand-in, until the strip has baked
+    // THE BROKEN-RENDERER PATH, and nothing else. It was "the stand-in until the
+    // strip has baked", and that made a TIMING difference into a visible one: the
+    // bake only ran on the menu and the Archive, so a player who started a lane
+    // early played the painted body and watched it turn into hardware later in the
+    // session. Gil, 2026-08-29 — everyone gets the same body. The splash now holds
+    // until every hull is in (see SPL.hold), so reaching this line means the bake
+    // FAILED, not that it is late.
+    drawNailBreach(en, g, fade, PAL);
   }
   // warp-in flash — ONLY for authored mid-bore drops, which genuinely appear out
   // of nothing and need the telegraph. A horizon spawn must never announce

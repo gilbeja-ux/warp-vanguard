@@ -843,6 +843,9 @@ const S3D_LIGHT = {
                      // lever on the single longest frame the bake causes.
   detailLow: 0.55,   // ...and what that becomes when the device asked for lowFX
   bakeMs: 8,         // the slice the bake gets on a frame with room to spare
+  bakeHold: 26,      // ...and the slice it gets while the boot gate is HOLDING for
+                     // it. Nothing is animating there but a progress arc, so the
+                     // only thing a small slice would buy is a longer hold.
   bakeMin: 3,        // ...and the slice it gets on one WITHOUT. This floor is not
                      // politeness, it is correctness: budgeting purely on spare
                      // time means a device slow enough to have none never bakes

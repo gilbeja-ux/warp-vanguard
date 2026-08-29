@@ -8,10 +8,11 @@ const INFO_PAL = {
 };
 // A MINIATURE OF THE LIVE TAP HARDWARE, for briefing cards.
 //
-// It draws the REAL baked hull wherever the strip has landed. A card that carries
-// its own idea of a tap teaches a shape the lane never shows, and the two drift
-// apart the moment either is touched. The vector miniature below is the stand-in
-// for a cold start, exactly as drawNailBreach stands in for the body itself.
+// It draws the REAL baked hull. A card that carries its own idea of a tap teaches
+// a shape the lane never shows, and the two drift apart the moment either is
+// touched. The vector miniature below is the BROKEN-RENDERER path, exactly as
+// drawNailBreach is for the body itself — no card is ever reached before the
+// hulls are in, because the splash holds for them (see SPL.hold in 99-boot.js).
 //
 // Mounted the way the field guide mounts a specimen — drill rising into the bore
 // — which is the sprite's own upright orientation, so it needs no rotation.
@@ -371,11 +372,12 @@ function demoThreat(Rs, a, z, kind, opt) {
   // and the second half of it corrected the first: apex-outward read as an arrow
   // flying AWAY. A relay is the one round body in the diorama (opt.hex), so
   // "coming at me" and "go and get it" never share a silhouette.
-  // THE REAL HULL, wherever its strip has baked. The disc teaches a MOVE, but the
-  // thing the move is performed on is a trap the player will meet in the lane, and
-  // a disc that shows a shape the lane never draws teaches the wrong silhouette.
-  // The abstract triangle stays as the stand-in for a cold start, and a RELAY
-  // (o.hex) is never a hull — it is the one round friendly body in the diorama.
+  // THE REAL HULL. The disc teaches a MOVE, but the thing the move is performed on
+  // is a trap the player will meet in the lane, and a disc that shows a shape the
+  // lane never draws teaches the wrong silhouette. The abstract triangle below is
+  // the BROKEN-RENDERER path, not a cold-start one — the splash holds until every
+  // hull is in. A RELAY (o.hex) is never a hull: it is the one round friendly body
+  // in the diorama and keeps its own shape.
   if (!o.hex && typeof drawBreachHull === 'function' &&
       drawBreachHull(o.hull || DEMO_HULL[kind] || 'BRTAP', x, y, a, s * 1.55, col, 1, null)) {
     ctx.restore();

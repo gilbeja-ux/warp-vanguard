@@ -13,9 +13,11 @@
        ?short=1      the abbreviated re-entry script (one beat, the guide disc)
        ?w=&h=        canvas size, for checking a phone against a tablet
 
-     The splash is ended outright rather than cranked through: drawEnlistment is
+     The splash is dropped outright rather than cranked through: drawEnlistment is
      held behind it, and thirteen seconds of boot theatre per shot is thirteen
-     seconds of nothing this harness is looking at. -->
+     seconds of nothing this harness is looking at. Dropped, not ENDED — the boot
+     gate refuses a skip while the enemy hulls are still baking, so the harness
+     clears the curtain itself and pays the bake on the next frame. -->
 <html>
 <head>
 <meta charset="utf-8">
@@ -84,7 +86,11 @@
     }
   };
   crank(60);                                   // one frame, so the game finishes booting
-  poke('if (typeof SPLASH !== "undefined") splashEnd(true);');
+  // The curtain is dropped, not ENDED. splashEnd now refuses while the boot gate
+  // is closed — the hulls are a requirement, and a tap may not skip past them —
+  // so a harness that wants the sequence gone says so directly, the way
+  // shot-lane and shot-store already do. The bake is paid on the next frame.
+  poke('if (typeof SPLASH !== "undefined") SPLASH.on = false;');
   // ?guide=1 shoots the REAL field guide page instead — the disc's third art shares
   // drawGuideLineup with it, so the page is the regression test for that refactor
   if (P.get('guide') === '1') {

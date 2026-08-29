@@ -169,6 +169,8 @@ code = code.replace("'use strict';", '') + `
   // the breach hulls: the roster, and the one number their camera shares with the painter
   S3D_BUILDS, S3_BREACH_SQ, S3_BREACH_EL, ENEMYFX, BREACHFX, breachHull,
   s3BreachKeys,
+  // the boot gate: the queue it drains, the question it asks, and the beat it holds on
+  getS3Order: () => s3Order, s3BreachReady, getS3Sprites: () => s3Sprites, SPLASH, SPL, S3D_LIGHT,
   ARCFX, geo, ring, screen: () => ({ W, H }), bodyR,
   getLevels: () => LEVELS, migrateSaveShape, getInfoCards: () => INFO_CARDS,
   getGpSel: () => gpSel, setGpSel: v => { gpSel = v; },
@@ -3059,6 +3061,44 @@ G.keys['ArrowUp'] = false;
       for (let k = 0; k < G.BREACHFX.sunViews; k++) if (G.s3BreachKeys().indexOf(id + '@' + k) < 0) return false;
       return true;
     }));
+  // ---- THE BOOT GATE: EVERY PLAYER GETS THE SAME BODY ----
+  //
+  // Gil, 2026-08-29, on finding a lane drawing the painted stand-in and turning
+  // into hardware later in the same session: there are no fallbacks on this, and
+  // a loading sequence is an acceptable price. Three things carry that, and each
+  // one alone is enough to bring the bug back.
+  //
+  // FIRST: the hulls lead the queue. They used to go last, behind eight station
+  // bakes, which is most of the wait a player was losing the body to.
+  check('the breach hulls lead the bake queue',
+    G.s3BreachKeys().every((k, i) => G.getS3Order()[i] === k));
+  // SECOND: the splash holds for them, and it holds on the last OPAQUE beat. A
+  // gate at or past `reveal` would stop on a half-open curtain, which reads as a
+  // hang rather than as a load.
+  check('the boot gate holds while the curtain is still opaque',
+    G.SPL.hold > G.SPL.df && G.SPL.hold <= G.SPL.reveal && G.SPL.hold < G.SPLASH.dur);
+  // …and the hold has a slice worth having. The menu's polite 8ms on a screen where
+  // nothing else is drawing would only make the hold longer.
+  check('a held splash bakes on a bigger slice than the menu',
+    G.S3D_LIGHT.bakeHold > G.S3D_LIGHT.bakeMs);
+  // THIRD: the question the gate asks. A skipped sun view and a failed bake are
+  // both ANSWERS — asking "did they all succeed" would hold a device that cannot
+  // bake on a black screen for ever. Driven against the real sprite table, one key
+  // at a time, and put back exactly as it was found.
+  {
+    const sp = G.getS3Sprites();
+    const keys = G.s3BreachKeys();
+    const prev = keys.map(k => sp[k]);
+    for (const k of keys) delete sp[k];
+    const closedOnEmpty = !G.s3BreachReady();
+    for (let i = 0; i < keys.length - 1; i++) sp[keys[i]] = 'skip';
+    const closedOnOneShort = !G.s3BreachReady();
+    sp[keys[keys.length - 1]] = 'fail';
+    const openOnSkipAndFail = G.s3BreachReady();
+    keys.forEach((k, i) => { if (prev[i] === undefined) delete sp[k]; else sp[k] = prev[i]; });
+    check('the gate opens on every hull RESOLVED, not on every hull succeeding',
+      closedOnEmpty && closedOnOneShort && openOnSkipAndFail);
+  }
 
   check('a relay is a star exactly when its frozen variant is one',
     G.CAMPAIGNS.every(pk => pk.levels.every((lv, i) => {

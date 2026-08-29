@@ -348,13 +348,25 @@ const SPLASH = {
   t: 0, dur: 8.1,      // sequence clock (sec); dur trued from the decoded take
   buf: null, lp: null, // decoded splash2 + its audible window
   src: null, gain: null, startAC: 0, startOff: 0,
-  built: false         // wheel cue fired — the menu is building beneath us
+  built: false,        // wheel cue fired — the menu is building beneath us
+  held: false,         // the boot gate has the sequence stopped (see SPL.hold)
+  holdT: 0,            // …for this long, which is the hang guard's only input
+  holdMax: 30,         // and the longest it may ever hold. Not a budget — a HANG
+                       // GUARD. Every real bake finishes in single-digit seconds,
+                       // so anything past this is a renderer that has stopped
+                       // answering, and a black screen forever is worse than a
+                       // menu reached with a body still missing.
+  skip: false          // …and a tap arrived while it was stopped; go the moment it lifts
 };
 // the beat sheet, in seconds against the 8.1s take. The finale is a staged
 // build: reveal thins the curtain (the game's tunnel fades in), wheel cues
 // the menu itself — the mode wheel spins in behind the badge and the corner
 // furniture flies in from its nearest screen edge (see introE / menuIntroAt)
-const SPL = { gb: 0.35, type: 1.3, glitch: 3.0, crush: 4.1, df: 4.3, settle: 5.5, reveal: 5.55, wheel: 6.35 };
+//
+// `hold` is the boot gate, and it sits on the LAST OPAQUE BEAT — one frame before
+// reveal starts thinning the curtain. A gate any later would hold on a half-open
+// stage, which reads as a hang rather than as a load.
+const SPL = { gb: 0.35, type: 1.3, glitch: 3.0, crush: 4.1, df: 4.3, settle: 5.5, hold: 5.52, reveal: 5.55, wheel: 6.35 };
 const GB_TAG = 'GB Interactive';
 const GBIMG = { img: null, w: 0, h: 0 };
 if (SPLASH.on) {
@@ -395,8 +407,15 @@ function splashAudioTry() { // start (or join) the score the moment audio is all
     SPLASH.startAC = AC.currentTime; SPLASH.startOff = SPLASH.t; // audio-clock anchor
   } catch (e) { SPLASH.src = null; SPLASH.gain = null; }
 }
+// The one question both the sequence and the skip ask: may the curtain open?
+const splashGateOpen = () => s3BreachReady() || SPLASH.holdT >= SPLASH.holdMax;
 function splashEnd(skip) {
   if (!SPLASH.on) return;
+  // THE GATE OUTRANKS THE SKIP. A tap during the load is remembered, not obeyed:
+  // it opens the curtain the instant the last hull lands. Without this the one
+  // player most likely to skip — the impatient one, on the slowest phone — is
+  // the only player who gets into a lane before its bodies exist.
+  if (!splashGateOpen()) { SPLASH.skip = true; return; }
   SPLASH.on = false;
   if (SPLASH.src && AC) { // bow out fast on a skip; a natural end is already silent
     try {
@@ -492,13 +511,66 @@ function splashStatic(amt) {
   ctx.fillStyle = `rgba(111,227,255,${(amt * 0.05).toFixed(3)})`;
   for (let sy = ((SPLASH.t * 40) % 6) - 6; sy < H; sy += 6) ctx.fillRect(0, sy, W, 1);
 }
+// THE HOLD'S OWN SLICE. Nothing on the stage is moving but a progress arc, so
+// the bake takes most of the frame instead of the menu's polite 8ms — a held
+// splash is a load, and a load that paces itself is just a longer load.
+function splashHoldPump() {
+  s3Pump(S3D_LIGHT.bakeHold);
+}
+// The readout, and it only ever appears on a machine slow enough to need it.
+// Deliberately small and low: the badge is the picture, this is a footnote to it.
+function drawSplashHold(u) {
+  const keys = s3BreachKeys();
+  const done = keys.filter(k => s3Sprites[k] !== undefined).length;
+  const q = keys.length ? done / keys.length : 1;
+  const bw = u * 0.30, bh = Math.max(2, u * 0.006);
+  const bx = (W - bw) / 2, by = H * 0.78;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = '500 ' + Math.round(u * 0.026) + 'px Audiowide, system-ui';
+  ctx.fillStyle = 'rgba(111,227,255,0.55)';
+  ctx.fillText('LOADING', W / 2, by - u * 0.028);
+  ctx.fillStyle = 'rgba(111,227,255,0.16)';
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.fillStyle = 'rgba(111,227,255,0.85)';
+  ctx.fillRect(bx, by, bw * q, bh);
+  ctx.restore();
+}
+// A SPLASH THAT IS OFF HAS NO GATE, so the bake is paid on the spot instead.
+// Boot pays it for the contexts that start without a curtain; this pays it for
+// the ones that drop the curtain later — `SPLASH.on = false` is how every
+// store-shot harness stages its frame, and a picture taken before the hulls
+// land is a picture of the wrong body. Once, then never again.
+let s3Paid = false;
+function splashlessBake() {
+  if (s3Paid) return;              // …and it latches on EVERY exit, so the common
+  s3Paid = true;                   // case — a gated game, already ready — asks once
+  if (s3BreachReady() || typeof Image === 'undefined') return;
+  s3BreachDrain(20000);
+}
 function drawSplash(rawDt) {
-  if (!SPLASH.on) return;
+  if (!SPLASH.on) { splashlessBake(); return; }
   splashAudioTry();
   // the score is the master clock once it runs (rAF gaps can't drift it);
-  // until then the frame clock stands in
-  if (SPLASH.src && AC) SPLASH.t = SPLASH.startOff + (AC.currentTime - SPLASH.startAC);
+  // until then the frame clock stands in. A HELD sequence reads neither: the
+  // gate has stopped the beat sheet, and the score plays on underneath it.
+  if (SPLASH.held) { SPLASH.holdT += clamp(rawDt, 0, 0.05); splashHoldPump(); }
+  else if (SPLASH.src && AC) SPLASH.t = SPLASH.startOff + (AC.currentTime - SPLASH.startAC);
   else SPLASH.t += clamp(rawDt, 0, 0.05);
+  const gateOpen = splashGateOpen();
+  // THE BOOT GATE. The enemy's body is a baked hull, and a hull that lands
+  // mid-session changes the game under the player — so the curtain does not open
+  // until every hull is in. On any machine that finishes inside the sequence this
+  // costs exactly nothing; on a slow one it is the load, shown honestly.
+  if (!SPLASH.held && SPLASH.t >= SPL.hold && !gateOpen) {
+    SPLASH.held = true; SPLASH.t = SPL.hold;
+  } else if (SPLASH.held && gateOpen) {
+    SPLASH.held = false;
+    // re-anchor the score: it ran on through the hold, so the sequence resumes
+    // against where the take ACTUALLY is, not where it was when we stopped
+    if (SPLASH.src && AC) { SPLASH.startOff = SPLASH.t; SPLASH.startAC = AC.currentTime; }
+    if (SPLASH.skip) { splashEnd(true); return; }
+  }
   if (SPLASH.t >= SPLASH.dur) { splashEnd(false); return; }
   const t = SPLASH.t, u = Math.min(W, H);
   const ss = (a, b) => { const q = clamp((t - a) / (b - a), 0, 1); return q * q * (3 - 2 * q); };
@@ -633,6 +705,7 @@ function drawSplash(rawDt) {
     }
   }
 
+  if (SPLASH.held) drawSplashHold(u);
   splashStatic(glitchAmt);
   const fl = 1 - clamp(Math.abs(t - SPL.df) / 0.09, 0, 1); // the white pop at the cut
   if (fl > 0) {
@@ -891,13 +964,17 @@ function frame(now) {
   drawPostChain(rawDt, worldFx, g);
 
   ctx.restore();
-  // THE STATION BAKE, on the menu's time. Gil's call: the sprites get built
-  // while the player is picking a contract, never during a run and never behind
-  // a loading bar. The budget is small enough that a frame it lands on still
-  // makes 60, and it only shrinks if that frame was already long — the menu is
-  // the one place in the game with spare milliseconds, but it is still the
-  // player's first impression, so it must never be the thing that drops one.
-  if (state === S.MENU || state === S.GUIDE) {
+  // THE BAKE'S TIME IS EVERY SCREEN THAT IS NOT A RUN. Gil's call stands on the
+  // part that matters — the sprites never get built DURING a run — but the window
+  // used to be the menu and the Archive alone, and that is what let a new player
+  // sit through a five-second enlistment and a mission disc with the queue
+  // untouched, then meet a lane whose bodies had not been built yet.
+  //
+  // So: the splash, the enlistment, the menu, the Archive, a briefing, a pause,
+  // a results card — and the PARKED lane, which waits for two thumbs and is not a
+  // run until it has them. The budget is small enough that a frame it lands on
+  // still makes 60, and it only shrinks if that frame was already long.
+  if (SPLASH.on || state !== S.PLAY || preLaunch()) {
     // Budget off THIS FRAME'S OWN WORK, not off rawDt. rawDt is the wall clock
     // between frames, which at 60fps is 16.7ms of mostly vsync wait — subtracting
     // it from a budget leaves a negative number every single frame, and the bake
@@ -1362,6 +1439,13 @@ setTimeout(() => {
   if (SPLASH.on) splashBoot();
   else if (state === S.MENU) playTrack('menu');
 }, 0);
+// NO SPLASH MEANS NO GATE, so those contexts pay the bake up front instead.
+// The Lane Designer, the store-shot pages and anything else driving the clock
+// itself get one blocking drain here — they freeze the world on frame one, so a
+// hull that arrives on frame two arrives after the picture was taken. The
+// headless harness is excluded by the same test the splash uses: no Image, no
+// bake worth spending seconds on.
+if (!SPLASH.on && typeof Image !== 'undefined') s3BreachDrain(20000);
 
 // A NEW PLAYER NEVER SEES THE MENU. This is claimed HERE, at the end of boot and
 // before the first frame, rather than when the splash ends — the splash reveals
