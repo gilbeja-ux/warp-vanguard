@@ -280,12 +280,20 @@ function drawWarpCollapse(g) {
 // over, so the lesson is a gesture rather than a sentence about one. The words
 // keep the bottom quarter and nothing above it (see DISC_PLATE).
 //
+// EVERY LESSON PLAYS ON THE BOTTOM OF THE RAIL. Gil's call, 2026-08-29. A hull
+// stands on the tunnel wall pointing into the bore, so at the TOP of the rail it
+// is drawn upside down (breachPhi is 0 at the bottom and PI at the top) — the one
+// place a body cannot be identified. Every bearing below is therefore near +PI/2,
+// and the stage is lifted far enough that the rail's floor still clears the plate.
+// A drill with no body on it — `move`, `wall` — keeps whatever staging reads best.
+//
 // Everything here is DRAW-ONLY and reads the clock alone. No RNG, no sim state:
 // a disc that consumed a draw would move every seeded board (see the note over
 // drawDiscWorld, and the RNG law in the memory this repo keeps).
-const DISC_STAGE_Y = -0.16;   // the diorama's centre, as a share of R off the disc's
-const DISC_STAGE_R = 0.66;    // …and its radius. Its rail's floor (0.32R) clears the plate.
+const DISC_STAGE_Y = -0.21;   // the diorama's centre, as a share of R off the disc's
+const DISC_STAGE_R = 0.63;    // …and its radius. Its rail's floor (0.24R) clears the plate.
 const DISC_PLATE = 0.40;      // the words start here — the bottom quarter, no higher
+const DISC_BOT = Math.PI / 2; // the bottom of the rail: where a lesson is staged
 
 // the bore's perspective, one line, shared by every mark in the diorama: z is the
 // sim's own depth, 1 far away and 0 at the ring
@@ -358,7 +366,11 @@ function demoNode(Rs, i, a, span) {
 function demoThreat(Rs, a, z, kind, opt) {
   const o = opt || {}, p = dPersp(z), rail = dRail(Rs);
   const x = Math.cos(a) * rail * p, y = Math.sin(a) * rail * p;
-  const s = Rs * 0.185 * (0.40 + 0.60 * p) * (o.scale || 1);
+  // SMALLER THAN THE LANE DRAWS THEM. A disc's rail is a fraction of the real
+  // ring's, so the lane's own proportion put a single hull across half the bore
+  // and a crowd of five into one red smear. 0.125 keeps the silhouette readable
+  // and leaves the rail visible behind it. (Gil, 2026-08-29.)
+  const s = Rs * 0.125 * (0.40 + 0.60 * p) * (o.scale || 1);
   const col = DEMO_COL[kind] || DEMO_COL.normal;
   ctx.save();
   if (o.alpha !== undefined) ctx.globalAlpha *= o.alpha; // multiply: the loop envelope is already on
@@ -384,7 +396,8 @@ function demoThreat(Rs, a, z, kind, opt) {
     return { x, y, s };
   }
   ctx.translate(x, y);
-  ctx.rotate(a - (o.hex ? -time * 0.5 : Math.PI / 2));
+  const spin = o.hex ? time * 0.5 : 0;
+  ctx.rotate(o.hex ? spin : a - Math.PI / 2);
   ctx.beginPath();
   if (o.hex) {
     for (let i = 0; i < 6; i++) {
@@ -397,10 +410,18 @@ function demoThreat(Rs, a, z, kind, opt) {
     ctx.lineTo(-s * 0.98, s * 0.72);
   }
   ctx.closePath();
-  ctx.fillStyle = 'rgba(10,6,16,0.88)'; ctx.fill();
+  ctx.fillStyle = o.hex ? 'rgba(60,40,5,0.9)' : 'rgba(10,6,16,0.88)'; ctx.fill();
   ctx.lineJoin = 'round';
   ctx.strokeStyle = 'rgb(' + col + ')';
   ctx.lineWidth = Math.max(1.2, s * 0.24); ctx.stroke();
+  // A SHELL IS NOT A POWER. An empty hexagon says a gold thing arrives and says
+  // nothing about what catching it buys, so the relay wears the same face the lane
+  // paints on it — pickupGlyph, the one renderer, so the two can never disagree.
+  // The shell spins and the glyph does not, exactly as drawPickup has it.
+  if (o.hex) {
+    ctx.rotate(-spin);
+    pickupGlyph(o.glyph || 'wide', s);
+  }
   ctx.restore();
   return { x, y, s };
 }
@@ -469,9 +490,9 @@ const DEMO = {
   },
   // ALIGN EITHER EMITTER. The nearest thumb goes and meets it at the rim.
   normal(Rs, t) {
-    const A = -1.9, hit = 2.4;
-    const aB = dSlide(t, 0.5, 1.9, A + 1.9, A);
-    demoNode(Rs, 1, 1.4);
+    const A = DISC_BOT + 0.18, hit = 2.4;
+    const aB = dSlide(t, 0.5, 1.9, A - 1.9, A);
+    demoNode(Rs, 1, -DISC_BOT);   // the idle thumb parks opposite, out of the picture
     demoNode(Rs, 0, aB);
     if (t < hit) demoThreat(Rs, A, 1 - dSeg(t, 0, hit), 'normal');
     else { demoZap(Rs, A, 0, 0, dSeg(t, hit, hit + 0.28)); demoPop(Rs, A, 0, dSeg(t, hit, hit + 0.55)); }
@@ -480,9 +501,9 @@ const DEMO = {
   // DOCK_GAP: docked is docked to within 0.26 rad in the sim, and the diorama keeps
   // the outside of that — two carriages landing on the same pixel read as one.
   heavy(Rs, t) {
-    const A = -1.6, hit = 2.8;
-    demoNode(Rs, 0, dSlide(t, 0.6, 2.0, A - 2.2, A - DOCK_GAP));
-    demoNode(Rs, 1, dSlide(t, 0.9, 2.3, A + 2.2, A + DOCK_GAP));
+    const A = DISC_BOT, hit = 2.8;
+    demoNode(Rs, 0, dSlide(t, 0.6, 2.0, A + 2.2, A - DOCK_GAP));
+    demoNode(Rs, 1, dSlide(t, 0.9, 2.3, A - 2.2, A + DOCK_GAP));
     if (t < hit) demoThreat(Rs, A, 1 - dSeg(t, 0, hit), 'heavy');
     else {
       demoZap(Rs, A, 0, 0, dSeg(t, hit, hit + 0.28));
@@ -492,11 +513,11 @@ const DEMO = {
   },
   // DOCK AND HOLD. The same dock, kept — and the bolt takes the neighbours too.
   volley(Rs, t) {
-    const A = -1.6, zHold = 0.42, rail = dRail(Rs);
+    const A = DISC_BOT, zHold = 0.42, rail = dRail(Rs);
     const z = 1 - dSeg(t, 0, 2.2) * (1 - zHold);
     const dock = dSeg(t, 0.4, 1.6);
-    demoNode(Rs, 0, dSlide(t, 0.4, 1.6, A - 2.0, A - DOCK_GAP));
-    demoNode(Rs, 1, dSlide(t, 0.4, 1.6, A + 2.0, A + DOCK_GAP));
+    demoNode(Rs, 0, dSlide(t, 0.4, 1.6, A + 2.0, A - DOCK_GAP));
+    demoNode(Rs, 1, dSlide(t, 0.4, 1.6, A - 2.0, A + DOCK_GAP));
     // the charge: a white coil winding tighter on the docked bearing
     if (dock >= 1 && t < 2.2) {
       const k = dSeg(t, 1.6, 2.2);
@@ -511,9 +532,10 @@ const DEMO = {
     const gone = t >= 2.9;
     if (!gone) {
       // scaled down: at the trio's depth a full-size mark is wider than the 0.5 rad
-      // gap between them, and three bodies that overlap read as one
+      // gap between them, and three bodies that overlap read as one. 0.90 since the
+      // base size came down — 0.68 on top of that left three specks.
       for (const [da, ty] of [[0, 'heavy'], [-0.5, 'normal'], [0.5, 'normal']])
-        demoThreat(Rs, A + da, z, ty, { scale: 0.68 });
+        demoThreat(Rs, A + da, z, ty, { scale: 0.90 });
       // the bolt, running down the bore on the docked bearing
       if (t > 2.2) {
         const bz = lerp(0, zHold, dSeg(t, 2.2, 2.9));
@@ -544,7 +566,7 @@ const DEMO = {
   },
   // COVER BOTH ENDS. One emitter per end, and the tether between them is the tell.
   line(Rs, t) {
-    const A = -2.3, B = A + 1.5, hit = 3.0;
+    const A = DISC_BOT - 0.75, B = A + 1.5, hit = 3.0;  // the pair straddles the bottom
     demoNode(Rs, 0, dSlide(t, 0.5, 1.9, A - 1.8, A));
     demoNode(Rs, 1, dSlide(t, 0.8, 2.2, B + 1.8, B));
     if (t < hit) {
@@ -568,12 +590,12 @@ const DEMO = {
   // ONLY THE MATCHING PHASE. The wrong emitter is shown ARRIVING and being refused
   // — a lesson about a rejection has to show the rejection.
   lock(Rs, t) {
-    const A = -1.7, hit = 3.4, rail = dRail(Rs);
+    const A = DISC_BOT, hit = 3.4, rail = dRail(Rs);
     const z = t < hit ? 1 - dSeg(t, 0, hit) : 0;
     // white goes first and is turned away; blue, the matching phase, collapses it
-    const aW = t < 1.9 ? dSlide(t, 0.3, 1.3, A + 2.2, A) : dSlide(t, 1.9, 2.5, A, A + 2.2);
+    const aW = t < 1.9 ? dSlide(t, 0.3, 1.3, A - 2.2, A) : dSlide(t, 1.9, 2.5, A, A - 2.2);
     demoNode(Rs, 1, aW);
-    demoNode(Rs, 0, dSlide(t, 2.2, 3.2, A - 2.2, A));
+    demoNode(Rs, 0, dSlide(t, 2.2, 3.2, A + 2.2, A));
     if (t < hit) {
       demoThreat(Rs, A, z, 'lock0');
       if (t > 1.5 && t < 1.95) { // refused: a bar across the wrong emitter's approach
@@ -595,11 +617,13 @@ const DEMO = {
   },
   // CATCH THE GOLD RELAY — and then watch what it bought: both arcs grow.
   pickup(Rs, t) {
-    const A = -2.0, hit = 2.4;
+    const A = DISC_BOT + 0.30, hit = 2.4;
     const wide = 0.30 + 0.16 * dEase(dSeg(t, hit, hit + 0.5));
-    demoNode(Rs, 0, dSlide(t, 0.5, 1.9, A + 1.8, A), wide);
-    demoNode(Rs, 1, 1.5, wide);
-    if (t < hit) demoThreat(Rs, A, 1 - dSeg(t, 0, hit), 'gold', { scale: 0.85, hex: true });
+    demoNode(Rs, 0, dSlide(t, 0.5, 1.9, A - 1.8, A), wide);
+    demoNode(Rs, 1, -DISC_BOT, wide);
+    // BIGGER THAN A THREAT ON PURPOSE. The relay is one friendly body and it now
+    // carries a face — a shell too small to read its glyph teaches the shell only.
+    if (t < hit) demoThreat(Rs, A, 1 - dSeg(t, 0, hit), 'gold', { scale: 1.35, hex: true });
     else demoPop(Rs, A, 0, dSeg(t, hit, hit + 0.5), '255,210,74');
   },
   // RIDE THE CROSSING POINT. The ribbon meanders, the emitter tracks its head, and
@@ -613,7 +637,7 @@ const DEMO = {
     // on the ring first; from then on the RING PLANE walks along the ribbon, and the
     // crossing point is wherever the ribbon happens to be at that instant. That
     // wandering angle is the thing the emitter has to hold, and holding it is the ride.
-    const A = -1.5, rail = dRail(Rs);
+    const A = DISC_BOT, rail = dRail(Rs);
     // THE GAME'S OWN RIBBON, NOT A CARICATURE OF ONE. `spawnStrip` rolls len 0.5–0.85,
     // amp 0.22–0.5 and frq 2.2–4.2, and `stripAngle` is angle + amp·sin(k·frq + ph).
     // The first pass ran amp 0.80 over 2.2 of length — nearly a full cycle at more
@@ -629,18 +653,27 @@ const DEMO = {
                        : -LEN * dSeg(t, IN1, RIDE1);
     const sCross = Math.max(0, -zh);     // which part of the ribbon is at the ring NOW
     const aCross = shape(sCross);
+    // THE LANE'S OWN RIBBON, NOT A DRAWN LINE. `drawStrip` lays 16 wallPatch
+    // segments — a wide dim base with a narrow bright core over it, and the core's
+    // brightness runs along the chain (0.5 + 0.4*sin(time*9 - i*0.9)) so the thing
+    // FLOWS. Two smooth strokes gave a solid gold cable that looked like nothing in
+    // the game. Same segment count and the same flow term here, with each segment's
+    // width riding the perspective so the far end thins into the bore. (Gil, 2026-08-29.)
+    const SEG = 16;
     ctx.save();
-    ctx.lineCap = 'round';
-    for (const [w2, col, al] of [[Rs * 0.062, '255,180,40', 0.45], [Rs * 0.022, '255,235,170', 0.9]]) {
-      ctx.strokeStyle = 'rgba(' + col + ',' + al + ')';
-      ctx.lineWidth = w2;
-      ctx.beginPath();
-      for (let k = 0; k <= 30; k++) {    // only the part still in front of you
-        const ss = lerp(sCross, LEN, k / 30), p = dPersp(zh + ss), aa = shape(ss);
-        const x = Math.cos(aa) * rail * p, y = Math.sin(aa) * rail * p;
-        k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    ctx.lineCap = 'butt';
+    for (let i = 0; i < SEG; i++) {
+      const s0 = lerp(sCross, LEN, i / SEG), s1 = lerp(sCross, LEN, (i + 1) / SEG);
+      const p0 = dPersp(zh + s0), p1 = dPersp(zh + s1), pm = (p0 + p1) / 2;
+      const a0 = shape(s0), a1 = shape(s1);
+      const x0 = Math.cos(a0) * rail * p0, y0 = Math.sin(a0) * rail * p0;
+      const x1 = Math.cos(a1) * rail * p1, y1 = Math.sin(a1) * rail * p1;
+      const flow = 0.5 + 0.4 * Math.sin(time * 9 - i * 0.9);
+      for (const [w2, col, al] of [[0.070, '255,180,40', 0.55], [0.026, '255,235,170', flow]]) {
+        ctx.strokeStyle = 'rgba(' + col + ',' + al.toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1, Rs * w2 * pm);
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
       }
-      ctx.stroke();
     }
     ctx.restore();
     // THE CROSSING POINT. On the approach it is the head, out in the bore; once the
@@ -678,12 +711,29 @@ const DEMO = {
   // The first pass here expanded outward from the centre, which is the picture of
   // something arriving at you. Gil caught it on sight.
   pulse(Rs, t) {
-    const AS = [-2.6, -1.6, -0.5, 0.7, 2.0], rail = dRail(Rs);
-    const z = 0.62 - 0.44 * dSeg(t, 0, 1.6);   // the crowd closes, then the hold
+    // A PULSE CLEARS THE WHOLE RING, SO THE CROWD IS THE WHOLE RING. Gil's call,
+    // 2026-08-29: not all down, and not all at one depth. Five bearings spread
+    // unevenly round the rail, each with its OWN depth, so the picture says "every
+    // bearing, every distance" — which is the whole claim the drill makes.
+    //
+    // This is the ONE lesson that overrides the bottom-of-the-rail rule above. Every
+    // other disc teaches a SILHOUETTE and needs its body upright. This one teaches a
+    // SWEEP, and a sweep that only clears the floor teaches half the power.
+    //
+    // Ordered FAR to NEAR, because that is the paint order: a near body has to
+    // overlap the deep one behind it, never the other way round.
+    //
+    // The depths are spread WIDE but not deep: perspective crushes everything past
+    // z~0.8 into the same few pixels at the middle, so three far bodies read as one
+    // knot. These five land on visibly different radii, the nearest sitting on the
+    // rail itself and the farthest at about a third of it.
+    const CROWD = [[-2.55, 0.86], [0.95, 0.68], [-0.45, 0.52], [2.30, 0.36], [1.50, 0.20]];
+    const rail = dRail(Rs);
+    const close = 0.16 * dEase(dSeg(t, 0, 1.6));   // the whole crowd closes, then holds
     const fired = t >= 2.2;
     const wz = fired ? lerp(0, 1.5, dEase(dSeg(t, 2.2, 3.3))) : 0;  // the front's own depth
-    demoNode(Rs, 1, 2.6);
-    demoNode(Rs, 0, -0.05);
+    demoNode(Rs, 1, -DISC_BOT);   // the idle thumb, parked opposite
+    demoNode(Rs, 0, 0.30);        // …and the charged one, just clear of the crowd
     if (fired) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -704,22 +754,46 @@ const DEMO = {
       }
       ctx.restore();
     }
-    for (const a of AS) {
-      // a body is taken once the front has gone PAST its depth
+    // THE WAVE TAKES THEM IN DEPTH ORDER, NEAREST FIRST. With one shared depth the
+    // five went at once, which is a flash rather than a sweep. Now each body has its
+    // own z, so the front passes them one at a time and the ripple IS the lesson.
+    for (const [a, z0] of CROWD) {
+      const z = z0 - close;
       if (fired && wz >= z) { demoPop(Rs, a, z, dSeg(t, 2.2 + z * 0.7, 2.2 + z * 0.7 + 0.5), '255,210,74'); continue; }
       demoThreat(Rs, a, z, 'normal');
     }
-    if (!fired) { // the charged pad, pinging for the tap
-      const pu = 1 + Math.sin(time * 7) * 0.14;
-      const x = Math.cos(-0.05) * rail, y = Math.sin(-0.05) * rail;
+    if (!fired) {
+      // THE CHARGED PAD, AND IT DOES NOT BOUNCE. It used to breathe its whole
+      // radius in and out on a sine, which read as a cartoon squash and made the
+      // orb's size — the one thing a size should mean — say nothing. Gil, 2026-08-29.
+      // The orb is now a FIXED body, and the "ready" signal is a shine that rolls
+      // once around its rim: same attention, no movement, no change of scale.
+      const x = Math.cos(0.30) * rail, y = Math.sin(0.30) * rail;
+      const R0 = Rs * 0.22;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      const og = ctx.createRadialGradient(x, y, 0, x, y, Rs * 0.22 * pu);
+      const og = ctx.createRadialGradient(x, y, 0, x, y, R0);
       og.addColorStop(0, 'rgba(255,255,255,0.95)');
       og.addColorStop(0.45, 'rgba(255,210,74,0.75)');
       og.addColorStop(1, 'rgba(255,210,74,0)');
       ctx.fillStyle = og;
-      ctx.beginPath(); ctx.arc(x, y, Rs * 0.22 * pu, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, R0, 0, TAU); ctx.fill();
+      // the rim the shine runs on, and the shine itself: a short head of light
+      // travelling round it, drawn as a tail of segments falling off behind
+      const rr = R0 * 0.62;
+      ctx.strokeStyle = 'rgba(255,210,74,0.30)';
+      ctx.lineWidth = Math.max(1.2, Rs * 0.016);
+      ctx.beginPath(); ctx.arc(x, y, rr, 0, TAU); ctx.stroke();
+      ctx.lineCap = 'round';
+      const head = time * 2.1, TAIL = 14, SPAN = 1.5;
+      for (let i = 0; i < TAIL; i++) {
+        const q = i / TAIL;                       // 0 at the head, 1 at the tail's end
+        const a0 = head - SPAN * q, a1 = a0 - SPAN / TAIL - 0.01;
+        const k = Math.pow(1 - q, 2.2);
+        ctx.strokeStyle = 'rgba(255,252,232,' + (0.85 * k).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1, Rs * 0.020 * (0.45 + 0.55 * k));
+        ctx.beginPath(); ctx.arc(x, y, rr, a1, a0); ctx.stroke();
+      }
       ctx.restore();
       if (t > 1.7) { // the tap ripple that spends it
         const k = dSeg(t, 1.7, 2.2);

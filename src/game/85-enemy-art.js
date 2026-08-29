@@ -868,6 +868,14 @@ function drawPickup(p, g) {
   // same way from the horizon to the ring. A glyph that turned with the shell
   // would be a symbol the player has to re-read on every frame.
   ctx.rotate(-p.spin * 0.6);
+  pickupGlyph(gk, size);
+  ctx.restore();
+}
+// THE FACE A GOLD SHELL WEARS, on its own so the lane and the drill disc cannot
+// drift apart. `size` is the shell's radius; the caller has already translated to
+// the shell's middle and wound off whatever spin the shell is wearing.
+function pickupGlyph(gk, size) {
+  ctx.save();
   ctx.strokeStyle = '#ffe9b0'; ctx.fillStyle = '#ffe9b0';
   ctx.lineWidth = Math.max(1, size * 0.12); ctx.lineCap = 'round';
   const s2 = size * 0.52;
