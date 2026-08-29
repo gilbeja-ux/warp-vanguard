@@ -20,8 +20,16 @@ let ctx = canvas.getContext('2d', { alpha: false }); // rebindable so offscreen 
 let W = 0, H = 0, DPR = 1;
 let SAFE = { t: 0, b: 0, l: 0, r: 0 }; // safe-area insets mapped into game space
 function withCanvas(cv, fn) {
-  const o = ctx; ctx = cv.getContext('2d');
+  // A REFUSED CONTEXT IS AN ANSWER, NOT A CRASH. A browser at its canvas budget —
+  // a long multi-tab session, which is where Gil hit this on 2026-08-29 — hands
+  // back null here, and `ctx = null` turned the next drawing call into a throw
+  // that unwound through whatever build was in progress. The buffer simply does
+  // not get painted; the caller's own guard decides what to do about it.
+  const c = cv.getContext('2d');
+  if (!c) return false;
+  const o = ctx; ctx = c;
   try { fn(); } finally { ctx = o; }
+  return true;
 }
 
 let ROT = false; // landscape-only: on portrait screens the whole game renders rotated 90°
@@ -63,9 +71,14 @@ function resize() {
     const st = px('--sat'), sb = px('--sab'), sl = px('--sal'), sr = px('--sar');
     SAFE = ROT ? { l: st, r: sb, t: sr, b: sl } : { t: st, b: sb, l: sl, r: sr };
   } catch (e) { SAFE = { t: 0, b: 0, l: 0, r: 0 }; }
-  buildBackground();
-  buildMenuCache();
-  syncUiLayer();
+  // EACH REBUILD STANDS ALONE. They used to run as three bare statements, so a
+  // canvas refused inside the first one threw and the other two never ran — the
+  // frame ended up with no menu furniture and a stale UI layer on top of whatever
+  // the background got as far as. Gil, 2026-08-29: optimise it so it cannot
+  // happen. One failing buffer is a missing buffer, never a missing resize.
+  for (const build of [buildBackground, buildMenuCache, syncUiLayer]) {
+    try { build(); } catch (e) {}
+  }
 }
 window.addEventListener('resize', resize);
 // map screen-space pointer coords into (possibly rotated) game space

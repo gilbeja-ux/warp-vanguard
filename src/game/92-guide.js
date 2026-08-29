@@ -494,6 +494,16 @@ function paintMenuStatic() {
   }
 }
 let menuCache = null, menuCacheScreen = null;
+// THE MENU'S FURNITURE IS NOT NEEDED IN A LANE, and it is a full-screen canvas —
+// 19MB at 1289x988 on a DPR 2 display, held for the whole of every run. Released
+// when a run starts, the way the enlistment releases its own buffers
+// (enlistArtRelease). Nothing has to remember to rebuild it: its one reader
+// already builds it when it is missing. Setting the size to zero is what actually
+// hands the pixels back — dropping the reference alone waits on a collection.
+function menuArtRelease() {
+  if (menuCache) menuCache.width = menuCache.height = 0;
+  menuCache = null; menuCacheScreen = null;
+}
 function buildMenuCache() {
   if (!W || !H) return;
   menuCacheScreen = menuScreen;

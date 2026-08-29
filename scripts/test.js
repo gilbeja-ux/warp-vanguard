@@ -174,6 +174,8 @@ code = code.replace("'use strict';", '') + `
   // the ring the whole game is mounted on: the accessor, and the two facts it keeps
   ringFx, getRingFxCv: () => ringFxCv, getRingFxSig: () => ringFxSig,
   clearRingFx: tried => { ringFxCv = null; ringFxSig = ''; ringFxTried = tried || ''; },
+  // the two buffers a lane does not need, and the gradient that stopped being one
+  getMenuCache: () => menuCache, buildMenuCache, menuArtRelease, getVignetteGrad: () => vignetteGrad,
   ARCFX, geo, ring, screen: () => ({ W, H }), bodyR,
   getLevels: () => LEVELS, migrateSaveShape, getInfoCards: () => INFO_CARDS,
   getGpSel: () => gpSel, setGpSel: v => { gpSel = v; },
@@ -3129,6 +3131,32 @@ G.keys['ArrowUp'] = false;
       G.ringFx() === null && G.getRingFxCv() === null);
     G.clearRingFx();
     G.ringFx();   // leave a live ring behind for every test after this one
+  }
+  // ---- WHAT A LANE DOES NOT NEED, A LANE DOES NOT HOLD ----
+  //
+  // Measured on Gil's own viewport (1289x988 at DPR 2) on 2026-08-29: the game
+  // held 191MB of canvas in a lane, which is why a browser in a long multi-tab
+  // session refused the ring's 19MB and the lane ran with no ring at all. The
+  // menu's furniture sheet is 19MB of that and no lane draws it. It is released
+  // when a run starts and rebuilt by its own reader, so nothing has to remember.
+  {
+    G.buildMenuCache();
+    const had = !!G.getMenuCache();
+    G.menuArtRelease();
+    check('the menu\'s furniture sheet can be handed back', had && !G.getMenuCache());
+    G.buildMenuCache();                     // …and it comes straight back when asked
+    check('the menu sheet is rebuilt by the screen that wants it', !!G.getMenuCache());
+    // …and the release is WIRED to the one door every mode enters a run through.
+    // Checked in the source rather than by starting a run, because starting one
+    // here would hand every test after this a live lane.
+    const inp = fs.readFileSync(path.join(ROOT, 'src', 'game', '60-input.js'), 'utf8');
+    const reset = inp.slice(inp.indexOf('function resetRun()'), inp.indexOf('function resetRun()') + 2000);
+    check('every run releases it, because resetRun does', /menuArtRelease\(\)/.test(reset));
+    // THE VIGNETTE IS A GRADIENT, NOT A 19MB CANVAS. It described two colour stops
+    // with a full-screen buffer, which was the largest pure waste in the game.
+    check('the vignette is a gradient the frame makes, not a sheet it keeps',
+      !/vignetteCanvas/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '20-background.js'), 'utf8')) &&
+      !/vignetteCanvas/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '99-boot.js'), 'utf8')));
   }
 
   check('a relay is a star exactly when its frozen variant is one',

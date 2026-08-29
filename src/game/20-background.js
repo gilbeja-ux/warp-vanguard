@@ -1,6 +1,8 @@
 'use strict';
 // ---------- background (deep data-space behind the tunnel walls) ----------
-let bgCanvas = null, vignetteCanvas = null, wallTex = null, wallCloud = null;
+let bgCanvas = null, wallTex = null, wallCloud = null;
+// the vignette, as the gradient it always was — see the note in buildBackgroundSeeded
+let vignetteGrad = null;
 let ringFxCv = null, grainCv = null; // prerendered monolith ring + film-grain tile
 // …and the viewport that ring was built for. The ring is the hardware the whole
 // game is mounted on, so "which size is it" and "did the build succeed" are two
@@ -247,15 +249,19 @@ function buildBackgroundSeeded() {
   // holdover from thinking of the bore as a built structure — a lit corridor with
   // markings. It is open space with a containment field in it, and the chevrons
   // read as exactly what they were: graphics stuck to nothing.)
-  // vignette cache
-  vignetteCanvas = document.createElement('canvas');
-  vignetteCanvas.width = W * DPR; vignetteCanvas.height = H * DPR;
-  const v = vignetteCanvas.getContext('2d');
-  v.setTransform(DPR, 0, 0, DPR, 0, 0);
-  const vg = v.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.42, W / 2, H / 2, Math.max(W, H) * 0.72);
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,0.38)');
-  v.fillStyle = vg; v.fillRect(0, 0, W, H);
+  // THE VIGNETTE IS A GRADIENT, NOT A PICTURE.
+  //
+  // It was a full-screen cached canvas — 19MB of it at 1289x988 on a DPR 2
+  // display — holding two stops of transparent-to-black. Nothing in it varies
+  // per pixel in a way a gradient does not already describe, so the cache bought
+  // one fillRect a frame and cost more memory than every enemy hull in the game
+  // put together. Gil, 2026-08-29, after a browser refused the ring's canvas in a
+  // long multi-tab session: optimise it so it cannot happen. This is the largest
+  // buffer in the game that was pure waste.
+  //
+  // The GRADIENT is still cached — it is the object that costs something to make,
+  // and it only changes with the frame. See drawVignette in 99-boot.js.
+  vignetteGrad = null;
 
   // THE STRIPS — the far field's sheets, SKY_WS screens wide. The extra 0.6
   // screens and the seam discipline are inherited from the panning sky and
@@ -276,6 +282,9 @@ function buildBackgroundSeeded() {
   skyStruct = document.createElement('canvas');
   skyStruct.width = sw; skyStruct.height = H;
   const sb = skyStruct.getContext('2d');
+  // A REFUSED CONTEXT LEAVES EARLY, and leaves the previous sky standing rather
+  // than throwing through the rest of the build. See withCanvas in 00-core.js.
+  if (!sb) return;
   // deep navy base — the void the lane is threaded through. It stays near-black:
   // the hyperspace references only go blue during the JUMP, and cruise is dark.
   // It lives on the structure strip, the layer that always covers the frame.
@@ -286,9 +295,11 @@ function buildBackgroundSeeded() {
   skyClouds = document.createElement('canvas');
   skyClouds.width = sw; skyClouds.height = H;
   const cb = skyClouds.getContext('2d');
+  if (!cb) return;
   bgCanvas = document.createElement('canvas');
   bgCanvas.width = sw * SKY_DPR; bgCanvas.height = H * SKY_DPR;
   const b = bgCanvas.getContext('2d');
+  if (!b) return;
   b.setTransform(SKY_DPR, 0, 0, SKY_DPR, 0, 0);
   // the menu layer's sheet: TRANSPARENT, like the star strip — they composite
   // over the structure rather than replacing it, so they carry stars and

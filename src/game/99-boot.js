@@ -1307,9 +1307,24 @@ function tintGrad(tint) {
   tintCv = gr; tintKey = k; tintCtx = ctx;
   return gr;
 }
+// The cinematic vignette: two stops, straight onto the frame. It used to be a
+// full-screen cached canvas, which is 19MB to describe a gradient — see the note
+// in buildBackgroundSeeded. The gradient object is what gets cached, and it is
+// rebuilt only when the frame changes size.
+function drawVignette() {
+  if (!vignetteGrad) {
+    vignetteGrad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.42,
+      W / 2, H / 2, Math.max(W, H) * 0.72);
+    if (!vignetteGrad) return;
+    vignetteGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    vignetteGrad.addColorStop(1, 'rgba(0,0,0,0.38)');
+  }
+  ctx.fillStyle = vignetteGrad;
+  ctx.fillRect(0, 0, W, H);
+}
 function drawPostChain(rawDt, worldFx, g) {
   // cinematic vignette + color grade (under the HUD so controls stay crisp)
-  if (vignetteCanvas) ctx.drawImage(vignetteCanvas, 0, 0, W, H);
+  drawVignette();
   // film-grain finish (ARCFX.grain) — skipped on struggling devices
   if (grainCv && !lowFX && state !== S.MENU) {
     ctx.globalAlpha = 0.05 * ARCFX.grain;

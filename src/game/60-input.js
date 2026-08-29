@@ -583,6 +583,7 @@ function resetRun() {
   replaying = false;
   assist = false;   // every mode starts clean — startLevel re-arms it AFTER this
   heavyCue = null;  // the first-contact armor guides belong to one run only
+  menuArtRelease(); // the menu's furniture sheet is not needed in a lane — 92-guide.js
   // modifiers stay locked until the campaign is cleared
   if (!anyCampaignCleared()) mutators.oneLife = mutators.fast = mutators.noPickups = false;
   // the player must never fly into an EMPTY tunnel: the first release fires on
