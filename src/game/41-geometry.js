@@ -96,8 +96,48 @@ const BREACHFX = {
   ringI: 0.85,    // and how hard it burns
   // the drill's own core light, so the shaft reads against a dark bore instead
   // of disappearing into it — the old body's siphon line, in one stroke
-  spine: 0.70
+  spine: 0.70,
+  // ---- PLANTED IN THE LANE, NOT GLUED ON IT (Gil, 2026-08-29) ----
+  //
+  // Four knobs, one complaint. The bodies were correct hardware sitting on top of
+  // a correct corridor, and nothing tied the two together: no air between them, no
+  // damage where they landed, no light off the wall. Each of these buys back one
+  // of those, and each is a knob rather than a constant because the read is a
+  // judgement and the numbers will move.
+  //
+  // THE FLOOR OF THE LANE'S AIR. drawTunnel dims its wall bands with depth and a
+  // body ignored that entirely, so a hull at the horizon burned as hard as one on
+  // the ring — the exact tell of a decal over a receding tunnel. This is the
+  // dimmest a far body may go. It is a FLOOR, not a strength: a threat that cannot
+  // be read is worse than one that is pasted on, and the colour rule has to survive
+  // the whole bore. See laneHaze in 85-enemy-art.js, which shares drawTunnel's own
+  // curve so the two can never disagree about how deep the lane is.
+  //
+  // HALF THE INK AT THE HORIZON, and it is set on the safe side on purpose. 0.42
+  // was tried and reads better as air, but reading an inbound threat early is the
+  // whole game and this number is the only one in the file that can cost it. Take
+  // it down only after a lane has been played at the lower value, not from a still.
+  haze: 0.50,
+  // THE HOLE IT CAME THROUGH. A contact shadow says an object RESTS here; a torn
+  // plate with a lit lip and cracks running out of it says one ARRIVED. The
+  // grounding pool stays and lands on top of this — scorch under shadow.
+  crater: 1.00,
+  // THE LANE IN FRONT OF THE BODY. Every wall band draws before every hull, so a
+  // body was unconditionally on top of the corridor it lives in. One thin stamp of
+  // the tunnel's own haze sheet over the plate puts air back between the camera
+  // and the metal. Small on purpose: this is atmosphere, and the moment it reads
+  // as a smudge on the trap it has cost more than it bought.
+  veil: 0.55,
+  // THE WALL'S BOUNCE. The bore is lit cool-blue by its own wall and the far end
+  // is a deliberate VOID (see drawFarEnd), so there is exactly one ambient in this
+  // room and it comes from every side at once. A hull's shadow side fell to black,
+  // which is what an object in empty space does, not one lying in a lit corridor.
+  amb: 0.55
 };
+// THE ONE AMBIENT IN THE BORE — the wall's own blue, sampled off the haze blobs
+// wallCloud is built from (see 20-background.js). One ink, because there is one
+// light: do not add a warm axial term, the far end is unlit by design.
+const LANE_AMB = '96,152,224';
 const enGun = l => { l *= ENEMYFX.mMetal; return `rgb(${Math.round(l * 0.92)},${Math.round(l * 0.96)},${Math.round(Math.min(255, l * 1.04))})`; };
 
 // nodes: [left(blue), right(white)]

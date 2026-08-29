@@ -382,6 +382,25 @@ function drawStrip(en, g, fade) {
 // and early-clamped mid-bore drops alike emerge from the glow. Draw-only:
 // zero effect on hitboxes or timing.
 const birthFade = o => clamp((o.age || 0) / 0.35, 0, 1);
+// THE LANE'S OWN AIR, AS A NUMBER.
+//
+// drawTunnel dims each wall band with depth — `((1 - z) * 0.85 + 0.08)`, one
+// line, at 80-tunnel.js — and a body ignored it completely. So a hull at the
+// horizon burned at exactly the ink of one on the node ring, which is the tell of
+// a decal laid over a receding tunnel rather than something standing in it.
+//
+// This is that SAME expression, normalised so the node ring is 1. Sharing the
+// curve rather than inventing a parallel one is the whole point: if the wall's
+// falloff is ever retuned the bodies follow it on their own, and the two can
+// never end up disagreeing about how deep the lane is.
+//
+// The floor is BREACHFX.haze and it is a floor, not a strength. A far threat has
+// to stay readable — the colour rule is the gameplay language at every depth —
+// so this recedes a body, it never hides one.
+const laneHaze = (z, g) => {
+  const n = clamp(((1 - z) * 0.85 + 0.08) / ((1 - g.hitZ) * 0.85 + 0.08), 0, 1);
+  return BREACHFX.haze + (1 - BREACHFX.haze) * n;
+};
 // per-type palettes — the color IS the gameplay language: red = any node,
 // blue/white = matching node, purple = both nodes, orange = it moves.
 // shared by the body renderer and the decompile, so a death speaks in the
@@ -552,6 +571,55 @@ const breachPhi = a => Math.atan2(-Math.cos(a), Math.sin(a));
 // gameplay language and belongs to the instance, not the hull — so one hull
 // serves red, blue, white and purple, and nothing about which node takes a trap
 // is ever baked into metal. Built once per hull per ink and kept on the sprite.
+// THE WALL'S BOUNCE, POURED THROUGH THE SAME COVERAGE MASK.
+//
+// A hull's shadow side fell to black. That is correct for a body in empty space
+// and wrong for one lying in a lit corridor: the bore is a room, its wall is a
+// blue-lit surface wrapping the body on every side, and some of that light comes
+// back. Filling the dark half with the wall's own ink is the single cheapest
+// thing that stops a hull reading as a cut-out pasted over a tunnel.
+//
+// ONE INK, NOT TWO. There is exactly one ambient in this room. The far end is a
+// deliberate VOID (see drawFarEnd) and the lane filaments only fire during the
+// 0.9s entry dive, so there is no warm axial term to add and adding one would be
+// inventing a light the corridor does not have.
+//
+// SHADOW SIDE ONLY, and the side is BAKED IN. `sp.beta` is where the key landed
+// on this view and it never moves for this sprite, so the ramp that knocks the
+// wash off the lit half can live in the cached canvas instead of being rebuilt
+// every frame. One canvas per sprite view.
+//
+// HALF RESOLUTION, DELIBERATELY. This is a soft low-alpha wash and nothing in it
+// has an edge, so half a side is invisible and the cache costs a quarter. That
+// matters: 18 sprite views already carry up to four type inks each, and a browser
+// has refused this game a canvas before.
+function breachAmbient(sp) {
+  if (!sp.field || sp.beta === undefined) return null;
+  if (sp.amb !== undefined) return sp.amb;
+  const w = Math.max(2, sp.cv.width >> 1), h = Math.max(2, sp.cv.height >> 1);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const x = c.getContext('2d');
+  if (!x) { sp.amb = null; return null; }
+  x.drawImage(sp.field, 0, 0, w, h);
+  x.globalCompositeOperation = 'source-in';
+  x.fillStyle = 'rgb(' + LANE_AMB + ')';
+  x.fillRect(0, 0, w, h);
+  // knock the wash off the lit half: a linear ramp running from the sun side to
+  // the shadow side, so what survives is the light the WALL put there and never a
+  // second highlight competing with the baked key
+  x.globalCompositeOperation = 'destination-out';
+  const ux = Math.cos(sp.beta), uy = Math.sin(sp.beta);
+  const r = Math.hypot(w, h) * 0.5;
+  const rmp = x.createLinearGradient(w / 2 - ux * r, h / 2 - uy * r, w / 2 + ux * r, h / 2 + uy * r);
+  rmp.addColorStop(0, 'rgba(0,0,0,0)');      // shadow side: the bounce stays
+  rmp.addColorStop(0.55, 'rgba(0,0,0,0.55)');
+  rmp.addColorStop(1, 'rgba(0,0,0,0.96)');   // sun side: the key already owns it
+  x.fillStyle = rmp;
+  x.fillRect(0, 0, w, h);
+  sp.amb = c;
+  return c;
+}
 function breachTint(sp, glow) {
   if (!sp.field) return null;
   sp.tints = sp.tints || {};
@@ -631,7 +699,9 @@ function drawBreachHull(id, x, y, a, size, glow, alpha, g) {
   }
   // THE GROUNDING STAYS LIVE: one soft pool squashed onto the wall, scorch under
   // the plate melting into contact shadow. A baked shadow is a grey patch that
-  // never matches the tunnel it lands on.
+  // never matches the tunnel it lands on. It goes UNDER the crater below, so the
+  // wound's lit lip survives it — a shadow does not cover the metal that catches
+  // the light, and burying the lip under the pool was the whole crater wasted.
   if (BREACHFX.ground > 0.02 && g) {
     ctx.save();
     ctx.translate(x, y); ctx.rotate(phi); ctx.scale(1, ENEMYFX.squash);
@@ -642,6 +712,99 @@ function drawBreachHull(id, x, y, a, size, glow, alpha, g) {
     sh.addColorStop(1, 'rgba(0,2,8,0)');
     ctx.fillStyle = sh;
     ctx.beginPath(); ctx.arc(0, 0, rr, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  // ---- THE HOLE IT CAME THROUGH ----
+  //
+  // A contact shadow says an object RESTS here. That is what the pool below draws,
+  // and on its own it is why the hulls read as glued to the wall rather than
+  // planted in it: nothing in the tunnel was ever DAMAGED by the thing standing on
+  // it. The fiction is a breach — a tap that punched the plating from outside — so
+  // the wall owes it a wound.
+  //
+  // Three strokes, in the wall's own frame so the bore's foreshortening owns all
+  // of them: a torn dark hole with a ragged rim, a LIT LIP on the sun side where
+  // the peeled metal catches the same key the hull does, and hairline cracks
+  // running out into the plate. The lip is what sells it — a hole without one is a
+  // dark blob, and a dark blob under a dark body is nothing at all.
+  //
+  // EVERY RANDOM HERE IS A HASH OF THE BODY'S ANGLE, never Math.random and never
+  // the screen position. A body's angle does not move, so its wound does not crawl
+  // frame to frame; and the render stays out of the sim's number stream, which is
+  // the rule a boss fight already had to learn.
+  if (BREACHFX.crater > 0.02 && g && sp.beta !== undefined) {
+    const K = BREACHFX.crater;
+    const hs = h => arcHash(a * 137.0 + h);      // one stable stream per body
+    // THE WOUND NEVER LEAVES THE REACH. The target ring is the drawn edge of what
+    // an emitter can take (see BREACHFX.ring), and it is the one boundary on this
+    // wall that already means something. Everything the crater draws — hole, lip
+    // and the longest crack — is held inside it. Two reasons, and each alone is
+    // enough: cracks reaching past the hoop would put damage on ground the aim cue
+    // says is out of play, and they would spill into the next body's cell on a
+    // crowded wall and onto the field guide's tuned cells besides.
+    const out = size * BREACHFX.ring * 0.92;
+    const rr = Math.min(w * 0.46, out * 0.80) * K;  // the hole, inside the plate's own footprint
+    const lipA = (sp.beta || 0);                 // where the key lands on THIS view
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(phi); ctx.scale(1, ENEMYFX.squash);
+    // the torn opening: a circle with a hashed radius per vertex, so no two bodies
+    // wear the same tear and none of them wears a machined circle
+    const tear = (k) => {
+      ctx.beginPath();
+      const N = 14;
+      for (let i = 0; i <= N; i++) {
+        const t2 = i / N * TAU;
+        const rj = rr * k * (0.82 + 0.30 * hs(i));
+        const px = Math.cos(t2) * rj, py = Math.sin(t2) * rj;
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.closePath();
+    };
+    // 1. THE VOID. Darker than the grounding pool and harder-edged, because this
+    // is a hole through the plate, not a shadow cast on it.
+    const hole = ctx.createRadialGradient(0, 0, 0, 0, 0, rr);
+    hole.addColorStop(0, 'rgba(0,0,0,' + (0.92 * alpha).toFixed(3) + ')');
+    hole.addColorStop(0.62, 'rgba(0,1,4,' + (0.74 * alpha).toFixed(3) + ')');
+    hole.addColorStop(1, 'rgba(0,2,8,' + (0.10 * alpha).toFixed(3) + ')');
+    ctx.fillStyle = hole;
+    tear(1); ctx.fill();
+    // 2. THE LIT LIP, on the sun side only. Peeled plating standing proud of the
+    // hole, catching the same key the hull was baked under — which is why it is
+    // drawn about `sp.beta` and not about some invented light of its own.
+    //
+    // IT IS WARM, AND THAT IS A GAMEPLAY DECISION, NOT A TASTE ONE. A cool white
+    // lip is the same ink as a white lock's target ring and sits a few pixels off
+    // it, so on that one type the wound would read as a second aim hoop. Amber is
+    // the one hue no trap type wears — red, blue, white and purple are all spoken
+    // for — so the wound can never be mistaken for the reach. It is also the true
+    // colour of plating that has just been punched through.
+    //
+    // Short arc, low burn. A lip that runs most of the way round stops reading as
+    // a lit EDGE and starts reading as a ring, which is the thing it must not be.
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (const [k, wm, am] of [[1.03, 0.16, 0.17], [1.0, 0.075, 0.40]]) {
+      ctx.strokeStyle = 'rgba(236,186,124,' + (am * alpha * K).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(1, rr * wm);
+      ctx.beginPath();
+      ctx.arc(0, 0, rr * k, lipA - 0.92, lipA + 0.92);
+      ctx.stroke();
+    }
+    // 3. THE CRACKS. Five hairlines walking out of the rim into the plate, each
+    // one kinked once so it reads as split metal and not as a spoke.
+    ctx.strokeStyle = 'rgba(150,178,214,' + (0.34 * alpha * K).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(0.6, rr * 0.035);
+    for (let i = 0; i < 5; i++) {
+      const ca = hs(40 + i) * TAU;
+      const len = Math.min(rr * (0.55 + 1.05 * hs(60 + i)) * ENEMYFX.mCrack,
+        Math.max(0, out - rr));               // held inside the reach, see `out`
+      const kink = (hs(80 + i) - 0.5) * 0.55;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(ca) * rr * 0.92, Math.sin(ca) * rr * 0.92);
+      ctx.lineTo(Math.cos(ca) * (rr + len * 0.5), Math.sin(ca) * (rr + len * 0.5));
+      ctx.lineTo(Math.cos(ca + kink) * (rr + len), Math.sin(ca + kink) * (rr + len));
+      ctx.stroke();
+    }
     ctx.restore();
   }
   // The puncture is not the sprite's middle any more — the bake slides the camera
@@ -690,6 +853,16 @@ function drawBreachHull(id, x, y, a, size, glow, alpha, g) {
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -L); ctx.stroke();
     ctx.restore();
   }
+  // THE WALL'S BOUNCE, before the type ink so the colour still lands on top of it.
+  // See breachAmbient: this is the corridor's own light filling a shadow side that
+  // was falling to black, which is what a body in empty space does and not what
+  // one lying in a lit tunnel does.
+  const amb = BREACHFX.amb > 0.02 ? breachAmbient(sp) : null;
+  if (amb) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = alpha * BREACHFX.amb;
+    ctx.drawImage(amb, -w / 2, dy, w, w);
+  }
   const t = BREACHFX.tint > 0.02 ? breachTint(sp, glow) : null;
   if (t) {
     ctx.globalCompositeOperation = 'lighter';
@@ -732,6 +905,12 @@ function drawEnemy(en, g) {
   let fade = en.resolved ? clamp(en.z / g.hitZ, 0, 1) : 1;
   fade *= clamp((SPAWN_Z - 0.02 - en.z) / 0.45, 0, 1); // long, soft entrance at the horizon
   fade *= birth;
+  // THE LANE'S AIR GOES ON EVERY BODY, hull and sprite skin alike — a decal is a
+  // decal whichever renderer painted it. `arch` bodies are the field guide's
+  // specimens and the enrolment room's traffic: they stand in their own private
+  // bore with its own light, not in a lane, so they keep their full ink and this
+  // change is a no-op on both screens.
+  if (!en.arch) fade *= laneHaze(en.z, g);
   if (fade <= 0.005) return;
   const PAL = enemyPal(en);
 
@@ -769,6 +948,37 @@ function drawEnemy(en, g) {
     // until every hull is in (see SPL.hold), so reaching this line means the bake
     // FAILED, not that it is late.
     drawNailBreach(en, g, fade, PAL);
+  }
+  // ---- THE LANE PASSES IN FRONT OF THE BODY ----
+  //
+  // Every wall band is drawn before every enemy (see the draw order in 99-boot.js),
+  // so a hull was unconditionally on top of the corridor it lives in. Nothing of
+  // the lane ever crossed it. That is the definition of a sticker, and no amount
+  // of shading underneath the body can argue with it.
+  //
+  // So: one stamp of the tunnel's OWN haze sheet, at the depth ring THIS body sits
+  // on, clipped to a disc around it. Same `wallCloud`, same `rg.r / 0.75` radius
+  // drawTunnel uses for a band at this depth, so the patch cannot disagree with
+  // the wall it is a piece of. The phase rides `tunnelScroll`, which is what the
+  // bands travel on, so the air drifts instead of being pinned to the trap.
+  //
+  // DELIBERATELY FAINT, and it goes over the hull but UNDER the warp-in flash and
+  // the aim cues. This is atmosphere. The moment it reads as a smudge on a trap it
+  // has cost the player more than it bought. `arch` bodies stand in a private bore
+  // that has no wall sheet at all, so they skip it.
+  if (BREACHFX.veil > 0.02 && wallCloud && !en.arch) {
+    const hs = rg.r / 0.75;
+    const av = 0.13 * BREACHFX.veil * fade * clamp(1.25 - en.z, 0.25, 1);
+    if (av > 0.004) {
+      ctx.save();
+      ctx.beginPath(); ctx.arc(x, y, size * 3.2, 0, TAU); ctx.clip();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = av;
+      ctx.translate(rg.x, rg.y);
+      ctx.rotate(tunnelScroll * 0.55 + 0.9);
+      ctx.drawImage(wallCloud, -hs, -hs, hs * 2, hs * 2);
+      ctx.restore();
+    }
   }
   // warp-in flash — ONLY for authored mid-bore drops, which genuinely appear out
   // of nothing and need the telegraph. A horizon spawn must never announce
