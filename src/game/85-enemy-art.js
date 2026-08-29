@@ -1827,7 +1827,14 @@ function drawHolderRing(g) {
     // soft occlusion shadow behind the band, then the prerendered monolith
     ctx.strokeStyle = 'rgba(0,0,0,0.14)'; ctx.lineWidth = bz * 1.6;
     ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, 0, TAU); ctx.stroke();
-    if (ringFxCv) ctx.drawImage(ringFxCv, 0, 0, W, H);
+    // THE RING IS NEVER ABSENT. `if (ringFxCv)` used to be the whole guard, and a
+    // missing prerender meant a run with no ring at all — the arcs, the bodies and
+    // the whole aiming read floating on nothing, which is what Gil saw on
+    // 2026-08-29. ringFx() rebuilds it on demand; if even that is refused, the band
+    // is stroked live. The finish can be lost. The hardware cannot.
+    const rfx = ringFx();
+    if (rfx) ctx.drawImage(rfx, 0, 0, W, H);
+    else drawRingBandPlain();
     // warm river light still catches the band's lower outer edge — and goes out
     // with the convoy when the lane parks
     if (laneFlow > 0.01) {

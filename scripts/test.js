@@ -171,6 +171,9 @@ code = code.replace("'use strict';", '') + `
   s3BreachKeys,
   // the boot gate: the queue it drains, the question it asks, and the beat it holds on
   getS3Order: () => s3Order, s3BreachReady, getS3Sprites: () => s3Sprites, SPLASH, SPL, S3D_LIGHT,
+  // the ring the whole game is mounted on: the accessor, and the two facts it keeps
+  ringFx, getRingFxCv: () => ringFxCv, getRingFxSig: () => ringFxSig,
+  clearRingFx: tried => { ringFxCv = null; ringFxSig = ''; ringFxTried = tried || ''; },
   ARCFX, geo, ring, screen: () => ({ W, H }), bodyR,
   getLevels: () => LEVELS, migrateSaveShape, getInfoCards: () => INFO_CARDS,
   getGpSel: () => gpSel, setGpSel: v => { gpSel = v; },
@@ -3098,6 +3101,34 @@ G.keys['ArrowUp'] = false;
     keys.forEach((k, i) => { if (prev[i] === undefined) delete sp[k]; else sp[k] = prev[i]; });
     check('the gate opens on every hull RESOLVED, not on every hull succeeding',
       closedOnEmpty && closedOnOneShort && openOnSkipAndFail);
+  }
+
+  // ---- THE RING IS NEVER ABSENT ----
+  //
+  // The ring is the hardware every arc, every body and the whole aiming read are
+  // mounted on, and it used to be able to vanish for a whole session: buildRingFx
+  // assigned `ringFxCv` BEFORE drawing into it and never checked getContext, so a
+  // refused canvas left a blank one assigned and threw out of resize() — past
+  // buildMenuCache() and syncUiLayer() — and drawHolderRing's `if (ringFxCv)` drew
+  // nothing from then on, with nothing able to rebuild it. Gil, 2026-08-29: the ring
+  // didn't load.
+  {
+    const vp = G.viewport();
+    check('the ring is built for the viewport it is drawn at',
+      !!G.ringFx() && G.getRingFxSig().indexOf(vp.W + 'x' + vp.H + '@') === 0);
+    // …and it comes BACK. A cleared prerender is rebuilt on the next ask rather
+    // than leaving the game ringless until a resize that may never come.
+    G.clearRingFx();
+    check('a lost ring is rebuilt on the next frame that asks for it', !!G.ringFx());
+    // …but a REFUSED one is not retried every frame. `tried` carries the viewport
+    // the build already failed at, and a 300-line prerender attempted sixty times a
+    // second is a worse failure than the one it is trying to recover from.
+    const sig = G.getRingFxSig();
+    G.clearRingFx(sig);
+    check('a refused ring is attempted once per viewport, not once per frame',
+      G.ringFx() === null && G.getRingFxCv() === null);
+    G.clearRingFx();
+    G.ringFx();   // leave a live ring behind for every test after this one
   }
 
   check('a relay is a star exactly when its frozen variant is one',

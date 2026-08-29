@@ -2,6 +2,10 @@
 // ---------- background (deep data-space behind the tunnel walls) ----------
 let bgCanvas = null, vignetteCanvas = null, wallTex = null, wallCloud = null;
 let ringFxCv = null, grainCv = null; // prerendered monolith ring + film-grain tile
+// …and the viewport that ring was built for. The ring is the hardware the whole
+// game is mounted on, so "which size is it" and "did the build succeed" are two
+// questions that must be answerable — see ringFx().
+let ringFxSig = '', ringFxTried = '';
 // A DENSER SKY FOR THE SCREENS THAT ARE MOSTLY SKY.
 //
 // On a menu the backdrop IS the picture — the bore is not there to fill the middle
@@ -626,13 +630,61 @@ function buildBackgroundSeeded() {
 // matte gunmetal under ONE key light — the lit sector glints, the far side
 // dies — with machined hairlines, an engraved index scale, seams and flange
 // bolts. Static, so it prerenders once per resize.
+// THE RING'S OWN GRADIENT, as a value. The torus reads as metal because of these
+// seven stops and nothing else, so the prerender and the live stand-in below take
+// them from one place rather than each carrying a copy that can drift.
+function ringBandGrad(c, cx, cy, Rin, Rout) {
+  const rg = c.createRadialGradient(cx, cy, Rin, cx, cy, Rout);
+  rg.addColorStop(0,    'rgb(3,5,9)');
+  rg.addColorStop(0.07, arcGun(19));
+  rg.addColorStop(0.32, arcGun(35));
+  rg.addColorStop(0.46, arcGun(45));
+  rg.addColorStop(0.62, arcGun(29));
+  rg.addColorStop(0.9,  arcGun(11));
+  rg.addColorStop(1,    'rgb(2,3,6)');
+  return rg;
+}
+// THE BAND, DRAWN LIVE. Everything the prerender adds — the key wash, the brushed
+// grain, the hairlines, the index scale, the flange bolts — is finish. This is the
+// hardware itself, and it costs one stroke. It exists so that a machine which
+// cannot allocate the prerender still has a ring to ride: see ringFx().
+function drawRingBandPlain() {
+  const nodeR = Math.min(W, H) * 0.44, cx = W / 2, cy = H / 2;
+  const bh = Math.min(W, H) * 0.055 * ARCFX.bandW;
+  ctx.lineWidth = bh * 2;
+  ctx.strokeStyle = ringBandGrad(ctx, cx, cy, nodeR - bh, nodeR + bh);
+  ctx.beginPath(); ctx.arc(cx, cy, nodeR, 0, TAU); ctx.stroke();
+}
+// THE RING, ON DEMAND, and it is never allowed to be silently absent.
+//
+// It used to be built only from resize(), and `ringFxCv` was assigned BEFORE the
+// canvas was drawn into — so a refused 2d context (a browser at its canvas budget,
+// which is a real limit and one this game got closer to the day the enemy bake
+// moved to boot) left a blank canvas assigned, threw out of resize() past
+// buildMenuCache() and syncUiLayer(), and the game ran on with no ring at all and
+// no way to ever get one back. Gil, 2026-08-29, on seeing exactly that: the ring
+// didn't load. So: the build assigns only on success, this asks for the ring the
+// frame actually needs, and a failed build is retried once per viewport rather
+// than every frame.
+function ringFx() {
+  const sig = W + 'x' + H + '@' + DPR;
+  if (ringFxCv && ringFxSig === sig) return ringFxCv;
+  if (ringFxTried === sig) return null;   // already failed at this size — draw the band live
+  ringFxTried = sig;
+  buildRingFx();
+  return ringFxSig === sig ? ringFxCv : null;
+}
 function buildRingFx() {
   const nodeR = Math.min(W, H) * 0.44, cx = W / 2, cy = H / 2;
   const bh = Math.min(W, H) * 0.055 * ARCFX.bandW;
   const Rin = nodeR - bh, Rout = nodeR + bh;
-  ringFxCv = document.createElement('canvas');
-  ringFxCv.width = W * DPR; ringFxCv.height = H * DPR;
-  const c = ringFxCv.getContext('2d');
+  const cv = document.createElement('canvas');
+  cv.width = W * DPR; cv.height = H * DPR;
+  const c = cv.getContext('2d');
+  // A CONTEXT CAN BE REFUSED, and the answer is to keep the ring we already have
+  // rather than to replace it with a blank one and take the rest of resize() down
+  // with a throw. The caller falls back to the live band.
+  if (!c || !c.setTransform) return false;
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
   const hairline = (r, base, lit) => { // faint full ring + a glint in the lit sector
     c.lineWidth = 1;
@@ -644,16 +696,8 @@ function buildRingFx() {
     }
   };
   // torus value structure: dark edges, a modest crown
-  const rg = c.createRadialGradient(cx, cy, Rin, cx, cy, Rout);
-  rg.addColorStop(0,    'rgb(3,5,9)');
-  rg.addColorStop(0.07, arcGun(19));
-  rg.addColorStop(0.32, arcGun(35));
-  rg.addColorStop(0.46, arcGun(45));
-  rg.addColorStop(0.62, arcGun(29));
-  rg.addColorStop(0.9,  arcGun(11));
-  rg.addColorStop(1,    'rgb(2,3,6)');
   c.lineWidth = bh * 2;
-  c.strokeStyle = rg;
+  c.strokeStyle = ringBandGrad(c, cx, cy, Rin, Rout);
   c.beginPath(); c.arc(cx, cy, nodeR, 0, TAU); c.stroke();
   // key-light wash + bore bounce ambient, clipped to the band
   c.save();
@@ -726,11 +770,16 @@ function buildRingFx() {
       c.beginPath(); c.arc(bx, by, bh * 0.055, 0, TAU); c.stroke();
     }
   }
+  // THE RING IS PUBLISHED HERE, and not one line earlier. It is assigned once the
+  // metal is actually ON it, so a build that dies part way leaves the previous
+  // ring standing instead of replacing it with an empty rectangle.
+  ringFxCv = cv;
+  ringFxSig = W + 'x' + H + '@' + DPR;
   // film-grain tile for the photographic finish (guarded for the test stub)
   grainCv = document.createElement('canvas');
   grainCv.width = grainCv.height = 256;
   const gc = grainCv.getContext('2d');
-  const im = gc.createImageData && gc.createImageData(256, 256);
+  const im = gc && gc.createImageData && gc.createImageData(256, 256);
   if (im && im.data) {
     for (let i = 0; i < im.data.length; i += 4) {
       const v = 118 + (Math.random() - 0.5) * 255;
@@ -739,6 +788,7 @@ function buildRingFx() {
     }
     gc.putImageData(im, 0, 0);
   } else grainCv = null;
+  return true;
 }
 // ---------- THE NEAR SKY: the blanket we fly through, at every speed ----------
 //
