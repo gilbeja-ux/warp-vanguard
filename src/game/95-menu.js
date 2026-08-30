@@ -611,40 +611,56 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   if (L2.lines) kinds.push('line');
   if (L2.colors) kinds.push('lock');
   if (L2.walls) kinds.push('wall');
-  // how much of the city's shield still reaches this relay — the cover thins
-  // with every perimeter you leave behind, and the traffic thickens to match
-  if (!campMapImg(CAMP)) {
-    const cov = relayCover(li);
-    const cc = cov.pct > 60 ? '126,226,98' : cov.pct > 30 ? '255,200,80' : '255,110,110';
-    ctx.fillStyle = 'rgba(140,200,255,0.6)'; ctx.font = '500 8px Audiowide, system-ui';
-    ctx.fillText('CORDON 0' + cov.ring + ' · ' + cov.name, px2 + 14, py2 + 106);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = `rgba(${cc},0.9)`; ctx.font = '600 8px Audiowide, system-ui';
-    ctx.fillText('COVER ' + cov.pct + '%', px2 + pw - 14, py2 + 106);
-    ctx.textAlign = 'left';
-    const bw2 = pw - 28, by3 = py2 + 112;
-    ctx.fillStyle = 'rgba(120,180,255,0.14)'; ctx.fillRect(px2 + 14, by3, bw2, 4);
-    ctx.fillStyle = `rgba(${cc},0.85)`; ctx.fillRect(px2 + 14, by3, bw2 * cov.pct / 100, 4);
-  }
+  // no cordon row: the cover readout said nothing a player acts on, and the bar
+  // it drew was the only thing between BEST and the traffic legend
   const dw = pw - 24, dh = 34;
   const dx2 = px2 + 12, dy2 = py2 + ph - dh - 12;
-  // the traffic legend stacks UP from the deploy key, so a short panel squeezes
-  // the gap above it rather than sliding glyphs under the button. Glyphs flow
-  // into one line when the panel is wide enough, wrapping only on overflow —
-  // the linked pair needs a double-width cell now that its taps are full size
-  const cellW = k => k === 'line' ? 52 : 26;
-  let gx = 0, gRow = 0;
-  const slots = kinds.map(k => {
-    const w = cellW(k);
-    if (gx > 0 && gx + w > pw - 28) { gRow++; gx = 0; }
-    const s = { k, x: px2 + 14 + gx + w / 2, row: gRow };
-    gx += w;
-    return s;
-  });
-  const gy = dy2 - 20 - gRow * 26;
+  // THE LEGEND IS LAID OUT FROM THE ART'S REAL REACH, not from r. A glyph draws
+  // far outside the radius it is asked for: the heavy's orbit ring climbs 3.75r
+  // and the linked pair spans 4.6r to a side. The old cells were 26px wide for
+  // art 47px wide, and the caption sat one r above centre, which put it inside
+  // the taps. These numbers are measured off the drawn glyphs at r = 8.
+  const G_HALF = { normal: 3.0, heavy: 3.5, line: 4.6, lock: 3.0, wall: 1.75 };
+  const G_UP = { normal: 3.0, heavy: 3.75, line: 2.25, lock: 3.0, wall: 1.15 };
+  const G_DN = { normal: 1.0, heavy: 1.65, line: 1.0, lock: 1.65, wall: 0.1 };
+  const gEx = (t, k) => t[k] !== undefined ? t[k] : t.normal;
+  const G_GAP = 7;
+  // the glyphs SHRINK to hold one line before they wrap: a wrapped legend costs
+  // a whole row of height in a panel that has none to give
+  const span = kinds.reduce((a, k) => a + gEx(G_HALF, k) * 2, 0);
+  let GLYPH_R = clamp((pw - 28 - G_GAP * kinds.length) / span, 4.5, 8);
+  // a wrapped row is CENTRED. Left-aligned, the overflow glyph sat alone in a
+  // half-empty row and read as a mistake rather than as a second line.
+  const upU = Math.max(...kinds.map(k => gEx(G_UP, k)));
+  const dnU = Math.max(...kinds.map(k => gEx(G_DN, k)));
+  const layout = r => {
+    let gx = 0, row = 0;
+    const rowW = [0];
+    const slots = kinds.map(k => {
+      const w = gEx(G_HALF, k) * 2 * r + G_GAP;
+      if (gx > 0 && gx + w - G_GAP > pw - 28) { row++; gx = 0; rowW.push(0); }
+      const sl = { k, dx: gx + w / 2, row };
+      gx += w;
+      rowW[row] = gx - G_GAP;
+      return sl;
+    });
+    // one row keeps the caption's left edge; only a wrapped legend centres.
+    slots.forEach(sl => { sl.x = px2 + 14 + (row ? (pw - 28 - rowW[sl.row]) / 2 : 0) + sl.dx; });
+    return { slots, rows: row };
+  };
+  // second pass: a wrapped legend can be TALLER than the room between BEST and
+  // the deploy key, so the height gets the same shrink the width just got. The
+  // row count can only fall as r falls, so the re-layout is always still legal.
+  const rowsW = layout(GLYPH_R).rows;
+  const roomH = dy2 - 12 - (py2 + 104);
+  GLYPH_R = clamp((roomH - rowsW * 4 - 17) / ((rowsW + 1) * (upU + dnU)), 3.5, GLYPH_R);
+  const { slots, rows: gRow } = layout(GLYPH_R);
+  const gUp = upU * GLYPH_R, gDn = dnU * GLYPH_R;
+  const gStep = gUp + gDn + 4;
+  const gy = dy2 - 12 - gDn - gRow * gStep;
   ctx.fillStyle = 'rgba(140,200,255,0.55)'; ctx.font = '500 8px Audiowide, system-ui';
-  ctx.fillText('EXPECTED TRAFFIC', px2 + 14, gy - 16);
-  slots.forEach(s => drawInfoGlyph(s.k, s.x, gy + s.row * 26, 8));
+  ctx.fillText('EXPECTED TRAFFIC', px2 + 14, gy - gUp - 9);
+  slots.forEach(s => drawInfoGlyph(s.k, s.x, gy + s.row * gStep, GLYPH_R));
   levelKey(dx2, dy2, dw, dh, '▶', 'DEPLOY', -1, false, li === frontier);
   menuButtons.push({ x: dx2, y: dy2, w: dw, h: dh, deploy: li, locked: false });
 }

@@ -119,9 +119,6 @@ const groundR = (x, y) => Math.hypot(x - CITY_CORE.x, (y - CITY_CORE.y) * 2);
 const RING_NAMES = ['LOW ORBIT', 'MONITORED SECTORS', 'DEEP SPACE', 'OUTLAW TERRITORY', 'NO MANS LAND'];
 const CORE_NAME = 'THE INNER WORLDS', DARK_ZONE = 'NO MANS LAND';
 let RINGS = []; // [{ r0, r1, name }] per case band, innermost first
-// escort coverage: total at the core, gone by the far edge. This is the number
-// the dossier quotes — and the reason the traffic thickens as you go out.
-const shieldAt = r => Math.round(100 * clamp(1 - Math.pow(clamp(r / BANDS[BANDS.length - 1][1], 0, 1), 1.4), 0, 1));
 // (the drift, the harbor and the debris stream are GONE with the city they
 // belonged to. A dust band cutting the sheet made sense on a ground plane; on a
 // star chart the equivalent is scenery — asteroid fields, placed as destinations
@@ -917,20 +914,6 @@ const citySegs = () => cityChain().segs;
 function relayW(i) {
   const ch = cityChain();
   return ch.pts[clamp(i < 0 ? 0 : i, 0, ch.pts.length - 1)];
-}
-// how much cover a relay still has. The RING is the case's band — a run cannot
-// be better covered than the one before it just because its junction happened
-// to land a street closer in — so the number falls level by level, all the way
-// out to the last case working with no cover at all.
-function relayCover(i) {
-  if (!RINGS.length) buildCity();
-  const ci = clamp(CAMP ? CAMPAIGNS.indexOf(CAMP) : 0, 0, RINGS.length - 1);
-  const band = RINGS[ci], n = Math.max(1, LEVELS.length - 1);
-  return {
-    ring: ci + 1,
-    name: band.name,
-    pct: shieldAt(lerp(band.r0, band.r1, clamp(i, 0, n) / n))
-  };
 }
 // point at parameter t (0..1) along a polyline
 function polyAt(pts2, t) {
