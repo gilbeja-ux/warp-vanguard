@@ -1032,7 +1032,7 @@ function drawMenuHome(ccx, ccy, R) {
     try { ctx.letterSpacing = '0px'; } catch (e) {}
     menuButtons.push({ sector: { cx: ccx, cy: ccy, r0, r1, a0: sc0.mid - THIRD / 2 + 0.02, a1: sc0.mid + THIRD / 2 - 0.02 }, mode: sc.mode, locked: sc.locked });
   }
-  drawHomeSideKeys(ccx, ccy, R, wheelAl);
+  drawHomeSideKeys(ccx, ccy, R, wheelAl, rot);
   // the HUB: the shield badge holds the wheel's center; the quiet text
   // core stands in until the badge file ships
   ctx.beginPath(); ctx.arc(ccx, ccy, r0 - R * 0.03, 0, TAU);
@@ -1101,6 +1101,57 @@ function drawMenuHome(ccx, ccy, R) {
 // key reads as a slab beside the wheel, not a crescent hugging it, and every
 // text line fits horizontally so nothing has to curl along a rim.
 const SIDEKEY_R0 = 1.02, SIDEKEY_R1 = 1.50, SIDEKEY_HALF = 0.34;
+// ---- the ACCENT ARCS (Gil's design, 2026-08-30) ---------------------------
+// Two short strokes above and below each side key, riding the mid-line of the
+// key's own band. They continue the key's curve past its ends, so the eye
+// closes the wider circle the two keys are cut from — a HINT of the ring, not
+// a second ring: a full circle would fight the wheel for the screen. Each arc
+// runs off the top or the bottom of the frame rather than stopping in open
+// space, so the ring reads as bigger than the screen.
+const SIDEARC_R = (SIDEKEY_R0 + SIDEKEY_R1) / 2; // the key band's mid-line
+const SIDEARC_GAP = 0.10;   // clear air between the key's end and the arc, in radians
+const SIDEARC_MAX = 1.05;   // the longest sweep, in radians — the cap on a screen the arc cannot leave
+const SIDEARC_OVER = 0.07;  // how far past the frame edge the far end runs, in radians
+const SIDEARC_W = 0.070;    // stroke weight, as a fraction of R
+const SIDEARC_A = 0.85;     // alpha at rest
+const SIDEARC_SPIN = 0.55;  // share of the wheel's spin the arcs take
+// Every arc RUNS OFF THE FRAME (Gil's call): the far end crosses the top or the
+// bottom edge, so the stroke has somewhere to go when it turns and needs no
+// outward step to sell the move. Both halves of a key measure the same, because
+// the far end's distance off the middle line is rr·sin(t) on either side.
+function sideArcSweep(rr, lineW) {
+  const lim = (H / 2 + lineW) / rr;           // where the circle crosses the frame edge
+  if (lim >= 1) return SIDEARC_MAX;           // a screen tall enough to hold the whole circle
+  return Math.min(SIDEARC_MAX, Math.asin(lim) + SIDEARC_OVER);
+}
+// The arcs are the transition's LOCK. Each one turns inside a window cut on its
+// own home angles, so a spin slides the stroke out of its window and off the
+// frame, and the arc is gone by the time the wheel is. The entrance runs the
+// same move backwards: the four strokes turn in and seat in their slots at once.
+function drawSideArcs(ccx, ccy, R, wheelAl, rot, keys) {
+  const d = rot * SIDEARC_SPIN;
+  if (wheelAl <= 0.01) return;
+  const rr = R * SIDEARC_R;
+  const lineW = Math.max(3, R * SIDEARC_W);
+  const t0 = SIDEKEY_HALF + SIDEARC_GAP, t1 = sideArcSweep(rr, lineW);
+  if (t1 - t0 <= 0.01 || Math.abs(d) >= t1 - t0) return; // nothing on screen, or fully wiped
+  ctx.save();
+  ctx.lineCap = 'butt';   // FLAT ends, no cap radius — a heavy stroke with a round
+  ctx.lineWidth = lineW;  // cap reads as a lozenge, not as a piece of a ring
+  for (const k of keys) {
+    ctx.strokeStyle = k.locked
+      ? `rgba(120,155,190,${(SIDEARC_A * 0.4 * wheelAl).toFixed(3)})`
+      : `rgba(${k.col},${(SIDEARC_A * wheelAl).toFixed(3)})`;
+    for (const s2 of [-1, 1]) { // one arc above the key, one below
+      const h0 = k.mid + s2 * t0, h1 = k.mid + s2 * t1;
+      const lo = Math.min(h0, h1), hi = Math.max(h0, h1);
+      const a0 = Math.max(lo, lo + d), a1 = Math.min(hi, hi + d); // the window clips the turn
+      if (a1 - a0 <= 0.01) continue;
+      ctx.beginPath(); ctx.arc(ccx, ccy, rr, a0, a1); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 // Which lane does the left key offer? A fresh save STARTS at the first relay; a
 // fully-delivered ledger points at the lowest lane still under three stars
 // (PERFECT THE LANE); otherwise it is the frontier of the contract in hand — or
@@ -1144,7 +1195,7 @@ function sideKeyCover(e2, x, y, w, h) { // cover-fit: fill the window, crop the 
   const s = Math.max(w / e2.w, h / e2.h), dw = e2.w * s, dh = e2.h * s;
   ctx.drawImage(e2.img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
-function drawHomeSideKeys(ccx, ccy, R, wheelAl) {
+function drawHomeSideKeys(ccx, ccy, R, wheelAl, rot) {
   const r0k = R * SIDEKEY_R0, r1k = R * SIDEKEY_R1;
   const vert = r1k * Math.sin(SIDEKEY_HALF);
   const drift = (1 - wheelAl) * R * 0.2; // choreography: the keys step outward while the wheel spins away
@@ -1268,6 +1319,13 @@ function drawHomeSideKeys(ccx, ccy, R, wheelAl) {
     menuButtons.push({ sector: { cx: cxk, cy: ccy, r0: r0k, r1: r1k, a0: seg.a0, a1: seg.a1, outer: true },
       locked: k.locked, goMap: k.goMap, weekly: k.weekly });
   }
+  // the accent arcs close the shape the keys are cut from. They carry no tap
+  // region — they are the ring showing through, not a key. A LAUNCH is a
+  // departure too, so the arcs turn away there as well; the wheel itself does
+  // not turn under a launch, so the spin is the arcs' own.
+  let aRot = rot || 0;
+  if (menuFx && menuFx.kind === 'launch') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); aRot = q * q * 1.5; }
+  drawSideArcs(ccx, ccy, R, wheelAl, aRot, KEYS);
 }
 
 // contract carousel: every campaign is a DISC — a bore-ringed lens whose
