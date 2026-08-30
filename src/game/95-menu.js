@@ -649,43 +649,28 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   menuButtons.push({ x: dx2, y: dy2, w: dw, h: dh, deploy: li, locked: false });
 }
 
-// audio config overlay on the main menu — same controls as the pause panel
+// SYSTEM CONFIG IS THE PAUSE DISC. Same plate, same rows, same bottom segment —
+// it is the same surface reached through the other door, so it has no business
+// wearing a different shape. MY DATA and CLOSE take the segment's two halves.
 function drawMenuSettings() {
   const q = popFxQ('set', menuSettings);
   pauseSlidersList = []; pauseTogglesList = []; menuSetButtons = [];
-  ctx.fillStyle = 'rgba(3,6,14,' + (0.62 * q).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
-  const pw = Math.min(W * 0.72, 520), ph = Math.min(H * 0.86, 344);
-  const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
-  menuSetPanel = { x: px, y: py, w: pw, h: ph };
-  popRender(q, px, py, pw, ph, () => {
+  ctx.fillStyle = 'rgba(3,6,14,' + (0.62 * Math.min(1, q * 2.2)).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
+  const g = geo(), R = discR();
+  // the dismiss region is a CIRCLE now — see the tap-outside test in 60-input.js
+  menuSetPanel = { x: g.cx - R, y: g.cy - R, w: R * 2, h: R * 2, disc: { cx: g.cx, cy: g.cy, r: R } };
+  popRender(q, g.cx - R, g.cy - R, R * 2, R * 2, () => {
     ctx.save();
-    techPanel(px, py, pw, ph, 'SYSTEM CONFIG');
-    settingRow('SFX',     'sound',   'soundVol', py + 76,  px, pw);
-    settingRow('MUSIC',   'music',   'musicVol', py + 120, px, pw);
-    settingRow('HAPTICS', 'haptics', null,       py + 164, px, pw);
-    const bw = 160, bh = 42, closeY = py + ph - bh - 20;
+    discPlate(g.cx, g.cy, R, 'SETTINGS'); // short enough to wear the same size PAUSED does
+    // no TRACK row: nothing is playing a run's soundtrack out here
+    discRows(g.cx, g.cy, R, [['SFX', 'sound', 'soundVol'], ['MUSIC', 'music', 'musicVol'], ['HAPTICS', 'haptics', null]]);
     // MY DATA — the second door to the rename/erase panel (the board screen has
     // the first). It lives here because a player who wants their name off the
     // boards looks for it in settings, and the board route dead-ends for anyone
-    // holding no rows. Positioned off the CLOSE key so a short panel squeezes the
-    // gap above it rather than sliding the row underneath.
-    const mdY = closeY - 14 - 36, mdX = px + 24, mdW = pw - 48;
-    techRect(mdX, mdY, mdW, 36, 7);
-    ctx.fillStyle = 'rgba(10,26,48,0.8)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(120,200,255,0.42)'; ctx.lineWidth = 1.2; techRect(mdX, mdY, mdW, 36, 7); ctx.stroke();
-    ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(160,225,255,0.95)';
-    try { ctx.letterSpacing = '2px'; } catch (e) {}
-    ctx.font = '700 12px Audiowide, system-ui';
-    ctx.fillText('MY DATA', mdX + 16, mdY + 23);
-    try { ctx.letterSpacing = '0px'; } catch (e) {}
-    ctx.fillStyle = 'rgba(150,190,225,0.7)'; ctx.font = '500 10px Audiowide, system-ui';
-    ctx.textAlign = 'right'; ctx.fillText('RENAME / DELETE MY RUNS  ▸', mdX + mdW - 16, mdY + 23);
-    ctx.textAlign = 'left';
-    menuSetButtons.push({ x: mdX, y: mdY, w: mdW, h: 36, action: 'mydata' });
-    button(W / 2 - bw / 2, closeY, bw, bh, 'CLOSE', true);
-    menuSetButtons.push({ x: W / 2 - bw / 2, y: closeY, w: bw, h: bh, action: 'close' });
+    // holding no rows.
+    for (const b of discSegKeys(g.cx, g.cy, R, [['MY DATA', 'mydata'], ['CLOSE', 'close']])) menuSetButtons.push(b);
     ctx.restore();
-  });
+  }, g.nodeR * 1.02);
   ctx.textAlign = 'left';
 }
 
@@ -1102,93 +1087,100 @@ function drawEnd(g) {
     }
   }
 
-  // 80s arcade name entry — the CRESCENDO TAKEOVER. Once the ceremony has played
-  // (bA), the run's board rank leads, the rest dims back behind a scrim, and the
-  // handle card owns the screen; Continue stays gated (above) until save/skip.
-  // Free-typed, live-filtered here (UX) and re-moderated server-side (enforcement).
+  // 80s arcade name entry — the CRESCENDO TAKEOVER, on a MINI DISC. Once the
+  // ceremony has played (bA), the run's board rank leads, the rest dims back
+  // behind a scrim, and the handle disc owns the screen; Continue stays gated
+  // (above) until save/skip. Free-typed, live-filtered here (UX) and re-moderated
+  // server-side (enforcement).
+  //
+  // It was a console slab, which is the one language this game no longer speaks.
+  // Same plate the pause and settings discs wear, at 0.86 of their radius, and
+  // SAVE / SKIP are the circle's own bottom segment rather than two keys parked
+  // on it. The ring casts it in and erases it the same way.
   nameEntryBtns = [];
   if (!nameEntry && overlayField === 'entry') clearField(); // card gone → drop the DOM field
-  if (nameEntry && bA > 0.001) {
-    nameEntryFx = Math.min(1, nameEntryFx + frameDt / 0.42);
-    const to = 1 - Math.pow(1 - nameEntryFx, 3);      // ease-out entrance
-    // scrim pulls the ceremony + gated side keys back for focus
+  const nq = popFxQ('name', !!nameEntry && bA > 0.001);
+  if (nq > 0.001) {
+    nameEntryFx = nq;                                 // closeNameEntry() still zeroes it
+    // scrim pulls the ceremony + gated side keys back for focus. It leads the cast
+    // — a projection cannot read against a lit end screen.
     ctx.globalAlpha = 1;
-    ctx.fillStyle = 'rgba(3,6,14,' + (0.6 * to).toFixed(3) + ')';
+    ctx.fillStyle = 'rgba(3,6,14,' + (0.70 * Math.min(1, nq * 2.2)).toFixed(3) + ')';
     ctx.fillRect(0, 0, W, H);
-
-    const cw = Math.min(W * 0.84, 344), chh = 226;
-    const cx0 = g.cx - cw / 2, cy0 = g.cy - chh / 2;
-    const P = 18;
-    ctx.save();
-    ctx.globalAlpha = to;
-    techPanel(cx0, cy0, cw, chh, 'HIGH SCORE');
-
-    // hero: the board rank — the dopamine, so it leads (gold, with a slight pop)
-    const rk = endProvisional && endProvisional.rank;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.save();
-    ctx.translate(g.cx, cy0 + 66); ctx.scale(0.82 + 0.18 * to, 0.82 + 0.18 * to);
-    if (rk) {
-      const big = '#' + rk, sub = '  / ' + LB_SHOW;
-      ctx.font = '700 27px Audiowide, system-ui'; const wB = ctx.measureText(big).width;
-      ctx.font = '600 14px Audiowide, system-ui'; const wS = ctx.measureText(sub).width;
-      const x0 = -(wB + wS) / 2;
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#ffe27a'; ctx.shadowColor = 'rgba(255,207,74,0.6)'; ctx.shadowBlur = lowFX ? 0 : 12;
-      ctx.font = '700 27px Audiowide, system-ui'; ctx.fillText(big, x0, 0);
-      ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(150,200,235,0.75)';
-      ctx.font = '600 14px Audiowide, system-ui'; ctx.fillText(sub, x0 + wB, 0);
-    } else {
-      ctx.fillStyle = '#ffe27a'; ctx.font = '700 18px Audiowide, system-ui';
-      ctx.fillText('YOU MADE THE BOARD', 0, 0);
-    }
-    ctx.restore();
-
-    ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(150,210,255,0.72)';
-    try { ctx.letterSpacing = '2px'; } catch (e) {}
-    ctx.font = '600 9px Audiowide, system-ui';
-    ctx.fillText('LOG YOUR RUNNER HANDLE', g.cx, cy0 + 88);
-    try { ctx.letterSpacing = '0px'; } catch (e) {}
-
-    // the handle field. During the entrance it's a static plate; once settled the
-    // live DOM input mounts in the same spot (seamless, and keeps the caret native).
-    const fx = cx0 + P, fw = cw - P * 2, fy = cy0 + 98, fh = 40;
+    const R = discR() * 0.86;                         // a MINI disc: the settings disc, smaller
+    const settled = nq > 0.92;
+    // the field's own chord, measured at its BOTTOM edge — the tight one
+    // the segment runs HIGHER on this disc than on the settings ones: there are
+    // three lines of content over it, not four rows, and the shared chord left a
+    // bare band across the middle of the circle
+    const NAME_SEG = 0.42;
+    const fh = R * 0.26, fy = g.cy - R * 0.08;
+    const fHx = discChord(R, fy + fh - g.cy) - R * DISC_PAD;
+    const fx = g.cx - fHx, fw = fHx * 2;
     const st = nameStatus(nameEntryDraft);
-    const settled = to > 0.9;
-    if (settled) {
-      mountField('entry', { x: fx, y: fy, w: fw, h: fh },
-        { placeholder: 'ENTER YOUR HANDLE', value: nameEntryDraft, maxLength: NAME_MAX, onInput: onEntryInput, onEnter: () => confirmNameEntry() });
-    } else {
-      techRect(fx, fy, fw, fh, 6); ctx.fillStyle = 'rgba(4,12,22,0.85)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 6); ctx.stroke();
-      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      const has = !!nameEntryDraft;
-      ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
-      ctx.font = '600 17px Audiowide, system-ui';
-      try { ctx.letterSpacing = '1px'; } catch (e) {}
-      ctx.fillText((has ? nameEntryDraft : 'ENTER YOUR HANDLE').toUpperCase(), fx + 14, fy + fh / 2 + 1);
+    popRender(nq, g.cx - R, g.cy - R, R * 2, R * 2, () => {
+      ctx.save();
+      discPlate(g.cx, g.cy, R, 'HIGH SCORE');
+      // hero: the board rank — the dopamine, so it leads (gold, with a slight pop)
+      const rk = endProvisional && endProvisional.rank;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      ctx.save();
+      ctx.translate(g.cx, g.cy - R * 0.34); ctx.scale(0.82 + 0.18 * nq, 0.82 + 0.18 * nq);
+      if (rk) {
+        const big = '#' + rk, sub = '  / ' + LB_SHOW;
+        const bp = Math.max(14, Math.round(R * 0.175)), sp2 = Math.max(9, Math.round(R * 0.090));
+        ctx.font = '700 ' + bp + 'px Audiowide, system-ui'; const wB = ctx.measureText(big).width;
+        ctx.font = '600 ' + sp2 + 'px Audiowide, system-ui'; const wS = ctx.measureText(sub).width;
+        const x0 = -(wB + wS) / 2;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#ffe27a'; ctx.shadowColor = 'rgba(255,207,74,0.6)'; ctx.shadowBlur = lowFX ? 0 : 12;
+        ctx.font = '700 ' + bp + 'px Audiowide, system-ui'; ctx.fillText(big, x0, 0);
+        ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(150,200,235,0.75)';
+        ctx.font = '600 ' + sp2 + 'px Audiowide, system-ui'; ctx.fillText(sub, x0 + wB, 0);
+      } else {
+        ctx.fillStyle = '#ffe27a';
+        ctx.font = '700 ' + fitPx('YOU MADE THE BOARD', '700', Math.round(R * 0.115), R * 1.5, 9) + 'px Audiowide, system-ui';
+        ctx.fillText('YOU MADE THE BOARD', 0, 0);
+      }
+      ctx.restore();
+      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(150,210,255,0.72)';
+      try { ctx.letterSpacing = '2px'; } catch (e) {}
+      ctx.font = '600 ' + Math.max(8, Math.round(R * 0.058)) + 'px Audiowide, system-ui';
+      ctx.fillText('LOG YOUR RUNNER HANDLE', g.cx, g.cy - R * 0.15);
       try { ctx.letterSpacing = '0px'; } catch (e) {}
-      ctx.textBaseline = 'alphabetic';
-    }
-    const pipC = st === 'ok' ? '#6effa8' : (st === 'bad' || st === 'short') ? '#ff7a7a' : 'rgba(120,180,255,0.3)';
-    ctx.fillStyle = pipC; ctx.beginPath(); ctx.arc(fx + fw - 15, fy + fh / 2, 4, 0, TAU); ctx.fill();
-    if (st === 'bad' || st === 'short') {
-      ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(255,140,140,0.9)'; ctx.font = '10px monospace';
-      ctx.fillText(st === 'bad' ? 'not allowed' : 'too short', fx + 2, fy + fh + 14);
-    }
-
-    // save (gated on a clean handle) + skip (always). Only live once settled.
-    const by = cy0 + chh - P - 42, bh2 = 42, bgap = 10;
-    const svw = fw * 0.62, skw = fw - svw - bgap;
-    button(fx, by, svw, bh2, 'SAVE', st === 'ok', st !== 'ok' || !settled);
-    button(fx + svw + bgap, by, skw, bh2, 'SKIP', false, !settled);
-    if (settled) {
-      if (st === 'ok') nameEntryBtns.push({ x: fx, y: by, w: svw, h: bh2, action: 'nameConfirm' });
-      nameEntryBtns.push({ x: fx + svw + bgap, y: by, w: skw, h: bh2, action: 'nameSkip' });
-    }
-    ctx.restore();
+      // the handle field. During the cast it's a static plate; once settled the
+      // live DOM input mounts in the same spot (seamless, native caret).
+      if (!settled) {
+        techRect(fx, fy, fw, fh, 6); ctx.fillStyle = 'rgba(4,12,22,0.85)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 6); ctx.stroke();
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        const has = !!nameEntryDraft;
+        ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
+        ctx.font = '600 ' + Math.max(11, Math.round(R * 0.108)) + 'px Audiowide, system-ui';
+        try { ctx.letterSpacing = '1px'; } catch (e) {}
+        ctx.fillText((has ? nameEntryDraft : 'ENTER YOUR HANDLE').toUpperCase(), fx + 14, fy + fh / 2 + 1);
+        try { ctx.letterSpacing = '0px'; } catch (e) {}
+        ctx.textBaseline = 'alphabetic';
+      }
+      const pipC = st === 'ok' ? '#6effa8' : (st === 'bad' || st === 'short') ? '#ff7a7a' : 'rgba(120,180,255,0.3)';
+      ctx.fillStyle = pipC; ctx.beginPath(); ctx.arc(fx + fw - 15, fy + fh / 2, 4, 0, TAU); ctx.fill();
+      if (st === 'bad' || st === 'short') {
+        ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,140,140,0.9)'; ctx.font = '10px monospace';
+        ctx.fillText(st === 'bad' ? 'not allowed' : 'too short', g.cx, fy + fh + R * 0.11);
+      }
+      // SAVE (gated on a clean handle) + SKIP (always) — the disc's own bottom
+      // segment. A locked key is drawn and never returned, so the gate IS its look.
+      for (const b of discSegKeys(g.cx, g.cy, R, [
+        ['SAVE', 'nameConfirm', { primary: st === 'ok', locked: st !== 'ok' || !settled }],
+        ['SKIP', 'nameSkip', { locked: !settled }]
+      ], NAME_SEG)) nameEntryBtns.push(b);
+      ctx.restore();
+    }, geo().nodeR * 1.02);
+    // the DOM field mounts OUTSIDE popRender: it is not canvas, so it cannot be
+    // clipped by the cast — it waits for the cast to land instead
+    if (settled) mountField('entry', { x: fx, y: fy, w: fw, h: fh },
+      { placeholder: 'ENTER YOUR HANDLE', value: nameEntryDraft, maxLength: NAME_MAX, onInput: onEntryInput, onEnter: () => confirmNameEntry() });
   }
-
   ctx.restore();
   ctx.globalAlpha = 1;
   ctx.textAlign = 'left';

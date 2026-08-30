@@ -129,3 +129,4 @@ src/audio/sfx/incoming/**/*.ogg
 # handover. Three rounds ran that way before it was written down, and committing
 # the pending file (2026-08-29) left a finished order looking unfinished.
 docs/sfx-order.json
+.shots/

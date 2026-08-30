@@ -903,11 +903,11 @@ function burst(x, y, color, n, spd) {
     particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, decay: rand(1.2, 2.6), color, size: rand(0.7, 1.8) });
   }
 }
-// the decompile: a killed hostile doesn't explode — the body GLITCHES OUT in
-// place (its skin tears into displaced strips that flicker and drop away)
-// while a translucent green wash ripples across the wall from the death
-// point: the tunnel healing over where the corruption sat. Both live in
-// (angle, z) wall space, so depth still tells the story.
+// the decompile: a killed hostile doesn't explode — the body is RECLAIMED in
+// place (it breaks along the wall's own grid and each cell slides off down the
+// lattice, thinning to a wire) while a translucent green wash ripples across the
+// wall from the death point: the tunnel healing over where the corruption sat.
+// Both live in (angle, z) wall space, so depth still tells the story.
 // the tuning deck — once mirrored 1:1 by a slider lab, now the only copy.
 // Tune these numbers directly.
 const DECOMP = {
@@ -916,8 +916,15 @@ const DECOMP = {
   fill: 0.04,    // wash fill alpha
   edge: 0.60,    // wash rim alpha
   glitchT: 0.40, // body de-rez time (s)
-  slices: 6,     // glitch strips across the body
-  jitter: 1.2,   // strip displacement, in body sizes
+  slices: 6,     // strips across the body — the OLD tear (grid:0) only
+  jitter: 1.2,   // strip displacement, in body sizes — the old tear only
+  // THE A/B. 1 = the wall-grid reclaim, 0 = the strip tear it replaced. Both
+  // consume the same seeded draws; see drawGhost for why that is not optional.
+  grid: 1,
+  cells: 4,      // cells across the body, each way
+  stagger: 0.55, // how much of the life the edge-to-centre turn order spans
+  slide: 0.30,   // how far a rim cell travels before it goes, in body sizes
+  wireA: 0.60,   // the wire the cell leaves behind — the healed wash's own green
 };
 function decompile(a, z, en, mul) {
   const m = (mul || 1) * (en.sizeMul || 1) * (en.type === 'heavy' ? 1.3 : 1);

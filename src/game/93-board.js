@@ -248,7 +248,8 @@ function drawMenuBoard() {
   // Rounded, because these coordinates are laid out from it and a canvas draws a
   // half-pixel edge soft.
   const keyH = Math.round(Math.max(38, Math.min(H * 0.070, 56)));
-  const bk = menuBackRect = { x: W - keyH - 12 - SAFE.r, y: 12 + SAFE.t, w: keyH, h: keyH };
+  // TOP-LEFT, like every back key in the game as of 2026-08-30 (see 90-hud.js).
+  const bk = menuBackRect = { x: 12 + SAFE.l, y: 12 + SAFE.t, w: keyH, h: keyH };
   ctx.save(); ctx.globalAlpha = backA;
   techRect(bk.x, bk.y, bk.w, bk.h, 8);
   ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
@@ -265,7 +266,7 @@ function drawMenuBoard() {
   ctx.restore();
 
   // ---- MY DATA: rename every run I hold, or erase them all ----
-  // It rides beside the back key rather than in the entry-detail column, because
+  // It rides in the top-right corner rather than in the entry-detail column, because
   // it is not about the SELECTED run — both verbs act on every row this player
   // holds, across every board. The detail column describes one entry; this does
   // not belong in it. Always present, never gated on holding a row here: a
@@ -278,7 +279,10 @@ function drawMenuBoard() {
   const mdF = F(keyH * 0.34);
   ctx.font = '700 ' + mdF + 'px Audiowide, system-ui';
   const mdW = Math.round(ctx.measureText('MY DATA').width + mdF * 1.8);
-  const mdk = { x: bk.x - Math.round(Math.max(8, keyH * 0.21)) - mdW, y: bk.y, w: mdW, h: keyH };
+  // …and MY DATA took the corner BACK vacated. It cannot ride beside the back key
+  // any more: the back key moved to the left corner and the mode column starts
+  // there. It is a screen action, not a back control, so the free corner suits it.
+  const mdk = { x: W - 12 - SAFE.r - mdW, y: bk.y, w: mdW, h: keyH };
   { ctx.save(); ctx.globalAlpha = backA;
     techRect(mdk.x, mdk.y, mdk.w, mdk.h, 8);
     ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();

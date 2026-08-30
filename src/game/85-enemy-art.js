@@ -405,6 +405,18 @@ const laneHaze = (z, g) => {
 // blue/white = matching node, purple = both nodes, orange = it moves.
 // shared by the body renderer and the decompile, so a death speaks in the
 // body's own inks
+// THE FLY-BY. A trap that slipped the ring is LEAVING, at speed, past the
+// player's shoulder — not dissolving in front of them. These four are what say
+// so; every one of them is draw-only, so none can move a board.
+const MISSFX = {
+  swell: 0.30,   // extra size by the frame edge, as a share of the node-ring size.
+                 // A LITTLE. The projection alone doubles it and a balloon term on
+                 // top of that is what put a blob in the player's face (2026-08-29).
+  holdTo: 0.42,  // holds full ink down to this share of hitZ, then falls to 0 at the
+                 // cull. Linear-from-the-ring left it at a tenth of its ink halfway.
+  streak: 1.25,  // the motion smear's length at the exit, in body sizes
+  streakA: 0.50, // …and its ink. Zero it and the fly-by keeps the size and the hold.
+};
 function enemyPal(en) {
   return en.type === 'heavy'
     ? { glow: '200,70,255',
@@ -423,62 +435,141 @@ function enemyPal(en) {
         lights: ['#ff9db0', '#ffc9d4', '#ff8ba0'] };
 }
 
-// the glitch-out: a killed body freezes where it died and de-rezzes — its
-// skin tears into horizontal strips that displace sideways, flicker, drop
-// out, and finally collapse toward the body's midline. Sprite skins tear as
-// image strips; procedural bodies tear as a diamond silhouette in their own
-// plating shades.
+// THE DECOMPILE, SEEN: a killed hostile is RECLAIMED, not torn. The hull breaks
+// along the wall's own grid — columns around the ring, rows down the bore, the
+// two directions the lattice already runs — and each cell slides off along those
+// lines, thins to a wire and goes. The wall's green wash (see decompile) heals
+// over the space it leaves, so the body's removal and the wall's repair are one
+// event in one colour.
+//
+// It replaced a strip tear: horizontal slices displaced sideways with a flicker
+// on each, dropping out at random. That is a BROKEN SIGNAL, and a hostile here is
+// not a broken signal — it is something the lane takes back. `DECOMP.grid` keeps
+// the old pass for an A/B (0 = tear, 1 = reclaim).
+//
+// WHICHEVER RUNS, THE SAME Math.random() DRAWS ARE CONSUMED. Inside a run
+// Math.random IS the seeded stream the boss reads (60-input.js swaps it and only
+// restores sysRandom on QUIT), so a de-rez that draws a different number of times
+// moves every board a kill lands on. The reclaim takes NO draws of its own — its
+// noise is decFrac off the ghost's own wall position, which never advances — and
+// burns the tear's exact sequence instead. Do not "clean up" that loop.
+const decFrac = n => { const x = Math.sin(n * 78.233) * 43758.5453; return x - Math.floor(x); };
 function drawGhost(gh, g) {
   const k = gh.t / DECOMP.glitchT;
   const rg = ring(gh.z, g);
   const x = rg.x + Math.cos(gh.a) * rg.r, y = rg.y + Math.sin(gh.a) * rg.r;
   const size = Math.min(W, H) * 0.06 * clamp(rg.r / g.nodeR, 0.1, 2) * gh.sizeMul;
   const S = DECOMP.slices;
-  // A BAKED BODY TEARS AS ITSELF. The hull is handed over at death (see decompile)
-  // with the rotation it was wearing, so the strips are the body's own rows and it
-  // de-rezzes where it stood — not snapped upright for the last half second of it.
-  if (gh.hull) {
-    const sp = s3BreachView(gh.hull, gh.rot);
-    if (sp) {
-      const w = sp.S * (bodyR(size) / sp.R);   // the same one scale the live body uses
-      const top = -w / 2 - (sp.ay || 0) * w / sp.S;   // the same anchor the live body uses
-      ctx.save();
-      ctx.translate(x, y); ctx.rotate(gh.rot);
-      const sh = sp.cv.height;
-      for (let i = 0; i < S; i++) {
-        if (Math.random() < k * 0.6) continue;
-        const jx = (Math.random() - 0.5) * w * DECOMP.jitter * 0.5 * (0.3 + k);
-        const y0 = top + w * (i / S), hh = w / S;
-        ctx.globalAlpha = (1 - k) * (0.5 + Math.random() * 0.5);
-        ctx.drawImage(sp.cv, 0, sh * (i / S), sp.cv.width, sh / S,
-          -w / 2 + jx, y0 + (0 - y0) * Math.max(0, (k - 0.55) / 0.45) * 0.8, w, hh);
+  if (DECOMP.grid) { for (let i = 0; i < S; i++) { if (Math.random() < k * 0.6) continue; Math.random(); Math.random(); } }
+  else {
+    // ---- the old strip tear, kept for the A/B ----
+    // A BAKED BODY TEARS AS ITSELF. The hull is handed over at death (see decompile)
+    // with the rotation it was wearing, so the strips are the body's own rows and it
+    // de-rezzes where it stood — not snapped upright for the last half second of it.
+    if (gh.hull) {
+      const sp0 = s3BreachView(gh.hull, gh.rot);
+      if (sp0) {
+        const w0 = sp0.S * (bodyR(size) / sp0.R);   // the same one scale the live body uses
+        const top0 = -w0 / 2 - (sp0.ay || 0) * w0 / sp0.S;   // the same anchor the live body uses
+        ctx.save();
+        ctx.translate(x, y); ctx.rotate(gh.rot);
+        const sh0 = sp0.cv.height;
+        for (let i = 0; i < S; i++) {
+          if (Math.random() < k * 0.6) continue;
+          const jx = (Math.random() - 0.5) * w0 * DECOMP.jitter * 0.5 * (0.3 + k);
+          const y0 = top0 + w0 * (i / S), hh = w0 / S;
+          ctx.globalAlpha = (1 - k) * (0.5 + Math.random() * 0.5);
+          ctx.drawImage(sp0.cv, 0, sh0 * (i / S), sp0.cv.width, sh0 / S,
+            -w0 / 2 + jx, y0 + (0 - y0) * Math.max(0, (k - 0.55) / 0.45) * 0.8, w0, hh);
+        }
+        ctx.restore();
+        ctx.globalAlpha = 1;
+        return;
       }
-      ctx.restore();
-      ctx.globalAlpha = 1;
-      return;
+    }
+    const half0 = gh.spr ? size * 1.7 : size; // sprite skins draw on a wider box
+    const collapse = Math.max(0, (k - 0.55) / 0.45) * 0.8; // the strips fall into the midline
+    for (let i = 0; i < S; i++) {
+      if (Math.random() < k * 0.6) continue; // strips drop out as the de-rez deepens
+      const jx = (Math.random() - 0.5) * size * DECOMP.jitter * (0.3 + k);
+      const y0 = -half0 + 2 * half0 * (i / S), h = 2 * half0 / S;
+      const yd = y + (y0 + h / 2) * (1 - collapse) - h / 2;
+      ctx.globalAlpha = (1 - k) * (0.5 + Math.random() * 0.5);
+      if (gh.spr) {
+        const sh = gh.spr.height;
+        ctx.drawImage(gh.spr, 0, sh * (i / S), gh.spr.width, sh / S, x - half0 + jx, yd, half0 * 2, h);
+      } else {
+        const f = (y0 + h / 2) / half0; // -1..1 down the body: a diamond profile
+        const hw = Math.max(1, size * (1 - Math.abs(f) * 0.9));
+        ctx.fillStyle = gh.pal.shades[i % gh.pal.shades.length];
+        ctx.fillRect(x - hw + jx, yd, hw * 2, h);
+      }
+    }
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  // ---- the reclaim ----
+  // The body is drawn in its OWN rotated frame, which breachPhi already aligned to
+  // the wall: local x runs around the ring, local y runs down the bore. So a cell
+  // sliding along either axis is sliding along the lattice, not across it.
+  const N = Math.max(2, DECOMP.cells | 0);
+  const seed = gh.a * 37.1 + gh.z * 11.7;   // static — a ghost never moves in wall space
+  const sp = gh.hull ? s3BreachView(gh.hull, gh.rot) : null;
+  const half = gh.spr ? size * 1.7 : size;
+  let bw, bh, bx, by;
+  if (sp) {
+    bw = bh = sp.S * (bodyR(size) / sp.R);            // the same one scale the live body uses
+    bx = -bw / 2; by = -bw / 2 - (sp.ay || 0) * bw / sp.S; // …and the same anchor
+  } else { bw = bh = half * 2; bx = -half; by = -half; }
+  const cw = bw / N, chh = bh / N;
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(gh.rot);
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const dx = (c + 0.5) / N - 0.5, dy = (r + 0.5) / N - 0.5;
+    // the box's four corners were never hull — a breach body fills a round-ish
+    // area of its plate — so they leave no wire behind either
+    if (dx * dx + dy * dy > 0.27) continue;
+    // a procedural body keeps its diamond silhouette — the cells outside it were
+    // never part of the hull, so they are not part of what the wall takes back
+    if (!sp && !gh.spr && Math.abs(dx) * 2 > 1 - Math.abs(dy * 2) * 0.9) continue;
+    // OUTSIDE FIRST: a cell's turn comes by how far it sits from the body's spine,
+    // so the hull opens from its edges inward instead of vanishing all at once
+    const edge = Math.max(Math.abs(dx), Math.abs(dy)) * 2;
+    const t0 = DECOMP.stagger * clamp(edge * 0.65 + decFrac(seed + r * 7.3 + c * 3.1) * 0.35, 0, 1);
+    const p = clamp((k - t0) / Math.max(0.08, 1 - t0), 0, 1);
+    if (p >= 1) continue;
+    const drift = p * p * DECOMP.slide * size * 2;
+    const cx2 = bx + c * cw + dx * drift, cy2 = by + r * chh + dy * drift;
+    const solid = clamp(1 - p / 0.55, 0, 1);          // the mass goes first…
+    if (solid > 0.01) {
+      ctx.globalAlpha = solid;
+      if (sp) {
+        const sw = sp.cv.width, sh = sp.cv.height;
+        ctx.drawImage(sp.cv, sw * (c / N), sh * (r / N), sw / N, sh / N, cx2, cy2, cw, chh);
+      } else if (gh.spr) {
+        const sw = gh.spr.width, sh = gh.spr.height;
+        ctx.drawImage(gh.spr, sw * (c / N), sh * (r / N), sw / N, sh / N, cx2, cy2, cw, chh);
+      } else {
+        ctx.fillStyle = gh.pal.shades[(r + c) % gh.pal.shades.length];
+        ctx.fillRect(cx2, cy2, cw, chh);
+      }
+    }
+    // …and the wire it leaves is the wall's own healing green, so the body's
+    // removal and the tunnel's repair read as one event in one colour
+    if (!lowFX) {
+      const wire = clamp((p - 0.30) / 0.70, 0, 1) * (1 - p) * 1.6;
+      if (wire > 0.02) {
+        ctx.globalAlpha = Math.min(1, wire) * DECOMP.wireA;
+        ctx.strokeStyle = 'rgb(57,255,20)';   // the healed wash's own green (see the ripple)
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx2 + 0.5, cy2 + 0.5, Math.max(1, cw - 1), Math.max(1, chh - 1));
+      }
     }
   }
-  const half = gh.spr ? size * 1.7 : size; // sprite skins draw on a wider box
-  const collapse = Math.max(0, (k - 0.55) / 0.45) * 0.8; // the strips fall into the midline
-  for (let i = 0; i < S; i++) {
-    if (Math.random() < k * 0.6) continue; // strips drop out as the de-rez deepens
-    const jx = (Math.random() - 0.5) * size * DECOMP.jitter * (0.3 + k);
-    const y0 = -half + 2 * half * (i / S), h = 2 * half / S;
-    const yd = y + (y0 + h / 2) * (1 - collapse) - h / 2;
-    ctx.globalAlpha = (1 - k) * (0.5 + Math.random() * 0.5);
-    if (gh.spr) {
-      const sh = gh.spr.height;
-      ctx.drawImage(gh.spr, 0, sh * (i / S), gh.spr.width, sh / S, x - half + jx, yd, half * 2, h);
-    } else {
-      const f = (y0 + h / 2) / half; // -1..1 down the body: a diamond profile
-      const hw = Math.max(1, size * (1 - Math.abs(f) * 0.9));
-      ctx.fillStyle = gh.pal.shades[i % gh.pal.shades.length];
-      ctx.fillRect(x - hw + jx, yd, hw * 2, h);
-    }
-  }
+  ctx.restore();
   ctx.globalAlpha = 1;
 }
-
 
 // THE VOLLEY'S BLAST, seen. The region around the impact, drawn as the rule
 // defines it. Draw-only — the kills landed on the frame the bolt did.
@@ -974,10 +1065,22 @@ function drawEnemy(en, g) {
   // keeps carrying the body outward along the heading it already had, and the
   // fade below does the exit. Do not put the balloon back — growth reads as an
   // arrival, and this thing is leaving.
-  const wall = clamp(rg.r / g.nodeR, 0.045, en.resolved ? 1 : 2);
+  // …AND A FLY-BY IS NOT A FADE. Gil, 2026-08-30: past the ring the bodies still
+  // read as DRIFTING. Three things were doing it. The size was pinned flat at the
+  // node ring's, so nothing on the body said "coming at you". The ink fell off
+  // LINEARLY with z, so a miss was down to a tenth of its opacity by the time it
+  // reached the frame edge — it dissolved in mid-air instead of leaving. And
+  // nothing carried its speed. So it keeps its ink until it is nearly out of
+  // frame, it is allowed a LITTLE growth (a little: the balloon stays dead), and
+  // it wears a streak along the heading it is leaving on. See MISSFX.
+  const past = en.resolved ? clamp(1 - en.z / g.hitZ, 0, 1) : 0;   // 0 at the ring, 1 at the exit
+  const wall = clamp(rg.r / g.nodeR, 0.045, en.resolved ? 1 + MISSFX.swell * past : 2);
   const size = Math.min(W, H) * 0.06 * wall * (en.sizeMul || 1) * (0.45 + 0.55 * birth);
-  // missed traps drift past the ring and dissolve; fresh ones fade in from the deep
-  let fade = en.resolved ? clamp(en.z / g.hitZ, 0, 1) : 1;
+  // a missed trap holds full ink most of the way out, then goes in the last
+  // stretch — it must reach 0 exactly where update() drops it (z = 0.03), or the
+  // body pops off screen instead of leaving
+  const zCull = 0.03 / g.hitZ, zf = clamp(en.z / g.hitZ, 0, 1);
+  let fade = en.resolved ? clamp((zf - zCull) / Math.max(0.02, MISSFX.holdTo - zCull), 0, 1) : 1;
   fade *= clamp((SPAWN_Z - 0.02 - en.z) / 0.45, 0, 1); // long, soft entrance at the horizon
   fade *= birth;
   // THE LANE'S AIR GOES ON EVERY BODY, hull and sprite skin alike — a decal is a
@@ -991,6 +1094,25 @@ function drawEnemy(en, g) {
 
   ctx.save();
   ctx.globalAlpha = fade;
+
+  // THE SPEED CUE. A body leaving at constant z-speed accelerates outward on
+  // screen, which is correct and reads as nothing at all — the eye needs a
+  // smear to call it fast. The streak trails back along the radius it is
+  // travelling out of, so it is the body's own path, not a decoration on it.
+  if (past > 0.02 && MISSFX.streakA > 0.01 && !lowFX && en.type !== 'strip') {
+    const dxs = Math.cos(en.angle), dys = Math.sin(en.angle);
+    const len = size * MISSFX.streak * past * past;
+    const sg = ctx.createLinearGradient(x, y, x - dxs * len, y - dys * len);
+    sg.addColorStop(0, 'rgba(' + PAL.glow + ',' + (MISSFX.streakA * past).toFixed(3) + ')');
+    sg.addColorStop(1, 'rgba(' + PAL.glow + ',0)');
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = sg;
+    ctx.lineWidth = size * 0.62;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - dxs * len, y - dys * len); ctx.stroke();
+    ctx.restore();
+  }
 
   if (en.type === 'strip') { // ribbons draw themselves entirely on the wall
     drawStrip(en, g, fade);

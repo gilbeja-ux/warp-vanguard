@@ -64,6 +64,28 @@ function techPanel(x, y, w, h, title) {
   return hh;
 }
 
+// THE PAUSE KEY, AND THE RESUME KEY: one key, two glyphs. Paused, the same slab
+// in the same corner carries a play triangle, and that is where RESUME lives now
+// — the disc no longer spends a third of its bottom segment on it. drawPause
+// redraws this above its own dim, so the key stays lit while the field goes dark.
+function drawPauseKey(r, paused) {
+  techRect(r.x, r.y, r.w, r.h, 8);
+  ctx.fillStyle = paused ? 'rgba(16,52,86,0.86)' : 'rgba(6,20,40,0.6)'; ctx.fill();
+  ctx.strokeStyle = paused ? 'rgba(150,238,255,0.95)' : 'rgba(120,220,255,0.55)';
+  ctx.lineWidth = paused ? 1.8 : 1.5;
+  techRect(r.x, r.y, r.w, r.h, 8); ctx.stroke();
+  ctx.fillStyle = 'rgba(220,245,255,0.92)';
+  if (paused) {
+    const cx4 = r.x + r.w / 2, cy4 = r.y + r.h / 2;
+    ctx.beginPath();
+    ctx.moveTo(cx4 - 5.5, cy4 - 8.5); ctx.lineTo(cx4 - 5.5, cy4 + 8.5); ctx.lineTo(cx4 + 8.5, cy4);
+    ctx.closePath(); ctx.fill();
+  } else {
+    ctx.fillRect(r.x + 12, r.y + 11, 5, 16);
+    ctx.fillRect(r.x + 21, r.y + 11, 5, 16);
+  }
+}
+
 // level intro: title card + 3-2-1 countdown in the center while the ring forms
 // — drawn as the frame's last pass so no rim/HUD layer can obscure the text
 // the strip itself: tucked under the PAUSE key in the status corner, clear of
@@ -943,10 +965,15 @@ function drawHUD(g) {
   // right with the stability arc when the warp starts. The PAUSE key below stays
   // out of this block on purpose: it is chrome, not hardware, and the parked
   // screen still needs it.
+  //
+  // …and the readout now starts BELOW that key. PAUSE moved into this corner on
+  // 2026-08-30, and H*0.12 alone put the number straight through it on a short
+  // landscape window. The floor is the key's own bottom edge plus a gap, so the
+  // column only moves on the viewports where it had to.
   ctx.save();
   ctx.globalAlpha = gaugeA;
   ctx.translate(gs, -gs * 0.7);
-  const sy = H * 0.12;
+  const sy = Math.max(H * 0.12, 12 + SAFE.t + 38 + 16);
   if (!replaying && assist) {
     // the assisted lane flies without a score — the tag stands where the
     // number would, so nobody hunts the HUD for missing points
@@ -976,27 +1003,25 @@ function drawHUD(g) {
   ctx.restore(); // end of the score readout's power-up ramp
 
   // while watching a replay the whole HUD-corner is replay chrome (EXIT top-right,
-  // transport left, scrub bottom); otherwise the normal PAUSE button (top-left)
+  // transport left, scrub bottom); otherwise the normal PAUSE button.
+  // IT LIVES TOP-RIGHT. Gil's call 2026-08-30: BACK owns the top-left corner on
+  // every screen in the game, so PAUSE owns the top-right one. See discBackRect
+  // just below, 93-board.js and 92-guide.js — all four moved together.
   if (replaying) {
     pauseBtnRect = null;
     drawReplayChrome();
   } else {
-    pauseBtnRect = { x: 12 + SAFE.l, y: 12 + SAFE.t, w: 38, h: 38 };
-    techRect(pauseBtnRect.x, pauseBtnRect.y, pauseBtnRect.w, pauseBtnRect.h, 8);
-    ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(120,220,255,0.55)'; ctx.lineWidth = 1.5;
-    techRect(pauseBtnRect.x, pauseBtnRect.y, pauseBtnRect.w, pauseBtnRect.h, 8); ctx.stroke();
-    ctx.fillStyle = 'rgba(220,245,255,0.92)';
-    ctx.fillRect(pauseBtnRect.x + 12, pauseBtnRect.y + 11, 5, 16);
-    ctx.fillRect(pauseBtnRect.x + 21, pauseBtnRect.y + 11, 5, 16);
+    pauseBtnRect = { x: W - 12 - SAFE.r - 38, y: 12 + SAFE.t, w: 38, h: 38 };
+    drawPauseKey(pauseBtnRect, state === S.PAUSE);
   }
 
-  // H-07: BACK off the pre-warp disc — a left-arrow, top-right, bound to B. Only on
+  // H-07: BACK off the pre-warp disc — a left-arrow, TOP-LEFT, bound to B. Only on
   // the briefed pre-warp screen; every other S.INFO card is dismissed, not exited.
+  // Top-left is the game's one back corner as of 2026-08-30; PAUSE took the right.
   discBackRect = null;
   if (state === S.INFO && preLaunch()) {
     const bw = 38, bh2 = 38;
-    discBackRect = { x: W - 12 - SAFE.r - bw, y: 12 + SAFE.t, w: bw, h: bh2 };
+    discBackRect = { x: 12 + SAFE.l, y: 12 + SAFE.t, w: bw, h: bh2 };
     techRect(discBackRect.x, discBackRect.y, bw, bh2, 8);
     ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
     ctx.strokeStyle = 'rgba(120,220,255,0.55)'; ctx.lineWidth = 1.5;

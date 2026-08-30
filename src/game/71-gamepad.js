@@ -163,6 +163,15 @@ function keyShapePath(b, pad) {
   }
   if (b.seg) { // circle-segment key: the disc edge IS the button edge
     const sg = b.seg, a2 = Math.asin(clamp(sg.d / sg.r, 0, 1));
+    // …and `half` cuts the segment down the vertical, for a disc that carries two
+    // keys along its bottom (the pause disc's RESTART / QUIT)
+    if (sg.half) {
+      ctx.beginPath();
+      ctx.moveTo(sg.cx, sg.cy + sg.d);
+      if (sg.half < 0) { ctx.lineTo(sg.cx - sg.r * Math.cos(a2), sg.cy + sg.d); ctx.arc(sg.cx, sg.cy, sg.r, Math.PI - a2, Math.PI / 2, true); }
+      else { ctx.lineTo(sg.cx + sg.r * Math.cos(a2), sg.cy + sg.d); ctx.arc(sg.cx, sg.cy, sg.r, a2, Math.PI / 2); }
+      ctx.closePath(); return true;
+    }
     ctx.beginPath();
     ctx.arc(sg.cx, sg.cy, sg.r, a2, Math.PI - a2);
     ctx.closePath(); return true;

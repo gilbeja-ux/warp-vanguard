@@ -392,18 +392,18 @@ function menuTap(x, y, pid) {
   if (menuSettings) {
     if (settingsTap(x, y, pid)) return;
     for (const b of menuSetButtons) {
-      if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
+      if (b.seg ? !discSegHit(b.seg, x, y) : !(x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h)) continue;
+      {
         // MY DATA is the one row that opens something instead of dismissing —
         // the settings panel stays mounted underneath so CLOSE returns to it
         if (b.action === 'mydata') { pressUI(b, () => openMyData()); return; }
         pressUI(b); menuSettings = false; return;
       }
     }
-    // tap outside the panel dismisses it
-    if (menuSetPanel && (x < menuSetPanel.x || x > menuSetPanel.x + menuSetPanel.w ||
-        y < menuSetPanel.y || y > menuSetPanel.y + menuSetPanel.h)) {
-      menuSettings = false; sfx.tick();
-    }
+    // tap outside the panel dismisses it — and the panel is a DISC, so the test is
+    // a radius. A bounding box would have swallowed the four corners around it.
+    const sp = menuSetPanel && menuSetPanel.disc;
+    if (sp && Math.hypot(x - sp.cx, y - sp.cy) > sp.r) { menuSettings = false; sfx.tick(); }
     return;
   }
   if (menuFsRect && x > menuFsRect.x - 6 && x < menuFsRect.x + menuFsRect.w + 6 &&
@@ -563,7 +563,8 @@ function endTap(x, y) {
   }
   // 80s high-score name entry (the card below the ring on the END screen)
   for (const b of nameEntryBtns) {
-    if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
+    if (b.seg ? !discSegHit(b.seg, x, y) : !(x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h)) continue;
+    {
       pressUI(b);
       if (b.action === 'nameSkip') closeNameEntry();
       else if (b.action === 'nameConfirm') confirmNameEntry();

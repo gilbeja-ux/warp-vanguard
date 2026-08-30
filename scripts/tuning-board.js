@@ -43,10 +43,11 @@ const REGISTRY = [
     blurb: 'The two emitters you actually drive. ARCFX is the look of the arc itself.',
     consts: ['ARCFX'] },
   { id: 'enemies', title: 'Enemy bodies', preview: 'enemies', file: '41-geometry.js',
-    blurb: 'The glitch look, painted ON the wall. ENEMYFX covers the body, FRAGFX the node-killer.',
-    consts: ['ENEMYFX', 'FRAGFX'] },
+    blurb: 'The bodies, painted ON the wall. ENEMYFX covers the body, FRAGFX the node-killer, '
+      + 'MISSFX how one that slipped the ring leaves.',
+    consts: ['ENEMYFX', 'FRAGFX', 'MISSFX'] },
   { id: 'decomp', title: 'Decompile / death', preview: 'decomp', file: '52-bosses.js',
-    blurb: 'How a body comes apart when it dies.',
+    blurb: 'How a body comes apart when it dies. grid:1 is the wall-grid reclaim, grid:0 the old strip tear.',
     consts: ['DECOMP'] },
   { id: 'warp', title: 'Warp lane & streaks', preview: 'streaks', file: '82-destinations.js',
     blurb: 'The speed effect, and the gold convoy river on the floor of the bore. '
@@ -71,7 +72,7 @@ const REGISTRY = [
     consts: ['PLANET_REF_R', 'PLANET_CHIP_R', 'PLANET_STAR', 'PLANET_STAR_W', 'PLANET_STAR_R', 'DEST_MIX', 'RING_REF_R', 'FIELD_RING_K'] },
   { id: 'hud', title: 'HUD & briefing', preview: 'hud', file: '91-briefing.js',
     blurb: 'The holographic kit and the briefing card palette.',
-    consts: ['INFO_PAL', 'POP_STRIPS'] },
+    consts: ['INFO_PAL', 'POP_CAST'] },
   { id: 'boot', title: 'Boot & intro timing', preview: 'none', file: '40-state.js',
     blurb: 'The launch sequence clock. These are SECONDS and they are load-bearing for feel.',
     consts: ['BOOT_LOCK', 'BOOT_ON', 'INTRO_GATE', 'INTRO_DUR', 'BOSS_CER', 'RESET_HOLD', 'HOLD_BOSS'] },

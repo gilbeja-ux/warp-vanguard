@@ -882,6 +882,35 @@ en = G.spawnEnemy(1.0, 'normal'); en.z = 0.8;
 G.setState(G.S.PAUSE);
 G.frame(16); // populates the pause buttons
 const rBtn = G.pauseBtns().find(b => b.action === 'resume');
+// ---- THE CORNERS ARE SETTLED: BACK LEFT, PAUSE RIGHT (Gil, 2026-08-30) ----
+// RESUME is not on the disc any more — it IS the pause key, wearing a play
+// triangle, in the same corner that paused the run. Every back key in the game
+// moved to the opposite corner in the same pass. A regression here puts two
+// controls in one corner, which is how this was found in the first place.
+check('RESUME is the corner key, on the RIGHT half of the screen', rBtn.x > 800 / 2);
+check('…and the disc itself carries no RESUME',
+  !G.pauseBtns().some(b => b.action === 'resume' && b.seg));
+check('RESTART and QUIT are the disc\'s bottom segment, split down the middle',
+  ['restart', 'menu'].every(a => {
+    const b = G.pauseBtns().find(b2 => b2.action === a);
+    return b && b.seg && b.seg.half && b.y > 450 / 2;
+  }));
+// ---- THE CAST RUNS OUT OF EVERY STATE THE PAUSE KEY CAN BE PRESSED FROM ----
+// Pausing over the mission disc sets pausedFromInfo, so RESUME lands back in
+// S.INFO — a branch that never drew drawPause. The disc vanished on the frame it
+// was told to close, and q stayed pinned at 1, so the NEXT open had no cast
+// either. drawPause repopulates its hit-list on every call, so an emptied list
+// coming back full is proof the branch drew it.
+{
+  // the cast clock runs on frameDt, so the frames here carry a REAL gap — the
+  // harness's usual frame(16) repeats one timestamp and never advances it
+  G.setState(G.S.PAUSE); G.frame(1000); G.frame(1100);
+  G.setState(G.S.INFO);
+  G.pauseBtns().length = 0;
+  G.frame(1120);
+  check('the pause disc casts out over the mission disc too', G.pauseBtns().length > 0);
+  G.setState(G.S.PAUSE); G.frame(1140);
+}
 G.pauseTap(rBtn.x + 5, rBtn.y + 5, 1);
 check('resume starts a hold countdown', G.getState() === G.S.PLAY && G.getResumeHold() > 0);
 const zHold = en.z;
@@ -2253,7 +2282,8 @@ drawOk('mission disc (art plate fallback + plot line)', () => {});
   // dismiss() helper even leaned on the bug by tapping inside the button.
   G.update(0.5);
   G.frame(16); // draw builds pauseBtnRect
-  canvasHandlers.pointerdown({ pointerId: 11, clientX: 20, clientY: 20, pointerType: 'touch' });
+  // TOP-RIGHT since 2026-08-30 — BACK owns the left corner on every screen now
+  canvasHandlers.pointerdown({ pointerId: 11, clientX: 770, clientY: 30, pointerType: 'touch' });
   check('the pause button works over the mission disc', G.getState() === G.S.PAUSE);
   G.frame(16); // draw builds pauseButtonsList
   const rh0 = G.getResumeHold();
@@ -3664,8 +3694,10 @@ G.keys['ArrowUp'] = false;
   tap(9); // pause
   G.frame(16); // draw builds pauseButtonsList
   check('pause opens with RESUME focused', G.getGpSel() === 0);
-  tap(15); tap(15); // right, right: RESUME -> RESTART -> QUIT
-  check('D-pad walks the pause row to QUIT', G.getState() === G.S.PAUSE && G.getGpSel() === 2);
+  // RESUME left the disc for the corner key, so the walk is DOWN off it: into the
+  // TRACK skips, then onto the bottom segment, whose right half is QUIT
+  tap(13); tap(13);
+  check('D-pad walks the pause disc to QUIT', G.getState() === G.S.PAUSE && G.getGpSel() === 2);
   tap(0); // A presses the focused key
   check('A on QUIT lands back in the menu', G.getState() === G.S.MENU);
   flushUI();
@@ -3791,8 +3823,9 @@ G.keys['ArrowUp'] = false;
   G.startLevel(1); G.update(0.05);
   tap(9); G.frame(16); G.update(0.05); // pause + draw builds buttons AND toggles
   const nBtns = G.pauseBtns().length;
-  tap(12); // up: RESUME -> the TRACK skip keys, the nearest control above the button row
-  check('D-pad up climbs from RESUME onto the TRACK keys',
+  G.setGpSel(2); // QUIT — the segment's right half
+  tap(12); // up: the segment -> the TRACK skip keys, the nearest control above it
+  check('D-pad up climbs from the segment onto the TRACK keys',
     /^trk/.test((G.pauseBtns()[G.getGpSel()] || {}).action || ''));
   tap(12); // up again: TRACK -> a settings row
   check('D-pad up climbs from TRACK into the settings rows', G.getGpSel() >= nBtns);

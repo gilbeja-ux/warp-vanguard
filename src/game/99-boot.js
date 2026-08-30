@@ -334,7 +334,7 @@ function drawTrans() {
   }
 }
 
-// ---------- boot splash: GB Interactive → lane-glitch → WARP LANE ----------
+// ---------- boot splash: GB Interactive → warp-in → WARP VANGUARD ----------
 // The menu runs live underneath from the very first frame; the splash is an
 // opaque curtain staged on top of it. That makes the finale free: the badge
 // materializes exactly where the menu's hub badge lives, then the curtain
@@ -366,7 +366,7 @@ const SPLASH = {
 // `hold` is the boot gate, and it sits on the LAST OPAQUE BEAT — one frame before
 // reveal starts thinning the curtain. A gate any later would hold on a half-open
 // stage, which reads as a hang rather than as a load.
-const SPL = { gb: 0.35, type: 1.3, glitch: 3.0, crush: 4.1, df: 4.3, settle: 5.5, hold: 5.52, reveal: 5.55, wheel: 6.35 };
+const SPL = { gb: 0.35, type: 1.3, cast: 3.0, crush: 4.1, df: 4.3, settle: 5.5, hold: 5.52, reveal: 5.55, wheel: 6.35 };
 const GB_TAG = 'GB Interactive';
 const GBIMG = { img: null, w: 0, h: 0 };
 if (SPLASH.on) {
@@ -473,43 +473,41 @@ function splashBadge() { // where the menu wants the logo — the hub badge's re
 }
 // an image torn into horizontal bands, each thrown sideways by amt; ghost
 // doubles under it fake the chromatic smear
-function splashSlices(img, x, y, w2, h2, amt) {
-  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
-  if (!iw || !ih) return;
-  if (amt > 0.03) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha *= amt * 0.4;
-    ctx.drawImage(img, x - amt * w2 * 0.07, y + amt * 3, w2, h2);
-    ctx.drawImage(img, x + amt * w2 * 0.07, y - amt * 3, w2, h2);
-    ctx.restore();
-  }
-  const bands = 12, bh2 = h2 / bands, sh = ih / bands;
-  for (let i = 0; i < bands; i++) {
-    const off = Math.random() < amt * 0.7 ? (Math.random() * 2 - 1) * amt * w2 * 0.22 : 0;
-    ctx.drawImage(img, 0, sh * i, iw, sh, x + off, y + bh2 * i, w2, bh2);
-  }
-}
-// full-screen artifacts riding over the card: shifted tint bands, raw data
-// spray, drifting scanlines — everything scaled by amt
-function splashStatic(amt) {
+// THE WARP-IN. This replaced splashStatic — shifted tint bands, a raw-data
+// character spray and drifting scanlines, which is a corrupted feed's vocabulary.
+// The splash is not a feed. It is the moment the ship arrives and the studio's
+// mark is handed to the game's, so what crosses the card is SPEED and a
+// PROJECTION: streaks thrown out of the bore, and the same cast wavefront every
+// disc in the game is built by, closing on the mark again and again.
+function splashWarp(amt) {
   if (amt <= 0.02) return;
-  for (let i = 0, n = 2 + Math.floor(amt * 5); i < n; i++) {
-    if (Math.random() > amt) continue;
-    const ry = Math.random() * H, rh = rand(2, 6 + amt * 22);
-    ctx.fillStyle = ['rgba(111,227,255,0.10)', 'rgba(212,101,255,0.09)', 'rgba(255,60,80,0.07)'][i % 3];
-    ctx.fillRect(rand(-40, 40) * amt, ry, W, rh);
+  const cx = W / 2, cy = H * 0.44, dg = Math.hypot(W, H);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+  for (let i = 0, n = Math.floor(4 + amt * 24); i < n; i++) {
+    const a = Math.random() * TAU, r1 = dg * (0.10 + Math.random() * 0.42);
+    const len = dg * (0.03 + Math.random() * 0.10) * (0.4 + amt);
+    ctx.strokeStyle = 'rgba(150,220,255,' + (0.09 + amt * 0.20).toFixed(3) + ')';
+    ctx.lineWidth = 1 + Math.random() * 1.6;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+    ctx.lineTo(cx + Math.cos(a) * (r1 + len), cy + Math.sin(a) * (r1 + len));
+    ctx.stroke();
   }
-  ctx.font = '10px monospace'; ctx.textAlign = 'left';
-  const chars = '01<>#$/&:;';
-  for (let i = 0, n = Math.floor(amt * 26); i < n; i++) {
-    if (Math.random() < 0.5) continue;
-    ctx.fillStyle = Math.random() < 0.7 ? 'rgba(111,227,255,0.35)' : 'rgba(126,226,98,0.3)';
-    ctx.fillText(chars[(Math.random() * chars.length) | 0], Math.random() * W, Math.random() * H);
+  // the cast, on its own repeating clock — faster and brighter as the hand-over
+  // completes. Same smoothstep front popRender uses, so the two read as one idea.
+  const per = 0.66 - amt * 0.24;
+  const ph = (SPLASH.t / per) % 1, e = ph * ph * (3 - 2 * ph);
+  const fr = dg * 0.55 * (1 - e);
+  if (fr > 2) {
+    ctx.strokeStyle = 'rgba(190,250,255,' + (amt * 0.75 * (1 - e * e)).toFixed(3) + ')';
+    ctx.lineWidth = 1.6 + amt * 2;
+    ctx.shadowColor = 'rgba(120,230,255,0.9)'; ctx.shadowBlur = lowFX ? 0 : 14;
+    ctx.beginPath(); ctx.arc(cx, cy, fr, 0, TAU); ctx.stroke();
+    ctx.shadowBlur = 0;
   }
-  ctx.textAlign = 'center';
-  ctx.fillStyle = `rgba(111,227,255,${(amt * 0.05).toFixed(3)})`;
-  for (let sy = ((SPLASH.t * 40) % 6) - 6; sy < H; sy += 6) ctx.fillRect(0, sy, W, 1);
+  ctx.restore();
 }
 // THE HOLD'S OWN SLICE. Nothing on the stage is moving but a progress arc, so
 // the bake takes most of the frame instead of the menu's polite 8ms — a held
@@ -591,14 +589,14 @@ function drawSplash(rawDt) {
   ctx.fillStyle = 'rgb(2,4,10)';
   ctx.fillRect(-20, -20, W + 40, H + 40);
   ctx.globalAlpha = 1;
-  // tear intensity: one micro-glitch tease, then the build to the crush,
-  // then a decaying after-shudder while the badge locks in
-  let glitchAmt = t < SPL.glitch
+  // cast intensity: one early pulse of the ring, then the build to the hand-over,
+  // then a decaying wash while the badge locks in. Same clock the tear ran on.
+  let castAmt = t < SPL.cast
     ? 0
     : t < SPL.df
-      ? Math.pow((t - SPL.glitch) / (SPL.df - SPL.glitch), 1.5)
+      ? Math.pow((t - SPL.cast) / (SPL.df - SPL.cast), 1.5)
       : Math.max(0, 1 - (t - SPL.df) / (SPL.settle - SPL.df)) * 0.7;
-  if (t > 2.45 && t < 2.58) glitchAmt = 0.3; // the first flicker of trouble
+  if (t > 2.45 && t < 2.58) castAmt = 0.3; // the first pass of the projector
 
   // ---- card one: the GB mark over black ----
   if (t < SPL.df) {
@@ -607,16 +605,24 @@ function drawSplash(rawDt) {
     const gcx = W / 2, gcy = H * 0.44, gw = u * 0.51;
     if (gbA > 0) {
       ctx.save();
-      // CRT power-off: the whole card squeezes into a hot horizontal filament
-      ctx.translate(gcx, gcy);
-      ctx.scale(1 + crushQ * 0.6, Math.max(0.004, Math.pow(1 - crushQ, 2)));
-      ctx.translate(-gcx, -gcy);
-      ctx.globalAlpha = gbA * (glitchAmt > 0.05 && Math.random() < glitchAmt * 0.5 ? rand(0.55, 0.95) : 1);
+      // THE LANE TAKES THE CARD. This was a CRT power-off — the whole card
+      // squeezed into a hot horizontal filament — which is a dead television's
+      // idiom. The card recedes into the bore instead, the way everything in this
+      // game leaves, and the flash below is the point it goes through.
+      const zc = Math.max(0.02, Math.pow(1 - crushQ, 1.6));
+      ctx.translate(gcx, gcy); ctx.scale(zc, zc); ctx.translate(-gcx, -gcy);
+      ctx.globalAlpha = gbA * (1 - crushQ * 0.85);
       const gh = GBIMG.w ? gw * GBIMG.h / GBIMG.w : 0;
       if (GBIMG.w) {
         const gx = gcx - gw / 2, gy = gcy - gh / 2 - u * 0.05;
-        if (glitchAmt > 0.03) splashSlices(GBIMG.img, gx, gy, gw, gh, glitchAmt);
-        else ctx.drawImage(GBIMG.img, gx, gy, gw, gh);
+        ctx.drawImage(GBIMG.img, gx, gy, gw, gh);   // whole and seamless — never torn
+        if (castAmt > 0.03) {                        // …the cast LIGHTS the mark as it takes it
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha *= castAmt * 0.45;
+          ctx.drawImage(GBIMG.img, gx, gy, gw, gh);
+          ctx.restore();
+        }
       }
       // the studio tag types itself out under the mark
       const shown = Math.floor(clamp((t - SPL.type) / 0.055, 0, GB_TAG.length));
@@ -625,22 +631,24 @@ function drawSplash(rawDt) {
         ctx.font = '500 ' + fs + 'px Audiowide, system-ui';
         try { ctx.letterSpacing = (fs * 0.14).toFixed(1) + 'px'; } catch (e) {}
         const ty = gcy + gh / 2 + u * 0.055;
-        const jx = glitchAmt > 0.1 ? rand(-1, 1) * glitchAmt * 8 : 0;
         ctx.fillStyle = 'rgba(225,240,255,0.92)';
-        ctx.fillText(GB_TAG.slice(0, shown), gcx + jx, ty);
-        if (t < SPL.glitch && (shown < GB_TAG.length || Math.sin(t * 9) > -0.2)) { // block cursor
+        ctx.fillText(GB_TAG.slice(0, shown), gcx, ty);
+        if (t < SPL.cast && (shown < GB_TAG.length || Math.sin(t * 9) > -0.2)) { // block cursor
           const tw = ctx.measureText(GB_TAG.slice(0, shown)).width;
           ctx.fillStyle = 'rgba(111,227,255,0.85)';
-          ctx.fillRect(gcx + jx + tw / 2 + fs * 0.18, ty - fs * 0.78, fs * 0.5, fs * 0.92);
+          ctx.fillRect(gcx + tw / 2 + fs * 0.18, ty - fs * 0.78, fs * 0.5, fs * 0.92);
         }
         try { ctx.letterSpacing = '0px'; } catch (e) {}
       }
       ctx.restore();
-      if (crushQ > 0) { // the filament flash at the heart of the collapse
-        ctx.globalAlpha = Math.sin(crushQ * Math.PI);
-        ctx.fillStyle = 'rgba(235,250,255,0.9)';
-        const fw = u * 0.6 * (1 - crushQ * 0.5);
-        ctx.fillRect(gcx - fw / 2, gcy - 1, fw, 2);
+      if (crushQ > 0) { // the warp flash at the point the card leaves through
+        const fa = Math.sin(crushQ * Math.PI);
+        const fg = ctx.createRadialGradient(gcx, gcy, 0, gcx, gcy, u * 0.30 * (0.35 + crushQ));
+        fg.addColorStop(0, 'rgba(235,250,255,' + (fa * 0.85).toFixed(3) + ')');
+        fg.addColorStop(0.55, 'rgba(150,225,255,' + (fa * 0.25).toFixed(3) + ')');
+        fg.addColorStop(1, 'rgba(150,225,255,0)');
+        ctx.fillStyle = fg;
+        ctx.fillRect(gcx - u, gcy - u, u * 2, u * 2);
         ctx.globalAlpha = 1;
       }
     }
@@ -653,8 +661,7 @@ function drawSplash(rawDt) {
     if (b) {
       const amt = Math.pow(1 - inQ, 2);
       ctx.save();
-      ctx.globalAlpha = Math.min(1, inQ * 1.6) * (Math.random() < amt * 0.4 ? rand(0.5, 0.9) : 1);
-      const iw = b.img.naturalWidth || 1, ih = b.img.naturalHeight || 1;
+      ctx.globalAlpha = Math.min(1, inQ * 1.6);
       // the print clip: only what the scan has passed exists — ONE clean rect,
       // so no band seams or missing strips ever cross the art (the glitch
       // texture below is strictly additive: it can add light, never cut black)
@@ -664,19 +671,15 @@ function drawSplash(rawDt) {
         ctx.clip();
       }
       if (amt > 0.03) {
+        // THE BADGE ARRIVES LIT, NOT BROKEN. This was a pair of chromatic ghosts
+        // either side of the print plus a few displaced echo slices sparking off
+        // it — the decompile's language, on the game's own crest. What is left is
+        // the projection that put it there: the mark glows out of the light it
+        // was cast in, and the glow settles as the print locks.
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha *= amt * 0.4; // chromatic ghosts fade as it locks
-        ctx.drawImage(b.img, b.x - amt * b.w * 0.06, b.y, b.w, b.h);
-        ctx.drawImage(b.img, b.x + amt * b.w * 0.06, b.y, b.w, b.h);
-        // a few displaced echo slices sparking off the printed part
-        ctx.globalAlpha = Math.min(1, inQ * 1.6) * amt * 0.35;
-        for (let i = 0; i < 3; i++) {
-          if (Math.random() > amt * 0.8) continue;
-          const fy = Math.random() * inQ, fh = rand(0.03, 0.08);
-          ctx.drawImage(b.img, 0, fy * ih, iw, fh * ih,
-            b.x + (Math.random() * 2 - 1) * amt * b.w * 0.15, b.y + fy * b.h, b.w, fh * b.h);
-        }
+        ctx.globalAlpha *= amt * 0.55;
+        ctx.drawImage(b.img, b.x, b.y, b.w, b.h);
         ctx.restore();
       }
       ctx.drawImage(b.img, b.x, b.y, b.w, b.h); // the print itself — whole and seamless
@@ -706,7 +709,7 @@ function drawSplash(rawDt) {
   }
 
   if (SPLASH.held) drawSplashHold(u);
-  splashStatic(glitchAmt);
+  splashWarp(castAmt);
   const fl = 1 - clamp(Math.abs(t - SPL.df) / 0.09, 0, 1); // the white pop at the cut
   if (fl > 0) {
     ctx.globalAlpha = fl * 0.5;
@@ -1361,7 +1364,15 @@ function drawPostChain(rawDt, worldFx, g) {
     if (replayXfer && replayPkg) { menuButtons = []; drawMenuBoard(); }
   }
   else if (state === S.PAUSE) { drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawPause(); }
-  else if (state === S.INFO) { drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawInfoCard(); }
+  else if (state === S.INFO) {
+    drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawInfoCard();
+    // …AND THE PAUSE DISC'S ERASE. Pausing over the mission disc sets
+    // pausedFromInfo, so RESUME lands back in S.INFO — a branch that never drew
+    // drawPause, so the disc vanished on the frame it was told to close instead
+    // of casting back out at the ring. Every state the pause key can be pressed
+    // from now draws the cast on the way out.
+    if (popLive('pause')) drawPause();
+  }
   // NOTHING BUT THE DISC. The course is already running underneath, but none of
   // its furniture is drawn: no pads, no AWAITING RUNNER, no bore. All of it
   // arrives at once when the last disc lifts, which is the moment the player is
@@ -1392,18 +1403,42 @@ function drawPostChain(rawDt, worldFx, g) {
   else drawEnd(g);
   drawGpHints();
 
-  // system-critical glitches — the screen itself degrades with the payload
+  // SYSTEM CRITICAL — the RING warns, not the screen. This pass used to tear
+  // horizontal bands across the frame with a red offset line under each, which is
+  // a broken-signal artefact: the language of a corrupted feed. The player is not
+  // watching a feed. They are inside a bore, holding a ring, losing a hull. So
+  // damage rides the hardware now: a warning wave sheds off the rim and washes
+  // outward, faster and hotter as the payload goes, and the last block adds the
+  // heartbeat vignette on top of it.
   if (state === S.PLAY && integrity <= 50) {
     const gi = (50 - integrity) / 50;
+    // BURNED DRAWS — DO NOT DELETE. The tear pass pulled Math.random() every frame
+    // it ran, and inside a run Math.random IS the seeded stream the boss reads
+    // (see the boss board RNG note). Dropping those pulls would move the sim on
+    // every board where the hull gets this low in a fight, and old replays would
+    // stop agreeing with the boards they set. The draws stay, exactly as many and
+    // in exactly the order the tear made them. Only the pixels are gone.
     if (Math.random() < 0.15 + gi * 0.35) {
-      for (let i = 0; i < 1 + gi * 3; i++) {
-        const gy = Math.random() * H, gh = rand(2, 6 + gi * 10);
-        ctx.fillStyle = 'rgba(90,220,255,' + (0.04 + gi * 0.07).toFixed(2) + ')';
-        ctx.fillRect(0, gy, W, gh);
-        ctx.fillStyle = 'rgba(255,60,80,' + (0.03 + gi * 0.06).toFixed(2) + ')';
-        ctx.fillRect(rand(-30, 30), gy + gh, W, 2);
-      }
+      for (let i = 0; i < 1 + gi * 3; i++) { Math.random(); rand(2, 6 + gi * 10); rand(-30, 30); }
     }
+    const per = 1.5 - gi * 0.85;                  // the alarm quickens as the hull goes
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 2; i++) {
+      const p2 = ((time / per) + i * 0.5) % 1;
+      const rr = g.nodeR * (0.94 + p2 * 1.15);    // sheds off the rim, outward past the corners
+      const a2 = (0.10 + gi * 0.26) * Math.sin(Math.PI * p2);
+      if (a2 <= 0.004) continue;
+      ctx.strokeStyle = 'rgba(255,70,90,' + a2.toFixed(3) + ')';
+      ctx.lineWidth = 2 + gi * 5;
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, rr, 0, TAU); ctx.stroke();
+    }
+    // the rim itself, pulsing red under the wave that just left it
+    const rp = (0.08 + gi * 0.30) * (0.45 + 0.55 * Math.sin(time * TAU / per));
+    ctx.strokeStyle = 'rgba(255,60,80,' + Math.max(0, rp).toFixed(3) + ')';
+    ctx.lineWidth = 2.5 + gi * 3;
+    ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, 0, TAU); ctx.stroke();
+    ctx.restore();
     if (integrity <= 25) { // heartbeat vignette on the last block
       const pulse = (Math.sin(time * 5) * 0.5 + 0.5) * 0.22;
       const hv = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);

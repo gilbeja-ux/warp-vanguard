@@ -286,7 +286,10 @@ const KEY_TONE = {
     edge: 'rgba(255,214,120,0.95)', edge2: 'rgba(240,180,70,0.6)', bar: '#ffd88a', bar2: 'rgba(255,200,110,0.75)',
     tick: 'rgba(255,214,140,0.9)', tick2: 'rgba(255,200,110,0.55)', text: '#fff3dc', text2: '#ffdfa8' }
 };
-function button(x, y, w, h, label, primary, locked, tone) {
+// `fs` is an OPTIONAL type size, in px. A key inside a disc is narrower than a
+// key inside a console panel, because a chord is narrower than a panel edge, and
+// the label has to come down with it. Left out, the key keeps the console's 14px.
+function button(x, y, w, h, label, primary, locked, tone, fs) {
   // holographic console key: chamfered glass slab, luminous edge, energy bar on the left
   const T = KEY_TONE[tone] || KEY_TONE.cyan;
   const cut = Math.min(12, h * 0.28);
@@ -320,9 +323,14 @@ function button(x, y, w, h, label, primary, locked, tone) {
     ctx.stroke();
   }
   ctx.fillStyle = locked ? 'rgba(160,200,255,0.3)' : primary ? T.text : T.text2;
-  try { ctx.letterSpacing = '2px'; } catch (e) {}
-  ctx.font = '600 14px Audiowide, system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+  // the energy bar eats the left edge. On a console key that is 6px out of 160
+  // and nobody sees it; on a disc key it is 6px out of 80, so a centred label
+  // leans on the bar. A sized key is nudged off it by the width of the bar.
+  const lp = fs || 14, ins = fs ? 5 : 0;
+  try { ctx.letterSpacing = (lp >= 12 ? '2px' : '1px'); } catch (e) {}
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '600 ' + fitPx(label, '600', lp, w - cut - 12 - ins * 2, 8) + 'px Audiowide, system-ui';
+  ctx.fillText(label, x + w / 2 + ins, y + h / 2 + 1);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
 }
@@ -439,7 +447,7 @@ function paintMenuStatic() {
   // to the title below, so the two can never drift apart — the badge is free to
   // change size and the alignment follows it.
   const twoLine = menuScreen === 'map';
-  let headX = 20 + SAFE.l;
+  let headX = menuHeadX();
   if (menuScreen === 'flow' || menuScreen === 'map') { // small brand line up top
     const sm = brandLogoSmall();
     if (sm) {
@@ -635,12 +643,13 @@ function drawMenu(g) {
   }
   ctx.restore(); // top-right cluster fly-in
 
-  // back key on sub-screens (left of the fullscreen/gear cluster; the board
-  // screen draws its own corner back button)
+  // back key on sub-screens, TOP-LEFT — the game's one back corner as of
+  // 2026-08-30 (the board screen draws its own, in the same corner). The brand
+  // lockup on 'map' and 'flow' starts to its right; see menuHeadX().
   menuBackRect = null;
   menuMutRects = [];
   if (menuScreen !== 'home' && menuScreen !== 'board') {
-    menuBackRect = { x: W - (menuFsRect ? 142 : 96) - SAFE.r, y: 12 + SAFE.t, w: 38, h: 38 };
+    menuBackRect = { x: 12 + SAFE.l, y: 12 + SAFE.t, w: 38, h: 38 };
     const bk = menuBackRect;
     techRect(bk.x, bk.y, bk.w, bk.h, 8);
     ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
@@ -1115,6 +1124,13 @@ function homeContractTarget() {
   }
   const c = progress.camp[CAMPAIGNS[ci].id];
   return { kind: 'continue', ci, li: Math.min(((c && c.unlocked) || 1) - 1, CAMPAIGNS[ci].levels.length - 1) };
+}
+// where the top-left lockup starts. The back key owns that corner on every
+// sub-screen now, so the brand and the contract title begin to its right; on a
+// screen with no back key they keep the old margin.
+function menuHeadX() {
+  const hasBack = menuScreen !== 'home' && menuScreen !== 'board';
+  return (hasBack ? 62 : 20) + SAFE.l;
 }
 function sideKeyPath(cxk, cyk, r0k, r1k, mid) {
   const a0 = mid - SIDEKEY_HALF, a1 = mid + SIDEKEY_HALF;

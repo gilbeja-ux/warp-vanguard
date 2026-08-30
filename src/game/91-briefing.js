@@ -1448,47 +1448,6 @@ function drawParkSpot(a, col) {
   ctx.restore();
 }
 
-// one audio channel row: label · angular toggle · tick-marked slider (shared by pause + menu)
-function settingRow(label, key, volKey, y, px, pw, tox) {
-  ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(160,225,255,0.95)';
-  try { ctx.letterSpacing = '2px'; } catch (e) {}
-  ctx.font = '700 12px Audiowide, system-ui';
-  ctx.fillText(label, px + 24, y + 4);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  // angular toggle slab — column sits clear of the widest Audiowide label
-  const tx = px + (tox || 162), tw = 52, th = 24, on = settings[key];
-  techRect(tx, y - th / 2, tw, th, 6);
-  ctx.fillStyle = on ? 'rgba(40,140,210,0.55)' : 'rgba(255,255,255,0.06)'; ctx.fill();
-  ctx.strokeStyle = on ? 'rgba(140,230,255,0.8)' : 'rgba(120,180,255,0.3)'; ctx.lineWidth = 1.5;
-  techRect(tx, y - th / 2, tw, th, 6); ctx.stroke();
-  const ks = th - 9;
-  ctx.fillStyle = on ? '#dff6ff' : 'rgba(160,190,230,0.45)';
-  ctx.fillRect(on ? tx + tw - ks - 4.5 : tx + 4.5, y - ks / 2, ks, ks);
-  pauseTogglesList.push({ x: tx, y: y - th / 2, w: tw, h: th, key });
-  if (!volKey) return; // toggle-only row (e.g. haptics)
-  // volume rail with depth ticks and a diamond cursor
-  const sx = tx + tw + 26, sw2 = px + pw - 36 - sx;
-  ctx.lineCap = 'butt';
-  ctx.strokeStyle = 'rgba(120,200,255,0.16)'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + sw2, y); ctx.stroke();
-  ctx.strokeStyle = 'rgba(120,200,255,0.35)'; ctx.lineWidth = 1;
-  for (let i = 0; i <= 8; i++) {
-    const tx2 = sx + sw2 * i / 8;
-    ctx.beginPath(); ctx.moveTo(tx2, y + 6); ctx.lineTo(tx2, y + 10); ctx.stroke();
-  }
-  const v = settings[volKey];
-  ctx.strokeStyle = on ? 'rgba(111,227,255,0.9)' : 'rgba(120,150,200,0.3)'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + sw2 * v, y); ctx.stroke();
-  ctx.save();
-  ctx.translate(sx + sw2 * v, y); ctx.rotate(Math.PI / 4);
-  ctx.fillStyle = on ? '#eafaff' : 'rgba(200,210,230,0.5)';
-  ctx.fillRect(-6, -6, 12, 12);
-  ctx.strokeStyle = on ? 'rgba(111,227,255,0.9)' : 'rgba(160,190,230,0.4)'; ctx.lineWidth = 1.5;
-  ctx.strokeRect(-6, -6, 12, 12);
-  ctx.restore();
-  ctx.lineCap = 'round';
-  pauseSlidersList.push({ x: sx, y, w: sw2, key: volKey });
-}
 // shared toggle/slider hit test — returns true if the tap landed on a control
 function settingsTap(x, y, pid) {
   for (const t of pauseTogglesList) {
@@ -1506,155 +1465,386 @@ function settingsTap(x, y, pid) {
   return false;
 }
 
-// ---------- popup glitch-build (the panel de-rezzes IN, like a decompiled body) --
-// Reuses the run's decompile language (see drawGhost): while a panel opens or
-// closes it renders to an offscreen buffer and blits back as horizontal strips
-// that fly in from a sideways offset, flicker, and lock — the reverse of an
-// enemy tearing apart. q eases 0..1 toward the panel's open flag; at q>=1 the
-// panel draws straight to screen, crisp. Drawers wrap their panel body in
-// popRender(); the full-screen dim stays outside it (never glitched).
+// ---------- panel projection (a panel is CAST, from a rim inward) ----------
+// The old build tore a panel into flying strips with a chromatic fringe — the
+// decompile language, borrowed off a dying enemy. That is a BROKEN SIGNAL, and
+// nothing the player wears is a broken signal: the ring is a projector and every
+// panel is light thrown by it. So a panel RESOLVES now. A wavefront leaves the
+// rim, travels inward, and leaves the panel behind it. Closing runs the same
+// wavefront the other way: the panel erases from its own centre outward and goes
+// out at the rim it came from.
+//   q eases 0..1 toward the panel's open flag; at q>=1 the panel draws straight
+// to screen, crisp. Drawers wrap their panel body in popRender(); the full-screen
+// dim stays outside it (never projected).
 const POPFX = {};
-const POP_STRIPS = 22;           // horizontal slices the panel resolves in as
+// the cast's shape. `arcs` is the count of bright segments riding the wavefront —
+// the projector's own scan, and the only decoration on it.
+const POP_CAST = { arcs: 5, lead: 0.85, haze: 0.20, rim: 0.55 };
 // deterministic per-index noise — NO Math.random(): draw must not touch the
 // seeded sim stream (a panel can be dissolving during a live PLAY frame).
 const popFrac = n => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
 function popFxQ(key, flag) {
   const e = POPFX[key] || (POPFX[key] = { q: 0 });
-  e.q = clamp(e.q + (flag ? 1 : -1) * frameDt / 0.26, 0, 1); // ~0.26s each way — a touch longer so the build reads
+  e.q = clamp(e.q + (flag ? 1 : -1) * frameDt / 0.26, 0, 1); // ~0.26s each way — a touch longer so the cast reads
   return e.q;
 }
 const popLive = key => !!POPFX[key] && POPFX[key].q > 0;
 function popReset() { for (const k in POPFX) POPFX[k].q = 0; } // hard-clear so a panel can't linger open across a state change
 
-let popBuf = null; // offscreen the panel is captured into during the transition
-function popEnsureBuf() { // sized to DEVICE pixels so captured text stays crisp on retina
-  const w = Math.max(1, Math.ceil(W * DPR)), h = Math.max(1, Math.ceil(H * DPR));
-  if (!popBuf) popBuf = document.createElement('canvas');
-  if (popBuf.width !== w || popBuf.height !== h) { popBuf.width = w; popBuf.height = h; }
-  return popBuf;
-}
-// Draw `content` (the panel's crisp pixels, in game-space coords) and present it
-// with the glitch build/dissolve. px,py,pw,ph bound the panel; a margin captures
-// borders + edge glow. At q>=1 content() is drawn straight to screen (crisp).
-function popRender(q, px, py, pw, ph, content) {
-  if (q >= 1) { content(); return; }                 // settled — no glitch, full sharpness
-  const M = 22;                                       // capture margin for borders / edge bars
-  const rx = Math.max(0, Math.floor(px - M)), ry = Math.max(0, Math.floor(py - M));
-  const rw = Math.min(Math.ceil(W) - rx, Math.ceil(pw + M * 2)), rh = Math.min(Math.ceil(H) - ry, Math.ceil(ph + M * 2));
-  const buf = popEnsureBuf(), b = buf.getContext('2d');
-  b.setTransform(DPR, 0, 0, DPR, 0, 0);               // panel painted in game coords at device resolution (crisp)
-  b.clearRect(rx, ry, rw, rh);
-  const prev = ctx; ctx = b;                          // redirect the panel painters into the buffer
-  try { content(); } finally { ctx = prev; }
-  // content() ALSO registers the panel's tap targets, so it must run every frame
-  // the panel is drawn — including the opening/closing frames where q≤0 (the
-  // caller clears its hit-lists at the top and repopulates them in content). Only
-  // the visible blit below is gated on q>0, so a closed panel shows nothing.
+// Draw `content` behind the projection wavefront. px,py,pw,ph bound the panel; a
+// margin covers its borders and edge glow. `castR` is the radius the light is
+// thrown FROM — hand it the node ring for a disc that sits inside the ring, and
+// leave it out for a console panel, which casts off its own corner. At q>=1
+// content() is drawn straight to screen (crisp).
+function popRender(q, px, py, pw, ph, content, castR) {
+  if (q >= 1) { content(); return; }                  // settled — full sharpness, no cast
+  const cx = px + pw / 2, cy = py + ph / 2;
+  const M = 22;                                        // margin for borders / corner brackets
+  const k = clamp(q, 0, 1), e = k * k * (3 - 2 * k);   // smoothstep: the front LEAVES the rim rather than starting inside it
+  const s = 1 - e;                                     // where the wavefront stands: 1 is the rim, 0 is the centre
+  // THE CAST WEARS THE PANEL'S OWN SHAPE. A disc throws a circular wavefront; a
+  // console slab throws a chamfered slab one. Same law either way — the light
+  // leaves the rim and closes on the centre — but a circle crossing a flat edge
+  // reads as a bubble over the panel rather than as the panel arriving.
+  const hw = pw / 2 + M, hh = ph / 2 + M;
+  const cut = Math.min(16, Math.min(hw, hh) * 0.16);
+  const span = castR || Math.min(hw, hh);              // the short way in, for widths and dashes
+  const outline = f => {                               // f scales the rim toward the centre
+    if (castR) { ctx.moveTo(cx + castR * f, cy); ctx.arc(cx, cy, Math.max(0, castR * f), 0, TAU); return; }
+    const w2 = hw * f, h2 = hh * f, c2 = cut * f;
+    ctx.moveTo(cx - w2 + c2, cy - h2);
+    ctx.lineTo(cx + w2, cy - h2);
+    ctx.lineTo(cx + w2, cy + h2 - c2);
+    ctx.lineTo(cx + w2 - c2, cy + h2);
+    ctx.lineTo(cx - w2, cy + h2);
+    ctx.lineTo(cx - w2, cy - h2 + c2);
+    ctx.closePath();
+  };
+  // the projected region is everything the wavefront has already crossed. At q<=0
+  // the front sits on the rim and the region is empty — but content() still runs,
+  // because content() ALSO registers the panel's tap targets and the caller has
+  // just cleared its hit-lists. Only the pixels are gated, never the registration.
+  ctx.save();
+  ctx.beginPath(); outline(1); outline(s);
+  ctx.clip('evenodd');
+  ctx.globalAlpha = 0.55 + 0.45 * e;                   // the image develops as it lands
+  try { content(); } finally { ctx.restore(); }
   if (q <= 0) return;
-  // blit back as strips: each flies in from a sideways offset, flickers, and locks.
-  // source rects are in DEVICE px (buf space); dest rects in game px (main ctx scales them).
-  const n = POP_STRIPS, sh = rh / n, D = DPR;
-  for (let i = 0; i < n; i++) {
-    const t0 = popFrac(i + 1) * 0.5;                  // scrambled start; wide overlap = smooth stream, not a sweep
-    const a = clamp((q - t0) / 0.5, 0, 1);            // 0 = not yet, 1 = locked
-    if (a <= 0) continue;
-    const ease = 1 - Math.pow(1 - a, 3);              // ease-out cubic: strips decelerate into place
-    const dir = popFrac(i * 3.7) < 0.5 ? -1 : 1;      // fly in from alternating sides
-    const jx = (1 - ease) * dir * rw * 0.55;          // sideways offset collapses to 0
-    const fl = a < 0.92 ? (0.55 + 0.45 * popFrac(i * 5.1 + Math.floor(time * 32))) : 1; // flicker only mid-flight
-    const sy = ry + i * sh, srcY = sy * D, srcH = sh * D, srcX = rx * D, srcW = rw * D;
-    ctx.save();
-    // chromatic fringe while travelling — a doubled ghost + cyan/magenta edges, fading as it locks
-    const split = (1 - ease) * 9;
-    if (split > 0.6) {
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = ease * fl * 0.45;
-      ctx.drawImage(buf, srcX, srcY, srcW, srcH, rx + jx - split, sy, rw, sh);
-      ctx.drawImage(buf, srcX, srcY, srcW, srcH, rx + jx + split, sy, rw, sh);
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = 'rgba(0,200,255,0.35)';  ctx.fillRect(rx + jx - split, sy, 2, sh);
-      ctx.fillStyle = 'rgba(255,40,120,0.32)'; ctx.fillRect(rx + jx + rw - 2 + split, sy, 2, sh);
-    }
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = ease * fl;
-    ctx.drawImage(buf, srcX, srcY, srcW, srcH, rx + jx, sy, rw, sh); // the strip itself
-    if (a < 0.85) { // a hot leading edge rides each strip mid-flight (the print head)
-      ctx.globalAlpha = (1 - a) * 0.7;
-      ctx.fillStyle = 'rgba(160,245,255,0.9)';
-      ctx.fillRect(rx + jx, sy, rw, 1.4);
-    }
-    ctx.restore();
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  // the beam ahead of the front — the part of the plate the light has not reached
+  if (s > 0.02) {
+    ctx.beginPath(); outline(s); ctx.clip();
+    const hz = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(hw, hh) * s);
+    hz.addColorStop(0, 'rgba(60,170,255,0)');
+    hz.addColorStop(0.7, 'rgba(70,190,255,' + (POP_CAST.haze * 0.35 * s).toFixed(3) + ')');
+    hz.addColorStop(1, 'rgba(150,240,255,' + (POP_CAST.haze * s).toFixed(3) + ')');
+    ctx.fillStyle = hz;
+    ctx.fillRect(cx - hw - M, cy - hh - M, (hw + M) * 2, (hh + M) * 2);
+    ctx.restore(); ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
   }
+  // the wavefront itself
+  const fa = POP_CAST.lead * (1 - e * e);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(190,250,255,' + fa.toFixed(3) + ')';
+  ctx.lineWidth = Math.max(1.2, span * 0.012);
+  ctx.shadowColor = 'rgba(120,230,255,0.9)'; ctx.shadowBlur = lowFX ? 0 : 14;
+  ctx.beginPath(); outline(s); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // the projector's scan: bright segments riding the front. On a disc they are
+  // placed off popFrac, so they are identical on every replay of the same frame;
+  // on a slab they are a dash pattern walked by the front's own travel.
+  ctx.strokeStyle = 'rgba(220,252,255,' + (fa * 0.7).toFixed(3) + ')';
+  ctx.lineWidth = Math.max(2, span * 0.022);
+  if (castR) {
+    for (let i = 0; i < POP_CAST.arcs; i++) {
+      const a0 = popFrac(i + 3) * TAU + e * 2.4, sp = 0.16 + popFrac(i * 2.3) * 0.2;
+      ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.5, castR * s), a0, a0 + sp); ctx.stroke();
+    }
+  } else {
+    ctx.setLineDash([span * 0.34, span * 0.26]);
+    ctx.lineDashOffset = -e * span * 2.4;
+    ctx.beginPath(); outline(s); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // the rim the light leaves from, lit for as long as the cast runs
+  ctx.strokeStyle = 'rgba(140,230,255,' + (POP_CAST.rim * s).toFixed(3) + ')';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); outline(1); ctx.stroke();
+  ctx.restore();
 }
 
+// ---------- the settings disc ----------
+// ONE SURFACE, TWO DOORS. The pause screen and the menu's SYSTEM CONFIG are the
+// same disc: same plate, same rows, same bottom segment. Only the title, the row
+// list and the two segment keys differ.
+const DISC_RIM = 0.97;   // the plate's rim ring, as a share of R — everything measures off it
+const DISC_PAD = 0.085;  // the inner margin. Labels and rail ends ride the chord at THIS
+                         // distance, so the block's outer edge is the circle, not a box.
+const DISC_SEG = 0.55;   // where the bottom segment's chord sits
+const DISC_ROW = 0.245;  // row pitch
+const discChord = (R, dy) => Math.sqrt(Math.max(1, R * DISC_RIM * R * DISC_RIM - dy * dy));
+
+// the plate every disc wears: a radial body, a hairline rim, four drifting accent
+// arcs and a title. Lifted off drawInfoCard so the settings disc and the mission
+// disc are visibly the same object seen twice.
+//
+// THE PLATE IS THE CONSOLE'S BLUE, not the briefing disc's near-black. The cast
+// throws LIGHT at this circle; a black ground swallows it and the wavefront reads
+// as a ring floating over a hole. techPanel's glass blue takes the light instead,
+// so the disc looks lit by the projection that built it.
+function discPlate(cx, cy, R, title) {
+  const bg = ctx.createRadialGradient(cx, cy, R * 0.20, cx, cy, R);
+  bg.addColorStop(0, 'rgba(11,31,57,0.95)');
+  bg.addColorStop(0.72, 'rgba(7,22,44,0.94)');
+  bg.addColorStop(1, 'rgba(5,17,36,0.86)');
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fill();
+  // the glass lift: one soft highlight off the top-left, the same read techPanel's
+  // header band gives a slab
+  const gl = ctx.createLinearGradient(cx - R * 0.6, cy - R, cx + R * 0.3, cy + R * 0.4);
+  gl.addColorStop(0, 'rgba(90,190,255,0.10)');
+  gl.addColorStop(0.55, 'rgba(90,190,255,0.02)');
+  gl.addColorStop(1, 'rgba(90,190,255,0)');
+  ctx.fillStyle = gl;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(120,200,255,0.34)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, R * DISC_RIM, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = 'rgba(140,230,255,0.75)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    const a = k / 4 * TAU + Math.PI / 4 + time * 0.15;
+    ctx.beginPath(); ctx.arc(cx, cy, R * DISC_RIM, a - 0.22, a + 0.22); ctx.stroke();
+  }
+  // THE TITLE SITS DOWN OFF THE RIM AND CARRIES SOME SIZE. It used to be set at
+  // R*0.052 hard against the crown, where the chord is barely wider than the word
+  // — a caption on a disc that is not captioned by anything else on screen.
+  const ty = cy - R * 0.755;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(186,231,255,0.92)';
+  try { ctx.letterSpacing = '4px'; } catch (e) {}
+  ctx.font = '700 ' + fitPx(title, '700', Math.max(11, Math.round(R * 0.095)),
+    (discChord(R, R * 0.755) - R * 0.05) * 2, 9) + 'px Audiowide, system-ui';
+  ctx.fillText(title, cx, ty);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.textAlign = 'left';
+}
+// the disc's small chamfered key — the switch and the track chevrons are both
+// this shape, so the column reads as one instrument
+function discSlab(x, y, w, h, lit) {
+  const cut = Math.max(3, h * 0.34);
+  techRect(x, y, w, h, cut);
+  ctx.fillStyle = lit ? 'rgba(45,150,215,0.42)' : 'rgba(140,190,240,0.055)'; ctx.fill();
+  ctx.shadowColor = 'rgba(110,225,255,0.7)'; ctx.shadowBlur = (lit && !lowFX) ? 7 : 0;
+  ctx.strokeStyle = lit ? 'rgba(150,238,255,0.85)' : 'rgba(120,180,255,0.28)';
+  ctx.lineWidth = lit ? 1.3 : 1.1;
+  techRect(x, y, w, h, cut); ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+// one audio channel row: label · switch · rail. `lx`/`rx` are THIS row's own chord
+// ends, so the block's left and right edges follow the circle; `tx` is shared by
+// every row, because a curved control column is a decoration nobody can aim at.
+function discSettingRow(label, key, volKey, y, lx, tx, rx, R) {
+  const fs = Math.max(8, Math.round(R * 0.072));
+  ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(176,222,252,0.95)';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
+  ctx.fillText(label, lx, y + fs * 0.36);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  // THE SWITCH. It was a slab as tall as the label with a square block sliding in
+  // it, which is mass where the disc wants light. It is slimmer now, and the
+  // travelling part is a lit capsule.
+  const tw = Math.max(30, R * 0.235), th = Math.max(14, R * 0.105), on = settings[key];
+  discSlab(tx, y - th / 2, tw, th, on);
+  const kw = Math.max(4, th * 0.40), kh = th - 6, pad = 3.5;
+  ctx.shadowColor = 'rgba(120,230,255,0.9)'; ctx.shadowBlur = (on && !lowFX) ? 8 : 0;
+  ctx.fillStyle = on ? '#eaf9ff' : 'rgba(150,182,215,0.5)';
+  roundRect(on ? tx + tw - kw - pad : tx + pad, y - kh / 2, kw, kh, kw / 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  pauseTogglesList.push({ x: tx, y: y - th / 2, w: tw, h: th, key });
+  if (!volKey) return; // toggle-only row (e.g. haptics)
+  // THE RAIL. Two hairlines and a capsule: the old rail carried a 4px track, nine
+  // tick posts and a rotated square, which is a lot of furniture for one number.
+  const sx = tx + tw + R * 0.10, sw2 = Math.max(20, rx - sx), v = settings[volKey];
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(130,200,255,0.13)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + sw2, y); ctx.stroke();
+  ctx.strokeStyle = 'rgba(130,200,255,0.20)'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {                      // four gaps, five posts — a quarter each
+    const tx2 = sx + sw2 * i / 4;
+    ctx.beginPath(); ctx.moveTo(tx2, y + 5); ctx.lineTo(tx2, y + 8.5); ctx.stroke();
+  }
+  ctx.shadowColor = 'rgba(111,227,255,0.85)'; ctx.shadowBlur = (on && !lowFX) ? 7 : 0;
+  ctx.strokeStyle = on ? 'rgba(111,227,255,0.95)' : 'rgba(120,150,200,0.32)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + sw2 * v, y); ctx.stroke();
+  const ch = Math.max(9, R * 0.062), cw = 3;
+  ctx.fillStyle = on ? '#eaf9ff' : 'rgba(195,208,230,0.5)';
+  roundRect(sx + sw2 * v - cw / 2, y - ch / 2, cw, ch, cw / 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  pauseSlidersList.push({ x: sx, y, w: sw2, key: volKey });
+}
+// TRACK: the run's music, named and skippable — the only place the player can
+// change it, because here the world is frozen and a mistap costs nothing. Returns
+// its two keys rather than registering them, so the caller can put them BEHIND
+// the disc's own keys in the pad's focus order.
+function discTrackRow(y, lx, tx, rx, R) {
+  const fs = Math.max(8, Math.round(R * 0.072));
+  ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(176,222,252,0.95)';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
+  ctx.fillText('TRACK', lx, y + fs * 0.36);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  const kw = Math.max(20, R * 0.125), kh = Math.max(14, R * 0.105);
+  const kx0 = tx, kx1 = rx - kw;
+  for (const [kx, dir] of [[kx0, 1], [kx1, -1]]) { // dir points the chevron's shoulders AWAY from its tip
+    discSlab(kx, y - kh / 2, kw, kh, false);
+    const gx = kx + kw / 2, gy = y, arm = kh * 0.24, reach = kh * 0.15;
+    ctx.strokeStyle = 'rgba(214,242,255,0.92)'; ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(gx + dir * reach, gy - arm);
+    ctx.lineTo(gx - dir * reach, gy);
+    ctx.lineTo(gx + dir * reach, gy + arm);
+    ctx.stroke();
+  }
+  const nx0 = kx0 + kw + R * 0.05, nw = Math.max(20, kx1 - R * 0.05 - nx0);
+  const nm = trackName(runTrack) || 'TRACK ' + (runTrack + 1);
+  ctx.textAlign = 'center';
+  ctx.font = '700 ' + fitPx(nm, '700', fs, nw, 8) + 'px Audiowide, system-ui';
+  ctx.fillStyle = settings.music ? 'rgba(234,250,255,0.95)' : 'rgba(150,180,210,0.45)';
+  ctx.fillText(nm, nx0 + nw / 2, y + fs * 0.36);
+  ctx.textAlign = 'left';
+  return [{ x: kx0, y: y - kh / 2, w: kw, h: kh, action: 'trkPrev', cut: kh * 0.34 },
+          { x: kx1, y: y - kh / 2, w: kw, h: kh, action: 'trkNext', cut: kh * 0.34 }];
+}
+// the row block: every label and every rail end rides its own chord, the switches
+// share one straight column. Returns the TRACK row's two keys, or null.
+function discRows(cx, cy, R, rows) {
+  // the block is centred in the FREE BAND — under the title, over the segment —
+  // rather than at a fixed offset, so a three-row disc (SYSTEM CONFIG) and a
+  // four-row one (a run with a soundtrack) both sit square in their own space
+  const n = rows.length, gap = R * DISC_ROW, mid = cy - R * 0.0825;
+  const rowY = i => mid + (i - (n - 1) / 2) * gap;
+  // the column is set by the NARROWEST row in the block, so no switch can escape
+  // the circle on the rows nearest the crown or the segment
+  const narrow = discChord(R, Math.max(Math.abs(rowY(0) - cy), Math.abs(rowY(n - 1) - cy)));
+  const tx = cx - narrow + R * DISC_PAD + (narrow - R * DISC_PAD) * 2 * 0.40;
+  let trk = null;
+  rows.forEach(([label, key, volKey], i) => {
+    const y = rowY(i), hx = discChord(R, y - cy);
+    const lx = cx - hx + R * DISC_PAD, rx = cx + hx - R * DISC_PAD;
+    if (key) discSettingRow(label, key, volKey, y, lx, tx, rx, R);
+    else trk = discTrackRow(y, lx, tx, rx, R);
+  });
+  return trk;
+}
+// half of the disc's bottom segment: the circle edge IS the key edge, and the two
+// halves meet on the vertical. `side` is -1 for the left key, +1 for the right.
+// Same language the contract disc's TAKE CONTRACT key speaks (92-guide.js).
+function discSegPath(cx, cy, rr, d, side) {
+  const a = Math.asin(clamp(d / rr, 0, 1));
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + d);
+  if (side < 0) { ctx.lineTo(cx - rr * Math.cos(a), cy + d); ctx.arc(cx, cy, rr, Math.PI - a, Math.PI / 2, true); }
+  else          { ctx.lineTo(cx + rr * Math.cos(a), cy + d); ctx.arc(cx, cy, rr, a, Math.PI / 2); }
+  ctx.closePath();
+}
+function discSegHit(sg, x, y) {
+  if (y < sg.cy + sg.d) return false;
+  if (Math.hypot(x - sg.cx, y - sg.cy) > sg.r) return false;
+  return sg.half < 0 ? x <= sg.cx : x >= sg.cx;
+}
+// the two keys along the bottom, and the seam that cuts them off the rows above.
+// Returns their button descriptors; the caller decides the focus order. A key may
+// carry {locked} — drawn dim and NOT returned, so a gated verb cannot be pressed
+// — or {primary}, which lights it the way a primary console key is lit.
+function discSegKeys(cx, cy, R, keys, segK) {
+  const rr = R * DISC_RIM, d = R * (segK || DISC_SEG);
+  const aSeg = Math.asin(clamp(d / rr, 0, 1)), chHalf = rr * Math.cos(aSeg);
+  const ly = cy + d + (rr - d) * 0.44;
+  // the key's width ON THE TEXT'S OWN LINE. Centring on half the CHORD put both
+  // labels out toward the rim, because the segment narrows under the chord.
+  const wAt = Math.sqrt(Math.max(1, rr * rr - (ly - cy) * (ly - cy)));
+  const out = [];
+  keys.forEach(([label, action, opt], i) => {
+    const o = opt || {}, side = i === 0 ? -1 : 1;
+    discSegPath(cx, cy, rr, d, side);
+    // lit at the chord, falling off to the rim — the key reads as a lip on the
+    // disc rather than a slab of paint laid over its bottom
+    const kg = ctx.createLinearGradient(0, cy + d, 0, cy + rr);
+    if (o.locked) { kg.addColorStop(0, 'rgba(20,40,64,0.45)'); kg.addColorStop(1, 'rgba(10,24,44,0.36)'); }
+    else if (o.primary) { kg.addColorStop(0, 'rgba(48,118,186,0.72)'); kg.addColorStop(1, 'rgba(18,56,100,0.58)'); }
+    else { kg.addColorStop(0, 'rgba(34,86,142,0.62)'); kg.addColorStop(1, 'rgba(13,40,76,0.50)'); }
+    ctx.fillStyle = kg; ctx.fill();
+    ctx.textAlign = 'center';
+    ctx.font = '700 ' + fitPx(label, '700', Math.round(R * 0.082), wAt * 0.82, 8) + 'px Audiowide, system-ui';
+    ctx.fillStyle = o.locked ? 'rgba(150,185,220,0.34)' : '#e6f6ff';
+    ctx.fillText(label, cx + side * wAt / 2, ly);
+    ctx.textAlign = 'left';
+    if (o.locked) return;   // drawn, never pressable — the gate is the key's own look
+    out.push({ x: side < 0 ? cx - chHalf : cx, y: cy + d, w: chHalf, h: rr - d, action,
+      seg: { cx, cy, r: rr, d, half: side } });
+  });
+  ctx.strokeStyle = 'rgba(140,230,255,0.55)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(cx - chHalf, cy + d); ctx.lineTo(cx + chHalf, cy + d); ctx.stroke();
+  ctx.strokeStyle = 'rgba(140,230,255,0.28)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx, cy + d + 2); ctx.lineTo(cx, cy + rr - 1); ctx.stroke();
+  return out;
+}
+// the disc's radius — one formula, shared with drawInfoCard so the deploy keeps
+// one disc size from selection through briefing through pause
+const discR = () => Math.min(H * 0.47, W * 0.30) * 0.92;
+// a chrome key in the screen's corner cluster: the pause/resume slab and the
+// FIELD GUIDE badge beside it wear the same slab the HUD's own keys do
+function discChromeKey(r, fill) {
+  techRect(r.x, r.y, r.w, r.h, 8);
+  ctx.fillStyle = fill || 'rgba(6,20,40,0.6)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(120,220,255,0.55)'; ctx.lineWidth = 1.5;
+  techRect(r.x, r.y, r.w, r.h, 8); ctx.stroke();
+}
+
+// THE PAUSE PANEL IS A DISC. It wears the mission disc's radius and the mission
+// disc's plate, and the ring casts it: the console box it used to be was the one
+// screen in the run that spoke a different language from the hardware around it.
+// RESUME is not on it — the PAUSE key in the corner becomes the RESUME key, so
+// the control that closes this screen is the control that opened it, and the
+// FIELD GUIDE badge sits beside it, where the menu keeps its own '?'.
 function drawPause() {
   const q = popFxQ('pause', state === S.PAUSE);
   pauseButtonsList = []; pauseSlidersList = []; pauseTogglesList = [];
-  ctx.fillStyle = 'rgba(3,6,14,' + (0.78 * q).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
-  const pw = Math.min(W * 0.74, 540), ph = Math.min(H * 0.86, 300);
-  const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
-  popRender(q, px, py, pw, ph, () => {
+  // the field dims FASTER than the cast travels. The lane behind an unprojected
+  // centre is a lit bore with a star in it, and a projection cannot read against
+  // one — the dim has to be there before the light arrives.
+  ctx.fillStyle = 'rgba(3,6,14,' + (0.78 * Math.min(1, q * 2.2)).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
+  const g = geo();
+  // the corner cluster, ABOVE the dim: RESUME (the same slab that paused the run,
+  // wearing a play triangle) and the FIELD GUIDE badge to its left.
+  const rk = pauseBtnRect || { x: W - 12 - SAFE.r - 38, y: 12 + SAFE.t, w: 38, h: 38 };
+  const gk = { x: rk.x - 8 - rk.w, y: rk.y, w: rk.w, h: rk.h, action: 'guide', cut: 8 };
+  ctx.save(); ctx.globalAlpha = q;
+  drawPauseKey(rk, true);
+  discChromeKey(gk);
+  ctx.fillStyle = 'rgba(200,240,255,0.9)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '700 17px Audiowide, system-ui';
+  ctx.fillText('?', gk.x + gk.w / 2 + 1, gk.y + gk.h / 2 + 1);
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.restore();
+  pauseButtonsList.push({ x: rk.x, y: rk.y, w: rk.w, h: rk.h, action: 'resume', cut: 8 });
+  const R = discR();
+  const rows = [['SFX', 'sound', 'soundVol'], ['MUSIC', 'music', 'musicVol'], ['HAPTICS', 'haptics', null]];
+  if (typeof runTrack === 'number' && trackCount() > 1) rows.push(['TRACK', null, null]);
+  popRender(q, g.cx - R, g.cy - R, R * 2, R * 2, () => {
     ctx.save();
-    techPanel(px, py, pw, ph, 'SYSTEM PAUSED');
-    // the FIELD GUIDE key rides the header bar — one tap away
-    const gk = { x: px + pw - 44, y: py + 6, w: 30, h: 20, action: 'guide', cut: 5 };
-    techRect(gk.x, gk.y, gk.w, gk.h, 5);
-    ctx.fillStyle = 'rgba(30,120,190,0.30)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(140,230,255,0.75)'; ctx.lineWidth = 1.2;
-    techRect(gk.x, gk.y, gk.w, gk.h, 5); ctx.stroke();
-    ctx.fillStyle = '#dff6ff'; ctx.font = '700 12px Audiowide, system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('?', gk.x + gk.w / 2, gk.y + 14.5);
-    ctx.textAlign = 'left';
-    settingRow('SFX',        'sound',     'soundVol', py + 70,  px, pw);
-    settingRow('MUSIC',      'music',     'musicVol', py + 108, px, pw);
-    settingRow('HAPTICS',    'haptics',   null,       py + 146, px, pw);
-    // TRACK: the run's music, named and skippable — the only place the player can
-    // change it, because here the world is frozen and a mistap costs nothing. (It
-    // took the slot a decorative console readout used to hold.)
-    const trkRow = typeof runTrack === 'number' && trackCount() > 1 ? py + 188 : 0;
-    if (trkRow) {
-      ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(160,225,255,0.95)';
-      try { ctx.letterSpacing = '2px'; } catch (e) {}
-      ctx.font = '700 12px Audiowide, system-ui';
-      ctx.fillText('TRACK', px + 24, trkRow + 4);
-      try { ctx.letterSpacing = '0px'; } catch (e) {}
-      const kw = 30, kh = 24, kx0 = px + 162, kx1 = px + pw - 36 - kw;
-      for (const [kx, glyph] of [[kx0, '◀'], [kx1, '▶']]) {
-        techRect(kx, trkRow - kh / 2, kw, kh, 6);
-        ctx.fillStyle = 'rgba(40,140,210,0.35)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(140,230,255,0.7)'; ctx.lineWidth = 1.5;
-        techRect(kx, trkRow - kh / 2, kw, kh, 6); ctx.stroke();
-        ctx.fillStyle = '#dff6ff'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
-        ctx.fillText(glyph, kx + kw / 2, trkRow + 4);
-      }
-      const nx0 = kx0 + kw + 8, nw = kx1 - 8 - nx0;
-      const nm = trackName(runTrack) || 'TRACK ' + (runTrack + 1);
-      ctx.textAlign = 'center';
-      ctx.font = '700 ' + fitPx(nm, '700', 12, nw, 8) + 'px Audiowide, system-ui';
-      ctx.fillStyle = settings.music ? 'rgba(234,250,255,0.95)' : 'rgba(150,180,210,0.45)';
-      ctx.fillText(nm, nx0 + nw / 2, trkRow + 4);
-      ctx.textAlign = 'left';
-    }
-
-    const bh = 44, gap = 12, bw = (pw - 48 - gap * 2) / 3;
-    let bx = px + 24; const by = py + ph - bh - 20;
-    [['RESUME', 'resume', true], ['RESTART', 'restart', false], ['QUIT', 'menu', false]].forEach(([label, action, primary]) => {
-      button(bx, by, bw, bh, label, primary);
-      pauseButtonsList.push({ x: bx, y: by, w: bw, h: bh, action, cut: Math.min(12, bh * 0.28) });
-      bx += bw + gap;
-    });
-    // registered AFTER the three main keys so RESUME keeps the pad focus
+    discPlate(g.cx, g.cy, R, 'PAUSED');
+    const trk = discRows(g.cx, g.cy, R, rows);
+    for (const b of discSegKeys(g.cx, g.cy, R, [['RESTART', 'restart'], ['QUIT', 'menu']])) pauseButtonsList.push(b);
+    // registered AFTER the segment so RESUME and the two keys keep the pad focus
     pauseButtonsList.push(gk);
-    if (trkRow) {
-      const kw = 30, kh = 24;
-      pauseButtonsList.push({ x: px + 162, y: trkRow - kh / 2, w: kw, h: kh, action: 'trkPrev', cut: 6 });
-      pauseButtonsList.push({ x: px + pw - 36 - kw, y: trkRow - kh / 2, w: kw, h: kh, action: 'trkNext', cut: 6 });
-    }
+    if (trk) pauseButtonsList.push(trk[0], trk[1]);
     ctx.restore();
-  });
+  }, g.nodeR * 1.02);
   ctx.textAlign = 'left';
 }
-
 // step the run's soundtrack by hand. Walks the pool in order (not the bag) so
 // ◀/▶ are predictable, and drops any free-flow preload — the seam is now measured
 // from THIS take, not the one the player just left.
@@ -1668,7 +1858,8 @@ function skipTrack(dir) {
 function pauseTap(x, y, pid) {
   if (settingsTap(x, y, pid)) return;
   for (const b of pauseButtonsList) {
-    if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
+    if (b.seg ? !discSegHit(b.seg, x, y) : !(x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h)) continue;
+    {
       pressUI(b);
       if (b.action === 'guide') { enterGuide('pause'); }
       else if (b.action === 'trkPrev' || b.action === 'trkNext') skipTrack(b.action === 'trkNext' ? 1 : -1);
