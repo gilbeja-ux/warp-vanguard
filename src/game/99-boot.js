@@ -366,7 +366,20 @@ const SPLASH = {
 // `hold` is the boot gate, and it sits on the LAST OPAQUE BEAT — one frame before
 // reveal starts thinning the curtain. A gate any later would hold on a half-open
 // stage, which reads as a hang rather than as a load.
-const SPL = { gb: 0.35, type: 1.3, cast: 3.0, crush: 4.1, df: 4.3, settle: 5.5, hold: 5.52, reveal: 5.55, wheel: 6.35 };
+const SPL = { gb: 0.35, type: 1.3, cast: 3.0, crush: 3.82, df: 4.3, settle: 5.5, hold: 5.52, reveal: 5.55, wheel: 6.35 };
+// THE RIDE'S KNOBS, in one place. The beat sheet above says WHEN; this says HOW
+// HARD. Every number here is a look, not a timing, so it can move without the
+// score and the sequence disagreeing.
+const SPLFLY = {
+  gbZoom: 9,        // how far past the lens the GB card blows. 1 = it never leaves
+  gbFade: 2.6,      // …and how late it gives up its light. Higher holds longer
+  badgeFar: 0.05,   // the badge's size at the horizon, as a fraction of its dock
+  badgeEase: 2.6,   // the arrival curve. Higher leaves the distance faster
+  wake: 3,          // trailing copies down the lane behind the badge
+  wakeGap: 0.10,    // …and the depth step between them
+  boreIn: 0.86,     // curtain LEFT once the bore has faded up under the studio card
+  veil: 0.55        // …and once the warp opens for the hand-over. Lower shows more
+};
 const GB_TAG = 'GB Interactive';
 const GBIMG = { img: null, w: 0, h: 0 };
 if (SPLASH.on) {
@@ -473,42 +486,39 @@ function splashBadge() { // where the menu wants the logo — the hub badge's re
 }
 // an image torn into horizontal bands, each thrown sideways by amt; ghost
 // doubles under it fake the chromatic smear
-// THE WARP-IN. This replaced splashStatic — shifted tint bands, a raw-data
-// character spray and drifting scanlines, which is a corrupted feed's vocabulary.
-// The splash is not a feed. It is the moment the ship arrives and the studio's
-// mark is handed to the game's, so what crosses the card is SPEED and a
-// PROJECTION: streaks thrown out of the bore, and the same cast wavefront every
-// disc in the game is built by, closing on the mark again and again.
-function splashWarp(amt) {
-  if (amt <= 0.02) return;
-  const cx = W / 2, cy = H * 0.44, dg = Math.hypot(W, H);
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.lineCap = 'round';
-  for (let i = 0, n = Math.floor(4 + amt * 24); i < n; i++) {
-    const a = Math.random() * TAU, r1 = dg * (0.10 + Math.random() * 0.42);
-    const len = dg * (0.03 + Math.random() * 0.10) * (0.4 + amt);
-    ctx.strokeStyle = 'rgba(150,220,255,' + (0.09 + amt * 0.20).toFixed(3) + ')';
-    ctx.lineWidth = 1 + Math.random() * 1.6;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
-    ctx.lineTo(cx + Math.cos(a) * (r1 + len), cy + Math.sin(a) * (r1 + len));
-    ctx.stroke();
-  }
-  // the cast, on its own repeating clock — faster and brighter as the hand-over
-  // completes. Same smoothstep front popRender uses, so the two read as one idea.
-  const per = 0.66 - amt * 0.24;
-  const ph = (SPLASH.t / per) % 1, e = ph * ph * (3 - 2 * ph);
-  const fr = dg * 0.55 * (1 - e);
-  if (fr > 2) {
-    ctx.strokeStyle = 'rgba(190,250,255,' + (amt * 0.75 * (1 - e * e)).toFixed(3) + ')';
-    ctx.lineWidth = 1.6 + amt * 2;
-    ctx.shadowColor = 'rgba(120,230,255,0.9)'; ctx.shadowBlur = lowFX ? 0 : 14;
-    ctx.beginPath(); ctx.arc(cx, cy, fr, 0, TAU); ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
-  ctx.restore();
+// THE WARP IS THE GAME'S OWN WARP. The splash used to paint streaks of its own —
+// first a scatter re-rolled every frame, then a hand-rolled field on its own
+// loops. Both were a SECOND warp drawn over the first, and a second warp can
+// only ever disagree with the real one about speed, colour and direction. Gil,
+// 2026-08-31: use the warp-in a level starts with.
+//
+// So it does. The lane is already running underneath — the curtain was simply
+// painted over it — and the launch that pushes it is two numbers the tick owns:
+// `warpT`, the 0.9s WARP_DIVE shove, and `laneFlow`, the spool from a standstill
+// to full lane. splashLane() writes both off the beat sheet, the curtain thins to
+// a veil so the field shows through, and the badge flies up the same bore the
+// stars come out of. One lane, one direction, and nothing to keep in sync.
+//
+// Both numbers are PURELY VISUAL (see the tick's note on laneFlow), and the
+// splash releases them before it ends: warpT burns to 0 on its own clock, and
+// the writes stop at SPL.reveal so the tick's own brake drops the lane out of
+// warp as the menu arrives.
+function splashLane(t) {
+  if (state !== S.MENU) return;                // …and never on the first-boot path,
+                                               // which parks a run back there — see
+                                               // the veil's note in drawSplash
+  if (t < SPL.crush || t > SPL.reveal) return; // before the rush and after the
+                                               // hand-off, the lane is the menu's
+  laneFlow = clamp((t - SPL.crush) / (SPL.df - SPL.crush), 0, 1); // spool to full by the cut
+  warpT = Math.max(0, WARP_DIVE - Math.max(0, t - SPL.df));       // …and the shove lands ON it
 }
+// THE BORE IS THE ONLY LIGHT LEFT. There was a cast wavefront here too — a ring
+// on its own repeating clock, crossing the studio card again and again. Gil,
+// 2026-08-31: "the first rings coming over the GB Interactive logo are weird…
+// maybe they can be the actual bore coming in a fade in fashion". They can, and
+// it is the same lesson as the streaks one beat earlier: the game already draws
+// the thing, so the splash should UNCOVER it rather than imitate it. There is no
+// painted warp light on this card at all now. The curtain simply lets the bore up.
 // THE HOLD'S OWN SLICE. Nothing on the stage is moving but a progress arc, so
 // the bake takes most of the frame instead of the menu's polite 8ms — a held
 // splash is a load, and a load that paces itself is just a longer load.
@@ -572,6 +582,7 @@ function drawSplash(rawDt) {
   if (SPLASH.t >= SPLASH.dur) { splashEnd(false); return; }
   const t = SPLASH.t, u = Math.min(W, H);
   const ss = (a, b) => { const q = clamp((t - a) / (b - a), 0, 1); return q * q * (3 - 2 * q); };
+  splashLane(t); // the lane under the curtain launches — it is the game's warp-in
   ctx.save();
   ctx.textAlign = 'center';
   // the wheel cue: hand the stage to the menu — it spins its wheel in behind
@@ -582,21 +593,43 @@ function drawSplash(rawDt) {
     menuIntroAt = time;
     if (!menuFx) menuFx = { kind: 'spinIn', t: 0, dur: 0.6, dir: 1 };
   }
-  // the curtain: opaque through the build, thinning through the reveal — the
-  // LIVE tunnel painted underneath is what shows through (the menu itself
-  // waits for the wheel cue)
-  ctx.globalAlpha = 1 - ss(SPL.reveal, SPL.reveal + 0.95);
+  // THE CURTAIN, IN THREE STAGES, and every one of them is the same move: it
+  // lifts to show what the game is already drawing.
+  //
+  //   1. OPAQUE, through the mark and the typed tag. The studio card is the
+  //      studio's and nothing else is on it.
+  //   2. THE BORE, from SPL.cast. The curtain eases back to SPLFLY.boreIn and the
+  //      lane's own mouth comes up under the logo — far off and barely there, the
+  //      destination arriving rather than an effect starting.
+  //   3. THE VEIL, from the rush. It opens to SPLFLY.veil for the hand-over, so
+  //      the badge flies up a lane that is running, not a painted one.
+  //
+  // The reveal takes the last of it and the menu is behind the logo, as before.
+  //
+  // NONE OF IT OPENS ON A DIRTY STAGE. A first-ever boot claims S.ENLIST before
+  // the first frame, and that path parks the run behind the curtain — the ring and
+  // the pads, dead centre, which is the exact patch of screen the badge flies out
+  // of. So a first boot keeps its opaque curtain to the reveal and gets the flight
+  // over black. It is the one boot in a player's life; it does not get to be the
+  // one that shows the badge landing on top of the ring.
+  const veilOK = state === S.MENU;
+  const open = veilOK
+    ? (1 - SPLFLY.boreIn) * ss(SPL.cast, SPL.crush)
+      + (SPLFLY.boreIn - SPLFLY.veil) * ss(SPL.crush, SPL.df)
+    : 0;
+  ctx.globalAlpha = (1 - open) * (1 - ss(SPL.reveal, SPL.reveal + 0.95));
   ctx.fillStyle = 'rgb(2,4,10)';
   ctx.fillRect(-20, -20, W + 40, H + 40);
   ctx.globalAlpha = 1;
-  // cast intensity: one early pulse of the ring, then the build to the hand-over,
-  // then a decaying wash while the badge locks in. Same clock the tear ran on.
+  // how much of the lane's light falls ON the mark. It builds as the bore comes
+  // up behind the card and decays once the badge has the stage. This is the only
+  // thing the old cast clock is still asked for — the ring it used to drive is
+  // gone, and the light it lends the logo is the part that was worth keeping.
   let castAmt = t < SPL.cast
     ? 0
     : t < SPL.df
-      ? Math.pow((t - SPL.cast) / (SPL.df - SPL.cast), 1.5)
-      : Math.max(0, 1 - (t - SPL.df) / (SPL.settle - SPL.df)) * 0.7;
-  if (t > 2.45 && t < 2.58) castAmt = 0.3; // the first pass of the projector
+      ? Math.pow((t - SPL.cast) / (SPL.df - SPL.cast), 1.1)
+      : Math.max(0, 1 - (t - SPL.df) / (SPL.settle - SPL.df)) * 0.85;
 
   // ---- card one: the GB mark over black ----
   if (t < SPL.df) {
@@ -605,18 +638,23 @@ function drawSplash(rawDt) {
     const gcx = W / 2, gcy = H * 0.44, gw = u * 0.51;
     if (gbA > 0) {
       ctx.save();
-      // THE LANE TAKES THE CARD. This was a CRT power-off — the whole card
-      // squeezed into a hot horizontal filament — which is a dead television's
-      // idiom. The card recedes into the bore instead, the way everything in this
-      // game leaves, and the flash below is the point it goes through.
-      const zc = Math.max(0.02, Math.pow(1 - crushQ, 1.6));
-      ctx.translate(gcx, gcy); ctx.scale(zc, zc); ctx.translate(-gcx, -gcy);
-      ctx.globalAlpha = gbA * (1 - crushQ * 0.85);
+      // INTO THE LENS. The card used to recede into the bore, which reads as the
+      // studio walking away. It ARRIVES instead: the mark rushes the camera,
+      // blows past it, and the badge comes up the same lane behind it. That is
+      // the whole sentence of the splash — we warp FROM GB TO WARP VANGUARD —
+      // and it only reads if both cards travel the same way.
+      // …and it rushes down the LANE's axis, not the card's: the vanishing point
+      // is the screen centre, which is where drawWarpSky and the bore both put it.
+      // A card that flew at its own centre would leave on a different heading from
+      // the stars behind it, which is the disagreement this whole pass is fixing.
+      const zc = 1 + Math.pow(crushQ, 2.3) * SPLFLY.gbZoom;
+      ctx.translate(W / 2, H / 2); ctx.scale(zc, zc); ctx.translate(-W / 2, -H / 2);
+      ctx.globalAlpha = gbA * (1 - Math.pow(crushQ, SPLFLY.gbFade));
       const gh = GBIMG.w ? gw * GBIMG.h / GBIMG.w : 0;
       if (GBIMG.w) {
         const gx = gcx - gw / 2, gy = gcy - gh / 2 - u * 0.05;
         ctx.drawImage(GBIMG.img, gx, gy, gw, gh);   // whole and seamless — never torn
-        if (castAmt > 0.03) {                        // …the cast LIGHTS the mark as it takes it
+        if (castAmt > 0.03) {                        // …and the bore's light falls ON the mark
           ctx.save();
           ctx.globalCompositeOperation = 'lighter';
           ctx.globalAlpha *= castAmt * 0.45;
@@ -641,75 +679,103 @@ function drawSplash(rawDt) {
         try { ctx.letterSpacing = '0px'; } catch (e) {}
       }
       ctx.restore();
-      if (crushQ > 0) { // the warp flash at the point the card leaves through
-        const fa = Math.sin(crushQ * Math.PI);
-        const fg = ctx.createRadialGradient(gcx, gcy, 0, gcx, gcy, u * 0.30 * (0.35 + crushQ));
+      if (crushQ > 0) { // the warp flash, ON THE BORE — the point the card leaves through
+        const fa = Math.sin(crushQ * Math.PI), fx = W / 2, fy = H / 2;
+        const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, u * 0.30 * (0.35 + crushQ));
         fg.addColorStop(0, 'rgba(235,250,255,' + (fa * 0.85).toFixed(3) + ')');
         fg.addColorStop(0.55, 'rgba(150,225,255,' + (fa * 0.25).toFixed(3) + ')');
         fg.addColorStop(1, 'rgba(150,225,255,0)');
         ctx.fillStyle = fg;
-        ctx.fillRect(gcx - u, gcy - u, u * 2, u * 2);
+        ctx.fillRect(fx - u, fy - u, u * 2, u * 2);
         ctx.globalAlpha = 1;
       }
     }
   }
 
-  // ---- card two: the badge materializes where the menu's hub holds it ----
+  // ---- card two: the badge flies up the lane into the menu's hub ----
+  // It comes out of the SAME BORE the GB mark just left through: a point at the
+  // vanishing centre that grows along its own ray until it parks exactly on the
+  // rect the menu holds the badge in. Position and scale share one number — a
+  // pinhole, so the flight is a straight run at the camera and nothing else.
+  // The badge no longer materializes in place; it travels, because the card
+  // before it travels, and the pair of them is the sentence GB → WARP VANGUARD.
   if (t >= SPL.df) {
     const b = splashBadge();
-    const inQ = ss(SPL.df, SPL.settle);
     if (b) {
-      const amt = Math.pow(1 - inQ, 2);
+      const vx = W / 2, vy = H / 2;                          // the bore — drawWarpSky's own centre
+      const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;        // …and the dock it flies to
+      const raw = clamp((t - SPL.df) / (SPL.settle - SPL.df), 0, 1);
+      const ease = 1 - Math.pow(1 - raw, SPLFLY.badgeEase);   // out of the distance fast, docks slow
+      const sc = SPLFLY.badgeFar + (1 - SPLFLY.badgeFar) * ease;
+      // draw the badge at one depth on the lane. P maps to VP + (P - VP) * d,
+      // which is the pinhole and the reason the run needs no separate path.
+      const lane = (d, fn) => {
+        ctx.save();
+        ctx.translate(vx + (bcx - vx) * d, vy + (bcy - vy) * d);
+        ctx.scale(d, d);
+        ctx.translate(-bcx, -bcy);
+        fn();
+        ctx.restore();
+      };
+      const draw = () => ctx.drawImage(b.img, b.x, b.y, b.w, b.h);
       ctx.save();
-      ctx.globalAlpha = Math.min(1, inQ * 1.6);
-      // the print clip: only what the scan has passed exists — ONE clean rect,
-      // so no band seams or missing strips ever cross the art (the glitch
-      // texture below is strictly additive: it can add light, never cut black)
-      if (inQ < 1) {
-        ctx.beginPath();
-        ctx.rect(b.x - b.w * 0.1, b.y - b.h * 0.05, b.w * 1.2, b.h * 0.05 + b.h * inQ + 3);
-        ctx.clip();
+      // the wake: copies a step further down the lane, so the run has a trail
+      // instead of a jump. They die as the badge parks.
+      if (raw < 0.95) {
+        ctx.globalCompositeOperation = 'lighter';
+        for (let k = 1; k <= SPLFLY.wake; k++) {
+          ctx.globalAlpha = 0.26 * (1 - raw) / k;
+          lane(sc * (1 - k * SPLFLY.wakeGap), draw);
+        }
+        ctx.globalCompositeOperation = 'source-over';
       }
-      if (amt > 0.03) {
-        // THE BADGE ARRIVES LIT, NOT BROKEN. This was a pair of chromatic ghosts
-        // either side of the print plus a few displaced echo slices sparking off
-        // it — the decompile's language, on the game's own crest. What is left is
-        // the projection that put it there: the mark glows out of the light it
-        // was cast in, and the glow settles as the print locks.
+      ctx.globalAlpha = Math.min(1, raw * 5);
+      // THE BADGE ARRIVES LIT, NOT BROKEN. This was a pair of chromatic ghosts
+      // either side of the print plus a few displaced echo slices sparking off
+      // it — the decompile's language, on the game's own crest. What is left is
+      // the projection that put it there: the mark glows out of the light it
+      // was cast in, and the glow settles as the print docks.
+      const glow = Math.pow(1 - ease, 1.5);
+      if (glow > 0.03) {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha *= amt * 0.55;
-        ctx.drawImage(b.img, b.x, b.y, b.w, b.h);
+        ctx.globalAlpha *= glow * 0.7;
+        lane(sc, draw);
         ctx.restore();
       }
-      ctx.drawImage(b.img, b.x, b.y, b.w, b.h); // the print itself — whole and seamless
-      if (inQ < 1) { // a scan sweep rakes down the badge as it forms — form-
-        // fitting: it enters at the GB mark's CONTENT width and converges onto
-        // the shield's per-row silhouette, printing one brand as the other
-        const sy = b.y + b.h * inQ;
+      lane(sc, draw); // the print itself — whole and seamless, at every depth
+      // the lock: a scan rakes the badge over the last of the run, entering at
+      // the GB mark's CONTENT width and converging onto the shield's own
+      // silhouette — one brand printed as the other. It sits at the END of the
+      // flight now, so it reads on a badge big enough to see it, and it is
+      // finished before the boot gate can stop the sequence at SPL.hold.
+      const lockQ = clamp((raw - 0.6) / 0.4, 0, 1);
+      if (lockQ > 0 && lockQ < 1) {
         const rows = contentRows(b.img);
-        const row = rows.length ? rows[clamp(Math.floor(inQ * rows.length), 0, rows.length - 1)] : null;
+        const row = rows.length ? rows[clamp(Math.floor(lockQ * rows.length), 0, rows.length - 1)] : null;
         const rx = row ? b.x + row.x0 * b.w : b.x, rw = row ? (row.x1 - row.x0) * b.w : b.w;
         let gbW = 0; // GB content width, as a fraction of its file
         for (const r of contentRows(GBIMG.img)) gbW = Math.max(gbW, r.x1 - r.x0);
         if (!gbW) gbW = 0.9; // silhouette unavailable — assume most of the file
-        const blend = clamp(inQ * 2.5, 0, 1); // the GB echo dies a third of the way down
+        const blend = clamp(lockQ * 2.5, 0, 1); // the GB echo dies a third of the way down
         const swW = u * 0.51 * gbW * (1 - blend) + rw * blend;
         const sx = (b.x + b.w / 2) * (1 - blend) + (rx + rw / 2) * blend - swW / 2;
-        const gsc = ctx.createLinearGradient(0, sy - b.h * 0.18, 0, sy);
-        gsc.addColorStop(0, 'rgba(111,227,255,0)');
-        gsc.addColorStop(1, 'rgba(111,227,255,0.35)');
-        ctx.fillStyle = gsc;
-        ctx.fillRect(sx, sy - b.h * 0.18, swW, b.h * 0.18);
-        ctx.fillStyle = 'rgba(235,250,255,0.8)';
-        ctx.fillRect(sx, sy, swW, 1.5);
+        const sy = b.y + b.h * lockQ;
+        lane(sc, () => {
+          const gsc = ctx.createLinearGradient(0, sy - b.h * 0.18, 0, sy);
+          gsc.addColorStop(0, 'rgba(111,227,255,0)');
+          gsc.addColorStop(1, 'rgba(111,227,255,0.35)');
+          ctx.fillStyle = gsc;
+          ctx.fillRect(sx, sy - b.h * 0.18, swW, b.h * 0.18);
+          ctx.fillStyle = 'rgba(235,250,255,0.8)';
+          ctx.fillRect(sx, sy, swW, 1.5);
+        });
       }
       ctx.restore();
     }
   }
 
   if (SPLASH.held) drawSplashHold(u);
-  splashWarp(castAmt);
   const fl = 1 - clamp(Math.abs(t - SPL.df) / 0.09, 0, 1); // the white pop at the cut
   if (fl > 0) {
     ctx.globalAlpha = fl * 0.5;
