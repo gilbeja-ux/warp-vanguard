@@ -465,8 +465,11 @@ for (let i = 0; i < 34; i++) {
     warm: Math.random() < 0.3
   });
 }
-// How far along the lane we are — the same expression the HUD progress arc uses,
-// so the world's growth and the bar are literally the same number.
+// How far along the lane we are. In a campaign lane this is the same expression the
+// HUD progress arc uses, so the world's growth and the bar are literally the same
+// number. Free flow is the one exception: the HUD arc there recycles every SURGE_EVERY
+// seconds because a run with no end has no other mark to point at, while the world must
+// keep growing once and only forward. So the endless read stays on the 150s spice ramp.
 //
 // LATCHED and monotonic. Two reasons. It must never shrink mid-run (a boss's HP
 // can tick back up on a heal, and a world that shrinks reads as reversing), and

@@ -34,6 +34,13 @@ const campIdOf = pk => (pk && pk.id) || 'x';
 const campKey = () => campIdOf(typeof CAMP !== 'undefined' && CAMP);
 const ramp = (a, b, x) => lerp(a, b, clamp(x, 0, 1));
 // endless mode: difficulty is a function of survival time, rebuilt each frame
+// FREE FLOW STEPS ON ONE CLOCK. The step-up itself, the "SPEEDING UP" digits and the
+// left gauge all have to name the SAME instant, so the period lives here once and the
+// three call sites read it. Pure in t, so weekly's seeded script stays a function of
+// the week.
+const SURGE_EVERY = 100;                                      // seconds between step-ups
+const surgeIdx = t => Math.floor(t / SURGE_EVERY);            // which surge is running
+const surgeToNext = t => (surgeIdx(t) + 1) * SURGE_EVERY - t; // seconds until the next one
 function endlessCfg(t) {
   const k = clamp(t / 150, 0, 1); // fully spiced after 2.5 minutes
   // DEEP SURGES (H-08): speed stays capped at surge 6 for playability, but the
@@ -41,13 +48,13 @@ function endlessCfg(t) {
   // Every surge past 6 now presses density and mix instead — announced like the
   // speed steps, relief pickup and all — so a deep run ends on a skill wall.
   // Pure in t, so weekly's seeded script stays a function of the week.
-  const press = 1 + Math.min(Math.max(0, Math.floor(t / 100) - 6) * 0.09, 0.8);
+  const press = 1 + Math.min(Math.max(0, surgeIdx(t) - 6) * 0.09, 0.8);
   const pcap = (v, cap) => Math.min(v * press, cap);
   return {
     name: weekly ? 'WEEKLY LANE' : 'ENDLESS LANE', duration: Infinity, endless: true,
     spawnMin: ramp(1.4, 0.55, k) / press, spawnMax: ramp(2.2, 1.1, k) / press,
-    // speed climbs in announced SURGE steps every 100s, hard-capped at 6
-    speed: Math.min(0.38 + Math.floor(t / 100) * 0.035, 0.38 + 6 * 0.035),
+    // speed climbs in announced SURGE steps every SURGE_EVERY seconds, hard-capped at 6
+    speed: Math.min(0.38 + surgeIdx(t) * 0.035, 0.38 + 6 * 0.035),
     doubles: pcap(ramp(0, 0.40, k), 0.62),
     // lines + heavies share one roll in trySpawn — their caps must sum below 1
     heavies: pcap(ramp(0, 0.22, (k - 0.15) / 0.85), 0.34),

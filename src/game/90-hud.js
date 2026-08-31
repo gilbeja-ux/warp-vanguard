@@ -811,14 +811,22 @@ function drawHUD(g) {
   ctx.beginPath(); ctx.arc(g.cx, g.cy, barR, aL0, aL1); ctx.stroke();
   ctx.strokeStyle = '#050a12'; ctx.lineWidth = bw2 + 2;
   ctx.beginPath(); ctx.arc(g.cx, g.cy, barR, aL0, aL1); ctx.stroke();
-  // left arc: level progress · endless ramp · CORE health during the duel — or,
-  // while watching a replay, the run's position (so it doubles as the scrub bar)
+  // left arc: level progress · the next surge in free flow · CORE health during the
+  // duel — or, while watching a replay, the run's position (it doubles as the scrub bar)
   // the campaign fill divides by the LANE CLOCK, never by L.duration — duration is
   // where spawning stops, and a bar that filled there sat pinned at 100% while the
   // last wave was still inbound. laneEndShow is the same number the countdown below
   // prints, so the picture and the digits are one reading.
+  //
+  // FREE FLOW HAS NO END, SO THE GAUGE COUNTS TO THE NEXT SURGE. It used to divide by
+  // the 150s spice ramp: it filled once, pinned at 100%, and from 2.5 minutes on it
+  // pointed at nothing for the rest of the run. Endless and weekly both have exactly
+  // one scheduled event — the step-up every SURGE_EVERY seconds — so the bar tracks
+  // THAT and recycles on each one. Same shape as a lane: the fill runs to the mark,
+  // the digits count down to it. Draw only; the sim reads none of this.
   const prog = replaying ? clamp(tracePlay ? tracePlay.i / Math.max(1, replayMeta.total) : 1, 0, 1)
-    : boss ? clamp(boss.hp / boss.maxHp, 0, 1) : endless ? clamp(levelT / 150, 0, 1)
+    : boss ? clamp(boss.hp / boss.maxHp, 0, 1)
+    : endless ? clamp(1 - surgeToNext(levelT) / SURGE_EVERY, 0, 1)
     : clamp(levelT / Math.max(0.001, laneEndShow || L.duration), 0, 1);
   if (prog > 0.005) {
     const aEnd = aL0 + (aL1 - aL0) * prog;
@@ -874,7 +882,10 @@ function drawHUD(g) {
   //   the duel   → PULSES landed over needed, the only progress a duel has
   //   a replay   → the trace's own seconds, riding the scrub knob like a scrubber
   //   a lane     → seconds until the lane is out, zero on LANE SECURED
-  // Free flow has no end to count to and shows nothing.
+  //   free flow  → seconds until the next surge, the one event the run schedules
+  // SURGE IN covers both halves of the ramp. Up to surge 6 the step-up is speed; past
+  // it the step-up presses density instead. Both are announced as a SURGE, so one
+  // caption names the mark and the big centre digits say which kind is landing.
   //
   // ONE WORD, EVERY LANE. A boss lane's timed half runs out into the leech rather than
   // into open space, and CONTACT was drafted for exactly that case. Gil cut it on
@@ -886,7 +897,8 @@ function drawHUD(g) {
   const clk = replaying
       ? { n: mmss((replayMeta.total - (tracePlay ? tracePlay.i : replayMeta.total)) * SIM_DT), l: 'REMAINING', c: '#eaf6ff' }
     : boss ? { n: (boss.maxHp - boss.hp) + '/' + boss.maxHp, l: 'PULSES', c: '#e8b5ff' }
-    : (endless || !laneEndShow) ? null
+    : endless ? { n: mmss(surgeToNext(levelT)), l: 'SURGE IN', c: '#ffc27a' }
+    : !laneEndShow ? null
     : { n: mmss(laneEndShow - levelT), l: 'LANE OUT', c: '#bff5a8' };
   if (clk) {
     const ka2 = aL0 + (aL1 - aL0) * prog, off = bw2 * 0.9 + 26;
@@ -1147,8 +1159,8 @@ function drawHUD(g) {
 
   // surge countdown: the header holds, the digits slam in beneath it
   if (endless && !boss && state === S.PLAY) {
-    const surge = Math.floor(levelT / 100);
-    const toNext = (surge + 1) * 100 - levelT;
+    const surge = surgeIdx(levelT);
+    const toNext = surgeToNext(levelT);
     if (toNext <= 4.2 && toNext > 0) {
       const cnt = Math.ceil(toNext);
       const ct = 1 - (toNext - Math.floor(toNext)); // 0..1 through the current second

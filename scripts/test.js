@@ -269,7 +269,8 @@ code = code.replace("'use strict';", '') + `
   volley: () => volley, BOSS_CER: () => BOSS_CER, latchFreeArc, leechWave,
   startBossRetry, isBossFailed: () => bossFailed, isBossRetried: () => bossRetried, endButtons: () => endButtons,
   endTap, endForward, // the report's keys, and the pad's forward mapping over them
-  bandCfg, lintLevel, lintCampaign, lintWalk, levelThreats, birthFade, getSched: () => sched, PICKUP_GAP
+  bandCfg, lintLevel, lintCampaign, lintWalk, levelThreats, birthFade, getSched: () => sched, PICKUP_GAP,
+  SURGE_EVERY, surgeIdx, surgeToNext // free flow's one scheduled event: the step-up clock
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -5196,6 +5197,10 @@ async function runMusicUp() {
 {
   const tc = fs.readFileSync(path.join(ROOT, 'src', 'game', '72-tick.js'), 'utf8');
   const hd = fs.readFileSync(path.join(ROOT, 'src', 'game', '90-hud.js'), 'utf8');
+  // the HUD with its comments stripped — several pins below name a word precisely
+  // BECAUSE the note beside them records why that word was cut, and a note must stay
+  // free to say the dead word out loud
+  const hdCode = hd.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
   const DT = 1 / 60;
 
   // 1 · THE THREE PROMISES, flown end to end on real stages. No input, so every
@@ -5236,12 +5241,36 @@ async function runMusicUp() {
   check('the sim still gates spawning on L.duration, not on the clock',
     /levelT < L\.duration\) \{ trySpawn/.test(tc));
 
-  // 4 · MODES WITHOUT AN END SHOW NOTHING. Free flow has no lane to run out of, and
-  // the qualification course is a drill — a countdown on either would be a promise
-  // the mode cannot keep.
+  // 4 · A MODE WITHOUT A LANE COUNTS TO ITS OWN MARK. Free flow has no lane to run
+  // out of, so it runs no lane clock. It is not therefore eventless: endless and
+  // weekly schedule exactly one thing, the step-up every SURGE_EVERY seconds. The
+  // gauge used to divide by the 150s spice ramp — it filled once, pinned at 100%,
+  // and pointed at nothing for the rest of the run. It fills toward the next surge
+  // now and recycles on each one, and the readout counts down to the same instant.
   G.startEndless(); G.setPadHold(true, true); G.update(DT); G.setPadHold(false, false);
   for (let i = 0; i < 60; i++) G.update(DT);
   check('free flow runs no lane clock', G.laneClock().show === 0);
+  // ONE SURGE CLOCK. The step-up, the big centre digits and the left gauge read the
+  // same two helpers, so the picture can never name a different instant than the alarm.
+  check('the surge period is one number', G.SURGE_EVERY === 100);
+  check('the surge clock counts down to the mark and recycles on it',
+    Math.abs(G.surgeToNext(0) - G.SURGE_EVERY) < 1e-9
+    && Math.abs(G.surgeToNext(99.5) - 0.5) < 1e-9
+    && Math.abs(G.surgeToNext(100) - G.SURGE_EVERY) < 1e-9
+    && G.surgeIdx(0) === 0 && G.surgeIdx(250) === 2);
+  check('nothing computes the surge mark by hand any more',
+    !/\(surge \+ 1\) \* 100 - levelT/.test(hd) && !/\(surge \+ 1\) \* 100 - levelT/.test(tc)
+    && !/Math\.floor\(levelT \/ 100\)/.test(hd) && !/Math\.floor\(levelT \/ 100\)/.test(tc));
+  check('the free-flow gauge fills toward the next surge',
+    /endless \? clamp\(1 - surgeToNext\(levelT\) \/ SURGE_EVERY/.test(hd)
+    && !/endless \? clamp\(levelT \/ 150/.test(hd));
+  check('…and its readout counts down to the same instant',
+    /: endless \? \{ n: mmss\(surgeToNext\(levelT\)\), l: 'SURGE IN'/.test(hdCode));
+  // The destination world is NOT on the surge cycle. It grows once, forward only, over
+  // the whole run — a world that shrank back every 100s would read as reversing.
+  check('the destination world still grows on the run, not on the surge cycle',
+    /endless \? clamp\(levelT \/ 150, 0, 1\)/.test(
+      fs.readFileSync(path.join(ROOT, 'src', 'game', '80-tunnel.js'), 'utf8')));
 
   // 5 · A BOSS LANE'S CLOCK ENDS AT DURATION. spawnBoss wipes the bore the frame the
   // clock expires, so nothing trails it — what arrives at zero is the machine, and
@@ -5256,7 +5285,6 @@ async function runMusicUp() {
   // Gil, 2026-08-28: the drafted second word for a boss lane's timed half is cut.
   // LANE OUT is the countdown's ONE caption, stage 08 included. Comments are stripped
   // first — the note recording the cut names the dead word, and must be free to.
-  const hdCode = hd.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
   check('the countdown wears one caption on every lane', !/CONTACT/.test(hdCode)
     && /: \{ n: mmss\(laneEndShow - levelT\), l: 'LANE OUT'/.test(hdCode));
   check('a replay keeps the readout on its own trace seconds', /replayMeta\.total - \(tracePlay/.test(hd));

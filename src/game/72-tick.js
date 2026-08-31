@@ -368,11 +368,11 @@ function update(dt) {
   for (const en of enemies) updateEnemy(en, C);
   stripSound(C.stripProg >= 0, C.stripProg); // the trace drone lives and dies here
 
-  // free-run surges: every 100s the stream steps up (capped) — and it never
-  // arrives unannounced: "SPEEDING UP IN 4..3..2..1", then the surge
+  // free-run surges: every SURGE_EVERY seconds the stream steps up (capped) — and it
+  // never arrives unannounced: "SPEEDING UP IN 4..3..2..1", then the surge
   if (endless && !boss) {
-    const surge = Math.floor(levelT / 100);
-    const toNext = (surge + 1) * 100 - levelT;
+    const surge = surgeIdx(levelT);
+    const toNext = surgeToNext(levelT);
     // no cap on the announcement: surges past 6 press density instead of speed
     // (see endlessCfg's DEEP SURGES note) and they announce like every other
     if (toNext <= 4.2) {
