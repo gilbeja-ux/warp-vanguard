@@ -1115,6 +1115,19 @@ const SIDEARC_OVER = 0.07;  // how far past the frame edge the far end runs, in 
 const SIDEARC_W = 0.070;    // stroke weight, as a fraction of R
 const SIDEARC_A = 0.85;     // alpha at rest
 const SIDEARC_SPIN = 0.55;  // share of the wheel's spin the arcs take
+// ---- the PACKET (Gil's call, 2026-08-31: option A off the arc bench) -------
+// One short bright head runs each arc INBOUND — in off the frame edge, down to
+// the key's end, gone. The arcs already say "this is a lane"; the packet says
+// the lane is carrying something, and it carries it TOWARD the key, which is
+// the thing the player would tap. That direction is the whole content of the
+// animation, so nothing here ever runs the other way.
+//
+// A locked key gets no packet. A lane you cannot fly has no traffic on it, and
+// a grey arc with cargo running down it would be the screen arguing with itself.
+const SIDEARC_PKT = 0.12;     // head length, as a share of the arc's own sweep
+const SIDEARC_PKT_PER = 3.2;  // seconds from one packet to the next, on one arc
+const SIDEARC_PKT_DUTY = 0.55;// share of that period the run takes; the rest is quiet
+const SIDEARC_PKT_A = 0.85;   // the head's brightness at the front of the run
 // Every arc RUNS OFF THE FRAME (Gil's call): the far end crosses the top or the
 // bottom edge, so the stroke has somewhere to go when it turns and needs no
 // outward step to sell the move. Both halves of a key measure the same, because
@@ -1139,15 +1152,46 @@ function drawSideArcs(ccx, ccy, R, wheelAl, rot, keys) {
   ctx.lineCap = 'butt';   // FLAT ends, no cap radius — a heavy stroke with a round
   ctx.lineWidth = lineW;  // cap reads as a lozenge, not as a piece of a ring
   for (const k of keys) {
-    ctx.strokeStyle = k.locked
+    // THE REST COLOUR IS RE-ARMED PER ARC, not once per key. The packet below
+    // leaves a GRADIENT in ctx.strokeStyle, and a gradient painted outside its
+    // own two endpoints clamps to the nearest stop — so the second arc of the
+    // pair drew its whole length in the first arc's white head. That was the
+    // upper-left and lower-right strips going solid white.
+    const rest = k.locked
       ? `rgba(120,155,190,${(SIDEARC_A * 0.4 * wheelAl).toFixed(3)})`
       : `rgba(${k.col},${(SIDEARC_A * wheelAl).toFixed(3)})`;
     for (const s2 of [-1, 1]) { // one arc above the key, one below
-      const h0 = k.mid + s2 * t0, h1 = k.mid + s2 * t1;
+      const h0 = k.mid + s2 * t0, h1 = k.mid + s2 * t1; // h0 is the KEY end, h1 the frame edge
       const lo = Math.min(h0, h1), hi = Math.max(h0, h1);
       const a0 = Math.max(lo, lo + d), a1 = Math.min(hi, hi + d); // the window clips the turn
       if (a1 - a0 <= 0.01) continue;
+      ctx.strokeStyle = rest;
       ctx.beginPath(); ctx.arc(ccx, ccy, rr, a0, a1); ctx.stroke();
+      if (k.locked) continue; // no traffic on a lane that cannot be flown
+      // THE PACKET. It is written against h0 and h1, never lo and hi: which of
+      // the two is the smaller angle flips with s2, so a run expressed in sorted
+      // order would travel inbound above the key and outbound below it — one arc
+      // in every pair pointing the wrong way, which is the exact fault this
+      // animation exists to avoid.
+      const span = h0 - h1;                                    // signed, edge → key
+      const ph = (time / SIDEARC_PKT_PER
+        + (k.side > 0 ? 0.5 : 0) + (s2 > 0 ? 0.25 : 0)) % 1;   // staggered: the four never fire together
+      const u = ph / SIDEARC_PKT_DUTY;
+      if (u > 1 + SIDEARC_PKT) continue;                       // the quiet part of the period
+      const head = h1 + span * u, tail = head - span * SIDEARC_PKT;
+      // clipped to the SAME window the spin wipes the arc through — a packet that
+      // outlived its own stroke would draw on bare sky through every transition
+      const p0 = Math.max(a0, Math.min(head, tail)), p1 = Math.min(a1, Math.max(head, tail));
+      if (p1 - p0 <= 0.004) continue;
+      const gr = ctx.createLinearGradient(
+        ccx + Math.cos(tail) * rr, ccy + Math.sin(tail) * rr,
+        ccx + Math.cos(head) * rr, ccy + Math.sin(head) * rr);
+      const ha = (SIDEARC_PKT_A * wheelAl).toFixed(3);
+      gr.addColorStop(0, `rgba(${k.col},0)`);
+      gr.addColorStop(0.55, `rgba(${k.col},${(SIDEARC_PKT_A * 0.7 * wheelAl).toFixed(3)})`);
+      gr.addColorStop(1, `rgba(245,252,255,${ha})`);
+      ctx.strokeStyle = gr;
+      ctx.beginPath(); ctx.arc(ccx, ccy, rr, p0, p1); ctx.stroke();
     }
   }
   ctx.restore();
