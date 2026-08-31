@@ -1641,6 +1641,95 @@ function discSlab(x, y, w, h, lit) {
   techRect(x, y, w, h, cut); ctx.stroke();
   ctx.shadowBlur = 0;
 }
+// THE SWITCH IS A GATE WITH A KEY IN IT. The old one slid a thin capsule down a
+// wide slot, which reads as a scrollbar, not a control: the travelling part was
+// 40% of the gate's height and a third of its own length, so the eye found a
+// sliver of light and no hardware. The key is a chamfered block now, the same
+// chamfer the disc's own keys wear, it drags a lit channel behind it, and the
+// state is spelled out in whichever half of the gate the key is not standing in.
+const TGL_KEY  = 0.86;   // the key's width, as a share of the gate's inner height
+const TGL_PAD  = 0.13;   // the gate's inner margin, as a share of its height
+const TGL_SNAP = 15;     // travel rate, per second — bigger is a harder throw
+const TGL_WORD = 0.42;   // ON/OFF size, as a share of the gate's height
+const tglT = {};         // per-switch travel, 0..1, eased toward the setting
+// eased travel for one switch. It rides frameDt, the UI clock, NOT `time` — the
+// sim clock is held on the pause disc, and a throw that only moves while the
+// world runs is a switch that never moves at all on the screen it lives on.
+function tglTravel(id, on) {
+  if (!(id in tglT)) tglT[id] = on ? 1 : 0;
+  const step = clamp(frameDt || 0.016, 0, 0.05);
+  let p = tglT[id] + ((on ? 1 : 0) - tglT[id]) * Math.min(1, step * TGL_SNAP);
+  if (p < 0.002) p = 0; else if (p > 0.998) p = 1;
+  return (tglT[id] = p);
+}
+function discToggle(x, y, w, h, on, id) {
+  const p = tglTravel(id, on), cut = Math.max(3, h * 0.34);
+  const pad = Math.max(2, h * TGL_PAD), kh = h - pad * 2;
+  // THE KEY IS THE GATE, INSET BY `pad` ON EVERY SIDE — the diagonal included. A
+  // chamfered rect inset by d keeps its shape when its cut shrinks by d*(√2-1),
+  // so the key parked at either end sits the SAME distance off the gate's near
+  // edge as off its top and its bottom. It used to stop a whole chamfer short of
+  // the end, which is the only way a square corner clears a cut one.
+  const padX = pad, kcut = Math.max(2, cut - pad * 0.4142);
+  const kw = Math.max(8, kh * TGL_KEY), kx = x + padX + (w - padX * 2 - kw) * p;
+  // the gate: a dark well, not a lit slab. The light in this control belongs to
+  // the key and to the channel it has already crossed.
+  techRect(x, y, w, h, cut);
+  const bg = ctx.createLinearGradient(0, y, 0, y + h);
+  bg.addColorStop(0, 'rgba(6,20,40,0.94)'); bg.addColorStop(1, 'rgba(9,28,52,0.94)');
+  ctx.fillStyle = bg; ctx.fill();
+  // the channel, clipped to the gate so the chamfer cuts it
+  if (p > 0.01) {
+    ctx.save(); techRect(x, y, w, h, cut); ctx.clip();
+    const lg = ctx.createLinearGradient(x, 0, kx + kw, 0);
+    lg.addColorStop(0, 'rgba(40,140,214,' + (0.52 * p).toFixed(3) + ')');
+    lg.addColorStop(1, 'rgba(104,226,255,' + (0.30 * p).toFixed(3) + ')');
+    // the channel lights to the key's centre on the way over, and to the gate's
+    // far edge once the key is home — a lit switch with a dark wedge still in it
+    // reads as half-thrown
+    ctx.fillStyle = lg;
+    ctx.fillRect(x, y, (kx + kw / 2 - x) + (x + w - kx - kw / 2) * p, h);
+    ctx.restore();
+  }
+  // the word rides the empty half — ON to the left of a thrown key, OFF to the
+  // right of a parked one — and the two cross-fade on the travel
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  try { ctx.letterSpacing = '1px'; } catch (e) {}
+  // the word is fitted to the EMPTY span, not set at a fixed size — 'OFF' is half
+  // again as long as 'ON' and was landing on the key's shoulder
+  const span = w - padX * 2 - kw, base = Math.max(7, Math.round(h * TGL_WORD));
+  ctx.font = '700 ' + fitPx('OFF', '700', base, span * 0.86, 7) + 'px Audiowide, system-ui';
+  // both words fade OUT before the key reaches the middle, so the throw is never
+  // caught with ON and OFF stacked on either shoulder of a moving key
+  const wOn = clamp((p - 0.58) / 0.34, 0, 1), wOff = clamp((0.42 - p) / 0.34, 0, 1);
+  if (wOn > 0.01) {
+    ctx.fillStyle = 'rgba(226,248,255,' + (0.94 * wOn).toFixed(3) + ')';
+    ctx.fillText('ON', (x + padX + kx) / 2, y + h / 2 + 0.5);
+  }
+  if (wOff > 0.01) {
+    ctx.fillStyle = 'rgba(158,196,232,' + (0.88 * wOff).toFixed(3) + ')';
+    ctx.fillText('OFF', (kx + kw + x + w - padX) / 2, y + h / 2 + 0.5);
+  }
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  // the gate's rim, drawn OVER the channel and the word
+  ctx.strokeStyle = 'rgba(120,190,255,' + (0.30 + 0.46 * p).toFixed(3) + ')';
+  ctx.lineWidth = 1.2; techRect(x, y, w, h, cut); ctx.stroke();
+  // THE KEY. Chamfered, gradient-faced, with two grip hairlines down its middle
+  // and a hot edge on the side it is throwing toward.
+  ctx.shadowColor = 'rgba(120,230,255,0.9)'; ctx.shadowBlur = lowFX ? 0 : 4 + 7 * p;
+  techRect(kx, y + pad, kw, kh, kcut);
+  const kg = ctx.createLinearGradient(0, y + pad, 0, y + h - pad);
+  kg.addColorStop(0, p > 0.5 ? 'rgba(244,253,255,0.98)' : 'rgba(176,200,226,0.80)');
+  kg.addColorStop(1, p > 0.5 ? 'rgba(150,222,255,0.95)' : 'rgba(118,146,180,0.72)');
+  ctx.fillStyle = kg; ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(8,26,48,0.55)'; ctx.lineWidth = 1;
+  for (const o of [-0.17, 0.17]) {
+    const gx2 = kx + kw / 2 + kw * o;
+    ctx.beginPath(); ctx.moveTo(gx2, y + pad + kh * 0.27); ctx.lineTo(gx2, y + h - pad - kh * 0.27); ctx.stroke();
+  }
+}
 // one audio channel row: label · switch · rail. `lx`/`rx` are THIS row's own chord
 // ends, so the block's left and right edges follow the circle; `tx` is shared by
 // every row, because a curved control column is a decoration nobody can aim at.
@@ -1651,16 +1740,10 @@ function discSettingRow(label, key, volKey, y, lx, tx, rx, R) {
   ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
   ctx.fillText(label, lx, y + fs * 0.36);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
-  // THE SWITCH. It was a slab as tall as the label with a square block sliding in
-  // it, which is mass where the disc wants light. It is slimmer now, and the
-  // travelling part is a lit capsule.
-  const tw = Math.max(30, R * 0.235), th = Math.max(14, R * 0.105), on = settings[key];
-  discSlab(tx, y - th / 2, tw, th, on);
-  const kw = Math.max(4, th * 0.40), kh = th - 6, pad = 3.5;
-  ctx.shadowColor = 'rgba(120,230,255,0.9)'; ctx.shadowBlur = (on && !lowFX) ? 8 : 0;
-  ctx.fillStyle = on ? '#eaf9ff' : 'rgba(150,182,215,0.5)';
-  roundRect(on ? tx + tw - kw - pad : tx + pad, y - kh / 2, kw, kh, kw / 2); ctx.fill();
-  ctx.shadowBlur = 0;
+  // THE SWITCH — see discToggle. The gate is wider and taller than the old slab
+  // because it now carries a word as well as a key.
+  const tw = Math.max(38, R * 0.255), th = Math.max(15, R * 0.112), on = settings[key];
+  discToggle(tx, y - th / 2, tw, th, on, key);
   pauseTogglesList.push({ x: tx, y: y - th / 2, w: tw, h: th, key });
   if (!volKey) return; // toggle-only row (e.g. haptics)
   // THE RAIL. Two hairlines and a capsule: the old rail carried a 4px track, nine
@@ -1677,9 +1760,15 @@ function discSettingRow(label, key, volKey, y, lx, tx, rx, R) {
   ctx.shadowColor = 'rgba(111,227,255,0.85)'; ctx.shadowBlur = (on && !lowFX) ? 7 : 0;
   ctx.strokeStyle = on ? 'rgba(111,227,255,0.95)' : 'rgba(120,150,200,0.32)'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + sw2 * v, y); ctx.stroke();
-  const ch = Math.max(9, R * 0.062), cw = 3;
-  ctx.fillStyle = on ? '#eaf9ff' : 'rgba(195,208,230,0.5)';
-  roundRect(sx + sw2 * v - cw / 2, y - ch / 2, cw, ch, cw / 2); ctx.fill();
+  // the caret is a small chamfered key too, so the rail and the switch beside it
+  // are made of the same hardware — a 3px tick next to the new gate read as debris
+  const ch = Math.max(11, R * 0.076), cw = Math.max(5, ch * 0.46);
+  ctx.shadowColor = 'rgba(120,230,255,0.9)'; ctx.shadowBlur = (on && !lowFX) ? 6 : 0;
+  techRect(sx + sw2 * v - cw / 2, y - ch / 2, cw, ch, Math.max(2, cw * 0.42));
+  const cg = ctx.createLinearGradient(0, y - ch / 2, 0, y + ch / 2);
+  cg.addColorStop(0, on ? 'rgba(244,253,255,0.98)' : 'rgba(180,198,222,0.62)');
+  cg.addColorStop(1, on ? 'rgba(150,222,255,0.95)' : 'rgba(124,146,178,0.55)');
+  ctx.fillStyle = cg; ctx.fill();
   ctx.shadowBlur = 0;
   pauseSlidersList.push({ x: sx, y, w: sw2, key: volKey });
 }
