@@ -1574,6 +1574,149 @@ const LEECH_RIG = {
   mimic:    { rim: 1.62, gear: 1.70, hub: 0.95, wRim: 0.55, wGear: -0.95, lamp: 0.52 },
   blockade: { rim: 1.77, gear: 1.85, hub: 1.05, wRim: 0.60, wGear: -1.05, lamp: 0.57 }
 };
+// ---- THE LADDER: what makes five machines five machines ----
+// The rig table above escalates SCALE and SPIN, and nothing else, so the five
+// leeches read as one machine zoomed. This table is the difference the player
+// actually sees, and it obeys ONE law:
+//
+//   CARVE, NEVER ADD. Every mark below is cut into pixels the rim already
+//   covers. No mount, notch or plate sits outside `rig.rim`, and no halo grows.
+//   The machine sits dead centre on the path traffic arrives down, so its
+//   footprint is a FAIRNESS number, not an art one — the blockade's own wash
+//   already dims 42% of the ring's radius (dkR = size * rig.rim * 1.5).
+//
+// `kinds`  the typed hardware, one entry per verb the machine owns, inherited
+//          down the ladder — 1 for the leech, 5 for the blockade. The
+//          silhouette names the fight before the first light fires, and the
+//          blockade finally keeps its own line: "every trick you broke lives
+//          on in me."
+// `notch`  how many notches are cut into the rim BAND. Drawn over the sprite's
+//          own annulus, never over open bore, so a fine 20-notch race and a
+//          coarse 8-notch sprocket differ in read at no cost in occlusion.
+// `iris`   blades on the lamp mouth, inside the frozen lamp radius.
+// `age`    0..1, how far the alloy has gone toward the interdiction violet.
+// `hitch`  a rotational detent, in radians. ROTATION ONLY (Gil, 2026-08-31):
+//          the machine never leaves the bore's centre, so the whole signature
+//          lives inside the silhouette.
+const LEECH_LADDER = {
+  leech:    { kinds: ['cradle'],                               notch: 8,  iris: 5, age: 0.00, hitch: 0.000 },
+  siphon:   { kinds: ['cradle', 'mast'],                       notch: 11, iris: 6, age: 0.25, hitch: 0.018 },
+  prism:    { kinds: ['cradle', 'mast', 'mast'],               notch: 14, iris: 7, age: 0.50, hitch: 0.030 },
+  mimic:    { kinds: ['cradle', 'mast', 'mast', 'drum'],       notch: 17, iris: 8, age: 0.75, hitch: 0.048 },
+  blockade: { kinds: ['cradle', 'mast', 'mast', 'drum', 'plate'], notch: 20, iris: 9, age: 1.00, hitch: 0.070 }
+};
+// THE SLOTS ARE THE HEALTH BAR. The rim carries maxHp slots — six on a contract
+// leech, nine on the blockade — and a landed pulse SHEARS one off. So the
+// progression reads inside a fight as well as between two of them, and it runs
+// the right way round: the machine gets LESS busy as the lane gets fuller.
+// Kinds cycle across the slots, so slot 0 always sheds first and the blockade
+// loses its salvaged hardware before its own armour.
+// WHERE THE BAND ACTUALLY IS. `rig.rim` is the radius handed to s3draw, NOT the
+// radius the metal reaches: LCHRIM's opaque annulus runs 0.429 → 0.716 of it,
+// measured off the baked sprite. So the machine's true outer edge is
+// 0.716 × rig.rim × size — the blockade's hardware stops at 20% of the node
+// ring, and its dark wash at 42%. Everything below is placed against the
+// MEASURED annulus, so a mount can never sail outside the metal it is bolted to.
+// A LOOSE ALPHA EXTENT IS NOT AN EDGE. The sprite's opaque pixels run out to
+// 0.716, but that last stretch is sparse greeble; the metal a player SEES ends
+// at the hazard band, near 0.60. Placing hardware against the alpha extent put
+// every mount proud of the machine. These are the seen edges.
+const RIM_IN   = 0.43;   // × rig.rim — where the bright annulus starts
+const RIM_OUT  = 0.60;   // × rig.rim — where it ends. Nothing may cross this.
+const MOUNT_BAND = 0.515; // × rig.rim — the band's centre line, mid-annulus
+const MOUNT_LEN  = 0.072; // × rig.rim — a mount's radial half-length
+const MOUNT_WID  = 0.058; // × rig.rim — a mount's tangential half-width
+const NOTCH_BAND = 0.578; // × rig.rim — the machining marks, just inside RIM_OUT
+const NOTCH_ARC  = 0.55;  // fraction of a notch's pitch that is filled
+// THE ALLOY SCORCHES, IT DOES NOT PURPLE (O2). The first cut aged the metal
+// toward the interdiction violet and the machine came back wearing a ring of
+// bright purple slabs — which is the game's word for BOTH THUMBS, and the lamp's
+// own LAST STAND colour. The ladder ages the steel toward burnt iron instead:
+// darker, browner, dirtier, and never a hue the fight already uses.
+// A MOUNT MUST READ AS METAL BOLTED ON, NOT AS A HOLE. The first cut painted
+// the bodies near-black and every one of them read as a missing tooth. They sit
+// a step LIGHTER than the band's shadow, with a dark seat under them.
+const leechAlloy = (age, a) => `rgba(${Math.round(lerp(104, 116, age))},${Math.round(lerp(110, 96, age))},${Math.round(lerp(124, 82, age))},${a})`;
+const LEECH_SEAT = 'rgba(18,16,22,0.75)'; // the shadow a bolted-on part casts
+const LEECH_HAZ = '255,180,120'; // the rim's own hazard amber — the mounts' trim
+// a rotational detent: mostly still, with a brief catch. It never translates.
+function leechHitch(b, ld) {
+  if (!ld.hitch || b.dying !== undefined) return 0;
+  const s = Math.sin(time * 1.9);
+  let h = ld.hitch * Math.pow(Math.abs(s), 6) * (s < 0 ? -1 : 1);
+  if (b.kind === 'mimic' && b.lampBlink > 0) h += ld.hitch * 1.6 * Math.sin(time * 26);
+  if (b.kind === 'blockade' && b.hurtT > 0) h += ld.hitch * 2.2 * Math.sin(time * 34);
+  return h;
+}
+// the rim's hardware, drawn live over the baked annulus: the notches that give
+// each machine its own rim rhythm, then the mount slots that carry its verbs
+function drawLeechMounts(b, rig, ld, size, rot, flash) {
+  const R = size * rig.rim;
+  ctx.save();
+  ctx.rotate(rot);
+  // ---- the notches (B4): machining marks ALONG the band, never across it.
+  // The first cut drew them as radial slabs and they read as clock hands —
+  // the same spoke trap the gate lane spill fell into. Tangential dashes read
+  // as a machined rhythm: a coarse 8 on the leech, a fine 20 on the blockade.
+  ctx.strokeStyle = 'rgba(20,18,26,0.72)';
+  ctx.lineWidth = Math.max(1, R * 0.030);
+  const half = Math.PI / ld.notch * NOTCH_ARC;
+  for (let k = 0; k < ld.notch; k++) {
+    const a = k / ld.notch * TAU;
+    ctx.beginPath(); ctx.arc(0, 0, R * NOTCH_BAND, a - half, a + half); ctx.stroke();
+  }
+  // ---- the mount slots (B1/B2/B3)
+  const slots = b.maxHp || 6;
+  const shed = Math.max(0, (b.maxHp || 6) - (b.hp === undefined ? b.maxHp : b.hp));
+  for (let k = 0; k < slots; k++) {
+    const kind = ld.kinds[k % ld.kinds.length];
+    const a = k / slots * TAU - Math.PI / 2;
+    const gone = k < shed;
+    ctx.save();
+    ctx.rotate(a); ctx.translate(R * MOUNT_BAND, 0); ctx.rotate(Math.PI / 2);
+    if (gone) { // a sheared slot: the empty socket it was bolted into
+      ctx.strokeStyle = `rgba(${Math.round(lerp(40, 70, ld.age))},20,34,0.9)`;
+      ctx.lineWidth = Math.max(1, R * 0.02);
+      ctx.strokeRect(-R * MOUNT_WID * 0.7, -R * MOUNT_LEN * 0.5, R * MOUNT_WID * 1.4, R * MOUNT_LEN);
+      ctx.restore();
+      continue;
+    }
+    // BLOCKADE SALVAGE (B2): everything it inherited is scavenged metal; only
+    // its own armour plate is drawn in the machine's live steel.
+    const salvage = b.kind === 'blockade' && kind !== 'plate';
+    const body = salvage ? 'rgba(122,104,74,0.95)' : leechAlloy(ld.age, 0.95);
+    const trim = salvage ? '196,170,120' : LEECH_HAZ;
+    const w0 = R * MOUNT_WID, h0 = R * MOUNT_LEN;
+    ctx.fillStyle = LEECH_SEAT;
+    ctx.fillRect(-w0 * 1.45, -h0 * 1.2, w0 * 2.9, h0 * 2.35); // the seat
+    ctx.fillStyle = body;
+    ctx.strokeStyle = `rgba(${trim},0.75)`;
+    ctx.lineWidth = Math.max(1, R * 0.014);
+    const w2 = R * MOUNT_WID, h2 = R * MOUNT_LEN;
+    if (kind === 'cradle') {         // an empty rack: it releases, it does not aim
+      ctx.fillRect(-w2, -h2 * 0.5, w2 * 2, h2 * 1.5);
+      ctx.beginPath();               // the open mouth the swarm leaves by
+      ctx.moveTo(-w2, -h2 * 0.5); ctx.lineTo(-w2, -h2); ctx.moveTo(w2, -h2 * 0.5); ctx.lineTo(w2, -h2);
+      ctx.stroke();
+    } else if (kind === 'mast') {    // the light has a source you can point at
+      ctx.fillRect(-w2 * 0.45, -h2 * 1.1, w2 * 0.9, h2 * 2);
+      ctx.fillStyle = `rgba(255,60,90,${(0.7 + flash * 0.3).toFixed(2)})`;
+      ctx.beginPath(); ctx.arc(0, -h2 * 0.95, R * 0.024, 0, TAU); ctx.fill();
+    } else if (kind === 'drum') {    // the bank that turns the lamp
+      ctx.beginPath(); ctx.arc(0, 0, w2 * 1.05, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(${NODE_COLS[b.lamp === 1 ? 1 : 0]},0.75)`;
+      ctx.beginPath(); ctx.arc(0, 0, w2 * 0.6, 0, TAU); ctx.stroke();
+    } else {                         // 'plate' — armour bolted over the salvage
+      ctx.fillRect(-w2 * 1.3, -h2 * 0.85, w2 * 2.6, h2 * 1.7);
+      ctx.beginPath();               // the two bolt lines that hold it down
+      ctx.moveTo(-w2 * 1.3, -h2 * 0.5); ctx.lineTo(w2 * 1.3, -h2 * 0.5);
+      ctx.moveTo(-w2 * 1.3, h2 * 0.5); ctx.lineTo(w2 * 1.3, h2 * 0.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
 // the lamp is the fight's tell: hostile red at rest (glitching the family
 // violet), the condemned pulse colour when a lamp mechanic is live — and the
 // blink telegraphs a flip by flickering THROUGH the colour that is coming
@@ -1625,6 +1768,8 @@ function drawLeechMachine(g) {
   let size = b.sSize;
   if (dieQ > 2.3) size *= Math.max(0.01, 1 - (dieQ - 2.3) / 0.3); // implosion
   const rig = LEECH_RIG[b.kind] || LEECH_RIG.leech;
+  const ld = LEECH_LADDER[b.kind] || LEECH_LADDER.leech;
+  const hitch = leechHitch(b, ld); // rotation only — the machine holds the centre
   ctx.save();
   ctx.globalAlpha = 0.72 + 0.28 * (1 - clamp(b.z, 0, 1)); // deeper = hazier
   ctx.translate(b.sx, b.sy);
@@ -1695,9 +1840,13 @@ function drawLeechMachine(g) {
     ctx.lineWidth = Math.max(1, R * 0.06);
     ctx.beginPath(); ctx.arc(0, 0, R * 0.92, 0, TAU); ctx.stroke();
   };
-  stamp('LCHRIM', size * rig.rim, b.spin * rig.wRim * wob, fbRim);
-  stamp('LCHGEAR', size * rig.gear, b.spin * rig.wGear * wob, fbGear);
+  const rotRim = b.spin * rig.wRim * wob + hitch;
+  stamp('LCHRIM', size * rig.rim, rotRim, fbRim);
+  stamp('LCHGEAR', size * rig.gear, b.spin * rig.wGear * wob - hitch, fbGear);
   stamp('LCHHUB', size * rig.hub, b.spin * 0.12 * wob, fbHub);
+  // THE LADDER'S OWN HARDWARE, live over the baked rings — it rides the rim's
+  // rotation, so it reads as bolted on rather than as an overlay
+  drawLeechMounts(b, rig, ld, size, rotRim, flash);
   // ---- THE LAMP — a burning orb, drawn live because its colour is the
   // fight's tell. (A HAL-style camera eye lived here for one build and Gil
   // killed it on sight — the lamp is a LIGHT, not a face.) Colours crossfade
@@ -1735,13 +1884,14 @@ function drawLeechMachine(g) {
   lg.addColorStop(1, `rgba(${lc},0)`);
   ctx.fillStyle = lg;
   ctx.beginPath(); ctx.arc(0, 0, lampR, 0, TAU); ctx.fill();
-  // a machined 7-blade iris around the mouth, contracting under fire
+  // a machined iris around the mouth, contracting under fire — the blade
+  // count climbs 5..9 with the ladder (LEECH_LADDER.iris), inside a frozen radius
   const bR = lampR * (0.78 - flash * 0.10);
   ctx.strokeStyle = `rgba(${lc},${(0.6 + flash * 0.35).toFixed(2)})`;
   ctx.lineWidth = Math.max(1, size * 0.02);
   ctx.beginPath();
-  for (let k = 0; k < 7; k++) {
-    const a2 = k / 7 * TAU + b.spin * 0.25;
+  for (let k = 0; k < ld.iris; k++) {
+    const a2 = k / ld.iris * TAU + b.spin * 0.25;
     ctx[k ? 'lineTo' : 'moveTo'](Math.cos(a2) * bR, Math.sin(a2) * bR);
   }
   ctx.closePath(); ctx.stroke();

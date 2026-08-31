@@ -835,6 +835,11 @@ function s3_gate(M, seed, accent) {
 // described in the XY plane and stands it square to the camera with its +Z
 // features toward the viewer. A wheel-train's whole job is being read head-on.
 
+// THE LEECH'S CREW DECK — the one knob on the boss's outer ring. Read at BAKE
+// time, so a lab sets it before boot and reloads; there is nothing to change
+// per frame. `n` lights of `e` emissive in colour `ec`, `w`×`h` each.
+// As shipped for the first year: 24 / 0.62 / [255,192,112] / 0.013 × 0.026.
+const LCH_DECK = { n: 18, e: 0.42, ec: [255, 224, 186], w: 0.010, h: 0.024 };
 // LCHRIM — the outer sprocket. The silhouette IS the read: an annulus (the
 // bore shows through the middle) with twelve hazard-tipped dogs stood off it.
 function s3_lchrim(M, seed) {
@@ -852,7 +857,20 @@ function s3_lchrim(M, seed) {
   }
   // LIT WINDOWS ARE THE SCALE CUE, here as everywhere: a machine with a crew
   // deck is a machine with a size. One sparse row — a leech is mostly engine.
-  s3winRow(M, 0.605, -0.01, 24, P.win, { w: 0.013, h: 0.026, d: 0.008 });
+  //
+  // THE ROW IS ITS OWN MATERIAL, AND THAT IS THE POINT (Gil, 2026-08-31: "the
+  // outer yellow ring is weird"). At 24 windows on P.win — 0.62 emissive, a
+  // saturated 255,192,112 — the deck lights merged, bloomed into each other and
+  // ringed the machine in a continuous yellow hoop. It read as painted trim, not
+  // as lit glass, and it was the loudest thing on the boss.
+  //
+  // Fewer, dimmer and paler breaks the merge: 18 lights at 0.42, biased toward
+  // white. The scale cue survives — you still read a crew deck — and the machine
+  // stops wearing a hoop. This is the row to tune; the hazard band above was
+  // never the problem, and a bench proved it.
+  s3winRow(M, 0.605, -0.01, LCH_DECK.n,
+    M.mat({ a: [24, 23, 22], g: 20, s: 0.12, e: LCH_DECK.e, ec: LCH_DECK.ec, eJit: 1, jit: 0, grime: 0.35 }),
+    { w: LCH_DECK.w, h: LCH_DECK.h, d: 0.008 });
   for (let i = 0; i < 8; i++) {
     const a = i / 8 * 6.2831853;
     M.lamp([Math.cos(a) * 0.57, Math.sin(a) * 0.57, 0.08], [255, 74, 60], 0.0075, i / 8, 'beacon');

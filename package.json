@@ -33,7 +33,8 @@
     "portal": "node scripts/portal.js",
     "aab": "bash scripts/build-aab.sh",
     "version:sync": "node scripts/sync-version.js",
-    "test:coverage": "node scripts/test-fingerprint-coverage.mjs"
+    "test:coverage": "node scripts/test-fingerprint-coverage.mjs",
+    "lab:leech": "node scripts/leech-lab.js"
   },
   "keywords": [
     "game",
