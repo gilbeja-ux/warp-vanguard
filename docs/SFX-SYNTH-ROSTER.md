@@ -33,6 +33,32 @@ in the qualification course and the END card, all with candidates waiting.
 > on screen. `npm test` now fails on any two cues sharing a recording. Both lists are on the soundboard, both are swappable, and both
 go through one order file.
 
+> **2026-08-31, third order.** `padPress1` and `padPress2` were re-recorded from
+> Gil's own download `juniorsoundays-ui-sound-47-527869.mp3`. He picked the SAME
+> file for both rows, so `pad-press-2.wav` is that recording **rendered a fifth up
+> (x1.4986) and baked** — the ratio the synth pair already used. Two physical files
+> are not a preference here: `npm test` fails on two cues sharing one recording,
+> and `SFX_FILES` may not name one file twice. Both are cut to the audible body,
+> 0.775s and 0.517s, at Gil's own level.
+>
+> **The pair is now the quietest event cue in the game.** True peak -17.2 dBFS,
+> -34.9 / -34.2 LUFS effective. The next quietest event cue, `railLatched`, is
+> -25.7 LUFS. A trim of 0.9 cannot make 9 dB back. A hotter master of each sits in
+> `incoming/padPress1/00__hot__...` and `incoming/padPress2/00__hot__...` at
+> -2.3 dBFS — audition and re-order if the gate ack disappears on the phone.
+>
+> **`bossDown` is NOT the volley multi-kill.** Gil asked. `sfx.bossDown()` has one
+> caller, [52-bosses.js:889](src/game/52-bosses.js#L889), and it fires only when
+> `boss-dead.mp3` fails to decode. The volley taking the interdictors around its
+> mark is `volleyBlast`, [72-tick.js:688](src/game/72-tick.js#L688). Neither
+> `boss-down.wav` nor `volley-blast.wav` has a leading silence — both attack at
+> 0.000s. The silence Gil heard is in his own download,
+> `incoming/bossDown/47313572-sci-fi-launch-351236.mp3`: 0.205s in front and
+> 1.67s behind. That file is cut and filed as
+> `00__cut__sci-fi-launch__1.18s.wav` in BOTH `incoming/bossDown/` and
+> `incoming/volleyBlast/`, plus a 0.45s tight cut inside volleyBlast's brief.
+> **Nothing is wired.** Name the cue and I will ship it.
+>
 > **2026-08-29, second order.** Six more became recordings — `speedUp` `traced`
 > `latchWarn` `bootGodspeed` `volleyCharge` `volleyFizzle` — and `restart` was
 > re-recorded. Three carry a cut, and in each case the cut length **is a game

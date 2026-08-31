@@ -554,9 +554,13 @@ const sfx = {
     tone(740, 0.05, 'square', 0.09, null, null, 0.17);
     tone(58, 0.4, 'sine', 0.22, 42);
   },
-  // A THUMB LANDS. Two takes, not one pitched twice: the pair IS the ack, and
-  // the second thumb has always answered a fifth above the first. `other` is
-  // true when the OTHER pad is already held, which is the completing press.
+  // A THUMB LANDS. TWO FILES, not one file played twice: the pair IS the ack, and
+  // the second thumb has always answered a fifth above the first. Gil ordered the
+  // same recording for both on 2026-08-31, so pad-press-2.wav is that recording
+  // rendered a fifth up (x1.4986) and baked — the ratio the synth pair already
+  // used. It must stay a separate file: `npm test` fails on two cues sharing one
+  // recording, and playbackRate on a shared buffer would hit the same wall.
+  // `other` is true when the OTHER pad is already held — the completing press.
   padPress(other, side) {
     if (playSample(other ? 'padPress2' : 'padPress1')) return;
     tone(other ? 1046 : 698, 0.05, 'square', 0.05);

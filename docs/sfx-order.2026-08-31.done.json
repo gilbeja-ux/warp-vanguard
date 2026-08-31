@@ -1,0 +1,20 @@
+{
+  "picks": {
+    "bossDown": {
+      "file": "",
+      "trim": 0.9,
+      "note": "need the silences cut so it hits on time. i think this sound uses us for volley hitting multiple enemies.. if not let me know please"
+    },
+    "padPress1": {
+      "file": "padPress1/juniorsoundays-ui-sound-47-527869.mp3",
+      "trim": 0.9,
+      "note": ""
+    },
+    "padPress2": {
+      "file": "padPress2/juniorsoundays-ui-sound-47-527869.mp3",
+      "trim": 0.9,
+      "note": ""
+    }
+  },
+  "saved": "2026-08-31T06:56:50.125Z"
+}
