@@ -33,6 +33,18 @@ in the qualification course and the END card, all with candidates waiting.
 > on screen. `npm test` now fails on any two cues sharing a recording. Both lists are on the soundboard, both are swappable, and both
 go through one order file.
 
+> **2026-09-01, fourth order — `volleyCharge` only.** Gil ordered one cue:
+> `incoming/volleyCharge/snorcon-high-battery-charge-421821.mp3`, trim 0.9, no
+> note. It is a re-record, so nothing but the recording moved — the file is still
+> `volley-charge.wav`, the trim is still 0.9, and the synth body still covers a
+> failed decode. The source is 1.536s and **decays** after a 0.20s peak, so the
+> take is its first 0.50s, the dock, with a 50ms fade out. The fade is the bolt
+> leaving and it also stops the hard cut from clicking. True peak -5.8 dBFS,
+> -16.8 LUFS; the take it replaces was -5.0 dBFS. **Its first 50ms is a swell**,
+> -31 dB at the attack against the old take's flat -13.8 dB, so the dock now
+> reports about three frames softer before it is at full voice. The other three
+> picks in the order are untouched.
+
 > **2026-08-31, third order.** `padPress1` and `padPress2` were re-recorded from
 > Gil's own download `juniorsoundays-ui-sound-47-527869.mp3`. He picked the SAME
 > file for both rows, so `pad-press-2.wav` is that recording **rendered a fifth up

@@ -139,6 +139,11 @@ const SFX_FILES = {
   // CUT TO 0.50s, WHICH IS THE DOCK. `volley.charge` fills to 0.5 and then the
   // bolt flies, so the take is exactly that long and its end lands on the shot.
   // It is also STOPPED early when the dock breaks — see sfx.volleyCharge.
+  // RE-RECORDED 2026-09-01 from Gil's own download, a battery charge whine. The
+  // source is 1.536s and decays after its 0.20s peak, so the take is its first
+  // 0.50s with a 50ms fade out — the fade IS the bolt leaving, and it also keeps
+  // the hard cut from clicking. Only the recording changed; the figure is still
+  // the dock and the trim is still 0.9.
   volleyCharge: ['audio/sfx/volley-charge.wav', 0.9],
   // CUT TO ITS AUDIBLE MIDDLE (0.55-0.78s of the source). The take was 1.27s of
   // dead air around one event, exactly as Gil described it.

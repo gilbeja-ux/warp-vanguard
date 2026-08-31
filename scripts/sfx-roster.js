@@ -412,6 +412,8 @@ const TAKE_ROSTER = [
     where: '72-tick.js:529', status: 'take',
     brief: 'squelch, a terse double ack, and the release — no take covers it',
     code: ['sfx.bootGodspeed();'] },
+  // RE-RECORDED 2026-09-01 (fourth order): Gil's battery-charge whine, cut to the
+  // same 0.50s dock with a 50ms fade out. File and trim did not move.
   { key: 'volleyCharge', file: 'volley-charge.wav', trim: 0.9, label: 'the emitters dock', group: 'Kills & the volley',
     where: '72-tick.js:698', status: 'take',
     brief: 'both emitters dock — half a second of whine before the bolt',
