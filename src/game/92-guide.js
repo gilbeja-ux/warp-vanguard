@@ -57,24 +57,126 @@ function archLineSpec(key, cx, cy, r, k) {
   drawEnemy(e1, g2); drawEnemy(e2, g2);
   ctx.restore();
 }
-// the lineup — color IS the guidance, so each caption wears its type's ink
+// ---------- the knobs ----------
+// Named so a look can be tuned without reading the layout maths. Every number
+// here is a MULTIPLE of the page's own type size or cell radius, never a screen
+// fraction: the lineup draws at full size in the field guide and at 1.30x inside
+// the enlistment's third disc, and a fixed pixel would only be right in one home.
+const GUIDEFX = {
+  mask: 0.92,       // THE PAGE'S OWN BACKDROP, over a screen that is never faded
+  cap: 0.78,        // the guidance, x the NAME size — the hierarchy, declared
+  nameGap: 0.45,    // the name's clearance above the specimen, x the name size
+  chip: 0.30,       // an emitter pip's radius, x the caption size
+  chipSpread: 2.6,  // the two pips' separation, x the pip radius
+  chipGap: 0.55,    // the chip's clearance under the specimen, x the caption size
+  chipOff: 0.34,    // a hollow pip's ink, against a filled one's
+  name: 1.00,       // the specimen's NAME, x the page's type reference. The
+                    // caption fits from the same ceiling, so the two sizes are
+                    // set by their own longest string, not by each other.
+  nameLead: 0.22,   // the leading inside a two-line name, x the name size
+  tip: 0.92,        // THE FOOT TIP, x the NAME size. Was 1.35x the caption — support,
+                    // not the lesson, and it sat under a heading about threats.
+  stagStep: 0.10,   // how far apart two neighbouring cells start, in reveal units
+  stagRise: 0.22,   // how far a cell climbs into place, x the cell radius
+};
+// ---------- the emitter chip ----------
+// LEFT IS BLUE PLUS, RIGHT IS WHITE MINUS — the same hand assignment
+// INFO_CARDS.move teaches on the first drill. A FILLED pip is an emitter this
+// specimen answers to; a hollow one is an emitter it refuses. The join between
+// them says how: a slash reads "either", a bar reads "together", a long span
+// with two caps reads "one at each end".
+//
+// The fill is the point. Three of the six specimens draw the SAME body and were
+// separated only by the colour of their glow and of their caption, so the page
+// lost half its roster to a dim screen or to a colour-blind player. A filled
+// circle beside a hollow one survives both. The chip also draws the thing the
+// player actually holds, rather than a property of the thing they shoot.
+const PIP_COL = ['80,170,255', '235,245,255']; // the two emitters, in their own ink
+function emitterChip(cx, cy, r, pips, join) {
+  const dx = r * GUIDEFX.chipSpread;
+  ctx.save();
+  ctx.lineWidth = Math.max(1, r * 0.42);
+  if (join === 'and') {                             // the bar that means TOGETHER
+    ctx.strokeStyle = 'rgba(190,225,255,0.55)';
+    ctx.beginPath(); ctx.moveTo(cx - dx, cy); ctx.lineTo(cx + dx, cy); ctx.stroke();
+  } else if (join === 'ends') {
+    // …and the BARRIER, which is a broken span, not a solid one. A solid bar
+    // here drew the same picture as 'and' with a wider gap, and the two mean
+    // opposite things — one emitter on both, against one emitter on each. The
+    // lane's own barrier is a running crack strung between two anchors, so the
+    // chip strings a dashed one and the pips ARE the anchors.
+    const span = dx * 1.9;
+    ctx.strokeStyle = 'rgba(190,225,255,0.5)';
+    try { ctx.setLineDash([r * 0.7, r * 0.7]); } catch (e) {}
+    ctx.beginPath(); ctx.moveTo(cx - span, cy); ctx.lineTo(cx + span, cy); ctx.stroke();
+    try { ctx.setLineDash([]); } catch (e) {}
+  } else if (join === 'or') {                       // …or the slash that means EITHER
+    ctx.strokeStyle = 'rgba(190,225,255,0.45)';
+    ctx.beginPath(); ctx.moveTo(cx - r * 0.42, cy + r * 0.8); ctx.lineTo(cx + r * 0.42, cy - r * 0.8);
+    ctx.stroke();
+  }
+  const at = join === 'ends' ? dx * 1.9 : dx;
+  for (let i = 0; i < 2; i++) {
+    const px = cx + (i ? at : -at), col = PIP_COL[i];
+    ctx.beginPath(); ctx.arc(px, cy, r, 0, TAU);
+    if (pips[i]) { ctx.fillStyle = `rgb(${col})`; ctx.fill(); }
+    ctx.strokeStyle = `rgba(${col},${pips[i] ? 0.9 : GUIDEFX.chipOff})`;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+// ---------- the lineup ----------
+// A SPECIMEN HAS A NAME, AND THE NAME IS THE GAME'S OWN. `name` is lifted from
+// INFO_CARDS (70-update.js), which is the copy the in-run threat disc already
+// prints the first time a player meets each one. That is the whole reason the
+// page has names at all: a briefing says "barrier lines", a disc says BARRIER
+// NET, and until now this page said only "ONE EMITTER ON EACH END" — three
+// deliveries of one idea with no word in common. Never invent a noun here. If a
+// name needs to change it changes in INFO_CARDS first, and this follows.
+//
+// EVERY NAME IS TWO LINES, ONE WORD EACH, and so is every caption. Gil's call,
+// 2026-09-01. It is not only rhythm: fitPx sizes the page off the longest single
+// LINE, so "MATCH THE WHITE" on one line was holding the whole lineup down at
+// fifteen characters. Split, the longest line on the page is eight, and both
+// bands grow. Keep the parallel form when a specimen is added — a one-line entry
+// beside five two-line ones reads as a mistake, and buys nothing.
+//
+// Three of these names are Gil's own and are NOT in INFO_CARDS: STANDARD
+// INTERDICTOR, LINKED INTERDICTORS, PULSE CHARGER. They name the family the way
+// the page needs to teach it. The rest still follow INFO_CARDS.
+//
+// The name HEADS the cell: it is drawn above the specimen, where a faint hull
+// code (BRTAP, BRHVY, BRANC) used to be stamped. The code was atmosphere and the
+// name is the lesson, and only one of the two earns that slot.
 const GUIDE_ITEMS = [
-  { cap: ['HIT WITH', 'ANY EMITTER'], col: '255,96,120',
+  { name: ['STANDARD', 'INTERDICTOR'], cap: ['ANY', 'EMITTER'],
+    pips: [1, 1], join: 'or', col: '255,96,120',
     draw: (cx, cy, r) => archTapSpec('n1', 'normal', undefined, cx, cy, r, 0.395) },
-  { cap: ['HIT WITH', 'BOTH EMITTERS'], col: '212,101,255',
+  { name: ['ARMORED', 'INTERDICTOR'], cap: ['BOTH', 'TOGETHER'],
+    pips: [1, 1], join: 'and', col: '212,101,255',
     draw: (cx, cy, r) => archTapSpec('hv', 'heavy', undefined, cx, cy, r, 0.329) },
-  { cap: ['HIT WITH', 'BLUE ⊕'], col: '80,170,255',
+  { name: ['PHASE', 'LOCKED'], cap: ['USE', 'BLUE'],
+    pips: [1, 0], join: null, col: '80,170,255',
     draw: (cx, cy, r) => archTapSpec('lk0', 'normal', 0, cx, cy, r, 0.395) },
-  { cap: ['HIT WITH', 'WHITE ⊖'], col: '235,245,255',
+  { name: ['PHASE', 'LOCKED'], cap: ['USE', 'WHITE'],
+    pips: [0, 1], join: null, col: '235,245,255',
     draw: (cx, cy, r) => archTapSpec('lk1', 'normal', 1, cx, cy, r, 0.395) },
-  { cap: ['ONE EMITTER', 'ON EACH END'], col: '255,96,120',
+  { name: ['LINKED', 'INTERDICTORS'], cap: ['ONE ON', 'EACH END'],
+    pips: [1, 1], join: 'ends', col: '255,96,120',
     draw: (cx, cy, r) => archLineSpec('bar', cx, cy, r, 0.276) },
-  { cap: ['RIDE TO', 'CHARGE PULSE'], col: '255,210,74',
+  // "RIDE IT / TO CHARGE", not "RIDE FOR / A PULSE": the name above it is now
+  // PULSE CHARGER, and the caption was going to say PULSE straight back at it.
+  { name: ['PULSE', 'CHARGER'], cap: ['RIDE IT', 'TO CHARGE'],
+    pips: [1, 1], join: 'or', col: '255,210,74',
     draw: (cx, cy, r) => { // the ribbon in its true 3D form: a STATIC snake of
       // wall arcs receding into a private bore (real wallPatch projection),
       // with a ride-light sweeping it head-to-tail, letting go, and looping
       // the bore is offset so the ribbon it carries lands CENTRED in the cage,
       // like every other specimen (the strip only ever hangs below its axis)
+      // wallPatch assigns ctx.globalAlpha outright, so the page's own fade has to
+      // be folded into every alpha handed to it — otherwise the ribbon is the one
+      // cell that stays at full ink while the other five fade out.
+      const A = ctx.globalAlpha;
       const g2 = { cx, cy: cy - r * 0.65, R0: r * 2.85, nodeR: r * 1.14, hitZ: 0.25, sw: 0, swy: 0 };
       const segs = 26, zN = 0.32, zF = 0.92;
       const T = 4, t = time % T;
@@ -85,12 +187,12 @@ const GUIDE_ITEMS = [
         const p0 = s2 / segs, pm = (s2 + 0.5) / segs;
         const z0 = zN + p0 * (zF - zN), z1 = zN + (p0 + 1 / segs) * (zF - zN);
         const aMid = Math.PI / 2 + 0.4 * Math.sin((pm - 0.5) * 3.6); // fixed centered S — no drift
-        wallPatch(g2, aMid, 0.26, z0, z1 + 0.02, 'rgba(255,180,40,1)', 0.42);
+        wallPatch(g2, aMid, 0.26, z0, z1 + 0.02, 'rgba(255,180,40,1)', 0.42 * A);
         const lit = clamp((front - p0) * 5, 0, 1) * fadeOut;
         if (lit > 0.02) {
-          wallPatch(g2, aMid, 0.17, z0, z1 + 0.02, 'rgba(255,235,170,1)', lit);
+          wallPatch(g2, aMid, 0.17, z0, z1 + 0.02, 'rgba(255,235,170,1)', lit * A);
           if (lit < 0.95) // the hot frontier — where the node is riding right now
-            wallPatch(g2, aMid, 0.09, z0, z1 + 0.02, 'rgba(255,255,255,1)', (1 - lit) * fadeOut);
+            wallPatch(g2, aMid, 0.09, z0, z1 + 0.02, 'rgba(255,255,255,1)', (1 - lit) * fadeOut * A);
         }
       }
       ctx.restore();
@@ -102,6 +204,24 @@ function closeGuide() {
   if (!guide || guide.closing) return;
   guide.closing = 1e-4;
   sfx.tick();
+}
+// HOW MUCH OF THE SCREEN THE PAGE OWNS, 0..1.
+// The field guide is an OVERLAY, not a destination. It used to be neither: the
+// state flipped to S.GUIDE on the frame the key was pressed, the dispatch
+// stopped drawing whatever was underneath, and the page then faded up over the
+// bare bore — so opening it read as a cut to an empty screen followed by a fade,
+// and closing it read as a fade to that same empty screen followed by a cut
+// back. Two cuts, in the two places a transition is supposed to hide them.
+//
+// One number fixes both ends. Every gate that used to ask "is the state S.GUIDE"
+// asks this instead, and hands over on the curve rather than on the frame.
+// Nothing outside the guide pays for it: with no page open it is 0, and the
+// render reads exactly the values it read before.
+function guideCover() {
+  if (!guide) return 0;
+  const inQ = smoothT(clamp(guide.t / 0.28, 0, 1));
+  const outQ = guide.closing ? clamp(guide.closing / 0.18, 0, 1) : 0;
+  return Math.min(inQ, 1 - outQ);
 }
 function guidePointer(P) { // one pager: any tap hands back (the X is an affordance)
   if (!guide || guide.closing || guide.t < 0.25) return;
@@ -143,31 +263,69 @@ function drawGuideLineup(box, u, opts) {
     ctx.fillText('FIELD GUIDE // KNOW YOUR ENEMY', cx0, titleY);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   }
-  // ONE caption size for the whole lineup: the widest line anywhere sets it, so
-  // no item's guidance reads smaller than its neighbour's (measured WITH the
-  // caption letter-spacing, since that's what the drawn width will carry)
+  // TWO TYPE SIZES, MEASURED SEPARATELY. There used to be one, taken from the
+  // widest line anywhere — so "ARMORED" and "HIT WITH ANY EMITTER" competed for
+  // the same fit, and the longest string on the page shrank every other string
+  // on it. The name and the guidance are different jobs at different weights,
+  // so each gets its own fit pass against the same column.
+  // …and each fit starts from the SAME ceiling rather than from the other size.
+  // Fitting the name down from the caption's result made them equal, because
+  // the caption is the longer string ("MATCH THE WHITE" against "PHASE-LOCKED")
+  // and a name can only shrink from where it starts. Given its own run at the
+  // column the name lands larger on its own, which is the hierarchy the page
+  // wants: the noun first, the instruction under it.
+  // THE NAME IS FITTED FIRST AND THE GUIDANCE IS FITTED UNDER IT. Both bands are
+  // two short lines now, so a single shared fit would land them at the same size
+  // and the cell would read as four equal lines with no head. The caption starts
+  // from a fixed fraction of the name (GUIDEFX.cap) and only shrinks from there,
+  // so the hierarchy is declared rather than left to whichever string happens to
+  // be longest this week.
   try { ctx.letterSpacing = '1px'; } catch (e) {}
-  let capFs = Math.round(u * 0.06);
+  let nameFs = Math.round(u * 0.06 * GUIDEFX.name);
+  for (const it of GUIDE_ITEMS)
+    for (const ln of it.name) nameFs = Math.min(nameFs, fitPx(ln, '700', nameFs, colW - 8));
+  let capFs = Math.round(nameFs * GUIDEFX.cap);
   for (const it of GUIDE_ITEMS)
     for (const ln of it.cap) capFs = Math.min(capFs, fitPx(ln, '700', capFs, colW - 8));
   try { ctx.letterSpacing = '0px'; } catch (e) {}
+  const nameLines = GUIDE_ITEMS.reduce((a, it) => Math.max(a, it.name.length), 1);
+  const capLines = GUIDE_ITEMS.reduce((a, it) => Math.max(a, it.cap.length), 1);
+  const nameLead = nameFs * (1 + GUIDEFX.nameLead);
+  const capLead = capFs * (1 + GUIDEFX.nameLead);
   // foot: the tip fills the safe width, but never shouts over the guidance it
   // supports — the captions ARE the page. The dismiss hint tucks under it.
+  // ITS CEILING IS NOW BELOW THE CAPTION SIZE (GUIDEFX.tip, was 1.35). A line
+  // about the fire button was the largest thing under a heading that promises
+  // threats. It still prints — it is support, and it now looks like support.
   try { ctx.letterSpacing = '2px'; } catch (e) {}
   const tipPx = o.tip === false ? 0
-    : fitPx(GUIDE_TIP, '700', Math.round(Math.min(u * 0.06, capFs * 1.35)), box.w, 9);
+    : fitPx(GUIDE_TIP, '700', Math.round(Math.min(u * 0.06, nameFs * GUIDEFX.tip)), box.w, 9);
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   const hintPx = o.hint === false ? 0 : clamp(Math.round(u * 0.028), 9, 15);
   const hintY = box.y + box.h;
   // with no hint the tip takes the foot itself, so the band keeps the room the
   // dismiss line would have eaten rather than leaving a gap nothing sits in
   const tipY = o.hint === false ? hintY : hintY - hintPx - gap * 0.9;
-  // A plain row: specimen, its two lines underneath. With no ring drawn around
-  // them the bodies answer only to their own footprint, so they take four
-  // fifths of the column — the plates never meet, and the glows that do are
-  // soft light. Height is the other ceiling: whatever the band leaves once the
-  // captions have their two lines.
-  const capH = capFs * 2 + 5;
+  // A CELL IS FOUR BANDS, TOP TO BOTTOM: the NAME, the specimen, the emitter
+  // chip, the guidance. The name heads the cell the way a plate heads an exhibit
+  // — the noun arrives before the thing it names, and the chip and the
+  // instruction then answer it. It used to sit between the chip and the
+  // guidance, with a faint hull code in this slot; the code is gone and the name
+  // took the slot, at its own size and in its own ink.
+  //
+  // With no ring drawn around them the bodies answer only to their own
+  // footprint, so they take four fifths of the column — the plates never meet,
+  // and the glows that do are soft light. Height is the other ceiling, and at
+  // six columns it never used to bind: the width limit always won, which left
+  // about a fifth of the band empty under the captions on every phone. The name
+  // band and the chip are spent INTO that slack. If a narrower glass runs out of
+  // it, cellR takes the smallest of the three limits and the art gives the room
+  // back on its own.
+  const chipR = clamp(nameFs * GUIDEFX.chip, 2.5, 8);
+  const chipH = o.chip === false ? 0 : chipR * 2 + nameFs * GUIDEFX.chipGap;
+  const nameH = nameFs * nameLines + (nameLines - 1) * (nameLead - nameFs)
+    + nameFs * GUIDEFX.nameGap;
+  const capH = capFs * capLines + (capLines - 1) * (capLead - capFs);
   const capGap = gap * 0.6;
   const bandTop = titleY + (o.title === false ? 0 : gap);
   const bandBot = (o.tip === false ? hintY : tipY - tipPx) - gap;
@@ -177,20 +335,51 @@ function drawGuideLineup(box, u, opts) {
   // floating where a ring's rim used to be.
   const ART_UP = 0.85, ART_DN = 0.45;
   const cellR = Math.max(12, Math.min(colW * 0.85, u * 0.42,
-    (bandH - capH - capGap) / (ART_UP + ART_DN)));
-  const blockH = cellR * (ART_UP + ART_DN) + capGap + capH;
-  const cyS = bandTop + (bandH - blockH) / 2 + cellR * ART_UP;
-  const capY = cyS + cellR * ART_DN + capGap + capFs;
+    (bandH - nameH - chipH - capGap - capH) / (ART_UP + ART_DN)));
+  const blockH = nameH + cellR * (ART_UP + ART_DN) + chipH + capGap + capH;
+  const blockTop = bandTop + (bandH - blockH) / 2;
+  const nameY = blockTop + nameFs;
+  const cyS = blockTop + nameH + cellR * ART_UP;
+  const chipY = cyS + cellR * ART_DN + nameFs * GUIDEFX.chipGap + chipR;
+  const capY = chipY + chipR + capGap + capFs;
   const x0 = cx0 - colW * n / 2;
+  // THE OPEN IS STAGGERED, LEFT TO RIGHT. `reveal` is the screen's own entry
+  // easing, handed in rather than derived: the field guide has one (guide.t),
+  // the enlistment's disc has its own beat clock and wants none, and a page
+  // that reached for a global time would flicker every time the disc restarts.
+  // Left out, it is 1 and every cell is simply present — which is exactly what
+  // the disc needs.
+  const rv = o.reveal === undefined ? 1 : clamp(o.reveal, 0, 1);
+  const stagSpan = Math.max(0.15, 1 - GUIDEFX.stagStep * (n - 1));
   GUIDE_ITEMS.forEach((it, i) => {
+    const q = smoothT(clamp((rv - i * GUIDEFX.stagStep) / stagSpan, 0, 1));
+    if (q <= 0) return;
     const cx = x0 + colW * (i + 0.5);
-    it.draw(cx, cyS, cellR);
+    const rise = (1 - q) * cellR * GUIDEFX.stagRise;   // …and it climbs out of its own bore
+    ctx.save();
+    ctx.globalAlpha *= q;
+    ctx.translate(0, rise);
     ctx.textAlign = 'center';
+    // the NAME heads the cell, in the cell's own ink
     try { ctx.letterSpacing = '1px'; } catch (e) {}
     ctx.fillStyle = `rgb(${it.col})`;
-    ctx.font = '700 ' + capFs + 'px Audiowide, system-ui';
-    it.cap.forEach((ln, li) => ctx.fillText(ln, cx, capY + li * (capFs + 5)));
+    ctx.font = '700 ' + nameFs + 'px Audiowide, system-ui';
+    // BOTTOM-ALIGNED. Only "ARMORED INTERDICTOR" needs two rows, and hanging the
+    // other five from the top of the band left each name floating clear of the
+    // specimen it belongs to, reading as a heading for the whole page.
+    const nDrop = (nameLines - it.name.length) * nameLead;
+    it.name.forEach((ln, li) => ctx.fillText(ln, cx, nameY + nDrop + li * nameLead));
     try { ctx.letterSpacing = '0px'; } catch (e) {}
+    it.draw(cx, cyS, cellR);
+    if (o.chip !== false) emitterChip(cx, chipY, chipR, it.pips, it.join);
+    // …and the guidance answers it, a size down and a shade back
+    ctx.textAlign = 'center';
+    try { ctx.letterSpacing = '1px'; } catch (e) {}
+    ctx.fillStyle = `rgba(${it.col},0.70)`;
+    ctx.font = '700 ' + capFs + 'px Audiowide, system-ui';
+    it.cap.forEach((ln, li) => ctx.fillText(ln, cx, capY + li * capLead));
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    ctx.restore();
   });
   // the tip + the way out
   try { ctx.letterSpacing = '2px'; } catch (e) {}
@@ -221,9 +410,19 @@ function drawGuide(g) {
   }
   const inQ = smoothT(clamp(guide.t / 0.28, 0, 1));
   const outQ = guide.closing ? clamp(guide.closing / 0.18, 0, 1) : 0;
-  const master = Math.min(inQ, 1 - outQ);
-  // gentle dim so the lineup reads over the live bore
-  ctx.fillStyle = 'rgba(3,6,14,' + (0.62 * master).toFixed(2) + ')';
+  const master = guideCover();
+  // THE MASK, AND IT IS THE WHOLE TRANSITION. The screen this page opened over —
+  // the home wheel and its badge, or the paused run and its panel — keeps
+  // drawing at full underneath and is never faded out. So this fill is the only
+  // thing separating the two, and the only thing that moves: it comes in with
+  // the lineup and goes out with it, and at either end the screen underneath is
+  // simply itself, whole and unchanged.
+  //
+  // It was 0.62 while the layer beneath was being faded away as well. With that
+  // layer at full it has to carry the separation alone, so it is deeper now —
+  // enough to read six captions over a lit menu wheel, and not so deep that the
+  // context it was kept for stops reading. GUIDEFX.mask moves it.
+  ctx.fillStyle = 'rgba(3,6,14,' + (GUIDEFX.mask * master).toFixed(3) + ')';
   ctx.fillRect(0, 0, W, H);
   ctx.save();
   const sc2 = 0.9 + 0.1 * inQ - 0.06 * outQ; // a breath of zoom, briefing-disc style
@@ -238,7 +437,7 @@ function drawGuide(g) {
   drawGuideLineup(
     { x: (mL + mR) / 2, y: mT, w: W - mL - mR, h: H - mB - mT },
     Math.min(W, H),
-    { titleMaxW: W - 2 * (mL + 46) });
+    { titleMaxW: W - 2 * (mL + 46), reveal: inQ });
   ctx.restore();
   // close key (where the pause key lives in-run), steady outside the zoom
   ctx.save();

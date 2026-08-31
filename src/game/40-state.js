@@ -13,7 +13,18 @@ let enlist = null;
 // and the enlistment in front of it. No bore, no lane, no traffic — just the
 // star field and the destination. Named because it is asked in four places, and
 // four hand-written comparisons is how one of them gets missed.
-const parkedSky = () => state === S.MENU || state === S.ENLIST;
+// THE FIELD GUIDE OVER THE HOME SCREEN. The page is an overlay, and the world
+// behind an overlay does not change. This one did: the state left S.MENU on the
+// frame the key was pressed, so every gate written as "is this a menu" flipped
+// at once — the bore's lattice, its field glow, its filaments and the lane's own
+// medium all switched ON behind a page that had not begun to fade in, and
+// switched off again on the way out. That is a background popping in and out,
+// and no amount of cross-fading in FRONT of it can hide it.
+//
+// Opened from the PAUSE screen this is false, and correctly so: there IS a lane
+// back there, and it stays.
+const guideOverMenu = () => state === S.GUIDE && !!guide && guide.from !== 'pause';
+const parkedSky = () => state === S.MENU || state === S.ENLIST || guideOverMenu();
 let levelIdx = 0, levelT = 0, spawnT = 0;
 // ---------- THE LANE CLOCK ----------
 // L.duration is when the lane stops RELEASING traffic, not when it ends. The last

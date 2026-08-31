@@ -114,14 +114,21 @@ function drawNailBreach(en, g, fade, PAL) {
   sh2.addColorStop(1, 'rgba(0,2,8,0)');
   ctx.fillStyle = sh2;
   ctx.beginPath(); ctx.arc(0, 0, S * 1.7, 0, TAU); ctx.fill();
-  ctx.globalCompositeOperation = 'lighter';
-  const bl3 = ctx.createRadialGradient(0, 0, 0, 0, 0, S * 2.3);
-  bl3.addColorStop(0, `rgba(${PAL.glow},${(fade * 0.16).toFixed(3)})`);
-  bl3.addColorStop(0.5, `rgba(${PAL.glow},${(fade * 0.07).toFixed(3)})`);
-  bl3.addColorStop(1, `rgba(${PAL.glow},0)`);
-  ctx.fillStyle = bl3;
-  ctx.beginPath(); ctx.arc(0, 0, S * 2.3, 0, TAU); ctx.fill();
-  ctx.globalCompositeOperation = 'source-over';
+  // …and the light the tap pools INTO that surface. It is the wall's response to
+  // the body, so it needs a wall: an `arch` specimen stands in a private bore on
+  // a black page, where the pool has nothing to land on and reads as a coloured
+  // sphere fading out around the model. Six of them, side by side, and the page
+  // is haloes with bodies in them. Gil's call, 2026-09-01 — the lane keeps it.
+  if (!en.arch) {
+    ctx.globalCompositeOperation = 'lighter';
+    const bl3 = ctx.createRadialGradient(0, 0, 0, 0, 0, S * 2.3);
+    bl3.addColorStop(0, `rgba(${PAL.glow},${(fade * 0.16).toFixed(3)})`);
+    bl3.addColorStop(0.5, `rgba(${PAL.glow},${(fade * 0.07).toFixed(3)})`);
+    bl3.addColorStop(1, `rgba(${PAL.glow},0)`);
+    ctx.fillStyle = bl3;
+    ctx.beginPath(); ctx.arc(0, 0, S * 2.3, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
   ctx.restore();
 
   // breach ripple: a wave train expanding ACROSS the wall — each ring is a
@@ -417,6 +424,25 @@ const MISSFX = {
   streak: 1.25,  // the motion smear's length at the exit, in body sizes
   streakA: 0.50, // …and its ink. Zero it and the fly-by keeps the size and the hold.
 };
+// THE BREATH — the light ON a trap, in place of the halo that used to be AROUND
+// it. Shallow on purpose: the eye should read a heartbeat, not a flicker, and a
+// body still has to be identified by its colour at a glance in a full lane.
+const ENEMYBREATH = {
+  rate: 1.25,  // radians a second — one breath every five seconds, and the SAME
+               // one at every distance. It does not lean on urgency: see the
+               // note at the call site for why a distance-scaled rate strobes.
+  dim: 0.66,   // the darkest the hue falls to, as a share of its full value.
+               // A third off reads as a heartbeat; measured at 0.58 the swing
+               // went from deep purple to hot magenta, which is a strobe.
+};
+// Scales an "r,g,b" string down the breath's curve. Toward BLACK, not toward
+// grey: a hue that desaturates as it dims stops being the colour the player is
+// matching an emitter to, and that is the one thing this art must never blur.
+function breathGlow(col, ph) {
+  const k = ENEMYBREATH.dim + (1 - ENEMYBREATH.dim) * (0.5 + 0.5 * Math.sin(ph));
+  const p = col.split(',');
+  return (p[0] * k | 0) + ',' + (p[1] * k | 0) + ',' + (p[2] * k | 0);
+}
 function enemyPal(en) {
   return en.type === 'heavy'
     ? { glow: '200,70,255',
@@ -1089,8 +1115,40 @@ function drawEnemy(en, g) {
   // bore with its own light, not in a lane, so they keep their full ink and this
   // change is a no-op on both screens.
   if (!en.arch) fade *= laneHaze(en.z, g);
+  // THE CALLER'S ALPHA IS PART OF THE FADE. Everything below this line assigns
+  // ctx.globalAlpha ABSOLUTELY off `fade` — a dozen sites, each correct on its
+  // own and each one throwing away whatever the caller had set. So a screen
+  // fading the bodies out drew them at full ink right up to the frame it stopped
+  // drawing them at all, which reads as a snap rather than a fade: the field
+  // guide closing, and runVis winding a lane down, were both losing the fade
+  // they asked for. Folding it into `fade` here makes every one of those sites
+  // inherit it with no change to any of them, and costs nothing at alpha 1.
+  fade *= ctx.globalAlpha;
   if (fade <= 0.005) return;
   const PAL = enemyPal(en);
+  // THE BODY BREATHES ITS OWN LIGHT. This is what replaces the halo: the
+  // emissive colour cycles between its full value and a darker hue of itself
+  // and back, so a trap reads as powered by what is lit ON it rather than by a
+  // pool of light around it. PAL is a fresh literal per call (see enemyPal) and
+  // it is handed on to drawNailBreach, so one edit here reaches everything drawn
+  // in the body's colour — the vented beam, the seam at the machined joint, the
+  // type ring, the drill's own light.
+  //
+  // The phase is the SAME static per-body seed drawNailBreach derives, taken
+  // straight off the spawn angle rather than read back off `en`: it is wanted
+  // before that function has had a chance to assign it, and it must not draw
+  // from spawnRng, whose order is gameplay-deterministic.
+  //
+  // ONE RATE, AT EVERY DISTANCE, ON RAW `time`. The first cut of this leaned the
+  // rate on urgency — time * rate * (1 + urg) — so a body breathed faster as it
+  // closed. That is the mistake the urgency clock forty lines up exists to stop,
+  // written out in its own comment: a rate may only scale an ACCUMULATED
+  // increment, never multiply raw `time`, because the instant urg ramps the
+  // product leaps whole cycles and the effect strobes instead of breathing.
+  // Gil caught it in the lane. The breath wants neither the ramp nor the
+  // accumulator — it is one steady pulse for the life of the body, so a constant
+  // rate on raw `time` is both the smooth answer and the simple one.
+  PAL.glow = breathGlow(PAL.glow, time * ENEMYBREATH.rate + (en.angle * 39.7) % 10);
 
   ctx.save();
   ctx.globalAlpha = fade;
@@ -1122,16 +1180,15 @@ function drawEnemy(en, g) {
 
   const spr = SPRITES[en.lock === 0 ? 'lock0' : en.lock === 1 ? 'lock1' : en.type];
 
-  // hot glow at the wall point — except payload packets, which swallow light.
-  // the glow breathes harder as arrival closes in: near threats burn brightest
-  const urg = urgency(en, g);
-  const pulse = 1 + Math.sin(en.spin * 2) * 0.08 + urg * 0.1 * Math.sin(time * 10);
-  const gl = ctx.createRadialGradient(x, y, 0, x, y, size * 2.4 * pulse);
-  gl.addColorStop(0, `rgba(${PAL.glow},${(0.5 + urg * 0.3).toFixed(2)})`);
-  gl.addColorStop(0.5, `rgba(${PAL.glow},${(0.16 + urg * 0.12).toFixed(2)})`);
-  gl.addColorStop(1, `rgba(${PAL.glow},0)`);
-  ctx.fillStyle = gl;
-  ctx.beginPath(); ctx.arc(x, y, size * 2.4 * pulse, 0, TAU); ctx.fill();
+  // THE HALO IS GONE. What stood here was a radial pool of the body's own colour
+  // out to size*2.4 at half ink, and it was the loudest thing about every trap:
+  // on the tunnel wall it read as a lamp the body was sitting in, and on the
+  // field guide's black page it read as a sphere of light with a model inside
+  // it. Six of those side by side and the page was haloes, not specimens.
+  //
+  // What it was FOR — saying the thing is powered, and burning brighter as it
+  // closes — has moved onto the hull. See the breath above. Gil's call,
+  // 2026-09-01, and it applies to the lane as much as to the page.
 
   if (spr) {
     // sprite skin replaces the procedural body (glow + sigils stay live)
@@ -1346,6 +1403,7 @@ function drawLineBeam(en, g) {
   const rg = ring(Math.max(en.z, 0.02), g);
   let fade = en.resolved ? clamp(en.z / g.hitZ, 0, 1) : 1;
   fade *= clamp((SPAWN_Z - 0.05 - en.z) / 0.3, 0, 1);
+  fade *= ctx.globalAlpha;   // the caller's fade — see drawEnemy, same reason
   if (fade <= 0.005) return;
   // a live crack RUNNING ALONG THE WALL between the two ruptures — take the
   // short way around, marching dashes sell the energy

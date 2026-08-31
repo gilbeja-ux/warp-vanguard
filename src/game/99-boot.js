@@ -450,31 +450,6 @@ function splashTap() {
   if (!SPLASH.src && SPLASH.buf && AC && AC.state !== 'running' && settings.music) return;
   splashEnd(true);
 }
-// per-row silhouette of an image's opaque pixels (normalized spans), computed
-// once and cached on the element — lets the scan sweep hug the ART instead of
-// the file's bounding box. Rows with no content collapse to a point.
-function contentRows(img) {
-  if (img.__rows) return img.__rows;
-  if (!img.naturalWidth) return []; // not decoded yet — try again next frame
-  try {
-    const N = 48;
-    const cv = document.createElement('canvas');
-    cv.width = N; cv.height = N;
-    const c2 = cv.getContext('2d', { willReadFrequently: true });
-    c2.drawImage(img, 0, 0, N, N);
-    const d = c2.getImageData(0, 0, N, N).data;
-    const rows = [];
-    for (let y = 0; y < N; y++) {
-      let x0 = N, x1 = -1;
-      for (let x = 0; x < N; x++) {
-        if (d[(y * N + x) * 4 + 3] > 24) { if (x < x0) x0 = x; x1 = x; }
-      }
-      rows.push(x1 < 0 ? { x0: 0.5, x1: 0.5 } : { x0: x0 / N, x1: (x1 + 1) / N });
-    }
-    img.__rows = rows;
-  } catch (e) { img.__rows = []; } // tainted/unreadable — callers fall back to the box
-  return img.__rows;
-}
 function splashBadge() { // where the menu wants the logo — the hub badge's rect
   if (menuBadge) return menuBadge; // the live menu underneath drew this frame — exact
   const lg = brandLogo(); if (!lg) return null;
@@ -744,33 +719,6 @@ function drawSplash(rawDt) {
         ctx.restore();
       }
       lane(sc, draw); // the print itself — whole and seamless, at every depth
-      // the lock: a scan rakes the badge over the last of the run, entering at
-      // the GB mark's CONTENT width and converging onto the shield's own
-      // silhouette — one brand printed as the other. It sits at the END of the
-      // flight now, so it reads on a badge big enough to see it, and it is
-      // finished before the boot gate can stop the sequence at SPL.hold.
-      const lockQ = clamp((raw - 0.6) / 0.4, 0, 1);
-      if (lockQ > 0 && lockQ < 1) {
-        const rows = contentRows(b.img);
-        const row = rows.length ? rows[clamp(Math.floor(lockQ * rows.length), 0, rows.length - 1)] : null;
-        const rx = row ? b.x + row.x0 * b.w : b.x, rw = row ? (row.x1 - row.x0) * b.w : b.w;
-        let gbW = 0; // GB content width, as a fraction of its file
-        for (const r of contentRows(GBIMG.img)) gbW = Math.max(gbW, r.x1 - r.x0);
-        if (!gbW) gbW = 0.9; // silhouette unavailable — assume most of the file
-        const blend = clamp(lockQ * 2.5, 0, 1); // the GB echo dies a third of the way down
-        const swW = u * 0.51 * gbW * (1 - blend) + rw * blend;
-        const sx = (b.x + b.w / 2) * (1 - blend) + (rx + rw / 2) * blend - swW / 2;
-        const sy = b.y + b.h * lockQ;
-        lane(sc, () => {
-          const gsc = ctx.createLinearGradient(0, sy - b.h * 0.18, 0, sy);
-          gsc.addColorStop(0, 'rgba(111,227,255,0)');
-          gsc.addColorStop(1, 'rgba(111,227,255,0.35)');
-          ctx.fillStyle = gsc;
-          ctx.fillRect(sx, sy - b.h * 0.18, swW, b.h * 0.18);
-          ctx.fillStyle = 'rgba(235,250,255,0.8)';
-          ctx.fillRect(sx, sy, swW, 1.5);
-        });
-      }
       ctx.restore();
     }
   }
@@ -977,17 +925,22 @@ function frame(now) {
     ctx.fillRect(0, 0, W, H);
   }
 
-  // the field guide is its own page: the frozen run's world (ring FX, bodies,
-  // pickups, nodes, HUD popups) stays out of sight while it's open
-  const inGuide = state === S.GUIDE;
-  // …AND SO DO THE DISCS. The course is already running behind them, but none of
+  // THE FIELD GUIDE KEEPS THE CONTEXT BEHIND IT. This used to blank the run's
+  // world — ring FX, bodies, pickups, nodes, HUD popups — on the frame the page
+  // opened, and every attempt to soften that was softening the wrong thing.
+  // Gil's call, 2026-09-01: the page is an overlay with its OWN mask, and what a
+  // mask covers stays covered rather than deleted. So a player who opens the
+  // guide mid-run still sees the run they are in, dimmed, and the only thing
+  // that moves across the transition is the page.
+  //
+  // Only the enlistment still stands the hardware down, and for its own reason: The course is already running behind them, but none of
   // its hardware has been sent for: the ring flies in with the warp start and the
   // pads light with it, which is the moment the player is handed the controls.
   // Drawing either early spends that moment early — and a pulse meter glowing at
   // each edge while a disc is still talking is furniture for controls that do not
   // work yet. drawHolderRing already stands its monolith down while parked; the
   // pads come in under drawNodes, which is what `hw` gates.
-  const noRig = inGuide || state === S.ENLIST;
+  const noRig = state === S.ENLIST;
   const bz = noRig ? Math.min(W, H) * 0.055 : drawHolderRing(g);
   // EVERYTHING ON THE BAND POWERS DOWN WITH THE RUN. rimFX and latches only
   // decay while the sim is in PLAY, so at the report they hang on the rim
@@ -1006,20 +959,20 @@ function frame(now) {
   // (a,b) => ...)` every rendered frame, allocating an array and a fresh closure
   // each time. Depth order is unchanged — same comparator, same input order.
   let sorted = drawOrder;
-  if (inGuide || runVis <= 0.004) sorted = EMPTY_DRAW;
+  if (runVis <= 0.004) sorted = EMPTY_DRAW;
   else { drawOrder.length = 0; for (const en of enemies) drawOrder.push(en); drawOrder.sort(byDepth); }
   if (runVis < 1) { ctx.save(); ctx.globalAlpha *= runVis; }
   for (const en of sorted) if (en.lineLead) drawLineBeam(en, g); // beams sit under the traps
   for (const en of sorted) drawEnemy(en, g);
   drawVolleyBlasts(g); // the blast sits OVER the traffic it just swallowed
-  for (const gh of (inGuide || runVis <= 0.004) ? [] : ghosts) drawGhost(gh, g); // dead bodies de-rezzing in place
-  for (const p of (inGuide || runVis <= 0.004) ? [] : pickups) drawPickup(p, g);
+  for (const gh of runVis <= 0.004 ? [] : ghosts) drawGhost(gh, g); // dead bodies de-rezzing in place
+  for (const p of runVis <= 0.004 ? [] : pickups) drawPickup(p, g);
   if (runVis < 1) ctx.restore();
   if (hw > 0.004) drawPulseWave(g); // a fired pulse is hardware too — it goes with the ring
   drawWarpCollapse(g);
-  if (boss && state !== S.MENU && !inGuide) drawBoss(g);
+  if (boss && state !== S.MENU) drawBoss(g);
 
-  if (state !== S.MENU && !inGuide && hw > 0.004) { // the arcs and their orbs, same fade
+  if (state !== S.MENU && hw > 0.004) { // the arcs and their orbs, same fade
     if (hw < 1) { ctx.save(); ctx.globalAlpha = hw; }
     drawNodes(g);
     drawVolley(g);
@@ -1027,7 +980,7 @@ function frame(now) {
   }
 
   prof('ephemera');
-  drawEphemera(inGuide);
+  drawEphemera(false); // the page masks the run's ephemera now, it does not delete them
 
   prof('postChain');
   drawPostChain(rawDt, worldFx, g);
@@ -1444,7 +1397,35 @@ function drawPostChain(rawDt, worldFx, g) {
   // arrives at once when the last disc lifts, which is the moment the player is
   // being handed the controls — showing it early spends that moment early.
   else if (state === S.ENLIST) drawEnlistment();
-  else if (state === S.GUIDE) drawGuide(g);
+  else if (state === S.GUIDE) {
+    // THE PAGE IS AN OVERLAY, and this branch draws what it sits ON. The screen
+    // that opened the page keeps drawing AT FULL for as long as the page is
+    // open. It is never faded and never replaced, so the context a player had
+    // when they pressed the key is the context they still have while they read.
+    //
+    // What separates the two is the page's own mask — a full-screen fill that
+    // comes in with the lineup and goes out with it (GUIDEFX.mask, 92-guide.js).
+    // That fill IS the transition. Cross-fading the layer underneath was the
+    // wrong idea twice over: it threw away the context, and the things that
+    // could not fade with it were exactly the things that popped.
+    //
+    // The page itself is drawn at the very END of the frame, not here. See the
+    // drawGuide call after drawMenuBadgeTop.
+    if (guide && guide.from === 'pause') {
+      drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawPause();
+    } else {
+      drawMenu(g);
+      // THE LOGO HOLDS ITS POST, exactly as it does under a settings popup.
+      // drawMenuBadgeTop returns on any state but S.MENU, so the badge — the
+      // brightest object on the home screen — used to vanish on the first frame
+      // the page opened while everything around it was still at full.
+      if (menuScreen === 'home' && menuBadge && !menuPopUp()) stampMenuBadge(g);
+    }
+    // …and none of its keys are live while the page owns the taps. guidePointer
+    // is what the input dispatch calls in S.GUIDE, but a menu that painted its
+    // hit rects would leave them in the list for anything that reads it later.
+    menuButtons = [];
+  }
   else if (state === S.MENU) {
     if (SPLASH.on && SPLASH.t < SPL.wheel) { /* boot stage one: only the tunnel
       breathes behind the badge — the menu waits for its wheel cue */ }
@@ -1531,6 +1512,12 @@ function drawPostChain(rawDt, worldFx, g) {
 
   drawTrans(); // transitions + press feedback ride over everything
   drawMenuBadgeTop(g); // …except the logo, which rides over the press feedback
+  // …AND THE FIELD GUIDE IS OVER ALL OF IT. The page used to draw down in the
+  // state dispatch, which put it UNDER the press feedback and under the hub
+  // badge — so the one thing on the home screen that draws at top z punched a
+  // hole through the lineup. It is the top layer now. Nothing but the boot
+  // curtain goes over it, and it no-ops when no page is open.
+  drawGuide(g);
   drawSplash(rawDt); // …and the boot splash curtains the whole stage at launch
 }
 

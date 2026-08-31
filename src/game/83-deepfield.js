@@ -653,7 +653,7 @@ function initLaneMedium() {
 }
 initLaneMedium();
 function drawLaneMedium(g, dt) {
-  if (state === S.MENU) return;
+  if (state === S.MENU || guideOverMenu()) return; // no lane behind the home screen, page or not
   const exitK = 1 - laneExit(); // the medium is what the LANE is full of
   if (exitK <= 0.004) return;
   const spd = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow;
