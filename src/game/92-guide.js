@@ -1113,21 +1113,38 @@ const SIDEARC_GAP = 0.10;   // clear air between the key's end and the arc, in r
 const SIDEARC_MAX = 1.05;   // the longest sweep, in radians — the cap on a screen the arc cannot leave
 const SIDEARC_OVER = 0.07;  // how far past the frame edge the far end runs, in radians
 const SIDEARC_W = 0.070;    // stroke weight, as a fraction of R
-const SIDEARC_A = 0.85;     // alpha at rest
+const SIDEARC_A = 0.85;     // the arc's FULL weight — what the charge reaches
 const SIDEARC_SPIN = 0.55;  // share of the wheel's spin the arcs take
-// ---- the PACKET (Gil's call, 2026-08-31: option A off the arc bench) -------
-// One short bright head runs each arc INBOUND — in off the frame edge, down to
-// the key's end, gone. The arcs already say "this is a lane"; the packet says
-// the lane is carrying something, and it carries it TOWARD the key, which is
-// the thing the player would tap. That direction is the whole content of the
-// animation, so nothing here ever runs the other way.
+// ---- the CHARGE (Gil's call, 2026-08-31: option C off the arc bench) -------
+// The screen breathes light OUTWARD. Each key sits at mid-height, so an arc's
+// key end is at the CENTRE of the frame and its far end runs off the top or the
+// bottom edge. The charge starts at the centre end and fills to the edge; then
+// it empties from the centre end, so the last light on the arc leaves through
+// the edge. Light enters in the middle and leaves through the top and bottom.
 //
-// A locked key gets no packet. A lane you cannot fly has no traffic on it, and
-// a grey arc with cargo running down it would be the screen arguing with itself.
-const SIDEARC_PKT = 0.12;     // head length, as a share of the arc's own sweep
-const SIDEARC_PKT_PER = 3.2;  // seconds from one packet to the next, on one arc
-const SIDEARC_PKT_DUTY = 0.55;// share of that period the run takes; the rest is quiet
-const SIDEARC_PKT_A = 0.85;   // the head's brightness at the front of the run
+// The pairs move together, which is the point Gil made twice. The pair id is
+// `s2 * k.side`: it is -1 for the two arcs above the keys and +1 for the two
+// below, so a single number puts a mirrored pair in step. They are all in step
+// by default; SIDEARC_CHG_PAIR offsets the bottom pair if the two halves should
+// take turns instead.
+//
+// The band's edges are deliberately different. Its head is HARD, because a fill
+// front is what makes a charge read as a charge. Its tail is SOFT, because that
+// is the boundary that moves while the arc empties, and a hard edge there would
+// read as a wipe rather than as a fade.
+//
+// A locked key gets no charge. A lane you cannot fly carries nothing, and a grey
+// arc with light running out of it would be the screen arguing with itself.
+const SIDEARC_CHG_PER = 3.6;   // seconds: fill, hold, empty, rest — the whole loop
+const SIDEARC_CHG_UP = 0.30;   // share of the period the fill takes
+const SIDEARC_CHG_HOLD = 0.10; // …then it sits full for this share
+const SIDEARC_CHG_OUT = 0.32;  // …then it empties over this share. The rest is quiet.
+const SIDEARC_CHG_PAIR = 0;    // phase offset of the BOTTOM pair. 0 = all four in step
+const SIDEARC_CHG_REST = 0.32; // the arc's alpha with NO charge on it. The furniture
+                               // has to rest dimmer than it charges or there is
+                               // nothing to see; this is the number Gil watches.
+const SIDEARC_CHG_A = 0.95;    // …and its brightness where the band is full
+const SIDEARC_CHG_SOFT = 0.30; // the tail's ramp, as a share of the band's own length
 // Every arc RUNS OFF THE FRAME (Gil's call): the far end crosses the top or the
 // bottom edge, so the stroke has somewhere to go when it turns and needs no
 // outward step to sell the move. Both halves of a key measure the same, because
@@ -1137,6 +1154,9 @@ function sideArcSweep(rr, lineW) {
   if (lim >= 1) return SIDEARC_MAX;           // a screen tall enough to hold the whole circle
   return Math.min(SIDEARC_MAX, Math.asin(lim) + SIDEARC_OVER);
 }
+// The charge's ease: a smoothstep, the same front the discs and the splash use,
+// so the fill leaves the centre and lands on the edge with no corner at either end.
+const arcEase = q => { const c = clamp(q, 0, 1); return c * c * (3 - 2 * c); };
 // The arcs are the transition's LOCK. Each one turns inside a window cut on its
 // own home angles, so a spin slides the stroke out of its window and off the
 // frame, and the arc is gone by the time the wheel is. The entrance runs the
@@ -1152,14 +1172,14 @@ function drawSideArcs(ccx, ccy, R, wheelAl, rot, keys) {
   ctx.lineCap = 'butt';   // FLAT ends, no cap radius — a heavy stroke with a round
   ctx.lineWidth = lineW;  // cap reads as a lozenge, not as a piece of a ring
   for (const k of keys) {
-    // THE REST COLOUR IS RE-ARMED PER ARC, not once per key. The packet below
+    // THE REST COLOUR IS RE-ARMED PER ARC, not once per key. The charge below
     // leaves a GRADIENT in ctx.strokeStyle, and a gradient painted outside its
     // own two endpoints clamps to the nearest stop — so the second arc of the
-    // pair drew its whole length in the first arc's white head. That was the
+    // pair drew its whole length in the first arc's hot front. That was the
     // upper-left and lower-right strips going solid white.
     const rest = k.locked
-      ? `rgba(120,155,190,${(SIDEARC_A * 0.4 * wheelAl).toFixed(3)})`
-      : `rgba(${k.col},${(SIDEARC_A * wheelAl).toFixed(3)})`;
+      ? `rgba(120,155,190,${(SIDEARC_CHG_REST * 0.55 * wheelAl).toFixed(3)})`
+      : `rgba(${k.col},${(SIDEARC_CHG_REST * wheelAl).toFixed(3)})`;
     for (const s2 of [-1, 1]) { // one arc above the key, one below
       const h0 = k.mid + s2 * t0, h1 = k.mid + s2 * t1; // h0 is the KEY end, h1 the frame edge
       const lo = Math.min(h0, h1), hi = Math.max(h0, h1);
@@ -1167,29 +1187,36 @@ function drawSideArcs(ccx, ccy, R, wheelAl, rot, keys) {
       if (a1 - a0 <= 0.01) continue;
       ctx.strokeStyle = rest;
       ctx.beginPath(); ctx.arc(ccx, ccy, rr, a0, a1); ctx.stroke();
-      if (k.locked) continue; // no traffic on a lane that cannot be flown
-      // THE PACKET. It is written against h0 and h1, never lo and hi: which of
-      // the two is the smaller angle flips with s2, so a run expressed in sorted
-      // order would travel inbound above the key and outbound below it — one arc
-      // in every pair pointing the wrong way, which is the exact fault this
-      // animation exists to avoid.
-      const span = h0 - h1;                                    // signed, edge → key
-      const ph = (time / SIDEARC_PKT_PER
-        + (k.side > 0 ? 0.5 : 0) + (s2 > 0 ? 0.25 : 0)) % 1;   // staggered: the four never fire together
-      const u = ph / SIDEARC_PKT_DUTY;
-      if (u > 1 + SIDEARC_PKT) continue;                       // the quiet part of the period
-      const head = h1 + span * u, tail = head - span * SIDEARC_PKT;
-      // clipped to the SAME window the spin wipes the arc through — a packet that
+      if (k.locked) continue; // nothing charges a lane that cannot be flown
+      // THE CHARGE. Written against h0 and h1 — the centre end and the frame edge
+      // — and never against the sorted pair: which of the two is the smaller
+      // angle flips with s2, so a run in sorted order would travel outward above
+      // the keys and inward below them. One arc of every pair would break the
+      // symmetry the whole move is built on.
+      const span = h1 - h0;                                    // signed, centre → edge
+      const q = (time / SIDEARC_CHG_PER
+        + (s2 * k.side > 0 ? SIDEARC_CHG_PAIR : 0)) % 1;       // one number puts a mirrored pair in step
+      let headU, tailU;
+      if (q < SIDEARC_CHG_UP) { headU = arcEase(q / SIDEARC_CHG_UP); tailU = 0; }
+      else if (q < SIDEARC_CHG_UP + SIDEARC_CHG_HOLD) { headU = 1; tailU = 0; }
+      else if (q < SIDEARC_CHG_UP + SIDEARC_CHG_HOLD + SIDEARC_CHG_OUT) {
+        headU = 1;
+        tailU = arcEase((q - SIDEARC_CHG_UP - SIDEARC_CHG_HOLD) / SIDEARC_CHG_OUT);
+      }
+      else continue;                                           // the quiet part of the loop
+      const head = h0 + span * headU, tail = h0 + span * tailU;
+      // clipped to the SAME window the spin wipes the arc through — a band that
       // outlived its own stroke would draw on bare sky through every transition
       const p0 = Math.max(a0, Math.min(head, tail)), p1 = Math.min(a1, Math.max(head, tail));
       if (p1 - p0 <= 0.004) continue;
       const gr = ctx.createLinearGradient(
         ccx + Math.cos(tail) * rr, ccy + Math.sin(tail) * rr,
         ccx + Math.cos(head) * rr, ccy + Math.sin(head) * rr);
-      const ha = (SIDEARC_PKT_A * wheelAl).toFixed(3);
-      gr.addColorStop(0, `rgba(${k.col},0)`);
-      gr.addColorStop(0.55, `rgba(${k.col},${(SIDEARC_PKT_A * 0.7 * wheelAl).toFixed(3)})`);
-      gr.addColorStop(1, `rgba(245,252,255,${ha})`);
+      const ca = (SIDEARC_CHG_A * wheelAl).toFixed(3);
+      gr.addColorStop(0, `rgba(${k.col},0)`);                  // SOFT tail: the fade's own edge
+      gr.addColorStop(SIDEARC_CHG_SOFT, `rgba(${k.col},${ca})`);
+      gr.addColorStop(0.94, `rgba(${k.col},${ca})`);           // the band keeps the key's hue…
+      gr.addColorStop(1, `rgba(245,252,255,${ca})`);           // …and only its HARD front goes white
       ctx.strokeStyle = gr;
       ctx.beginPath(); ctx.arc(ccx, ccy, rr, p0, p1); ctx.stroke();
     }
