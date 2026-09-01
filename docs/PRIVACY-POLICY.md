@@ -39,6 +39,6 @@ Worth knowing, because the code has to keep these true:
   the player holds, and `privacy.html` documents it (see its *Your controls*
   table). Erasing takes the rows, their replay traces, the reports the player
   filed, **their feedback**, and the anonymous id itself. The email route
-  (`gilbeja.int@gmail.com`) survives as the secondary path and is stated in the
+  (`hello@gb-il.cloud`) survives as the secondary path and is stated in the
   policy with its real limit: an entry is linked to no name or account anyone
   can look a person up by.

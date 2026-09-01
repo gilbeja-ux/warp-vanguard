@@ -1175,11 +1175,12 @@ function myDataAct(tag) {
 // anonymous id has no address to write back to — so the disc hands out ours
 // instead of pretending otherwise.
 //
-// ⚠ SWAP THIS for the dedicated feedback address the moment it exists. It is the
-// contact address from privacy.html for now, which is real and answered, so the
-// panel is never wrong; a placeholder here would ship as one. npm test fails if it
-// is ever set to something that only looks like an address.
-const FEEDBACK_EMAIL = 'gilbeja.int@gmail.com';
+// THE ONE ADDRESS THIS PROJECT HAS. Gil, 2026-09-01. It is the same one
+// privacy.html, delete-data.html and the Play Console listing carry — one address
+// in five places, and they have to agree or a player is told two different things
+// about where to write. npm test fails if this is ever set to something that only
+// looks like an address.
+const FEEDBACK_EMAIL = 'hello@gb-il.cloud';
 const FEEDBACK_TOPICS = [
   ['bug',     'A BUG'],
   ['idea',    'AN IDEA'],

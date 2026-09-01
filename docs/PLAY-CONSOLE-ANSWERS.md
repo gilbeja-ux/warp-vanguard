@@ -16,7 +16,7 @@ https://gilbeja-ux.github.io/warp-vanguard/privacy.html
 Served by GitHub Pages from this repo. **One-time setup by the account owner:**
 repo → *Settings* → *Pages* → Source: *Deploy from a branch* → branch `master`,
 folder `/docs` → Save. The URL is live a minute or two later. Contact address is
-`gilbeja.int@gmail.com`; both the address and the policy text can be changed at
+`hello@gb-il.cloud`; both the address and the policy text can be changed at
 any time by editing `docs/privacy.html` and pushing.
 
 ## App content → Ads
@@ -45,7 +45,7 @@ The route it describes is **in-app**: the *MY DATA* panel, on the leaderboard
 screen and in *System Config*, offering **rename my runs** and **delete my
 runs**, both acting on every board at once. Deleting also takes the reports the
 player filed and **any feedback they sent** — so the one control still covers
-everything that leaves the device. Email (`gilbeja.int@gmail.com`) remains the
+everything that leaves the device. Email (`hello@gb-il.cloud`) remains the
 fallback for players who have already uninstalled.
 
 **The email route still has to be honoured** where it can be: an unanswered
