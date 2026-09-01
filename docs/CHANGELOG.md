@@ -6,7 +6,9 @@ what a player meets. The commit trail between two versions is
 
 ---
 
-## Unreleased
+## 1.0.5 — 2026-09-01 (versionCode 10005)
+
+One feature, and the compliance work that comes with it.
 
 ### Feedback — a private note to the developer
 - **SYSTEM CONFIG → FEEDBACK.** The settings disc's bottom segment now carries
@@ -54,11 +56,14 @@ what a player meets. The commit trail between two versions is
   beside the sim id. `index.html` is not part of the sim hash, so no board id
   moves.
 
-> **OWED BEFORE THE NEXT BUILD.** This ships nothing until both run:
-> `supabase db push` (applies `20260901000000_feedback.sql`) and
-> `supabase functions deploy send-feedback --use-api`. Until then the panel
-> exists and every note goes to the outbox. This batches with the deploy already
-> deferred from 2026-08-26 (see HOUSEKEEPING H-26).
+> **DEPLOYED 2026-09-01, before the build.** `supabase db push` applied
+> `20260901000000_feedback.sql` and, with it, the `20260826000000` migration
+> deferred since August (H-26). `send-feedback` and `my-data` are both live, and
+> the verifier was rebuilt and redeployed for this build's sim id.
+>
+> **`DEV_KEYS` is still `true`** in `src/game/40-state.js`. That is correct for an
+> internal-testing upload and wrong for a production release — see RELEASE-PLAN §1
+> (H-05). Flip it and rebuild before promoting this bundle to production.
 
 ---
 
