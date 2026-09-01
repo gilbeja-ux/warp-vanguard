@@ -16,10 +16,13 @@ what a player meets. The commit trail between two versions is
 - **It is a disc**, wearing the same plate the pause disc and the high-score card
   wear, cast in by the ring. `discSegKeys` gained a one-key form for the CLOSE
   that runs the whole width of the segment.
-- **The disc uses its space.** A topic too long for the crown breaks across two
-  lines and drops into the wider part of the circle instead of overrunning the
-  plate. The note field starts as high as the title allows and runs down to the
-  last whole line that clears the segment — six lines on a phone, up from three.
+- **The disc uses its space.** A topic too long for one line breaks across two,
+  and the break is **balanced** rather than greedy — the long half goes on the
+  lower line, where the circle is wider, so the type keeps its size. Titles sit
+  below the crown, which is the narrowest line on a circle, and keep double a
+  row's margin from the rim. The note field starts as high as the title allows
+  and runs down to the last whole line that clears the segment — six lines on a
+  phone, up from three.
 - **GET IN TOUCH**, on the right flank, replaces *WE CANNOT REPLY*. It says no
   reply comes back down this channel, then gives a contact address — **tap it and
   it copies**, because an address painted on a canvas cannot be selected. The one

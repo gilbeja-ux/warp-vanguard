@@ -142,6 +142,15 @@ player-chosen handle, and run data to a server.
       Verified campaign/weekly rows never auto-act — they are records someone
       earned, so an automatic action there is worth more to a brigade than to a
       moderator. Those queue; read them in the `reports` table.
+- [ ] **A dedicated feedback address.** The FEEDBACK disc shows one, tap-to-copy,
+  and it is `FEEDBACK_EMAIL` in `src/game/92-guide.js` — **one constant, one
+  line**. It holds `gilbeja.int@gmail.com` (the contact address from
+  `privacy.html`) so nothing ever ships pointing at a placeholder; Gil is setting
+  up a dedicated one before launch. Swap the constant, and swap it in
+  `docs/privacy.html` and `docs/delete-data.html` at the same time so all three
+  agree. `npm test` fails if the constant is ever set to something that only looks
+  like an address.
+
 - [ ] **Watch the `reports` table.** Nothing notifies you. Verified rows above the
       threshold sit there until a human looks. Worth a weekly glance, or a Supabase
       scheduled digest if it ever gets traffic.

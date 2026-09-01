@@ -4752,6 +4752,19 @@ async function runMusicUp() {
         const box = G.fbField(), t = G.fbTitleBox();
         check('the longest topic breaks across two lines instead of overrunning the plate',
           t && t.lines === 2);
+        // THE INVARIANT, and the one that would have caught the original bug: the
+        // budget is measured at the glyph's TOP, where a line of caps is widest, so
+        // `over` is the real distance from the rim. It was measured at the baseline
+        // once — the one place on a line where no glyph is — and the letters came
+        // out sitting on the arc while the arithmetic said they were clear.
+        check('no line of the title reaches its own rim', t.over <= 0);
+        // BALANCED, NOT FILLED. Greedy wrapping puts the long half on the FIRST
+        // line, which on a circle is the line with the least room — 'TOO HARD OR'
+        // over 'TOO EASY', which only fit by shrinking the type. The split that
+        // minimises the worst overshoot puts OR on the second line, where the
+        // chord is wider. Gil asked for exactly this break.
+        check('the split puts the longer half on the wider line',
+          t.parts.length === 2 && t.parts[0] === 'TOO HARD' && t.parts[1] === 'OR TOO EASY');
         check('…and the title block still clears the field under it', t.bottom < box.y);
         // the box was three lines when it floated mid-disc; it fills the room now
         check('the field fills the room between the title and the counter (' + box.lines + ' lines)',
@@ -4767,7 +4780,8 @@ async function runMusicUp() {
           Math.hypot(box.x + box.w - g.cx, box.y + box.h - g.cy));
         check('every corner of the field is inside the disc', worst < rr);
         G.feedbackAct('bug'); G.drawFeedback();
-        check('a topic that fits stays on one line at the crown', G.fbTitleBox().lines === 1);
+        check('a topic that fits stays on one line',
+          G.fbTitleBox().lines === 1 && G.fbTitleBox().over <= 0);
       } finally {
         ctxStub.measureText = flat;
         Object.defineProperty(ctxStub, 'font', fontProp);

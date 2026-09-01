@@ -68,6 +68,37 @@
 > - **The typing warning moved to the floor**, centred under the disc. It is about
 >   what the player types, so it belongs where the eye lands after the field.
 >
+> ### The third pass: the title keeps its distance (Gil, 2026-09-01)
+>
+> Gil, on the first wrapped title: *"the T and the R are literally touching the
+> edges."* They were, and the arithmetic said otherwise. Two reasons, both fixed:
+>
+> - **A line of caps is widest ABOVE its baseline.** The budget was measured AT the
+>   baseline, which is the one place on the line where no glyph is — the letters
+>   rise about 0.73em and up there the circle has already closed in. Every budget
+>   is taken at the glyph's top now.
+> - **A letter is not a slab.** A key clears the rim by `DISC_PAD` and looks right,
+>   because a key has its own drawn edge and the eye reads the gap between two
+>   edges. A glyph has no edge, so the same gap reads as a collision. The title
+>   keeps `FB_TITLE_PAD`, double a row's margin.
+> - **And it does not ride the crown.** `discPlate` puts a title there because its
+>   titles are words like PAUSED; these are phrases, and the crown is the narrowest
+>   line on the circle. Every title on this disc sits at `FB_TITLE_Y` (0.66R), where
+>   the margin can be kept without shrinking the type to buy it. The lede hangs off
+>   the title's own bottom rather than a fixed height, so it follows.
+> - **The two lines are BALANCED, not filled.** Greedy wrapping puts the long half
+>   on the first line, which on a circle is the line with the least room — 'TOO HARD
+>   OR' over 'TOO EASY', which only fit by shrinking. The split that minimises the
+>   worst overshoot puts OR on the second line, where the chord is wider: **TOO
+>   HARD / OR TOO EASY**, at full size. Same idea as `text-wrap: balance`, with the
+>   twist that the two lines do not have the same room as each other.
+>
+> ### The address
+>
+> Gil, 2026-09-01: ship the existing address for now, a dedicated one before
+> launch. `FEEDBACK_EMAIL` in `92-guide.js` is that one constant, and the swap is
+> on the release checklist in `docs/RELEASE-PLAN.md` §2.
+>
 > ### What differs from the plan below
 >
 > - **`window.__APP_VERSION`** is new. `BUILD` tells two builds apart but names

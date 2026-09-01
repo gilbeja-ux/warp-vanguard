@@ -1272,34 +1272,92 @@ function fbSideNote(x, align, cy0, w, R, eyebrow, body, tail) {
 }
 // THE TITLE WRAPS, AND DROPS WHEN IT DOES. discPlate sets its title on ONE line at
 // the crown, where the chord is barely wider than a word — fine for PAUSED and
-// SYSTEM CONFIG, and not fine for 'TOO HARD OR TOO EASY', which overran the plate
-// on both sides. So this disc draws its own: one line stays exactly where discPlate
-// would put it, and a title that does not fit breaks in two AND moves down the
-// circle, into the wider part, rather than climbing further into the crown.
+// SYSTEM CONFIG, and not fine for 'TOO HARD OR TOO EASY'. So this disc draws its
+// own: one line stays exactly where discPlate would put it, and a title that does
+// not fit breaks in two AND moves down the circle, into the wider part, rather
+// than climbing further into the crown.
+//
+// A LINE OF CAPS IS WIDEST ABOVE ITS OWN BASELINE, and that is the first half of
+// the trick. Measuring the chord AT the baseline measures the one place on the
+// line where no glyph is — the letters rise about 0.73em above it, and up there
+// the circle has already closed in.
+//
+// THE SECOND HALF IS THAT A LETTER IS NOT A SLAB. A key clears the rim by DISC_PAD
+// and looks right, because a key has its own drawn edge and the eye reads the gap
+// between two edges. A glyph has no edge, so the same gap reads as a collision —
+// which is exactly what Gil saw: a T and an R apparently sitting on the arc while
+// the arithmetic said they were 5px clear. The title keeps DOUBLE a row's margin.
+//
+// AND THE TITLE DOES NOT RIDE THE CROWN. discPlate puts one there because its
+// titles are words like PAUSED; these are phrases, and the crown is the narrowest
+// line on the circle. Every title on this disc sits at FB_TITLE_Y, where there is
+// room to keep the margin above without shrinking the type to buy it.
 //
 // Returns the block's bottom, so whatever sits under it can start from a fact
-// rather than from a guess.
+// rather than from a guess, and the widest overshoot, so a pin can prove that no
+// line ever reached its rim.
+const FB_CAP = 0.72;        // cap height, as a share of the font size
+const FB_TITLE_Y = 0.66;    // the title's row, as a share of R above the centre
+const FB_TITLE_PAD = 0.17;  // its clearance from the rim — twice what a row keeps
 function fbTitle(cx, cy, R, text) {
-  const tp0 = Math.max(11, Math.round(R * 0.095));
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(186,231,255,0.92)';
   try { ctx.letterSpacing = '4px'; } catch (e) {}
-  ctx.font = '700 ' + tp0 + 'px Audiowide, system-ui';
-  const oneW = (discChord(R, R * 0.755) - R * 0.05) * 2;
-  let lines = [text], tcy = cy - R * 0.755, lh = tp0 * 1.35;
-  if (ctx.measureText(text).width > oneW) {
-    tcy = cy - R * 0.66;
-    lines = wrapCanvas(text, (discChord(R, R * 0.66 + lh * 0.5) - R * 0.05) * 2).slice(0, 2);
+  // the room a line has, given where its BASELINE sits relative to the centre
+  const budget = (dy, size) => (discChord(R, Math.abs(dy) + size * FB_CAP) - R * FB_TITLE_PAD) * 2;
+  const tcy = cy - R * FB_TITLE_Y;
+  const out = { bottom: tcy, lines: 1, size: 11, over: 0, parts: [text] };
+  for (let size = Math.max(11, Math.round(R * 0.095)); ; size--) {
+    ctx.font = '700 ' + size + 'px Audiowide, system-ui';
+    const floor = size <= 9;
+    // ONE LINE, on the title's row
+    const oneW = budget(tcy - cy, size);
+    if (ctx.measureText(text).width <= oneW) {
+      ctx.fillText(text, cx, tcy);
+      out.bottom = tcy + size * 0.25; out.lines = 1; out.size = size;
+      out.over = ctx.measureText(text).width - oneW; out.parts = [text];
+      break;
+    }
+    // TWO LINES, straddling that row — and BALANCED, not filled.
+    //
+    // Greedy wrapping puts as much as it can on the first line, which on a circle
+    // is the worst possible rule: the first line is the one with the least room.
+    // 'TOO HARD OR TOO EASY' came out as 'TOO HARD OR' over 'TOO EASY' — the long
+    // half on the short line — and the only way to make that fit was to shrink the
+    // type. Choosing the split that minimises the WORST overshoot puts 'OR' on the
+    // second line, where the chord is wider, and the title keeps its size.
+    //
+    // It is the same idea as `text-wrap: balance`, with the twist that the two
+    // lines here do not have the same room as each other.
+    const lh = size * 1.35;
+    const ys = [tcy - lh / 2, tcy + lh / 2];
+    const b0 = budget(ys[0] - cy, size), b1 = budget(ys[1] - cy, size);
+    const words = text.split(/\s+/).filter(Boolean);
+    let best = null;
+    for (let k = 1; k < words.length; k++) {
+      const a = words.slice(0, k).join(' '), b = words.slice(k).join(' ');
+      const wa = ctx.measureText(a).width, wb = ctx.measureText(b).width;
+      const over = Math.max(wa - b0, wb - b1), wide = Math.max(wa, wb);
+      if (!best || over < best.over || (over === best.over && wide < best.wide)) best = { a, b, over, wide };
+    }
+    if (best && (best.over <= 0 || floor)) {
+      ctx.fillText(best.a, cx, ys[0]); ctx.fillText(best.b, cx, ys[1]);
+      out.bottom = ys[1] + size * 0.25; out.lines = 2; out.size = size;
+      out.over = best.over; out.parts = [best.a, best.b];
+      break;
+    }
+    // one word, and it does not fit on its own line: nothing to split, so shrink
+    // until the single-line branch above takes it — or until the floor does.
+    if (!best && floor) {
+      ctx.fillText(text, cx, tcy);
+      out.bottom = tcy + size * 0.25; out.lines = 1; out.size = size;
+      out.over = ctx.measureText(text).width - oneW;
+      break;
+    }
   }
-  // ONE SIZE FOR THE BLOCK, set by whichever line is worst off against its own
-  // chord. Per-line shrinking would fit better and read as two different titles.
-  const ys = lines.map((l, i) => tcy - (lines.length - 1) * lh / 2 + i * lh);
-  const tp = Math.min(...lines.map((l, i) => fitPx(l, '700', tp0, (discChord(R, Math.abs(ys[i] - cy)) - R * 0.05) * 2, 9)));
-  ctx.font = '700 ' + tp + 'px Audiowide, system-ui';
-  lines.forEach((l, i) => ctx.fillText(l, cx, ys[i]));
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.textAlign = 'left';
-  return { bottom: ys[ys.length - 1] + tp * 0.25, lines: lines.length, size: tp };
+  return out;
 }
 // THE PANEL IS A DISC. It was a console slab, which is the one language this game
 // no longer speaks — the pause disc, SYSTEM CONFIG and the high-score card all
@@ -1377,7 +1435,8 @@ function drawFeedback() {
       const held = fbHeld();
       ctx.fillStyle = held ? 'rgba(255,196,120,0.95)' : 'rgba(150,200,240,0.8)';
       ctx.font = '500 ' + Math.max(9, Math.round(R * 0.066)) + 'px Audiowide, system-ui';
-      ctx.fillText(held ? 'A note is still waiting to send.' : 'What is this about?', cx, cy - R * 0.56);
+      ctx.fillText(held ? 'A note is still waiting to send.' : 'What is this about?',
+        cx, fbTitleBox.bottom + R * 0.10);   // hung off the title, which moves when it wraps
       // four keys down the disc's own column, each cut to the chord at its widest
       // corner so no key can escape the circle on the rows nearest the crown
       const kh = R * 0.175, pitch = R * 0.215, top0 = cy - R * 0.44;
