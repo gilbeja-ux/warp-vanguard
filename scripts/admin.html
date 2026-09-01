@@ -54,6 +54,17 @@
   .t-ver { color:var(--grn); } .t-un { color:var(--dim); }
   .t-lock { color:var(--gold); } .t-n { color:var(--red); } .t-ok { color:var(--grn); }
 
+  /* ---- a feedback note: the WORDS lead, the context follows ----
+     A report is judged on one string (the handle), so its card puts the facts on
+     one line. A note is judged on a paragraph, so the paragraph goes first and
+     everything else becomes the footnote it is. */
+  .card.fb { border-left-color:#2f4a63; }
+  .card.fb.done { border-left-color:var(--line); }
+  .fbtext { white-space:pre-wrap; word-break:break-word; font-size:13.5px; line-height:1.55;
+    margin:2px 0 8px; max-width:78ch; }
+  .t-bug { color:var(--red); } .t-idea { color:var(--gold); }
+  .t-balance { color:var(--vio); } .t-other { color:var(--dim); }
+
   button { font:600 10px/1 system-ui,sans-serif; letter-spacing:.06em; text-transform:uppercase;
     padding:7px 10px; border-radius:4px; cursor:pointer; background:#16233a;
     border:1px solid #35547e; color:#cfe4ff; white-space:nowrap; }
@@ -103,6 +114,16 @@
   <details class="sec" id="s-done">
     <summary>Handled <span class="count" id="c-done"></span></summary>
     <div class="secbody" id="handled"></div>
+  </details>
+
+  <details class="sec" id="s-fb" open>
+    <summary>Feedback <span class="count" id="c-fb"></span></summary>
+    <div class="secbody" id="fbqueue"></div>
+  </details>
+
+  <details class="sec" id="s-fbdone">
+    <summary>Feedback · handled <span class="count" id="c-fbdone"></span></summary>
+    <div class="secbody" id="fbhandled"></div>
   </details>
 
   <details class="sec" open>
@@ -220,6 +241,39 @@ function card(r) {
     + '</div>';
 }
 
+// "3h" beats "2026-08-30T11:04:22Z" and "just now" beats "0h". Age is what you
+// read a queue by; the exact stamp is one hover away in the title.
+function age(h, at) {
+  const s = h < 1 ? 'just now' : h < 48 ? Math.round(h) + 'h' : Math.round(h / 24) + 'd';
+  return '<span class="meta" title="' + esc(new Date(at).toLocaleString()) + '">' + s + '</span>';
+}
+
+// One note. Deliberately NOT a report card: there is no name to judge, no reporter
+// count, and nothing to redact or release. Two verbs — mark it dealt with, or
+// throw it away — and the second one exists for abuse aimed at the developer.
+function fbCard(r) {
+  const open = !!r.open;
+  const act = (a, label, cls) => '<button' + (cls ? ' class="' + cls + '"' : '')
+    + ' data-a="' + a + '" data-id="' + r.id + '">' + label + '</button>';
+  const bits = [r.build, r.platform, r.screen, r.place, r.lang].filter(Boolean).map(esc);
+  return '<div class="card fb' + (open ? '' : ' done') + '">'
+    + '<span class="rid" title="click to copy">' + r.id + '</span>'
+    + '<div class="fbtext">' + esc(r.body) + '</div>'
+    + '<div class="main">'
+    +   '<div class="facts">'
+    +     '<span class="tag t-' + esc(r.topic) + '">' + esc(r.topic) + '</span>'
+    +     age(r.age_hours, r.created_at)
+    +     '<span class="meta">' + bits.join(' · ') + '</span>'
+    +     (r.sim_id ? '<span class="meta" title="the rules this build played by">sim ' + esc(r.sim_id) + '</span>' : '')
+    +   '</div>'
+    +   '<div class="acts">'
+    +     (open ? act('fbHandled', 'Handled') : '')
+    +     act('fbDelete', 'Delete', 'danger')
+    +   '</div>'
+    + '</div>'
+    + '</div>';
+}
+
 async function load() {
   const d = await (await api('/api/data')).json();
   const o = d.overview || {};
@@ -236,6 +290,17 @@ async function load() {
   $('#c-open').className = 'count' + (open.length ? ' hot' : '');
   $('#c-done').textContent = done.length || '';
   if (d.queue && d.queue.error) $('#queue').innerHTML = '<div class="empty">' + esc(d.queue.error) + '</div>';
+
+  const fb = Array.isArray(d.feedback) ? d.feedback : [];
+  const fbOpen = fb.filter(r => r.open), fbDone = fb.filter(r => !r.open);
+  $('#fbqueue').innerHTML = fbOpen.length ? fbOpen.map(fbCard).join('')
+    : '<div class="empty">No new notes.</div>';
+  $('#fbhandled').innerHTML = fbDone.length ? fbDone.map(fbCard).join('')
+    : '<div class="empty">Nothing handled yet.</div>';
+  $('#c-fb').textContent = fbOpen.length || '';
+  $('#c-fb').className = 'count' + (fbOpen.length ? ' hot' : '');
+  $('#c-fbdone').textContent = fbDone.length || '';
+  if (d.feedback && d.feedback.error) $('#fbqueue').innerHTML = '<div class="empty">' + esc(d.feedback.error) + '</div>';
 
   $('#c-boards').textContent = table($('#boards'), d.boards, [
     ['board', r => esc(r.board)],
@@ -259,7 +324,11 @@ async function load() {
 
 document.addEventListener('click', async e => {
   const rid = e.target.closest('.rid');
-  if (rid) { navigator.clipboard?.writeText(rid.textContent.trim()); toast('run id copied'); return; }
+  if (rid) {
+    navigator.clipboard?.writeText(rid.textContent.trim());
+    toast(rid.closest('.fb') ? 'note id copied' : 'run id copied');
+    return;
+  }
 
   const ren = e.target.closest('button[data-ren]');
   if (ren) {
@@ -280,6 +349,9 @@ document.addEventListener('click', async e => {
   // Only DELETE asks. The others are all reversible or repeatable; deleting throws
   // away someone's SCORE, which is a different kind of decision.
   if (action === 'delete' && !confirm('Delete this entry entirely?\n\nThe score, its replay and its reports all go. Renaming or redacting is usually what you want instead.')) return;
+  // A note has no gentler verb than delete — nothing about it is reversible and
+  // nothing else holds a copy — so it asks too.
+  if (action === 'fbDelete' && !confirm('Delete this note?\n\nIt is the only copy. Marking it handled folds it away instead.')) return;
 
   busy = true; b.disabled = true;
   try {

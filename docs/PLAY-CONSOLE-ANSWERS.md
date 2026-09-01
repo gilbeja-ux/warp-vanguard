@@ -43,8 +43,10 @@ what makes the page true) and the retention period.
 
 The route it describes is **in-app**: the *MY DATA* panel, on the leaderboard
 screen and in *System Config*, offering **rename my runs** and **delete my
-runs**, both acting on every board at once. Email (`gilbeja.int@gmail.com`)
-remains the fallback for players who have already uninstalled.
+runs**, both acting on every board at once. Deleting also takes the reports the
+player filed and **any feedback they sent** — so the one control still covers
+everything that leaves the device. Email (`gilbeja.int@gmail.com`) remains the
+fallback for players who have already uninstalled.
 
 **The email route still has to be honoured** where it can be: an unanswered
 request is a policy breach, not an untidy inbox. Watch that address. Note the
@@ -66,6 +68,7 @@ because those need no proof of who is asking.
 |---|---|---|---|---|---|
 | Personal info | **User IDs** | Yes | No | Required* | App functionality |
 | App activity | **App interactions** (scores, run results, replay traces) | Yes | No | Required* | App functionality |
+| App activity | **Other user-generated content** (the feedback message) | Yes | No | **Users can choose** | App functionality |
 | Personal info | **Name** | **No — do not tick it.** See below | — | — | — |
 
 \* **Required, and this is settled — do not answer "users can choose".** An
@@ -80,6 +83,32 @@ That answer changes only if a leaderboard opt-out is ever shipped — a settings
 toggle read before `lbSubmit`. Worth doing eventually; it would also make the
 GDPR position easier. It does not exist today.
 
+### Feedback is the one OPTIONAL row, and that is not a hedge
+
+Added 2026-09-01. *System Config → FEEDBACK* lets a player type up to 600
+characters and send it. Play's *Other user-generated content* is the right type:
+its own definition is *"user bios, notes, or open-ended responses"*, which is
+exactly what this is.
+
+It is the one row that answers **"users can choose"**, and the reasoning is the
+mirror of the argument for the other two being required. A score is submitted
+automatically at the end of every run with no setting to stop it. A note is
+never sent unless somebody opens a panel, picks a subject, types words and
+presses SEND. Four deliberate acts is a choice by any reading.
+
+**Do not tick *Messages*.** That category is for a messaging feature between
+people. Nothing here is delivered to another user; there is no reply, no thread,
+and nobody but the developer ever reads it.
+
+**Do not tick *App info and performance → Diagnostics* either.** The note carries
+the app version, the platform, the screen size, the language and the last stage
+played — which reads like diagnostics, and is the one judgement call in this
+table. It is not collected: it exists only inside a message a player chose to
+send, is never gathered in the background, and no run of the game that sends no
+feedback sends any of it. It is context on the user-generated content and is
+declared as part of it. (If a reviewer ever disagrees, the safe correction is to
+add *Diagnostics — optional, app functionality*, not to remove the fields.)
+
 ### The per-type dialog
 
 Clicking a data type opens three more questions. For **both** User IDs and
@@ -90,6 +119,18 @@ App interactions:
 | Is this data processed ephemerally? | **No** — it is written to the database and kept indefinitely |
 | Required, or can users choose? | **Data collection is required** |
 | Why is this data collected? | **App functionality** only |
+
+For **Other user-generated content**:
+
+| Question | Answer |
+|---|---|
+| Is this data processed ephemerally? | **No** — it is written to the database |
+| Required, or can users choose? | **Users can choose whether this data is collected** |
+| Why is this data collected? | **App functionality** only |
+
+*Developer communications* stays unticked even here. That purpose means messages
+sent **to** the user — newsletters, push announcements — and this pipe runs the
+other way and carries no reply.
 
 Leave *Analytics*, *Developer communications*, *Advertising or marketing* and
 *Fraud prevention, security and compliance* unticked. Anti-cheat is performed on

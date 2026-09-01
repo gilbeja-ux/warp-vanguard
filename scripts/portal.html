@@ -89,10 +89,14 @@ function toast(m) { const t = $('#toast'); t.textContent = m; t.className = 'on'
   clearTimeout(t._h); t._h = setTimeout(() => t.className = '', 2000); }
 
 const TILES = [
-  ['reports_open', 'open reports'], ['names_moderated', 'moderated'],
+  ['reports_open', 'open reports'], ['feedback_open', 'new feedback'],
+  ['names_moderated', 'moderated'],
   ['identities_total', 'identities'], ['identities_new_7d', 'new · 7d'],
   ['board_entries', 'entries'], ['entries_set_7d', 'set · 7d'],
 ];
+// the two queues that need a human go hot when they are not empty; the rest are
+// just numbers and stay quiet
+const HOT = new Set(['reports_open', 'feedback_open']);
 
 function verifierCard(v) {
   if (!v.known) return '<div class="strip warn"><h3>Verifier</h3><p>No bundle built yet — run <code>npm run build:verifier</code>.</p></div>';
@@ -131,7 +135,7 @@ async function load() {
   if (d.admin) {
     $('#adminbox').style.display = '';
     $('#tiles').innerHTML = TILES.map(([k, label]) =>
-      '<div class="tile' + (k === 'reports_open' && d.admin[k] > 0 ? ' hot' : '') + '"><b>'
+      '<div class="tile' + (HOT.has(k) && d.admin[k] > 0 ? ' hot' : '') + '"><b>'
       + (d.admin[k] ?? '—') + '</b><span>' + label + '</span></div>').join('');
   } else {
     $('#adminbox').style.display = 'none';

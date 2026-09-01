@@ -6,6 +6,42 @@ what a player meets. The commit trail between two versions is
 
 ---
 
+## Unreleased
+
+### Feedback — a private note to the developer
+- **SYSTEM CONFIG → FEEDBACK.** The settings disc's bottom segment now carries
+  **MY DATA · FEEDBACK**. Pick one of four subjects (a bug · an idea · too hard
+  or too easy · something else), type up to 600 characters, send. Nothing is
+  shown to another player and nothing comes back — the panel says so twice.
+- **CLOSE left the disc, and the gear took its job.** The settings panel is the
+  pause disc wearing another door, and the pause disc's corner key both opens and
+  closes it. Three ways out remain: the gear, a tap outside the disc, gamepad B.
+- **A note written offline is held, not lost.** One slot, flushed on the next
+  connection or when the panel is next opened, dropped unsent after a week.
+- **What rides along** — app version, build stamp, sim id, platform, screen size,
+  the stage last played, and the language. Named in the panel before the send.
+  No name, no email, no reply address.
+- **MY DATA's delete now takes feedback too**, alongside the runs, the traces,
+  the rate-limit ledger and the reports the player filed.
+- The privacy policy, the deletion page and the Play Data Safety answers all name
+  the new field. Feedback is the one **optional** row on that form.
+
+### For the developer
+- **A feedback queue in the admin console** (`npm run admin`), below the report
+  queue. Two verbs: Handled, and Delete. The portal (`npm run portal`) shows a
+  **new feedback** tile that goes red when the queue is not empty.
+- `window.__APP_VERSION` is stamped into `dist/index.html` from `package.json`,
+  beside the sim id. `index.html` is not part of the sim hash, so no board id
+  moves.
+
+> **OWED BEFORE THE NEXT BUILD.** This ships nothing until both run:
+> `supabase db push` (applies `20260901000000_feedback.sql`) and
+> `supabase functions deploy send-feedback --use-api`. Until then the panel
+> exists and every note goes to the outbox. This batches with the deploy already
+> deferred from 2026-08-26 (see HOUSEKEEPING H-26).
+
+---
+
 ## 1.0.4 — 2026-08-25 (versionCode 10004)
 
 26 commits since 1.0.3. The headline: the journey loop closes (home → contract

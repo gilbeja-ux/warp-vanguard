@@ -1533,6 +1533,12 @@ requestAnimationFrame(frame);
 if ('serviceWorker' in navigator && window.isSecureContext && !window.Capacitor) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+// A NOTE WRITTEN OFFLINE GETS ITS CHANCE HERE. openFeedback() also flushes, but a
+// player who wrote one on a train and never opened the panel again would otherwise
+// hold it until it aged out. Deferred well past boot on purpose: it needs an
+// anonymous session, and nothing about a week-old note is urgent enough to compete
+// with the first frames for the network.
+setTimeout(() => { try { flushFeedback(); } catch (e) {} }, 4000);
 // boot: the splash decodes its score and tries to run it right away — the
 // Capacitor app WebView allows it; desktop browsers that block autoplay let
 // the first tap unlock it mid-sequence. Contexts without the splash (headless

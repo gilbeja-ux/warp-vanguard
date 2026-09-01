@@ -427,3 +427,9 @@ verify_jwt = true
 # same as having no threshold at all.
 [functions.report-run]
 verify_jwt = true
+
+# send-feedback rate-limits by the WRITER's id, taken from the token. Unsigned
+# tokens would make every note anonymous and unlimited, and the bar in
+# file_feedback would then guard nothing — one script could fill the queue.
+[functions.send-feedback]
+verify_jwt = true

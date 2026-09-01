@@ -291,14 +291,25 @@ end;
 $$;
 
 -- Erase every run a player holds, handing back the trace keys so the caller can
--- purge Storage too. Takes the cooldown ledger row with it. Service-role only.
--- Deliberately NOT blocked by name_locked: erasing the row removes the offending
--- name outright, so there is nothing left to protect.
+-- purge Storage too. Service-role only. Deliberately NOT blocked by name_locked:
+-- erasing the row removes the offending name outright, so there is nothing left
+-- to protect.
+--
+-- IT TAKES EVERY OTHER PLACE THE ID SURVIVES, and that list has grown twice since
+-- this copy was first written — which is exactly the drift this file warns about
+-- at the bottom. The ledger row went first; migrations/20260826000000 added the
+-- reports the player FILED (reports.reporter_id has no foreign key, so nothing
+-- cascaded it); migrations/20260901000000 added their feedback. The MIGRATIONS
+-- ARE THE SOURCE OF TRUTH for this function. This copy exists so a fresh project
+-- built from this file alone can still honour MY DATA, and it must be re-synced
+-- whenever a new table learns a player_id.
 create or replace function public.delete_my_runs(p_player text)
 returns table (trace_id text)
 language plpgsql as $$
 begin
   delete from public.player_limits where player_id = p_player;
+  delete from public.reports       where reporter_id = p_player;
+  delete from public.feedback      where player_id = p_player;
   return query delete from public.runs r where r.player_id = p_player returning r.trace_id;
 end;
 $$;
@@ -344,6 +355,35 @@ begin
   return query select n, did;
 end;
 $$;
+
+-- In-game feedback — a private note to the developer. Repeated here for the same
+-- reason `reports` is: delete_my_runs above erases a player's notes, so a project
+-- built from this file alone needs the table to exist or MY DATA's delete fails
+-- on its first call. Only the TABLE is here. file_feedback, mark_feedback_handled,
+-- purge_old_feedback and the feedback_queue view live in
+-- migrations/20260901000000_feedback.sql, which `supabase db push` installs, and
+-- which carries the whole reasoning: why free text is safe on a private pipe, why
+-- there is no reply address, and where the rate bar sits.
+create table if not exists public.feedback (
+  id          uuid primary key default gen_random_uuid(),
+  player_id   text not null,        -- from the JWT, never the request body
+  topic       text not null default 'other',
+  body        text not null,
+  build       text,
+  sim_id      text,
+  platform    text,
+  screen      text,
+  place       text,                 -- a STAGE DISPLAY NAME, never a bare index
+  lang        text,
+  created_at  timestamptz not null default now(),
+  handled_at  timestamptz,          -- NULL = still open
+  constraint feedback_topic_ok check (topic in ('bug', 'idea', 'balance', 'other')),
+  constraint feedback_body_len check (char_length(body) between 1 and 600)
+);
+create index if not exists feedback_open    on public.feedback (created_at desc) where handled_at is null;
+create index if not exists feedback_player  on public.feedback (player_id);
+create index if not exists feedback_created on public.feedback (created_at desc);
+alter table public.feedback enable row level security;  -- no policies: service role only
 
 -- None of the three are reachable with the publishable key: they take the player
 -- id as an argument (the Edge Functions pass it from a verified JWT), so an anon

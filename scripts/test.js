@@ -71,10 +71,22 @@ const canvasStub = {
   addEventListener(k, fn) { canvasHandlers[k] = fn; },
   setPointerCapture() {}
 };
+// A DOM ELEMENT, not just a canvas. overlayInput() mounts a real <input> (or a
+// <textarea> for the FEEDBACK note) into a layer appended to document.body — so
+// the stub has to answer appendChild, addEventListener, remove and focus, or the
+// first test that opens a text field takes the suite down. It returned only the
+// canvas shape until the feedback panel needed one.
+const elStub = () => ({
+  width: 0, height: 0, style: {}, getContext: () => ctxStub,
+  value: '', placeholder: '', maxLength: 0, type: '',
+  addEventListener() {}, removeEventListener() {}, appendChild() {}, remove() {},
+  focus() {}, blur() {}, setAttribute() {}, getBoundingClientRect: () => ({ x: 0, y: 0, width: 0, height: 0 })
+});
 global.document = {
   getElementById: () => canvasStub,
-  createElement: () => ({ width: 0, height: 0, style: {}, getContext: () => ctxStub }),
+  createElement: () => elStub(),
   documentElement: {},
+  body: { appendChild() {}, removeChild() {} },
   addEventListener(k, fn) { docHandlers[k] = fn; },
   hidden: false
 };
@@ -270,7 +282,13 @@ code = code.replace("'use strict';", '') + `
   startBossRetry, isBossFailed: () => bossFailed, isBossRetried: () => bossRetried, endButtons: () => endButtons,
   endTap, endForward, // the report's keys, and the pad's forward mapping over them
   bandCfg, lintLevel, lintCampaign, lintWalk, levelThreats, birthFade, getSched: () => sched, PICKUP_GAP,
-  SURGE_EVERY, surgeIdx, surgeToNext // free flow's one scheduled event: the step-up clock
+  SURGE_EVERY, surgeIdx, surgeToNext, // free flow's one scheduled event: the step-up clock
+  // FEEDBACK: the panel, its keys, its draft, and the outbox behind it
+  openFeedback, closeFeedback, feedbackAct, FEEDBACK_TOPICS, FEEDBACK_MAX, flushFeedback,
+  getFeedback: () => feedback, feedbackBtns: () => feedbackBtns,
+  getFeedbackDraft: () => feedbackDraft, setFeedbackDraft: v => { feedbackDraft = v; },
+  menuSetBtns: () => menuSetButtons, drawMenuSettings, drawFeedback, overlayField: () => overlayField,
+  fbContext, fbHeld, lbFeedback
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -4605,6 +4623,181 @@ async function runMusicUp() {
     check('out and back leaves campaigns.js byte-identical', back2.next === campText);
     check('the test never wrote to campaigns.js',
       fs.readFileSync(path.join(ROOT, 'src', 'campaigns.js'), 'utf8') === campText);
+  }
+
+  // ================= FEEDBACK: ONE NOTE, ONE WAY =================
+  // The third pipe out of the game, and the only one carrying free text. It runs
+  // here, inside the async block, because half of what needs pinning is a promise:
+  // a send that lands, a send that does not, and the outbox in between.
+  {
+    const settle = () => new Promise(r => setTimeout(r, 0));
+
+    // ---- the disc: two doors, and no CLOSE ----
+    G.setState(G.S.MENU); G.setMenuScreen('home');
+    G.setMenuSettings(true);
+    G.drawMenuSettings();
+    const seg = G.menuSetBtns().filter(b => b.seg);
+    check("the settings disc's bottom segment carries exactly two keys", seg.length === 2);
+    check('…and they are MY DATA and FEEDBACK, one half of the segment each',
+      seg.map(b => b.action).sort().join(',') === 'feedback,mydata'
+      && new Set(seg.map(b => b.seg.half)).size === 2);
+    // CLOSE gave up its half. If it ever comes back it will be by making the
+    // segment three keys, which is the change this pin exists to notice.
+    check('no key on the settings disc dismisses it — the gear does that',
+      !G.menuSetBtns().some(b => b.action === 'close'));
+    // One drawn frame, to place the gear's rect. An earlier block in this suite
+    // removes global.navigator, and drawMenu reads navigator.standalone through
+    // inStandalone() — so it is put back for the frame and taken away again, or
+    // this section takes the whole suite down instead of testing a disc.
+    const hadNav = 'navigator' in global;
+    if (!hadNav) global.navigator = {};
+    G.setMenuSettings(true);
+    G.frame(900000);
+    if (!hadNav) delete global.navigator;
+    const gearR = G.gearRect();
+    G.menuTap(gearR.x + 10, gearR.y + 10, 1);
+    check('the gear closes an open settings disc', G.getMenuSettings() === false);
+
+    // ---- the panel: topic, then words ----
+    G.openFeedback();
+    check('FEEDBACK opens on the topic step', !!G.getFeedback() && G.getFeedback().step === 'topic');
+    G.drawFeedback();
+    const topicKeys = G.feedbackBtns().map(b => b.tag).filter(t => t !== 'close');
+    // THE CLOSED SET, IN THREE PLACES. The panel's keys, send-feedback's TOPICS,
+    // and the table's check constraint must name the same four words or a note
+    // routes to 'other' (or is refused) without anyone noticing.
+    check('the panel offers exactly the four topics the server accepts',
+      topicKeys.sort().join(',') === 'balance,bug,idea,other');
+    const fn = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'send-feedback', 'index.ts'), 'utf8');
+    check('send-feedback names the same four topics',
+      /TOPICS = new Set\(\["bug", "idea", "balance", "other"\]\)/.test(fn));
+    const mig = fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', '20260901000000_feedback.sql'), 'utf8');
+    check('the feedback table constrains itself to the same four',
+      /check \(topic in \('bug', 'idea', 'balance', 'other'\)\)/.test(mig));
+
+    G.feedbackAct('bug');
+    check('choosing a topic opens the write step and remembers the choice',
+      G.getFeedback().step === 'write' && G.getFeedback().topic === 'bug');
+
+    // ---- the DOM field: mounted for the write step alone ----
+    G.setFeedbackDraft('');
+    G.drawFeedback();
+    check('the write step mounts the overlay text field', G.overlayField() === 'feedback');
+    // SEND is drawn dim and NOT returned while there is nothing to send — the same
+    // gate discSegKeys uses, so a locked key cannot be pressed by a stray tap or by
+    // the controller's focus ring walking onto it.
+    check('SEND is locked while the note is empty',
+      !G.feedbackBtns().some(b => b.tag === 'send'));
+    G.setFeedbackDraft('the boss disc flickers'); G.drawFeedback();
+    check('…and unlocked the moment there is a character',
+      G.feedbackBtns().some(b => b.tag === 'send'));
+    // THE TRAP MY DATA HIT FIRST: a field left mounted keeps a phone keyboard up
+    // over the step after it.
+    G.feedbackAct('toTopic');
+    G.drawFeedback();
+    check('leaving the write step drops the field', G.overlayField() === '');
+
+    // ---- what rides along ----
+    const ctx0 = G.fbContext();
+    check('a note carries the build, the platform, the screen and the language',
+      !!ctx0.build && !!ctx0.platform && /^\d+×\d+/.test(ctx0.screen) && 'lang' in ctx0);
+    // THE HOUSE LAW. `place` is read by a human, so it is a STAGE NAME — one-based
+    // and zero-padded through lvNum(levelNo(ci, li)) — and never a bare index.
+    // 31-leaderboard.js is outside the file list the STAGE section scans, so this
+    // is the only thing standing between that column and a 'stage 0'.
+    check('the note names a STAGE, never a bare index',
+      /stage \d\d$/.test(ctx0.place) && !/ stage 0$/.test(ctx0.place));
+    check('fbPlace builds that name the one legal way',
+      /lvNum\(levelNo\(ci, levelIdx\)\)/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '31-leaderboard.js'), 'utf8')));
+
+    // ---- the outbox: a note written offline is held, not lost ----
+    const realFetch = global.fetch;
+    let posted = null;
+    const okFetch = (url, opts) => {
+      const u = String(url);
+      if (u.indexOf('/auth/v1/') >= 0) return Promise.resolve({ ok: true, status: 200,
+        json: () => Promise.resolve({ access_token: 'a.b.c', expires_in: 3600, refresh_token: 'r', user: { id: 'u1' } }),
+        text: () => Promise.resolve('{}') });
+      if (u.indexOf('/functions/v1/send-feedback') >= 0) {
+        posted = JSON.parse(opts.body);
+        return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('{"ok":true}') });
+      }
+      return Promise.resolve({ ok: false, status: 500, text: () => Promise.resolve('{}') });
+    };
+    try {
+      G.progress.fbOut = null;
+      global.fetch = () => Promise.reject(new Error('offline'));
+      const held = await G.lbFeedback('bug', 'the lane went dark on stage 03');
+      check('a note that cannot be sent is held, and says so rather than "sent"',
+        held.ok === false && held.held === true && !!G.progress.fbOut && G.fbHeld());
+      check('the held note keeps its words and its context',
+        G.progress.fbOut.text === 'the lane went dark on stage 03' && !!G.progress.fbOut.ctx);
+
+      global.fetch = okFetch;
+      await G.flushFeedback();
+      await settle();
+      check('a later flush sends the held note and empties the slot',
+        G.progress.fbOut === null && posted && posted.text === 'the lane went dark on stage 03');
+      check('…and it goes up with its topic and its context attached',
+        posted.topic === 'bug' && !!posted.meta && !!posted.meta.build);
+
+      // ONE SLOT, NOT A QUEUE. A second held note replaces the first.
+      global.fetch = () => Promise.reject(new Error('offline'));
+      await G.lbFeedback('idea', 'first');
+      await G.lbFeedback('idea', 'second');
+      check('the outbox holds one note — a new one replaces the held one',
+        G.progress.fbOut && G.progress.fbOut.text === 'second');
+      // …and a note older than a week is dropped unsent: it names a build that has
+      // shipped past, so sending it late is noise wearing a timestamp.
+      G.progress.fbOut.at = Date.now() - 8 * 864e5;
+      global.fetch = okFetch; posted = null;
+      await G.flushFeedback();
+      check('a held note older than a week is dropped rather than sent late',
+        G.progress.fbOut === null && posted === null);
+
+      // THE CAP, ENFORCED BEFORE THE WIRE. The server caps too, and the column has
+      // a check constraint — but a client that sends 700 characters gets a 500 from
+      // that constraint rather than a note.
+      posted = null;
+      await G.lbFeedback('other', 'x'.repeat(700));
+      check('a note longer than the cap is cut before it leaves',
+        posted && posted.text.length === G.FEEDBACK_MAX);
+      check('the client cap and the table constraint agree',
+        G.FEEDBACK_MAX === 600 && /char_length\(body\) between 1 and 600/.test(mig));
+    } finally {
+      global.fetch = realFetch;
+      G.progress.fbOut = null;
+    }
+
+    // ---- a run tears the panel down ----
+    G.openFeedback(); G.feedbackAct('bug'); G.setFeedbackDraft('half a sentence');
+    G.drawFeedback();
+    G.startLevel(0);
+    check('starting a run closes the panel and drops its field',
+      G.getFeedback() === null && G.overlayField() === '' && G.getFeedbackDraft() === '');
+    G.setState(G.S.MENU); G.setMenuScreen('home');
+  }
+
+  // A DELETED PLAYER LEAVES NO FEEDBACK BEHIND. Same law as the filed reports: the
+  // note is free text a player may have typed their own name into, so MY DATA's
+  // delete takes it rather than unlinking it.
+  {
+    const dir = path.join(ROOT, 'supabase', 'migrations');
+    const latest = fs.readdirSync(dir).sort()
+      .filter(f => fs.readFileSync(path.join(dir, f), 'utf8').includes('function public.delete_my_runs')).pop();
+    const sql = fs.readFileSync(path.join(dir, latest), 'utf8');
+    check('the newest delete_my_runs also erases the feedback the player sent',
+      /delete\s+from\s+public\.feedback\s+where\s+player_id\s*=\s*p_player/.test(sql));
+    // the device must not hand the note straight back under the new identity
+    check('an erase drops a held note from the device too',
+      /progress\.fbOut = null;/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '31-leaderboard.js'), 'utf8').split('function lbForgetIdentity')[1] || ''));
+    // RLS on with no policies is what keeps a note unreadable by any client role
+    const fbMig = fs.readFileSync(path.join(dir, '20260901000000_feedback.sql'), 'utf8');
+    check('the feedback table is locked to the service role',
+      /alter table public\.feedback enable row level security/.test(fbMig)
+      && !/create policy[\s\S]*public\.feedback/.test(fbMig)
+      && /revoke execute on function public\.file_feedback/.test(fbMig)
+      && /revoke all on public\.feedback_queue/.test(fbMig));
   }
 
   console.log(failures === 0 ? '\nALL TESTS PASSED' : '\n' + failures + ' FAILURES');

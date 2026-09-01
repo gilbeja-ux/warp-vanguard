@@ -873,6 +873,9 @@ function drawMenu(g) {
   // drawn last so the settings panel dims behind it rather than over it
   if (myData || popLive('mydata')) drawMyData();
   if (report || popLive('report')) drawReport();
+  // FEEDBACK sits on SYSTEM CONFIG too, and above it — same door, other half
+  // of the segment. Drawn last so the settings disc dims behind it.
+  if (feedback || popLive('feedback')) drawFeedback();
 }
 // the launch/zoom transform frame() wraps around the whole menu — mirrored so
 // the floating badge scales and fades in lockstep with the rest of the wheel
@@ -893,8 +896,8 @@ function stampMenuBadge(g) { // the hub shield at its home spot
 }
 // with a popup up the badge doesn't vanish — it steps back INTO the scene
 // (stamped under the popup's dim by drawMenu) instead of riding on top
-const menuPopUp = () => menuSettings || menuConfirm || myData || report
-  || popLive('set') || popLive('confirm') || popLive('mydata') || popLive('report');
+const menuPopUp = () => menuSettings || menuConfirm || myData || report || feedback
+  || popLive('set') || popLive('confirm') || popLive('mydata') || popLive('report') || popLive('feedback');
 function drawMenuBadgeTop(g) {
   if (state !== S.MENU || menuScreen !== 'home' || !menuBadge || menuPopUp()) return;
   stampMenuBadge(g);
@@ -1148,6 +1151,143 @@ function myDataAct(tag) {
       myData.msg = r.ok ? (r.rows || 0) + ' run' + (r.rows === 1 ? '' : 's') + ' erased from the boards'
         : (r.human || 'COULD NOT REACH THE BOARDS');
       if (r.ok && boardSel.mode) loadBoard(); // my rows are gone from it — pull the board again
+    });
+  }
+}
+// ---------------------------------------------------------------------------
+// FEEDBACK — a private note to the developer. The only free-text field in the
+// game that is not a display name, and the reasoning for why it is allowed to
+// exist is in 40-state.js and 31-leaderboard.js: nothing typed here is ever shown
+// to another player, so it needs no word filter and no moderation queue.
+//
+// The panel is plain-spoken for the same reason MY DATA is. Every line is a
+// promise: what rides along with the words, that no name or address is wanted,
+// and that nothing comes back. A player who is not told the third one waits for
+// an answer that will never arrive, and concludes the button is broken.
+//
+// step: 'topic' → 'write' → 'done'.
+// ---------------------------------------------------------------------------
+// The four keys, and the words on them. The LEFT of each pair is what goes in the
+// table (and matches send-feedback's closed set and the column's check
+// constraint); the RIGHT is what a player reads. They differ on purpose — 'balance'
+// routes a queue, 'TOO HARD OR TOO EASY' is a thing somebody feels.
+const FEEDBACK_TOPICS = [
+  ['bug',     'A BUG'],
+  ['idea',    'AN IDEA'],
+  ['balance', 'TOO HARD OR TOO EASY'],
+  ['other',   'SOMETHING ELSE']
+];
+function drawFeedback() {
+  const q = popFxQ('feedback', !!feedback);
+  feedbackBtns = [];
+  const st = feedback ? feedback.step : 'topic', busy = !!(feedback && feedback.busy);
+  ctx.fillStyle = 'rgba(2,6,14,' + (0.72 * q).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
+  const pw = Math.min(W - 48, 470);
+  const ph = st === 'topic' ? 262 : st === 'write' ? 236 : 190;
+  const px = (W - pw) / 2;
+  // THE WRITE STEP RIDES HIGH, and every other step is centred. A phone keyboard
+  // takes about half a landscape screen, and resize() deliberately FREEZES the
+  // canvas while a field is mounted (see 00-core.js) — so the game keeps its
+  // pre-keyboard box and the keyboard simply covers the bottom of it. A centred
+  // panel would put the words the player is typing underneath their own thumbs.
+  // Lifted, the field stays in the clear; SEND may go under the keyboard, which
+  // is the ordinary mobile bargain — dismiss the keyboard, press the key.
+  const py = st === 'write' ? Math.max(8, Math.min((H - ph) / 2, H * 0.07)) : (H - ph) / 2;
+  // the DOM field belongs to the write step alone — drop it the moment we leave,
+  // or an invisible textarea keeps the keyboard up over the result screen
+  if (!(feedback && st === 'write') && overlayField === 'feedback') clearField();
+  popRender(q, px, py, pw, ph, () => {
+  ctx.save();
+  techRect(px, py, pw, ph, 12);
+  ctx.fillStyle = 'rgba(8,18,34,0.98)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(120,200,255,0.6)'; ctx.lineWidth = 1.5;
+  techRect(px, py, pw, ph, 12); ctx.stroke();
+  ctx.textAlign = 'center';
+  const line = (s, y, col, w) => { ctx.fillStyle = col || 'rgba(220,235,255,0.9)'; ctx.font = (w || '500') + ' 12px Audiowide, system-ui'; ctx.fillText(s, W / 2, y); };
+  const bw = pw - 44, bx = px + 22;
+
+  if (st === 'topic') {
+    ctx.fillStyle = '#9fd8ff'; ctx.font = '800 15px Audiowide, system-ui';
+    ctx.fillText('SEND FEEDBACK', W / 2, py + 30);
+    // A HELD NOTE OWNS THIS LINE when there is one. It is the more urgent thing to
+    // say, and it explains a "SENT" the player never saw land.
+    if (fbHeld()) line('A note is still waiting to send.', py + 52, 'rgba(255,196,120,0.95)');
+    else line('What is this about?', py + 52, 'rgba(150,190,225,0.85)');
+    FEEDBACK_TOPICS.forEach(([key, label], i) => {
+      mdKey(feedbackBtns, bx, py + 66 + i * 36, bw, 32, label, 'calm', key);
+    });
+    mdKey(feedbackBtns, px + pw / 2 - 60, py + 216, 120, 32, 'CLOSE', 'calm', 'close');
+  }
+  else if (st === 'write') {
+    ctx.fillStyle = '#9fd8ff'; ctx.font = '800 15px Audiowide, system-ui';
+    const chosen = FEEDBACK_TOPICS.find(t => t[0] === (feedback && feedback.topic));
+    ctx.fillText(chosen ? chosen[1] : 'SEND FEEDBACK', W / 2, py + 28);
+    // WHAT RIDES ALONG, NAMED BEFORE THE SEND. This is the disclosure that does
+    // the work — privacy.html says the same thing at greater length, and this is
+    // the copy a player actually reads.
+    line('Sent with your build, device and last stage.', py + 50, 'rgba(150,190,225,0.8)');
+    line('Do not include your name or anything private.', py + 68, 'rgba(150,190,225,0.8)');
+    const fr = { x: px + 22, y: py + 80, w: pw - 44, h: 84 };
+    mountField('feedback', fr, { multiline: true, placeholder: 'What happened?', value: feedbackDraft,
+      maxLength: FEEDBACK_MAX, onInput: v => { feedbackDraft = v; } });
+    // the counter row: the promise on the left, the budget on the right. Both
+    // small — they are reference, not instruction.
+    const n = feedbackDraft.length;
+    ctx.font = '500 10px Audiowide, system-ui';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(150,190,225,0.7)';
+    ctx.fillText('WE CANNOT REPLY', px + 22, py + 178);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = n > FEEDBACK_MAX - 60 ? 'rgba(255,196,120,0.95)' : 'rgba(150,190,225,0.7)';
+    ctx.fillText(n + ' / ' + FEEDBACK_MAX, px + pw - 22, py + 178);
+    ctx.textAlign = 'center';
+    const hw = (pw - 56) / 2;
+    mdKey(feedbackBtns, px + 22, py + ph - 46, hw, 36, 'BACK', 'calm', 'toTopic');
+    // SEND is a locked key until there is something to send — drawn dim and never
+    // returned, the same gate discSegKeys uses, so the look IS the rule.
+    if (feedbackDraft.trim() && !busy) mdKey(feedbackBtns, px + pw - 22 - hw, py + ph - 46, hw, 36, 'SEND', 'go', 'send');
+    else { ctx.globalAlpha = 0.4; mdKey([], px + pw - 22 - hw, py + ph - 46, hw, 36, busy ? 'SENDING…' : 'SEND', 'go', 'send'); ctx.globalAlpha = 1; }
+  }
+  else { // 'done' — the result line, and one way out
+    const held = !!(feedback && feedback.held);
+    ctx.fillStyle = feedback && feedback.bad ? '#ff9a9a' : held ? '#ffc478' : '#7ee262';
+    ctx.font = '800 15px Audiowide, system-ui';
+    ctx.fillText(feedback && feedback.bad ? 'NOT SENT' : held ? 'HELD' : 'SENT', W / 2, py + 40);
+    line((feedback && feedback.msg) || '', py + 76);
+    mdKey(feedbackBtns, px + pw / 2 - 60, py + ph - 50, 120, 34, 'CLOSE', 'calm', 'close');
+  }
+  ctx.textAlign = 'left';
+  ctx.restore();
+  });
+}
+// the panel's verbs. Kept out of the drawer for the same reason MY DATA's are:
+// a redraw must not be able to fire the network call twice, and `busy` is the one
+// thing gating a second tap.
+function feedbackAct(tag) {
+  if (!feedback) return;
+  if (tag === 'close') { closeFeedback(); return; }
+  if (feedback.busy) return;
+  if (tag === 'toTopic') { clearField(); feedback.step = 'topic'; return; }
+  if (FEEDBACK_TOPICS.some(t => t[0] === tag)) { feedback.topic = tag; feedback.step = 'write'; return; }
+  if (tag === 'send') {
+    const body = feedbackDraft.trim();
+    if (!body) return;
+    feedback.busy = true; clearField();
+    lbFeedback(feedback.topic, body).then(r => {
+      if (!feedback) return;                    // panel closed under us — nothing to report to
+      feedback.busy = false; feedback.step = 'done';
+      // THREE OUTCOMES, THREE MESSAGES. "Sent", "held on this device" and "not
+      // sent" are different news, and collapsing them is how a player writes the
+      // same note three times or waits for a reply to one that never left.
+      feedback.held = !!r.held;
+      feedback.bad = !r.ok && !r.held;
+      // Kept SHORT on purpose: line() sets 12px Audiowide across a panel that is
+      // only 432px wide on the narrowest landscape phone, and Audiowide is a wide
+      // face. A sentence that wraps has nowhere to wrap TO — it just runs off.
+      feedback.msg = r.ok ? 'Thank you — it went to the developer.'
+        : r.held ? 'It will send when you are next online.'
+        : (r.human || 'COULD NOT SEND — TRY AGAIN LATER');
+      if (r.ok || r.held) feedbackDraft = '';   // it is off our hands either way
     });
   }
 }

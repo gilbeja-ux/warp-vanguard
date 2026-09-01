@@ -25,6 +25,10 @@ the queue is what is still open rather than everything that ever happened.
 usually the kinder answer, and the right one for the `personal` reason, where the
 point is that the name should stop being a name. Either way the entry is locked.
 
+Below the report queue sits **Feedback** — the notes players send from *System
+Config → FEEDBACK*. Different queue, different job, two buttons instead of five;
+see the *Feedback* section further down.
+
 **Every action can apply to all of that player's entries**, via the checkbox in the
 rename drawer, or `Redact` with it ticked. This matters: the handle is copied onto
 every row a player holds, so redacting only the reported entry leaves the same
@@ -212,6 +216,75 @@ System Config). Two guards apply, and both matter here:
   removes the offending name outright, so there is nothing left to protect.
 
 So a player you have moderated can still erase their entry. That is intended.
+
+---
+
+# Feedback
+
+A second queue, added 2026-09-01, and **it is not a moderation queue**. A report
+is about somebody; a note is about the game, written to you, and nobody else ever
+reads it. It sits in the console under **Feedback**, above the numbers.
+
+## What a note carries
+
+The words, the subject the player picked (`bug` · `idea` · `balance` · `other`),
+and the context they cannot be expected to type: app version and build stamp, sim
+id, platform, screen size, the stage they last played, and their language. The
+player is told all of it, in the panel, before they press SEND.
+
+**The `place` column is a stage NAME** — `cargo-run stage 07` — because a human
+reads it. See the house law in `CLAUDE.md`; `npm test` pins it.
+
+## Two verbs
+
+- **Handled** stamps `handled_at` and folds the note away. It is what you want
+  almost every time. Nothing is lost; the *Feedback · handled* section keeps it.
+- **Delete** is permanent and there is no other copy. It exists for abuse aimed
+  at you. It asks first.
+
+There is no *Rename*, *Redact*, *Release* or *Dismiss* here, because there is no
+name on a note and nothing about it is public.
+
+## Nothing tells you a note arrived, either
+
+Same as reports: no email, no push. The portal (`npm run portal`) shows a **new
+feedback** tile that goes red when the queue is not empty, so opening the portal
+is the habit that catches both.
+
+## The retention promise has an implementation
+
+`privacy.html` says a note is kept until it is dealt with, then 90 days, and
+nothing past 12 months. That is `purge_old_feedback()`:
+
+```sql
+select * from public.purge_old_feedback();
+-- → handled_purged | expired_purged
+```
+
+There is no scheduler in this project, so **run it by hand** — a couple of times
+a year is enough, and if it is never run the privacy policy is simply wrong.
+
+## What is deliberately absent
+
+No reply. An anonymous identity has no address, and adding an email field would
+move the legal basis from legitimate interest to consent — a second basis, a
+second retention rule, a second deletion path, and a mailbox to answer. The
+panel tells the player twice that nothing comes back. The reasoning is in
+`docs/FEEDBACK-PLAN.md` §3.7.
+
+There is also **no word filter**, on purpose. A filter exists on the display name
+because a name goes on a public board; a private note has no audience to protect,
+and a word list on it would only silence an honest bug report that used a rude
+word.
+
+## The rate bar
+
+One note per 10 minutes, five per rolling 24 hours, enforced inside
+`file_feedback` so it cannot be skipped by a second caller. A player over the bar
+is told **nothing** — the note is dropped and the panel still says it sent.
+Publishing a bar makes it a target, and someone told "refused" simply retypes the
+note four more times. Drops are logged: look for `dropped=` in the
+`send-feedback` function logs.
 
 ---
 

@@ -459,6 +459,25 @@ let report = null;      // { row, busy, done, msg, bad } while the panel is up
 let reportBtns = [];
 function openReport(row) { report = { row, busy: false, done: false, msg: '', bad: false }; }
 function closeReport() { report = null; }
+// FEEDBACK — a private note to the developer. The third pipe out of the game and
+// the only one carrying free text; see the note above lbFeedback in 31-leaderboard
+// for why free text is safe here and refused on the report pipe.
+//
+// ONE DOOR, not two. MY DATA has a second entrance from the board screen because
+// the board is where a player is already looking at their own rows. Nothing about
+// writing a note is tied to a screen, so it lives in SYSTEM CONFIG alone, on the
+// half of the segment CLOSE used to hold.
+//
+// step: 'topic' → 'write' → 'done'.
+let feedback = null;    // { step, topic, busy, done, msg, bad } while the panel is up
+let feedbackBtns = [];
+let feedbackDraft = '';
+function openFeedback() {
+  feedback = { step: 'topic', topic: 'other', busy: false, msg: '', bad: false };
+  feedbackDraft = '';
+  flushFeedback(); // a note held from an offline session gets its chance the moment the panel opens
+}
+function closeFeedback() { feedback = null; feedbackDraft = ''; clearField(); }
 let menuHold = null;   // long-press charge on the last relay → the CORE duel: { node, t }
 let resetHold = null;  // long-press on the ↺ key → reset-campaign confirm: { t, x, y }
 let padSelHold = 0;    // gamepad twin: SELECT held on the route map

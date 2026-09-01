@@ -111,20 +111,37 @@ function syncUiLayer() {
 }
 // mount a text field at game-space rect {x,y,w,h}. opts: value, placeholder,
 // type ('text'|'email'), maxLength, onInput(v), onEnter(v). Returns the element.
+// `multiline` swaps the <input> for a <textarea>, for the FEEDBACK note. Three
+// things change with it and each one is a bug if it does not:
+//   · ENTER MUST NOT SEND. On a one-line field Enter is "I am finished"; in a
+//     paragraph it is a new line, and preventDefault()ing it leaves a player
+//     unable to type a second sentence. So onEnter is simply not wired.
+//   · THE TYPE IS NOT AUDIOWIDE. Audiowide is a display face — wide, spaced, all
+//     the personality of the game's chrome — and 600 characters of it is both
+//     unreadable and far too big for the box. A handle is four words; a bug
+//     report is a paragraph, and a paragraph gets a text face.
+//   · autocapitalize goes back to 'sentences'. A handle is shouted; a note is
+//     written, and forcing lower case on a phone keyboard is a small insult.
 function overlayInput(rect, opts) {
   ensureUiLayer(); hideOverlay();
-  const el = document.createElement('input');
-  el.type = opts.type || 'text';
+  const multi = !!opts.multiline;
+  const el = document.createElement(multi ? 'textarea' : 'input');
+  if (!multi) el.type = opts.type || 'text';
   el.value = opts.value || ''; el.placeholder = opts.placeholder || '';
   if (opts.maxLength) el.maxLength = opts.maxLength;
-  el.autocapitalize = 'off'; el.autocomplete = opts.autocomplete || 'off'; el.spellcheck = false;
-  el.enterKeyHint = 'done'; el.inputMode = opts.type === 'email' ? 'email' : 'text';
+  el.autocapitalize = multi ? 'sentences' : 'off';
+  el.autocomplete = opts.autocomplete || 'off'; el.spellcheck = !!multi;
+  el.enterKeyHint = multi ? 'enter' : 'done'; el.inputMode = opts.type === 'email' ? 'email' : 'text';
   el.style.cssText = 'position:absolute;box-sizing:border-box;pointer-events:auto;'
     + 'left:' + rect.x + 'px;top:' + rect.y + 'px;width:' + rect.w + 'px;height:' + rect.h + 'px;'
     + 'background:rgba(6,20,40,0.92);border:1.5px solid rgba(140,230,255,0.8);border-radius:6px;'
-    + 'color:#eafaff;font:600 15px Audiowide, system-ui;letter-spacing:1px;padding:0 12px;outline:none;';
+    + 'color:#eafaff;outline:none;'
+    + (multi
+      ? 'font:400 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif;line-height:1.45;'
+        + 'letter-spacing:0.2px;padding:8px 11px;resize:none;'
+      : 'font:600 15px Audiowide, system-ui;letter-spacing:1px;padding:0 12px;');
   el.addEventListener('input', () => { if (opts.onInput) opts.onInput(el.value); });
-  el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (opts.onEnter) opts.onEnter(el.value); } });
+  if (!multi) el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (opts.onEnter) opts.onEnter(el.value); } });
   uiLayer.appendChild(el);
   overlayEl = el;
   setTimeout(() => { try { el.focus(); } catch (e) {} }, 0);

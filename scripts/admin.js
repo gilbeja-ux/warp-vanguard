@@ -65,14 +65,20 @@ async function readAll() {
     if (!r.ok) return { error: (await r.text()).slice(0, 200) };
     return r.json();
   };
-  const [overview, queue, boards, ladder, growth] = await Promise.all([
+  const [overview, queue, boards, ladder, growth, feedback] = await Promise.all([
     get('admin_overview', '?select=*'),
     get('report_queue', '?select=*&order=open_reports.desc,last_report.desc'),
     get('board_occupancy', '?select=*&order=last_entry.desc'),
     get('ladder_reach', '?select=*&order=campaign.asc,level.asc'),
     get('player_growth', '?select=*&order=week.desc&limit=12'),
+    // OPEN FIRST, THEN NEWEST. Same ordering law as the report queue: the queue is
+    // what still needs a human, and everything handled folds away beneath it.
+    // Capped, because unlike reports nothing evicts a note — the cap is what keeps
+    // a year of them from arriving in one response. purge_old_feedback() is the
+    // other half of that; see the migration.
+    get('feedback_queue', '?select=*&order=open.desc,created_at.desc&limit=200'),
   ]);
-  return { overview: Array.isArray(overview) ? overview[0] : overview, queue, boards, ladder, growth };
+  return { overview: Array.isArray(overview) ? overview[0] : overview, queue, boards, ladder, growth, feedback };
 }
 
 // Every verb the page's buttons map onto. All but `delete` go through the SQL
@@ -87,6 +93,10 @@ async function readAll() {
 // boards, and the next report arrives tomorrow from one of them.
 const RPC = {
   moderate:  (id, o) => [o.all ? 'moderate_player' : 'moderate_name', { p_run: id }],
+  // FEEDBACK. `Handled` is the only verb a note normally needs — it is not a
+  // report about somebody, so there is nothing to redact, dismiss or release. The
+  // id argument is the note's, not a run's; the uuid guard in act() fits both.
+  fbHandled: (id)    => ['mark_feedback_handled', { p_id: id }],
   rename:    (id, o) => ['rename_entry',     { p_run: id, p_name: o.name, p_all: !!o.all }],
   reset:     (id, o) => ['reset_entry_name', { p_run: id, p_all: !!o.all }],
   dismiss:   (id)    => ['dismiss_reports',  { p_run: id }],
@@ -99,6 +109,14 @@ async function act(action, runId, opts) {
     const r = await sb('runs?id=eq.' + runId, { method: 'DELETE' });
     if (!r.ok) throw new Error((await r.text()).slice(0, 200));
     return { message: 'entry deleted' };
+  }
+  // A note is deleted outright rather than moderated. There is no name on it to
+  // neutralise and nobody but this console ever reads it, so the only reasons to
+  // reach for this are abuse aimed at the developer and a note already dealt with.
+  if (action === 'fbDelete') {
+    const r = await sb('feedback?id=eq.' + runId, { method: 'DELETE' });
+    if (!r.ok) throw new Error((await r.text()).slice(0, 200));
+    return { message: 'note deleted' };
   }
   const build = RPC[action];
   if (!build) throw new Error('unknown action');

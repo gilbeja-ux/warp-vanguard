@@ -83,7 +83,13 @@ async function adminSummary(up) {
   try {
     const r = await fetch('http://127.0.0.1:8014/api/data', { signal: ac.signal });
     const d = await r.json();
-    return d.overview || null;
+    if (!d.overview) return null;
+    // `feedback_open` is counted HERE rather than added to the admin_overview view.
+    // The console already fetched the queue, so the number is free — and that view
+    // is defined in migrations/ and corrected in two more, which is exactly the
+    // drift this project keeps warning itself about. One more copy of it, for one
+    // integer, is a bad trade.
+    return { ...d.overview, feedback_open: Array.isArray(d.feedback) ? d.feedback.filter(x => x.open).length : 0 };
   } catch { return null; }
   finally { clearTimeout(t); }
 }

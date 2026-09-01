@@ -120,7 +120,7 @@ canvas.addEventListener('pointerdown', e => {
   if (state === S.MENU) {
     // overlay + gear act immediately; the level list uses tap-vs-drag on release
     const hitRect = (r, m) => r && P.x > r.x - m && P.x < r.x + r.w + m && P.y > r.y - m && P.y < r.y + r.h + m;
-    if (report || myData || menuSettings || menuConfirm || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6) || hitRect(menuGuideRect, 8)) {
+    if (report || myData || feedback || menuSettings || menuConfirm || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6) || hitRect(menuGuideRect, 8)) {
       menuTap(P.x, P.y, e.pointerId);
       return;
     }
@@ -347,6 +347,17 @@ document.addEventListener('visibilitychange', () => {
 // ---------- menu / end screens hit areas ----------
 let menuButtons = [];
 function menuTap(x, y, pid) {
+  // FEEDBACK owns every tap while it is up. It is tested FIRST because it is the
+  // topmost panel on the menu, and because the tap it must not lose is the one
+  // beside a half-typed note: there is no tap-outside dismiss here for exactly
+  // the reason MY DATA has none — a stray tap must not throw away what somebody
+  // was in the middle of writing. The panel always carries its own way out.
+  if (feedback) {
+    for (const b of feedbackBtns) {
+      if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) { pressUI(b, () => feedbackAct(b.tag)); return; }
+    }
+    return;
+  }
   // the report panel sits above everything on the board screen, MY DATA included
   if (report) {
     for (const b of reportBtns) {
@@ -394,9 +405,11 @@ function menuTap(x, y, pid) {
     for (const b of menuSetButtons) {
       if (b.seg ? !discSegHit(b.seg, x, y) : !(x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h)) continue;
       {
-        // MY DATA is the one row that opens something instead of dismissing —
-        // the settings panel stays mounted underneath so CLOSE returns to it
+        // BOTH segment keys open something instead of dismissing — the settings
+        // panel stays mounted underneath, so closing either one returns to it.
+        // Nothing on this disc dismisses it any more; the gear does that.
         if (b.action === 'mydata') { pressUI(b, () => openMyData()); return; }
+        if (b.action === 'feedback') { pressUI(b, () => openFeedback()); return; }
         pressUI(b); menuSettings = false; return;
       }
     }
@@ -417,7 +430,10 @@ function menuTap(x, y, pid) {
   }
   if (menuGearRect && x > menuGearRect.x - 8 && x < menuGearRect.x + menuGearRect.w + 8 &&
       y > menuGearRect.y - 8 && y < menuGearRect.y + menuGearRect.h + 8) {
-    menuSettings = true; pressUI(menuGearRect); return;
+    // THE GEAR IS ALSO THE CLOSE. It took CLOSE's job when FEEDBACK took CLOSE's
+    // half of the segment — the same bargain the pause key makes, where the
+    // corner control that opened the disc is the one that puts it away.
+    menuSettings = !menuSettings; pressUI(menuGearRect); return;
   }
   if (menuGuideRect && x > menuGuideRect.x - 8 && x < menuGuideRect.x + menuGuideRect.w + 8 &&
       y > menuGuideRect.y - 8 && y < menuGuideRect.y + menuGuideRect.h + 8) {
@@ -624,11 +640,14 @@ function resetRun() {
   nodes[0].angle = Math.PI * 0.75;
   nodes[1].angle = Math.PI * 0.25;
   popReset(); // a panel left open on QUIT/RESTART must not reappear (mid-dissolve) on the fresh run
-  // popReset only clears the ANIMATION; MY DATA holds real state (a half-typed
-  // handle, a live confirm), so it has to be torn down too or it reappears —
-  // mid-decision — the next time the menu is drawn.
+  // popReset only clears the ANIMATION; these three hold real state (a half-typed
+  // handle, a live confirm, a half-written note), so they have to be torn down too
+  // or they reappear — mid-decision — the next time the menu is drawn. Each close
+  // also drops the DOM text field, which would otherwise keep a phone keyboard up
+  // over a run that has already started.
   if (myData) closeMyData();
   if (report) closeReport();
+  if (feedback) closeFeedback();
   state = S.PLAY;
 }
 // H-07: BACK off the pre-warp disc to the lane chart. The deploy is abandoned (the

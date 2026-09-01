@@ -680,11 +680,22 @@ function drawMenuSettings() {
     discPlate(g.cx, g.cy, R, 'SETTINGS'); // short enough to wear the same size PAUSED does
     // no TRACK row: nothing is playing a run's soundtrack out here
     discRows(g.cx, g.cy, R, [['SFX', 'sound', 'soundVol'], ['MUSIC', 'music', 'musicVol'], ['HAPTICS', 'haptics', null]]);
-    // MY DATA — the second door to the rename/erase panel (the board screen has
-    // the first). It lives here because a player who wants their name off the
-    // boards looks for it in settings, and the board route dead-ends for anyone
-    // holding no rows.
-    for (const b of discSegKeys(g.cx, g.cy, R, [['MY DATA', 'mydata'], ['CLOSE', 'close']])) menuSetButtons.push(b);
+    // TWO DOORS, AND NO CLOSE KEY. MY DATA is the second door to the rename/erase
+    // panel (the board screen has the first); it lives here because a player who
+    // wants their name off the boards looks for it in settings, and the board
+    // route dead-ends for anyone holding no rows. FEEDBACK is the only door to the
+    // note panel.
+    //
+    // CLOSE used to hold this half, and giving it up is deliberate. The segment
+    // splits in TWO — discSegKeys draws exactly a left and a right half — so a
+    // third key would have to make both narrow enough that MY DATA shrinks past
+    // the 8px floor fitPx enforces on a small phone. And the disc did not need the
+    // key: this panel IS the pause disc (same plate, same rows, same segment), the
+    // pause disc's segment is RESTART · QUIT with no CLOSE, and its corner key both
+    // opens and closes it. So the gear does the same now. Three ways out survive —
+    // the gear, a tap outside the disc (the radius test in 60-input.js), and
+    // gamepad B.
+    for (const b of discSegKeys(g.cx, g.cy, R, [['MY DATA', 'mydata'], ['FEEDBACK', 'feedback']])) menuSetButtons.push(b);
     ctx.restore();
   }, g.nodeR * 1.02);
   ctx.textAlign = 'left';

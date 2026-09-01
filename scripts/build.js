@@ -129,16 +129,28 @@ prune('');
   // matters for the board it is claiming instead of one id for the whole build.
   const simLevels = require('./lib/sim-fingerprint.js').simLevels(path.join(__dirname, '..'));
   const idxPath = path.join(distDir, 'index.html');
+  // …and the released version, which the FEEDBACK panel sends with a note. It is
+  // read off package.json rather than hashed, so it is the one stamp here that
+  // names something a human chose.
+  const appVersion = require('../package.json').version;
   const before = fs.readFileSync(idxPath, 'utf8');
-  const after = before.replace('window.__SIM_ID = null;',
-    'window.__SIM_ID = ' + JSON.stringify(simId) + '; window.__SIM_LEVELS = ' + JSON.stringify(simLevels) + ';');
+  const after = before
+    .replace('window.__SIM_ID = null;',
+      'window.__SIM_ID = ' + JSON.stringify(simId) + '; window.__SIM_LEVELS = ' + JSON.stringify(simLevels) + ';')
+    .replace('window.__APP_VERSION = null;',
+      'window.__APP_VERSION = ' + JSON.stringify(appVersion) + ';');
   if (after === before) {
     console.error('✗ could not stamp the sim id — the marker in src/index.html moved.');
     console.error('  The server can no longer tell an outdated client from a forged run. Fix before shipping.');
     process.exit(1);
   }
+  if (after.indexOf('window.__APP_VERSION = null;') >= 0) {
+    console.error('✗ could not stamp the app version — the marker in src/index.html moved.');
+    console.error('  Feedback notes would arrive without a version. Fix before shipping.');
+    process.exit(1);
+  }
   fs.writeFileSync(idxPath, after);
-  console.log('✓ sim id stamped: ' + simId + ' (+' + Object.keys(simLevels).length + ' board ids)');
+  console.log('✓ sim id stamped: ' + simId + ' (+' + Object.keys(simLevels).length + ' board ids), v' + appVersion);
 }
 
 console.log('✓ dist/ staged: ' + (bytes / 1048576).toFixed(1) + ' MB shippable'

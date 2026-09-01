@@ -39,7 +39,13 @@
      stays null, which means "unknown" and switches the check off. It cannot
      live in src/game/ because the id is a hash OF those files — a stamp inside
      the thing being hashed changes the hash it is recording. -->
-<script>window.__SIM_ID = null; /* build-stamped */</script>
+<!-- __APP_VERSION rides the same stamp. BUILD (a hash of the script's own length)
+     tells two builds apart but names neither, and a feedback note saying "1.0.4"
+     is the difference between reading a bug report and guessing at it. Served
+     from src/ it stays null, exactly as the sim id does — a dev build has no
+     released version to claim. index.html is NOT part of the sim hash, so this
+     line moves no board id. -->
+<script>window.__SIM_ID = null; window.__APP_VERSION = null; /* build-stamped */</script>
 <script src="campaigns.js"></script>
 <script src="audio/music/tracks.js"></script>
 <script src="game/00-core.js"></script>

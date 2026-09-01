@@ -331,6 +331,111 @@ async function lbReport(runId, reason) {
 }
 const lbReported = runId => !!(runId && progress.reported && progress.reported[runId]);
 
+// ---------- feedback: a private note to the developer ----------
+// The third pipe out of the game, and the only one carrying free text. It is safe
+// to carry it because nothing here is ever shown to another player: submit-run
+// filters a handle because a handle goes on a public board, and report-run refuses
+// free text because a reason typed about a stranger's row would need its own
+// moderation. A note addressed to the person who wrote the game has no audience to
+// protect, so it gets no word filter — one would only silence an honest bug report
+// that used a rude word.
+//
+// The identity is the same anonymous session everything else uses, and it is taken
+// from the JWT server-side. The body carries no player id at all.
+const FEEDBACK_MAX = 600;      // characters. Long enough for a real report, short enough that a queue of them stays readable.
+const FEEDBACK_HOLD_MS = 7 * 864e5; // a held note older than this is dropped unsent — see flushFeedback
+
+// WHICH PLATFORM. Capacitor names itself on device; a browser is 'web'. Half of
+// all bugs in this game have been one platform's bug, so this column is doing
+// real work rather than decorating the row.
+function fbPlatform() {
+  try {
+    if (window.Capacitor && window.Capacitor.getPlatform) return window.Capacitor.getPlatform();
+  } catch (e) {}
+  return 'web';
+}
+// WHERE THEY WERE — as a STAGE NAME, never an index. CLAUDE.md's house law:
+// lvNum(levelNo(ci, li)) is the one renderer for a stage's name, it is one-based
+// and zero-padded, and nothing player-facing or human-read may carry a bare index.
+// This column is read by a human in the admin console, so it obeys the law.
+function fbPlace() {
+  try {
+    if (typeof CAMP === 'undefined' || !CAMP || !CAMPAIGNS) return 'menu';
+    const ci = Math.max(0, CAMPAIGNS.indexOf(CAMP));
+    return CAMP.id + ' stage ' + lvNum(levelNo(ci, levelIdx));
+  } catch (e) { return 'menu'; }
+}
+// Everything the player cannot be expected to type and the developer cannot work
+// without. Named to the player, in the panel, before they press SEND.
+function fbContext() {
+  const ver = (typeof window !== 'undefined' && window.__APP_VERSION) || null;
+  return {
+    build: (ver ? 'v' + ver + ' ' : '') + BUILD,
+    simId: (typeof window !== 'undefined' && window.__SIM_ID) || null,
+    platform: fbPlatform(),
+    screen: Math.round(W) + '×' + Math.round(H) + (ROT ? ' rot' : ''),
+    place: fbPlace(),
+    lang: (typeof navigator !== 'undefined' && navigator.language) || null
+  };
+}
+
+// One attempt. `true` means the note is on the server and can be forgotten;
+// `false` means try again later, and is the ONLY thing that fills the outbox.
+// A 4xx is deliberately treated as landed: the server refuses an empty note and
+// nothing else, so a note the panel let through cannot honestly be retried into
+// existence — retrying it forever would be an outbox that never empties.
+async function lbFeedbackSend(note) {
+  if (!LEADERBOARD.enabled || typeof fetch === 'undefined' || !note) return false;
+  try {
+    const token = await lbSession();
+    if (!token) return false;
+    const res = await lbFetch(LEADERBOARD.url + '/functions/v1/send-feedback', {
+      method: 'POST',
+      headers: { apikey: LEADERBOARD.key, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic: note.topic, text: note.text, meta: note.ctx || {} })
+    });
+    const txt = await res.text();
+    let d = null; try { d = JSON.parse(txt); } catch (e) {}
+    if (res.ok && d && d.ok) return true;
+    lbFail('FEEDBACK ' + res.status + ': ' + (d && d.error ? d.error : txt.slice(0, 64)), '');
+    return res.status >= 400 && res.status < 500; // refused, not lost — stop retrying it
+  } catch (e) {
+    lbFail('FEEDBACK ERR: ' + (e && e.message || e), '');
+    return false;
+  }
+}
+
+// Send one note. Resolves { ok } on a landed note, or { ok:false, held } when it
+// went to the outbox — which the panel says out loud, because "sent" and "held"
+// are different news and a player who is told the wrong one writes it twice.
+async function lbFeedback(topic, text) {
+  const body = String(text || '').slice(0, FEEDBACK_MAX);
+  if (!body.trim()) return { ok: false, human: 'NOTHING TO SEND' };
+  const note = { topic: topic || 'other', text: body, ctx: fbContext(), at: Date.now() };
+  if (await lbFeedbackSend(note)) return { ok: true };
+  progress.fbOut = note; saveState();     // ONE slot — see flushFeedback
+  return { ok: false, held: true, human: 'HELD — IT WILL SEND WHEN YOU ARE ONLINE' };
+}
+
+// ONE SLOT, NOT A QUEUE. This game is a PWA and is played on trains; a note that
+// vanished because the phone was in a tunnel is worse than no button at all. But a
+// queue invites a player to fill it, and the second note is nearly always the first
+// note again — so a new note replaces the held one rather than joining it.
+//
+// A held note is DROPPED after a week rather than sent. It names a build, and a
+// bug report that arrives long after the build it describes has shipped past is
+// noise wearing a timestamp.
+let fbFlushing = false;
+async function flushFeedback() {
+  const n = progress && progress.fbOut;
+  if (!n || fbFlushing || !LEADERBOARD.enabled || typeof fetch === 'undefined') return;
+  if (Date.now() - (n.at || 0) > FEEDBACK_HOLD_MS) { progress.fbOut = null; saveState(); return; }
+  fbFlushing = true;
+  try { if (await lbFeedbackSend(n)) { progress.fbOut = null; saveState(); } }
+  finally { fbFlushing = false; }
+}
+const fbHeld = () => !!(progress && progress.fbOut);
+
 // Drop every trace of the old identity from this device after a successful erase.
 // The server has deleted the auth user, so the session is already dead — but the
 // LABELS are still here, and leaving them would quietly rebuild the same person:
@@ -349,6 +454,12 @@ function lbForgetIdentity() {
   identity.refresh = ''; identity.service = '';
   ensureIdentity();          // mint a fresh device handle + auto label immediately
   progress.myBoards = {};
+  // A HELD NOTE GOES TOO. It carries no player id — the server takes that from
+  // the JWT at send time — which is exactly the problem: flushing it after an
+  // erase would file the departed player's words under the brand-new identity
+  // this function just minted. The server has deleted their feedback; the device
+  // must not hand it straight back.
+  progress.fbOut = null;
   lastRun = null; lastSubmit = null; lbStatus = '';
   saveState();
 }
