@@ -90,6 +90,8 @@ Deno.serve(async (req) => {
     p_topic: topic,
     p_body: text,
     p_build: clean(meta.build, META_MAX),
+    p_device: clean(meta.device, META_MAX),
+    p_screen: clean(meta.screen, META_MAX),
     p_place: clean(meta.place, META_MAX),
   });
   // A REAL FAILURE IS STILL A FAILURE. The rate bar is silent, but a database that

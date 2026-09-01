@@ -35,16 +35,22 @@ create table if not exists public.feedback (
   player_id   text not null,
   topic       text not null default 'other',
   body        text not null,
-  -- THE CONTEXT, AND IT IS TWO COLUMNS. A bug report with no build id is a wish,
-  -- not a report — and everything past that was convenience bought with paperwork.
-  -- An earlier cut carried the device model, the screen size and the language;
-  -- each came off the DEVICE, and each cost a sentence in privacy.html, a line in
-  -- the deletion page and, for the model, a written argument on the Play Data
-  -- Safety form. Gil's call: keep only what we need.
+  -- THE CONTEXT, AND THE LIST IS CLOSED AT FOUR. A bug report with no build id is
+  -- a wish, not a report. Gil's rule, 2026-09-01: keep what we need, and take
+  -- nothing that costs a permission, a licence or a new declaration — these cost
+  -- documentation and nothing else.
   --
-  -- Both of these describe the GAME, not the player. Neither says anything about
-  -- who or what sent the note.
+  -- WHAT IS DELIBERATELY ABSENT: navigator.language, which says nothing about a
+  -- bug; and the sim id, a hash of our own source the version already reports to a
+  -- human. A payload grows one convenient field at a time, so the client pins
+  -- these four exactly.
   build       text,          -- the BUILD stamp + app version: which code ran
+  -- 'Android 14 Pixel 8' · 'iPhone · iOS 17.4' · 'macOS 14.4'. A MODEL, NOT AN
+  -- IDENTIFIER: a name millions of devices share, read once from the browser and
+  -- never used to recognise anybody. Deriving a persistent id from device signals
+  -- is fingerprinting and both stores forbid it; this is a label on one note.
+  device      text,
+  screen      text,          -- 'W×H': a layout bug is one screen shape's bug
   place       text,          -- where they were, as a STAGE DISPLAY NAME (see below)
   created_at  timestamptz not null default now(),
   -- null = still open. Set by mark_feedback_handled from the admin console, which
@@ -96,6 +102,8 @@ create or replace function public.file_feedback(
   p_topic    text,
   p_body     text,
   p_build    text default null,
+  p_device   text default null,
+  p_screen   text default null,
   p_place    text default null
 ) returns table (filed boolean, dropped text)
 language plpgsql as $$
@@ -127,8 +135,8 @@ begin
     return query select false, 'daily cap'; return;
   end if;
 
-  insert into public.feedback (player_id, topic, body, build, place)
-  values (p_player, v_topic, v_body, p_build, p_place);
+  insert into public.feedback (player_id, topic, body, build, device, screen, place)
+  values (p_player, v_topic, v_body, p_build, p_device, p_screen, p_place);
 
   return query select true, null::text;
 end;
@@ -171,7 +179,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.file_feedback(text, text, text, text, text) from public, anon, authenticated;
+revoke execute on function public.file_feedback(text, text, text, text, text, text, text) from public, anon, authenticated;
 revoke execute on function public.mark_feedback_handled(uuid) from public, anon, authenticated;
 revoke execute on function public.purge_old_feedback()        from public, anon, authenticated;
 
@@ -192,6 +200,8 @@ select
   f.topic,
   f.body,
   f.build,
+  f.device,
+  f.screen,
   f.place,
   f.created_at,
   f.handled_at,

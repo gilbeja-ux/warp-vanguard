@@ -4806,23 +4806,32 @@ async function runMusicUp() {
 
     // ---- what rides along ----
     const ctx0 = G.fbContext();
-    check('a note carries the version and the stage', !!ctx0.build && !!ctx0.place);
-    // NOTHING OFF THE DEVICE, and that is the point of this pin rather than a
-    // comment. Gil's call, 2026-09-01: keep only what we need, so this needs no new
-    // approvals and no new regulation. A model, a screen size or a language coming
-    // back would each cost a sentence in privacy.html and a line on the Play form,
-    // and a payload grows one convenient field at a time.
-    check('the note carries NOTHING that describes the device or the player',
-      Object.keys(ctx0).sort().join(',') === 'build,place');
+    check('a note carries the version, the device, the screen and the stage',
+      !!ctx0.build && !!ctx0.device && /^\d+×\d+/.test(ctx0.screen) && !!ctx0.place);
+    // THE LIST IS CLOSED, and that is the point of a pin rather than a comment.
+    // Gil's rule, 2026-09-01: keep what we need, and take nothing that costs a
+    // permission, a licence or a new declaration. These four cost documentation.
+    // A fifth — a language, an id, anything unique — fails the build until somebody
+    // decides it is worth the paperwork, because a payload grows one convenient
+    // field at a time and nothing else would notice.
+    check('the note carries those four and nothing else',
+      Object.keys(ctx0).sort().join(',') === 'build,device,place,screen');
+    // …and the device string must never BE an identifier. A model is a name
+    // millions of devices share; a serial or an install id is not, and deriving a
+    // persistent id from device signals is the fingerprinting both stores forbid.
+    check('the device string is a coarse label, not something unique',
+      typeof ctx0.device === 'string' && ctx0.device.length <= 60
+      && !/[0-9a-f]{16,}/i.test(ctx0.device));
     // THE FLANK IS A PROMISE: it names what rides along, so the payload has to
     // carry exactly that and no more. This is what ties the words to the wire.
     {
       const guide = fs.readFileSync(path.join(ROOT, 'src', 'game', '92-guide.js'), 'utf8');
-      check('the flank names the version and the stage — and the note carries both',
-        /'SENT WITH', 'version no\.\\nthe last stage you played'/.test(guide));
+      check('the flank names all four, in the order they are sent',
+        /'SENT WITH', 'version no\.\\ndevice model\\nscreen size\\nthe last stage you played'/.test(guide));
       const mig = fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', '20260901000000_feedback.sql'), 'utf8');
-      check('the table has no column for a device, a screen or a language',
-        !/^\s*(device|screen|lang|sim_id)\s+text/m.test(mig));
+      check('the table has a column for each, and none for a language or a sim id',
+        /^\s*device\s+text/m.test(mig) && /^\s*screen\s+text/m.test(mig)
+        && !/^\s*(lang|sim_id)\s+text/m.test(mig));
     }
     // THE HOUSE LAW. `place` is read by a human, so it is a STAGE NAME — one-based
     // and zero-padded through lvNum(levelNo(ci, li)) — and never a bare index.

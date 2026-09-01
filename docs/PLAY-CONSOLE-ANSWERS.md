@@ -100,17 +100,34 @@ presses SEND. Four deliberate acts is a choice by any reading.
 people. Nothing here is delivered to another user; there is no reply, no thread,
 and nobody but the developer ever reads it.
 
-**Nothing else on this form moves, and that is by design.** A note carries the
-message, the subject, the app version and the last stage played. Those last two
-describe the GAME; **nothing is read off the device at all** — no model, no screen
-size, no language, no identifier of any kind.
+### The four context fields, and why the form still gains only one row
 
-An earlier cut of this feature did carry a device model, a screen size and a
-language. Each one was convenience, and each one bought an argument: whether
-*App info and performance → Diagnostics* applied, and whether a model counted
-under *Device or other IDs*. Gil's call, 2026-09-01: **keep only what we need**, so
-this row is the only thing the form gains. If a device field is ever added back,
-both of those arguments come back with it and `privacy.html` changes too.
+A note carries the message, the subject, and four short facts: the app version,
+the stage last played, the **device model** and the **screen size**. Gil's rule,
+2026-09-01: keep what helps fix bugs, and take nothing that costs a permission, a
+licence or a new declaration.
+
+**None of it costs any of those.** Reading a model through the browser's Client
+Hints needs no manifest permission, no runtime prompt, no entitlement, and is not
+one of Apple's Required Reason APIs. What it costs is documentation, which is why
+`privacy.html`, `delete-data.html`, `MODERATION.md` and this file all name it.
+
+**Do not tick *App info and performance → Diagnostics*.** Those fields read like
+diagnostics, and this is the judgement call. They are not *collected*: they exist
+only inside a message a player chose to send, are never gathered in the
+background, and a session that sends no feedback sends none of them. They are
+context on the user-generated content and are declared as part of it. If a
+reviewer ever disagrees, the safe correction is to add *Diagnostics — optional,
+app functionality*, not to remove the fields.
+
+**And *Device or other IDs* stays unticked.** That type means an identifier — an
+advertising ID, an Android ID, a device-scoped token. A model name is not one:
+`Pixel 8` is shared by millions of devices, nothing derives a value from it, and
+it is never used to recognise a returning player. Deriving a persistent id from
+device signals is *fingerprinting*, which both stores forbid outright and this
+does not do. `npm test` pins that the device string stays a coarse label. If a
+serial, an install ID or anything unique is ever added, the type goes on and
+`privacy.html` changes with it.
 
 ### The per-type dialog
 

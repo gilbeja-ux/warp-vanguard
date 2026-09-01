@@ -99,24 +99,34 @@
 > launch. `FEEDBACK_EMAIL` in `92-guide.js` is that one constant, and the swap is
 > on the release checklist in `docs/RELEASE-PLAN.md` §2.
 >
-> ### CUT BACK TO WHAT WE NEED (Gil, 2026-09-01) — read this before §3.2
+> ### THE PAYLOAD IS FOUR FIELDS (Gil, 2026-09-01) — read this before §3.2
 >
-> §3.2 below lists eight fields. **The shipped payload is two: `build` and
-> `place`** — the app version, and the stage last played. Gil's instruction: keep
-> only what we need, so this needs no new approvals and no new regulation.
+> §3.2 below lists eight. **The shipped payload is `build`, `device`, `screen`,
+> `place`.** Gil's rule: keep what helps fix bugs, and take nothing that costs a
+> permission, a licence or a new declaration.
 >
-> Gone: `device`, `screen`, `lang`, `sim_id`. The first three came off the DEVICE,
-> and each one bought paperwork — a sentence in `privacy.html`, a line in
-> `delete-data.html`, and on the Play form an argument about whether *Diagnostics*
-> applied and whether a model counted under *Device or other IDs*. `sim_id` is a
-> hash of our own source, and the version already says the same thing to a human.
+> **Nothing here costs any of those.** Reading a device model through the browser's
+> Client Hints needs no manifest permission, no runtime prompt, no entitlement, and
+> is not one of Apple's Required Reason APIs. What it costs is documentation —
+> `privacy.html`, `delete-data.html`, `MODERATION.md` and `PLAY-CONSOLE-ANSWERS.md`
+> all name it, and the Data Safety form still gains exactly one row: *Other
+> user-generated content*, optional.
 >
-> What survives describes the GAME, not the player. The Data Safety form gains one
-> row — *Other user-generated content*, optional — and nothing else, and the
-> privacy policy gains one short paragraph.
+> **Dropped, and staying dropped:** `lang`, which says nothing about a bug, and
+> `sim_id`, a hash of our own source the version already reports to a human.
 >
-> `npm test` pins it: the context object's keys must be exactly `build,place`. A
-> payload grows one convenient field at a time, and that pin is the door.
+> **The model is not an identifier**, and that distinction is load-bearing: a name
+> millions of devices share, read once, never used to recognise anybody. Deriving a
+> persistent id from device signals is fingerprinting, which both stores forbid.
+> `npm test` pins that the string stays a coarse label.
+>
+> **iOS gives the family, not the model.** WKWebView has no Client Hints, so an
+> iPhone reads `iPhone · iOS 17.4`. `@capacitor/device` (MIT, no permission) would
+> close the gap at the cost of a native rebuild — offered, not taken.
+>
+> `npm test` pins the shape: the context object's keys must be exactly
+> `build,device,place,screen`. A payload grows one convenient field at a time, and
+> that pin is the door.
 >
 > ### The flank named what the note carried, so the note had to carry it (superseded above)
 >

@@ -370,6 +370,8 @@ create table if not exists public.feedback (
   topic       text not null default 'other',
   body        text not null,
   build       text,                 -- app version + build stamp: which code ran
+  device      text,                 -- a model name, never an identifier
+  screen      text,                 -- 'W×H'
   place       text,                 -- a STAGE DISPLAY NAME, never a bare index
   created_at  timestamptz not null default now(),
   handled_at  timestamptz,          -- NULL = still open

@@ -345,6 +345,56 @@ const lbReported = runId => !!(runId && progress.reported && progress.reported[r
 const FEEDBACK_MAX = 600;      // characters. Long enough for a real report, short enough that a queue of them stays readable.
 const FEEDBACK_HOLD_MS = 7 * 864e5; // a held note older than this is dropped unsent — see flushFeedback
 
+// WHICH DEVICE. The panel says 'device model', so this has to be one — a label
+// that promises something the note does not carry is the worst kind of wrong in a
+// privacy disclosure. Half of all bugs in this game have been one device family's
+// bug, and it is the single most useful thing a bug report can carry that the
+// player cannot be expected to type.
+//
+// IT NEEDS NO PERMISSION AND NO LICENCE. It is a plain JS read in the WebView —
+// no manifest entry, no runtime prompt, no entitlement, and not one of Apple's
+// Required Reason APIs. What it costs is documentation, which is why four
+// documents name it.
+//
+// AND IT IS NOT AN IDENTIFIER. 'Pixel 8' is a name millions of devices share.
+// Nothing derives a value from it, nothing stores it to recognise a returning
+// player, and no advertising or device ID is read. That distinction is the whole
+// reason this is legal to hold: deriving a persistent id from device signals is
+// fingerprinting, and both stores forbid it. This is a label on one note.
+//
+// THE USER AGENT NO LONGER CARRIES A MODEL. Chrome's UA reduction freezes it to
+// 'K' on modern Android — in the browser AND in the Capacitor WebView — so the UA
+// string alone answers 'Android 14' and nothing more. The model comes from User
+// Agent Client Hints instead, which is async and Chromium-only, and is therefore
+// asked ONCE at boot and cached. iOS and Firefox have no UA-CH and fall back to
+// the coarse family the UA still admits to.
+let fbDeviceStr = '';
+function fbDeviceInit() {
+  try {
+    const d = navigator.userAgentData;
+    if (!d || !d.getHighEntropyValues) return;
+    d.getHighEntropyValues(['model', 'platformVersion']).then(v => {
+      const bits = [v.platform || d.platform, v.platformVersion, v.model].filter(Boolean);
+      if (bits.length) fbDeviceStr = bits.join(' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+    }).catch(() => {});
+  } catch (e) {}
+}
+function fbDevice() {
+  if (fbDeviceStr) return fbDeviceStr;
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  const ios = /(iPhone|iPad|iPod)[^)]*?OS (\d+[\d_]*)/.exec(ua);
+  if (ios) return ios[1] + ' · iOS ' + ios[2].replace(/_/g, '.');
+  const and = /Android (\d+[\d.]*)/.exec(ua);
+  if (and) return 'Android ' + and[1];
+  const mac = /Mac OS X (\d+[\d_.]*)/.exec(ua);
+  if (mac) return 'macOS ' + mac[1].replace(/_/g, '.');
+  const win = /Windows NT ([\d.]+)/.exec(ua);
+  if (win) return 'Windows ' + win[1];
+  try {
+    if (window.Capacitor && window.Capacitor.getPlatform) return window.Capacitor.getPlatform();
+  } catch (e) {}
+  return 'web';
+}
 // WHERE THEY WERE — as a STAGE NAME, never an index. CLAUDE.md's house law:
 // lvNum(levelNo(ci, li)) is the one renderer for a stage's name, it is one-based
 // and zero-padded, and nothing player-facing or human-read may carry a bare index.
@@ -356,25 +406,25 @@ function fbPlace() {
     return CAMP.id + ' stage ' + lvNum(levelNo(ci, levelIdx));
   } catch (e) { return 'menu'; }
 }
-// TWO FIELDS, AND THAT IS THE WHOLE LIST. Gil, 2026-09-01: keep only what we need,
-// so this needs no new approvals and no new regulation.
+// FOUR FIELDS, AND THE LIST IS CLOSED. Gil's rule, 2026-09-01: keep only what we
+// need, and take nothing that costs a permission, a licence or a new declaration.
+// These four cost documentation and nothing else.
 //
-// It carried five. The device model, the screen size and the language all came off
-// the DEVICE, and every one of them cost a sentence in privacy.html, a line in the
-// deletion page, and — for the model — a written argument on the Play Data Safety
-// form about why 'Device or other IDs' still did not apply. That is a lot of
-// paperwork bought with convenience.
+// Two describe the GAME — which build, which stage. Two describe the DEVICE — its
+// model and its screen — and those two are what turn "it looked wrong" into a bug
+// somebody can reproduce. Half of all bugs in this game have been one device
+// family's bug, and layout bugs are one screen shape's bug.
 //
-// What survives is about the GAME, not the player: which build, and which stage.
-// Those two answer the only questions a bug report has to answer, and neither of
-// them describes anybody. The sim id went too — it is a hash of our own source and
-// the version already says the same thing to a human.
-//
-// If a bug ever genuinely needs the screen size, the player can type it.
+// WHAT IS DELIBERATELY NOT HERE: navigator.language, which says nothing about a
+// bug; and the sim id, a hash of our own source that the version already tells a
+// human. A payload grows one convenient field at a time, so the pin in
+// scripts/test.js asserts these four EXACTLY.
 function fbContext() {
   const ver = (typeof window !== 'undefined' && window.__APP_VERSION) || null;
   return {
     build: (ver ? 'v' + ver + ' ' : '') + BUILD,
+    device: fbDevice(),
+    screen: Math.round(W) + '×' + Math.round(H) + (ROT ? ' rot' : ''),
     place: fbPlace()
   };
 }
