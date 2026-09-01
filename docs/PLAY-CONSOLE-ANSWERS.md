@@ -100,22 +100,17 @@ presses SEND. Four deliberate acts is a choice by any reading.
 people. Nothing here is delivered to another user; there is no reply, no thread,
 and nobody but the developer ever reads it.
 
-**Do not tick *App info and performance → Diagnostics* either.** The note carries
-the app version, the device model, the screen size, the language and the last
-stage played — which reads like diagnostics, and is the one judgement call in this
-table. It is not collected: it exists only inside a message a player chose to
-send, is never gathered in the background, and no run of the game that sends no
-feedback sends any of it. It is context on the user-generated content and is
-declared as part of it. (If a reviewer ever disagrees, the safe correction is to
-add *Diagnostics — optional, app functionality*, not to remove the fields.)
+**Nothing else on this form moves, and that is by design.** A note carries the
+message, the subject, the app version and the last stage played. Those last two
+describe the GAME; **nothing is read off the device at all** — no model, no screen
+size, no language, no identifier of any kind.
 
-**And *Device or other IDs* still stays unticked, with the model in there.** That
-type means an identifier — an advertising ID, an Android ID, a device-scoped
-token. A model name is not one: `Pixel 8` is shared by millions of devices,
-nothing derives a value from it, and it is never used to recognise a returning
-player. It is read once from the browser's Client Hints, only when somebody sends
-a note. If that ever changes — a serial, an install ID, anything unique — the type
-goes on and `privacy.html` changes with it.
+An earlier cut of this feature did carry a device model, a screen size and a
+language. Each one was convenience, and each one bought an argument: whether
+*App info and performance → Diagnostics* applied, and whether a model counted
+under *Device or other IDs*. Gil's call, 2026-09-01: **keep only what we need**, so
+this row is the only thing the form gains. If a device field is ever added back,
+both of those arguments come back with it and `privacy.html` changes too.
 
 ### The per-type dialog
 

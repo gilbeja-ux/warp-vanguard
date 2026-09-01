@@ -255,7 +255,7 @@ function fbCard(r) {
   const open = !!r.open;
   const act = (a, label, cls) => '<button' + (cls ? ' class="' + cls + '"' : '')
     + ' data-a="' + a + '" data-id="' + r.id + '">' + label + '</button>';
-  const bits = [r.build, r.device, r.screen, r.place, r.lang].filter(Boolean).map(esc);
+  const bits = [r.build, r.place].filter(Boolean).map(esc);
   return '<div class="card fb' + (open ? '' : ' done') + '">'
     + '<span class="rid" title="click to copy">' + r.id + '</span>'
     + '<div class="fbtext">' + esc(r.body) + '</div>'
@@ -264,7 +264,6 @@ function fbCard(r) {
     +     '<span class="tag t-' + esc(r.topic) + '">' + esc(r.topic) + '</span>'
     +     age(r.age_hours, r.created_at)
     +     '<span class="meta">' + bits.join(' · ') + '</span>'
-    +     (r.sim_id ? '<span class="meta" title="the rules this build played by">sim ' + esc(r.sim_id) + '</span>' : '')
     +   '</div>'
     +   '<div class="acts">'
     +     (open ? act('fbHandled', 'Handled') : '')

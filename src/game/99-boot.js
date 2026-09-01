@@ -1539,10 +1539,6 @@ if ('serviceWorker' in navigator && window.isSecureContext && !window.Capacitor)
 // anonymous session, and nothing about a week-old note is urgent enough to compete
 // with the first frames for the network.
 setTimeout(() => { try { flushFeedback(); } catch (e) {} }, 4000);
-// …and ask the browser for the device model once. It is a Client Hints call, so
-// it is async and it is answered off the critical path; a note sent before it
-// lands falls back to the coarse family the user agent still admits to.
-try { fbDeviceInit(); } catch (e) {}
 // boot: the splash decodes its score and tries to run it right away — the
 // Capacitor app WebView allows it; desktop browsers that block autoplay let
 // the first tap unlock it mid-sequence. Contexts without the splash (headless

@@ -99,7 +99,26 @@
 > launch. `FEEDBACK_EMAIL` in `92-guide.js` is that one constant, and the swap is
 > on the release checklist in `docs/RELEASE-PLAN.md` §2.
 >
-> ### The flank names what the note carries, so the note had to carry it
+> ### CUT BACK TO WHAT WE NEED (Gil, 2026-09-01) — read this before §3.2
+>
+> §3.2 below lists eight fields. **The shipped payload is two: `build` and
+> `place`** — the app version, and the stage last played. Gil's instruction: keep
+> only what we need, so this needs no new approvals and no new regulation.
+>
+> Gone: `device`, `screen`, `lang`, `sim_id`. The first three came off the DEVICE,
+> and each one bought paperwork — a sentence in `privacy.html`, a line in
+> `delete-data.html`, and on the Play form an argument about whether *Diagnostics*
+> applied and whether a model counted under *Device or other IDs*. `sim_id` is a
+> hash of our own source, and the version already says the same thing to a human.
+>
+> What survives describes the GAME, not the player. The Data Safety form gains one
+> row — *Other user-generated content*, optional — and nothing else, and the
+> privacy policy gains one short paragraph.
+>
+> `npm test` pins it: the context object's keys must be exactly `build,place`. A
+> payload grows one convenient field at a time, and that pin is the door.
+>
+> ### The flank named what the note carried, so the note had to carry it (superseded above)
 >
 > Gil asked for the left flank to read **version no.** and **device model** rather
 > than *your build* and *your device*. The first was already true. The second was

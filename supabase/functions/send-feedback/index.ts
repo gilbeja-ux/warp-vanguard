@@ -45,8 +45,8 @@ const TOPICS = new Set(["bug", "idea", "balance", "other"]);
 // copy that matters, because a client is a request header away from being a script.
 const BODY_MAX = 600;
 
-// Every context field is a short label, never prose. A generous cap on each one
-// keeps a forged body from turning an eight-column row into a payload.
+// The two context fields are short labels, never prose. A cap on each keeps a
+// forged body from turning the row into a payload.
 const META_MAX = 120;
 
 // Control characters would survive into the admin console and break its layout;
@@ -90,11 +90,7 @@ Deno.serve(async (req) => {
     p_topic: topic,
     p_body: text,
     p_build: clean(meta.build, META_MAX),
-    p_sim: clean(meta.simId, META_MAX),
-    p_device: clean(meta.device, META_MAX),
-    p_screen: clean(meta.screen, META_MAX),
     p_place: clean(meta.place, META_MAX),
-    p_lang: clean(meta.lang, META_MAX),
   });
   // A REAL FAILURE IS STILL A FAILURE. The rate bar is silent, but a database that
   // did not answer is not a bar — saying ok there would throw away a note the

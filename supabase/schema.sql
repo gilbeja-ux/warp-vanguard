@@ -369,12 +369,8 @@ create table if not exists public.feedback (
   player_id   text not null,        -- from the JWT, never the request body
   topic       text not null default 'other',
   body        text not null,
-  build       text,
-  sim_id      text,
-  device      text,             -- a model name, never an identifier
-  screen      text,
+  build       text,                 -- app version + build stamp: which code ran
   place       text,                 -- a STAGE DISPLAY NAME, never a bare index
-  lang        text,
   created_at  timestamptz not null default now(),
   handled_at  timestamptz,          -- NULL = still open
   constraint feedback_topic_ok check (topic in ('bug', 'idea', 'balance', 'other')),

@@ -1505,7 +1505,7 @@ function drawFeedback() {
     ctx.save();
     ctx.globalAlpha = q;
     fbSideNote(cx - rr - 22, 'right', cy, sideW, R,
-      'SENT WITH', 'version no.\ndevice model\nthe last stage you played');
+      'SENT WITH', 'version no.\nthe last stage you played');
     // GET IN TOUCH, not WE CANNOT REPLY. Gil, 2026-09-01. The old wording was true
     // and it was a dead end — it told a player the door was shut without saying
     // where the open one is. This pipe still carries no reply, and now it says so

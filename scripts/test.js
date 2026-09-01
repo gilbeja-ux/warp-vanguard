@@ -4806,20 +4806,23 @@ async function runMusicUp() {
 
     // ---- what rides along ----
     const ctx0 = G.fbContext();
-    check('a note carries the version, the device, the screen and the language',
-      !!ctx0.build && !!ctx0.device && /^\d+×\d+/.test(ctx0.screen) && 'lang' in ctx0);
-    // THE FLANK IS A PROMISE. It names four things; the payload has to carry all
-    // four, or the panel is lying in a privacy disclosure — which is the worst
-    // place to be wrong. This pin is what ties the words to the wire.
+    check('a note carries the version and the stage', !!ctx0.build && !!ctx0.place);
+    // NOTHING OFF THE DEVICE, and that is the point of this pin rather than a
+    // comment. Gil's call, 2026-09-01: keep only what we need, so this needs no new
+    // approvals and no new regulation. A model, a screen size or a language coming
+    // back would each cost a sentence in privacy.html and a line on the Play form,
+    // and a payload grows one convenient field at a time.
+    check('the note carries NOTHING that describes the device or the player',
+      Object.keys(ctx0).sort().join(',') === 'build,place');
+    // THE FLANK IS A PROMISE: it names what rides along, so the payload has to
+    // carry exactly that and no more. This is what ties the words to the wire.
     {
       const guide = fs.readFileSync(path.join(ROOT, 'src', 'game', '92-guide.js'), 'utf8');
-      check('the flank names the version, the device model and the stage — and the note carries each',
-        /'SENT WITH', 'version no\.\\ndevice model\\nthe last stage you played'/.test(guide)
-        && 'build' in ctx0 && 'device' in ctx0 && 'place' in ctx0);
-      const fnSrc = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'send-feedback', 'index.ts'), 'utf8');
-      check('send-feedback forwards the device, and the table has a column for it',
-        /p_device: clean\(meta\.device/.test(fnSrc)
-        && /device\s+text/.test(fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', '20260901000000_feedback.sql'), 'utf8')));
+      check('the flank names the version and the stage — and the note carries both',
+        /'SENT WITH', 'version no\.\\nthe last stage you played'/.test(guide));
+      const mig = fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', '20260901000000_feedback.sql'), 'utf8');
+      check('the table has no column for a device, a screen or a language',
+        !/^\s*(device|screen|lang|sim_id)\s+text/m.test(mig));
     }
     // THE HOUSE LAW. `place` is read by a human, so it is a STAGE NAME — one-based
     // and zero-padded through lvNum(levelNo(ci, li)) — and never a bare index.
