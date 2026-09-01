@@ -371,7 +371,7 @@ create table if not exists public.feedback (
   body        text not null,
   build       text,
   sim_id      text,
-  platform    text,
+  device      text,             -- a model name, never an identifier
   screen      text,
   place       text,                 -- a STAGE DISPLAY NAME, never a bare index
   lang        text,

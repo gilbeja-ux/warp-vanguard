@@ -34,9 +34,11 @@ what a player meets. The commit trail between two versions is
   closes it. Three ways out remain: the gear, a tap outside the disc, gamepad B.
 - **A note written offline is held, not lost.** One slot, flushed on the next
   connection or when the panel is next opened, dropped unsent after a week.
-- **What rides along** — app version, build stamp, sim id, platform, screen size,
-  the stage last played, and the language. Named in the panel before the send.
-  No name, no email, no reply address.
+- **What rides along** — app version, build stamp, sim id, **device model**,
+  screen size, the stage last played, and the language. The left flank names them
+  in those words. No name, no email, no reply address. The model is a name like
+  *Pixel 8* that millions of devices share, read once from the browser's Client
+  Hints — not a device identifier, and never used to recognise anybody.
 - **MY DATA's delete now takes feedback too**, alongside the runs, the traces,
   the rate-limit ledger and the reports the player filed.
 - The privacy policy, the deletion page and the Play Data Safety answers all name

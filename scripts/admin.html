@@ -255,7 +255,7 @@ function fbCard(r) {
   const open = !!r.open;
   const act = (a, label, cls) => '<button' + (cls ? ' class="' + cls + '"' : '')
     + ' data-a="' + a + '" data-id="' + r.id + '">' + label + '</button>';
-  const bits = [r.build, r.platform, r.screen, r.place, r.lang].filter(Boolean).map(esc);
+  const bits = [r.build, r.device, r.screen, r.place, r.lang].filter(Boolean).map(esc);
   return '<div class="card fb' + (open ? '' : ' done') + '">'
     + '<span class="rid" title="click to copy">' + r.id + '</span>'
     + '<div class="fbtext">' + esc(r.body) + '</div>'

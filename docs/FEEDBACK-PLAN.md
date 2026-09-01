@@ -99,6 +99,31 @@
 > launch. `FEEDBACK_EMAIL` in `92-guide.js` is that one constant, and the swap is
 > on the release checklist in `docs/RELEASE-PLAN.md` §2.
 >
+> ### The flank names what the note carries, so the note had to carry it
+>
+> Gil asked for the left flank to read **version no.** and **device model** rather
+> than *your build* and *your device*. The first was already true. The second was
+> not — §3.2 below sends `'web' | 'android' | 'ios'`, which is a platform.
+>
+> A label that promises something the payload does not carry is the worst kind of
+> wrong in a privacy disclosure, so the payload moved to match the words. The
+> `platform` column is **`device`** now — nothing is deployed, so the rename is
+> free — and it holds a model.
+>
+> - **Chrome's UA reduction killed the old trick.** The model used to sit in the
+>   user-agent string; it is frozen to `K` on modern Android, in the browser and in
+>   the Capacitor WebView alike. It comes from **User Agent Client Hints** now,
+>   which is Chromium-only and async — asked once at boot, cached, with the coarse
+>   family (`iPhone · iOS 17.4`) as the fallback everywhere else.
+> - **No plugin was added.** `@capacitor/device` gives a cleaner answer and costs a
+>   native rebuild; Client Hints costs nothing.
+> - **It is not an identifier**, and four documents say so in the same words: a
+>   model is a name millions of devices share, read once, never used to recognise
+>   anybody. *Device or other IDs* stays unticked on the Play form, with the
+>   reasoning written beside it.
+> - **To reverse it**, `fbDevice()` in `31-leaderboard.js` is one function — return
+>   the Capacitor platform alone and the flank goes back to saying *platform*.
+>
 > ### What differs from the plan below
 >
 > - **`window.__APP_VERSION`** is new. `BUILD` tells two builds apart but names

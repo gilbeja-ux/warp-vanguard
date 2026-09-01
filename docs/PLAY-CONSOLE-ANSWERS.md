@@ -101,13 +101,21 @@ people. Nothing here is delivered to another user; there is no reply, no thread,
 and nobody but the developer ever reads it.
 
 **Do not tick *App info and performance → Diagnostics* either.** The note carries
-the app version, the platform, the screen size, the language and the last stage
-played — which reads like diagnostics, and is the one judgement call in this
+the app version, the device model, the screen size, the language and the last
+stage played — which reads like diagnostics, and is the one judgement call in this
 table. It is not collected: it exists only inside a message a player chose to
 send, is never gathered in the background, and no run of the game that sends no
 feedback sends any of it. It is context on the user-generated content and is
 declared as part of it. (If a reviewer ever disagrees, the safe correction is to
 add *Diagnostics — optional, app functionality*, not to remove the fields.)
+
+**And *Device or other IDs* still stays unticked, with the model in there.** That
+type means an identifier — an advertising ID, an Android ID, a device-scoped
+token. A model name is not one: `Pixel 8` is shared by millions of devices,
+nothing derives a value from it, and it is never used to recognise a returning
+player. It is read once from the browser's Client Hints, only when somebody sends
+a note. If that ever changes — a serial, an install ID, anything unique — the type
+goes on and `privacy.html` changes with it.
 
 ### The per-type dialog
 

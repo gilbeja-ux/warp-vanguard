@@ -15,10 +15,12 @@
 -- frustrated bug report that used a rude word, so there is no word list.
 --
 -- WHAT IS NOT HERE, ON PURPOSE:
---   · no email, no reply address, no thread. An anonymous identity has no address
---     to answer, and adding one would be personal data on a consent basis — a
---     second legal basis, a second retention rule and a mailbox to answer. The
---     panel says "we cannot reply" before the send, twice.
+--   · no reply address, and no thread. An anonymous identity has no address to
+--     answer, and ASKING for one would be personal data on a consent basis — a
+--     second legal basis, a second retention rule and a second deletion path. So
+--     the panel says nothing comes back down this pipe, and hands over the
+--     developer's own address instead (GET IN TOUCH, on the disc's right flank).
+--     A player who writes to it chose to; the game never collected it.
 --   · no attachment. A screenshot needs Storage, a bucket policy, a size cap and
 --     a moderation story, and almost nobody sends one.
 --   · no per-player history read back into the game. A note goes one way.
@@ -39,7 +41,11 @@ create table if not exists public.feedback (
   -- panel, before they press SEND — see docs/privacy.html.
   build       text,          -- the BUILD stamp + app version: which code ran
   sim_id      text,          -- window.__SIM_ID: which RULES ran
-  platform    text,          -- 'web' | 'android' | 'ios'
+  -- 'Android 14 Pixel 8' · 'iPhone · iOS 17.4' · 'macOS 14.4'. A MODEL, not an
+  -- identifier: a name millions of devices share, read once from the browser and
+  -- never used to recognise anybody. It is the single most useful thing a bug
+  -- report carries that the player cannot be expected to type.
+  device      text,
   screen      text,          -- 'W×H': half of all layout bugs are one shape
   place       text,          -- where they were, as a STAGE DISPLAY NAME (see below)
   lang        text,          -- navigator.language: which words they read
@@ -94,7 +100,7 @@ create or replace function public.file_feedback(
   p_body     text,
   p_build    text default null,
   p_sim      text default null,
-  p_platform text default null,
+  p_device   text default null,
   p_screen   text default null,
   p_place    text default null,
   p_lang     text default null
@@ -128,8 +134,8 @@ begin
     return query select false, 'daily cap'; return;
   end if;
 
-  insert into public.feedback (player_id, topic, body, build, sim_id, platform, screen, place, lang)
-  values (p_player, v_topic, v_body, p_build, p_sim, p_platform, p_screen, p_place, p_lang);
+  insert into public.feedback (player_id, topic, body, build, sim_id, device, screen, place, lang)
+  values (p_player, v_topic, v_body, p_build, p_sim, p_device, p_screen, p_place, p_lang);
 
   return query select true, null::text;
 end;
@@ -194,7 +200,7 @@ select
   f.body,
   f.build,
   f.sim_id,
-  f.platform,
+  f.device,
   f.screen,
   f.place,
   f.lang,

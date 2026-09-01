@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
     p_body: text,
     p_build: clean(meta.build, META_MAX),
     p_sim: clean(meta.simId, META_MAX),
-    p_platform: clean(meta.platform, META_MAX),
+    p_device: clean(meta.device, META_MAX),
     p_screen: clean(meta.screen, META_MAX),
     p_place: clean(meta.place, META_MAX),
     p_lang: clean(meta.lang, META_MAX),

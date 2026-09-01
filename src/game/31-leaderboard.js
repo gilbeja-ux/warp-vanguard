@@ -345,10 +345,44 @@ const lbReported = runId => !!(runId && progress.reported && progress.reported[r
 const FEEDBACK_MAX = 600;      // characters. Long enough for a real report, short enough that a queue of them stays readable.
 const FEEDBACK_HOLD_MS = 7 * 864e5; // a held note older than this is dropped unsent — see flushFeedback
 
-// WHICH PLATFORM. Capacitor names itself on device; a browser is 'web'. Half of
-// all bugs in this game have been one platform's bug, so this column is doing
-// real work rather than decorating the row.
-function fbPlatform() {
+// WHICH DEVICE. The panel says 'device model', so this has to be one — a label
+// that promises something the note does not carry is the worst kind of wrong in a
+// privacy disclosure. Half of all bugs in this game have been one device family's
+// bug, so it is also the single most useful thing a bug report can carry that the
+// player cannot be expected to type.
+//
+// IT IS NOT AN IDENTIFIER, and privacy.html leans on that. 'Pixel 8' is a name
+// millions of devices share; nothing here is unique, nothing is stored to
+// recognise anyone, and no advertising or device ID is read.
+//
+// THE USER AGENT NO LONGER CARRIES A MODEL. Chrome's UA reduction freezes it to
+// 'K' on modern Android — in the browser AND in the Capacitor WebView — so the UA
+// string alone answers 'Android 14' and nothing more. The model comes from User
+// Agent Client Hints instead, which is async, Chromium-only, and therefore asked
+// ONCE at boot and cached. iOS and Firefox have no UA-CH and fall back to the
+// coarse family the UA still admits to.
+let fbDeviceStr = '';
+function fbDeviceInit() {
+  try {
+    const d = navigator.userAgentData;
+    if (!d || !d.getHighEntropyValues) return;
+    d.getHighEntropyValues(['model', 'platformVersion']).then(v => {
+      const bits = [v.platform || d.platform, v.platformVersion, v.model].filter(Boolean);
+      if (bits.length) fbDeviceStr = bits.join(' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+    }).catch(() => {});
+  } catch (e) {}
+}
+function fbDevice() {
+  if (fbDeviceStr) return fbDeviceStr;
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  const ios = /(iPhone|iPad|iPod)[^)]*?OS (\d+[\d_]*)/.exec(ua);
+  if (ios) return ios[1] + ' · iOS ' + ios[2].replace(/_/g, '.');
+  const and = /Android (\d+[\d.]*)/.exec(ua);
+  if (and) return 'Android ' + and[1];
+  const mac = /Mac OS X (\d+[\d_.]*)/.exec(ua);
+  if (mac) return 'macOS ' + mac[1].replace(/_/g, '.');
+  const win = /Windows NT ([\d.]+)/.exec(ua);
+  if (win) return 'Windows ' + win[1];
   try {
     if (window.Capacitor && window.Capacitor.getPlatform) return window.Capacitor.getPlatform();
   } catch (e) {}
@@ -372,7 +406,7 @@ function fbContext() {
   return {
     build: (ver ? 'v' + ver + ' ' : '') + BUILD,
     simId: (typeof window !== 'undefined' && window.__SIM_ID) || null,
-    platform: fbPlatform(),
+    device: fbDevice(),
     screen: Math.round(W) + '×' + Math.round(H) + (ROT ? ' rot' : ''),
     place: fbPlace(),
     lang: (typeof navigator !== 'undefined' && navigator.language) || null

@@ -229,8 +229,15 @@ reads it. It sits in the console under **Feedback**, above the numbers.
 
 The words, the subject the player picked (`bug` · `idea` · `balance` · `other`),
 and the context they cannot be expected to type: app version and build stamp, sim
-id, platform, screen size, the stage they last played, and their language. The
-player is told all of it, in the panel, before they press SEND.
+id, **device model**, screen size, the stage they last played, and their language.
+The player is told all of it, in the panel, before they press SEND.
+
+The model comes from User Agent Client Hints, which is Chromium-only and async —
+so it is asked once at boot and cached, and a note sent before it lands falls back
+to the coarse family the user agent still admits to (`Android 14`, `iPhone · iOS
+17.4`). Chrome's UA reduction froze the model to `K` in the user-agent string
+itself, in the browser and in the Capacitor WebView alike, which is why the string
+alone is not enough.
 
 **The `place` column is a stage NAME** — `cargo-run stage 07` — because a human
 reads it. See the house law in `CLAUDE.md`; `npm test` pins it.
