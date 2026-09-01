@@ -288,6 +288,10 @@ code = code.replace("'use strict';", '') + `
   getFeedback: () => feedback, feedbackBtns: () => feedbackBtns,
   getFeedbackDraft: () => feedbackDraft, setFeedbackDraft: v => { feedbackDraft = v; },
   menuSetBtns: () => menuSetButtons, drawMenuSettings, drawFeedback, overlayField: () => overlayField,
+  // the panel is a disc, and a disc's cast has to LAND before its DOM field
+  // mounts. frame() owns frameDt and the harness never calls it here, so the pop
+  // clock is handed over instead of faked.
+  setFrameDt: v => { frameDt = v; }, discSegHit,
   fbContext, fbHeld, lbFeedback
 };`;
 eval(code);
@@ -4675,14 +4679,37 @@ async function runMusicUp() {
     check('the feedback table constrains itself to the same four',
       /check \(topic in \('bug', 'idea', 'balance', 'other'\)\)/.test(mig));
 
+    // ---- it is a DISC, like every other panel in this game ----
+    // The bottom keys are chord-to-rim segments, not rects. On the topic step the
+    // segment is ONE key across its whole width; on the write step it splits into
+    // BACK and SEND. A rect test would take the corners outside the circle, which
+    // is why 60-input.js routes these through discSegHit.
+    const closeKey = G.feedbackBtns().find(b => b.tag === 'close');
+    check('the panel is a disc — CLOSE is its bottom segment, not a slab',
+      !!closeKey && !!closeKey.seg);
+    check('…and it is ONE key across the whole segment', closeKey.seg.half === 0);
+    check('a solo segment key takes a tap on either side of the centre',
+      G.discSegHit(closeKey.seg, closeKey.seg.cx - closeKey.seg.r * 0.4, closeKey.seg.cy + closeKey.seg.d + 4)
+      && G.discSegHit(closeKey.seg, closeKey.seg.cx + closeKey.seg.r * 0.4, closeKey.seg.cy + closeKey.seg.d + 4)
+      && !G.discSegHit(closeKey.seg, closeKey.seg.cx, closeKey.seg.cy));
+
     G.feedbackAct('bug');
     check('choosing a topic opens the write step and remembers the choice',
       G.getFeedback().step === 'write' && G.getFeedback().topic === 'bug');
 
-    // ---- the DOM field: mounted for the write step alone ----
+    // ---- the DOM field: mounted for the write step alone, and only once landed ----
     G.setFeedbackDraft('');
+    G.setFrameDt(0.05);   // one frame of a ~0.26s cast: the disc is still arriving
     G.drawFeedback();
-    check('the write step mounts the overlay text field', G.overlayField() === 'feedback');
+    check('the field waits for the cast — nothing is mounted mid-projection',
+      G.overlayField() === '');
+    G.setFrameDt(0.5);    // …and one long frame lands it
+    G.drawFeedback();
+    check('the write step mounts the overlay text field once the disc lands',
+      G.overlayField() === 'feedback');
+    check('the write step splits the segment into two halves',
+      G.feedbackBtns().filter(b => b.seg).every(b => b.seg.half)
+      && G.feedbackBtns().some(b => b.tag === 'toTopic' && b.seg));
     // SEND is drawn dim and NOT returned while there is nothing to send — the same
     // gate discSegKeys uses, so a locked key cannot be pressed by a stray tap or by
     // the controller's focus ring walking onto it.
@@ -4771,10 +4798,11 @@ async function runMusicUp() {
 
     // ---- a run tears the panel down ----
     G.openFeedback(); G.feedbackAct('bug'); G.setFeedbackDraft('half a sentence');
-    G.drawFeedback();
+    G.drawFeedback(); G.drawFeedback(); G.drawFeedback();
     G.startLevel(0);
     check('starting a run closes the panel and drops its field',
       G.getFeedback() === null && G.overlayField() === '' && G.getFeedbackDraft() === '');
+    G.setFrameDt(0);
     G.setState(G.S.MENU); G.setMenuScreen('home');
   }
 

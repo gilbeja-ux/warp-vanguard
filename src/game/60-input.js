@@ -354,7 +354,10 @@ function menuTap(x, y, pid) {
   // was in the middle of writing. The panel always carries its own way out.
   if (feedback) {
     for (const b of feedbackBtns) {
-      if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) { pressUI(b, () => feedbackAct(b.tag)); return; }
+      // the panel is a DISC, so its bottom keys are chord-to-rim segments, not
+      // rects: a bounding-box test would take the corners outside the circle.
+      if (b.seg ? !discSegHit(b.seg, x, y) : !(x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h)) continue;
+      pressUI(b, () => feedbackAct(b.tag)); return;
     }
     return;
   }

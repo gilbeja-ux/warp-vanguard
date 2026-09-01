@@ -1177,88 +1177,196 @@ const FEEDBACK_TOPICS = [
   ['balance', 'TOO HARD OR TOO EASY'],
   ['other',   'SOMETHING ELSE']
 ];
+// Wrap `text` to `maxW` in the CURRENT font. No hyphenation and no mid-word
+// break: the only words here long enough to overrun a column are ids and urls,
+// and half of one of those is worse than an overrun.
+function wrapCanvas(text, maxW) {
+  const out = [];
+  for (const para of String(text || '').split('\n')) {
+    let line = '';
+    for (const w of para.split(/\s+/)) {
+      if (!w) continue;
+      const t = line ? line + ' ' + w : w;
+      if (line && ctx.measureText(t).width > maxW) { out.push(line); line = w; }
+      else line = t;
+    }
+    out.push(line);
+  }
+  return out;
+}
+// A NOTE PARKED BESIDE THE DISC. Gil, 2026-09-01: the two things a player must
+// know before they send are facts ABOUT the disc, not content in it — so they
+// stand outside the rim, one on each flank, and the circle keeps its own space.
+// `align` faces the text toward the disc: the left flank is right-aligned, the
+// right flank left-aligned, so both read as annotation rather than as furniture.
+function fbSideNote(x, align, cy0, w, R, eyebrow, body) {
+  const ep = Math.max(8, Math.round(R * 0.058));
+  const bp = Math.max(9, Math.round(R * 0.070));
+  ctx.textAlign = align;
+  ctx.font = '500 ' + bp + 'px Audiowide, system-ui';
+  const lines = wrapCanvas(body, w);
+  const lh = bp * 1.55;
+  const h = ep + 9 + lines.length * lh;
+  let y = cy0 - h / 2 + ep;
+  ctx.fillStyle = 'rgba(130,195,250,0.62)';
+  ctx.font = '600 ' + ep + 'px Audiowide, system-ui';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.fillText(eyebrow, x, y);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  // a hairline under the eyebrow, running toward the disc — it points at what the
+  // note is about, which is the one job a rule has here
+  ctx.strokeStyle = 'rgba(120,200,255,0.28)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(align === 'right' ? x - w * 0.42 : x, y + 7);
+  ctx.lineTo(align === 'right' ? x : x + w * 0.42, y + 7);
+  ctx.stroke();
+  y += 9;
+  ctx.fillStyle = 'rgba(178,208,236,0.8)';
+  ctx.font = '500 ' + bp + 'px Audiowide, system-ui';
+  for (const l of lines) { y += lh; ctx.fillText(l, x, y - lh * 0.28); }
+  ctx.textAlign = 'left';
+}
+// THE PANEL IS A DISC. It was a console slab, which is the one language this game
+// no longer speaks — the pause disc, SYSTEM CONFIG and the high-score card all
+// wear the same plate, and a rectangle in the middle of them reads as a dialog
+// borrowed from another program. Same plate, same rim ticks, same bottom segment,
+// cast in and erased by the ring exactly as they are.
+//
+// The disc is the HIGH-SCORE disc's size (0.86 of the settings radius), clamped so
+// the two side notes always keep a readable column. On a screen too narrow to hold
+// both flanks the disc gives up radius rather than the notes giving up words.
+const FB_SEG = 0.52;      // where the bottom segment's chord sits on this disc
+const FB_SIDE_MIN = 96;   // a side note narrower than this is not worth reading
 function drawFeedback() {
   const q = popFxQ('feedback', !!feedback);
   feedbackBtns = [];
   const st = feedback ? feedback.step : 'topic', busy = !!(feedback && feedback.busy);
-  ctx.fillStyle = 'rgba(2,6,14,' + (0.72 * q).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
-  const pw = Math.min(W - 48, 470);
-  const ph = st === 'topic' ? 262 : st === 'write' ? 236 : 190;
-  const px = (W - pw) / 2;
-  // THE WRITE STEP RIDES HIGH, and every other step is centred. A phone keyboard
-  // takes about half a landscape screen, and resize() deliberately FREEZES the
-  // canvas while a field is mounted (see 00-core.js) — so the game keeps its
-  // pre-keyboard box and the keyboard simply covers the bottom of it. A centred
-  // panel would put the words the player is typing underneath their own thumbs.
-  // Lifted, the field stays in the clear; SEND may go under the keyboard, which
-  // is the ordinary mobile bargain — dismiss the keyboard, press the key.
-  const py = st === 'write' ? Math.max(8, Math.min((H - ph) / 2, H * 0.07)) : (H - ph) / 2;
+  const settled = q > 0.92;   // the DOM field waits for the cast to land — see the high-score disc
+  // A HEAVIER SCRIM THAN THE OTHER PANELS WEAR, and it is the side notes that ask
+  // for it: they stand on the bare menu rather than on a plate, and the menu under
+  // them is a lit contract card and a lit weekly card. 0.72 left two sentences
+  // fighting the art behind them.
+  ctx.fillStyle = 'rgba(2,6,14,' + (0.93 * q).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
+  const g = geo();
+  // radius, then the flanks it leaves. Solving for R rather than clamping the
+  // column keeps the notes legible on a 480-wide phone instead of letting them
+  // wrap to one word a line.
+  const rMax = (W / 2 - 22 - 18 - FB_SIDE_MIN) / DISC_RIM;
+  const R = Math.max(g.nodeR * 0.5, Math.min(discR() * 0.86, rMax));
+  const rr = R * DISC_RIM;
+  const sideW = Math.max(64, W / 2 - rr - 22 - 18);
+  const cx = g.cx, cy = g.cy;
   // the DOM field belongs to the write step alone — drop it the moment we leave,
   // or an invisible textarea keeps the keyboard up over the result screen
-  if (!(feedback && st === 'write') && overlayField === 'feedback') clearField();
-  popRender(q, px, py, pw, ph, () => {
-  ctx.save();
-  techRect(px, py, pw, ph, 12);
-  ctx.fillStyle = 'rgba(8,18,34,0.98)'; ctx.fill();
-  ctx.strokeStyle = 'rgba(120,200,255,0.6)'; ctx.lineWidth = 1.5;
-  techRect(px, py, pw, ph, 12); ctx.stroke();
-  ctx.textAlign = 'center';
-  const line = (s, y, col, w) => { ctx.fillStyle = col || 'rgba(220,235,255,0.9)'; ctx.font = (w || '500') + ' 12px Audiowide, system-ui'; ctx.fillText(s, W / 2, y); };
-  const bw = pw - 44, bx = px + 22;
+  if (!(feedback && st === 'write' && settled) && overlayField === 'feedback') clearField();
 
-  if (st === 'topic') {
-    ctx.fillStyle = '#9fd8ff'; ctx.font = '800 15px Audiowide, system-ui';
-    ctx.fillText('SEND FEEDBACK', W / 2, py + 30);
-    // A HELD NOTE OWNS THIS LINE when there is one. It is the more urgent thing to
-    // say, and it explains a "SENT" the player never saw land.
-    if (fbHeld()) line('A note is still waiting to send.', py + 52, 'rgba(255,196,120,0.95)');
-    else line('What is this about?', py + 52, 'rgba(150,190,225,0.85)');
-    FEEDBACK_TOPICS.forEach(([key, label], i) => {
-      mdKey(feedbackBtns, bx, py + 66 + i * 36, bw, 32, label, 'calm', key);
-    });
-    mdKey(feedbackBtns, px + pw / 2 - 60, py + 216, 120, 32, 'CLOSE', 'calm', 'close');
-  }
-  else if (st === 'write') {
-    ctx.fillStyle = '#9fd8ff'; ctx.font = '800 15px Audiowide, system-ui';
+  // THE FIELD IS A WHOLE NUMBER OF LINES, never a share of the radius. Text does
+  // not scale with the disc — the textarea is 13px on every screen — so a box sized
+  // as R * something lands mid-line on one phone and mid-line somewhere else on the
+  // next, and a half-drawn sentence under a clean border reads as a bug. Sized to
+  // fit whole lines, the box holds exactly what it shows.
+  const FB_LINE = 18.5, FB_PAD = 14;   // the leading and padding overlayInput gives a multiline field
+  const fLines = clamp(Math.floor((R * 0.60 - FB_PAD) / FB_LINE), 2, 5);
+  const fh = FB_PAD + fLines * FB_LINE, fy = cy - fh * 0.55;
+  const fHx = discChord(R, fy + fh - cy) - R * DISC_PAD;
+  const fx = cx - fHx, fw = fHx * 2;
+  const fSegY = cy + R * FB_SEG;       // the segment's chord — the counter sits between
+
+  popRender(q, cx - R, cy - R, R * 2, R * 2, () => {
+    ctx.save();
     const chosen = FEEDBACK_TOPICS.find(t => t[0] === (feedback && feedback.topic));
-    ctx.fillText(chosen ? chosen[1] : 'SEND FEEDBACK', W / 2, py + 28);
-    // WHAT RIDES ALONG, NAMED BEFORE THE SEND. This is the disclosure that does
-    // the work — privacy.html says the same thing at greater length, and this is
-    // the copy a player actually reads.
-    line('Sent with your build, device and last stage.', py + 50, 'rgba(150,190,225,0.8)');
-    line('Do not include your name or anything private.', py + 68, 'rgba(150,190,225,0.8)');
-    const fr = { x: px + 22, y: py + 80, w: pw - 44, h: 84 };
-    mountField('feedback', fr, { multiline: true, placeholder: 'What happened?', value: feedbackDraft,
-      maxLength: FEEDBACK_MAX, onInput: v => { feedbackDraft = v; } });
-    // the counter row: the promise on the left, the budget on the right. Both
-    // small — they are reference, not instruction.
-    const n = feedbackDraft.length;
-    ctx.font = '500 10px Audiowide, system-ui';
-    ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(150,190,225,0.7)';
-    ctx.fillText('WE CANNOT REPLY', px + 22, py + 178);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = n > FEEDBACK_MAX - 60 ? 'rgba(255,196,120,0.95)' : 'rgba(150,190,225,0.7)';
-    ctx.fillText(n + ' / ' + FEEDBACK_MAX, px + pw - 22, py + 178);
+    discPlate(cx, cy, R,
+      st === 'write' ? (chosen ? chosen[1] : 'FEEDBACK')
+      : st === 'done' ? (feedback && feedback.bad ? 'NOT SENT' : feedback && feedback.held ? 'HELD' : 'SENT')
+      : 'FEEDBACK');
     ctx.textAlign = 'center';
-    const hw = (pw - 56) / 2;
-    mdKey(feedbackBtns, px + 22, py + ph - 46, hw, 36, 'BACK', 'calm', 'toTopic');
-    // SEND is a locked key until there is something to send — drawn dim and never
-    // returned, the same gate discSegKeys uses, so the look IS the rule.
-    if (feedbackDraft.trim() && !busy) mdKey(feedbackBtns, px + pw - 22 - hw, py + ph - 46, hw, 36, 'SEND', 'go', 'send');
-    else { ctx.globalAlpha = 0.4; mdKey([], px + pw - 22 - hw, py + ph - 46, hw, 36, busy ? 'SENDING…' : 'SEND', 'go', 'send'); ctx.globalAlpha = 1; }
+
+    if (st === 'topic') {
+      // A HELD NOTE OWNS THE LEDE when there is one. It is the more urgent thing
+      // to say, and it explains a "SENT" the player never saw land.
+      const held = fbHeld();
+      ctx.fillStyle = held ? 'rgba(255,196,120,0.95)' : 'rgba(150,200,240,0.8)';
+      ctx.font = '500 ' + Math.max(9, Math.round(R * 0.066)) + 'px Audiowide, system-ui';
+      ctx.fillText(held ? 'A note is still waiting to send.' : 'What is this about?', cx, cy - R * 0.56);
+      // four keys down the disc's own column, each cut to the chord at its widest
+      // corner so no key can escape the circle on the rows nearest the crown
+      const kh = R * 0.175, pitch = R * 0.215, top0 = cy - R * 0.44;
+      FEEDBACK_TOPICS.forEach(([key, label], i) => {
+        const ky = top0 + i * pitch;
+        const far = Math.max(Math.abs(ky - cy), Math.abs(ky + kh - cy));
+        const hx = Math.max(24, discChord(R, far) - R * DISC_PAD);
+        discSlab(cx - hx, ky, hx * 2, kh, false);
+        ctx.fillStyle = '#e6f6ff';
+        ctx.font = '700 ' + fitPx(label, '700', Math.round(R * 0.075), hx * 1.76, 8) + 'px Audiowide, system-ui';
+        ctx.fillText(label, cx, ky + kh / 2 + R * 0.028);
+        feedbackBtns.push({ x: cx - hx, y: ky, w: hx * 2, h: kh, tag: key });
+      });
+      for (const b of discSegKeys(cx, cy, R, [['CLOSE', 'close']], FB_SEG))
+        feedbackBtns.push({ ...b, tag: b.action });
+    }
+    else if (st === 'write') {
+      // the field. During the cast it is a static plate carrying whatever is
+      // already typed; once settled the live textarea mounts in the same box.
+      if (!settled) {
+        techRect(fx, fy, fw, fh, 6); ctx.fillStyle = 'rgba(4,12,22,0.85)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 6); ctx.stroke();
+        ctx.textAlign = 'left';
+        const has = !!feedbackDraft;
+        ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
+        // the same face, size and leading overlayInput gives the live textarea, so
+        // the swap at `settled` moves nothing on screen
+        ctx.font = '400 13px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+        const lines = wrapCanvas(has ? feedbackDraft : 'What happened?', fw - 20);
+        lines.slice(0, fLines).forEach((l, i) => ctx.fillText(l, fx + 10, fy + 21 + i * FB_LINE));
+        ctx.textAlign = 'center';
+      }
+      // the budget, between the field and the segment. The promise that used to
+      // sit beside it is out on the right flank now.
+      const n = feedbackDraft.length;
+      ctx.font = '500 ' + Math.max(8, Math.round(R * 0.058)) + 'px Audiowide, system-ui';
+      ctx.fillStyle = n > FEEDBACK_MAX - 60 ? 'rgba(255,196,120,0.95)' : 'rgba(150,190,225,0.65)';
+      ctx.fillText(n + ' / ' + FEEDBACK_MAX, cx, (fy + fh + fSegY) / 2 + R * 0.02);
+      const keys = [['BACK', 'toTopic']];
+      // SEND is a locked key until there is something to send — drawn dim and
+      // never returned, the same gate the high-score disc's SAVE uses.
+      keys.push(['SEND', 'send', { primary: !!feedbackDraft.trim() && !busy, locked: !feedbackDraft.trim() || busy }]);
+      if (busy) keys[1][0] = 'SENDING…';
+      for (const b of discSegKeys(cx, cy, R, keys, FB_SEG))
+        feedbackBtns.push({ ...b, tag: b.action });
+    }
+    else { // 'done' — the result, and one way out
+      ctx.fillStyle = feedback && feedback.bad ? 'rgba(255,154,154,0.95)'
+        : feedback && feedback.held ? 'rgba(255,196,120,0.95)' : 'rgba(200,235,255,0.92)';
+      const bp = Math.max(9, Math.round(R * 0.072));
+      ctx.font = '500 ' + bp + 'px Audiowide, system-ui';
+      const lines = wrapCanvas((feedback && feedback.msg) || '', discChord(R, R * 0.2) * 1.5);
+      lines.forEach((l, i) => ctx.fillText(l, cx, cy - R * 0.10 + i * bp * 1.6));
+      for (const b of discSegKeys(cx, cy, R, [['CLOSE', 'close']], FB_SEG))
+        feedbackBtns.push({ ...b, tag: b.action });
+    }
+    ctx.textAlign = 'left';
+    ctx.restore();
+  }, g.nodeR * 1.02);
+
+  // THE TWO FLANKS. Drawn AFTER popRender, and outside it: the cast is clipped to
+  // the disc's own box, so anything beside the rim would be erased by it. They
+  // fade with the disc instead of being projected by it, which is the right read —
+  // they are labels on the instrument, not part of its face.
+  if (st === 'write' && sideW >= FB_SIDE_MIN) {
+    ctx.save();
+    ctx.globalAlpha = q;
+    fbSideNote(cx - rr - 22, 'right', cy, sideW, R,
+      'SENT WITH', 'your build\nyour device\nthe last stage you played');
+    fbSideNote(cx + rr + 22, 'left', cy, sideW, R,
+      'WE CANNOT REPLY', 'nothing comes back\ndo not include your name\nor anything private');
+    ctx.restore();
   }
-  else { // 'done' — the result line, and one way out
-    const held = !!(feedback && feedback.held);
-    ctx.fillStyle = feedback && feedback.bad ? '#ff9a9a' : held ? '#ffc478' : '#7ee262';
-    ctx.font = '800 15px Audiowide, system-ui';
-    ctx.fillText(feedback && feedback.bad ? 'NOT SENT' : held ? 'HELD' : 'SENT', W / 2, py + 40);
-    line((feedback && feedback.msg) || '', py + 76);
-    mdKey(feedbackBtns, px + pw / 2 - 60, py + ph - 50, 120, 34, 'CLOSE', 'calm', 'close');
-  }
-  ctx.textAlign = 'left';
-  ctx.restore();
-  });
+
+  // the live textarea mounts OUTSIDE popRender: it is not canvas, so it cannot be
+  // clipped by the cast — it waits for the cast to land instead
+  if (feedback && st === 'write' && settled)
+    mountField('feedback', { x: fx, y: fy, w: fw, h: fh }, { multiline: true, placeholder: 'What happened?',
+      value: feedbackDraft, maxLength: FEEDBACK_MAX, onInput: v => { feedbackDraft = v; } });
 }
 // the panel's verbs. Kept out of the drawer for the same reason MY DATA's are:
 // a redraw must not be able to fire the network call twice, and `busy` is the one

@@ -1841,12 +1841,22 @@ function discSegPath(cx, cy, rr, d, side) {
 function discSegHit(sg, x, y) {
   if (y < sg.cy + sg.d) return false;
   if (Math.hypot(x - sg.cx, y - sg.cy) > sg.r) return false;
+  // half 0 = the segment is ONE key across its whole width (see discSegKeys), so
+  // there is no seam to fall on either side of. Tested first because the two-key
+  // form's own test has no third answer.
+  if (!sg.half) return true;
   return sg.half < 0 ? x <= sg.cx : x >= sg.cx;
 }
-// the two keys along the bottom, and the seam that cuts them off the rows above.
+// the keys along the bottom, and the seam that cuts them off the rows above.
 // Returns their button descriptors; the caller decides the focus order. A key may
 // carry {locked} — drawn dim and NOT returned, so a gated verb cannot be pressed
 // — or {primary}, which lights it the way a primary console key is lit.
+//
+// TWO KEYS, OR ONE. Pass two and the segment splits down the middle, which is what
+// the pause, settings and high-score discs want. Pass ONE and it is the whole
+// segment, undivided — the shape the contract disc's TAKE CONTRACT key used to
+// hand-roll, and the shape a disc whose only verb is CLOSE needs. A one-key
+// descriptor carries `half: 0`, and discSegHit reads that as "no seam".
 function discSegKeys(cx, cy, R, keys, segK) {
   const rr = R * DISC_RIM, d = R * (segK || DISC_SEG);
   const aSeg = Math.asin(clamp(d / rr, 0, 1)), chHalf = rr * Math.cos(aSeg);
@@ -1854,10 +1864,15 @@ function discSegKeys(cx, cy, R, keys, segK) {
   // the key's width ON THE TEXT'S OWN LINE. Centring on half the CHORD put both
   // labels out toward the rim, because the segment narrows under the chord.
   const wAt = Math.sqrt(Math.max(1, rr * rr - (ly - cy) * (ly - cy)));
+  const solo = keys.length === 1;
   const out = [];
   keys.forEach(([label, action, opt], i) => {
-    const o = opt || {}, side = i === 0 ? -1 : 1;
-    discSegPath(cx, cy, rr, d, side);
+    const o = opt || {}, side = solo ? 0 : (i === 0 ? -1 : 1);
+    if (solo) { // the whole chord-to-rim cap, in one piece
+      ctx.beginPath();
+      ctx.arc(cx, cy, rr, aSeg, Math.PI - aSeg);
+      ctx.closePath();
+    } else discSegPath(cx, cy, rr, d, side);
     // lit at the chord, falling off to the rim — the key reads as a lip on the
     // disc rather than a slab of paint laid over its bottom
     const kg = ctx.createLinearGradient(0, cy + d, 0, cy + rr);
@@ -1866,18 +1881,21 @@ function discSegKeys(cx, cy, R, keys, segK) {
     else { kg.addColorStop(0, 'rgba(34,86,142,0.62)'); kg.addColorStop(1, 'rgba(13,40,76,0.50)'); }
     ctx.fillStyle = kg; ctx.fill();
     ctx.textAlign = 'center';
-    ctx.font = '700 ' + fitPx(label, '700', Math.round(R * 0.082), wAt * 0.82, 8) + 'px Audiowide, system-ui';
+    // a solo key owns the whole line, so it may be twice as wide before it shrinks
+    ctx.font = '700 ' + fitPx(label, '700', Math.round(R * 0.082), wAt * (solo ? 1.7 : 0.82), 8) + 'px Audiowide, system-ui';
     ctx.fillStyle = o.locked ? 'rgba(150,185,220,0.34)' : '#e6f6ff';
     ctx.fillText(label, cx + side * wAt / 2, ly);
     ctx.textAlign = 'left';
     if (o.locked) return;   // drawn, never pressable — the gate is the key's own look
-    out.push({ x: side < 0 ? cx - chHalf : cx, y: cy + d, w: chHalf, h: rr - d, action,
+    out.push({ x: solo || side < 0 ? cx - chHalf : cx, y: cy + d, w: solo ? chHalf * 2 : chHalf, h: rr - d, action,
       seg: { cx, cy, r: rr, d, half: side } });
   });
   ctx.strokeStyle = 'rgba(140,230,255,0.55)'; ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.moveTo(cx - chHalf, cy + d); ctx.lineTo(cx + chHalf, cy + d); ctx.stroke();
-  ctx.strokeStyle = 'rgba(140,230,255,0.28)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(cx, cy + d + 2); ctx.lineTo(cx, cy + rr - 1); ctx.stroke();
+  if (!solo) { // no seam to draw when there is nothing on either side of it
+    ctx.strokeStyle = 'rgba(140,230,255,0.28)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx, cy + d + 2); ctx.lineTo(cx, cy + rr - 1); ctx.stroke();
+  }
   return out;
 }
 // the disc's radius — one formula, shared with drawInfoCard so the deploy keeps

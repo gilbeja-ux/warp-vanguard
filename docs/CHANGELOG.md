@@ -13,6 +13,11 @@ what a player meets. The commit trail between two versions is
   **MY DATA · FEEDBACK**. Pick one of four subjects (a bug · an idea · too hard
   or too easy · something else), type up to 600 characters, send. Nothing is
   shown to another player and nothing comes back — the panel says so twice.
+- **It is a disc**, wearing the same plate the pause disc and the high-score card
+  wear, cast in by the ring. The two things you must know before you send stand
+  outside the rim, one on each flank: *SENT WITH* on the left, *WE CANNOT REPLY*
+  on the right. `discSegKeys` gained a one-key form for the CLOSE that runs the
+  whole width of the segment.
 - **CLOSE left the disc, and the gear took its job.** The settings panel is the
   pause disc wearing another door, and the pause disc's corner key both opens and
   closes it. Three ways out remain: the gear, a tap outside the disc, gamepad B.

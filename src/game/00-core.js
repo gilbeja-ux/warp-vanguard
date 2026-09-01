@@ -134,11 +134,16 @@ function overlayInput(rect, opts) {
   el.enterKeyHint = multi ? 'enter' : 'done'; el.inputMode = opts.type === 'email' ? 'email' : 'text';
   el.style.cssText = 'position:absolute;box-sizing:border-box;pointer-events:auto;'
     + 'left:' + rect.x + 'px;top:' + rect.y + 'px;width:' + rect.w + 'px;height:' + rect.h + 'px;'
-    + 'background:rgba(6,20,40,0.92);border:1.5px solid rgba(140,230,255,0.8);border-radius:6px;'
+    + (multi
+      // ON A DISC the lit border shouted over the plate. The multiline field wears
+      // the same quiet box the high-score disc's handle field is drawn as, so the
+      // live input and the static plate under the cast are the same object.
+      ? 'background:rgba(4,12,22,0.88);border:1.5px solid rgba(120,180,255,0.45);border-radius:6px;'
+      : 'background:rgba(6,20,40,0.92);border:1.5px solid rgba(140,230,255,0.8);border-radius:6px;')
     + 'color:#eafaff;outline:none;'
     + (multi
-      ? 'font:400 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif;line-height:1.45;'
-        + 'letter-spacing:0.2px;padding:8px 11px;resize:none;'
+      ? 'font:400 13px system-ui, -apple-system, Segoe UI, Roboto, sans-serif;line-height:1.42;'
+        + 'letter-spacing:0.2px;padding:7px 10px;resize:none;'
       : 'font:600 15px Audiowide, system-ui;letter-spacing:1px;padding:0 12px;');
   el.addEventListener('input', () => { if (opts.onInput) opts.onInput(el.value); });
   if (!multi) el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (opts.onEnter) opts.onEnter(el.value); } });

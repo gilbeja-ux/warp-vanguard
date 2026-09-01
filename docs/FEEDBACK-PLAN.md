@@ -11,6 +11,37 @@
 > they run, the panel works and every note goes to the outbox. See
 > `docs/CHANGELOG.md` → *Unreleased*.
 >
+> ### The panel is a DISC (Gil, 2026-09-01, after the first build)
+>
+> §4.5 below says the panel is built from `drawReport` and `drawMyData` — a
+> chamfered console slab. **That is now wrong.** Gil's call: it wears the same
+> plate the pause disc, SYSTEM CONFIG and the high-score card wear, because a
+> rectangle in the middle of those reads as a dialog borrowed from another
+> program. What changed:
+>
+> - `discPlate` + `discSlab` + `discSegKeys`, at the high-score disc's radius
+>   (`discR() * 0.86`), cast in by the ring through `popRender`.
+> - **`discSegKeys` learned a one-key form.** Pass one key and it is the whole
+>   segment, undivided — the shape the contract disc's TAKE CONTRACT key used to
+>   hand-roll. It carries `half: 0`, and `discSegHit` reads that as "no seam".
+>   The topic and result steps use it for CLOSE; the write step keeps the two
+>   halves for BACK and SEND.
+> - **The two facts moved outside the rim**, one on each flank: *SENT WITH* on the
+>   left, *WE CANNOT REPLY* on the right. They are facts about the disc, not
+>   content in it, and the circle keeps its own space. Drawn after `popRender`,
+>   because the cast is clipped to the disc's box.
+> - **The disc gives up radius before the flanks give up words.** `R` is solved so
+>   each side note always keeps a 96px column; on a screen too narrow for both,
+>   the circle shrinks instead.
+> - **The field is a whole number of lines**, never a share of the radius. The
+>   textarea is 13px on every screen, so a box sized as `R * something` lands
+>   mid-line — a half-drawn sentence under a clean border reads as a bug.
+> - **The field waits for the cast to land** (`q > 0.92`), like the high-score
+>   disc's handle field. A static plate carries the draft until then, in the same
+>   face and leading, so the swap moves nothing on screen.
+> - The scrim went from 0.72 to 0.93. The flanks stand on the bare menu rather
+>   than on a plate, and the menu under them is two lit cards.
+>
 > ### What differs from the plan below
 >
 > - **`window.__APP_VERSION`** is new. `BUILD` tells two builds apart but names
