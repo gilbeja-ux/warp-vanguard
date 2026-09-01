@@ -136,9 +136,11 @@ function overlayInput(rect, opts) {
     + 'left:' + rect.x + 'px;top:' + rect.y + 'px;width:' + rect.w + 'px;height:' + rect.h + 'px;'
     + (multi
       // ON A DISC the lit border shouted over the plate. The multiline field wears
-      // the same quiet box the high-score disc's handle field is drawn as, so the
-      // live input and the static plate under the cast are the same object.
-      ? 'background:rgba(4,12,22,0.88);border:1.5px solid rgba(120,180,255,0.45);border-radius:6px;'
+      // the same quiet box the high-score disc's handle field is drawn as — these
+      // two values are COPIED from that plate (95-menu.js) and from the feedback
+      // disc's own (92-guide.js), byte for byte, so the live input and the static
+      // plate under the cast are literally the same box. Nothing moves on the swap.
+      ? 'background:rgba(4,12,22,0.85);border:1.5px solid rgba(120,180,255,0.35);border-radius:6px;'
       : 'background:rgba(6,20,40,0.92);border:1.5px solid rgba(140,230,255,0.8);border-radius:6px;')
     + 'color:#eafaff;outline:none;'
     + (multi
