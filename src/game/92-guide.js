@@ -1171,6 +1171,15 @@ function myDataAct(tag) {
 // table (and matches send-feedback's closed set and the column's check
 // constraint); the RIGHT is what a player reads. They differ on purpose — 'balance'
 // routes a queue, 'TOO HARD OR TOO EASY' is a thing somebody feels.
+// WHERE A PLAYER GOES WHEN THEY WANT AN ANSWER. The note pipe is one-way — an
+// anonymous id has no address to write back to — so the disc hands out ours
+// instead of pretending otherwise.
+//
+// ⚠ SWAP THIS for the dedicated feedback address the moment it exists. It is the
+// contact address from privacy.html for now, which is real and answered, so the
+// panel is never wrong; a placeholder here would ship as one. npm test fails if it
+// is ever set to something that only looks like an address.
+const FEEDBACK_EMAIL = 'gilbeja.int@gmail.com';
 const FEEDBACK_TOPICS = [
   ['bug',     'A BUG'],
   ['idea',    'AN IDEA'],
@@ -1199,16 +1208,35 @@ function wrapCanvas(text, maxW) {
 // stand outside the rim, one on each flank, and the circle keeps its own space.
 // `align` faces the text toward the disc: the left flank is right-aligned, the
 // right flank left-aligned, so both read as annotation rather than as furniture.
-function fbSideNote(x, align, cy0, w, R, eyebrow, body) {
+// `tail` is one line that must NEVER wrap and must never be shortened — it is an
+// email address, and half of an address is worse than a small one. It is fitted by
+// shrinking instead, and it is drawn brighter than the body because it is the only
+// thing in either flank a player can act on.
+//
+// IT IS NOT SET IN AUDIOWIDE. Audiowide draws '@' as a filled ring, which in
+// 'name@host' reads as a bullet — the address came out looking like two words with
+// a dot between them. An address is data, not chrome, and gets a text face for the
+// same reason the note itself does.
+//
+// Returns the tail's rect so the caller can hang a tap on it, or null.
+function fbSideNote(x, align, cy0, w, R, eyebrow, body, tail) {
   const ep = Math.max(8, Math.round(R * 0.058));
   const bp = Math.max(9, Math.round(R * 0.070));
   ctx.textAlign = align;
   ctx.font = '500 ' + bp + 'px Audiowide, system-ui';
   const lines = wrapCanvas(body, w);
   const lh = bp * 1.55;
-  const h = ep + 9 + lines.length * lh;
+  const TAIL_F = 'px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+  let tp = 0;
+  if (tail) {
+    for (tp = Math.round(bp * 1.15); tp > 9; tp--) {
+      ctx.font = '600 ' + tp + TAIL_F;
+      if (ctx.measureText(tail).width <= w) break;
+    }
+  }
+  const h = ep + 9 + lines.length * lh + (tail ? tp * 2.0 : 0);
   let y = cy0 - h / 2 + ep;
-  ctx.fillStyle = 'rgba(130,195,250,0.62)';
+  ctx.fillStyle = eyebrow === 'COPIED' ? 'rgba(126,226,98,0.95)' : 'rgba(130,195,250,0.62)';
   ctx.font = '600 ' + ep + 'px Audiowide, system-ui';
   try { ctx.letterSpacing = '2px'; } catch (e) {}
   ctx.fillText(eyebrow, x, y);
@@ -1224,7 +1252,54 @@ function fbSideNote(x, align, cy0, w, R, eyebrow, body) {
   ctx.fillStyle = 'rgba(178,208,236,0.8)';
   ctx.font = '500 ' + bp + 'px Audiowide, system-ui';
   for (const l of lines) { y += lh; ctx.fillText(l, x, y - lh * 0.28); }
+  let rect = null;
+  if (tail) {
+    y += tp * 2.0;
+    ctx.font = '600 ' + tp + TAIL_F;
+    const tw = ctx.measureText(tail).width;
+    const ty = y - tp * 0.55;
+    ctx.fillStyle = 'rgba(140,225,255,0.95)';
+    ctx.fillText(tail, x, ty);
+    // underlined, because on a canvas an address is not selectable text and has to
+    // announce that it is a control before anyone thinks to press it
+    ctx.strokeStyle = 'rgba(140,225,255,0.4)'; ctx.lineWidth = 1;
+    const tx0 = align === 'right' ? x - tw : x;
+    ctx.beginPath(); ctx.moveTo(tx0, ty + 3.5); ctx.lineTo(tx0 + tw, ty + 3.5); ctx.stroke();
+    rect = { x: tx0 - 8, y: ty - tp - 6, w: tw + 16, h: tp + 18 };
+  }
   ctx.textAlign = 'left';
+  return rect;
+}
+// THE TITLE WRAPS, AND DROPS WHEN IT DOES. discPlate sets its title on ONE line at
+// the crown, where the chord is barely wider than a word — fine for PAUSED and
+// SYSTEM CONFIG, and not fine for 'TOO HARD OR TOO EASY', which overran the plate
+// on both sides. So this disc draws its own: one line stays exactly where discPlate
+// would put it, and a title that does not fit breaks in two AND moves down the
+// circle, into the wider part, rather than climbing further into the crown.
+//
+// Returns the block's bottom, so whatever sits under it can start from a fact
+// rather than from a guess.
+function fbTitle(cx, cy, R, text) {
+  const tp0 = Math.max(11, Math.round(R * 0.095));
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(186,231,255,0.92)';
+  try { ctx.letterSpacing = '4px'; } catch (e) {}
+  ctx.font = '700 ' + tp0 + 'px Audiowide, system-ui';
+  const oneW = (discChord(R, R * 0.755) - R * 0.05) * 2;
+  let lines = [text], tcy = cy - R * 0.755, lh = tp0 * 1.35;
+  if (ctx.measureText(text).width > oneW) {
+    tcy = cy - R * 0.66;
+    lines = wrapCanvas(text, (discChord(R, R * 0.66 + lh * 0.5) - R * 0.05) * 2).slice(0, 2);
+  }
+  // ONE SIZE FOR THE BLOCK, set by whichever line is worst off against its own
+  // chord. Per-line shrinking would fit better and read as two different titles.
+  const ys = lines.map((l, i) => tcy - (lines.length - 1) * lh / 2 + i * lh);
+  const tp = Math.min(...lines.map((l, i) => fitPx(l, '700', tp0, (discChord(R, Math.abs(ys[i] - cy)) - R * 0.05) * 2, 9)));
+  ctx.font = '700 ' + tp + 'px Audiowide, system-ui';
+  lines.forEach((l, i) => ctx.fillText(l, cx, ys[i]));
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.textAlign = 'left';
+  return { bottom: ys[ys.length - 1] + tp * 0.25, lines: lines.length, size: tp };
 }
 // THE PANEL IS A DISC. It was a console slab, which is the one language this game
 // no longer speaks — the pause disc, SYSTEM CONFIG and the high-score card all
@@ -1237,6 +1312,8 @@ function fbSideNote(x, align, cy0, w, R, eyebrow, body) {
 // both flanks the disc gives up radius rather than the notes giving up words.
 const FB_SEG = 0.52;      // where the bottom segment's chord sits on this disc
 const FB_SIDE_MIN = 96;   // a side note narrower than this is not worth reading
+let fbFieldRect = null;   // the write step's box, as last drawn — the layout pins read it
+let fbTitleBox = null;    // …and what the title did with the room above it
 function drawFeedback() {
   const q = popFxQ('feedback', !!feedback);
   feedbackBtns = [];
@@ -1260,22 +1337,35 @@ function drawFeedback() {
   // or an invisible textarea keeps the keyboard up over the result screen
   if (!(feedback && st === 'write' && settled) && overlayField === 'feedback') clearField();
 
-  // THE FIELD IS A WHOLE NUMBER OF LINES, never a share of the radius. Text does
-  // not scale with the disc — the textarea is 13px on every screen — so a box sized
-  // as R * something lands mid-line on one phone and mid-line somewhere else on the
-  // next, and a half-drawn sentence under a clean border reads as a bug. Sized to
-  // fit whole lines, the box holds exactly what it shows.
+  // THE FIELD TAKES EVERYTHING BETWEEN THE TITLE AND THE COUNTER. Gil, 2026-09-01.
+  // It used to be a small box floating mid-disc with a third of the circle empty
+  // under it. Now it starts as high as the title allows and runs down to the last
+  // line that still clears the segment.
+  //
+  // The top is capped at 0.52R even when the title leaves more room, and that is
+  // deliberate: the chord NARROWS toward the crown, so a box that starts higher is
+  // a box that is thinner. Past this point every line gained costs more width than
+  // it is worth, and a tall thin column is harder to read than a short wide one.
+  //
+  // And it is a WHOLE NUMBER OF LINES, never a share of the radius. The textarea is
+  // 13px on every screen, so a box sized as R * something lands mid-line — a
+  // half-drawn sentence under a clean border reads as a bug, and was one.
   const FB_LINE = 18.5, FB_PAD = 14;   // the leading and padding overlayInput gives a multiline field
-  const fLines = clamp(Math.floor((R * 0.60 - FB_PAD) / FB_LINE), 2, 5);
-  const fh = FB_PAD + fLines * FB_LINE, fy = cy - fh * 0.55;
-  const fHx = discChord(R, fy + fh - cy) - R * DISC_PAD;
-  const fx = cx - fHx, fw = fHx * 2;
   const fSegY = cy + R * FB_SEG;       // the segment's chord — the counter sits between
+  const fTop = cy - R * 0.52;
+  const fRoom = (fSegY - R * 0.13) - fTop;
+  const fLines = clamp(Math.floor((fRoom - FB_PAD) / FB_LINE), 2, 8);
+  const fh = FB_PAD + fLines * FB_LINE, fy = fTop;
+  // the box has to fit the circle at BOTH its edges, and the top is the tight one
+  const fHx = Math.min(discChord(R, fy - cy), discChord(R, fy + fh - cy)) - R * DISC_PAD;
+  const fx = cx - fHx, fw = fHx * 2;
+  fbFieldRect = { x: fx, y: fy, w: fw, h: fh, lines: fLines };   // read by the layout pins
 
   popRender(q, cx - R, cy - R, R * 2, R * 2, () => {
     ctx.save();
     const chosen = FEEDBACK_TOPICS.find(t => t[0] === (feedback && feedback.topic));
-    discPlate(cx, cy, R,
+    discPlate(cx, cy, R, '');   // the plate without its title — fbTitle draws that, and wraps it
+    fbTitleBox = fbTitle(cx, cy, R,
       st === 'write' ? (chosen ? chosen[1] : 'FEEDBACK')
       : st === 'done' ? (feedback && feedback.bad ? 'NOT SENT' : feedback && feedback.held ? 'HELD' : 'SENT')
       : 'FEEDBACK');
@@ -1357,8 +1447,26 @@ function drawFeedback() {
     ctx.globalAlpha = q;
     fbSideNote(cx - rr - 22, 'right', cy, sideW, R,
       'SENT WITH', 'your build\nyour device\nthe last stage you played');
-    fbSideNote(cx + rr + 22, 'left', cy, sideW, R,
-      'WE CANNOT REPLY', 'nothing comes back\ndo not include your name\nor anything private');
+    // GET IN TOUCH, not WE CANNOT REPLY. Gil, 2026-09-01. The old wording was true
+    // and it was a dead end — it told a player the door was shut without saying
+    // where the open one is. This pipe still carries no reply, and now it says so
+    // in one clause and hands over the address in the next.
+    // AN ADDRESS ON A CANVAS CANNOT BE SELECTED, so it cannot be copied, so it
+    // would have to be retyped off a phone screen by hand. Tapping it copies it.
+    // That is not a flourish — without it the address is decoration.
+    const copied = !!(feedback && feedback.copiedT > 0);
+    if (feedback && feedback.copiedT > 0) feedback.copiedT -= (frameDt || 0.016);
+    const mailRect = fbSideNote(cx + rr + 22, 'left', cy, sideW, R,
+      copied ? 'COPIED' : 'GET IN TOUCH', 'no reply comes back here\nemail us at', FEEDBACK_EMAIL);
+    if (mailRect) feedbackBtns.push({ ...mailRect, tag: 'copyMail' });
+    // …and the one warning that is about what the player TYPES sits under the disc,
+    // centred, where the eye lands after the field rather than beside it.
+    const wp = Math.max(8, Math.round(R * 0.060));
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(150,190,225,0.62)';
+    ctx.font = '500 ' + wp + 'px Audiowide, system-ui';
+    ctx.fillText('do not include your name or anything private', cx, Math.min(cy + rr + 22, H - 10));
+    ctx.textAlign = 'left';
     ctx.restore();
   }
 
@@ -1376,6 +1484,16 @@ function feedbackAct(tag) {
   if (tag === 'close') { closeFeedback(); return; }
   if (feedback.busy) return;
   if (tag === 'toTopic') { clearField(); feedback.step = 'topic'; return; }
+  if (tag === 'copyMail') {
+    // A clipboard write needs a secure context. Over plain HTTP on the LAN dev
+    // server there is none, so this quietly does nothing there and works in every
+    // shipped build. The confirmation is only shown on a write that landed.
+    try {
+      const w = navigator.clipboard && navigator.clipboard.writeText(FEEDBACK_EMAIL);
+      if (w && w.then) w.then(() => { if (feedback) feedback.copiedT = 2.2; }).catch(() => {});
+    } catch (e) {}
+    return;
+  }
   if (FEEDBACK_TOPICS.some(t => t[0] === tag)) { feedback.topic = tag; feedback.step = 'write'; return; }
   if (tag === 'send') {
     const body = feedbackDraft.trim();

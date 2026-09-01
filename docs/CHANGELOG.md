@@ -14,10 +14,18 @@ what a player meets. The commit trail between two versions is
   or too easy · something else), type up to 600 characters, send. Nothing is
   shown to another player and nothing comes back — the panel says so twice.
 - **It is a disc**, wearing the same plate the pause disc and the high-score card
-  wear, cast in by the ring. The two things you must know before you send stand
-  outside the rim, one on each flank: *SENT WITH* on the left, *WE CANNOT REPLY*
-  on the right. `discSegKeys` gained a one-key form for the CLOSE that runs the
-  whole width of the segment.
+  wear, cast in by the ring. `discSegKeys` gained a one-key form for the CLOSE
+  that runs the whole width of the segment.
+- **The disc uses its space.** A topic too long for the crown breaks across two
+  lines and drops into the wider part of the circle instead of overrunning the
+  plate. The note field starts as high as the title allows and runs down to the
+  last whole line that clears the segment — six lines on a phone, up from three.
+- **GET IN TOUCH**, on the right flank, replaces *WE CANNOT REPLY*. It says no
+  reply comes back down this channel, then gives a contact address — **tap it and
+  it copies**, because an address painted on a canvas cannot be selected. The one
+  warning about what you type — *do not include your name or anything private* —
+  moved to the floor under the disc, centred, where the eye lands after the
+  field.
 - **CLOSE left the disc, and the gear took its job.** The settings panel is the
   pause disc wearing another door, and the pause disc's corner key both opens and
   closes it. Three ways out remain: the gear, a tap outside the disc, gamepad B.

@@ -42,6 +42,32 @@
 > - The scrim went from 0.72 to 0.93. The flanks stand on the bare menu rather
 >   than on a plate, and the menu under them is two lit cards.
 >
+> ### The second pass on the disc (Gil, 2026-09-01)
+>
+> - **The title wraps and drops.** `discPlate` sets a title on one line at the
+>   crown, where the chord is barely wider than a word — fine for PAUSED, and not
+>   fine for TOO HARD OR TOO EASY, which overran the plate on both sides. This disc
+>   draws its own (`fbTitle`): one line stays exactly where `discPlate` would put
+>   it, and a title that does not fit breaks in two **and moves down** into the
+>   wider part of the circle rather than climbing further into the crown.
+> - **The field takes the room.** It starts as high as the title allows and runs
+>   down to the last whole line that clears the segment — six lines on a 844×390
+>   phone, up from three. The top is capped at `0.52R` even when there is more room,
+>   because the chord narrows toward the crown: past that point every line gained
+>   costs more width than it is worth.
+> - **§3.7 is amended: there IS an address now.** *GET IN TOUCH* replaces *WE
+>   CANNOT REPLY* on the right flank. The pipe is still one-way and still carries no
+>   reply address, so the legal basis does not move — the panel says nothing comes
+>   back, then hands over ours. `FEEDBACK_EMAIL` in `92-guide.js`; **swap it for the
+>   dedicated address when it exists**, and `npm test` fails if it is ever set to
+>   something that only looks like an address.
+> - **The address is tap-to-copy.** Text painted on a canvas cannot be selected, so
+>   without this a player has to retype it off the screen by hand. It is set in a
+>   text face, not Audiowide, whose `@` draws as a filled ring and made the address
+>   read as two words with a dot between them.
+> - **The typing warning moved to the floor**, centred under the disc. It is about
+>   what the player types, so it belongs where the eye lands after the field.
+>
 > ### What differs from the plan below
 >
 > - **`window.__APP_VERSION`** is new. `BUILD` tells two builds apart but names

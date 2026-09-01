@@ -266,11 +266,14 @@ a year is enough, and if it is never run the privacy policy is simply wrong.
 
 ## What is deliberately absent
 
-No reply. An anonymous identity has no address, and adding an email field would
-move the legal basis from legitimate interest to consent — a second basis, a
-second retention rule, a second deletion path, and a mailbox to answer. The
-panel tells the player twice that nothing comes back. The reasoning is in
-`docs/FEEDBACK-PLAN.md` §3.7.
+No reply **down this pipe**. An anonymous identity has no address, and asking for
+one would move the legal basis from legitimate interest to consent — a second
+basis, a second retention rule, a second deletion path. So the panel says nothing
+comes back, and then hands over the contact address instead: **GET IN TOUCH** on
+the right flank of the disc, tap-to-copy, `FEEDBACK_EMAIL` in
+`src/game/92-guide.js`. Swap that constant for the dedicated address when it
+exists; `npm test` fails if it is ever set to something that only looks like an
+address. The reasoning is in `docs/FEEDBACK-PLAN.md` §3.7.
 
 There is also **no word filter**, on purpose. A filter exists on the display name
 because a name goes on a public board; a private note has no audience to protect,

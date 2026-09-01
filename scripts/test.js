@@ -292,6 +292,7 @@ code = code.replace("'use strict';", '') + `
   // mounts. frame() owns frameDt and the harness never calls it here, so the pop
   // clock is handed over instead of faked.
   setFrameDt: v => { frameDt = v; }, discSegHit,
+  fbField: () => fbFieldRect, fbTitleBox: () => fbTitleBox, FEEDBACK_EMAIL, discR,
   fbContext, fbHeld, lbFeedback
 };`;
 eval(code);
@@ -4723,6 +4724,71 @@ async function runMusicUp() {
     G.feedbackAct('toTopic');
     G.drawFeedback();
     check('leaving the write step drops the field', G.overlayField() === '');
+
+    // ---- the disc uses its own space ----
+    // The harness's measureText answers 10 for every string, which makes every
+    // wrap in the game trivially "fit". These pins are about wrapping, so they
+    // borrow a measurer that at least scales with the text and the font size, and
+    // hand the flat one back afterwards — every other test in this suite is
+    // written against the flat one.
+    {
+      // ctx.font is an ACCESSOR on the stub that discards writes on purpose (a plain
+      // slot would change what the server verifier computes), so a measurer cannot
+      // read the size back. Both are swapped together for this block and both are
+      // handed back after it. Letter-spacing is ignored, which makes the estimate
+      // optimistic — a pin that says "this wrapped" is therefore conservative.
+      const flat = ctxStub.measureText;
+      const fontProp = Object.getOwnPropertyDescriptor(ctxStub, 'font');
+      let curFont = '12px';
+      Object.defineProperty(ctxStub, 'font', { get: () => curFont, set: v => { curFont = v; }, configurable: true });
+      ctxStub.measureText = t => {
+        const m = /(\d+(?:\.\d+)?)px/.exec(curFont);
+        return { width: String(t).length * (m ? +m[1] : 12) * 0.62 };
+      };
+      try {
+        G.setViewport(844, 390);
+        G.openFeedback(); G.feedbackAct('balance');   // the longest label of the four
+        G.setFeedbackDraft(''); G.setFrameDt(0.5); G.drawFeedback();
+        const box = G.fbField(), t = G.fbTitleBox();
+        check('the longest topic breaks across two lines instead of overrunning the plate',
+          t && t.lines === 2);
+        check('…and the title block still clears the field under it', t.bottom < box.y);
+        // the box was three lines when it floated mid-disc; it fills the room now
+        check('the field fills the room between the title and the counter (' + box.lines + ' lines)',
+          box.lines >= 5);
+        // EVERY CORNER INSIDE THE CIRCLE. A rectangle in a disc is only safe if all
+        // four corners are, and the tight pair is whichever edge is further from
+        // the centre — the arithmetic that gets this wrong puts a corner on the rim.
+        const g = G.geo(), rr = G.discR() * 0.86 * 0.97;
+        const worst = Math.max(
+          Math.hypot(box.x - g.cx, box.y - g.cy),
+          Math.hypot(box.x + box.w - g.cx, box.y - g.cy),
+          Math.hypot(box.x - g.cx, box.y + box.h - g.cy),
+          Math.hypot(box.x + box.w - g.cx, box.y + box.h - g.cy));
+        check('every corner of the field is inside the disc', worst < rr);
+        G.feedbackAct('bug'); G.drawFeedback();
+        check('a topic that fits stays on one line at the crown', G.fbTitleBox().lines === 1);
+      } finally {
+        ctxStub.measureText = flat;
+        Object.defineProperty(ctxStub, 'font', fontProp);
+      }
+      G.setViewport(800, 450);
+    }
+
+    // ---- GET IN TOUCH: the one thing in either flank a player can act on ----
+    check('the address is a real address, not a placeholder',
+      /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(G.FEEDBACK_EMAIL)
+      && !/xxx|example|todo|changeme/i.test(G.FEEDBACK_EMAIL));
+    {
+      // it is painted on a canvas, so it cannot be selected — without a tap that
+      // copies it, a player has to retype it off the screen by hand
+      G.openFeedback(); G.feedbackAct('bug'); G.setFrameDt(0.5); G.drawFeedback();
+      const mail = G.feedbackBtns().find(b => b.tag === 'copyMail');
+      check('the address is a control, so it can be copied', !!mail && mail.w > 0 && mail.h > 0);
+      check('…and only on the step that shows it',
+        (G.feedbackAct('toTopic'), G.drawFeedback(), !G.feedbackBtns().some(b => b.tag === 'copyMail')));
+      G.feedbackAct('bug'); G.drawFeedback();
+    }
 
     // ---- what rides along ----
     const ctx0 = G.fbContext();
