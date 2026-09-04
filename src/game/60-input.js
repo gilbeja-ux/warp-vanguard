@@ -373,7 +373,9 @@ function menuTap(x, y, pid) {
   // panel underneath would eat the taps meant for it.
   if (myData) {
     for (const b of myDataBtns) {
-      if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) { pressUI(b, () => myDataAct(b.tag)); return; }
+      // a DISC: its bottom keys are chord-to-rim segments, not rects
+      if (b.seg ? !discSegHit(b.seg, x, y) : !(x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h)) continue;
+      pressUI(b, () => myDataAct(b.tag)); return;
     }
     // NO tap-outside-to-dismiss here, unlike the other panels. A stray tap beside
     // a live confirm ("delete everything?") should not quietly close the thing the

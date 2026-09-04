@@ -83,3 +83,26 @@ The guard is `npm test`, section **THE iOS SHELL**, plus the iOS step at the end
 `scripts/build-aab.sh`.
 
 
+## The disc law: nothing touches the edge of a disc
+
+Gil, 2026-09-04, after saying it for the third time. Every panel in the game is a disc
+the ring casts (the kit is in `src/game/91-briefing.js`: `discPlate`, `discRows`,
+`discSegKeys`, `discSlab`, `discPara`). **No text, key, field or rail may touch the rim.**
+
+1. **Fit to the chord at the element's OWN height.** `discChord(R, dy)` is the half-width
+   of the circle at `dy` off centre. A key or field is fitted at its widest corner; a
+   line of text at the top of its glyphs on the upper half and the bottom on the lower.
+2. **Text goes through `discPara`.** It wraps every line to its own chord minus
+   `DISC_TEXT_PAD`. Never wrap a paragraph to one fixed width, and never to the chord of
+   its first line — the disc is drawn at desktop sizes too, and that is where the words
+   land on the rim.
+3. **Keys and rails keep `DISC_PAD` off the rim; text and FIELDS keep `DISC_TEXT_PAD`,**
+   which is wider. A rail end may sit near the edge; a word, or a box that holds words,
+   may not. Fit a field with `discFieldHx(R, fy, fh, cy)` — never with `DISC_PAD`.
+4. **A title keeps `DISC_TITLE_PAD` at the top of its capitals, and a long title BREAKS.**
+   `discPlate` fits each title line to the crown's chord; a 14-letter title fitted to one
+   line comes out the size of a caption. Pass `'RENAME\nMY RUNS'`, never a shrunken line.
+5. **Check at a desktop size, not only a phone.** The overflow shows at 1600 wide first.
+
+`npm test` pins the kit and pins MY DATA to it. A new disc that wraps its own text fails
+the pin.

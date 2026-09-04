@@ -810,19 +810,8 @@ function drawMenu(g) {
   menuGearRect = null;
   if (menuScreen !== 'board') {
     menuGearRect = { x: W - 50 - SAFE.r, y: 12 + SAFE.t, w: 38, h: 38 };
-    const r = menuGearRect;
-    techRect(r.x, r.y, r.w, r.h, 8);
-    ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(120,220,255,0.55)'; ctx.lineWidth = 1.5;
-    techRect(r.x, r.y, r.w, r.h, 8); ctx.stroke();
-    ctx.strokeStyle = 'rgba(200,240,255,0.9)'; ctx.lineWidth = 1.5;
-    const knobX = [r.x + 24, r.x + 13, r.x + 27];
-    for (let i = 0; i < 3; i++) {
-      const gy = r.y + 11 + i * 8;
-      ctx.beginPath(); ctx.moveTo(r.x + 8, gy); ctx.lineTo(r.x + 30, gy); ctx.stroke();
-      ctx.fillStyle = '#dff6ff';
-      ctx.fillRect(knobX[i] - 2.5, gy - 3.5, 5, 7);
-    }
+    // sliders closed, an X open — the pause key's two-glyph bargain (90-hud.js)
+    drawGearKey(menuGearRect, menuSettings);
   }
   // (the OPERATOR button used to sit here, home only, left of the gear — removed
   // along with its panel. The handle is asked for on the END screen instead.)
@@ -964,7 +953,7 @@ function drawBossGate() {
   const cx0 = gg.cx + sx, cy0 = gg.cy;
   const GATE_SEG = 0.42;
   const fh = R * 0.26, fy = cy0 - R * 0.08;
-  const fHx = discChord(R, fy + fh - cy0) - R * DISC_PAD;
+  const fHx = discFieldHx(R, fy, fh, cy0);   // the disc law: a field keeps the text margin off the rim
   const fx = cx0 - fHx, fw = fHx * 2;
   popRender(q, cx0 - R, cy0 - R, R * 2, R * 2, () => {
     ctx.save();
@@ -1040,70 +1029,108 @@ function drawMyData() {
   const q = popFxQ('mydata', !!myData);
   myDataBtns = [];
   const st = myData ? myData.step : 'menu', busy = !!(myData && myData.busy);
+  const settled = q > 0.92;   // the DOM field waits for the cast to land — see the high-score disc
   ctx.fillStyle = 'rgba(2,6,14,' + (0.72 * q).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
-  const pw = Math.min(W - 48, 470);
-  const ph = st === 'menu' ? 262 : st === 'rename' ? 236 : st === 'done' ? 190 : 250;
-  const px = (W - pw) / 2, py = (H - ph) / 2;
+  // IT IS A MINI DISC, like the high-score handle and FEEDBACK. It was the last
+  // console slab on the menu (Gil, 2026-09-04): the same plate the pause and
+  // settings discs wear at 0.86 of their radius, the verbs on the circle's own
+  // bottom segment, and the ring casts it in and erases it the same way.
+  const g = geo();
+  const R = discR() * 0.86, cx = g.cx, cy = g.cy;
+  const bp = Math.max(9, Math.round(R * 0.066));      // body type
+  const lead = bp * 1.55;
+  // the rename field: sized off its BOTTOM chord, the tight one, like the handle disc's
+  const fh = R * 0.24, fy = cy - R * 0.13;
+  const fHx = discFieldHx(R, fy, fh, cy);    // the disc law: a field keeps the text margin off the rim
+  const fx = cx - fHx, fw = fHx * 2;
   // the DOM field belongs to the rename step alone — drop it the moment we leave,
   // or an invisible input keeps the keyboard up over the confirm screen
-  if (!(myData && st === 'rename') && overlayField === 'mydata') clearField();
-  popRender(q, px, py, pw, ph, () => {
-  ctx.save();
-  techRect(px, py, pw, ph, 12);
-  ctx.fillStyle = 'rgba(8,18,34,0.98)'; ctx.fill();
-  ctx.strokeStyle = st === 'confirm' ? 'rgba(255,110,110,0.7)' : 'rgba(120,200,255,0.6)'; ctx.lineWidth = 1.5;
-  techRect(px, py, pw, ph, 12); ctx.stroke();
-  ctx.textAlign = 'center';
-  const line = (s, y, col, w) => { ctx.fillStyle = col || 'rgba(220,235,255,0.9)'; ctx.font = (w || '500') + ' 12px Audiowide, system-ui'; ctx.fillText(s, W / 2, y); };
-  const bw = pw - 44, bx = px + 22;
+  if (!(myData && st === 'rename' && settled) && overlayField === 'mydata') clearField();
+  // every paragraph goes through discPara: each LINE is fitted to the chord at
+  // its own height, so nothing can touch the rim (the disc law, 91-briefing.js)
+  const para = (text, y0, col, weight) => discPara(cx, cy, R, text, y0, col, bp, weight);
+  const note = (text, y0, col) => discPara(cx, cy, R, text, y0, col, Math.max(8, Math.round(bp * 0.88)), '500'); // a caption: one size down
+  // a verb slab down the disc's own column, cut to the chord at its widest corner;
+  // `danger` wears the red the old panel's DELETE key wore
+  const slab = (ky, label, danger, tag) => {
+    const kh = R * 0.175;
+    const far = Math.max(Math.abs(ky - cy), Math.abs(ky + kh - cy));
+    const hx = Math.max(24, discChord(R, far) - R * DISC_PAD);
+    if (danger) {
+      const cut = Math.max(3, kh * 0.34);
+      techRect(cx - hx, ky, hx * 2, kh, cut); ctx.fillStyle = 'rgba(120,26,26,0.55)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,120,120,0.7)'; ctx.lineWidth = 1.1; techRect(cx - hx, ky, hx * 2, kh, cut); ctx.stroke();
+    } else discSlab(cx - hx, ky, hx * 2, kh, false);
+    ctx.fillStyle = danger ? '#ffd9d9' : '#e6f6ff';
+    ctx.font = '700 ' + fitPx(label, '700', Math.round(R * 0.075), hx * 1.76, 8) + 'px Audiowide, system-ui';
+    ctx.fillText(label, cx, ky + kh / 2 + R * 0.028);
+    myDataBtns.push({ x: cx - hx, y: ky, w: hx * 2, h: kh, tag });
+  };
+  const seg = keys => { for (const b of discSegKeys(cx, cy, R, keys, MD_SEG)) myDataBtns.push({ ...b, tag: b.action }); };
+  const ok = nameStatus(myDataDraft) === 'ok';
 
-  if (st === 'menu') {
-    ctx.fillStyle = '#9fd8ff'; ctx.font = '800 15px Audiowide, system-ui';
-    ctx.fillText('MY DATA', W / 2, py + 34);
-    line('The boards hold a name you chose and the runs', py + 62);
-    line('you set. Both are yours to change.', py + 80);
-    mdKey(myDataBtns, bx, py + 100, bw, 38, 'RENAME MY RUNS', 'calm', 'toRename');
-    line('Your scores stay — only the name changes.', py + 154, 'rgba(150,190,225,0.75)');
-    mdKey(myDataBtns, bx, py + 168, bw, 38, 'DELETE MY RUNS', 'danger', 'toConfirm');
-    mdKey(myDataBtns, px + pw / 2 - 60, py + ph - 46, 120, 34, 'CLOSE', 'calm', 'close');
-  }
-  else if (st === 'rename') {
-    ctx.fillStyle = '#9fd8ff'; ctx.font = '800 15px Audiowide, system-ui';
-    ctx.fillText('RENAME MY RUNS', W / 2, py + 34);
-    line('This name replaces the old one on every run', py + 60);
-    line('you hold, on every board. Scores are untouched.', py + 78);
-    const fr = { x: px + 40, y: py + 96, w: pw - 80, h: 40 };
-    mountField('mydata', fr, { placeholder: 'ENTER YOUR HANDLE', value: myDataDraft, maxLength: NAME_MAX,
+  popRender(q, cx - R, cy - R, R * 2, R * 2, () => {
+    ctx.save();
+    // the confirm and the failed result wear a RED title — the plate's own title,
+    // in its own seat and fit, in a different colour
+    const red = st === 'confirm' || (st === 'done' && myData && myData.bad);
+    // A LONG TITLE BREAKS, IT DOES NOT SHRINK. The crown's chord is short, and a
+    // 14-letter title fitted to it on one line came out the size of a caption.
+    // Two lines: the second sits lower, where the circle is wider (discPlate).
+    const title = st === 'menu' ? 'MY DATA' : st === 'rename' ? 'RENAME\nMY RUNS' : st === 'confirm' ? 'DELETE\nMY RUNS'
+      : (myData && myData.bad ? 'NOTHING\nCHANGED' : 'DONE');
+    discPlate(cx, cy, R, title, red ? 'rgba(255,154,154,0.95)' : undefined);
+    ctx.textAlign = 'center';
+
+    if (st === 'menu') {
+      para('The boards hold a name you chose and the runs you set. Both are yours to change.', cy - R * 0.50);
+      slab(cy - R * 0.245, 'RENAME MY RUNS', false, 'toRename');
+      ctx.textAlign = 'center';
+      note('Scores stay. Only the name changes.', cy + R * 0.02, 'rgba(150,190,225,0.75)');
+      slab(cy + R * 0.10, 'DELETE MY RUNS', true, 'toConfirm');
+      ctx.textAlign = 'center';
+      seg([['CLOSE', 'close']]);
+    }
+    else if (st === 'rename') {
+      para('This name replaces the old one on every run you hold, on every board. Scores are untouched.', cy - R * 0.52);
+      // the field. During the cast it is a static plate carrying the draft; once
+      // settled the live DOM input mounts in the same box
+      if (!settled) {
+        techRect(fx, fy, fw, fh, 6); ctx.fillStyle = 'rgba(4,12,22,0.85)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 6); ctx.stroke();
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        const has = !!myDataDraft;
+        ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
+        ctx.font = '600 ' + Math.max(11, Math.round(R * 0.108)) + 'px Audiowide, system-ui';
+        try { ctx.letterSpacing = '1px'; } catch (e) {}
+        ctx.fillText((has ? myDataDraft : 'ENTER YOUR HANDLE').toUpperCase(), fx + 14, fy + fh / 2 + 1);
+        try { ctx.letterSpacing = '0px'; } catch (e) {}
+        ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'center';
+      }
+      note(ok ? 'Do not use your real name.' : 'At least 2 characters, nothing offensive.',
+        fy + fh + R * 0.13, ok ? 'rgba(150,190,225,0.75)' : 'rgba(255,170,120,0.9)');
+      // SAVE is locked until the handle is clean — drawn dim and never returned,
+      // the same gate the high-score disc's SAVE uses. The positive verb rides the right.
+      seg([['CANCEL', 'toMenu'], [busy ? 'SAVING…' : 'SAVE', 'save', { primary: ok && !busy, locked: !ok || busy || !settled }]]);
+    }
+    else if (st === 'confirm') {
+      let y = para('Every run you hold is removed from every board, with its replay and this device’s board identity.', cy - R * 0.50);
+      y = para('Your campaign progress and local bests are kept.', y + lead * 0.25, 'rgba(150,220,150,0.9)');
+      para('This cannot be undone.', y + lead * 0.25, '#ff9a9a', '700');
+      seg([['CANCEL', 'toMenu'], [busy ? 'DELETING…' : 'DELETE', 'delete', { danger: true, locked: busy }]]);
+    }
+    else { // 'done' — the result line, and one way out
+      para((myData && myData.msg) || '', cy - R * 0.22);
+      seg([['CLOSE', 'close']]);
+    }
+    ctx.textAlign = 'left';
+    ctx.restore();
+  }, g.nodeR * 1.02);
+  // the DOM field mounts OUTSIDE popRender: it is not canvas, so the cast cannot
+  // clip it — it waits for the cast to land instead
+  if (myData && st === 'rename' && settled) mountField('mydata', { x: fx, y: fy, w: fw, h: fh },
+    { placeholder: 'ENTER YOUR HANDLE', value: myDataDraft, maxLength: NAME_MAX,
       onInput: v => { myDataDraft = sanitizeName(v); }, onEnter: () => myDataAct('save') });
-    const ok = nameStatus(myDataDraft) === 'ok';
-    line(ok ? 'Do not use your real name.' : 'At least 2 characters, nothing offensive.',
-      py + 154, ok ? 'rgba(150,190,225,0.75)' : 'rgba(255,170,120,0.9)');
-    const hw = (pw - 56) / 2;
-    mdKey(myDataBtns, px + 22, py + ph - 56, hw, 38, 'CANCEL', 'calm', 'toMenu');
-    if (ok && !busy) mdKey(myDataBtns, px + pw - 22 - hw, py + ph - 56, hw, 38, 'SAVE', 'go', 'save');
-    else { ctx.globalAlpha = 0.4; mdKey([], px + pw - 22 - hw, py + ph - 56, hw, 38, busy ? 'SAVING…' : 'SAVE', 'go', 'save'); ctx.globalAlpha = 1; }
-  }
-  else if (st === 'confirm') {
-    ctx.fillStyle = '#ff9a9a'; ctx.font = '800 15px Audiowide, system-ui';
-    ctx.fillText('DELETE MY RUNS', W / 2, py + 34);
-    line('Every run you hold is removed from every board,', py + 64);
-    line('with its replay and this device’s board identity.', py + 82);
-    line('Your campaign progress and local bests are kept.', py + 108, 'rgba(150,220,150,0.9)');
-    line('This cannot be undone.', py + 134, '#ff9a9a', '700');
-    const hw = (pw - 56) / 2;
-    mdKey(myDataBtns, px + 22, py + ph - 56, hw, 38, 'CANCEL', 'calm', 'toMenu');
-    if (!busy) mdKey(myDataBtns, px + pw - 22 - hw, py + ph - 56, hw, 38, 'DELETE', 'danger', 'delete');
-    else { ctx.globalAlpha = 0.4; mdKey([], px + pw - 22 - hw, py + ph - 56, hw, 38, 'DELETING…', 'danger', 'delete'); ctx.globalAlpha = 1; }
-  }
-  else { // 'done' — the result line, and one way out
-    ctx.fillStyle = myData && myData.bad ? '#ff9a9a' : '#7ee262'; ctx.font = '800 15px Audiowide, system-ui';
-    ctx.fillText(myData && myData.bad ? 'NOTHING CHANGED' : 'DONE', W / 2, py + 40);
-    line((myData && myData.msg) || '', py + 76);
-    mdKey(myDataBtns, px + pw / 2 - 60, py + ph - 50, 120, 34, 'CLOSE', 'calm', 'close');
-  }
-  ctx.textAlign = 'left';
-  ctx.restore();
-  });
 }
 // ---------------------------------------------------------------------------
 // REPORT THIS — flagging someone else's handle. Three canned reasons and a way
@@ -1115,6 +1142,8 @@ function drawMyData() {
 // against one could only be explained away, never acted on. This pipe carries the
 // NAME, which is the only thing on a board a human has to judge.
 // ---------------------------------------------------------------------------
+// where MY DATA's bottom segment sits: the handle disc's chord, not the settings discs'
+const MD_SEG = 0.42;
 const REPORT_REASONS = [
   ['offensive',     'OFFENSIVE OR HATEFUL'],
   ['personal',      'A REAL NAME OR PERSONAL INFO'],
@@ -1368,7 +1397,7 @@ function fbSideNote(x, align, cy0, w, R, eyebrow, body, tail) {
 // line ever reached its rim.
 const FB_CAP = 0.72;        // cap height, as a share of the font size
 const FB_TITLE_Y = 0.66;    // the title's row, as a share of R above the centre
-const FB_TITLE_PAD = 0.17;  // its clearance from the rim — twice what a row keeps
+const FB_TITLE_PAD = DISC_TITLE_PAD; // the disc law: a title keeps the title margin at its cap top
 function fbTitle(cx, cy, R, text) {
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(186,231,255,0.92)';
@@ -1485,7 +1514,7 @@ function drawFeedback() {
   const fLines = clamp(Math.floor((fRoom - FB_PAD) / FB_LINE), 2, 8);
   const fh = FB_PAD + fLines * FB_LINE, fy = fTop;
   // the box has to fit the circle at BOTH its edges, and the top is the tight one
-  const fHx = Math.min(discChord(R, fy - cy), discChord(R, fy + fh - cy)) - R * DISC_PAD;
+  const fHx = discFieldHx(R, fy, fh, cy);    // the disc law: a field keeps the text margin off the rim
   const fx = cx - fHx, fw = fHx * 2;
   fbFieldRect = { x: fx, y: fy, w: fw, h: fh, lines: fLines };   // read by the layout pins
 

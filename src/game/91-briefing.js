@@ -1594,7 +1594,12 @@ const discChord = (R, dy) => Math.sqrt(Math.max(1, R * DISC_RIM * R * DISC_RIM -
 // throws LIGHT at this circle; a black ground swallows it and the wavefront reads
 // as a ring floating over a hole. techPanel's glass blue takes the light instead,
 // so the disc looks lit by the projection that built it.
-function discPlate(cx, cy, R, title) {
+// the title's clearance from the rim, measured at the top of its capitals. It is
+// narrower than the text margin on purpose: the title sits at the crown, where the
+// chord is short, and the text margin there would shrink a 14-letter title to a
+// caption. Still nearly twice a rail's, so its ends stand clear of the rim.
+const DISC_TITLE_PAD = 0.13;
+function discPlate(cx, cy, R, title, titleCol) {
   const bg = ctx.createRadialGradient(cx, cy, R * 0.20, cx, cy, R);
   bg.addColorStop(0, 'rgba(11,31,57,0.95)');
   bg.addColorStop(0.72, 'rgba(7,22,44,0.94)');
@@ -1621,7 +1626,7 @@ function discPlate(cx, cy, R, title) {
   // — a caption on a disc that is not captioned by anything else on screen.
   const ty = cy - R * 0.755;
   ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(186,231,255,0.92)';
+  ctx.fillStyle = titleCol || 'rgba(186,231,255,0.92)';
   try { ctx.letterSpacing = '4px'; } catch (e) {}
   // A LONG TITLE BREAKS, IT DOES NOT SHRINK PAST THE RIM. Pass '\n' and each
   // line is fitted to the chord at ITS OWN height — the crown narrows fast up
@@ -1630,8 +1635,12 @@ function discPlate(cx, cy, R, title) {
   const tLh = R * 0.118;
   tLines.forEach((ln, i) => {
     const y = ty + i * tLh;
+    // THE TITLE KEEPS ITS MARGIN AT THE TOP OF ITS CAPITALS, where the crown is
+    // narrowest. It used to keep 0.05R off the chord at its baseline, and at a
+    // desktop size its ends stood on the rim.
+    const capTop = Math.abs(cy - y) + R * 0.095 * 0.75;
     ctx.font = '700 ' + fitPx(ln, '700', Math.max(11, Math.round(R * 0.095)),
-      (discChord(R, cy - y) - R * 0.05) * 2, 9) + 'px Audiowide, system-ui';
+      (discChord(R, capTop) - R * DISC_TITLE_PAD) * 2, 9) + 'px Audiowide, system-ui';
     ctx.fillText(ln, cx, y);
   });
   try { ctx.letterSpacing = '0px'; } catch (e) {}
@@ -1835,6 +1844,48 @@ function discRows(cx, cy, R, rows) {
   });
   return trk;
 }
+// A PARAGRAPH INSIDE THE CIRCLE. THE LAW: NOTHING TOUCHES THE EDGE OF A DISC.
+// Gil, 2026-09-04, and not for the first time. Every line is wrapped to the
+// chord at ITS OWN height — measured at the top of its glyphs on the upper half
+// of the disc and at their bottom on the lower half, whichever is nearer the rim
+// — minus a text margin wider than a rail end's. So a paragraph that starts near
+// the crown gets short lines and grows as it descends, and no line can reach
+// the rim however large the disc is drawn. A caller that wraps to one fixed
+// width, or to the chord of the first line only, ships a desktop screenshot
+// with words on the rim. Returns the y the next line would take.
+const DISC_TEXT_PAD = 0.22;  // text stands well off the rim — a rail end keeps DISC_PAD, a word keeps this
+const DISC_TEXT_MAX = 1.30;  // and no line is wider than this share of R, even across the centre
+function discPara(cx, cy, R, text, y0, col, px, weight) {
+  const pa = ctx.textAlign;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = col || 'rgba(220,235,255,0.9)';
+  ctx.font = (weight || '500') + ' ' + px + 'px Audiowide, system-ui';
+  const lead = px * 1.55;
+  const widthAt = y => {
+    const far = Math.max(Math.abs(y - px * 0.8 - cy), Math.abs(y + px * 0.25 - cy));
+    return Math.max(px * 4, Math.min(R * DISC_TEXT_MAX, (discChord(R, far) - R * DISC_TEXT_PAD) * 2));
+  };
+  let y = y0;
+  for (const para of String(text || '').split('\n')) {
+    let line = '';
+    for (const w of para.split(/\s+/)) {
+      if (!w) continue;
+      const t = line ? line + ' ' + w : w;
+      if (line && ctx.measureText(t).width > widthAt(y)) { ctx.fillText(line, cx, y); y += lead; line = w; }
+      else line = t;
+    }
+    ctx.fillText(line, cx, y); y += lead;
+  }
+  ctx.textAlign = pa;
+  return y;
+}
+// A FIELD INSIDE THE CIRCLE, under the same law. A field holds text, so it keeps
+// the TEXT margin off the rim, not a rail's — and it is fitted at BOTH its edges,
+// whichever sits nearer the rim. Returns the half-width; the caller centres it.
+// Every disc with a field (the handle, MY DATA, FEEDBACK, the passcode) uses this,
+// so a wider margin is one number here and not four fits drifting apart.
+const discFieldHx = (R, fy, fh, cy) =>
+  Math.max(R * 0.3, Math.min(discChord(R, fy - cy), discChord(R, fy + fh - cy)) - R * DISC_TEXT_PAD);
 // half of the disc's bottom segment: the circle edge IS the key edge, and the two
 // halves meet on the vertical. `side` is -1 for the left key, +1 for the right.
 // Same language the contract disc's TAKE CONTRACT key speaks (92-guide.js).
@@ -1858,7 +1909,8 @@ function discSegHit(sg, x, y) {
 // the keys along the bottom, and the seam that cuts them off the rows above.
 // Returns their button descriptors; the caller decides the focus order. A key may
 // carry {locked} — drawn dim and NOT returned, so a gated verb cannot be pressed
-// — or {primary}, which lights it the way a primary console key is lit.
+// — or {primary}, which lights it the way a primary console key is lit, or
+// {danger}, the red a destructive verb wears (MY DATA's DELETE).
 //
 // TWO KEYS, OR ONE. Pass two and the segment splits down the middle, which is what
 // the pause, settings and high-score discs want. Pass ONE and it is the whole
@@ -1885,13 +1937,14 @@ function discSegKeys(cx, cy, R, keys, segK) {
     // disc rather than a slab of paint laid over its bottom
     const kg = ctx.createLinearGradient(0, cy + d, 0, cy + rr);
     if (o.locked) { kg.addColorStop(0, 'rgba(20,40,64,0.45)'); kg.addColorStop(1, 'rgba(10,24,44,0.36)'); }
+    else if (o.danger) { kg.addColorStop(0, 'rgba(150,34,34,0.66)'); kg.addColorStop(1, 'rgba(70,14,14,0.52)'); }
     else if (o.primary) { kg.addColorStop(0, 'rgba(48,118,186,0.72)'); kg.addColorStop(1, 'rgba(18,56,100,0.58)'); }
     else { kg.addColorStop(0, 'rgba(34,86,142,0.62)'); kg.addColorStop(1, 'rgba(13,40,76,0.50)'); }
     ctx.fillStyle = kg; ctx.fill();
     ctx.textAlign = 'center';
     // a solo key owns the whole line, so it may be twice as wide before it shrinks
     ctx.font = '700 ' + fitPx(label, '700', Math.round(R * 0.082), wAt * (solo ? 1.7 : 0.82), 8) + 'px Audiowide, system-ui';
-    ctx.fillStyle = o.locked ? 'rgba(150,185,220,0.34)' : '#e6f6ff';
+    ctx.fillStyle = o.locked ? 'rgba(150,185,220,0.34)' : o.danger ? '#ffd9d9' : '#e6f6ff';
     ctx.fillText(label, cx + side * wAt / 2, ly);
     ctx.textAlign = 'left';
     if (o.locked) return;   // drawn, never pressable — the gate is the key's own look

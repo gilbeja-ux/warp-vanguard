@@ -672,6 +672,10 @@ function drawMenuSettings() {
   const q = popFxQ('set', menuSettings);
   pauseSlidersList = []; pauseTogglesList = []; menuSetButtons = [];
   ctx.fillStyle = 'rgba(3,6,14,' + (0.62 * Math.min(1, q * 2.2)).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H);
+  // the corner key, ABOVE the dim, wearing its X: the same slab that opened the
+  // disc is the one that closes it, lit while the field behind it goes dark. It
+  // rides q, so the erase fades the X back into the sliders drawn beneath.
+  if (menuGearRect) { ctx.save(); ctx.globalAlpha = q; drawGearKey(menuGearRect, true); ctx.restore(); }
   const g = geo(), R = discR();
   // the dismiss region is a CIRCLE now — see the tap-outside test in 60-input.js
   menuSetPanel = { x: g.cx - R, y: g.cy - R, w: R * 2, h: R * 2, disc: { cx: g.cx, cy: g.cy, r: R } };
@@ -1142,7 +1146,7 @@ function drawEnd(g) {
     // bare band across the middle of the circle
     const NAME_SEG = 0.42;
     const fh = R * 0.26, fy = g.cy - R * 0.08;
-    const fHx = discChord(R, fy + fh - g.cy) - R * DISC_PAD;
+    const fHx = discFieldHx(R, fy, fh, g.cy);   // the disc law: a field keeps the text margin off the rim
     const fx = g.cx - fHx, fw = fHx * 2;
     const st = nameStatus(nameEntryDraft);
     popRender(nq, g.cx - R, g.cy - R, R * 2, R * 2, () => {

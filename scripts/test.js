@@ -5993,6 +5993,55 @@ async function runMusicUp() {
     missing.length === 0);
 }
 
+// ================= the gear is also the close, and says so =================
+// Gil, 2026-09-04: "do the same for the settings button" as the pause key — one slab,
+// two glyphs. Sliders closed, an X open, redrawn lit above the disc's own dim.
+{
+  const hud = fs.readFileSync(path.join(ROOT, 'src', 'game', '90-hud.js'), 'utf8');
+  const gearFn = hud.split('function drawGearKey(r, open)')[1] || '';
+  check('the gear key has two glyphs: an X when open, the sliders when closed',
+    /if \(open\) \{[\s\S]*moveTo\(cx4 - 7, cy4 - 7\); ctx\.lineTo\(cx4 \+ 7, cy4 \+ 7\)/.test(gearFn)
+    && /\} else \{[\s\S]*knobX/.test(gearFn));
+  check('the corner cluster draws the gear with the settings state',
+    /drawGearKey\(menuGearRect, menuSettings\)/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '92-guide.js'), 'utf8')));
+  const menuSrc2 = fs.readFileSync(path.join(ROOT, 'src', 'game', '95-menu.js'), 'utf8');
+  const setFn = menuSrc2.split('function drawMenuSettings()')[1].split('\n}\n')[0];
+  check('the settings disc redraws the gear lit, above its own dim, riding the cast',
+    setFn.indexOf('fillRect(0, 0, W, H)') < setFn.indexOf('drawGearKey(menuGearRect, true)')
+    && /ctx\.globalAlpha = q; drawGearKey\(menuGearRect, true\)/.test(setFn));
+}
+
+// ================= THE DISC LAW: nothing touches the edge of a disc =================
+// Gil, 2026-09-04 (the third time): a paragraph wrapped to one width ran onto the
+// rim of the DELETE MY RUNS disc at a desktop size. discPara fits every LINE to the
+// chord at its own height; every disc's prose must go through it.
+{
+  const kit = fs.readFileSync(path.join(ROOT, 'src', 'game', '91-briefing.js'), 'utf8');
+  check('disc law: discPara measures each line at its own height, top or bottom of the glyphs',
+    /function discPara\(cx, cy, R, text, y0/.test(kit)
+    && /Math\.max\(Math\.abs\(y - px \* 0\.8 - cy\), Math\.abs\(y \+ px \* 0\.25 - cy\)\)/.test(kit)
+    && /discChord\(R, far\) - R \* DISC_TEXT_PAD/.test(kit));
+  check('disc law: text stands further off the rim than a rail end',
+    /const DISC_TEXT_PAD = ([0-9.]+)/.test(kit) && parseFloat(RegExp.$1) > 0.085);
+  const guide = fs.readFileSync(path.join(ROOT, 'src', 'game', '92-guide.js'), 'utf8');
+  const md = guide.split('function drawMyData()')[1].split('// REPORT THIS')[0];
+  check('disc law: MY DATA wraps every paragraph through discPara and never to a fixed width',
+    /discPara\(cx, cy, R, text, y0/.test(md) && !/wrapCanvas\(/.test(md));
+  check('disc law: no line is wider than DISC_TEXT_MAX of R, and the plate title keeps the text margin at its cap top',
+    /Math\.min\(R \* DISC_TEXT_MAX, \(discChord\(R, far\) - R \* DISC_TEXT_PAD\) \* 2\)/.test(kit)
+    && /\(discChord\(R, capTop\) - R \* DISC_TITLE_PAD\) \* 2/.test(kit) && !/discChord\(R, cy - y\) - R \* 0\.05/.test(kit)
+    && /const DISC_TITLE_PAD = ([0-9.]+)/.test(kit) && parseFloat(RegExp.$1) > 0.085
+    && /const FB_TITLE_PAD = DISC_TITLE_PAD/.test(guide));
+  check('disc law: discFieldHx fits a field at both edges with the text margin',
+    /const discFieldHx = \(R, fy, fh, cy\) =>/.test(kit) && /Math\.min\(discChord\(R, fy - cy\), discChord\(R, fy \+ fh - cy\)\) - R \* DISC_TEXT_PAD/.test(kit));
+  // every field on a disc goes through it — the handle disc, the passcode, MY DATA, FEEDBACK
+  const menuSrc = fs.readFileSync(path.join(ROOT, 'src', 'game', '95-menu.js'), 'utf8');
+  check('disc law: no disc fits its field with a rail\'s margin any more',
+    !/discChord\(R, fy \+ fh - [a-z.]+\) - R \* DISC_PAD/.test(guide) && !/discChord\(R, fy \+ fh - [a-z.]+\) - R \* DISC_PAD/.test(menuSrc)
+    && (guide.match(/discFieldHx\(R, fy, fh, /g) || []).length === 3 && /discFieldHx\(R, fy, fh, g\.cy\)/.test(menuSrc));
+  check('disc law: the law is written in CLAUDE.md', /nothing touches the edge of a disc/i.test(fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8')));
+}
+
 // ================= THE iOS SHELL: decisions `cap add ios` would undo =================
 //
 // ios/ is mostly generated and mostly untracked (see .gitignore). The files that

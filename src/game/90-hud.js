@@ -86,6 +86,36 @@ function drawPauseKey(r, paused) {
   }
 }
 
+// THE SETTINGS KEY, AND THE CLOSE KEY: one key, two glyphs — the pause key's own
+// bargain (Gil, 2026-09-04). Closed, the corner slab carries the three sliders;
+// open, the same slab lights up and carries an X, because the control that opened
+// the disc is the one that puts it away and it should say so. drawMenuSettings
+// redraws this above its own dim, so the key stays lit while the field goes dark.
+function drawGearKey(r, open) {
+  techRect(r.x, r.y, r.w, r.h, 8);
+  ctx.fillStyle = open ? 'rgba(16,52,86,0.86)' : 'rgba(6,20,40,0.6)'; ctx.fill();
+  ctx.strokeStyle = open ? 'rgba(150,238,255,0.95)' : 'rgba(120,220,255,0.55)';
+  ctx.lineWidth = open ? 1.8 : 1.5;
+  techRect(r.x, r.y, r.w, r.h, 8); ctx.stroke();
+  if (open) {
+    const cx4 = r.x + r.w / 2, cy4 = r.y + r.h / 2;
+    ctx.strokeStyle = 'rgba(220,245,255,0.92)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx4 - 7, cy4 - 7); ctx.lineTo(cx4 + 7, cy4 + 7);
+    ctx.moveTo(cx4 + 7, cy4 - 7); ctx.lineTo(cx4 - 7, cy4 + 7);
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = 'rgba(200,240,255,0.9)'; ctx.lineWidth = 1.5;
+    const knobX = [r.x + 24, r.x + 13, r.x + 27];
+    for (let i = 0; i < 3; i++) {
+      const gy = r.y + 11 + i * 8;
+      ctx.beginPath(); ctx.moveTo(r.x + 8, gy); ctx.lineTo(r.x + 30, gy); ctx.stroke();
+      ctx.fillStyle = '#dff6ff';
+      ctx.fillRect(knobX[i] - 2.5, gy - 3.5, 5, 7);
+    }
+  }
+}
+
 // level intro: title card + 3-2-1 countdown in the center while the ring forms
 // — drawn as the frame's last pass so no rim/HUD layer can obscure the text
 // the strip itself: tucked under the PAUSE key in the status corner, clear of
