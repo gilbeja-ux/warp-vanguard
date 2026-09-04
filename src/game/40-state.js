@@ -181,25 +181,28 @@ let lastPickT = -1e9; // levelT of the last orb released, whatever released it
 let ribbonT = 30; // bonus ribbon cadence — golden ribbons on levels 5+ / endless
 let tut = null;               // tutorial controller (level 1, first run)
 let boss = null;              // the warp leech (levels with boss: true)
-let bossTestRun = false;      // the dev long-press drill — its runs never file to a board
+let bossTestRun = false;      // the boss drill — its runs never file to a board
 // ============================================================================
-// ⚠️  REMOVE BEFORE PUBLIC LAUNCH — grep "DEV_KEYS" and "BOSS TEST"
+// THE BOSS DUEL SHORTCUT — passcode-gated, and it SHIPS (Gil, 2026-09-04)
 // ============================================================================
-// The long-press-the-last-relay shortcut that drops straight into a duel. It
-// stays ON for the TESTER builds (internal testing), because testers need to
-// reach a boss without flying eight relays to get there.
+// The long-press on the final relay no longer drops into the duel; it opens a
+// mini disc that asks for a tester passcode. The right passcode launches
+// startBossTest(). The disc, not a build flag, is the gate now — the old
+// DEV_KEYS switch is gone, and this is no longer a launch blocker.
 //
-// It must be OFF for the public release, and the reason is not tidiness: it
-// lets anyone reach any finale instantly, which is exactly the claim the
-// leaderboards make about themselves. Drills already refuse to file a score
-// (see bossTestRun), so this is not an exploit today — but it is a cheat
-// sitting in a shipped build, and the monetization work lands at the same
-// moment, where "skip to the end" would also walk straight through the demo
-// paywall at relay 04.
+// Why this is safe to ship: a drill NEVER ranks. bossTestRun keeps it out of
+// captureRun/lbSubmit (61-replay), and the verifier would reject a jumped
+// trace anyway. The passcode sits in the bundle in plain text on purpose —
+// the only thing behind it is a spoiler, and a tester's phone needs no vault.
 //
-// Flip to false, then delete this flag, startBossTest(), the menuHold block in
-// 99-boot and the HOLD_BOSS constant. RELEASE-PLAN.md §1 tracks it.
-const DEV_KEYS = true;
+// 1.1 NOTE — when the demo paywall lands at the stage-09 seam, the shortcut
+// (like every startLevel caller) must respect the entitlement INSIDE
+// startLevel, not in menu navigation. RELEASE-PLAN.md carries the item.
+const BOSS_GATE_PASS = 'ShokoLoc0';
+let bossGate = false;         // the passcode disc is up (menu map screen only)
+let bossGateDraft = '';       // live text in the passcode field
+let bossGateWrongAt = -9;     // time of the last wrong entry — drives the shake
+let bossGateBtns = [];        // the disc's segment keys, rebuilt every draw
 let reliefFired = [];         // band-relief ledger: which hot bands already sent their patch
 // THE CONTINUE, priced in eligibility: a duel lost may be retried WITHOUT
 // re-flying the level — but a continued run no longer ranks anywhere.
@@ -238,7 +241,8 @@ let boardData = null;  // { key, loading, rows, error } — the last fetch for b
 let boardReqId = 0;    // guards against a stale async response overwriting a newer one
 let boardFrom = 'flow'; // the screen to return to on back
 let replayLoading = null; // trace_id currently being fetched (spinner + de-dupe)
-let replayErr = '';       // transient message when a replay can't be fetched
+let replayErr = '';       // transient message when a replay can't be fetched or can't be trusted
+let replayErrAt = 0;      // when it was raised (game clock) — the board fades it out itself
 let mapListSelLast = -1; // snap-to-selection only when the selection moves
 let mapSel = 0;          // selected relay on the campaign map
 let commNext = 0, commCur = null, commT = 0; // intercepted-transmission ticker

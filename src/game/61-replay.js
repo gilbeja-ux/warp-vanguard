@@ -76,6 +76,7 @@ function captureRun(win) {
     verifiable: mode !== 'endless', // only seeded modes can be replay-checked
     playerId: lbUid(), playerName: displayName(),
     w: W, h: H, // viewport the run was played at — the verifier replays at the same geometry
+    track: runTrack, // the take that scored the run — the replay viewer plays the same one
     at: Date.now()
   };
   return lastRun;
@@ -121,6 +122,8 @@ function stopReplay() { tracePlay = null; }
 // ---------- watch another player's run ----------
 let replaying = false, replayMeta = null, replayPkg = null, replayReturnCamp = null;
 let replayPaused = false, replaySpeed = 1, replaySeekTo = -1, replayScrub = null;
+let replayTrackPin = null; // ONE take for the whole viewing — never a fresh song per rewind
+let replayMutSave = null;  // the watcher's own modifier toggles, parked while a run plays
 let replayEnded = false;  // trace ran out — HOLD on the last frame (play → restart) instead of exiting
 let replayArc = null;     // the level progress arc's geometry, for scrub hit-testing
 const REPLAY_SPEEDS = [0.25, 0.5, 1, 2, 4];
@@ -130,6 +133,13 @@ let replayCtrls = { back: null, pause: null, play: null, slow: null, fast: null 
 // level config matches. Used to launch AND to rewind on a scrub.
 function reseedReplay(seeking) {
   const p = replayPkg;
+  // EXACTLY WHAT THE VERIFIER DOES (resetCanonical + re-apply): the WATCHER's own
+  // modifier toggles must never steer someone else's lane — mutLive() is live in
+  // weekly, so a watcher with FAST on was replaying a faster lane than the run
+  // flew — and the run's OWN modifiers (p.mutators, in the package since v2)
+  // must. resetRun reads them (the oneLife hull), so this sits before the start.
+  for (const k in mutators) if (typeof mutators[k] === 'boolean') mutators[k] = false;
+  if (Array.isArray(p.mutators)) for (const k of p.mutators) if (k in mutators) mutators[k] = true;
   if (p.mode === 'weekly') startWeekly(p.seed);
   else {
     if (p.campId && (!CAMP || CAMP.id !== p.campId)) { const cp = CAMPAIGNS.find(c => c.id === p.campId); if (cp) installCampaign(cp); }
@@ -138,6 +148,16 @@ function reseedReplay(seeking) {
   // resetRun (inside the start call above) clears `replaying` on principle — this is
   // the one caller entitled to it, so it re-asserts. Order matters: after the start.
   replaying = true;
+  // THE RUN'S OWN TAKE, HELD ACROSS EVERY REWIND. The start call just drew a fresh
+  // random track — that is the live game's job, not the viewer's: a scrub back was
+  // changing the song on every drag of the knob. A package that carries the take
+  // that actually scored the run (p.track, recorded since the track landed in
+  // captureRun) plays THAT one; anything older keeps the single take the launch
+  // drew. armRunMusic only re-arms on an actual change, so a rewind that keeps the
+  // pin costs the music nothing.
+  const pin = Number.isInteger(p.track) ? ((p.track % trackCount()) + trackCount()) % trackCount() : replayTrackPin;
+  if (pin !== null && runTrack !== pin) { runTrack = pin; armRunMusic(); }
+  replayTrackPin = runTrack;
   introT = 999; introCd = 0;            // dive straight in — no boot ceremony
   if (seeking) { warpT = 0; fadeT = 0; } // a scrub rewind rebuilds from frame 0 — no fly-in each drag
   endDropT = -1; endWin = false;         // clear any finished-run drop from a prior pass
@@ -150,6 +170,8 @@ function launchReplay(pkg, meta, hold) {
   if (!pkg || !Array.isArray(pkg.frames) || !pkg.frames.length) return false;
   replayPkg = pkg;
   replayReturnCamp = CAMP ? CAMP.id : null; // restore the player's own campaign on exit
+  replayTrackPin = null;                     // this viewing picks its take fresh (or takes the package's)
+  if (!replayMutSave) { replayMutSave = {}; for (const k in mutators) if (typeof mutators[k] === 'boolean') replayMutSave[k] = mutators[k]; } // park the watcher's toggles — exitReplay hands them back
   replaying = true;                          // guard endLevel during the silent pre-run
   // PRE-RUN: play the whole trace once, MUTED, to capture the run's final stats
   // (the trace is already server-verified, so these numbers are trustworthy).
@@ -159,6 +181,19 @@ function launchReplay(pkg, meta, hold) {
   while (tracePlay && tracePlay.i < pkg.frames.length && guard-- > 0) { if (!simStep()) break; }
   const fin = { score, zaps, misses, perfects, maxCombo, comboSec: maxComboSec };
   simMuted = false;
+  // A TRACE FROM ANOTHER ERA IS REFUSED, NOT PLAYED WRONG. The sim moves between
+  // releases (a scoring change, a burned draw, a spawn rework), and a stored trace
+  // then plays against a world its runner never flew: the thumbs miss traffic that
+  // was not there for them, and the whole replay reads as broken. The stored row
+  // carries the score the server verified ON ITS OWN DAY; the silent pre-run just
+  // recomputed the same frames under THIS build. If the two disagree, the frames no
+  // longer describe this world — say why on the board instead of playing garbage.
+  // (Callers that pass no score — self-tests, local previews — skip the gate.)
+  if (meta && Number.isFinite(meta.score) && fin.score !== meta.score) {
+    exitReplay();
+    replayErr = 'REPLAY FROM AN OLDER VERSION'; replayErrAt = time;
+    return false;
+  }
   // rewind to the top for the real, rendered playback
   replayPaused = false; replaySpeed = 1; replaySeekTo = -1; replayScrub = null; replayEnded = false;
   replayMeta = { name: (meta && meta.name) || 'RUNNER', mode: pkg.mode, levelIdx: pkg.levelIdx, final: fin, total: pkg.frames.length };
@@ -180,6 +215,8 @@ function tickReplayXfer(dt) {
 }
 function exitReplay() {
   replaying = false; replayMeta = null; replayScrub = null; replayEnded = false;
+  replayTrackPin = null;
+  if (replayMutSave) { for (const k in replayMutSave) mutators[k] = replayMutSave[k]; replayMutSave = null; } // the watcher's own toggles come back
   sfxFade = sfxFadeTgt = 1; // leaving the player — restore the sfx bus for the menu
   replayMusicVol = 1; musicRate = 1; // restore the music multiplier/rate for the menu take
   const rc = replayReturnCamp; replayPkg = null; replayReturnCamp = null;

@@ -253,7 +253,8 @@ code = code.replace("'use strict';", '') + `
   getMaxCombo: () => maxCombo, endLevel, endBtnAt, endRevealAt, getEndT: () => endT, getNbHold: () => nbHold,
   getLaneFails: () => laneFails, // the LANE ASSIST offer's loss counter
   simStep, startTrace, stopTrace, startReplay, stopReplay, dismissInfo, // run-trace record/replay
-  launchReplay, getReplaying: () => replaying, // the watch-a-run viewer + its guard flag
+  launchReplay, getReplaying: () => replaying, replayDoSeek, exitReplay, // the watch-a-run viewer + its guard flag + the scrub's seek
+  getReplayMeta: () => replayMeta, getReplayErr: () => replayErr, // the viewer's header + the board's refusal line
   rawFrame: now => frame(now), // the real frame() incl. the accumulator (G.frame is the same)
   getIntro: () => introT, setIntro: v => { introT = v; introCd = 0; }, getLevelT: () => levelT, setEndT: v => { endT = v; },
   // the launch gate: hands on the pads is what starts the boot clock (see 72-tick)
@@ -265,6 +266,9 @@ code = code.replace("'use strict';", '') + `
   startEnlistment, enlist: () => enlist, enlistTap, enlistScript, enlistTypeDur, ENLIST_HOLD, ENLIST_MIN, parkedSky,
   getPaintN: () => paintN, getVsyncEst: () => vsyncEst,
   keys, startBossTest,
+  // the passcode gate on the boss drill (see BOSS_GATE_PASS in 40-state)
+  BOSS_GATE_PASS, bossGateTry, closeBossGate, getBossGate: () => bossGate,
+  setBossGate: v => { bossGate = v; }, setBossGateDraft: v => { bossGateDraft = v; },
   // the lane clock: the ONE number the countdown prints and the arc divides by
   laneClock: () => ({ end: laneEnd, show: laneEndShow }),
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
@@ -568,6 +572,9 @@ G.setNameEntry(null); G.setEndProvisional(null); // don't leak the card into lat
   P.bests.length = 0; P.bests.push(...wasB); G.setScore(0);
 }
 drawOk('main menu', () => { G.setState(G.S.MENU); });
+// the boss drill's passcode disc rides the map screen (see BOSS_GATE_PASS)
+drawOk('boss passcode disc (map)', () => { G.setState(G.S.MENU); G.setMenuScreen('map'); G.setBossGate(true); G.setFrameDt(0.4); });
+G.setBossGate(false); G.setMenuScreen('home'); // don't leak the disc into later menu draws
 // THE FREE FLOW WHEEL, in all three streak footings. The streak line is the only
 // thing on this screen drawn from saved state that can be absent, so each state
 // is rendered on its own — a banked count, an expiring one, and none at all.
@@ -919,6 +926,12 @@ check('RESTART and QUIT are the disc\'s bottom segment, split down the middle',
     const b = G.pauseBtns().find(b2 => b2.action === a);
     return b && b.seg && b.seg.half && b.y > 450 / 2;
   }));
+// ---- THE POSITIVE VERB RIDES THE RIGHT HALF (Gil, 2026-09-04) ----
+// On every two-key disc segment the advancing verb (RESTART, SAVE, ENGAGE,
+// SEND) sits right and the retreating one (QUIT, SKIP, CANCEL, BACK) left.
+check('RESTART is the RIGHT key, QUIT the LEFT',
+  G.pauseBtns().find(b2 => b2.action === 'restart').seg.half > 0 &&
+  G.pauseBtns().find(b2 => b2.action === 'menu').seg.half < 0);
 // ---- THE CAST RUNS OUT OF EVERY STATE THE PAUSE KEY CAN BE PRESSED FROM ----
 // Pausing over the mission disc sets pausedFromInfo, so RESUME lands back in
 // S.INFO — a branch that never drew drawPause. The disc vanished on the frame it
@@ -1283,7 +1296,22 @@ dismiss();
 check('the verdict closes the case — campaign complete', G.getState() === G.S.END && G.getEndWin() === true);
 check('campaign completion recorded', G.getProg().stars[7] > 0);
 
-// ================= TEMP boss-test shortcut =================
+// ================= the boss drill + its passcode gate =================
+// The long-press opens a passcode disc now (2026-09-04); the drill only fires
+// through bossGateTry. The gate is the shipped security layer, so it is pinned:
+// a wrong passcode must hold the door, the right one must arm the launch.
+{
+  G.setState(G.S.MENU); G.setMenuScreen('map'); G.setMenuFx(null);
+  G.setBossGate(true); G.setBossGateDraft('wrong-guess');
+  G.bossGateTry();
+  check('a wrong passcode keeps the disc up and launches nothing', G.getBossGate() === true && !G.getMenuFx());
+  G.setBossGateDraft(G.BOSS_GATE_PASS);
+  G.bossGateTry();
+  const fx = G.getMenuFx();
+  check('the right passcode closes the disc and arms the drill launch',
+    G.getBossGate() === false && !!fx && fx.kind === 'launch' && fx.action === G.startBossTest);
+  G.setMenuFx(null);
+}
 G.startBossTest();
 G.update(0.05);
 if (G.getState() === G.S.INFO) { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 8, clientX: 400, clientY: 300, pointerType: 'touch' }); G.update(0.15); G.update(0.15); G.update(0.15); }
@@ -2198,6 +2226,111 @@ function traceRun(mode, frames) {
   check('a finished ranked run attaches its input trace to lastRun', lr && Array.isArray(lr.trace) && lr.trace.length === 10);
 }
 G.setState(G.S.MENU);
+
+// ================= replay scrub: a rewind rebuilds the SAME world =================
+// THE SCRUB BUG (2026-09-02). Dragging the knob backward re-simulates the lane from
+// frame 0 inside one call — thousands of steps with no painted frame between them.
+// Any sim input the reseed does not rebuild therefore splits the rewound world from
+// plain playback. The leech's hover was exactly that: it read `time`, the SESSION
+// clock, which every rewind pushes forward by a whole run — so after a scrub the
+// machine sat somewhere else than the run put it (and the server verifier, whose
+// clock starts wherever its warm-up left it, could not reproduce a boss lane's
+// motion either). Boss motion reads the run's own clocks now (levelT for the hover,
+// b.dying for the death convulsion). The property pinned here is the one the viewer
+// stands on: seek up, seek down, land on frame N — identical world to playing
+// straight to N.
+{
+  G.startLevel(2); G.setState(G.S.PLAY); G.setIntro(999); G.startTrace();
+  for (let f = 0; f < 240; f++) { // a moving "player", so the trace is non-trivial
+    G.nodes[0].angle = (f * 0.031) % (Math.PI * 2);
+    G.nodes[1].angle = (Math.PI + f * 0.017) % (Math.PI * 2);
+    G.setPadHold(true, true);
+    G.simStep();
+  }
+  const frames = G.stopTrace();
+  const pkg = { mode: 'campaign', campId: G.getCamp().id, levelIdx: 2, seed: 2, frames };
+  const world = () => JSON.stringify({
+    s: G.stats(), t: G.getLevelT(),
+    en: G.enemies().map(e => [e.type, +e.z.toFixed(6), +e.angle.toFixed(6)]),
+    a: [+G.nodes[0].angle.toFixed(6), +G.nodes[1].angle.toFixed(6)]
+  });
+  check('the scrub test viewer launches', G.launchReplay(pkg, { name: 'T' }, false) === true);
+  G.replayDoSeek(160); // straight to N — the baseline
+  const straight = world();
+  G.launchReplay(pkg, { name: 'T' }, false);
+  G.replayDoSeek(220); G.replayDoSeek(40); G.replayDoSeek(200); G.replayDoSeek(10); // up, down, up, down…
+  G.replayDoSeek(160); // …and land on N
+  const scrubbed = world();
+  check('a scrubbed seek lands on the same world as straight playback', scrubbed === straight);
+  // A REPLAY NEVER PARKS ON A DISC. simStep() consumes one trace frame per call in
+  // EVERY state, but S.INFO stops the sim — a card raised mid-replay burns the
+  // run's remaining input against a world that has stopped, and everything after
+  // plays out of step. showCard is inert while a trace is driving.
+  G.showInfoCard('verdict');
+  check('a card raised over a replay is refused — the sim stays in PLAY', G.getState() === G.S.PLAY);
+  G.stopReplay();
+  G.showInfoCard('verdict'); // …and only while the trace drives: the live game still gets its discs
+  check('the same card still lands once the trace is done', G.getState() === G.S.INFO && G.getInfoCard() === 'verdict');
+  G.setState(G.S.MENU);
+}
+// ================= the replay viewer refuses another era's trace =================
+// THE STAGE-04 REPLAY BUG (2026-09-02). The sim moves between releases (a scoring
+// change, a burned draw, a spawn rework), and a stored trace then plays against a
+// world its runner never flew: on the live board, every pre-1.0.5 stage-04 trace
+// recomputed to a runner with 40+ misses. The viewer's silent pre-run already
+// recomputes the run under THIS build, and the board row carries the score the
+// server verified on its own day — so the gate is one comparison: disagree, and
+// the board says REPLAY FROM AN OLDER VERSION instead of playing garbage.
+{
+  G.startLevel(2); G.setState(G.S.PLAY); G.setIntro(999); G.startTrace();
+  for (let f = 0; f < 120; f++) {
+    G.nodes[0].angle = (f * 0.031) % (Math.PI * 2);
+    G.nodes[1].angle = (Math.PI + f * 0.017) % (Math.PI * 2);
+    G.setPadHold(true, true);
+    G.simStep();
+  }
+  const frames = G.stopTrace();
+  // the run also names its take — the viewer plays the SAME music the run scored to
+  const cap = G.captureRun(true);
+  check('a captured run carries its music take', Number.isInteger(cap.track));
+  const pkg = { mode: 'campaign', campId: G.getCamp().id, levelIdx: 2, seed: 2, frames };
+  check('a scoreless launch (self-tests, previews) skips the gate', G.launchReplay(pkg, { name: 'T' }, false) === true);
+  const honest = G.getReplayMeta().final.score;
+  check('an honest row replays (recomputed score matches the stored one)',
+    G.launchReplay(pkg, { name: 'T', score: honest }, false) === true && G.getReplaying() === true);
+  check('another era\'s row is refused, with the reason on the board',
+    G.launchReplay(pkg, { name: 'T', score: honest + 10 }, false) === false
+    && G.getReplayErr() === 'REPLAY FROM AN OLDER VERSION' && G.getReplaying() === false && G.getState() === G.S.MENU);
+  // THE WATCHER'S TOGGLES NEVER STEER SOMEONE ELSE'S LANE. mutLive() is live in
+  // weekly, so a watcher with FAST on replayed a faster lane than the run flew.
+  // reseedReplay now canonicalizes (verifier discipline), and exitReplay hands the
+  // watcher's own toggles back.
+  G.mutators.fast = true;
+  check('the viewer canonicalizes modifiers for the run',
+    G.launchReplay(pkg, { name: 'T' }, false) === true && G.mutators.fast === false);
+  // ONE take for the whole viewing: a rewind must not draw a new song
+  const t0 = G.getRunTrack();
+  G.replayDoSeek(80); G.replayDoSeek(10); G.replayDoSeek(60);
+  check('the music take survives every rewind', G.getRunTrack() === t0);
+  G.exitReplay();
+  check('the watcher\'s own toggles come back on exit', G.mutators.fast === true);
+  G.mutators.fast = false;
+  // a package that names its take gets exactly that take
+  check('a package take is honored', G.launchReplay(Object.assign({}, pkg, { track: 1 }), { name: 'T' }, false) === true && G.getRunTrack() === 1);
+  G.replayDoSeek(80); G.replayDoSeek(10);
+  check('…and it too survives a rewind', G.getRunTrack() === 1);
+  G.exitReplay();
+  G.setState(G.S.MENU);
+}
+// the source pin behind the behaviour: the boss files must never read the session
+// clock into the sim — the hover rides levelT, the convulsion rides its own dying
+// clock, and no other `time`-phased term may creep back into 52-bosses.
+{
+  const bossSrc = fs.readFileSync(path.join(ROOT, 'src', 'game', '52-bosses.js'), 'utf8');
+  check('the leech hover is phased by the RUN clock', /Math\.sin\(levelT \* 2\.3\)/.test(bossSrc));
+  check('the death convulsion is phased by its own clock', /Math\.sin\(b\.dying \* 47\)/.test(bossSrc) && /Math\.cos\(b\.dying \* 41\)/.test(bossSrc));
+  check('no session-clock phase term survives in the boss sim', !/Math\.(sin|cos)\(time\b/.test(bossSrc));
+}
 
 // ================= leaderboard identity + run capture =================
 check('a persistent player id is minted on boot', typeof G.getIdentity().id === 'string' && G.getIdentity().id.length > 0);
@@ -3719,9 +3852,12 @@ G.keys['ArrowUp'] = false;
   G.frame(16); // draw builds pauseButtonsList
   check('pause opens with RESUME focused', G.getGpSel() === 0);
   // RESUME left the disc for the corner key, so the walk is DOWN off it: into the
-  // TRACK skips, then onto the bottom segment, whose right half is QUIT
+  // TRACK skips, then onto the bottom segment. The right half is RESTART now
+  // (the positive verb rides the right — Gil, 2026-09-04), so QUIT is one LEFT.
   tap(13); tap(13);
-  check('D-pad walks the pause disc to QUIT', G.getState() === G.S.PAUSE && G.getGpSel() === 2);
+  check('D-pad walks the pause disc to RESTART (right half)', G.getState() === G.S.PAUSE && G.getGpSel() === 2);
+  tap(14); // left, across the seam
+  check('…and LEFT crosses the seam to QUIT', G.getGpSel() === 1);
   tap(0); // A presses the focused key
   check('A on QUIT lands back in the menu', G.getState() === G.S.MENU);
   flushUI();

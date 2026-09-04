@@ -272,7 +272,15 @@ function leechHold(b, dt, g) {
   b.rad = lerp(b.rad, 0, Math.min(1, dt * 3));
   b.z = lerp(b.z, 0.5, Math.min(1, dt * 1.5));
   b.u = Math.cos(b.ang) * b.rad;
-  b.v = Math.sin(b.ang) * b.rad + Math.sin(time * 2.3) * 0.02;
+  // THE MACHINE'S BOB RIDES THE RUN'S CLOCK, NOT THE SESSION'S. `time` counts every
+  // second the app has been open, so the leech's hover was a function of when you
+  // happened to start playing. Three things broke on that. The server verifier's
+  // clock starts wherever its warm-up left it, so an honest boss score could not
+  // reproduce. A replay of a boss lane put the machine somewhere else than the run
+  // did. And a SCRUB back re-simulated the lane from frame 0, which pushed `time`
+  // forward by a whole run and moved the leech again on every drag. levelT is the
+  // run's own seconds — the rewind rebuilds it exactly, so all three land together.
+  b.v = Math.sin(b.ang) * b.rad + Math.sin(levelT * 2.3) * 0.02;
   const brg = ring(b.z, g);
   b.sx = brg.x + b.u * brg.r;
   b.sy = brg.y + b.v * brg.r;
@@ -863,8 +871,10 @@ function updateBossDeath(dt, g) {
   raySweepKill(); // H-33: no light survives the machine that cast it
   b.dying += dt;
   b.hurtT = 0.1;
-  b.sx += Math.sin(time * 47) * b.sSize * 0.06;
-  b.sy += Math.cos(time * 41) * b.sSize * 0.05;
+  // the convulsion counts from the death itself (b.dying), for the same reason the
+  // hover counts from levelT: the session clock is not reproducible.
+  b.sx += Math.sin(b.dying * 47) * b.sSize * 0.06;
+  b.sy += Math.cos(b.dying * 41) * b.sSize * 0.05;
   if (b.dying > 0.3 + b.dyingN * 0.3 && b.dyingN < 6) { // plates tear away
     b.dyingN++;
     const pa = Math.random() * TAU;

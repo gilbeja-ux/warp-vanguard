@@ -180,16 +180,19 @@ function tickUI(dt) {
       menuPtr = null; // eat the release — it must not land as a backdrop tap
     }
   }
-  // the boss-test long-press: tester builds only (see DEV_KEYS in 40-state)
-  if (menuHold && (!DEV_KEYS || state !== S.MENU || menuScreen !== 'map' || menuFx || menuConfirm)) menuHold = null;
+  // the boss-duel long-press: completing the ring opens the passcode disc —
+  // the drill itself fires from bossGateTry (see BOSS_GATE_PASS in 40-state)
+  if (menuHold && (state !== S.MENU || menuScreen !== 'map' || menuFx || menuConfirm || bossGate)) menuHold = null;
   else if (menuHold) {
     menuHold.t += dt;
     if (menuHold.t >= HOLD_BOSS) {
       menuHold = null;
       buzz(20); tone(70, 0.45, 'sine', 0.12, 260);
-      menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startBossTest };
+      bossGate = true; bossGateDraft = '';
     }
   }
+  // the passcode disc lives on the map screen only — navigation away closes it
+  if (bossGate && (state !== S.MENU || menuScreen !== 'map' || menuFx)) closeBossGate();
   if (trans) {
     trans.t += dt;
     if (!trans.fired && trans.t >= trans.dur * 0.5) { trans.fired = true; if (trans.mid) trans.mid(); }

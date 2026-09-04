@@ -1623,9 +1623,17 @@ function discPlate(cx, cy, R, title) {
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(186,231,255,0.92)';
   try { ctx.letterSpacing = '4px'; } catch (e) {}
-  ctx.font = '700 ' + fitPx(title, '700', Math.max(11, Math.round(R * 0.095)),
-    (discChord(R, R * 0.755) - R * 0.05) * 2, 9) + 'px Audiowide, system-ui';
-  ctx.fillText(title, cx, ty);
+  // A LONG TITLE BREAKS, IT DOES NOT SHRINK PAST THE RIM. Pass '\n' and each
+  // line is fitted to the chord at ITS OWN height — the crown narrows fast up
+  // there, so a second line lower down gets more room, not less.
+  const tLines = String(title).split('\n');
+  const tLh = R * 0.118;
+  tLines.forEach((ln, i) => {
+    const y = ty + i * tLh;
+    ctx.font = '700 ' + fitPx(ln, '700', Math.max(11, Math.round(R * 0.095)),
+      (discChord(R, cy - y) - R * 0.05) * 2, 9) + 'px Audiowide, system-ui';
+    ctx.fillText(ln, cx, y);
+  });
   try { ctx.letterSpacing = '0px'; } catch (e) {}
   ctx.textAlign = 'left';
 }
@@ -1944,7 +1952,8 @@ function drawPause() {
     ctx.save();
     discPlate(g.cx, g.cy, R, 'PAUSED');
     const trk = discRows(g.cx, g.cy, R, rows);
-    for (const b of discSegKeys(g.cx, g.cy, R, [['RESTART', 'restart'], ['QUIT', 'menu']])) pauseButtonsList.push(b);
+    // the positive verb rides the RIGHT half — Gil's rule for every disc segment
+    for (const b of discSegKeys(g.cx, g.cy, R, [['QUIT', 'menu'], ['RESTART', 'restart']])) pauseButtonsList.push(b);
     // registered AFTER the segment so RESUME and the two keys keep the pad focus
     pauseButtonsList.push(gk);
     if (trk) pauseButtonsList.push(trk[0], trk[1]);

@@ -120,7 +120,7 @@ canvas.addEventListener('pointerdown', e => {
   if (state === S.MENU) {
     // overlay + gear act immediately; the level list uses tap-vs-drag on release
     const hitRect = (r, m) => r && P.x > r.x - m && P.x < r.x + r.w + m && P.y > r.y - m && P.y < r.y + r.h + m;
-    if (report || myData || feedback || menuSettings || menuConfirm || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6) || hitRect(menuGuideRect, 8)) {
+    if (report || myData || feedback || menuSettings || menuConfirm || bossGate || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6) || hitRect(menuGuideRect, 8)) {
       menuTap(P.x, P.y, e.pointerId);
       return;
     }
@@ -378,6 +378,21 @@ function menuTap(x, y, pid) {
     // NO tap-outside-to-dismiss here, unlike the other panels. A stray tap beside
     // a live confirm ("delete everything?") should not quietly close the thing the
     // player is deciding about; the panel always carries its own way out.
+    return;
+  }
+  // the passcode disc owns every tap while it's up. Its keys are disc segments
+  // (chord-to-rim), so the seg test rides along like the high-score card's.
+  if (bossGate) {
+    for (const b of bossGateBtns) {
+      if (b.seg ? !discSegHit(b.seg, x, y) : !(x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h)) continue;
+      pressUI(b);
+      if (b.action === 'gateGo') bossGateTry();
+      else closeBossGate();
+      return;
+    }
+    // a tap on the dimmed backdrop cancels — the likeliest visitor is a player
+    // who long-pressed by accident and just wants out
+    closeBossGate(); sfx.tick();
     return;
   }
   // the reset-confirm modal owns every tap while it's up
@@ -795,8 +810,16 @@ function startQualification(holdMusic) {
   // free flow: no greeting disc — boot straight in; the CONTROLS CHECK banner
   // and the marching arrows take it from there
 }
-// TEMPORARY dev shortcut: jump straight into the leech duel.
-// Remove this (and its menu key) before release — grep "BOSS TEST".
+// The boss drill behind the passcode disc: jump straight into the leech duel.
+// The long-press opens the disc (99-boot); bossGateTry below is the gate.
+function closeBossGate() { bossGate = false; bossGateDraft = ''; clearField(); }
+function bossGateTry() {
+  const v = (overlayValue() || bossGateDraft).trim();
+  if (v !== BOSS_GATE_PASS) { bossGateWrongAt = time; buzz(30); sfx.tick(); return; } // wrong: shake, keep the disc up
+  closeBossGate();
+  buzz(20); tone(70, 0.45, 'sine', 0.12, 260);
+  menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startBossTest };
+}
 function startBossTest() {
   startLevel(LEVELS.length - 1);
   levelT = LEVELS[LEVELS.length - 1].duration; // clock already expired — the leech spawns at once

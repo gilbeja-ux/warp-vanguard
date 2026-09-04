@@ -327,7 +327,13 @@ Deno.serve(async (req) => {
     // store a SELF-CONTAINED replay package: geometry is canonical now, so
     // (mode, levelIdx, seed) fully reseeds the world — the client replays it
     // faithfully on any screen without needing the board context.
-    const pkg = { v: 1, mode: run.mode, levelIdx: run.levelIdx ?? null, seed: run.seed ?? null, campId: run.campId ?? null, frames: run.trace };
+    // v2: the package also carries the take that scored the run and the run's own
+    // modifiers, so the replay viewer can rebuild the exact lane (music included)
+    // instead of guessing — the client applies both on reseed.
+    const pkg = { v: 2, mode: run.mode, levelIdx: run.levelIdx ?? null, seed: run.seed ?? null, campId: run.campId ?? null,
+      track: Number.isInteger(run.track) ? run.track : null,
+      mutators: Array.isArray(run.mutators) ? run.mutators.filter((m: unknown) => typeof m === "string").slice(0, 8) : [],
+      frames: run.trace };
     const up = await realFetch(`${SB_URL}/storage/v1/object/traces/${traceId}`, {
       method: "POST",
       headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json", "x-upsert": "true" },

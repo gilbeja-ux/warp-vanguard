@@ -87,6 +87,15 @@ function padsRevealT() {  // 0 → 1: hidden while the line reveals, then the pa
 }
 const padsLanded = () => padsRevealT() >= 1;
 function showCard(key) {
+  // A REPLAY NEVER PARKS ON A DISC. A card sets S.INFO, and S.INFO stops the sim —
+  // but simStep() consumes one TRACE frame per call whatever the state, so a card
+  // raised over a replay burns the run's remaining input against a world that has
+  // stopped moving. Everything after it plays out of step. The boss VERDICT is the
+  // one card a replay can reach (the two first-encounter discs are one-shot and the
+  // story discs only open a live deploy), and it lands on the last frames of a won
+  // boss lane — so the viewer simply holds its finish instead. This also keeps a
+  // watched run from burning the WATCHER's own first-encounter briefings below.
+  if (tracePlay) return;
   if (key === 'strip' && !progress.stripBriefed) { progress.stripBriefed = true; saveState(); }
   if (key === 'wall' && !progress.wallBriefed) { progress.wallBriefed = true; saveState(); }
   infoOutAt = 0;

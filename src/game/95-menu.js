@@ -511,8 +511,8 @@ function drawMenuMap() {
     if (gpSeen) drawPadHint(icx, icy + ir + 16, 'SEL');
   } else resetIconRect = null;
 
-  // hidden dev gesture: hold the FINAL relay for HOLD_BOSS seconds to drop
-  // straight into the CORE duel — a charging ring gives quiet feedback
+  // hidden tester gesture: hold the FINAL relay for HOLD_BOSS seconds to open
+  // the passcode disc for the CORE duel — a charging ring gives quiet feedback
   if (menuHold) {
     const p = clamp(menuHold.t / HOLD_BOSS, 0, 1);
     ctx.save();
@@ -1197,9 +1197,10 @@ function drawEnd(g) {
       }
       // SAVE (gated on a clean handle) + SKIP (always) — the disc's own bottom
       // segment. A locked key is drawn and never returned, so the gate IS its look.
+      // the positive verb rides the RIGHT half — Gil's rule for every disc segment
       for (const b of discSegKeys(g.cx, g.cy, R, [
-        ['SAVE', 'nameConfirm', { primary: st === 'ok', locked: st !== 'ok' || !settled }],
-        ['SKIP', 'nameSkip', { locked: !settled }]
+        ['SKIP', 'nameSkip', { locked: !settled }],
+        ['SAVE', 'nameConfirm', { primary: st === 'ok', locked: st !== 'ok' || !settled }]
       ], NAME_SEG)) nameEntryBtns.push(b);
       ctx.restore();
     }, geo().nodeR * 1.02);

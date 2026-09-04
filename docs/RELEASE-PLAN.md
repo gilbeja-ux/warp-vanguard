@@ -10,16 +10,23 @@ Target: **Google Play, v1.0.0.** iOS follows as a second phase.
 | **Money** | **Free, no IAP in v1** | Fastest route to live: no billing plugin, no entitlement store, no restore-purchase flow, no IAP review. The free-demo + one-time-unlock model (below) lands in 1.1, priced against real retention numbers instead of a guess. |
 | **Leaderboards** | Ship them | Built, verified, deployed; the weekly ladder is the retention hook. The price is real compliance work — §2 — and it is worth paying. |
 
-### Deferred to 1.1 — the monetization model (decided 2026-07-14, unchanged)
+### Deferred to 1.1 — the monetization model (seam moved 2026-09-04)
 
-Free demo + one-time unlock: relays 1–3 free, a single lifetime purchase
-(~$2.99–4.99) unlocks the full campaign and FREE FLOW at the existing
-relay-04 seam. **No** consumables, **no** forced ads, **no** pay-per-campaign
-— all three contradict the game's skill-fairness identity. Implementation:
-Play Billing via a Capacitor plugin plus an offline entitlement flag checked
-alongside `progress`. Post-launch options: a cosmetic supporter pack (node
-skins via the `SPRITES` hook), and web-portal builds (Poki / CrazyGames /
-itch.io) as a funnel.
+Free demo + one-time unlock: **contract 1 rides free end to end — stages
+01–08, boss included** — and a single lifetime purchase ($2.99) unlocks
+contracts 2–5 at the **stage-09 seam**, plus filing a score on the WEEKLY
+ranked lane. FREE FLOW endless stays free — it opens at stage 05, inside the
+free contract, and an unverifiable trust board has nothing to protect. The
+offer lands after the contract 1 boss verdict, at peak satisfaction, never at
+a locked door mid-campaign. (The seam sat at stage 04 until 2026-09-04; Gil
+moved it to the end of contract 1.) **No** consumables,
+**no** forced ads, **no** pay-per-campaign — all three contradict the game's
+skill-fairness identity. Implementation: Play Billing via a Capacitor plugin
+plus an offline entitlement flag checked alongside `progress` — and the check
+must live **inside `startLevel`**, not in menu navigation: the boss-duel
+passcode shortcut (and any future door) has to hit the same wall. Post-launch
+options: a cosmetic supporter pack (node skins via the `SPRITES` hook), and
+web-portal builds (Poki / CrazyGames / itch.io) as a funnel.
 
 **Sequencing note — see `docs/CLOUD-SAVE-PLAN.md`.** A Play entitlement is tied
 to the Google account and restores automatically on reinstall, but campaign
@@ -44,15 +51,21 @@ cloud save wants the same one, so decide whether the two are one piece of work.
 | Icons | Launcher + adaptive + web manifest, regenerated from the new brand | ✅ Done 2026-08-12. |
 | Data collected | Anonymous Supabase id, self-chosen handle, scores/stats, input traces | Drives §2 entirely. No ads, no analytics, no tracking SDKs, no email/provider sign-in. |
 | CI | None | §4. |
-| Dev key | "BOSS TEST" long-press still ships | Blocker — §1. |
+| Dev key | The boss-duel long-press ships behind a passcode disc | Settled 2026-09-04 — no longer a blocker (§1). |
 
 ---
 
 ## §1 — Code blockers (must change before any upload)
 
-- [ ] **Remove the BOSS TEST dev shortcut.** The menu long-press, `startBossTest()`,
-      and its `bossTestRun` plumbing (`60-input.js`, `99-boot.js`). Shipping a
-      cheat that jumps to any finale undermines the leaderboard's whole claim.
+- [x] **The BOSS TEST shortcut ships, behind a passcode** (Gil, 2026-09-04 —
+      this replaces the old "remove it" item). The long-press now opens a
+      "BOSS DUEL SHORTCUT" disc; only the tester passcode (`BOSS_GATE_PASS`
+      in `40-state.js`) launches the drill. The boards were never exposed: a
+      drill sets `bossTestRun` and files nothing, and the verifier rejects a
+      jumped trace. `npm test` pins the gate (wrong passcode holds, right one
+      launches, a drill files nothing). Residual: the passcode is plain text
+      in the bundle — the only thing behind it is a spoiler. The 1.1 paywall
+      must gate INSIDE `startLevel` so this door hits the same wall.
 - [ ] **Release signing.** Generate an upload keystore, wire a `release`
       signingConfig reading from `key.properties`, enrol in **Play App Signing**.
       **Add `*.jks`, `*.keystore`, `key.properties` to `.gitignore` FIRST** — they

@@ -117,14 +117,16 @@ function boardScrollToRank(rank) {
 }
 function boardReplayLaunch(r) {
   if (replayLoading || !r.trace_id) return;
-  replayLoading = r.trace_id; sfx.tick();
+  replayLoading = r.trace_id; replayErr = ''; sfx.tick();
   lbTrace(r.trace_id).then(pkg => {
     if (replayLoading !== r.trace_id) return;
     replayLoading = null;
-    if (!pkg) { replayErr = 'REPLAY UNAVAILABLE'; return; }
+    if (!pkg) { replayErr = 'REPLAY UNAVAILABLE'; replayErrAt = time; return; }
     // launch PAUSED on frame 0, then run the enter transition (board flies out /
     // zooms into the ring, the player's chrome flies in)
     if (launchReplay(pkg, { name: r.player_name, score: r.score, mode: boardSel.mode }, true)) replayXfer = { dir: 1, t: 0 };
+    // a refused launch says why itself (an older era's trace); anything else quiet is a plain failure
+    else if (!replayErr) { replayErr = 'REPLAY UNAVAILABLE'; replayErrAt = time; }
   });
 }
 // FLY THIS LANE — the board's one way OUT into play. The board used to be a dead
@@ -645,6 +647,19 @@ function drawMenuBoard() {
       // the tap target is padded well past the text — this is a small link on a
       // phone, and a miss here lands on nothing rather than on the wrong thing
       if (!already && sel.id) menuButtons.push({ x: rtx - 10, y: ry - 6, w: rtw + 20, h: fRep + 18, boardReport: sel });
+    }
+    // ---- the replay refusal, said where the button is. replayErr used to be set
+    // and never drawn — a failed or refused replay looked like a dead button. It
+    // rides the game clock and fades itself out; a new attempt clears it first.
+    if (replayErr && time - replayErrAt < 4.5) {
+      const ea = clamp(1 - (time - replayErrAt - 3.5) / 1, 0, 1);
+      const ey = repY + repH2 + 12 + (sel.player_id !== meId ? fRep + 18 : 0);
+      ctx.save(); ctx.translate(boardRowOff(7, 'right'), 0);
+      ctx.globalAlpha = ea;
+      ctx.font = '600 ' + fRep + 'px Audiowide, system-ui'; ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(255,180,90,0.85)';
+      ctx.fillText(replayErr, archL(ey + fRep * 0.5), ey + fRep);
+      ctx.restore();
     }
     ctx.restore(); // end right column
   }

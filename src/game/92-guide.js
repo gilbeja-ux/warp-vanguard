@@ -869,6 +869,7 @@ function drawMenu(g) {
   if (menuPopUp() && menuBadge) stampMenuBadge(g); // badge holds its post, under the popup
   if (menuSettings || popLive('set')) drawMenuSettings(); // …through the erase too
   if (menuConfirm || popLive('confirm')) drawResetConfirm();
+  if (bossGate || popLive('bossgate')) drawBossGate();
   // MY DATA sits on top of SYSTEM CONFIG, because that is one of its two doors —
   // drawn last so the settings panel dims behind it rather than over it
   if (myData || popLive('mydata')) drawMyData();
@@ -896,8 +897,8 @@ function stampMenuBadge(g) { // the hub shield at its home spot
 }
 // with a popup up the badge doesn't vanish — it steps back INTO the scene
 // (stamped under the popup's dim by drawMenu) instead of riding on top
-const menuPopUp = () => menuSettings || menuConfirm || myData || report || feedback
-  || popLive('set') || popLive('confirm') || popLive('mydata') || popLive('report') || popLive('feedback');
+const menuPopUp = () => menuSettings || menuConfirm || myData || report || feedback || bossGate
+  || popLive('set') || popLive('confirm') || popLive('mydata') || popLive('report') || popLive('feedback') || popLive('bossgate');
 function drawMenuBadgeTop(g) {
   if (state !== S.MENU || menuScreen !== 'home' || !menuBadge || menuPopUp()) return;
   stampMenuBadge(g);
@@ -940,6 +941,74 @@ function drawResetConfirm() {
   menuConfirmBtns.push(cancel, wipe);
   ctx.restore();
   });
+}
+
+// THE PASSCODE DISC — the security layer on the boss-duel long-press (see
+// BOSS_GATE_PASS in 40-state). The same mini disc the high-score card wears:
+// a static field plate while the cast lands, the live DOM input once settled.
+// A wrong entry shakes the whole disc — canvas AND the mounted field, since
+// mountField repositions on every call — and the disc stays up.
+function drawBossGate() {
+  const q = popFxQ('bossgate', !!bossGate);
+  bossGateBtns = [];
+  if (!bossGate && overlayField === 'bossgate') clearField(); // disc gone → drop the DOM field
+  if (q <= 0.001) return;
+  const gg = geo();
+  ctx.save();
+  // scrim: the map steps back so the cast can read
+  ctx.fillStyle = 'rgba(3,6,14,' + (0.70 * Math.min(1, q * 2.2)).toFixed(3) + ')';
+  ctx.fillRect(0, 0, W, H);
+  const R = discR() * 0.86, settled = q > 0.92;
+  const wr = time - bossGateWrongAt;
+  const sx = wr < 0.4 ? Math.sin(wr * 42) * 7 * (1 - wr / 0.4) : 0;
+  const cx0 = gg.cx + sx, cy0 = gg.cy;
+  const GATE_SEG = 0.42;
+  const fh = R * 0.26, fy = cy0 - R * 0.08;
+  const fHx = discChord(R, fy + fh - cy0) - R * DISC_PAD;
+  const fx = cx0 - fHx, fw = fHx * 2;
+  popRender(q, cx0 - R, cy0 - R, R * 2, R * 2, () => {
+    ctx.save();
+    discPlate(cx0, cy0, R, 'BOSS DUEL\nSHORTCUT');
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#ffe27a';
+    ctx.font = '700 ' + fitPx('TESTER ACCESS', '700', Math.round(R * 0.115), R * 1.5, 9) + 'px Audiowide, system-ui';
+    ctx.fillText('TESTER ACCESS', cx0, cy0 - R * 0.34);
+    ctx.fillStyle = 'rgba(150,210,255,0.72)';
+    try { ctx.letterSpacing = '2px'; } catch (e) {}
+    ctx.font = '600 ' + Math.max(8, Math.round(R * 0.058)) + 'px Audiowide, system-ui';
+    ctx.fillText('ENTER THE PASSCODE', cx0, cy0 - R * 0.15);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+    // the passcode field: a static plate during the cast, the DOM input after
+    if (!settled) {
+      techRect(fx, fy, fw, fh, 6); ctx.fillStyle = 'rgba(4,12,22,0.85)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 6); ctx.stroke();
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      const has = !!bossGateDraft;
+      ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
+      ctx.font = '600 ' + Math.max(11, Math.round(R * 0.108)) + 'px Audiowide, system-ui';
+      try { ctx.letterSpacing = '1px'; } catch (e) {}
+      ctx.fillText(has ? bossGateDraft : 'PASSCODE', fx + 14, fy + fh / 2 + 1);
+      try { ctx.letterSpacing = '0px'; } catch (e) {}
+      ctx.textBaseline = 'alphabetic';
+    }
+    if (wr < 1.2) {
+      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,140,140,0.9)'; ctx.font = '10px monospace';
+      ctx.fillText('wrong passcode', cx0, fy + fh + R * 0.11);
+    }
+    // the positive verb rides the RIGHT half — Gil's rule for every disc segment
+    for (const b of discSegKeys(cx0, cy0, R, [
+      ['CANCEL', 'gateCancel', { locked: !settled }],
+      ['ENGAGE', 'gateGo', { primary: true, locked: !settled }]
+    ], GATE_SEG)) bossGateBtns.push(b);
+    ctx.restore();
+  }, gg.nodeR * 1.02);
+  // the DOM field mounts OUTSIDE popRender — it is not canvas, so it waits for
+  // the cast to land instead of getting clipped by it
+  if (settled && bossGate) mountField('bossgate', { x: fx, y: fy, w: fw, h: fh },
+    { placeholder: 'PASSCODE', value: bossGateDraft, maxLength: 24,
+      onInput: v => { bossGateDraft = v; }, onEnter: () => bossGateTry() });
+  ctx.restore();
+  ctx.textAlign = 'left';
 }
 
 // ---------------------------------------------------------------------------
