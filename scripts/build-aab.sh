@@ -6,7 +6,7 @@
 # refuses a debug-signed upload, and it wants an .aab, not an .apk.
 set -euo pipefail
 
-export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17}"
+export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@21}"
 export ANDROID_HOME="${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PATH="$JAVA_HOME/bin:$PATH"
@@ -45,3 +45,17 @@ echo "✓ AAB built:     $AAB"
 echo "✓ Copied to:     $DEST"
 echo ""
 echo "  Upload that file to Play Console → Testing → Internal testing."
+
+# ---- BOTH PLATFORMS, EVERY CUT (Gil, 2026-09-04) ----
+# The same version, the same dist/, compiled into the iOS shell for the
+# simulator. It cannot be signed on this Mac yet, so nothing is uploaded — but a
+# Play release with an iOS build that no longer compiles is exactly the drift
+# this step exists to catch, so that the day an Apple Developer ID exists the
+# upload is `npm run ios:archive` and nothing else. Skip with SKIP_IOS=1 only
+# when Xcode itself is the thing that is broken.
+if [ "${SKIP_IOS:-}" != "1" ]; then
+  echo ""
+  echo "── proving the iOS shell at the same version ──"
+  cd "$ROOT"
+  bash scripts/build-ios.sh --no-install
+fi

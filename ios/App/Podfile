@@ -1,6 +1,8 @@
 require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
 
-platform :ios, '13.0'
+# iOS 15 is the floor: Capacitor 8 requires it, and the app target
+# (project.pbxproj) says the same number, so the two cannot drift.
+platform :ios, '15.0'
 use_frameworks!
 
 # workaround to avoid Xcode caching of Pods that requires

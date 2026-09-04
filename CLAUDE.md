@@ -56,3 +56,30 @@ the `DESTINATION` caption, the STAGE noun on every drawn string, and the names e
 
 `LEVEL` vs `STAGE` was open for one round. It is closed: **STAGE**, everywhere a player
 reads it. A pin fails the build if any drawn string says `LEVEL` again.
+
+## Two platforms, one fix. iOS is always upload-ready.
+
+Gil's standing order, 2026-09-04: **every fix lands on both platforms, every time.** The
+iOS shell must stay in step with Android so that the day an Apple Developer ID exists,
+the upload is `npm run ios:archive` and nothing else — no catch-up, no "let me check
+whether iOS still builds".
+
+What that means in practice:
+
+1. **A native decision is made twice.** Anything that lives in `AndroidManifest.xml`,
+   `build.gradle` or the Android splash/icon set has a twin in `ios/App/App/Info.plist`,
+   `GameViewController.swift`, `AppDelegate.swift` or the launch storyboard. Change one,
+   change the other in the same commit. BUILD.md lists the pairs.
+2. **A version moves in three places at once,** and only through `scripts/sync-version.js`
+   — never by hand in Xcode or Gradle. `npm test` fails if the iOS project's version drifts
+   from package.json.
+3. **Every store cut proves both shells.** `npm run aab` ends by compiling the iOS app for
+   the simulator (`scripts/build-ios.sh --no-install`). A Play upload with a broken iOS build
+   does not happen.
+4. **A Capacitor upgrade is one job for both platforms**, with a fresh R8 device pass on
+   Android and a simulator pass on iOS before either ships.
+
+The guard is `npm test`, section **THE iOS SHELL**, plus the iOS step at the end of
+`scripts/build-aab.sh`.
+
+

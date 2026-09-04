@@ -5992,3 +5992,149 @@ async function runMusicUp() {
   check('every sfx.* method the roster calls exists' + (missing.length ? ' — MISSING: ' + missing.join(', ') : ''),
     missing.length === 0);
 }
+
+// ================= THE iOS SHELL: decisions `cap add ios` would undo =================
+//
+// ios/ is mostly generated and mostly untracked (see .gitignore). The files that
+// ARE tracked each carry a decision the scaffold does not make: landscape only, no
+// status bar, no home indicator, an audio session the mute switch cannot silence,
+// a navy launch screen, versions generated from package.json, a web view that
+// cannot scroll or zoom. A re-scaffold, a Capacitor upgrade or a careless Xcode
+// edit can revert any of them and the app still builds and runs — it is just
+// portrait-capable and silent on a muted phone. These pins are the only alarm.
+{
+  const iosApp = path.join(ROOT, 'ios', 'App');
+  const readIos = f => fs.readFileSync(path.join(iosApp, f), 'utf8');
+  const plist = readIos('App/Info.plist');
+  check('iOS: landscape only — both landscape orientations declared, no portrait, on iPhone and iPad',
+    (plist.match(/UIInterfaceOrientationLandscapeLeft/g) || []).length === 2
+    && (plist.match(/UIInterfaceOrientationLandscapeRight/g) || []).length === 2
+    && !/UIInterfaceOrientationPortrait/.test(plist));
+  check('iOS: the status bar is hidden and the app owns the whole screen',
+    /<key>UIStatusBarHidden<\/key>\s*<true\/>/.test(plist)
+    && /<key>UIRequiresFullScreen<\/key>\s*<true\/>/.test(plist)
+    && /public\.app-category\.games/.test(plist));
+  check('iOS: export compliance is declared once (HTTPS only, no crypto of its own)',
+    /<key>ITSAppUsesNonExemptEncryption<\/key>\s*<false\/>/.test(plist));
+  check('iOS: the plist never carries a typed version — both come from the project',
+    /\$\(MARKETING_VERSION\)/.test(plist) && /\$\(CURRENT_PROJECT_VERSION\)/.test(plist));
+
+  const delegate = readIos('App/AppDelegate.swift');
+  check('iOS: the audio session is .playback + mixWithOthers, so the mute switch cannot silence the game',
+    /setCategory\(\s*\.playback/.test(delegate) && /\.mixWithOthers/.test(delegate));
+
+  const vc = readIos('App/GameViewController.swift');
+  check('iOS: GameViewController hides the status bar, and leaves the home indicator to SystemBars',
+    /prefersStatusBarHidden: Bool \{ true \}/.test(vc) && !/prefersHomeIndicatorAutoHidden/.test(vc.replace(/\/\/\/?[^\n]*/g, '')));
+  check('iOS: the top and bottom edge swipes are deferred, left and right are not',
+    /preferredScreenEdgesDeferringSystemGestures: UIRectEdge \{ \[\.top, \.bottom\] \}/.test(vc));
+  check('iOS: the controller restates the landscape mask and disables the bounce',
+    /supportedInterfaceOrientations: UIInterfaceOrientationMask \{ \.landscape \}/.test(vc) && /bounces = false/.test(vc));
+  // Capacitor 8.5: the UIScene lifecycle. The scene is built from Main.storyboard
+  // (that is how GameViewController becomes the root), and SceneDelegate must not
+  // build a window of its own — the stock template does, with a bare bridge
+  // controller, which would silently discard every override above.
+  check('iOS: the scene manifest names SceneDelegate and Main.storyboard',
+    /UIApplicationSceneManifest/.test(plist) && /\$\(PRODUCT_MODULE_NAME\)\.SceneDelegate/.test(plist)
+    && /<key>UISceneStoryboardFile<\/key>\s*<string>Main<\/string>/.test(plist));
+  const sceneDel = readIos('App/SceneDelegate.swift');
+  check('iOS: SceneDelegate forwards to SceneDelegateProxy and never builds its own window',
+    /SceneDelegateProxy\.shared\.scene\(scene, willConnectTo/.test(sceneDel)
+    && /openURLContexts/.test(sceneDel) && !/UIWindow\(windowScene/.test(sceneDel) && !/CAPBridgeViewController\(\)/.test(sceneDel));
+  check('iOS: AppDelegate hands the scene to SceneDelegate and keeps no dead app-level URL handler',
+    /config\.delegateClass = SceneDelegate\.self/.test(delegate) && !/open url: URL/.test(delegate));
+  const main = readIos('App/Base.lproj/Main.storyboard');
+  check('iOS: Main.storyboard boots GameViewController, not the stock bridge controller',
+    /customClass="GameViewController" customModule="App"/.test(main) && !/customClass="CAPBridgeViewController"/.test(main));
+
+  const launch = readIos('App/Base.lproj/LaunchScreen.storyboard');
+  check('iOS: the launch screen is the game\'s navy, never a system background',
+    /red="0\.0117\d*" green="0\.0235\d*" blue="0\.0549\d*"/.test(launch) && !/systemBackgroundColor/.test(launch));
+  check('iOS: the launch badge is fitted and centred — aspectFit, square, a third of the height',
+    /contentMode="scaleAspectFit"/.test(launch) && !/scaleAspectFill/.test(launch)
+    && /multiplier="1:1"/.test(launch) && /firstAttribute="height"[^>]*multiplier="0\.34"/.test(launch)
+    && /firstAttribute="centerX"/.test(launch) && /firstAttribute="centerY"/.test(launch));
+
+  const pbx = readIos('App.xcodeproj/project.pbxproj');
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const [maj, min, pat] = pkg.version.split('.').map(n => parseInt(n, 10) || 0);
+  const buildNo = maj * 10000 + min * 100 + pat;
+  const every = (re, want) => { const m = pbx.match(re) || []; return m.length >= 2 && m.every(s => s === want); };
+  check('iOS: MARKETING_VERSION is package.json\'s version in every configuration (' + pkg.version + ')',
+    every(/MARKETING_VERSION = [^;]+;/g, 'MARKETING_VERSION = ' + pkg.version + ';'));
+  check('iOS: CURRENT_PROJECT_VERSION is the derived build number in every configuration (' + buildNo + ')',
+    every(/CURRENT_PROJECT_VERSION = [^;]+;/g, 'CURRENT_PROJECT_VERSION = ' + buildNo + ';'));
+  const capCfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'capacitor.config.json'), 'utf8'));
+  check('iOS: the bundle id is capacitor.config\'s appId (' + capCfg.appId + ')',
+    every(/PRODUCT_BUNDLE_IDENTIFIER = [^;]+;/g, 'PRODUCT_BUNDLE_IDENTIFIER = ' + capCfg.appId + ';')
+    && !/com\.getcapacitor\.App/.test(pbx));
+  check('iOS: the deployment target is 15.0 everywhere, and the Podfile agrees',
+    every(/IPHONEOS_DEPLOYMENT_TARGET = [^;]+;/g, 'IPHONEOS_DEPLOYMENT_TARGET = 15.0;')
+    && /platform :ios, '15\.0'/.test(readIos('Podfile')));
+  check('iOS: SceneDelegate.swift is compiled into the target', /SceneDelegate\.swift in Sources/.test(pbx));
+  check('iOS: GameViewController.swift is compiled into the target',
+    /GameViewController\.swift in Sources/.test(pbx) && /path = GameViewController\.swift;/.test(pbx));
+  check('iOS: the app builds for iPhone and iPad', every(/TARGETED_DEVICE_FAMILY = [^;]+;/g, 'TARGETED_DEVICE_FAMILY = "1,2";'));
+  check('iOS: the Podfile carries the haptics plugin buzz() reaches for',
+    /pod 'CapacitorHaptics'/.test(readIos('Podfile')) && !!pkg.devDependencies['@capacitor/haptics']);
+
+  check('iOS: the web view cannot scroll, zoom, inset the canvas or preview a link',
+    !!capCfg.ios && capCfg.ios.scrollEnabled === false && capCfg.ios.zoomEnabled === false
+    && capCfg.ios.contentInset === 'never' && capCfg.ios.allowsLinkPreview === false);
+  // Capacitor 8's own SystemBars plugin: one key hides the status bar AND the home
+  // indicator on iOS, and the system bars on Android
+  check('both platforms: SystemBars.hidden hides the bars and the home indicator from config',
+    !!capCfg.plugins && !!capCfg.plugins.SystemBars && capCfg.plugins.SystemBars.hidden === true);
+  check('iOS: an iPad asks for the mobile page, so its user agent says iPad and not Macintosh',
+    capCfg.ios.preferredContentMode === 'mobile');
+  check('iOS: the web view\'s own background is the game\'s navy — no white before first paint',
+    /^#03060e$/i.test(capCfg.ios.backgroundColor || ''));
+
+  const exportOpts = fs.readFileSync(path.join(ROOT, 'ios', 'ExportOptions.plist'), 'utf8');
+  check('iOS: the archive exports for App Store Connect with automatic signing',
+    /<string>app-store-connect<\/string>/.test(exportOpts) && /<string>automatic<\/string>/.test(exportOpts));
+
+  // every decision file must be re-included by .gitignore, or a clone loses it
+  const ignore = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8');
+  const tracked = ['ios/ExportOptions.plist', 'ios/App/App/Info.plist', 'ios/App/App/AppDelegate.swift',
+    'ios/App/App/GameViewController.swift', 'ios/App/App/SceneDelegate.swift', 'ios/App/App/Base.lproj/', 'ios/App/App/Assets.xcassets/',
+    'ios/App/App.xcodeproj/project.pbxproj', 'ios/App/Podfile'];
+  const untracked = tracked.filter(f => !ignore.includes('!' + f));
+  check('iOS: every decision file is re-included by .gitignore' + (untracked.length ? ' — MISSING: ' + untracked.join(', ') : ''),
+    untracked.length === 0);
+  check('iOS: the generated icon and launch pngs stay out of git',
+    ignore.includes('ios/App/App/Assets.xcassets/**/*.png'));
+
+  // the generator's two iOS-only rules, checked on its output when it exists
+  const iconPng = path.join(iosApp, 'App', 'Assets.xcassets', 'AppIcon.appiconset', 'AppIcon-512@2x.png');
+  if (fs.existsSync(iconPng)) {
+    const b = fs.readFileSync(iconPng);
+    const w = b.readUInt32BE(16), h = b.readUInt32BE(20), colour = b[25];
+    // PNG colour type 2 is RGB; 6 is RGBA, which App Store Connect rejects after upload
+    check('iOS: the app icon is 1024px with no alpha channel', w === 1024 && h === 1024 && colour === 2);
+  }
+  const gen = fs.readFileSync(path.join(ROOT, 'scripts', 'make-ios-assets.py'), 'utf8');
+  check('iOS: the asset generator flattens onto navy and saves RGB',
+    /\.convert\("RGB"\)/.test(gen) && /NAVY = \(3, 6, 14\)/.test(gen));
+  const build = fs.readFileSync(path.join(ROOT, 'scripts', 'build-ios.sh'), 'utf8');
+  const buildCode = build.split('\n').filter(l => !/^\s*#/.test(l)).join('\n'); // the header narrates the steps too
+  check('iOS: every build syncs the version, stages dist/, syncs, then regenerates the assets — in that order',
+    [/node scripts\/sync-version\.js/, /npm run build/, /npx cap sync ios/, /python3 scripts\/make-ios-assets\.py/, /xcodebuild/]
+      .map(re => buildCode.search(re)).every((i, k, a) => i >= 0 && (k === 0 || i > a[k - 1])));
+  check('iOS: a device or archive build stops with the enrolment steps when no identity is present',
+    /find-identity -v -p codesigning/.test(build) && /Apple Developer Program/.test(build));
+  // Gil, 2026-09-04: every fix lands on both platforms, and iOS stays upload-ready.
+  // The Android store cut is where drift would ship, so it compiles the iOS shell too.
+  const aab = fs.readFileSync(path.join(ROOT, 'scripts', 'build-aab.sh'), 'utf8');
+  check('both platforms: the Android store cut ends by compiling the iOS shell at the same version',
+    /bash scripts\/build-ios\.sh --no-install/.test(aab) && aab.indexOf('bundleRelease') < aab.indexOf('build-ios.sh'));
+  const pkgAll = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).devDependencies;
+  check('both platforms: core, ios, android and cli are one Capacitor major (8)',
+    ['@capacitor/core', '@capacitor/ios', '@capacitor/android', '@capacitor/cli'].every(k => /^\^8\./.test(pkgAll[k] || '')));
+  check('both platforms: the Android build scripts use the JDK Capacitor 8 needs (21)',
+    ['build-aab.sh', 'build-apk.sh'].every(f => /openjdk@21/.test(fs.readFileSync(path.join(ROOT, 'scripts', f), 'utf8'))));
+  check('both platforms: MainActivity (immersive bars) is tracked, not regenerated',
+    fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8').includes('!android/app/src/main/java/'));
+  check('both platforms: the two-platform law is written in CLAUDE.md',
+    /Two platforms, one fix/.test(fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8')));
+}

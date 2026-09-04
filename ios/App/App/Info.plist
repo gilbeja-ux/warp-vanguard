@@ -2,10 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- THIS FILE CARRIES DECISIONS. `cap add ios` writes a portrait-capable,
+	     status-barred, multitasking-friendly scaffold, and `cap migrate` rewrites
+	     this file without its comments; every key below that departs from the
+	     scaffold is a rule of the game, and scripts/test.js pins them. -->
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Warp Vanguard</string>
+	<string>Warp Vanguard</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -16,12 +20,16 @@
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!-- Both versions are GENERATED: scripts/sync-version.js writes them into
+	     the project from package.json. Never type a number here. -->
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.games</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -30,6 +38,11 @@
 	<array>
 		<string>arm64</string>
 	</array>
+	<!-- LANDSCAPE ONLY, on both device families. This is the whole orientation
+	     lock on iOS: the web layer's screen.orientation.lock() is a no-op in
+	     WKWebView, so the plist is the one place the rule lives. The game
+	     paints landscape through a 90° transform if it is ever handed a
+	     portrait frame, and that reads as a bug, not a mode. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
@@ -40,12 +53,47 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- The ring is drawn to the frame edges; a status bar over it is a crop.
+	     GameViewController hides it too; this key covers the launch screen,
+	     which has no view controller of ours. -->
 	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<false/>
+	<true/>
 	<key>UIStatusBarHidden</key>
 	<true/>
-	<!-- the ring is drawn to the frame edges; a status bar over it is a crop -->
+	<!-- Opts the iPad out of Split View and Slide Over. It is also what lets an
+	     iPad honour a landscape-only orientation list at all — without it the
+	     App Store requires all four orientations on iPad. Apple has said this
+	     key will be ignored in a future iPadOS; the games category above is the
+	     exemption that outlives it, as appCategory="game" is on Android. -->
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<!-- The game talks HTTPS to Supabase and nothing else; it ships no
+	     cryptography of its own. Declaring that here answers App Store Connect's
+	     export-compliance question once, instead of on every upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- THE UISCENE LIFECYCLE (Capacitor 8.5; Xcode 27 requires it). One scene,
+	     built from Main.storyboard — which is how GameViewController gets to be
+	     the root controller — with SceneDelegate carrying URL opens and links.
+	     SceneDelegate.swift must NOT build a window of its own. -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 </dict>
 </plist>

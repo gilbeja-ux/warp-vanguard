@@ -6,9 +6,17 @@
     "androidScheme": "https"
   },
   "ios": {
-    "contentInsetAdjustmentBehavior": "always"
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "zoomEnabled": false,
+    "allowsLinkPreview": false,
+    "preferredContentMode": "mobile",
+    "backgroundColor": "#03060e"
   },
   "plugins": {
+    "SystemBars": {
+      "hidden": true
+    },
     "SplashScreen": {
       "launchShowDuration": 0,
       "launchAutoHide": true

@@ -15,6 +15,8 @@
     "lab:dest": "node scripts/dest-lab.js",
     "ios": "npx cap open ios",
     "ios:build": "bash scripts/build-ios.sh",
+    "ios:archive": "bash scripts/build-ios.sh --archive",
+    "ios:device": "bash scripts/build-ios.sh --device",
     "android": "npx cap open android",
     "sync": "npm run build && npx cap sync",
     "apk": "bash scripts/build-apk.sh",
@@ -46,10 +48,10 @@
   "author": "Gil",
   "license": "MIT",
   "devDependencies": {
-    "@capacitor/core": "^6.0.0",
-    "@capacitor/haptics": "^6.0.0",
-    "@capacitor/ios": "^6.0.0",
-    "@capacitor/android": "^6.0.0",
-    "@capacitor/cli": "^6.0.0"
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/haptics": "^8.0.0",
+    "@capacitor/ios": "^8.0.0"
   }
 }

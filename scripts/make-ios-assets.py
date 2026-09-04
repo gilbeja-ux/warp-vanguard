@@ -13,11 +13,13 @@ Two iOS-specific rules the Android generator does not have to care about:
      channel outright, and the failure arrives after upload rather than at
      build time. The icon is flattened onto the theme navy and saved as RGB.
 
-  2. THE LAUNCH IMAGE IS SQUARE BUT NEVER SEEN SQUARE. LaunchScreen.storyboard
-     scales it aspectFill, and this is a landscape-only game, so on a ~2.17:1
-     phone only the middle ~46% of the square's height survives the crop. The
-     badge is kept small enough to sit inside that band on the tallest aspect
-     Apple ships.
+  2. THE LAUNCH IMAGE IS A FITTED BADGE, NOT A WALLPAPER. LaunchScreen.storyboard
+     paints the game's navy itself and pins one SQUARE image view to the centre
+     at a third of the screen height, aspectFit. So the image here is the badge
+     alone on a navy square with a small margin — the storyboard decides how big
+     it is, the same on every device, and nothing is ever cropped. (The scaffold
+     did the opposite: one 2732px square, aspectFill, on a white background —
+     on a landscape phone only the middle ~46% of it survived.)
 
 Run: python3 scripts/make-ios-assets.py   (idempotent; safe to re-run each build)
 """
@@ -35,8 +37,8 @@ NAVY = (3, 6, 14)               # #03060e — matches manifest theme_color
 ICON_PX = 1024                  # the single size modern Xcode asks for
 ICON_FRAC = 0.70                # ~matches the Android legacy square icon (0.66)
 
-SPLASH_PX = 2732                # Capacitor's square launch image
-SPLASH_FRAC = 0.25              # survives aspectFill crop on the tallest phone
+SPLASH_PX = 512                 # the storyboard scales it; @3x of a 170pt view is 510px
+SPLASH_FRAC = 0.82              # the badge fills the square, with a margin of navy
 
 # Capacitor names three scales; all three point at the same square art.
 SPLASH_NAMES = ["splash-2732x2732.png",
@@ -76,7 +78,7 @@ def main():
     os.makedirs(SPLASHSET, exist_ok=True)
     for name in SPLASH_NAMES:
         splash.save(os.path.join(SPLASHSET, name))
-    print(f"  splash x{len(SPLASH_NAMES)}  {SPLASH_PX}x{SPLASH_PX}  navy @ {int(SPLASH_FRAC * 100)}%")
+    print(f"  splash x{len(SPLASH_NAMES)}  {SPLASH_PX}x{SPLASH_PX}  badge @ {int(SPLASH_FRAC * 100)}% on navy")
 
     print("✓ iOS assets generated")
 
