@@ -25,7 +25,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-02 | DONE | Backend | HIGH | Boss board integrity — RNG side-stream + bounty decay in code; time tiebreak migration APPLIED LIVE 2026-08-25 with the 1.0.4 deploy |
 | H-03 | DONE | Backend | HIGH | Replay-stealing closed — oracle fix + frame-hash binding + private traces bucket ALL LIVE 2026-08-25 with the 1.0.4 deploy |
 | H-04 | DONE | Release | HIGH | Recover the deleted feature graphic — restored from HEAD 2026-08-21 |
-| H-05 | TODO | Release | HIGH | Turn DEV_KEYS off for production builds |
+| H-05 | DONE | Release | HIGH | Resolved by deletion — the DEV_KEYS switch is gone; the long-press opens a passcode-gated BOSS DUEL SHORTCUT disc, and it ships (1.0.6) |
 | H-06 | TODO | Story | HIGH | **THE STORY LADDER** — the single story item. Absorbs H-17 and H-30. Fill the three dead rungs, line-edit the live one, drop the hints |
 | H-07 | DONE | Story | HIGH | Pre-run read gate — circle-sweep reveal + inner charge ring + back button; built+tested 2026-08-21 |
 | H-08 | DONE | Backend | MED | Weekly board fairness — deep surges press density past surge 6 (Gil: mutators stay legal) |
@@ -53,8 +53,8 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 | H-30 | MERGED | Content | — | Folded into H-06 (2026-08-26, Gil's call) — the disc art is the ladder's art rung, still deferred |
 | H-31 | DONE | Balance | MED | Power-ups never land inside a dead-zone carpet — both spawners fixed + a pinned test (ships in 1.0.4) |
 | H-32 | DONE | HUD | MED | Barks redesigned as a broadcast subtitle — tag on its own line, 13px wrapped message (F-012; ships in the next build) |
-| H-33 | BLOCKED | Audio | MED | Boss audio realism — ray voice, charge and plates BUILT and Gil's ear pass PASSED; blocked only on the two CC0 takes he is sourcing |
-| H-36 | TODO | Audio | MED | Ray takes still absent — ray-charge.mp3 and boss-plate.mp3 are declared but not on disk; the synth placeholder is what ships (H-33's blocker) |
+| H-33 | DONE | Audio | MED | Boss audio realism — built, ear pass PASSED, and the two CC0 takes landed 2026-08-27 (ships in 1.0.5) |
+| H-36 | DONE | Audio | MED | Both takes landed 2026-08-27 with eeca1e3 — on disk, declared with trims, they replace the synth with no code change (ships in 1.0.5) |
 | H-35 | DONE | Release | HIGH | Fingerprint fixed (BATTERY_V 2: immortal pilot + pickups recorded, 40/40 boards play out) AND the skip-the-deploy shortcut retired on Gil's rule |
 | H-34 | DONE | Art | MED | Boss lamp misled — the resting phase breathed into the LAST STAND's violet; now red → near-black ember, brightness only (Gil, 2026-08-27) |
 
@@ -119,7 +119,7 @@ Full evidence and context live in [docs/AUDIT-2026-08-21.md](AUDIT-2026-08-21.md
 - **Options:** (a) `git restore -- docs/store/feature-graphic.png`; (b) re-shoot via the rig, then commit; (c) leave deleted because a redesign is planned.
 
 ## H-05 · Turn DEV_KEYS off for production builds
-- **Status:** TODO · **Area:** Release · **Sev:** HIGH (prod only)
+- **Status:** DONE (2026-09-04, ships in 1.0.6) — resolved by deletion, Gil's design. The `DEV_KEYS` switch is gone from `40-state.js`. The long-press on the final relay now opens a passcode-gated BOSS DUEL SHORTCUT disc; the disc, not a build flag, is the gate, and it SHIPS. Safe because a drill run never ranks (`bossTestRun` keeps it out of `captureRun`/`lbSubmit`, and the verifier rejects a jumped trace). Standing note carried by `40-state.js` and RELEASE-PLAN.md: the 1.1 paywall must gate inside `startLevel`, never in menu navigation. · **Area:** Release · **Sev:** HIGH (prod only)
 - **Combines:** R-3
 - **Issue:** `DEV_KEYS = true` ships a long-press boss-skip. Fine for tester builds. It must be off before production, and it will cross the relay-04 paywall when monetization lands.
 - **Evidence:** `40-state.js:148`; `startBossTest` `60-input.js:718`; `menuHold` `99-boot.js:198`.
@@ -450,7 +450,7 @@ The original H-06 said to wire all 40 level `hint` strings. **Do not.** The reac
 ---
 
 ## H-33 · Boss audio realism — the ray's voice + the dying plates
-- **Status:** IN PROGRESS (option b — hybrid, blended ray; PLUMBING + SYNTH BUILT 2026-08-26, open: Gil's ear on the soundboard, then the two takes he is sourcing) · **Area:** Audio · **Sev:** MED · **Raised by:** Gil, 2026-08-26 (not from the 2026-08-21 audit)
+- **Status:** DONE (2026-08-27, ships in 1.0.5) — option (b) complete end to end. The synth voices were built 2026-08-26, Gil's ear pass PASSED 2026-08-27, and the two CC0 takes landed the same day (commit eeca1e3): `ray-charge.mp3` and `boss-plate.mp3` are on disk in `src/audio/sfx/` and declared with trims in `12-sfx.js:58,63`, so `playSample` took over from the synth with no code change, exactly as the plumbing was designed. H-36 tracked the takes and closes with it. · **Area:** Audio · **Sev:** MED · **Raised by:** Gil, 2026-08-26 (not from the 2026-08-21 audit)
 - **Gil's choices, 2026-08-26:** sourcing = **hybrid** (I synth now, he sources the charge and the explosion takes); ray character = **both references blended** — a doppler hum under a resonant metallic formant.
 - **BUILT 2026-08-26.** `npm test` green, 10 new pins, **41 boards, 0 moved** (draw-only, as required).
   1. **The sweep is a SUSTAINED synth voice** — `raySweep()` / `raySweepKill()` in `10-audio.js`, one voice per node index so the prism's two lights speak at their own two speeds. Layer A is two sawtooths detuned 16 cents into a resonant lowpass (the saber waver); layer B is looped noise through a high-Q bandpass with a peaking formant (the tripod howl). `RAY_SABER` / `RAY_TRIPOD` are the blend knobs. Pitch, filter and pan are driven from `bm.spd`, `bm.a` and `bm.dir` every frame, so a reversal bends the doppler as it turns instead of firing a 0.2s blip. **Synth was the right call here regardless of sourcing:** the speed varies per boss and per round and the beam reverses mid-flight, so no fixed take can track it.
@@ -513,7 +513,7 @@ The whole ray therefore reads as a silent visual with one blip on reversal, and 
 - **Options:** (a) clamp integrity in the battery + bump `BATTERY_V` + one full re-issue of all ids, timed with the next release; (b) drive better instead (a defending driver) so ids stay comparable where behaviour truly did not move — more faithful, much more work, and it still moves ids; (c) leave the battery and delete the shortcut instead: treat every sim-source change as deploy-owed and stop reading the fingerprint as permission to skip.
 
 ## H-36 · The two ray takes are still not on disk
-- **Status:** TODO · **Area:** Audio · **Sev:** MED
+- **Status:** DONE (2026-08-27, ships in 1.0.5) — option (a): both takes landed with commit eeca1e3. `ray-charge.mp3` (trim 0.7) and `boss-plate.mp3` (trim 0.6) are on disk and declared in `12-sfx.js:58,63`; they replaced the synth with no code change. H-33's blocker is gone and H-33 closes with it. · **Area:** Audio · **Sev:** MED
 - **Issue:** `12-sfx.js` declares `rayCharge: ['audio/sfx/ray-charge.mp3']` and `bossPlate: ['audio/sfx/boss-plate.mp3']`, and neither file exists in `src/audio/sfx/`. Both fall back to synth, which is what actually ships today. Split out of H-33, which is otherwise built and passed Gil's ear pass.
 - **Evidence:** `src/game/12-sfx.js:55`; `ls src/audio/sfx/` shows no `ray-charge.mp3` and no `boss-plate.mp3`.
 - **My take:** the fallback is good enough to ship — it is the sound Gil has been flying and approving. Track the takes rather than block on them.
