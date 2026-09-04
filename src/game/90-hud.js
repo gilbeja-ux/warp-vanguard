@@ -116,6 +116,39 @@ function drawGearKey(r, open) {
   }
 }
 
+// THE FIELD GUIDE KEY, AND ITS CLOSE: the third key to make the bargain (Gil,
+// 2026-09-04). Closed it is the '?' badge in the corner cluster — the menu's
+// top-right, or left of RESUME on the pause screen; open, the SAME slab, in the
+// same spot, lights up and carries an X. drawGuide places the close key on
+// whichever of the two launched it, so the page is put away where it was opened.
+function drawGuideKey(r, open) {
+  techRect(r.x, r.y, r.w, r.h, 8);
+  ctx.fillStyle = open ? 'rgba(16,52,86,0.86)' : 'rgba(6,20,40,0.6)'; ctx.fill();
+  ctx.strokeStyle = open ? 'rgba(150,238,255,0.95)' : 'rgba(120,220,255,0.55)';
+  ctx.lineWidth = open ? 1.8 : 1.5;
+  techRect(r.x, r.y, r.w, r.h, 8); ctx.stroke();
+  const cx4 = r.x + r.w / 2, cy4 = r.y + r.h / 2;
+  if (open) {
+    ctx.strokeStyle = 'rgba(220,245,255,0.92)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx4 - 6, cy4 - 6); ctx.lineTo(cx4 + 6, cy4 + 6);
+    ctx.moveTo(cx4 + 6, cy4 - 6); ctx.lineTo(cx4 - 6, cy4 + 6);
+    ctx.stroke();
+  } else {
+    const pa = ctx.textAlign, pb = ctx.textBaseline;
+    ctx.fillStyle = 'rgba(200,240,255,0.9)';
+    ctx.font = '700 17px Audiowide, system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('?', cx4 + 1, cy4 + 1);
+    ctx.textAlign = pa; ctx.textBaseline = pb;
+  }
+}
+// where the pause screen's FIELD GUIDE badge sits: left of the RESUME slab.
+// One formula, read by drawPause to draw it and by drawGuide to close on it.
+function pauseGuideKeyRect() {
+  const rk = pauseBtnRect || { x: W - 12 - SAFE.r - 38, y: 12 + SAFE.t, w: 38, h: 38 };
+  return { x: rk.x - 8 - rk.w, y: rk.y, w: rk.w, h: rk.h, action: 'guide', cut: 8 };
+}
+
 // level intro: title card + 3-2-1 countdown in the center while the ring forms
 // — drawn as the frame's last pass so no rim/HUD layer can obscure the text
 // the strip itself: tucked under the PAUSE key in the status corner, clear of

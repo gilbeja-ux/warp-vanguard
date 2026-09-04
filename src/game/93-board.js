@@ -8,10 +8,15 @@ function boardKeyFor() {
   return (c ? c.id : 'campaign') + ':' + boardSel.level;
 }
 // HOW MANY PAST WEEKS THE LADDER LISTS. The ladder only began when weekly boards
-// did, so listing back past that would advertise weeks that never existed. This is
-// the week the feature shipped; the list runs from the live week back to it, newest
-// first, and grows by one row every Monday.
-const WEEK_LADDER_FIRST = 2953; // 3–9 AUG, 2026
+// did, so listing back past that would advertise weeks that never existed. The list
+// runs from the live week back to this one, newest first, and grows by one row
+// every Monday.
+//
+// It was 2953 (3–9 AUG 2026), the week the feature shipped. Every board was wiped
+// on 2026-09-02 (the open test started clean — see runs_backup_20260902), so the
+// four weeks before the wipe were empty boards advertising nothing. Gil,
+// 2026-09-04: the ladder's history starts with the first week that has a field.
+const WEEK_LADDER_FIRST = 2957; // 31 AUG – 6 SEP, 2026
 // The ladder folds under one header, sharing the campaigns' collapse state so there is one
 // mechanism rather than two. '#weeks' cannot collide with a campaign id — the loader holds
 // those to /^[a-z0-9-]+$/ — and it is a reserved key rather than a campaign that happens

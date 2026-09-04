@@ -1988,14 +1988,10 @@ function drawPause() {
   // the corner cluster, ABOVE the dim: RESUME (the same slab that paused the run,
   // wearing a play triangle) and the FIELD GUIDE badge to its left.
   const rk = pauseBtnRect || { x: W - 12 - SAFE.r - 38, y: 12 + SAFE.t, w: 38, h: 38 };
-  const gk = { x: rk.x - 8 - rk.w, y: rk.y, w: rk.w, h: rk.h, action: 'guide', cut: 8 };
+  const gk = pauseGuideKeyRect();
   ctx.save(); ctx.globalAlpha = q;
   drawPauseKey(rk, true);
-  discChromeKey(gk);
-  ctx.fillStyle = 'rgba(200,240,255,0.9)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = '700 17px Audiowide, system-ui';
-  ctx.fillText('?', gk.x + gk.w / 2 + 1, gk.y + gk.h / 2 + 1);
-  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  drawGuideKey(gk, false); // the '?' — drawGuide lights it into an X in this same spot
   ctx.restore();
   pauseButtonsList.push({ x: rk.x, y: rk.y, w: rk.w, h: rk.h, action: 'resume', cut: 8 });
   const R = discR();

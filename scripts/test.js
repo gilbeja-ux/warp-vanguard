@@ -158,6 +158,7 @@ code = code.replace("'use strict';", '') + `
   setState: v => { state = v; }, getState: () => state, S,
   setMenuSettings: v => { menuSettings = v; }, getMenuSettings: () => menuSettings,
   gearRect: () => menuGearRect, toggles: () => pauseTogglesList,
+  guideRect: () => menuGuideRect, guideCloseRect: () => guideCloseRect, getGuide: () => guide, enterGuide, closeGuide,
   enemies: () => enemies,
   stats: () => ({ zaps, misses, score, integrity, combo }),
   playTrack, updateMusic, settings, progress, perf: () => ({ lowFX, perfCalm, perfTrips }), audio,
@@ -4472,10 +4473,10 @@ async function runMusicUp() {
     check('lbTop ships the publishable key, not a secret', String(lastHeaders.apikey).startsWith('sb_publishable_'));
     check('lbTop parses the ranked rows', Array.isArray(top) && top[0].score === 5000);
     // no board uses the `day` column any more — the week rides in the board KEY
-    check('lbDay is null for every board now', G.lbDay('weekly:2953') === null && G.lbDay('endless') === null);
-    await G.lbTop('weekly:2953');
+    check('lbDay is null for every board now', G.lbDay('weekly:2957') === null && G.lbDay('endless') === null);
+    await G.lbTop('weekly:2957');
     check('a weekly read names the week in the board key, with a null day',
-      lastBody.p_board === 'weekly:2953' && lastBody.p_day === null);
+      lastBody.p_board === 'weekly:2957' && lastBody.p_day === null);
     await G.lbRank('endless', 'me');
     check('lbRank hits leaderboard_rank with the player id', lastUrl.endsWith('/rest/v1/rpc/leaderboard_rank') && lastBody.p_player === 'me');
     global.fetch = async () => { throw new Error('offline'); };
@@ -6009,6 +6010,66 @@ async function runMusicUp() {
   check('the settings disc redraws the gear lit, above its own dim, riding the cast',
     setFn.indexOf('fillRect(0, 0, W, H)') < setFn.indexOf('drawGearKey(menuGearRect, true)')
     && /ctx\.globalAlpha = q; drawGearKey\(menuGearRect, true\)/.test(setFn));
+}
+
+// ================= the field guide closes where it opened =================
+// Gil, 2026-09-04: the page's X sat in the top-left, a corner nothing launched from.
+// Now the '?' that opened it — top-right on the menu, left of RESUME on the pause
+// screen — lights up and wears the X, the pause and settings keys' own bargain.
+{
+  const hud = fs.readFileSync(path.join(ROOT, 'src', 'game', '90-hud.js'), 'utf8');
+  const fn = hud.split('function drawGuideKey(r, open)')[1] || '';
+  check('the guide key has two glyphs: a ? closed, an X open',
+    /if \(open\) \{[\s\S]*moveTo\(cx4 - 6, cy4 - 6\)/.test(fn) && /\} else \{[\s\S]*fillText\('\?'/.test(fn));
+  check('both launchers draw the guide key closed, and the pause one reads pauseGuideKeyRect',
+    /drawGuideKey\(menuGuideRect, false\)/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '92-guide.js'), 'utf8'))
+    && /const gk = pauseGuideKeyRect\(\);[\s\S]{0,120}drawGuideKey\(gk, false\)/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '91-briefing.js'), 'utf8')));
+  const guideSrc = fs.readFileSync(path.join(ROOT, 'src', 'game', '92-guide.js'), 'utf8').split('function drawGuide(g)')[1].split('\n}\n')[0];
+  check('drawGuide places the close key on the launcher and never in the top-left',
+    /guide\.from === 'pause' \? pauseGuideKeyRect\(\)/.test(guideSrc) && /drawGuideKey\(guideCloseRect, true\)/.test(guideSrc)
+    && !/guideCloseRect = \{ x: 12 \+ SAFE\.l/.test(guideSrc));
+  // and in the harness: open the page from the home screen, the X sits on the ?.
+  // drawMenu reads navigator.standalone and an earlier block removes the global —
+  // put it back for these frames, the way the settings-disc block does.
+  const hadNav = 'navigator' in global;
+  if (!hadNav) global.navigator = {};
+  G.setState(G.S.MENU); G.setMenuScreen('home'); G.setMenuSettings(false); G.frame(16);
+  const q = G.guideRect();
+  check('the home screen draws the ? key', !!q);
+  if (q) {
+    G.menuTap(q.x + 10, q.y + 10, 1);
+    check('tapping ? opens the field guide', G.getState() === G.S.GUIDE);
+    G.frame(16); G.frame(32);
+    const c = G.guideCloseRect();
+    check('the guide\'s close key sits exactly on the ? that opened it',
+      !!c && c.x === q.x && c.y === q.y && c.w === q.w && c.h === q.h);
+    G.closeGuide(); for (let i = 0; i < 20; i++) G.frame(16 * (i + 3));
+    check('closing hands the menu back', G.getState() === G.S.MENU);
+  }
+  if (!hadNav) delete global.navigator;
+}
+
+// ================= the ladder lists no week before its first field =================
+// Gil, 2026-09-04: the boards were wiped on 2026-09-02, so the weeks before that were
+// empty boards on the list. The ladder now begins at the wipe's week.
+{
+  const board = fs.readFileSync(path.join(ROOT, 'src', 'game', '93-board.js'), 'utf8');
+  check('the weekly ladder starts at week 2957 (31 AUG – 6 SEP 2026), the first week with a field',
+    /const WEEK_LADDER_FIRST = 2957;/.test(board));
+}
+
+// ================= the LOADING readout sits under the badge, and the word under the bar =================
+// Gil, 2026-09-05: on a phone the word crossed the badge's bottom tip.
+{
+  const boot = fs.readFileSync(path.join(ROOT, 'src', 'game', '99-boot.js'), 'utf8');
+  const hold = boot.split('function drawSplashHold(u)')[1].split('\n}\n')[0];
+  check('splash hold: the bar clears the badge\'s bottom edge by a margin, never a fixed height over it',
+    /const under = badge \? badge\.y \+ badge\.h \+ u \* SPLASH_HOLD\.gap : 0;/.test(hold)
+    && /Math\.max\(H \* SPLASH_HOLD\.floorY, under\)/.test(hold) && !/by = H \* 0\.78/.test(hold));
+  check('splash hold: LOADING is drawn beneath the bar, not above it',
+    /fillText\('LOADING', W \/ 2, by \+ bh \+ u \* SPLASH_HOLD\.capPad/.test(hold) && !/by - u \* 0\.028/.test(hold));
+  check('splash hold: the readout keeps above the bottom safe inset',
+    /Math\.min\(H - SAFE\.b - fontPx/.test(hold));
 }
 
 // ================= THE DISC LAW: nothing touches the edge of a disc =================

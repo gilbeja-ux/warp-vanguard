@@ -439,20 +439,18 @@ function drawGuide(g) {
     Math.min(W, H),
     { titleMaxW: W - 2 * (mL + 46), reveal: inQ });
   ctx.restore();
-  // close key (where the pause key lives in-run), steady outside the zoom
+  // THE CLOSE KEY IS THE KEY THAT OPENED THE PAGE. It used to be an X parked in
+  // the top-left, a corner nothing launched from; now it is the '?' badge itself
+  // — the menu's top-right one, or the pause screen's, left of RESUME — lit and
+  // wearing an X, exactly as the pause and settings keys turn into their own
+  // close. Drawn above the mask, steady outside the zoom, riding the cover so it
+  // fades back into the '?' drawn underneath as the page goes.
   ctx.save();
   ctx.globalAlpha = master;
-  guideCloseRect = { x: 12 + SAFE.l, y: 12 + SAFE.t, w: 38, h: 38 };
-  const ck = guideCloseRect;
-  techRect(ck.x, ck.y, ck.w, ck.h, 8);
-  ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
-  ctx.strokeStyle = 'rgba(120,220,255,0.55)'; ctx.lineWidth = 1.5;
-  techRect(ck.x, ck.y, ck.w, ck.h, 8); ctx.stroke();
-  ctx.strokeStyle = 'rgba(200,240,255,0.9)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(ck.x + 13, ck.y + 13); ctx.lineTo(ck.x + 25, ck.y + 25);
-  ctx.moveTo(ck.x + 25, ck.y + 13); ctx.lineTo(ck.x + 13, ck.y + 25);
-  ctx.stroke();
+  const launcher = guide.from === 'pause' ? pauseGuideKeyRect()
+    : (menuGuideRect || { x: W - 96 - SAFE.r, y: 12 + SAFE.t, w: 38, h: 38 });
+  guideCloseRect = { x: launcher.x, y: launcher.y, w: launcher.w, h: launcher.h };
+  drawGuideKey(guideCloseRect, true);
   ctx.restore();
 }
 
@@ -819,14 +817,7 @@ function drawMenu(g) {
   menuGuideRect = null;
   if (menuScreen === 'home') {
     menuGuideRect = { x: W - (menuFsRect ? 142 : 96) - SAFE.r, y: 12 + SAFE.t, w: 38, h: 38 };
-    const qk = menuGuideRect;
-    techRect(qk.x, qk.y, qk.w, qk.h, 8);
-    ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(120,220,255,0.55)'; ctx.lineWidth = 1.5;
-    techRect(qk.x, qk.y, qk.w, qk.h, 8); ctx.stroke();
-    ctx.fillStyle = 'rgba(200,240,255,0.9)';
-    ctx.font = '700 17px Audiowide, system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('?', qk.x + qk.w / 2, qk.y + 26);
+    drawGuideKey(menuGuideRect, false); // the '?' — drawGuide lights it into an X in this same spot
     ctx.textAlign = 'right';
   }
   ctx.restore(); // top-right cluster fly-in

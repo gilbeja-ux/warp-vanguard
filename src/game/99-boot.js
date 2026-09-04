@@ -505,21 +505,32 @@ function splashHoldPump() {
 }
 // The readout, and it only ever appears on a machine slow enough to need it.
 // Deliberately small and low: the badge is the picture, this is a footnote to it.
+// THE READOUT SITS UNDER THE BADGE, NEVER OVER IT. Gil, 2026-09-05: the word
+// used to ride above the bar at a fixed 0.78H, and on a phone that put LOADING
+// across the badge's bottom tip. Now the bar clears the badge's own bottom edge
+// by a margin, and the word goes beneath the bar — a caption to it, on the side
+// away from the picture. The floor keeps it above the bottom safe inset.
+const SPLASH_HOLD = { gap: 0.055, floorY: 0.80, capPad: 0.036, fontPx: 0.026 }; // shares of u / H
 function drawSplashHold(u) {
   const keys = s3BreachKeys();
   const done = keys.filter(k => s3Sprites[k] !== undefined).length;
   const q = keys.length ? done / keys.length : 1;
   const bw = u * 0.30, bh = Math.max(2, u * 0.006);
-  const bx = (W - bw) / 2, by = H * 0.78;
+  const badge = splashBadge();
+  const under = badge ? badge.y + badge.h + u * SPLASH_HOLD.gap : 0;
+  const fontPx = Math.round(u * SPLASH_HOLD.fontPx);
+  const by = Math.min(H - SAFE.b - fontPx - u * SPLASH_HOLD.capPad - bh - 4,   // the floor
+                      Math.max(H * SPLASH_HOLD.floorY, under));                // under the badge
+  const bx = (W - bw) / 2;
   ctx.save();
-  ctx.textAlign = 'center';
-  ctx.font = '500 ' + Math.round(u * 0.026) + 'px Audiowide, system-ui';
-  ctx.fillStyle = 'rgba(111,227,255,0.55)';
-  ctx.fillText('LOADING', W / 2, by - u * 0.028);
   ctx.fillStyle = 'rgba(111,227,255,0.16)';
   ctx.fillRect(bx, by, bw, bh);
   ctx.fillStyle = 'rgba(111,227,255,0.85)';
   ctx.fillRect(bx, by, bw * q, bh);
+  ctx.textAlign = 'center';
+  ctx.font = '500 ' + fontPx + 'px Audiowide, system-ui';
+  ctx.fillStyle = 'rgba(111,227,255,0.55)';
+  ctx.fillText('LOADING', W / 2, by + bh + u * SPLASH_HOLD.capPad + fontPx * 0.8); // beneath the bar
   ctx.restore();
 }
 // A SPLASH THAT IS OFF HAS NO GATE, so the bake is paid on the spot instead.
