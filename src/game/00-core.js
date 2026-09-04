@@ -7,7 +7,10 @@
 
 const canvas = document.getElementById('game');
 // canvas text falls back to system-ui until the display font arrives — force it early
-if (document.fonts && document.fonts.load) document.fonts.load('16px Audiowide').catch(() => {});
+if (document.fonts && document.fonts.load) {
+  document.fonts.load('16px Audiowide').catch(() => {});
+  document.fonts.load('400 16px Rajdhani').catch(() => {}); // the splash's studio tag types at 1.3s — be there
+}
 // alpha:false — AN OPAQUE CANVAS. With the default (alpha:true) the compositor
 // must blend the entire canvas against the page on every single frame, a
 // full-screen per-pixel operation that buys nothing here: the game paints its own

@@ -337,7 +337,7 @@ function drawTrans() {
   }
 }
 
-// ---------- boot splash: GB Interactive → warp-in → WARP VANGUARD ----------
+// ---------- boot splash: GB-IL → warp-in → WARP VANGUARD ----------
 // The menu runs live underneath from the very first frame; the splash is an
 // opaque curtain staged on top of it. That makes the finale free: the badge
 // materializes exactly where the menu's hub badge lives, then the curtain
@@ -369,7 +369,7 @@ const SPLASH = {
 // `hold` is the boot gate, and it sits on the LAST OPAQUE BEAT — one frame before
 // reveal starts thinning the curtain. A gate any later would hold on a half-open
 // stage, which reads as a hang rather than as a load.
-const SPL = { gb: 0.35, type: 1.3, cast: 3.0, crush: 3.82, df: 4.3, settle: 5.5, hold: 5.52, reveal: 5.55, wheel: 6.35 };
+const SPL = { gb: 0.35, print: 1.45, flag: 1.30, type: 1.3, cast: 3.0, crush: 3.82, df: 4.3, settle: 5.5, hold: 5.52, reveal: 5.55, wheel: 6.35 };
 // THE RIDE'S KNOBS, in one place. The beat sheet above says WHEN; this says HOW
 // HARD. Every number here is a look, not a timing, so it can move without the
 // score and the sequence disagreeing.
@@ -383,13 +383,63 @@ const SPLFLY = {
   boreIn: 0.86,     // curtain LEFT once the bore has faded up under the studio card
   veil: 0.55        // …and once the warp opens for the hand-over. Lower shows more
 };
-const GB_TAG = 'GB Interactive';
-const GBIMG = { img: null, w: 0, h: 0 };
+// THE STUDIO CARD BUILDS. Gil, 2026-09-05: the mark is GB-IL now — a solid white
+// GB and a blue IL flag — and it does not fade in, it is MADE. The GB prints like
+// a 3D print, bottom up, one layer at a time behind a rising mask, CENTRED on the
+// card; the flag then fades up while it slides a little to the right into its
+// dock, and the GB moves left to make room for it — the lockup assembles around
+// its own centre. Both parts come out of ONE image: on load
+// the PNG is torn into two layers by colour (the flag is the blue, plus the white
+// that sits inside it), so the art can be re-dropped without a second file.
+const SPLPRINT = {
+  layers: 26,       // print layers over the mark's own height. More = finer, slower to read
+  flagDur: 0.55,    // the flag's fade + slide, in seconds from SPL.flag — and the GB's move left
+  flagSlide: 0.035, // how far left of its dock the flag starts, as a share of u
+  tagPx: 0.034,     // the studio tag's size, as a share of u
+  tagGap: 0.028,    // …and its distance under the mark's own bottom edge, as a share of u
+  tagTrack: 0.10,   // …and its letter-spacing, as a share of the font size
+  split: 0.5        // the torn layers' scale against the PNG. Half is plenty: the card
+                    // is drawn at ≤ 0.51u CSS px, and it keeps the two canvases small
+};
+const GB_TAG = 'Interaction Labs';
+const GBIMG = { img: null, w: 0, h: 0, mark: null, flag: null, box: null };
+// tear the PNG into the GB mark and the IL flag. A pixel is the flag's if it is
+// blue, or if it is white and lies to the right of the first blue pixel on its
+// row (the IL letters). Everything else — the mark, and its edge where the flag
+// overlaps it — is the mark's. Row-wise, so the tilt of the flag costs nothing.
+function gbSplit(img) {
+  try {
+    const sc = SPLPRINT.split, w = Math.max(1, Math.round(img.naturalWidth * sc)), h = Math.max(1, Math.round(img.naturalHeight * sc));
+    const src = document.createElement('canvas'); src.width = w; src.height = h;
+    const sx = src.getContext('2d', { willReadFrequently: true });
+    sx.drawImage(img, 0, 0, w, h);
+    const id = sx.getImageData(0, 0, w, h), d = id.data;
+    const mk = sx.createImageData(w, h), fl = sx.createImageData(w, h);
+    const box = { x0: w, y0: h, x1: 0, y1: 0 }; // the MARK's bbox, in split px
+    for (let y = 0; y < h; y++) {
+      let seenBlue = false;
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4, a = d[i + 3];
+        if (a < 8) continue;
+        const blue = d[i + 2] > d[i] + 40;
+        if (blue) seenBlue = true;
+        const dst = (blue || seenBlue) ? fl.data : mk.data;
+        dst[i] = d[i]; dst[i + 1] = d[i + 1]; dst[i + 2] = d[i + 2]; dst[i + 3] = a;
+        if (dst === mk.data) { if (x < box.x0) box.x0 = x; if (y < box.y0) box.y0 = y; if (x > box.x1) box.x1 = x; if (y > box.y1) box.y1 = y; }
+      }
+    }
+    const mark = document.createElement('canvas'); mark.width = w; mark.height = h; mark.getContext('2d').putImageData(mk, 0, 0);
+    const flag = document.createElement('canvas'); flag.width = w; flag.height = h; flag.getContext('2d').putImageData(fl, 0, 0);
+    if (box.x1 <= box.x0) return; // nothing white — draw the PNG whole
+    GBIMG.mark = mark; GBIMG.flag = flag;
+    GBIMG.box = { x0: box.x0 / w, y0: box.y0 / h, x1: (box.x1 + 1) / w, y1: (box.y1 + 1) / h }; // as shares of the image
+  } catch (e) { GBIMG.mark = null; GBIMG.flag = null; GBIMG.box = null; } // a tainted or refused canvas — the PNG draws whole
+}
 if (SPLASH.on) {
   GBIMG.img = new Image();
-  GBIMG.img.onload = () => { GBIMG.w = GBIMG.img.naturalWidth || 1; GBIMG.h = GBIMG.img.naturalHeight || 1; };
+  GBIMG.img.onload = () => { GBIMG.w = GBIMG.img.naturalWidth || 1; GBIMG.h = GBIMG.img.naturalHeight || 1; gbSplit(GBIMG.img); };
   GBIMG.img.onerror = () => {}; // no mark on disk — the typed tag carries the card alone
-  GBIMG.img.src = 'icons/GB-logo-hollow.png';
+  GBIMG.img.src = 'icons/GB-IL.png';
 }
 function splashBoot() { // once at load: decode the score and try to run it
   brandLogo(); // and kick the badge's lazy decode NOW — card two needs it by SPL.df
@@ -441,6 +491,7 @@ function splashEnd(skip) {
     } catch (e) { try { SPLASH.src.stop(); } catch (e2) {} }
   }
   SPLASH.src = null; SPLASH.gain = null; SPLASH.buf = null;
+  GBIMG.mark = null; GBIMG.flag = null; GBIMG.img = null; GBIMG.w = 0; // the card is done; drop its layers
   if (skip) fadeT = 0.35;  // screen-stitch over the jump cut
   playTrack('menu');       // …and the menu music takes over, fading in as normal
 }
@@ -623,7 +674,7 @@ function drawSplash(rawDt) {
   // ---- card one: the GB mark over black ----
   if (t < SPL.df) {
     const crushQ = clamp((t - SPL.crush) / (SPL.df - SPL.crush), 0, 1);
-    const gbA = ss(SPL.gb, SPL.gb + 1.15);
+    const gbA = t >= SPL.gb ? 1 : 0; // the card does not fade in — it PRINTS (see the mark below)
     const gcx = W / 2, gcy = H * 0.44, gw = u * 0.51;
     if (gbA > 0) {
       ctx.save();
@@ -642,7 +693,38 @@ function drawSplash(rawDt) {
       const gh = GBIMG.w ? gw * GBIMG.h / GBIMG.w : 0;
       if (GBIMG.w) {
         const gx = gcx - gw / 2, gy = gcy - gh / 2 - u * 0.05;
-        ctx.drawImage(GBIMG.img, gx, gy, gw, gh);   // whole and seamless — never torn
+        if (GBIMG.mark && GBIMG.box) {
+          // THE PRINT. A mask rises from the mark's own bottom edge in whole
+          // layers — a layer is either there or it is not, which is what makes
+          // it a print and not a wipe — and the head burns on the top one.
+          const pq = clamp((t - SPL.gb) / (SPL.print - SPL.gb), 0, 1);
+          const lay = Math.floor(pq * SPLPRINT.layers) / SPLPRINT.layers;
+          const bx = GBIMG.box, mTop = gy + bx.y0 * gh, mBot = gy + bx.y1 * gh;
+          const topY = mBot - (mBot - mTop) * lay;
+          // THE GB PRINTS CENTRED, then moves LEFT as the flag arrives: the whole
+          // lockup is shifted right by the mark's own offset from the card's
+          // centre, and that shift runs out over the flag's flight.
+          const fq = ss(SPL.flag, SPL.flag + SPLPRINT.flagDur);
+          const shift = (gcx - (gx + (bx.x0 + bx.x1) / 2 * gw)) * (1 - fq);
+          if (lay > 0) {
+            ctx.save();
+            ctx.translate(shift, 0);
+            ctx.beginPath(); ctx.rect(gx - 2, topY, gw + 4, gy + gh - topY + 2); ctx.clip();
+            ctx.drawImage(GBIMG.mark, gx, gy, gw, gh);
+            ctx.restore();
+          }
+          // THE FLAG. It fades up while it slides the last few pixels RIGHT into
+          // its dock — arriving, the way the card itself arrives one beat later.
+          if (fq > 0) {
+            ctx.save();
+            ctx.globalAlpha *= fq;
+            ctx.translate(shift - (1 - fq) * u * SPLPRINT.flagSlide, 0);
+            ctx.drawImage(GBIMG.flag, gx, gy, gw, gh);
+            ctx.restore();
+          }
+        } else {
+          ctx.drawImage(GBIMG.img, gx, gy, gw, gh); // no split (a refused canvas) — whole, and at once
+        }
         if (castAmt > 0.03) {                        // …and the bore's light falls ON the mark
           ctx.save();
           ctx.globalCompositeOperation = 'lighter';
@@ -654,10 +736,11 @@ function drawSplash(rawDt) {
       // the studio tag types itself out under the mark
       const shown = Math.floor(clamp((t - SPL.type) / 0.055, 0, GB_TAG.length));
       if (shown > 0) {
-        const fs = Math.max(14, Math.round(u * 0.052));
-        ctx.font = '500 ' + fs + 'px Audiowide, system-ui';
-        try { ctx.letterSpacing = (fs * 0.14).toFixed(1) + 'px'; } catch (e) {}
-        const ty = gcy + gh / 2 + u * 0.055;
+        const fs = Math.max(12, Math.round(u * SPLPRINT.tagPx));
+        ctx.font = '400 ' + fs + 'px Rajdhani, Audiowide, system-ui';
+        try { ctx.letterSpacing = (fs * SPLPRINT.tagTrack).toFixed(1) + 'px'; } catch (e) {}
+        // under the MARK's own bottom edge, not the PNG's — the PNG carries a margin
+        const ty = (GBIMG.box ? gcy - gh / 2 - u * 0.05 + GBIMG.box.y1 * gh : gcy + gh / 2) + u * SPLPRINT.tagGap + fs * 0.8;
         ctx.fillStyle = 'rgba(225,240,255,0.92)';
         ctx.fillText(GB_TAG.slice(0, shown), gcx, ty);
         if (t < SPL.cast && (shown < GB_TAG.length || Math.sin(t * 9) > -0.2)) { // block cursor

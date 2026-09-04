@@ -59,7 +59,7 @@ const NEVER_SHIP = [
   // Shipping the PNGs too packaged 744KB of duplicate brand — the exact double
   // -copy scripts/icons.py warns about in its own docstring. The masters stay in
   // the repo (they are the thing to re-drop); they just never reach a device.
-  // GB-logo-hollow.png is NOT here: 99-boot loads it as the studio mark.
+  // GB-IL.png is NOT here: 99-boot loads it as the studio mark.
   'icons/logo.png', 'icons/logo-small.png',
   'icons/gb-logo.png',                 // the solid studio mark — only the hollow one is loaded
   // THE SOUNDBOARD'S DROP ZONE. Candidate takes wait here to be auditioned
