@@ -872,7 +872,84 @@ function shouldRender(now) {
   lastRender = now;
   return true;
 }
+// ---------- the error net ----------
+// frame() used to be the loop's own last line: requestAnimationFrame(frame) at
+// the end of the body. One thrown error and the chain ended — the canvas held
+// its last picture forever, silent, and nothing anywhere recorded why. Play
+// Console vitals see native crashes and ANRs; a WebView JavaScript error is
+// invisible to it, to App Store Connect, and to us (found 2026-09-06).
+//
+// So the body is frameBody() now and frame() is a guard around it. On a throw
+// the error is written to its own localStorage slot — NOT the save blob, whose
+// shape is pinned — the loop is re-armed, and every later frame paints one disc:
+// SYSTEM FAULT, tap anywhere to restart. Restart is location.reload(): the
+// bundle is local under Capacitor, the save is already on disk, and a fresh
+// page is the one recovery that does not depend on which half of the game broke.
+//
+// The stored error rides the next FEEDBACK note as a fifth context field (see
+// fbContext) and is cleared when that note goes. The player still chooses to
+// send it, so nothing here changes the Data Safety answers.
+const CRASH = { on: false, msg: '', at: 0 };
+function crashRecord(e, where) {
+  const msg = e && (e.stack || e.message) ? String(e.stack || e.message) : String(e);
+  const rec = { at: new Date().toISOString(), where: where || '', ver: (typeof window !== 'undefined' && window.__APP_VERSION) || null,
+    build: typeof BUILD !== 'undefined' ? BUILD : null, msg: msg.slice(0, 600) };
+  try { localStorage.setItem(FB_ERROR_KEY, JSON.stringify(rec)); } catch (e2) {}
+  return rec;
+}
+function crashCatch(e, where) {
+  const rec = crashRecord(e, where);
+  if (CRASH.on) return;
+  CRASH.on = true; CRASH.msg = rec.msg; CRASH.at = performance.now();
+  try { if (AC && AC.state === 'running') AC.suspend().catch(() => {}); } catch (e2) {}
+  try { clearField(); } catch (e2) {}
+  // the restart tap is armed a beat late, so the touch that was mid-flight when
+  // the lane broke cannot be the one that reloads the page
+  try {
+    setTimeout(() => window.addEventListener('pointerdown', () => { try { location.reload(); } catch (e2) {} }, { once: true, capture: true }), 700);
+  } catch (e2) {}
+}
+// An error OUTSIDE the frame — a pointer handler, a fetch callback — is recorded
+// and nothing more. The loop is still running; the disc is for a loop that is not.
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('error', ev => { try { crashRecord(ev.error || ev.message, 'window'); } catch (e) {} });
+  window.addEventListener('unhandledrejection', ev => { try { crashRecord(ev.reason, 'promise'); } catch (e) {} });
+}
+function drawCrash() {
+  // the frame may have died mid-save: unwind whatever it left on the stack, then
+  // put the game's own transform back (resize() would early-return: nothing moved)
+  for (let i = 0; i < 12; i++) ctx.restore();
+  if (ROT) ctx.setTransform(0, DPR, -DPR, 0, canvas.width, 0); else ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#03060e'; ctx.fillRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2;
+  const pulse = 0.72 + 0.28 * Math.sin((performance.now() - CRASH.at) / 380);
+  try {
+    // a disc the ring would have cast — every line through discPara, under the disc law
+    const R = Math.min(W, H) * 0.42;
+    discPlate(cx, cy, R, 'SYSTEM\nFAULT', '#ff7a7a');
+    const px = Math.max(10, Math.round(R * 0.072)), sm = Math.max(9, Math.round(R * 0.058));
+    let y = discPara(cx, cy, R, 'The game hit an error and stopped. Your progress is saved.', cy - R * 0.22, 'rgba(220,235,255,0.9)', px);
+    ctx.globalAlpha = pulse;
+    y = discPara(cx, cy, R, 'TAP ANYWHERE TO RESTART', y + px * 0.5, '#ffe27a', px, '700');
+    ctx.globalAlpha = 1;
+    discPara(cx, cy, R, 'The error is kept on this device. FEEDBACK in System Config can send it to the developer.', y + px * 0.3, 'rgba(150,190,225,0.72)', sm);
+  } catch (e) {
+    // the disc kit itself is what broke: plain text, nothing else to lean on
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ff7a7a'; ctx.font = '700 ' + Math.round(Math.min(W, H) * 0.06) + 'px Audiowide, system-ui';
+    ctx.fillText('SYSTEM FAULT', cx, cy - Math.min(W, H) * 0.06);
+    ctx.fillStyle = 'rgba(255,226,122,' + pulse.toFixed(2) + ')'; ctx.font = '600 ' + Math.round(Math.min(W, H) * 0.035) + 'px Audiowide, system-ui';
+    ctx.fillText('TAP ANYWHERE TO RESTART', cx, cy + Math.min(W, H) * 0.04);
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  }
+}
 function frame(now) {
+  if (CRASH.on) { try { drawCrash(); } catch (e) {} requestAnimationFrame(frame); return; }
+  try { frameBody(now); }
+  catch (e) { crashCatch(e, 'frame'); requestAnimationFrame(frame); }
+}
+function frameBody(now) {
   const painting = shouldRender(now);
   const rawDt = (now - last) / 1000;
   let dt = clamp(rawDt, 0, 0.05); // clock can step backwards (timer quirks) — never simulate in reverse

@@ -5,6 +5,9 @@
   "server": {
     "androidScheme": "https"
   },
+  "android": {
+    "backgroundColor": "#03060e"
+  },
   "ios": {
     "contentInset": "never",
     "scrollEnabled": false,

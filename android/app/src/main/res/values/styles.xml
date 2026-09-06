@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:background">@null</item>
+    </style>
+
+
+    <!-- THE LAUNCH WINDOW IS NAVY, LIKE iOS. The scaffold shipped Capacitor's own
+         placeholder (white, its logo) as a drawable named splash and left the Android 12+
+         system-splash ground to the theme's default — near black in dark mode and
+         WHITE in light mode, seen 2026-09-06. iOS's LaunchScreen.storyboard is
+         navy #03060e with the badge; this is its twin, and scripts/test.js pins
+         both. The colour is the game's own (index.html, manifest, capacitor.config)
+         so the icon zoom, the window and the first web frame are one ground. -->
+    <color name="launch_background">#03060E</color>
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/launch_background</item>
+        <item name="android:windowBackground">@color/launch_background</item>
+        <item name="android:background">@color/launch_background</item>
+    </style>
+</resources>

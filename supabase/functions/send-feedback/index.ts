@@ -49,6 +49,11 @@ const BODY_MAX = 600;
 // forged body from turning the row into a payload.
 const META_MAX = 120;
 
+// The one context field that is prose rather than a label: the error the game's
+// own net caught, when it caught one (99-boot.js, 2026-09-06). A stack trace is
+// long by nature, and the first 500 characters are the part that names the line.
+const ERROR_MAX = 500;
+
 // Control characters would survive into the admin console and break its layout;
 // a newline is the one a player types on purpose, so it survives.
 const clean = (v: unknown, max: number) =>
@@ -93,6 +98,7 @@ Deno.serve(async (req) => {
     p_device: clean(meta.device, META_MAX),
     p_screen: clean(meta.screen, META_MAX),
     p_place: clean(meta.place, META_MAX),
+    p_error: clean(meta.error, ERROR_MAX),
   });
   // A REAL FAILURE IS STILL A FAILURE. The rate bar is silent, but a database that
   // did not answer is not a bar — saying ok there would throw away a note the

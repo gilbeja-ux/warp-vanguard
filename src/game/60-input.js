@@ -318,21 +318,52 @@ window.addEventListener('keydown', e => {
     if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') closeGuide();
     return;
   }
-  if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
-    // watching a replay: Escape means LEAVE THE REPLAY, exactly like its BACK control.
-    // It used to fall through to the normal pause menu, whose QUIT walks to the menu
-    // without exitReplay() — stranding replaying === true for the session.
-    if (replaying) { if (!replayXfer) { replayXfer = { dir: -1, t: 0 }; replayPaused = true; sfx.tick(); } return; }
-    if (state === S.PLAY) { state = S.PAUSE; sfx.tick(); }
-    else if (state === S.INFO && !infoOutAt) { pausedFromInfo = true; state = S.PAUSE; sfx.tick(); }
-    else if (state === S.PAUSE) {
-      if (pausedFromInfo) { pausedFromInfo = false; state = S.INFO; }
-      else { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; }
-      sfx.tick();
-    }
-  }
+  if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') pauseToggle();
 });
 window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// THE PAUSE KEY'S VERB, in one place: Escape and P on a keyboard, and the Android
+// back button below, all speak it. Returns true when it did something.
+function pauseToggle() {
+  // watching a replay: Escape means LEAVE THE REPLAY, exactly like its BACK control.
+  // It used to fall through to the normal pause menu, whose QUIT walks to the menu
+  // without exitReplay() — stranding replaying === true for the session.
+  if (replaying) { if (!replayXfer) { replayXfer = { dir: -1, t: 0 }; replayPaused = true; sfx.tick(); } return true; }
+  if (state === S.PLAY) { state = S.PAUSE; sfx.tick(); return true; }
+  if (state === S.INFO && !infoOutAt) { pausedFromInfo = true; state = S.PAUSE; sfx.tick(); return true; }
+  if (state === S.PAUSE) {
+    if (pausedFromInfo) { pausedFromInfo = false; state = S.INFO; }
+    else { state = S.PLAY; resumeHold = 0.9; resumeDigit = 0; }
+    sfx.tick(); return true;
+  }
+  return false;
+}
+
+// ---------- the Android back button ----------
+// Without a listener the OS finishes the activity: one press, mid-lane, and the
+// run is gone with no pause and no question (found 2026-09-06). @capacitor/app
+// hands the press to the page instead, and back means here what B means on a
+// pad and Escape on a keyboard: pause a run, resume a pause, close a disc, step
+// back one menu screen. Only on the home wheel with nothing open does it leave
+// the app — the platform's own convention. Returns false for exactly that case.
+// iOS has no back button; the listener is inert there and the file is the same.
+function hardwareBack() {
+  if (replaying || state === S.PLAY || state === S.PAUSE) return pauseToggle();
+  if (state === S.INFO || state === S.GUIDE || state === S.END) { gpBackAction(); return true; }
+  if (state === S.ENLIST) return true; // the first minute has no "back"; a stray press must not close the app
+  if (state === S.MENU) {
+    if (bossGate) { closeBossGate(); sfx.tick(); return true; } // the passcode disc is not in gpBackAction's list
+    const open = !!(report || feedback || myData || menuConfirm || menuSettings);
+    if (!open && menuScreen === 'home' && !menuFx) return false; // nothing to back out of
+    gpBackAction(); return true;
+  }
+  return true;
+}
+(function wireHardwareBack() {
+  const app = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (!app || typeof app.addListener !== 'function') return;
+  app.addListener('backButton', () => { if (!hardwareBack()) app.exitApp(); });
+})();
 
 // auto-pause when the app loses the screen (phone lock, app switch, tab change)
 document.addEventListener('visibilitychange', () => {

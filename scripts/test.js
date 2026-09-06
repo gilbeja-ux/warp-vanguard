@@ -298,7 +298,12 @@ code = code.replace("'use strict';", '') + `
   // clock is handed over instead of faked.
   setFrameDt: v => { frameDt = v; }, discSegHit,
   fbField: () => fbFieldRect, fbTitleBox: () => fbTitleBox, FEEDBACK_EMAIL, discR,
-  fbContext, fbHeld, lbFeedback
+  fbContext, fbHeld, lbFeedback,
+  // the error net (99-boot.js) and the back button (60-input.js), 2026-09-06
+  crash: () => CRASH, resetCrash: () => { CRASH.on = false; CRASH.msg = ''; }, crashCatch, drawCrash,
+  fbLastError, fbClearError, FB_ERROR_KEY,
+  hardwareBack, pauseToggle, setReplaying: v => { replaying = v; }, getReplaying: () => replaying,
+  setBossGate: v => { bossGate = v; }, getBossGate: () => bossGate
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -4951,7 +4956,10 @@ async function runMusicUp() {
     // A fifth — a language, an id, anything unique — fails the build until somebody
     // decides it is worth the paperwork, because a payload grows one convenient
     // field at a time and nothing else would notice.
-    check('the note carries those four and nothing else',
+    // 2026-09-06: ONE conditional fifth — the error the game's own net caught — and
+    // only on the note that follows a crash. With nothing caught the list is still
+    // exactly four; see THE ERROR NET below for the five.
+    check('the note carries those four and nothing else when nothing has crashed',
       Object.keys(ctx0).sort().join(',') === 'build,device,place,screen');
     // …and the device string must never BE an identifier. A model is a name
     // millions of devices share; a serial or an install id is not, and deriving a
@@ -4963,8 +4971,8 @@ async function runMusicUp() {
     // carry exactly that and no more. This is what ties the words to the wire.
     {
       const guide = fs.readFileSync(path.join(ROOT, 'src', 'game', '92-guide.js'), 'utf8');
-      check('the flank names all four, in the order they are sent',
-        /'SENT WITH', 'version no\.\\ndevice model\\nscreen size\\nthe last stage you played'/.test(guide));
+      check('the flank names all four, in the order they are sent, and the caught error only when one rides along',
+        /'SENT WITH', 'version no\.\\ndevice model\\nscreen size\\nthe last stage you played' \+ \(fbLastError\(\) \? '\\nthe error it caught' : ''\)/.test(guide));
       const mig = fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', '20260901000000_feedback.sql'), 'utf8');
       check('the table has a column for each, and none for a language or a sim id',
         /^\s*device\s+text/m.test(mig) && /^\s*screen\s+text/m.test(mig)
@@ -6247,4 +6255,138 @@ async function runMusicUp() {
     fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8').includes('!android/app/src/main/java/'));
   check('both platforms: the two-platform law is written in CLAUDE.md',
     /Two platforms, one fix/.test(fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8')));
+}
+
+
+// ================= THE ERROR NET: a thrown frame paints a disc, not a freeze =================
+//
+// Found 2026-09-06: frame() re-armed itself as its own last statement, so one
+// thrown error ended the loop and the canvas held its last picture forever, with
+// no record anywhere. frame() is a guard around frameBody() now; the error goes
+// to its own localStorage slot, the loop keeps running, every later frame paints
+// SYSTEM FAULT / TAP ANYWHERE TO RESTART, and the next FEEDBACK note carries the
+// error as its fifth field.
+{
+  const boot = fs.readFileSync(path.join(ROOT, 'src', 'game', '99-boot.js'), 'utf8');
+  check('error net: frame() guards frameBody() and re-arms the loop on a throw',
+    /function frame\(now\) \{[\s\S]{0,400}try \{ frameBody\(now\); \}\s*catch \(e\) \{ crashCatch\(e, 'frame'\); requestAnimationFrame\(frame\); \}/.test(boot)
+    && /function frameBody\(now\)/.test(boot));
+  check('error net: errors outside the frame are recorded too (window error + unhandled rejection)',
+    /addEventListener\('error'/.test(boot) && /addEventListener\('unhandledrejection'/.test(boot));
+  check('error net: the record goes to its own slot, never into the pinned save blob',
+    /localStorage\.setItem\(FB_ERROR_KEY/.test(boot) && !/saveState\(\)/.test(boot.slice(boot.indexOf('function crashRecord'), boot.indexOf('function drawCrash'))));
+
+  // live: a Map-backed storage so the record can be read back
+  const realLS = global.localStorage;
+  const mem = new Map();
+  global.localStorage = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k) };
+  try {
+    G.resetCrash(); G.fbClearError();
+    check('error net: nothing caught → no error line and four context fields',
+      G.fbLastError() === null && Object.keys(G.fbContext()).length === 4);
+    G.crashCatch(new Error('boom at the rim'), 'frame');
+    check('error net: a caught frame error flips the crash state and records the message',
+      G.crash().on === true && /boom at the rim/.test(mem.get(G.FB_ERROR_KEY) || ''));
+    let drew = true;
+    try { G.frame(16); G.frame(33); } catch (e) { drew = false; }
+    check('error net: the loop keeps running and the fault disc paints without throwing', drew && G.crash().on === true);
+    const line = G.fbLastError();
+    check('error net: the stored error reads back as one line with where and what',
+      typeof line === 'string' && /frame/.test(line) && /boom at the rim/.test(line) && line.length <= 500);
+    const five = G.fbContext();
+    check('error net: the next note carries the four fields plus the error, and nothing else',
+      Object.keys(five).sort().join(',') === 'build,device,error,place,screen' && /boom at the rim/.test(five.error));
+    G.fbClearError();
+    check('error net: once a note carries it the slot is cleared', G.fbLastError() === null && Object.keys(G.fbContext()).length === 4);
+    const lb = fs.readFileSync(path.join(ROOT, 'src', 'game', '31-leaderboard.js'), 'utf8');
+    check('error net: lbFeedback clears the slot the moment the note takes it (sent or held)',
+      /ctx: fbContext\(\), at: Date\.now\(\) \};\s*\n\s*fbClearError\(\);/.test(lb));
+    // the server side has a column, a capped argument and a queue view for it
+    const fn = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'send-feedback', 'index.ts'), 'utf8');
+    check('error net: send-feedback passes the error, capped, as p_error', /p_error: clean\(meta\.error, ERROR_MAX\)/.test(fn) && /const ERROR_MAX = 500/.test(fn));
+    const mig = fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', '20260906000000_feedback_error.sql'), 'utf8');
+    check('error net: the migration adds the column, drops the old signature, revokes the new one, and shows it in the queue',
+      /add column if not exists error text/.test(mig) && /drop function if exists public\.file_feedback\(text, text, text, text, text, text, text\)/.test(mig)
+      && /revoke execute on function public\.file_feedback\(text, text, text, text, text, text, text, text\)/.test(mig) && /f\.error\s*\nfrom public\.feedback f/.test(mig));
+    // and the documents that promise what a note carries name the fifth field
+    for (const [f, re] of [['docs/privacy.html', /error message it caught/], ['docs/delete-data.html', /error message it caught/],
+      ['docs/PLAY-CONSOLE-ANSWERS.md', /fifth, conditional field/], ['docs/MODERATION.md', /fifth, only\s*\n?after a crash/]])
+      check('error net: ' + f + ' names the caught error as what a note may carry', re.test(fs.readFileSync(path.join(ROOT, f), 'utf8')));
+  } finally {
+    G.resetCrash(); global.localStorage = realLS;
+  }
+}
+
+// ================= THE BACK BUTTON: pause, close, step back — leave only from home =================
+//
+// Found 2026-09-06: no listener, so Android finished the activity on the first
+// press — mid-lane, no pause, no question. @capacitor/app hands the press to
+// hardwareBack(), which speaks the same verb as B on a pad and Escape on a
+// keyboard. It returns false in exactly one place: the home wheel with nothing
+// open, where the wiring calls exitApp() and the platform's convention holds.
+{
+  const input = fs.readFileSync(path.join(ROOT, 'src', 'game', '60-input.js'), 'utf8');
+  check('back: @capacitor/app is a dependency and both shells carry it',
+    /^\^8\./.test(JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).devDependencies['@capacitor/app'] || '')
+    && /pod 'CapacitorApp'/.test(fs.readFileSync(path.join(ROOT, 'ios', 'App', 'Podfile'), 'utf8')));
+  check('back: the page listens for backButton and leaves the app only when hardwareBack() declines',
+    /addListener\('backButton', \(\) => \{ if \(!hardwareBack\(\)\) app\.exitApp\(\); \}\)/.test(input));
+  check('back: Escape and P share the verb through pauseToggle()', /if \(e\.key === 'Escape' \|\| e\.key === 'p' \|\| e\.key === 'P'\) pauseToggle\(\);/.test(input));
+
+  const st0 = G.getState(), scr0 = G.getMenuScreen(), set0 = G.getMenuSettings();
+  try {
+    G.setReplaying(false); G.setMenuFx(null);
+    G.setState(G.S.PLAY);
+    check('back: in a lane it pauses', G.hardwareBack() === true && G.getState() === G.S.PAUSE);
+    check('back: on the pause disc it resumes', G.hardwareBack() === true && G.getState() === G.S.PLAY);
+    G.setState(G.S.MENU); G.setMenuScreen('home'); G.setMenuSettings(true);
+    check('back: an open settings disc closes, the app stays', G.hardwareBack() === true && G.getMenuSettings() === false && G.getState() === G.S.MENU);
+    G.setBossGate(true);
+    check('back: the passcode disc closes, the app stays', G.hardwareBack() === true && G.getBossGate() === false);
+    G.setMenuScreen('map'); G.setMenuFx(null);
+    check('back: a menu screen steps back toward home', G.hardwareBack() === true && !!G.getMenuFx());
+    G.setMenuFx(null); G.setMenuScreen('home'); G.setMenuSettings(false);
+    check('back: the home wheel with nothing open is the one place it declines (→ exitApp)', G.hardwareBack() === false);
+    G.setState(G.S.ENLIST);
+    check('back: the enlistment swallows the press — a stray back must not close a first run', G.hardwareBack() === true && G.getState() === G.S.ENLIST);
+    G.setState(G.S.GUIDE); G.enterGuide && G.enterGuide('menu');
+    const gBack = G.hardwareBack(), gd = G.getGuide();
+    check('back: the field guide starts closing (closeGuide sets the out clock; the state flips when the page is gone)',
+      gBack === true && (!gd || gd.closing > 0));
+  } finally {
+    G.setState(st0); G.setMenuScreen(scr0); G.setMenuSettings(set0); G.setMenuFx(null); G.setBossGate(false);
+  }
+}
+
+// ================= THE ANDROID SHELL: decisions `cap add android` would undo =================
+//
+// The iOS twin of every one of these is pinned above. A native decision is made
+// twice (CLAUDE.md), so the Android half is pinned here: the landscape lock and
+// the game category that keeps it honoured on tablets, the immersive activity,
+// and — since 2026-09-06 — a launch window in the game's navy, where the scaffold
+// left Capacitor's white placeholder and the system default (white in light mode).
+{
+  const rd = f => fs.readFileSync(path.join(ROOT, 'android', 'app', 'src', 'main', f), 'utf8');
+  const manifest = rd('AndroidManifest.xml');
+  check('Android: landscape only, and declared a game so tablets honour the lock',
+    /android:screenOrientation="sensorLandscape"/.test(manifest) && /android:appCategory="game"/.test(manifest));
+  check('Android: the activity draws into the cutout and re-hides the system bars on focus',
+    /windowLayoutInDisplayCutoutMode="shortEdges"/.test(manifest)
+    && /onWindowFocusChanged[\s\S]*applyImmersive\(\)/.test(rd('java/com/warpvanguard/game/MainActivity.java')));
+  const styles = rd('res/values/styles.xml');
+  check('Android: the launch window is the game\'s navy on every layer — splash ground, window, background',
+    /<color name="launch_background">#03060E<\/color>/i.test(styles)
+    && /<item name="windowSplashScreenBackground">@color\/launch_background<\/item>/.test(styles)
+    && /<item name="android:windowBackground">@color\/launch_background<\/item>/.test(styles)
+    && /<item name="android:background">@color\/launch_background<\/item>/.test(styles));
+  check('Android: the scaffold\'s placeholder splash is gone — no drawable named splash, no reference to one',
+    !/@drawable\/splash/.test(styles)
+    && !fs.readdirSync(path.join(ROOT, 'android', 'app', 'src', 'main', 'res')).some(d => d.startsWith('drawable') && fs.existsSync(path.join(ROOT, 'android', 'app', 'src', 'main', 'res', d, 'splash.png'))));
+  const capCfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'capacitor.config.json'), 'utf8'));
+  check('both platforms: the web view is navy before first paint on Android AND iOS, from the same colour',
+    !!capCfg.android && /^#03060e$/i.test(capCfg.android.backgroundColor || '') && capCfg.android.backgroundColor === capCfg.ios.backgroundColor);
+  const ignore = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8');
+  check('Android: the launch theme is tracked, not regenerated', ignore.includes('!android/app/src/main/res/values/styles.xml'));
+  check('both platforms: BUILD.md lists the Android decisions beside their iOS twins',
+    /## Decisions the Android scaffold would undo/.test(fs.readFileSync(path.join(ROOT, 'BUILD.md'), 'utf8')));
 }

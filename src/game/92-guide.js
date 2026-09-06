@@ -1594,8 +1594,10 @@ function drawFeedback() {
   if (st === 'write' && sideW >= FB_SIDE_MIN) {
     ctx.save();
     ctx.globalAlpha = q;
+    // the fifth line appears only when the error net caught something — the flank
+    // names what THIS note carries, and most notes carry four things
     fbSideNote(cx - rr - 22, 'right', cy, sideW, R,
-      'SENT WITH', 'version no.\ndevice model\nscreen size\nthe last stage you played');
+      'SENT WITH', 'version no.\ndevice model\nscreen size\nthe last stage you played' + (fbLastError() ? '\nthe error it caught' : ''));
     // GET IN TOUCH, not WE CANNOT REPLY. Gil, 2026-09-01. The old wording was true
     // and it was a dead end — it told a player the door was shut without saying
     // where the open one is. This pipe still carries no reply, and now it says so

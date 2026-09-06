@@ -229,8 +229,10 @@ reads it. It sits in the console under **Feedback**, above the numbers.
 
 The words, the subject the player picked (`bug` · `idea` · `balance` · `other`),
 and **four** context fields: the app version with its build stamp, the device
-model, the screen size, and the stage they last played. The panel names all four
-before they press SEND, and `npm test` fails if a fifth ever appears.
+model, the screen size, and the stage they last played — plus a **fifth, only
+after a crash**: the error message the game's own net caught (2026-09-06), which
+rides the next note and is then cleared. The panel names every field that will
+ride along before they press SEND, and `npm test` fails if a sixth ever appears.
 
 **No language, and no sim id.** The first says nothing about a bug; the second is
 a hash of our own source that the version already reports.

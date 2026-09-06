@@ -107,6 +107,14 @@ the stage last played, the **device model** and the **screen size**. Gil's rule,
 2026-09-01: keep what helps fix bugs, and take nothing that costs a permission, a
 licence or a new declaration.
 
+**A fifth, conditional field since 2026-09-06: the error the game caught.** When
+a JavaScript error stops the game, the error net (`99-boot.js`) keeps the message
+on the device and the *next* note the player sends carries it. It is never
+gathered in the background and never sent on its own — a session that sends no
+note sends no error — so it is context on the user-generated content, under the
+same "users can choose" answer, and it is not *Diagnostics → Crash logs*. The
+SENT WITH flank names it whenever it will ride along.
+
 **None of it costs any of those.** Reading a model through the browser's Client
 Hints needs no manifest permission, no runtime prompt, no entitlement, and is not
 one of Apple's Required Reason APIs. What it costs is documentation, which is why

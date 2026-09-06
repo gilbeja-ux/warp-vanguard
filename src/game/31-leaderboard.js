@@ -421,13 +421,37 @@ function fbPlace() {
 // scripts/test.js asserts these four EXACTLY.
 function fbContext() {
   const ver = (typeof window !== 'undefined' && window.__APP_VERSION) || null;
-  return {
+  const out = {
     build: (ver ? 'v' + ver + ' ' : '') + BUILD,
     device: fbDevice(),
     screen: Math.round(W) + '×' + Math.round(H) + (ROT ? ' rot' : ''),
     place: fbPlace()
   };
+  // THE FIFTH FIELD, AND WHEN IT EXISTS. Decided 2026-09-06 with the error net in
+  // 99-boot.js: a JavaScript error that stopped the game is written to its own
+  // localStorage slot, and the NEXT note the player sends carries it. It is not
+  // gathered in the background and it is not sent on its own — a session that
+  // sends no note sends no error — so it stays context on the note, under the
+  // same "users can choose" answer as the note itself. Absent when nothing broke,
+  // which is why the pin allows four keys or these five and nothing else.
+  const err = fbLastError();
+  if (err) out.error = err;
+  return out;
 }
+// the error net's slot (written by crashRecord in 99-boot.js). One record, the
+// latest, as a single line: when, where, which version, and the message.
+const FB_ERROR_KEY = 'warpVanguard.lastError';
+const FB_ERROR_MAX = 500;
+function fbLastError() {
+  try {
+    const raw = localStorage.getItem(FB_ERROR_KEY);
+    if (!raw) return null;
+    const r = JSON.parse(raw) || {};
+    const line = [r.at, r.where, r.ver ? 'v' + r.ver : '', r.msg].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim();
+    return line ? line.slice(0, FB_ERROR_MAX) : null;
+  } catch (e) { return null; }
+}
+function fbClearError() { try { localStorage.removeItem(FB_ERROR_KEY); } catch (e) {} }
 
 // One attempt. `true` means the note is on the server and can be forgotten;
 // `false` means try again later, and is the ONLY thing that fills the outbox.
@@ -462,6 +486,7 @@ async function lbFeedback(topic, text) {
   const body = String(text || '').slice(0, FEEDBACK_MAX);
   if (!body.trim()) return { ok: false, human: 'NOTHING TO SEND' };
   const note = { topic: topic || 'other', text: body, ctx: fbContext(), at: Date.now() };
+  fbClearError(); // the note carries it now — sent or held, it is off this device's hands
   if (await lbFeedbackSend(note)) return { ok: true };
   progress.fbOut = note; saveState();     // ONE slot — see flushFeedback
   return { ok: false, held: true, human: 'HELD — IT WILL SEND WHEN YOU ARE ONLINE' };

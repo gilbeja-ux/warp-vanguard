@@ -6,6 +6,40 @@ what a player meets. The commit trail between two versions is
 
 ---
 
+## 1.0.7 — 2026-09-05 (versionCode 10007)
+
+The second open-testing build. Both shells move to Capacitor 8.5.1, the studio
+card is GB-IL, and the last console slab becomes a disc.
+
+### Both shells, one version
+- **Capacitor 8.5.1 on Android and iOS**, in one job: JDK 21, minSdk 24, AGP 8.13,
+  Gradle 8.14.3, the UIScene lifecycle on iOS. The iOS project is rebuilt from
+  scratch with every decision tracked and pinned — landscape only, no status bar,
+  an audio session the mute switch cannot silence, a navy launch screen. It is one
+  `npm run ios:archive` from the App Store once an Apple Developer ID exists.
+- **A Play cut proves the iOS shell.** `npm run aab` ends by compiling the iOS app
+  at the same version.
+
+### The boot card
+- **The studio is GB-IL.** The GB prints bottom-up in layers behind a rising mask,
+  the IL flag fades up and slides into its dock, and the tag reads Interaction
+  Labs in Rajdhani. Every look is a knob.
+- **LOADING sits under the bar,** clear of the badge's bottom tip on a phone.
+
+### Discs and the disc law
+- **MY DATA is a disc.** The verbs stack as slabs, DELETE in red, CANCEL and SAVE
+  on the bottom segment, SAVE locked until the handle is clean.
+- **Nothing touches the rim.** Every line of disc text wraps to the chord at its
+  own height, every field is fitted the same way, and a long title breaks onto two
+  lines instead of shrinking. Checked at desktop width as well as on a phone.
+- **The gear says close.** Open, it wears an X and sits lit above the disc's dim.
+
+### Small fixes
+- **The guide closes on the ? that opened it** — top-right on the menu, beside
+  RESUME on the pause screen — instead of a corner nothing launched from.
+- **The weekly ladder starts at its first real week,** not at the empty boards
+  from before the 2026-09-02 wipe.
+
 ## 1.0.6 — 2026-09-04 (versionCode 10006)
 
 The open-testing build. The replay viewer stops lying, and the boss shortcut

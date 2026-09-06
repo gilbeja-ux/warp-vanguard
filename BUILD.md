@@ -67,6 +67,21 @@ echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 > Capacitor 8 needs JDK 21. The Temurin JDK **cask** (`brew install --cask temurin`) needs a sudo password
 > and can't be scripted headlessly — that's why we use the `openjdk@21` formula.
 
+## Decisions the Android scaffold would undo
+
+`cap add android` regenerates the project; these tracked files carry the rules,
+and `npm test` (section *THE ANDROID SHELL*) pins them. The right column is the
+iOS twin, because a native decision is made twice.
+
+| File | Decision | iOS twin |
+| --- | --- | --- |
+| `AndroidManifest.xml` | `sensorLandscape`, `appCategory="game"` (the tablet orientation exemption), immersive cutout mode | `Info.plist` orientation list |
+| `MainActivity.java` | hides the system bars and re-hides them on focus | `GameViewController.swift` |
+| `res/values/styles.xml` | the launch window is the game's navy — icon zoom, window and first web frame on one ground; no placeholder drawable | `LaunchScreen.storyboard` |
+| `capacitor.config.json` → `android.backgroundColor` | the web view is navy before the first frame | `ios.backgroundColor` |
+| `@capacitor/app` (package.json) | the back button pauses, closes, steps back, and leaves only from the home wheel (`hardwareBack` in `60-input.js`) | none — iOS has no back button; the listener is inert |
+| `build.gradle`, `proguard-rules.pro`, `variables.gradle` | signing, R8 keep rules, SDK levels, generated versions | `project.pbxproj` |
+
 ## Build the APK
 
 ```bash
