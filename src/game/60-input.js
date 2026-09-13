@@ -325,6 +325,7 @@ window.addEventListener('keyup', e => { keys[e.key] = false; });
 // THE PAUSE KEY'S VERB, in one place: Escape and P on a keyboard, and the Android
 // back button below, all speak it. Returns true when it did something.
 function pauseToggle() {
+  evLog('pause');
   // watching a replay: Escape means LEAVE THE REPLAY, exactly like its BACK control.
   // It used to fall through to the normal pause menu, whose QUIT walks to the menu
   // without exitReplay() — stranding replaying === true for the session.
@@ -714,6 +715,7 @@ function discBack() {
   sfx.tick();
 }
 function startLevel(i, brief, withAssist) {
+  evLog(brief ? 'brief' : 'start');
   // seed BOTH random streams so a campaign run is FULLY reproducible — the
   // prerequisite for server-side replay verification. spawnRng drives the spawn
   // script; Math.random drives everything else the sim touches (e.g. wall-avoid
@@ -885,6 +887,7 @@ function startBossRetry() {
   popup(W / 2, H * 0.3, 'DUEL RETRY — THIS RUN NO LONGER RANKS', '#ffb478');
 }
 function startEndless() {
+  evLog('endless');
   weekly = false; Math.random = sysRandom;
   levelIdx = -1; endless = true; qual = false; LV = endlessCfg(0); tut = null;
   spawnRng = Math.random;
@@ -915,8 +918,9 @@ function mulberry32(a) {
 }
 // <<< DEST-RNG
 function startWeekly(w) {
+  evLog('weekly');
   const weekN = (w === undefined || w === null) ? weekNow() : (w | 0);
-  weeklyIdx = weekN;
+  weeklyIdx = weekN; weeklyStartedAt = Date.now();
   Math.random = mulberry32((weekN * 2654435761) >>> 0);
   weekly = true;
   levelIdx = -1; endless = true; qual = false; LV = endlessCfg(0); tut = null;
@@ -935,4 +939,11 @@ function startWeekly(w) {
 // Is the week being played still open? Only the live week accepts a score. A past
 // week is a practice lane — the client hides the submit path and the Edge Function
 // refuses it regardless of what a modified client sends.
-const weeklyLive = () => weekly && weeklyIdx === weekNow();
+// THE SUNDAY TURN, CLIENT HALF (2026-09-09). A lane in flight at 23:59:59 UTC
+// ends on the week that just closed. The run keeps the week it STARTED in for
+// the ten minutes the server grants (WEEK_GRACE_MS in submit-run/index.ts, the
+// same number here); a lane started after the turn is practice, as before.
+const WEEK_GRACE_MS = 10 * 60 * 1000;
+let weeklyStartedAt = 0;
+const weeklyLive = () => weekly && (weeklyIdx === weekNow()
+  || (weeklyIdx === weekNow() - 1 && weekOf(weeklyStartedAt) === weeklyIdx && Date.now() - weekStartMs(weekNow()) < WEEK_GRACE_MS));

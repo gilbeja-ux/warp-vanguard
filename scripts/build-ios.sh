@@ -87,6 +87,7 @@ case "$MODE" in
       -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
       -derivedDataPath "$DERIVED" -quiet build
     APP="$DERIVED/Build/Products/Debug-iphonesimulator/App.app"
+    [ -d "$APP" ] || { echo "✗ xcodebuild returned but there is no app at $APP"; exit 1; }
     echo ""
     echo "✓ built: $APP"
     [ "$MODE" = sim-only ] && exit 0

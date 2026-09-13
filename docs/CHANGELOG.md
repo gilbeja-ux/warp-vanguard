@@ -6,6 +6,56 @@ what a player meets. The commit trail between two versions is
 
 ---
 
+## 1.0.8 — 2026-09-13 (versionCode 10008)
+
+The third open-testing build. The back button behaves, a crash paints a disc and
+tells the developer where it happened, the leaderboard trusts the phone less,
+and the real game is now booted in a browser before every cut.
+
+### On the phone
+- **The back button pauses instead of quitting.** In a lane it pauses; on a disc
+  it closes the disc; on the home wheel it leaves the app. On iOS, which has no
+  back button, the listener is inert.
+- **A crash is a disc, not a freeze.** A thrown frame paints SYSTEM FAULT with
+  TAP ANYWHERE TO RESTART. The error is kept on the device and rides the next
+  FEEDBACK note, together with where the player was: the stage, the board, the
+  lane clock, the screen, the memory, and the last ten things the game did. An
+  error before the game loop starts is recorded too.
+- **A dead web renderer no longer ends the app on Android.** When the system
+  ends the web view for memory, the activity is recreated and the game boots
+  again from its splash, as iOS already did. Three deaths in a minute end the
+  loop instead of flickering forever.
+- **The launch window is navy on both shells,** with no white flash before the
+  first frame.
+
+### The leaderboard
+- **Boss boards order equal scores by the server's clock,** never the phone's.
+  The verifier now returns the run time from its own replay.
+- **A submission bar:** thirty submissions per player per ten minutes, taken
+  before the replay. A loss files too, so a fast restart loop stays well under it.
+- **A replay belongs to one player.** The frame hash is written with the row,
+  and the database refuses a second owner. A duplicate answers 403.
+- **A weekly lane in flight at the Sunday turn keeps its week** for ten minutes,
+  on both the client and the server. A lane started after the turn is practice.
+- **Anonymous players hold only the rights they use.** The write rights they
+  never used are revoked on every table, and new tables start closed.
+- **MY DATA delete also clears the pre-Play backup table,** and 294 replay files
+  that outlived their rows were purged.
+
+### Under the hood
+- **`npm run test:smoke` boots the real game in Chrome** on a desktop and a phone
+  viewport: splash, bake, fonts, enlistment, menu, every disc, a briefing, a
+  two-thumb launch, ten seconds of play, pause, back key, and one deliberate
+  fault. It fails on any exception, console error or missing file. It runs in
+  CI too.
+- **The release path proves itself.** `npm run aab` runs the pins first and
+  checks the bundle's version. The pre-push hook runs the pins. The verifier
+  deploy refuses to run ahead of a pending migration and probes the live
+  function afterwards. Every script fails on a pattern that matched nothing.
+- **Several agents, one checkout** is now a rule in CLAUDE.md.
+
+---
+
 ## 1.0.7 — 2026-09-05 (versionCode 10007)
 
 The second open-testing build. Both shells move to Capacitor 8.5.1, the studio

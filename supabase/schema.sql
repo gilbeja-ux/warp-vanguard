@@ -1,7 +1,15 @@
--- Warp Lane — leaderboard backend (Supabase / Postgres)
--- Run this in the Supabase SQL editor (or `supabase db push`) once, on a fresh
--- project. It creates the single leaderboard table, the write-lockdown that
--- makes anti-cheat enforceable, and the ranking functions the client reads.
+-- Warp Vanguard — leaderboard backend (Supabase / Postgres): THE BASE, NOT THE STATE.
+--
+-- On a fresh project run this ONCE in the SQL editor, then `supabase db push`:
+-- the migrations in supabase/migrations/ start from these tables and replace
+-- every function below (they `drop` and `create or replace` by signature). So
+-- this file is the 2026-07 starting point that the migration chain assumes, and
+-- it is NOT a picture of the live database — the boss tie-break, the replay-owner
+-- column, the feedback error field, the submission bar and the closed grants all
+-- live in the migrations. Read the newest migration for the current shape of any
+-- function; never hand-edit a function here to "keep it in sync" (audit
+-- 2026-09-08, A5: the copies had drifted three migrations behind, and a
+-- `supabase db dump` needs Docker, which this Mac does not have).
 --
 -- Model: ONE table. A "board" is just a `board` value — there is nothing to
 -- pre-create (unlike LootLocker's 42 boards). Campaign boards are

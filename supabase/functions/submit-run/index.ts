@@ -168,6 +168,10 @@ async function sha256hex(s: string): Promise<string> {
 // the trust boundary and has to be able to answer "what week is it" without loading
 // the game.
 const weekOf = (ms: number) => Math.floor((Math.floor(ms / 864e5) + 3) / 7);
+// THE SUNDAY TURN. A lane in flight at 23:59:59 UTC ends on the week that just
+// closed. Ten minutes of grace lets that one honest run land on the board it was
+// played on; after that a closed week is closed for good.
+const WEEK_GRACE_MS = 10 * 60 * 1000;
 
 // rebuild the board key from the VERIFIED run params — never trust the client's
 // string (else a level-0 run could be filed under a hard board).
@@ -180,9 +184,12 @@ const weekOf = (ms: number) => Math.floor((Math.floor(ms / 864e5) + 3) / 7);
 function boardKeyFor(run: any): string | null {
   if (run.mode === "endless") return "endless";
   if (run.mode === "weekly") {
-    const live = weekOf(Date.now());
-    if (!Number.isInteger(run.seed) || run.seed !== live) return null; // closed or bogus week
-    return `weekly:${live}`;
+    const now = Date.now(), live = weekOf(now);
+    if (!Number.isInteger(run.seed)) return null;
+    if (run.seed === live) return `weekly:${live}`;
+    const weekStart = (7 * live - 3) * 864e5; // Monday 00:00 UTC of the live week
+    if (run.seed === live - 1 && now - weekStart < WEEK_GRACE_MS) return `weekly:${run.seed}`;
+    return null; // closed or bogus week
   }
   if (run.mode === "campaign" && typeof run.campId === "string" && Number.isInteger(run.levelIdx))
     return `${run.campId}:${run.levelIdx}`;
@@ -253,7 +260,10 @@ Deno.serve(async (req) => {
   // detail stats stored on the row (for the leaderboard details panel). For a
   // verified run these come from the SERVER's replay; for endless (trust-only)
   // they're the client's own claimed numbers.
-  let stat = { maxCombo: run.maxCombo | 0, comboSec: +run.comboSec || 0, zaps: run.zaps | 0, misses: run.misses | 0, perfects: run.perfects | 0, integrity: run.integrity | 0 };
+  // timeSec is the boss tie-break (time_sec asc on a %:7 board): for a verified
+  // run it is the SERVER's clock, never the client's (audit A1).
+  let stat = { maxCombo: run.maxCombo | 0, comboSec: +run.comboSec || 0, zaps: run.zaps | 0, misses: run.misses | 0, perfects: run.perfects | 0, integrity: run.integrity | 0,
+    timeSec: Math.max(0, +run.timeSec || 0) };
 
   if (run.mode === "endless") {
     if (run.score > MAX_ENDLESS) return json({ error: "implausible score" }, 400);
@@ -301,6 +311,14 @@ Deno.serve(async (req) => {
       if (accepted.length && !accepted.includes(clientSim))
         return json({ error: "client outdated", clientSim, serverSim: m.SIM_ID }, 409);
     }
+    // THE BAR BEFORE THE REPLAY (audit A6), and AFTER the cheap refusals — a
+    // bad board or a stale build spends no slot. Counted in the database under an
+    // advisory lock, so a script cannot spend the verifier's CPU. Thirty in ten
+    // minutes: a loss files too (endLevel submits every ended lane), so a player
+    // dying fast and restarting is about fifteen; a script is thousands.
+    const { data: wait, error: barErr } = await svc.rpc("take_submit_slot", { p_player: playerId });
+    if (barErr) return json({ error: "write failed", detail: barErr.message }, 500);
+    if (typeof wait === "number" && wait > 0) return json({ error: "too many runs", wait }, 429);
     let res;
     try { res = m.verifyRun(run); } catch (e) { return json({ error: "verify crashed", detail: String((e as any)?.stack ?? e) }, 500); }
     // H-03: a bare failure — no recomputed / integrity / steps. Those fields were
@@ -310,7 +328,8 @@ Deno.serve(async (req) => {
     if (!res.ok) return json({ error: "verification failed" }, 400);
     verified = true;
     score = res.recomputed; // write the SERVER's number, not the client's
-    stat = { maxCombo: res.maxCombo | 0, comboSec: +res.comboSec || 0, zaps: res.zaps | 0, misses: res.misses | 0, perfects: res.perfects | 0, integrity: res.integrity | 0 };
+    stat = { maxCombo: res.maxCombo | 0, comboSec: +res.comboSec || 0, zaps: res.zaps | 0, misses: res.misses | 0, perfects: res.perfects | 0, integrity: res.integrity | 0,
+      timeSec: Math.max(0, +res.timeSec || 0) };
     // REPLAY-STEALING GUARD (H-03). Fingerprint the input frames and refuse a
     // submission whose frames already belong to a DIFFERENT player. Verifying only
     // proves "these inputs make this score", not "this player played it", so a
@@ -349,20 +368,24 @@ Deno.serve(async (req) => {
   const { data: evicted, error: wErr } = await svc.rpc("submit_verified_run", {
     p_board: board, p_day: day, p_player: playerId, p_name: cleanName(body.name ?? run.playerName),
     p_run_id: cleanRunId(run.runId),
-    p_score: score, p_max_combo: stat.maxCombo, p_combo_sec: stat.comboSec, p_time_sec: +run.timeSec || 0,
+    p_score: score, p_max_combo: stat.maxCombo, p_combo_sec: stat.comboSec, p_time_sec: stat.timeSec,
     p_integrity: stat.integrity, p_zaps: stat.zaps, p_misses: stat.misses, p_perfects: stat.perfects,
-    p_mutators: Array.isArray(run.mutators) ? run.mutators : [], p_seed: run.seed ?? null,
+    p_mutators: Array.isArray(run.mutators) ? run.mutators.filter((m: unknown) => typeof m === "string").slice(0, 8) : [], p_seed: run.seed ?? null,
     p_verified: verified, p_trace_id: traceId,
+    // the frame hash rides the row itself (audit A7): check and stamp used to be
+    // two statements, and two submissions of one stolen trace could pass between
+    // them. A partial UNIQUE index on trace_hash now makes the database the judge.
+    p_trace_hash: traceHash,
   });
-  if (wErr) return json({ error: "write failed", detail: wErr.message }, 500);
-
-  // Stamp the frame-hash onto the row just written, so a later steal of THESE
-  // frames is caught (H-03). Best-effort: the score is already safely on the
-  // board, and the ownership CHECK above is the security gate — this only arms the
-  // check for the future, so a rare update miss must never fail the submission.
-  if (traceHash) {
-    await svc.from("runs").update({ trace_hash: traceHash })
-      .eq("board", board).is("day", null).eq("player_id", playerId).eq("run_id", cleanRunId(run.runId));
+  if (wErr) {
+    // 23505 is that index: these exact frames are already on the board. The
+    // object uploaded a moment ago belongs to no row now, so it goes too — the
+    // review found that a refused write would otherwise leave an orphan per race.
+    if ((wErr as any).code === "23505") {
+      if (traceId) { const { error: dErr } = await svc.storage.from("traces").remove([traceId]); if (dErr) console.warn(`[submit-run] orphan ${traceId} not removed: ${dErr.message}`); }
+      return json({ error: "replay already submitted" }, 403);
+    }
+    return json({ error: "write failed", detail: wErr.message }, 500);
   }
 
   // ---- PURGE THE REPLAYS THAT JUST FELL OFF THE BOARD ----

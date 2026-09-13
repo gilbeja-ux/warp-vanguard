@@ -77,6 +77,7 @@ iOS twin, because a native decision is made twice.
 | --- | --- | --- |
 | `AndroidManifest.xml` | `sensorLandscape`, `appCategory="game"` (the tablet orientation exemption), immersive cutout mode | `Info.plist` orientation list |
 | `MainActivity.java` | hides the system bars and re-hides them on focus | `GameViewController.swift` |
+| `MainActivity.java` | a dead web renderer (out of memory) recreates the activity instead of ending the app (`onRenderProcessGone` → `recreate()`) | Capacitor's own `webViewWebContentProcessDidTerminate` reload |
 | `res/values/styles.xml` | the launch window is the game's navy — icon zoom, window and first web frame on one ground; no placeholder drawable | `LaunchScreen.storyboard` |
 | `capacitor.config.json` → `android.backgroundColor` | the web view is navy before the first frame | `ios.backgroundColor` |
 | `@capacitor/app` (package.json) | the back button pauses, closes, steps back, and leaves only from the home wheel (`hardwareBack` in `60-input.js`) | none — iOS has no back button; the listener is inert |

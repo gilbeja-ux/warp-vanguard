@@ -106,3 +106,21 @@ the ring casts (the kit is in `src/game/91-briefing.js`: `discPlate`, `discRows`
 
 `npm test` pins the kit and pins MY DATA to it. A new disc that wraps its own text fails
 the pin.
+
+
+## Several agents, one checkout
+
+Gil runs more than one Claude agent on this repo at once. A repo-wide git command in one
+of them sweeps the others' work: `git stash`, `git reset --hard`, `git checkout .` and
+`git add -A` have each cost a day's edits. Written down 2026-09-08.
+
+1. **An agent works in a worktree.** `.claude/worktrees/<task>`, through the native
+   worktree tool; git ignores the folder. The main checkout is Gil's own, and no agent
+   runs a destructive git command there.
+2. **Stage by path, never by sweep.** `git add <file>` for the files you edited. Never
+   `git add -A`, `git add .`, `git stash`, `git reset --hard`, `git checkout .` or
+   `git clean` — in any checkout.
+3. **Finish means merge and remove.** Merge the branch into master, then
+   `git worktree remove <path>` and `git branch -d worktree-<task>`. Never push a
+   `worktree-*` branch; the branch is scaffolding, not history.
+4. **`npm test` runs in the worktree before the merge.** The pre-push hook runs it again.

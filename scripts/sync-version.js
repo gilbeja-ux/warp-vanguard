@@ -42,15 +42,24 @@ if (maj > 99 || min > 99 || pat > 99) {
 }
 const code = maj * 10000 + min * 100 + pat;
 
-let g = fs.readFileSync(GRADLE, 'utf8');
-const before = g;
-g = g.replace(/versionCode\s+\d+/, 'versionCode ' + code);
-g = g.replace(/versionName\s+"[^"]*"/, 'versionName "' + version + '"');
-if (g === before && !/versionCode\s+\d+/.test(before)) {
-  console.error('could not find versionCode/versionName in build.gradle');
-  process.exit(1);
+// A REPLACE THAT MATCHED NOTHING IS A FAILURE, NOT A NO-OP. Found 2026-09-08:
+// the iOS branch printed its success line with zero matches, and the gradle
+// guard passed when versionName was missing as long as versionCode existed.
+// Every pattern must match at least once, and the file is read back after the
+// write so the log line reports what is on disk, not what was intended.
+function sub(text, re, to, label) {
+  const n = (text.match(re) || []).length;
+  if (n === 0) { console.error(`could not find ${label} — nothing to sync`); process.exit(1); }
+  return text.replace(re, to);
 }
+let g = fs.readFileSync(GRADLE, 'utf8');
+g = sub(g, /versionCode\s+\d+/, 'versionCode ' + code, 'versionCode in build.gradle');
+g = sub(g, /versionName\s+"[^"]*"/, 'versionName "' + version + '"', 'versionName in build.gradle');
 fs.writeFileSync(GRADLE, g);
+const gBack = fs.readFileSync(GRADLE, 'utf8');
+if (!gBack.includes('versionCode ' + code) || !gBack.includes('versionName "' + version + '"')) {
+  console.error('build.gradle did not take the version after the write'); process.exit(1);
+}
 console.log(`android  versionName "${version}"  versionCode ${code}`);
 
 // ---- iOS, when the platform exists ----
@@ -61,8 +70,12 @@ console.log(`android  versionName "${version}"  versionCode ${code}`);
 const PBX = path.join(ROOT, 'ios', 'App', 'App.xcodeproj', 'project.pbxproj');
 if (fs.existsSync(PBX)) {
   let x = fs.readFileSync(PBX, 'utf8');
-  x = x.replace(/CURRENT_PROJECT_VERSION = [^;]*;/g, 'CURRENT_PROJECT_VERSION = ' + code + ';');
-  x = x.replace(/MARKETING_VERSION = [^;]*;/g, 'MARKETING_VERSION = ' + version + ';');
+  x = sub(x, /CURRENT_PROJECT_VERSION = [^;]*;/g, 'CURRENT_PROJECT_VERSION = ' + code + ';', 'CURRENT_PROJECT_VERSION in project.pbxproj');
+  x = sub(x, /MARKETING_VERSION = [^;]*;/g, 'MARKETING_VERSION = ' + version + ';', 'MARKETING_VERSION in project.pbxproj');
   fs.writeFileSync(PBX, x);
+  const xBack = fs.readFileSync(PBX, 'utf8');
+  if (new RegExp('CURRENT_PROJECT_VERSION = (?!' + code + ';)').test(xBack) || new RegExp('MARKETING_VERSION = (?!' + version.replace(/\./g, '\\.') + ';)').test(xBack)) {
+    console.error('project.pbxproj still carries another version after the write'); process.exit(1);
+  }
   console.log(`ios      MARKETING_VERSION ${version}  CURRENT_PROJECT_VERSION ${code}`);
 }

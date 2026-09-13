@@ -1,13 +1,13 @@
 {
   "name": "warp-vanguard",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "A mobile game for iOS and Android - dual-emitter warp lane escort game",
   "main": "index.html",
   "scripts": {
     "start": "npm run build",
     "test": "node scripts/test.js && node scripts/test-board.js && node scripts/test-sfx-levels.mjs",
     "build:verifier": "node scripts/build-verifier.js",
-    "deploy:verifier": "node scripts/build-verifier.js && supabase functions deploy submit-run",
+    "deploy:verifier": "bash scripts/deploy-verifier.sh",
     "build": "node scripts/build.js",
     "dev": "npm run build && node scripts/serve.js",
     "lab": "node scripts/lab.js",
@@ -36,6 +36,7 @@
     "aab": "bash scripts/build-aab.sh",
     "version:sync": "node scripts/sync-version.js",
     "test:coverage": "node scripts/test-fingerprint-coverage.mjs",
+    "test:smoke": "node scripts/smoke.js",
     "lab:leech": "node scripts/leech-lab.js"
   },
   "keywords": [

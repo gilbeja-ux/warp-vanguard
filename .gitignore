@@ -107,6 +107,7 @@ docs/dest-lab/dest-tuning.json
 # meaningful next to the device and thermal state that produced them. The numbers
 # worth keeping go in the commit message or a doc, not in the repo as data.
 bench-results/
+smoke-shots/
 
 # ---- RELEASE SIGNING — never commit these ----
 # The upload key is unrecoverable: commit or lose it and this listing can

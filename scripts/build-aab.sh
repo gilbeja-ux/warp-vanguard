@@ -25,6 +25,12 @@ if [ ! -f android/key.properties ]; then
   exit 1
 fi
 
+# THE PINS RUN BEFORE THE BUILD. Found 2026-09-08: nothing on the release path
+# ran `npm test` — the 1100 checks that guard both shells only fired when
+# someone typed the command. A store cut is exactly where they must fire.
+echo "── npm test ──"
+npm test
+
 # the version lands in the gradle file from package.json — never hand-typed
 node scripts/sync-version.js
 
@@ -39,6 +45,15 @@ cd android
 
 AAB="$ROOT/android/app/build/outputs/bundle/release/app-release.aab"
 DEST="$HOME/Desktop/WarpVanguard.aab"
+# PROOF, NOT A SUCCESS LINE. The bundle exists and its manifest carries the
+# version package.json says — the manifest is protobuf inside the zip, but a
+# versionName is stored as a plain UTF-8 string, so grep -a finds it.
+VERSION="$(node -p "require('$ROOT/package.json').version")"
+[ -f "$AAB" ] || { echo "✗ no bundle at $AAB"; exit 1; }
+if ! unzip -p "$AAB" base/manifest/AndroidManifest.xml | grep -a -q -F -- "$VERSION"; then
+  echo "✗ the bundle's manifest does not carry version $VERSION"; exit 1
+fi
+echo "✓ manifest carries versionName $VERSION"
 cp "$AAB" "$DEST"
 echo ""
 echo "✓ AAB built:     $AAB"

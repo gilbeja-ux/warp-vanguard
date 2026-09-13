@@ -53,6 +53,25 @@
      released version to claim. index.html is NOT part of the sim hash, so this
      line moves no board id. -->
 <script>window.__SIM_ID = null; window.__APP_VERSION = null; /* build-stamped */</script>
+<!-- THE NET BEFORE THE NET. The game's error net lives in 99-boot.js, the last
+     of the scripts below; a parse error or a top-level throw in any earlier
+     file happened before that net existed and left a navy canvas with no
+     record (found 2026-09-08). This listener holds the gap: it writes the same
+     slot, tagged "boot", and stands down the moment the game's own net is ARMED
+     (window.__WV_NET, set by 99-boot.js as it adds its listeners — not when
+     crashRecord merely exists, which is from the first byte of that file). -->
+<script>
+window.addEventListener('error', function (ev) {
+  try {
+    if (window.__WV_NET) return;
+    var K = 'warpVanguard.lastError';
+    var e = ev.error || ev.message;
+    localStorage.setItem(K, JSON.stringify({ at: new Date().toISOString(), where: 'boot', ver: window.__APP_VERSION || null,
+      build: null, scene: 'file=' + String(ev.filename || '').split('/').pop() + ':' + (ev.lineno || 0),
+      msg: String(e && (e.stack || e.message) || e).slice(0, 600) }));
+  } catch (e2) {}
+});
+</script>
 <script src="campaigns.js"></script>
 <script src="audio/music/tracks.js"></script>
 <script src="game/00-core.js"></script>

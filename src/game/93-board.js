@@ -54,6 +54,7 @@ function loadBoard() {
   });
 }
 function openBoard(from) {
+  evLog('board');
   boardFrom = from || 'home';
   boardSelRank = 1;
   // every campaign starts folded (first open only — respects the player's toggles after)

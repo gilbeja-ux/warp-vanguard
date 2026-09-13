@@ -117,7 +117,7 @@ function startTrace() { traceRec = []; tracePlay = null; traceFireQ.length = 0; 
 function stopTrace() { const f = traceRec; traceRec = null; return f; }
 // the trace owns every angle from here on — drop any bearing the live run left
 // pending, so nothing can tug a carriage the moment the viewer is closed again
-function startReplay(frames) { tracePlay = { frames, i: 0 }; traceRec = null; for (const n of nodes) n.slew = null; }
+function startReplay(frames) { evLog('replay'); tracePlay = { frames, i: 0 }; traceRec = null; for (const n of nodes) n.slew = null; }
 function stopReplay() { tracePlay = null; }
 // ---------- watch another player's run ----------
 let replaying = false, replayMeta = null, replayPkg = null, replayReturnCamp = null;
@@ -390,6 +390,7 @@ function setViewport(w, h) { W = w > 0 ? w : 800; H = h > 0 ? h : 450; }
 function dismissInfo() { if (state === S.INFO && !infoOutAt) infoOutAt = time; }
 
 function endLevel(win) {
+  evLog(win ? 'win' : 'loss');
   const frames = stopTrace(); // close the recording started in resetRun
   // THE BORE EMPTIES WITH THE RUN. Belt-and-braces behind the spawn windows: a
   // win already requires enemies.length === 0, but anything else still in

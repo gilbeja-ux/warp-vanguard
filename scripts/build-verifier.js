@@ -67,7 +67,7 @@ const expose = `
   levelsN: () => (typeof LEVELS !== 'undefined' ? LEVELS.length : -1),
   campN: () => (typeof CAMPAIGNS !== 'undefined' ? CAMPAIGNS.length : -1),
   lvName: () => { try { return (LV && LV.name) || (LEVELS[levelIdx] && LEVELS[levelIdx].name) || null; } catch (e) { return 'ERR:' + e.message; } },
-  stats: () => ({ score, integrity, misses, zaps, perfects, maxCombo, comboSec: maxComboSec })
+  stats: () => ({ score, integrity, misses, zaps, perfects, maxCombo, comboSec: maxComboSec, timeSec: Math.round(levelT * 1000) / 1000 })
 };`;
 // campaigns.js loads before the game <script> in the page — mirror that order.
 const gameCode = (campaigns + '\n' + game + expose).replace("'use strict';", '');
@@ -147,7 +147,8 @@ export function verifyRun(run) {
   __VG.stopReplay();
   const s = __VG.stats();
   return { ok: s.score === run.score, recomputed: s.score, expected: run.score, integrity: s.integrity, steps,
-    zaps: s.zaps, misses: s.misses, perfects: s.perfects, maxCombo: s.maxCombo, comboSec: s.comboSec };
+    zaps: s.zaps, misses: s.misses, perfects: s.perfects, maxCombo: s.maxCombo, comboSec: s.comboSec,
+    timeSec: s.timeSec }; // the run's clock, from the SERVER's replay — the boss tie-break writes this, never the client's number
 }
 // The fingerprint of the source this bundle was cut from. The whole point is to
 // make "is the deployed verifier stale?" answerable in one request instead of

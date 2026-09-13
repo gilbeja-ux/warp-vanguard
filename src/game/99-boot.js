@@ -890,10 +890,58 @@ function shouldRender(now) {
 // fbContext) and is cleared when that note goes. The player still chooses to
 // send it, so nothing here changes the Data Safety answers.
 const CRASH = { on: false, msg: '', at: 0 };
+// THE SCENE AT THE FAULT. Found 2026-09-08: the record named the time, the
+// version and the message, and nothing else. The stage was read at NOTE time,
+// after the reload, so a lane crash reported "menu". These are the facts a
+// debugger asks for first, taken the instant the frame died: where the player
+// was, which state and board, the lane clock, the screen, the heap, and the
+// last ten things the game did. Every read is guarded — the scene is the one
+// thing that must never be what throws.
+//
+// EV_LOG is the ring of recent events: a start, a pause, an end, a board, an
+// earlier soft error. Tags only, never a stage index — the board key already
+// names the lane, and CLAUDE.md's law says nothing human-read carries an index.
+const EV_LOG = [], EV_LOG_MAX = 24, CRASH_SCENE_MAX = 180;
+function evLog(tag) { try { EV_LOG.push(String(tag)); if (EV_LOG.length > EV_LOG_MAX) EV_LOG.shift(); } catch (e) {} }
+function crashScene() {
+  const p = [];
+  const put = (k, f) => { try { const v = f(); if (v !== undefined && v !== null && v !== '' && v !== false) p.push(k + '=' + v); } catch (e) {} };
+  const inLane = () => state === S.PLAY || state === S.PAUSE || state === S.END;
+  put('place', () => fbPlace());
+  put('state', () => Object.keys(S).find(k => S[k] === state) || state);
+  put('board', () => (inLane() ? boardKey() : null));
+  put('t', () => (inLane() ? Math.round(levelT * 10) / 10 : null));
+  put('replay', () => (replaying ? 1 : null));
+  put('lowFX', () => (lowFX ? 1 : null));
+  put('screen', () => Math.round(W) + 'x' + Math.round(H) + (ROT ? 'r' : '') + '@' + DPR);
+  put('mem', () => (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB' : null));
+  put('log', () => (EV_LOG.length ? EV_LOG.slice(-10).join(',') : null));
+  return p.join(' ').slice(0, CRASH_SCENE_MAX);
+}
+// A SOFT ERROR NEVER TAKES A HARD FAULT'S SLOT. Found 2026-09-08: the reloaded
+// session's first failed fetch — an offline board, a rejected decode — wrote
+// into the same slot and the crash the player was about to send was gone. A
+// fault that stopped the game (a frame, or the boot before the loop) holds the
+// slot against soft errors until a note takes it or it is a week old, the
+// outbox's own horizon; a newer hard fault replaces an older one, because the
+// newest is the one worth sending. The same message twice inside a minute is
+// one record.
+const CRASH_HARD = { frame: 1, boot: 1 }, CRASH_REPEAT_MS = 60000, CRASH_KEEP_MS = 7 * 86400000;
 function crashRecord(e, where) {
   const msg = e && (e.stack || e.message) ? String(e.stack || e.message) : String(e);
-  const rec = { at: new Date().toISOString(), where: where || '', ver: (typeof window !== 'undefined' && window.__APP_VERSION) || null,
-    build: typeof BUILD !== 'undefined' ? BUILD : null, msg: msg.slice(0, 600) };
+  where = where || '';
+  const rec = { at: new Date().toISOString(), where, ver: (typeof window !== 'undefined' && window.__APP_VERSION) || null,
+    build: typeof BUILD !== 'undefined' ? BUILD : null, scene: crashScene(), msg: msg.slice(0, 600) };
+  let prev = null;
+  try { prev = JSON.parse(localStorage.getItem(FB_ERROR_KEY) || 'null'); } catch (e2) { prev = null; }
+  if (prev && typeof prev === 'object') {
+    const age = Date.now() - (Date.parse(prev.at) || 0);
+    const fresh = age >= 0 && age < CRASH_KEEP_MS;
+    const held = CRASH_HARD[prev.where] && !CRASH_HARD[where];   // a soft error never takes a hard fault's slot
+    const repeat = prev.msg === rec.msg && age < CRASH_REPEAT_MS; // the same message twice in a minute is one record
+    if (fresh && (held || repeat)) return prev;
+  }
+  evLog('err:' + where);
   try { localStorage.setItem(FB_ERROR_KEY, JSON.stringify(rec)); } catch (e2) {}
   return rec;
 }
@@ -914,6 +962,7 @@ function crashCatch(e, where) {
 if (typeof window !== 'undefined' && window.addEventListener) {
   window.addEventListener('error', ev => { try { crashRecord(ev.error || ev.message, 'window'); } catch (e) {} });
   window.addEventListener('unhandledrejection', ev => { try { crashRecord(ev.reason, 'promise'); } catch (e) {} });
+  window.__WV_NET = true; // the net before the net (index.html) stands down from here
 }
 function drawCrash() {
   // the frame may have died mid-save: unwind whatever it left on the stack, then
@@ -1695,7 +1744,9 @@ function drawPostChain(rawDt, worldFx, g) {
   drawSplash(rawDt); // …and the boot splash curtains the whole stage at launch
 }
 
-resize();
+// the first resize runs before the loop and before the guard: a throw there
+// used to be a navy canvas with no record. It is caught like a frame now.
+try { resize(); } catch (e) { crashCatch(e, 'boot'); }
 requestAnimationFrame(frame);
 // offline capability + PWA installability (no-op on insecure origins)
 // The service worker is for the WEB build only. Inside the Capacitor shell every

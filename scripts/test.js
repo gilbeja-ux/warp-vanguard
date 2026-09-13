@@ -274,6 +274,7 @@ code = code.replace("'use strict';", '') + `
   laneClock: () => ({ end: laneEnd, show: laneEndShow }),
   rimFX: () => rimFX, pauseTap, pauseBtns: () => pauseButtonsList, getResumeHold: () => resumeHold, getWarpT: () => warpT,
   stripAngle, startWeekly, isWeekly: () => weekly, weeklyIdx: () => weeklyIdx, weeklyLive,
+  setWeeklyRun: (idx, at) => { weekly = true; weeklyIdx = idx; weeklyStartedAt = at; }, clearWeeklyRun: () => { weekly = false; },
   weekNow, weekOf, weekLabel, weekStartMs, weekOfBoard, getPulse: () => pulseCharge,
   weeklyStreak, drawMenuFlow, // the ranked streak's three states + the wheel that prints it
   getShield: () => shieldCharge, setShield: v => { shieldCharge = v; },
@@ -302,6 +303,7 @@ code = code.replace("'use strict';", '') + `
   // the error net (99-boot.js) and the back button (60-input.js), 2026-09-06
   crash: () => CRASH, resetCrash: () => { CRASH.on = false; CRASH.msg = ''; }, crashCatch, drawCrash,
   fbLastError, fbClearError, FB_ERROR_KEY,
+  crashRecord, evLog, evLogTail: () => EV_LOG.slice(),
   hardwareBack, pauseToggle, setReplaying: v => { replaying = v; }, getReplaying: () => replaying,
   setBossGate: v => { bossGate = v; }, getBossGate: () => bossGate
 };`;
@@ -4596,8 +4598,19 @@ async function runMusicUp() {
           serverWeekOf(monday) === serverWeekOf(sundayEnd) + 1);
       }
       // the freeze itself: the server must key a weekly run off ITS clock, not the run's
-      check('the Edge Function refuses a weekly run whose seed is not the live week',
-        /run\.seed !== live/.test(ts) && /weekOf\(Date\.now\(\)\)/.test(ts));
+      check('the Edge Function keys a weekly run off ITS clock: the live week lands, the week before only inside the grace, anything else is refused',
+        /const now = Date\.now\(\), live = weekOf\(now\);/.test(ts)
+        && /if \(run\.seed === live\) return `weekly:\$\{live\}`;/.test(ts)
+        && /if \(run\.seed === live - 1 && now - weekStart < WEEK_GRACE_MS\) return `weekly:\$\{run\.seed\}`;/.test(ts)
+        && /return null; \/\/ closed or bogus week/.test(ts));
+      // …and the server's "start of the live week" is the same Monday 00:00 UTC the
+      // client's weekOf flips on, so the grace window opens exactly at the turn
+      if (m) {
+        const serverWeekOf = new Function('ms', 'return ' + m[1] + ';');
+        const monday = Date.UTC(2026, 7, 3);
+        const weekStart = (7 * serverWeekOf(monday) - 3) * 864e5;
+        check('the grace window opens at the Monday turn the client also sees', weekStart === monday && serverWeekOf(monday - 1) === serverWeekOf(monday) - 1);
+      }
 
       // THE NAME FILTER, RUN FOR REAL (H-26). It is the last gate before a string
       // lands on a public board, and it is the only piece of moderation that runs
@@ -6298,6 +6311,40 @@ async function runMusicUp() {
       Object.keys(five).sort().join(',') === 'build,device,error,place,screen' && /boom at the rim/.test(five.error));
     G.fbClearError();
     check('error net: once a note carries it the slot is cleared', G.fbLastError() === null && Object.keys(G.fbContext()).length === 4);
+    // 2026-09-08: the SCENE at the fault, and WHO HOLDS the slot. Before this the
+    // record named time, version and message only, the stage was read after the
+    // reload, and the next soft error overwrote the crash the player meant to send.
+    G.resetCrash(); G.fbClearError();
+    G.evLog('start'); G.evLog('pause');
+    G.crashCatch(new Error('lane fell over'), 'frame');
+    const scene = G.fbLastError();
+    check('error net: the record carries the scene — state, screen, the last events — and it sits before the message',
+      /state=[A-Z]+/.test(scene) && /screen=\d+x\d+/.test(scene) && /log=[^ ]*start,pause/.test(scene) && scene.indexOf('state=') < scene.indexOf('lane fell over'));
+    G.crashRecord(new Error('Failed to fetch'), 'promise');
+    check('error net: a soft error after a frame fault does not take its slot',
+      /lane fell over/.test(G.fbLastError()) && !/Failed to fetch/.test(G.fbLastError()));
+    G.crashRecord(new Error('a second fault'), 'frame');
+    check('error net: a newer hard fault replaces an older one — the newest is the one worth sending',
+      /a second fault/.test(G.fbLastError()) && !/lane fell over/.test(G.fbLastError()));
+    G.fbClearError();
+    G.crashRecord(new Error('Failed to fetch'), 'promise');
+    check('error net: an empty slot takes a soft error', /promise/.test(G.fbLastError()) && /Failed to fetch/.test(G.fbLastError()));
+    G.crashRecord(new Error('Failed to fetch'), 'promise');
+    G.crashRecord(new Error('decode failed'), 'window');
+    check('error net: a soft error replaces a soft one, and a repeat inside a minute is one record',
+      /decode failed/.test(G.fbLastError()) && G.evLogTail().slice(-2).join() === 'err:promise,err:window');
+    G.fbClearError(); G.resetCrash();
+    const html = fs.readFileSync(path.join(ROOT, 'src', 'index.html'), 'utf8');
+    check('error net: index.html holds the net before the net — same slot, tagged boot, standing down only once the game\'s net is ARMED',
+      /if \(window\.__WV_NET\) return;/.test(html) && !/typeof crashRecord/.test(html) && /'warpVanguard\.lastError'/.test(html) && /where: 'boot'/.test(html)
+      && html.indexOf("where: 'boot'") < html.indexOf('game/00-core.js')
+      && /addEventListener\('unhandledrejection'[^\n]*\n\s*window\.__WV_NET = true;/.test(boot));
+    check('error net: the first resize is a boot fault, caught like a frame', /try \{ resize\(\); \} catch \(e\) \{ crashCatch\(e, 'boot'\); \}/.test(boot));
+    const inp = fs.readFileSync(path.join(ROOT, 'src', 'game', '60-input.js'), 'utf8');
+    check('error net: the event ring is fed by a start, a pause, an end and a board',
+      /function startLevel\([^)]*\) \{\s*evLog\(/.test(inp) && /function pauseToggle\(\) \{\s*evLog\('pause'\)/.test(inp)
+      && /function endLevel\(win\) \{\s*evLog\(win \? 'win' : 'loss'\)/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '61-replay.js'), 'utf8'))
+      && /function openBoard\(from\) \{\s*evLog\('board'\)/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '93-board.js'), 'utf8')));
     const lb = fs.readFileSync(path.join(ROOT, 'src', 'game', '31-leaderboard.js'), 'utf8');
     check('error net: lbFeedback clears the slot the moment the note takes it (sent or held)',
       /ctx: fbContext\(\), at: Date\.now\(\) \};\s*\n\s*fbClearError\(\);/.test(lb));
@@ -6389,4 +6436,178 @@ async function runMusicUp() {
   check('Android: the launch theme is tracked, not regenerated', ignore.includes('!android/app/src/main/res/values/styles.xml'));
   check('both platforms: BUILD.md lists the Android decisions beside their iOS twins',
     /## Decisions the Android scaffold would undo/.test(fs.readFileSync(path.join(ROOT, 'BUILD.md'), 'utf8')));
+}
+
+// ================= THE RELEASE PATH PROVES ITSELF: no success line without evidence =================
+//
+// Found 2026-09-08 (verification-before-completion): nothing on the release
+// path ran these pins; sync-version printed "done" for iOS on zero matches; the
+// AAB script's only check was a `cp`; the verifier deploy never probed the live
+// function; CI ran a subset of `npm test`. Each script now counts what it did
+// and fails on nothing, and this section keeps it that way.
+{
+  const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const aab = read('scripts/build-aab.sh');
+  check('release: the AAB build runs npm test before it touches gradle',
+    /\nnpm test\n/.test(aab) && aab.indexOf('npm test') < aab.indexOf('./gradlew bundleRelease'));
+  check('release: the AAB build proves the bundle exists and its manifest carries the package.json version, as a fixed string',
+    /\[ -f "\$AAB" \] \|\|/.test(aab) && /unzip -p "\$AAB" base\/manifest\/AndroidManifest\.xml \| grep -a -q -F -- "\$VERSION"/.test(aab)
+    && aab.indexOf('grep -a -q -F -- "$VERSION"') < aab.indexOf('cp "$AAB" "$DEST"'));
+  const ios = read('scripts/build-ios.sh');
+  check('release: the iOS build refuses to say "built" when there is no app at the path',
+    /\[ -d "\$APP" \] \|\| \{ echo "✗[^}]*exit 1; \}/.test(ios) && ios.indexOf('[ -d "$APP" ]') < ios.indexOf('✓ built: $APP'));
+  const sv = read('scripts/sync-version.js');
+  check('release: sync-version fails on a pattern that matched nothing, for gradle and for the iOS project',
+    /function sub\(text, re, to, label\)/.test(sv) && /if \(n === 0\) \{[\s\S]{0,120}?process\.exit\(1\)/.test(sv)
+    && (sv.match(/= sub\(/g) || []).length === 4);
+  check('release: sync-version reads both files back after the write',
+    /const gBack = fs\.readFileSync\(GRADLE/.test(sv) && /const xBack = fs\.readFileSync\(PBX/.test(sv));
+  const pkg = JSON.parse(read('package.json'));
+  const dv = read('scripts/deploy-verifier.sh');
+  check('release: deploy:verifier is the script that builds, cross-tests, deploys over the API and PROBES the live function, in that order',
+    pkg.scripts['deploy:verifier'] === 'bash scripts/deploy-verifier.sh'
+    && /set -euo pipefail/.test(dv)
+    && ['node scripts/build-verifier.js "$@"', 'node scripts/test-verifier-bundle.mjs', 'supabase functions deploy submit-run --use-api', 'node scripts/verifier-status.js']
+      .map(s => dv.indexOf(s)).every((i, k, a) => i >= 0 && (k === 0 || i > a[k - 1])));
+  const ci = read('.github/workflows/test.yml');
+  check('release: CI runs both pin suites, the sfx board without blocking, and the bundle cross-test',
+    /run: node scripts\/test\.js\n/.test(ci) && /run: node scripts\/test-board\.js\n/.test(ci)
+    && /run: node scripts\/test-sfx-levels\.mjs\n\s*continue-on-error: true/.test(ci) && /node scripts\/test-verifier-bundle\.mjs/.test(ci));
+  const hook = read('.githooks/pre-push');
+  check('release: the pre-push hook runs the pins before the verifier probe, only when a pinned path moved, and shows the failing pin',
+    /npm test >"\$log" 2>&1/.test(hook) && hook.indexOf('npm test') < hook.indexOf('node scripts/verifier-status.js') && /SKIP_TESTS/.test(hook)
+    && /git diff --quiet "@\{push\}" HEAD -- src scripts android ios supabase package\.json/.test(hook) && /grep -E "\^FAIL/.test(hook));
+  check('release: the verifier deploy refuses to run ahead of a pending migration',
+    /supabase migration list/.test(dv) && /r\.local && !r\.remote/.test(dv) && dv.indexOf('supabase migration list') < dv.indexOf('node scripts/build-verifier.js'));
+  const serve = read('scripts/serve.js');
+  check('dev server: fonts and AAC carry their own MIME type', /'\.m4a': 'audio\/mp4'/.test(serve) && /'\.woff2': 'font\/woff2'/.test(serve));
+  check('Android: the scaffold tests that asserted the wrong package are gone',
+    !fs.existsSync(path.join(ROOT, 'android', 'app', 'src', 'androidTest')) && !fs.existsSync(path.join(ROOT, 'android', 'app', 'src', 'test')));
+}
+
+// ================= THE WRITE PATH TRUSTS LESS (2026-09-08) =================
+//
+// The boss tie-break sorted on a number the phone sent; nothing throttled one
+// identity; the replay-owner stamp was a second statement; anon held rights it
+// never used. Each fix is a migration or a line in submit-run, and this pins the
+// shape of all of them so a later "create or replace" cannot quietly reopen one.
+{
+  const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const ts = read('supabase/functions/submit-run/index.ts');
+  check('backend: the boss tie-break is written from the server\'s clock, never the request body',
+    /p_time_sec: stat\.timeSec,/.test(ts) && !/p_time_sec: \+run\.timeSec/.test(ts) && /timeSec: Math\.max\(0, \+res\.timeSec \|\| 0\)/.test(ts));
+  const bv = read('scripts/build-verifier.js');
+  check('backend: the verifier returns the run\'s clock', /timeSec: Math\.round\(levelT \* 1000\) \/ 1000/.test(bv) && /timeSec: s\.timeSec/.test(bv));
+  check('backend: the submission bar is taken BEFORE the replay, and answers 429',
+    ts.indexOf('svc.rpc("take_submit_slot"') > 0 && ts.indexOf('svc.rpc("take_submit_slot"') < ts.indexOf('m.verifyRun(run)') && /"too many runs", wait \}, 429\)/.test(ts));
+  check('backend: the frame hash rides the row, and a duplicate is refused by the index, not by a second statement',
+    /p_trace_hash: traceHash,/.test(ts) && !/update\(\{ trace_hash: traceHash \}\)/.test(ts) && /code === "23505"/.test(ts));
+  check('backend: a weekly run gets ten minutes of grace across the Sunday turn, and no more',
+    /const WEEK_GRACE_MS = 10 \* 60 \* 1000;/.test(ts) && /run\.seed === live - 1 && now - weekStart < WEEK_GRACE_MS/.test(ts));
+  // …and the CLIENT sends it: the run keeps the week it STARTED in for the same ten minutes
+  const inp2 = read('src/game/60-input.js');
+  check('backend: the client keys a run on the week it started in, with the same grace, so the server\'s window is reachable',
+    /const WEEK_GRACE_MS = 10 \* 60 \* 1000;/.test(inp2) && /weeklyIdx = weekN; weeklyStartedAt = Date\.now\(\);/.test(inp2)
+    && /weeklyIdx === weekNow\(\) - 1 && weekOf\(weeklyStartedAt\) === weeklyIdx && Date\.now\(\) - weekStartMs\(weekNow\(\)\) < WEEK_GRACE_MS/.test(inp2));
+  {
+    // live: a lane that started before the turn is still live 5 minutes after it; one started after is practice.
+    // Set the three fields directly — startWeekly would start a lane and its music under the async music section.
+    const realNow = Date.now; const monday = Date.UTC(2026, 7, 3); const wasWeekly = G.isWeekly(), wasIdx = G.weeklyIdx();
+    try {
+      G.setWeeklyRun(G.weekOf(monday) - 1, monday - 30000);
+      Date.now = () => monday + 5 * 60000;
+      check('backend: live — a weekly lane in flight at the turn keeps its board for the grace', G.weeklyLive() === true);
+      Date.now = () => monday + 11 * 60000;
+      check('backend: live — and loses it once the grace is over', G.weeklyLive() === false);
+      G.setWeeklyRun(G.weekOf(monday) - 1, monday + 60000); Date.now = () => monday + 2 * 60000;
+      check('backend: live — a lane STARTED after the turn on the old week is practice', G.weeklyLive() === false);
+      G.setWeeklyRun(G.weekOf(monday), monday + 60000);
+      check('backend: live — a lane on the live week is live', G.weeklyLive() === true);
+    } finally { Date.now = realNow; if (wasWeekly) G.setWeeklyRun(wasIdx, 0); else G.clearWeeklyRun(); }
+  }
+  check('backend: the refused-duplicate path removes the object it just uploaded', /code === "23505"\) \{[\s\S]*?\.remove\(\[traceId\]\)/.test(ts));
+  check('backend: the submission bar sits after the cheap refusals and right before the replay',
+    ts.indexOf('client outdated') < ts.indexOf('svc.rpc("take_submit_slot"'));
+  const m1 = read('supabase/migrations/20260908000000_grants_closed.sql');
+  check('backend: the grants migration closes runs to writes, the private tables to everything, and the default for new objects',
+    /revoke insert, update, delete, truncate, references, trigger on public\.runs from public, anon, authenticated;/.test(m1)
+    && ['reports', 'feedback', 'player_limits'].every(t => new RegExp('revoke all on public\\.' + t + '\\s+from public, anon, authenticated;').test(m1))
+    && /alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated;/.test(m1)
+    && /alter default privileges for role postgres in schema public revoke execute on functions from anon, authenticated;/.test(m1)
+    && /revoke execute on function public\.submit_verified_run\(/.test(m1));
+  check('backend: every function gets a fixed search_path', (m1.match(/set search_path = public, extensions;/g) || []).length >= 17);
+  const m2 = read('supabase/migrations/20260908000100_submit_bar_time_binding.sql');
+  check('backend: the row refuses a negative time, negative stats, a long name, more than eight mutators',
+    /runs_time_nonneg\s+check \(time_sec >= 0 and combo_sec >= 0\)/.test(m2) && /runs_stats_nonneg/.test(m2)
+    && /char_length\(player_name\) <= 14/.test(m2) && /cardinality\(mutators\) <= 8/.test(m2));
+  check('backend: one owner per trace — a partial unique index replaces the plain one',
+    /drop index if exists public\.runs_trace_hash_idx;/.test(m2)
+    && /create unique index if not exists runs_trace_hash_uq on public\.runs \(trace_hash\) where trace_hash is not null;/.test(m2));
+  check('backend: take_submit_slot locks per player, counts ten in a window, and is service-only',
+    /create or replace function public\.take_submit_slot\(p_player text, p_max int default 30, p_window_sec int default 600\)/.test(m2)
+    && /update public\.runs set\s*\n\s*time_sec = greatest\(0, time_sec\)/.test(m2) && m2.indexOf('update public.runs set') < m2.indexOf('add constraint runs_time_nonneg')
+    && /revoke execute on function public\.take_submit_slot\(text, int, int\) from public, anon, authenticated;/.test(m2));
+  check('backend: the three rate bars all take the advisory lock first',
+    (m2.match(/perform pg_advisory_xact_lock\(hashtext\(p_player\)\);/g) || []).length === 3);
+  check('backend: the old submit_verified_run signature is dropped, the new one takes p_trace_hash and is revoked',
+    /drop function if exists public\.submit_verified_run\(text, int, text, text, int, int, real, int, int, int, text\[\], int, boolean, text, int, real, text\);/.test(m2)
+    && /p_trace_hash text default null/.test(m2)
+    && /revoke execute on function public\.submit_verified_run\([^)]*text, text\)\s*\n?\s*from public, anon, authenticated;/.test(m2));
+  check('backend: MY DATA delete takes the 2026-09-02 backup while it exists',
+    /to_regclass\('public\.runs_backup_20260902'\) is not null/.test(m2) && /delete from public\.runs_backup_20260902 where player_id = \$1/.test(m2));
+  // the eviction order is untouched: the same tie-break the 2026-08-21 migration wrote
+  const tb = read('supabase/migrations/20260821000000_boss_board_time_tiebreak.sql');
+  const order = s => (s.match(/order by r2\.score desc[\s\S]*?limit 100/) || [''])[0].replace(/\s+/g, ' ');
+  check('backend: the eviction tie-break is byte-for-byte the one leaderboard_top uses', order(m2) !== '' && order(m2) === order(tb));
+  check('backend: schema.sql says it is the base the migrations start from, never the live state',
+    /THE BASE, NOT THE STATE/.test(read('supabase/schema.sql').slice(0, 1500)) && /then `supabase db push`/.test(read('supabase/schema.sql').slice(0, 1500)));
+  const purge = read('scripts/purge-orphan-traces.mjs');
+  check('backend: the orphan purge pages the live pointers past PostgREST\'s thousand-row cap', /Range: `\$\{from\}-\$\{from \+ 999\}`/.test(purge) && /rows\.length < 1000\) break;/.test(purge));
+  check('backend: the orphan-trace purge is a dry run unless told otherwise, and removes in batches of one hundred',
+    /const DELETE = process\.argv\.includes\('--delete'\);/.test(purge) && /if \(!DELETE\)/.test(purge) && /orphans\.slice\(i, i \+ 100\)/.test(purge));
+  // the Android twin of the iOS renderer reload (BUILD.md lists the pair)
+  const ma = read('android/app/src/main/java/com/warpvanguard/game/MainActivity.java');
+  check('both platforms: a dead web renderer recreates the Android activity, as iOS reloads its web view — and three deaths in a minute end the loop',
+    /addWebViewListener\(new WebViewListener\(\) \{[\s\S]*?onRenderProcessGone\([\s\S]*?recreate\(\);\s*return true;/.test(ma)
+    && /RENDERER_DEATHS_MAX = 3/.test(ma) && /if \(\+\+rendererDeaths > RENDERER_DEATHS_MAX\) return false;/.test(ma)
+    && /onRenderProcessGone/.test(read('BUILD.md')) && /webViewWebContentProcessDidTerminate/.test(read('BUILD.md')));
+  check('both platforms: CLAUDE.md carries the several-agents rule',
+    /## Several agents, one checkout/.test(read('CLAUDE.md')) && /git worktree remove/.test(read('CLAUDE.md')));
+}
+
+// ================= THE SMOKE: the real game boots in a real browser before a cut =================
+//
+// `npm test` cannot see a missing font, a renamed sound file or a screen stuck
+// on LOADING — every loader swallows its own failure and the stub's fetch always
+// succeeds. scripts/smoke.js is the other half (2026-09-08): a real Chrome over
+// the DevTools Protocol, the first launch and a walk down the main path, failing
+// on any exception, console.error or same-origin request that is not 200. This
+// pins its shape; running it is `npm run test:smoke` and the CI smoke job.
+{
+  const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const sm = read('scripts/smoke.js');
+  const pkg = JSON.parse(read('package.json'));
+  check('smoke: npm run test:smoke runs it, and it stays out of node_modules', pkg.scripts['test:smoke'] === 'node scripts/smoke.js' && !/require\('puppeteer/.test(sm) && !/playwright/i.test(sm));
+  const bench = read('scripts/bench.js'), lib = read('scripts/lib/cdp.js');
+  check('smoke: the CDP client, the launch and the attach are shared with the bench, which keeps no copy',
+    /launchChrome, waitForPort, openPage \} = require\('\.\/lib\/cdp\.js'\)/.test(bench) && !/class CDP|function openPage|function waitForPort|mkdtempSync/.test(bench)
+    && /require\('\.\/lib\/cdp\.js'\)/.test(sm));
+  check('smoke: a Chrome profile dies with its process, and the next viewport waits for the last Chrome to be gone',
+    /proc\.on\('exit', \(\) => \{ try \{ fs\.rmSync\(profile/.test(lib) && /function killChrome\(proc/.test(lib) && /await killChrome\(chrome\)/.test(sm));
+  check('smoke: it never sits on a lab port, takes a free one, and proves the server is its own checkout',
+    /\[8000, 8010, 8011, 8012\]\.includes\(PORT\)/.test(sm) && /await inUse\(PORT\)/.test(sm) && /got\.equals\(mine\)/.test(sm));
+  check('smoke: the leaderboard host is blocked so a run mints no identity on the live project', /Network\.setBlockedURLs/.test(sm) && /\*supabase\.co\*/.test(sm));
+  check('smoke: it fails on an exception, a console.error or a same-origin failure',
+    /Runtime\.exceptionThrown/.test(sm) && /Runtime\.consoleAPICalled/.test(sm) && /Network\.loadingFailed/.test(sm) && /ledger\.exceptions\.length \+ ledger\.consoleErrors\.length \+ ledger\.failedSameOrigin\.length/.test(sm));
+  check('smoke: both viewports, and the phone one drives the rotated canvas through the real 90° mapping',
+    /desktop: \[1600, 900\], phone: \[390, 844\]/.test(sm) && /rot === true \? \{ x: iw - p\.y, y: p\.x/.test(sm));
+  for (const [what, re] of [
+    ['the splash and the bake gate', /s3BreachReady\(\) === true/], ['the fonts', /'Audiowide'/], ['enlistment on a fresh save', /state === S\.ENLIST/],
+    ['the seeded menu', /tutorialDone: true/], ['every disc', /openMyData\(\)[\s\S]*openFeedback\(\)[\s\S]*enterGuide\('menu'\)[\s\S]*bossGate = true/],
+    ['a briefing', /startLevel\(0, true\)/], ['a real two-thumb launch', /Input\.dispatchTouchEvent/], ['play under an autopilot', /__smokeAuto/],
+    ['pause and the count-in', /resumeHold > 0/], ['the back key and QUIT', /hardwareBack\(\)[\s\S]*pauseTap\(x, y, 0\)/],
+    ['the error net, with the scene and the restart tap', /CRASH\.on === true[\s\S]*rec\.where !== 'frame'[\s\S]*\/state=\/\.test\(rec\.scene[\s\S]*Input\.dispatchMouseEvent/]])
+    check('smoke: it walks ' + what, re.test(sm));
+  const ci = read('.github/workflows/test.yml');
+  check('smoke: CI has a smoke job on the runner\'s own Chrome', /npm run test:smoke/.test(ci));
 }

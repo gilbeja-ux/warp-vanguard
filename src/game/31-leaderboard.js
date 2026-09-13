@@ -439,7 +439,10 @@ function fbContext() {
   return out;
 }
 // the error net's slot (written by crashRecord in 99-boot.js). One record, the
-// latest, as a single line: when, where, which version, and the message.
+// one that holds the slot, as a single line: when, where, which version, the
+// scene at the fault (state, board, clock, screen, heap, last events), and the
+// message. The scene sits BEFORE the message so the cap trims the stack's tail,
+// never the facts that place the crash.
 const FB_ERROR_KEY = 'warpVanguard.lastError';
 const FB_ERROR_MAX = 500;
 function fbLastError() {
@@ -447,7 +450,7 @@ function fbLastError() {
     const raw = localStorage.getItem(FB_ERROR_KEY);
     if (!raw) return null;
     const r = JSON.parse(raw) || {};
-    const line = [r.at, r.where, r.ver ? 'v' + r.ver : '', r.msg].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim();
+    const line = [r.at, r.where, r.ver ? 'v' + r.ver : '', r.scene, r.msg].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim();
     return line ? line.slice(0, FB_ERROR_MAX) : null;
   } catch (e) { return null; }
 }

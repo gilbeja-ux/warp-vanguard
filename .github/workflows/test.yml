@@ -19,12 +19,37 @@ jobs:
       # No `npm ci` — there is no lockfile and no runtime dependency. The suite
       # stubs the DOM itself and evals src/game/*.js directly, which is exactly
       # what makes it fast enough to run on every push.
+      # the two pin suites `npm test` runs; the third, the sfx level board, is
+      # below and non-blocking: it needs ffmpeg, and the runner's ffmpeg is not the
+      # one the levels were measured with, so a 0.05 dB gate there would be noise
       - name: game suite
         run: node scripts/test.js
       - name: leaderboard/board suite
         run: node scripts/test-board.js
+      - name: sfx level board (informational)
+        run: node scripts/test-sfx-levels.mjs
+        continue-on-error: true
       # The verifier bundle is generated from the same sources. If it cannot be
       # built, a sim change has broken the server's copy of the game — worth
       # catching here rather than at deploy time.
-      - name: verifier bundle builds
-        run: node scripts/build-verifier.js
+      - name: verifier bundle builds and agrees with the recorder
+        run: node scripts/build-verifier.js && node scripts/test-verifier-bundle.mjs
+
+  # THE OTHER HALF (2026-09-08): the real game in a real Chrome. ubuntu-latest
+  # ships Chrome; the suite finds it under /usr/bin and needs nothing installed.
+  # Its first green run on this runner is the proof that it works here — until
+  # then, read a failure of this job as "the runner", not "the game".
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: browser smoke
+        run: npm run test:smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-shots
+          path: smoke-shots/

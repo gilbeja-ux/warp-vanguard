@@ -32,6 +32,10 @@ for (const id of campaignIds()) {
   const r = recordCampaignRun(id, 3);
   const v = verifyRun(r);
   line(v.ok, `bundle verifies ${r.board} (${v.recomputed} === ${r.score})`);
+  // the boss tie-break is written from THIS number, so the bundle must return it
+  // and it must be the clock the recorder saw
+  line(typeof v.timeSec === 'number' && v.timeSec > 0 && Math.abs(v.timeSec - r.timeSec) < 0.05,
+    `bundle returns the run's clock for ${r.board} (${v.timeSec} ~ ${r.timeSec})`);
 }
 line(!verifyRun({ ...run, campId: 'no-such-campaign' }).ok, 'bundle REJECTS an unknown campId');
 

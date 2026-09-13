@@ -10,6 +10,24 @@
 # Bypass:       git push --no-verify
 set -uo pipefail
 
+# THE PINS FIRST. A push is where "this is real now" happens; the ~1200 checks
+# that guard the sim and both shells run here so a broken build cannot leave the
+# machine. Scoped to the paths they pin, so a docs-only push costs nothing; the
+# tail of the output is shown, so a failure names its pin. SKIP_TESTS=1 bypasses.
+if [ "${SKIP_TESTS:-}" != "1" ] && ! git diff --quiet "@{push}" HEAD -- src scripts android ios supabase package.json .github .githooks CLAUDE.md BUILD.md 2>/dev/null; then
+  echo "pre-push: npm test…"
+  log="$(mktemp -t wv-pre-push)"
+  if ! npm test >"$log" 2>&1; then
+    echo ""
+    grep -E "^FAIL|TESTS FAILED|Error" "$log" | head -20
+    tail -n 5 "$log"
+    echo ""
+    echo "  Push BLOCKED: npm test fails (full log: $log). Fix the pin, or SKIP_TESTS=1 git push."
+    exit 1
+  fi
+  rm -f "$log"
+fi
+
 # only worth checking when the thing the verifier simulates has moved
 if git diff --quiet "@{push}" HEAD -- src/game src/campaigns.js 2>/dev/null; then
   exit 0
