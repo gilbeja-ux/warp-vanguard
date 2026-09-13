@@ -1,6 +1,6 @@
 {
   "name": "warp-vanguard",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "A mobile game for iOS and Android - dual-emitter warp lane escort game",
   "main": "index.html",
   "scripts": {
