@@ -278,13 +278,15 @@ Forty relays across five escort contracts, each ending in a duel with a warp
 leech — an outlaw engine clamped across the lane, drinking it. Every one of
 them has to be read differently.
 
-FREE FLOW
-An endless lane that never stops getting faster. This is where the scores are.
-
 WEEKLY LADDER
 One seeded lane per week, the same for every player on earth, frozen when the
-week closes. Every score is re-simulated on our server from your own inputs
-before it is allowed on a board — no cheated run has ever stood, and none will.
+week closes. This is where the scores are. Every score is re-simulated on our
+server from your own inputs before it is allowed on a board — no cheated run
+has ever stood, and none will.
+
+FREE FLOW
+An endless lane that never stops getting faster, different every time. Your own
+best, chased alone.
 
 BUILT FOR THUMBS
 Landscape, two-thumb controls, no virtual stick, nothing to buy that makes you

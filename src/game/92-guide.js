@@ -2602,12 +2602,16 @@ function drawMenuFlow() {
   let rot = 0, wheelAl = 1; // same spin choreography as the mode wheel
   if (menuFx && menuFx.kind === 'spinOut') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = (menuFx.dir || 1) * q * q * 1.5; wheelAl = 1 - q; }
   if (menuFx && menuFx.kind === 'spinIn') { const q = clamp(menuFx.t / menuFx.dur, 0, 1); rot = -(menuFx.dir || 1) * 1.5 * Math.pow(1 - q, 2); wheelAl = q; }
+  // THE WEEKLY LANE RIDES THE TOP HALF (Gil, 2026-09-18). It is the ranked lane and
+  // the only free-flow lane with a board, so it leads: top of the wheel, first in the
+  // pad's walk order, and the half the wheel suggests when no controller owns the
+  // glow. The endless lane is practice against your own best, and sits below.
   const HALVES = [
-    { key: 'endless', glyph: '∞', name: 'ENDLESS LANE', mid: -Math.PI / 2, locked: !endlessOpen, col: '255,210,74',
-      cap: endlessOpen ? 'procedural · no mercy' + (progress.best > 0 ? ' · BEST ' + progress.best.toLocaleString() : '') : 'complete stage ' + lvNum(FLOW_UNLOCK_LEVEL) + ' to unlock' },
-    { key: 'weekly', glyph: '◈', name: 'WEEKLY LANE', mid: Math.PI / 2, locked: !weeklyOpen, col: '140,220,255',
+    { key: 'weekly', glyph: '◈', name: 'WEEKLY LANE', mid: -Math.PI / 2, locked: !weeklyOpen, col: '140,220,255',
       cap: weeklyOpen ? 'one seeded lane all week' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : '') : 'complete stage ' + lvNum(FLOW_UNLOCK_LEVEL) + ' to unlock',
-      streak: weeklyOpen ? weeklyStreak() : null }
+      streak: weeklyOpen ? weeklyStreak() : null },
+    { key: 'endless', glyph: '∞', name: 'ENDLESS LANE', mid: Math.PI / 2, locked: !endlessOpen, col: '255,210,74',
+      cap: endlessOpen ? 'procedural · no mercy' + (progress.best > 0 ? ' · BEST ' + progress.best.toLocaleString() : '') : 'complete stage ' + lvNum(FLOW_UNLOCK_LEVEL) + ' to unlock' }
   ];
   ctx.save();
   ctx.globalAlpha = wheelAl;
@@ -2620,8 +2624,8 @@ function drawMenuFlow() {
     ctx.arc(ccx, ccy, r1, a0, a1);
     ctx.arc(ccx, ccy, r0, a1, a0, true);
     ctx.closePath();
-    // a controller's focus owns the glow; without one, ENDLESS suggests
-    const hot = gpNavLive() ? myIdx === gpSel : !hv.locked && hv.key === 'endless';
+    // a controller's focus owns the glow; without one, WEEKLY suggests
+    const hot = gpNavLive() ? myIdx === gpSel : !hv.locked && hv.key === 'weekly';
     ctx.fillStyle = hv.locked ? 'rgba(8,16,30,0.55)'
       : hot ? `rgba(${hv.col},${(0.09 + Math.sin(time * 2.5) * 0.03).toFixed(2)})` : 'rgba(10,24,48,0.42)';
     ctx.fill();

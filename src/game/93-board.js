@@ -2,7 +2,6 @@
 // ---------- dedicated leaderboard screen ----------
 // key for the currently-selected board — matches boardKey() the runs are stored under
 function boardKeyFor() {
-  if (boardSel.mode === 'endless') return 'endless';
   if (boardSel.mode === 'weekly') return 'weekly:' + boardSel.week;
   const c = CAMPAIGNS[boardSel.camp] || CAMPAIGNS[0];
   return (c ? c.id : 'campaign') + ':' + boardSel.level;
@@ -77,17 +76,15 @@ function boardPick(mode, camp, level) {
   if (mode === 'weekly') boardSel.week = (camp === undefined || camp === null) ? weekNow() : camp;
   loadBoard();
 }
-// the left column: Free Flow, then the WEEKLY LADDER newest-first, then each
-// campaign (collapsible) + its levels.
+// the left column: the WEEKLY LADDER newest-first, then each campaign
+// (collapsible) + its levels. The endless lane has no board — see boardKey().
 //
 // The ladder is the competitive spine of the game now. Every Monday the live week
 // closes, keeps its field for good, and a new week appears above it — so the list
 // grows downward through history and a name that lands on a finished week stays
 // there. The live week is marked; the rest are closed and say so.
 function boardLeftItems() {
-  const items = [
-    { kind: 'mode', mode: 'endless', label: 'FREE FLOW', sel: boardSel.mode === 'endless' },
-  ];
+  const items = [];
   const live = weekNow();
   const rung = w => ({
     kind: 'week', week: w, label: weekLabel(w), live: w === live,
@@ -95,8 +92,8 @@ function boardLeftItems() {
   });
   // THE LIVE WEEK STAYS OUT IN THE OPEN. It is the one board anyone can still change, and
   // the thing this screen opens on, so it is not worth a tap. What bloats is the HISTORY:
-  // a rung every Monday, never removed, and after a year it buries Free Flow and the five
-  // contracts. So only the closed weeks fold, under one header.
+  // a rung every Monday, never removed, and after a year it buries the five contracts.
+  // So only the closed weeks fold, under one header.
   items.push(rung(live));
   const past = weekLadder().filter(w => w !== live);
   if (past.length) { // no header over an empty group — in the ladder's first week there is none
@@ -140,7 +137,6 @@ function boardReplayLaunch(r) {
 // could read the field but never fly it (the mode wheel was the only door, and it
 // was locked). The key sits in the ring's TOP cap, mirroring Show my Run in the
 // bottom one, and flies whatever board is selected:
-//   endless   → the endless lane (gated by the FREE FLOW unlock, like the wheel)
 //   weekly    → that week's seeded lane; a CLOSED week flies as practice and says
 //               so — the submit path is hidden and the server refuses it anyway
 //   campaign  → that relay, briefed, if the campaign has unlocked it
@@ -148,7 +144,6 @@ function boardReplayLaunch(r) {
 // and the relay map already say what unlocks it.
 function boardLane() {
   const m = boardSel.mode;
-  if (m === 'endless') return { label: 'FLY THIS LANE', locked: !flowUnlocked(), go: startEndless };
   if (m === 'weekly') {
     const w = boardSel.week, live = w === weekNow();
     return { label: live ? 'FLY THIS LANE' : 'PRACTICE THIS LANE', locked: !flowUnlocked(), go: () => startWeekly(w) };
@@ -173,10 +168,10 @@ function fmtRunTime(sec) {
 // had to be invented for it. It is also the SERVER's number: the verifier recomputes
 // integrity from the trace, so the colour cannot be claimed by a client.
 //
-// Endless and weekly have no finish to reach. They run until integrity is gone, so
-// every one of their rows would read as incomplete, which says nothing about the
-// run. They stay uncoloured rather than wearing a colour that means "failed".
-const runFinished = r => boardSel.mode !== 'endless' && boardSel.mode !== 'weekly' && ((r && r.integrity) | 0) > 0;
+// The weekly lane has no finish to reach. It runs until integrity is gone, so every
+// one of its rows would read as incomplete, which says nothing about the run. It
+// stays uncoloured rather than wearing a colour that means "failed".
+const runFinished = r => boardSel.mode !== 'weekly' && ((r && r.integrity) | 0) > 0;
 function drawMenuBoard() {
   const fmtDate = ts => {
     if (!ts) return '—';

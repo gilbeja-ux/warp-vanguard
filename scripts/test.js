@@ -661,8 +661,8 @@ drawOk('enlistment: handing off', () => { G.startEnlistment(false); G.enlist().b
 drawOk('menu audio-config overlay', () => { G.setMenuSettings(true); });
 // dedicated leaderboard screen — every data state must render without throwing
 drawOk('leaderboard: syncing', () => { G.setMenuSettings(false); G.setState(G.S.MENU); G.setMenuScreen('board'); G.setBoardData(null); });
-drawOk('leaderboard: offline', () => { G.setMenuScreen('board'); G.setBoardData({ key: 'endless', loading: false, rows: null, error: true }); });
-drawOk('leaderboard: empty', () => { G.setMenuScreen('board'); G.setBoardData({ key: 'endless', loading: false, rows: [], error: false }); });
+drawOk('leaderboard: offline', () => { G.setMenuScreen('board'); G.setBoardData({ key: 'weekly:2957', loading: false, rows: null, error: true }); });
+drawOk('leaderboard: empty', () => { G.setMenuScreen('board'); G.setBoardData({ key: 'weekly:2957', loading: false, rows: [], error: false }); });
 drawOk('leaderboard: populated', () => {
   G.setMenuScreen('board'); G.getBoardSel().mode = 'campaign';
   G.setBoardData({ key: 'cargo-run:0', loading: false, error: false, rows: [
@@ -670,7 +670,11 @@ drawOk('leaderboard: populated', () => {
     { rank: 2, player_id: G.getIdentity().id, player_name: 'YOU', score: 39750, max_combo: 16, time_sec: 44, verified: true, trace_id: null },
     { rank: 3, player_id: 'z', player_name: 'RAYzor', score: 31100, max_combo: 11, time_sec: 47, verified: false, trace_id: null } ] });
 });
-drawOk('leaderboard: endless tab', () => { G.getBoardSel().mode = 'endless'; });
+// THE ENDLESS LANE HAS NO BOARD (2026-09-18): it is procedural per player, so no
+// two players fly the same lane and nothing can verify a run. The left column
+// lists no free-flow mode item at all — the weekly ladder is where free flow ranks.
+check('board: the left column lists no endless / free-flow item',
+  !G.boardLeftItems().some(it => it.kind === 'mode' || /FREE FLOW/.test(it.label || '')));
 // ---- RUN TIME: time spent in warp, and whether the run reached its destination ----
 // The row has carried `time_sec` since the table was written and the board simply
 // never showed it. The completion colour is the part with a rule behind it, so the
@@ -684,12 +688,10 @@ drawOk('leaderboard: endless tab', () => { G.getBoardSel().mode = 'endless'; });
   G.getBoardSel().mode = 'campaign';
   check('a campaign run that kept integrity counts as finished', G.runFinished({ integrity: 100 }) === true);
   check('a campaign run that lost stability does not', G.runFinished({ integrity: 0 }) === false);
-  // …but the ladder and free flow only ever END at zero integrity, so painting them
-  // all "incomplete" would say nothing. They stay uncoloured.
+  // …but the ladder only ever ENDS at zero integrity, so painting its rows
+  // "incomplete" would say nothing. They stay uncoloured.
   G.getBoardSel().mode = 'weekly';
   check('a weekly run is never coloured complete', G.runFinished({ integrity: 100 }) === false);
-  G.getBoardSel().mode = 'endless';
-  check('an endless run is never coloured complete', G.runFinished({ integrity: 100 }) === false);
   G.getBoardSel().mode = 'campaign';
 }
 // the detail column runs to seven slots now (six stats + Replay) — draw it at the
@@ -2342,11 +2344,15 @@ G.setState(G.S.MENU);
 
 // ================= leaderboard identity + run capture =================
 check('a persistent player id is minted on boot', typeof G.getIdentity().id === 'string' && G.getIdentity().id.length > 0);
-// board keys: one per campaign level, one per free-flow mode
+// board keys: one per campaign level, one per ranked week — and NONE for endless
 G.startLevel(2);
 check('board key names the campaign level', G.boardKey() === G.getCamp().id + ':2');
+// THE ENDLESS LANE IS UNRANKED (Gil, 2026-09-18). Its spawns ride the system clock,
+// so every player flies a different lane and the server has nothing to re-simulate;
+// it was the one trust-only board. A null key closes every route at once — submit,
+// rank lookup, name card — exactly as it does for an assisted run or a closed week.
 G.startEndless();
-check('board key for endless is a single shared board', G.boardKey() === 'endless');
+check('board key for endless is null — a procedural lane files nothing', G.boardKey() === null);
 // EACH WEEK IS ITS OWN BOARD, so a finished week keeps its field forever and a new
 // week arrives as a new board instead of displacing anyone. The week index is in the
 // key, so the server needs nothing passed alongside it.
@@ -2368,8 +2374,11 @@ check('captured run carries score, time, and owner', run.score === 4200 && run.t
 // several records on one board), stable across a rename re-submit of that run
 check('captured run mints a run id', typeof run.runId === 'string' && run.runId.length > 0);
 check('a second run gets its OWN id (multiple entries per player)', G.captureRun(true).runId !== run.runId);
+// endLevel never captures an endless run (its board is null), but the snapshot
+// itself must still say why if anything ever asks: no seed, nothing verifiable
 G.startEndless(); G.setState(G.S.PLAY);
-check('endless capture is marked unverifiable (unseeded)', G.captureRun(false).verifiable === false && G.captureRun(false).seed === null);
+check('an endless capture names no board and is marked unverifiable (unseeded)',
+  G.captureRun(false).board === null && G.captureRun(false).verifiable === false && G.captureRun(false).seed === null);
 G.setState(G.S.MENU);
 
 // ================= free flow unlock gate =================
@@ -2505,6 +2514,16 @@ G.setIntro(999);
 G.setState(G.S.MENU);
 G.setMenuScreen('flow');
 G.frame(16);
+// THE WEEKLY LANE RIDES THE TOP HALF (Gil, 2026-09-18): the ranked lane leads the
+// wheel and the pad's walk order; endless sits below. A sector's mid angle of
+// -π/2 is the top of the ring (canvas y grows downward).
+{
+  const halves = G.menuBtns().filter(b => b.sector && (b.weekly || b.endless));
+  const midOf = b => (b.sector.a0 + b.sector.a1) / 2;
+  check('flow wheel: the weekly lane is the first half in the walk order', halves.length === 2 && halves[0].weekly === true);
+  check('flow wheel: the weekly lane rides the top half', Math.abs(midOf(halves[0]) + Math.PI / 2) < 1e-6);
+  check('flow wheel: the endless lane rides the bottom half', halves[1].endless === true && Math.abs(midOf(halves[1]) - Math.PI / 2) < 1e-6);
+}
 const eBtn = G.menuBtns().find(b => b.endless);
 check('endless key appears unlocked after clearing the campaign', !!eBtn && !eBtn.locked);
 { const sc = eBtn.sector, ma = (sc.a0 + sc.a1) / 2, mr = (sc.r0 + sc.r1) / 2;
@@ -2514,8 +2533,10 @@ G.setIntro(999);
 check('tapping the endless key starts an endless run', G.getState() === G.S.PLAY && G.isEndless() && G.getLV().name === 'ENDLESS LANE');
 G.setScore(1234);
 G.setIntegrity(0);
+const lastRunBefore = G.getLastRun(); // whatever the last RANKED run left behind
 G.update(0.01);
 check('endless defeat records the best score', G.getState() === G.S.END && G.progress.best === 1234);
+check('endless defeat captures no run — nothing to submit, no name card', G.getLastRun() === lastRunBefore && G.boardKey() === null);
 
 // ================= weekly stream =================
 G.setState(G.S.MENU);
@@ -4077,7 +4098,7 @@ async function runMusicUp() {
   console.warn = m => seen.push(String(m));
   // the harness's fetch stub resolves without `ok`, which is the same shape a
   // blocked or captive-portal network produces
-  await G.lbSubmit({ board: 'endless', mode: 'endless', score: 1000 });
+  await G.lbSubmit({ board: 'weekly:2957', mode: 'weekly', score: 1000 });
   console.warn = warn;
   const s = G.lbStatus();
   check('a failed submission speaks English, not diagnostics',
@@ -4480,14 +4501,14 @@ async function runMusicUp() {
     check('lbTop ships the publishable key, not a secret', String(lastHeaders.apikey).startsWith('sb_publishable_'));
     check('lbTop parses the ranked rows', Array.isArray(top) && top[0].score === 5000);
     // no board uses the `day` column any more — the week rides in the board KEY
-    check('lbDay is null for every board now', G.lbDay('weekly:2957') === null && G.lbDay('endless') === null);
+    check('lbDay is null for every board now', G.lbDay('weekly:2957') === null && G.lbDay('cargo-run:2') === null);
     await G.lbTop('weekly:2957');
     check('a weekly read names the week in the board key, with a null day',
       lastBody.p_board === 'weekly:2957' && lastBody.p_day === null);
-    await G.lbRank('endless', 'me');
+    await G.lbRank('weekly:2957', 'me');
     check('lbRank hits leaderboard_rank with the player id', lastUrl.endsWith('/rest/v1/rpc/leaderboard_rank') && lastBody.p_player === 'me');
     global.fetch = async () => { throw new Error('offline'); };
-    check('leaderboard reads fail soft to null when offline', (await G.lbTop('endless')) === null);
+    check('leaderboard reads fail soft to null when offline', (await G.lbTop('weekly:2957')) === null);
     global.fetch = realFetch;
   }
 
@@ -6502,6 +6523,9 @@ async function runMusicUp() {
     ts.indexOf('svc.rpc("take_submit_slot"') > 0 && ts.indexOf('svc.rpc("take_submit_slot"') < ts.indexOf('m.verifyRun(run)') && /"too many runs", wait \}, 429\)/.test(ts));
   check('backend: the frame hash rides the row, and a duplicate is refused by the index, not by a second statement',
     /p_trace_hash: traceHash,/.test(ts) && !/update\(\{ trace_hash: traceHash \}\)/.test(ts) && /code === "23505"/.test(ts));
+  check('backend: an endless run has no board — the server refuses it instead of writing a trust-only row',
+    /if \(run\.mode === "endless"\) return null;/.test(ts) && !/MAX_ENDLESS/.test(ts) && !/verified = false; \/\/ unseeded/.test(ts)
+    && /if \(!Array\.isArray\(run\.trace\)/.test(ts) && !/run\.mode !== "endless" &&/.test(ts));
   check('backend: a weekly run gets ten minutes of grace across the Sunday turn, and no more',
     /const WEEK_GRACE_MS = 10 \* 60 \* 1000;/.test(ts) && /run\.seed === live - 1 && now - weekStart < WEEK_GRACE_MS/.test(ts));
   // …and the CLIENT sends it: the run keeps the week it STARTED in for the same ten minutes

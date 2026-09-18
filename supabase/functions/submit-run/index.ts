@@ -7,7 +7,10 @@
 //   → verify JWT → player_id (server-trusted, never from the body)
 //   → verifyRun replays the trace, recomputes the score
 //   → campaign/weekly: score must match → upload trace to Storage, write verified=true
-//   → endless: unseeded → sanity-cap only, write verified=false ("unverified" badge)
+//   → endless: REFUSED (400). The endless lane is unseeded — procedural per player,
+//     nothing to re-simulate — so it has no board at all since 2026-09-18. It used
+//     to be the one trust-only board (sanity-capped, written verified=false); an
+//     old client that still files one is turned away here.
 //
 // Deploy:  supabase functions deploy submit-run
 // SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY are auto-injected.
@@ -41,7 +44,6 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 const MAX_TRACE = 200_000;       // ~55 min at 60Hz — a hard ceiling to bound work
-const MAX_ENDLESS = 100_000_000; // trust-only sanity cap for the unseeded board
 
 // ---------------------------------------------------------------------------
 // Name moderation — the SERVER-side backstop for the arcade handle. The client
@@ -182,7 +184,7 @@ const WEEK_GRACE_MS = 10 * 60 * 1000;
 // simply lies about which week it played — files nothing: no late entry, no rewriting
 // a finished board, no backdating a name onto a week that has already been won.
 function boardKeyFor(run: any): string | null {
-  if (run.mode === "endless") return "endless";
+  if (run.mode === "endless") return null; // no board: unseeded, unverifiable
   if (run.mode === "weekly") {
     const now = Date.now(), live = weekOf(now);
     if (!Number.isInteger(run.seed)) return null;
@@ -239,8 +241,8 @@ Deno.serve(async (req) => {
   const run = body?.run;
   if (!run || typeof run !== "object") return json({ error: "no run" }, 400);
   if (!Number.isInteger(run.score) || run.score < 0) return json({ error: "bad score" }, 400);
-  // a trace is required for the verifiable modes; endless is trust-only (no trace)
-  if (run.mode !== "endless" && (!Array.isArray(run.trace) || run.trace.length === 0 || run.trace.length > MAX_TRACE))
+  // a trace is required — every board is a verified board now
+  if (!Array.isArray(run.trace) || run.trace.length === 0 || run.trace.length > MAX_TRACE)
     return json({ error: "bad trace" }, 400);
 
   const board = boardKeyFor(run);
@@ -252,23 +254,20 @@ Deno.serve(async (req) => {
   // in the board KEY instead, so every board now writes a NULL day
   const day = null;
 
-  // 3) verify (campaign/weekly) or sanity-cap (endless)
+  // 3) verify (campaign/weekly)
   let verified = false;
   let score = run.score;
   let traceId: string | null = null;
   let traceHash: string | null = null;
-  // detail stats stored on the row (for the leaderboard details panel). For a
-  // verified run these come from the SERVER's replay; for endless (trust-only)
-  // they're the client's own claimed numbers.
+  // detail stats stored on the row (for the leaderboard details panel). They come
+  // from the SERVER's replay; the client's claimed numbers below are placeholders
+  // that the replay overwrites.
   // timeSec is the boss tie-break (time_sec asc on a %:7 board): for a verified
   // run it is the SERVER's clock, never the client's (audit A1).
   let stat = { maxCombo: run.maxCombo | 0, comboSec: +run.comboSec || 0, zaps: run.zaps | 0, misses: run.misses | 0, perfects: run.perfects | 0, integrity: run.integrity | 0,
     timeSec: Math.max(0, +run.timeSec || 0) };
 
-  if (run.mode === "endless") {
-    if (run.score > MAX_ENDLESS) return json({ error: "implausible score" }, 400);
-    verified = false; // unseeded → trust-only, tagged "unverified" in the UI
-  } else {
+  {
     const m = await getSim();
     if (!m) return json({ error: "sim load failed", detail: _simErr }, 500);
     // ---- OUT OF DATE, OR FORGED? ----

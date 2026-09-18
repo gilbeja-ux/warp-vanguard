@@ -1,8 +1,15 @@
 'use strict';
 // ---------- leaderboard identity of a run ----------
-// boardKey names the leaderboard a run belongs to — one per campaign level, one per
-// free-flow mode, and ONE PER WEEK for the ranked ladder. Qualification/tutorial
-// runs are unranked → null.
+// boardKey names the leaderboard a run belongs to — one per campaign level and ONE
+// PER WEEK for the ranked ladder. Qualification/tutorial runs are unranked → null.
+//
+// THE ENDLESS LANE HAS NO BOARD (Gil, 2026-09-18). It seeds its spawns off the
+// system clock, so no two players ever fly the same lane and the server cannot
+// re-simulate a run — its rows were the one "verified=false" board in the game, and
+// a score there compared luck as much as skill. The weekly lane is the same endless
+// config under a shared seed, and it IS verifiable, so that is where free flow
+// competes. A null here is what closes every route at once: the submit, the rank
+// lookup and the name card all read a null board as unranked.
 //
 // Each week is its own board rather than one 'weekly' board partitioned by a `day`
 // column, and that is what makes the ladder work: the server's top-100 eviction and
@@ -20,7 +27,7 @@ function boardKey() {
   // top 50" name card, the rank lookup — already treats a null board as unranked, so
   // replaying last week for practice cannot file a score by any route.
   if (weekly) return weeklyLive() ? 'weekly:' + weeklyIdx : null;
-  if (endless) return 'endless';
+  if (endless) return null; // procedural per player — a personal best, never a board
   return (CAMP ? CAMP.id : 'campaign') + ':' + levelIdx;
 }
 // A RANK LOOKUP COMING HOME. Split out of endLevel's callback so the staleness
@@ -50,8 +57,8 @@ function newRunId() {
 }
 // captureRun snapshots everything a leaderboard submission needs. The `seed`
 // pins the run to a reproducible stream (level index for campaigns, WEEK INDEX for
-// the weekly ladder); endless is unseeded → `seed:null` and `verifiable:false`, so
-// it can only ever be a trust board unless it's reseeded. mutators alter scoring,
+// the weekly ladder); endless is unseeded and never reaches here (boardKey() is null
+// for it, and endLevel captures only ranked runs). mutators alter scoring,
 // so they're recorded — a ranked board locks or filters on them. The input
 // trace (phase 3) attaches here later as `run.trace` for replay verification.
 function captureRun(win) {
