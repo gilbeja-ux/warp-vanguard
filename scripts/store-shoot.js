@@ -34,22 +34,20 @@ const SAVE_KEY = 'warpVanguard.v1';
 
 // logical size x dpr = the store's pixel size. The logical size is a PHONE's (or
 // an iPad's), so the layout in the frame is the layout a player holds.
-// A PHONE IS NOT 16:9. dialCenter insets the pads from the screen's corners, so on a
-// 16:9 canvas they sit ON the ring; on a real phone (19.5:9 and wider) they stand
-// clear of it. The first cut shot Play at 1920x1080 and every lane frame had the pads
-// over the ring (Gil, 2026-09-21). Play takes anything up to 2:1, so Play is 2:1.
+// A PHONE IS NOT 16:9. The first cut shot Play at 1920x1080 and every lane frame had the
+// pads over the ring (Gil, 2026-09-21). The game's pad law (dialSeat, 60-input) has since
+// made 16:9 legal — it shrinks the pads there — but a real phone is 19.5:9 and wider and
+// keeps them full size, and Play takes anything up to 2:1. So Play is 2:1.
 // `safe` is the device's landscape safe area in CSS px: the game reads it from
 // --sal/--sar/--sab and insets the pads by it, so an iPhone frame without it is a
 // frame no iPhone shows.
 // 47, the notch iPhones' inset (and the one on Gil's phone, measured off his screenshot).
-// The Dynamic Island phones report 62, and BY THE ARITHMETIC of dialCenter a 956x440
-// screen with 62 puts the pad's rim exactly on the ring's. That is INFERRED, not seen on
-// a device — it is worth one look on a 6.9 in iPhone. The 6.9 in slot feeds every
-// smaller iPhone's listing too, so the frame wears the common inset.
+// The 6.9 in slot feeds every smaller iPhone's listing too, so the frame wears the common
+// inset. The Dynamic Island phones report 62; the pad law seats the pads 23 px lower there.
 const IPHONE_SAFE = { l: 47, r: 47, t: 0, b: 21 };
 const SIZES = {
   play:    { w: 1080, h: 540,  dpr: 2, note: 'Google Play phone, 2160x1080 (2:1, the widest Play takes)' },
-  play169: { w: 960,  h: 540,  dpr: 2, note: 'Google Play 16:9, 1920x1080 — the pads overlap the ring at this shape; on request only', onRequest: true },
+  play169: { w: 960,  h: 540,  dpr: 2, note: 'Google Play 16:9, 1920x1080 — the pad law shrinks the pads to 86% here' },
   iphone:  { w: 956,  h: 440,  dpr: 3, safe: IPHONE_SAFE, note: 'App Store iPhone 6.9 in, 2868x1320' },
   ipad:    { w: 1376, h: 1032, dpr: 2, safe: { l: 0, r: 0, t: 0, b: 20 }, note: 'App Store iPad 13 in, 2752x2064' },
   // video sizes

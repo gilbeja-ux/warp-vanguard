@@ -33,9 +33,9 @@ const botCfg = () => JSON.stringify(Object.assign({}, ARG.seed ? { seed: +ARG.se
 const ARM = `(function () {
   window.__BOT_CFG = ${botCfg()};
   window.__bot = ${BOT_SRC};
-  window.__steps = 0; window.__stepWall = [];
+  window.__steps = 0; window.__stepWall = []; window.__trace = [];
   const _simStep = simStep;
-  simStep = function () { if (!replaying) { __bot.step(SIM_DT); if ((__steps++ % 60) === 0) __stepWall.push(performance.now()); } return _simStep(); };
+  simStep = function () { if (!replaying) { __bot.step(SIM_DT); if (state === S.PLAY && !preLaunch() && introT >= INTRO_DUR) __trace.push({ a0: nodes[0].angle, a1: nodes[1].angle, h: (padHold[0] ? 1 : 0) | (padHold[1] ? 2 : 0) }); if ((__steps++ % 60) === 0) __stepWall.push(performance.now()); } return _simStep(); };
   // THE RUN FILES NOTHING. The leaderboard host is blocked, and a bot's score has no
   // place on a live board anyway. With the submit stubbed IN THE PAGE the end card
   // shows the honest local result and not an OFFLINE notice about a network we cut.
@@ -57,6 +57,12 @@ async function picturePass(size, origin, outDir) {
       let f = 0, endAt = -1;
       for (; f < MAX_S * 60; f += 60) { await cdp.eval('__crank(60)'); const s = JSON.parse(await cdp.eval(G(FINAL))); if (s.state === 2 && endAt < 0) endAt = f + END_HOLD * 60; if (endAt >= 0 && f >= endAt) break; }
       const fin = JSON.parse(await cdp.eval(G(FINAL))); const log = JSON.parse(await cdp.eval('JSON.stringify(__bot.log)'));
+      // --trace=file: the emitters' angles, one row a sim step — the same shape a stored replay has
+      if (ARG.trace) {   // the game recorded this run itself (lastRun.trace): save it as a replay package
+        const head = JSON.parse(await cdp.eval('JSON.stringify({ v: 2, mode: lastRun.mode, levelIdx: lastRun.levelIdx, seed: lastRun.seed, campId: lastRun.campId, mutators: lastRun.mutators, n: lastRun.trace.length })'));
+        let fr = []; for (let i = 0; i < head.n; i += 2000) fr = fr.concat(JSON.parse(await cdp.eval('JSON.stringify(lastRun.trace.slice(' + i + ',' + (i + 2000) + '))')));
+        delete head.n; fs.writeFileSync(path.resolve(ARG.trace), JSON.stringify(Object.assign(head, { frames: fr })));
+      }
       if (errors.length) console.log('  PAGE ERRORS: ' + errors.join(' | '));
       return { file: null, frames: f, fin, log };
     }

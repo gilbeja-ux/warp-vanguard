@@ -13,6 +13,8 @@ node scripts/store-shoot.js --scene=boss --size=play --kind=siphon
 node scripts/store-shoot.js --video --size=yt     # the gameplay video, picture + sound
 node scripts/store-shoot.js --video --size=preview --fps=30
 node scripts/store-shoot.js --list
+node scripts/store-shoot.js --video --dry --trace=bot.json   # the run with no camera, saved as a replay
+node scripts/store-study.js bot.json human.json              # lead and aim, measured through the real sim
 ```
 
 ---
@@ -50,21 +52,51 @@ of the screen's SHAPE: on 16:9 they collide, on a real phone (19.5:9 and wider) 
 not. Three changes:
 
 - **Play and the video are 2:1** (2160 x 1080). Play takes any shape up to 2:1, and YouTube
-  takes any shape. `--size=play169` still shoots 1920 x 1080 if a 16:9 slot ever demands
-  it, with the collision in it.
+  takes any shape. A 16:9 set is shot too (`raw/play169/`, 1920 x 1080) for a slot that
+  demands that shape.
 - **The iPhone frames wear a safe area.** The game insets its pads by `--sal` / `--sar`,
   so an iPhone frame with no inset is a frame no iPhone shows. The harness sets 47 px, the
   notch phones' inset and the one on Gil's phone.
-- **INFERRED, not seen:** the Dynamic Island phones report 62 px. By the arithmetic of
-  `dialCenter`, a 956 x 440 screen with 62 puts the pad's rim exactly on the ring's. It
-  needs one look on a 6.9" iPhone or its simulator.
 
-And one fix **in the game**: on the iPad frame the pads had a fat outer band. The pad's
-radius is capped at phone scale (`min(H, 560)`) but its gauge width was the ring's
-measure, `min(W, H) * 0.055`, which has no cap. `padGauge()` in `60-input.js` now carries
-the same cap. On a phone H is under 560, so no pixel moves there. It is render-only, but
-the sim id hashes every byte: no board moves, and the verifier is rebuilt with
-`-- --compatible` before the next AAB, as the standing rule says.
+### The pad law — the third cut, 2026-09-21
+
+The shape was only where the fault SHOWED. The fault was the rule: a pad sat a fixed inset
+from the corner and nothing checked it against the ring or the glass. Gil's ruling: **a
+pad never touches or overlaps the ring, it never crowds the edge of the screen, and the
+spacing is relative, not absolute.** `dialSeat()` in `60-input.js` is that law:
+
+| Clearance | Share of the pad's scale `hh = min(H, 560)` |
+|---|---|
+| pad rim to ring rim | 0.022 |
+| pad rim to the glass | 0.05 |
+| pad rim to the safe area | 0.015 |
+
+The old seat comes first, and a screen where it already keeps the law gets it **to the
+pixel** — Gil's phone and a desktop do. Where it does not, the seat gives way in the order
+that costs the thumb least: in from the edge, out along the row, down toward the corner,
+and only then smaller. The ring never gives: `geo()` is canonical on every screen.
+
+| Screen | Before | After |
+|---|---|---|
+| Notch iPhone 844 x 390 (Gil's) | clear by 9.8 px | the same seat, to the pixel |
+| Dynamic Island iPhone 956 x 440 | rims 4 px apart | pad 23 px lower, clear by 9.7 px |
+| 2:1 phone, no safe area | pad rim 9 px from the glass | 27 px from the glass |
+| 16:9 phone 960 x 540 | pad 22 px INTO the ring | pad at 86%, in the corner, clear by 12 px |
+| iPad 13 | pad rim 9 px from the glass | 28 px from the glass, 18 px lower |
+| iPad mini | — | pad at 91% |
+| Desktop 1600 x 900 | clear by 115 px | the same seat, to the pixel |
+
+The 62 px case was INFERRED from arithmetic in the second cut and is still not seen on a
+device; the law now holds there by construction. `npm test`, section **THE PAD LAW**, runs
+the law on eleven screen shapes and pins the pixel-identical seats.
+
+The pad's **gauge width** follows the pad too (`padGauge()`): it was the ring's measure,
+`min(W, H) * 0.055`, which has no cap, so an iPad drew a fat band on a phone-size pad. It
+is now a share of the pad's radius, so a pad the law had to shrink keeps its proportions.
+
+All of it is input layout and drawing. The sim does not read it, no board moves, and a
+stored replay plays the same. The sim id hashes every byte, so the verifier is rebuilt
+with `-- --compatible` before the next AAB, as the standing rule says.
 
 The icon is unchanged: `docs/store/wv-512-store.png` for Play, the asset catalogue for iOS.
 
@@ -114,13 +146,16 @@ by [the human bot](../scripts/store-bot.js).
 | `run-preview.mp4` | The full run at the iPhone aspect, the source of the cut | 1920 x 886, 30 fps |
 | `run-yt.json`, `run-preview.json` | The run's record: the bot's event log and one line a second | tracked in git; the video files are not |
 
-**The run:** 229,143 points, 3 stars, 108 hits, 71 perfect, 16 volley blasts, 2 pulse taps,
-and **1 miss, the planned one**, at 0:47. The hull that passed met a shield that the bot
-had caught earlier, so the frame says SHIELD ABSORBED THE BREACH and not STABILITY LOST.
-The combo resets and the end card says MISSED 1. Move it with `--mistake=<levelT>`.
+**The run:** 251,640 points, 3 stars, 123 hits, 70 perfect (57%), 10 volley blasts, and
+**1 miss, the planned one**, at 0:38: the thumb notices a far body too late and the body
+passes. A shield the bot had caught absorbs it, so the frame says SHIELD ABSORBED THE BREACH
+and not STABILITY LOST; the combo resets and the end card says MISSED 1. Move it with `--mistake=<levelT>`. If
+the loose player drops a body on its own first, that IS the mistake and the planned one
+is stood down.
 
-**The run is deterministic.** The same seed gave the same 229,143 in every dry run,
-picture pass and sound pass, at two sizes. `--seed=` gives a different player.
+**The run is deterministic.** The same seed gives the same score in every dry run, picture
+pass and sound pass, at every size. `--seed=` gives a different player: seeds 7 (the
+default), 11, 23 and 31 each drop exactly one body on stage 23.
 
 **Sound sync:** real time is not exactly the sim's, and the first second has a hitch of
 about 0.13 s. The driver fits a least-squares line through the body of the run, trims the
@@ -130,29 +165,57 @@ the fit is 0.010 s (0.11 s before it).
 **The run files nothing.** The leaderboard host is blocked and `lbSubmit` is stubbed in
 the page, so a bot score cannot reach a live board and the end card has no OFFLINE line.
 
-### How the bot plays
+### How the bot plays — tuned against people
 
 It moves two thumbs and nothing else. It sends real `pointerdown`, `pointermove` and
 `pointerup` events to the canvas, so the dials draw the thumbs, the launch gate opens on a
 real two-thumb grip, and the game never learns it is not a person. It never writes a game
 variable.
 
-- It **sees late**. A body is noticed inside a depth limit and acted on after a reaction
-  time of 0.15 s to 0.26 s. The time is 0.02 s to 0.08 s when the next target was already
-  in view at the moment the last one died.
-- A thumb travels on a **minimum-jerk curve**. The duration follows Fitts's law, so a long
-  reach is slower than a short one and no movement is instant. Under time pressure the
-  reach is compressed, down to the fastest sweep a thumb makes (11 rad/s).
-- It aims with a small error, overshoots some long reaches and corrects, and a thumb at
-  rest has tremor. The two thumbs land at different times.
-- It plans as a player plans. Keyed work is fixed first: a phase lock, purple armor, the
-  two ends of a linked pair. Each standard body then goes to the thumb that can reach it
-  and not drop keyed work.
-- It routes **around** a dead zone. It docks both thumbs on purple armor, which fires the
-  volley. It taps a charged pulse orb as a thumb does: lift, tap the core, put the thumb back.
-- **It makes one mistake.** After `mistakeAt` seconds it notices one far body too late. The
-  thumb runs at it and arrives late, the body passes, STABILITY LOST shows, the combo
-  resets. Then it continues to play correctly.
+The first cut moved on one clean minimum-jerk curve per target, and Gil called it
+mechanical. He was right, and the fix was to MEASURE people and stop guessing. Five
+verified human replays came off the live boards (read only), and two instruments ran on
+them and on the bot's own trace:
+
+- [store-kin.js](../scripts/store-kin.js), a kinematics pass over the emitter angles: how long a reach takes, how many speed peaks
+  it has, where the peak sits, how often a resting thumb adjusts, how often both move;
+- [store-study.js](../scripts/store-study.js), which replays a trace through the real sim
+  and logs, for every body that reaches the ring, how long the answering emitter had been
+  inside the hit window (the LEAD) and how far off centre it was (the AIM).
+
+| Measure | People | First bot | Bot now |
+|---|---|---|---|
+| A 0.5 rad reach | 0.30 s | 0.18 s | 0.30 s |
+| A 1.2 rad reach | 0.45 s | 0.25 s | 0.43 s |
+| A 2.3 rad reach | 0.5 to 0.8 s | 0.32 s | 0.48 s |
+| Speed peaks inside one reach | 2.4 to 11 | 1.0 | 2.9 to 3.8 |
+| Where the speed peaks | 37% of the way | 50% | 37% |
+| Small adjustments at rest | 1.5 to 2.7 a second | 0.4 | 1.6 |
+| Both thumbs at rest | 23 to 36% of the time | 67% | 38% |
+| Both moving, of moving time | 40 to 51% | 24% | 30% |
+| Lead, median | 0.4 to 0.65 s | 0.87 s | 0.53 s |
+| Arrives with under 0.25 s to spare | 20 to 25% | 8% | 14% |
+| Aim off centre, median | 0.06 to 0.10 rad | 0.026 | 0.060 |
+| PERFECT share | 56 to 71% | 94% | 71% |
+
+What that became, all of it in `CFG` at the top of [store-bot.js](../scripts/store-bot.js):
+
+- A reach is **slow**, and its duration is spread (Fitts's law, log-normal). The speed
+  peaks early and has a long tail as the thumb homes in. The speed **wavers** inside the
+  reach, because a thumb on glass is a sequence of small pushes and never one bell curve.
+- The first push usually lands **short**, sometimes long, and a correction follows.
+- Aim is loose. A thumb that waits on a target keeps **nudging** toward it.
+- The start is not always prompt. Some reaches wait and go in one fast **last-moment
+  flick**, some wait a beat, some go at once and sit early.
+- The hands are **coupled**: when one thumb goes, the pending reach of the other often
+  goes with it. An idle thumb drifts toward the next body.
+- It still sees late, plans keyed work first, routes around a dead zone, docks on purple
+  armor (which fires the volley), and taps a charged pulse orb as a thumb does.
+- **It makes one mistake.**
+
+One honest limit: the bot PLANS better than the people on the boards. The best human run
+on stage 23 is 38,947 and did not finish the lane; the bot clears it with 251,640. Its
+hands are human; its triage is not.
 
 ### Picture and sound are two passes over the same run
 
