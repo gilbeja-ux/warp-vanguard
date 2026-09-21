@@ -152,3 +152,12 @@ src/audio/sfx/incoming/**/*.ogg
 # the pending file (2026-08-29) left a finished order looking unfinished.
 docs/sfx-order.json
 .shots/
+
+# ---- STORE MASTERS (2026-09-21) — regenerable, and heavy ----
+# 95 MB of stills and 250 MB of video, and every byte is one command away:
+# `node scripts/store-shoot.js` and `node scripts/store-shoot.js --video`. The
+# scripts, the copy, the run log and the feature graphic are tracked; the masters
+# are not.
+docs/store/raw/
+docs/store/video/*.mp4
+docs/store/video/*.webm

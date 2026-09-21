@@ -1,5 +1,10 @@
 # Store Listing — Google Play
 
+> **SUPERSEDED 2026-09-21** by [STORE-MATERIALS.md](STORE-MATERIALS.md): new stills at
+> three sizes, a new feature graphic, a gameplay video, and copy that says STAGE. The
+> screenshots and the copy below show hulls and nouns the game no longer has. Sections 3
+> to 5 (the decisions, and the two harness traps) are still true and are why this stays.
+
 **Built 2026-08-15** from [STORE-LISTING-BRIEF.md](STORE-LISTING-BRIEF.md).
 Assets in [store/](store/). Everything here is paste-ready except the two items
 under **Still owed** at the end.
