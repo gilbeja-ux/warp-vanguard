@@ -2,34 +2,87 @@
 // ---------- input ----------
 const pointers = {}; // id -> { side, lastA }
 const isLandscape = () => W > H;
+// ---------- where the two pads sit ----------
+// THE PAD LAW (Gil, 2026-09-21): a pad NEVER touches or overlaps the ring, and it never
+// crowds the edge of the screen. Every clearance is a SHARE of the pad's own scale,
+// never a pixel count, so the law reads the same on a phone, an iPad and a desktop.
+//
+// It came off the store frames. The old rule put the pad a fixed inset from the corner
+// and hoped: on a 19.5:9 phone that happens to clear the ring, on a 16:9 screen the pad
+// sat ON it, on a Dynamic Island iPhone (inset 62) the two rims met, and with no inset at
+// all the pad's rim ran 9 px from the glass.
+//
+// THE NATURAL SEAT COMES FIRST and is the old one, unchanged: corner dials proportioned
+// like the mock, the SAME inset on both sides (whichever notch is bigger) so the pads
+// stay symmetric to the centred rim, raised to where thumbs rest when gripping the
+// device, and capped at phone scale — on a desktop H is 2-3x a phone's and uncapped
+// dials swallowed the bore. A screen where that seat already keeps the law (Gil's own
+// phone does) gets it to the pixel. Where it does not, the seat gives way in the order
+// that costs the thumb least:
+//   1. IN from the edge, until the rim has its margin;
+//   2. OUT along the row, as far as that margin allows, to clear the ring;
+//   3. DOWN toward the corner, as far as the bottom margin allows;
+//   4. and only then SMALLER, a step at a time, down to PAD_LAW.minScale.
+// The ring is never what gives: geo() is canonical on every screen (hitZ is 0.25
+// everywhere), and that is what keeps a board fair.
+const PAD_LAW = {
+  ringGap: 0.022,   // x hh: clear space between the pad's rim and the ring's
+  glassGap: 0.05,   // x hh: the pad's rim to the physical edge of the screen
+  safeGap: 0.015,   // x hh: the pad's rim to the safe area, where there is one
+  reach: 100 / 560, // x hh: how far past the ring a pad may drift on a wide desktop
+  rimK: 0.425 * 0.055 / 0.21, // the gauge band's outer half, x r (drawDials strokes bz * 0.85 on r)
+  minScale: 0.35
+};
+let dialMemo = null, dialKey = '';
+function dialSeat() {
+  const key = W + '|' + H + '|' + SAFE.l + '|' + SAFE.r + '|' + SAFE.b;
+  if (dialMemo && key === dialKey) return dialMemo;
+  const hh = Math.min(H, 560), cx = W / 2, cy = H / 2;
+  const inset = Math.max(SAFE.l, SAFE.r);
+  const m = Math.min(W, H);
+  const nodeR = m * 0.44;                                  // the bore the pads flank (geo())
+  const ringOut = nodeR + m * 0.055 * ARCFX.bandW;         // the ring band's outer rim (20-background)
+  const left = Math.max(hh * PAD_LAW.glassGap, inset + hh * PAD_LAW.safeGap);
+  const foot = Math.max(hh * PAD_LAW.glassGap, SAFE.b + hh * PAD_LAW.safeGap);
+  let seat = null;
+  for (let k = 1; k >= PAD_LAW.minScale - 1e-9; k -= 0.01) {
+    const r = hh * 0.21 * k, rim = r * (1 + PAD_LAW.rimK);
+    const need = ringOut + rim + hh * PAD_LAW.ringGap;     // centre to centre
+    const xMin = left + rim, yMax = H - foot - rim;
+    // the natural seat
+    let x = cx - Math.min(cx - (hh * 0.25 + inset), nodeR + r + hh * PAD_LAW.reach);
+    let y = H - hh * 0.36 - SAFE.b * 0.5;
+    x = Math.max(x, xMin);                                 // 1. in from the edge
+    y = Math.min(y, yMax);
+    if (Math.hypot(cx - x, y - cy) < need) {               // 2. out along the row
+      const dy = y - cy;
+      x = Math.max(xMin, Math.min(x, cx - Math.sqrt(Math.max(0, need * need - dy * dy))));
+    }
+    if (Math.hypot(cx - x, y - cy) < need) {               // 3. down toward the corner
+      const dx = cx - x;
+      y = Math.min(yMax, Math.max(y, cy + Math.sqrt(Math.max(0, need * need - dx * dx))));
+    }
+    seat = { x, y, r, k };
+    if (Math.hypot(cx - x, y - cy) >= need - 1e-6) break;  // the law holds — 4. else smaller
+  }
+  dialKey = key;
+  return (dialMemo = seat);
+}
 function dialCenter(side) {
   if (isLandscape()) {
-    // corner dials, proportioned like the mock. the SAME inset on both sides
-    // (whichever notch is bigger) keeps the pads symmetric to the centered rim —
-    // per-side insets made one pad sit farther from the rim than the other.
-    // raised from 0.75 H to where thumbs naturally rest when gripping the device.
-    // geometry is capped at phone scale: on a desktop window H is 2-3x a phone's,
-    // and uncapped dials swallowed the bore (and hid the pickup feedback under them)
-    const hh = Math.min(H, 560);
-    const r = hh * 0.21, my = H - hh * 0.36 - SAFE.b * 0.5;
-    const inset = Math.max(SAFE.l, SAFE.r);
-    const cx = W / 2, edge = hh * 0.25 + inset;   // the natural bottom-corner inset — phones rest here
-    const nodeR = Math.min(W, H) * 0.44;          // the bore the pads flank
-    // on a wide desktop the corners sit far from the bore; don't let the pads hug the
-    // screen edges — cap their spread so they stay just outside the ring, within reach
-    const spread = Math.min(cx - edge, nodeR + r + 100);
-    return side === 'L' ? { x: cx - spread, y: my, r } : { x: cx + spread, y: my, r };
+    const s = dialSeat();
+    return side === 'L' ? { x: s.x, y: s.y, r: s.r } : { x: W - s.x, y: s.y, r: s.r };
   }
   const m = Math.min(W, H) * 0.17;
   return side === 'L' ? { x: m * 0.95, y: H - m * 0.95, r: m * 0.72 } : { x: W - m * 0.95, y: H - m * 0.95, r: m * 0.72 };
 }
-// THE PAD'S GAUGE WIDTH WEARS THE PAD'S OWN CAP. dialCenter holds a pad at phone
-// scale (hh = min(H, 560)), but the band it is drawn with was min(W, H) * 0.055 —
-// the RING's measure, which keeps growing with the screen. On an iPad the radius
-// stopped at 118 while the band went on to 57, and the console read as a different,
-// fatter pad (Gil, 2026-09-21, off the iPad store frame). On a phone H is under the
-// cap, so not one pixel moves there.
-const padGauge = () => Math.min(W, H, 560) * 0.055;
+// THE PAD'S GAUGE WIDTH IS THE PAD'S, NOT THE RING'S. It was min(W, H) * 0.055 — the
+// ring's measure, which keeps growing with the screen while the pad is capped at phone
+// scale: on an iPad the radius stopped at 118 while the band went on to 57, and the
+// console read as a different, fatter pad (Gil, 2026-09-21, off the iPad store frame).
+// Tied to the radius it also follows a pad the law had to shrink. At full scale on a
+// phone it is the old number exactly.
+const padGauge = () => isLandscape() ? dialSeat().r * (0.055 / 0.21) : Math.min(W, H, 560) * 0.055;
 // go fullscreen + lock landscape whenever we aren't already — retried on every
 // touch so exiting fullscreen (or a failed first attempt) recovers on the next tap.
 // Works on Android Chrome; iPhone Safari has no element fullscreen — there the

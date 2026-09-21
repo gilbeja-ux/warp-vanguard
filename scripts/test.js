@@ -6635,3 +6635,48 @@ async function runMusicUp() {
   const ci = read('.github/workflows/test.yml');
   check('smoke: CI has a smoke job on the runner\'s own Chrome', /npm run test:smoke/.test(ci));
 }
+
+// ================= THE PAD LAW: a pad never touches the ring, and never crowds the glass =================
+//
+// Gil, 2026-09-21, off the store frames: at 16:9 the pads sat ON the ring, on a Dynamic
+// Island iPhone the two rims met, and with no safe area a pad ran 9 px from the edge of
+// the screen. dialSeat() (60-input) now keeps three clearances, each a SHARE of the pad's
+// scale and never a pixel count, and gives way in a fixed order: in, out, down, smaller.
+// The law is lifted out of the source and run on real screen shapes, because the harness
+// above lives at one size and a layout law is a claim about all of them.
+{
+  const inp = fs.readFileSync(path.join(ROOT, 'src', 'game', '60-input.js'), 'utf8');
+  const body = inp.slice(inp.indexOf('const PAD_LAW'), inp.indexOf("// THE PAD'S GAUGE WIDTH IS"));
+  const seat = (W, H, SAFE) => new Function('W', 'H', 'SAFE', 'ARCFX', 'isLandscape',
+    body + '; return { s: dialSeat(), L: dialCenter("L"), R: dialCenter("R"), law: PAD_LAW };')(W, H, SAFE, { bandW: 0.40 }, () => W > H);
+  const SHAPES = [
+    ['a notch iPhone (Gil\'s)', 844, 390, { l: 47, r: 47, b: 21 }], ['a Dynamic Island iPhone', 956, 440, { l: 62, r: 62, b: 21 }],
+    ['a 2:1 phone, no safe area', 1080, 540, { l: 0, r: 0, b: 0 }], ['a 16:9 phone', 960, 540, { l: 0, r: 0, b: 0 }],
+    ['a small 16:9 phone', 640, 360, { l: 0, r: 0, b: 0 }], ['a 21:9 phone', 1260, 540, { l: 40, r: 40, b: 0 }],
+    ['an iPad 13', 1376, 1032, { l: 0, r: 0, b: 20 }], ['an iPad mini', 1133, 744, { l: 0, r: 0, b: 20 }],
+    ['a 4:3 window', 1024, 768, { l: 0, r: 0, b: 0 }], ['a 5:4 fold', 1100, 900, { l: 0, r: 0, b: 0 }], ['a desktop', 1600, 900, { l: 0, r: 0, b: 0 }]
+  ];
+  let worst = '';
+  for (const [name, W, H, S] of SHAPES) {
+    const { s, L, R, law } = seat(W, H, S);
+    const hh = Math.min(H, 560), m = Math.min(W, H), ringOut = m * 0.44 + m * 0.055 * 0.40, rim = s.r * (1 + law.rimK);
+    const ringGap = Math.hypot(W / 2 - s.x, s.y - H / 2) - ringOut - rim;
+    const ok = ringGap >= hh * law.ringGap - 1e-6
+      && s.x - rim >= Math.max(hh * law.glassGap, Math.max(S.l, S.r) + hh * law.safeGap) - 1e-6
+      && H - s.y - rim >= Math.max(hh * law.glassGap, S.b + hh * law.safeGap) - 1e-6
+      && Math.abs((W - L.x) - R.x) < 1e-9 && L.y === R.y && L.r === R.r;
+    if (!ok && !worst) worst = name + ' (ring gap ' + ringGap.toFixed(1) + ', glass ' + (s.x - rim).toFixed(1) + ')';
+  }
+  check('the pad law holds on every screen shape, and the two pads mirror each other' + (worst ? ' — BROKEN on ' + worst : ''), !worst);
+  // …and a screen whose natural seat already keeps the law gets that seat TO THE PIXEL.
+  // Gil's phone is the reference: the law was written around it, not over it.
+  const ref = (W, H, S) => { const hh = Math.min(H, 560), inset = Math.max(S.l, S.r), r = hh * 0.21;
+    return { x: W / 2 - Math.min(W / 2 - (hh * 0.25 + inset), Math.min(W, H) * 0.44 + r + 100), y: H - hh * 0.36 - S.b * 0.5, r }; };
+  const same = (W, H, S) => { const a = seat(W, H, S).L, b = ref(W, H, S); return Math.abs(a.x - b.x) < 1e-9 && Math.abs(a.y - b.y) < 1e-9 && Math.abs(a.r - b.r) < 1e-9; };
+  check('a notch iPhone and a desktop keep the old seat to the pixel', same(844, 390, { l: 47, r: 47, b: 21 }) && same(1600, 900, { l: 0, r: 0, b: 0 }));
+  check('a 16:9 phone gives way by shrinking the pad, never by touching the ring', seat(960, 540, { l: 0, r: 0, b: 0 }).s.k < 1 && seat(960, 540, { l: 0, r: 0, b: 0 }).s.k > 0.8);
+  check('no clearance in the law is a pixel count', !/\b(100|560)\b/.test(body.slice(body.indexOf('function dialSeat'), body.indexOf('let seat')).replace(/Math\.min\(H, 560\)/, '')));
+  const ea = fs.readFileSync(path.join(ROOT, 'src', 'game', '85-enemy-art.js'), 'utf8');
+  check('the pad\'s band is measured off the pad: drawDials and the orb corona both use padGauge()',
+    /const bz = padGauge\(\)/.test(ea) && /const bz2 = padGauge\(\)/.test(ea) && /const padGauge = \(\) => isLandscape\(\) \? dialSeat\(\)\.r \* \(0\.055 \/ 0\.21\)/.test(inp));
+}
