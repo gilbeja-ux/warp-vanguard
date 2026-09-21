@@ -34,13 +34,27 @@ const SAVE_KEY = 'warpVanguard.v1';
 
 // logical size x dpr = the store's pixel size. The logical size is a PHONE's (or
 // an iPad's), so the layout in the frame is the layout a player holds.
+// A PHONE IS NOT 16:9. dialCenter insets the pads from the screen's corners, so on a
+// 16:9 canvas they sit ON the ring; on a real phone (19.5:9 and wider) they stand
+// clear of it. The first cut shot Play at 1920x1080 and every lane frame had the pads
+// over the ring (Gil, 2026-09-21). Play takes anything up to 2:1, so Play is 2:1.
+// `safe` is the device's landscape safe area in CSS px: the game reads it from
+// --sal/--sar/--sab and insets the pads by it, so an iPhone frame without it is a
+// frame no iPhone shows.
+// 47, the notch iPhones' inset (and the one on Gil's phone, measured off his screenshot).
+// The Dynamic Island phones report 62, and BY THE ARITHMETIC of dialCenter a 956x440
+// screen with 62 puts the pad's rim exactly on the ring's. That is INFERRED, not seen on
+// a device — it is worth one look on a 6.9 in iPhone. The 6.9 in slot feeds every
+// smaller iPhone's listing too, so the frame wears the common inset.
+const IPHONE_SAFE = { l: 47, r: 47, t: 0, b: 21 };
 const SIZES = {
-  play:   { w: 960,  h: 540,  dpr: 2, note: 'Google Play phone, 1920x1080 (16:9)' },
-  iphone: { w: 956,  h: 440,  dpr: 3, note: 'App Store iPhone 6.9", 2868x1320' },
-  ipad:   { w: 1376, h: 1032, dpr: 2, note: 'App Store iPad 13", 2752x2064' },
+  play:    { w: 1080, h: 540,  dpr: 2, note: 'Google Play phone, 2160x1080 (2:1, the widest Play takes)' },
+  play169: { w: 960,  h: 540,  dpr: 2, note: 'Google Play 16:9, 1920x1080 — the pads overlap the ring at this shape; on request only', onRequest: true },
+  iphone:  { w: 956,  h: 440,  dpr: 3, safe: IPHONE_SAFE, note: 'App Store iPhone 6.9 in, 2868x1320' },
+  ipad:    { w: 1376, h: 1032, dpr: 2, safe: { l: 0, r: 0, t: 0, b: 20 }, note: 'App Store iPad 13 in, 2752x2064' },
   // video sizes
-  yt:      { w: 960, h: 540, dpr: 2, note: 'YouTube / Play promo video, 1920x1080' },
-  preview: { w: 960, h: 443, dpr: 2, note: 'App Store preview, iPhone, 1920x886' },
+  yt:      { w: 1080, h: 540, dpr: 2, note: 'YouTube / Play promo video, 2160x1080 (2:1)' },
+  preview: { w: 960,  h: 443, dpr: 2, safe: IPHONE_SAFE, note: 'App Store preview, iPhone, 1920x886' },
   previewpad: { w: 800, h: 600, dpr: 2, note: 'App Store preview, iPad, 1600x1200' },
 };
 
@@ -151,6 +165,13 @@ async function bootToMenu(page, origin) {
     if (await cdp.eval(G("typeof frame === 'function' && typeof startLevel === 'function' && typeof s3BreachReady === 'function'")) === true) break;
     if (Date.now() - t0 > 20000) throw new Error('the game never booted');
     await sleep(200);
+  }
+  // the device's safe area, as the shell would report it: set the variables resize() reads,
+  // then make it read them (resize() returns early while the canvas size is unchanged)
+  if (page.S.safe) {
+    const sf = page.S.safe;
+    const r = await cdp.eval(G(`(function(){ const st = document.documentElement.style; st.setProperty('--sal', '${sf.l}px'); st.setProperty('--sar', '${sf.r}px'); st.setProperty('--sat', '${sf.t}px'); st.setProperty('--sab', '${sf.b}px'); lastCw = -1; resize(); return SAFE.l + '/' + SAFE.r + '/' + SAFE.b; })()`));
+    if (r !== sf.l + '/' + sf.r + '/' + sf.b) throw new Error('the safe area did not take: ' + r);
   }
   // fonts, then the hull bake. The bake is budgeted in REAL milliseconds and is
   // pumped from frameBody while the splash is on, so crank and breathe until done.

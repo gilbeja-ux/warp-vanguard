@@ -23,6 +23,13 @@ function dialCenter(side) {
   const m = Math.min(W, H) * 0.17;
   return side === 'L' ? { x: m * 0.95, y: H - m * 0.95, r: m * 0.72 } : { x: W - m * 0.95, y: H - m * 0.95, r: m * 0.72 };
 }
+// THE PAD'S GAUGE WIDTH WEARS THE PAD'S OWN CAP. dialCenter holds a pad at phone
+// scale (hh = min(H, 560)), but the band it is drawn with was min(W, H) * 0.055 —
+// the RING's measure, which keeps growing with the screen. On an iPad the radius
+// stopped at 118 while the band went on to 57, and the console read as a different,
+// fatter pad (Gil, 2026-09-21, off the iPad store frame). On a phone H is under the
+// cap, so not one pixel moves there.
+const padGauge = () => Math.min(W, H, 560) * 0.055;
 // go fullscreen + lock landscape whenever we aren't already — retried on every
 // touch so exiting fullscreen (or a failed first attempt) recovers on the next tap.
 // Works on Android Chrome; iPhone Safari has no element fullscreen — there the

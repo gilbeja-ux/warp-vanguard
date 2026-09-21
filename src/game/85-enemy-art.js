@@ -2928,7 +2928,7 @@ function drawPulseOrbs(g) {
     // READY: the energy wants out. Everything here lives OUTSIDE the meter,
     // around the pad, and everything is soft light under pressure.
     if (ready) {
-      const bz2 = Math.min(W, H) * 0.055;
+      const bz2 = padGauge(); // the corona is measured off the pad, so it wears the pad's cap (60-input)
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       // the corona: an aura past the pad rim whose reach TREMBLES on two
@@ -3113,7 +3113,7 @@ function drawPadPrompt(i, d, tut) {
   if (tut) drawDialComet(i);
 }
 function drawDials() {
-  const bz = Math.min(W, H) * 0.055; // pad gauge width
+  const bz = padGauge(); // pad gauge width — capped with the pad itself, see 60-input
   const parked = preLaunch();
   const pr = padsRevealT(); // H-07: 1 unless a briefed pre-warp disc is still revealing its line / landing the pads
   // S.INFO included: the pre-run mission disc is the pre-warp screen (72-tick),

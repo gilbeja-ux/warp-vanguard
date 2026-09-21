@@ -56,7 +56,9 @@ const SCENES = {
     hold: 8, auto: 'off',
     arm: () => `combo = 9; score = 18450;
       const k = spawnEnemy(nodes[0].angle, 'normal'); k.z = k.z0 = geo().hitZ + 0.010; k.lock = undefined; k.age = 1.2;`,
-    want: 'bolts.length >= 1 && enemies.filter(e => !e.dead).length >= 8',
+    // combo 10 = the armed kill has LANDED. A bolt alone is not proof: one left over from
+    // the warm-up can still be alive here, and the frame then has no discharge in it.
+    want: 'bolts.length >= 1 && combo >= 10 && enemies.filter(e => !e.dead).length >= 8',
     scan: 30,
     finish: CLEAR + ' ghosts = [];'
   },
