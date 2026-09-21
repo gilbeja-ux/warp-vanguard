@@ -1,5 +1,10 @@
 # Open testing plan — recruit, listen, ship
 
+> **Status 2026-09-18 (Gil): the game is in OPEN testing.** Phase 1 and the
+> production-access step below are behind us. The calendar starts at Phase 2;
+> the posts are in `TEST-POSTS.md`. The closed-phase rows are kept for the
+> record only.
+
 Written 2026-09-13, on the day 1.0.8 was cut. This is the plan for the test
 period between now and production. It covers four questions: who tests and where
 they come from, how feedback is collected and worked, how long the test runs and
