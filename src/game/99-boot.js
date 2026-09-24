@@ -1008,6 +1008,7 @@ function frameBody(now) {
   perfWatch(rawDt);
   tickUI(dt);       // press feedback + screen transitions — once per rendered frame, raw clock
   tickReplayXfer(dt); // leaderboard<->player enter/exit transition
+  keepAwakeSync();  // the screen stays lit in S.PLAY — a replay has no touch to keep it lit (60-input.js)
   pollGamepad(dt);  // sample the controller once per frame; the sim reads the latch each step
   // tunnel designer hook: editor.html feeds the sim clock (0 = hold the world,
   // draw only). The global never exists in the game — this branch is inert here.

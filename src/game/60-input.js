@@ -426,6 +426,44 @@ function hardwareBack() {
   app.addListener('backButton', () => { if (!hardwareBack()) app.exitApp(); });
 })();
 
+// ---------- the screen stays lit while the warp is active ----------
+// A run gets a touch every second, and the OS resets its idle timer on each
+// one. A replay gets none: the screen dimmed and the phone slept mid-replay
+// (found 2026-09-24). So the page HOLDS the screen while state is S.PLAY — a
+// run, a replay, the parked pre-launch space — and lets it go in every other
+// state: the menu, a pause, a briefing disc, the END screen. frame() asks once
+// per frame; the platform is told only when the answer changes.
+// Native: @capacitor-community/keep-awake (FLAG_KEEP_SCREEN_ON on Android,
+// isIdleTimerDisabled on iOS — one dependency, both shells, cap sync wires it).
+// Browser: the Screen Wake Lock API, when the page has it. The browser drops a
+// wake lock on its own when the page hides; a hide also pauses the run, so the
+// next frame after the return asks again from the state it finds.
+let awakeHeld = false; // what the platform was last told
+let awakeLock = null;  // the browser's WakeLockSentinel, when it holds one
+function keepAwakeWanted() { return state === S.PLAY; }
+function keepAwakeSync() {
+  const want = keepAwakeWanted();
+  if (want === awakeHeld) return false;
+  awakeHeld = want;
+  keepAwakeApply(want);
+  return true;
+}
+function keepAwakeApply(on) {
+  try {
+    const cap = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.KeepAwake;
+    if (cap) { Promise.resolve(on ? cap.keepAwake() : cap.allowSleep()).catch(() => {}); return; }
+    const wl = typeof navigator !== 'undefined' && navigator.wakeLock;
+    if (!wl || typeof wl.request !== 'function') return;
+    if (on) {
+      wl.request('screen').then(s => {
+        if (!awakeHeld) { s.release().catch(() => {}); return; } // the want flipped while the request was in flight
+        if (awakeLock && awakeLock !== s) awakeLock.release().catch(() => {});
+        awakeLock = s;
+      }).catch(() => {});
+    } else if (awakeLock) { awakeLock.release().catch(() => {}); awakeLock = null; }
+  } catch (e) {}
+}
+
 // auto-pause when the app loses the screen (phone lock, app switch, tab change)
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {

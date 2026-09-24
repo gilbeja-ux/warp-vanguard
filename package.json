@@ -49,6 +49,7 @@
   "author": "Gil",
   "license": "MIT",
   "devDependencies": {
+    "@capacitor-community/keep-awake": "^8.0.1",
     "@capacitor/android": "^8.0.0",
     "@capacitor/app": "^8.1.1",
     "@capacitor/cli": "^8.0.0",

@@ -81,6 +81,7 @@ iOS twin, because a native decision is made twice.
 | `res/values/styles.xml` | the launch window is the game's navy — icon zoom, window and first web frame on one ground; no placeholder drawable | `LaunchScreen.storyboard` |
 | `capacitor.config.json` → `android.backgroundColor` | the web view is navy before the first frame | `ios.backgroundColor` |
 | `@capacitor/app` (package.json) | the back button pauses, closes, steps back, and leaves only from the home wheel (`hardwareBack` in `60-input.js`) | none — iOS has no back button; the listener is inert |
+| `@capacitor-community/keep-awake` (package.json) | the screen stays lit while the warp is active — a replay has no touch to reset the idle timer (`keepAwakeSync` in `60-input.js`, `FLAG_KEEP_SCREEN_ON`) | the same plugin, `isIdleTimerDisabled`; `cap sync` writes the pod line |
 | `build.gradle`, `proguard-rules.pro`, `variables.gradle` | signing, R8 keep rules, SDK levels, generated versions | `project.pbxproj` |
 
 ## Build the APK

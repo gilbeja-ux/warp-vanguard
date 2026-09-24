@@ -305,7 +305,9 @@ code = code.replace("'use strict';", '') + `
   fbLastError, fbClearError, FB_ERROR_KEY,
   crashRecord, evLog, evLogTail: () => EV_LOG.slice(),
   hardwareBack, pauseToggle, setReplaying: v => { replaying = v; }, getReplaying: () => replaying,
-  setBossGate: v => { bossGate = v; }, getBossGate: () => bossGate
+  setBossGate: v => { bossGate = v; }, getBossGate: () => bossGate,
+  // the screen stays lit while the warp is active (60-input.js), 2026-09-24
+  keepAwakeSync, keepAwakeWanted, awakeHeld: () => awakeHeld, resetAwake: () => { awakeHeld = false; awakeLock = null; }
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -6230,6 +6232,8 @@ async function runMusicUp() {
   check('iOS: the app builds for iPhone and iPad', every(/TARGETED_DEVICE_FAMILY = [^;]+;/g, 'TARGETED_DEVICE_FAMILY = "1,2";'));
   check('iOS: the Podfile carries the haptics plugin buzz() reaches for',
     /pod 'CapacitorHaptics'/.test(readIos('Podfile')) && !!pkg.devDependencies['@capacitor/haptics']);
+  check('iOS: the Podfile carries the keep-awake plugin keepAwakeSync() reaches for',
+    /pod 'CapacitorCommunityKeepAwake'/.test(readIos('Podfile')) && !!pkg.devDependencies['@capacitor-community/keep-awake']);
 
   check('iOS: the web view cannot scroll, zoom, inset the canvas or preview a link',
     !!capCfg.ios && capCfg.ios.scrollEnabled === false && capCfg.ios.zoomEnabled === false
@@ -6424,6 +6428,61 @@ async function runMusicUp() {
       gBack === true && (!gd || gd.closing > 0));
   } finally {
     G.setState(st0); G.setMenuScreen(scr0); G.setMenuSettings(set0); G.setMenuFx(null); G.setBossGate(false);
+  }
+}
+
+// ================= THE SCREEN STAYS LIT WHILE THE WARP IS ACTIVE =================
+//
+// Found 2026-09-24: a replay dimmed the screen and the phone slept. A run gets a
+// touch every second and the OS resets its idle timer on each one; a replay gets
+// none. keepAwakeSync() (60-input.js) runs once per frame and tells the platform
+// only when the answer changes: hold in S.PLAY — run, replay, the parked space —
+// and let go everywhere else. Native goes through @capacitor-community/keep-awake
+// (FLAG_KEEP_SCREEN_ON / isIdleTimerDisabled); a browser gets the Wake Lock API.
+{
+  const input = fs.readFileSync(path.join(ROOT, 'src', 'game', '60-input.js'), 'utf8');
+  const boot = fs.readFileSync(path.join(ROOT, 'src', 'game', '99-boot.js'), 'utf8');
+  const podfile = fs.readFileSync(path.join(ROOT, 'ios', 'App', 'Podfile'), 'utf8');
+  const pkgDev = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).devDependencies;
+  check('awake: @capacitor-community/keep-awake is a dependency and the iOS shell carries its pod',
+    /^\^8\./.test(pkgDev['@capacitor-community/keep-awake'] || '') && /pod 'CapacitorCommunityKeepAwake'/.test(podfile));
+  check('awake: the page reaches for the KeepAwake plugin, and for the browser wake lock without it',
+    /Capacitor\.Plugins\.KeepAwake/.test(input) && /navigator\.wakeLock/.test(input) && /wl\.request\('screen'\)/.test(input));
+  check('awake: frame() asks keepAwakeSync() once per frame', /^\s*keepAwakeSync\(\);/m.test(boot)
+    && boot.indexOf('keepAwakeSync();') < boot.indexOf('pollGamepad(dt);'));
+  check('awake: the want is exactly S.PLAY', /function keepAwakeWanted\(\) \{ return state === S\.PLAY; \}/.test(input));
+
+  const st0 = G.getState(), rep0 = G.getReplaying();
+  const calls = [];
+  const cap0 = global.window.Capacitor;
+  global.window.Capacitor = { Plugins: { KeepAwake: {
+    keepAwake() { calls.push('keepAwake'); return Promise.resolve(); },
+    allowSleep() { calls.push('allowSleep'); return Promise.resolve(); }
+  } } };
+  try {
+    G.resetAwake();
+    G.setState(G.S.MENU); G.setReplaying(false);
+    check('awake: the menu holds nothing', G.keepAwakeWanted() === false && G.keepAwakeSync() === false && calls.length === 0);
+    G.startLevel(0);
+    check('awake: a run holds the screen', G.getState() === G.S.PLAY && G.keepAwakeSync() === true && calls.join() === 'keepAwake');
+    check('awake: the next frame says nothing new', G.keepAwakeSync() === false && calls.length === 1);
+    G.setState(G.S.PAUSE);
+    check('awake: a pause lets the screen go', G.keepAwakeSync() === true && calls.join() === 'keepAwake,allowSleep');
+    G.setState(G.S.PLAY); G.setReplaying(true);
+    check('awake: a replay holds the screen — it has no touch to keep it lit', G.keepAwakeSync() === true && calls[2] === 'keepAwake');
+    G.setState(G.S.END);
+    check('awake: the END screen lets it go', G.keepAwakeSync() === true && calls[3] === 'allowSleep');
+    for (const st of [G.S.INFO, G.S.GUIDE, G.S.ENLIST, G.S.MENU]) { G.setState(st); G.keepAwakeSync(); }
+    check('awake: no other state asks for the screen', calls.length === 4);
+    // a shell without the plugin and a browser without the API: the sync still flips, and never throws
+    global.window.Capacitor = undefined;
+    G.resetAwake(); G.setState(G.S.PLAY);
+    let threw = false;
+    try { G.keepAwakeSync(); } catch (e) { threw = true; }
+    check('awake: no plugin and no wake lock API is a quiet no-op', !threw && G.awakeHeld() === true);
+  } finally {
+    global.window.Capacitor = cap0;
+    G.resetAwake(); G.setState(st0); G.setReplaying(rep0);
   }
 }
 
