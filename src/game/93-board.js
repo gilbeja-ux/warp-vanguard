@@ -15,7 +15,12 @@ function boardKeyFor() {
 // on 2026-09-02 (the open test started clean — see runs_backup_20260902), so the
 // four weeks before the wipe were empty boards advertising nothing. Gil,
 // 2026-09-04: the ladder's history starts with the first week that has a field.
-const WEEK_LADDER_FIRST = 2957; // 31 AUG – 6 SEP, 2026
+//
+// It was 2957 (31 AUG – 6 SEP 2026) until 1.0.10. Gil, 2026-09-21: the boards were
+// wiped again and testing starts the week after, so the four weeks up to 27 SEP are
+// empty rungs too. The live week is listed whatever this says (boardLeftItems), so
+// in the week before this one the ladder shows the live rung and no history.
+const WEEK_LADDER_FIRST = 2961; // 28 SEP – 4 OCT, 2026
 // The ladder folds under one header, sharing the campaigns' collapse state so there is one
 // mechanism rather than two. '#weeks' cannot collide with a campaign id — the loader holds
 // those to /^[a-z0-9-]+$/ — and it is a reserved key rather than a campaign that happens

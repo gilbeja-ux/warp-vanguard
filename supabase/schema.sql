@@ -248,6 +248,16 @@ grant execute on function public.leaderboard_top(text, int, int) to anon, authen
 grant execute on function public.leaderboard_rank(text, int, text) to anon, authenticated;
 grant execute on function public.leaderboard_provisional_rank(text, int, int, int, int) to anon, authenticated;
 
+-- GRANTS ARE WRITTEN, NEVER INHERITED. Since 2026-09-08 (migration grants_closed)
+-- a new table or function in public starts with no rights for anon or
+-- authenticated. From 2026-10-30 Supabase also stops granting service_role on
+-- new public tables, on every project, in every migration and in a local
+-- `supabase db reset`. So a migration that creates a table MUST carry its own
+-- grants in the same file, or the Edge Functions get "permission denied":
+--   grant select, insert, update, delete on public.<table> to service_role;
+--   grant select on public.<table> to anon, authenticated;   -- only if a
+--   security-invoker read RPC needs it, as runs does. Never a write right.
+
 -- No name/account RPCs: the display name is a free-typed handle carried on each
 -- run row and moderated by the submit-run Edge Function. There is no sign-in,
 -- no uniqueness, and no profiles table (see the identity note near the top).

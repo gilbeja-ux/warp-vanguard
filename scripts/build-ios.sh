@@ -99,7 +99,10 @@ case "$MODE" in
     fi
     xcrun simctl install booted "$APP"
     xcrun simctl launch booted "$BUNDLE_ID" >/dev/null
-    open -a Simulator
+    # The window is a convenience, not the proof. Found 2026-09-21 on Xcode 27.0: the
+    # install and the launch were good, `open` could not find a Simulator app, and
+    # `set -e` turned a running game into exit 1.
+    open -a Simulator 2>/dev/null || echo "! no Simulator app to show a window — the game runs in the booted device (xcrun simctl io booted screenshot)"
     echo "✓ installed and launched ($BUNDLE_ID)"
     ;;
 

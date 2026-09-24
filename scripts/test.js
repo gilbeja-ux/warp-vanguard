@@ -6094,10 +6094,11 @@ async function runMusicUp() {
 // ================= the ladder lists no week before its first field =================
 // Gil, 2026-09-04: the boards were wiped on 2026-09-02, so the weeks before that were
 // empty boards on the list. The ladder now begins at the wipe's week.
+// Gil, 2026-09-21: wiped again before 1.0.10, and testing starts the week after.
 {
   const board = fs.readFileSync(path.join(ROOT, 'src', 'game', '93-board.js'), 'utf8');
-  check('the weekly ladder starts at week 2957 (31 AUG – 6 SEP 2026), the first week with a field',
-    /const WEEK_LADDER_FIRST = 2957;/.test(board));
+  check('the weekly ladder starts at week 2961 (28 SEP – 4 OCT 2026), the week testing starts',
+    /const WEEK_LADDER_FIRST = 2961;/.test(board));
 }
 
 // ================= the LOADING readout sits under the badge, and the word under the bar =================

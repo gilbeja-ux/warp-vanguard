@@ -6,6 +6,39 @@ what a player meets. The commit trail between two versions is
 
 ---
 
+## 1.0.10 — 2026-09-21 (versionCode 10010)
+
+The first build cut during open testing. Free flow ranks in one place, and the
+pads keep clear of the ring on every screen shape.
+
+### On the phone
+- **A pad never touches the ring and never crowds the glass.** Every clearance
+  is a share of the pad's own scale. A pad that has no room gives way in, then
+  out, then down, then smaller. The rule is pinned on eleven screen shapes.
+- **An iPad draws the same console as a phone.** The pad's gauge width is capped
+  with the pad, so a large screen no longer draws a thick gauge on a small pad.
+
+### The leaderboard
+- **The endless lane has no board.** It is procedural per player, so no server
+  can replay it. It stays as practice against the player's own best.
+- **The weekly lane leads the free flow wheel.** It sits on the top half, it is
+  first in a controller's walk order, and it is the half the wheel suggests.
+- **The server refuses an endless submission** with a 400. Every board that
+  remains is a verified board.
+- **The weekly ladder starts again at 28 SEP – 4 OCT 2026,** the week testing
+  starts. The four empty weeks before it are off the list. The live week is
+  always listed.
+
+### Under the hood
+- The verifier carries sim `c40a8de22648` and accepts the two ids before it,
+  because 0 of 41 boards moved. A 1.0.9 player is not told to update.
+- No migration. The database is the one 1.0.8 shipped with.
+
+## 1.0.9 — 2026-09-13 (versionCode 10009)
+
+The same game as 1.0.8 under a version code Play had not seen. Play held 10008
+inside a superseded release and refused a second upload.
+
 ## 1.0.8 — 2026-09-13 (versionCode 10008)
 
 The third open-testing build. The back button behaves, a crash paints a disc and
