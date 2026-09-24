@@ -6,12 +6,17 @@ what a player meets. The commit trail between two versions is
 
 ---
 
-## 1.0.10 — 2026-09-21 (versionCode 10010)
+## 1.0.10 — 2026-09-24 (versionCode 10010)
 
-The first build cut during open testing. Free flow ranks in one place, and the
-pads keep clear of the ring on every screen shape.
+The first build cut during open testing. Free flow ranks in one place, the
+pads keep clear of the ring on every screen shape, and the screen stays lit
+through a replay.
 
 ### On the phone
+- **The screen stays lit while the warp is active.** A replay has no touch to
+  reset the phone's idle timer, so the screen dimmed and the phone slept
+  mid-replay. A run, a replay and the parked pre-launch space now hold the
+  screen; the menu, a pause, a disc and the END screen let it go. Both shells.
 - **A pad never touches the ring and never crowds the glass.** Every clearance
   is a share of the pad's own scale. A pad that has no room gives way in, then
   out, then down, then smaller. The rule is pinned on eleven screen shapes.
