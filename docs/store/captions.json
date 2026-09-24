@@ -1,0 +1,9 @@
+{
+  "_": "Gil's captions, typed 2026-09-24 in the caption editor (https://claude.ai/artifact/UfmUx2Dn5Bx7DPCUVQvaE1). node scripts/store-caption.js lays them on every master.",
+  "01-midrun":    { "text": "TWO THUMBS. ONE LANE.",          "sub": "Improve and test your coordination on each stage...",             "align": "left" },
+  "02-boss":      { "text": "ONE BOSS. FOUR MECHANICS.",      "sub": "Find the way to neutralize it to finish the campaign...",         "align": "left" },
+  "03-contracts": { "text": "FIVE CONTRACTS. FORTY STAGES.",  "sub": "Make your way through the galaxy, Protecting your clients...",    "align": "left" },
+  "04-stages":    { "text": "READ THE LANE. THEN FLY IT.",    "sub": "Each level raises the difficulty and speed, Bring your A-game...", "align": "left" },
+  "05-volley":    { "text": "DOCK TO FIRE!",                  "sub": "Align both emitters to charge a shot...",                          "align": "left" },
+  "06-home":      { "text": "NO ADS. NO ENERGY TIMERS.",      "sub": "Just your instincts VS everyone else's, on the leaderboard!",     "align": "left" }
+}

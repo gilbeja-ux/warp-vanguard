@@ -161,3 +161,8 @@ docs/sfx-order.json
 docs/store/raw/
 docs/store/video/*.mp4
 docs/store/video/*.webm
+docs/store/captioned/
+
+# The captioned deliverables (2026-09-24): the raw masters with the plates on. Regenerable
+# by node scripts/store-caption.js from docs/store/captions.json, and as heavy as the raw set.
+docs/store/captioned/

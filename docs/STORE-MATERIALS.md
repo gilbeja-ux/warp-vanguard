@@ -100,6 +100,28 @@ with `-- --compatible` before the next AAB, as the standing rule says.
 
 The icon is unchanged: `docs/store/wv-512-store.png` for Play, the asset catalogue for iOS.
 
+### The captions — 2026-09-24
+
+Gil wrote them in a caption editor artifact (https://claude.ai/artifact/UfmUx2Dn5Bx7DPCUVQvaE1:
+each frame, a field, the plate drawn live on the image). The words are in
+[store/captions.json](store/captions.json) and `node scripts/store-caption.js` lays them on
+every master with the 2026-08 compositor, unchanged but for `?case=keep` (the second line
+stays as typed, which is what the editor showed). The raw masters stay raw; the deliverables
+are in `docs/store/captioned/<size>/` (gitignored, like the masters).
+
+| Frame | Caption | Second line |
+|---|---|---|
+| 01 | TWO THUMBS. ONE LANE. | Improve and test your coordination on each stage... |
+| 02 | ONE BOSS. FOUR MECHANICS. | Find the way to neutralize it to finish the campaign... |
+| 03 | FIVE CONTRACTS. FORTY STAGES. | Make your way through the galaxy, Protecting your clients... |
+| 04 | READ THE LANE. THEN FLY IT. | Each level raises the difficulty and speed, Bring your A-game... |
+| 05 | DOCK TO FIRE! | Align both emitters to charge a shot... |
+| 06 | NO ADS. NO ENERGY TIMERS. | Just your instincts VS everyone else's, on the leaderboard! |
+
+The plate sits bottom-left on every frame, over the scrim, and on a lane frame it covers
+the lower edge of the left pad — as the August set did, and as the editor showed. Upload
+the captioned set, not the raw one.
+
 ### What is real, and what is staged
 
 The rule of the first set stands.
@@ -311,14 +333,11 @@ ring twist (Gil, 2026-09-18).
 Character counts, measured: short description 78 of 80, full description 2,362 of 4,000,
 subtitle 23 of 30, promotional text 164 of 170, keywords 98 of 100.
 
-1. **Captions.** The frames are raw. The 2026-08 set had a caption plate on each frame, and
-   [shot-caption.html](../scripts/shot-caption.html) still does that job:
-   `store-shoot.js` serves it and has the `/shot` endpoint it posts to. Gil's call.
-2. **The YouTube upload** is Gil's. Play takes the promo video as a YouTube URL: public or
+1. **The YouTube upload** is Gil's. Play takes the promo video as a YouTube URL: public or
    unlisted, no ads, no age limit.
-3. **An iPad preview video** (1600 x 1200) is one more run: `--video --size=previewpad --fps=30`.
-4. **Store spec numbers drift.** Check them in Play Console and App Store Connect on the day
+2. **An iPad preview video** (1600 x 1200) is one more run: `--video --size=previewpad --fps=30`.
+3. **Store spec numbers drift.** Check them in Play Console and App Store Connect on the day
    of the upload: Play stills no wider than 2:1 (these are 2160 x 1080) and a 1024 x 500 banner; App Store
    2868 x 1320 and 2752 x 2064 stills; preview 1920 x 886, 15 s to 30 s, 30 fps.
-5. **The masters are not in git** (95 MB of stills, 600 MB of video). They are in
-   `docs/store/raw/` and `docs/store/video/` on Gil's Mac, and one command makes them again.
+4. **The masters are not in git** (95 MB of stills, 600 MB of video). They are in
+   `docs/store/raw/`, `docs/store/captioned/` and `docs/store/video/` on Gil's Mac, and one command makes them again.
