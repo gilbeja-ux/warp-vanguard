@@ -34,9 +34,18 @@ through a replay.
   starts. The four empty weeks before it are off the list. The live week is
   always listed.
 
+### Play Console "What's new" (paste-ready, under 500 chars)
+
+> The screen stays lit through a run and a replay: the phone no longer dims or
+> sleeps mid-warp. The pads keep clear of the ring on every screen, phone or
+> tablet. The endless lane is practice against your own best; the weekly lane
+> leads the free-flow wheel, and every board that remains is a verified board.
+> The weekly ladder starts fresh on 28 SEP.
+
 ### Under the hood
-- The verifier carries sim `c40a8de22648` and accepts the two ids before it,
+- The verifier carries sim `10e94880375f` and accepts the ids before it,
   because 0 of 41 boards moved. A 1.0.9 player is not told to update.
+  Deployed 2026-09-24, before the build.
 - No migration. The database is the one 1.0.8 shipped with.
 
 ## 1.0.9 — 2026-09-13 (versionCode 10009)
