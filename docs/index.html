@@ -78,27 +78,13 @@
   strong, b { color: #fff; font-weight: 600; }
   code { font-family: var(--mono); font-size: 0.88em; color: var(--ice); background: rgba(111,227,255,0.08); padding: 1px 6px; border-radius: 3px; }
 
-  /* ---- the bore: light drawn behind the page, never a painted surface ---- */
-  .bore {
-    position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
-  }
-  .bore::before {
-    /* hoops converging on a vanishing point above the fold, the badge's own bore */
-    content: ''; position: absolute; left: 50%; top: -22vmin; width: 160vmax; height: 160vmax;
-    transform: translateX(-50%);
-    background:
-      repeating-radial-gradient(circle at 50% 0%, rgba(111,227,255,0.0) 0 38px, rgba(111,227,255,0.16) 39px 40px, rgba(111,227,255,0.0) 41px 92px),
-      repeating-conic-gradient(from 90deg at 50% 0%, rgba(111,227,255,0.10) 0deg 0.35deg, transparent 0.35deg 7.5deg);
-    -webkit-mask-image: radial-gradient(ellipse 60% 48% at 50% 0%, #000 0%, rgba(0,0,0,0.55) 38%, transparent 70%);
-            mask-image: radial-gradient(ellipse 60% 48% at 50% 0%, #000 0%, rgba(0,0,0,0.55) 38%, transparent 70%);
-    opacity: 0.55;
-  }
+  /* ---- the sky: the menu's own star field, centred on the page, drifting slowly ---- */
+  .bore { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; background: var(--void); }
+  .bore canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .bore::after {
-    /* the vanishing point's own light, and the vignette the game finishes with */
+    /* the vignette the game finishes every frame with */
     content: ''; position: absolute; inset: 0;
-    background:
-      radial-gradient(ellipse 34% 22% at 50% 0%, rgba(111,227,255,0.22), rgba(111,227,255,0.06) 45%, transparent 70%),
-      radial-gradient(ellipse 80% 70% at 50% 40%, transparent 42%, rgba(0,0,0,0.38) 100%);
+    background: radial-gradient(ellipse 80% 70% at 50% 40%, transparent 42%, rgba(0,0,0,0.38) 100%);
   }
   .grain {
     position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.07; mix-blend-mode: screen;
@@ -186,22 +172,16 @@
     padding: clamp(36px, 6vw, 72px) 0 28px;
   }
   .badge { width: clamp(132px, 18vw, 196px); height: auto; display: block; filter: drop-shadow(0 0 24px rgba(111,227,255,0.22)); }
-  .top h1 { margin: 10px 0 14px; }
-  .lede { font-size: 17.5px; color: var(--ice); max-width: 54ch; }
-  .rail { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+  .top h1 { margin: 10px 0 0; }
+  .rail { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
 
   /* ---- sections as transmissions ---- */
   .log { display: grid; gap: 44px; margin-top: 36px; }
   section.tx { scroll-margin-top: 76px; min-width: 0; }
   .lock { min-width: 0; }
-  .tx-head { display: flex; align-items: baseline; gap: 16px; margin: 0 0 16px 4px; flex-wrap: wrap; }
+  .tx-head { display: flex; align-items: baseline; gap: 18px; margin: 0 0 16px 2px; flex-wrap: wrap; }
   .tx-head h2 { flex: none; }
   .tx-head .readout { flex: 1; }
-  .speaker { font-family: var(--display); font-size: 11px; letter-spacing: 3px; text-transform: uppercase; }
-  .speaker.cmd { color: var(--cyan); }
-  .speaker.trace { color: var(--green); }
-  .speaker.you { color: var(--ice); }
-  .speaker::before { content: '▸ '; opacity: 0.7; }
 
   /* HELP: a column of answers, one rule between each, no cards */
   .qa { list-style: none; margin: 0; padding: 0; }
@@ -209,8 +189,6 @@
   .qa > li:first-child { border-top: 0; padding-top: 2px; }
   .qa > li:last-child { padding-bottom: 2px; }
   .qa .q { font-family: var(--display); font-size: 14px; letter-spacing: 0.5px; color: #fff; line-height: 1.4; }
-  .qa .q::before { content: '▸ '; color: var(--ice); opacity: 0.7; }
-  .qa .a .speaker { display: block; margin-bottom: 4px; }
   .qa .a p { margin-bottom: 0.6em; }
   .rule-list { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 5px; }
   .rule-list li { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: baseline; }
@@ -294,13 +272,11 @@
     .top .badge { animation: settle 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
     .top > div, .log { animation: rise 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
     .log { animation-delay: 120ms; }
-    .bore::before { animation: drift 40s linear infinite; }
     .band { animation: sweep 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: 300ms; }
   }
   @keyframes settle { from { opacity: 0; transform: translateY(10px) scale(0.98); filter: drop-shadow(0 0 24px rgba(111,227,255,0.22)) blur(6px); } to { opacity: 1; transform: none; } }
   @keyframes sweep { from { background-position: 100% 0; } to { background-position: 0 0; } }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  @keyframes drift { from { transform: translateX(-50%) rotate(0deg); } to { transform: translateX(-50%) rotate(360deg); } }
 
   /* ---- phones ---- */
   @media (max-width: 760px) {
@@ -319,7 +295,7 @@
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<div class="bore" aria-hidden="true"></div>
+<div class="bore" aria-hidden="true"><canvas id="sky"></canvas></div>
 <div class="grain" aria-hidden="true"></div>
 
 <div class="page">
@@ -328,7 +304,6 @@
     <div>
       <div class="kicker">Lane Command · Support channel</div>
       <h1>Channel open, Vanguard.</h1>
-      <p class="lede">This is where Warp Vanguard answers. Read what Lane Command has on file, send a transmission, or see exactly what the game holds about you and how to remove it.</p>
       <nav class="rail" aria-label="Sections">
         <a class="key" href="#help">Help</a>
         <a class="key primary" href="#feedback">Send feedback</a>
@@ -343,7 +318,6 @@
     <!-- ============ HELP ============ -->
     <section class="tx" id="help" aria-labelledby="help-h">
       <div class="tx-head">
-        <span class="speaker cmd">CMD</span>
         <h2 id="help-h">Help</h2>
         <span class="readout">STANDING ANSWERS · READ ON ARRIVAL</span>
       </div>
@@ -355,14 +329,14 @@
           <ul class="qa" style="margin-top:18px">
             <li>
               <div class="q">How do I steer?</div>
-              <div class="a"><span class="speaker cmd">CMD</span>
+              <div class="a">
                 <p>Hold the phone in landscape, with a thumb on each dial pad in the bottom corners. The left dial runs the blue emitter, the right dial runs the white one. An interdictor collapses when an emitter sits on its bearing at the moment it reaches the ring.</p>
                 <p>A controller works too. The two sticks are the two dials.</p>
               </div>
             </li>
             <li>
               <div class="q">What do the colours mean?</div>
-              <div class="a"><span class="speaker cmd">CMD</span>
+              <div class="a">
                 <p>Colour is the rule. Read it before the body reaches the ring.</p>
                 <ul class="rule-list">
                   <li><span class="sw c-red"><i></i>RED</span><span><b>STANDARD.</b> Either emitter takes it.</span></li>
@@ -376,33 +350,33 @@
             </li>
             <li>
               <div class="q">A stage will not give.</div>
-              <div class="a"><span class="speaker cmd">CMD</span>
+              <div class="a">
                 <p>Every stage is completable. Difficulty comes from density and speed, never from a wave you were not meant to survive. Open the stage card and take <b>LANE ASSIST</b>: an eased retry of the same lane. It is unranked, so it never posts a score, and it never costs you anything.</p>
                 <p>The <b>FIELD GUIDE</b> on the home screen shows every body you will meet, live.</p>
               </div>
             </li>
             <li>
               <div class="q">My score did not post.</div>
-              <div class="a"><span class="speaker cmd">CMD</span>
+              <div class="a">
                 <p>A score posts at the end of the run and needs a connection at that moment. The server replays every run before it lands on a board, so a posted score can take a few seconds to appear.</p>
                 <p>In <b>FREE FLOW</b> the <b>ENDLESS LANE</b> is unranked by design: it never posts. The <b>WEEKLY LANE</b> beside it is one seeded lane, identical for every player, open Monday to Sunday (UTC). When the week closes, its board freezes for good.</p>
               </div>
             </li>
             <li>
               <div class="q">The game says UPDATE GAME TO POST SCORES.</div>
-              <div class="a"><span class="speaker cmd">CMD</span>
+              <div class="a">
                 <p>The server now simulates a newer build than the one you are running, and a score from an older build cannot be verified against it. Update from the store. Your progress, stars and personal bests stay on your device and are not affected.</p>
               </div>
             </li>
             <li>
               <div class="q">Does it play offline?</div>
-              <div class="a"><span class="speaker cmd">CMD</span>
+              <div class="a">
                 <p>Yes. Every contract, every stage and FREE FLOW play with no connection. Only the leaderboards need one.</p>
               </div>
             </li>
             <li>
               <div class="q">Is anything for sale?</div>
-              <div class="a"><span class="speaker cmd">CMD</span>
+              <div class="a">
                 <p>No ads. No consumables. No energy timers. Nothing you could buy will ever move a score. During open testing every contract is free.</p>
               </div>
             </li>
@@ -415,7 +389,6 @@
     <!-- ============ FEEDBACK ============ -->
     <section class="tx" id="feedback" aria-labelledby="fb-h">
       <div class="tx-head">
-        <span class="speaker you">Vanguard</span>
         <h2 id="fb-h">Send feedback</h2>
         <span class="readout">OUTBOUND · OPENS YOUR MAIL APP</span>
       </div>
@@ -470,7 +443,6 @@
     <!-- ============ YOUR DATA ============ -->
     <section class="tx" id="data" aria-labelledby="data-h">
       <div class="tx-head">
-        <span class="speaker trace">TRACE</span>
         <h2 id="data-h">Your data</h2>
         <span class="readout">WHAT IS HELD · HOW TO REMOVE IT</span>
       </div>
@@ -498,7 +470,6 @@
     <!-- ============ PRIVACY POLICY ============ -->
     <section class="tx" id="privacy" aria-labelledby="priv-h">
       <div class="tx-head">
-        <span class="speaker trace">TRACE</span>
         <h2 id="priv-h">Privacy policy</h2>
         <span class="readout">STANDING ORDER · LAST UPDATED 1 OCTOBER 2026</span>
       </div>
@@ -771,6 +742,59 @@ and the date at the top will change.</p>
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fail); else fail();
   });
   render();
+
+  // THE SKY. The menu's star field, centred on the page: four colour classes in the
+  // game's proportions, a slow drift outward from the centre (we are pointed down
+  // the lane, parked), and a gated scintillation so no two stars twinkle in step.
+  // It is a backdrop, never the subject: slow enough that a reader's eye is not
+  // pulled, paused when the tab is hidden, still under reduced motion.
+  (function sky() {
+    var cv = document.getElementById('sky'); if (!cv || !cv.getContext) return;
+    var g = cv.getContext('2d'), W = 0, H = 0, DPR = 1, stars = [], reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var DRIFT = 0.012;     // of the half-diagonal per second: ~80 s from centre to rim
+    function col(r) { return r < 0.10 ? [255,196,130] : r < 0.16 ? [200,170,255] : r < 0.55 ? [236,246,255] : [150,205,255]; }
+    function seed() {
+      stars = [];
+      var n = Math.round(Math.min(1400, Math.max(260, W * H / 2600)));
+      for (var i = 0; i < n; i++) {
+        var a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()), z = 0.35 + Math.random() * 0.65;
+        var k = Math.random();
+        stars.push({ a: a, d: d, z: z, c: col(Math.random()), s: (k < 0.75 ? 0.6 : k < 0.95 ? 1.0 : 1.5) * z,
+          al: 0.25 + Math.random() * 0.6, tw: Math.random() < 0.55, r1: 0.3 + Math.random() * 0.7, r2: 0.05 + Math.random() * 0.08, ph: Math.random() * 7, amp: 0.3 + Math.random() * 0.9 });
+      }
+    }
+    function size() {
+      DPR = Math.min(2, window.devicePixelRatio || 1);
+      W = cv.clientWidth; H = cv.clientHeight; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+      g.setTransform(DPR, 0, 0, DPR, 0, 0); seed(); draw(0);
+    }
+    var last = 0, t = 0;
+    function draw(now) {
+      var dt = last ? Math.min(0.1, (now - last) / 1000) : 0; last = now; t += dt;
+      g.clearRect(0, 0, W, H);
+      var cx = W / 2, cy = Math.min(H * 0.42, 420), R = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy));
+      for (var i = 0; i < stars.length; i++) {
+        var st = stars[i];
+        if (!reduce) { st.d += dt * DRIFT * st.z; if (st.d > 1.02) { st.d = 0.02; st.a = Math.random() * Math.PI * 2; } }
+        var x = cx + Math.cos(st.a) * st.d * R, y = cy + Math.sin(st.a) * st.d * R;
+        var a = st.al;
+        if (st.tw && !reduce) {
+          var gate = Math.sin(t * st.r2 + st.ph) * Math.sin(t * st.r2 * 1.37 + st.ph * 2.1);
+          if (gate > 0.45) a = Math.max(0.05, Math.min(1, a * (1 + st.amp * Math.sin(t * st.r1 * 6 + st.ph))));
+        }
+        var s = st.s * (0.6 + st.d * 0.6);
+        g.fillStyle = 'rgba(' + st.c[0] + ',' + st.c[1] + ',' + st.c[2] + ',' + a.toFixed(3) + ')';
+        if (s > 1.1) { g.beginPath(); g.arc(x, y, s, 0, 6.283); g.fill(); } else g.fillRect(x - s / 2, y - s / 2, s, s);
+      }
+    }
+    var raf = 0, acc = 0;
+    function loop(now) { raf = requestAnimationFrame(loop); if (now - acc < 33) return; acc = now; draw(now); }
+    size(); window.addEventListener('resize', size);
+    if (!reduce) {
+      raf = requestAnimationFrame(loop);
+      document.addEventListener('visibilitychange', function () { if (document.hidden) { cancelAnimationFrame(raf); last = 0; } else raf = requestAnimationFrame(loop); });
+    }
+  })();
 
   // the channel opens: the first line types itself in, as a briefing disc does
   var typed = document.getElementById('typed');
