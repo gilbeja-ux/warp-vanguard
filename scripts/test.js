@@ -279,6 +279,9 @@ code = code.replace("'use strict';", '') + `
   weeklyStreak, drawMenuFlow, // the ranked streak's three states + the wheel that prints it
   getShield: () => shieldCharge, setShield: v => { shieldCharge = v; },
   setMenuScreen: v => { menuScreen = v; }, getMenuScreen: () => menuScreen, commCur: () => commCur,
+  // THE UPDATE MARK (2026-10-01): the boot read, the compare, the knobs, the home key and the store door
+  lbStaleCompute, lbStaleInit, setStale: v => { lbStale = v; }, getStale: () => lbStale, updateRect: () => menuUpdateRect,
+  UPDATE_MARK_TXT, UPDATE_CUE_TXT, STORE_URL_ANDROID, STORE_URL_IOS, openStore, storePlatform,
   clearComm: () => { commCur = null; commT = 0; }, // so a test can watch for the NEXT line
   setComm: (v, t) => { commCur = v; commT = t || 0; }, barkHold: () => barkHold, // the bark-fade pin drives the ticker by hand
   setPulse: v => { pulseCharge = v; }, pulseWavesN: () => pulseWaves.length, firePulse,
@@ -5114,6 +5117,35 @@ async function runMusicUp() {
       && /revoke all on public\.feedback_queue/.test(fbMig));
   }
 
+  // ================= THE UPDATE MARK FAILS OPEN (Gil, 2026-10-01) =================
+  // The boot read asks sim-ids which board ids the live verifier carries. No
+  // network, a dead function, a bad answer, a build with no stamp: nothing is
+  // stale and nothing marks. A check that blocks when the network is down would be
+  // a bug with a delay on it — the game opens at file:// with no network at all.
+  {
+    const realFetch = global.fetch;
+    global.window.__SIM_LEVELS = { 'cargo-run:2': 'aaa', 'survey:4': 'sss', weekly: 'www' };
+    global.fetch = () => Promise.reject(new Error('offline'));
+    check('update mark: offline → nothing is stale', (await G.lbStaleInit()) === null && G.getStale() === null);
+    global.fetch = async () => ({ ok: false, status: 500 });
+    check('update mark: a dead function → nothing is stale', (await G.lbStaleInit()) === null);
+    global.fetch = async () => ({ ok: true, json: async () => { throw new Error('not json'); } });
+    check('update mark: a garbled answer → nothing is stale', (await G.lbStaleInit()) === null);
+    global.fetch = async () => ({ ok: true, json: async () => ({ boards: { 'cargo-run:2': 'bbb', 'survey:4': 'sss', weekly: 'www' } }) });
+    const st = await G.lbStaleInit();
+    check('update mark: a moved board id → that board is stale, the others are not',
+      !!st && st.boards['cargo-run:2'] === true && !st.boards['survey:4'] && st.weekly === false && st.n === 1);
+    global.fetch = async () => ({ ok: true, json: async () => ({ boards: { 'cargo-run:2': 'aaa', 'survey:4': 'sss', weekly: 'vvv' } }) });
+    const wk = await G.lbStaleInit();
+    check('update mark: a moved weekly id → the weekly lane is stale and no stage is', !!wk && wk.weekly === true && Object.keys(wk.boards).length === 0);
+    let hit = null; global.fetch = async url => { hit = url; return { ok: true, json: async () => ({ boards: {} }) }; };
+    await G.lbStaleInit();
+    check('update mark: the read goes to sim-ids, with no session', /\/functions\/v1\/sim-ids$/.test(String(hit)));
+    hit = null; delete global.window.__SIM_LEVELS;
+    check('update mark: a build with no stamp never asks', (await G.lbStaleInit()) === null && hit === null);
+    global.fetch = realFetch; G.setStale(null);
+  }
+
   console.log(failures === 0 ? '\nALL TESTS PASSED' : '\n' + failures + ' FAILURES');
   process.exit(failures === 0 ? 0 : 1);
 })();
@@ -6818,4 +6850,91 @@ async function runMusicUp() {
     /beatStream = \(li, bi\) => mulberry32\(\(0xBEA75 \^ \(li \* 7919 \+ bi \* 104729\)\)/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '50-enemies.js'), 'utf8')));
   check('append-only: CLAUDE.md carries the rule', /## Adding content: append, never insert/.test(fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8')));
   G.installCampaign(G.CAMPAIGNS[0]); // hand the harness back the real contract
+}
+
+// ================= THE UPDATE MARK: a stale board is marked before the stage (Gil, 2026-10-01) =================
+// The verifier refuses a stale build per board — after the stage is flown. The
+// mark says it before: on the stage card, the list row, the star map plate and
+// the weekly half of the wheel, in ONE phrase, and the home screen grows a key to
+// the store. The ids compared are the verifier's own (sim-ids), never a version row.
+{
+  const src = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const C = G.lbStaleCompute;
+  check('update mark: a board whose id moved is stale',
+    JSON.stringify(C({ 'a:1': 'x', 'a:2': 'y', weekly: 'w' }, { 'a:1': 'x', 'a:2': 'z', weekly: 'w' })) === JSON.stringify({ boards: { 'a:2': true }, weekly: false, n: 1 }));
+  check('update mark: the weekly lane is its own flag, not a board',
+    JSON.stringify(C({ 'a:1': 'x', weekly: 'w' }, { 'a:1': 'x', weekly: 'v' })) === JSON.stringify({ boards: {}, weekly: true, n: 1 }));
+  check('update mark: a board only one side knows is NOT stale (a deploy owed, not an update)',
+    C({ 'a:1': 'x', 'b:0': 'q' }, { 'a:1': 'x' }) === null && C({ 'a:1': 'x' }, { 'a:1': 'x', 'b:0': 'q' }) === null);
+  check('update mark: agreement is null — nothing marks', C({ 'a:1': 'x', weekly: 'w' }, { 'a:1': 'x', weekly: 'w' }) === null);
+  check('update mark: no stamp, no answer → null', C(null, { 'a:1': 'x' }) === null && C({ 'a:1': 'x' }, null) === null && C({ 'a:1': 'x' }, 'bad') === null);
+  // THE WORDS. One phrase on every surface, the game's printed nouns, never LEVEL.
+  check('update mark: the one phrase', G.UPDATE_MARK_TXT === 'UPDATE GAME TO POST SCORES');
+  check('update mark: the home key reads GAME UPDATE / AVAILABLE', G.UPDATE_CUE_TXT.join('|') === 'GAME UPDATE|AVAILABLE');
+  check('update mark: the phrase says STAGE-world words, not LEVEL', !/LEVEL/.test(G.UPDATE_MARK_TXT + G.UPDATE_CUE_TXT.join('')));
+  const menuSrc = src('src/game/95-menu.js'), guideSrc = src('src/game/92-guide.js');
+  check('update mark: the stage card prints UPDATE_MARK_TXT', /lbStaleBoard\(CAMP\.id, li\)[\s\S]{0,600}fillText\(UPDATE_MARK_TXT/.test(menuSrc));
+  check('update mark: the weekly half prints UPDATE_MARK_TXT', /staleHalf[\s\S]{0,200}arcText\(UPDATE_MARK_TXT/.test(guideSrc));
+  check('update mark: no surface spells the phrase by hand', !/UPDATE GAME TO POST/.test(menuSrc + guideSrc + src('src/game/60-input.js')));
+  check('update mark: the endless half never wears it (it has no board)', /const staleHalf = hv\.key === 'weekly' && !hv\.locked && lbStaleWeekly\(\)/.test(guideSrc));
+  check('update mark: the list row and the plate read the same stale set', (menuSrc.match(/lbStaleBoard\(CAMP\.id, i\)/g) || []).length === 2);
+  // THE STORE. The Play link names the shell's applicationId; the App Store id is a knob.
+  const appId = (/applicationId "([^"]+)"/.exec(src('android/app/build.gradle')) || [])[1];
+  check('update mark: the Play link names the Android shell\'s applicationId', !!appId && G.STORE_URL_ANDROID === 'https://play.google.com/store/apps/details?id=' + appId);
+  check('update mark: the App Store link is a knob, a string (empty until the listing exists)', typeof G.STORE_URL_IOS === 'string');
+  {
+    const opened = [];
+    global.window.Capacitor = { getPlatform: () => 'android', Plugins: { App: { openUrl: ({ url }) => opened.push(url) } } };
+    check('update mark: on Android the tap hands Play\'s page to the system', G.storePlatform() === 'android' && G.openStore() === true && opened.join() === G.STORE_URL_ANDROID);
+    global.window.Capacitor.getPlatform = () => 'ios';
+    const before = opened.length;
+    const iosOpened = G.openStore();
+    check('update mark: on iOS an empty knob opens nothing and says so', G.STORE_URL_IOS ? iosOpened === true && opened.length === before + 1 : iosOpened === false && opened.length === before);
+    delete global.window.Capacitor;
+    let reloaded = false; global.location = { reload: () => { reloaded = true; } };
+    G.openStore();
+    check('update mark: a browser build\'s update is a reload', G.storePlatform() === 'web' && reloaded);
+    delete global.location;
+  }
+  // THE SURFACES. The home key exists only when something is stale; every marked
+  // screen still draws; the key sits in the top-left corner and is wider than a corner key.
+  // (drawMenu reads navigator.standalone, and the boot splash hides the menu while
+  // it is on — the same two guards the ? key's pin takes.)
+  const hadNav = 'navigator' in global;
+  if (!hadNav) global.navigator = {};
+  const splashWas = G.SPLASH.on; G.SPLASH.on = false;
+  G.setMenuSettings(false);
+  G.setStale(null);
+  drawOk('home with nothing stale', () => { G.setState(G.S.MENU); G.setMenuScreen('home'); });
+  check('update mark: a current build draws no home key', G.updateRect() === null);
+  G.setStale({ boards: { 'cargo-run:2': true, 'survey:4': true }, weekly: true, n: 3 });
+  drawOk('home with the update key', () => { G.setState(G.S.MENU); G.setMenuScreen('home'); });
+  const ur = G.updateRect();
+  check('update mark: a stale build draws the home key in the top-left corner', !!ur && ur.x === 12 && ur.y === 12 && ur.h === 38 && ur.w > 38);
+  drawOk('star map with stale plates', () => { G.setMenuScreen('map'); });
+  drawOk('free flow wheel with the weekly lane stale', () => { G.setMenuScreen('flow'); });
+  check('update mark: the key is a home key — it leaves with the screen', G.updateRect() === null);
+  // THE TAP. A tap on the key opens the store on the beat (pressUI runs the action a few frames in).
+  {
+    const opened = [];
+    global.window.Capacitor = { getPlatform: () => 'android', Plugins: { App: { openUrl: ({ url }) => opened.push(url) } } };
+    G.setMenuScreen('home'); G.frame(16);
+    const r = G.updateRect();
+    G.menuTap(r.x + 10, r.y + 10, 1);
+    for (let i = 0; i < 30 && !opened.length; i++) G.update(1 / 30);
+    check('update mark: a tap on the home key opens the store', opened.length === 1 && opened[0] === G.STORE_URL_ANDROID);
+    delete global.window.Capacitor;
+  }
+  G.setStale(null); G.setMenuScreen('home'); G.SPLASH.on = splashWas;
+  if (!hadNav) delete global.navigator;
+  // THE BACKEND. sim-ids is its own function, needs no session, serves the ids the
+  // verifier build wrote, and ships with the verifier.
+  check('update mark: sim-ids is a function of its own', fs.existsSync(path.join(ROOT, 'supabase', 'functions', 'sim-ids', 'index.ts')));
+  check('update mark: sim-ids imports the generated ids, nothing hand-kept', /import \{ SIM_ID, SIM_ACCEPT, SIM_LEVELS \} from "\.\/_ids\.mjs"/.test(src('supabase/functions/sim-ids/index.ts')));
+  check('update mark: sim-ids needs no session (the publishable key is not a JWT)', /\[functions\.sim-ids\]\s*\nverify_jwt = false/.test(src('supabase/config.toml')));
+  check('update mark: the verifier build writes the ids sim-ids serves, in the same run', /'sim-ids'\)[\s\S]{0,400}_ids\.mjs[\s\S]{0,400}export const SIM_LEVELS/.test(src('scripts/build-verifier.js')));
+  check('update mark: the deploy ships both functions', /functions deploy submit-run --use-api[\s\S]{0,600}functions deploy sim-ids --use-api/.test(src('scripts/deploy-verifier.sh')));
+  check('update mark: the generated ids are not tracked', /sim-ids\/_ids\.mjs/.test(src('.gitignore')));
+  check('update mark: the client reads sim-ids, never a version row', /\/functions\/v1\/sim-ids/.test(src('src/game/31-leaderboard.js')) && !/min_version|minVersion/i.test(src('src/game/31-leaderboard.js')));
+  check('update mark: the boot asks once, off the critical path, and cannot throw', /try \{ lbStaleInit\(\); \} catch \(e\) \{\}/.test(src('src/game/99-boot.js')));
 }

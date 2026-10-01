@@ -180,7 +180,7 @@ canvas.addEventListener('pointerdown', e => {
   if (state === S.MENU) {
     // overlay + gear act immediately; the level list uses tap-vs-drag on release
     const hitRect = (r, m) => r && P.x > r.x - m && P.x < r.x + r.w + m && P.y > r.y - m && P.y < r.y + r.h + m;
-    if (report || myData || feedback || menuSettings || menuConfirm || bossGate || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6) || hitRect(menuGuideRect, 8)) {
+    if (report || myData || feedback || menuSettings || menuConfirm || bossGate || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6) || hitRect(menuGuideRect, 8) || hitRect(menuUpdateRect, 8)) {
       menuTap(P.x, P.y, e.pointerId);
       return;
     }
@@ -588,6 +588,11 @@ function menuTap(x, y, pid) {
   if (menuGuideRect && x > menuGuideRect.x - 8 && x < menuGuideRect.x + menuGuideRect.w + 8 &&
       y > menuGuideRect.y - 8 && y < menuGuideRect.y + menuGuideRect.h + 8) {
     pressUI(menuGuideRect); enterGuide('menu'); return;
+  }
+  // GAME UPDATE AVAILABLE (home, top-left): the tap opens the store listing
+  if (menuUpdateRect && x > menuUpdateRect.x - 8 && x < menuUpdateRect.x + menuUpdateRect.w + 8 &&
+      y > menuUpdateRect.y - 8 && y < menuUpdateRect.y + menuUpdateRect.h + 8) {
+    pressUI(menuUpdateRect, openStore); return;
   }
   if (menuBackRect && x > menuBackRect.x - 8 && x < menuBackRect.x + menuBackRect.w + 8 &&
       y > menuBackRect.y - 8 && y < menuBackRect.y + menuBackRect.h + 8) {

@@ -839,6 +839,19 @@ function drawMenu(g) {
     ctx.moveTo(bk.x + 24, bk.y + 11); ctx.lineTo(bk.x + 14, bk.y + 19); ctx.lineTo(bk.x + 24, bk.y + 27);
     ctx.stroke();
   }
+  // GAME UPDATE AVAILABLE — the home screen's TOP-LEFT key (Gil, 2026-10-01). The
+  // corner is empty on 'home' (the back key owns it everywhere else) and it is the
+  // first place the eye lands. Two lines and the store's own mark; a tap opens the
+  // listing (openStore). It shows only when the boot read found a board the live
+  // verifier would refuse (lbStaleAny) — a current build never draws it. Drops in
+  // from above with the top-right cluster's timing.
+  menuUpdateRect = null;
+  if (menuScreen === 'home' && lbStaleAny()) {
+    ctx.save();
+    ctx.translate(0, -(1 - introE(0.2)) * 140);
+    menuUpdateRect = drawUpdateKey(12 + SAFE.l, 12 + SAFE.t);
+    ctx.restore();
+  }
 
   if (menuScreen === 'map') drawMenuMap();
   else if (menuScreen === 'flow') drawMenuFlow();
@@ -1966,6 +1979,72 @@ function homeContractTarget() {
 // where the top-left lockup starts. The back key owns that corner on every
 // sub-screen now, so the brand and the contract title begin to its right; on a
 // screen with no back key they keep the old margin.
+// the GAME UPDATE AVAILABLE key: a corner key's height, the store glyph in a
+// key's square at the left, the two lines beside it. Returns its rect for the tap.
+function drawUpdateKey(x, y) {
+  const h = 38, iw = 38;
+  ctx.font = '700 9px Audiowide, system-ui';
+  try { ctx.letterSpacing = '1px'; } catch (e) {}
+  const tw = Math.max(ctx.measureText(UPDATE_CUE_TXT[0]).width, ctx.measureText(UPDATE_CUE_TXT[1]).width);
+  const w = iw + tw + 14;
+  techRect(x, y, w, h, 8);
+  ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
+  ctx.strokeStyle = UPDATE_MARK_COL; ctx.lineWidth = 1.5;
+  techRect(x, y, w, h, 8); ctx.stroke();
+  drawStoreGlyph(x + iw / 2, y + h / 2, 10, storePlatform());
+  const pa = ctx.textAlign, pb = ctx.textBaseline;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f2faff';
+  ctx.fillText(UPDATE_CUE_TXT[0], x + iw + 2, y + 13);
+  ctx.fillStyle = UPDATE_MARK_COL;
+  ctx.fillText(UPDATE_CUE_TXT[1], x + iw + 2, y + 26);
+  ctx.textAlign = pa; ctx.textBaseline = pb;
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  return { x, y, w, h };
+}
+// The store's own mark, drawn, so it reads at a glance where the update lives:
+// Play's four-facet arrow for Android, the App Store's tile for iOS, a reload arc
+// for a browser build (its update is a reload — see openStore). `s` is the half-size.
+function drawStoreGlyph(cx, cy, s, platform) {
+  ctx.save();
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  if (platform === 'android') {
+    const L = cx - s * 0.7, R = cx + s * 0.9, T = cy - s, B = cy + s;
+    const M = { x: L + (R - L) * 0.55, y: cy };
+    const edge = (x0, y0, x1, y1, t) => ({ x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t });
+    const Pg = edge(L, T, R, cy, 0.72), Pr = edge(L, B, R, cy, 0.72);
+    const tri = (col, pts) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y); ctx.closePath(); ctx.fill(); };
+    tri('#2ec8ff', [{ x: L, y: T }, { x: L, y: B }, M]);          // the left face
+    tri('#34e27c', [{ x: L, y: T }, M, Pg]);                       // the top face
+    tri('#ffd43b', [Pg, M, Pr, { x: R, y: cy }]);                  // the point
+    tri('#ff5a5f', [{ x: L, y: B }, Pr, M]);                       // the bottom face
+  } else if (platform === 'ios') {
+    // the App Store tile: a rounded square, and the A its three strokes draw
+    const r = s * 1.05, k = s * 0.32;
+    const g = ctx.createLinearGradient(cx, cy - r, cx, cy + r);
+    g.addColorStop(0, '#2fb8ff'); g.addColorStop(1, '#1a6cf0');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(cx - r + k, cy - r); ctx.lineTo(cx + r - k, cy - r); ctx.quadraticCurveTo(cx + r, cy - r, cx + r, cy - r + k);
+    ctx.lineTo(cx + r, cy + r - k); ctx.quadraticCurveTo(cx + r, cy + r, cx + r - k, cy + r);
+    ctx.lineTo(cx - r + k, cy + r); ctx.quadraticCurveTo(cx - r, cy + r, cx - r, cy + r - k);
+    ctx.lineTo(cx - r, cy - r + k); ctx.quadraticCurveTo(cx - r, cy - r, cx - r + k, cy - r);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, s * 0.17);
+    ctx.beginPath();
+    ctx.moveTo(cx - s * 0.42, cy + s * 0.38); ctx.lineTo(cx + s * 0.08, cy - s * 0.5);
+    ctx.moveTo(cx + s * 0.42, cy + s * 0.38); ctx.lineTo(cx - s * 0.08, cy - s * 0.5);
+    ctx.moveTo(cx - s * 0.62, cy + s * 0.38); ctx.lineTo(cx + s * 0.62, cy + s * 0.38);
+    ctx.stroke();
+  } else {
+    // a reload arc with its arrowhead
+    ctx.strokeStyle = 'rgba(200,240,255,0.9)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, s * 0.75, -Math.PI * 0.35, Math.PI * 1.45); ctx.stroke();
+    const ax = cx + Math.cos(-Math.PI * 0.35) * s * 0.75, ay = cy + Math.sin(-Math.PI * 0.35) * s * 0.75;
+    ctx.beginPath(); ctx.moveTo(ax - s * 0.45, ay - s * 0.05); ctx.lineTo(ax, ay); ctx.lineTo(ax + s * 0.05, ay - s * 0.5); ctx.stroke();
+  }
+  ctx.restore();
+}
 function menuHeadX() {
   const hasBack = menuScreen !== 'home' && menuScreen !== 'board';
   return (hasBack ? 62 : 20) + SAFE.l;
@@ -2652,7 +2731,17 @@ function drawMenuFlow() {
     // just inside the caption, toward the hub — was tried and collided: the arc
     // radii there are only R*0.05 apart and the two lines print into each other.
     // This gap is the widest empty run in the sector.
-    if (hv.streak) {
+    //
+    // THE UPDATE MARK TAKES THIS SLOT WHEN THE LANE IS STALE (Gil, 2026-10-01). The
+    // weekly lane is the one free-flow lane with a board, so it is the one that can
+    // be stale, and it wins the slot over the streak: a streak that cannot be filed
+    // this week is the thing the player has to know. The endless half never wears
+    // it — it has no board.
+    const staleHalf = hv.key === 'weekly' && !hv.locked && lbStaleWeekly();
+    if (staleHalf) {
+      arcText(UPDATE_MARK_TXT, ccx, ccy, r0 + R * 0.155, mid, Math.max(8, Math.round(R * 0.037)),
+        UPDATE_MARK_COL, '800', Math.PI * 0.9);
+    } else if (hv.streak) {
       const st = hv.streak;
       arcText(st.held ? 'STREAK ' + st.n + ' WK — BANKED' : 'STREAK ' + st.n + ' WK — ENDS SUNDAY',
         ccx, ccy, r0 + R * 0.155, mid, Math.max(8, Math.round(R * 0.037)),

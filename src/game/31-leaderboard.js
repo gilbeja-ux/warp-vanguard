@@ -135,6 +135,82 @@ function boardSimId(run) {
     return M[run.campId + ':' + run.levelIdx] || null;
   return null;
 }
+
+// ---------- THE UPDATE MARK: a stale board is marked BEFORE the stage (Gil, 2026-10-01) ----------
+// submit-run refuses a stale build per board (409 "client outdated", above), but
+// only after the stage is flown: the player learns on the END screen that the
+// score they just earned will not post. At boot the game now asks sim-ids — the
+// deployed verifier's board ids, written by the same build that wrote them into
+// the verifier — and compares them with the ids stamped into its own bundle
+// (window.__SIM_LEVELS). A board the two disagree on is STALE: its stage card,
+// its list row and its star map plate wear the mark, the weekly half of the
+// free flow wheel wears it, and the home screen grows a key to the store.
+//
+// FAIL OPEN. No network, a dead function, a dev build with no stamp, a server
+// that knows no such board: nothing is stale and nothing marks. The verifier
+// stays the ground truth at submit time; this is the early warning, not a gate.
+// A version row was considered and rejected: it would be a second truth that can
+// disagree with the verifier (a comment edit moves the sim id and zero boards).
+// These ids are the verifier's own, so they cannot.
+const UPDATE_MARK_COL = 'rgba(255,150,90,0.95)'; // the failed-post orange the END screen already speaks in
+const UPDATE_MARK_TXT = 'UPDATE GAME TO POST SCORES'; // the ONE phrase, on every surface (Gil, 2026-10-01)
+const UPDATE_CUE_TXT = ['GAME UPDATE', 'AVAILABLE']; // the home key's two lines (Gil, 2026-10-01)
+const LB_STALE_TIMEOUT = 6000; // a boot read: answer fast or not at all
+// The store a tap on the home key opens. Android keys a listing on applicationId
+// (android/app/build.gradle; npm test pins the two agree). The App Store id is
+// minted with the listing, which waits on the developer enrolment: while it is
+// empty the key still shows and the tap does nothing. Fill it the day it exists.
+const STORE_URL_ANDROID = 'https://play.google.com/store/apps/details?id=com.warpvanguard.game';
+const STORE_URL_IOS = '';
+let lbStale = null; // null = unknown, or nothing stale; else { boards: { 'camp:li': true }, weekly: bool, n }
+// mine = this build's stamp, theirs = the server's answer. A key only one side
+// knows is NOT stale: a new contract the server has not met yet is a deploy owed,
+// not a reason to send every player to the store.
+function lbStaleCompute(mine, theirs) {
+  if (!mine || !theirs || typeof mine !== 'object' || typeof theirs !== 'object') return null;
+  const boards = {}; let n = 0, weekly = false;
+  for (const k in mine) {
+    if (typeof mine[k] !== 'string' || typeof theirs[k] !== 'string' || mine[k] === theirs[k]) continue;
+    if (k === 'weekly') weekly = true; else boards[k] = true;
+    n++;
+  }
+  return n ? { boards, weekly, n } : null;
+}
+async function lbStaleInit() {
+  lbStale = null;
+  const mine = (typeof window !== 'undefined' && window.__SIM_LEVELS) || null;
+  if (!mine || !LEADERBOARD.enabled || typeof fetch === 'undefined') return null;
+  try {
+    const res = await lbFetch(LEADERBOARD.url + '/functions/v1/sim-ids', { headers: { apikey: LEADERBOARD.key } }, LB_STALE_TIMEOUT);
+    if (!res || !res.ok) return null;
+    const d = await res.json();
+    lbStale = lbStaleCompute(mine, d && d.boards);
+    if (lbStale) { try { console.warn('[update] ' + lbStale.n + ' stale board(s): ' + Object.keys(lbStale.boards).concat(lbStale.weekly ? ['weekly'] : []).join(' ')); } catch (e) {} }
+  } catch (e) { lbStale = null; } // offline / timed out / bad answer → nothing marks
+  return lbStale;
+}
+const lbStaleBoard = (campId, li) => !!(lbStale && lbStale.boards[campId + ':' + li]);
+const lbStaleWeekly = () => !!(lbStale && lbStale.weekly);
+const lbStaleAny = () => !!lbStale;
+// which store this build came from — 'android' | 'ios' | 'web' — and the page that updates it
+function storePlatform() {
+  try { if (window.Capacitor && window.Capacitor.getPlatform) return window.Capacitor.getPlatform(); } catch (e) {}
+  return 'web';
+}
+function storeUrl() { const p = storePlatform(); return p === 'android' ? STORE_URL_ANDROID : p === 'ios' ? STORE_URL_IOS : ''; }
+// A browser build has no store: a stale one is a cached bundle, and a reload is
+// its update. In a shell the App plugin hands the URL to the system (Play, the
+// App Store); a plain window.open is the fallback for a webview without it.
+function openStore() {
+  const url = storeUrl();
+  if (!url) { if (storePlatform() === 'web') { try { location.reload(); } catch (e) {} } return false; }
+  try {
+    const app = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+    if (app && app.openUrl) { app.openUrl({ url }); return true; }
+  } catch (e) {}
+  try { window.open(url, '_blank'); } catch (e) {}
+  return true;
+}
 let lbStatus = ''; // human-readable submit status, shown on the END screen
 let lastRun = null; // snapshot of the run that just ended — the leaderboard submission payload (also resubmitted with a new name when the player sets a handle)
 async function lbSession() {

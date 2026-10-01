@@ -34,6 +34,10 @@ node scripts/build-verifier.js "$@"
 node scripts/test-verifier-bundle.mjs
 # --use-api: this Mac has no Docker, and the API path needs none
 supabase functions deploy submit-run --use-api
+# sim-ids carries the SAME board ids (build-verifier.js writes both files in one
+# run) so the game can mark a stale stage before it is flown. Deployed in the same
+# breath: a verifier that moved without it would answer the client yesterday's ids.
+supabase functions deploy sim-ids --use-api
 echo ""
 echo "── probing the live function ──"
 node scripts/verifier-status.js

@@ -90,6 +90,7 @@ capacitor.config.json.bak
 
 # generated verifier bundle (rebuilt from src before every deploy)
 supabase/functions/submit-run/_sim.mjs
+supabase/functions/sim-ids/_ids.mjs
 
 # local-only impeccable state (DESIGN.md + design.json sidecar stay tracked)
 .impeccable/config.local.json
