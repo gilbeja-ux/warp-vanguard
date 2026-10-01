@@ -268,15 +268,15 @@ Two thumbs. Two emitters. One ring. Hold the warp lane against all that comes.
 ### Full description (4,000 max)
 
 ```
-You fly point ahead of a freight convoy, down a warp lane that somebody has seeded against it. Two emitters ride the ring around you. Everything that comes up that lane is yours to collapse before it reaches the cargo.
+You fly point ahead of a convoy, down a warp lane that is full of traps. Use your two emitters to clear the lane!
 
 ── HOW IT PLAYS ──
 
-Two thumbs, two dials, one shared ring. The left dial runs the blue emitter, the right runs the white. Interdictors arrive out of the dark at every bearing and every depth, and you have exactly as long as the lane is deep to put an emitter on each one.
+Two thumbs, two dials, one lane. The left dial runs the blue emitter, the right runs the white. Interdictors arrive out of the dark at every bearing and every depth, and you have exactly as long as the lane is deep to put an emitter on each one.
 
-It is rhythm-action with a ring for a fretboard. Read what is coming. Be there when it lands.
+It is rhythm-action on a ring for. Read what is coming. Be there when it lands.
 
-Colour is the rule, not the decoration:
+Colour is the rule:
 
 RED — standard. Either emitter takes it.
 BLUE / WHITE — phase-locked. Only the matching emitter lands.
@@ -284,20 +284,20 @@ PURPLE — armored. Both emitters, together.
 LINKED — a barrier between two hulls. One emitter on each end.
 GOLD — a pulse charger. Ride it, and it charges you.
 
-── THE THIRD VERB ──
+── FIRE AWAY ──
 
-Dock both emitters on one bearing and their phases unite. You give up every other angle for half a second, the charge builds white-hot, and one bolt goes straight down the bore and detonates on what it hits — and takes the hulls around it too. It is a decision you make with the two thumbs you already have, not a new button.
+> Dock both emitters and their phases unite. the charge builds white-hot, and one bolt goes straight down the bore and detonates on what it hits — and takes the hulls around it too.
 
-Fill a pulse orb, tap its core, and a wave sweeps the lane clean ahead of you.
+> Charge a pulse orb, tap its core, and a wave sweeps the lane clean ahead of you.
 
 ── WHAT'S IN IT ──
 
 · Five contracts, forty stages — a different kind of cargo every contract
-· Five machines waiting at the end of a contract — the Leech, the Siphon, the Prism, the Mimic, the Blockade — each with its own tell, and rays that hunt one emitter at a time
+· Five bosses waiting at the end of a contract — the Leech, the Siphon, the Prism, the Mimic, the Blockade — each with its own mechanic for you to tackle.
 · FREE FLOW — endless, with the stream stepping up the longer you last
 · THE WEEKLY LANE — one seeded lane, identical for every player, open Monday to Sunday. When the week closes its board freezes for good, so a name that lands on it stays there.
 · A leaderboard on every stage. Every run on it was replayed and verified by the server, and you can watch any of them.
-· LANE ASSIST — an eased retry for the stage that will not give
+· LANE ASSIST — an eased (unranked) retry for the stage that will not give
 
 ── WHAT THIS GAME WILL NOT DO ──
 
@@ -310,7 +310,7 @@ And every stage is completable. Difficulty comes from density and speed — neve
 
 Plays offline. Landscape, two thumbs, short sessions. Controllers work too.
 
-Clear the lane.
+See you on the other side of the warp, Vanguard!
 ```
 
 ## 4. Copy — App Store
@@ -319,7 +319,7 @@ Clear the lane.
 |---|---|---|
 | Name | 30 | `Warp Vanguard` |
 | Subtitle | 30 | `Two-thumb rhythm-action` |
-| Promotional text | 170 | `Two emitters, one ring, and a warp lane full of interdictors. Five contracts, forty stages, five boss machines, and a weekly lane that is the same for every player.` |
+| Promotional text | 170 | `Two emitters, one ring, and a warp lane full of interdictors. Five contracts, forty stages, five bosses, and a weekly lane that will test your skills.` |
 | Keywords | 100 | `rhythm,arcade,action,space,reflex,tunnel,ring,score,leaderboard,boss,offline,warp,twin stick,music` |
 | Description | 4,000 | The Play full description, verbatim. It names no other platform and no price. |
 
