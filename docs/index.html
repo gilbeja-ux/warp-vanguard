@@ -1,19 +1,788 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Warp Vanguard</title>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Support — Warp Vanguard</title>
+<meta name="description" content="Warp Vanguard support: how the game plays, how to send feedback, and what happens to your data.">
+<meta name="theme-color" content="#03060e">
+<meta property="og:title" content="Warp Vanguard — Support">
+<meta property="og:description" content="Lane Command support channel: help, feedback, your data.">
+<meta property="og:image" content="https://gilbeja-ux.github.io/warp-vanguard/img/logo.webp">
+<link rel="icon" type="image/webp" href="img/icon.webp">
+<!--
+  DIRECTION (2026-10-01, seed daf77b4d, structure 6 of 7: the comms channel)
+  THESIS: the support page is Lane Command's open channel to a Vanguard. Every
+    answer is a transmission with a speaker tag; the visitor's feedback is their
+    own transmission composed on the glass. It refuses the category default of a
+    centred logo, three cards and a contact form at the bottom.
+  OWN-WORLD: hull black, chrome-cyan console plates with keyed cut corners
+    (top-left, bottom-right), a lit header band, floating target-lock brackets.
+    Audiowide for every label and title, tracked; a system face for reading copy,
+    as the sibling pages already do. CMD speaks cyan, TRACE speaks green, the
+    Vanguard speaks readout ice. Gold only on the badge rim: nothing here is a gain.
+  STORY: a player arrives from a store or from the game with a problem. In one
+    viewport they know this is the game's channel and see three doors: HELP,
+    FEEDBACK, YOUR DATA. They compose a transmission and SEND opens their mail.
+  FIRST VIEWPORT: the badge in its own bore light, left; the channel kicker and
+    "Channel open, Vanguard." beside it; the three keys as a rail; then the first
+    CMD transmission typing in. The primary action is the FEEDBACK key.
+  FORM: comms-channel transmission log. Font and images are served from this
+    repo: the privacy policy on this page says no third party is contacted, and a
+    font CDN would make that false.
+-->
 <style>
-  html { background: #06040d; }
-  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    background: #06040d; color: #e8e2f2; font: 16px/1.6 system-ui, -apple-system, sans-serif; padding: 24px; }
-  .c { text-align: center; max-width: 520px; }
-  .e { font-size: 11px; letter-spacing: 0.24em; color: #ffd24a; text-transform: uppercase; }
-  h1 { font-size: 32px; margin: 10px 0 14px; letter-spacing: 0.02em; }
-  p { color: #9a8fb4; }
-  a { color: #7ee262; }
-</style></head>
-<body><div class="c">
-  <div class="e">Two thumbs, one lane</div>
-  <h1>Warp Vanguard</h1>
-  <p><a href="privacy.html">Privacy Policy</a> · <a href="https://github.com/gilbeja-ux/warp-vanguard">Source</a></p>
-</div></body></html>
+  @font-face {
+    font-family: 'Audiowide';
+    src: url('fonts/audiowide.woff2') format('woff2');
+    font-display: swap;
+  }
+  :root {
+    --hull: #03060e;
+    --void: #020510;
+    --glass: rgba(4, 14, 30, 0.92);
+    --cyan: #6fe3ff;
+    --cyan-65: rgba(111, 227, 255, 0.65);
+    --cyan-35: rgba(111, 227, 255, 0.35);
+    --cyan-16: rgba(111, 227, 255, 0.16);
+    --cyan-08: rgba(111, 227, 255, 0.08);
+    --green: #7ee262;
+    --gold: #ffd24a;
+    --amber: #ff9a3c;
+    --red: #ff3c5a;
+    --ice: #cfeeff;
+    --body: rgba(190, 225, 255, 0.88);
+    --dim: #86a4c4;
+    --key: rgba(20, 44, 72, 0.9);
+    --key-hi: rgba(29, 61, 97, 0.95);
+    --cut-sm: 8px;
+    --cut-md: 12px;
+    --cut-lg: 16px;
+    --display: 'Audiowide', 'Segoe UI', system-ui, sans-serif;
+    --read: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --gutter: clamp(16px, 4vw, 48px);
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--hull); -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 76px; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0; background: var(--hull); color: var(--body);
+    font: 16px/1.6 var(--read);
+    min-height: 100vh; position: relative; overflow-x: hidden;
+  }
+  ::selection { background: rgba(111, 227, 255, 0.28); color: #fff; }
+  a { color: var(--green); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { color: #a9f58f; }
+  :focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+  strong, b { color: #fff; font-weight: 600; }
+  code { font-family: var(--mono); font-size: 0.88em; color: var(--ice); background: rgba(111,227,255,0.08); padding: 1px 6px; border-radius: 3px; }
+
+  /* ---- the bore: light drawn behind the page, never a painted surface ---- */
+  .bore {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  }
+  .bore::before {
+    /* hoops converging on a vanishing point above the fold, the badge's own bore */
+    content: ''; position: absolute; left: 50%; top: -22vmin; width: 160vmax; height: 160vmax;
+    transform: translateX(-50%);
+    background:
+      repeating-radial-gradient(circle at 50% 0%, rgba(111,227,255,0.0) 0 38px, rgba(111,227,255,0.16) 39px 40px, rgba(111,227,255,0.0) 41px 92px),
+      repeating-conic-gradient(from 90deg at 50% 0%, rgba(111,227,255,0.10) 0deg 0.35deg, transparent 0.35deg 7.5deg);
+    -webkit-mask-image: radial-gradient(ellipse 60% 48% at 50% 0%, #000 0%, rgba(0,0,0,0.55) 38%, transparent 70%);
+            mask-image: radial-gradient(ellipse 60% 48% at 50% 0%, #000 0%, rgba(0,0,0,0.55) 38%, transparent 70%);
+    opacity: 0.55;
+  }
+  .bore::after {
+    /* the vanishing point's own light, and the vignette the game finishes with */
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 34% 22% at 50% 0%, rgba(111,227,255,0.22), rgba(111,227,255,0.06) 45%, transparent 70%),
+      radial-gradient(ellipse 80% 70% at 50% 40%, transparent 42%, rgba(0,0,0,0.38) 100%);
+  }
+  .grain {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.07; mix-blend-mode: screen;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  .page { position: relative; z-index: 2; max-width: 1120px; margin: 0 auto; padding: 0 var(--gutter) 72px; }
+  .skip { position: absolute; left: -999px; top: 8px; background: var(--key); color: #fff; padding: 8px 14px; font-family: var(--display); font-size: 12px; letter-spacing: 3px; z-index: 10; }
+  .skip:focus { left: 16px; }
+
+  /* ---- type roles ---- */
+  .kicker { font-family: var(--display); font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--cyan); }
+  .label { font-family: var(--display); font-size: 12px; letter-spacing: 3px; text-transform: uppercase; }
+  .title { font-family: var(--display); font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: var(--ice); }
+  h1, h2, h3 { font-family: var(--display); font-weight: 400; color: #fff; margin: 0; text-wrap: balance; }
+  h1 { font-size: clamp(28px, 4.6vw, 46px); line-height: 1.1; letter-spacing: 1px; }
+  h2 { font-size: 22px; letter-spacing: 2px; line-height: 1.15; }
+  h3 { font-size: 15px; letter-spacing: 1px; line-height: 1.3; color: var(--ice); }
+  p { margin: 0 0 1em; max-width: 68ch; }
+  p:last-child { margin-bottom: 0; }
+  .readout { font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px; color: var(--dim); }
+
+  /* ---- the chrome: a cut-corner plate with a lit band and lock brackets ---- */
+  .lock { position: relative; }
+  .lock::before, .lock::after {
+    content: ''; position: absolute; width: 14px; height: 14px; pointer-events: none;
+    border-color: rgba(111,227,255,0.55); border-style: solid;
+  }
+  .lock::before { left: -7px; top: -7px; border-width: 1.5px 0 0 1.5px; }
+  .lock::after { right: -7px; bottom: -7px; border-width: 0 1.5px 1.5px 0; }
+  .plate {
+    position: relative; background: var(--cyan-65); display: flex; flex-direction: column; height: 100%;
+    clip-path: polygon(var(--cut-lg) 0, 100% 0, 100% calc(100% - var(--cut-lg)), calc(100% - var(--cut-lg)) 100%, 0 100%, 0 var(--cut-lg));
+    padding: 1.5px;
+  }
+  .plate > .in {
+    background: var(--glass);
+    clip-path: polygon(calc(var(--cut-lg) - 1px) 0, 100% 0, 100% calc(100% - var(--cut-lg) + 1px), calc(100% - var(--cut-lg) + 1px) 100%, 0 100%, 0 calc(var(--cut-lg) - 1px));
+    flex: 1; display: flex; flex-direction: column;
+  }
+  .plate > .in::before {
+    /* the 1px inner hairline, inset 4px, that every console panel carries */
+    content: ''; position: absolute; inset: 5.5px; pointer-events: none;
+    border: 1px solid var(--cyan-16);
+    clip-path: polygon(calc(var(--cut-lg) - 5px) 0, 100% 0, 100% calc(100% - var(--cut-lg) + 5px), calc(100% - var(--cut-lg) + 5px) 100%, 0 100%, 0 calc(var(--cut-lg) - 5px));
+  }
+  .band {
+    height: 32px; display: flex; align-items: center; gap: 14px; padding: 0 20px 0 24px;
+    background: linear-gradient(90deg, var(--cyan-35), rgba(111,227,255,0.02));
+    border-bottom: 1px solid rgba(111,227,255,0.5);
+  }
+  .band .title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .band .readout { color: rgba(207,238,255,0.6); }
+  .plate .body { padding: 22px 24px 24px; flex: 1; }
+
+  /* ---- keys ---- */
+  .key {
+    -webkit-appearance: none; appearance: none; cursor: pointer; text-decoration: none;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    height: 38px; padding: 0 18px; border: 0; color: #dff2ff; background: var(--cyan-65);
+    font-family: var(--display); font-size: 12px; letter-spacing: 3px; text-transform: uppercase; line-height: 1;
+    clip-path: polygon(var(--cut-sm) 0, 100% 0, 100% calc(100% - var(--cut-sm)), calc(100% - var(--cut-sm)) 100%, 0 100%, 0 var(--cut-sm));
+    position: relative; white-space: nowrap; transition: transform 120ms ease-out;
+  }
+  .key::before {
+    content: ''; position: absolute; inset: 1.2px; background: var(--key); z-index: -1;
+    clip-path: polygon(calc(var(--cut-sm) - 1px) 0, 100% 0, 100% calc(100% - var(--cut-sm) + 1px), calc(100% - var(--cut-sm) + 1px) 100%, 0 100%, 0 calc(var(--cut-sm) - 1px));
+  }
+  .key { isolation: isolate; }
+  .key:hover::before, .key:focus-visible::before { background: var(--key-hi); }
+  .key:hover { color: #fff; }
+  .key:active { transform: translateY(1px) scale(0.985); }
+  .key:disabled { cursor: not-allowed; color: rgba(223,242,255,0.38); background: rgba(111,227,255,0.22); }
+  .key:disabled::before { background: rgba(14, 28, 46, 0.9); }
+  .key.primary { color: var(--hull); background: var(--green); }
+  .key.primary::before { background: var(--green); }
+  .key.primary:hover::before, .key.primary:focus-visible::before { background: #95ec7c; }
+  .key.primary:disabled { color: rgba(3,6,14,0.55); background: rgba(126,226,98,0.35); }
+  .key.primary:disabled::before { background: rgba(126,226,98,0.35); }
+  .key .glyph { width: 12px; height: 12px; flex: none; }
+
+  /* ---- header ---- */
+  .top {
+    display: grid; grid-template-columns: auto 1fr; gap: 28px clamp(20px, 4vw, 48px); align-items: center;
+    padding: clamp(36px, 6vw, 72px) 0 28px;
+  }
+  .badge { width: clamp(132px, 18vw, 196px); height: auto; display: block; filter: drop-shadow(0 0 24px rgba(111,227,255,0.22)); }
+  .top h1 { margin: 10px 0 14px; }
+  .lede { font-size: 17.5px; color: var(--ice); max-width: 54ch; }
+  .rail { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+
+  /* ---- sections as transmissions ---- */
+  .log { display: grid; gap: 44px; margin-top: 36px; }
+  section.tx { scroll-margin-top: 76px; min-width: 0; }
+  .lock { min-width: 0; }
+  .tx-head { display: flex; align-items: baseline; gap: 16px; margin: 0 0 16px 4px; flex-wrap: wrap; }
+  .tx-head h2 { flex: none; }
+  .tx-head .readout { flex: 1; }
+  .speaker { font-family: var(--display); font-size: 11px; letter-spacing: 3px; text-transform: uppercase; }
+  .speaker.cmd { color: var(--cyan); }
+  .speaker.trace { color: var(--green); }
+  .speaker.you { color: var(--ice); }
+  .speaker::before { content: '▸ '; opacity: 0.7; }
+
+  /* HELP: a column of answers, one rule between each, no cards */
+  .qa { list-style: none; margin: 0; padding: 0; }
+  .qa > li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr); gap: 10px 28px; padding: 18px 0; border-top: 1px solid var(--cyan-16); }
+  .qa > li:first-child { border-top: 0; padding-top: 2px; }
+  .qa > li:last-child { padding-bottom: 2px; }
+  .qa .q { font-family: var(--display); font-size: 14px; letter-spacing: 0.5px; color: #fff; line-height: 1.4; }
+  .qa .q::before { content: '▸ '; color: var(--ice); opacity: 0.7; }
+  .qa .a .speaker { display: block; margin-bottom: 4px; }
+  .qa .a p { margin-bottom: 0.6em; }
+  .rule-list { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 5px; }
+  .rule-list li { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: baseline; }
+  .rule-list .sw { font-family: var(--display); font-size: 11px; letter-spacing: 2px; display: inline-flex; align-items: center; gap: 8px; }
+  .rule-list .sw i { width: 9px; height: 9px; border-radius: 50%; flex: none; background: currentColor; box-shadow: 0 0 10px currentColor; }
+  .c-red { color: var(--red); } .c-blue { color: #50aaff; } .c-white { color: #fff; } .c-vio { color: #d465ff; } .c-gold { color: var(--gold); }
+
+  /* FEEDBACK: the composer */
+  .composer { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .fset { border: 0; padding: 0; margin: 0 0 18px; min-width: 0; }
+  .fset legend { padding: 0; margin-bottom: 10px; }
+  .topics { display: flex; flex-wrap: wrap; gap: 10px; }
+  .topics input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .topics label { margin: 0; }
+  .topics input:checked + .key { color: var(--hull); background: var(--cyan); }
+  .topics input:checked + .key::before { background: var(--cyan); }
+  .topics input:focus-visible + .key { outline: 2px solid var(--cyan); outline-offset: 3px; }
+  .field { display: block; margin-bottom: 16px; }
+  .field .label { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--ice); margin-bottom: 8px; }
+  .field .label .readout { letter-spacing: 1px; }
+  .field .label .readout.hot { color: var(--amber); }
+  textarea, input[type=text] {
+    width: 100%; display: block; color: #fff; background: rgba(2, 5, 16, 0.75);
+    border: 1px solid rgba(111,227,255,0.35); border-radius: 0; padding: 12px 14px;
+    font: 16px/1.5 var(--read); resize: vertical; min-height: 44px;
+    transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+  }
+  textarea { min-height: 168px; }
+  textarea::placeholder, input::placeholder { color: rgba(134,164,196,0.9); }
+  textarea:focus, input[type=text]:focus { outline: none; border-color: var(--cyan); box-shadow: inset 0 0 0 1px rgba(111,227,255,0.35), 0 0 18px rgba(111,227,255,0.12); }
+  .hint { font-size: 13.5px; color: var(--dim); margin: -6px 0 16px; max-width: 60ch; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 4px; }
+  .actions .status { font-size: 13.5px; color: var(--dim); flex-basis: 100%; min-height: 1.4em; }
+  .actions .status.ok { color: var(--green); }
+  .actions .status.err { color: var(--amber); }
+
+  /* the preview: the transmission as Lane Command will read it */
+  .preview .body { display: flex; flex-direction: column; gap: 12px; }
+  .wire { font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: var(--ice); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; flex: 1; }
+  .wire .k { color: var(--dim); }
+  .wire .e { color: var(--dim); font-style: italic; }
+  .ingame { border-top: 1px solid var(--cyan-16); padding-top: 14px; font-size: 13.5px; color: var(--dim); }
+  .ingame b { color: var(--ice); font-weight: 500; }
+
+  /* YOUR DATA */
+  .controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; margin: 4px 0 18px; }
+  .controls > div { padding: 14px 0; border-top: 1px solid var(--cyan-16); }
+  .controls h3 { margin-bottom: 6px; }
+  .controls p { font-size: 15px; }
+  .where { font-size: 15px; color: var(--body); }
+
+  /* PRIVACY: the standing order, the full text, readable */
+  #privacy .lock { max-width: 880px; }
+  .policy { max-width: 72ch; }
+  .policy h3 { font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--cyan); margin: 34px 0 10px; }
+  .policy h4 { font-family: var(--display); font-weight: 400; font-size: 14px; color: #fff; margin: 22px 0 8px; letter-spacing: 0.5px; }
+  .policy ul { padding-left: 20px; margin: 0 0 1em; }
+  .policy li { margin: 6px 0; }
+  .policy .short { padding: 1px; margin: 0 0 1.2em; background: rgba(111,227,255,0.3);
+    clip-path: polygon(var(--cut-md) 0, 100% 0, 100% calc(100% - var(--cut-md)), calc(100% - var(--cut-md)) 100%, 0 100%, 0 var(--cut-md)); }
+  .policy .short > ul { margin: 0; padding: 16px 20px 16px 38px; background: #061324;
+    clip-path: polygon(calc(var(--cut-md) - 1px) 0, 100% 0, 100% calc(100% - var(--cut-md) + 1px), calc(100% - var(--cut-md) + 1px) 100%, 0 100%, 0 calc(var(--cut-md) - 1px)); }
+  .tablewrap { overflow-x: auto; margin: 14px 0 18px; }
+  table { border-collapse: collapse; width: 100%; min-width: 440px; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--cyan-16); vertical-align: top; }
+  th { font-family: var(--display); font-weight: 400; color: var(--cyan); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+  td { color: var(--body); }
+
+  /* ---- footer ---- */
+  footer { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--cyan-16); display: grid; grid-template-columns: auto 1fr; gap: 18px 28px; align-items: center; color: var(--dim); font-size: 13.5px; }
+  footer img { width: 92px; height: auto; display: block; opacity: 0.9; }
+  footer nav { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 4px; }
+  footer nav a { color: var(--dim); }
+  footer nav a:hover { color: var(--ice); }
+
+  /* ---- the one authored moment: the channel opens ---- */
+  .type .cursor { display: inline-block; width: 0.55em; height: 1em; background: var(--cyan); vertical-align: -0.15em; margin-left: 2px; animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
+  .band { background-size: 200% 100%; background-position: 0 0; }
+  @media (prefers-reduced-motion: no-preference) {
+    .top .badge { animation: settle 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    .top > div, .log { animation: rise 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    .log { animation-delay: 120ms; }
+    .bore::before { animation: drift 40s linear infinite; }
+    .band { animation: sweep 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: 300ms; }
+  }
+  @keyframes settle { from { opacity: 0; transform: translateY(10px) scale(0.98); filter: drop-shadow(0 0 24px rgba(111,227,255,0.22)) blur(6px); } to { opacity: 1; transform: none; } }
+  @keyframes sweep { from { background-position: 100% 0; } to { background-position: 0 0; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes drift { from { transform: translateX(-50%) rotate(0deg); } to { transform: translateX(-50%) rotate(360deg); } }
+
+  /* ---- phones ---- */
+  @media (max-width: 760px) {
+    .top { grid-template-columns: 1fr; gap: 18px; padding-top: 28px; }
+    .badge { width: 120px; }
+    .qa li { grid-template-columns: 1fr; gap: 6px; }
+    .composer { grid-template-columns: 1fr; }
+    .controls { grid-template-columns: 1fr; }
+    .plate .body { padding: 18px 16px 20px; }
+    .band { padding: 0 14px 0 18px; }
+    .lock::before, .lock::after { display: none; }
+    footer { grid-template-columns: 1fr; }
+    .rule-list li { grid-template-columns: 96px 1fr; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="bore" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="page">
+  <header class="top">
+    <img class="badge" src="img/badge.webp" width="720" height="720" alt="Warp Vanguard badge: a gold-rimmed shield over a receding warp bore">
+    <div>
+      <div class="kicker">Lane Command · Support channel</div>
+      <h1>Channel open, Vanguard.</h1>
+      <p class="lede">This is where Warp Vanguard answers. Read what Lane Command has on file, send a transmission, or see exactly what the game holds about you and how to remove it.</p>
+      <nav class="rail" aria-label="Sections">
+        <a class="key" href="#help">Help</a>
+        <a class="key primary" href="#feedback">Send feedback</a>
+        <a class="key" href="#data">Your data</a>
+        <a class="key" href="#privacy">Privacy policy</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="log" id="main">
+
+    <!-- ============ HELP ============ -->
+    <section class="tx" id="help" aria-labelledby="help-h">
+      <div class="tx-head">
+        <span class="speaker cmd">CMD</span>
+        <h2 id="help-h">Help</h2>
+        <span class="readout">STANDING ANSWERS · READ ON ARRIVAL</span>
+      </div>
+      <div class="lock">
+      <div class="plate"><div class="in">
+        <div class="band"><span class="title">What Lane Command has on file</span><span class="readout">07 ENTRIES</span></div>
+        <div class="body">
+          <p class="type" id="typed" data-text="Two thumbs, two dials, one lane. Most questions that reach this channel are answered below. If yours is not, send it."><span class="cursor" aria-hidden="true"></span></p>
+          <ul class="qa" style="margin-top:18px">
+            <li>
+              <div class="q">How do I steer?</div>
+              <div class="a"><span class="speaker cmd">CMD</span>
+                <p>Hold the phone in landscape, with a thumb on each dial pad in the bottom corners. The left dial runs the blue emitter, the right dial runs the white one. An interdictor collapses when an emitter sits on its bearing at the moment it reaches the ring.</p>
+                <p>A controller works too. The two sticks are the two dials.</p>
+              </div>
+            </li>
+            <li>
+              <div class="q">What do the colours mean?</div>
+              <div class="a"><span class="speaker cmd">CMD</span>
+                <p>Colour is the rule. Read it before the body reaches the ring.</p>
+                <ul class="rule-list">
+                  <li><span class="sw c-red"><i></i>RED</span><span><b>STANDARD.</b> Either emitter takes it.</span></li>
+                  <li><span class="sw c-blue"><i></i>BLUE</span><span><b>PHASE LOCKED.</b> Only the blue emitter lands.</span></li>
+                  <li><span class="sw c-white"><i></i>WHITE</span><span><b>PHASE LOCKED.</b> Only the white emitter lands.</span></li>
+                  <li><span class="sw c-vio"><i></i>VIOLET</span><span><b>ARMORED.</b> Both emitters, docked together.</span></li>
+                  <li><span class="sw c-red"><i></i>LINKED</span><span><b>BARRIER NET.</b> Two hulls on one line. One emitter on each end.</span></li>
+                  <li><span class="sw c-gold"><i></i>GOLD</span><span><b>PULSE CHARGER.</b> Ride it, and it charges you.</span></li>
+                </ul>
+              </div>
+            </li>
+            <li>
+              <div class="q">A stage will not give.</div>
+              <div class="a"><span class="speaker cmd">CMD</span>
+                <p>Every stage is completable. Difficulty comes from density and speed, never from a wave you were not meant to survive. Open the stage card and take <b>LANE ASSIST</b>: an eased retry of the same lane. It is unranked, so it never posts a score, and it never costs you anything.</p>
+                <p>The <b>FIELD GUIDE</b> on the home screen shows every body you will meet, live.</p>
+              </div>
+            </li>
+            <li>
+              <div class="q">My score did not post.</div>
+              <div class="a"><span class="speaker cmd">CMD</span>
+                <p>A score posts at the end of the run and needs a connection at that moment. The server replays every run before it lands on a board, so a posted score can take a few seconds to appear.</p>
+                <p>In <b>FREE FLOW</b> the <b>ENDLESS LANE</b> is unranked by design: it never posts. The <b>WEEKLY LANE</b> beside it is one seeded lane, identical for every player, open Monday to Sunday (UTC). When the week closes, its board freezes for good.</p>
+              </div>
+            </li>
+            <li>
+              <div class="q">The game says UPDATE GAME TO POST SCORES.</div>
+              <div class="a"><span class="speaker cmd">CMD</span>
+                <p>The server now simulates a newer build than the one you are running, and a score from an older build cannot be verified against it. Update from the store. Your progress, stars and personal bests stay on your device and are not affected.</p>
+              </div>
+            </li>
+            <li>
+              <div class="q">Does it play offline?</div>
+              <div class="a"><span class="speaker cmd">CMD</span>
+                <p>Yes. Every contract, every stage and FREE FLOW play with no connection. Only the leaderboards need one.</p>
+              </div>
+            </li>
+            <li>
+              <div class="q">Is anything for sale?</div>
+              <div class="a"><span class="speaker cmd">CMD</span>
+                <p>No ads. No consumables. No energy timers. Nothing you could buy will ever move a score. During open testing every contract is free.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div></div>
+      </div>
+    </section>
+
+    <!-- ============ FEEDBACK ============ -->
+    <section class="tx" id="feedback" aria-labelledby="fb-h">
+      <div class="tx-head">
+        <span class="speaker you">Vanguard</span>
+        <h2 id="fb-h">Send feedback</h2>
+        <span class="readout">OUTBOUND · OPENS YOUR MAIL APP</span>
+      </div>
+      <div class="composer">
+        <div class="lock">
+        <div class="plate"><div class="in">
+          <div class="band"><span class="title">Compose transmission</span><span class="readout" id="tx-count">0 / 600</span></div>
+          <form class="body" id="fb" novalidate>
+            <fieldset class="fset">
+              <legend class="label" style="color:var(--ice)">Subject</legend>
+              <div class="topics" role="radiogroup" aria-label="Subject">
+                <label><input type="radio" name="topic" value="A BUG" checked><span class="key">A bug</span></label>
+                <label><input type="radio" name="topic" value="AN IDEA"><span class="key">An idea</span></label>
+                <label><input type="radio" name="topic" value="TOO HARD OR TOO EASY"><span class="key">Too hard or too easy</span></label>
+                <label><input type="radio" name="topic" value="SOMETHING ELSE"><span class="key">Something else</span></label>
+              </div>
+            </fieldset>
+            <label class="field" for="msg">
+              <span class="label">Message <span class="readout" id="msg-left" aria-hidden="true">600 left</span></span>
+              <textarea id="msg" name="msg" maxlength="600" placeholder="What happened, on which stage, and what you expected instead." required></textarea>
+            </label>
+            <p class="hint">Please do not include your name, your email address or anything private. The message is the whole transmission.</p>
+            <label class="field" for="ctx">
+              <span class="label">Stage and device <span class="readout" aria-hidden="true">OPTIONAL</span></span>
+              <input type="text" id="ctx" name="ctx" maxlength="120" placeholder="Stage 07 · Pixel 8 · Android 14" autocomplete="off">
+            </label>
+            <div class="actions">
+              <button class="key primary" type="submit" id="send" disabled>
+                <svg class="glyph" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 6h9M6.5 2.5L10 6l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                Send
+              </button>
+              <button class="key" type="button" id="copy" disabled>Copy text</button>
+              <span class="status" id="status" role="status" aria-live="polite"></span>
+            </div>
+          </form>
+        </div></div>
+        </div>
+        <div class="lock">
+        <div class="plate preview"><div class="in">
+          <div class="band"><span class="title">As Command reads it</span><span class="readout">PREVIEW</span></div>
+          <div class="body">
+            <pre class="wire" id="wire" aria-live="off"></pre>
+            <div class="ingame">
+              <b>In the game it needs no mail at all.</b> SYSTEM CONFIG → FEEDBACK sends what you type with your anonymous id, the build, the stage you last played, your device model and screen size, and after a crash the error it caught. Nothing else. Use this page when you want a reply, or when the game will not open.
+            </div>
+          </div>
+        </div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ YOUR DATA ============ -->
+    <section class="tx" id="data" aria-labelledby="data-h">
+      <div class="tx-head">
+        <span class="speaker trace">TRACE</span>
+        <h2 id="data-h">Your data</h2>
+        <span class="readout">WHAT IS HELD · HOW TO REMOVE IT</span>
+      </div>
+      <div class="lock">
+      <div class="plate"><div class="in">
+        <div class="band"><span class="title">Two controls, both in the game</span><span class="readout">MY DATA</span></div>
+        <div class="body">
+          <p class="where">Nothing leaves your device unless you post a score or send feedback. What does leave is tied to an anonymous id your device holds, not to a name, an email or an account. Both controls live under <b>MY DATA</b>: on the leaderboard screen, and in SYSTEM CONFIG. Neither asks you to prove who you are.</p>
+          <div class="controls">
+            <div>
+              <h3>Rename my runs</h3>
+              <p>Changes the display name on every entry you hold, on every board, at once. Scores and positions stay. Once a day.</p>
+            </div>
+            <div>
+              <h3>Delete my runs</h3>
+              <p>Removes every entry you hold from every board, the replay traces with them, any feedback you sent, and the anonymous id itself. It cannot be undone.</p>
+            </div>
+          </div>
+          <p class="where">Step by step, with what each control touches: <a href="delete-data.html">Delete your data</a>. If you can no longer use the controls, email <a href="mailto:hello@gb-il.cloud?subject=Delete%20my%20data">hello@gb-il.cloud</a> with the subject <b>Delete my data</b>. The full standing order is below.</p>
+        </div>
+      </div></div>
+      </div>
+    </section>
+
+    <!-- ============ PRIVACY POLICY ============ -->
+    <section class="tx" id="privacy" aria-labelledby="priv-h">
+      <div class="tx-head">
+        <span class="speaker trace">TRACE</span>
+        <h2 id="priv-h">Privacy policy</h2>
+        <span class="readout">STANDING ORDER · LAST UPDATED 1 SEPTEMBER 2026</span>
+      </div>
+      <div class="lock">
+      <div class="plate"><div class="in">
+        <div class="band"><span class="title">Privacy policy</span><span class="readout"><a href="privacy.html" style="color:inherit">STORE COPY ↗</a></span></div>
+        <div class="body policy">
+
+<p>Warp Vanguard is a game. This policy explains the small amount of data it
+handles, why, and how to have it removed. It is written to be read, not to be
+survived.</p>
+
+<h3>The short version</h3>
+<div class="short">
+<ul>
+  <li>There is <strong>no advertising, no analytics, and no tracking</strong> of any kind.</li>
+  <li>Nothing is ever sold, or shared with third parties for marketing.</li>
+  <li>You are <strong>never asked for your name, email address, phone number or location</strong>.</li>
+  <li>The only data that leaves your device is what a leaderboard needs — an anonymous player id, the display name you type, and how a run went — plus any feedback you choose to send us.</li>
+  <li>If you never submit a score and never send feedback, <strong>no data leaves your device at all</strong>.</li>
+</ul>
+</div>
+
+<h3>What is stored on your device</h3>
+<p>Your progress, settings, best scores and preferences are saved locally on
+your device. Uninstalling the game removes them.</p>
+
+<h3>What is sent to our server, and why</h3>
+<p>Warp Vanguard has online leaderboards. When a score is submitted, this is
+sent:</p>
+
+<div class="tablewrap">
+<table>
+  <tr><th>Data</th><th>Why</th></tr>
+  <tr>
+    <td><strong>An anonymous player id</strong></td>
+    <td>Generated automatically by the game. It identifies your rows on a leaderboard so your score can be ranked and updated. It is not linked to your name, your email, your device, or any account you hold anywhere else.</td>
+  </tr>
+  <tr>
+    <td><strong>The display name you choose</strong></td>
+    <td>So other players can see who set a score. You choose it and you can change it. Please do not enter your real name — see below.</td>
+  </tr>
+  <tr>
+    <td><strong>Run results</strong> — score, hits, accuracy, stability, duration, which lane</td>
+    <td>The content of a leaderboard entry.</td>
+  </tr>
+  <tr>
+    <td><strong>A replay trace</strong> of the run's controls</td>
+    <td>Anti-cheat. The server re-plays the run to confirm the score was actually achieved, which is what keeps the boards meaningful. It records control inputs only — nothing about you or your device.</td>
+  </tr>
+</table>
+</div>
+
+<p>We do <strong>not</strong> collect your name, email address, contacts,
+photos, location, advertising identifier, or any device identifier.</p>
+
+<h4>Feedback you send us</h4>
+<p>Under <em>System Config</em> there is a <strong>Feedback</strong> button. It is
+entirely optional. If you use it, what you write is sent to us — nobody else ever
+sees it, and it is never shown in the game or on a leaderboard.</p>
+<div class="tablewrap">
+<table>
+  <tr><th>Data</th><th>Why</th></tr>
+  <tr>
+    <td><strong>What you type</strong>, and which of the four subjects you picked</td>
+    <td>The message itself. There is a 600-character limit. <strong>Please do not
+    include your name, your email address or anything private</strong> — the panel
+    says so before you send. Nothing comes back down this channel; if you want a
+    reply, the panel also shows our contact address, and writing to it is your
+    choice rather than something the game does with your data.</td>
+  </tr>
+  <tr>
+    <td><strong>The version of the game</strong> you are running, and the
+    <strong>stage you last played</strong></td>
+    <td>A bug report is not actionable without them, and neither is something you
+    could reasonably be asked to type.</td>
+  </tr>
+  <tr>
+    <td><strong>Your device model and screen size</strong> — for example
+    “Android 14 Pixel 8” and “844×390” — and, <strong>only if the game has just
+    crashed</strong>, the error message it caught</td>
+    <td>Half of all bugs in this game have been one device family's bug, and a
+    layout bug is one screen shape's bug. The model is a name <strong>millions of
+    devices share</strong>, read once from your browser. It is <em>not</em> a
+    device identifier, nothing is derived from it, and it is never used to
+    recognise you or anyone else. <strong>No advertising ID, device ID or serial
+    is read at any point</strong>, and we do not read your language either.</td>
+  </tr>
+  <tr>
+    <td><strong>Your anonymous player id</strong></td>
+    <td>The same one the leaderboard uses. It is attached so that a limit on how
+    often feedback can be sent can be applied, and so that <em>Delete my runs</em>
+    can find and erase your feedback too.</td>
+  </tr>
+</table>
+</div>
+<p>A message written while you are offline is held on your device and sent the
+next time the game is online. It is discarded unsent if it is more than a week
+old. Nothing else about you is attached, and we do not ask you for a reply
+address, because we have no way to write back to an anonymous id and no wish to
+hold one. If you want an answer, email us — the address is on the panel and at
+the bottom of this page — and then we hold whatever you chose to send us, which
+is entirely up to you.</p>
+
+<h4>Choosing a display name</h4>
+<p>The name you type is shown publicly on leaderboards.
+<strong>Please do not use your real name or any personal information.</strong>
+Names are filtered automatically, and we may remove or reset any name that is
+offensive or impersonates someone.</p>
+<p>Every leaderboard entry carries a <strong>report this</strong> link. Use it if a
+name is offensive, contains someone's real name or personal information, or
+impersonates someone. Reports are reviewed, and a name that draws enough of them
+may be reset automatically. A report never affects anyone's score.</p>
+
+<h3>Why we are allowed to hold it</h3>
+<p>We rely on our <strong>legitimate interest</strong> in running a public,
+competitive leaderboard. A board only works if it is public and if entries stay
+put, and that is what a player is doing when they submit a score. We do not ask
+you to consent to anything, because there is nothing here you would be consenting
+to beyond the leaderboard itself.</p>
+<p>You can object to this at any time, and you do not need a reason. The two
+controls below are how — see <em>Your controls</em>.</p>
+
+<h3>Who processes it</h3>
+<p>Leaderboard data is stored with <strong>Supabase</strong>, our hosting
+provider, acting on our instructions under a data processing agreement. It is
+transmitted over an encrypted connection (HTTPS).</p>
+<p>Like any web service, Supabase records technical request logs that include
+<strong>IP addresses</strong>, for security and abuse prevention. We do not use
+those logs to build any profile of you, they are not joined to your leaderboard
+entries, and they age out on the provider's own schedule.</p>
+
+<h3>How long it is kept</h3>
+<p>Leaderboard entries are kept <strong>indefinitely</strong> — that is the point
+of a leaderboard, and weekly boards are deliberately frozen when their week
+closes so results stand as a permanent record. There is no automatic expiry. What
+there is instead is a way for you to remove your own entries whenever you like.</p>
+<p><strong>Feedback is different.</strong> A message is kept until we have dealt
+with it, then for 90 days, and nothing is kept beyond 12 months. You can also
+delete yours at any time with the control below.</p>
+
+<h3>Your controls</h3>
+<p>Both of these live in the game, under <strong>MY DATA</strong> — on the
+leaderboard screen, and in <em>System Config</em>. Neither asks you to prove who
+you are, because your device already holds the only identity involved.</p>
+
+<div class="tablewrap">
+<table>
+  <tr><th>Control</th><th>What it does</th></tr>
+  <tr>
+    <td><strong>Rename my runs</strong></td>
+    <td>Changes the display name on every entry you hold, on every board, at
+    once. Your scores and their positions are untouched. If you want your chosen
+    name off the public boards, this is usually the control you want.</td>
+  </tr>
+  <tr>
+    <td><strong>Delete my runs</strong></td>
+    <td>Removes every entry you hold from every board, deletes the replay traces
+    that went with them, deletes any feedback you have sent us, and deletes the
+    anonymous id itself. It cannot be undone.</td>
+  </tr>
+</table>
+</div>
+
+<p>Two limits on renaming, so you know why it might refuse. It is
+<strong>once a day</strong> — the first change is always immediate, and only a
+second change within the same day has to wait. And a name that has been
+<strong>reset by moderation</strong> stays reset; renaming skips those entries.
+Deleting them is never blocked.</p>
+
+<p>Deleting your leaderboard data does not affect your local progress or your
+personal bests — those never left your device. Deleting the app does not delete
+leaderboard entries, so if you want them gone, use the control before you
+uninstall.</p>
+
+<h4>If you can no longer use the controls</h4>
+<p>Email <a href="mailto:hello@gb-il.cloud">hello@gb-il.cloud</a> with
+the subject <strong>“Delete my data”</strong>. Please be aware of a real limit:
+entries are not linked to any name, email or account we can look you up by, so
+without the id held on your device <strong>we may not be able to identify which
+entries are yours</strong>. A display name is not proof — anyone can read one off
+a public board. Where we can act, we will, and we aim to respond within 30
+days.</p>
+<p>We will always act on a report that an entry contains someone's real name or
+other personal information, or that a name is offensive or impersonates someone
+— those we remove or reset without needing to establish who is asking.</p>
+
+<h3>Children</h3>
+<p>Warp Vanguard is not directed at children under 13, and we do not knowingly
+collect data from them. There are two free-text fields in the game — the display
+name, and the optional feedback message — and both are labelled asking you not to
+put personal information in them. If you believe a child has entered personal
+information in either, contact us and we will remove it.</p>
+
+<h3>Changes</h3>
+<p>If this policy changes materially, the updated version will be published here
+and the date at the top will change.</p>
+
+<h3>Contact</h3>
+<p><a href="mailto:hello@gb-il.cloud">hello@gb-il.cloud</a></p>
+
+        </div>
+      </div></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <img src="img/gb-il.png" width="2000" height="1132" alt="GB-IL">
+    <div>
+      <div>Warp Vanguard is made by GB-IL. Write to <a href="mailto:hello@gb-il.cloud">hello@gb-il.cloud</a>.</div>
+      <nav aria-label="More pages">
+        <a href="privacy.html">Privacy policy</a>
+        <a href="delete-data.html">Delete your data</a>
+        <a href="testers.html">Tester guide</a>
+      </nav>
+    </div>
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var EMAIL = 'hello@gb-il.cloud', MAX = 600;
+  var form = document.getElementById('fb'), msg = document.getElementById('msg'), ctx = document.getElementById('ctx');
+  var send = document.getElementById('send'), copy = document.getElementById('copy'), status = document.getElementById('status');
+  var wire = document.getElementById('wire'), count = document.getElementById('tx-count'), left = document.getElementById('msg-left');
+
+  function topic() { var r = form.querySelector('input[name=topic]:checked'); return r ? r.value : 'SOMETHING ELSE'; }
+  function subject() { return '[' + topic() + '] Warp Vanguard'; }
+  function bodyText() {
+    var t = msg.value.trim(), c = ctx.value.trim();
+    return t + (c ? '\n\n' + c : '') + '\n\n— sent from the support page';
+  }
+  function esc(s) { return s.replace(/[&<>]/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]; }); }
+  function render() {
+    var t = msg.value, n = t.length, c = ctx.value.trim();
+    count.textContent = n + ' / ' + MAX;
+    left.textContent = (MAX - n) + ' left';
+    left.classList.toggle('hot', MAX - n <= 40);
+    var ready = t.trim().length > 0;
+    send.disabled = !ready; copy.disabled = !ready;
+    wire.innerHTML =
+      '<span class="k">TO      </span>' + EMAIL + '\n' +
+      '<span class="k">SUBJECT </span>' + esc(subject()) + '\n' +
+      '<span class="k">CONTEXT </span>' + (c ? esc(c) : '<span class="e">none given</span>') + '\n\n' +
+      (ready ? esc(t.trim()) : '<span class="e">Your message appears here as you type it.</span>');
+    status.textContent = ''; status.className = 'status';
+  }
+  form.addEventListener('input', render);
+  form.addEventListener('change', render);
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (send.disabled) { msg.focus(); return; }
+    var href = 'mailto:' + EMAIL + '?subject=' + encodeURIComponent(subject()) + '&body=' + encodeURIComponent(bodyText());
+    window.location.href = href;
+    status.textContent = 'Your mail app should open with the transmission filled in. If nothing opened, copy the text and mail it to ' + EMAIL + '.';
+    status.className = 'status ok';
+  });
+  copy.addEventListener('click', function () {
+    var text = 'To: ' + EMAIL + '\nSubject: ' + subject() + '\n\n' + bodyText();
+    var done = function () { status.textContent = 'Copied. Paste it into a mail to ' + EMAIL + '.'; status.className = 'status ok'; };
+    var fail = function () { status.textContent = 'Copy failed. Select the text on the right and copy it by hand.'; status.className = 'status err'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fail); else fail();
+  });
+  render();
+
+  // the channel opens: the first line types itself in, as a briefing disc does
+  var typed = document.getElementById('typed');
+  if (typed) {
+    var text = typed.getAttribute('data-text'), cursor = typed.querySelector('.cursor');
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { typed.textContent = text; }
+    else {
+      var i = 0, node = document.createTextNode(''); typed.insertBefore(node, cursor);
+      var tick = function () {
+        i++; node.data = text.slice(0, i);
+        if (i < text.length) setTimeout(tick, 1000 / 46);
+        else setTimeout(function () { cursor.remove(); }, 1400);
+      };
+      setTimeout(tick, 650);
+    }
+  }
+})();
+</script>
+</body>
+</html>
