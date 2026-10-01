@@ -419,6 +419,7 @@ let discBackRect = null; // H-07: the pre-warp disc's BACK arrow (top-right), bo
 let pausedFromInfo = false;
 let menuSettings = false, menuGearRect = null, menuSetButtons = [], menuSetPanel = null, menuFsRect = null, menuMutRects = [], menuBackRect = null;
 let menuGuideRect = null; // the home screen's ? key — opens the field guide
+let menuUpdateRect = null; // the home screen's GAME UPDATE AVAILABLE key, top-left — opens the store (31-leaderboard.js, 2026-10-01)
 let guide = null; // FIELD GUIDE (S.GUIDE): open-page state (from + in/out clocks)
 // 80s arcade name entry — the ONLY handle surface. There is no operator/account
 // panel: the handle is asked for exactly when it's earned, on the END screen when

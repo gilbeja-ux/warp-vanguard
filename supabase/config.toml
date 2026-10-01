@@ -433,3 +433,12 @@ verify_jwt = true
 # file_feedback would then guard nothing — one script could fill the queue.
 [functions.send-feedback]
 verify_jwt = true
+
+# sim-ids answers "which board ids does the live verifier carry?" so the game can
+# mark a stale stage BEFORE it is flown (the update mark, 2026-10-01). It takes no
+# identity and writes nothing: the answer is a map of hashes of shipped code, the
+# same one submit-run refuses stale clients with. The gate stays OFF because the
+# publishable key is not a JWT, and minting an anonymous session at every boot
+# just to read it would create a user for players who never post a score.
+[functions.sim-ids]
+verify_jwt = false

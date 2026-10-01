@@ -39,7 +39,17 @@ const KEY = 'sb_publishable_B3MngfknmPrLc-uo0ho11A_Jnmphekl';
     why = 'could not reach the function: ' + e.message;
   }
 
-  process.stdout.write(`server sim id: ${deployed || '(none)'}\n\n`);
+  process.stdout.write(`server sim id: ${deployed || '(none)'}\n`);
+  // sim-ids is the client's boot read (the update mark, 2026-10-01). It is built
+  // from the same ids as the verifier and deployed in the same breath, so a gap
+  // here means one function moved without the other.
+  try {
+    const r2 = await fetch(BASE + '/functions/v1/sim-ids', { headers: { apikey: KEY } });
+    const b2 = await r2.json().catch(() => ({}));
+    process.stdout.write(`sim-ids   id: ${b2.simId || '(none)'}  (${b2.boards ? Object.keys(b2.boards).length : 0} boards)\n`);
+    if (deployed && b2.simId && b2.simId !== deployed) process.stdout.write('  ! sim-ids disagrees with the verifier — run npm run deploy:verifier again\n');
+  } catch (e) { process.stdout.write('sim-ids   id: unreachable (' + e.message + ')\n'); }
+  process.stdout.write('\n');
 
   if (deployed && deployed === local) {
     process.stdout.write('IN SYNC — submitted scores will verify.\n');

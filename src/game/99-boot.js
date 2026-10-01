@@ -1769,6 +1769,10 @@ setTimeout(() => { try { flushFeedback(); } catch (e) {} }, 4000);
 // it is async and answered off the critical path; a note sent before it lands
 // falls back to the coarse family the user agent still admits to.
 try { fbDeviceInit(); } catch (e) {}
+// …and ask the live verifier which board ids it carries, so a stage this build
+// would be refused on is marked BEFORE it is flown (lbStaleInit, 31-leaderboard.js).
+// Fails open: no answer, no mark. Off the critical path like the two above.
+try { lbStaleInit(); } catch (e) {}
 // boot: the splash decodes its score and tries to run it right away — the
 // Capacitor app WebView allows it; desktop browsers that block autoplay let
 // the first tap unlock it mid-sequence. Contexts without the splash (headless

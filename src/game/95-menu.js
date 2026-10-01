@@ -399,6 +399,11 @@ function drawMenuMap() {
     else ctx.strokeStyle = locked ? 'rgba(120,180,255,0.25)' : isBoss ? 'rgba(212,101,255,0.85)' : 'rgba(111,227,255,0.85)';
     ctx.lineWidth = isFrontier || selP ? 2 : 1.5;
     mapHex(mx2, py3, r); ctx.stroke();
+    // the update mark: a dashed ring outside the plate, the number untouched (Gil, 2026-10-01)
+    if (!locked && lbStaleBoard(CAMP.id, i)) {
+      ctx.save(); ctx.strokeStyle = UPDATE_MARK_COL; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+      mapHex(mx2, py3, r + 4); ctx.stroke(); ctx.restore();
+    }
     ctx.strokeStyle = locked ? 'rgba(120,180,255,0.20)' : 'rgba(111,227,255,0.45)';
     ctx.lineWidth = 1;
     // the leader stops at the circle's rim — real or phantom, nothing crosses it
@@ -556,12 +561,16 @@ function drawMapList(ccx, ccy, R, frontier) {
     const nm = lvNum(curLevelNo(i)) + '  ' + levelTitle(i);
     // Driven by the camera's position along the lane, not by a clock of its own.
     // The dwell at each destination comes free: the ride already holds there.
-    const padR = locked ? 34 : 18;
+    // the update mark's dot sits where a sealed row's padlock does, and the title
+    // yields the same room to it (Gil, 2026-10-01)
+    const stale = !locked && lbStaleBoard(CAMP.id, i);
+    const padR = locked ? 34 : stale ? 28 : 18;
     ctx.font = '700 11px Audiowide, system-ui';
     ctx.textBaseline = 'middle';
     drawMarquee('relay' + i, nm, rx + 10, ly2 + rh / 2 + 1, lw2 - padR - 4, sel ? mapRideK : null);
     ctx.textBaseline = 'alphabetic';
     if (locked) padlock(rx + lw2 - 14, ly2 + rh / 2, 5);
+    else if (stale) { ctx.fillStyle = UPDATE_MARK_COL; ctx.beginPath(); ctx.arc(rx + lw2 - 11, ly2 + rh / 2, 3, 0, TAU); ctx.fill(); }
     ctx.restore();
     menuButtons.push({ x: rx, y: ly2, w: lw2, h: rh, node: i, locked });
     if (i === rows - 1) { mapLastRowY = ly2; mapLastRowH = rh; } // the reset key aligns to this
@@ -583,6 +592,19 @@ function drawMapCard(li, frontier, ccx, ccy, R) {
   ctx.fillStyle = locked ? 'rgba(220,240,255,0.5)' : 'rgba(140,200,255,0.6)';
   ctx.font = '700 9px Audiowide, system-ui';
   ctx.fillText('STAGE ' + lvNum(curLevelNo(li)), px2 + 14, py2 + 20);
+  // THE UPDATE MARK (Gil, 2026-10-01): one tag on the STAGE row, right-aligned, in
+  // the failed-post orange. DEPLOY stays live — the stage still plays; only the
+  // score post is lost, and the tag says exactly that. The row is shared with the
+  // STAGE label, so the tag shrinks until both fit (a 16:9 phone gives this card
+  // 200px) rather than overprinting it.
+  if (!locked && lbStaleBoard(CAMP.id, li)) {
+    const room = pw - 28 - ctx.measureText('STAGE ' + lvNum(curLevelNo(li))).width - 10;
+    let px = 9; ctx.font = '700 ' + px + 'px Audiowide, system-ui';
+    while (px > 6 && ctx.measureText(UPDATE_MARK_TXT).width > room) { px--; ctx.font = '700 ' + px + 'px Audiowide, system-ui'; }
+    ctx.save(); ctx.textAlign = 'right'; ctx.fillStyle = UPDATE_MARK_COL;
+    ctx.fillText(UPDATE_MARK_TXT, px2 + pw - 14, py2 + 20);
+    ctx.restore(); ctx.textAlign = 'left';
+  }
   if (locked) {
     ctx.fillStyle = 'rgba(220,240,255,0.55)'; ctx.font = '700 12px Audiowide, system-ui';
     ctx.fillText('SEALED', px2 + 14, py2 + 44);
