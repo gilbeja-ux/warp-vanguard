@@ -756,6 +756,9 @@ and the date at the top will change.</p>
     var HALO = [[0, 1], [0.10, 0.62], [0.24, 0.30], [0.44, 0.11], [0.70, 0.028], [1, 0]];
     var CLASS = [[0.18, [0, 0], [0, 0]], [0.36, [0.30, 0.55], [0.9, 2.6]], [0.32, [0.60, 1.00], [1.3, 4.4]], [0.14, [1.05, 1.55], [0.6, 2.2]]];
     var REST = 0.62, BLOOM_R = 13, BLOOM_A = 0.30, STARS = 3700;
+    var LIVE_SHARE = 0.16;  // of the faint field held out to twinkle (the game: 0.34 — too many at once on a page)
+    var GATE_T = 0.72;      // the gate opens above this; higher = rarer bursts (the game: 0.42)
+    var PARALLAX = 0.045, PARALLAX_BIG = 0.075, PARALLAX_MAX = 420; // px of sky per px of scroll, far and bright, and the baked overdraw
     var rand = function (a, b) { return a + Math.random() * (b - a); };
     var clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
     var gauss = function () { return (Math.random() + Math.random() + Math.random() - 1.5) / 1.5; };
@@ -776,12 +779,13 @@ and the date at the top will change.</p>
       return (halos[ci] = c);
     }
     function bake() {
-      sheet = document.createElement('canvas'); sheet.width = Math.round(W * DPR); sheet.height = Math.round(H * DPR);
+      sheet = document.createElement('canvas'); sheet.width = Math.round(W * DPR); sheet.height = Math.round((H + PARALLAX_MAX) * DPR);
       var b = sheet.getContext('2d'); if (!b) { sheet = null; return; }
       b.setTransform(DPR, 0, 0, DPR, 0, 0);
-      b.fillStyle = '#020510'; b.fillRect(0, 0, W, H);
+      var HB = H + PARALLAX_MAX;   // the baked height
+      b.fillStyle = '#020510'; b.fillRect(0, 0, W, HB);
       var m = Math.min(W, H), bandW = m * 0.34, sw = W;
-      var spine = function (t) { return H * 0.52 - H * 0.26 * Math.sin(TAU * t / sw + 0.9); };
+      var spine = function (t) { return HB * 0.52 - HB * 0.26 * Math.sin(TAU * t / sw + 0.9); };
       var wander = function (t) { return Math.sin(TAU * 3 * t / sw + 1.7) * bandW * 0.24 + Math.sin(TAU * 7 * t / sw + 0.6) * bandW * 0.12; };
       var blob = function (x, y, br, col, al, mid) {
         var gr = b.createRadialGradient(x, y, 0, x, y, br);
@@ -807,7 +811,7 @@ and the date at the top will change.</p>
         var c = clouds[i], cr = m * c[2];
         for (var k = 0; k < c[4]; k++) {
           var ang = Math.random() * TAU, rad = cr * (Math.random() + Math.random()) * 0.5;
-          blob(sw * c[0] + Math.cos(ang) * rad, H * c[1] + Math.sin(ang) * rad * 0.78, cr * rand(0.18, 0.46), c[3], 0.008 + Math.random() * 0.020, false);
+          blob(sw * c[0] + Math.cos(ang) * rad, HB * c[1] + Math.sin(ang) * rad * 0.78, cr * rand(0.18, 0.46), c[3], 0.008 + Math.random() * 0.020, false);
         }
       }
       // the dark dust lane along the plane
@@ -819,17 +823,17 @@ and the date at the top will change.</p>
       }
       // the stars: baked unless held out to go live
       live = [];
-      var n = Math.round(STARS * Math.min(1.6, Math.max(0.5, (W * H) / (1440 * 900))));
+      var n = Math.round(STARS * Math.min(1.6, Math.max(0.5, (W * H) / (1440 * 900))) * (HB / H));
       for (i = 0; i < n; i++) {
         var x, y;
         if (Math.random() < 0.62) { t = Math.random() * sw; x = t; y = spine(t) + wander(t) + gauss() * bandW * 1.25; }
-        else { x = Math.random() * sw; y = Math.random() * H; }
-        if (y < -2 || y > H + 2) continue;
+        else { x = Math.random() * sw; y = Math.random() * HB; }
+        if (y < -2 || y > HB + 2) continue;
         var big = Math.random() < 0.035;
         al = (big ? 0.45 + Math.random() * 0.45 : 0.06 + Math.random() * 0.34) * REST;
         var ci = colI(), bk = big ? 0.55 + 0.55 * clamp((al / REST - 0.45) / 0.45, 0, 1) : 1;
         var r = big ? rand(1.0, 1.8) : rand(0.3, 0.85);
-        if (!reduce && (big || Math.random() < 0.34)) {
+        if (!reduce && (big || Math.random() < LIVE_SHARE)) {
           var cl = starClass(); cl.x = x; cl.y = y; cl.ci = ci; cl.al = al; cl.big = big; cl.bk = bk; cl.r = r;
           if (big) cl.amp *= 0.55;
           live.push(cl); continue;
@@ -843,16 +847,19 @@ and the date at the top will change.</p>
     function draw(now) {
       var t = (now - t0) / 1000;
       g.clearRect(0, 0, W, H);
-      if (sheet) g.drawImage(sheet, 0, 0, W, H);
+      var sy = reduce ? 0 : Math.min(PARALLAX_MAX, (window.scrollY || 0) * PARALLAX);
+      var sb = reduce ? 0 : Math.min(PARALLAX_MAX, (window.scrollY || 0) * PARALLAX_BIG);
+      if (sheet) g.drawImage(sheet, 0, -sy, W, H + PARALLAX_MAX);
       for (var i = 0; i < live.length; i++) {
-        var st = live[i], a = st.al;
+        var st = live[i], a = st.al, oy = st.big ? sb : sy;
+        if (st.y - oy < -20 || st.y - oy > H + 20) continue;
         // the gate: two slow waves multiplied, open only where both are high
         var gate = Math.sin(t * st.g1 + st.gp1) * Math.sin(t * st.g2 + st.gp2);
-        if (gate > 0.42) a = clamp(a * (1 + st.amp * Math.sin(t * st.r1 * 5 + st.p1)), 0.02, 1);
-        if (st.big) { var br = BLOOM_R * st.bk * (0.8 + 0.4 * a / st.al); g.globalAlpha = a * BLOOM_A; g.drawImage(halo(st.ci), st.x - br, st.y - br, br * 2, br * 2); g.globalAlpha = 1; }
+        if (gate > GATE_T) a = clamp(a * (1 + st.amp * Math.sin(t * st.r1 * 5 + st.p1)), 0.02, 1);
+        if (st.big) { var br = BLOOM_R * st.bk * (0.8 + 0.4 * a / st.al); g.globalAlpha = a * BLOOM_A; g.drawImage(halo(st.ci), st.x - br, st.y - oy - br, br * 2, br * 2); g.globalAlpha = 1; }
         g.fillStyle = 'rgba(' + COLS[st.ci] + ',' + a.toFixed(3) + ')';
-        if (st.big) { g.beginPath(); g.arc(st.x, st.y, st.r, 0, TAU); g.fill(); }
-        else g.fillRect(st.x - st.r, st.y - st.r, st.r * 2, st.r * 2);
+        if (st.big) { g.beginPath(); g.arc(st.x, st.y - oy, st.r, 0, TAU); g.fill(); }
+        else g.fillRect(st.x - st.r, st.y - oy - st.r, st.r * 2, st.r * 2);
       }
     }
     function size() {
@@ -865,6 +872,7 @@ and the date at the top will change.</p>
     t0 = performance.now(); size();
     var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(size, 150); });
     if (!reduce) {
+      window.addEventListener('scroll', function () { acc = 0; }, { passive: true }); // a scroll draws on the next frame, not the next tick
       raf = requestAnimationFrame(loop);
       document.addEventListener('visibilitychange', function () { if (document.hidden) cancelAnimationFrame(raf); else raf = requestAnimationFrame(loop); });
     }
