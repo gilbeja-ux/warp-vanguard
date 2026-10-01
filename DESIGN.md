@@ -17,6 +17,8 @@ colors:
   readout-ice: "#cfeeff"
   body-ice: "#bee1ff"
   strike-ice: "#bfeaff"
+  key-disabled: "rgba(14, 28, 46, 0.9)"
+  secure-green-lift: "#95ec7c"
 typography:
   display:
     fontFamily: "Audiowide, Segoe UI, system-ui, sans-serif"
@@ -60,6 +62,30 @@ typography:
     fontWeight: 400
     lineHeight: 1.3
     letterSpacing: "0.5px"
+  web-display:
+    fontFamily: "Audiowide, Segoe UI, system-ui, sans-serif"
+    fontSize: "clamp(28px, 4.6vw, 46px)"
+    fontWeight: 400
+    lineHeight: 1.1
+    letterSpacing: "1px"
+  web-question:
+    fontFamily: "Audiowide, Segoe UI, system-ui, sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: 1.4
+    letterSpacing: "0.5px"
+  web-tag:
+    fontFamily: "Audiowide, Segoe UI, system-ui, sans-serif"
+    fontSize: "11px"
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: "3px"
+  web-body:
+    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "16px"
+    fontWeight: 400
+    lineHeight: 1.6
+    letterSpacing: "normal"
 rounded:
   cut-sm: "8px"
   cut-md: "12px"
@@ -87,6 +113,18 @@ components:
   button-key-pressed:
     backgroundColor: "#1d3d61"
     textColor: "{colors.readout-ice}"
+  button-key-disabled:
+    backgroundColor: "{colors.key-disabled}"
+    textColor: "rgba(223, 242, 255, 0.38)"
+  button-key-primary:
+    backgroundColor: "{colors.secure-green}"
+    textColor: "{colors.hull-black}"
+    typography: "{typography.label}"
+    rounded: "{rounded.cut-sm}"
+    height: "38px"
+  button-key-primary-hover:
+    backgroundColor: "{colors.secure-green-lift}"
+    textColor: "{colors.hull-black}"
   button-destructive:
     backgroundColor: "#781a1a"
     textColor: "#ffd9d9"
@@ -189,6 +227,19 @@ Audiowide ships at weight 400 only; the heavier weights below are canvas-synthes
 - **Label** (700, 12px, 3px tracking): Actions, `TAP TO CONTINUE`, mode names, stamped callouts.
 - **Caption** (500, 9px): Sub-captions under mode keys, pad states like `OFFLINE`.
 - **Readout** (monospace, 10px): Live telemetry — `RANGE 0xx.x M`, boot status lines, hex garnish.
+
+### The web ramp (2026-10-01)
+The GitHub Pages documents (`docs/index.html`, the policy and the tester guide) are the
+one place the brand is read as a page rather than inside a circle, so they carry a
+second, documented ramp beside the canvas one: **web-display** (`clamp(28px, 4.6vw,
+46px)`, the page headline), **web-question** (14px Audiowide, a question head or a
+small title), **web-tag** (11px Audiowide at 3px tracking, a speaker tag or a column
+head) and **web-body** (16px system face at 1.6, reading copy — Audiowide is a display
+face and the policy is two thousand words). Labels, titles and readouts on a page use
+the canvas roles unchanged. A page also has states the canvas never shows: a key can be
+**disabled** (the fill drops to `rgba(14,28,46,0.9)`, the type to 38%) and a **primary**
+key is Secure Green on Hull Black, lifting to `#95ec7c` under a pointer. Both are
+recorded as components above. Settled with Gil, 2026-10-01.
 
 ### Named Rules
 

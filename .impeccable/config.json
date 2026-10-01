@@ -25,6 +25,15 @@
         "value": "3px",
         "createdAt": "2026-10-01T18:21:44.242Z",
         "reason": "Gil confirmed 2026-10-01: inline code on the support page"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "docs/index.html"
+        ],
+        "createdAt": "2026-10-01T18:26:11.376Z",
+        "reason": "Gil confirmed 2026-10-01: the focus glow on a field is the console panel's own cyan bloom (DESIGN.md, Glow Vocabulary)"
       }
     ]
   }
