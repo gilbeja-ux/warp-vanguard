@@ -160,7 +160,7 @@ and then be silent on the phone.
 
 ## The workflow
 
-1. Run `npm run lab:sound` and open http://localhost:8012/.
+1. Run `npm run lab:sound` and open http://localhost:8014/.
 2. Press **START AUDIO** once. The page needs a gesture before it can sound.
 3. For each cue: press **SYNTH** (or **CURRENT**, on a row that is already a take)
    to hear what ships today.

@@ -389,7 +389,7 @@ second deletion path, and a mailbox Gil must answer. It is a version 2 decision.
 
 ### 3.8 Where Gil reads it
 
-The admin console at `npm run admin`, port 8014. It already holds the service key
+The admin console at `npm run admin`, port 8200. It already holds the service key
 in the Node process and never puts it in the browser
 ([admin.js:59](scripts/admin.js#L59)).
 

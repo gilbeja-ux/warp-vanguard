@@ -4689,7 +4689,7 @@ async function runMusicUp() {
 
       // THE ADMIN CONSOLE HOLDS THE SERVICE KEY (H-26). Binding to 127.0.0.1 keeps
       // it off the LAN but not out of the browser: any open tab can POST to
-      // localhost:8014, and /api/act deletes rows. The token gate is what stops
+      // localhost:8200, and /api/act deletes rows. The token gate is what stops
       // that, so the harness asserts the gate is still in front of BOTH API routes
       // — a refactor that moves a route above the guard would otherwise be silent.
       {
@@ -6679,7 +6679,7 @@ async function runMusicUp() {
   check('smoke: a Chrome profile dies with its process, and the next viewport waits for the last Chrome to be gone',
     /proc\.on\('exit', \(\) => \{ try \{ fs\.rmSync\(profile/.test(lib) && /function killChrome\(proc/.test(lib) && /await killChrome\(chrome\)/.test(sm));
   check('smoke: it never sits on a lab port, takes a free one, and proves the server is its own checkout',
-    /\[8000, 8010, 8011, 8012\]\.includes\(PORT\)/.test(sm) && /await inUse\(PORT\)/.test(sm) && /got\.equals\(mine\)/.test(sm));
+    /TOOL_PORTS\.includes\(PORT\)/.test(sm) && /await inUse\(PORT\)/.test(sm) && /got\.equals\(mine\)/.test(sm));
   check('smoke: the leaderboard host is blocked so a run mints no identity on the live project', /Network\.setBlockedURLs/.test(sm) && /\*supabase\.co\*/.test(sm));
   check('smoke: it fails on an exception, a console.error or a same-origin failure',
     /Runtime\.exceptionThrown/.test(sm) && /Runtime\.consoleAPICalled/.test(sm) && /Network\.loadingFailed/.test(sm) && /ledger\.exceptions\.length \+ ledger\.consoleErrors\.length \+ ledger\.failedSameOrigin\.length/.test(sm));
@@ -6739,4 +6739,83 @@ async function runMusicUp() {
   const ea = fs.readFileSync(path.join(ROOT, 'src', 'game', '85-enemy-art.js'), 'utf8');
   check('the pad\'s band is measured off the pad: drawDials and the orb corona both use padGauge()',
     /const bz = padGauge\(\)/.test(ea) && /const bz2 = padGauge\(\)/.test(ea) && /const padGauge = \(\) => isLandscape\(\) \? dialSeat\(\)\.r \* \(0\.055 \/ 0\.21\)/.test(inp));
+}
+
+// ================= THE PORT MAP: one port per web interface (Gil, 2026-09-27) =================
+// Three tools were found sharing ports: the soundboard sat on the tuning board's 8012,
+// the breach lab on the disc lab's 8013, the leech lab on the admin console's 8014.
+// The map in CLAUDE.md is the whole list now; every place that names a port is pinned
+// to it, so a port moves everywhere or the build fails.
+{
+  const rd = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const MAP = [
+    ['serve.js', 8000, 'npm run dev'], ['lab.js', 8010, 'npm run lab'], ['dest-lab.js', 8011, 'npm run lab:dest'],
+    ['tuning-board.js', 8012, 'npm run lab:tune'], ['disc-lab.js', 8013, 'npm run lab:disc'], ['soundboard.js', 8014, 'npm run lab:sound'],
+    ['breach-lab.js', 8015, 'npm run lab:breach'], ['leech-lab.js', 8016, 'npm run lab:leech'],
+    ['portal.js', 8100, 'npm run portal'], ['admin.js', 8200, 'npm run admin'],
+  ];
+  const ports = MAP.map(m => m[1]);
+  check('ports: no two interfaces share a port', new Set(ports).size === ports.length);
+  for (const [f, p] of MAP)
+    check('ports: scripts/' + f + ' binds ' + p + ' and nothing else',
+      new RegExp('const port = process\\.env\\.PORT \\|\\| ' + p + ';').test(rd('scripts/' + f)));
+  const portal = rd('scripts/portal.js');
+  for (const [f, p, cmd] of MAP) if (p !== 8100)
+    check('ports: the portal lists ' + p + ' (' + cmd + ')', new RegExp("port: " + p + ",[^\\n]*cmd: '" + cmd + "'").test(portal));
+  check('ports: the portal asks the admin console on 8200', /127\.0\.0\.1:8200\/api\/data/.test(portal) && /s\.port === 8200/.test(portal));
+  const sm = rd('scripts/smoke.js');
+  const guard = (/const TOOL_PORTS = \[([^\]]*)\]/.exec(sm) || [, ''])[1].split(',').map(Number);
+  check('ports: the smoke suite refuses every mapped port and keeps 8020 for itself',
+    ports.every(p => guard.includes(p)) && !guard.includes(8020) && /'8020'/.test(sm));
+  for (const doc of ['CLAUDE.md', 'README.md', '.claude/skills/dev-servers/SKILL.md']) {
+    const d = rd(doc);
+    check('ports: ' + doc + ' carries the whole map', MAP.every(([, p, cmd]) => new RegExp('\\| ' + p + ' \\| `' + cmd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '`').test(d)) && /\| 8020 \| `npm run test:smoke`/.test(d));
+  }
+  check('ports: CLAUDE.md states the law', /## THE PORT MAP: one port per web interface/.test(rd('CLAUDE.md')));
+  // no stray port in a tool's comments: a script that names another tool's old port misleads
+  for (const [f, p] of MAP) {
+    const others = (rd('scripts/' + f).match(/localhost:80\d\d|127\.0\.0\.1:80\d\d/g) || []).map(x => +x.slice(-4)).filter(x => x !== p);
+    const known = new Set(ports);
+    check('ports: scripts/' + f + ' names no port that is not on the map', others.every(x => known.has(x)));
+  }
+}
+
+// ================= NEW CONTENT IS APPEND-ONLY: a level added at the end moves no board =================
+// Gil, 2026-09-27: more levels must never break the verifier or the stored replays. A
+// board is keyed campId:levelIdx and its traffic is seeded from levelIdx alone, and the
+// sim never reads LEVELS.length — so a level APPENDED to a contract, or a new contract,
+// leaves every existing board's traffic byte-identical. A level INSERTED shifts every
+// later index, and the same key then names a different lane. Both facts are played here,
+// with the fingerprint battery's own driver, so a change that couples a lane to the
+// contract's length (a "last level is the boss" rule, say) fails the build.
+{
+  const sig = (pkg, li, steps) => {
+    check('append-only: the package installs', G.installCampaign(pkg) !== false);
+    G.startLevel(li); G.setPadHold(true, true);
+    const seen = new Set(), out = [];
+    for (let i = 0; i < steps && G.getState() === G.S.PLAY; i++) {
+      G.nodes[0].angle = Math.sin(i * 0.017) * Math.PI; G.nodes[0].slew = null;
+      G.nodes[1].angle = Math.sin(i * 0.011 + 1.7) * Math.PI; G.nodes[1].slew = null;
+      G.simStep();
+      for (const e of G.enemies()) if (!seen.has(e)) { seen.add(e); out.push(e.type + '@' + Number(e.angle).toFixed(5)); }
+    }
+    return out.join(',');
+  };
+  const base = G.CAMPAIGNS[0];
+  const clone = () => JSON.parse(JSON.stringify(base));
+  const appended = clone(); appended.levels.push(JSON.parse(JSON.stringify(base.levels[0])));
+  const inserted = clone(); inserted.levels.splice(0, 0, JSON.parse(JSON.stringify(base.levels[0])));
+  const last = base.levels.length - 1;
+  for (const li of [2, last]) {
+    const before = sig(base, li, 900);
+    check('append-only: stage ' + G.lvNum(li + 1) + ' records traffic', before.split(',').length > 5);
+    check('append-only: a level appended to the contract leaves stage ' + G.lvNum(li + 1) + ' byte-identical', sig(appended, li, 900) === before);
+    check('append-only: stage ' + G.lvNum(li + 1) + ' keeps its lane when a whole extra level follows the boss', sig(appended, li, 900) === before);
+    check('append-only: a level INSERTED re-keys stage ' + G.lvNum(li + 1) + ' — the trap the law names', sig(inserted, li + 1, 900) !== before);
+  }
+  check('append-only: the boss lane is boss: true, not "the last level"', !!base.levels[last].boss && !/LEVELS\.length/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '72-tick.js'), 'utf8')));
+  check('append-only: the sim seeds a lane from its index, not from the contract\'s length',
+    /beatStream = \(li, bi\) => mulberry32\(\(0xBEA75 \^ \(li \* 7919 \+ bi \* 104729\)\)/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '50-enemies.js'), 'utf8')));
+  check('append-only: CLAUDE.md carries the rule', /## Adding content: append, never insert/.test(fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8')));
+  G.installCampaign(G.CAMPAIGNS[0]); // hand the harness back the real contract
 }

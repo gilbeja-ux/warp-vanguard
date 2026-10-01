@@ -1,7 +1,7 @@
 'use strict';
 // THE BREACH LAB
 //
-//   npm run lab:breach   →   http://localhost:8013
+//   npm run lab:breach   →   http://localhost:8015
 //
 // The enemy bodies, rebuilt as geometry. This is not a mock-up: the page lifts
 // the game's own DEST-S3D region — the renderer, the materials and the three
@@ -18,7 +18,7 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const labDir = path.join(root, 'docs', 'breach-lab');
 const fontDir = path.join(root, 'src', 'fonts');
-const port = 8013;
+const port = process.env.PORT || 8015;
 const shotDir = path.join(labDir, 'shots');
 
 const TYPES = {

@@ -2,7 +2,7 @@
 'use strict';
 // THE LEECH LAB
 //
-//   npm run lab:leech   →   http://localhost:8014
+//   npm run lab:leech   →   http://localhost:8016
 //
 // The five boss machines, held still in the bore so they can be LOOKED AT.
 // This is not a mock-up and not a diorama: the lab serves the real src/ tree,
@@ -23,7 +23,7 @@ const path = require('path');
 
 const root = path.join(__dirname, '..', 'src');
 const labDir = path.join(__dirname, '..', 'docs', 'leech-lab');
-const port = process.env.PORT || 8014;
+const port = process.env.PORT || 8016;
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',

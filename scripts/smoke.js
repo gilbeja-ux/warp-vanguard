@@ -12,7 +12,7 @@
 // prove the error net. It fails on ANY uncaught exception, console.error, or
 // same-origin request that does not come back 200. One screenshot per screen.
 //
-// It owns its server (port 8020 — never 8000/8010/8011, those are Gil's tabs)
+// It owns its server (port 8020 — never a mapped tool port, those are Gil's tabs)
 // and its Chrome (a fresh profile, headless), and it blocks the leaderboard
 // host so a smoke run never mints an anonymous identity on the live project.
 // Zero dependencies: the CDP client is scripts/lib/cdp.js, shared with the bench.
@@ -42,7 +42,9 @@ const ERROR_KEY = 'warpVanguard.lastError';
 const LB_HOST = '*supabase.co*';
 const PLAY_SEC = parseFloat(ARG.play || '10');
 
-if ([8000, 8010, 8011, 8012].includes(PORT)) { console.error('smoke must not sit on a lab port'); process.exit(2); }
+// THE PORT MAP (CLAUDE.md): every port a tool owns. 8020 is the smoke suite's own.
+const TOOL_PORTS = [8000, 8010, 8011, 8012, 8013, 8014, 8015, 8016, 8100, 8200];
+if (TOOL_PORTS.includes(PORT)) { console.error('smoke must not sit on a tool port'); process.exit(2); }
 
 // ---------- own server, PROVEN to be its own ----------
 // Found on the first run, 2026-09-08: a dev server from a week-old worktree was

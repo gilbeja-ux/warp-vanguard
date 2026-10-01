@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Admin console — the moderation queue with buttons on it.
 //
-//   npm run admin   →   http://localhost:8014
+//   npm run admin   →   http://localhost:8200
 //
 // NOT part of any build, never deployed, and deliberately not in docs/ (that
 // folder is published by GitHub Pages — see docs/privacy.html). It is the same
@@ -25,9 +25,9 @@ const { execFileSync } = require('child_process');
 
 const root = path.join(__dirname, '..');
 const page = path.join(__dirname, 'admin.html');
-// 8014: 8000 is the game, 8010 the story lab, 8011 destinations, 8012 the tuning
-// board, 8013 the disc lab. They all live in open browser tabs — never take one.
-const port = process.env.PORT || 8014;
+// 8200: the tool ports are one map (CLAUDE.md, THE PORT MAP) — 8000 the game,
+// 8010–8016 the labs, 8100 the portal. They all live in open browser tabs — never take one.
+const port = process.env.PORT || 8200;
 
 // ONE SOURCE OF TRUTH FOR WHICH PROJECT THIS IS. Parsed out of the game rather
 // than pasted here, so a project move cannot leave the admin tool quietly pointed
@@ -128,7 +128,7 @@ async function act(action, runId, opts) {
 
 // ---------------------------------------------------------------------------
 // AUTH. Binding to 127.0.0.1 keeps this off the LAN, but it does NOT keep it away
-// from the browser: any page open in any tab can POST to http://localhost:8014,
+// from the browser: any page open in any tab can POST to http://localhost:8200,
 // and /api/act holds the service key and deletes rows. So every request carries a
 // per-process token that only the page this process served can know.
 //

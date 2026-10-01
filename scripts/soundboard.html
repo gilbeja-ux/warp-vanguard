@@ -1,12 +1,12 @@
 <!doctype html>
 <!-- The sfx SOUNDBOARD (dev only, not shipped: scripts/, not src/).
-     Serve the repo root (npm run lab:sound → http://localhost:8012/). The page lifts
+     Serve the repo root (npm run lab:sound → http://localhost:8014/). The page lifts
      the real game out of src/index.html exactly as the shot harnesses do, so every
      cue plays through the game's own sfx bus, its glue compressor and the H-13
      master limiter — what you hear here is what the run plays, not a copy of it.
 
      The game boots into a small canvas at the foot of the page with its music off
-     (the board's origin is port 8012, so its settings never touch the game's own
+     (the board's origin is port 8014, so its settings never touch the game's own
      save on 8000). The first press of START is the audio gesture.
 
      A meter under the buttons reads the PEAK of the summed output for the last
@@ -242,7 +242,7 @@
       start() {
         initAC(); audioWake();
         if (typeof SPLASH !== 'undefined' && SPLASH.on) splashEnd(true);
-        settings.music = false; applySettings();   // this origin's settings only (port 8012)
+        settings.music = false; applySettings();   // this origin's settings only (port 8014)
         // a peak meter on the SUM: masterLim fans out to an analyser beside the destination
         if (AC && masterLim && !window.__an) {
           const an = AC.createAnalyser(); an.fftSize = 2048; masterLim.connect(an); window.__an = an;

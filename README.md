@@ -52,6 +52,22 @@ warp-vanguard/
 └── capacitor.config.json  # Capacitor configuration
 ```
 
+### Local tools
+
+| Port | Command | Interface |
+| --- | --- | --- |
+| 8000 | `npm run dev` | the game, served from `src/`; also `editor.html`, the Lane Designer |
+| 8010 | `npm run lab` | story lab |
+| 8011 | `npm run lab:dest` | destinations lab |
+| 8012 | `npm run lab:tune` | tuning board |
+| 8013 | `npm run lab:disc` | disc lab |
+| 8014 | `npm run lab:sound` | sfx soundboard |
+| 8015 | `npm run lab:breach` | breach lab |
+| 8016 | `npm run lab:leech` | leech lab |
+| 8020 | `npm run test:smoke` | the browser smoke suite's own server; never a tab |
+| 8100 | `npm run portal` | portal: every tool above, live or dead |
+| 8200 | `npm run admin` | admin console (holds the service key) |
+
 ## Game Mechanics
 
 - **Menu**: View From The Dashboard (background music)

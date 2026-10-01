@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// The sfx soundboard's server (dev only). Serves the REPO ROOT on 8012 so the board
+// The sfx soundboard's server (dev only). Serves the REPO ROOT on 8014 so the board
 // at scripts/soundboard.html can lift the real game out of src/index.html, the way
 // the shot harnesses do — the cues play through the game's own bus, compressor and
 // limiter, not a copy. `/` opens the board. Range requests are not needed: sfx are
 // fetched whole and decoded.
-//   npm run lab:sound   →   http://localhost:8012/   (LAN: http://<mac-ip>:8012/)
+//   npm run lab:sound   →   http://localhost:8014/   (LAN: http://<mac-ip>:8014/)
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
-const port = process.env.PORT || 8012;
+const port = process.env.PORT || 8014;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json',
   '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
   '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' };

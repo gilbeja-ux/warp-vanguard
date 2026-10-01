@@ -8,8 +8,8 @@ about how the game is going.
 ## Start here: the admin console
 
 ```
-npm run portal     →      http://localhost:8015   (everything, live/dead)
-npm run admin      →      http://localhost:8014   (the queue itself)
+npm run portal     →      http://localhost:8100   (everything, live/dead)
+npm run admin      →      http://localhost:8200   (the queue itself)
 ```
 
 The **portal** lists every local tool with a live/dead dot, the command to start any
@@ -42,7 +42,7 @@ browser.
 
 **Both API routes need a token.** Binding to `127.0.0.1` keeps the console off the
 LAN, but it does not keep it away from the browser: any page in any tab can POST to
-`http://localhost:8014`, and that route deletes rows with the service key. So the
+`http://localhost:8200`, and that route deletes rows with the service key. So the
 server mints a fresh random token at start, stamps it into the page it serves, and
 requires it as an `X-Admin-Token` header on `/api/data` and `/api/act`. A foreign
 page cannot set that header without a CORS preflight the server never answers, and

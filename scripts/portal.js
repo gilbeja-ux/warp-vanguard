@@ -2,7 +2,7 @@
 // Portal — one page that says which local tools are up, and what state the
 // project is in.
 //
-//   npm run portal   →   http://localhost:8015
+//   npm run portal   →   http://localhost:8100
 //
 // WHY IT IS LOCAL AND STAYS LOCAL. Two of the things it points at cannot be
 // hosted: the admin console holds the service_role key (which bypasses RLS on
@@ -12,7 +12,7 @@
 // exist for the rest. There is nothing to gain and a key to lose.
 //
 // The health check runs HERE, not in the browser: each lab serves its own origin
-// with no CORS headers, so a page on :8015 cannot see whether :8010 answered — it
+// with no CORS headers, so a page on :8100 cannot see whether :8010 answered — it
 // can only watch a request fail, which looks identical to the server being down.
 // Node has no such restriction.
 const http = require('http');
@@ -21,10 +21,11 @@ const path = require('path');
 
 const root = path.join(__dirname, '..');
 const page = path.join(__dirname, 'portal.html');
-const port = process.env.PORT || 8015;
+const port = process.env.PORT || 8100;
 
 // Every long-lived local server, in one list. Gil keeps these in browser tabs for
-// whole sessions — see the ports note in .claude/skills/dev-servers/SKILL.md.
+// whole sessions. THE PORT MAP is law (CLAUDE.md): 8000 game, 8010+ labs in order,
+// 8100 this portal, 8200 admin, 8020 the smoke suite. npm test pins every entry.
 const SERVERS = [
   { port: 8000, name: 'Game',              cmd: 'npm run dev',      what: 'the game itself, served from src/ — also the LAN address for phone testing' },
   { port: 8000, name: 'Lane Designer',     cmd: 'npm run dev',      path: 'editor.html',
@@ -32,8 +33,11 @@ const SERVERS = [
   { port: 8010, name: 'Story lab',         cmd: 'npm run lab',      what: 'the campaign screenplay: briefing discs, radio barks, mission text' },
   { port: 8011, name: 'Destinations lab',  cmd: 'npm run lab:dest', what: 'the sky at each relay — suns, moons, planets, deep field' },
   { port: 8012, name: 'Tuning board',      cmd: 'npm run lab:tune', what: 'difficulty and feel knobs, live against the running sim' },
-  { port: 8013, name: 'Disc lab',          cmd: 'npm run lab:disc', what: 'briefing-disc art and layout' },
-  { port: 8014, name: 'Admin console',     cmd: 'npm run admin',    what: 'leaderboard moderation queue and the numbers' },
+  { port: 8013, name: 'Disc lab',          cmd: 'npm run lab:disc', what: 'every briefing-disc text on one page, writing back to campaigns.js' },
+  { port: 8014, name: 'Soundboard',        cmd: 'npm run lab:sound', what: 'every sfx cue through the game\'s own bus — audition takes, tune ACCENT_LIFT' },
+  { port: 8015, name: 'Breach lab',        cmd: 'npm run lab:breach', what: 'the three baked enemy hulls, held still' },
+  { port: 8016, name: 'Leech lab',         cmd: 'npm run lab:leech', what: 'the five boss machines, pinned in the bore' },
+  { port: 8200, name: 'Admin console',     cmd: 'npm run admin',    what: 'leaderboard moderation queue and the numbers' },
 ];
 
 // A server is UP if it answers at all. Not "answers 200": the tuning board and the
@@ -81,7 +85,7 @@ async function adminSummary(up) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), 2500);
   try {
-    const r = await fetch('http://127.0.0.1:8014/api/data', { signal: ac.signal });
+    const r = await fetch('http://127.0.0.1:8200/api/data', { signal: ac.signal });
     const d = await r.json();
     if (!d.overview) return null;
     // `feedback_open` is counted HERE rather than added to the admin_overview view.
@@ -113,7 +117,7 @@ http.createServer(async (req, res) => {
     if (url === '/api/status') {
       const pings = await Promise.all(SERVERS.map(s => ping(s.port, s.path)));
       const servers = SERVERS.map((s, i) => ({ ...s, ...pings[i] }));
-      const admin = await adminSummary(servers.find(s => s.port === 8014).up);
+      const admin = await adminSummary(servers.find(s => s.port === 8200).up);
       return send(res, 200, 'application/json',
         JSON.stringify({ servers, verifier: verifierState(), admin, self: port }));
     }
