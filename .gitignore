@@ -82,7 +82,11 @@ android/app/src/main/res/values/*
 !android/key.properties.example
 .capacitor/
 capacitor.config.json.bak
-.claude/
+# the agent folder is local (settings.local.json, worktrees/), but the skills are
+# repo documents: CLAUDE.md names .claude/skills/dev-servers and npm test pins its
+# port table, so a CI checkout must carry them (2026-10-01, run 36820193923 failed)
+.claude/*
+!.claude/skills/
 
 # generated verifier bundle (rebuilt from src before every deploy)
 supabase/functions/submit-run/_sim.mjs
