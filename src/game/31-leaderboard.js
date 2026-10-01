@@ -157,11 +157,13 @@ const UPDATE_MARK_TXT = 'UPDATE GAME TO POST SCORES'; // the ONE phrase, on ever
 const UPDATE_CUE_TXT = ['GAME UPDATE', 'AVAILABLE']; // the home key's two lines (Gil, 2026-10-01)
 const LB_STALE_TIMEOUT = 6000; // a boot read: answer fast or not at all
 // The store a tap on the home key opens. Android keys a listing on applicationId
-// (android/app/build.gradle; npm test pins the two agree). The App Store id is
-// minted with the listing, which waits on the developer enrolment: while it is
-// empty the key still shows and the tap does nothing. Fill it the day it exists.
+// (android/app/build.gradle; npm test pins the two agree). The App Store keys it
+// on the numeric Apple ID that App Store Connect minted with the listing
+// (2026-10-01, the day of the developer enrolment); the id outlives every
+// version, so this line never moves again. An empty knob would still show the
+// key and open nothing.
 const STORE_URL_ANDROID = 'https://play.google.com/store/apps/details?id=com.warpvanguard.game';
-const STORE_URL_IOS = '';
+const STORE_URL_IOS = 'https://apps.apple.com/app/id6818248157';
 let lbStale = null; // null = unknown, or nothing stale; else { boards: { 'camp:li': true }, weekly: bool, n }
 // mine = this build's stamp, theirs = the server's answer. A key only one side
 // knows is NOT stale: a new contract the server has not met yet is a deploy owed,

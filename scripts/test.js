@@ -6881,7 +6881,7 @@ async function runMusicUp() {
   // THE STORE. The Play link names the shell's applicationId; the App Store id is a knob.
   const appId = (/applicationId "([^"]+)"/.exec(src('android/app/build.gradle')) || [])[1];
   check('update mark: the Play link names the Android shell\'s applicationId', !!appId && G.STORE_URL_ANDROID === 'https://play.google.com/store/apps/details?id=' + appId);
-  check('update mark: the App Store link is a knob, a string (empty until the listing exists)', typeof G.STORE_URL_IOS === 'string');
+  check('update mark: the App Store link names the listing\'s Apple ID (minted 2026-10-01)', G.STORE_URL_IOS === 'https://apps.apple.com/app/id6818248157');
   {
     const opened = [];
     global.window.Capacitor = { getPlatform: () => 'android', Plugins: { App: { openUrl: ({ url }) => opened.push(url) } } };
@@ -6889,7 +6889,7 @@ async function runMusicUp() {
     global.window.Capacitor.getPlatform = () => 'ios';
     const before = opened.length;
     const iosOpened = G.openStore();
-    check('update mark: on iOS an empty knob opens nothing and says so', G.STORE_URL_IOS ? iosOpened === true && opened.length === before + 1 : iosOpened === false && opened.length === before);
+    check('update mark: on iOS the tap hands the App Store page to the system', iosOpened === true && opened.length === before + 1 && opened[opened.length - 1] === G.STORE_URL_IOS);
     delete global.window.Capacitor;
     let reloaded = false; global.location = { reload: () => { reloaded = true; } };
     G.openStore();
