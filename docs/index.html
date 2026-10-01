@@ -758,7 +758,7 @@ and the date at the top will change.</p>
     var REST = 0.62, BLOOM_R = 13, BLOOM_A = 0.30, STARS = 3700;
     var LIVE_SHARE = 0.16;  // of the faint field held out to twinkle (the game: 0.34 — too many at once on a page)
     var GATE_T = 0.72;      // the gate opens above this; higher = rarer bursts (the game: 0.42)
-    var PARALLAX = 0.045, PARALLAX_BIG = 0.075, PARALLAX_MAX = 420; // px of sky per px of scroll, far and bright, and the baked overdraw
+    var PARALLAX = 0.012, PARALLAX_BIG = 0.022, PARALLAX_MAX = 160; // px of sky per px of scroll, far and bright, and the baked overdraw (Gil 2026-10-01: barely noticeable)
     var rand = function (a, b) { return a + Math.random() * (b - a); };
     var clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
     var gauss = function () { return (Math.random() + Math.random() + Math.random() - 1.5) / 1.5; };
