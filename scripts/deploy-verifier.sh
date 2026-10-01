@@ -17,7 +17,11 @@ cd "$(dirname "$0")/.."
 # migrations pushed, every submission is a 500 — and the ?diag probe below
 # would still be green, because it never touches a table. So a pending
 # migration stops the deploy here.
-pending="$(supabase migration list 2>/dev/null | node -e '
+# --output-format json is EXPLICIT (2026-10-01): the CLI prints JSON in an agent
+# session and a text table in Gil's own terminal, where the regex below found no
+# JSON and this script stopped with "is the project linked?" against a linked
+# project. The flag makes both terminals print the same thing.
+pending="$(supabase migration list --output-format json 2>/dev/null | node -e '
   let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
     const m = /\{"migrations":[\s\S]*\}/.exec(s); if (!m) { console.log("?"); return; }
     const rows = JSON.parse(m[0]).migrations || [];

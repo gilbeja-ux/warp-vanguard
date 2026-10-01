@@ -77,8 +77,12 @@ npx cap sync ios
 # step that fills it, and it runs on every build so it cannot go stale.
 python3 scripts/make-ios-assets.py
 
-TEAM_ARGS=()
-if [ -n "${IOS_TEAM_ID:-}" ]; then TEAM_ARGS=(DEVELOPMENT_TEAM="$IOS_TEAM_ID"); fi
+# Not an array: macOS ships bash 3.2, where `set -u` calls an EMPTY array
+# expansion "${TEAM_ARGS[@]}" an unbound variable, and the first --archive run
+# died at the xcodebuild line (2026-10-01). A plain string, unquoted at the
+# call site, expands to nothing when no team is given and to one word otherwise.
+TEAM_ARGS=""
+if [ -n "${IOS_TEAM_ID:-}" ]; then TEAM_ARGS="DEVELOPMENT_TEAM=$IOS_TEAM_ID"; fi
 
 case "$MODE" in
   sim|sim-only)
@@ -110,7 +114,7 @@ case "$MODE" in
     xcodebuild \
       -workspace "$WORKSPACE" -scheme App -configuration Debug \
       -sdk iphoneos -destination 'generic/platform=iOS' \
-      -derivedDataPath "$DERIVED" -allowProvisioningUpdates "${TEAM_ARGS[@]}" \
+      -derivedDataPath "$DERIVED" -allowProvisioningUpdates $TEAM_ARGS \
       -quiet build
     APP="$DERIVED/Build/Products/Debug-iphoneos/App.app"
     echo ""
@@ -139,7 +143,7 @@ case "$MODE" in
     xcodebuild \
       -workspace "$WORKSPACE" -scheme App -configuration Release \
       -sdk iphoneos -destination 'generic/platform=iOS' \
-      -archivePath "$ARCHIVE" -allowProvisioningUpdates "${TEAM_ARGS[@]}" \
+      -archivePath "$ARCHIVE" -allowProvisioningUpdates $TEAM_ARGS \
       -quiet archive
     xcodebuild -exportArchive \
       -archivePath "$ARCHIVE" -exportPath "$EXPORT" \
