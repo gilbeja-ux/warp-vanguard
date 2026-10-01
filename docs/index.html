@@ -81,11 +81,6 @@
   /* ---- the sky: the menu's own star field, centred on the page, drifting slowly ---- */
   .bore { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; background: var(--void); }
   .bore canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  .bore::after {
-    /* the vignette the game finishes every frame with */
-    content: ''; position: absolute; inset: 0;
-    background: radial-gradient(ellipse 80% 70% at 50% 40%, transparent 42%, rgba(0,0,0,0.38) 100%);
-  }
   .grain {
     position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.07; mix-blend-mode: screen;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
@@ -743,56 +738,135 @@ and the date at the top will change.</p>
   });
   render();
 
-  // THE SKY. The menu's star field, centred on the page: four colour classes in the
-  // game's proportions, a slow drift outward from the centre (we are pointed down
-  // the lane, parked), and a gated scintillation so no two stars twinkle in step.
-  // It is a backdrop, never the subject: slow enough that a reader's eye is not
-  // pulled, paused when the tab is hidden, still under reduced motion.
+  // THE SKY: the menu's own, rebuilt for a page. Same construction as the game's
+  // 20-background.js — the galaxy seen edge-on as one warm dust band with a dark
+  // lane through it, four off-band nebulae for colour relief, and ~3700 stars a
+  // screen dealt from the game's five-colour table by weight, 62% of them in the
+  // plane, 3.5% bright with a bloom on the game's halo curve. The far field holds
+  // still, as it does on the home screen; every bright star and a third of the
+  // faint ones scintillate on gated clocks so no two agree. Baked once per size,
+  // live stars drawn at 30 fps, paused in a hidden tab, still under reduced motion.
   (function sky() {
     var cv = document.getElementById('sky'); if (!cv || !cv.getContext) return;
-    var g = cv.getContext('2d'), W = 0, H = 0, DPR = 1, stars = [], reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    var DRIFT = 0.012;     // of the half-diagonal per second: ~80 s from centre to rim
-    function col(r) { return r < 0.10 ? [255,196,130] : r < 0.16 ? [200,170,255] : r < 0.55 ? [236,246,255] : [150,205,255]; }
-    function seed() {
-      stars = [];
-      var n = Math.round(Math.min(1400, Math.max(260, W * H / 2600)));
-      for (var i = 0; i < n; i++) {
-        var a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()), z = 0.35 + Math.random() * 0.65;
-        var k = Math.random();
-        stars.push({ a: a, d: d, z: z, c: col(Math.random()), s: (k < 0.75 ? 0.6 : k < 0.95 ? 1.0 : 1.5) * z,
-          al: 0.25 + Math.random() * 0.6, tw: Math.random() < 0.55, r1: 0.3 + Math.random() * 0.7, r2: 0.05 + Math.random() * 0.08, ph: Math.random() * 7, amp: 0.3 + Math.random() * 0.9 });
+    var g = cv.getContext('2d'); if (!g) return;
+    var TAU = Math.PI * 2, W = 0, H = 0, DPR = 1, sheet = null, live = [], halos = {};
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var COLS = ['210,228,255', '255,240,220', '255,208,168', '214,198,255', '190,240,255'];
+    var COLW = [0.32, 0.30, 0.12, 0.08, 0.18];
+    var HALO = [[0, 1], [0.10, 0.62], [0.24, 0.30], [0.44, 0.11], [0.70, 0.028], [1, 0]];
+    var CLASS = [[0.18, [0, 0], [0, 0]], [0.36, [0.30, 0.55], [0.9, 2.6]], [0.32, [0.60, 1.00], [1.3, 4.4]], [0.14, [1.05, 1.55], [0.6, 2.2]]];
+    var REST = 0.62, BLOOM_R = 13, BLOOM_A = 0.30, STARS = 3700;
+    var rand = function (a, b) { return a + Math.random() * (b - a); };
+    var clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
+    var gauss = function () { return (Math.random() + Math.random() + Math.random() - 1.5) / 1.5; };
+    function colI() { var r = Math.random(), i = 0; for (; i < COLW.length - 1; i++) { if (r < COLW[i]) break; r -= COLW[i]; } return i; }
+    function starClass() {
+      var r = Math.random(), i = 0;
+      for (; i < CLASS.length - 1; i++) { if (r < CLASS[i][0]) break; r -= CLASS[i][0]; }
+      var amp = CLASS[i][1], rate = CLASS[i][2];
+      return { amp: rand(amp[0], amp[1]), r1: rand(rate[0], rate[1]) || 0.001, g1: rand(0.045, 0.125), g2: rand(0.045, 0.125) * 1.37, gp1: Math.random() * TAU, gp2: Math.random() * TAU, p1: Math.random() * TAU };
+    }
+    // one halo sprite per colour: the game's radial falloff, drawn once and scaled
+    function halo(ci) {
+      if (halos[ci]) return halos[ci];
+      var R = 64, c = document.createElement('canvas'); c.width = c.height = R * 2;
+      var x = c.getContext('2d'), gr = x.createRadialGradient(R, R, 0, R, R, R);
+      for (var i = 0; i < HALO.length; i++) gr.addColorStop(HALO[i][0], 'rgba(' + COLS[ci] + ',' + HALO[i][1].toFixed(3) + ')');
+      x.fillStyle = gr; x.fillRect(0, 0, R * 2, R * 2);
+      return (halos[ci] = c);
+    }
+    function bake() {
+      sheet = document.createElement('canvas'); sheet.width = Math.round(W * DPR); sheet.height = Math.round(H * DPR);
+      var b = sheet.getContext('2d'); if (!b) { sheet = null; return; }
+      b.setTransform(DPR, 0, 0, DPR, 0, 0);
+      b.fillStyle = '#020510'; b.fillRect(0, 0, W, H);
+      var m = Math.min(W, H), bandW = m * 0.34, sw = W;
+      var spine = function (t) { return H * 0.52 - H * 0.26 * Math.sin(TAU * t / sw + 0.9); };
+      var wander = function (t) { return Math.sin(TAU * 3 * t / sw + 1.7) * bandW * 0.24 + Math.sin(TAU * 7 * t / sw + 0.6) * bandW * 0.12; };
+      var blob = function (x, y, br, col, al, mid) {
+        var gr = b.createRadialGradient(x, y, 0, x, y, br);
+        gr.addColorStop(0, 'rgba(' + col + ',' + al.toFixed(4) + ')');
+        if (mid) gr.addColorStop(0.45, 'rgba(' + col + ',' + (al * 0.45).toFixed(4) + ')');
+        gr.addColorStop(1, 'rgba(' + col + ',0)');
+        b.fillStyle = gr; b.beginPath(); b.arc(x, y, br, 0, TAU); b.fill();
+      };
+      var i, t, wan, perp, q, al, col;
+      // the dust: warm on the spine, cooling outward, breathing along its length
+      b.globalCompositeOperation = 'lighter';
+      for (i = 0; i < 520; i++) {
+        t = Math.random() * sw; wan = wander(t); perp = gauss() * bandW + wan;
+        q = clamp(1 - Math.abs(perp - wan) / bandW, 0, 1);
+        al = (0.008 + Math.random() * 0.026) * (0.30 + q * 1.1) * (0.72 + 0.28 * Math.sin(TAU * 2 * t / sw + 2.2));
+        if (al < 0.002) continue;
+        col = q > 0.62 ? '196,158,104' : q > 0.32 ? '158,120,74' : '96,86,104';
+        blob(t, spine(t) + perp, m * rand(0.035, 0.15), col, al, true);
+      }
+      // the off-band nebulae
+      var clouds = [[0.08, 0.16, 0.34, '128,58,58', 16], [0.50, 0.84, 0.30, '48,120,138', 14], [0.43, 0.10, 0.26, '96,62,140', 12], [0.82, 0.30, 0.30, '58,96,128', 12]];
+      for (i = 0; i < clouds.length; i++) {
+        var c = clouds[i], cr = m * c[2];
+        for (var k = 0; k < c[4]; k++) {
+          var ang = Math.random() * TAU, rad = cr * (Math.random() + Math.random()) * 0.5;
+          blob(sw * c[0] + Math.cos(ang) * rad, H * c[1] + Math.sin(ang) * rad * 0.78, cr * rand(0.18, 0.46), c[3], 0.008 + Math.random() * 0.020, false);
+        }
+      }
+      // the dark dust lane along the plane
+      b.globalCompositeOperation = 'source-over';
+      for (i = 0; i < 300; i++) {
+        t = Math.random() * sw; wan = wander(t);
+        perp = wan + gauss() * bandW * 0.30 + Math.sin(TAU * 5 * t / sw + 0.6) * bandW * 0.16;
+        blob(t, spine(t) + perp, m * rand(0.03, 0.115), '3,4,12', 0.10 + Math.random() * 0.26, false);
+      }
+      // the stars: baked unless held out to go live
+      live = [];
+      var n = Math.round(STARS * Math.min(1.6, Math.max(0.5, (W * H) / (1440 * 900))));
+      for (i = 0; i < n; i++) {
+        var x, y;
+        if (Math.random() < 0.62) { t = Math.random() * sw; x = t; y = spine(t) + wander(t) + gauss() * bandW * 1.25; }
+        else { x = Math.random() * sw; y = Math.random() * H; }
+        if (y < -2 || y > H + 2) continue;
+        var big = Math.random() < 0.035;
+        al = (big ? 0.45 + Math.random() * 0.45 : 0.06 + Math.random() * 0.34) * REST;
+        var ci = colI(), bk = big ? 0.55 + 0.55 * clamp((al / REST - 0.45) / 0.45, 0, 1) : 1;
+        var r = big ? rand(1.0, 1.8) : rand(0.3, 0.85);
+        if (!reduce && (big || Math.random() < 0.34)) {
+          var cl = starClass(); cl.x = x; cl.y = y; cl.ci = ci; cl.al = al; cl.big = big; cl.bk = bk; cl.r = r;
+          if (big) cl.amp *= 0.55;
+          live.push(cl); continue;
+        }
+        if (big) { var br = BLOOM_R * bk; b.globalAlpha = al * BLOOM_A; b.drawImage(halo(ci), x - br, y - br, br * 2, br * 2); b.globalAlpha = 1; }
+        b.fillStyle = 'rgba(' + COLS[ci] + ',' + al.toFixed(3) + ')';
+        b.beginPath(); b.arc(x, y, r, 0, TAU); b.fill();
+      }
+    }
+    var t0 = 0;
+    function draw(now) {
+      var t = (now - t0) / 1000;
+      g.clearRect(0, 0, W, H);
+      if (sheet) g.drawImage(sheet, 0, 0, W, H);
+      for (var i = 0; i < live.length; i++) {
+        var st = live[i], a = st.al;
+        // the gate: two slow waves multiplied, open only where both are high
+        var gate = Math.sin(t * st.g1 + st.gp1) * Math.sin(t * st.g2 + st.gp2);
+        if (gate > 0.42) a = clamp(a * (1 + st.amp * Math.sin(t * st.r1 * 5 + st.p1)), 0.02, 1);
+        if (st.big) { var br = BLOOM_R * st.bk * (0.8 + 0.4 * a / st.al); g.globalAlpha = a * BLOOM_A; g.drawImage(halo(st.ci), st.x - br, st.y - br, br * 2, br * 2); g.globalAlpha = 1; }
+        g.fillStyle = 'rgba(' + COLS[st.ci] + ',' + a.toFixed(3) + ')';
+        if (st.big) { g.beginPath(); g.arc(st.x, st.y, st.r, 0, TAU); g.fill(); }
+        else g.fillRect(st.x - st.r, st.y - st.r, st.r * 2, st.r * 2);
       }
     }
     function size() {
       DPR = Math.min(2, window.devicePixelRatio || 1);
       W = cv.clientWidth; H = cv.clientHeight; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
-      g.setTransform(DPR, 0, 0, DPR, 0, 0); seed(); draw(0);
-    }
-    var last = 0, t = 0;
-    function draw(now) {
-      var dt = last ? Math.min(0.1, (now - last) / 1000) : 0; last = now; t += dt;
-      g.clearRect(0, 0, W, H);
-      var cx = W / 2, cy = Math.min(H * 0.42, 420), R = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy));
-      for (var i = 0; i < stars.length; i++) {
-        var st = stars[i];
-        if (!reduce) { st.d += dt * DRIFT * st.z; if (st.d > 1.02) { st.d = 0.02; st.a = Math.random() * Math.PI * 2; } }
-        var x = cx + Math.cos(st.a) * st.d * R, y = cy + Math.sin(st.a) * st.d * R;
-        var a = st.al;
-        if (st.tw && !reduce) {
-          var gate = Math.sin(t * st.r2 + st.ph) * Math.sin(t * st.r2 * 1.37 + st.ph * 2.1);
-          if (gate > 0.45) a = Math.max(0.05, Math.min(1, a * (1 + st.amp * Math.sin(t * st.r1 * 6 + st.ph))));
-        }
-        var s = st.s * (0.6 + st.d * 0.6);
-        g.fillStyle = 'rgba(' + st.c[0] + ',' + st.c[1] + ',' + st.c[2] + ',' + a.toFixed(3) + ')';
-        if (s > 1.1) { g.beginPath(); g.arc(x, y, s, 0, 6.283); g.fill(); } else g.fillRect(x - s / 2, y - s / 2, s, s);
-      }
+      g.setTransform(DPR, 0, 0, DPR, 0, 0); bake(); draw(performance.now());
     }
     var raf = 0, acc = 0;
     function loop(now) { raf = requestAnimationFrame(loop); if (now - acc < 33) return; acc = now; draw(now); }
-    size(); window.addEventListener('resize', size);
+    t0 = performance.now(); size();
+    var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(size, 150); });
     if (!reduce) {
       raf = requestAnimationFrame(loop);
-      document.addEventListener('visibilitychange', function () { if (document.hidden) { cancelAnimationFrame(raf); last = 0; } else raf = requestAnimationFrame(loop); });
+      document.addEventListener('visibilitychange', function () { if (document.hidden) cancelAnimationFrame(raf); else raf = requestAnimationFrame(loop); });
     }
   })();
 
