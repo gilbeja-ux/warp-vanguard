@@ -274,7 +274,7 @@ You fly point ahead of a convoy, down a warp lane that is full of traps. Use you
 
 Two thumbs, two dials, one lane. The left dial runs the blue emitter, the right runs the white. Interdictors arrive out of the dark at every bearing and every depth, and you have exactly as long as the lane is deep to put an emitter on each one.
 
-It is rhythm-action on a ring for. Read what is coming. Be there when it lands.
+It is rhythm-action on a ring. Read what is coming. Be there when it lands.
 
 Colour is the rule:
 
@@ -286,7 +286,7 @@ GOLD — a pulse charger. Ride it, and it charges you.
 
 ── FIRE AWAY ──
 
-> Dock both emitters and their phases unite. the charge builds white-hot, and one bolt goes straight down the bore and detonates on what it hits — and takes the hulls around it too.
+> Dock both emitters and their phases unite. The charge builds white-hot, and one bolt goes straight down the bore and detonates on what it hits — and takes the hulls around it too.
 
 > Charge a pulse orb, tap its core, and a wave sweeps the lane clean ahead of you.
 
