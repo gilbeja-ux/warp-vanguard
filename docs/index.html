@@ -478,7 +478,7 @@
       <div class="plate"><div class="in">
         <div class="band"><span class="title">Two controls, both in the game</span><span class="readout">MY DATA</span></div>
         <div class="body">
-          <p class="where">Nothing leaves your device unless you post a score or send feedback. What does leave is tied to an anonymous id your device holds, not to a name, an email or an account. Both controls live under <b>MY DATA</b>: on the leaderboard screen, and in SYSTEM CONFIG. Neither asks you to prove who you are.</p>
+          <p class="where">Nothing about you leaves your device unless you post a score or send feedback. The game's own start-up version check carries nothing about you. What does leave is tied to an anonymous id your device holds, not to a name, an email or an account. Both controls live under <b>MY DATA</b>: on the leaderboard screen, and in SYSTEM CONFIG. Neither asks you to prove who you are.</p>
           <div class="controls">
             <div>
               <h3>Rename my runs</h3>
@@ -500,7 +500,7 @@
       <div class="tx-head">
         <span class="speaker trace">TRACE</span>
         <h2 id="priv-h">Privacy policy</h2>
-        <span class="readout">STANDING ORDER · LAST UPDATED 1 SEPTEMBER 2026</span>
+        <span class="readout">STANDING ORDER · LAST UPDATED 1 OCTOBER 2026</span>
       </div>
       <div class="lock">
       <div class="plate"><div class="in">
@@ -518,7 +518,7 @@ survived.</p>
   <li>Nothing is ever sold, or shared with third parties for marketing.</li>
   <li>You are <strong>never asked for your name, email address, phone number or location</strong>.</li>
   <li>The only data that leaves your device is what a leaderboard needs — an anonymous player id, the display name you type, and how a run went — plus any feedback you choose to send us.</li>
-  <li>If you never submit a score and never send feedback, <strong>no data leaves your device at all</strong>.</li>
+  <li>If you never submit a score and never send feedback, <strong>no data about you leaves your device at all</strong>. The one request the game makes on its own is a version check at start-up, and it carries nothing about you — see <em>Who processes it</em>.</li>
 </ul>
 </div>
 
@@ -630,6 +630,12 @@ transmitted over an encrypted connection (HTTPS).</p>
 <strong>IP addresses</strong>, for security and abuse prevention. We do not use
 those logs to build any profile of you, they are not joined to your leaderboard
 entries, and they age out on the provider's own schedule.</p>
+<p>One request happens without you doing anything: when the game starts, it asks
+our server which versions of each board the server currently verifies, so it can
+tell you before you play a stage that your build needs an update to post scores.
+That request carries <strong>no player id, no name and no score</strong> — nothing
+about you — and nothing is stored from it. It is an ordinary web request, so it
+appears in the provider's technical logs like any other, as described above.</p>
 
 <h3>How long it is kept</h3>
 <p>Leaderboard entries are kept <strong>indefinitely</strong> — that is the point
