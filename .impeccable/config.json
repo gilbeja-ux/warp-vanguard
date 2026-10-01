@@ -13,6 +13,18 @@
         ],
         "createdAt": "2026-08-14T20:00:47.728Z",
         "reason": "Audiowide is the game's settled brand face and the only bundled font; hierarchy comes from weight, size and colour coding"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#a9f58f",
+        "createdAt": "2026-10-01T18:21:44.203Z",
+        "reason": "Gil confirmed 2026-10-01: the support page's link hover tint, a lift of secure green"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "3px",
+        "createdAt": "2026-10-01T18:21:44.242Z",
+        "reason": "Gil confirmed 2026-10-01: inline code on the support page"
       }
     ]
   }
