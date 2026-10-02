@@ -127,10 +127,15 @@ function drawProfiler() {
 // run still simulates and verifies identically — it just looks wrong.
 const ABL = new Set();
 function abl(k) { return ABL.has(k); }
+// `?lowfx=1` pins the reduced tier from boot (99-boot.js honours it after the first
+// resize, and the watchdog is told never to restore). The question it answers on a
+// device without a console: is the detail the watchdog sheds the budget, or not?
+let PIN_LOWFX = false;
 
 try {
   if (typeof location !== 'undefined') {
     if (/[?&]prof=1/.test(location.search)) profToggle(true);
+    if (/[?&]lowfx=1/.test(location.search)) PIN_LOWFX = true;
     const m = /[?&]abl=([a-z,]+)/.exec(location.search);
     if (m) for (const k of m[1].split(',')) ABL.add(k);
   }

@@ -21,6 +21,17 @@ if (document.fonts && document.fonts.load) {
 // The offscreen bakes in withCanvas() keep their alpha — those genuinely composite.
 let ctx = canvas.getContext('2d', { alpha: false }); // rebindable so offscreen layers can reuse the painters
 let W = 0, H = 0, DPR = 1;
+// RENDER_PX_MAX: a ceiling on the main canvas's backing store, in pixels. The DPR
+// cap of 2 was sized for phones (about 1.5 MP); an iPad Pro at 1366x1024 is 5.6 MP
+// behind the same cap, and every full-screen pass the frame makes — the sky strips,
+// the ring, the vignette, the grain, the grade and tint washes — is paid per pixel.
+// Dev knob, `?px=3000000`, inert without it: the shells never see a query string,
+// so a store build is untouched until a device measurement says otherwise
+// (2026-10-02, the iPad Pro stutter; measure with ?prof=1 on the LAN dev server).
+const RENDER_PX_MAX = (() => {
+  try { const m = /[?&]px=(\d+)/.exec(location.search); if (m) return +m[1]; } catch (e) {}
+  return Infinity;
+})();
 let SAFE = { t: 0, b: 0, l: 0, r: 0 }; // safe-area insets mapped into game space
 function withCanvas(cv, fn) {
   // A REFUSED CONTEXT IS AN ANSWER, NOT A CRASH. A browser at its canvas budget —
@@ -56,6 +67,7 @@ function resize() {
   if (overlayEl) return;
   DPR = Math.min(window.devicePixelRatio || 1, 2);
   const cw = window.innerWidth, ch = window.innerHeight;
+  if (RENDER_PX_MAX < Infinity && cw * ch * DPR * DPR > RENDER_PX_MAX) DPR = Math.sqrt(RENDER_PX_MAX / (cw * ch));
   ROT = ch > cw;
   // NOTHING MOVED → NOTHING TO REBUILD. A resize event does not imply the
   // viewport actually changed: a scroll-driven URL-bar collapse fires them at

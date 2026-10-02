@@ -438,8 +438,15 @@ const ENEMYBREATH = {
 // Scales an "r,g,b" string down the breath's curve. Toward BLACK, not toward
 // grey: a hue that desaturates as it dims stops being the colour the player is
 // matching an emitter to, and that is the one thing this art must never blur.
+// breathK is the curve on its own, because the baked hull tint (breachTint) is
+// composited 'lighter', and under additive blending a colour scaled by k is the
+// same light as the full colour at k times the alpha. So the hull keeps ONE cached
+// tint per base colour and breathes through globalAlpha — found 2026-10-02 on the
+// iPad Pro, where the breathed string missed the cache every frame and built two
+// new canvases per body per frame (see breachTint).
+function breathK(ph) { return ENEMYBREATH.dim + (1 - ENEMYBREATH.dim) * (0.5 + 0.5 * Math.sin(ph)); }
 function breathGlow(col, ph) {
-  const k = ENEMYBREATH.dim + (1 - ENEMYBREATH.dim) * (0.5 + 0.5 * Math.sin(ph));
+  const k = breathK(ph);
   const p = col.split(',');
   return (p[0] * k | 0) + ',' + (p[1] * k | 0) + ',' + (p[2] * k | 0);
 }
@@ -825,8 +832,13 @@ function breachTint(sp, glow) {
     if (!x) return null;
     if (spread > 0) {
       // A BOX-ISH BLUR BY ACCUMULATION rather than ctx.filter — the filter
-      // property is not everywhere this game runs, and this is built at most
-      // twelve times in a session, so its cost does not matter.
+      // property is not everywhere this game runs, and this is built once per
+      // sprite view and BASE colour, so its cost does not matter. It did matter
+      // once: from the day the bodies started breathing (ENEMYBREATH) until
+      // 2026-10-02 the key was the breathed colour, a new string every frame, and
+      // this ran twice per body per frame — ~900 canvases and 300 MB of garbage
+      // in eight seconds of a lane, 3 ms a body on WebKit. The iPad Pro stuttered
+      // on it. The cache is keyed on the base colour now; see breathK.
       x.globalAlpha = 0.34;
       for (let i = 0; i < 8; i++) {
         const a = i / 8 * TAU;
@@ -849,7 +861,10 @@ function breachTint(sp, glow) {
 // falls back to drawNailBreach — the procedural body is the STAND-IN now, not a
 // dead branch: it covers the first seconds of a cold start and every device the
 // bake fails on.
-function drawBreachHull(id, x, y, a, size, glow, alpha, g) {
+// `tintGlow` / `tintK`: the cache key for the baked tint and the breath factor to
+// draw it at. Without them the tint is keyed on `glow` itself, which is right only
+// for a colour that does not change per frame.
+function drawBreachHull(id, x, y, a, size, glow, alpha, g, tintGlow, tintK) {
   const phi = breachPhi(a);
   const sp = s3BreachView(id, phi);
   if (!sp) return false;
@@ -1055,15 +1070,16 @@ function drawBreachHull(id, x, y, a, size, glow, alpha, g) {
     ctx.globalAlpha = alpha * BREACHFX.amb;
     ctx.drawImage(amb, -w / 2, dy, w, w);
   }
-  const t = BREACHFX.tint > 0.02 ? breachTint(sp, glow) : null;
+  const t = BREACHFX.tint > 0.02 ? breachTint(sp, tintGlow || glow) : null;
   if (t) {
+    const bk = tintK === undefined ? 1 : tintK; // the breath, as light rather than as a colour
     ctx.globalCompositeOperation = 'lighter';
     if (t.glow && BREACHFX.bloom > 0.02) {
-      ctx.globalAlpha = alpha * BREACHFX.bloom;
+      ctx.globalAlpha = alpha * BREACHFX.bloom * bk;
       ctx.drawImage(t.glow, -w / 2, dy, w, w);
     }
     if (t.core) {
-      ctx.globalAlpha = alpha * BREACHFX.tint;
+      ctx.globalAlpha = alpha * BREACHFX.tint * bk;
       ctx.drawImage(t.core, -w / 2, dy, w, w);
     }
   }
@@ -1148,6 +1164,11 @@ function drawEnemy(en, g) {
   // Gil caught it in the lane. The breath wants neither the ramp nor the
   // accumulator — it is one steady pulse for the life of the body, so a constant
   // rate on raw `time` is both the smooth answer and the simple one.
+  // The breathed string feeds the live gradients. The baked hull tint takes the
+  // BASE colour and the breath as a factor instead (breathK), so its cache is keyed
+  // on four colours, not on every frame of the breath.
+  PAL.glowBase = PAL.glow;
+  PAL.breathK = breathK(time * ENEMYBREATH.rate + (en.angle * 39.7) % 10);
   PAL.glow = breathGlow(PAL.glow, time * ENEMYBREATH.rate + (en.angle * 39.7) % 10);
 
   ctx.save();
@@ -1193,7 +1214,7 @@ function drawEnemy(en, g) {
   if (spr) {
     // sprite skin replaces the procedural body (glow + sigils stay live)
     ctx.drawImage(spr, x - size * 1.7, y - size * 1.7, size * 3.4, size * 3.4);
-  } else if (!drawBreachHull(breachHull(en), x, y, en.angle, bodyR(size), PAL.glow, fade, g)) {
+  } else if (!drawBreachHull(breachHull(en), x, y, en.angle, bodyR(size), PAL.glow, fade, g, PAL.glowBase, PAL.breathK)) {
     // THE BROKEN-RENDERER PATH, and nothing else. It was "the stand-in until the
     // strip has baked", and that made a TIMING difference into a visible one: the
     // bake only ran on the menu and the Archive, so a player who started a lane

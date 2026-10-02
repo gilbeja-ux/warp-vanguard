@@ -1748,6 +1748,9 @@ function drawPostChain(rawDt, worldFx, g) {
 // the first resize runs before the loop and before the guard: a throw there
 // used to be a navy canvas with no record. It is caught like a frame now.
 try { resize(); } catch (e) { crashCatch(e, 'boot'); }
+// ?lowfx=1 (98-profiler.js): shed the detail now and bar the watchdog from giving
+// it back — PERF_CALM * perfTrips calm windows is never reached at this count.
+if (PIN_LOWFX) { try { setLowFX(true); perfTrips = 1e9; } catch (e) {} }
 requestAnimationFrame(frame);
 // offline capability + PWA installability (no-op on insecure origins)
 // The service worker is for the WEB build only. Inside the Capacitor shell every
