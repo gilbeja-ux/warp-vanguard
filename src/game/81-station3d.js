@@ -1763,6 +1763,34 @@ function s3grainTiles() {
 // as a bloom with the corridor's walls in it, not as a beam. Hence a bloom plus a
 // few faint shafts. When gates start facing left and right (see rotZ on the registry)
 // the same axis maths gives a real beam instead, and only `ax`/`ay` change.
+// ---------- A STATION'S LIGHT IS BAKED (2026-10-03, round two) ----------
+// The gate's lane glow, its two rails of beacons and every running lamp on a hull
+// were radial gradients built and filled per frame: 25 a frame on the arrival
+// screen, where a delivered convoy holds on the station. On Chrome that is
+// garbage. On WebKit each one is a resource sent to another process and shaded on
+// the CPU after the frame's code has returned (see unitGrad in 20-background.js):
+// the arrival ran 6 ms a paint in WebKit at the iPad Pro's size, more than a lane.
+// Every stop in each of them scales with ONE brightness, and the layer is
+// additive, so each is one image drawn at globalAlpha = that brightness.
+// The key carries the colour and every dial that shapes the light, so the labs
+// still re-bake on a change. `?abl=nosprite` puts the gradients back.
+const s3GlowCv = {};
+function s3Glow(key, size, paint) {
+  if (typeof abl === 'function' && abl('nosprite')) return null;
+  let cv = s3GlowCv[key];
+  if (cv !== undefined) return cv;
+  cv = null;
+  if (typeof document !== 'undefined') {
+    try {
+      const c2 = document.createElement('canvas');
+      c2.width = c2.height = size;
+      const x2 = c2.getContext('2d');
+      if (x2 && x2.createRadialGradient) { paint(x2, size); cv = c2; }
+    } catch (e) { cv = null; }   // a refused canvas is an answer: the live gradient still draws
+  }
+  s3GlowCv[key] = cv;
+  return cv;
+}
 function s3lane(c, sp, x, y, w, alpha, t) {
   const F = typeof S3D_WARP === 'undefined' ? null : S3D_WARP;
   if (!F || !sp || !sp.field || !(w >= F.minPx) || !(F.lane > 0.002)) return;
@@ -1775,12 +1803,30 @@ function s3lane(c, sp, x, y, w, alpha, t) {
   c.globalCompositeOperation = 'lighter';
   // the spill itself: brightest at the mouth, gone by the time it has come a
   // gate-and-a-bit toward you
-  const gl = c.createRadialGradient(x, y, R * 0.10, x, y, R + reach);
-  gl.addColorStop(0, 'rgba(' + F.col + ',' + (a * 0.85).toFixed(3) + ')');
-  gl.addColorStop(0.42, 'rgba(' + F.col + ',' + (a * 0.32).toFixed(3) + ')');
-  gl.addColorStop(1, 'rgba(' + F.col + ',0)');
-  c.fillStyle = gl;
-  c.beginPath(); c.arc(x, y, R + reach, 0, 6.2831853); c.fill();
+  const ga = c.globalAlpha;
+  // the inner edge of the glow sits at a tenth of the aperture; as a share of the
+  // whole reach that moves by a hair with the breath, and is baked at rest
+  const f0 = 0.10 / (1 + F.laneLen);
+  const glow = s3Glow('lane|' + F.col + '|' + f0.toFixed(3), 256, (x2, S) => {
+    const h = S / 2, g2 = x2.createRadialGradient(h, h, h * f0, h, h, h);
+    g2.addColorStop(0, 'rgba(' + F.col + ',1)');
+    g2.addColorStop(0.42, 'rgba(' + F.col + ',0.3765)');   // 0.32 / 0.85
+    g2.addColorStop(1, 'rgba(' + F.col + ',0)');
+    x2.fillStyle = g2; x2.fillRect(0, 0, S, S);
+  });
+  if (glow) {
+    const rr = R + reach;
+    c.globalAlpha = ga * Math.min(1, Math.max(0, a * 0.85));
+    c.drawImage(glow, x - rr, y - rr, rr * 2, rr * 2);
+    c.globalAlpha = ga;
+  } else {
+    const gl = c.createRadialGradient(x, y, R * 0.10, x, y, R + reach);
+    gl.addColorStop(0, 'rgba(' + F.col + ',' + (a * 0.85).toFixed(3) + ')');
+    gl.addColorStop(0.42, 'rgba(' + F.col + ',' + (a * 0.32).toFixed(3) + ')');
+    gl.addColorStop(1, 'rgba(' + F.col + ',0)');
+    c.fillStyle = gl;
+    c.beginPath(); c.arc(x, y, R + reach, 0, 6.2831853); c.fill();
+  }
   // …and the corridor itself, as RINGS FALLING INTO THE MOUTH. Radial spokes were
   // the first attempt and they read as clock hands: end-on, a corridor is not spokes,
   // it is hoops — which is exactly how the game draws its lane everywhere else.
@@ -1858,13 +1904,27 @@ function s3lane(c, sp, x, y, w, alpha, t) {
         // between a soft ball and a flat disc, and either way it reads as an
         // object rather than as a light seen from a long way off.
         const hr = rr * 2.8;
-        const gl2 = c.createRadialGradient(px, py, 0, px, py, hr);
-        gl2.addColorStop(0.00, 'rgba(' + col + ',' + (A * 0.75).toFixed(3) + ')');
-        gl2.addColorStop(0.20, 'rgba(' + col + ',' + (A * 0.28).toFixed(3) + ')');
-        gl2.addColorStop(0.55, 'rgba(' + col + ',' + (A * 0.07).toFixed(3) + ')');
-        gl2.addColorStop(1, 'rgba(' + col + ',0)');
-        c.fillStyle = gl2;
-        c.beginPath(); c.arc(px, py, hr, 0, 6.2831853); c.fill();
+        const bk = s3Glow('beacon|' + col, 64, (x2, S) => {
+          const h = S / 2, g2 = x2.createRadialGradient(h, h, 0, h, h, h);
+          g2.addColorStop(0.00, 'rgba(' + col + ',1)');
+          g2.addColorStop(0.20, 'rgba(' + col + ',0.3733)');   // 0.28 / 0.75
+          g2.addColorStop(0.55, 'rgba(' + col + ',0.0933)');   // 0.07 / 0.75
+          g2.addColorStop(1, 'rgba(' + col + ',0)');
+          x2.fillStyle = g2; x2.fillRect(0, 0, S, S);
+        });
+        if (bk) {
+          c.globalAlpha = ga * Math.min(1, Math.max(0, A * 0.75));
+          c.drawImage(bk, px - hr, py - hr, hr * 2, hr * 2);
+          c.globalAlpha = ga;
+        } else {
+          const gl2 = c.createRadialGradient(px, py, 0, px, py, hr);
+          gl2.addColorStop(0.00, 'rgba(' + col + ',' + (A * 0.75).toFixed(3) + ')');
+          gl2.addColorStop(0.20, 'rgba(' + col + ',' + (A * 0.28).toFixed(3) + ')');
+          gl2.addColorStop(0.55, 'rgba(' + col + ',' + (A * 0.07).toFixed(3) + ')');
+          gl2.addColorStop(1, 'rgba(' + col + ',0)');
+          c.fillStyle = gl2;
+          c.beginPath(); c.arc(px, py, hr, 0, 6.2831853); c.fill();
+        }
         // the filament: near white-hot and SMALL, floored at sub-pixel range so
         // a distant marker dims rather than disappearing — a light that drops
         // out entirely just reads as a gap in the chain
@@ -2238,6 +2298,52 @@ function s3drawLamps(sp, x, y, k, alpha) {
     if (b < 0.03) continue;
     const px = x + (L.x - sp.S * 0.5) * k, py = y + (L.y - sp.S * 0.5) * k;
     const r = Math.max(0.35, L.r * k), R = r * H.haloR;
+    // ONE SPRITE PER LAMP COLOUR: the halo, the cold skirt and the cross below all
+    // scale with the lamp's own brightness `b` and with its radius, so they bake
+    // together (at b = 1, additively) and draw as one image at globalAlpha = b.
+    // E is the sprite's half-extent in halo radii: the cross outreaches the halo.
+    {
+      const spiked = H.spike > 0.01 && r >= H.spikeMin, chroma = H.chroma > 0.01;
+      const E = spiked ? Math.max(1, H.spikeL) : 1;
+      const lampSp = s3Glow('lamp|' + L.c + '|' + H.haloR + '|' + H.haloA + '|' + (chroma ? H.chroma : 0) + '|' + (spiked ? H.spike + '|' + H.spikeL : 'n'), 128, (x2, S) => {
+        const h = S / 2, Rp = h / E, rp = Rp / H.haloR;
+        x2.globalCompositeOperation = 'lighter';
+        const g0 = x2.createRadialGradient(h, h, 0, h, h, Rp);
+        g0.addColorStop(0, 'rgba(' + L.c + ',' + H.haloA.toFixed(3) + ')');
+        g0.addColorStop(0.16, 'rgba(' + L.c + ',' + (H.haloA * 0.26).toFixed(3) + ')');
+        g0.addColorStop(0.48, 'rgba(' + L.c + ',' + (H.haloA * 0.055).toFixed(3) + ')');
+        g0.addColorStop(1, 'rgba(' + L.c + ',0)');
+        x2.fillStyle = g0; x2.beginPath(); x2.arc(h, h, Rp, 0, TAU); x2.fill();
+        if (chroma) {
+          const g2 = x2.createRadialGradient(h, h, Rp * 0.30, h, h, Rp * 0.92);
+          g2.addColorStop(0, 'rgba(150,205,255,0)');
+          g2.addColorStop(0.55, 'rgba(150,205,255,' + (H.chroma * 0.055).toFixed(3) + ')');
+          g2.addColorStop(1, 'rgba(120,170,255,0)');
+          x2.fillStyle = g2; x2.beginPath(); x2.arc(h, h, Rp * 0.92, 0, TAU); x2.fill();
+        }
+        if (spiked) {
+          const len = Rp * H.spikeL, sa = (H.spike * 0.30).toFixed(3);
+          for (const vert of [false, true]) {
+            const sg = vert ? x2.createLinearGradient(h, h - len, h, h + len) : x2.createLinearGradient(h - len, h, h + len, h);
+            sg.addColorStop(0, 'rgba(' + L.c + ',0)');
+            sg.addColorStop(0.5, 'rgba(' + L.c + ',' + sa + ')');
+            sg.addColorStop(1, 'rgba(' + L.c + ',0)');
+            x2.fillStyle = sg;
+            if (vert) x2.fillRect(h - rp * 0.30, h - len, rp * 0.60, len * 2);
+            else x2.fillRect(h - len, h - rp * 0.30, len * 2, rp * 0.60);
+          }
+        }
+      });
+      if (lampSp) {
+        const ga = ctx.globalAlpha, ext = R * E;
+        ctx.globalAlpha = ga * Math.min(1, b);
+        ctx.drawImage(lampSp, px - ext, py - ext, ext * 2, ext * 2);
+        ctx.globalAlpha = ga;
+        ctx.fillStyle = 'rgba(' + L.c + ',' + (H.coreA * b).toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(px, py, r, 0, TAU); ctx.fill();
+        continue;
+      }
+    }
     // THE SOFT FALLOFF. Three stops, not two: a bright core, a shoulder that
     // carries most of the light, and a long tail. A single linear gradient reads
     // as a disc with a soft edge; this reads as a light.

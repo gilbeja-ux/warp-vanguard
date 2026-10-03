@@ -135,6 +135,11 @@ const PROBE = `(() => { const g = n => { try { return eval(n); } catch (e) { ret
     fps:   P ? P.fps   : null,
     total: P && P.total != null ? +P.total.toFixed(3) : null,
     peak:  P && P.peak  != null ? +P.peak.toFixed(3)  : null,
+    // paint cadence, from the profiler's wall clock: the worst gap between two
+    // paints and the paints that came over 25 ms late in the last second. fps
+    // and these are what the player sees; total is only the frame's JS work.
+    gap:   P && P.gap   != null ? +P.gap.toFixed(1)   : null,
+    late:  P && P.late  != null ? P.late              : null,
     rows:  P && P.rows ? P.rows.map(r => [r.name, +r.ms.toFixed(3)]) : null,
     lowFX:   g('lowFX'),
     warp:    (g('warpStars')  || []).length,
@@ -257,6 +262,7 @@ function summarize(run) {
     ssMs: mean(sNums('total')), ssFps: mean(sNums('fps')),
     fps: mean(nums('fps')), avgMs: mean(nums('total')),
     medMs: med(nums('total')), peakMs: Math.max(0, ...nums('peak')),
+    lateRate: mean(nums('late')), gapMs: Math.max(0, ...nums('gap')),
     lowFXfrac: ok.length ? ok.filter(s => s.lowFX === true).length / ok.length : null,
     latchAt: run.latch ? run.latch.wall / 1000 : null,
     warp: med(nums('warp')), streaks: med(nums('streaks')), deep: med(nums('deep')),
@@ -315,7 +321,7 @@ function fmt(v, d) { return v == null || Number.isNaN(v) ? '   —  ' : v.toFixe
         const r = await runConfig(cdp, suffix, rep);
         runs.push(r);
         const s = summarize(r);
-        console.log(`      fps ${fmt(s.fps, 1)}  avg ${fmt(s.avgMs)}ms  peak ${fmt(s.peakMs)}ms  lowFX ${((s.lowFXfrac || 0) * 100).toFixed(0)}% of run`);
+        console.log(`      fps ${fmt(s.fps, 1)}  late ${fmt(s.lateRate, 1)}/s  worst gap ${fmt(s.gapMs, 0)}ms  work ${fmt(s.avgMs)}ms  peak ${fmt(s.peakMs)}ms  lowFX ${((s.lowFXfrac || 0) * 100).toFixed(0)}% of run`);
       } catch (e) {
         console.log('      FAILED: ' + e.message);
       }
@@ -324,9 +330,9 @@ function fmt(v, d) { return v == null || Number.isNaN(v) ? '   —  ' : v.toFixe
 
   // ---------- report ----------
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const csv = [['config', 'rep', 'wall_s', 'sim_time', 'fps', 'avg_ms', 'peak_ms', 'lowFX', 'warp', 'streaks', 'deep', 'enemies'].join(',')];
+  const csv = [['config', 'rep', 'wall_s', 'sim_time', 'fps', 'avg_ms', 'peak_ms', 'lowFX', 'warp', 'streaks', 'deep', 'enemies', 'gap_ms', 'late_per_s'].join(',')];
   for (const r of runs) for (const s of r.samples) {
-    csv.push([JSON.stringify(r.suffix || 'baseline'), r.rep, (s.wall / 1000).toFixed(2), s.time, s.fps, s.total, s.peak, s.lowFX, s.warp, s.streaks, s.deep, s.enemies].join(','));
+    csv.push([JSON.stringify(r.suffix || 'baseline'), r.rep, (s.wall / 1000).toFixed(2), s.time, s.fps, s.total, s.peak, s.lowFX, s.warp, s.streaks, s.deep, s.enemies, s.gap, s.late].join(','));
   }
   const csvPath = path.join(OUT, `bench-${TARGET}-${stamp}.csv`);
   fs.writeFileSync(csvPath, csv.join('\n'));

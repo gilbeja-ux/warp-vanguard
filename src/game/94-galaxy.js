@@ -755,6 +755,53 @@ function drawStarPoint(x, y, coreR, hot, tint, bright) {
 // `labels` off draws the chart WITHOUT its type — the cordon names are set at a
 // fixed 12px, which is a headline inside a contract disc's map strip and a
 // caption inside the full lens. The rings carry the geography on their own.
+// ---------- A CORDON IS STROKED ONLY WHERE THE LENS CAN SEE IT (2026-10-03) ----------
+// The cordons are ellipses round the core, and at the star map's zoom one of them
+// is tens of thousands of pixels round with a few hundred of them under the lens.
+// Each was stroked WHOLE, dashed, and left to the clip. Chrome clips before it
+// dashes. WebKit's CoreGraphics walks the entire path, dash by dash: six cordons
+// cost 18 ms a paint in WebKit at the iPad Pro's size — the whole star map, at the
+// display's rate with nothing to spare, and the game's profiler read 0.3 ms.
+//
+// So the visible arcs are found on a fixed grid of 720 angles and only those are
+// stroked. The dashes must not crawl as the camera rides, so each arc starts its
+// pattern where the whole ellipse would have had it: lineDashOffset is the arc
+// length from angle 0, read from a table for the unit ellipse (radii 1 and 0.5 —
+// every cordon is that shape, scaled). Returns null for "stroke it whole".
+const ELL_N = 720;
+let ELL_TAB = null;
+function ellTable() {
+  if (ELL_TAB) return ELL_TAB;
+  const cos = new Float64Array(ELL_N + 1), sin = new Float64Array(ELL_N + 1), len = new Float64Array(ELL_N + 1);
+  let acc = 0, px = 1, py = 0;
+  const SUB = 16; // chords per grid step: the table is good to a hundredth of a pixel on the largest cordon
+  for (let i = 0; i <= ELL_N; i++) {
+    const th = i * TAU / ELL_N;
+    cos[i] = Math.cos(th); sin[i] = Math.sin(th); len[i] = acc;
+    for (let k = 1; k <= SUB; k++) {
+      const t2 = (i + k / SUB) * TAU / ELL_N, x = Math.cos(t2), y = 0.5 * Math.sin(t2);
+      acc += Math.hypot(x - px, y - py); px = x; py = y;
+    }
+  }
+  return ELL_TAB = { cos, sin, len };
+}
+function ellVisibleArcs(cx, cy, a, lx, ly, lr) {
+  if (a * TAU < 3000) return null;                          // small on screen: cheap whole
+  const T = ellTable(), b = a * 0.5;
+  const lim = lr + a * TAU / ELL_N, lim2 = lim * lim;      // + one grid step: an arc can bulge past its ends
+  const vis = i => { const dx = cx + a * T.cos[i] - lx, dy = cy + b * T.sin[i] - ly; return dx * dx + dy * dy <= lim2; };
+  let first = -1;
+  for (let i = 0; i < ELL_N; i++) if (!vis(i)) { first = i; break; }
+  if (first < 0) return null;                               // all of it is under the lens
+  const runs = [];
+  let start = -1;
+  for (let j = first + 1; j <= first + ELL_N; j++) {
+    const v = vis(j % ELL_N);
+    if (v && start < 0) start = j - 1;                      // open one grid point early…
+    else if (!v && start >= 0) { runs.push([start, j]); start = -1; }   // …and close one late
+  }
+  return runs;
+}
 function drawGalaxyOverlay(tf, ccx, ccy, R, labels) {
   if (labels === undefined) labels = true;
   const z = tf.z, pad = 8;
@@ -768,7 +815,7 @@ function drawGalaxyOverlay(tf, ccx, ccy, R, labels) {
       drawStarPoint(sx, sy, Math.max(0.7, st.r * z * 0.75), st.c, st.c, Math.min(1, st.a * 1.15));
       ctx.restore();
     } else {
-      ctx.fillStyle = `rgba(${st.c},${st.a.toFixed(3)})`;
+      ctx.fillStyle = st.ink || (st.ink = `rgba(${st.c},${st.a.toFixed(3)})`);   // a chart star never changes: its ink is built once
       // never below a pixel — a sub-pixel star is a grey smear, and a field of
       // smears is the mush we are getting rid of
       ctx.beginPath(); ctx.arc(sx, sy, Math.max(0.55, st.r * z), 0, TAU); ctx.fill();
@@ -785,12 +832,22 @@ function drawGalaxyOverlay(tf, ccx, ccy, R, labels) {
     ctx.save();
     ctx.strokeStyle = `rgba(${col},${a.toFixed(2)})`;
     ctx.lineWidth = 1.6;
+    const runs = abl('nosprite') ? null : ellVisibleArcs(cx2, cy2, r * z, ccx, ccy, R + pad);   // ?abl=nosprite: the whole ellipse, as before
+    const arcs = dashed => {
+      if (!runs) { ell(r); ctx.stroke(); return; }
+      const T = ellTable(), step = TAU / ELL_N;
+      for (const [i0, i1] of runs) {
+        if (dashed) ctx.lineDashOffset = (T.len[i0 % ELL_N] * r * z) % 64;   // 64 = one dash + one gap
+        ctx.beginPath(); ctx.ellipse(cx2, cy2, r * z, r * 0.5 * z, 0, i0 * step, i1 * step); ctx.stroke();
+      }
+    };
     ctx.setLineDash([10, 54]);   // was [18,12] — nearly solid; now mostly gap
-    ell(r); ctx.stroke();
+    arcs(true);
     ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
     ctx.strokeStyle = `rgba(${col},${(a * 0.13).toFixed(2)})`;
     ctx.lineWidth = 6;
-    ell(r); ctx.stroke();
+    arcs(false);
     // picket stations: fewer and smaller, so the ring reads as a sparse patrol
     // line rather than a studded band
     ctx.fillStyle = `rgba(${col},${(a * 0.55).toFixed(2)})`;

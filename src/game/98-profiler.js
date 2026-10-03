@@ -32,7 +32,7 @@ function profOn() { return !!PROF; }
 function profToggle(on) {
   if (on === false || (on === undefined && PROF)) { PROF = null; return false; }
   PROF = { acc: {}, cur: null, mark: 0, roll: {}, frames: 0, since: 0, fps: 0, worst: 0, rows: [],
-    wall0: 0, lastT: 0, gapMax: 0, gap: 0, stepSeen: -1, pace: [0, 0, 0], paceShown: [0, 0, 0] };
+    wall0: 0, lastT: 0, gapMax: 0, gap: 0, lateN: 0, late: 0, stepSeen: -1, pace: [0, 0, 0], paceShown: [0, 0, 0] };
   return true;
 }
 
@@ -49,7 +49,11 @@ function profFrame(frameMs) {
   // which on that device was once every eight seconds.
   const t = performance.now();
   if (!P.wall0) P.wall0 = t;
-  if (P.lastT) { const gap = t - P.lastT; if (gap > P.gapMax) P.gapMax = gap; }
+  // LATE: a paint more than 25 ms after the one before it — a frame the player saw
+  // dropped. This is the number the work time cannot give: WebKit and Chrome both
+  // rasterise after the frame's code has returned, so a frame can be late with 2 ms
+  // of work (the whole story of 2026-10-03). scripts/bench.js reads it.
+  if (P.lastT) { const gap = t - P.lastT; if (gap > P.gapMax) P.gapMax = gap; if (gap > 25) P.lateN++; }
   P.lastT = t;
   // PACING: how many sim steps this painted frame carries. All 1s is smooth; a 0
   // is a frame that did not move and a 2 is one that moved twice (see SIM_SLOP).
@@ -64,6 +68,7 @@ function profFrame(frameMs) {
   if (t - P.wall0 >= 1000) {
     P.fps = Math.round((P.frames * 1000) / (t - P.wall0));
     P.gap = P.gapMax; P.gapMax = 0; P.wall0 = t;
+    P.late = P.lateN; P.lateN = 0;
     P.paceShown = P.pace; P.pace = [0, 0, 0];
     P.rows = Object.keys(P.roll)
       .map(k => ({ name: k, ms: P.roll[k] / P.frames }))
@@ -96,7 +101,7 @@ function drawProfiler() {
   ctx.fillStyle = P.fps >= 55 ? '#7ee262' : P.fps >= 45 ? '#ffd24a' : '#ff5a5a';
   ctx.fillText(`${P.fps} fps   work ${P.total.toFixed(1)}ms / ${budget}`, x + pad, y + pad);
   ctx.fillStyle = 'rgba(200,220,255,0.6)';
-  ctx.fillText(`worst work ${(P.peak || 0).toFixed(1)}  gap ${(P.gap || 0).toFixed(0)}ms`, x + pad, y + pad + lh);
+  ctx.fillText(`work ${(P.peak || 0).toFixed(0)} gap ${(P.gap || 0).toFixed(0)}ms late ${P.late || 0}`, x + pad, y + pad + lh);
   const pc = P.paceShown;
   ctx.fillStyle = pc[0] + pc[2] > 2 ? '#ff5a5a' : '#7ee262'; // red: frames carrying 0 or 2 steps
   ctx.fillText(`steps 0:${pc[0]}  1:${pc[1]}  2+:${pc[2]}`, x + pad, y + pad + lh * 2);

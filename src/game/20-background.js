@@ -252,6 +252,54 @@ function strokeUnitTaper(x0, y0, x1, y1, lw, alpha, gr) {
   ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(1, 0); ctx.stroke();
   ctx.restore();
 }
+// ---------- A TAPER AS AN IMAGE, AND A STAR AS AN INK (2026-10-03, round two) ----------
+// With every per-frame gradient gone, a held warp dive was still the one scene
+// without headroom: painted three times a frame in WebKit at the iPad Pro's size
+// it ran 38 fps, and 50 with the star field off. What was left was 1,700 smears,
+// each a gradient STROKE — cached, but still a path, a stroker and a shader per
+// star. A smear is a thin straight bar, so it is a 64x4 image of its taper
+// stretched along the segment: one drawImage, no path. The two transparent rows
+// above and below carry the edge, so the bar is soft-edged by the texture filter
+// and does not depend on how an engine antialiases a rotated image's border; the
+// image is drawn at twice the pen's width and its lit half is the pen.
+//
+// And the star itself: 1,700 of `rgba(r,g,b,a)` built, formatted and parsed per
+// frame, one per dot, every one unique because the alpha is. The colour is one of
+// thirty; the alpha is a number. So the fill is an opaque ink set when the colour
+// changes and the alpha goes through globalAlpha. `?abl=nosprite` restores both.
+const TAPER_STRIP_PX = 64;
+const taperStrips = {};
+function taperStrip(kind, col, stops) {
+  const key = kind + col;
+  let sp = taperStrips[key];
+  if (sp !== undefined) return sp;
+  sp = null;
+  try {
+    const c = document.createElement('canvas');
+    c.width = TAPER_STRIP_PX; c.height = 4;
+    const x = c.getContext('2d');
+    if (x && x.createLinearGradient) {
+      const gr = x.createLinearGradient(0, 0, TAPER_STRIP_PX, 0);
+      for (const [p, a] of stops) gr.addColorStop(p, `rgba(${col},${a})`);
+      x.fillStyle = gr;
+      x.fillRect(0, 1, TAPER_STRIP_PX, 2);
+      sp = c;
+    }
+  } catch (e) { sp = null; }
+  taperStrips[key] = sp;
+  return sp;
+}
+function blitUnitStrip(x0, y0, x1, y1, lw, alpha, strip) {
+  const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy);
+  if (len < 0.5 || alpha <= 0) return;
+  ctx.save();
+  ctx.transform(dx, dy, -dy, dx, x0, y0);
+  ctx.globalAlpha = ctx.globalAlpha * Math.min(1, alpha);
+  ctx.drawImage(strip, 0, -lw / len, 1, 2 * lw / len);
+  ctx.restore();
+}
+const starInks = {};
+function starInk(col) { return starInks[col] || (starInks[col] = `rgb(${col})`); }
 const WARP_TAIL_STOPS = [[0, 0], [0.55, 0.55], [1, 1]];   // a warp star's smear: nothing at the tail, full at the star
 const STAR_SPIKE_STOPS = [[0, 0], [0.5, 1], [1, 0]];      // a flare's refraction streak: brightest through the star
 const STAR_HUE_Q = 4;   // the bloom's colour-shift, in steps of this many levels: a
@@ -1112,6 +1160,8 @@ function drawWarpSky(vis, bdt) {
   const tailCap = cr * (0.5 + dive * 1.3);
   const M = 6;
   const baseAl = ctx.globalAlpha;   // the halo blit borrows it and must give it back
+  const inked = !abl('nosprite');   // a star is an opaque ink at globalAlpha, not an rgba() string (see taperStrip)
+  let inkCol = null;
   // the staged population edit (see retargetWarpSky): stars at or past editFrom
   // wear editK on top of everything else — out for a trim, up for a top-up. The
   // trim only truncates once its fade has finished, so nothing ever vanishes
@@ -1186,7 +1236,9 @@ function drawWarpSky(vis, bdt) {
           // one taper per colour (30 of them), not one per star per frame: a dive
           // smears every star in the sky, and this line built 1,600 gradients a
           // frame for it — the warp was the slowest thing in the game on an iPad
-          strokeUnitTaper(ix, iy, px, py, ctx.lineWidth, ta, unitGrad('wt', col, WARP_TAIL_STOPS));
+          const strip = taperStrip('wt', col, WARP_TAIL_STOPS);
+          if (strip) blitUnitStrip(ix, iy, px, py, ctx.lineWidth, ta, strip);
+          else strokeUnitTaper(ix, iy, px, py, ctx.lineWidth, ta, unitGrad('wt', col, WARP_TAIL_STOPS));
         } else if (tail > 18) {
           // only the long ones pay for a taper. A short smear has no room to show
           // one; a long one without it is a solid line with a star stuck on the end.
@@ -1195,16 +1247,21 @@ function drawWarpSky(vis, bdt) {
           gr.addColorStop(0.55, `rgba(${col},${(ta * 0.55).toFixed(4)})`);
           gr.addColorStop(1, `rgba(${col},${ta.toFixed(4)})`);
           ctx.strokeStyle = gr;
-        } else ctx.strokeStyle = `rgba(${col},${ta.toFixed(4)})`;
-        if (!taperU) { ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(px, py); ctx.stroke(); }
+        } else if (inked) { ctx.strokeStyle = starInk(col); ctx.globalAlpha = baseAl * clamp(ta, 0, 1); }
+        else ctx.strokeStyle = `rgba(${col},${ta.toFixed(4)})`;
+        if (!taperU) { ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(px, py); ctx.stroke(); if (inked) ctx.globalAlpha = baseAl; }
       }
     }
-    ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
+    if (inked) {
+      if (col !== inkCol) { inkCol = col; ctx.fillStyle = starInk(col); }
+      ctx.globalAlpha = baseAl * clamp(al, 0, 1);
+    } else ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
     // A SQUARE, under a pixel wide. Most of a blanket this size is sub-pixel far
     // stars, and at that size a rect and an arc are the same two dim pixels —
     // one of them just costs a path, a fill and a curve flattener per star.
     if (R < 0.75) ctx.fillRect(px - R, py - R, R * 2, R * 2);
     else { ctx.beginPath(); ctx.arc(px, py, R, 0, TAU); ctx.fill(); }
+    if (inked) ctx.globalAlpha = baseAl;
   }
 }
 
@@ -1375,9 +1432,16 @@ function drawLiveStars(arr, vis, bdt) {
         }
       }
     }
-    ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
+    // an un-hued star is one of five colours: an ink and an alpha, not a string
+    // built and parsed per star per frame. The hued ones change colour every frame
+    // and keep the string.
+    const ink = !s.hue && !abl('nosprite');
+    const ga0 = ink ? ctx.globalAlpha : 1;
+    if (ink) { ctx.fillStyle = starInk(col); ctx.globalAlpha = ga0 * clamp(al, 0, 1); }
+    else ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
     // the core grows a little too: a star at full flare is not the same size dot
     ctx.beginPath(); ctx.arc(sx, sy, s.r * (0.8 + 0.35 * k), 0, TAU); ctx.fill();
+    if (ink) ctx.globalAlpha = ga0;
   }
 }
 // binary / hex snippets racing along the tunnel axis — glyph by glyph, in true perspective,

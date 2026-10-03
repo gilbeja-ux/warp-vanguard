@@ -382,8 +382,11 @@ function drawDeepField(g, dt) {
         ctx.globalAlpha = baseAl;
       }
     }
-    ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
+    // two colours and a number: an ink at globalAlpha, not a string per star (see taperStrip)
+    if (abl('nosprite')) ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
+    else { ctx.fillStyle = starInk(col); ctx.globalAlpha = baseAl * clamp(al, 0, 1); }
     ctx.beginPath(); ctx.arc(px, py, Math.min(R, DEEP_CORE), 0, TAU); ctx.fill();
+    ctx.globalAlpha = baseAl;
   }
   ctx.restore();
 }

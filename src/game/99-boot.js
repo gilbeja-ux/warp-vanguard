@@ -1082,7 +1082,10 @@ function frameBody(now) {
   // THE CAP. Everything above ran: the clock, the sim, audio, input. Only the
   // painting is skipped, and only on a panel fast enough that the skipped frame
   // would have been an identical picture.
-  if (!painting) { requestAnimationFrame(frame); return; }
+  // prof(null): close the open phase before leaving. Without it the 'bg' phase
+  // stayed open across the whole wait for the next tick, so on a 120Hz panel the
+  // profiler billed 8 ms of idle to "bg" every frame (found 2026-10-03).
+  if (!painting) { prof(null); requestAnimationFrame(frame); return; }
   paintN++;
 
   ctx.save();
