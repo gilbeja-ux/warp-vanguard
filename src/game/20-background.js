@@ -298,6 +298,10 @@ function blitUnitStrip(x0, y0, x1, y1, lw, alpha, strip) {
   ctx.drawImage(strip, 0, -lw / len, 1, 2 * lw / len);
   ctx.restore();
 }
+// A star under three quarters of a pixel in radius is a square of the SAME AREA as
+// its disc (half-side r * sqrt(pi) / 2): the same light on the same two pixels, and
+// one canvas call where a path, an arc and a fill were three.
+const STAR_SQ = 0.8862;
 const starInks = {};
 function starInk(col) { return starInks[col] || (starInks[col] = `rgb(${col})`); }
 const WARP_TAIL_STOPS = [[0, 0], [0.55, 0.55], [1, 1]];   // a warp star's smear: nothing at the tail, full at the star
@@ -1162,6 +1166,14 @@ function drawWarpSky(vis, bdt) {
   const baseAl = ctx.globalAlpha;   // the halo blit borrows it and must give it back
   const inked = !abl('nosprite');   // a star is an opaque ink at globalAlpha, not an rgba() string (see taperStrip)
   let inkCol = null;
+  // A SMEARED STAR IS DRAWN WHOLE IN ITS SMEAR'S OWN SPACE (round three, the phone):
+  // one setTransform composed by hand with the ambient matrix, then the bloom, the
+  // strip and the dot, and no save or restore. In a dive that is every star in the
+  // sky, and save / transform / restore per star was most of what the layer cost
+  // in calls (see the fast path in drawStreaks for the whole reasoning).
+  const XFm = inked && typeof ctx.getTransform === 'function' ? ctx.getTransform() : null;
+  const XF = XFm && typeof XFm.a === 'number' ? XFm : null;
+  let moved = false;
   // the staged population edit (see retargetWarpSky): stars at or past editFrom
   // wear editK on top of everything else — out for a trim, up for a top-up. The
   // trim only truncates once its fade has finished, so nothing ever vanishes
@@ -1202,6 +1214,34 @@ function drawWarpSky(vis, bdt) {
     const col = warpRamp[st.ci][dopMap[Math.min(WARP_TONES - 1, (rs / cr * WARP_TONES) | 0)]];
     const grow = st.sz * (0.6 + 0.4 / st.z);
     const R = Math.min(grow, WARP_CORE);
+    if (XF && tail > 18) {
+      const ta = al * WARP_TAIL * clamp(R * 5 / tail, st.big ? 0.5 : 0.3, 1);
+      const strip = ta > 0.02 ? taperStrip('wt', col, WARP_TAIL_STOPS) : null;
+      if (strip) {
+        const dx = px - ix, dy = py - iy, u = 1 / tail;   // unit x runs tail -> star
+        ctx.setTransform(XF.a * dx + XF.c * dy, XF.b * dx + XF.d * dy, XF.c * dx - XF.a * dy, XF.d * dx - XF.b * dy,
+          XF.a * ix + XF.c * iy + XF.e, XF.b * ix + XF.d * iy + XF.f);
+        moved = true;
+        if (grow > WARP_CORE) {
+          const hc = deepHalo(col);
+          if (hc) {
+            const rr = grow * WARP_BLOOM * u;
+            ctx.globalAlpha = baseAl * Math.min(1, al * WARP_BLOOM_A);
+            ctx.drawImage(hc, 1 - rr, -rr, rr * 2, rr * 2);
+          }
+        }
+        const lw = Math.max(0.65, R * 1.35) * u;
+        ctx.globalAlpha = baseAl * Math.min(1, ta);
+        ctx.drawImage(strip, 0, -lw, 1, 2 * lw);
+        if (col !== inkCol) { inkCol = col; ctx.fillStyle = starInk(col); }
+        ctx.globalAlpha = baseAl * clamp(al, 0, 1);
+        const Ru = R * u;
+        if (R < 0.75) ctx.fillRect(1 - Ru, -Ru, Ru * 2, Ru * 2);
+        else { ctx.beginPath(); ctx.arc(1, 0, Ru, 0, TAU); ctx.fill(); }
+        continue;
+      }
+    }
+    if (moved) { ctx.setTransform(XF.a, XF.b, XF.c, XF.d, XF.e, XF.f); ctx.globalAlpha = baseAl; moved = false; }
     if (grow > WARP_CORE) {
       // past a point the rest of the light is scatter, so a near star grows by
       // REACHING FURTHER rather than by widening into a coin. Prerendered sprite,
@@ -1263,6 +1303,7 @@ function drawWarpSky(vis, bdt) {
     else { ctx.beginPath(); ctx.arc(px, py, R, 0, TAU); ctx.fill(); }
     if (inked) ctx.globalAlpha = baseAl;
   }
+  if (moved) { ctx.setTransform(XF.a, XF.b, XF.c, XF.d, XF.e, XF.f); ctx.globalAlpha = baseAl; }
 }
 
 // animated background layer: drifting motes. (The periodic glitch scanlines are
@@ -1440,7 +1481,9 @@ function drawLiveStars(arr, vis, bdt) {
     if (ink) { ctx.fillStyle = starInk(col); ctx.globalAlpha = ga0 * clamp(al, 0, 1); }
     else ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
     // the core grows a little too: a star at full flare is not the same size dot
-    ctx.beginPath(); ctx.arc(sx, sy, s.r * (0.8 + 0.35 * k), 0, TAU); ctx.fill();
+    const scr = s.r * (0.8 + 0.35 * k);
+    if (scr < 0.75 && ink) { const hs = scr * STAR_SQ; ctx.fillRect(sx - hs, sy - hs, hs * 2, hs * 2); }
+    else { ctx.beginPath(); ctx.arc(sx, sy, scr, 0, TAU); ctx.fill(); }
     if (ink) ctx.globalAlpha = ga0;
   }
 }

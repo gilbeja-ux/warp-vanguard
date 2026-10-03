@@ -385,7 +385,9 @@ function drawDeepField(g, dt) {
     // two colours and a number: an ink at globalAlpha, not a string per star (see taperStrip)
     if (abl('nosprite')) ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
     else { ctx.fillStyle = starInk(col); ctx.globalAlpha = baseAl * clamp(al, 0, 1); }
-    ctx.beginPath(); ctx.arc(px, py, Math.min(R, DEEP_CORE), 0, TAU); ctx.fill();
+    const dcr = Math.min(R, DEEP_CORE);
+    if (dcr < 0.75 && !abl('nosprite')) { const hs = dcr * STAR_SQ; ctx.fillRect(px - hs, py - hs, hs * 2, hs * 2); }
+    else { ctx.beginPath(); ctx.arc(px, py, dcr, 0, TAU); ctx.fill(); }
     ctx.globalAlpha = baseAl;
   }
   ctx.restore();
@@ -565,6 +567,31 @@ function drawStreaks(g, dt) {
   // every smear collapses back into the star making it, which is precisely what
   // dropping out of warp looks like. Parked (menus), the field is still points.
   const ambSpan = (0.11 + spd * 0.34) * laneFlow;
+  // ---------- THE FAST PATH (2026-10-03, round three: the phone) ----------
+  // On the OPPO a lane spent 2.5 ms of its 7 ms of frame work in this function, and
+  // a dive ran 46 fps with the lines on and 60 with them off. The pixels were not the
+  // bill any more — two sprites a line — the CALLS were: save, composite, line cap,
+  // transform, alpha, two blits, alpha, restore, then save, composite, alpha, blit,
+  // restore again for the head. Fourteen canvas calls a line, three hundred lines.
+  //
+  // So a warp line is drawn through setTransform, composed by hand with the ambient
+  // matrix read ONCE (it carries the DPR, the portrait turn, the shake and the
+  // replay zoom, which is why the slow path uses transform() and never
+  // setTransform()). The composite mode is set once for the run of lines, the head
+  // rides the line's own space, and nothing is saved or restored: four or five
+  // calls a line. `settle()` puts the context back before anything else draws.
+  // Any ablation flag, a missing getTransform (the headless harness) or a refused
+  // sprite falls through to the path below, which is unchanged.
+  const FXm = (!abl('grad') && !abl('nounit') && !abl('nosprite') && !abl('passes') && !abl('heads')
+    && typeof ctx.getTransform === 'function') ? ctx.getTransform() : null;
+  const FX = FXm && typeof FXm.a === 'number' ? FXm : null;
+  const ga0 = ctx.globalAlpha, gco0 = ctx.globalCompositeOperation;
+  let lit = false, moved = false, dirty = false;
+  const settle = () => {
+    if (moved) { ctx.setTransform(FX.a, FX.b, FX.c, FX.d, FX.e, FX.f); moved = false; }
+    if (lit) { ctx.globalCompositeOperation = gco0; lit = false; }
+    ctx.globalAlpha = ga0; dirty = false;
+  };
   for (const st of streaks) {
     const wsp = 1 + laneDive() * 5; // warp-dive stretch
     // per-star length, so no two smears are the same size
@@ -619,10 +646,64 @@ function drawStreaks(g, dt) {
     const al = st.gold
       ? Math.min(1 - zH, 1.05) * 0.75 * clamp(1 + zH / 0.1, 0, 1) * laneFlow * bank
       : Math.min(1 - zH, 1.05) * 0.46 * st.br; // translucent: you see stars THROUGH a warp line
+    if (FX && !st.gold) {
+      const k = Math.min(9, lerp(0.6, 1.25, 1 - zH) * st.cal);
+      const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
+      // the head, worked out exactly as the slow path does below
+      const headZ = 0.55 + 0.45 * (1 - laneFlow);
+      let ha = 0, hr = 0;
+      if (zH < headZ) {
+        const hk = clamp(1 - zH / headZ, 0, 1) * Math.min(2, Math.sqrt(st.cal || 1));
+        const tw = 1 - (1 - laneFlow) * 0.4 * (0.5 + 0.5 * Math.sin(time * (1.1 + st.rmul) + st.a * 7.3));
+        ha = Math.min(1, al * hk * 0.9 * tw);
+        hr = Math.max(1.2, 2.6 * hk);
+      }
+      const head = ha > 0.01;
+      const hsp = head ? headSprite(st.tint) : null;
+      const sU = streakMipU(k);
+      const cap = len > 1e-4 ? parkSprite(st.tint, st.p0, sU) : null;
+      const body = len >= 2 ? shaftSprite(st.tint, st.p0, sU) : null;
+      if ((!head || hsp) && (len <= 1e-4 || cap) && (len < 2 || body) && al >= 0) {
+        if (!lit) { ctx.globalCompositeOperation = 'lighter'; lit = true; }
+        if (len >= 2) {
+          // x runs 0..1 along the line: the same unit space the slow path builds with transform()
+          ctx.setTransform(FX.a * dx + FX.c * dy, FX.b * dx + FX.d * dy, FX.c * dx - FX.a * dy, FX.d * dx - FX.b * dy,
+            FX.a * x1 + FX.c * y1 + FX.e, FX.b * x1 + FX.d * y1 + FX.f);
+          moved = true;
+          const ws = k / sU / len;
+          ctx.globalAlpha = ga0 * Math.min(1, al);
+          ctx.drawImage(body, 0, -body.height * ws / 2, 1, body.height * ws);
+          ctx.drawImage(cap, -cap.width * ws / 2, -cap.width * ws / 2, cap.width * ws, cap.width * ws);
+          if (head) { const hu = hr / len; ctx.globalAlpha = ga0 * ha; ctx.drawImage(hsp, -hu, -hu, hu * 2, hu * 2); }
+        } else if (len > 1e-4) {
+          // on the way up to speed: the cap alone, turned to the heading, at pixel scale
+          const ux = dx / len, uy = dy / len;
+          ctx.setTransform(FX.a * ux + FX.c * uy, FX.b * ux + FX.d * uy, FX.c * ux - FX.a * uy, FX.d * ux - FX.b * uy,
+            FX.a * x1 + FX.c * y1 + FX.e, FX.b * x1 + FX.d * y1 + FX.f);
+          moved = true;
+          const half = cap.width * (k / sU) / 2;
+          ctx.globalAlpha = ga0 * Math.min(1, al);
+          ctx.drawImage(cap, -half, -half, half * 2, half * 2);
+          if (head) { ctx.globalAlpha = ga0 * ha; ctx.drawImage(hsp, -hr, -hr, hr * 2, hr * 2); }
+        } else if (head) {
+          // parked: the star is its head and nothing else
+          if (moved) { ctx.setTransform(FX.a, FX.b, FX.c, FX.d, FX.e, FX.f); moved = false; }
+          ctx.globalAlpha = ga0 * ha;
+          ctx.drawImage(hsp, x1 - hr, y1 - hr, hr * 2, hr * 2);
+        }
+        dirty = true;
+        continue;
+      }
+    }
+    if (dirty) settle();
     if (st.gold) {
-      ctx.strokeStyle = `rgba(255,196,88,${al.toFixed(2)})`;
+      // a convoy ship is one colour: an ink and an alpha, not a string built and
+      // parsed per ship per frame (see taperStrip in 20-background.js)
+      if (FX) { ctx.strokeStyle = 'rgb(255,196,88)'; ctx.globalAlpha = ga0 * clamp(al, 0, 1); }
+      else ctx.strokeStyle = `rgba(255,196,88,${al.toFixed(2)})`;
       ctx.lineWidth = lerp(0.5, 2.6, 1 - zH);
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      if (FX) ctx.globalAlpha = ga0;
     } else {
       // the live warp lines: a STACK of narrow additive strokes, light blue
       // outside to white-hot core. Never one wide stroke — that is a capsule, and
@@ -732,9 +813,11 @@ function drawStreaks(g, dt) {
     }
     // hot core on the nearest gold particles
     if (st.gold && zH < 0.35) {
-      ctx.strokeStyle = `rgba(255,238,190,${(al * 0.7).toFixed(2)})`;
+      if (FX) { ctx.strokeStyle = 'rgb(255,238,190)'; ctx.globalAlpha = ga0 * clamp(al * 0.7, 0, 1); }
+      else ctx.strokeStyle = `rgba(255,238,190,${(al * 0.7).toFixed(2)})`;
       ctx.lineWidth = 0.8;
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      if (FX) ctx.globalAlpha = ga0;
     }
     // the LEADING HEAD on a near ambient streak: the point the star still
     // occupies before the smear behind it. A streak with a head has a direction;
@@ -794,6 +877,7 @@ function drawStreaks(g, dt) {
       }
     }
   }
+  if (dirty) settle();
 }
 
 // ---------- THE LANE MEDIUM: what makes it space instead of a diagram ----------
