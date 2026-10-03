@@ -486,6 +486,53 @@ const KEY_TONE = {
 // `fs` is an OPTIONAL type size, in px. A key inside a disc is narrower than a
 // key inside a console panel, because a chord is narrower than a panel edge, and
 // the label has to come down with it. Left out, the key keeps the console's 14px.
+// ---------- THE KEY'S GLOW, BAKED (2026-10-03) ----------
+// A console key's lit edge is one stroke under a shadowBlur. Chrome blurs on the
+// GPU. WebKit blurs in CoreGraphics on the CPU, in another process, after the rAF
+// callback has returned — and ONE such stroke per frame, the DEPLOY key on the star
+// map, was enough to make one frame in six late in WebKit at the iPad Pro's size,
+// with every gradient in the game already cached. So the stroke and its glow are
+// drawn once into a canvas per key shape and blitted.
+//
+// shadowBlur is in device pixels and ignores the transform, so the bake is at DPR
+// and carries the DPR in its key. A shape is baked on its SECOND sighting: a key
+// that is changing size (a press, a transition) shows a new shape every frame, and
+// baking each one would cost more than the blur it replaces — those draw live, as
+// they always did. Returns false when the caller must draw it live: lowFX (no glow
+// to bake), a first sighting, a refused canvas, the headless harness, ?abl=nosprite.
+const KEY_GLOW_MAX = 32;
+const keyGlowCv = new Map();
+let keyGlowSeen = new Set();
+function keyGlowStroke(x, y, w, h, cut, stroke, glow, blur) {
+  if (lowFX || !(blur > 0) || typeof document === 'undefined' || abl('nosprite')) return false;
+  const sig = w.toFixed(1) + 'x' + h.toFixed(1) + '/' + cut.toFixed(1) + '/' + stroke + '/' + glow + '/' + blur + '@' + DPR;
+  const pad = blur * 2 + 2;
+  let cv = keyGlowCv.get(sig);
+  if (cv === undefined) {
+    if (!keyGlowSeen.has(sig)) {
+      if (keyGlowSeen.size > 64) keyGlowSeen = new Set();
+      keyGlowSeen.add(sig);
+      return false;
+    }
+    cv = null;
+    try {
+      const c = document.createElement('canvas');
+      c.width = Math.ceil((w + pad * 2) * DPR); c.height = Math.ceil((h + pad * 2) * DPR);
+      const ok = withCanvas(c, () => {
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        ctx.shadowColor = glow; ctx.shadowBlur = blur;
+        ctx.strokeStyle = stroke; ctx.lineWidth = 1.5;
+        techRect(pad, pad, w, h, cut); ctx.stroke();
+      });
+      if (ok) cv = c;
+    } catch (e) { cv = null; }
+    if (keyGlowCv.size >= KEY_GLOW_MAX) keyGlowCv.clear();
+    keyGlowCv.set(sig, cv);
+  }
+  if (!cv) return false;
+  ctx.drawImage(cv, x - pad, y - pad, cv.width / DPR, cv.height / DPR);
+  return true;
+}
 function button(x, y, w, h, label, primary, locked, tone, fs) {
   // holographic console key: chamfered glass slab, luminous edge, energy bar on the left
   const T = KEY_TONE[tone] || KEY_TONE.cyan;
@@ -505,11 +552,13 @@ function button(x, y, w, h, label, primary, locked, tone, fs) {
     ctx.strokeStyle = 'rgba(120,180,255,0.20)'; ctx.lineWidth = 1;
     techRect(x, y, w, h, cut); ctx.stroke();
   } else {
-    ctx.shadowColor = T.glow; ctx.shadowBlur = lowFX ? 0 : (primary ? 14 : 6);
-    ctx.strokeStyle = primary ? T.edge : T.edge2;
-    ctx.lineWidth = 1.5;
-    techRect(x, y, w, h, cut); ctx.stroke();
-    ctx.shadowBlur = 0;
+    if (!keyGlowStroke(x, y, w, h, cut, primary ? T.edge : T.edge2, T.glow, primary ? 14 : 6)) {
+      ctx.shadowColor = T.glow; ctx.shadowBlur = lowFX ? 0 : (primary ? 14 : 6);
+      ctx.strokeStyle = primary ? T.edge : T.edge2;
+      ctx.lineWidth = 1.5;
+      techRect(x, y, w, h, cut); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
     // energy bar + bottom-right corner tick
     ctx.fillStyle = primary ? T.bar : T.bar2;
     ctx.fillRect(x + 6, y + h * 0.28, 3, h * 0.44);
@@ -580,11 +629,13 @@ function levelKey(x, y, w, h, num, name, stars, locked, primary) {
     ctx.strokeStyle = 'rgba(120,180,255,0.20)'; ctx.lineWidth = 1;
     techRect(x, y, w, h, cut); ctx.stroke();
   } else {
-    ctx.shadowColor = 'rgba(95,215,255,0.8)'; ctx.shadowBlur = lowFX ? 0 : (primary ? 14 : 6);
-    ctx.strokeStyle = primary ? 'rgba(150,238,255,0.95)' : 'rgba(95,200,255,0.55)';
-    ctx.lineWidth = 1.5;
-    techRect(x, y, w, h, cut); ctx.stroke();
-    ctx.shadowBlur = 0;
+    if (!keyGlowStroke(x, y, w, h, cut, primary ? 'rgba(150,238,255,0.95)' : 'rgba(95,200,255,0.55)', 'rgba(95,215,255,0.8)', primary ? 14 : 6)) {
+      ctx.shadowColor = 'rgba(95,215,255,0.8)'; ctx.shadowBlur = lowFX ? 0 : (primary ? 14 : 6);
+      ctx.strokeStyle = primary ? 'rgba(150,238,255,0.95)' : 'rgba(95,200,255,0.55)';
+      ctx.lineWidth = 1.5;
+      techRect(x, y, w, h, cut); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
     // energy bar + bottom-right corner tick, same as the other console keys
     ctx.fillStyle = primary ? '#a8ecff' : 'rgba(120,220,255,0.7)';
     ctx.fillRect(x + 6, y + h * 0.28, 3, h * 0.44);

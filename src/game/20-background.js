@@ -208,6 +208,55 @@ const STARFX = {
 // inner quarter and lets the rest trail to nothing well inside the radius, so the
 // gradient can never present an edge.
 const STAR_HALO = [[0, 1], [0.10, 0.62], [0.24, 0.30], [0.44, 0.11], [0.70, 0.028], [1, 0]];
+// ---------- NO GRADIENT IS BUILT PER FRAME (the WebKit law, 2026-10-03) ----------
+// Chrome keeps a CanvasGradient in the page's own process and shades it on the GPU,
+// so building a few hundred a frame costs a little garbage and nothing else.
+// WebKit — every iPhone, every iPad, the iOS shell — draws canvas in a separate GPU
+// process: each new gradient is a resource sent across to it, and each is shaded in
+// CoreGraphics on the CPU. None of that happens inside the rAF callback, so the
+// game's profiler reads 2 ms of work while the frame arrives 30 ms late. Measured
+// in WebKit at the iPad Pro's 1366x1024 @2: the home screen ran 33 fps with four
+// frames in five late, and a warp dive built 1,600 gradients a frame.
+//
+// The cure is the one streakTaper found for Android, for a different reason: a
+// gradient resolves in the user space in effect WHEN IT IS PAINTED. So a taper is
+// built once, from (0,0) to (1,0), per colour, and the transform carries it onto
+// the segment; whatever scaled its stops per frame becomes globalAlpha instead.
+// `kind` names the stop curve, `stops` is [[offset, alpha], ...]. The cache is
+// dropped when ctx is rebound, because a gradient belongs to the context that
+// made it (see streakTaper). `?abl=nosprite` puts every per-frame gradient back.
+let unitGrads = {};
+let unitGradCtx = null;
+function unitGrad(kind, col, stops) {
+  if (unitGradCtx !== ctx) { unitGradCtx = ctx; unitGrads = {}; }
+  const key = kind + col;
+  let gr = unitGrads[key];
+  if (gr) return gr;
+  gr = ctx.createLinearGradient(0, 0, 1, 0);
+  for (const [p, a] of stops) gr.addColorStop(p, `rgba(${col},${a})`);
+  unitGrads[key] = gr;
+  return gr;
+}
+// Stroke the segment (x0,y0)-(x1,y1) with a unit-space taper at `alpha`, `lw` wide.
+// transform(), never setTransform(): the DPR matrix, the shake and the replay zoom
+// live in the current transform. A segment under half a pixel has no direction to
+// carry a taper along and paints nothing, which is what its gradient did.
+function strokeUnitTaper(x0, y0, x1, y1, lw, alpha, gr) {
+  const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy);
+  if (len < 0.5 || alpha <= 0) return;
+  ctx.save();
+  ctx.transform(dx, dy, -dy, dx, x0, y0);
+  ctx.globalAlpha = ctx.globalAlpha * Math.min(1, alpha);
+  ctx.strokeStyle = gr;
+  ctx.lineWidth = lw / len;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(1, 0); ctx.stroke();
+  ctx.restore();
+}
+const WARP_TAIL_STOPS = [[0, 0], [0.55, 0.55], [1, 1]];   // a warp star's smear: nothing at the tail, full at the star
+const STAR_SPIKE_STOPS = [[0, 0], [0.5, 1], [1, 0]];      // a flare's refraction streak: brightest through the star
+const STAR_HUE_Q = 4;   // the bloom's colour-shift, in steps of this many levels: a
+                        // bloom peaks at 0.3 alpha, so a step is under one grey level
+                        // on screen, and it bounds the halo sprites at ~14 per colour
 function starClass() {
   let r = Math.random(), i = 0;
   for (; i < STAR_CLASS.length - 1; i++) { if (r < STAR_CLASS[i][0]) break; r -= STAR_CLASS[i][0]; }
@@ -1132,7 +1181,13 @@ function drawWarpSky(vis, bdt) {
       // more calls nobody sees
       if (ta > 0.02) {
         ctx.lineWidth = Math.max(0.65, R * 1.35);
-        if (tail > 18) {
+        const taperU = tail > 18 && !abl('nosprite');
+        if (taperU) {
+          // one taper per colour (30 of them), not one per star per frame: a dive
+          // smears every star in the sky, and this line built 1,600 gradients a
+          // frame for it — the warp was the slowest thing in the game on an iPad
+          strokeUnitTaper(ix, iy, px, py, ctx.lineWidth, ta, unitGrad('wt', col, WARP_TAIL_STOPS));
+        } else if (tail > 18) {
           // only the long ones pay for a taper. A short smear has no room to show
           // one; a long one without it is a solid line with a star stuck on the end.
           const gr = ctx.createLinearGradient(ix, iy, px, py);
@@ -1141,7 +1196,7 @@ function drawWarpSky(vis, bdt) {
           gr.addColorStop(1, `rgba(${col},${ta.toFixed(4)})`);
           ctx.strokeStyle = gr;
         } else ctx.strokeStyle = `rgba(${col},${ta.toFixed(4)})`;
-        ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(px, py); ctx.stroke();
+        if (!taperU) { ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(px, py); ctx.stroke(); }
       }
     }
     ctx.fillStyle = `rgba(${col},${al.toFixed(3)})`;
@@ -1246,7 +1301,7 @@ function drawLiveStars(arr, vis, bdt) {
     // two halves of that layer arrive and leave together
     const al = Math.min(1, s.al * k * vis);
     if (al < 0.006) continue;
-    let col = s.col;
+    let col = s.col, colB = s.col;   // colB: the bloom's and the spikes' colour — the hue in STAR_HUE_Q steps
     if (s.hue) {
       // the scintillation colour shift: a bright star seen through anything at all
       // splits toward blue as it dims and toward amber as it flares. Tiny numbers —
@@ -1255,6 +1310,9 @@ function drawLiveStars(arr, vis, bdt) {
       const [r0, g0, b0] = s.rgb;
       col = clamp(r0 + h, 0, 255).toFixed(0) + ',' + clamp(g0 + h * 0.15, 0, 255).toFixed(0)
         + ',' + clamp(b0 - h, 0, 255).toFixed(0);
+      const hq = Math.round(h / STAR_HUE_Q) * STAR_HUE_Q;
+      colB = clamp(r0 + hq, 0, 255).toFixed(0) + ',' + clamp(g0 + hq * 0.15, 0, 255).toFixed(0)
+        + ',' + clamp(b0 - hq, 0, 255).toFixed(0);
     }
     if (s.big) { // the bright ones bloom — and the bloom SWELLS with the flare,
       const F = STARFX;                 // which is most of what sells a star flaring
@@ -1262,8 +1320,12 @@ function drawLiveStars(arr, vis, bdt) {
       // highlight on a desktop and candy on a phone. × bk: the star's own
       // luminosity, so the field carries a RANGE of halo sizes.
       const rr = F.bloomR * skyUnit * (s.bk || 1) * (0.55 + 0.75 * k);
-      const gg = ctx.createRadialGradient(sx, sy, 0, sx, sy, rr);
       const a0 = al * F.bloomA;
+      // THE BLOOM IS THE DEEP FIELD'S HALO SPRITE (deepHalo — the same STAR_HALO
+      // curve, baked per colour), not a gradient per star per frame: 138 of those
+      // on the home screen were a third of what kept WebKit off 60. See unitGrad.
+      const halo = abl('nosprite') ? null : deepHalo(colB);
+      const gg = halo ? null : ctx.createRadialGradient(sx, sy, 0, sx, sy, rr);
       // SIX STOPS, not two. A two-stop gradient falls off in a straight line, and
       // a straight line has an end: the halo held a visible alpha right up to its
       // radius and then stopped, which is the hard rim. Scattered light does not
@@ -1273,9 +1335,16 @@ function drawLiveStars(arr, vis, bdt) {
       // before the edge does. Wider AND fainter than the disc it replaces: the
       // reach is what makes it read as scatter, the low peak is what stops it
       // reading as a lamp.
-      for (const [p, w] of STAR_HALO) gg.addColorStop(p, `rgba(${col},${(a0 * w).toFixed(4)})`);
-      ctx.fillStyle = gg;
-      ctx.beginPath(); ctx.arc(sx, sy, rr, 0, TAU); ctx.fill();
+      if (halo) {
+        const ga = ctx.globalAlpha;
+        ctx.globalAlpha = ga * Math.min(1, a0);
+        ctx.drawImage(halo, sx - rr, sy - rr, rr * 2, rr * 2);
+        ctx.globalAlpha = ga;
+      } else {
+        for (const [p, w] of STAR_HALO) gg.addColorStop(p, `rgba(${col},${(a0 * w).toFixed(4)})`);
+        ctx.fillStyle = gg;
+        ctx.beginPath(); ctx.arc(sx, sy, rr, 0, TAU); ctx.fill();
+      }
       // REFRACTION. A bright point seen through anything — atmosphere, a canopy,
       // a lens — throws light along an axis, and that streak is most of what says
       // "burning" rather than "dot". Two soft strokes, gated on the flare so they
@@ -1296,6 +1365,7 @@ function drawLiveStars(arr, vis, bdt) {
         for (const [dx, dy, m] of [[1, 0, 1], [0, 1, 0.62]]) {
           const L = rr * F.spikeR * m;
           const x0 = sx - dx * L, y0 = sy - dy * L, x1 = sx + dx * L, y1 = sy + dy * L;
+          if (halo) { strokeUnitTaper(x0, y0, x1, y1, F.spikeW, sk * m, unitGrad('sp', colB, STAR_SPIKE_STOPS)); continue; }
           const lg = ctx.createLinearGradient(x0, y0, x1, y1);
           lg.addColorStop(0, `rgba(${col},0)`);
           lg.addColorStop(0.5, `rgba(${col},${(sk * m).toFixed(4)})`);

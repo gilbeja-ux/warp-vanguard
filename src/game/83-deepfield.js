@@ -42,6 +42,7 @@ const DEEP_PARALLAX = 0.12;           // fraction of the wall's rate — the who
 const DEEP_CORE = 1.1;                // the hard point never grows past this
 const DEEP_BLOOM = 3.2;               // halo reach, in core radii
 const DEEP_BLOOM_A = 0.5;             // its peak alpha, before the star's own
+const DEEP_WISP_STOPS = [[0, 0], [0.4, 1], [1, 0]];   // a cruise wisp: in from nothing, brightest at 0.4, out to nothing
 const deepHaloCv = {};
 function deepHalo(col) {
   if (deepHaloCv[col] !== undefined) return deepHaloCv[col];
@@ -326,12 +327,22 @@ function drawDeepField(g, dt) {
     // sub-pixel pen antialiases differently under a transform (4/255 at lineWidth
     // 0.8, 1/255 at 1.4) — and wisp widths run 0.5-2.75px, so the floor excluded
     // most of them anyway. Not worth a branch and a cache for an unmeasurable gain.
+    //
+    // ...ON CHROME. On WebKit a gradient built per frame is not garbage, it is a
+    // resource shipped to another process (see unitGrad in 20-background.js), and
+    // these 74 were a fifth of every frame's. So the unit-space taper is back
+    // (2026-10-03), the 4/255 on a sub-pixel pen is accepted, and a wisp too faint
+    // to print a grey level — every one of them on a parked lane, where laneFlow
+    // is 0 — is skipped outright instead of stroked at alpha zero.
+    if (al < 0.002) continue;
+    const wlw = wp.w * (0.7 + wp.rf * 0.5);
+    if (!abl('nosprite')) { strokeUnitTaper(x0, y0, x1, y1, wlw, al, unitGrad('dw', col, DEEP_WISP_STOPS)); continue; }
     const grd = ctx.createLinearGradient(x0, y0, x1, y1);
     grd.addColorStop(0, `rgba(${col},0)`);
     grd.addColorStop(0.4, `rgba(${col},${al.toFixed(3)})`);
     grd.addColorStop(1, `rgba(${col},0)`);
     ctx.strokeStyle = grd;
-    ctx.lineWidth = wp.w * (0.7 + wp.rf * 0.5);
+    ctx.lineWidth = wlw;
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
   }
   // --- the slow starfield ---
@@ -421,6 +432,125 @@ function streakTaperAt(col, x1, y1, x2, y2) {
   return gr;
 }
 
+// ---------- THE WARP LINE IS TWO SPRITES (2026-10-03, the iPad Pro) ----------
+// A warp line was up to eight additive strokes of a tapered gradient, widest first.
+// Chrome shades a gradient on the GPU and the eight passes are nearly free there
+// (see the note on streakTaper). WebKit shades every one of them in CoreGraphics on
+// the CPU, in another process, after the rAF callback has returned — so the game's
+// profiler read 0.7 ms for this layer while a warp dive, which stretches all 300
+// lines to four times their length, ran at 24 fps in WebKit at the iPad's size.
+// With this layer off the same dive held the display's rate. The warp itself was
+// the slowest thing in the game on an iPad and nothing on the screen said so.
+//
+// The eight passes share one segment, so they bake: per tint pair and first pass,
+//   · the BODY (shaftSprite) — every pass as a bar of its own width and alpha,
+//     stacked additively, with the taper running along the sprite's length;
+//   · the CAP (parkSprite) — every pass as the half-disc its round cap paints at
+//     the star's end, stacked the same way.
+// A line is then two drawImage calls at globalAlpha = al, and the CAP alone is the
+// parked star: below the length floor a gradient stroke paints exactly its cap
+// (see the note at the call site).
+//
+// MIPS, because a sprite minified six times loses its half-unit core between
+// samples and the thin lines shimmer. `u` is sprite pixels per unit of pen width;
+// streakMipU picks the smallest that is not minified by more than two.
+//
+// What differs from the strokes, all of it under a grey level: a pass below 0.008
+// alpha was skipped and is now in the sprite; the stack is summed at 8 bits before
+// the line's alpha instead of after; the taper is sampled at 128 points.
+// `?abl=nosprite` puts the strokes back, for an A/B on any device.
+const STREAK_MIPS = [2, 4, 8, 16];
+const SHAFT_SPRITE_LEN = 128;
+function streakMipU(k) {
+  const d = k * (typeof DPR === 'number' ? DPR : 1);
+  for (const u of STREAK_MIPS) if (d <= u) return u;
+  return STREAK_MIPS[STREAK_MIPS.length - 1];
+}
+const parkSprites = {};
+function parkSprite(tint, p0, u) {
+  const key = tint[0] + '|' + tint[1] + '|' + p0 + '|' + u;
+  let sp = parkSprites[key];
+  if (sp !== undefined) return sp;
+  sp = null;
+  try {
+    const c = document.createElement('canvas');
+    const S = Math.ceil(LIVE_WARP_PASSES[p0][0] * u) + 4; // this stack's widest pass, plus a margin
+    c.width = c.height = S;
+    const x = c.getContext('2d');
+    if (x && x.arc) {
+      x.globalCompositeOperation = 'lighter';
+      for (let pi = p0; pi < LIVE_WARP_PASSES.length; pi++) {
+        const [w, ci, aMul] = LIVE_WARP_PASSES[pi];
+        x.globalAlpha = aMul;
+        x.fillStyle = `rgba(${ci === 2 ? '255,255,255' : tint[ci]},1)`;
+        // heading is +x in the sprite; the lit half is the one the star came from
+        x.beginPath(); x.arc(S / 2, S / 2, w * u / 2, Math.PI / 2, Math.PI * 1.5); x.fill();
+      }
+      sp = c;
+    }
+  } catch (e) { sp = null; }
+  parkSprites[key] = sp;
+  return sp;
+}
+const shaftSprites = {};
+function shaftSprite(tint, p0, u) {
+  const key = tint[0] + '|' + tint[1] + '|' + p0 + '|' + u;
+  let sp = shaftSprites[key];
+  if (sp !== undefined) return sp;
+  sp = null;
+  try {
+    const c = document.createElement('canvas');
+    const L = SHAFT_SPRITE_LEN, Hh = Math.ceil(LIVE_WARP_PASSES[p0][0] * u) + 4;
+    c.width = L; c.height = Hh;
+    const x = c.getContext('2d');
+    if (x && x.createLinearGradient) {
+      x.globalCompositeOperation = 'lighter';
+      for (let pi = p0; pi < LIVE_WARP_PASSES.length; pi++) {
+        const [w, ci, aMul] = LIVE_WARP_PASSES[pi];
+        const col = ci === 2 ? '255,255,255' : tint[ci];
+        const gr = x.createLinearGradient(0, 0, L, 0);   // streakTaper's five stops, star at x = 0
+        gr.addColorStop(0, `rgba(${col},1)`);
+        gr.addColorStop(0.12, `rgba(${col},0.92)`);
+        gr.addColorStop(0.42, `rgba(${col},0.42)`);
+        gr.addColorStop(0.75, `rgba(${col},0.12)`);
+        gr.addColorStop(1, `rgba(${col},0)`);
+        x.globalAlpha = aMul;
+        x.fillStyle = gr;
+        x.fillRect(0, Hh / 2 - w * u / 2, L, w * u);
+      }
+      sp = c;
+    }
+  } catch (e) { sp = null; }
+  shaftSprites[key] = sp;
+  return sp;
+}
+// The leading head of a warp star, baked once per tint pair. See the note at its
+// call site in drawStreaks for why a sprite that measured as nothing on Android is
+// here anyway.
+const HEAD_SPRITE_PX = 32;
+const headSprites = {};
+function headSprite(tint) {
+  const key = tint[0] + '|' + tint[1];
+  let sp = headSprites[key];
+  if (sp !== undefined) return sp;
+  sp = null;
+  try {
+    const c = document.createElement('canvas');
+    c.width = c.height = HEAD_SPRITE_PX;
+    const x = c.getContext('2d'), R = HEAD_SPRITE_PX / 2;
+    if (x && x.createRadialGradient) {
+      const hg = x.createRadialGradient(R, R, 0, R, R, R);
+      hg.addColorStop(0, 'rgba(255,255,255,1)');
+      hg.addColorStop(0.35, `rgba(${tint[1]},0.4)`);
+      hg.addColorStop(1, `rgba(${tint[0]},0)`);
+      x.fillStyle = hg;
+      x.fillRect(0, 0, HEAD_SPRITE_PX, HEAD_SPRITE_PX);
+      sp = c;
+    }
+  } catch (e) { sp = null; }
+  headSprites[key] = sp;
+  return sp;
+}
 function drawStreaks(g, dt) {
   // a wounded convoy is a thinner, dimmer river
   const riverK = state === S.PLAY ? 0.35 + 0.65 * clamp(integrity / 100, 0, 1) : 1;
@@ -541,9 +671,43 @@ function drawStreaks(g, dt) {
       // hardware the drift is the same order as the win.
       const unit = len >= 2 && !abl('grad') && !abl('nounit');
       if (unit) ctx.transform(dx, dy, -dy, dx, x1, y1);
+      // THE PARKED STAR (2026-10-03). Below the floor the taper's five stops sit
+      // inside a segment a fraction of a pixel long, so what the gradient stroke
+      // paints is exact and simple: the round-capped disc of the pen, lit on the
+      // side the star came from and empty on the other — the "lopsided dot" the
+      // note above describes. A segment of length zero paints nothing at all (a
+      // zero-length gradient has no direction). On the home screen every one of
+      // the 300 stars is in that last case — and each still built up to three
+      // gradients and stroked up to eight of them per frame to paint nothing.
+      // Between the two, on the way up to speed, it is the CAP sprite alone.
+      //
+      // AT SPEED the line is the body sprite plus the same cap: see the note on
+      // parkSprite and shaftSprite. `?abl=nosprite` puts every stroke back.
+      const spr = !abl('grad') && !abl('nounit') && !abl('nosprite') && !abl('passes');
+      const sU = spr ? streakMipU(k) : 0;
+      // 1e-4: a parked star's two ends differ by float noise (~1e-13 px), and a
+      // gradient that short is degenerate — Chrome paints nothing for it, and the
+      // home screen was designed against Chrome. Nothing is what it stays.
+      const cap = spr && len > 1e-4 && (unit || len < 2) ? parkSprite(st.tint, st.p0, sU) : null;
+      const body = cap && unit ? shaftSprite(st.tint, st.p0, sU) : null;
+      let baked = spr && !unit && len < 2;   // a parked star is the cap or, at length zero, nothing
+      if (body) {
+        // unit space: x runs 0..1 along the line, so a pen width is divided by len
+        const ws = k / sU / len;
+        ctx.globalAlpha = ctx.globalAlpha * Math.min(1, al);
+        ctx.drawImage(body, 0, -body.height * ws / 2, 1, body.height * ws);
+        ctx.drawImage(cap, -cap.width * ws / 2, -cap.width * ws / 2, cap.width * ws, cap.width * ws);
+        baked = true;
+      } else if (cap && !unit) {
+        const half = cap.width * (k / sU) / 2;
+        ctx.translate(x1, y1);
+        ctx.rotate(Math.atan2(dy, dx));
+        ctx.globalAlpha = ctx.globalAlpha * Math.min(1, al);
+        ctx.drawImage(cap, -half, -half, half * 2, half * 2);
+      }
       const grads = unit ? null : [];
       const pi0 = abl('passes') ? LIVE_WARP_PASSES.length - 1 : st.p0;
-      for (let pi = pi0; pi < LIVE_WARP_PASSES.length; pi++) {
+      for (let pi = baked ? LIVE_WARP_PASSES.length : pi0; pi < LIVE_WARP_PASSES.length; pi++) {
         const [w, ci, aMul] = LIVE_WARP_PASSES[pi];
         const a2 = al * aMul;
         if (a2 < 0.008) continue;
@@ -598,15 +762,31 @@ function drawStreaks(g, dt) {
         // nothing measurable while shifting pixels by up to 3/255 and adding 147KB
         // of bakes. If heads ever need to get cheaper, the lever is drawing fewer
         // or smaller ones — which changes the look and is a design decision.
+        //
+        // ...AND THEN THE iPAD (2026-10-03). Everything above was measured on
+        // Chrome, which shades a gradient on the GPU. WebKit shades it in
+        // CoreGraphics on the CPU, after the rAF callback has returned, so the
+        // profiler cannot see it: 300 parked heads read 0.3 ms of work and cost
+        // the home screen half its frames — 33 fps in WebKit at the iPad Pro's
+        // size, 56 with the heads off. So the sprite is back, for the reason the
+        // first measurement could not show, and the 3/255 is the price. One 32px
+        // bake per tint pair (seven of them). `?abl=nosprite` restores this
+        // gradient for an A/B on a device.
         const hr = Math.max(1.2, 2.6 * hk);
-        const hg = ctx.createRadialGradient(x1, y1, 0, x1, y1, hr);
-        hg.addColorStop(0, `rgba(255,255,255,${ha.toFixed(3)})`);
-        hg.addColorStop(0.35, `rgba(${st.tint[1]},${(ha * 0.4).toFixed(3)})`);
-        hg.addColorStop(1, `rgba(${st.tint[0]},0)`);
+        const hsp = abl('nosprite') ? null : headSprite(st.tint);
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = hg;
-        ctx.beginPath(); ctx.arc(x1, y1, hr, 0, TAU); ctx.fill();
+        if (hsp) {
+          ctx.globalAlpha = ctx.globalAlpha * ha;
+          ctx.drawImage(hsp, x1 - hr, y1 - hr, hr * 2, hr * 2);
+        } else {
+          const hg = ctx.createRadialGradient(x1, y1, 0, x1, y1, hr);
+          hg.addColorStop(0, `rgba(255,255,255,${ha.toFixed(3)})`);
+          hg.addColorStop(0.35, `rgba(${st.tint[1]},${(ha * 0.4).toFixed(3)})`);
+          hg.addColorStop(1, `rgba(${st.tint[0]},0)`);
+          ctx.fillStyle = hg;
+          ctx.beginPath(); ctx.arc(x1, y1, hr, 0, TAU); ctx.fill();
+        }
         ctx.restore();
       }
     }
@@ -646,6 +826,41 @@ function mkGas() {
 // "weird polygons flying towards me" rather than as rock — at the size and speed
 // they passed there was never enough silhouette to sell them as anything. The
 // lane's texture comes from gas and the starfield instead.)
+// THE WISP IS A SPRITE, because of WebKit. Each wisp was a radial gradient built
+// and filled per frame — 26 of them, each up to a screen long. Chrome shades a
+// gradient on the GPU and never noticed. WebKit (every iPhone, every iPad, the iOS
+// shell) shades it in CoreGraphics on the CPU, outside the rAF callback, so the
+// game's own profiler read 0.05 ms for this layer while the frame after it arrived
+// 30 ms late. Measured 2026-10-03 in WebKit at the iPad Pro's 1366x1024 @2: a lane
+// ran 40 fps with one frame in five late; with this layer off, 61 fps and none.
+//
+// The gradient's three stops all scale with the wisp's alpha, and the layer is
+// additive, so one baked blob per colour drawn at globalAlpha = al is the same
+// light. Six colours, six small canvases, for the life of the page.
+// `?abl=nosprite` puts the per-frame gradient back, for an A/B on a device.
+const GAS_SPRITE_PX = 256;
+const gasSprites = {};
+function gasSprite(col) {
+  let sp = gasSprites[col];
+  if (sp !== undefined) return sp;
+  sp = null;
+  try {
+    const c = document.createElement('canvas');
+    c.width = c.height = GAS_SPRITE_PX;
+    const x = c.getContext('2d'), R = GAS_SPRITE_PX / 2;
+    if (x && x.createRadialGradient) {
+      const grd = x.createRadialGradient(R, R, 0, R, R, R);
+      grd.addColorStop(0, `rgba(${col},1)`);
+      grd.addColorStop(0.45, `rgba(${col},0.45)`);
+      grd.addColorStop(1, `rgba(${col},0)`);
+      x.fillStyle = grd;
+      x.fillRect(0, 0, GAS_SPRITE_PX, GAS_SPRITE_PX);
+      sp = c;
+    }
+  } catch (e) { sp = null; } // a refused canvas is an answer: the live gradient still draws
+  gasSprites[col] = sp;
+  return sp;
+}
 function initLaneMedium() {
   const nG = lowFX ? 10 : 26; // more gas now that it carries the medium alone
   gasWisps = [];
@@ -678,12 +893,18 @@ function drawLaneMedium(g, dt) {
     ctx.translate(px, py);
     ctx.rotate(gs.a);              // long axis lies along the direction of travel
     ctx.scale(gs.stretch, 1);
-    const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, rad);
-    grd.addColorStop(0, `rgba(${gs.col},${al.toFixed(4)})`);
-    grd.addColorStop(0.45, `rgba(${gs.col},${(al * 0.45).toFixed(4)})`);
-    grd.addColorStop(1, `rgba(${gs.col},0)`);
-    ctx.fillStyle = grd;
-    ctx.beginPath(); ctx.arc(0, 0, rad, 0, TAU); ctx.fill();
+    const gsp = abl('nosprite') ? null : gasSprite(gs.col);
+    if (gsp) {
+      ctx.globalAlpha = ctx.globalAlpha * Math.min(1, al);
+      ctx.drawImage(gsp, -rad, -rad, rad * 2, rad * 2);
+    } else {
+      const grd = ctx.createRadialGradient(0, 0, 0, 0, 0, rad);
+      grd.addColorStop(0, `rgba(${gs.col},${al.toFixed(4)})`);
+      grd.addColorStop(0.45, `rgba(${gs.col},${(al * 0.45).toFixed(4)})`);
+      grd.addColorStop(1, `rgba(${gs.col},0)`);
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(0, 0, rad, 0, TAU); ctx.fill();
+    }
     ctx.restore();
   }
   ctx.restore();
