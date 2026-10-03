@@ -6,6 +6,56 @@ what a player meets. The commit trail between two versions is
 
 ---
 
+## 1.0.11 — 2026-10-03 (versionCode 10011)
+
+The performance build. The game holds the display's frame rate on an iPad and
+on an Android phone, and the motion is smooth on every Apple device. The look
+and the scoring did not change.
+
+### On the phone and the tablet
+- **The warp no longer stutters on an iPad or an iPhone.** Safari and the iOS
+  shell round the frame clock to a whole millisecond. The game moves the world
+  in fixed steps, and with that clock it took no step on one frame and two on
+  the next, on about one frame in three. One frame of time is one step now.
+- **Every screen holds the display's rate on an iPad Pro.** In WebKit at the
+  iPad Pro's size the home screen ran at 35 frames a second, a lane at 36, the
+  warp dive at 22 and the star map at 23. Each holds the display's rate now,
+  with room to spare.
+- **A lane on an Android phone runs at 57 to 60 frames a second.** It ran at
+  45 to 48 on the test phone (OPPO CPH2581). The warp dive went from 33 to
+  about 46.
+- **A lane uses far less memory.** Each enemy body built two canvases per
+  frame, about 300 MB of waste in eight seconds. It builds them once now.
+- **The picture is the same.** One frozen frame drawn the old way and the new
+  way differs by about one grey level on average, and by four at most on the
+  home screen.
+
+### Play Console "What's new" (paste-ready, under 500 chars)
+
+> Smoother everywhere. The warp, the lanes and the star map now hold a steady
+> frame rate on phones and tablets: a lane that ran at 45 frames a second on a
+> mid-range phone now runs at 60. The game also uses far less memory in a
+> lane. Nothing about the look or the scoring changed, and your scores and
+> replays are untouched.
+
+### Under the hood
+- Three faults, found on 2026-10-02 and 2026-10-03. The fixed-step loop sat on
+  a knife edge at 60 Hz (`SIM_SLOP`). The hull tint cache was keyed on a colour
+  that changes every frame. And the game built hundreds of gradients per frame,
+  which WebKit and Chrome both pay for after the frame's code has returned,
+  where the profiler could not see it. Gradients, glows and the warp lines are
+  baked images or cached tapers now.
+- The profiler reads the wall clock and counts late paints. Its old "fps" was
+  frames divided by work time. `scripts/bench.js` reports the paint cadence.
+- `?abl=nosprite` on the dev server draws every old path, for an A/B on a
+  device.
+- The verifier carries sim `52df16180bb5` and accepts the two ids before it,
+  because 0 of 41 boards moved. A 1.0.10 player is not told to update.
+  Deployed 2026-10-03, before the build.
+- No migration. The database is the one 1.0.8 shipped with.
+
+---
+
 ## 1.0.10 — 2026-09-24 (versionCode 10010)
 
 The first build cut during open testing. Free flow ranks in one place, the
