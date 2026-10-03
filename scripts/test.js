@@ -242,6 +242,7 @@ code = code.replace("'use strict';", '') + `
   patternQ: () => patternQ, mutators, musicFilterHz: () => musicFilter && musicFilter.frequency.value,
   getPerfects: () => perfects, getScore: () => score, ringAt: z => ring(z, geo()),
   getTime: () => time, resetLoop: t => { last = t; simAcc = 0; }, // fixed-timestep loop probes
+  getSimStepN: () => simStepN, SIM_SLOP,
   getIdentity: () => identity, boardKey, captureRun, getLastRun: () => lastRun, // leaderboard capture
   lbTop, lbRank, lbDay, LEADERBOARD, // leaderboard read client (Supabase)
   lbSubmit, lbStatus: () => lbStatus, // submission + the line the END screen prints
@@ -1959,6 +1960,29 @@ function paintsAt(hz, frames) {
   check('fixed-timestep: the run actually processed traffic (non-trivial signature)', a.integrity < 100 || a.misses > 0);
   check('fixed-timestep: sim outcome is frame-rate independent (score/integrity/misses agree)',
     a.score === b.score && a.integrity === b.integrity && a.misses === b.misses);
+}
+
+// PACING ON A COARSE CLOCK. WebKit rounds the rAF timestamp to a whole millisecond,
+// so a 60Hz display hands the loop 16, 17, 17, 16 — and a loop that steps on
+// `simAcc >= SIM_DT` exactly answers with 0 steps on one frame and 2 on the next.
+// That was the iPad Pro stutter of 2026-10-03: 2 ms of work per frame and a warp
+// that juddered. SIM_SLOP makes one frame of time one step; this fails without it.
+{
+  const badFrames = stamp => {
+    G.startLevel(0); G.setState(G.S.PLAY); G.resetLoop(stamp(0));
+    let bad = 0, prev = G.getSimStepN();
+    for (let i = 1; i <= 600; i++) { G.rawFrame(stamp(i)); const n = G.getSimStepN(); if (n - prev !== 1) bad++; prev = n; }
+    return bad;
+  };
+  const jit = i => (((i * 7919) % 13) / 13 - 0.5) * 0.6;   // a vsync wobble of +-0.3 ms, the same every run
+  // three phases of the display against the millisecond grid: which frames fall on
+  // the wrong side of the rounding depends on it, and a pin that tried one could pass by luck
+  let wk = 0;
+  for (const ph of [0.05, 0.38, 0.71]) wk += badFrames(i => Math.floor(2e6 + ph + i * 1000 / 60 + jit(i)));
+  const hi = badFrames(i => 3e6 + i * 1000 / 60 + jit(i));
+  check(`pacing: whole-millisecond timestamps at 60Hz step the sim once per frame (${wk} bad of 1800)`, wk === 0);
+  check(`pacing: a precise clock with vsync wobble does too (${hi} bad of 600)`, hi === 0);
+  check('pacing: the slack is wider than the rounding and far narrower than a 120Hz tick', G.SIM_SLOP > 0.0012 && G.SIM_SLOP < 0.004);
 }
 
 // AND THE SAME GUARANTEE FOR WEEKLY, whose absence is why weekly could not verify for

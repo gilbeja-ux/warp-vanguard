@@ -31,7 +31,8 @@ function profOn() { return !!PROF; }
 
 function profToggle(on) {
   if (on === false || (on === undefined && PROF)) { PROF = null; return false; }
-  PROF = { acc: {}, cur: null, mark: 0, roll: {}, frames: 0, since: 0, fps: 0, worst: 0, rows: [] };
+  PROF = { acc: {}, cur: null, mark: 0, roll: {}, frames: 0, since: 0, fps: 0, worst: 0, rows: [],
+    wall0: 0, lastT: 0, gapMax: 0, gap: 0, stepSeen: -1, pace: [0, 0, 0], paceShown: [0, 0, 0] };
   return true;
 }
 
@@ -42,13 +43,28 @@ function profFrame(frameMs) {
   if (!PROF) return;
   prof(null);
   const P = PROF;
+  // THE WALL CLOCK, not the work. This readout divided frames by the WORK time
+  // until 2026-10-03, so an iPad doing 2 ms of work a frame read "451 fps" while
+  // it painted 60 and stuttered — and it republished once per second of WORK,
+  // which on that device was once every eight seconds.
+  const t = performance.now();
+  if (!P.wall0) P.wall0 = t;
+  if (P.lastT) { const gap = t - P.lastT; if (gap > P.gapMax) P.gapMax = gap; }
+  P.lastT = t;
+  // PACING: how many sim steps this painted frame carries. All 1s is smooth; a 0
+  // is a frame that did not move and a 2 is one that moved twice (see SIM_SLOP).
+  const sn = typeof simStepN === 'number' ? simStepN : 0;
+  if (P.stepSeen >= 0) P.pace[Math.min(2, Math.max(0, sn - P.stepSeen))]++;
+  P.stepSeen = sn;
   P.frames++;
   P.since += frameMs;
   if (frameMs > P.worst) P.worst = frameMs;
   for (const k in P.acc) P.roll[k] = (P.roll[k] || 0) + P.acc[k];
   // republish once a second, so the numbers are readable rather than strobing
-  if (P.since >= 1000) {
-    P.fps = Math.round((P.frames * 1000) / P.since);
+  if (t - P.wall0 >= 1000) {
+    P.fps = Math.round((P.frames * 1000) / (t - P.wall0));
+    P.gap = P.gapMax; P.gapMax = 0; P.wall0 = t;
+    P.paceShown = P.pace; P.pace = [0, 0, 0];
     P.rows = Object.keys(P.roll)
       .map(k => ({ name: k, ms: P.roll[k] / P.frames }))
       .sort((a, b) => b.ms - a.ms);
@@ -65,7 +81,7 @@ function drawProfiler() {
   if (!PROF || !PROF.rows.length) return;
   const P = PROF;
   const pad = 6, lh = 13, w = 172;
-  const h = pad * 2 + lh * (P.rows.length + 2);
+  const h = pad * 2 + lh * (P.rows.length + 3);
   const x = 8 + (typeof SAFE === 'object' ? SAFE.l : 0);
   const y = 8 + (typeof SAFE === 'object' ? SAFE.t : 0);
   ctx.save();
@@ -78,10 +94,13 @@ function drawProfiler() {
   ctx.textBaseline = 'top';
   const budget = 16.7; // one frame at 60fps
   ctx.fillStyle = P.fps >= 55 ? '#7ee262' : P.fps >= 45 ? '#ffd24a' : '#ff5a5a';
-  ctx.fillText(`${P.fps} fps   avg ${P.total.toFixed(1)}ms / ${budget}`, x + pad, y + pad);
+  ctx.fillText(`${P.fps} fps   work ${P.total.toFixed(1)}ms / ${budget}`, x + pad, y + pad);
   ctx.fillStyle = 'rgba(200,220,255,0.6)';
-  ctx.fillText(`worst frame ${(P.peak || 0).toFixed(1)}ms`, x + pad, y + pad + lh);
-  let ty = y + pad + lh * 2;
+  ctx.fillText(`worst work ${(P.peak || 0).toFixed(1)}  gap ${(P.gap || 0).toFixed(0)}ms`, x + pad, y + pad + lh);
+  const pc = P.paceShown;
+  ctx.fillStyle = pc[0] + pc[2] > 2 ? '#ff5a5a' : '#7ee262'; // red: frames carrying 0 or 2 steps
+  ctx.fillText(`steps 0:${pc[0]}  1:${pc[1]}  2+:${pc[2]}`, x + pad, y + pad + lh * 2);
+  let ty = y + pad + lh * 3;
   for (const r of P.rows) {
     const frac = Math.min(1, r.ms / budget);
     ctx.fillStyle = 'rgba(120,190,255,0.22)';         // a bar, so the eye ranks them

@@ -115,7 +115,28 @@ let frameDt = 0; // this frame's wall-clock dt — drives UI fx even when the si
 // device degrades to slo-mo instead of spiralling; the accumulator carries the
 // remainder across frames.
 const SIM_DT = 1 / 60, SIM_MAX_SUB = 5;
+// SIM_SLOP: how far short of a full slice the accumulator may be and still step.
+//
+// A 60Hz display hands the loop a dt that is SIM_DT give or take nothing, which is
+// the knife edge: `simAcc >= SIM_DT` is decided by the last fraction of a
+// millisecond of every frame. Chrome's rAF timestamp is the vsync time to the
+// microsecond and the edge never shows. WEBKIT ROUNDS THE TIMESTAMP TO A WHOLE
+// MILLISECOND — every iPhone, every iPad, the iOS shell — so dt arrives as 16, 17,
+// 17, 16 and the loop answers with 0 steps on one frame and 2 on the next: about
+// one frame in five carries the wrong amount of motion. That is the iPad Pro
+// report of 2026-10-03: 2 ms of work in a 16.7 ms frame, and a warp that stutters.
+// The frame rate was never the problem; the PACING was.
+//
+// The slack makes the step decision indifferent to that jitter: one frame's worth
+// of time, give or take 2 ms, is one step. Nothing is created or lost — the
+// accumulator simply runs up to 2 ms negative and the debt is carried exactly, so
+// the sim still advances one SIM_DT per 16.667 ms of wall clock and the trace, the
+// replay and the verifier see the same steps. Wider than the 1 ms rounding plus a
+// vsync wobble, far narrower than the 8.3 ms that separates a 120Hz tick from a
+// step. `npm test` drives the loop with whole-millisecond stamps and pins it.
+const SIM_SLOP = 0.002;
 let simAcc = 0;
+let simStepN = 0; // steps ever taken by the loop — the profiler's and the tests' pacing probe
 // ---------- screen transitions + button press feedback ----------
 // warp: a dive down the lane. It is the ONE screen transition a level change
 // uses — a restart travels exactly like a hand-off to the next stage. The old
@@ -1029,11 +1050,12 @@ function frameBody(now) {
     prof('sim');
     simAcc += replaying ? ((replayPaused || replayScrub || replayEnded) ? 0 : dt * replaySpeed) : dt;
     let steps = 0;
-    while (simAcc >= SIM_DT && steps < SIM_MAX_SUB) {
+    while (simAcc >= SIM_DT - SIM_SLOP && steps < SIM_MAX_SUB) {
       if (!simStep()) { if (replaying) { replayEnded = true; replayPaused = true; simAcc = 0; } else stopReplay(); break; } // HOLD on the last frame, don't auto-exit
       simAcc -= SIM_DT; steps++;
     }
     if (steps >= SIM_MAX_SUB) simAcc = 0; // fell far behind: shed the backlog, never spiral
+    simStepN += steps;
     // a frozen replay (paused / scrubbing / held-at-end / exiting) doesn't step the
     // sim, so updateMusic never runs — tick it here so the pause/exit fades ease on
     if (replaying && (replayPaused || replayScrub || replayEnded)) updateMusic(rawDt);
