@@ -182,6 +182,7 @@ function tickEnlist(dt) {
 }
 function tickUI(dt) {
   tickEnlist(dt);
+  tickHangar(dt); // the home wheel's emitters, dock and practice traffic (92-guide)
   marqT += dt * 0.17; // the cameraless marquee clock — the lens ride's rate exactly
   // the NOW PLAYING strip holds while paused — skip a track from the pause panel
   // and the strip is still there to confirm it when the run resumes

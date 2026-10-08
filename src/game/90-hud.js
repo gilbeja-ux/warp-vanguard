@@ -804,10 +804,11 @@ function drawTutPadGhosts(desc) {
     ctx.restore();
   }
 }
-function drawTutLessonLine(desc) {
-  const msg = TUT_LESSON[desc.kind];
-  if (!msg) return;
-  if (tutLessonKind !== desc.kind) { tutLessonKind = desc.kind; tutLessonT0 = time; }
+function drawTutLessonLine(desc, prefix) {
+  const msg0 = TUT_LESSON[desc.kind];
+  if (!msg0) return;
+  const msg = prefix ? prefix + ' · ' + msg0 : msg0;
+  if (tutLessonKind !== msg) { tutLessonKind = msg; tutLessonT0 = time; } // a new line fades in, WATCH → instruction included
   const a = Math.min(1, (time - tutLessonT0) / 0.35);
   const u = Math.min(W, H);
   const col = TUT_ACCENT[desc.kind] || '143,224,255';
@@ -1273,20 +1274,9 @@ function drawHUD(g) {
   }
   tutDescNow = null; // stale ghosts must not survive the drill that made them
   if (tut && tut.stage >= 0 && introT >= INTRO_DUR) {
-    const st = QUAL[tut.stage];
-    { // curriculum pips: one per drill, so the pupil can SEE the finish line
-      const nP = QUAL.length - 1; // 'done' is the ceremony, not a drill
-      const uP = Math.min(W, H), gap = uP * 0.032;
-      const x0 = W / 2 - (nP - 1) * gap / 2, y0 = SAFE.t + uP * 0.045;
-      for (let i = 0; i < nP; i++) {
-        const done2 = i < tut.stage, cur = i === tut.stage;
-        ctx.globalAlpha = cur ? 0.7 + Math.sin(time * 5) * 0.3 : 1;
-        ctx.fillStyle = done2 ? 'rgba(126,226,98,0.9)' : cur ? 'rgba(143,224,255,0.95)' : 'rgba(90,120,160,0.4)';
-        ctx.beginPath(); ctx.arc(x0 + i * gap, y0, uP * (done2 || cur ? 0.008 : 0.0055), 0, TAU); ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    }
-    if (st.card === 'done') drawQualCeremony(tut.t);
+    const st = tutStage();
+    drawTrialHeader();
+    if (st.card === 'done') drawTrialStamp(tut.t);
     // (No stage banner. Each drill used to announce itself in a stack of text
     // across the CENTER of the bore — the one place the traffic comes from. The
     // labels that ride the traps say the same thing where the eye already is.)
@@ -1307,11 +1297,16 @@ function drawHUD(g) {
     //     traffic arrives from, which is why the stage banners died.
     // All render-only. No sim state, no Math.random, nothing pushed into sim arrays.
     const desc = tutFocusDesc(st, ten);
-    if (desc) drawTutLessonLine(desc);
+    // during a CALL the line names the lesson as something to WATCH; the response then
+    // drops the prefix and the same words become the instruction
+    if (tut.call) drawTutLessonLine({ kind: tut.call.kind }, 'WATCH');
+    else if (desc) drawTutLessonLine(desc);
     // the pad ghosts are NOT drawn here: drawDials() runs after drawHUD and lays the
     // dial chrome over anything painted now. The desc is stashed and drawDials calls
     // drawTutPadGhosts itself, last, so the ghost sits on top of the finished dial.
     tutDescNow = desc;
+    if (tut.call) drawTutCall(tut.call);
+    drawRewindFx(desc);
 
     if (st.card === 'move' && tut.aim.targets) {
       // ALIGN drill: each lit target is a spot on the ring to bring its node
@@ -1428,7 +1423,8 @@ function drawHUD(g) {
         // a ghost thumb runs THIS rim to the mark and stops on it, retiring the
         // moment the real one starts closing the gap (drawTutDragGhost decides)
         const tgt = A.targets && A.targets.find(t => t.node === i);
-        if (tgt && Math.abs(angDiff(nodes[i].angle, tgt.a)) > TOLm) drawTutDragGhost(i, tgt.a);
+        // (not during the CALL, which draws its own ghost thumb on the same rim)
+        if (!tut.call && tgt && Math.abs(angDiff(nodes[i].angle, tgt.a)) > TOLm) drawTutDragGhost(i, tgt.a);
       }
     }
     if (tut.spawned === 'pulse') { // a banked pulse waits on the dial — ring the ready core
@@ -1493,4 +1489,121 @@ function drawHUD(g) {
       }
     }
   }
+}
+
+// ---------- the licence trial, on the HUD (2026-10-08) ----------
+// The trial's name, top centre, where the old course's ten pips were. The first-run
+// course strings two trials together, so there it also says which one of how many.
+function drawTrialHeader() {
+  const tr = trialById(tut.trial);
+  if (!tr) return;
+  const u = Math.min(W, H);
+  const txt = (tut.firstRun ? 'TRIAL ' + (TRIAL_REQUIRED - tut.chain.length) + ' / ' + TRIAL_REQUIRED : 'LICENCE TRIAL')
+    + ' · ' + tr.name;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = '700 ' + Math.round(u * 0.024) + 'px Audiowide, system-ui';
+  try { ctx.letterSpacing = '2.5px'; } catch (e) {}
+  ctx.fillStyle = 'rgba(143,224,255,0.8)';
+  ctx.fillText(txt, W / 2, SAFE.t + u * 0.055);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.restore();
+  ctx.textAlign = 'left';
+}
+// THE STAMP at a trial's end: the medal and why. The last trial of the first-run course
+// stamps QUALIFIED instead, because that is the moment it marks.
+function drawTrialStamp(t) {
+  const m = tut.medal || 1, tr = trialById(tut.trial), last = !tut.chain.length;
+  const end = last ? 3.4 : TRIAL_CHAIN_HOLD;
+  if (tut.firstRun && last) { drawQualCeremony(t); return; }
+  const why = tut.medalBy === 'time' ? tut.work.toFixed(1) + ' S'
+    : tut.misses ? tut.misses + (tut.misses === 1 ? ' MISS' : ' MISSES') : 'NO MISSES';
+  drawQualCeremony(t, MEDAL_NAMES[m], [tr.name + ' · ' + why].concat(tut.newBest ? ['NEW BEST'] : []), MEDAL_COLS[m], end);
+}
+// THE CALL (70-update, qualNext): the lesson's own diorama, played as a ghost on the live
+// ring and turned onto the bearing the real traffic will take. The dioramas were built
+// for a disc (91-briefing, DEMO): scaling them so the diorama's rail IS the ring puts
+// the ghost carriages and the ghost traffic exactly where the pupil's will be.
+const CALL_ALPHA = 0.55;   // the ghost's strength: a demonstration, never traffic
+// where each diorama stages its bearing, off DISC_BOT, so the turn lands it on the call's
+const CALL_DEMO_OFF = { normal: 0.18, pickup: 0.30, line: -0.75, wall: 1.4 - Math.PI / 2 };
+function drawTutCall(c) {
+  const g = geo();
+  const env = Math.min(clamp(c.t / CALL_FADE, 0, 1), clamp((c.dur - c.t) / CALL_FADE, 0, 1));
+  if (env <= 0) return;
+  ctx.save();
+  if (c.kind === 'move') {
+    // SLIDE: a ghost thumb drags each lit pad round to the mark while a ghost carriage
+    // rides the ring with it, the pad and the ring moving as one, which is the lesson
+    const A = tut.aim;
+    if (A && A.targets && c.from) {
+      const u = clamp((c.t - 0.35) / Math.max(0.1, c.dur - 1.0), 0, 1), e = u * u * (3 - 2 * u);
+      A.targets.forEach((t, k) => {
+        const from = c.from[k], a = from + angDiff(t.a, from) * e;
+        ctx.globalAlpha = CALL_ALPHA * env;
+        ctx.lineCap = 'round'; ctx.setLineDash([7, 6]);
+        ctx.strokeStyle = 'rgba(' + NODE_COLS[t.node] + ',0.95)';
+        ctx.lineWidth = Math.max(4, g.nodeR * 0.05);
+        ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, a - 0.16, a + 0.16); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        const side = t.node === 0 ? 'L' : 'R', d = dialCenter(side);
+        drawThumbGhost(d.x + Math.cos(a) * d.r, d.y + Math.sin(a) * d.r, side, 1, 0.95 * env, d.r * 0.55);
+      });
+    }
+  } else if (DEMO[c.key]) {
+    ctx.translate(g.cx, g.cy);
+    if (c.a !== undefined) ctx.rotate(c.a - DISC_BOT - (CALL_DEMO_OFF[c.key] || 0));
+    ctx.globalAlpha = CALL_ALPHA * env;
+    DEMO[c.key](g.nodeR / 0.72, Math.min(c.t, c.dur - 0.001)); // dRail(Rs) = 0.72 Rs = the ring
+  }
+  ctx.restore();
+}
+// THE REWIND (70-update, qualRewind): a tape-scrub over the lane while the world holds,
+// then a ghost carriage on every slot the drill wants filled until an emitter takes it.
+// Draw-only, and the glitch bands are hashed off the clock, never Math.random.
+function drawRewindFx(desc) {
+  if (!tut) return;
+  const since = time - tut.rewindAt;
+  if (since > REWIND_DUR + REWIND_GHOST) return;
+  const g = geo(), u = Math.min(W, H);
+  ctx.save();
+  if (tut.rewind) {
+    const q = clamp(tut.rewind.t / tut.rewind.dur, 0, 1), fade = 1 - q * q;
+    const seed = Math.floor(time * 24);
+    for (let i = 0; i < 8; i++) {
+      const h1 = (((seed + 1) * 9301 + i * 49297) % 233280) / 233280;
+      const y = h1 * H, bh = 2 + ((i * 7 + seed) % 5) * 2, dx = (h1 - 0.5) * 36;
+      ctx.fillStyle = 'rgba(143,224,255,' + (0.10 * fade).toFixed(3) + ')'; ctx.fillRect(dx, y, W, bh);
+      ctx.fillStyle = 'rgba(255,95,208,' + (0.13 * fade).toFixed(3) + ')'; ctx.fillRect(-dx, y + bh, W, 1.5);
+    }
+    // two heads pointing back, and the word, over the bore's upper half
+    const fs = Math.round(u * 0.05), y0 = g.cy - g.nodeR * 0.45;
+    ctx.globalAlpha = fade;
+    ctx.fillStyle = 'rgba(143,224,255,0.95)';
+    ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
+    ctx.textAlign = 'left';
+    const tw = ctx.measureText('REWIND').width, hw = fs * 0.55, gapX = fs * 0.35;
+    const x0 = W / 2 - (hw * 2 + gapX + tw) / 2;
+    for (let k = 0; k < 2; k++) {
+      const hx = x0 + k * hw;
+      ctx.beginPath(); ctx.moveTo(hx + hw, y0 - fs * 0.62); ctx.lineTo(hx, y0 - fs * 0.32); ctx.lineTo(hx + hw, y0 - fs * 0.02);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillText('REWIND', x0 + hw * 2 + gapX, y0);
+    ctx.globalAlpha = 1;
+  }
+  if (desc && desc.ghosts.length) {
+    const fadeG = clamp((REWIND_DUR + REWIND_GHOST - since) / 0.5, 0, 1) * (0.55 + 0.35 * Math.sin(time * 6));
+    ctx.lineCap = 'round'; ctx.setLineDash([7, 6]);
+    ctx.lineWidth = Math.max(4, g.nodeR * 0.05);
+    for (const gh of desc.ghosts) {
+      if (Math.abs(angDiff(nodes[gh.i].angle, gh.a)) < ARCFX.span * tolVis) continue; // already there
+      ctx.strokeStyle = 'rgba(' + gh.col + ',' + fadeG.toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.nodeR, gh.a - 0.16, gh.a + 0.16); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+  ctx.textAlign = 'left';
 }

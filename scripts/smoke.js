@@ -237,7 +237,7 @@ async function runViewport(vp) {
     await step('two thumbs on the pads launch the lane', async () => {
       await cdp.eval(G('(startLevel(0, false), introT = 999, introCd = 0, 1)'));
       await sleep(300);
-      const pads = JSON.parse(await cdp.eval(G('JSON.stringify([dialCenter(0), dialCenter(1)])')));
+      const pads = JSON.parse(await cdp.eval(G("JSON.stringify([dialCenter('L'), dialCenter('R')])")));
       if (!pads[0] || typeof pads[0].x !== 'number') return 'dialCenter gave ' + JSON.stringify(pads);
       await touchAt(cdp, pads, 'touchStart');
       if (!await until(cdp, 'state === S.PLAY && preLaunch() === false', 4000)) {

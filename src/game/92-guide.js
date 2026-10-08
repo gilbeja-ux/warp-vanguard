@@ -696,7 +696,7 @@ function paintMenuStatic() {
   // change size and the alignment follows it.
   const twoLine = menuScreen === 'map';
   let headX = menuHeadX();
-  if (menuScreen === 'flow' || menuScreen === 'map') { // small brand line up top
+  if (menuScreen === 'flow' || menuScreen === 'map' || menuScreen === 'trials') { // small brand line up top
     const sm = brandLogoSmall();
     if (sm) {
       // one line: optically centred on the brand baseline. two: centred on the
@@ -794,8 +794,9 @@ function drawMenu(g) {
 
   ctx.font = '10px monospace'; ctx.textAlign = 'left';
   // bottom-left: diagnostic carousel — count up fast, hold ~5s, then the next block
-  // in the bar lights up white and a fresh count begins (HOME garnish only)
-  if (menuScreen === 'home') {
+  // in the bar lights up white and a fresh count begins (HOME garnish only — and not
+  // under the hangar, whose blue pad owns that corner now)
+  if (menuScreen === 'home' && !HANGAR_ON) {
   ctx.save();
   ctx.translate(-(1 - introE(0.35)) * 280, 0); // boot: flies in from the left
   const CYCLE = 6.5, COUNT = 1.5;
@@ -824,11 +825,13 @@ function drawMenu(g) {
   ctx.save();
   ctx.translate((1 - introE(0.5)) * 280, 0); // boot: flies in from the right
   ctx.textAlign = 'right';
+  // on the hangar the white pad owns the corner: the stamp steps left of it
+  const bx0 = menuScreen === 'home' && HANGAR_ON ? hangarPad(1).x - hangarPad(1).r - 14 : W - 20;
   ctx.fillStyle = 'rgba(120,210,255,0.5)';
-  ctx.fillText(String(Math.floor(44589 + time * 12.4) % 100000).padStart(5, '0'), W - 20, H - 34);
-  ctx.fillText(String(Math.floor(45895 + time * 31.7) % 100000).padStart(5, '0'), W - 20, H - 22);
+  ctx.fillText(String(Math.floor(44589 + time * 12.4) % 100000).padStart(5, '0'), bx0, H - 34);
+  ctx.fillText(String(Math.floor(45895 + time * 31.7) % 100000).padStart(5, '0'), bx0, H - 22);
   ctx.fillStyle = 'rgba(120,210,255,0.35)';
-  ctx.fillText('BLD ' + BUILD, W - 20, H - 48);
+  ctx.fillText('BLD ' + BUILD, bx0, H - 48);
   ctx.restore();
   ctx.textAlign = 'right';
 
@@ -908,6 +911,7 @@ function drawMenu(g) {
   else if (menuScreen === 'flow') drawMenuFlow();
   else if (menuScreen === 'camps') drawMenuCamps(ccx, ccy, R);
   else if (menuScreen === 'board') drawMenuBoard();
+  else if (menuScreen === 'trials') drawMenuTrials();
   else drawMenuHome(ccx, ccy, R);
 
   if (menuPopUp() && menuBadge) stampMenuBadge(g); // badge holds its post, under the popup
@@ -1813,6 +1817,7 @@ function drawMenuHome(ccx, ccy, R) {
     menuButtons.push({ sector: { cx: ccx, cy: ccy, r0, r1, a0: sc0.mid - THIRD / 2 + 0.02, a1: sc0.mid + THIRD / 2 - 0.02 }, mode: sc.mode, locked: sc.locked });
   }
   drawHomeSideKeys(ccx, ccy, R, wheelAl, rot);
+  drawHangar(ccx, ccy, R, wheelAl); // the emitters on the rim, and the pads that fly them
   // the HUB: the shield badge holds the wheel's center; the quiet text
   // core stands in until the badge file ships
   ctx.beginPath(); ctx.arc(ccx, ccy, r0 - R * 0.03, 0, TAU);
@@ -2871,4 +2876,289 @@ function drawMenuFlow() {
       ctx.fillText('finish a contract to unlock', mx, my2 + 10);
     }
   }
+}
+
+// ---------- LICENCE TRIALS (menuScreen 'trials') ----------
+// Eight short trials, one skill each, scored bronze, silver or gold (TRIALS, 70-update).
+// The screen sits behind the training disc on the contracts wheel once the first-run
+// course is done, and BACK returns to that disc. A trial that has not opened yet names
+// the stage that opens it, through lvNum like every stage name on every screen.
+function trialsBackFx() {
+  campScroll = campScrollTgt = 0; campPendingSync = null;
+  return { kind: 'spinOut', t: 0, dur: 0.35, to: 'camps', dir: -1 };
+}
+// one glyph per trial: a small ring with the two emitters where the skill puts them,
+// and the thing it is about in its lane colour (null = nothing but the emitters)
+const TRIAL_GLYPH = {
+  slide: [-2.4, -0.7, null], intercept: [-1.9, 0.9, '255,60,90'], pickup: [-1.6, 1.0, '255,210,74'],
+  dock: [-1.72, -1.42, '200,70,255'], pulse: [-2.2, -0.9, '255,210,74'], net: [-2.15, -1.0, '111,227,255'],
+  wall: [2.3, 0.85, '255,154,60'], phase: [-1.6, 1.2, '80,170,255']
+};
+function trialGlyph(id, x, y, r) {
+  const gl = TRIAL_GLYPH[id] || TRIAL_GLYPH.slide;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(120,200,255,0.28)'; ctx.lineWidth = Math.max(2, r * 0.16);
+  ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
+  if (gl[2]) {
+    const ta = id === 'net' ? (gl[0] + gl[1]) / 2 : gl[0];
+    ctx.fillStyle = 'rgb(' + gl[2] + ')';
+    ctx.beginPath(); ctx.arc(x + Math.cos(ta) * r * 0.5, y + Math.sin(ta) * r * 0.5, Math.max(2.5, r * 0.16), 0, TAU); ctx.fill();
+  }
+  for (let i = 0; i < 2; i++) {
+    ctx.strokeStyle = 'rgba(' + NODE_COLS[i] + ',0.95)'; ctx.lineWidth = Math.max(3, r * 0.26);
+    ctx.beginPath(); ctx.arc(x, y, r, gl[i] - 0.22, gl[i] + 0.22); ctx.stroke();
+  }
+  ctx.restore();
+}
+// the card layout: four across on a landscape screen, two across on anything squarer
+function trialsGrid() {
+  const top = 70 + SAFE.t, bot = H - SAFE.b - 18, left = SAFE.l + 20, right = W - SAFE.r - 20;
+  const cols = W / H > 1.25 ? 4 : 2, rows = Math.ceil(TRIALS.length / cols);
+  const gap = Math.max(10, Math.min(W, H) * 0.025);
+  let cw = (right - left - gap * (cols - 1)) / cols, ch = (bot - top - gap * (rows - 1)) / rows;
+  ch = Math.min(ch, cw * 0.62); cw = Math.min(cw, ch * 2.4);
+  const gw = cols * cw + (cols - 1) * gap, gh = rows * ch + (rows - 1) * gap;
+  const x0 = (left + right - gw) / 2, y0 = top + (bot - top - gh) / 2;
+  return TRIALS.map((tr, i) => ({ tr, i, w: cw, h: ch,
+    x: x0 + (i % cols) * (cw + gap), y: y0 + Math.floor(i / cols) * (ch + gap) }));
+}
+function drawMenuTrials() {
+  let al = 1;
+  if (menuFx && menuFx.kind === 'spinIn') al = clamp(menuFx.t / menuFx.dur, 0, 1);
+  if (menuFx && (menuFx.kind === 'spinOut' || menuFx.kind === 'launch')) al = 1 - clamp(menuFx.t / menuFx.dur, 0, 1);
+  const P = progress.trials || {};
+  const golds = TRIALS.filter(t => P[t.id] === 3).length;
+  ctx.save();
+  ctx.globalAlpha = al;
+  // the title shares the brand line's left edge, as the map's contract name does
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#f2faff'; ctx.font = '700 13px Audiowide, system-ui';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  const hx = menuHeadX();
+  ctx.fillText('LICENCE TRIALS', hx, 46 + SAFE.t);
+  const tw0 = ctx.measureText('LICENCE TRIALS').width;
+  ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 10px Audiowide, system-ui';
+  ctx.fillText('GOLD ' + golds + ' / ' + TRIALS.length, hx + tw0 + 16, 46 + SAFE.t);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  for (const c of trialsGrid()) {
+    const tr = c.tr, open = trialOpen(tr), m = P[tr.id] || 0;
+    const req = c.i < TRIAL_REQUIRED && !progress.tutorialDone;
+    const fresh = open && !m && c.i >= TRIAL_REQUIRED;
+    ctx.globalAlpha = al * (open ? 1 : 0.45);
+    techRect(c.x, c.y, c.w, c.h, 10);
+    ctx.fillStyle = 'rgba(8,18,34,0.85)'; ctx.fill();
+    ctx.strokeStyle = fresh ? 'rgba(143,224,255,0.85)' : m ? 'rgba(' + MEDAL_COLS[m] + ',0.55)' : 'rgba(120,200,255,0.3)';
+    ctx.lineWidth = fresh ? 2 : 1.5;
+    techRect(c.x, c.y, c.w, c.h, 10); ctx.stroke();
+    const gr = Math.min(c.h * 0.24, c.w * 0.13), gx = c.x + 12 + gr + 4, gy = c.y + c.h / 2;
+    trialGlyph(tr.id, gx, gy, gr);
+    const mr = Math.max(6, Math.min(c.h * 0.11, 14));
+    const tx = gx + gr + 14, tw = c.x + c.w - tx - 14 - (m ? mr * 2 + 6 : 0);
+    ctx.textAlign = 'left';
+    const fs = fitPx(tr.name, 700, Math.round(c.h * 0.19), tw, 9);
+    ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
+    ctx.fillStyle = '#eaf6ff';
+    ctx.fillText(tr.name, tx, gy - c.h * 0.02);
+    const line = !open ? 'OPENS AT STAGE ' + lvNum(levelNo(0, tr.opens - 1))
+      : m ? MEDAL_NAMES[m] : req ? 'REQUIRED' : fresh ? 'NEW' : 'NOT FLOWN';
+    const fs2 = fitPx(line, 700, Math.round(c.h * 0.13), c.x + c.w - tx - 12, 8);
+    ctx.font = '700 ' + fs2 + 'px Audiowide, system-ui';
+    ctx.fillStyle = m ? 'rgb(' + MEDAL_COLS[m] + ')' : fresh ? 'rgba(143,224,255,0.95)' : req ? 'rgba(255,210,74,0.9)' : 'rgba(150,180,210,0.7)';
+    ctx.fillText(line, tx, gy + c.h * 0.22);
+    if (m) { // the medal itself, top right
+      const mx = c.x + c.w - mr - 12, my = c.y + mr + 12;
+      ctx.fillStyle = 'rgb(' + MEDAL_COLS[m] + ')';
+      ctx.beginPath(); ctx.arc(mx, my, mr, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(8,18,34,0.55)'; ctx.lineWidth = Math.max(1.5, mr * 0.18);
+      ctx.beginPath(); ctx.arc(mx, my, mr * 0.58, 0, TAU); ctx.stroke();
+    }
+    menuButtons.push({ x: c.x, y: c.y, w: c.w, h: c.h, trial: tr.id, locked: !open, cut: 10 });
+  }
+  ctx.restore();
+  ctx.textAlign = 'left';
+}
+
+// ---------- THE HANGAR: the home wheel is flown, not tapped ----------
+// Gil, 2026-10-08. The home screen's three slices are keys on the ring, and a pilot
+// opens one the way a lane is flown: two pads in the bottom corners drive a blue and a
+// white emitter around the wheel's rim, and a key opens only when BOTH emitters dock on
+// it and hold for HANGAR_HOLD. Docking both is the armored interdictor's answer in
+// every lane, so the menu rehearses it on every visit, and a stray tap can no longer
+// send a player somewhere by mistake: a tap on a slice answers with the rule instead.
+// A controller keeps its focus walk and its A key, because it has no pads to dock with.
+//
+// Slow practice traffic climbs out of the hub to the rail, and an emitter that covers a
+// trap as it arrives pops it. Nothing scores and nothing can be lost. It is all menu
+// state: the traffic has its own LCG and never touches Math.random.
+const HANGAR_ON = true;
+const HANGAR_RING = 0.965;     // the rail's radius, × R: between the slices' rim (0.92) and the side keys (1.02)
+const HANGAR_HOLD = 0.55;      // seconds both emitters must sit docked on one key before it opens
+const HANGAR_PAD = 0.115;      // a pad's radius, × min(W, H), held to 30..92 px
+const HANGAR_PARK = [Math.PI * 5 / 6, Math.PI / 6]; // blue parks on CONTRACTS, white on FREE FLOW: never docked on arrival
+const HANGAR_SLEW = 14;        // rad/s, the lane's own carriage rate (NODE_SLEW)
+const HANGAR_EMIT = 0.13;      // an emitter's half-span on the rail, radians
+const HANGAR_TRAFFIC = true;   // false = no practice traffic on the wheel
+const HANGAR_EVERY = 2.4;      // seconds between practice traps, ±30%
+const HANGAR_TRAVEL = 2.8;     // seconds a trap takes from the hub to the rail
+const HANGAR_HINT = 2.4;       // seconds the DOCK BOTH line answers a tap on a slice
+let hangar = null;
+let hangarFiring = false;      // true only while a completed dock opens its key (menuTap)
+function hangarState() {
+  if (!hangar) hangar = { a: HANGAR_PARK.slice(), tgt: HANGAR_PARK.slice(), ptr: {}, dock: null, armed: false,
+    traffic: [], pops: [], nextT: 1, seed: 7, hintAt: -1e9, firedAt: -1e9, home: false };
+  return hangar;
+}
+function hangarReset() {
+  const h = hangarState();
+  h.a = HANGAR_PARK.slice(); h.tgt = HANGAR_PARK.slice();
+  h.ptr = {}; h.dock = null; h.armed = false; h.traffic = []; h.pops = [];
+}
+function hangarRnd() { const h = hangarState(); h.seed = (h.seed * 16807) % 2147483647; return h.seed / 2147483647; }
+function hangarPad(i) {
+  const r = clamp(Math.min(W, H) * HANGAR_PAD, 30, 92);
+  return { x: i === 0 ? SAFE.l + r + 18 : W - SAFE.r - r - 18, y: H - SAFE.b - r - 16, r };
+}
+// the wheel's slices, as the last drawn frame filed them (the side keys are `outer`)
+const hangarKeys = () => menuButtons.filter(b => b.sector && b.mode && !b.sector.outer);
+function inSector(sc, a) {
+  const rel = ((a - sc.a0) % TAU + TAU) % TAU;
+  return rel < ((sc.a1 - sc.a0) % TAU + TAU) % TAU;
+}
+function hangarLive() {
+  return HANGAR_ON && state === S.MENU && menuScreen === 'home' && !menuFx && !menuPopUp();
+}
+function hangarPadAt(x, y) { // which pad a touch landed on, or -1
+  if (!hangarLive()) return -1;
+  for (let i = 0; i < 2; i++) { const p = hangarPad(i); if (Math.hypot(x - p.x, y - p.y) < p.r * 1.35) return i; }
+  return -1;
+}
+// a pad is ABSOLUTE, as in a lane: the emitter heads for the bearing under the thumb
+function hangarAim(i, x, y) { const p = hangarPad(i), h = hangarState(); h.tgt[i] = Math.atan2(y - p.y, x - p.x); h.armed = true; }
+function hangarDown(pid, x, y) { const i = hangarPadAt(x, y); if (i < 0) return false; hangarState().ptr[pid] = i; hangarAim(i, x, y); return true; }
+function hangarMove(pid, x, y) { const h = hangarState(); if (h.ptr[pid] === undefined) return false; hangarAim(h.ptr[pid], x, y); return true; }
+function hangarUp(pid) { const h = hangarState(); if (h.ptr[pid] === undefined) return false; delete h.ptr[pid]; return true; }
+// a TAP on a slice: the wheel states the rule instead of opening
+function hangarRefuse() { hangarState().hintAt = time; sfx.tick(); buzz(8); }
+function tickHangar(dt) {
+  if (!HANGAR_ON) return;
+  const h = hangarState();
+  if (!(state === S.MENU && menuScreen === 'home')) { if (h.home) hangarReset(); h.home = false; return; }
+  h.home = true;
+  for (let i = 0; i < 2; i++) {
+    const d = angDiff(h.tgt[i], h.a[i]), st = HANGAR_SLEW * dt;
+    h.a[i] = Math.abs(d) <= st ? h.tgt[i] : h.a[i] + Math.sign(d) * st;
+  }
+  if (HANGAR_TRAFFIC) {
+    h.nextT -= dt;
+    if (h.nextT <= 0) { h.nextT = HANGAR_EVERY * (0.7 + 0.6 * hangarRnd()); h.traffic.push({ a: hangarRnd() * TAU, t: 0 }); }
+    for (const tr of h.traffic) {
+      tr.t += dt / HANGAR_TRAVEL;
+      if (tr.t >= 1 && !tr.done) {
+        tr.done = true;
+        if (h.a.some(a => Math.abs(angDiff(a, tr.a)) < ARCFX.span)) { h.pops.push({ a: tr.a, t: 0 }); tone(1320, 0.05, 'triangle', 0.035); }
+      }
+    }
+    h.traffic = h.traffic.filter(tr => !tr.done);
+    for (const p of h.pops) p.t += dt;
+    h.pops = h.pops.filter(p => p.t < 0.45);
+  }
+  if (!hangarLive()) { h.dock = null; return; }
+  const key = hangarKeys().find(b => !b.locked && inSector(b.sector, h.a[0]) && inSector(b.sector, h.a[1]));
+  if (!key || !h.armed) { h.dock = null; return; }
+  if (!h.dock || h.dock.mode !== key.mode) { h.dock = { mode: key.mode, t: 0 }; sfx.tick(); }
+  h.dock.t += dt;
+  if (h.dock.t < HANGAR_HOLD) return;
+  // DOCKED: the key opens exactly as a tap used to open it
+  h.dock = null; h.armed = false; h.firedAt = time;
+  if (!progress.hangarDocked) { progress.hangarDocked = true; saveState(); }
+  sfx.drillLock(); buzz([12, 20, 30]);
+  const c = gpCenter(key);
+  hangarFiring = true;
+  try { menuTap(c.x, c.y, -8); } finally { hangarFiring = false; }
+}
+function drawHangar(ccx, ccy, R, al) {
+  if (!HANGAR_ON || al <= 0.01) return;
+  const h = hangarState(), rr = R * HANGAR_RING, u = Math.min(W, H);
+  ctx.save();
+  ctx.globalAlpha = al;
+  ctx.lineCap = 'round';
+  // the rail the two emitters ride
+  ctx.strokeStyle = 'rgba(120,200,255,0.22)'; ctx.lineWidth = Math.max(1.5, R * 0.008);
+  ctx.beginPath(); ctx.arc(ccx, ccy, rr, 0, TAU); ctx.stroke();
+  // practice traffic, climbing out from under the badge: base to the rail, apex to the hub
+  for (const tr of h.traffic) {
+    const r = R * 0.40 + (rr - R * 0.40) * tr.t, s = u * (0.007 + 0.010 * tr.t);
+    ctx.save();
+    ctx.translate(ccx + Math.cos(tr.a) * r, ccy + Math.sin(tr.a) * r);
+    ctx.rotate(tr.a - Math.PI / 2);   // local +y points out, toward the rail
+    ctx.globalAlpha = al * 0.8 * Math.min(1, tr.t * 4);
+    ctx.beginPath(); ctx.moveTo(0, -s * 1.1); ctx.lineTo(s, s * 0.7); ctx.lineTo(-s, s * 0.7); ctx.closePath();
+    ctx.fillStyle = 'rgba(10,6,16,0.85)'; ctx.fill();
+    ctx.strokeStyle = 'rgb(255,60,90)'; ctx.lineWidth = Math.max(1, s * 0.3); ctx.stroke();
+    ctx.restore();
+  }
+  for (const p of h.pops) {
+    const q = p.t / 0.45;
+    ctx.strokeStyle = 'rgba(230,248,255,' + (0.9 * (1 - q)).toFixed(2) + ')'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(ccx + Math.cos(p.a) * rr, ccy + Math.sin(p.a) * rr, u * 0.015 * (1 + q * 2.5), 0, TAU); ctx.stroke();
+  }
+  // the dock filling: the key's own outline lights gold and a fill runs along its rail
+  if (h.dock) {
+    const key = hangarKeys().find(b => b.mode === h.dock.mode);
+    if (key) {
+      const q = clamp(h.dock.t / HANGAR_HOLD, 0, 1), sc = key.sector;
+      keyShapePath(key, 0);
+      ctx.strokeStyle = 'rgba(255,210,74,' + (0.45 + 0.5 * q).toFixed(2) + ')'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,210,74,0.95)'; ctx.lineWidth = Math.max(4, R * 0.03);
+      ctx.beginPath(); ctx.arc(ccx, ccy, rr, sc.a0, sc.a0 + (((sc.a1 - sc.a0) % TAU + TAU) % TAU) * q); ctx.stroke();
+    }
+  }
+  // the two emitters
+  for (let i = 0; i < 2; i++) {
+    const a = h.a[i];
+    if (!lowFX) { ctx.shadowColor = 'rgba(' + NODE_COLS[i] + ',0.9)'; ctx.shadowBlur = 12; }
+    ctx.strokeStyle = 'rgba(' + NODE_COLS[i] + ',0.95)'; ctx.lineWidth = Math.max(5, R * 0.04);
+    ctx.beginPath(); ctx.arc(ccx, ccy, rr, a - HANGAR_EMIT, a + HANGAR_EMIT); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(ccx + Math.cos(a) * rr, ccy + Math.sin(a) * rr, Math.max(2.5, R * 0.012), 0, TAU); ctx.fill();
+  }
+  // the two pads: the ring in miniature, the knob at its emitter's bearing
+  const held = Object.values(h.ptr);
+  const fresh = !progress.hangarDocked;
+  for (let i = 0; i < 2; i++) {
+    const p = hangarPad(i), on = held.includes(i), col = NODE_COLS[i];
+    ctx.fillStyle = 'rgba(6,12,24,0.72)';
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(' + col + ',' + (on ? 0.85 : 0.5) + ')'; ctx.lineWidth = Math.max(3, p.r * 0.14);
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = 'rgba(' + col + ',0.18)'; ctx.lineWidth = Math.max(2, p.r * 0.08);
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 0.45, 0, TAU); ctx.stroke();
+    const kx = p.x + Math.cos(h.a[i]) * p.r, ky = p.y + Math.sin(h.a[i]) * p.r;
+    ctx.fillStyle = 'rgba(' + col + ',1)';
+    ctx.beginPath(); ctx.arc(kx, ky, p.r * 0.17, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(kx, ky, p.r * 0.07, 0, TAU); ctx.fill();
+    if (fresh) { // the first visit's one word, until the first dock
+      ctx.textAlign = 'center';
+      ctx.font = '700 ' + Math.round(u * 0.026) + 'px Audiowide, system-ui';
+      ctx.fillStyle = 'rgba(255,210,74,' + (0.65 + 0.3 * Math.sin(time * 3)).toFixed(2) + ')';
+      ctx.fillText('SLIDE', p.x, p.y - p.r - 10);
+    }
+  }
+  // the rule, in words: on a first visit until the first dock, and as the answer to a tap
+  if (fresh || time - h.hintAt < HANGAR_HINT) {
+    const msg = 'DOCK BOTH EMITTERS ON A KEY';
+    const fs = fitPx(msg, 700, Math.round(u * 0.024), W - (hangarPad(0).r * 2 + 40) * 2, 8);
+    const fade = fresh ? 1 : clamp((HANGAR_HINT - (time - h.hintAt)) / 0.4, 0, 1);
+    ctx.textAlign = 'center';
+    ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
+    try { ctx.letterSpacing = '1.5px'; } catch (e) {}
+    ctx.fillStyle = 'rgba(255,210,74,' + (0.95 * fade).toFixed(2) + ')';
+    ctx.fillText(msg, W / 2, H - SAFE.b - 10);
+    try { ctx.letterSpacing = '0px'; } catch (e) {}
+  }
+  ctx.restore();
+  ctx.textAlign = 'left';
 }

@@ -1378,8 +1378,14 @@ function drawGuideArc(n, targetA, col) {
 }
 
 // QUALIFIED ceremony: lock-in pulses ripple out from the bore and the stamp
-// settles in — the boot ceremony's language, closing the loop it opened
-function drawQualCeremony(t) {
+// settles in — the boot ceremony's language, closing the loop it opened.
+// A licence trial's MEDAL rides the same stamp (drawTrialStamp, 90-hud): its own word,
+// its own reason underneath, the medal's colour, and a shorter hold between the trials
+// of the first-run course. Called with no arguments it is the QUALIFIED stamp, verbatim.
+function drawQualCeremony(t, title, subLines, col, end) {
+  title = title || 'QUALIFIED';
+  end = end || 3.4;
+  const ink = col || '228,249,255';
   const g2 = geo();
   for (const [d, col] of [[0, '140,230,255'], [0.35, '255,255,255']]) {
     const q = clamp((t - d) / 1.1, 0, 1);
@@ -1391,23 +1397,23 @@ function drawQualCeremony(t) {
   const q2 = clamp((t - 0.3) / 0.5, 0, 1);
   if (q2 <= 0) return;
   const s = 1 + 0.5 * Math.pow(1 - q2, 2); // stamps down from oversized
-  const al = q2 * (t > 2.9 ? clamp((3.4 - t) / 0.5, 0, 1) : 1);
+  const al = q2 * (t > end - 0.5 ? clamp((end - t) / 0.5, 0, 1) : 1);
   ctx.save();
   ctx.translate(g2.cx, g2.cy); ctx.scale(s, s);
   ctx.textAlign = 'center';
   try { ctx.letterSpacing = '6px'; } catch (e) {}
-  const fs = fitPx('QUALIFIED', 700, Math.round(g2.nodeR * 0.30), g2.nodeR * 1.7, 12);
+  const fs = fitPx(title, 700, Math.round(g2.nodeR * 0.30), g2.nodeR * 1.7, 12);
   ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
-  ctx.shadowColor = 'rgba(120,225,255,0.8)'; ctx.shadowBlur = lowFX ? 0 : 22 * al;
-  ctx.fillStyle = 'rgba(228,249,255,' + al.toFixed(2) + ')';
-  ctx.fillText('QUALIFIED', 0, -fs * 0.1);
+  ctx.shadowColor = col ? 'rgba(' + col + ',0.8)' : 'rgba(120,225,255,0.8)'; ctx.shadowBlur = lowFX ? 0 : 22 * al;
+  ctx.fillStyle = 'rgba(' + ink + ',' + al.toFixed(2) + ')';
+  ctx.fillText(title, 0, -fs * 0.1);
   ctx.shadowBlur = 0;
   try { ctx.letterSpacing = '2px'; } catch (e) {}
   // TWO FITTED LINES, and the fitting is the fix. This subtitle was drawn at a flat
   // fs * 0.32 with no fitPx — it held together only because 'THE LANE IS YOURS TO CLEAR'
   // happened to be short enough, so any longer replacement ran off the stamp. Split at the
   // colon clause it reads as a stamp rather than a sentence, which is what this moment is.
-  const sub = ['CERTIFICATION: PASSED', 'CLEARED FOR WARP'];
+  const sub = subLines || ['CERTIFICATION: PASSED', 'CLEARED FOR WARP'];
   const ss = Math.max(8, Math.min(...sub.map(l =>
     fitPx(l, 700, Math.round(fs * 0.32), g2.nodeR * 1.7, 8))));
   ctx.font = '700 ' + ss + 'px Audiowide, system-ui';
@@ -2036,18 +2042,16 @@ function pauseTap(x, y, pid) {
       }
       // RESTART TRAVELS, here as on the report: one warp, the same one the NEXT
       // STAGE key runs. This used to be a hard cut with no transition at all.
-      else if (b.action === 'restart') startTrans('warp', () => { pausedFromInfo = false; if (qual) startQualification(); else if (weekly) startWeekly(weeklyIdx); else if (endless) startEndless(); else startLevel(levelIdx); }); // the week just flown, not weekNow() — see the END retry
+      else if (b.action === 'restart') startTrans('warp', () => { pausedFromInfo = false; if (qual) restartTrial(); else if (weekly) startWeekly(weeklyIdx); else if (endless) startEndless(); else startLevel(levelIdx); }); // the week just flown, not weekNow() — see the END retry
       else { // QUIT rides the same drive-back the end-screen MENU key uses
         pausedFromInfo = false;
         weekly = false; Math.random = sysRandom;
-        // training lives in Story Mode now → zoom back out onto its disc
-        if (qual) { menuScreen = 'camps'; campScroll = campScrollTgt = 0; campPendingSync = null; }
-        else menuScreen = endless ? 'flow' : 'map';
+        menuScreen = endless ? 'flow' : 'map';
         if (!endless && !qual) mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
         state = S.MENU; fadeT = 0.35;
-        menuFx = qual ? { kind: 'discOut', t: 0, dur: 0.55, disc: 0 } // the training disc recedes into its slot (reverse of the dive-in)
-          : menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, zoom: true }
+        menuFx = menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, zoom: true }
           : { kind: 'spinIn', t: 0, dur: 0.5, dir: 1, zoom: true };
+        if (qual) qualMenuReturn(); // a trial goes home to the trials (60-input)
       }
       return;
     }

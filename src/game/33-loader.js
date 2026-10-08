@@ -198,11 +198,16 @@ function discAt(i) {
   return { kind: 'soon', si: j - CAMPAIGNS.length };
 }
 const discOfCamp = ci => TRAIN_DISCS + ci;
-// Sync a carousel disc: training launches the qualification run; a contract
-// zooms into its relay map.
+// Sync a carousel disc: training opens the LICENCE TRIALS screen (or, for a pupil who
+// has not finished the first-run course, launches that course); a contract zooms into
+// its relay map.
 function syncDisc(di) {
   const d = discAt(di);
-  if (d.kind === 'train') { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startQualification }; tone(70, 0.45, 'sine', 0.12, 260); return; }
+  if (d.kind === 'train') {
+    if (!progress.tutorialDone) { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startQualification }; tone(70, 0.45, 'sine', 0.12, 260); }
+    else { menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'trials' }; sfx.tick(); }
+    return;
+  }
   if (d.kind !== 'camp') return;
   switchCampaign(d.ci);
   mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1);

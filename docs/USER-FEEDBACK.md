@@ -11,6 +11,49 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
 
 ## BUILT — awaiting release
 
+### F-017 · The course is too complex and unintuitive
+- **Date:** 2026-10-08 · **Source:** several testers, iOS and Android, 1.0.11 · **Status:** BUILT (2026-10-08, branch `worktree-onboarding-trials`)
+- **Feedback:** the tutorial is "too complex" and "unintuitive".
+- **Measured before:** nine stages, thirteen reps, ten disc stops, ten new nouns; 68.7 s of
+  game time for a perfect bot (`scripts/course-fly.js`), several minutes for a person, and
+  mandatory at every boot until finished.
+- **Decision (Gil):** four ideas off the onboarding research page: CALL AND RESPONSE, THE
+  HANGAR, LICENCE TRIALS and REWIND, plus one rule of his own: a home menu key opens only
+  when BOTH emitters dock on it ("this will save us mistakes and teach the dock").
+- **Solution:**
+  - **Licence trials** (`TRIALS`, 70-update): eight trials of one skill each, scored bronze,
+    silver or gold (SLIDE on drill time, the rest on misses). The first `TRIAL_REQUIRED` (2:
+    SLIDE, INTERCEPT) are the first-run course, chained in one lane; the rest open on the
+    LICENCE TRIALS screen behind the training disc when the first contract reaches the stage
+    that uses the skill. A trial's report goes back to the trials; the course's still offers
+    FIRST CONTRACT.
+  - **Call and response:** no drill disc stops the lane. Each lesson's diorama (the DEMO table
+    the discs ran) plays as a ghost on the live ring, turned onto the bearing the real traffic
+    then takes. Once per kind per trial.
+  - **Rewind:** a miss winds the lane back up to 2 s to a moment the missed thing was still
+    inbound, holds 0.85 s under a tape-scrub, and marks the slot with a ghost carriage. The
+    carriages are not wound back. The purge column is never rewound.
+  - **The hangar** (92-guide): the home wheel is flown by two corner pads; a slice opens only
+    when both emitters dock on it for 0.55 s. A touch on a slice answers with DOCK BOTH
+    EMITTERS ON A KEY. A controller keeps its focus walk and A key.
+- **Measured after:** the first-run course in 32.5 s of game time, 0 disc stops, 0 retries
+  for the bot. 0 of 41 ranked boards moved (per-board fingerprint against master), so the
+  verifier deploy before the next build can be `--compatible`.
+- **Knobs:** `TRIAL_REQUIRED`, `TRIAL_GOLD_S`, `TRIAL_SILVER_S`, `TRIAL_CHAIN_HOLD`,
+  `CALLS_ON`, `CALL_MOVE_DUR`, `CALL_ALPHA`, `REWIND_ON`, `REWIND_BACK`, `REWIND_DUR`,
+  `REWIND_GHOST`, `HANGAR_ON`, `HANGAR_HOLD`, `HANGAR_RING`, `HANGAR_PAD`, `HANGAR_TRAFFIC`.
+
+### F-016 · The tutorial's arrows did not show on a first run
+- **Date:** 2026-10-08 · **Source:** one tester, 1.0.11 · **Status:** not reproduced; addressed by F-017
+- **Checked:** the real game in headless Chrome, fresh save, both first-run paths: the guide
+  arcs draw every frame of the align drill. The tutorial's drawing files did not change
+  between 1.0.10 and 1.0.11. Also found: the smoke suite's two-thumb step called
+  `dialCenter(0)`/`dialCenter(1)`, which both return the RIGHT pad, so it passed on its
+  fallback; fixed to `'L'`/`'R'`.
+- **Reading:** the cue was one thin arc on the ring while the eyes were on the pads. The
+  SLIDE call now drags a ghost thumb on the pad with a ghost carriage on the ring before the
+  first rep is asked for.
+
 ### F-001 · Learning curve too steep on lane 2
 - **Date:** 2026-08-19 · **Source:** multiple players · **Status:** BUILT (2026-08-19)
 - **Feedback:** the difficulty jump from lane 1 to lane 2 (THE CARGO RUN) loses new players.

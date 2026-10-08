@@ -84,6 +84,7 @@ function gpMenuBack() { // one step back through the menu screens
   sfx.tick();
   menuFx = menuScreen === 'map' ? { kind: 'panelsOut', t: 0, dur: 0.42, dir: -1 }
     : menuScreen === 'board' ? { kind: 'boardOut', t: 0, dur: 0.5, to: boardFrom }
+    : menuScreen === 'trials' ? trialsBackFx()
     : { kind: 'spinOut', t: 0, dur: 0.35, to: 'home', dir: -1 };
 }
 function gpQuitAction() { // Y: BACK a screen in the menus, QUIT the run elsewhere
@@ -98,7 +99,7 @@ function gpQuitAction() { // Y: BACK a screen in the menus, QUIT the run elsewhe
     const b = pauseButtonsList.find(b2 => b2.action === 'menu');
     if (b) pauseTap(b.x + b.w / 2, b.y + b.h / 2, -7);
   } else if (state === S.GUIDE) closeGuide();
-  else if (state === S.END) gpEndPress('menu');
+  else if (state === S.END) gpEndPress(endButtons.some(b2 => b2.action === 'menu') ? 'menu' : 'trials'); // a trial's report has no MENU key
 }
 function gpEndPress(action) {
   const b = endButtons.find(b2 => b2.action === action);
@@ -111,7 +112,7 @@ function gpEndPress(action) {
 // the A handler — and when the continue was added, only the screen learned
 // about it: A fell through to 'retry' and restarted the whole level, which is
 // exactly the wrong door. One list, one order, every consumer.
-const END_FORWARD = ['next', 'nextCon', 'contract', 'duel', 'retry'];
+const END_FORWARD = ['next', 'nextCon', 'contract', 'trials', 'duel', 'retry'];
 function endForward(list) {
   for (const a of END_FORWARD) {
     const b = (list || []).find(b2 => b2.action === a);

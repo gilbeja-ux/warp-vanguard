@@ -400,7 +400,8 @@ function updateMusic(dt) {
   // rate holds the playhead) and eases it to silence; resuming spools it back up
   // from that same moment, so a pause never costs the run its place in the music.
   const held = pauseHeldNow() && !replaying;
-  const rateTarget = replaying ? (replayFrozen ? 0.0001 : replaySpeed) : (held || (tut && tut.frozen) ? 0.0001 : 1);
+  // a trial's REWIND dips the tape the same way, for the length of its scrub
+  const rateTarget = replaying ? (replayFrozen ? 0.0001 : replaySpeed) : (held || (tut && (tut.frozen || tut.rewind)) ? 0.0001 : 1);
   musicRate += (rateTarget - musicRate) * Math.min(1, (dt || 0) * (rateTarget < 0.5 ? 2.5 : 5));
   if (musicSrc && musicSrc.playbackRate) musicSrc.playbackRate.value = musicRate;
   // a frozen playhead doesn't move, so the clock the seam logic measures against

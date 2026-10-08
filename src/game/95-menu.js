@@ -792,7 +792,10 @@ function drawEnd(g) {
   // JUST THE PLACE. It read 'MISSION REPORT // XANYR 575 II' — and the banner two lines
   // below already says what happened, so the words before the slashes were a label on a
   // screen that needs none.
-  const modeName = endless ? (weekly ? 'WEEKLY LANE' : 'ENDLESS LANE') : qual ? 'QUALIFICATION' : curRouteName();
+  // a single licence trial names itself; the first-run course is still QUALIFICATION
+  const soloTrial = qual && trialRun && !trialRun.firstRun ? trialById(trialRun.id) : null;
+  const modeName = endless ? (weekly ? 'WEEKLY LANE' : 'ENDLESS LANE')
+    : soloTrial ? 'LICENCE TRIAL · ' + soloTrial.name : qual ? 'QUALIFICATION' : curRouteName();
   try { ctx.letterSpacing = '3px'; } catch (e) {}
   ctx.fillStyle = 'rgba(140,210,255,0.7)';
   fit('700', 11, modeName);
@@ -801,7 +804,9 @@ function drawEnd(g) {
 
   // banner slams in
   const tPop = 1 + 0.22 * (1 - ph(T.panel0, T.panel0 + 0.3));
-  const banner = endless ? 'LANE COLLAPSED' : qual ? (endWin ? 'QUALIFIED' : 'TRAINING ABORTED') : endWin ? 'LANE CLEARED' : 'WARP LANE UNSTABLE';
+  const banner = endless ? 'LANE COLLAPSED'
+    : soloTrial ? (endWin && trialRun.medal ? MEDAL_NAMES[trialRun.medal] + (trialRun.newBest ? ' · NEW BEST' : '') : 'TRIAL ABORTED')
+    : qual ? (endWin ? 'QUALIFIED' : 'TRAINING ABORTED') : endWin ? 'LANE CLEARED' : 'WARP LANE UNSTABLE';
   ctx.save();
   ctx.translate(g.cx, g.cy - R * 0.70);   // tight under the place name, not mid-frame
   ctx.scale(tPop, tPop);
@@ -1080,7 +1085,10 @@ function drawEnd(g) {
       : assistOffer
       ? { label: 'LANE ASSIST ▸', action: 'assist', price: 'EASED LANE · NO SCORE · ROUTE ONLY' }
       : null;
-    const primary = qualDone
+    // a single trial is practice, not a gate: forward is back to the trials and the medal
+    const primary = qualDone && soloTrial
+      ? { label: 'TRIALS ▸', action: 'trials' }
+      : qualDone
       ? { label: 'FIRST CONTRACT ▸', action: 'contract' }
       : endWin && !endless && !qual && levelIdx + 1 < LEVELS.length
       ? { label: 'NEXT STAGE ▸', action: 'next' }
@@ -1093,8 +1101,9 @@ function drawEnd(g) {
       // that THIS one counts. Losing assisted still says ASSIST — it stays eased.
       : { label: endWin ? (assist ? 'RETRY RANKED' : 'RESTART') : duelable ? 'FULL RETRY' : assist ? 'RETRY ASSIST' : 'RETRY', action: 'retry' };
     const secondary = [];
-    if (primary.action === 'next' || primary.action === 'contract' || primary.action === 'nextCon') secondary.push({ label: assist ? 'RETRY RANKED' : 'RESTART', action: 'retry' });
-    secondary.push({ label: 'MENU', action: 'menu' });
+    if (primary.action === 'next' || primary.action === 'contract' || primary.action === 'nextCon' || primary.action === 'trials') secondary.push({ label: assist ? 'RETRY RANKED' : 'RESTART', action: 'retry' });
+    // a trial's MENU would only repeat TRIALS ▸: both go to the trials screen
+    if (primary.action !== 'trials') secondary.push({ label: 'MENU', action: 'menu' });
     // THE GLOWING KEY IS THE A KEY — one rule, and the layout obeys it rather
     // than the other way round. A is hard-mapped to the way FORWARD (see
     // END_FORWARD in 71-gamepad), and a lost duel's continue outranks a level

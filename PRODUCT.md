@@ -78,7 +78,8 @@ campaign 2 picks up at 09.
   climbs past it. Every campaign owns a signature mechanic and escorts a
   different *kind* of cargo; the player is always the escort and the phase
   polarity never flips.
-- Free-flow tutorial (qualification), endless mode with timed stream surges,
+- Licence trials (eight short drills with medals; the first two are the first-run
+  course), a home wheel opened by docking both emitters, endless mode with timed stream surges,
   and a RANKED WEEK seeded per Mon–Sun week (UTC) — an identical stream for
   every player for seven days, which is long enough to learn the lane and keep
   coming back at your own row. When the week closes its board freezes for good, so
@@ -180,7 +181,8 @@ offline entitlement flag; no server for v1. Full plan in
    from unavoidable loss.
 3. **Teach in the world, not in a panel.** New threats announce themselves
    through in-world banners, riding tooltips, and drills the player performs —
-   the tutorial has no modal stops.
+   the tutorial has no modal stops. A drill is shown as a ghost on the live ring
+   just before it is asked for, and a miss rewinds the lane rather than stopping it.
 4. **One control scheme, more verbs.** New depth comes from what the two dials
    can already express, not from new inputs or a second scheme.
 5. **Information lives on the object.** Urgency, threat type, and state read

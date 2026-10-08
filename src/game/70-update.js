@@ -9,36 +9,80 @@ function spawnBolt(x1, y1, x2, y2) {
 // one-second timer left. Lower it to let them bear down further.
 const PULSE_HOLD_LEAD = 0.50;
 const PULSE_HOLD_CAP = 4;   // backstop, for a pupil who zaps the column instead of waiting
-// ---------- qualification curriculum ----------
-const QUAL = [
-  { card: 'move' },
-  // the hazards ride WITH the early traps: intercept the reds, STEER CLEAR
-  // of the killer and the wall — no dedicated stages, one flowing lesson
-  { card: 'normal', queue: ['normal', 'normal', 'wall'] },
-  // THE VOLLEY RIDES THE ARMOR STAGE. It is not a topic of its own: docking both
-  // emitters IS the armor's answer, and the volley is that same dock held half a
-  // second longer. Teaching it here costs no new stage and breaks no lane law —
-  // the demand is unchanged, only the depth of it. It went untaught between
-  // 4668d95 and this; the call on 2026-08-28 was to teach it after all, because a
-  // bolt that DETONATES is not something a player finds by accident.
-  { card: 'heavy',  queue: ['heavy', 'volley'] },
-  { card: 'line',   queue: ['line'] },
-  { card: 'lock',   queue: ['lock0', 'lock1'] },
-  { card: 'pickup', queue: ['pickup'] },
-  { card: 'strip',  queue: ['strip'] },        // the ride charges a pulse...
-  { card: 'pulse',  queue: ['pulse'] },        // ...which this column spends
-  { card: 'done' }
-];
-// EVERY DRILL IS SHOWN BEFORE IT IS ASKED FOR. One disc opens each lesson, and the
-// disc DEMONSTRATES rather than describes: its upper three quarters run a live
-// diorama of the ring playing the correct move on a loop, and only the bottom
-// quarter carries words (drawDiscDemo, 91-briefing).
+// ---------- the licence trials ----------
+// THE COURSE IS A SET OF SHORT TRIALS (Gil, 2026-10-08). The testers on 1.0.11 called
+// the ten-disc qualification too long and too hard to follow, on iOS and Android alike:
+// a perfect bot needed 68.7 s and ten disc stops to finish it, a person several minutes.
+// Each trial now teaches ONE skill in fifteen to thirty seconds and pays a medal.
 //
-// The banners this replaces were text stacked over the bore center — the one place
-// the traffic arrives from — which is why they went in 6572c74. A disc is not that:
-// it STOPS the lane, says its piece where nothing else is happening, and hands the
-// run back. The riding labels and dock spots stay exactly as they are; they are the
-// reminder, and the disc is the lesson.
+// The first TRIAL_REQUIRED trials are the first-run course, flown back to back in one
+// lane. Every other trial is optional: it opens on the LICENCE TRIALS screen once the
+// first contract reaches the stage where the skill starts to matter. `opens` is a stage
+// NAME (1-based, as printed); 0 means always open.
+//
+// A trial's `stages` are the old curriculum's stage records, verbatim. The drill
+// machinery below did not change shape; only the thing that strings stages together did.
+// THE VOLLEY STILL RIDES THE ARMOR (2026-08-28): docking both emitters is the armor's
+// answer, and the volley is the same dock held half a second longer.
+const TRIALS = [
+  { id: 'slide',     name: 'SLIDE',       opens: 0, medal: 'time', stages: [{ card: 'move' }] },
+  { id: 'intercept', name: 'INTERCEPT',   opens: 0, stages: [{ card: 'normal', queue: ['normal', 'normal', 'normal'] }] },
+  { id: 'pickup',    name: 'POWER-UP',    opens: 2, stages: [{ card: 'pickup', queue: ['pickup'] }] },
+  { id: 'dock',      name: 'DOCK',        opens: 3, stages: [{ card: 'heavy', queue: ['heavy', 'volley'] }] },
+  // the ride charges a pulse, which the column then spends
+  { id: 'pulse',     name: 'PULSE',       opens: 4, stages: [{ card: 'strip', queue: ['strip'] }, { card: 'pulse' }] },
+  { id: 'net',       name: 'BARRIER NET', opens: 5, stages: [{ card: 'line', queue: ['line', 'line'] }] },
+  { id: 'wall',      name: 'DEAD ZONE',   opens: 6, stages: [{ card: 'wall', queue: ['wall'] }] },
+  { id: 'phase',     name: 'PHASE LOCK',  opens: 7, stages: [{ card: 'lock', queue: ['lock0', 'lock1'] }] }
+];
+const TRIAL_REQUIRED = 2;      // how many trials, from the top, make up the first-run course
+const TRIAL_GOLD_S = 8;        // SLIDE is scored on drill time (the calls excluded)…
+const TRIAL_SILVER_S = 14;     // …every other trial on misses: none is gold, one is silver
+const TRIAL_CHAIN_HOLD = 2.2;  // seconds a medal stamp holds before the course's next trial
+const MEDAL_NAMES = ['', 'BRONZE', 'SILVER', 'GOLD'];
+const MEDAL_COLS = ['143,224,255', '214,140,82', '214,226,240', '255,210,74'];
+const trialById = id => TRIALS.find(t => t.id === id) || null;
+const trialStages = id => trialById(id).stages.map(s => Object.assign({}, s)).concat([{ card: 'done' }]);
+// open once the first contract has unlocked the stage that `opens` names
+function trialOpen(tr) {
+  if (!tr.opens) return true;
+  const c = progress.camp && progress.camp['cargo-run'];
+  return !!(c && (c.unlocked || 1) >= tr.opens);
+}
+function trialMedal(t) { // 3 gold, 2 silver, 1 bronze, read off the finished tut
+  if (t.medalBy === 'time') return t.work <= TRIAL_GOLD_S ? 3 : t.work <= TRIAL_SILVER_S ? 2 : 1;
+  return t.misses === 0 ? 3 : t.misses === 1 ? 2 : 1;
+}
+// the stage record the live trial is on (what QUAL[tut.stage] used to be)
+const tutStage = () => (tut ? tut.qual[tut.stage] : null);
+// which trial is in the lane, kept past the end of the run for the report and RESTART
+let trialRun = null; // { id, chain, firstRun, medal, newBest }
+function newTut(id, chain, firstRun) {
+  const tr = trialById(id), qual0 = trialStages(id);
+  return {
+    trial: id, chain: (chain || []).slice(), firstRun: !!firstRun, qual: qual0,
+    stage: 0, t: 0, queue: (qual0[0].queue || []).slice(), retry: null, spawned: null,
+    called: {}, call: null,                        // CALL AND RESPONSE: see qualNext
+    misses: 0, missCounted: false, work: 0, medalBy: tr.medal || 'misses', medal: 0, newBest: false,
+    clock: 0, snaps: [], snapAt: -1e9, rewind: null, rewindAt: -1e9, // REWIND: see qualRewind
+    aim: makeAim()
+  };
+}
+// CONTROLS CHECK: bring each node onto a lit target on the ring and HOLD. Each rep's
+// target materializes off the node's live position when the rep begins, so every rep
+// is a deliberate, reachable move; the last rep lights both nodes at once.
+function makeAim() {
+  return { idx: 0, targets: null, hold: 0, reps: [
+    [{ node: 0, off: -2.0 }],                        // blue: reach one way (relative)
+    [{ node: 1, off: 2.0 }],                         // white: reach the other
+    [{ node: 0, a: -2.5 }, { node: 1, a: -0.64 }],   // both at once, FIXED: opposite upper sides
+  ] };
+}
+// THE DRILL DISCS NO LONGER STOP THE COURSE (2026-10-08). From 2026-08-28 one disc
+// opened each lesson and ran a live diorama of the move (drawDiscDemo, 91-briefing).
+// The dioramas survive: CALL AND RESPONSE plays them on the live ring, as ghosts, just
+// before the same pattern arrives for real (qualNext, drawTutCall). These cards keep
+// the drill words for the disc renderer, the field-briefing bench and the tests.
 const INFO_CARDS = {
   move:   { title: 'DUAL EMITTERS', lines: ['Left thumb — BLUE ⊕. Right — WHITE ⊖.', 'Slide the dials to ride the ring.'] },
   normal: { title: 'INTERDICTOR', lines: ['Align ANY emitter as it crosses.', 'Dead center pays ×2.'] },
@@ -108,41 +152,65 @@ function showCard(key) {
   state = S.INFO;
   sfx.tick();
 }
-// ---------- one disc per lesson ----------
-// Which disc opens which drill. Both colour locks share PHASE-LOCKED, because the
-// lesson is the same one twice; every other drill has its own. `move` has no spawn
-// of its own, so updateTutorial fires that one by hand.
-const QUAL_DISC = {
-  move: 'move', normal: 'normal', wall: 'wall', heavy: 'heavy', volley: 'volley',
-  line: 'line', lock0: 'lock', lock1: 'lock', pickup: 'pickup', strip: 'strip', pulse: 'pulse'
-};
-// ONCE PER COURSE, NEVER ON A REPEAT. `tut.seen` lives on the tut object, so a fresh
-// qualification is a fresh pupil and a failed drill's do-over never re-shows its disc.
-// Returns true when the disc took the frame — the caller must then do nothing else.
-function qualDisc(kind) {
-  const key = QUAL_DISC[kind];
-  if (!key || !tut || tut.seen[key]) return false;
-  tut.seen[key] = 1;
-  showCard(key);
-  return true;
+// ---------- CALL AND RESPONSE ----------
+// Every lesson is a phrase the ring plays to the pupil before it asks for it back.
+// In the CALL a ghost of the lesson's own diorama (the DEMO table in 91-briefing, the
+// one the drill discs ran) plays on the live ring, rotated onto the bearing the real
+// traffic will take. The lane keeps flowing and the music keeps playing, but nothing
+// is released. In the RESPONSE the same pattern arrives for real, on that bearing.
+//
+// A call plays once per kind per trial: the second red of INTERCEPT, the second end
+// of a net and the white phase lock get none, the way Rhythm Doctor's cues fall away
+// once the pupil has the beat. A miss does not repeat the call; REWIND answers it.
+const CALLS_ON = true;         // false = the trials spawn straight away, with no ghost
+const CALL_MOVE_DUR = 2.4;     // the SLIDE call: a ghost thumb drags, a ghost emitter follows
+const CALL_FADE = 0.25;        // the ghost's fade in and out, seconds
+const CALL_KEY = { lock0: 'lock', lock1: 'lock' }; // both phase locks share one lesson
+const callKey = k => CALL_KEY[k] || k;
+// the call is one loop of its diorama, which was tuned to its own payoff (DEMO_LOOP)
+const callDur = key => (key === 'move' ? CALL_MOVE_DUR : (DEMO_LOOP[key] || 4));
+// nudge a bearing until it sits clear of both carriages, then clear of the walls
+function clearOfNodes(a, gap) {
+  for (let h = 0; h < 12; h++) {
+    if (!nodes.some(n => Math.abs(angDiff(n.angle, a)) < gap)) break;
+    a += 0.45;
+  }
+  return clearOfWalls(a);
 }
-// SHOW, THEN SPAWN. The disc parks the run in S.INFO; the pending kind spawns on the
-// first tutorial step after it lifts, so the hazard is never already inbound behind
-// the words describing it.
+// THE BEARING THE RESPONSE WILL TAKE, chosen when the call starts so the ghost can be
+// played on it. A reachable move from where the carriages are, never on top of one.
+function callAngle(kind) {
+  const side = () => (Math.random() < 0.5 ? 1 : -1);
+  if (kind === 'heavy' || kind === 'volley') return clearOfNodes(nodes[0].angle + Math.PI, 0.7);
+  if (kind === 'wall') return nodes[0].angle + Math.PI * 0.55 * side();
+  if (kind === 'lock1') return clearOfNodes(nodes[1].angle + side() * rand(1.1, 1.8), 0.6);
+  if (kind === 'normal' || kind === 'lock0') return clearOfNodes(nodes[0].angle + side() * rand(1.1, 1.8), 0.6);
+  return clearOfWalls(Math.random() * TAU);
+}
 function qualNext(kind) {
-  if (qualDisc(kind)) { tut.pending = kind; return; }
-  qualSpawn(kind);
+  const key = callKey(kind);
+  const a = kind === 'pulse' ? undefined : callAngle(kind);
+  const gap = kind === 'line' ? rand(0.9, 1.3) : undefined;
+  if (CALLS_ON && !tut.called[key]) {
+    tut.called[key] = 1;
+    tut.call = { kind, key, t: 0, dur: callDur(key), a, gap };
+    return;
+  }
+  qualSpawn(kind, a, gap);
 }
-function qualSpawn(kind) {
+// `a` (and a net's `gap`) pin the bearing the call was played on; without them each
+// kind places itself exactly as it always did
+function qualSpawn(kind, a, gap) {
   tut.spawned = kind;
   if (kind === 'pickup') {
-    pickups.push({ kind: 'wide', z: SPAWN_Z, angle: Math.random() * TAU, spin: 0, done: false, tut: true });
+    pickups.push({ kind: 'wide', z: SPAWN_Z, angle: a !== undefined ? a : Math.random() * TAU, spin: 0, done: false, tut: true });
     return;
   }
   if (kind === 'strip') {
     const en2 = spawnStrip();
     en2.tut = 'strip';
     en2.len = 0.5; en2.amp = 0.22; en2.frq = 2.2; en2.ph = 0;
+    if (a !== undefined) en2.angle = a;
     return;
   }
   if (kind === 'pulse') {
@@ -179,12 +247,15 @@ function qualSpawn(kind) {
     //
     // CLEAR OF BOTH CARRIAGES, like the purge column: a trap that materialises on a
     // parked emitter dies for free and demonstrates nothing.
-    let va = nodes[0].angle + Math.PI;
-    for (let h = 0; h < 8; h++) {
-      if (!nodes.some(n => Math.abs(angDiff(n.angle, va)) < 0.7)) break;
-      va += 0.5;
+    let va = a;
+    if (va === undefined) {
+      va = nodes[0].angle + Math.PI;
+      for (let h = 0; h < 8; h++) {
+        if (!nodes.some(n => Math.abs(angDiff(n.angle, va)) < 0.7)) break;
+        va += 0.5;
+      }
+      va = clearOfWalls(va);
     }
-    va = clearOfWalls(va);
     for (const [da, ty] of [[0, 'heavy'], [-0.5, 'normal'], [0.5, 'normal']]) {
       const ev = spawnEnemy(va + da, ty);
       ev.lock = undefined; ev.tut = 'volley';
@@ -193,67 +264,185 @@ function qualSpawn(kind) {
     return;
   }
   if (kind === 'wall') {
-    // a practice clamp lands ahead — steer clear, or eat the fry and retry
+    // a practice clamp lands ahead — steer clear, or eat the fry and go back
     latches.length = 0;
-    const away = nodes[0].angle + Math.PI * (Math.random() < 0.5 ? 0.55 : -0.55);
+    const away = a !== undefined ? a : nodes[0].angle + Math.PI * (Math.random() < 0.5 ? 0.55 : -0.55);
     latches.push({ a: away, span0: 0.5, t: 0, dur: 3.2, tele: 2.0, arm: 0.4, z0: 1.3 });
     sfx.latchWarn();
     return;
   }
   if (kind === 'line') {
-    const a = Math.random() * TAU, gap = rand(0.9, 1.3);
-    const e1 = spawnEnemy(a, 'line'), e2 = spawnEnemy(a + gap, 'line');
+    const la = a !== undefined ? a : Math.random() * TAU, lg = gap !== undefined ? gap : rand(0.9, 1.3);
+    const e1 = spawnEnemy(la, 'line'), e2 = spawnEnemy(la + lg, 'line');
     e1.partner = e2; e2.partner = e1; e1.lineLead = true;
     e1.tut = e2.tut = 'line';
     return;
   }
   let en;
   if (kind === 'lock0' || kind === 'lock1') {
-    en = spawnEnemy(undefined, 'normal');
+    en = spawnEnemy(a, 'normal');
     en.lock = kind === 'lock0' ? 0 : 1;
-  } else en = spawnEnemy(undefined, kind); // normal | heavy
+  } else en = spawnEnemy(a, kind); // normal | heavy
   en.tut = kind;
 }
+// ---------- REWIND ----------
+// A MISS PULLS THE LANE BACK, IT DOES NOT START THE DRILL OVER (Braid, Forza Horizon,
+// Celeste's instant respawn). The trial keeps a short tape of the drill — the traffic,
+// the relays, the clamps and the pulse banks, every REWIND_SNAP seconds — and a miss
+// winds it back REWIND_BACK seconds, to a moment the missed thing was still inbound.
+// The world holds still for REWIND_DUR under a tape-scrub, the ghost marks where the
+// emitter belongs, and the lane runs again from there.
+//
+// The CARRIAGES ARE NOT WOUND BACK. The thumbs are still on the pads, and an emitter
+// that jumped away from under a held thumb would read as the controls breaking. A
+// fried carriage is mended, though: the fry belongs to the moment being undone.
+//
+// The trial is unranked (boardKey is null while qual is set) and draws Math.random,
+// never spawnRng, so rewinding moves no board. The purge column is never rewound:
+// its freeze-and-tap hold has its own state, and a miss there replays the drill.
+const REWIND_ON = true;
+const REWIND_BACK = 2.0;   // seconds the tape winds back, at most
+const REWIND_DUR = 0.85;   // seconds the world holds under the scrub
+const REWIND_SNAP = 0.25;  // seconds between tape frames
+const REWIND_KEEP = 16;    // tape frames kept: 4 s
+const REWIND_GHOST = 2.6;  // seconds the ghost carriage marks the spot after the scrub
+// a deep copy that keeps shared references shared — a barrier net's two ends point at
+// each other through `partner`, and the copy has to as well
+function deepClone(v, seen) {
+  if (v === null || typeof v !== 'object') return v;
+  seen = seen || new Map();
+  if (seen.has(v)) return seen.get(v);
+  const out = Array.isArray(v) ? [] : {};
+  seen.set(v, out);
+  for (const k of Object.keys(v)) { const x = v[k]; if (typeof x !== 'function') out[k] = deepClone(x, seen); }
+  return out;
+}
+function qualSnap(dt) {
+  if (!REWIND_ON) return;
+  tut.clock += dt;
+  if (tut.clock - tut.snapAt < REWIND_SNAP) return;
+  tut.snapAt = tut.clock;
+  tut.snaps.push({
+    clock: tut.clock, spawned: tut.spawned, wallDone: tut.wallDone,
+    enemies: deepClone(enemies), pickups: deepClone(pickups), latches: deepClone(latches),
+    deadT: nodes.map(n => n.deadT), pulse: pulseCharge.slice()
+  });
+  if (tut.snaps.length > REWIND_KEEP) tut.snaps.shift();
+}
+// the tape frame to wind back to: walking back from the newest, the oldest frame
+// within REWIND_BACK in which the missed thing was still inbound — never a frame
+// from before it existed
+function rewindFrame(kind) {
+  const alive = s => s.enemies.some(e => e.tut && !e.dead && !e.resolved && !e.failed)
+    || s.pickups.some(p => p.tut && !p.done)
+    || (kind === 'wall' && s.latches.length > 0 && s.deadT.every(d => d <= 0));
+  let pick = null;
+  for (let i = tut.snaps.length - 1; i >= 0; i--) {
+    const s = tut.snaps[i];
+    if (!alive(s)) { if (pick) break; continue; }
+    pick = s;
+    if (tut.clock - s.clock >= REWIND_BACK) break;
+  }
+  return pick;
+}
+function qualRewind(kind) {
+  if (!REWIND_ON || kind === 'pulse') return false;
+  const s = rewindFrame(kind);
+  if (!s) return false;
+  enemies = deepClone(s.enemies);
+  pickups = deepClone(s.pickups);
+  latches = deepClone(s.latches);
+  pulseCharge = s.pulse.slice();
+  s.deadT.forEach((d, i) => { nodes[i].deadT = d; });
+  tut.spawned = s.spawned; tut.wallDone = s.wallDone;
+  tut.snaps = tut.snaps.filter(f => f.clock <= s.clock);
+  tut.clock = s.clock; tut.snapAt = s.clock;
+  tut.retry = null; tut.missCounted = false; tut.again = null; tut.t = 0;
+  tut.rewind = { t: 0, dur: REWIND_DUR, kind }; tut.rewindAt = time;
+  sfx.tutFreeze(); // the tape-warp: the run holds its breath, then picks up again
+  buzz([18, 30, 18]);
+  return true;
+}
+// ---------- the course runs ----------
 function advanceQual() {
   tut.stage++;
   tut.t = 0;
   tut.again = null; // a fresh drill speaks in the present tense
-  if (tut.stage >= QUAL.length) { // safety — 'done' normally ends it with air
-    progress.tutorialDone = true;
-    saveState();
-    tut = null;
-    endLevel(true);
-    return;
-  }
-  const c = QUAL[tut.stage].card;
-  if (c === 'done') { // no info disc — a QUALIFIED ceremony plays in-world
+  if (tut.stage >= tut.qual.length) { qualFinish(); return; } // safety: 'done' normally ends it
+  const c = tutStage().card;
+  if (c === 'done') { // no info disc: the medal (or QUALIFIED) stamps in-world
     tut.queue = [];
+    tut.medal = trialMedal(tut);
+    const P = progress.trials || (progress.trials = {});
+    tut.newBest = tut.medal > (P[tut.trial] || 0);
+    P[tut.trial] = Math.max(P[tut.trial] || 0, tut.medal);
+    if (trialRun) { trialRun.medal = tut.medal; trialRun.newBest = tut.newBest; }
+    saveState();
     // rising clearance chord: the line accepts its defender
     sfx.qualified();
     buzz([30, 40, 90]);
     return;
   }
-  // free flow: no disc stop — the hazard itself announces the drill, labelled
-  tut.queue = (QUAL[tut.stage].queue || []).slice();
+  tut.queue = (tutStage().queue || []).slice();
   sfx.tick();
   // pre-spawned drills: the hazard is already inbound as the stage opens
   if (c === 'pulse') { tut.queue = []; qualNext(c); }
 }
+// THE TRIAL IS OVER. On the first-run course the next trial starts in the same lane,
+// with no screen between them; the last one files the course as done and hands the
+// run to the report, which offers the first contract.
+function qualFinish() {
+  if (tut.chain.length) {
+    const was = tut;
+    tut = newTut(was.chain[0], was.chain.slice(1), was.firstRun);
+    trialRun = { id: tut.trial, chain: tut.chain.slice(), firstRun: tut.firstRun, medal: 0, newBest: false };
+    enemies = enemies.filter(e => !e.tut); pickups = []; latches = [];
+    sfx.tick();
+    return;
+  }
+  if (tut.firstRun) progress.tutorialDone = true;
+  saveState();
+  tut = null;
+  endLevel(true);
+}
 const AIM_HOLD = 0.3; // seconds a node must sit on a target to lock it in
 function updateTutorial(dt) {
-  // the drill a disc was holding back, released on the first step after it lifted
-  if (tut.pending) { const k = tut.pending; tut.pending = null; qualSpawn(k); return; }
+  // A MISS IS COUNTED ONCE, the moment it lands, and then the tape is tried. Only if
+  // there is nothing to wind back to does the old do-over below take the miss.
+  if (tut.retry && !tut.missCounted) {
+    tut.missCounted = true;
+    tut.misses++;
+    if (qualRewind(tut.retry)) return;
+  }
+  if (tut.call) { // the CALL: the ghost plays the move, the lane releases nothing
+    tut.call.t += dt;
+    if (tut.call.t >= tut.call.dur) {
+      const c = tut.call;
+      tut.call = null;
+      tut.t = 0;
+      if (c.kind !== 'move') qualSpawn(c.kind, c.a, c.gap);
+      tut.responseAt = time; // drawTutCall's YOUR TURN reads this
+    }
+    return;
+  }
   tut.t += dt;
-  const st = QUAL[tut.stage];
+  const st = tutStage();
+  if (st.card !== 'done') { tut.work += dt; qualSnap(dt); }
   if (st.card === 'move') {
-    // the control check has no hazard to gate on, so its disc is fired by hand.
-    // updateTutorial runs only outside the boot intro, so this lands the moment the
-    // warp-in settles and the pads are already the player's.
-    if (qualDisc('move')) return;
     // land each lit target's assigned node inside the zap window, and HOLD;
     // the final rep lights both at once (both must be covered together)
     const A = tut.aim, TOLm = ARCFX.span * tolVis;
-    if (!A.targets) A.targets = A.reps[A.idx].map(t => ({ node: t.node, a: t.a !== undefined ? t.a : nodes[t.node].angle + t.off }));
+    if (!A.targets) {
+      A.targets = A.reps[A.idx].map(t => ({ node: t.node, a: t.a !== undefined ? t.a : nodes[t.node].angle + t.off }));
+      // the first rep and the two-thumb rep are called; the middle one is the pupil's alone
+      const ck = 'move' + A.idx;
+      if (CALLS_ON && (A.idx === 0 || A.idx === A.reps.length - 1) && !tut.called[ck]) {
+        tut.called[ck] = 1;
+        tut.call = { kind: 'move', key: 'move', t: 0, dur: CALL_MOVE_DUR, from: A.targets.map(t => nodes[t.node].angle) };
+        tut.work -= dt; // the call is not the pupil's time
+        return;
+      }
+    }
     const covered = t => nodes[t.node].deadT <= 0 && Math.abs(angDiff(nodes[t.node].angle, t.a)) < TOLm;
     A.hold = A.targets.every(covered) ? A.hold + dt : 0;
     if (A.hold >= AIM_HOLD) {
@@ -264,13 +453,8 @@ function updateTutorial(dt) {
     return;
   }
   if (st.card === 'done') {
-    // the QUALIFIED ceremony runs its course, then the report — no hard cut
-    if (tut.t > 3.4) {
-      progress.tutorialDone = true;
-      saveState();
-      tut = null;
-      endLevel(true);
-    }
+    // the stamp runs its course, then the next trial or the report — no hard cut
+    if (tut.t > (tut.chain.length ? TRIAL_CHAIN_HOLD : 3.4)) qualFinish();
     return;
   }
   if (st.card === 'pulse' && !tut.fired) {
@@ -299,8 +483,9 @@ function updateTutorial(dt) {
   if (tut.spawned === 'wall') { // steer clear of the practice clamp
     if (nodes.some(n => n.deadT > 0) && !tut.retry) {
       // clipped it — the fry STANDS (reboot and all); the drill repeats
-      // once the clamp burns off
+      // once the clamp burns off, unless the tape can take the lane back first
       tut.retry = 'wall'; tut.t = 0;
+      return; // the miss is counted, and the rewind tried, on the next step
     }
     if (latches.length) return; // still burning — hold the stage
     if (!tut.wallDone && !tut.retry) { // the clamp burned off untouched
@@ -309,8 +494,8 @@ function updateTutorial(dt) {
     }
   }
   const live = enemies.some(e => !e.dead && !e.resolved) || pickups.some(p => !p.done) || latches.length > 0;
-  if (tut.retry && !live && tut.t > 0.9) { // practice failed — same drill again
-    const k = tut.retry; tut.retry = null; tut.t = 0;
+  if (tut.retry && !live && tut.t > 0.9) { // nothing to wind back to: the same drill again
+    const k = tut.retry; tut.retry = null; tut.t = 0; tut.missCounted = false;
     tut.again = k; // the label acknowledges the do-over
     qualSpawn(k);
     return;

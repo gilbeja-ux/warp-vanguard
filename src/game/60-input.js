@@ -184,6 +184,8 @@ canvas.addEventListener('pointerdown', e => {
       menuTap(P.x, P.y, e.pointerId);
       return;
     }
+    // THE HANGAR (92-guide): a thumb on a home pad flies its emitter round the wheel
+    if (hangarDown(e.pointerId, P.x, P.y)) return;
     // hidden dev gesture: press-and-hold the final relay to charge the CORE duel
     if (menuScreen === 'map' && !menuFx) {
       const last = LEVELS.length - 1;
@@ -277,6 +279,7 @@ canvas.addEventListener('pointermove', e => {
   // a drag cancels the final-relay hold — this is a still press, not a scroll
   if (menuHold && Math.hypot(P.x - menuHold.x, P.y - menuHold.y) > 10) menuHold = null;
   if (resetHold && Math.hypot(P.x - resetHold.x, P.y - resetHold.y) > 12) resetHold = null;
+  if (state === S.MENU && hangarMove(e.pointerId, P.x, P.y)) return;
   if (menuPtr && menuPtr.id === e.pointerId && state === S.MENU && !menuSettings) {
     if (menuScreen === 'board' && menuPtr.bZone) { // drag-scroll the left list or the ring list
       const dyb = P.y - menuPtr.y;
@@ -350,11 +353,13 @@ canvas.addEventListener('pointerup', e => {
   }
   menuHold = null; // lift ends the charge (the boss already fired if it completed)
   resetHold = null;
+  hangarUp(e.pointerId);
   releasePointer(e);
 });
 canvas.addEventListener('pointercancel', e => {
   if (replayScrub && replayScrub.id === e.pointerId) { replayScrub = null; sfxFadeTgt = 1; sfxFadeRate = 6; musicScrubT = -1; }
   if (menuPtr && menuPtr.id === e.pointerId) menuPtr = null;
+  hangarUp(e.pointerId);
   menuHold = null;
   resetHold = null;
   releasePointer(e);
@@ -599,7 +604,9 @@ function menuTap(x, y, pid) {
     pressUI(menuBackRect, () => {
       campPendingSync = null; // leaving the carousel cancels any queued dive
       if (menuScreen === 'board') menuFx = { kind: 'boardOut', t: 0, dur: 0.5, to: boardFrom }; // columns fly out one by one, ring turns out
-      else menuFx = menuScreen === 'map' ? { kind: 'panelsOut', t: 0, dur: 0.42, dir: -1 } : { kind: 'spinOut', t: 0, dur: 0.35, to: 'home', dir: -1 };
+      else menuFx = menuScreen === 'map' ? { kind: 'panelsOut', t: 0, dur: 0.42, dir: -1 }
+        : menuScreen === 'trials' ? trialsBackFx() // the trials live behind the training disc
+        : { kind: 'spinOut', t: 0, dur: 0.35, to: 'home', dir: -1 };
     });
     return;
   }
@@ -611,7 +618,17 @@ function menuTap(x, y, pid) {
           const rel = ((aa - b.sector.a0) % TAU + TAU) % TAU;
           return rel < ((b.sector.a1 - b.sector.a0) % TAU + TAU) % TAU; })()
       : (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h);
+    // THE HANGAR'S RULE: a slice of the home wheel opens only when both emitters dock
+    // on it (tickHangar). A TOUCH on one — a real pointer, pid >= 0 — gets the rule in
+    // words instead. A controller (-7) and a completed dock (-8) still open it.
+    if (hit && b.sector && b.mode && !b.sector.outer && HANGAR_ON && !hangarFiring
+        && typeof pid === 'number' && pid >= 0) { hangarRefuse(); return; }
     if (hit && !b.locked) {
+      if (b.trial) { // a LICENCE TRIALS card: the trial launches like a lane does
+        const id = b.trial;
+        pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: () => startTrial(id) }; tone(70, 0.45, 'sine', 0.12, 260); });
+        return;
+      }
       if (b.mode === 'campaign') pressUI(b, () => {
         // Story Mode always opens the carousel now (training + every contract).
         // Center on the active case, or on the training disc for a fresh player.
@@ -693,7 +710,7 @@ function endTap(x, y) {
         // A RESTART TRAVELS. It used to freeze and shred the failed frame, then
         // hold warpT at 0 so the lane did not fly in. Both are gone: a restart now
         // runs the SAME warp the NEXT STAGE key runs, dive included.
-        if (weekly) startWeekly(weeklyIdx); else if (endless) startEndless(); else if (qual) startQualification(); else startLevel(levelIdx, false, assist && !endWin);
+        if (weekly) startWeekly(weeklyIdx); else if (endless) startEndless(); else if (qual) restartTrial(); else startLevel(levelIdx, false, assist && !endWin);
       }));
       else if (b.action === 'assist') pressUI(b, () => startTrans('warp', () => {
         startLevel(levelIdx, false, true); // the eased retry — unranked, no score, no stars
@@ -719,15 +736,18 @@ function endTap(x, y) {
           startLevel(Math.min(((nc && nc.unlocked) || 1) - 1, CAMPAIGNS[nci].levels.length - 1), true);
         }));
       }
+      // a trial's report hands back to the trials, where the medal now hangs
+      else if (b.action === 'trials') pressUI(b, () => {
+        state = S.MENU; fadeT = 0.35;
+        qualMenuReturn();
+      });
       else pressUI(b, () => { // home in style: the menu drives into view, no glitch
-        // training lives in Story Mode now → the report zooms back out INTO its disc
-        if (qual) { menuScreen = 'camps'; campScroll = campScrollTgt = 0; campPendingSync = null; }
-        else menuScreen = endless ? 'flow' : 'map';
+        menuScreen = endless ? 'flow' : 'map';
         if (!endless && !qual) mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
         state = S.MENU; fadeT = 0.35;
-        menuFx = qual ? { kind: 'discOut', t: 0, dur: 0.55, disc: 0 } // the training disc recedes into its slot (reverse of the dive-in)
-          : menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, zoom: true }
+        menuFx = menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, zoom: true }
           : { kind: 'spinIn', t: 0, dur: 0.5, dir: 1, zoom: true };
+        if (qual) qualMenuReturn(); // a trial goes home to the trials, not to the map
       });
       return;
     }
@@ -922,31 +942,45 @@ function enlistTap() {
 }
 // `holdMusic` keeps the menu piece on the bus: the enlistment sets the course up
 // long before it is played and does its own deploy fade when the discs clear.
+// THE FIRST-RUN COURSE is the first TRIAL_REQUIRED licence trials, flown back to back
+// in one lane (70-update). Finishing it files progress.tutorialDone.
 function startQualification(holdMusic) {
+  startTrial(TRIALS[0].id, holdMusic, TRIALS.slice(1, TRIAL_REQUIRED).map(t => t.id), true);
+}
+// ONE LICENCE TRIAL, from the LICENCE TRIALS screen or the course above. `chain` is the
+// trials that follow it in the same lane. The tut object is the whole pupil: a fresh
+// trial is a fresh one, with its own calls, misses and rewind tape.
+function startTrial(id, holdMusic, chain, firstRun) {
   weekly = false; Math.random = sysRandom;
   levelIdx = -1; endless = false; qual = true; spawnRng = Math.random;
   LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.40,
          doubles: 0, heavies: 0, lines: 0, colors: 0 };
-  // `seen` is the disc ledger and `pending` the drill a disc is holding back —
-  // both live on the tut object, so a fresh course is a fresh pupil (qualDisc,
-  // 70-update).
-  tut = { stage: 0, t: 0, queue: [], retry: null, spawned: null, seen: {}, pending: null };
+  tut = newTut(id, chain, firstRun);
+  trialRun = { id, chain: (chain || []).slice(), firstRun: !!firstRun, medal: 0, newBest: false };
   resetRun();
-  // CONTROLS CHECK: bring each node onto a lit target on the ring — the
-  // control lesson in the game's OWN language (position a node; then both
-  // thumbs at once), replacing the abstract 360° spin. Each rep's target
-  // angle materializes off the node's live position when the rep begins, so
-  // every rep is a deliberate, reachable move; a target locks after a short
-  // HOLD so a swipe-past doesn't count.
-  tut.aim = { idx: 0, targets: null, hold: 0, reps: [
-    [{ node: 0, off: -2.0 }],                        // blue: reach one way (relative)
-    [{ node: 1, off: 2.0 }],                         // white: reach the other
-    [{ node: 0, a: -2.5 }, { node: 1, a: -0.64 }],   // both at once — FIXED
-  ] };                                               // opposite upper sides, always clear apart
   runTrack = pickTrack();
   if (!holdMusic) armRunMusic();
-  // free flow: no greeting disc — boot straight in; the CONTROLS CHECK banner
-  // and the marching arrows take it from there
+  // no greeting disc: the lane boots straight in, and the first call takes it from there
+}
+// LEAVING A TRIAL for the menu. A qualified pilot goes back to the LICENCE TRIALS screen,
+// where the medal just won is waiting; a pupil who quits the first-run course goes back
+// to the training disc on the contracts wheel, as before (it recedes into its slot).
+function qualMenuReturn() {
+  campPendingSync = null;
+  if (progress.tutorialDone) {
+    menuScreen = 'trials';
+    menuFx = { kind: 'spinIn', t: 0, dur: 0.5, dir: 1, zoom: true };
+  } else {
+    menuScreen = 'camps';
+    campScroll = campScrollTgt = 0;
+    menuFx = { kind: 'discOut', t: 0, dur: 0.55, disc: 0 };
+  }
+}
+// RESTART from the pause disc or the report: the trial in the lane, with the rest of
+// its course behind it. Before any trial has run, the first-run course.
+function restartTrial() {
+  if (trialRun) startTrial(trialRun.id, false, trialRun.chain, trialRun.firstRun);
+  else startQualification();
 }
 // The boss drill behind the passcode disc: jump straight into the leech duel.
 // The long-press opens the disc (99-boot); bossGateTry below is the gate.
