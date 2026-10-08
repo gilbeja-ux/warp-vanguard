@@ -250,9 +250,9 @@ function update(dt) {
   let sdt = dt;
   if (hitStop > 0) { hitStop = Math.max(0, hitStop - dt); sdt *= 0.12; }
   if (tut && tut.frozen) sdt = 0; // the TAP-TO-FIRE hold: the world stands still
-  // the REWIND scrub (70-update, qualRewind): the world holds while the tape winds,
-  // on real time, so the hold cannot hold itself up
-  if (tut && tut.rewind) { sdt = 0; tut.rewind.t += dt; if (tut.rewind.t >= tut.rewind.dur) tut.rewind = null; }
+  // the REWIND scrub (70-update, qualRewind): the world holds while the tape winds the
+  // bodies back, on real time, so the hold cannot hold itself up
+  if (tut && tut.rewind) { sdt = 0; qualRewindTick(dt); }
   if (boss && boss.dying !== undefined) sdt *= 0.25; // the kill plays in slow motion
   if (!tut && !inIntro) levelT += sdt;
 
@@ -351,7 +351,7 @@ function update(dt) {
     }
   }
 
-  updateLatches(dt, inIntro, ringXY, nodeXY);
+  if (!(tut && tut.rewind)) updateLatches(dt, inIntro, ringXY, nodeXY); // a clamp winding back neither burns nor bites
   // UNITE-VOLLEY: docking both nodes together sacrifices ALL other coverage
   // for half a second — the charge — then a focused bolt fires straight into
   // the bore. In the duel the bolt homes on the core instead.
@@ -368,8 +368,11 @@ function update(dt) {
   // The frame context every enemy reads. stripProg travels back OUT: whichever
   // enemy a node is riding sets it, and the trace drone below is driven by it.
   const C = { L, sdt, g, waveMul, TOL, covers, ringXY, nearest, docked, stripProg: -1 };
-  for (const en of enemies) updateEnemy(en, C);
-  stripSound(C.stripProg >= 0, C.stripProg); // the trace drone lives and dies here
+  // while a trial's tape winds back (qualRewind) the bodies slide from where they were
+  // missed — at or past the ring — so nothing may be judged until they are back out
+  const rewinding = !!(tut && tut.rewind);
+  if (!rewinding) for (const en of enemies) updateEnemy(en, C);
+  stripSound(C.stripProg >= 0 && !rewinding, C.stripProg); // the trace drone lives and dies here
 
   // free-run surges: every SURGE_EVERY seconds the stream steps up (capped) — and it
   // never arrives unannounced: "SPEEDING UP IN 4..3..2..1", then the surge
@@ -481,7 +484,7 @@ function update(dt) {
     n.dip = Math.max(0, (n.dip || 0) - dt / ARCFX.refill); // spent arc energy refills
   }
 
-  updatePickups(dt, sdt, L, g, covers, ringXY);
+  if (!(tut && tut.rewind)) updatePickups(dt, sdt, L, g, covers, ringXY); // a relay winding back is not caught
 
   // the leech duel
   if (boss) {

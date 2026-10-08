@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test Browsers</title>
+<link rel="icon" href="data:,">
+<style>
+/* One column of live screens, newest first, each with what the game says it is doing. */
+:root {
+  --void: #050a14; --deck: #0b1424; --rule: #1d2b45; --ink: #e2eefc; --muted: #8aa0bf;
+  --cyan: #8fe0ff; --gold: #ffd24a; --green: #7ee262; --red: #ff6078;
+  --frame: #000; --gold-rule: #5a4a1a; --cyan-rule: #24506a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--void); color: var(--ink); font: 14px/1.45 -apple-system, 'Segoe UI', system-ui, sans-serif; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 18px; padding-block: 22px 60px; }
+header { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; justify-content: space-between; }
+h1 { margin: 0; font-size: 22px; letter-spacing: .04em; }
+.sub { color: var(--muted); font-size: 13px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 6px; animation: beat 1.2s ease-in-out infinite; }
+.dot.off { background: var(--red); animation: none; }
+@keyframes beat { 50% { opacity: .35; } }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 16px; margin-top: 18px; }
+.b { background: var(--deck); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; display: grid; }
+.screen { background: var(--frame); aspect-ratio: 16 / 9; display: grid; place-items: center; overflow: hidden; position: relative; }
+.screen img { max-width: 100%; max-height: 100%; display: block; transition: transform .2s; }
+.screen img.rot { transform: rotate(-90deg); max-width: none; max-height: none; width: 56.25%; }
+.screen .none { color: var(--muted); font-size: 13px; }
+.meta { padding: 12px 14px; display: grid; gap: 6px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+.script { font-weight: 700; font-size: 15px; }
+.tag { font-size: 12px; color: var(--muted); border: 1px solid var(--rule); border-radius: 999px; padding: 0 8px; }
+.tag.hot { color: var(--gold); border-color: var(--gold-rule); }
+.tag.call { color: var(--cyan); border-color: var(--cyan-rule); }
+.args { color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.status { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; color: var(--ink); }
+.empty { margin-top: 28px; padding: 28px; border: 1px dashed var(--rule); border-radius: 12px; color: var(--muted); }
+h2 { font-size: 15px; margin: 34px 0 8px; color: var(--muted); font-weight: 600; letter-spacing: .04em; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+td { padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+td.n { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.tbl { overflow-x: auto; }
+button { background: none; color: var(--cyan); border: 1px solid var(--rule); border-radius: 6px; padding: 1px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--gold); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Test browsers</h1>
+    <span class="sub"><span class="dot" id="beat"></span><span id="summary">connecting…</span></span>
+  </header>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" hidden>No test browser is running. When an agent starts the smoke suite, the course bot or any test script, its screen appears here.</div>
+  <h2 id="endedH" hidden>Recently closed</h2>
+  <div class="tbl"><table id="ended"></table></div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ago = ms => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min ' + (s % 60) + ' s'; };
+const rotated = {}; // pid -> true when the viewer turned a phone shot upright
+function statusLine(st) {
+  if (!st) return 'waiting for the page…';
+  const p = [];
+  if (st.state) p.push('state ' + st.state);
+  if (st.state === 'MENU' && st.screen) p.push('screen ' + st.screen);
+  if (st.trial) p.push((st.trial === 'course' ? 'course' : 'trial ' + st.trial) + (st.card ? ' · ' + st.card : ''));
+  if (st.level) p.push('board ' + st.level);
+  if (st.trial && st.misses) p.push(st.misses + ' miss' + (st.misses === 1 ? '' : 'es'));
+  return p.join('  ·  ') || st.url;
+}
+function cardHTML(b) {
+  const st = b.status || {};
+  const tags = [
+    '<span class="tag">' + (b.headless ? 'headless' : 'visible window') + '</span>',
+    b.size ? '<span class="tag">' + esc(b.size.replace(',', '×')) + '</span>' : '',
+    b.worktree ? '<span class="tag">' + esc(b.worktree) + '</span>' : '',
+    st.call ? '<span class="tag call">CALL · ' + esc(st.call) + '</span>' : '',
+    st.rewind ? '<span class="tag hot">REWIND</span>' : ''
+  ].join('');
+  return '<div class="screen">' + (b.hasShot
+      ? '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" id="img' + b.pid + '" alt="Screen of browser ' + b.pid + '"' + (rotated[b.pid] ? ' class="rot"' : '') + '>'
+      : '<span class="none">no screen yet</span>') + '</div>'
+    + '<div class="meta"><div class="row"><span class="script">' + esc(b.script) + '</span>' + tags + '</div>'
+    + (b.args ? '<div class="args">' + esc(b.args) + '</div>' : '')
+    + '<div class="status" id="st' + b.pid + '">' + esc(statusLine(b.status)) + '</div>'
+    + '<div class="row"><span class="sub" id="up' + b.pid + '"></span>'
+    + '<button type="button" data-rot="' + b.pid + '">turn upright</button></div></div>';
+}
+const cards = {};
+function render(d) {
+  const grid = $('grid');
+  const ids = new Set(d.live.map(b => String(b.pid)));
+  for (const pid of Object.keys(cards)) if (!ids.has(pid)) { cards[pid].remove(); delete cards[pid]; }
+  for (const b of d.live) {
+    let el = cards[b.pid];
+    const sig = b.hasShot + '|' + (b.status && b.status.call) + '|' + (b.status && b.status.rewind);
+    if (!el) { el = document.createElement('article'); el.className = 'b'; grid.prepend(el); cards[b.pid] = el; }
+    if (el.dataset.sig !== sig) { el.dataset.sig = sig; el.innerHTML = cardHTML(b); }
+    const st = $('st' + b.pid); if (st) st.textContent = statusLine(b.status);
+    const up = $('up' + b.pid); if (up) up.textContent = 'pid ' + b.pid + ' · running ' + ago(d.now - b.started);
+    const img = $('img' + b.pid);
+    if (img && b.shotAt && img.dataset.at !== String(b.shotAt) && !img.dataset.loading) {
+      img.dataset.loading = '1';
+      const next = new Image();
+      next.onload = () => { img.src = next.src; img.dataset.at = String(b.shotAt); delete img.dataset.loading; };
+      next.onerror = () => { delete img.dataset.loading; };
+      next.src = '/shot/' + b.pid + '?t=' + b.shotAt;
+    }
+  }
+  $('empty').hidden = d.live.length > 0;
+  $('summary').textContent = d.live.length + ' running · updated ' + new Date(d.now).toLocaleTimeString();
+  $('endedH').hidden = !d.ended.length;
+  $('ended').innerHTML = d.ended.map(e => '<tr><td>' + esc(e.script) + '</td><td class="args">' + esc(e.args) + '</td><td>' + esc(statusLine(e.status)) + '</td><td class="n">'
+    + ago(e.endedAt - e.started) + ' long · closed ' + ago(d.now - e.endedAt) + ' ago</td></tr>').join('');
+}
+document.addEventListener('click', e => {
+  const pid = e.target && e.target.dataset && e.target.dataset.rot;
+  if (!pid) return;
+  rotated[pid] = !rotated[pid];
+  const img = $('img' + pid); if (img) img.classList.toggle('rot', !!rotated[pid]);
+});
+async function poll() {
+  try {
+    const r = await fetch('/api/browsers', { cache: 'no-store' });
+    render(await r.json());
+    $('beat').classList.remove('off');
+  } catch (e) {
+    $('beat').classList.add('off');
+    $('summary').textContent = 'the watch server is not answering';
+  }
+  setTimeout(poll, 700);
+}
+poll();
+</script>
+</body>
+</html>

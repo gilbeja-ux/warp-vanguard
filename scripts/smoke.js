@@ -43,7 +43,7 @@ const LB_HOST = '*supabase.co*';
 const PLAY_SEC = parseFloat(ARG.play || '10');
 
 // THE PORT MAP (CLAUDE.md): every port a tool owns. 8020 is the smoke suite's own.
-const TOOL_PORTS = [8000, 8010, 8011, 8012, 8013, 8014, 8015, 8016, 8100, 8200];
+const TOOL_PORTS = [8000, 8010, 8011, 8012, 8013, 8014, 8015, 8016, 8017, 8100, 8200];
 if (TOOL_PORTS.includes(PORT)) { console.error('smoke must not sit on a tool port'); process.exit(2); }
 
 // ---------- own server, PROVEN to be its own ----------

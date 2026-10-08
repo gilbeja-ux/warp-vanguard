@@ -20,28 +20,30 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
 - **Decision (Gil):** four ideas off the onboarding research page: CALL AND RESPONSE, THE
   HANGAR, LICENCE TRIALS and REWIND, plus one rule of his own: a home menu key opens only
   when BOTH emitters dock on it ("this will save us mistakes and teach the dock").
+- **First round, tested by Gil on the branch the same day:** the rewind snapped instead of
+  running back, the first run should not be split into chapters, and the hangar menu did not
+  work and fit the fewest situations. The hangar was removed; the home wheel taps as before.
 - **Solution:**
-  - **Licence trials** (`TRIALS`, 70-update): eight trials of one skill each, scored bronze,
-    silver or gold (SLIDE on drill time, the rest on misses). The first `TRIAL_REQUIRED` (2:
-    SLIDE, INTERCEPT) are the first-run course, chained in one lane; the rest open on the
-    LICENCE TRIALS screen behind the training disc when the first contract reaches the stage
-    that uses the skill. A trial's report goes back to the trials; the course's still offers
-    FIRST CONTRACT.
+  - **One course, no chapters** (`COURSE`, 70-update): every lesson in one lane at the old
+    curriculum's rep counts, each one called before it is asked for. No trial names and no
+    medal stamps inside it; it ends on QUALIFIED and the report offers FIRST CONTRACT.
   - **Call and response:** no drill disc stops the lane. Each lesson's diorama (the DEMO table
     the discs ran) plays as a ghost on the live ring, turned onto the bearing the real traffic
-    then takes. Once per kind per trial.
+    then takes. Once per kind per run.
   - **Rewind:** a miss winds the lane back up to 2 s to a moment the missed thing was still
-    inbound, holds 0.85 s under a tape-scrub, and marks the slot with a ghost carriage. The
-    carriages are not wound back. The purge column is never rewound.
-  - **The hangar** (92-guide): the home wheel is flown by two corner pads; a slice opens only
-    when both emitters dock on it for 0.55 s. A touch on a slice answers with DOCK BOTH
-    EMITTERS ON A KEY. A controller keeps its focus walk and A key.
-- **Measured after:** the first-run course in 32.5 s of game time, 0 disc stops, 0 retries
-  for the bot. 0 of 41 ranked boards moved (per-board fingerprint against master), so the
-  verifier deploy before the next build can be `--compatible`.
-- **Knobs:** `TRIAL_REQUIRED`, `TRIAL_GOLD_S`, `TRIAL_SILVER_S`, `TRIAL_CHAIN_HOLD`,
-  `CALLS_ON`, `CALL_MOVE_DUR`, `CALL_ALPHA`, `REWIND_ON`, `REWIND_BACK`, `REWIND_DUR`,
-  `REWIND_GHOST`, `HANGAR_ON`, `HANGAR_HOLD`, `HANGAR_RING`, `HANGAR_PAD`, `HANGAR_TRAFFIC`.
+    inbound. The bodies SLIDE back from where they were missed to their place on the tape
+    (an ease-out over the first `REWIND_SLIDE` of the 0.85 s hold) under a tape-scrub, then a
+    ghost carriage marks the slot. Nothing is judged while the tape winds. The carriages are
+    not wound back. The purge column is never rewound.
+  - **Licence trials** (`TRIALS`): the same lessons as eight optional drills of one skill
+    each, scored bronze, silver or gold, on a LICENCE TRIALS screen behind the training disc.
+    Each opens when the first contract reaches the stage that uses the skill.
+- **Measured after:** the course in 99.4 s of game time for the bot, 0 disc stops, 0 retries.
+  That is longer than the old 68.7 s, because each of the ten lessons now has a call of 2.4
+  to 5.2 s; the old figure did not count a person reading ten discs. 0 of 41 ranked boards
+  moved (per-board fingerprint against master), so the verifier deploy can be `--compatible`.
+- **Knobs:** `CALLS_ON`, `CALL_MOVE_DUR`, `CALL_ALPHA`, `REWIND_ON`, `REWIND_BACK`,
+  `REWIND_DUR`, `REWIND_SLIDE`, `REWIND_GHOST`, `TRIAL_GOLD_S`, `TRIAL_SILVER_S`.
 
 ### F-016 · The tutorial's arrows did not show on a first run
 - **Date:** 2026-10-08 · **Source:** one tester, 1.0.11 · **Status:** not reproduced; addressed by F-017

@@ -1493,13 +1493,12 @@ function drawHUD(g) {
 
 // ---------- the licence trial, on the HUD (2026-10-08) ----------
 // The trial's name, top centre, where the old course's ten pips were. The first-run
-// course strings two trials together, so there it also says which one of how many.
+// course is one run with no chapters, so it carries one word and nothing to count.
 function drawTrialHeader() {
   const tr = trialById(tut.trial);
   if (!tr) return;
   const u = Math.min(W, H);
-  const txt = (tut.firstRun ? 'TRIAL ' + (TRIAL_REQUIRED - tut.chain.length) + ' / ' + TRIAL_REQUIRED : 'LICENCE TRIAL')
-    + ' · ' + tr.name;
+  const txt = tr.id === COURSE.id ? COURSE.name : 'LICENCE TRIAL · ' + tr.name;
   ctx.save();
   ctx.textAlign = 'center';
   ctx.font = '700 ' + Math.round(u * 0.024) + 'px Audiowide, system-ui';
@@ -1510,12 +1509,11 @@ function drawTrialHeader() {
   ctx.restore();
   ctx.textAlign = 'left';
 }
-// THE STAMP at a trial's end: the medal and why. The last trial of the first-run course
-// stamps QUALIFIED instead, because that is the moment it marks.
+// THE STAMP at a trial's end: the medal and why. The first-run course stamps QUALIFIED
+// instead, because that is the moment it marks.
 function drawTrialStamp(t) {
-  const m = tut.medal || 1, tr = trialById(tut.trial), last = !tut.chain.length;
-  const end = last ? 3.4 : TRIAL_CHAIN_HOLD;
-  if (tut.firstRun && last) { drawQualCeremony(t); return; }
+  const m = tut.medal || 1, tr = trialById(tut.trial), end = 3.4;
+  if (tut.trial === COURSE.id) { drawQualCeremony(t); return; }
   const why = tut.medalBy === 'time' ? tut.work.toFixed(1) + ' S'
     : tut.misses ? tut.misses + (tut.misses === 1 ? ' MISS' : ' MISSES') : 'NO MISSES';
   drawQualCeremony(t, MEDAL_NAMES[m], [tr.name + ' · ' + why].concat(tut.newBest ? ['NEW BEST'] : []), MEDAL_COLS[m], end);

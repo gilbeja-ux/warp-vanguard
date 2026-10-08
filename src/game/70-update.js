@@ -15,10 +15,12 @@ const PULSE_HOLD_CAP = 4;   // backstop, for a pupil who zaps the column instead
 // a perfect bot needed 68.7 s and ten disc stops to finish it, a person several minutes.
 // Each trial now teaches ONE skill in fifteen to thirty seconds and pays a medal.
 //
-// The first TRIAL_REQUIRED trials are the first-run course, flown back to back in one
-// lane. Every other trial is optional: it opens on the LICENCE TRIALS screen once the
-// first contract reaches the stage where the skill starts to matter. `opens` is a stage
-// NAME (1-based, as printed); 0 means always open.
+// THE FIRST RUN IS ONE COURSE, NOT CHAPTERS (Gil, same day, after testing the branch):
+// every lesson, back to back in one lane, each one CALLED before it is asked for — no
+// trial names, no medal stamps between them (COURSE below). The trials are the practice
+// that comes after: each opens on the LICENCE TRIALS screen once the first contract
+// reaches the stage where the skill starts to matter. `opens` is a stage NAME (1-based,
+// as printed); 0 means always open.
 //
 // A trial's `stages` are the old curriculum's stage records, verbatim. The drill
 // machinery below did not change shape; only the thing that strings stages together did.
@@ -35,13 +37,25 @@ const TRIALS = [
   { id: 'wall',      name: 'DEAD ZONE',   opens: 6, stages: [{ card: 'wall', queue: ['wall'] }] },
   { id: 'phase',     name: 'PHASE LOCK',  opens: 7, stages: [{ card: 'lock', queue: ['lock0', 'lock1'] }] }
 ];
-const TRIAL_REQUIRED = 2;      // how many trials, from the top, make up the first-run course
+// THE FIRST-RUN COURSE: every lesson, in the order the lane can teach them — the
+// controls, one-thumb interception, steering clear, the two-thumb rules, then the gold
+// things — at the old curriculum's rep counts. The trials drill a skill harder (three
+// reds, two nets); the course only has to show each one once it has been called.
+const COURSE = { id: 'course', name: 'QUALIFICATION', opens: 0, stages: [
+  { card: 'move' },
+  { card: 'normal', queue: ['normal', 'normal', 'wall'] },
+  { card: 'heavy',  queue: ['heavy', 'volley'] },
+  { card: 'line',   queue: ['line'] },
+  { card: 'lock',   queue: ['lock0', 'lock1'] },
+  { card: 'pickup', queue: ['pickup'] },
+  { card: 'strip',  queue: ['strip'] },
+  { card: 'pulse' }
+] };
 const TRIAL_GOLD_S = 8;        // SLIDE is scored on drill time (the calls excluded)…
 const TRIAL_SILVER_S = 14;     // …every other trial on misses: none is gold, one is silver
-const TRIAL_CHAIN_HOLD = 2.2;  // seconds a medal stamp holds before the course's next trial
 const MEDAL_NAMES = ['', 'BRONZE', 'SILVER', 'GOLD'];
 const MEDAL_COLS = ['143,224,255', '214,140,82', '214,226,240', '255,210,74'];
-const trialById = id => TRIALS.find(t => t.id === id) || null;
+const trialById = id => (id === COURSE.id ? COURSE : TRIALS.find(t => t.id === id) || null);
 const trialStages = id => trialById(id).stages.map(s => Object.assign({}, s)).concat([{ card: 'done' }]);
 // open once the first contract has unlocked the stage that `opens` names
 function trialOpen(tr) {
@@ -56,15 +70,15 @@ function trialMedal(t) { // 3 gold, 2 silver, 1 bronze, read off the finished tu
 // the stage record the live trial is on (what QUAL[tut.stage] used to be)
 const tutStage = () => (tut ? tut.qual[tut.stage] : null);
 // which trial is in the lane, kept past the end of the run for the report and RESTART
-let trialRun = null; // { id, chain, firstRun, medal, newBest }
-function newTut(id, chain, firstRun) {
+let trialRun = null; // { id, firstRun, medal, newBest }
+function newTut(id, firstRun) {
   const tr = trialById(id), qual0 = trialStages(id);
   return {
-    trial: id, chain: (chain || []).slice(), firstRun: !!firstRun, qual: qual0,
+    trial: id, firstRun: !!firstRun, qual: qual0,
     stage: 0, t: 0, queue: (qual0[0].queue || []).slice(), retry: null, spawned: null,
     called: {}, call: null,                        // CALL AND RESPONSE: see qualNext
     misses: 0, missCounted: false, work: 0, medalBy: tr.medal || 'misses', medal: 0, newBest: false,
-    clock: 0, snaps: [], snapAt: -1e9, rewind: null, rewindAt: -1e9, // REWIND: see qualRewind
+    clock: 0, snaps: [], snapAt: -1e9, rewind: null, rewindAt: -1e9, rwSeq: 0, // REWIND: see qualRewind
     aim: makeAim()
   };
 }
@@ -322,6 +336,10 @@ function qualSnap(dt) {
   tut.clock += dt;
   if (tut.clock - tut.snapAt < REWIND_SNAP) return;
   tut.snapAt = tut.clock;
+  // a tape id on every body, so the rewind can find each one again in an older frame
+  // and slide it there instead of making it jump (qualRewind)
+  for (const list of [enemies, pickups, latches])
+    for (const x of list) if (x.rwId === undefined) x.rwId = ++tut.rwSeq;
   tut.snaps.push({
     clock: tut.clock, spawned: tut.spawned, wallDone: tut.wallDone,
     enemies: deepClone(enemies), pickups: deepClone(pickups), latches: deepClone(latches),
@@ -349,9 +367,26 @@ function qualRewind(kind) {
   if (!REWIND_ON || kind === 'pulse') return false;
   const s = rewindFrame(kind);
   if (!s) return false;
+  // where every body stands NOW, by tape id: the start of its slide back
+  const now = new Map();
+  for (const x of enemies) if (x.rwId !== undefined) now.set(x.rwId, x.z);
+  for (const x of pickups) if (x.rwId !== undefined) now.set(x.rwId, x.z);
+  for (const x of latches) if (x.rwId !== undefined) now.set(x.rwId, x.t);
   enemies = deepClone(s.enemies);
   pickups = deepClone(s.pickups);
   latches = deepClone(s.latches);
+  // THE TAPE RUNS BACKWARDS, it does not cut (Gil, testing the branch: "it just snaps…
+  // we should actually animate back quickly so the orientation isn't lost"). Each body
+  // keeps its old place as rwFrom and the tape's as rwTo; qualRewindTick slides it from
+  // one to the other while the world holds. A body the tape has but the lane lost (a
+  // zapped neighbour) has no `now`, and simply stands at its tape place.
+  const arm = (x, key) => {
+    const was = now.get(x.rwId);
+    x.rwTo = x[key]; x.rwFrom = was !== undefined ? was : x[key]; x[key] = x.rwFrom;
+  };
+  for (const x of enemies) arm(x, 'z');
+  for (const x of pickups) arm(x, 'z');
+  for (const x of latches) arm(x, 't');
   pulseCharge = s.pulse.slice();
   s.deadT.forEach((d, i) => { nodes[i].deadT = d; });
   tut.spawned = s.spawned; tut.wallDone = s.wallDone;
@@ -362,6 +397,23 @@ function qualRewind(kind) {
   sfx.tutFreeze(); // the tape-warp: the run holds its breath, then picks up again
   buzz([18, 30, 18]);
   return true;
+}
+// THE SLIDE BACK, on real time while the world holds (72-tick calls this in place of
+// moving anything). The bodies run back fast and settle — an ease-out over the first
+// REWIND_SLIDE of the scrub — and the rest of it is a beat to find the thumbs again.
+const REWIND_SLIDE = 0.75; // share of REWIND_DUR the bodies spend travelling back
+function qualRewindTick(dt) {
+  const R = tut.rewind;
+  R.t += dt;
+  const q = clamp(R.t / (R.dur * REWIND_SLIDE), 0, 1), e = 1 - Math.pow(1 - q, 3);
+  const slide = (x, key) => { if (x.rwTo !== undefined) x[key] = x.rwFrom + (x.rwTo - x.rwFrom) * e; };
+  for (const x of enemies) slide(x, 'z');
+  for (const x of pickups) slide(x, 'z');
+  for (const x of latches) slide(x, 't');
+  if (R.t < R.dur) return;
+  for (const list of [enemies, pickups, latches])
+    for (const x of list) { delete x.rwFrom; delete x.rwTo; }
+  tut.rewind = null;
 }
 // ---------- the course runs ----------
 function advanceQual() {
@@ -374,8 +426,8 @@ function advanceQual() {
     tut.queue = [];
     tut.medal = trialMedal(tut);
     const P = progress.trials || (progress.trials = {});
-    tut.newBest = tut.medal > (P[tut.trial] || 0);
-    P[tut.trial] = Math.max(P[tut.trial] || 0, tut.medal);
+    tut.newBest = tut.trial !== COURSE.id && tut.medal > (P[tut.trial] || 0);
+    if (tut.trial !== COURSE.id) P[tut.trial] = Math.max(P[tut.trial] || 0, tut.medal); // the course files no medal
     if (trialRun) { trialRun.medal = tut.medal; trialRun.newBest = tut.newBest; }
     saveState();
     // rising clearance chord: the line accepts its defender
@@ -388,18 +440,9 @@ function advanceQual() {
   // pre-spawned drills: the hazard is already inbound as the stage opens
   if (c === 'pulse') { tut.queue = []; qualNext(c); }
 }
-// THE TRIAL IS OVER. On the first-run course the next trial starts in the same lane,
-// with no screen between them; the last one files the course as done and hands the
-// run to the report, which offers the first contract.
+// THE TRIAL IS OVER and the report takes the run. The first-run course files itself as
+// done, and its report offers the first contract.
 function qualFinish() {
-  if (tut.chain.length) {
-    const was = tut;
-    tut = newTut(was.chain[0], was.chain.slice(1), was.firstRun);
-    trialRun = { id: tut.trial, chain: tut.chain.slice(), firstRun: tut.firstRun, medal: 0, newBest: false };
-    enemies = enemies.filter(e => !e.tut); pickups = []; latches = [];
-    sfx.tick();
-    return;
-  }
   if (tut.firstRun) progress.tutorialDone = true;
   saveState();
   tut = null;
@@ -454,7 +497,7 @@ function updateTutorial(dt) {
   }
   if (st.card === 'done') {
     // the stamp runs its course, then the next trial or the report — no hard cut
-    if (tut.t > (tut.chain.length ? TRIAL_CHAIN_HOLD : 3.4)) qualFinish();
+    if (tut.t > 3.4) qualFinish();
     return;
   }
   if (st.card === 'pulse' && !tut.fired) {

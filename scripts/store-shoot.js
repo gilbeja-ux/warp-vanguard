@@ -143,7 +143,8 @@ function storeSave(extra) {
 
 async function openGame(size, { crank = true, save, dpr } = {}) {
   const S = Object.assign({}, SIZES[size], dpr ? { dpr } : {});
-  const chrome = launchChrome(CDP_PORT, { headless: !ARG.headed, extraArgs: [`--window-size=${S.w},${S.h}`, '--force-device-scale-factor=1'] });
+  // the free-running page is the video's SOUND pass: that one Chrome is not muted
+  const chrome = launchChrome(CDP_PORT, { headless: !ARG.headed, sound: !crank, extraArgs: [`--window-size=${S.w},${S.h}`, '--force-device-scale-factor=1'] });
   await waitForPort(CDP_PORT);
   const { cdp } = await openPage(CDP_PORT);
   const errors = [];

@@ -176,10 +176,8 @@ code = code.replace("'use strict';", '') + `
   lvNum, levelNo, curLevelNo,
   qualStage: () => tutStage(),
   // the licence trials (70-update): the table, the runner, the rewind tape and the medals
-  TRIALS, TRIAL_REQUIRED, startTrial, restartTrial, trialOpen, getTrialRun: () => trialRun,
+  TRIALS, COURSE, startTrial, restartTrial, trialOpen, getTrialRun: () => trialRun,
   REWIND_BACK, REWIND_DUR, CALL_MOVE_DUR, callDur, drawTutCall, setTut: v => { tut = v; },
-  // the hangar (92-guide): the home wheel flown by two pads, keys opened by a dock
-  hangarState, hangarPad, hangarDown, hangarMove, hangarUp, HANGAR_HOLD, HANGAR_PARK, tickHangar,
   drawMenuTrials, trialsGrid,
   getProg: () => PROG, getCamp: () => CAMP, validateCampaign, installCampaign, CAMPAIGNS,
   getLevelIdx: () => levelIdx, campaignCleared, // the report's contract hand-over reads both
@@ -2437,32 +2435,12 @@ G.setState(G.S.MENU);
 G.setMenuScreen('home');
 G.frame(16);
 const cTile = G.menuBtns().find(b => b.mode === 'campaign');
-// THE HANGAR (Gil, 2026-10-08): a slice of the home wheel opens only when BOTH emitters
-// dock on it. A touch on the slice is refused with the rule in words; the dock opens it.
-{
+{ // tap the middle of the campaign slice on the mode wheel
   const sc = cTile.sector, ma = (sc.a0 + sc.a1) / 2, mr = (sc.r0 + sc.r1) / 2;
-  const h = G.hangarState();
-  check('the hangar parks the two emitters on DIFFERENT keys, so nothing is docked on arrival',
-    G.menuBtns().filter(b => b.sector && b.mode && !b.sector.outer)
-      .every(b => !(inSec(b.sector, h.a[0]) && inSec(b.sector, h.a[1]))));
-  G.menuTap(sc.cx + Math.cos(ma) * mr, sc.cy + Math.sin(ma) * mr, 1); // a finger on the slice
-  flushUI();
-  check('a TOUCH on a home slice does not open it', G.getMenuScreen() === 'home' && h.hintAt > -1e8);
-  // a thumb on each pad, each dragged to the slice's bearing: both emitters dock on CONTRACTS
-  const pL = G.hangarPad(0), pR = G.hangarPad(1);
-  G.hangarDown(11, pL.x + Math.cos(ma) * pL.r, pL.y + Math.sin(ma) * pL.r);
-  G.update(0.05); G.frame(16);
-  check('one emitter on a key is not a dock', G.getMenuScreen() === 'home' && h.dock === null);
-  G.hangarDown(12, pR.x + Math.cos(ma) * pR.r, pR.y + Math.sin(ma) * pR.r);
-  for (let i = 0; i < 4; i++) { G.update(0.05); G.frame(16); }   // the white carriage travels
-  check('both emitters on one key start the dock', G.getMenuScreen() === 'home' && h.dock && h.dock.mode === 'campaign');
-  let guard = 60;
-  while (guard-- > 0 && G.getMenuScreen() === 'home') { G.update(0.05); G.frame(16); }
-  G.hangarUp(11); G.hangarUp(12);
+  G.menuTap(sc.cx + Math.cos(ma) * mr, sc.cy + Math.sin(ma) * mr, 1);
 }
-function inSec(sc, a) { const rel = ((a - sc.a0) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2); return rel < ((sc.a1 - sc.a0) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2); }
 flushUI(); // press beat -> spin -> screen switch
-check('docking both emitters on CONTRACTS opens the contract carousel (multiple campaigns shipped)', G.getMenuScreen() === 'camps');
+check('campaign tile opens the contract carousel (multiple campaigns shipped)', G.getMenuScreen() === 'camps');
 flushUI(); G.setCampScroll(1); G.frame(16); // center the row
 { // discs: a Vanguard Training disc leads the carousel, then every real campaign,
   // each reachable with its own SYNC key (its carousel index); no teasers left
@@ -2611,27 +2589,32 @@ check('weekly defeat records the weekly best and streak', G.getState() === G.S.E
   G.progress.weekly.best === 777 && G.progress.weekly.streak >= 1 && Math.random !== undefined);
 
 // ================= qualification =================
-// THE LICENCE TRIALS (2026-10-08). The ten-disc course became eight short trials, one
-// skill each, scored with a medal. The first TRIAL_REQUIRED of them are the first-run
-// course, flown back to back in one lane. No drill stops the lane any more: CALL AND
-// RESPONSE plays each lesson's diorama as a ghost on the live ring, then sends the same
-// pattern for real, and a miss REWINDS the lane instead of starting the drill over.
-// The pulse drill still freezes the run for the FIRE-PULSE moment.
+// THE FIRST-RUN COURSE, CALLED (2026-10-08). The ten-disc course became one continuous
+// run of every lesson (COURSE, 70-update), with no chapters: no drill stops the lane any
+// more. CALL AND RESPONSE plays each lesson's diorama as a ghost on the live ring, then
+// sends the same pattern for real, and a miss REWINDS the lane — the bodies slide back
+// to where the tape has them — instead of starting the drill over. The same lessons are
+// LICENCE TRIALS afterwards, one skill each, scored with a medal. The pulse drill still
+// freezes the run for the FIRE-PULSE moment.
 G.progress.tutorialDone = false;
 G.progress.trials = {};
 G.startQualification();
 G.update(0.05);
-check('the first-run course opens on the SLIDE trial, in the lane, with no disc',
-  G.getState() === G.S.PLAY && G.isQual() && G.tut().trial === 'slide' && G.qualStage().card === 'move');
-check('the first-run course is the required trials, chained',
-  G.tut().firstRun === true && G.TRIAL_REQUIRED >= 2
-  && JSON.stringify(G.tut().chain) === JSON.stringify(G.TRIALS.slice(1, G.TRIAL_REQUIRED).map(t => t.id)));
+check('the first-run course is one run, opening on the controls, in the lane, with no disc',
+  G.getState() === G.S.PLAY && G.isQual() && G.tut().trial === 'course' && G.tut().firstRun === true
+  && G.qualStage().card === 'move');
+{
+  const kinds = stages => stages.reduce((a, s) => a.concat(s.queue || [s.card]), []);
+  const course = kinds(G.tut().qual);
+  check('the course carries every trial\'s lessons, in one list, with no medal stamps between them',
+    G.tut().qual.filter(s => s.card === 'done').length === 1
+    && G.TRIALS.every(t => kinds(t.stages).every(k => course.includes(k))));
+}
 // EVERY DISC IS STILL DRAWN: the dioramas are the calls' source now, and the disc
 // renderer still carries them for the bench
 for (const k of ['move', 'normal', 'wall', 'heavy', 'volley', 'line', 'lock', 'pickup', 'strip', 'pulse'])
   drawOk('field briefing disc: ' + k, () => { G.setState(G.S.INFO); G.showInfoCard(k); });
 G.setState(G.S.PLAY);
-// the SLIDE call: the first rep is demonstrated before it is asked for
 check('the first SLIDE rep opens on a CALL, and the lane never parks on a disc',
   G.tut().call && G.tut().call.kind === 'move' && G.getState() === G.S.PLAY);
 drawOk('SLIDE call: the ghost thumb drags, the ghost carriage follows', () => { G.setState(G.S.PLAY); });
@@ -2674,7 +2657,7 @@ drawOk('SLIDE call: the ghost thumb drags, the ghost carriage follows', () => { 
 // 1.6s, in 0.05s steps: a 0.4s step moves a trap 0.16 in z, wider than the hit window,
 // so a hazard could cross the ring inside one step and register neither a hit nor a miss.
 function settle() { for (let i = 0; i < 32; i++) G.update(0.05); }
-// a trial's traffic arrives after its CALL, so the wait covers the longest call (5.2 s)
+// a lesson's traffic arrives after its CALL, so the wait covers the longest call (5.2 s)
 function waitLive(maxS) {
   for (let i = 0; i < maxS / 0.05; i++) {
     if (G.enemies().some(e => e.tut && !e.dead && !e.resolved) || G.pickups().some(p => p.tut && !p.done)) return true;
@@ -2719,32 +2702,24 @@ function zapPractice() {
 // hold each rep to completion — the last rep lights BOTH nodes at once, and is called too
 {
   let guard = 400, calls = 0, lastCall = null;
-  while (guard-- > 0 && G.tut().trial === 'slide' && G.qualStage().card === 'move') {
+  while (guard-- > 0 && G.qualStage().card === 'move') {
     const T = G.tut(), A = T.aim;
     if (T.call && T.call !== lastCall) { calls++; lastCall = T.call; }
     if (A.targets && !T.call) for (const t of A.targets) aim(t.node, t.a);
     G.update(0.05);
   }
   check(`SLIDE calls its first and its two-thumb rep, not the middle one (${calls} more call)`, calls === 1);
-  check('landing both nodes on their targets completes SLIDE', G.qualStage().card === 'done' && G.tut().trial === 'slide');
-  check('SLIDE files a medal, scored on drill time', G.progress.trials.slide >= 1 && G.tut().medalBy === 'time');
-}
-drawOk('a medal stamp between the course\'s trials', () => { G.setState(G.S.PLAY); });
-{ // the stamp holds, then the NEXT trial starts in the SAME lane: no report, no screen
-  let g = 120;
-  while (g-- > 0 && G.tut().trial === 'slide') G.update(0.05);
-  check('the course chains into INTERCEPT without leaving the lane',
-    G.getState() === G.S.PLAY && G.tut() && G.tut().trial === 'intercept' && G.tut().firstRun === true && G.tut().chain.length === 0);
+  check('landing both nodes on their targets moves the course straight on, with no stamp', G.qualStage().card === 'normal');
 }
 passCall('normal');
-check('INTERCEPT: practice trap 1 arrives on the bearing it was called on', waitLive(4) && zapPractice());
+check('practice trap 1 arrives on the bearing it was called on', waitLive(4) && zapPractice());
 // …and the SECOND rep of the same lesson gets no second call
 {
   let g = 60, called = false;
   while (g-- > 0 && !G.enemies().some(e => e.tut && !e.dead && !e.resolved)) { if (G.tut().call) called = true; G.update(0.05); }
   check('the second red is not called again', !called);
 }
-// THE REWIND: let the second red slip past, and the lane winds back to it, still inbound
+// THE REWIND: let the second red slip past, and the tape slides it back out to where it was
 {
   const pen = G.enemies().find(e => e.tut && !e.dead && !e.resolved);
   aim(0, pen.angle + Math.PI); aim(1, pen.angle + Math.PI + 0.4);   // nobody covers it
@@ -2753,37 +2728,38 @@ check('INTERCEPT: practice trap 1 arrives on the bearing it was called on', wait
   const T = G.tut();
   check('a miss REWINDS the lane instead of restarting the drill', !!T.rewind && T.misses === 1 && !T.retry);
   const back = G.enemies().filter(e => e.tut === 'normal' && !e.dead && !e.resolved);
-  check(`the missed red is back in the bore, short of the ring (${back.length} live)`,
-    back.length === 1 && back[0].z > G.geo().hitZ);
+  check(`the missed red is back in the lane (${back.length} live)`, back.length === 1);
+  const red = back[0], zStart = red.z, zEnd = red.rwTo;
+  check(`it starts its slide from where it was missed, at the ring (z ${zStart.toFixed(2)})`,
+    zStart <= G.geo().hitZ + 0.02 && zEnd > zStart);
   drawOk('the rewind scrub', () => { G.setState(G.S.PLAY); });
-  const z0 = back[0].z;
-  for (let i = 0; i < 6; i++) G.update(0.05);
-  check('the world holds still under the scrub', G.tut().rewind && back[0] === G.enemies().find(e => e.tut === 'normal' && !e.dead) && back[0].z === z0);
+  G.update(0.05); G.update(0.05);
+  const zMid = red.z;
+  check(`the tape SLIDES it back, it does not snap (${zStart.toFixed(2)} → ${zMid.toFixed(2)} → ${zEnd.toFixed(2)})`,
+    zMid > zStart && zMid < zEnd);
   let h = 60;
   while (h-- > 0 && G.tut().rewind) G.update(0.05);
-  check('the scrub ends by itself', !G.tut().rewind);
+  check('the scrub ends by itself, with the red where the tape has it, still inbound',
+    !G.tut().rewind && Math.abs(red.z - zEnd) < 1e-9 && red.z > G.geo().hitZ && red.rwTo === undefined);
   drawOk('the ghost carriage after a rewind', () => { G.setState(G.S.PLAY); });
   check('…and this time the red is taken', zapPractice());
 }
-check('practice trap 3 spawns and dies', waitLive(4) && zapPractice());
+// the dead zone rides the red stage, as in the old curriculum: steer clear until it burns off
+{
+  passCall('wall');
+  let wg0 = 200;
+  while (wg0-- > 0 && !G.latches().length) G.update(0.05);
+  check('the practice wall lands', G.latches().length === 1);
+  aim(0, G.latches()[0].a + Math.PI); aim(1, G.latches()[0].a + Math.PI + 0.5);
+  let wg = 260;
+  while (wg-- > 0 && G.latches().length) G.update(0.05);
+  check('routing around the practice wall completes the lesson', !G.latches().length && G.tut() && !G.tut().retry);
+}
 settle();
-check('the last trial of the course stamps QUALIFIED in-world, no info disc',
-  G.getState() === G.S.PLAY && G.tut() && G.qualStage().card === 'done' && G.tut().trial === 'intercept');
-check('one miss is a SILVER', G.progress.trials.intercept === 2);
-for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05); // the ceremony runs, then the report
-check('QUALIFIED: victory screen + progress persisted', G.getState() === G.S.END && G.getEndWin() === true && G.progress.tutorialDone === true && G.tut() === null);
-drawOk('qualification end screen', () => {});
-G.setEndT(99); G.frame(16); // past the reveal: the keys are live
-check('the first-run course\'s report still leads into the first contract',
-  G.getEndButtons().some(b => b.action === 'contract' && b.primary));
-
-// ---- the optional trials: each one alone, each drill as it always was ----
-function runTrial(id) { G.startTrial(id); G.setIntro(999); G.update(0.05); }
-// DOCK: the armor, then THE VOLLEY, which still rides the armor stage
-runTrial('dock');
-check('a single trial is not the first-run course', G.tut().trial === 'dock' && !G.tut().firstRun && G.tut().chain.length === 0);
+check('armor drill begins', G.qualStage().card === 'heavy');
 passCall('heavy');
 check('heavy practice: dock together breaks it at the rim', waitLive(4) && zapPractice());
+// THE VOLLEY RIDES THE ARMOR STAGE: one call, one rep, no stage of its own
 {
   passCall('volley');
   check('the volley rep still belongs to the armor stage', G.qualStage().card === 'heavy');
@@ -2807,40 +2783,16 @@ check('heavy practice: dock together breaks it at the rim', waitLive(4) && zapPr
     !G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved));
 }
 settle();
-for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05);
-check('a clean DOCK is GOLD, and the trial ends on its report', G.getState() === G.S.END && G.progress.trials.dock === 3);
-G.setEndT(99); G.frame(16);
-check('a single trial\'s report sends the pilot back to the trials, not to a contract',
-  G.getEndButtons().some(b => b.action === 'trials' && b.primary) && !G.getEndButtons().some(b => b.action === 'contract'));
-drawOk('a trial\'s report, with its medal', () => {});
-{ // RESTART re-flies the same trial
-  G.restartTrial();
-  check('RESTART flies the same trial again', G.tut() && G.tut().trial === 'dock' && !G.tut().firstRun);
-}
-// BARRIER NET
-runTrial('net');
+check('barrier drill begins', G.qualStage().card === 'line');
 passCall('line');
 check('barrier practice: node per end', waitLive(4) && zapPractice());
-check('the second net is not called again', waitLive(6) && zapPractice());
-// PHASE LOCK: one lesson, called once for both phases
-runTrial('phase');
+settle();
+check('color-lock drill begins', G.qualStage().card === 'lock');
 passCall('lock');
 check('blue-lock practice', waitLive(4) && zapPractice());
 check('white-lock practice', waitLive(6) && zapPractice());
-// DEAD ZONE: steer clear until it burns off
-{
-  runTrial('wall');
-  passCall('wall');
-  let wg0 = 200;
-  while (wg0-- > 0 && !G.latches().length) G.update(0.05);
-  check('the practice wall lands', G.latches().length === 1);
-  aim(0, G.latches()[0].a + Math.PI); aim(1, G.latches()[0].a + Math.PI + 0.5);
-  let wg = 260;
-  while (wg-- > 0 && G.latches().length) G.update(0.05);
-  check('routing around the practice wall completes the lesson', !G.latches().length && G.tut() && !G.tut().retry);
-}
-// POWER-UP
-runTrial('pickup');
+settle();
+check('the power-up follows the colour locks', G.qualStage().card === 'pickup');
 passCall('pickup');
 waitLive(4);
 {
@@ -2850,8 +2802,7 @@ waitLive(4);
   check('catching the practice relay works', G.fx.wide > 0);
   G.fx.wide = 0;
 }
-// PULSE: the ride charges it, the column spends it
-runTrial('pulse');
+settle();
 check('bonus-stream drill begins', G.qualStage().card === 'strip');
 {
   passCall('strip');
@@ -2902,6 +2853,42 @@ check('bonus-stream drill begins', G.qualStage().card === 'strip');
   while (wGuard-- > 0 && G.enemies().some(e => e.tut && !e.dead)) G.update(0.05);
   check('the purge wave clears the practice volley', !G.enemies().some(e => e.tut && !e.dead));
 }
+settle();
+check('the QUALIFIED ceremony plays in-world, no info disc', G.getState() === G.S.PLAY && G.tut() && G.qualStage().card === 'done');
+check('the course files no medal of its own', G.progress.trials.course === undefined);
+for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05); // the ceremony runs, then the report
+check('QUALIFIED: victory screen + progress persisted', G.getState() === G.S.END && G.getEndWin() === true && G.progress.tutorialDone === true && G.tut() === null);
+drawOk('qualification end screen', () => {});
+G.setEndT(99); G.frame(16); // past the reveal: the keys are live
+check('the course\'s report still leads into the first contract',
+  G.getEndButtons().some(b => b.action === 'contract' && b.primary));
+
+// ---- a LICENCE TRIAL alone: one lesson, a medal, and the way back to the trials ----
+function runTrial(id) { G.startTrial(id); G.setIntro(999); G.update(0.05); }
+runTrial('dock');
+check('a single trial is not the first-run course', G.tut().trial === 'dock' && !G.tut().firstRun);
+passCall('heavy');
+check('the trial\'s armor docks', waitLive(4) && zapPractice());
+passCall('volley');
+{
+  waitLive(5);
+  let vg = 400;
+  while (vg-- > 0 && G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved)) {
+    const live = G.enemies().find(e => e.tut === 'volley' && e.type === 'heavy' && !e.dead) ||
+                 G.enemies().find(e => e.tut === 'volley' && !e.dead);
+    if (live) { aim(0, live.angle); aim(1, live.angle); }
+    G.update(0.05);
+  }
+}
+settle();
+for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05);
+check('a clean DOCK is GOLD, and the trial ends on its report', G.getState() === G.S.END && G.progress.trials.dock === 3);
+G.setEndT(99); G.frame(16);
+check('a single trial\'s report sends the pilot back to the trials, not to a contract',
+  G.getEndButtons().some(b => b.action === 'trials' && b.primary) && !G.getEndButtons().some(b => b.action === 'contract'));
+drawOk('a trial\'s report, with its medal', () => {});
+G.restartTrial();
+check('RESTART flies the same trial again', G.tut() && G.tut().trial === 'dock' && !G.tut().firstRun);
 // every call's ghost paints, on every kind it can be played for
 for (const k of ['normal', 'heavy', 'volley', 'line', 'lock', 'pickup', 'strip', 'pulse', 'wall'])
   drawOk('call ghost: ' + k, () => {
@@ -6827,6 +6814,13 @@ async function runMusicUp() {
   check('smoke: the CDP client, the launch and the attach are shared with the bench, which keeps no copy',
     /launchChrome, waitForPort, openPage \} = require\('\.\/lib\/cdp\.js'\)/.test(bench) && !/class CDP|function openPage|function waitForPort|mkdtempSync/.test(bench)
     && /require\('\.\/lib\/cdp\.js'\)/.test(sm));
+  // Gil, 2026-10-08: a test browser he cannot see must not play sound at him, and he
+  // wants to see every one of them live (scripts/browser-watch.js, port 8017)
+  check('test browsers start MUTED; only the store video\'s sound pass asks for sound',
+    /sound \? \[\] : \['--mute-audio'\]/.test(lib) && /sound = false/.test(lib) && /sound: !crank/.test(read('scripts/store-shoot.js')));
+  check('every test browser registers itself for the browser watch, and the entry dies with it',
+    /register\(proc, port, headless, extraArgs\)/.test(lib) && /proc\.on\('exit', drop\)/.test(lib)
+    && /REGISTRY/.test(read('scripts/browser-watch.js')));
   check('smoke: a Chrome profile dies with its process, and the next viewport waits for the last Chrome to be gone',
     /proc\.on\('exit', \(\) => \{ try \{ fs\.rmSync\(profile/.test(lib) && /function killChrome\(proc/.test(lib) && /await killChrome\(chrome\)/.test(sm));
   check('smoke: it never sits on a lab port, takes a free one, and proves the server is its own checkout',
@@ -6903,6 +6897,7 @@ async function runMusicUp() {
     ['serve.js', 8000, 'npm run dev'], ['lab.js', 8010, 'npm run lab'], ['dest-lab.js', 8011, 'npm run lab:dest'],
     ['tuning-board.js', 8012, 'npm run lab:tune'], ['disc-lab.js', 8013, 'npm run lab:disc'], ['soundboard.js', 8014, 'npm run lab:sound'],
     ['breach-lab.js', 8015, 'npm run lab:breach'], ['leech-lab.js', 8016, 'npm run lab:leech'],
+    ['browser-watch.js', 8017, 'npm run browsers'],
     ['portal.js', 8100, 'npm run portal'], ['admin.js', 8200, 'npm run admin'],
   ];
   const ports = MAP.map(m => m[1]);

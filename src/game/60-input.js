@@ -183,10 +183,7 @@ canvas.addEventListener('pointerdown', e => {
     if (report || myData || feedback || menuSettings || menuConfirm || bossGate || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6) || hitRect(menuGuideRect, 8) || hitRect(menuUpdateRect, 8)) {
       menuTap(P.x, P.y, e.pointerId);
       return;
-    }
-    // THE HANGAR (92-guide): a thumb on a home pad flies its emitter round the wheel
-    if (hangarDown(e.pointerId, P.x, P.y)) return;
-    // hidden dev gesture: press-and-hold the final relay to charge the CORE duel
+    }    // hidden dev gesture: press-and-hold the final relay to charge the CORE duel
     if (menuScreen === 'map' && !menuFx) {
       const last = LEVELS.length - 1;
       const nb = menuButtons.find(b2 => b2.node === last && P.x > b2.x && P.x < b2.x + b2.w && P.y > b2.y && P.y < b2.y + b2.h);
@@ -279,7 +276,6 @@ canvas.addEventListener('pointermove', e => {
   // a drag cancels the final-relay hold — this is a still press, not a scroll
   if (menuHold && Math.hypot(P.x - menuHold.x, P.y - menuHold.y) > 10) menuHold = null;
   if (resetHold && Math.hypot(P.x - resetHold.x, P.y - resetHold.y) > 12) resetHold = null;
-  if (state === S.MENU && hangarMove(e.pointerId, P.x, P.y)) return;
   if (menuPtr && menuPtr.id === e.pointerId && state === S.MENU && !menuSettings) {
     if (menuScreen === 'board' && menuPtr.bZone) { // drag-scroll the left list or the ring list
       const dyb = P.y - menuPtr.y;
@@ -353,13 +349,11 @@ canvas.addEventListener('pointerup', e => {
   }
   menuHold = null; // lift ends the charge (the boss already fired if it completed)
   resetHold = null;
-  hangarUp(e.pointerId);
   releasePointer(e);
 });
 canvas.addEventListener('pointercancel', e => {
   if (replayScrub && replayScrub.id === e.pointerId) { replayScrub = null; sfxFadeTgt = 1; sfxFadeRate = 6; musicScrubT = -1; }
   if (menuPtr && menuPtr.id === e.pointerId) menuPtr = null;
-  hangarUp(e.pointerId);
   menuHold = null;
   resetHold = null;
   releasePointer(e);
@@ -618,11 +612,6 @@ function menuTap(x, y, pid) {
           const rel = ((aa - b.sector.a0) % TAU + TAU) % TAU;
           return rel < ((b.sector.a1 - b.sector.a0) % TAU + TAU) % TAU; })()
       : (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h);
-    // THE HANGAR'S RULE: a slice of the home wheel opens only when both emitters dock
-    // on it (tickHangar). A TOUCH on one — a real pointer, pid >= 0 — gets the rule in
-    // words instead. A controller (-7) and a completed dock (-8) still open it.
-    if (hit && b.sector && b.mode && !b.sector.outer && HANGAR_ON && !hangarFiring
-        && typeof pid === 'number' && pid >= 0) { hangarRefuse(); return; }
     if (hit && !b.locked) {
       if (b.trial) { // a LICENCE TRIALS card: the trial launches like a lane does
         const id = b.trial;
@@ -942,21 +931,20 @@ function enlistTap() {
 }
 // `holdMusic` keeps the menu piece on the bus: the enlistment sets the course up
 // long before it is played and does its own deploy fade when the discs clear.
-// THE FIRST-RUN COURSE is the first TRIAL_REQUIRED licence trials, flown back to back
-// in one lane (70-update). Finishing it files progress.tutorialDone.
+// THE FIRST-RUN COURSE is every lesson in one lane, each one called before it is asked
+// for (COURSE, 70-update). Finishing it files progress.tutorialDone.
 function startQualification(holdMusic) {
-  startTrial(TRIALS[0].id, holdMusic, TRIALS.slice(1, TRIAL_REQUIRED).map(t => t.id), true);
+  startTrial(COURSE.id, holdMusic, true);
 }
-// ONE LICENCE TRIAL, from the LICENCE TRIALS screen or the course above. `chain` is the
-// trials that follow it in the same lane. The tut object is the whole pupil: a fresh
-// trial is a fresh one, with its own calls, misses and rewind tape.
-function startTrial(id, holdMusic, chain, firstRun) {
+// ONE LICENCE TRIAL, from the LICENCE TRIALS screen, or the course above. The tut object
+// is the whole pupil: a fresh trial is a fresh one, with its own calls, misses and tape.
+function startTrial(id, holdMusic, firstRun) {
   weekly = false; Math.random = sysRandom;
   levelIdx = -1; endless = false; qual = true; spawnRng = Math.random;
   LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.40,
          doubles: 0, heavies: 0, lines: 0, colors: 0 };
-  tut = newTut(id, chain, firstRun);
-  trialRun = { id, chain: (chain || []).slice(), firstRun: !!firstRun, medal: 0, newBest: false };
+  tut = newTut(id, firstRun);
+  trialRun = { id, firstRun: !!firstRun, medal: 0, newBest: false };
   resetRun();
   runTrack = pickTrack();
   if (!holdMusic) armRunMusic();
@@ -976,10 +964,9 @@ function qualMenuReturn() {
     menuFx = { kind: 'discOut', t: 0, dur: 0.55, disc: 0 };
   }
 }
-// RESTART from the pause disc or the report: the trial in the lane, with the rest of
-// its course behind it. Before any trial has run, the first-run course.
+// RESTART from the pause disc or the report: the trial in the lane, or the course.
 function restartTrial() {
-  if (trialRun) startTrial(trialRun.id, false, trialRun.chain, trialRun.firstRun);
+  if (trialRun) startTrial(trialRun.id, false, trialRun.firstRun);
   else startQualification();
 }
 // The boss drill behind the passcode disc: jump straight into the leech duel.

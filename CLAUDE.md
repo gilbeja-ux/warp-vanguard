@@ -266,6 +266,7 @@ the last lab; nothing else is ever bound below 8300.
 | 8014 | `npm run lab:sound` | sfx soundboard |
 | 8015 | `npm run lab:breach` | breach lab |
 | 8016 | `npm run lab:leech` | leech lab |
+| 8017 | `npm run browsers` | browser watch: every test browser an agent is running, live |
 | 8020 | `npm run test:smoke` | the browser smoke suite's own server; never a tab |
 | 8100 | `npm run portal` | portal: every tool above, live or dead |
 | 8200 | `npm run admin` | admin console (holds the service key) |

@@ -87,14 +87,39 @@ function findChrome() {
   throw new Error('Chrome not found (set CHROME_BIN). Looked in:\n  ' + CHROME_CANDIDATES.join('\n  '));
 }
 
+// EVERY TEST BROWSER IS REGISTERED, so the browser watch (scripts/browser-watch.js,
+// npm run browsers, port 8017) can show what each one is doing while it runs. One
+// small file per Chrome, named by its pid, removed when that Chrome exits. Gil,
+// 2026-10-08: "make a page that tracks your open testing browsers".
+const REGISTRY = path.join(os.tmpdir(), 'wv-test-browsers');
+function register(proc, port, headless, extraArgs) {
+  try {
+    fs.mkdirSync(REGISTRY, { recursive: true });
+    const file = path.join(REGISTRY, proc.pid + '.json');
+    const size = (extraArgs.find(a => a.startsWith('--window-size=')) || '').slice(14);
+    fs.writeFileSync(file, JSON.stringify({
+      pid: proc.pid, port, headless, size,
+      script: path.basename(process.argv[1] || 'node'), args: process.argv.slice(2).join(' '),
+      cwd: process.cwd(), started: Date.now()
+    }));
+    const drop = () => { try { fs.unlinkSync(file); } catch (e) {} };
+    proc.on('exit', drop);
+    process.on('exit', drop); // the driving script died first: its Chrome dies with it
+  } catch (e) { /* a registry that cannot be written must never stop a test */ }
+}
+
 // Launch a fresh Chrome with its own profile on a DevTools port. Returns the
 // child process; kill it when done — the profile dir is under os.tmpdir().
-function launchChrome(port, { headless = true, extraArgs = [] } = {}) {
+// MUTED unless asked (Gil, 2026-10-08: a test browser he cannot see must not play
+// sound at him). `sound: true` is only for a run that is FOR the sound — the store
+// video's audio pass, which records the game's own mix.
+function launchChrome(port, { headless = true, extraArgs = [], sound = false } = {}) {
   const bin = findChrome();
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'wv-cdp-'));
   const args = [
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${profile}`,
+    ...(sound ? [] : ['--mute-audio']),
     '--autoplay-policy=no-user-gesture-required',   // the splash score needs no gesture
     '--no-first-run', '--no-default-browser-check',
     '--disable-background-timer-throttling',
@@ -108,6 +133,7 @@ function launchChrome(port, { headless = true, extraArgs = [] } = {}) {
   const proc = spawn(bin, args, { stdio: 'ignore', detached: false });
   // the profile dies with the process: a run used to leave ~75 MB in the temp dir
   proc.on('exit', () => { try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) {} });
+  register(proc, port, headless, extraArgs);
   return proc;
 }
 
@@ -152,4 +178,4 @@ async function openPage(port) {
   return { cdp, ws };
 }
 
-module.exports = { CDP, getJSON, sleep, findChrome, launchChrome, killChrome, waitForPort, openPage };
+module.exports = { CDP, getJSON, sleep, findChrome, launchChrome, killChrome, waitForPort, openPage, REGISTRY };

@@ -1,6 +1,6 @@
 ---
 name: dev-servers
-description: Run, check, and keep alive this repo's long-lived local servers — the game (8000), the labs (8010–8016), the portal (8100) and the admin console (8200); the full port map is in CLAUDE.md. Use before or after editing src/index.html, src/campaigns.js or docs/lab/story.json, whenever a server may have been stopped, and any time the user says a lab or the game "is gone", "is down", or "not available".
+description: Run, check, and keep alive this repo's long-lived local servers — the game (8000), the labs (8010–8016), the browser watch (8017), the portal (8100) and the admin console (8200); the full port map is in CLAUDE.md. Use before or after editing src/index.html, src/campaigns.js or docs/lab/story.json, whenever a server may have been stopped, and any time the user says a lab or the game "is gone", "is down", or "not available".
 ---
 
 # Dev servers
@@ -19,12 +19,13 @@ has to notice and ask. That's the failure this skill exists to prevent.
 | 8014 | `npm run lab:sound` | sfx soundboard |
 | 8015 | `npm run lab:breach` | breach lab |
 | 8016 | `npm run lab:leech` | leech lab |
+| 8017 | `npm run browsers` | browser watch: every test browser an agent is running, live |
 | 8020 | `npm run test:smoke` | the browser smoke suite's own server; never a tab |
 | 8100 | `npm run portal` | portal: every tool above, live or dead |
 | 8200 | `npm run admin` | admin console (holds the service key) |
 
 The map is law (CLAUDE.md, **THE PORT MAP**) and `npm test` pins every row. A new lab
-takes the next free port after 8016. The first three rows are the ones Gil keeps open
+takes the next free port after 8017. The first three rows are the ones Gil keeps open
 all day; `lab:dest` reads *and writes* the `DEST-*` regions of the game source, and
 `lab:disc` writes back to `src/campaigns.js`.
 

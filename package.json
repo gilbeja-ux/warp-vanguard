@@ -37,7 +37,8 @@
     "version:sync": "node scripts/sync-version.js",
     "test:coverage": "node scripts/test-fingerprint-coverage.mjs",
     "test:smoke": "node scripts/smoke.js",
-    "lab:leech": "node scripts/leech-lab.js"
+    "lab:leech": "node scripts/leech-lab.js",
+    "browsers": "node scripts/browser-watch.js"
   },
   "keywords": [
     "game",

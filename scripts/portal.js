@@ -37,6 +37,7 @@ const SERVERS = [
   { port: 8014, name: 'Soundboard',        cmd: 'npm run lab:sound', what: 'every sfx cue through the game\'s own bus — audition takes, tune ACCENT_LIFT' },
   { port: 8015, name: 'Breach lab',        cmd: 'npm run lab:breach', what: 'the three baked enemy hulls, held still' },
   { port: 8016, name: 'Leech lab',         cmd: 'npm run lab:leech', what: 'the five boss machines, pinned in the bore' },
+  { port: 8017, name: 'Browser watch',     cmd: 'npm run browsers', what: 'every test browser an agent is running, live, with its screen' },
   { port: 8200, name: 'Admin console',     cmd: 'npm run admin',    what: 'leaderboard moderation queue and the numbers' },
 ];
 

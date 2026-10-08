@@ -82,9 +82,8 @@ function bandCfg(level, t) {
 }
 // campaign progress lives per campaign id under progress.camp; the flat
 // pre-CMS fields (stars/bests/unlocked) migrate into camp['cargo-run']
-// trials: best medal per licence trial (1 bronze..3 gold, 70-update); hangarDocked: the
-// home wheel has been opened by a dock once, so its first-visit words retire (92-guide)
-const progress = { camp: {}, enlisted: false, tutorialDone: false, stripBriefed: false, wallBriefed: false, best: 0, weekly: { last: 0, streak: 0, best: 0 }, trials: {}, hangarDocked: false };
+// trials: best medal per licence trial (1 bronze..3 gold, 70-update)
+const progress = { camp: {}, enlisted: false, tutorialDone: false, stripBriefed: false, wallBriefed: false, best: 0, weekly: { last: 0, streak: 0, best: 0 }, trials: {} };
 // THE RANKED STREAK, AND WHETHER IT IS STILL STANDING. progress.weekly.streak has
 // counted consecutive filed weeks since the ladder shipped and nothing ever drew
 // it — the one hook that rewards coming back was being earned invisibly.
