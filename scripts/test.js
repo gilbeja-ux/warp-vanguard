@@ -175,11 +175,10 @@ code = code.replace("'use strict';", '') + `
   // the ONE renderer for a level's display name — pinned end to end at the bottom of this file
   lvNum, levelNo, curLevelNo,
   qualStage: () => tutStage(),
-  // the licence trials (70-update): the table, the runner, the rewind tape and the medals
+  // the called course (70-update, 90-hud): the curriculum, the rewind tape, and the call's look
   getLaneVel: () => laneVel, getWallDist: () => wallDist, // the rewind runs the whole lane back
-  TRIALS, COURSE, startTrial, restartTrial, trialOpen, getTrialRun: () => trialRun,
-  REWIND_BACK, REWIND_DUR, CALL_MOVE_DUR, callDur, drawTutCall, setTut: v => { tut = v; },
-  drawMenuTrials, trialsGrid,
+  QUAL, REWIND_BACK, REWIND_DUR, CALL_MOVE_DUR, callDur, drawTutCall, setTut: v => { tut = v; },
+  drawTutCallLayer, tutCallNodeK, CALL_NODE_ALPHA, getHoloCv: () => holoCv, getDemoNodeSink: () => demoNodeSink,
   getProg: () => PROG, getCamp: () => CAMP, validateCampaign, installCampaign, CAMPAIGNS,
   getLevelIdx: () => levelIdx, campaignCleared, // the report's contract hand-over reads both
   DEST_DEAL, DEST_ROLL, S3D_FINAL, dealVariantId, dealBuildId, dealRoll, variantById,
@@ -2591,25 +2590,21 @@ check('weekly defeat records the weekly best and streak', G.getState() === G.S.E
 
 // ================= qualification =================
 // THE FIRST-RUN COURSE, CALLED (2026-10-08). The ten-disc course became one continuous
-// run of every lesson (COURSE, 70-update), with no chapters: no drill stops the lane any
-// more. CALL AND RESPONSE plays each lesson's diorama as a ghost on the live ring, then
-// sends the same pattern for real, and a miss REWINDS the lane — the bodies slide back
-// to where the tape has them — instead of starting the drill over. The same lessons are
-// LICENCE TRIALS afterwards, one skill each, scored with a medal. The pulse drill still
-// freezes the run for the FIRE-PULSE moment.
+// run of every lesson (QUAL, 70-update), with no chapters: no drill stops the lane any
+// more. CALL AND RESPONSE plays each lesson's diorama on the live ring, then sends the
+// same pattern for real, and a miss REWINDS the lane — the whole lane runs back to where
+// the tape has it — instead of starting the drill over. The pulse drill still freezes
+// the run for the FIRE-PULSE moment.
 G.progress.tutorialDone = false;
-G.progress.trials = {};
 G.startQualification();
 G.update(0.05);
 check('the first-run course is one run, opening on the controls, in the lane, with no disc',
-  G.getState() === G.S.PLAY && G.isQual() && G.tut().trial === 'course' && G.tut().firstRun === true
-  && G.qualStage().card === 'move');
+  G.getState() === G.S.PLAY && G.isQual() && G.qualStage().card === 'move');
 {
-  const kinds = stages => stages.reduce((a, s) => a.concat(s.queue || [s.card]), []);
-  const course = kinds(G.tut().qual);
-  check('the course carries every trial\'s lessons, in one list, with no medal stamps between them',
-    G.tut().qual.filter(s => s.card === 'done').length === 1
-    && G.TRIALS.every(t => kinds(t.stages).every(k => course.includes(k))));
+  const kinds = G.QUAL.reduce((a, s) => a.concat(s.queue || [s.card]), []);
+  check('the course carries every lesson, in one list, with one QUALIFIED at its end and no chapters',
+    G.QUAL.filter(s => s.card === 'done').length === 1 && G.QUAL[G.QUAL.length - 1].card === 'done'
+    && ['move', 'normal', 'wall', 'heavy', 'volley', 'line', 'lock0', 'lock1', 'pickup', 'strip', 'pulse'].every(k => kinds.includes(k)));
 }
 // EVERY DISC IS STILL DRAWN: the dioramas are the calls' source now, and the disc
 // renderer still carries them for the bench
@@ -2863,7 +2858,6 @@ check('bonus-stream drill begins', G.qualStage().card === 'strip');
 }
 settle();
 check('the QUALIFIED ceremony plays in-world, no info disc', G.getState() === G.S.PLAY && G.tut() && G.qualStage().card === 'done');
-check('the course files no medal of its own', G.progress.trials.course === undefined);
 for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05); // the ceremony runs, then the report
 check('QUALIFIED: victory screen + progress persisted', G.getState() === G.S.END && G.getEndWin() === true && G.progress.tutorialDone === true && G.tut() === null);
 drawOk('qualification end screen', () => {});
@@ -2871,65 +2865,34 @@ G.setEndT(99); G.frame(16); // past the reveal: the keys are live
 check('the course\'s report still leads into the first contract',
   G.getEndButtons().some(b => b.action === 'contract' && b.primary));
 
-// ---- a LICENCE TRIAL alone: one lesson, a medal, and the way back to the trials ----
-function runTrial(id) { G.startTrial(id); G.setIntro(999); G.update(0.05); }
-runTrial('dock');
-check('a single trial is not the first-run course', G.tut().trial === 'dock' && !G.tut().firstRun);
-passCall('heavy');
-check('the trial\'s armor docks', waitLive(4) && zapPractice());
-passCall('volley');
+// ---- THE CALL MUST READ AS "NOT YOU" (Gil, 2026-10-08) ----
+// The pupil's emitters step back, everything but the ring and the lesson's focus dims,
+// and the lesson's traffic is a hologram while the instructor's carriages stay plain.
+G.startQualification();
+G.setIntro(999); G.update(0.05);
+check('a fresh course: the pupil\'s emitters are at full strength before any call',
+  G.tut().call && G.tut().call.kind === 'move' ? true : G.tutCallNodeK() === 1);
 {
-  waitLive(5);
-  let vg = 400;
-  while (vg-- > 0 && G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved)) {
-    const live = G.enemies().find(e => e.tut === 'volley' && e.type === 'heavy' && !e.dead) ||
-                 G.enemies().find(e => e.tut === 'volley' && !e.dead);
-    if (live) { aim(0, live.angle); aim(1, live.angle); }
-    G.update(0.05);
-  }
-}
-settle();
-for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05);
-check('a clean DOCK is GOLD, and the trial ends on its report', G.getState() === G.S.END && G.progress.trials.dock === 3);
-G.setEndT(99); G.frame(16);
-check('a single trial\'s report sends the pilot back to the trials, not to a contract',
-  G.getEndButtons().some(b => b.action === 'trials' && b.primary) && !G.getEndButtons().some(b => b.action === 'contract'));
-drawOk('a trial\'s report, with its medal', () => {});
-G.restartTrial();
-check('RESTART flies the same trial again', G.tut() && G.tut().trial === 'dock' && !G.tut().firstRun);
-// every call's ghost paints, on every kind it can be played for
-for (const k of ['normal', 'heavy', 'volley', 'line', 'lock', 'pickup', 'strip', 'pulse', 'wall'])
-  drawOk('call ghost: ' + k, () => {
-    G.setState(G.S.PLAY);
-    G.tut().call = { kind: k === 'lock' ? 'lock0' : k, key: k, t: 1.0, dur: G.callDur(k), a: 0.7 };
-  });
-G.tut().call = null;
-
-// ---- the LICENCE TRIALS screen ----
-{
-  G.setState(G.S.MENU); G.setMenuScreen('trials'); G.setMenuFx(null);
-  G.frame(16);
-  const cards = G.menuBtns().filter(b => b.trial);
-  check('the trials screen shows every trial as a card', cards.length === G.TRIALS.length);
-  const camp = G.progress.camp['cargo-run'];
-  const was = camp.unlocked;
-  camp.unlocked = 1;
-  G.frame(16);
-  check('a trial whose stage is not reached yet is locked; the first two are always open',
-    G.menuBtns().filter(b => b.trial).every(b => b.locked === !G.trialOpen(G.TRIALS.find(t => t.id === b.trial)))
-    && !G.menuBtns().find(b => b.trial === 'slide').locked && !G.menuBtns().find(b => b.trial === 'intercept').locked
-    && G.menuBtns().find(b => b.trial === 'phase').locked);
-  camp.unlocked = was;
-  drawOk('the trials screen at a phone size', () => { G.setViewport(390, 844); G.setState(G.S.MENU); G.setMenuScreen('trials'); });
-  G.setViewport(800, 450);
-  G.setState(G.S.MENU); G.setMenuScreen('trials'); G.setMenuFx(null); G.frame(16);
-  const c = G.menuBtns().find(b => b.trial === 'intercept');
-  G.menuTap(c.x + c.w / 2, c.y + c.h / 2, 1);
-  for (let i = 0; i < 30 && G.getState() === G.S.MENU; i++) G.update(0.05);
-  check('a card launches its trial', G.getState() === G.S.PLAY && G.tut() && G.tut().trial === 'intercept');
+  let g = 120;
+  while (g-- > 0 && !(G.tut().call && G.tut().call.t > 0.6)) G.update(0.05);
+  check(`during a call the pupil's emitters fall to a trace (${G.tutCallNodeK().toFixed(2)})`,
+    Math.abs(G.tutCallNodeK() - G.CALL_NODE_ALPHA) < 1e-6);
+  drawOk('the SLIDE call layer: dim with the pads lit, ghost thumbs, instructor carriage', () => { G.setState(G.S.PLAY); });
+  // a traffic call: the hologram buffer is made, and the carriages never leak into it
+  G.tut().call = { kind: 'heavy', key: 'heavy', t: 1.2, dur: G.callDur('heavy'), a: 0.9 };
+  drawOk('the armor call layer: dim, hologram traffic, plain instructor carriages', () => { G.setState(G.S.PLAY); });
+  check('the hologram buffer exists while traffic is called', !!G.getHoloCv());
+  check('the carriage sink is released after every hologram pass', G.getDemoNodeSink() === null);
+  for (const k of ['normal', 'volley', 'line', 'lock', 'pickup', 'strip', 'pulse', 'wall'])
+    drawOk('call layer: ' + k, () => {
+      G.setState(G.S.PLAY);
+      G.tut().call = { kind: k === 'lock' ? 'lock0' : k, key: k, t: 1.0, dur: G.callDur(k), a: 0.7 };
+    });
+  G.tut().call = null;
+  G.update(0.05);
+  check('with no call the pupil\'s emitters are whole again', G.tutCallNodeK() === 1);
 }
 G.setState(G.S.MENU);
-G.setMenuScreen('home');
 G.progress.tutorialDone = true;
 drawOk('briefing card frame (zoom-in)', () => { G.startBossTest(); G.update(0.05); });
 G.setState(G.S.MENU);

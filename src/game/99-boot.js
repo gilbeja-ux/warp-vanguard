@@ -1221,10 +1221,13 @@ function frameBody(now) {
   if (boss && state !== S.MENU) drawBoss(g);
 
   if (state !== S.MENU && hw > 0.004) { // the arcs and their orbs, same fade
-    if (hw < 1) { ctx.save(); ctx.globalAlpha = hw; }
+    // …and while a course CALL plays, the pupil's own emitters step back to a trace so
+    // the instructor's read as the ones flying (tutCallNodeK, 90-hud)
+    const nk = tutCallNodeK(), fade = hw * nk;
+    if (fade < 1) { ctx.save(); ctx.globalAlpha = fade; }
     drawNodes(g);
     drawVolley(g);
-    if (hw < 1) ctx.restore();
+    if (fade < 1) ctx.restore();
   }
 
   prof('ephemera');

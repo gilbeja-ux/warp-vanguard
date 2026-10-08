@@ -1275,8 +1275,8 @@ function drawHUD(g) {
   tutDescNow = null; // stale ghosts must not survive the drill that made them
   if (tut && tut.stage >= 0 && introT >= INTRO_DUR) {
     const st = tutStage();
-    drawTrialHeader();
-    if (st.card === 'done') drawTrialStamp(tut.t);
+    drawCoursePips();
+    if (st.card === 'done') drawQualCeremony(tut.t);
     // (No stage banner. Each drill used to announce itself in a stack of text
     // across the CENTER of the bore — the one place the traffic comes from. The
     // labels that ride the traps say the same thing where the eye already is.)
@@ -1297,15 +1297,13 @@ function drawHUD(g) {
     //     traffic arrives from, which is why the stage banners died.
     // All render-only. No sim state, no Math.random, nothing pushed into sim arrays.
     const desc = tutFocusDesc(st, ten);
-    // during a CALL the line names the lesson as something to WATCH; the response then
-    // drops the prefix and the same words become the instruction
-    if (tut.call) drawTutLessonLine({ kind: tut.call.kind }, 'WATCH');
-    else if (desc) drawTutLessonLine(desc);
+    // during a CALL the line, the ghost and the dim are drawn LAST, over the pads, by
+    // drawTutCallLayer (drawDials calls it) — the dim has to cover the dials too
+    if (!tut.call && desc) drawTutLessonLine(desc);
     // the pad ghosts are NOT drawn here: drawDials() runs after drawHUD and lays the
     // dial chrome over anything painted now. The desc is stashed and drawDials calls
     // drawTutPadGhosts itself, last, so the ghost sits on top of the finished dial.
     tutDescNow = desc;
-    if (tut.call) drawTutCall(tut.call);
     drawRewindFx(desc);
 
     if (st.card === 'move' && tut.aim.targets) {
@@ -1491,54 +1489,104 @@ function drawHUD(g) {
   }
 }
 
-// ---------- the licence trial, on the HUD (2026-10-08) ----------
-// The trial's name, top centre, where the old course's ten pips were. The first-run
-// course is one run with no chapters, so it carries one word and nothing to count.
-function drawTrialHeader() {
-  const tr = trialById(tut.trial);
-  if (!tr) return;
-  const u = Math.min(W, H);
-  const txt = tr.id === COURSE.id ? COURSE.name : 'LICENCE TRIAL · ' + tr.name;
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.font = '700 ' + Math.round(u * 0.024) + 'px Audiowide, system-ui';
-  try { ctx.letterSpacing = '2.5px'; } catch (e) {}
-  ctx.fillStyle = 'rgba(143,224,255,0.8)';
-  ctx.fillText(txt, W / 2, SAFE.t + u * 0.055);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  ctx.restore();
-  ctx.textAlign = 'left';
+// ---------- the course, on the HUD (2026-10-08) ----------
+// curriculum pips: one per drill, so the pupil can SEE the finish line
+function drawCoursePips() {
+  const nP = QUAL.length - 1; // 'done' is the ceremony, not a drill
+  const uP = Math.min(W, H), gap = uP * 0.032;
+  const x0 = W / 2 - (nP - 1) * gap / 2, y0 = SAFE.t + uP * 0.045;
+  for (let i = 0; i < nP; i++) {
+    const done2 = i < tut.stage, cur = i === tut.stage;
+    ctx.globalAlpha = cur ? 0.7 + Math.sin(time * 5) * 0.3 : 1;
+    ctx.fillStyle = done2 ? 'rgba(126,226,98,0.9)' : cur ? 'rgba(143,224,255,0.95)' : 'rgba(90,120,160,0.4)';
+    ctx.beginPath(); ctx.arc(x0 + i * gap, y0, uP * (done2 || cur ? 0.008 : 0.0055), 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
-// THE STAMP at a trial's end: the medal and why. The first-run course stamps QUALIFIED
-// instead, because that is the moment it marks.
-function drawTrialStamp(t) {
-  const m = tut.medal || 1, tr = trialById(tut.trial), end = 3.4;
-  if (tut.trial === COURSE.id) { drawQualCeremony(t); return; }
-  const why = tut.medalBy === 'time' ? tut.work.toFixed(1) + ' S'
-    : tut.misses ? tut.misses + (tut.misses === 1 ? ' MISS' : ' MISSES') : 'NO MISSES';
-  drawQualCeremony(t, MEDAL_NAMES[m], [tr.name + ' · ' + why].concat(tut.newBest ? ['NEW BEST'] : []), MEDAL_COLS[m], end);
-}
-// THE CALL (70-update, qualNext): the lesson's own diorama, played as a ghost on the live
-// ring and turned onto the bearing the real traffic will take. The dioramas were built
-// for a disc (91-briefing, DEMO): scaling them so the diorama's rail IS the ring puts
-// the ghost carriages and the ghost traffic exactly where the pupil's will be.
-const CALL_ALPHA = 0.55;   // the ghost's strength: a demonstration, never traffic
+// THE CALL (70-update, qualNext): the lesson's own diorama, played on the live ring by
+// an instructor, turned onto the bearing the real traffic will take. The dioramas were
+// built for a disc (91-briefing, DEMO): scaling them so the diorama's rail IS the ring
+// puts the instructor's carriages and traffic exactly where the pupil's will be.
+//
+// IT MUST READ AS "NOT YOU" (Gil, 2026-10-08). Three things say so:
+//   · the pupil's own emitters drop to CALL_NODE_ALPHA (tutCallNodeK, read by 99-boot);
+//   · everything outside the ring and the lesson's focus is dimmed (drawCallDim);
+//   · the traffic of the lesson is a HOLOGRAM — tinted, scan-lined, flickering, split —
+//     while the instructor's carriages stay plain: they already look unlike the pupil's.
+// All of it is drawn LAST, over the dials (drawTutCallLayer, from drawDials).
+const CALL_NODE_ALPHA = 0.2;   // the pupil's emitters while the instructor flies
+const CALL_GHOST_NODES = 0.85; // the instructor's carriages
+const CALL_HOLO_ALPHA = 0.9;   // the hologram traffic, at its strongest
+const CALL_DIM_OUT = 0.62;     // the dim outside the ring
+const CALL_DIM_IN = 0.38;      // the dim inside the bore, outside the lesson's focus
+const CALL_RING_BAND = 0.075;  // half the ring's undimmed band, × min(W, H)
+// the lit wedge around the call's bearing, half-width in radians; pulse lights the bore
+const CALL_FOCUS = { normal: 0.55, heavy: 0.6, volley: 0.85, line: 1.2, lock: 0.6, pickup: 0.6, strip: 0.8, wall: 0.8 };
+const CALL_FOCUS_AT = { line: 0.75 }; // the wedge's centre, off the call bearing (a net straddles it)
+const HOLO_TINT = 0.5;         // how far the traffic is washed toward hologram cyan
+const HOLO_SCAN = 0.5;         // how much each scan line cuts out
+const HOLO_SPLIT = 2;          // px each colour ghost is pushed sideways
+const HOLO_FLICKER = 0.14;     // the flicker's depth
 // where each diorama stages its bearing, off DISC_BOT, so the turn lands it on the call's
 const CALL_DEMO_OFF = { normal: 0.18, pickup: 0.30, line: -0.75, wall: 1.4 - Math.PI / 2 };
-function drawTutCall(c) {
-  const g = geo();
-  const env = Math.min(clamp(c.t / CALL_FADE, 0, 1), clamp((c.dur - c.t) / CALL_FADE, 0, 1));
+let holoCv = null;             // the hologram buffer: the ring's bounding square, released with the course
+function tutCallEnv() {
+  const c = tut && tut.call;
+  if (!c || state !== S.PLAY) return 0;
+  return Math.min(clamp(c.t / CALL_FADE, 0, 1), clamp((c.dur - c.t) / CALL_FADE, 0, 1));
+}
+// the pupil's emitters' alpha: 1, falling to CALL_NODE_ALPHA while a call plays
+const tutCallNodeK = () => 1 - (1 - CALL_NODE_ALPHA) * tutCallEnv();
+function drawTutCallLayer() {
+  const c = tut && tut.call;
+  if (!c || state !== S.PLAY) return;
+  const env = tutCallEnv();
   if (env <= 0) return;
+  drawCallDim(c, env);
+  drawTutCall(c, env);
+  drawTutLessonLine({ kind: c.kind }, 'WATCH'); // over the dim, so the line still reads
+}
+function drawCallDim(c, env) {
+  const g = geo(), band = Math.min(W, H) * CALL_RING_BAND;
+  const rOut = g.nodeR + band, rIn = g.nodeR - band;
+  ctx.save();
+  // outside the ring: all of it, except the ring — and, on SLIDE, the pads it drags
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  ctx.moveTo(g.cx + rOut, g.cy); ctx.arc(g.cx, g.cy, rOut, 0, TAU);
+  if (c.kind === 'move' && tut.aim && tut.aim.targets)
+    for (const t of tut.aim.targets) {
+      const d = dialCenter(t.node === 0 ? 'L' : 'R'), r = d.r * 1.45;
+      ctx.moveTo(d.x + r, d.y); ctx.arc(d.x, d.y, r, 0, TAU);
+    }
+  ctx.fillStyle = 'rgba(2,4,10,' + (CALL_DIM_OUT * env).toFixed(3) + ')';
+  ctx.fill('evenodd');
+  // inside the bore: all of it but the wedge the lesson plays in. SLIDE's lesson is on
+  // the ring and the pads, so its whole bore dims; the purge column fills the bore.
+  if (c.key !== 'pulse') {
+    ctx.beginPath();
+    ctx.arc(g.cx, g.cy, rIn, 0, TAU);
+    if (c.kind !== 'move' && c.a !== undefined) {
+      const half = CALL_FOCUS[c.key] || 0.6, mid = c.a + (CALL_FOCUS_AT[c.key] || 0);
+      ctx.moveTo(g.cx, g.cy); ctx.arc(g.cx, g.cy, rIn, mid - half, mid + half); ctx.closePath();
+    }
+    ctx.fillStyle = 'rgba(2,4,10,' + (CALL_DIM_IN * env).toFixed(3) + ')';
+    ctx.fill('evenodd');
+  }
+  ctx.restore();
+}
+function drawTutCall(c, env) {
+  const g = geo();
   ctx.save();
   if (c.kind === 'move') {
-    // SLIDE: a ghost thumb drags each lit pad round to the mark while a ghost carriage
-    // rides the ring with it, the pad and the ring moving as one, which is the lesson
+    // SLIDE: a ghost thumb drags each lit pad round to the mark while the instructor's
+    // carriage rides the ring with it — the pad and the ring moving as one
     const A = tut.aim;
     if (A && A.targets && c.from) {
       const u = clamp((c.t - 0.35) / Math.max(0.1, c.dur - 1.0), 0, 1), e = u * u * (3 - 2 * u);
       A.targets.forEach((t, k) => {
         const from = c.from[k], a = from + angDiff(t.a, from) * e;
-        ctx.globalAlpha = CALL_ALPHA * env;
+        ctx.globalAlpha = CALL_GHOST_NODES * env;
         ctx.lineCap = 'round'; ctx.setLineDash([7, 6]);
         ctx.strokeStyle = 'rgba(' + NODE_COLS[t.node] + ',0.95)';
         ctx.lineWidth = Math.max(4, g.nodeR * 0.05);
@@ -1549,12 +1597,55 @@ function drawTutCall(c) {
         drawThumbGhost(d.x + Math.cos(a) * d.r, d.y + Math.sin(a) * d.r, side, 1, 0.95 * env, d.r * 0.55);
       });
     }
-  } else if (DEMO[c.key]) {
-    ctx.translate(g.cx, g.cy);
-    if (c.a !== undefined) ctx.rotate(c.a - DISC_BOT - (CALL_DEMO_OFF[c.key] || 0));
-    ctx.globalAlpha = CALL_ALPHA * env;
-    DEMO[c.key](g.nodeR / 0.72, Math.min(c.t, c.dur - 0.001)); // dRail(Rs) = 0.72 Rs = the ring
+    ctx.restore();
+    return;
   }
+  if (!DEMO[c.key]) { ctx.restore(); return; }
+  const rot = c.a !== undefined ? c.a - DISC_BOT - (CALL_DEMO_OFF[c.key] || 0) : 0;
+  const Rs = g.nodeR / 0.72;                       // dRail(Rs) = 0.72 Rs = the ring
+  const tt = Math.min(c.t, c.dur - 0.001);
+  const sink = [];
+  // 1. THE TRAFFIC, as a hologram: drawn into a buffer the size of the ring's square,
+  //    the carriages caught by the sink instead of drawn, then washed, scan-lined and
+  //    given a rolling bright band, and composited flickering and split in two colours
+  const R = g.nodeR * 1.15, x0 = g.cx - R, y0 = g.cy - R, S = Math.max(2, Math.ceil(2 * R * DPR));
+  if (!holoCv) holoCv = document.createElement('canvas');
+  if (holoCv.width !== S || holoCv.height !== S) { holoCv.width = S; holoCv.height = S; }
+  const ok = withCanvas(holoCv, () => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, S, S);
+    ctx.setTransform(DPR, 0, 0, DPR, -x0 * DPR, -y0 * DPR);
+    ctx.translate(g.cx, g.cy); ctx.rotate(rot);
+    demoNodeSink = sink;
+    try { DEMO[c.key](Rs, tt); } finally { demoNodeSink = null; }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = 'rgba(110,215,255,' + HOLO_TINT + ')';
+    ctx.fillRect(0, 0, S, S);
+    ctx.fillStyle = 'rgba(235,250,255,0.35)';
+    ctx.fillRect(0, ((time * 0.55) % 1.3 - 0.15) * S, S, S * 0.05);
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0,0,0,' + HOLO_SCAN + ')';
+    const step = Math.max(2, Math.round(3 * DPR)), line = Math.max(1, Math.round(DPR));
+    for (let y = 0; y < S; y += step) ctx.fillRect(0, y, S, line);
+    ctx.globalCompositeOperation = 'source-over';
+  });
+  if (ok) {
+    const flick = 1 - HOLO_FLICKER * (0.5 + 0.5 * Math.sin(time * 37) * Math.sin(time * 13.7));
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = CALL_HOLO_ALPHA * env * flick * 0.3;
+    ctx.drawImage(holoCv, x0 - HOLO_SPLIT, y0, 2 * R, 2 * R);
+    ctx.drawImage(holoCv, x0 + HOLO_SPLIT, y0, 2 * R, 2 * R);
+    ctx.globalAlpha = CALL_HOLO_ALPHA * env * flick;
+    ctx.drawImage(holoCv, x0, y0, 2 * R, 2 * R);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  // 2. THE INSTRUCTOR'S CARRIAGES, plain, over the hologram
+  ctx.translate(g.cx, g.cy); ctx.rotate(rot);
+  ctx.globalAlpha = CALL_GHOST_NODES * env;
+  for (const n of sink) demoNode(n[0], n[1], n[2], n[3]);
   ctx.restore();
 }
 // THE REWIND (70-update, qualRewind): a tape-scrub over the lane while the world holds,

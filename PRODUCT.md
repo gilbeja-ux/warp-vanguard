@@ -78,8 +78,8 @@ campaign 2 picks up at 09.
   climbs past it. Every campaign owns a signature mechanic and escorts a
   different *kind* of cargo; the player is always the escort and the phase
   polarity never flips.
-- A first-run course that calls every lesson as a ghost on the ring before asking for
-  it, then licence trials (eight short drills with medals), endless mode with timed stream surges,
+- A first-run course that calls every lesson as an instructor's demonstration on the
+  ring before asking for it, endless mode with timed stream surges,
   and a RANKED WEEK seeded per Mon–Sun week (UTC) — an identical stream for
   every player for seven days, which is long enough to learn the lane and keep
   coming back at your own row. When the week closes its board freezes for good, so

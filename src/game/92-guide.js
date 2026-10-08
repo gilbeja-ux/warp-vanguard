@@ -696,7 +696,7 @@ function paintMenuStatic() {
   // change size and the alignment follows it.
   const twoLine = menuScreen === 'map';
   let headX = menuHeadX();
-  if (menuScreen === 'flow' || menuScreen === 'map' || menuScreen === 'trials') { // small brand line up top
+  if (menuScreen === 'flow' || menuScreen === 'map') { // small brand line up top
     const sm = brandLogoSmall();
     if (sm) {
       // one line: optically centred on the brand baseline. two: centred on the
@@ -908,7 +908,6 @@ function drawMenu(g) {
   else if (menuScreen === 'flow') drawMenuFlow();
   else if (menuScreen === 'camps') drawMenuCamps(ccx, ccy, R);
   else if (menuScreen === 'board') drawMenuBoard();
-  else if (menuScreen === 'trials') drawMenuTrials();
   else drawMenuHome(ccx, ccy, R);
 
   if (menuPopUp() && menuBadge) stampMenuBadge(g); // badge holds its post, under the popup
@@ -2872,104 +2871,4 @@ function drawMenuFlow() {
       ctx.fillText('finish a contract to unlock', mx, my2 + 10);
     }
   }
-}
-
-// ---------- LICENCE TRIALS (menuScreen 'trials') ----------
-// Eight short trials, one skill each, scored bronze, silver or gold (TRIALS, 70-update).
-// The screen sits behind the training disc on the contracts wheel once the first-run
-// course is done, and BACK returns to that disc. A trial that has not opened yet names
-// the stage that opens it, through lvNum like every stage name on every screen.
-function trialsBackFx() {
-  campScroll = campScrollTgt = 0; campPendingSync = null;
-  return { kind: 'spinOut', t: 0, dur: 0.35, to: 'camps', dir: -1 };
-}
-// one glyph per trial: a small ring with the two emitters where the skill puts them,
-// and the thing it is about in its lane colour (null = nothing but the emitters)
-const TRIAL_GLYPH = {
-  slide: [-2.4, -0.7, null], intercept: [-1.9, 0.9, '255,60,90'], pickup: [-1.6, 1.0, '255,210,74'],
-  dock: [-1.72, -1.42, '200,70,255'], pulse: [-2.2, -0.9, '255,210,74'], net: [-2.15, -1.0, '111,227,255'],
-  wall: [2.3, 0.85, '255,154,60'], phase: [-1.6, 1.2, '80,170,255']
-};
-function trialGlyph(id, x, y, r) {
-  const gl = TRIAL_GLYPH[id] || TRIAL_GLYPH.slide;
-  ctx.save();
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(120,200,255,0.28)'; ctx.lineWidth = Math.max(2, r * 0.16);
-  ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
-  if (gl[2]) {
-    const ta = id === 'net' ? (gl[0] + gl[1]) / 2 : gl[0];
-    ctx.fillStyle = 'rgb(' + gl[2] + ')';
-    ctx.beginPath(); ctx.arc(x + Math.cos(ta) * r * 0.5, y + Math.sin(ta) * r * 0.5, Math.max(2.5, r * 0.16), 0, TAU); ctx.fill();
-  }
-  for (let i = 0; i < 2; i++) {
-    ctx.strokeStyle = 'rgba(' + NODE_COLS[i] + ',0.95)'; ctx.lineWidth = Math.max(3, r * 0.26);
-    ctx.beginPath(); ctx.arc(x, y, r, gl[i] - 0.22, gl[i] + 0.22); ctx.stroke();
-  }
-  ctx.restore();
-}
-// the card layout: four across on a landscape screen, two across on anything squarer
-function trialsGrid() {
-  const top = 70 + SAFE.t, bot = H - SAFE.b - 18, left = SAFE.l + 20, right = W - SAFE.r - 20;
-  const cols = W / H > 1.25 ? 4 : 2, rows = Math.ceil(TRIALS.length / cols);
-  const gap = Math.max(10, Math.min(W, H) * 0.025);
-  let cw = (right - left - gap * (cols - 1)) / cols, ch = (bot - top - gap * (rows - 1)) / rows;
-  ch = Math.min(ch, cw * 0.62); cw = Math.min(cw, ch * 2.4);
-  const gw = cols * cw + (cols - 1) * gap, gh = rows * ch + (rows - 1) * gap;
-  const x0 = (left + right - gw) / 2, y0 = top + (bot - top - gh) / 2;
-  return TRIALS.map((tr, i) => ({ tr, i, w: cw, h: ch,
-    x: x0 + (i % cols) * (cw + gap), y: y0 + Math.floor(i / cols) * (ch + gap) }));
-}
-function drawMenuTrials() {
-  let al = 1;
-  if (menuFx && menuFx.kind === 'spinIn') al = clamp(menuFx.t / menuFx.dur, 0, 1);
-  if (menuFx && (menuFx.kind === 'spinOut' || menuFx.kind === 'launch')) al = 1 - clamp(menuFx.t / menuFx.dur, 0, 1);
-  const P = progress.trials || {};
-  const golds = TRIALS.filter(t => P[t.id] === 3).length;
-  ctx.save();
-  ctx.globalAlpha = al;
-  // the title shares the brand line's left edge, as the map's contract name does
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#f2faff'; ctx.font = '700 13px Audiowide, system-ui';
-  try { ctx.letterSpacing = '2px'; } catch (e) {}
-  const hx = menuHeadX();
-  ctx.fillText('LICENCE TRIALS', hx, 46 + SAFE.t);
-  const tw0 = ctx.measureText('LICENCE TRIALS').width;
-  ctx.fillStyle = 'rgba(255,210,74,0.85)'; ctx.font = '700 10px Audiowide, system-ui';
-  ctx.fillText('GOLD ' + golds + ' / ' + TRIALS.length, hx + tw0 + 16, 46 + SAFE.t);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  for (const c of trialsGrid()) {
-    const tr = c.tr, open = trialOpen(tr), m = P[tr.id] || 0;
-    const fresh = open && !m; // the course teaches everything first; no trial is a gate
-    ctx.globalAlpha = al * (open ? 1 : 0.45);
-    techRect(c.x, c.y, c.w, c.h, 10);
-    ctx.fillStyle = 'rgba(8,18,34,0.85)'; ctx.fill();
-    ctx.strokeStyle = fresh ? 'rgba(143,224,255,0.85)' : m ? 'rgba(' + MEDAL_COLS[m] + ',0.55)' : 'rgba(120,200,255,0.3)';
-    ctx.lineWidth = fresh ? 2 : 1.5;
-    techRect(c.x, c.y, c.w, c.h, 10); ctx.stroke();
-    const gr = Math.min(c.h * 0.24, c.w * 0.13), gx = c.x + 12 + gr + 4, gy = c.y + c.h / 2;
-    trialGlyph(tr.id, gx, gy, gr);
-    const mr = Math.max(6, Math.min(c.h * 0.11, 14));
-    const tx = gx + gr + 14, tw = c.x + c.w - tx - 14 - (m ? mr * 2 + 6 : 0);
-    ctx.textAlign = 'left';
-    const fs = fitPx(tr.name, 700, Math.round(c.h * 0.19), tw, 9);
-    ctx.font = '700 ' + fs + 'px Audiowide, system-ui';
-    ctx.fillStyle = '#eaf6ff';
-    ctx.fillText(tr.name, tx, gy - c.h * 0.02);
-    const line = !open ? 'OPENS AT STAGE ' + lvNum(levelNo(0, tr.opens - 1))
-      : m ? MEDAL_NAMES[m] : 'NEW';
-    const fs2 = fitPx(line, 700, Math.round(c.h * 0.13), c.x + c.w - tx - 12, 8);
-    ctx.font = '700 ' + fs2 + 'px Audiowide, system-ui';
-    ctx.fillStyle = m ? 'rgb(' + MEDAL_COLS[m] + ')' : fresh ? 'rgba(143,224,255,0.95)' : 'rgba(150,180,210,0.7)';
-    ctx.fillText(line, tx, gy + c.h * 0.22);
-    if (m) { // the medal itself, top right
-      const mx = c.x + c.w - mr - 12, my = c.y + mr + 12;
-      ctx.fillStyle = 'rgb(' + MEDAL_COLS[m] + ')';
-      ctx.beginPath(); ctx.arc(mx, my, mr, 0, TAU); ctx.fill();
-      ctx.strokeStyle = 'rgba(8,18,34,0.55)'; ctx.lineWidth = Math.max(1.5, mr * 0.18);
-      ctx.beginPath(); ctx.arc(mx, my, mr * 0.58, 0, TAU); ctx.stroke();
-    }
-    menuButtons.push({ x: c.x, y: c.y, w: c.w, h: c.h, trial: tr.id, locked: !open, cut: 10 });
-  }
-  ctx.restore();
-  ctx.textAlign = 'left';
 }

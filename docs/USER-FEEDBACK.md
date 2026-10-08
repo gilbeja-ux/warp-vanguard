@@ -35,15 +35,21 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
     (an ease-out over the first `REWIND_SLIDE` of the 0.85 s hold) under a tape-scrub, then a
     ghost carriage marks the slot. Nothing is judged while the tape winds. The carriages are
     not wound back. The purge column is never rewound.
-  - **Licence trials** (`TRIALS`): the same lessons as eight optional drills of one skill
-    each, scored bronze, silver or gold, on a LICENCE TRIALS screen behind the training disc.
-    Each opens when the first contract reaches the stage that uses the skill.
+  - **The whole lane runs back** on a rewind (Gil's second round): the bore, its hoops, the
+    warp lines, the gas and the deep field move by a signed lane speed (`laneVel`).
+  - **A call reads as "not you"** (third round): the pupil's emitters fall to 20%, everything
+    outside the ring and the lesson's focus wedge dims, and the lesson's traffic is drawn as
+    a hologram (tint, scan lines, flicker, colour split) while the instructor's carriages
+    stay plain. The licence trials screen was removed in the same round; the training disc
+    replays the course, as on master.
 - **Measured after:** the course in 99.4 s of game time for the bot, 0 disc stops, 0 retries.
   That is longer than the old 68.7 s, because each of the ten lessons now has a call of 2.4
   to 5.2 s; the old figure did not count a person reading ten discs. 0 of 41 ranked boards
   moved (per-board fingerprint against master), so the verifier deploy can be `--compatible`.
-- **Knobs:** `CALLS_ON`, `CALL_MOVE_DUR`, `CALL_ALPHA`, `REWIND_ON`, `REWIND_BACK`,
-  `REWIND_DUR`, `REWIND_SLIDE`, `REWIND_GHOST`, `TRIAL_GOLD_S`, `TRIAL_SILVER_S`.
+- **Knobs:** `CALLS_ON`, `CALL_MOVE_DUR`, `CALL_NODE_ALPHA`, `CALL_GHOST_NODES`,
+  `CALL_HOLO_ALPHA`, `CALL_DIM_OUT`, `CALL_DIM_IN`, `CALL_FOCUS`, `HOLO_TINT`, `HOLO_SCAN`,
+  `HOLO_SPLIT`, `HOLO_FLICKER`, `REWIND_ON`, `REWIND_BACK`, `REWIND_DUR`, `REWIND_SLIDE`,
+  `REWIND_GHOST`.
 
 ### F-016 · The tutorial's arrows did not show on a first run
 - **Date:** 2026-10-08 · **Source:** one tester, 1.0.11 · **Status:** not reproduced; addressed by F-017

@@ -245,7 +245,7 @@ function drawDeepField(g, dt) {
       deepEdit = null;
     } else { edF = deepEdit.from; edK = deepEdit.grow ? u : 1 - u; }
   }
-  const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5) * laneFlow * laneVel; // laneVel: negative while a trial rewinds (40-state)
+  const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5) * laneFlow * laneVel; // laneVel: negative while the course rewinds (40-state)
   // THE ORBIT DRIFT, nearest-layer edition. The pads hang the wrap span past
   // both screen edges so the modulo jump always happens off-frame — a body
   // exits one side, crosses its pad unseen, and re-enters the other. Rocks get
@@ -559,7 +559,7 @@ function headSprite(tint) {
 function drawStreaks(g, dt) {
   // a wounded convoy is a thinner, dimmer river
   const riverK = state === S.PLAY ? 0.35 + 0.65 * clamp(integrity / 100, 0, 1) : 1;
-  const spd = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow * laneVel; // signed: a trial rewind runs the river backwards
+  const spd = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow * laneVel; // signed: the course's rewind runs the river backwards
   // the ambient smear is SPEED-COUPLED. A fixed-length streak reads as texture
   // no matter how fast the lane runs; a streak that STRETCHES with the traffic
   // reads as velocity. This one number is what makes a fast level feel fast

@@ -85,7 +85,7 @@ let volley = { charge: 0, cd: 0, shots: [] };
 let enemies = [], particles = [], popups = [];
 let ghosts = [], ripples = []; // the decompile: de-rezzing bodies + healed-wall washes
 let shake = 0, redFlash = 0, tunnelScroll = 0, wallDist = 0, time = 0;
-// THE LANE'S SIGNED SPEED, for the painters: 1 is forward. While a trial's tape winds
+// THE LANE'S SIGNED SPEED, for the painters: 1 is forward. While the course's tape winds
 // back (qualRewindTick, 70-update) it goes NEGATIVE, so the bore, its hoops, the warp
 // lines, the gas and the deep field all run backwards with the traffic (Gil, 2026-10-08:
 // "it should move the entire tunnel back"). Render-side only: no sim reads it.

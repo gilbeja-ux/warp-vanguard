@@ -3361,6 +3361,8 @@ function drawDials() {
   // tutorial pad ghosts, LAST — over the finished dial, or the chrome buries them
   if (typeof tutDescNow !== 'undefined' && tutDescNow && tutDescNow.ghosts.length)
     drawTutPadGhosts(tutDescNow);
+  // a course CALL (90-hud): the dim goes over the finished dials, the instructor over the dim
+  if (typeof drawTutCallLayer === 'function') drawTutCallLayer();
   // THUMB GHOSTS, LATER STILL. They teach where a hand goes, which is a question
   // that comes before "where do I aim" — and they only exist while the lane is
   // parked, so they can never share the frame with the aiming ghosts above.

@@ -168,7 +168,7 @@ function update(dt) {
     laneFlow = Math.max(flowTgt, laneFlow - dt / (state === S.END ? (endWin ? WARP_COLLAPSE.brake : 1.0) : 0.45));
   // the wall streams at EXACTLY the traffic speed — leaks stay glued to it
   // (the tutorial's TAP-TO-FIRE hold stops the whole bore, wall included)
-  if (!(tut && tut.rewind)) laneVel = 1; // forward, except while a trial's tape winds back
+  if (!(tut && tut.rewind)) laneVel = 1; // forward, except while the course's tape winds back
   const flowMul = (tut && tut.frozen ? 0 : 1) * laneFlow * laneVel;
   tunnelScroll = (tunnelScroll + dt * (state === S.PLAY ? trafficSpeed * 10 : 0.5) * (1 + warp2 * 4) * flowMul) % 10;
   wallDist += dt * (state === S.PLAY ? trafficSpeed : 0.05) * (1 + warp2 * 4) * flowMul;
@@ -369,7 +369,7 @@ function update(dt) {
   // The frame context every enemy reads. stripProg travels back OUT: whichever
   // enemy a node is riding sets it, and the trace drone below is driven by it.
   const C = { L, sdt, g, waveMul, TOL, covers, ringXY, nearest, docked, stripProg: -1 };
-  // while a trial's tape winds back (qualRewind) the bodies slide from where they were
+  // while the course's tape winds back (qualRewind) the bodies slide from where they were
   // missed — at or past the ring — so nothing may be judged until they are back out
   const rewinding = !!(tut && tut.rewind);
   if (!rewinding) for (const en of enemies) updateEnemy(en, C);
