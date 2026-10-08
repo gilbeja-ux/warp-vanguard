@@ -704,16 +704,16 @@ const SHINE_SPAN = 1.4;  // radians the tail covers
 // object changes).
 const TUT_LESSON = {
   move:   'SLIDE THE DIALS \u2014 RIDE THE RING',
-  normal: 'ALIGN EITHER EMITTER ON THE RED',
-  wall:   'DEAD ZONE \u2014 GO AROUND',
+  normal: 'HIT WITH ANY EMITTER',
+  wall:   'DEAD ZONE \u2014 GO AROUND!',
   heavy:  'DOCK BOTH EMITTERS TOGETHER',
-  volley: 'DOCK BOTH AND HOLD \u2014 THE BOLT DETONATES',
+  volley: 'DOCK BOTH AND HOLD \u2014 TO FIRE VOLLEY',
   line:   'COVER BOTH ENDS \u2014 ONE EACH',
-  lock0:  'ONLY THE MATCHING PHASE COLLAPSES IT',
-  lock1:  'ONLY THE MATCHING PHASE COLLAPSES IT',
-  pickup: 'CATCH THE GOLD RELAY',
-  strip:  'RIDE THE CROSSING POINT',
-  pulse:  'TAP THE GLOWING CORE'
+  lock0:  'BLUE EMITTER ONLY',
+  lock1:  'WHITE EMITTER ONLY',
+  pickup: 'COLLECT THE POWER-UP',
+  strip:  'RIDE THE GOLDEN STRIP',
+  pulse:  'TAP THE GLOWING PAD \u2014 TO FIRE PULSE'
 };
 const TUT_ACCENT = {
   move: '143,224,255', normal: '255,96,120', wall: '255,154,60',
