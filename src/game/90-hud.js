@@ -1490,16 +1490,23 @@ function drawHUD(g) {
 }
 
 // ---------- the course, on the HUD (2026-10-08) ----------
-// curriculum pips: one per drill, so the pupil can SEE the finish line
+// curriculum pips: one per drill, so the pupil can SEE the finish line. They ride the
+// ring's own top arc and stay quiet (Gil, 2026-10-08: "less visible, and aligned with
+// the ring (arc) on top of it") — a progress mark on the hardware, not a HUD row.
+const PIPS_R = 1.0;       // the arc's radius, × nodeR: 1 sits the pips on the ring itself
+const PIPS_GAP = 0.05;    // radians between neighbouring pips
+const PIPS_ALPHA = 0.45;  // the strongest a pip gets (the current one, at the top of its breath)
 function drawCoursePips() {
   const nP = QUAL.length - 1; // 'done' is the ceremony, not a drill
-  const uP = Math.min(W, H), gap = uP * 0.032;
-  const x0 = W / 2 - (nP - 1) * gap / 2, y0 = SAFE.t + uP * 0.045;
+  const g = geo(), uP = Math.min(W, H), r = g.nodeR * PIPS_R;
+  const a0 = -Math.PI / 2 - (nP - 1) * PIPS_GAP / 2;
   for (let i = 0; i < nP; i++) {
-    const done2 = i < tut.stage, cur = i === tut.stage;
-    ctx.globalAlpha = cur ? 0.7 + Math.sin(time * 5) * 0.3 : 1;
-    ctx.fillStyle = done2 ? 'rgba(126,226,98,0.9)' : cur ? 'rgba(143,224,255,0.95)' : 'rgba(90,120,160,0.4)';
-    ctx.beginPath(); ctx.arc(x0 + i * gap, y0, uP * (done2 || cur ? 0.008 : 0.0055), 0, TAU); ctx.fill();
+    const done2 = i < tut.stage, cur = i === tut.stage, a = a0 + i * PIPS_GAP;
+    ctx.globalAlpha = PIPS_ALPHA * (cur ? 0.75 + Math.sin(time * 5) * 0.25 : done2 ? 0.8 : 0.45);
+    ctx.fillStyle = done2 ? 'rgb(126,226,98)' : cur ? 'rgb(143,224,255)' : 'rgb(120,150,190)';
+    ctx.beginPath();
+    ctx.arc(g.cx + Math.cos(a) * r, g.cy + Math.sin(a) * r, uP * (cur ? 0.0065 : 0.0045), 0, TAU);
+    ctx.fill();
   }
   ctx.globalAlpha = 1;
 }
