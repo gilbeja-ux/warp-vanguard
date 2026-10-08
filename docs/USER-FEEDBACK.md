@@ -39,7 +39,9 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
     warp lines, the gas and the deep field move by a signed lane speed (`laneVel`).
   - **A call reads as "not you"** (third round): the pupil's emitters fall to 20%, everything
     outside the ring and the lesson's focus wedge dims, and the lesson's traffic is drawn as
-    a hologram (tint, scan lines, flicker, colour split) while the instructor's carriages
+    a simulation (its own colours at 55% opacity, with a short glitch burst about once a
+    second: torn bands and a colour fringe; a cyan hologram wash hid the enemy colours and
+    was cut in round four) while the instructor's carriages
     stay plain. The licence trials screen was removed in the same round; the training disc
     replays the course, as on master.
 - **Measured after:** the course in 99.4 s of game time for the bot, 0 disc stops, 0 retries.
@@ -47,8 +49,8 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   to 5.2 s; the old figure did not count a person reading ten discs. 0 of 41 ranked boards
   moved (per-board fingerprint against master), so the verifier deploy can be `--compatible`.
 - **Knobs:** `CALLS_ON`, `CALL_MOVE_DUR`, `CALL_NODE_ALPHA`, `CALL_GHOST_NODES`,
-  `CALL_HOLO_ALPHA`, `CALL_DIM_OUT`, `CALL_DIM_IN`, `CALL_FOCUS`, `HOLO_TINT`, `HOLO_SCAN`,
-  `HOLO_SPLIT`, `HOLO_FLICKER`, `REWIND_ON`, `REWIND_BACK`, `REWIND_DUR`, `REWIND_SLIDE`,
+  `CALL_HOLO_ALPHA`, `CALL_DIM_OUT`, `CALL_DIM_IN`, `CALL_FOCUS`, `HOLO_FLICKER`, `GLITCH_EVERY`,
+  `GLITCH_LEN`, `GLITCH_SLICES`, `GLITCH_SHIFT`, `GLITCH_SPLIT`, `REWIND_ON`, `REWIND_BACK`, `REWIND_DUR`, `REWIND_SLIDE`,
   `REWIND_GHOST`.
 
 ### F-016 · The tutorial's arrows did not show on a first run

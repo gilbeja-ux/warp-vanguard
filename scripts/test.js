@@ -179,6 +179,7 @@ code = code.replace("'use strict';", '') + `
   getLaneVel: () => laneVel, getWallDist: () => wallDist, // the rewind runs the whole lane back
   QUAL, REWIND_BACK, REWIND_DUR, CALL_MOVE_DUR, callDur, drawTutCall, setTut: v => { tut = v; },
   drawTutCallLayer, tutCallNodeK, CALL_NODE_ALPHA, getHoloCv: () => holoCv, getDemoNodeSink: () => demoNodeSink,
+  callGlitch, GLITCH_EVERY, GLITCH_LEN,
   getProg: () => PROG, getCamp: () => CAMP, validateCampaign, installCampaign, CAMPAIGNS,
   getLevelIdx: () => levelIdx, campaignCleared, // the report's contract hand-over reads both
   DEST_DEAL, DEST_ROLL, S3D_FINAL, dealVariantId, dealBuildId, dealRoll, variantById,
@@ -2882,7 +2883,19 @@ check('a fresh course: the pupil\'s emitters are at full strength before any cal
   G.tut().call = { kind: 'heavy', key: 'heavy', t: 1.2, dur: G.callDur('heavy'), a: 0.9 };
   drawOk('the armor call layer: dim, hologram traffic, plain instructor carriages', () => { G.setState(G.S.PLAY); });
   check('the hologram buffer exists while traffic is called', !!G.getHoloCv());
-  check('the carriage sink is released after every hologram pass', G.getDemoNodeSink() === null);
+  check('the carriage sink is released after every simulation pass', G.getDemoNodeSink() === null);
+  // the glitch: a short burst about once per GLITCH_EVERY, never the whole time, and the
+  // torn frame paints
+  {
+    let on = 0, n = 0, burstT = null;
+    for (let t = 0; t < 20; t += 0.01, n++) { if (G.callGlitch(t).burst) { on++; if (burstT === null) burstT = t; } }
+    const share = on / n, want = G.GLITCH_LEN / G.GLITCH_EVERY;
+    check(`the glitch is a short burst, not a state (${(share * 100).toFixed(1)}% of the time, about ${(want * 100).toFixed(1)}% wanted)`,
+      share > want * 0.6 && share < want * 1.4);
+    const t0 = G.getTime();
+    drawOk('a call frame mid-glitch', () => { G.setState(G.S.PLAY); G.setTime(burstT); });
+    G.setTime(t0);
+  }
   for (const k of ['normal', 'volley', 'line', 'lock', 'pickup', 'strip', 'pulse', 'wall'])
     drawOk('call layer: ' + k, () => {
       G.setState(G.S.PLAY);

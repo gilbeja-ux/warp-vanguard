@@ -1511,25 +1511,38 @@ function drawCoursePips() {
 // IT MUST READ AS "NOT YOU" (Gil, 2026-10-08). Three things say so:
 //   · the pupil's own emitters drop to CALL_NODE_ALPHA (tutCallNodeK, read by 99-boot);
 //   · everything outside the ring and the lesson's focus is dimmed (drawCallDim);
-//   · the traffic of the lesson is a HOLOGRAM — tinted, scan-lined, flickering, split —
-//     while the instructor's carriages stay plain: they already look unlike the pupil's.
+//   · the traffic of the lesson is a SIMULATION — its own colours at reduced opacity,
+//     torn now and then by a short glitch — while the instructor's carriages stay plain:
+//     they already look unlike the pupil's. (A cyan hologram wash came first and was cut
+//     the same day: "the hologram effect makes the enemy colors invisible" — the colour
+//     IS the lesson's tell, red for intercept, purple for armor, blue for a phase lock.)
 // All of it is drawn LAST, over the dials (drawTutCallLayer, from drawDials).
 const CALL_NODE_ALPHA = 0.2;   // the pupil's emitters while the instructor flies
 const CALL_GHOST_NODES = 0.85; // the instructor's carriages
-const CALL_HOLO_ALPHA = 0.9;   // the hologram traffic, at its strongest
+const CALL_HOLO_ALPHA = 0.55;  // the simulated traffic's opacity: its own colours, plainly not solid
 const CALL_DIM_OUT = 0.62;     // the dim outside the ring
 const CALL_DIM_IN = 0.38;      // the dim inside the bore, outside the lesson's focus
 const CALL_RING_BAND = 0.075;  // half the ring's undimmed band, × min(W, H)
 // the lit wedge around the call's bearing, half-width in radians; pulse lights the bore
 const CALL_FOCUS = { normal: 0.55, heavy: 0.6, volley: 0.85, line: 1.2, lock: 0.6, pickup: 0.6, strip: 0.8, wall: 0.8 };
 const CALL_FOCUS_AT = { line: 0.75 }; // the wedge's centre, off the call bearing (a net straddles it)
-const HOLO_TINT = 0.5;         // how far the traffic is washed toward hologram cyan
-const HOLO_SCAN = 0.5;         // how much each scan line cuts out
-const HOLO_SPLIT = 2;          // px each colour ghost is pushed sideways
-const HOLO_FLICKER = 0.14;     // the flicker's depth
+const HOLO_FLICKER = 0.10;     // the opacity's flicker depth
+const GLITCH_EVERY = 0.9;      // seconds: about one glitch burst per this, at a hashed moment
+const GLITCH_LEN = 0.11;       // seconds a burst lasts
+const GLITCH_SLICES = 6;       // horizontal bands a burst tears the traffic into
+const GLITCH_SHIFT = 9;        // px a torn band slides sideways, at most
+const GLITCH_SPLIT = 3;        // px of the colour fringe a burst throws, either side
 // where each diorama stages its bearing, off DISC_BOT, so the turn lands it on the call's
 const CALL_DEMO_OFF = { normal: 0.18, pickup: 0.30, line: -0.75, wall: 1.4 - Math.PI / 2 };
-let holoCv = null;             // the hologram buffer: the ring's bounding square, released with the course
+let holoCv = null;             // the simulation buffer: the ring's bounding square, released with the course
+// THE GLITCH: one short burst per GLITCH_EVERY, at a moment hashed off the clock
+// (render-side, never Math.random), so the beat is irregular but never twice the same
+const glitchHash = n => { const s = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return s - Math.floor(s); };
+function callGlitch(t) {
+  const k = Math.floor(t / GLITCH_EVERY), local = t - k * GLITCH_EVERY;
+  const start = glitchHash(k) * (GLITCH_EVERY - GLITCH_LEN);
+  return { k, local, start, burst: local >= start && local < start + GLITCH_LEN };
+}
 function tutCallEnv() {
   const c = tut && tut.call;
   if (!c || state !== S.PLAY) return 0;
@@ -1605,9 +1618,9 @@ function drawTutCall(c, env) {
   const Rs = g.nodeR / 0.72;                       // dRail(Rs) = 0.72 Rs = the ring
   const tt = Math.min(c.t, c.dur - 0.001);
   const sink = [];
-  // 1. THE TRAFFIC, as a hologram: drawn into a buffer the size of the ring's square,
-  //    the carriages caught by the sink instead of drawn, then washed, scan-lined and
-  //    given a rolling bright band, and composited flickering and split in two colours
+  // 1. THE TRAFFIC, as a simulation: drawn into a buffer the size of the ring's square,
+  //    the carriages caught by the sink instead of drawn, then composited at reduced
+  //    opacity in its own colours — and now and then torn by a glitch burst
   const R = g.nodeR * 1.15, x0 = g.cx - R, y0 = g.cy - R, S = Math.max(2, Math.ceil(2 * R * DPR));
   if (!holoCv) holoCv = document.createElement('canvas');
   if (holoCv.width !== S || holoCv.height !== S) { holoCv.width = S; holoCv.height = S; }
@@ -1620,27 +1633,30 @@ function drawTutCall(c, env) {
     demoNodeSink = sink;
     try { DEMO[c.key](Rs, tt); } finally { demoNodeSink = null; }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-atop';
-    ctx.fillStyle = 'rgba(110,215,255,' + HOLO_TINT + ')';
-    ctx.fillRect(0, 0, S, S);
-    ctx.fillStyle = 'rgba(235,250,255,0.35)';
-    ctx.fillRect(0, ((time * 0.55) % 1.3 - 0.15) * S, S, S * 0.05);
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = 'rgba(0,0,0,' + HOLO_SCAN + ')';
-    const step = Math.max(2, Math.round(3 * DPR)), line = Math.max(1, Math.round(DPR));
-    for (let y = 0; y < S; y += step) ctx.fillRect(0, y, S, line);
-    ctx.globalCompositeOperation = 'source-over';
   });
   if (ok) {
     const flick = 1 - HOLO_FLICKER * (0.5 + 0.5 * Math.sin(time * 37) * Math.sin(time * 13.7));
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = CALL_HOLO_ALPHA * env * flick * 0.3;
-    ctx.drawImage(holoCv, x0 - HOLO_SPLIT, y0, 2 * R, 2 * R);
-    ctx.drawImage(holoCv, x0 + HOLO_SPLIT, y0, 2 * R, 2 * R);
-    ctx.globalAlpha = CALL_HOLO_ALPHA * env * flick;
-    ctx.drawImage(holoCv, x0, y0, 2 * R, 2 * R);
-    ctx.globalCompositeOperation = 'source-over';
+    const a = CALL_HOLO_ALPHA * env * flick;
+    const { k, local, start, burst } = callGlitch(time);
+    if (!burst) {
+      ctx.globalAlpha = a;
+      ctx.drawImage(holoCv, x0, y0, 2 * R, 2 * R);
+    } else {
+      // torn: the square in horizontal bands, each slid sideways by its own amount, and a
+      // faint colour fringe either side — the frame of a simulation dropping a line
+      const hash = glitchHash, seed = k * 7 + Math.floor((local - start) / 0.04);
+      const bandS = S / GLITCH_SLICES, bandG = 2 * R / GLITCH_SLICES;
+      for (let i = 0; i < GLITCH_SLICES; i++) {
+        const dx = (hash(seed + i * 3.1) - 0.5) * 2 * GLITCH_SHIFT;
+        ctx.globalAlpha = a * (hash(seed + i * 5.7) < 0.15 ? 0.35 : 1); // now and then a band drops out
+        ctx.drawImage(holoCv, 0, i * bandS, S, bandS, x0 + dx, y0 + i * bandG, 2 * R, bandG);
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = a * 0.25;
+      ctx.drawImage(holoCv, x0 - GLITCH_SPLIT, y0, 2 * R, 2 * R);
+      ctx.drawImage(holoCv, x0 + GLITCH_SPLIT, y0, 2 * R, 2 * R);
+      ctx.globalCompositeOperation = 'source-over';
+    }
   }
   // 2. THE INSTRUCTOR'S CARRIAGES, plain, over the hologram
   ctx.translate(g.cx, g.cy); ctx.rotate(rot);
