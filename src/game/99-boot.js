@@ -501,7 +501,15 @@ function splashEnd(skip) {
   // it opens the curtain the instant the last hull lands. Without this the one
   // player most likely to skip — the impatient one, on the slowest phone — is
   // the only player who gets into a lane before its bodies exist.
-  if (!splashGateOpen()) { SPLASH.skip = true; return; }
+  // …but it is ANSWERED at once: the sequence jumps straight to its last opaque beat
+  // and holds there, so the click visibly skips the GB-IL card and the ride, and the
+  // menu follows the instant the load lands (Gil, 2026-10-08: a click that waited out
+  // the whole card read as a click that did nothing).
+  if (!splashGateOpen()) {
+    SPLASH.skip = true;
+    if (SPLASH.t < SPL.hold) { SPLASH.t = SPL.hold; SPLASH.held = true; }
+    return;
+  }
   SPLASH.on = false;
   if (SPLASH.src && AC) { // bow out fast on a skip; a natural end is already silent
     try {
@@ -627,6 +635,12 @@ function drawSplash(rawDt) {
   else if (SPLASH.src && AC) SPLASH.t = SPLASH.startOff + (AC.currentTime - SPLASH.startAC);
   else SPLASH.t += clamp(rawDt, 0, 0.05);
   const gateOpen = splashGateOpen();
+  // A SKIP TAPPED DURING THE LOAD IS OBEYED THE MOMENT THE LOAD ENDS — wherever the
+  // sequence is. It used to be released only from the HELD branch below, which a load
+  // that finishes before SPL.hold never enters (any desktop, most phones): the tap was
+  // remembered, never acted on, and the whole splash played out. Gil, 2026-10-08:
+  // "clicking on the splash doesn't skip it".
+  if (SPLASH.skip && gateOpen) { splashEnd(true); return; }
   // THE BOOT GATE. The enemy's body is a baked hull, and a hull that lands
   // mid-session changes the game under the player — so the curtain does not open
   // until every hull is in. On any machine that finishes inside the sequence this
