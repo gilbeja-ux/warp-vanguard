@@ -29,6 +29,12 @@ function gpTouchNav() { gpNav = true; gpNavAt = time; }
 let gpStickDir = ''; // last stick step direction — a NEW direction steps again
 let gpStickOn = false, gpStickHeld = 0, gpStickGo = false; // menu-stick hysteresis + sustain — see menuStick()
 let gpSeen = false; // a controller has spoken — show button hints, arm the stick gate
+// WHO IS FLYING RIGHT NOW. gpSeen latches for the session, so one brush of a connected
+// controller (or a drifting stick) hid the course's thumb ghosts from a player who went
+// on to play by touch or mouse — Gil, 2026-10-08, on a Mac with a pad attached: "i don't
+// see the ghost finger". gpDriving follows the LATEST input: a press or a stick sets it,
+// any pointer press clears it (60-input). The thumb ghosts read this, not gpSeen.
+let gpDriving = false;
 let gpSig = ''; // screen signature — focus snaps to the primary key on arrival
 function gpSyncFocus(list) { // → true when focus just snapped to a fresh screen
   const sig = state + ':' + (state === S.MENU ? menuScreen : '') + (menuSettings ? ':set' : '') + ':' + list.length;
@@ -308,8 +314,13 @@ function pollGamepad(dt) {
     padPrev.lb = press(4); padPrev.rb = press(5);
     return;
   }
-  if (!gpSeen && (gp.buttons.some(b2 => b2 && b2.pressed) || gp.axes.some(v => Math.abs(v) > 0.3)))
-    gpSeen = true; // first real input → button hints + controller boot gate
+  const gpLive = gp.buttons.some(b2 => b2 && b2.pressed) || gp.axes.some(v => Math.abs(v) > 0.3);
+  if (!gpSeen && gpLive) gpSeen = true; // first real input → button hints + controller boot gate
+  // …and the controller is the hand on the game right now. On the EDGE only: a stick
+  // that drifts past the deadzone and stays there would otherwise re-take the game every
+  // poll, straight after a click had handed it back to the pointer.
+  if (gpLive && !padPrev.live) gpDriving = true;
+  padPrev.live = gpLive;
   // the enlistment takes ANY button, the way the splash does. It has one verb —
   // continue — so asking a controller player to find a specific face button for
   // it would be ceremony with no choice behind it.

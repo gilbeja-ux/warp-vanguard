@@ -395,7 +395,7 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
 }
 function drawThumbGhosts(a0) {
   // a controller has no pads to place a thumb on, and a stick arms its own side
-  if (typeof gpSeen !== 'undefined' && gpSeen) return;
+  if (typeof gpDriving !== 'undefined' && gpDriving) return;
   if (typeof preT === 'undefined' || preT < GHOST_DELAY) return;
   const t = preT - GHOST_DELAY;
   for (let i = 0; i < 2; i++) {
@@ -469,7 +469,7 @@ function dragGhostState(i, target) {
   return { u: ((time - s.t0) % DRAG_GHOST_CYCLE) / DRAG_GHOST_CYCLE, from: s.from };
 }
 function drawTutDragGhost(i, target) {
-  if (typeof gpSeen !== 'undefined' && gpSeen) return; // a stick is not a thumb
+  if (typeof gpDriving !== 'undefined' && gpDriving) return; // a stick is not a thumb
   const st = dragGhostState(i, target);
   if (!st) return;
   const side = i === 0 ? 'L' : 'R';
@@ -1499,7 +1499,6 @@ function drawHUD(g) {
 const PULSE_TAP_DELAY = 1.6;  // seconds of hold before the ghost steps in
 const PULSE_TAP_CYCLE = 1.2;  // seconds per demonstrated tap
 function drawPulseTapGhost(i, d) {
-  if (typeof gpSeen !== 'undefined' && gpSeen) return; // a controller fires with a button, not a thumb
   // the right thumb trails the left, so two ghosts read as two hands, not a mirror
   const since = time - (tut.frozenAt === undefined ? time : tut.frozenAt) - i * GHOST_STAGGER;
   if (since < PULSE_TAP_DELAY) return;
@@ -1507,6 +1506,12 @@ function drawPulseTapGhost(i, d) {
   const u = ((since - PULSE_TAP_DELAY) % PULSE_TAP_CYCLE) / PULSE_TAP_CYCLE;
   // approach, press, hold, lift
   const down = u < 0.25 ? 0 : u < 0.38 ? (u - 0.25) / 0.13 : u < 0.6 ? 1 : u < 0.72 ? 1 - (u - 0.6) / 0.12 : 0;
+  // A CONTROLLER FIRES WITH A TRIGGER (71-gamepad: LT → blue, RT → white). Whenever one
+  // has been detected, the pad shows its trigger, pressing on the same beat as the ghost
+  // thumb (Gil, 2026-10-08). The thumb still shows unless the controller is the hand on
+  // the game right now, so a touch player with a pad attached sees both.
+  if (typeof gpSeen !== 'undefined' && gpSeen) drawPulseTrigger(i, d, down, fadeIn);
+  if (typeof gpDriving !== 'undefined' && gpDriving) return;
   // between taps the thumb rises off the pad, back toward the hand it belongs to
   const lift = (1 - down) * d.r * 0.22, side = i === 0 ? 'L' : 'R';
   const x = d.x + (side === 'L' ? -1 : 1) * lift * 0.7, y = d.y + lift * 0.7;
@@ -1518,6 +1523,32 @@ function drawPulseTapGhost(i, d) {
     ctx.restore();
   }
   drawThumbGhost(x, y, side, down, fadeIn, d.r * 0.55);
+}
+// THE TRIGGER, drawn as a trigger: a key rounded on its top edge like the shoulder of a
+// controller, its name on it, sunk and lit on each press. It sits on the pad's centre,
+// clear of the ready arrow above, and the ghost thumb (when it shows too) presses it.
+function drawPulseTrigger(i, d, down, alpha) {
+  const label = i === 0 ? 'LT' : 'RT', col = NODE_COLS[i];
+  const w = d.r * 0.62, h = d.r * 0.40, x = d.x - w / 2, y = d.y - h / 2 + down * h * 0.12;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.moveTo(x, y + h);
+  ctx.lineTo(x, y + h * 0.45);
+  ctx.quadraticCurveTo(x, y, x + w * 0.5, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + h * 0.45);
+  ctx.lineTo(x + w, y + h);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(' + col + ',' + (0.18 + 0.55 * down).toFixed(2) + ')';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(' + col + ',0.95)'; ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '800 ' + Math.round(h * 0.55) + 'px Audiowide, system-ui';
+  ctx.fillStyle = down > 0.5 ? '#04101e' : '#f2faff';
+  ctx.fillText(label, d.x, y + h * 0.58);
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.restore();
 }
 // ---------- the course, on the HUD (2026-10-08) ----------
 // THE COURSE'S PROGRESS RIDES THE LEFT BAR, the lane-progress gauge every stage uses

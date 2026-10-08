@@ -180,6 +180,8 @@ code = code.replace("'use strict';", '') + `
   QUAL, REWIND_BACK, REWIND_DUR, CALL_MOVE_DUR, callDur, drawTutCall, setTut: v => { tut = v; },
   drawTutCallLayer, tutCallNodeK, CALL_NODE_ALPHA, getHoloCv: () => holoCv, getDemoNodeSink: () => demoNodeSink,
   callGlitch, GLITCH_EVERY, GLITCH_LEN,
+  getGpDriving: () => gpDriving, setGpDriving: v => { gpDriving = v; }, // who is flying right now (71-gamepad)
+  setGpSeen: v => { gpSeen = v; },
   getProg: () => PROG, getCamp: () => CAMP, validateCampaign, installCampaign, CAMPAIGNS,
   getLevelIdx: () => levelIdx, campaignCleared, // the report's contract hand-over reads both
   DEST_DEAL, DEST_ROLL, S3D_FINAL, dealVariantId, dealBuildId, dealRoll, variantById,
@@ -2839,6 +2841,24 @@ check('bonus-stream drill begins', G.qualStage().card === 'strip');
   check('the FIRE-PULSE hold freezes the run', G.tut() && G.tut().frozen === true);
   // nobody taps: after PULSE_TAP_DELAY a ghost thumb taps the charged pad (Gil, 2026-10-08)
   check('the hold remembers when it began, for the ghost tap', typeof G.tut().frozenAt === 'number');
+  // A CONNECTED CONTROLLER MUST NOT HIDE THE GHOST FROM A TOUCH PLAYER (Gil, 2026-10-08,
+  // on a Mac with a pad attached). The ghosts follow the LATEST input, and a pointer
+  // press takes the game back from the controller.
+  {
+    G.setGpDriving(true);
+    const dz = G.dialCenter('L');
+    canvasHandlers.pointerdown({ pointerId: 31, clientX: dz.x - dz.r * 3, clientY: 5, pointerType: 'mouse' });
+    canvasHandlers.pointerup({ pointerId: 31, clientX: dz.x - dz.r * 3, clientY: 5, pointerType: 'mouse' });
+    check('a pointer press hands the game back from the controller, so the thumb ghosts show', G.getGpDriving() === false);
+    // with a controller detected the charged pad shows its trigger (LT blue, RT white)
+    const was = G.tut().frozenAt;
+    G.setGpSeen(true);
+    drawOk('the trigger badge on the charged pad, controller detected, touch in hand', () => { G.setState(G.S.PLAY); G.tut().frozenAt = G.getTime() - 2.3; });
+    G.setGpDriving(true);
+    drawOk('the trigger badge alone, the controller flying', () => { G.setState(G.S.PLAY); G.tut().frozenAt = G.getTime() - 2.3; });
+    G.setGpDriving(false); G.setGpSeen(false);
+    G.tut().frozenAt = was;
+  }
   {
     const was = G.tut().frozenAt;
     for (const back of [2.0, 2.4, 2.9]) // approach, press, lift

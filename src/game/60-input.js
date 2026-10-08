@@ -135,6 +135,7 @@ canvas.addEventListener('pointerdown', e => {
   // transitions. This is the same rule browsers use for :focus-visible: show the
   // ring for keyboard navigation, hide it the moment a pointer is used.
   gpNav = false;
+  gpDriving = false; // a hand on the screen: the thumb ghosts may show again (71-gamepad)
   audio();
   if (e.pointerType === 'touch') tryLockLandscape();
   if (SPLASH.on) { splashTap(); return; } // the splash eats the tap — unlock or skip
