@@ -1484,11 +1484,11 @@ function drawHUD(g) {
           ctx.fillStyle = 'rgba(143,224,255,0.95)';
           ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(-7, -6); ctx.lineTo(7, -6); ctx.closePath(); ctx.fill();
           ctx.restore();
-          // nobody has tapped yet: a ghost thumb shows the tap, on the first charged pad
-          if (!pulseTapShown) { pulseTapShown = true; drawPulseTapGhost(i, d); }
+          // nobody has tapped yet: a ghost thumb shows the tap, on EVERY charged pad (Gil:
+          // "didn't show on the white pad" — the ride can charge white while the zaps charge blue)
+          drawPulseTapGhost(i, d);
         }
       }
-      pulseTapShown = false;
     }
   }
 }
@@ -1498,10 +1498,10 @@ function drawHUD(g) {
 // taps the centre of the charged pad, on a loop, until the real thumb does it.
 const PULSE_TAP_DELAY = 1.6;  // seconds of hold before the ghost steps in
 const PULSE_TAP_CYCLE = 1.2;  // seconds per demonstrated tap
-let pulseTapShown = false;    // one ghost per frame, on the first charged pad
 function drawPulseTapGhost(i, d) {
   if (typeof gpSeen !== 'undefined' && gpSeen) return; // a controller fires with a button, not a thumb
-  const since = time - (tut.frozenAt === undefined ? time : tut.frozenAt);
+  // the right thumb trails the left, so two ghosts read as two hands, not a mirror
+  const since = time - (tut.frozenAt === undefined ? time : tut.frozenAt) - i * GHOST_STAGGER;
   if (since < PULSE_TAP_DELAY) return;
   const fadeIn = clamp((since - PULSE_TAP_DELAY) / 0.3, 0, 1);
   const u = ((since - PULSE_TAP_DELAY) % PULSE_TAP_CYCLE) / PULSE_TAP_CYCLE;
