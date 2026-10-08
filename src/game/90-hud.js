@@ -891,6 +891,7 @@ function drawHUD(g) {
   const prog = replaying ? clamp(tracePlay ? tracePlay.i / Math.max(1, replayMeta.total) : 1, 0, 1)
     : boss ? clamp(boss.hp / boss.maxHp, 0, 1)
     : endless ? clamp(1 - surgeToNext(levelT) / SURGE_EVERY, 0, 1)
+    : tut ? courseProg() // the qualification course: lessons done over lessons
     : clamp(levelT / Math.max(0.001, laneEndShow || L.duration), 0, 1);
   if (prog > 0.005) {
     const aEnd = aL0 + (aL1 - aL0) * prog;
@@ -962,6 +963,7 @@ function drawHUD(g) {
       ? { n: mmss((replayMeta.total - (tracePlay ? tracePlay.i : replayMeta.total)) * SIM_DT), l: 'REMAINING', c: '#eaf6ff' }
     : boss ? { n: (boss.maxHp - boss.hp) + '/' + boss.maxHp, l: 'PULSES', c: '#e8b5ff' }
     : endless ? { n: mmss(surgeToNext(levelT)), l: 'SURGE IN', c: '#ffc27a' }
+    : tut ? { n: Math.min(tut.stage + 1, courseLessons()) + '/' + courseLessons(), l: 'LESSON', c: '#bff5a8' }
     : !laneEndShow ? null
     : { n: mmss(laneEndShow - levelT), l: 'LANE OUT', c: '#bff5a8' };
   if (clk) {
@@ -1275,7 +1277,6 @@ function drawHUD(g) {
   tutDescNow = null; // stale ghosts must not survive the drill that made them
   if (tut && tut.stage >= 0 && introT >= INTRO_DUR) {
     const st = tutStage();
-    drawCoursePips();
     if (st.card === 'done') drawQualCeremony(tut.t);
     // (No stage banner. Each drill used to announce itself in a stack of text
     // across the CENTER of the bore — the one place the traffic comes from. The
@@ -1490,25 +1491,21 @@ function drawHUD(g) {
 }
 
 // ---------- the course, on the HUD (2026-10-08) ----------
-// curriculum pips: one per drill, so the pupil can SEE the finish line. They ride the
-// ring's own top arc and stay quiet (Gil, 2026-10-08: "less visible, and aligned with
-// the ring (arc) on top of it") — a progress mark on the hardware, not a HUD row.
-const PIPS_R = 1.0;       // the arc's radius, × nodeR: 1 sits the pips on the ring itself
-const PIPS_GAP = 0.05;    // radians between neighbouring pips
-const PIPS_ALPHA = 0.45;  // the strongest a pip gets (the current one, at the top of its breath)
-function drawCoursePips() {
-  const nP = QUAL.length - 1; // 'done' is the ceremony, not a drill
-  const g = geo(), uP = Math.min(W, H), r = g.nodeR * PIPS_R;
-  const a0 = -Math.PI / 2 - (nP - 1) * PIPS_GAP / 2;
-  for (let i = 0; i < nP; i++) {
-    const done2 = i < tut.stage, cur = i === tut.stage, a = a0 + i * PIPS_GAP;
-    ctx.globalAlpha = PIPS_ALPHA * (cur ? 0.75 + Math.sin(time * 5) * 0.25 : done2 ? 0.8 : 0.45);
-    ctx.fillStyle = done2 ? 'rgb(126,226,98)' : cur ? 'rgb(143,224,255)' : 'rgb(120,150,190)';
-    ctx.beginPath();
-    ctx.arc(g.cx + Math.cos(a) * r, g.cy + Math.sin(a) * r, uP * (cur ? 0.0065 : 0.0045), 0, TAU);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
+// THE COURSE'S PROGRESS RIDES THE LEFT BAR, the lane-progress gauge every stage uses
+// (Gil: the step dots were "just confusing… implement them on the left bar as actual lane
+// progress"). The fill is lessons done over lessons in the course; the controls lesson
+// fills by its reps as well, and the fill eases rather than steps. The readout at the
+// head says which lesson of how many (drawHUD's clk).
+const courseLessons = () => QUAL.length - 1;   // 'done' is the ceremony, not a lesson
+let courseProgShow = 0, courseProgRef = null;  // the eased fill, and the pupil it belongs to
+function courseProg() {
+  if (courseProgRef !== tut) { courseProgRef = tut; courseProgShow = 0; }
+  const n = courseLessons(), st = tutStage();
+  let sub = 0;
+  if (st && st.card === 'move' && tut.aim) sub = tut.aim.idx / tut.aim.reps.length;
+  const tgt = st && st.card === 'done' ? 1 : clamp((tut.stage + sub) / n, 0, 1);
+  courseProgShow += (tgt - courseProgShow) * 0.08;
+  return courseProgShow;
 }
 // THE CALL (70-update, qualNext): the lesson's own diorama, played on the live ring by
 // an instructor, turned onto the bearing the real traffic will take. The dioramas were
@@ -1564,7 +1561,7 @@ function drawTutCallLayer() {
   if (env <= 0) return;
   drawCallDim(c, env);
   drawTutCall(c, env);
-  drawTutLessonLine({ kind: c.kind }, 'WATCH'); // over the dim, so the line still reads
+  drawTutLessonLine({ kind: c.kind }); // over the dim, so the line still reads (no WATCH prefix: Gil, round six)
 }
 function drawCallDim(c, env) {
   const g = geo(), band = Math.min(W, H) * CALL_RING_BAND;

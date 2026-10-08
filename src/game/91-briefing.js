@@ -324,7 +324,10 @@ const DEMO_HULL = {
   normal: 'BRTAP', heavy: 'BRHVY', lock0: 'BRTAP', lock1: 'BRTAP'
 };
 const dRail = Rs => Rs * 0.72;
-const DOCK_GAP = 0.13;   // half the sim's dock window — see the armor lesson
+// half the gap between two docked carriages. It was 0.13, half the sim's dock window;
+// Gil, 2026-10-08, watching the armor call on the live ring: the instructor's two
+// emitters were "not close enough together". A dock should read as one meeting point.
+const DOCK_GAP = 0.05;
 
 // the bore: rings receding to the middle, and the rail the emitters ride
 function demoBore(Rs) {
@@ -504,8 +507,8 @@ const DEMO = {
     else { demoZap(Rs, A, 0, 0, dSeg(t, hit, hit + 0.28)); demoPop(Rs, A, 0, dSeg(t, hit, hit + 0.55)); }
   },
   // DOCK BOTH. Two thumbs converge on one bearing and the armor gives.
-  // DOCK_GAP: docked is docked to within 0.26 rad in the sim, and the diorama keeps
-  // the outside of that — two carriages landing on the same pixel read as one.
+  // DOCK_GAP: the two carriages land a hair apart, so the dock reads as one meeting
+  // point while both colours still show (see the constant).
   heavy(Rs, t) {
     const A = DISC_BOT, hit = 2.8;
     demoNode(Rs, 0, dSlide(t, 0.6, 2.0, A + 2.2, A - DOCK_GAP));
