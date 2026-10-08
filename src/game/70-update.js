@@ -390,10 +390,11 @@ function qualRewind(kind) {
   pulseCharge = s.pulse.slice();
   s.deadT.forEach((d, i) => { nodes[i].deadT = d; });
   tut.spawned = s.spawned; tut.wallDone = s.wallDone;
+  const span = tut.clock - s.clock; // lane-seconds wound back: the whole lane travels them
   tut.snaps = tut.snaps.filter(f => f.clock <= s.clock);
   tut.clock = s.clock; tut.snapAt = s.clock;
   tut.retry = null; tut.missCounted = false; tut.again = null; tut.t = 0;
-  tut.rewind = { t: 0, dur: REWIND_DUR, kind }; tut.rewindAt = time;
+  tut.rewind = { t: 0, dur: REWIND_DUR, kind, span, eLast: 0 }; tut.rewindAt = time;
   sfx.tutFreeze(); // the tape-warp: the run holds its breath, then picks up again
   buzz([18, 30, 18]);
   return true;
@@ -406,6 +407,12 @@ function qualRewindTick(dt) {
   const R = tut.rewind;
   R.t += dt;
   const q = clamp(R.t / (R.dur * REWIND_SLIDE), 0, 1), e = 1 - Math.pow(1 - q, 3);
+  // THE WHOLE LANE RUNS BACK, not just the traffic: R.span lane-seconds are wound back
+  // along the same curve, so the lane's signed speed this tick is -span × de/dt. The
+  // painters and the bore scroll read it (laneVel, 40-state), and the traffic below
+  // travels the same distance on the same curve, so the two stay glued together.
+  laneVel = dt > 0 ? -R.span * (e - R.eLast) / dt : 0;
+  R.eLast = e;
   const slide = (x, key) => { if (x.rwTo !== undefined) x[key] = x.rwFrom + (x.rwTo - x.rwFrom) * e; };
   for (const x of enemies) slide(x, 'z');
   for (const x of pickups) slide(x, 'z');
@@ -414,6 +421,7 @@ function qualRewindTick(dt) {
   for (const list of [enemies, pickups, latches])
     for (const x of list) { delete x.rwFrom; delete x.rwTo; }
   tut.rewind = null;
+  laneVel = 1;
 }
 // ---------- the course runs ----------
 function advanceQual() {

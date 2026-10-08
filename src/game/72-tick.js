@@ -168,7 +168,8 @@ function update(dt) {
     laneFlow = Math.max(flowTgt, laneFlow - dt / (state === S.END ? (endWin ? WARP_COLLAPSE.brake : 1.0) : 0.45));
   // the wall streams at EXACTLY the traffic speed — leaks stay glued to it
   // (the tutorial's TAP-TO-FIRE hold stops the whole bore, wall included)
-  const flowMul = (tut && (tut.frozen || tut.rewind) ? 0 : 1) * laneFlow;
+  if (!(tut && tut.rewind)) laneVel = 1; // forward, except while a trial's tape winds back
+  const flowMul = (tut && tut.frozen ? 0 : 1) * laneFlow * laneVel;
   tunnelScroll = (tunnelScroll + dt * (state === S.PLAY ? trafficSpeed * 10 : 0.5) * (1 + warp2 * 4) * flowMul) % 10;
   wallDist += dt * (state === S.PLAY ? trafficSpeed : 0.05) * (1 + warp2 * 4) * flowMul;
   shake = Math.max(0, shake - dt * 3);

@@ -176,6 +176,7 @@ code = code.replace("'use strict';", '') + `
   lvNum, levelNo, curLevelNo,
   qualStage: () => tutStage(),
   // the licence trials (70-update): the table, the runner, the rewind tape and the medals
+  getLaneVel: () => laneVel, getWallDist: () => wallDist, // the rewind runs the whole lane back
   TRIALS, COURSE, startTrial, restartTrial, trialOpen, getTrialRun: () => trialRun,
   REWIND_BACK, REWIND_DUR, CALL_MOVE_DUR, callDur, drawTutCall, setTut: v => { tut = v; },
   drawMenuTrials, trialsGrid,
@@ -2733,14 +2734,21 @@ check('practice trap 1 arrives on the bearing it was called on', waitLive(4) && 
   check(`it starts its slide from where it was missed, at the ring (z ${zStart.toFixed(2)})`,
     zStart <= G.geo().hitZ + 0.02 && zEnd > zStart);
   drawOk('the rewind scrub', () => { G.setState(G.S.PLAY); });
-  G.update(0.05); G.update(0.05);
+  G.update(0.05);
+  const wall0 = G.getWallDist();
+  G.update(0.05);
   const zMid = red.z;
   check(`the tape SLIDES it back, it does not snap (${zStart.toFixed(2)} → ${zMid.toFixed(2)} → ${zEnd.toFixed(2)})`,
     zMid > zStart && zMid < zEnd);
+  // Gil: "it only moves the enemy, it should move the entire tunnel back"
+  check(`the whole lane runs back with it: the lane speed is negative and the walls retreat (speed ${G.getLaneVel().toFixed(2)})`,
+    G.getLaneVel() < 0 && G.getWallDist() < wall0);
+  drawOk('the lane running backwards: bore, warp lines, gas and deep field', () => { G.setState(G.S.PLAY); });
   let h = 60;
   while (h-- > 0 && G.tut().rewind) G.update(0.05);
   check('the scrub ends by itself, with the red where the tape has it, still inbound',
     !G.tut().rewind && Math.abs(red.z - zEnd) < 1e-9 && red.z > G.geo().hitZ && red.rwTo === undefined);
+  check('and the lane runs forward again', G.getLaneVel() === 1);
   drawOk('the ghost carriage after a rewind', () => { G.setState(G.S.PLAY); });
   check('…and this time the red is taken', zapPractice());
 }

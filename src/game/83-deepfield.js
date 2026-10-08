@@ -245,7 +245,7 @@ function drawDeepField(g, dt) {
       deepEdit = null;
     } else { edF = deepEdit.from; edK = deepEdit.grow ? u : 1 - u; }
   }
-  const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5) * laneFlow;
+  const rate = (state === S.PLAY ? trafficSpeed : 0.4) * DEEP_PARALLAX * (1 + dive * 2.5) * laneFlow * laneVel; // laneVel: negative while a trial rewinds (40-state)
   // THE ORBIT DRIFT, nearest-layer edition. The pads hang the wrap span past
   // both screen edges so the modulo jump always happens off-frame — a body
   // exits one side, crosses its pad unseen, and re-enters the other. Rocks get
@@ -559,14 +559,14 @@ function headSprite(tint) {
 function drawStreaks(g, dt) {
   // a wounded convoy is a thinner, dimmer river
   const riverK = state === S.PLAY ? 0.35 + 0.65 * clamp(integrity / 100, 0, 1) : 1;
-  const spd = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow;
+  const spd = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow * laneVel; // signed: a trial rewind runs the river backwards
   // the ambient smear is SPEED-COUPLED. A fixed-length streak reads as texture
   // no matter how fast the lane runs; a streak that STRETCHES with the traffic
   // reads as velocity. This one number is what makes a fast level feel fast
   // rather than merely busy — and it is what lands the STOP: as laneFlow brakes,
   // every smear collapses back into the star making it, which is precisely what
   // dropping out of warp looks like. Parked (menus), the field is still points.
-  const ambSpan = (0.11 + spd * 0.34) * laneFlow;
+  const ambSpan = (0.11 + Math.min(Math.abs(spd), 1.2) * 0.34) * laneFlow; // a smear is a length, whichever way it runs
   // ---------- THE FAST PATH (2026-10-03, round three: the phone) ----------
   // On the OPPO a lane spent 2.5 ms of its 7 ms of frame work in this function, and
   // a dive ran 46 fps with the lines on and 60 with them off. The pixels were not the
@@ -958,7 +958,7 @@ function drawLaneMedium(g, dt) {
   if (state === S.MENU || guideOverMenu()) return; // no lane behind the home screen, page or not
   const exitK = 1 - laneExit(); // the medium is what the LANE is full of
   if (exitK <= 0.004) return;
-  const spd = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow;
+  const spd = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow * laneVel; // signed, as in drawStreaks
   const wsp = 1 + laneDive() * 5;
   const dive = laneDive();
   // --- gas first: everything else moves through it ---
