@@ -364,8 +364,8 @@ function drawTrans() {
 // thins to nothing and the menu has "faded in behind the logo". splash2.mp3
 // scores the ride and is the master clock once it runs — the sequence ends
 // with the take, and playTrack('menu') is the hand-off it was building to.
-// On autoplay-blocked browsers the first tap unlocks the score mid-sequence;
-// any tap after that (or any tap when sound already runs) skips to the menu.
+// Any tap skips to the menu (or, on a fresh save, the enlistment) — since 2026-10-08
+// that includes the first one on an autoplay-blocked browser (splashTap).
 const SPLASH = {
   on: typeof Image !== 'undefined' && !globalThis.EDITOR_DRIVE, // headless tests + the editor skip the theater
   t: 0, dur: 8.1,      // sequence clock (sec); dur trued from the decoded take
@@ -515,13 +515,14 @@ function splashEnd(skip) {
   if (skip) fadeT = 0.35;  // screen-stitch over the jump cut
   playTrack('menu');       // …and the menu music takes over, fading in as normal
 }
+// EVERY TAP SKIPS (Gil, 2026-10-08: "allow clicking through", with nothing shown on
+// screen for it). The first tap on an autoplay-blocked browser used to be spent on
+// unlocking the splash score — it joined the sequence instead of skipping it, so the
+// GB-IL card took two taps to leave. The pointer handler's audio() call still unlocks
+// the context on this same press, so the menu piece starts at the hand-off; the splash
+// score is not started just to be cut 0.3 s later. splashEnd still waits on the boot gate.
 function splashTap() {
   if (SPLASH.t < 0.3) return; // launch tap-through guard
-  const hadAudio = !!SPLASH.src;
-  splashAudioTry(); // this tap may be the very unlock the score was waiting for
-  if (!hadAudio && SPLASH.src) return; // …then it joins the sequence instead of skipping it
-  // resume() still in flight from audio() — treat this tap as the unlock too
-  if (!SPLASH.src && SPLASH.buf && AC && AC.state !== 'running' && settings.music) return;
   splashEnd(true);
 }
 function splashBadge() { // where the menu wants the logo — the hub badge's rect
