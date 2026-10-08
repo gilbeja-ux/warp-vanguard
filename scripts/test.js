@@ -2837,6 +2837,14 @@ check('bonus-stream drill begins', G.qualStage().card === 'strip');
   let fGuard = 80;
   while (fGuard-- > 0 && !(G.tut() && G.tut().frozen)) G.update(0.05);
   check('the FIRE-PULSE hold freezes the run', G.tut() && G.tut().frozen === true);
+  // nobody taps: after PULSE_TAP_DELAY a ghost thumb taps the charged pad (Gil, 2026-10-08)
+  check('the hold remembers when it began, for the ghost tap', typeof G.tut().frozenAt === 'number');
+  {
+    const was = G.tut().frozenAt;
+    for (const back of [2.0, 2.4, 2.9]) // approach, press, lift
+      drawOk('the ghost thumb taps the charged pad (' + back + ' s into the hold)', () => { G.setState(G.S.PLAY); G.tut().frozenAt = G.getTime() - back; });
+    G.tut().frozenAt = was;
+  }
   {
     const zf = G.enemies().filter(e => e.tut === 'pulse' && !e.dead).map(e => e.z);
     const near = Math.min(...zf), hz = G.geo().hitZ;

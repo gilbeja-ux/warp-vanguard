@@ -1484,12 +1484,41 @@ function drawHUD(g) {
           ctx.fillStyle = 'rgba(143,224,255,0.95)';
           ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(-7, -6); ctx.lineTo(7, -6); ctx.closePath(); ctx.fill();
           ctx.restore();
+          // nobody has tapped yet: a ghost thumb shows the tap, on the first charged pad
+          if (!pulseTapShown) { pulseTapShown = true; drawPulseTapGhost(i, d); }
         }
       }
+      pulseTapShown = false;
     }
   }
 }
 
+// THE PULSE TAP, SHOWN (Gil, 2026-10-08). If the FIRE-PULSE hold has waited
+// PULSE_TAP_DELAY with no tap, a ghost thumb — the same one the launch gate shows —
+// taps the centre of the charged pad, on a loop, until the real thumb does it.
+const PULSE_TAP_DELAY = 1.6;  // seconds of hold before the ghost steps in
+const PULSE_TAP_CYCLE = 1.2;  // seconds per demonstrated tap
+let pulseTapShown = false;    // one ghost per frame, on the first charged pad
+function drawPulseTapGhost(i, d) {
+  if (typeof gpSeen !== 'undefined' && gpSeen) return; // a controller fires with a button, not a thumb
+  const since = time - (tut.frozenAt === undefined ? time : tut.frozenAt);
+  if (since < PULSE_TAP_DELAY) return;
+  const fadeIn = clamp((since - PULSE_TAP_DELAY) / 0.3, 0, 1);
+  const u = ((since - PULSE_TAP_DELAY) % PULSE_TAP_CYCLE) / PULSE_TAP_CYCLE;
+  // approach, press, hold, lift
+  const down = u < 0.25 ? 0 : u < 0.38 ? (u - 0.25) / 0.13 : u < 0.6 ? 1 : u < 0.72 ? 1 - (u - 0.6) / 0.12 : 0;
+  // between taps the thumb rises off the pad, back toward the hand it belongs to
+  const lift = (1 - down) * d.r * 0.22, side = i === 0 ? 'L' : 'R';
+  const x = d.x + (side === 'L' ? -1 : 1) * lift * 0.7, y = d.y + lift * 0.7;
+  if (down > 0.5) { // the pad answers the press, as a real tap would light it
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.6 * fadeIn * (down - 0.5) * 2).toFixed(2) + ')';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.42, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+  drawThumbGhost(x, y, side, down, fadeIn, d.r * 0.55);
+}
 // ---------- the course, on the HUD (2026-10-08) ----------
 // THE COURSE'S PROGRESS RIDES THE LEFT BAR, the lane-progress gauge every stage uses
 // (Gil: the step dots were "just confusing… implement them on the left bar as actual lane

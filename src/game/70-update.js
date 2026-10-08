@@ -474,6 +474,7 @@ function updateTutorial(dt) {
       e.tut === 'pulse' && !e.dead && !e.resolved && e.z < m ? e.z : m, 99);
     if (!tut.frozen && (pulseNear <= geo().hitZ + PULSE_HOLD_LEAD || tut.t >= PULSE_HOLD_CAP)) {
       tut.frozen = true;
+      tut.frozenAt = time; // the HUD's ghost tap waits on this (drawPulseTapGhost, 90-hud)
       // the hold must always be releasable: guarantee a tappable charged pad
       if (!(pulseCharge[0] >= PULSE_MAX && nodes[0].deadT <= 0)
         && !(pulseCharge[1] >= PULSE_MAX && nodes[1].deadT <= 0)) {
