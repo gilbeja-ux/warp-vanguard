@@ -187,15 +187,19 @@ function drawMenuBoard() {
   // ---- proportional scale: the mock is 1748×804, so everything keys off H ----
   const F = v => Math.max(10, Math.round(v)); // font floor for readability
   const leftRowH = Math.min(H * 0.070, 56), leftGap = Math.min(H * 0.014, 12);
-  // THE LEFT COLUMN'S TYPE FOLLOWS ITS ROW. It was H * 0.026 with no ceiling while
-  // the row stops at 56px, so on a desktop or an iPad the names grew to fill half
-  // the card and ran into the marquee (Gil, 2026-10-09: "even worse on the iPad").
-  // Two knobs: BOARD_LEFT_TYPE is the share of the row's height, BOARD_LEFT_TYPE_H
-  // the share of the screen's, and the smaller one wins.
-  const BOARD_LEFT_TYPE = 0.30, BOARD_LEFT_TYPE_H = 0.021;
-  const fTitle = F(H * 0.050), fLeft = F(Math.min(leftRowH * BOARD_LEFT_TYPE, H * BOARD_LEFT_TYPE_H));
-  const fRow = F(H * 0.030), fShow = F(H * 0.021);
-  const fName = F(H * 0.030); // the detail rows size their own label/value — see the column below
+  // THE TYPE STOPS GROWING WHERE THE BOXES DO. Every row, card and key on this
+  // screen is capped (56, 64, 66, 76px), and every cap lands at a screen about 800
+  // tall — but the type went on scaling with H, so on a desktop or an iPad the words
+  // filled half of each box and ran into the marquee (Gil, 2026-10-09: "even worse
+  // on the iPad"). Every size below keys off tH, which stops a little BEFORE the
+  // boxes do, so a big screen's words sit smaller in their boxes than a phone's.
+  // The knob is BOARD_TYPE_CAP: the screen height the type stops growing at. Below
+  // it nothing changed, so a phone reads exactly as it did. The title is not on
+  // tH: it is sized to the ring, and the ring keeps growing.
+  const BOARD_TYPE_CAP = 650;
+  const tH = Math.min(H, BOARD_TYPE_CAP);
+  const fTitle = F(H * 0.050), fLeft = F(tH * 0.026), fRow = F(tH * 0.030), fShow = F(tH * 0.021);
+  const fName = F(tH * 0.030); // the detail rows size their own label/value — see the column below
   const rowH = Math.min(H * 0.080, 64), rowGap = Math.min(H * 0.017, 14);
   const cardGap = Math.min(H * 0.017, 14);
   const card = (x, y, w, h, on) => {
@@ -573,9 +577,9 @@ function drawMenuBoard() {
     // strip and the replay chrome's bottom row already use, so this is the third
     // place wearing one design rather than a fourth invention. A rule needs no air
     // around it, so the rows sit flush and the pitch IS the row. That bought enough
-    // back to make the VALUE bigger (H*0.030 against the old H*0.026) while still
+    // back to make the VALUE bigger (0.030 against the old 0.026) while still
     // taking less height per stat than five boxed cards did.
-    const dLab = F(H * 0.020), dVal = F(H * 0.030);
+    const dLab = F(tH * 0.020), dVal = F(tH * 0.030);
     const lvGap = Math.max(3, Math.round(H * 0.008));  // label baseline to value baseline
     // A BASELINE IS NOT THE BOTTOM OF THE TYPE. Measuring a row as label + gap +
     // value stops at the value's baseline, so its descenders hung into the air the
@@ -586,7 +590,7 @@ function drawMenuBoard() {
     const rowPad = Math.max(4, Math.round(H * 0.011)); // clear air above the label, below the tail
     const rowInk = dLab + lvGap + dVal + valDrop;      // cap-top of the label to the foot of the value
     const bottom = H - SAFE.b - H * 0.025;
-    const fRep = F(H * 0.020), repRes = fRep + 16;     // the report link's own strip
+    const fRep = F(tH * 0.020), repRes = fRep + 16;     // the report link's own strip
     // Replay stays a KEY, so it keeps its plate — it is the one thing here you press,
     // and stripping its box would hide it among the readings. It takes keyH, the
     // height BACK and MY DATA are drawn at, so every key on this screen is one size.
@@ -622,7 +626,7 @@ function drawMenuBoard() {
     // Replay — the primary action: the standard dark card, but a GOLD outline
     // (+ faint gold glow) marks it as the button, in line with the rest of the UI
     const can = !!sel.trace_id, repY = dy, repX = archL(repY + repH2 / 2), cyR = repY + repH2 / 2;
-    const rf = F(H * 0.032), tri = repH2 * 0.24, triX = repX + repH2 * 0.55;
+    const rf = F(tH * 0.032), tri = repH2 * 0.24, triX = repX + repH2 * 0.55;
     ctx.font = '800 ' + rf + 'px Audiowide, system-ui';
     const repW = Math.min(rEdge - repX, triX + tri + 16 + ctx.measureText('Replay').width + 20 - repX);
     ctx.save(); ctx.translate(boardRowOff(7, 'right'), 0);
