@@ -1612,7 +1612,10 @@ const CALL_GHOST_NODES = 0.85; // the instructor's carriages
 const CALL_HOLO_ALPHA = 0.55;  // the simulated traffic's opacity: its own colours, plainly not solid
 const CALL_DIM_OUT = 0.62;     // the dim outside the ring
 const CALL_DIM_IN = 0.38;      // the dim inside the bore, outside the lesson's focus
-const CALL_RING_BAND = 0.075;  // half the ring's undimmed band, × min(W, H)
+// the undimmed band is the RING ITSELF: its half-width as drawn (0.055 × min(W, H) ×
+// ARCFX.bandW), times this. Gil, 2026-10-09: the dim should "end on the actual ring, and
+// not overshoot it" — it was 0.075 × min(W, H), more than three times the ring.
+const CALL_RING_BAND = 1.0;
 // the lit wedge around the call's bearing, half-width in radians; pulse lights the bore
 const CALL_FOCUS = { normal: 0.55, heavy: 0.6, volley: 0.85, line: 1.2, lock: 0.6, pickup: 0.6, strip: 0.8, wall: 0.8 };
 const CALL_FOCUS_AT = { line: 0.75 }; // the wedge's centre, off the call bearing (a net straddles it)
@@ -1657,11 +1660,11 @@ function drawTutCallLayer() {
 // two rims, the lesson's focus wedge and, on SLIDE, the pads it drags. A soft dim needs
 // no detail, and a quarter-size buffer is a sixteenth of the pixels.
 const CALL_DIM_RES = 0.25;     // the dim buffer's scale against the screen
-const CALL_DIM_FEATHER = 0.07; // how far each rim fades over, × min(W, H)
+const CALL_DIM_FEATHER = 0.025; // how far each rim fades over, × min(W, H): a short fade, starting at the ring's edge
 const CALL_FOCUS_FEATHER = 0.35; // how far the focus wedge's sides fade over, radians
 let dimCv = null;
 function drawCallDim(c, env) {
-  const g = geo(), u = Math.min(W, H), band = u * CALL_RING_BAND, fe = u * CALL_DIM_FEATHER;
+  const g = geo(), u = Math.min(W, H), band = u * 0.055 * ARCFX.bandW * CALL_RING_BAND, fe = u * CALL_DIM_FEATHER;
   const rOut = g.nodeR + band, rIn = g.nodeR - band;
   const bw = Math.max(2, Math.ceil(W * CALL_DIM_RES)), bh = Math.max(2, Math.ceil(H * CALL_DIM_RES));
   if (!dimCv) dimCv = document.createElement('canvas');
