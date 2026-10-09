@@ -223,6 +223,13 @@ function drawMenuBoard() {
   const ro = R + bz / 2 + 6;
   const ringL = yv => { const d = Math.min(Math.abs(yv - cy), ro); return cx - Math.sqrt(ro * ro - d * d); };
   const ringR = yv => { const d = Math.min(Math.abs(yv - cy), ro); return cx + Math.sqrt(ro * ro - d * d); };
+  // A BOX HUGS THE RING AT ITS NEAREST EDGE, NOT AT ITS MIDDLE. Fitted at its own
+  // middle, a box above the centre had its BOTTOM corner inside the ring, and one
+  // below had its top corner there — the date on the right and the cards at the
+  // top and bottom of the left column all sat on the band (Gil, iPad, 2026-10-09).
+  // The disc law's rule, said for the ring: fit at the box's widest point, which is
+  // the height in the box closest to the centre.
+  const nearY = (y0, y1) => clamp(cy, y0, y1);
   // sink the title to where the ring's INNER chord is wide enough for the whole
   // word — it must live inside the ring's perimeter, never under the band
   ctx.font = '800 ' + fTitle + 'px Audiowide, system-ui';
@@ -344,7 +351,7 @@ function drawMenuBoard() {
       vidx++;
       ctx.globalAlpha = f;
       ctx.textAlign = 'left';
-      const rightX = ringL(yy + rh / 2) - 12;          // right edge rides the ring arc
+      const rightX = ringL(nearY(yy, yy + (it.kind === 'level' ? rh : leftRowH))) - 12; // right edge rides the ring arc
       const cw = it.kind === 'level' ? colW - ind : colW;
       const cardX = rightX - cw;
       if (it.kind === 'camp' || it.kind === 'weeks') {
@@ -531,7 +538,7 @@ function drawMenuBoard() {
     let dy = 12 + SAFE.t; // top-aligned with the back key
     const nameCardH = Math.min(H * 0.082, 66);
     { ctx.save(); ctx.translate(boardRowOff(0, 'right'), 0);
-      const lX = archL(dy + nameCardH / 2), nm = ('' + (sel.player_name || 'ANON')).slice(0, 16);
+      const lX = archL(nearY(dy, dy + nameCardH)), nm = ('' + (sel.player_name || 'ANON')).slice(0, 16);
       ctx.font = '700 ' + fName + 'px Audiowide, system-ui';
       // clear of MY DATA, not merely of BACK. The handle card sits on the SAME row as
       // both keys, and the old clamp stopped at the back key — so a long handle ran
@@ -604,7 +611,7 @@ function drawMenuBoard() {
                            (bottom - dy - repH2 - repGap - repRes) / details.length);
     details.forEach(([label, fin, disp, col], i) => {
       ctx.save(); ctx.translate(boardRowOff(i + 1, 'right'), 0);
-      const lX = archL(dy + dRowH / 2), inkTop = dy + (dRowH - rowInk) / 2;
+      const lX = archL(nearY(dy, dy + dRowH)), inkTop = dy + (dRowH - rowInk) / 2;
       ctx.textAlign = 'left';
       // the label's voice, borrowed verbatim from the replay chrome's stat row
       ctx.fillStyle = 'rgba(150,190,225,0.62)'; ctx.font = '600 ' + dLab + 'px Audiowide, system-ui';
@@ -625,7 +632,7 @@ function drawMenuBoard() {
 
     // Replay — the primary action: the standard dark card, but a GOLD outline
     // (+ faint gold glow) marks it as the button, in line with the rest of the UI
-    const can = !!sel.trace_id, repY = dy, repX = archL(repY + repH2 / 2), cyR = repY + repH2 / 2;
+    const can = !!sel.trace_id, repY = dy, repX = archL(nearY(repY, repY + repH2)), cyR = repY + repH2 / 2;
     const rf = F(tH * 0.032), tri = repH2 * 0.24, triX = repX + repH2 * 0.55;
     ctx.font = '800 ' + rf + 'px Audiowide, system-ui';
     const repW = Math.min(rEdge - repX, triX + tri + 16 + ctx.measureText('Replay').width + 20 - repX);
@@ -649,7 +656,7 @@ function drawMenuBoard() {
     // door for those, and self-reporting only ever confuses.
     if (sel.player_id !== meId) {
       const already = lbReported(sel.id);
-      const ry = repY + repH2 + 12, rtx = archL(ry + fRep * 0.5) + 4;
+      const ry = repY + repH2 + 12, rtx = archL(nearY(ry, ry + fRep + 4)) + 4;
       ctx.save(); ctx.translate(boardRowOff(7, 'right'), 0);
       ctx.font = '600 ' + fRep + 'px Audiowide, system-ui'; ctx.textAlign = 'left';
       const label = already ? 'reported' : 'report this';
@@ -675,7 +682,7 @@ function drawMenuBoard() {
       ctx.globalAlpha = ea;
       ctx.font = '600 ' + fRep + 'px Audiowide, system-ui'; ctx.textAlign = 'left';
       ctx.fillStyle = 'rgba(255,180,90,0.85)';
-      ctx.fillText(replayErr, archL(ey + fRep * 0.5), ey + fRep);
+      ctx.fillText(replayErr, archL(nearY(ey, ey + fRep + 4)), ey + fRep);
       ctx.restore();
     }
     ctx.restore(); // end right column
