@@ -186,9 +186,16 @@ function drawMenuBoard() {
   };
   // ---- proportional scale: the mock is 1748×804, so everything keys off H ----
   const F = v => Math.max(10, Math.round(v)); // font floor for readability
-  const fTitle = F(H * 0.050), fLeft = F(H * 0.026), fRow = F(H * 0.030), fShow = F(H * 0.021);
-  const fName = F(H * 0.030); // the detail rows size their own label/value — see the column below
   const leftRowH = Math.min(H * 0.070, 56), leftGap = Math.min(H * 0.014, 12);
+  // THE LEFT COLUMN'S TYPE FOLLOWS ITS ROW. It was H * 0.026 with no ceiling while
+  // the row stops at 56px, so on a desktop or an iPad the names grew to fill half
+  // the card and ran into the marquee (Gil, 2026-10-09: "even worse on the iPad").
+  // Two knobs: BOARD_LEFT_TYPE is the share of the row's height, BOARD_LEFT_TYPE_H
+  // the share of the screen's, and the smaller one wins.
+  const BOARD_LEFT_TYPE = 0.30, BOARD_LEFT_TYPE_H = 0.021;
+  const fTitle = F(H * 0.050), fLeft = F(Math.min(leftRowH * BOARD_LEFT_TYPE, H * BOARD_LEFT_TYPE_H));
+  const fRow = F(H * 0.030), fShow = F(H * 0.021);
+  const fName = F(H * 0.030); // the detail rows size their own label/value — see the column below
   const rowH = Math.min(H * 0.080, 64), rowGap = Math.min(H * 0.017, 14);
   const cardGap = Math.min(H * 0.017, 14);
   const card = (x, y, w, h, on) => {
