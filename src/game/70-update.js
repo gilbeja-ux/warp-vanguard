@@ -405,7 +405,7 @@ function advanceQual() {
 // THE COURSE IS OVER: it files itself as done, and the report offers the first contract
 function qualFinish() {
   progress.tutorialDone = true;
-  holoCv = null; // the call's hologram buffer (90-hud) is not needed past the course
+  holoCv = null; dimCv = null; // the call's buffers (90-hud) are not needed past the course
   saveState();
   tut = null;
   endLevel(true);

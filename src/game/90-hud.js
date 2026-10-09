@@ -1651,33 +1651,77 @@ function drawTutCallLayer() {
   drawTutCall(c, env);
   drawTutLessonLine({ kind: c.kind }); // over the dim, so the line still reads (no WATCH prefix: Gil, round six)
 }
+// THE DIM FADES, IT DOES NOT CUT (Gil, 2026-10-09: the overlay's "ends are too harsh and
+// steal the focus"). It is painted as an alpha map into a small buffer — CALL_DIM_RES of
+// the screen — and laid over the frame scaled up, so every edge is a gradient: the ring's
+// two rims, the lesson's focus wedge and, on SLIDE, the pads it drags. A soft dim needs
+// no detail, and a quarter-size buffer is a sixteenth of the pixels.
+const CALL_DIM_RES = 0.25;     // the dim buffer's scale against the screen
+const CALL_DIM_FEATHER = 0.07; // how far each rim fades over, × min(W, H)
+const CALL_FOCUS_FEATHER = 0.35; // how far the focus wedge's sides fade over, radians
+let dimCv = null;
 function drawCallDim(c, env) {
-  const g = geo(), band = Math.min(W, H) * CALL_RING_BAND;
+  const g = geo(), u = Math.min(W, H), band = u * CALL_RING_BAND, fe = u * CALL_DIM_FEATHER;
   const rOut = g.nodeR + band, rIn = g.nodeR - band;
-  ctx.save();
-  // outside the ring: all of it, except the ring — and, on SLIDE, the pads it drags
-  ctx.beginPath();
-  ctx.rect(0, 0, W, H);
-  ctx.moveTo(g.cx + rOut, g.cy); ctx.arc(g.cx, g.cy, rOut, 0, TAU);
-  if (c.kind === 'move' && tut.aim && tut.aim.targets)
-    for (const t of tut.aim.targets) {
-      const d = dialCenter(t.node === 0 ? 'L' : 'R'), r = d.r * 1.45;
-      ctx.moveTo(d.x + r, d.y); ctx.arc(d.x, d.y, r, 0, TAU);
-    }
-  ctx.fillStyle = 'rgba(2,4,10,' + (CALL_DIM_OUT * env).toFixed(3) + ')';
-  ctx.fill('evenodd');
-  // inside the bore: all of it but the wedge the lesson plays in. SLIDE's lesson is on
-  // the ring and the pads, so its whole bore dims; the purge column fills the bore.
-  if (c.key !== 'pulse') {
-    ctx.beginPath();
-    ctx.arc(g.cx, g.cy, rIn, 0, TAU);
-    if (c.kind !== 'move' && c.a !== undefined) {
+  const bw = Math.max(2, Math.ceil(W * CALL_DIM_RES)), bh = Math.max(2, Math.ceil(H * CALL_DIM_RES));
+  if (!dimCv) dimCv = document.createElement('canvas');
+  if (dimCv.width !== bw || dimCv.height !== bh) { dimCv.width = bw; dimCv.height = bh; }
+  const inner = c.key === 'pulse' ? 0 : CALL_DIM_IN; // the purge column fills the bore: no dim inside
+  const ok = withCanvas(dimCv, () => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, bw, bh);
+    ctx.setTransform(bw / W, 0, 0, bh / H, 0, 0); // game coordinates from here on
+    // 1. the outside dim, everywhere
+    ctx.fillStyle = 'rgba(2,4,10,' + CALL_DIM_OUT + ')';
+    ctx.fillRect(0, 0, W, H);
+    // 2. the ring, lifted out as a radial profile: the bore keeps `inner`, the ring band
+    //    is clear, and both rims ramp over `fe` instead of stopping
+    ctx.globalCompositeOperation = 'destination-out';
+    const Rm = rOut + fe, at = r => clamp(r / Rm, 0, 1);
+    const keepIn = 1 - inner / CALL_DIM_OUT; // how much of the outside dim to lift inside
+    const rg = ctx.createRadialGradient(g.cx, g.cy, 0, g.cx, g.cy, Rm);
+    rg.addColorStop(0, 'rgba(0,0,0,' + keepIn.toFixed(3) + ')');
+    rg.addColorStop(at(rIn - fe), 'rgba(0,0,0,' + keepIn.toFixed(3) + ')');
+    rg.addColorStop(at(rIn), 'rgba(0,0,0,1)');
+    rg.addColorStop(at(rOut), 'rgba(0,0,0,1)');
+    rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, W, H);
+    // 3. the lesson's focus wedge inside the bore, its sides feathered: thin sectors
+    //    whose lift falls off with their distance from the wedge
+    if (inner > 0 && c.kind !== 'move' && c.a !== undefined) {
       const half = CALL_FOCUS[c.key] || 0.6, mid = c.a + (CALL_FOCUS_AT[c.key] || 0);
-      ctx.moveTo(g.cx, g.cy); ctx.arc(g.cx, g.cy, rIn, mid - half, mid + half); ctx.closePath();
+      const steps = 8, sw = CALL_FOCUS_FEATHER / steps;
+      const sector = (a0, a1, k) => {
+        ctx.fillStyle = 'rgba(0,0,0,' + k.toFixed(3) + ')';
+        ctx.beginPath(); ctx.moveTo(g.cx, g.cy); ctx.arc(g.cx, g.cy, rIn, a0, a1); ctx.closePath(); ctx.fill();
+      };
+      sector(mid - half, mid + half, 1);
+      for (let s = 0; s < steps; s++) {
+        const k = 1 - (s + 0.5) / steps; // each step lifts less of what remains
+        sector(mid + half + s * sw, mid + half + (s + 1) * sw, k);
+        sector(mid - half - (s + 1) * sw, mid - half - s * sw, k);
+      }
     }
-    ctx.fillStyle = 'rgba(2,4,10,' + (CALL_DIM_IN * env).toFixed(3) + ')';
-    ctx.fill('evenodd');
-  }
+    // 4. SLIDE's pads, lifted with a soft round edge
+    if (c.kind === 'move' && tut.aim && tut.aim.targets)
+      for (const t of tut.aim.targets) {
+        const d = dialCenter(t.node === 0 ? 'L' : 'R'), r = d.r * 1.45;
+        const pg = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, r + fe);
+        pg.addColorStop(0, 'rgba(0,0,0,1)');
+        pg.addColorStop(r / (r + fe), 'rgba(0,0,0,1)');
+        pg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = pg;
+        ctx.beginPath(); ctx.arc(d.x, d.y, r + fe, 0, TAU); ctx.fill();
+      }
+    ctx.globalCompositeOperation = 'source-over';
+  });
+  if (!ok) return;
+  ctx.save();
+  ctx.globalAlpha = env;
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(dimCv, 0, 0, W, H);
   ctx.restore();
 }
 function drawTutCall(c, env) {
