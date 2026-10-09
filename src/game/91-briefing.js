@@ -1364,9 +1364,11 @@ function drawDialComet(i, dir) {
 // marching dashed arc from a node toward the tutorial trap, with an arrowhead.
 // col overrides the node's color — barriers guide in NEUTRAL cyan because
 // either node may take either end; a colored lead would read as an assignment
-function drawGuideArc(n, targetA, col) {
+// `rOff` moves this arrow off the shared radius — the barrier net's two arrows ride
+// two radii so they can never lie on top of each other (netAssign, 90-hud)
+function drawGuideArc(n, targetA, col, rOff) {
   const g2 = geo();
-  const rr = g2.nodeR - Math.min(W, H) * 0.055 * 2.0;
+  const rr = g2.nodeR - Math.min(W, H) * 0.055 * 2.0 + (rOff || 0);
   const d = angDiff(targetA, n.angle);
   if (Math.abs(d) < 0.3) return; // close enough — no guide needed
   const dir = Math.sign(d);

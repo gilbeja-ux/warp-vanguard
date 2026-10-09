@@ -720,6 +720,30 @@ const TUT_ACCENT = {
   heavy: '143,224,255', volley: '191,234,255', line: '111,227,255', lock0: '95,150,255', lock1: '235,244,255',
   pickup: '255,210,74', strip: '255,210,74', pulse: '255,210,74'
 };
+// THE BARRIER NET'S PLAN: which end each emitter takes. The emitter nearest EITHER end
+// takes that end, and the other emitter takes the other one (Gil, 2026-10-09: "show each
+// emitter its closest enemy on the arrow, and then show the other emitter the linked
+// enemy"). It is fixed when the net is first seen and held until it resolves, so the
+// arrows cannot swap ends while the thumbs move. The plan lives here, render-side, keyed
+// by the net's lead end: nothing is written onto the sim's enemies.
+const NET_ARROW_SPLIT = 0.035; // white's arrow rides this much inside blue's, × min(W, H)
+const netPlans = new WeakMap();
+function netAssign(en) {
+  const lead = en.lineLead || !en.partner ? en : en.partner;
+  const other = lead.partner;
+  if (!other) return null;
+  let p = netPlans.get(lead);
+  if (!p) {
+    const d = (i, x) => Math.abs(angDiff(nodes[i].angle, x.angle));
+    let best = null;
+    for (const [i, x] of [[0, lead], [0, other], [1, lead], [1, other]])
+      if (!best || d(i, x) < d(best[0], best[1])) best = [i, x];
+    const rest = best[1] === lead ? other : lead;
+    p = best[0] === 0 ? [best[1], rest] : [rest, best[1]]; // [node 0's end, node 1's end]
+    netPlans.set(lead, p);
+  }
+  return [p[0].angle, p[1].angle];
+}
 let tutFocusRef = null;           // which tut object the lesson state belongs to
 let tutLessonKind = null, tutLessonT0 = 0; // for the line's fade-in on change
 let tutDescNow = null;            // this frame's descriptor, for drawDials to read
@@ -749,12 +773,10 @@ function tutFocusDesc(st, ten) {
         : ten;
       ghosts.push({ i: 0, a: bod.angle, col: NODE_COLS[0] }, { i: 1, a: bod.angle, col: NODE_COLS[1] });
     } else if (kind === 'line' && ten.partner) {
-      // each pad takes the end its node is nearer — the same neutral the guide uses
-      const aA = ten.angle, aB = ten.partner.angle;
-      const straight = Math.abs(angDiff(nodes[0].angle, aA)) + Math.abs(angDiff(nodes[1].angle, aB))
-                    <= Math.abs(angDiff(nodes[0].angle, aB)) + Math.abs(angDiff(nodes[1].angle, aA));
-      ghosts.push({ i: 0, a: straight ? aA : aB, col: '111,227,255' },
-                  { i: 1, a: straight ? aB : aA, col: '111,227,255' });
+      // each pad takes the end the NET PLAN gives its emitter — the same plan, and the
+      // same colours, the ring's arrows and parking spots use (netAssign)
+      const plan = netAssign(ten);
+      if (plan) ghosts.push({ i: 0, a: plan[0], col: NODE_COLS[0] }, { i: 1, a: plan[1], col: NODE_COLS[1] });
     } else if (kind === 'lock0' || kind === 'lock1') {
       const i = ten.lock;
       if (i === 0 || i === 1) ghosts.push({ i, a: ten.angle, col: NODE_COLS[i] });
@@ -1357,20 +1379,24 @@ function drawHUD(g) {
         drawRideLabel('USE BOTH EMITTERS', ten, '#8fe0ff'); // the armor drill, in words
       }
       else if (ten.type === 'line') {
-        // EITHER node may take EITHER end — everything guides in neutral cyan
-        // so no colored lead reads as an assignment
-        const NEU = 'rgba(140,220,255,0.9)';
-        drawGuideArc(nodes[0], ten.angle, NEU); if (ten.partner) drawGuideArc(nodes[1], ten.partner.angle, NEU);
-        if (ten.partner) { // parking spots on the rim + the arc they'll span, riding the rail
+        // ONE END PER EMITTER, BY A PLAN THAT HOLDS (netAssign): the emitter nearest
+        // either end takes it, the other takes the other. Each arrow and each parking
+        // spot wears its emitter's colour, and white's arrow rides an inner radius, so
+        // the two leads never lie on top of each other (Gil, 2026-10-09: "the lines
+        // currently most of the time overlap and confuse users").
+        const plan = netAssign(ten);
+        if (plan) {
+          drawGuideArc(nodes[0], plan[0]);
+          drawGuideArc(nodes[1], plan[1], undefined, -Math.min(W, H) * NET_ARROW_SPLIT);
           const g2 = geo();
-          const d = angDiff(ten.partner.angle, ten.angle);
-          ctx.save();
+          const d = angDiff(plan[1], plan[0]);
+          ctx.save(); // the net's own span, neutral: it belongs to neither emitter
           ctx.strokeStyle = 'rgba(140,220,255,0.6)'; ctx.lineWidth = 2.5;
           ctx.setLineDash([7, 6]); ctx.lineDashOffset = -time * 24;
-          ctx.beginPath(); ctx.arc(g2.cx, g2.cy, g2.nodeR, ten.angle, ten.angle + d, d < 0); ctx.stroke();
+          ctx.beginPath(); ctx.arc(g2.cx, g2.cy, g2.nodeR, plan[0], plan[0] + d, d < 0); ctx.stroke();
           ctx.restore();
-          drawParkSpot(ten.angle, 'rgba(140,220,255,0.85)');
-          drawParkSpot(ten.partner.angle, 'rgba(140,220,255,0.85)');
+          drawParkSpot(plan[0], 'rgba(' + NODE_COLS[0] + ',0.9)');
+          drawParkSpot(plan[1], 'rgba(' + NODE_COLS[1] + ',0.9)');
         }
       }
       else if (ten.lock !== undefined) drawGuideArc(nodes[ten.lock], ten.angle);
@@ -1599,6 +1625,8 @@ const GLITCH_SPLIT = 3;        // px of the colour fringe a burst throws, either
 // where each diorama stages its bearing, off DISC_BOT, so the turn lands it on the call's
 const CALL_DEMO_OFF = { normal: 0.18, pickup: 0.30, line: -0.75, wall: 1.4 - Math.PI / 2 };
 let holoCv = null;             // the simulation buffer: the ring's bounding square, released with the course
+const CALL_BUF_R = 1.3;        // the buffer's half-size, × nodeR: room past the ring for a wave's glow
+const CALL_BUF_FADE = 1.08;    // …and where its content starts fading out, × nodeR, so no edge ever shows
 // THE GLITCH: one short burst per GLITCH_EVERY, at a moment hashed off the clock
 // (render-side, never Math.random), so the beat is irregular but never twice the same
 const glitchHash = n => { const s = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return s - Math.floor(s); };
@@ -1685,7 +1713,7 @@ function drawTutCall(c, env) {
   // 1. THE TRAFFIC, as a simulation: drawn into a buffer the size of the ring's square,
   //    the carriages caught by the sink instead of drawn, then composited at reduced
   //    opacity in its own colours — and now and then torn by a glitch burst
-  const R = g.nodeR * 1.15, x0 = g.cx - R, y0 = g.cy - R, S = Math.max(2, Math.ceil(2 * R * DPR));
+  const R = g.nodeR * CALL_BUF_R, x0 = g.cx - R, y0 = g.cy - R, S = Math.max(2, Math.ceil(2 * R * DPR));
   if (!holoCv) holoCv = document.createElement('canvas');
   if (holoCv.width !== S || holoCv.height !== S) { holoCv.width = S; holoCv.height = S; }
   const ok = withCanvas(holoCv, () => {
@@ -1697,6 +1725,17 @@ function drawTutCall(c, env) {
     demoNodeSink = sink;
     try { DEMO[c.key](Rs, tt); } finally { demoNodeSink = null; }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // NO HARD EDGE. The buffer is a square, and a demonstration that reaches past it —
+    // the purge wave's glow did — was cut along the square's side: a straight line in
+    // the dim between the ring and the pad (Gil, 2026-10-09). Everything fades out over
+    // the last stretch before the edge instead, so the square can never show.
+    const fade = ctx.createRadialGradient(S / 2, S / 2, S / 2 * (CALL_BUF_FADE / CALL_BUF_R), S / 2, S / 2, S / 2);
+    fade.addColorStop(0, 'rgba(0,0,0,1)');
+    fade.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, 0, S, S);
+    ctx.globalCompositeOperation = 'source-over';
   });
   if (ok) {
     const flick = 1 - HOLO_FLICKER * (0.5 + 0.5 * Math.sin(time * 37) * Math.sin(time * 13.7));

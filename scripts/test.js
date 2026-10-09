@@ -179,7 +179,7 @@ code = code.replace("'use strict';", '') + `
   getLaneVel: () => laneVel, getWallDist: () => wallDist, // the rewind runs the whole lane back
   QUAL, REWIND_BACK, REWIND_DUR, CALL_MOVE_DUR, callDur, drawTutCall, setTut: v => { tut = v; },
   drawTutCallLayer, tutCallNodeK, CALL_NODE_ALPHA, getHoloCv: () => holoCv, getDemoNodeSink: () => demoNodeSink,
-  callGlitch, GLITCH_EVERY, GLITCH_LEN,
+  callGlitch, GLITCH_EVERY, GLITCH_LEN, netAssign, // the barrier net's one-end-per-emitter plan
   getGpDriving: () => gpDriving, setGpDriving: v => { gpDriving = v; }, // who is flying right now (71-gamepad)
   setGpSeen: v => { gpSeen = v; },
   getProg: () => PROG, getCamp: () => CAMP, validateCampaign, installCampaign, CAMPAIGNS,
@@ -2791,6 +2791,23 @@ check('heavy practice: dock together breaks it at the rim', waitLive(4) && zapPr
 settle();
 check('barrier drill begins', G.qualStage().card === 'line');
 passCall('line');
+// THE NET'S PLAN (Gil, 2026-10-09: the two arrows "most of the time overlap"): the
+// emitter nearest either end takes it, the other emitter the other end, and the plan
+// holds while the thumbs move. Checked on a staged pair, then drawn on the live one.
+{
+  const was = [G.nodes[0].angle, G.nodes[1].angle];
+  const a = { angle: 2.9, lineLead: true }, b = { angle: 0.6 };
+  a.partner = b; b.partner = a;
+  G.nodes[0].angle = 0; G.nodes[1].angle = Math.PI; // white sits 0.24 from the lead end: the closest pair
+  const p = G.netAssign(b);                          // asked from either end, one plan
+  check('the emitter nearest either end takes it, and the other emitter takes the other end',
+    p && Math.abs(p[1] - 2.9) < 1e-9 && Math.abs(p[0] - 0.6) < 1e-9);
+  G.nodes[0].angle = 2.8; G.nodes[1].angle = 0.5;    // the thumbs cross over…
+  const q = G.netAssign(a);
+  check('…and the plan holds: the arrows never swap ends mid-move', q[0] === p[0] && q[1] === p[1]);
+  G.nodes[0].angle = was[0]; G.nodes[1].angle = was[1];
+  drawOk('the barrier net guides: one arrow per emitter, in its colour, on two radii', () => { G.setState(G.S.PLAY); });
+}
 check('barrier practice: node per end', waitLive(4) && zapPractice());
 settle();
 check('color-lock drill begins', G.qualStage().card === 'lock');
