@@ -7268,16 +7268,25 @@ await tick();
   // THE FIELD WEARS DESIGN.md TOKENS (Gil, 2026-10-10, the design hook's notes, 2B):
   // panel-glass under chrome-cyan with the cut-sm corner, on all four canvas plates
   // (handle, rename, passcode, feedback) and on the live input that replaces them.
-  const plate = "techRect(fx, fy, fw, fh, 8); ctx.fillStyle = 'rgba(4,14,30,0.85)'; ctx.fill();";
-  const edge = "ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 8); ctx.stroke();";
   const count = (s, x) => s.split(x).length - 1;
-  check('field tokens: all four canvas field plates are panel-glass, chrome-cyan and cut-sm',
-    count(guide, plate) === 3 && count(menu, plate) === 1 && count(guide, edge) === 3 && count(menu, edge) === 1
-    && !/rgba\(4,12,22,0\.85\)/.test(guide + menu));
-  check('field tokens: the live input wears the same values, quiet and lit',
-    core.includes("'background:rgba(4,14,30,0.85);border:1.5px solid rgba(111,227,255,0.35);border-radius:8px;'")
-    && core.includes("'background:rgba(4,14,30,0.92);border:1.5px solid rgba(111,227,255,0.8);border-radius:8px;'")
-    && !/border-radius:6px/.test(core));
+  check('field tokens: one plate painter, in panel-glass, chrome-cyan and cut-sm',
+    core.includes("const FIELD_GLASS = 'rgba(4,14,30,0.85)', FIELD_EDGE = 'rgba(111,227,255,0.35)';")
+    && core.includes("const FIELD_GLASS_LIT = 'rgba(4,14,30,0.92)', FIELD_EDGE_LIT = 'rgba(111,227,255,0.8)';")
+    && /const FIELD_CUT = 8;/.test(core) && /function fieldPlate\(x, y, w, h, lit\)/.test(core)
+    && !/rgba\(4,12,22,0\.85\)|rgba\(120,180,255,0\.35\)'; ctx\.lineWidth = 1\.5; techRect\(fx/.test(guide + menu));
+  // …and the box is drawn under the live input too, so nothing changes shape or colour at
+  // the swap (Gil, 2026-10-10: the CSS box rounded four corners where the plate cut two)
+  check('field box: every disc draws the plate under the cast AND under the live input',
+    count(guide, 'fieldPlate(fx, fy, fw, fh, settled);') === 2 && count(menu, 'fieldPlate(fx, fy, fw, fh, settled);') === 1
+    && count(guide, 'fieldPlate(fx, fy, fw, fh, false);') === 1);
+  check('field box: the live input draws no box of its own',
+    core.includes("'background:transparent;border:1.5px solid transparent;border-radius:0;'") && !/border-radius:[1-9]/.test(core));
+  check('field hint: the plate and the live input share one body-ice hint colour',
+    core.includes("const FIELD_HINT = 'rgba(190,225,255,0.5)';")
+    && /input::placeholder,\.wv-ui textarea::placeholder\{color:' \+ FIELD_HINT/.test(core)
+    && count(guide, "'#eafaff' : FIELD_HINT") === 3 && count(menu, "'#eafaff' : FIELD_HINT") === 1
+    && !/rgba\(150,200,235,0\.5\)/.test(guide + menu));
+  check('field type: a Mac or an iPad gets up to 20px in the field (Gil, 2026-10-10)', /const FIELD_TEXT_MAX = 20;/.test(core));
 }
 
 // ================= THE PATH AHEAD READS ON A PHONE (Gil, 2026-10-10, options B and D) =================

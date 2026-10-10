@@ -1052,13 +1052,12 @@ function drawBossGate() {
     ctx.font = '600 ' + Math.max(8, Math.round(R * 0.058)) + 'px Audiowide, system-ui';
     ctx.fillText('ENTER THE PASSCODE', cx0, cy0 - R * 0.15);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
-    // the passcode field: a static plate during the cast, the DOM input after
+    // the passcode field: the plate under the cast and under the live DOM input
+    fieldPlate(fx, fy, fw, fh, settled); // the box under the cast AND under the live input, lit once live (00-core)
     if (!settled) {
-      techRect(fx, fy, fw, fh, 8); ctx.fillStyle = 'rgba(4,14,30,0.85)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 8); ctx.stroke();
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       const has = !!bossGateDraft;
-      ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
+      ctx.fillStyle = has ? '#eafaff' : FIELD_HINT;
       ctx.font = '600 ' + fTxt + 'px Audiowide, system-ui';
       try { ctx.letterSpacing = '1px'; } catch (e) {}
       ctx.fillText(has ? bossGateDraft : 'PASSCODE', fx + FIELD_PAD_X + 2, fy + fh / 2 + 1);
@@ -1182,12 +1181,11 @@ function drawMyData() {
       para('This name replaces the old one on every run you hold, on every board. Scores are untouched.', cy - R * 0.52);
       // the field. During the cast it is a static plate carrying the draft; once
       // settled the live DOM input mounts in the same box
+      fieldPlate(fx, fy, fw, fh, settled); // the box under the cast AND under the live input, lit once live (00-core)
       if (!settled) {
-        techRect(fx, fy, fw, fh, 8); ctx.fillStyle = 'rgba(4,14,30,0.85)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 8); ctx.stroke();
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         const has = !!myDataDraft;
-        ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
+        ctx.fillStyle = has ? '#eafaff' : FIELD_HINT;
         ctx.font = '600 ' + fTxt + 'px Audiowide, system-ui';
         try { ctx.letterSpacing = '1px'; } catch (e) {}
         ctx.fillText((has ? myDataDraft : 'ENTER YOUR HANDLE').toUpperCase(), fx + FIELD_PAD_X + 2, fy + fh / 2 + 1);
@@ -1642,12 +1640,11 @@ function drawFeedback() {
     else if (st === 'write') {
       // the field. During the cast it is a static plate carrying whatever is
       // already typed; once settled the live textarea mounts in the same box.
+      fieldPlate(fx, fy, fw, fh, false); // the box under the cast AND under the live note (00-core)
       if (!settled) {
-        techRect(fx, fy, fw, fh, 8); ctx.fillStyle = 'rgba(4,14,30,0.85)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 8); ctx.stroke();
         ctx.textAlign = 'left';
         const has = !!feedbackDraft;
-        ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
+        ctx.fillStyle = has ? '#eafaff' : FIELD_HINT;
         // the same face, size and leading overlayInput gives the live textarea, so
         // the swap at `settled` moves nothing on screen
         ctx.font = '400 13px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';

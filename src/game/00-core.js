@@ -139,7 +139,15 @@ let uiLayer = null, overlayEl = null;
 function ensureUiLayer() {
   if (uiLayer) return uiLayer;
   uiLayer = document.createElement('div');
+  uiLayer.className = 'wv-ui';
   uiLayer.style.cssText = 'position:fixed;left:0;top:0;transform-origin:0 0;pointer-events:none;z-index:50;';
+  // a field's hint wears the plate's hint colour; an inline style cannot reach
+  // ::placeholder, and without this the browser drew its own grey (2026-10-10)
+  try {
+    const hint = document.createElement('style');
+    hint.textContent = '.wv-ui input::placeholder,.wv-ui textarea::placeholder{color:' + FIELD_HINT + ';opacity:1;}';
+    (document.head || document.body).appendChild(hint);
+  } catch (e) { /* no stylesheet: the hint keeps the browser's grey, the field still works */ }
   document.body.appendChild(uiLayer);
   syncUiLayer();
   return uiLayer;
@@ -174,19 +182,14 @@ function overlayInput(rect, opts) {
   el.autocapitalize = multi ? 'sentences' : 'off';
   el.autocomplete = opts.autocomplete || 'off'; el.spellcheck = !!multi;
   el.enterKeyHint = multi ? 'enter' : 'done'; el.inputMode = opts.type === 'email' ? 'email' : 'text';
+  // THE INPUT HAS NO BOX OF ITS OWN. The box is the canvas plate (fieldPlate below),
+  // which every disc draws under the cast AND under the live input, so nothing changes
+  // shape or colour at the swap. A CSS box could only approximate it: border-radius
+  // rounds four corners where the plate cuts two (Gil, 2026-10-10). The border stays,
+  // transparent, so the text sits exactly where the plate's text did.
   el.style.cssText = 'position:absolute;box-sizing:border-box;pointer-events:auto;'
     + 'left:' + rect.x + 'px;top:' + rect.y + 'px;width:' + rect.w + 'px;height:' + rect.h + 'px;'
-    + (multi
-      // ON A DISC the lit border shouted over the plate. The multiline field wears
-      // the same quiet box the high-score disc's handle field is drawn as — these
-      // two values are COPIED from that plate (95-menu.js) and from the feedback
-      // disc's own (92-guide.js), byte for byte, so the live input and the static
-      // plate under the cast are literally the same box. Nothing moves on the swap.
-      // DESIGN.md tokens since 2026-10-10 (Gil, the design hook's notes, 2B): panel-glass
-      // under chrome-cyan, at the alphas the box always had, with the cut-sm corner. The
-      // four canvas plates carry the same three values.
-      ? 'background:rgba(4,14,30,0.85);border:1.5px solid rgba(111,227,255,0.35);border-radius:8px;'
-      : 'background:rgba(4,14,30,0.92);border:1.5px solid rgba(111,227,255,0.8);border-radius:8px;')
+    + 'background:transparent;border:1.5px solid transparent;border-radius:0;'
     + 'color:#eafaff;outline:none;'
     + (multi
       ? 'font:400 13px system-ui, -apple-system, Segoe UI, Roboto, sans-serif;line-height:1.42;'
@@ -207,12 +210,28 @@ function hideOverlay() { if (overlayEl) { try { overlayEl.remove(); } catch (e) 
 // FIELD_TEXT_MAX or the disc's own, whichever is smaller, brought down until the text
 // fits between the padding and the status pip. fitPx measures without the field's 1px
 // letter spacing, so that comes off the room first.
-const FIELD_TEXT_MAX = 15; // the field's type size where the box has room (the old fixed size)
+// FIELD_TEXT_MAX was 15 and read small in the tall field a Mac or an iPad draws: 20 since
+// Gil, 2026-10-10 ("a bit larger on mac/iPad"). On a phone the disc's own size and the
+// room still decide: a long hint (ENTER YOUR HANDLE) is unchanged, and the short PASSCODE
+// gains one pixel (15 to 16), measured at 844x390.
+const FIELD_TEXT_MAX = 20; // the field's type size where the box has room — a knob
 const FIELD_PAD_X = 12;    // the input's side padding, each side
 const FIELD_PIP_W = 22;    // room the status pip takes at the right end
 function fieldTextPx(w, discPx, text) {
   const room = w - FIELD_PAD_X * 2 - FIELD_PIP_W - text.length;
   return fitPx(text, '600', Math.min(FIELD_TEXT_MAX, discPx), room, 8);
+}
+// THE FIELD'S BOX, in DESIGN.md tokens (Gil, 2026-10-10, the design hook's notes, 2B):
+// panel-glass under chrome-cyan with the cut-sm corner. Quiet while the disc casts and
+// for the FEEDBACK note; lit once a one-line field is live. The hint is body-ice.
+const FIELD_GLASS = 'rgba(4,14,30,0.85)', FIELD_EDGE = 'rgba(111,227,255,0.35)';
+const FIELD_GLASS_LIT = 'rgba(4,14,30,0.92)', FIELD_EDGE_LIT = 'rgba(111,227,255,0.8)';
+const FIELD_HINT = 'rgba(190,225,255,0.5)';
+const FIELD_CUT = 8;
+function fieldPlate(x, y, w, h, lit) {
+  techRect(x, y, w, h, FIELD_CUT); ctx.fillStyle = lit ? FIELD_GLASS_LIT : FIELD_GLASS; ctx.fill();
+  ctx.strokeStyle = lit ? FIELD_EDGE_LIT : FIELD_EDGE; ctx.lineWidth = 1.5;
+  techRect(x, y, w, h, FIELD_CUT); ctx.stroke();
 }
 const overlayValue = () => overlayEl ? overlayEl.value : '';
 

@@ -1232,12 +1232,11 @@ function drawEnd(g) {
       try { ctx.letterSpacing = '0px'; } catch (e) {}
       // the handle field. During the cast it's a static plate; once settled the
       // live DOM input mounts in the same spot (seamless, native caret).
+      fieldPlate(fx, fy, fw, fh, settled); // the box under the cast AND under the live input, lit once live (00-core)
       if (!settled) {
-        techRect(fx, fy, fw, fh, 8); ctx.fillStyle = 'rgba(4,14,30,0.85)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 8); ctx.stroke();
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         const has = !!nameEntryDraft;
-        ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
+        ctx.fillStyle = has ? '#eafaff' : FIELD_HINT;
         ctx.font = '600 ' + fTxt + 'px Audiowide, system-ui';
         try { ctx.letterSpacing = '1px'; } catch (e) {}
         ctx.fillText((has ? nameEntryDraft : 'ENTER YOUR HANDLE').toUpperCase(), fx + FIELD_PAD_X + 2, fy + fh / 2 + 1);
