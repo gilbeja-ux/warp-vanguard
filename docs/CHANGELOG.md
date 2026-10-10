@@ -38,6 +38,8 @@ tablet or a desktop.
   white, pressing on the same beat; the thumb steps aside only while the
   controller is the hand flying the game.
 - **The barrier net's two arrows** each lead one emitter to its own end.
+- **The enlistment's emitters have their bus-bars again.** On its second disc
+  they had been thin arcs since August; they are the emitters you fly now.
 
 ### On every screen
 - **One tap or click skips the boot splash**, on every device.
@@ -53,6 +55,10 @@ tablet or a desktop.
 - **A text field's hint fits its box.** On a phone the HIGH SCORE disc read
   "ENTER YOUR HAN"; the handle, MY DATA's rename and the passcode field now fit
   their type to the box, and the text no longer jumps when the field goes live.
+- **The menu fades as one.** When you deploy, the whole wheel fades with the
+  badge as the menu zooms away, and on the way back the screen fades in instead
+  of cutting in at full strength. A contract disc's engine glows and dust fade
+  with their disc.
 
 ### On a phone: the path ahead reads
 A threat two seconds out is a third of its Mac size on a phone, and testers
