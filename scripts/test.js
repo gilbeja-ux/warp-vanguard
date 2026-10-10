@@ -7111,7 +7111,7 @@ await tick();
   check('warp lines: both pen paths take the gauge', kLines.length === 2 && kLines.every(l => / \* gauge;$/.test(l)));
   check('warp lines: the gauge is named knobs, full at a Mac-sized screen',
     /const WARP_LINE_FULL_H = \d+;/.test(df) && /const WARP_LINE_MIN_K = [\d.]+;/.test(df)
-    && /const warpLineGauge = \(\) => clamp\(Math\.min\(W, H\) \/ WARP_LINE_FULL_H, WARP_LINE_MIN_K, 1\);/.test(df));
+    && /const warpLineGauge = \(\) => abl\('gauge'\) \? 1 : clamp\(Math\.min\(W, H\) \/ WARP_LINE_FULL_H, WARP_LINE_MIN_K, 1\);/.test(df));
 }
 
 // ================= THE TRACE RECORDS THE ANGLE THE STEP JUDGED (2026-10-10) =================

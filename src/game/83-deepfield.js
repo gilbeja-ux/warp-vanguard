@@ -566,7 +566,8 @@ function headSprite(tint) {
 // convoy's gold lines and the stars' heads are not on it.
 const WARP_LINE_FULL_H = 700;  // short side, in screen points, from which a line draws at full gauge
 const WARP_LINE_MIN_K = 0.5;   // the thinnest gauge, on the smallest screen
-const warpLineGauge = () => clamp(Math.min(W, H) / WARP_LINE_FULL_H, WARP_LINE_MIN_K, 1);
+// ?abl=gauge draws the old fixed pen, for an A/B of the gauge on one page (bench.js)
+const warpLineGauge = () => abl('gauge') ? 1 : clamp(Math.min(W, H) / WARP_LINE_FULL_H, WARP_LINE_MIN_K, 1);
 function drawStreaks(g, dt) {
   const gauge = warpLineGauge(); // read once a frame — see WARP_LINE_FULL_H
   // a wounded convoy is a thinner, dimmer river
