@@ -4,6 +4,12 @@
 // lineup: every trap type rendered LIVE by the real body renderers, one line
 // of guidance under each, and the volley tip at the foot. No navigation —
 // tap anywhere (or Esc / B / START) to hand back to whoever opened it.
+// THE TYPE STOPS GROWING AT A 650-TALL SCREEN (Gil, 2026-10-10, after the board got the
+// same rule as BOARD_TYPE_CAP on 2026-10-09). A size keyed to the screen kept growing on
+// an iPad or a desktop while the keys and boxes beside it stopped, so the words came out
+// bigger than the keys they sit next to. Below the cap nothing changes, so a phone reads
+// as it did. Text sized to the ring or to a disc is not on it: the ring keeps growing.
+const SCREEN_TYPE_CAP = 650;
 // wall geometry that lands a live body at (sx, sy): a ring of radius rr passes
 // through the point at hitZ exactly (see geo()/ring()), so the real renderers
 // paint the specimen "on the wall" of a little private bore
@@ -255,7 +261,7 @@ function drawGuideLineup(box, u, opts) {
   let titleY = box.y;
   if (o.title !== false) {
     try { ctx.letterSpacing = '3px'; } catch (e) {}
-    const titlePx = fitPx('FIELD GUIDE // KNOW YOUR ENEMY', '700', Math.round(u * 0.055),
+    const titlePx = fitPx('FIELD GUIDE // KNOW YOUR ENEMY', '700', Math.round(Math.min(u, SCREEN_TYPE_CAP) * 0.055),
       o.titleMaxW === undefined ? box.w : o.titleMaxW, 10);
     titleY = box.y + titlePx;
     ctx.fillStyle = 'rgba(140,210,255,0.8)';
@@ -2270,7 +2276,7 @@ function drawMenuCamps(ccx, ccy, R) {
   ctx.textAlign = 'center';
   // screen title — same voice as LEADERBOARD (800 Audiowide, wide tracking)
   try { ctx.letterSpacing = '4px'; } catch (e) {}
-  const tfs = Math.max(14, Math.round(Math.min(H * 0.045, W * 0.032, (ccy - R2) * 0.42)));
+  const tfs = Math.max(14, Math.round(Math.min(Math.min(H, SCREEN_TYPE_CAP) * 0.045, W * 0.032, (ccy - R2) * 0.42)));
   ctx.font = '800 ' + tfs + 'px Audiowide, system-ui';
   ctx.fillStyle = 'rgba(207,232,255,' + (0.92 * rowAl * (1 - zq)).toFixed(2) + ')';
   // CENTRED IN ITS OWN BAND — the strip between the top of the frame and the

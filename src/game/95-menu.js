@@ -231,6 +231,7 @@ function drawMenuMap() {
   };
   // ---- the marker sizes, shared by the lanes and the relay markers below ----
   const nr = Math.min(W, H) * 0.03;
+  const MAP_NUM_MIN = 9;   // the smallest plate number and caption, px
   const dR = Math.max(3.5, nr * 0.30);   // the destination reticle radius
   // THE HIGHLIGHT CIRCLE — big enough that the body it rings stays readable
   // inside it. At 1.7×dR it sat right on the planet's limb and the selection
@@ -387,7 +388,9 @@ function drawMenuMap() {
     // THE SELECTED PLATE OWNS THE COLUMN: everything else dims to less than
     // half, so the eye finds the level being chosen without reading a number.
     const selP = i === mapSel;
-    const r = nr * 0.72;
+    // A FLOOR, NOT A CAP (Gil, 2026-10-10): on a phone the plate came out 8px across and
+    // its number 5px, too small to read. The plate grows to hold a MAP_NUM_MIN number.
+    const r = Math.max(nr * 0.72, MAP_NUM_MIN / 0.6);
     const py3 = my2 - selR - r - 6;
     ctx.save();
     ctx.globalAlpha = selP ? 1 : 0.42;
@@ -417,7 +420,7 @@ function drawMenuMap() {
     // this was the one call site that skipped it. There is no level 0, and the
     // padding is what makes 01 read as a name rather than a count.
     const num = lvNum(curLevelNo(i));
-    ctx.font = '800 ' + Math.round(r * (num.length > 1 ? 0.6 : 0.75)) + 'px Audiowide, system-ui';
+    ctx.font = '800 ' + Math.max(MAP_NUM_MIN, Math.round(r * (num.length > 1 ? 0.6 : 0.75))) + 'px Audiowide, system-ui';
     ctx.fillText(locked ? '·' : num, mx2, py3 + 1);
     ctx.textBaseline = 'alphabetic';
     // the shield rating crowns the plate — it used to sit under the body, where
@@ -443,8 +446,9 @@ function drawMenuMap() {
       ctx.save();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillStyle = PROG.stars[last] > 0 ? 'rgba(150,235,130,0.85)' : 'rgba(190,225,255,0.62)';
-      ctx.font = '700 ' + Math.round(nr * 0.38) + 'px Audiowide, system-ui';
-      ctx.fillText('DESTINATION', fx, fy + selR + nr * 0.42);
+      const dpx = Math.max(MAP_NUM_MIN, Math.round(nr * 0.38));
+      ctx.font = '700 ' + dpx + 'px Audiowide, system-ui';
+      ctx.fillText('DESTINATION', fx, fy + selR + Math.max(nr * 0.42, dpx * 0.7));
       ctx.restore();
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     }
@@ -854,6 +858,14 @@ function drawEnd(g) {
   const scLabelY = nbY - fpxB * 1.9;
   const scoreY = scLabelY - lpxS * 1.25;              // the title tucks DIRECTLY under it
   const rankY = scoreY - spx * 0.95;                  // the standing, close above its number
+  // THE TYPE STOPS AT SCREEN_TYPE_CAP, THE STACK DOES NOT (Gil, 2026-10-10). The sizes
+  // above place the rows and stay on uB, so the stack stands where it did; the words
+  // drawn in it use these, so on an iPad or a desktop they stop growing past the keys.
+  const tB = Math.min(uB, SCREEN_TYPE_CAP);
+  const vpxT = Math.max(13, Math.round(tB * 0.030));
+  const spxT = Math.max(22, Math.round(tB * 0.062));
+  const fpxT = Math.max(10, Math.round(tB * 0.023));
+  const lpxT = Math.max(9, Math.round(tB * 0.020));
 
   // ---- TELEMETRY SIZING, COMPUTED UP FRONT ----
   // Done here rather than at the draw because the SCORE title borrows this label size:
@@ -871,7 +883,7 @@ function drawEnd(g) {
   // floor it simply overflowed into the divider, which is what Gil saw on mobile. Now the
   // widest label PICKS the cell width, at a size that leaves real air either side, and the
   // font only comes down if four such cells cannot fit the frame.
-  let lpx = lpxS, cw3 = 0;
+  let lpx = lpxT, cw3 = 0;
   const availW = Math.min(W * 0.90, g.nodeR * 2 * 1.5);
   for (; lpx > 7; lpx--) {
     ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
@@ -893,7 +905,7 @@ function drawEnd(g) {
   // it is the answer to "where does that put me", so it introduces the number.
   if (lbStatus && !qual) {
     ctx.fillStyle = /RANK|SUBMITTED/.test(lbStatus) ? 'rgba(120,255,170,0.92)' : 'rgba(255,150,90,0.95)';
-    ctx.font = '600 ' + Math.max(10, Math.round(uB * 0.021)) + 'px Audiowide, system-ui';
+    ctx.font = '600 ' + Math.max(10, Math.round(tB * 0.021)) + 'px Audiowide, system-ui';
     try { ctx.letterSpacing = '2px'; } catch (e) {}
     ctx.fillText('◈ ' + lbStatus, g.cx, rankY);
     try { ctx.letterSpacing = '0px'; } catch (e) {}
@@ -902,7 +914,7 @@ function drawEnd(g) {
     // an assisted run has NO score. The tag stands where the number would,
     // so nobody hunts the report for missing points.
     ctx.fillStyle = 'rgba(140,210,255,0.92)';
-    ctx.font = '700 ' + Math.max(15, Math.round(spx * 0.52)) + 'px Audiowide, system-ui';
+    ctx.font = '700 ' + Math.max(15, Math.round(spxT * 0.52)) + 'px Audiowide, system-ui';
     ctx.fillText('LANE ASSIST', g.cx, scoreY);
     ctx.fillStyle = 'rgba(160,215,255,0.7)';
     ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
@@ -911,7 +923,7 @@ function drawEnd(g) {
     try { ctx.letterSpacing = '0px'; } catch (e) {}
   } else {
   ctx.fillStyle = '#eaf4ff';
-  ctx.font = '700 ' + (spx + (counting ? 2 : 0)) + 'px Audiowide, system-ui';
+  ctx.font = '700 ' + (spxT + (counting ? 2 : 0)) + 'px Audiowide, system-ui';
   ctx.fillText(shown.toLocaleString(), g.cx, scoreY);
   // the same size and spacing as the telemetry labels below — one label voice on the screen
   ctx.fillStyle = 'rgba(160,215,255,0.7)';
@@ -944,7 +956,7 @@ function drawEnd(g) {
         ctx.globalAlpha = pA * k;
         ctx.translate(g.cx, nbY);
         ctx.scale(os2, os2);
-        const fpx = fpxB;   // hoisted: nbY was computed from it
+        const fpx = fpxT;   // the type's size; nbY was placed with fpxB
         ctx.font = '700 ' + fpx + 'px Audiowide, system-ui';
         try { ctx.letterSpacing = '2.5px'; } catch (e) {}
         const m2 = ctx.measureText('NEW BEST');
@@ -995,7 +1007,7 @@ function drawEnd(g) {
         ctx.save();
         ctx.globalAlpha = pA * k * 0.85;
         ctx.fillStyle = 'rgba(150,190,225,0.85)';
-        ctx.font = '600 ' + Math.round(fpxB * 0.82) + 'px Audiowide, system-ui';
+        ctx.font = '600 ' + Math.round(fpxT * 0.82) + 'px Audiowide, system-ui';
         try { ctx.letterSpacing = '2px'; } catch (e) {}
         ctx.fillText(shortBy.toLocaleString() + ' SHORT OF BEST', g.cx, nbY);
         try { ctx.letterSpacing = '0px'; } catch (e) {}
@@ -1015,7 +1027,7 @@ function drawEnd(g) {
   for (let i = 0; i < 4; i++) {
     const c3 = telCells[i], cxq = x03 + cw3 * (i + 0.5);
     ctx.fillStyle = 'rgba(' + c3.c + ',0.95)';
-    ctx.font = '700 ' + vpx + 'px Audiowide, system-ui';
+    ctx.font = '700 ' + vpxT + 'px Audiowide, system-ui';
     ctx.fillText(c3.v, cxq, telValY);
     ctx.fillStyle = 'rgba(' + c3.c + ',0.55)';
     ctx.font = '600 ' + lpx + 'px Audiowide, system-ui';
@@ -1126,6 +1138,7 @@ function drawEnd(g) {
       const ofW = Math.min(Math.max(margin * 0.95, 158), 272);
       const ofH = bh;
       const ofCapPx = Math.max(9, Math.round(uB * 0.021));
+      const ofCapT = Math.max(9, Math.round(tB * 0.021)); // the caption's type; ofCapPx places it
       const ofCapY = rankY - Math.max(18, Math.round(uB * 0.042));
       const ofY = ofCapY - ofCapPx * 1.6 - ofH;
       const ofCut = bcut;
@@ -1134,7 +1147,7 @@ function drawEnd(g) {
       const pa2 = ctx.textAlign;
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(255,200,110,0.8)';
-      ctx.font = '600 ' + ofCapPx + 'px Audiowide, system-ui';
+      ctx.font = '600 ' + ofCapT + 'px Audiowide, system-ui';
       ctx.fillText(offer.price, g.cx, ofCapY + rise);
       ctx.textAlign = pa2;
     }
