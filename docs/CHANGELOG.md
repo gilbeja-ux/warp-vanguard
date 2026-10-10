@@ -98,8 +98,8 @@ lost it in the lane. On a small screen only (a Mac or an iPad is unchanged):
 ### Under the hood
 - Scoring and the stage boards are unchanged by the course and the screens:
   0 of 41 boards moved at every step, and the course itself is unranked.
-- The verifier is deployed for sim `f5cedbcce6c8` (2026-10-10, the look fixes),
-  compatible with the ids before it: 0 of 41 boards moved. If anything under
+- The verifier is deployed for sim `df6a4d8b9adc` (2026-10-10, the preloaded
+  first run), compatible with the ids before it: 0 of 41 boards moved. If anything under
   `src/game/` changes before the store build, deploy again and stamp the new id here.
 - No migration. The database is the one 1.0.8 shipped with.
 - The course's knobs are named in `docs/USER-FEEDBACK.md`, F-017.
