@@ -137,6 +137,17 @@ function buildFieldGlow() {
 }
 // (its one caller, drawLattice, always hands it the reach; the boreReach() fallback
 // for a missing one went 2026-10-10)
+//
+// THE FAR END OF THE SHEATH THINS ON A SMALL SCREEN (Gil, 2026-10-10). Its 26 stamps
+// shrink and pile up toward the far end, and their light adds: measured on a phone,
+// the glow was most of the brightness in the band a threat crosses 0.7–2.2 s out
+// (74 → 52 with it gone), the haze a far body has to stand out against. On a small
+// screen a stamp deeper than WARP_GLOW_CLEAR_FROM gives up light with its depth, up
+// to WARP_GLOW_CLEAR_DEEP at the far end; the sheath near the ring, which says the
+// lane is powered, is untouched. Scaled by the small-screen dial (41-geometry): the
+// Mac and the iPad are at 0.
+const WARP_GLOW_CLEAR_FROM = 0.6;  // stamp depth (z) where the thinning starts; the node ring is 0.25
+const WARP_GLOW_CLEAR_DEEP = 0.6;  // share of a stamp's light taken away at the far end
 function drawWarpField(g, reach) {
   if (parkedSky()) return;
   // THE GRADIENT THAT LIGHTS THE BORE. A blueprint is lines; this is the glow, and it is the
@@ -157,6 +168,7 @@ function drawWarpField(g, reach) {
   ctx.globalCompositeOperation = 'lighter';
   const N = lowFX ? 16 : 26;
   const exitZ = laneExitZ(), exitK = 1 - laneExit();
+  const clearK = WARP_GLOW_CLEAR_DEEP * smallScreenK(); // read once a frame — see WARP_GLOW_CLEAR_FROM
   for (let i = 0; i < N && exitK > 0.004; i++) {
     const z0 = SPAWN_Z - 0.03 - (i / (N - 1)) * (SPAWN_Z + 0.10);
     const z = z0 - exitZ;                          // the sheath leaves with its lane
@@ -170,7 +182,8 @@ function drawWarpField(g, reach) {
       + 0.26 * Math.sin(z0 * 5.5 - time * 1.35)
       + 0.12 * Math.sin(z0 * 11.2 + time * 0.81);
     const depthK = clamp((SPAWN_Z - 0.04 - z0) / 0.22, 0, 1);
-    const al = (0.30 + 0.42 * dive) * depthK * charge * swell * exitK * boreK(z0, reach) * lit;
+    const al = (0.30 + 0.42 * dive) * depthK * charge * swell * exitK * boreK(z0, reach) * lit
+      * (1 - clearK * clamp((z0 - WARP_GLOW_CLEAR_FROM) / (SPAWN_Z - WARP_GLOW_CLEAR_FROM), 0, 1)); // the far end thins on a small screen
     if (al < 0.008) continue;
     ctx.globalAlpha = Math.min(1, al);
     ctx.drawImage(fieldGlowCv, rg.x - sz, rg.y - sz, sz * 2, sz * 2);

@@ -7123,6 +7123,11 @@ await tick();
   check('small screen: a MacBook window and an iPad are at 0, a landscape phone at 1', k(1470, 800) === 0 && k(1180, 820) === 0 && k(844, 390) === 1);
   check('small screen (B): the haze floor lifts toward FAR_INK_SMALL by the dial',
     /const FAR_INK_SMALL = [\d.]+;/.test(art) && /const floor = lerp\(BREACHFX\.haze, Math\.max\(BREACHFX\.haze, FAR_INK_SMALL\), smallScreenK\(\)\);/.test(art));
+  const tun = fs.readFileSync(path.join(ROOT, 'src', 'game', '80-tunnel.js'), 'utf8');
+  check('small screen: the warp field glow thins at the far end by the dial, the range rings are untouched',
+    /const WARP_GLOW_CLEAR_FROM = [\d.]+;/.test(tun) && /const WARP_GLOW_CLEAR_DEEP = [\d.]+;/.test(tun)
+    && /const clearK = WARP_GLOW_CLEAR_DEEP \* smallScreenK\(\);/.test(tun)
+    && !/smallScreenK/.test(tun.slice(tun.indexOf('function drawRangeRings'), tun.indexOf('function drawRangeRings') + 2500)));
   check('small screen (D): the warp lines clear the deep bore by the dial, in a lane only',
     /const WARP_CLEAR_FROM = [\d.]+;/.test(df) && /const WARP_CLEAR_DEEP = [\d.]+;/.test(df)
     && /const clearK = WARP_CLEAR_DEEP \* smallScreenK\(\) \* laneFlow;/.test(df)
