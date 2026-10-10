@@ -45,6 +45,33 @@ function withCanvas(cv, fn) {
   try { fn(); } finally { ctx = o; }
   return true;
 }
+// FADE A WHOLE PAINTER. Setting ctx.globalAlpha before a call fades it only until its
+// first `ctx.globalAlpha = x`, and the menu's painters set absolute alphas everywhere,
+// so the launch zoom's fade was thrown away on the first line of drawMenu: the wheel
+// grew at full strength while the badge beside it faded (2026-10-10). Inside fn every
+// alpha written to the current ctx is multiplied by k, and a read gives back what was
+// written, so `*=` and save/restore keep working. A value the canvas would ignore
+// (NaN, outside 0..1) is still ignored. Scopes nest, and each one hands back the alpha
+// it found. Offscreen bakes inside fn rebind ctx (withCanvas) and are untouched, so a
+// cache is never baked faded.
+function withAlpha(k, fn) {
+  const c = ctx;
+  const own = Object.getOwnPropertyDescriptor(c, 'globalAlpha');
+  const acc = own || Object.getOwnPropertyDescriptor(Object.getPrototypeOf(c), 'globalAlpha');
+  if (!(k < 1) || !acc || !acc.get || !acc.set) { fn(); return; }
+  const kk = Math.max(k, 1e-4); // a read divides by it
+  const found = acc.get.call(c);
+  Object.defineProperty(c, 'globalAlpha', {
+    configurable: true,
+    get() { return acc.get.call(c) / kk; },
+    set(v) { if (v >= 0 && v <= 1) acc.set.call(c, v * kk); }
+  });
+  c.globalAlpha = 1;
+  try { fn(); } finally {
+    if (own) Object.defineProperty(c, 'globalAlpha', own); else delete c.globalAlpha;
+    acc.set.call(c, found);
+  }
+}
 
 let ROT = false; // landscape-only: on portrait screens the whole game renders rotated 90°
 let lastCw = -1, lastCh = -1, lastDpr = -1, lastRot = null; // what the canvas is CURRENTLY built for

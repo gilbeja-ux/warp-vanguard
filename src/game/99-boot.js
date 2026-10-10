@@ -1743,8 +1743,7 @@ function drawPostChain(rawDt, worldFx, g) {
       const q = clamp(menuFx.t / menuFx.dur, 0, 1), e2 = q * q;
       ctx.save();
       ctx.translate(g.cx, g.cy); ctx.scale(1 + e2 * 1.7, 1 + e2 * 1.7); ctx.translate(-g.cx, -g.cy);
-      ctx.globalAlpha = 1 - e2;
-      drawMenu(g);
+      withAlpha(1 - e2, () => drawMenu(g)); // the whole wheel fades with the badge (menuMenuXform)
       ctx.restore();
     } else if (menuFx && menuFx.zoom) {
       // launch, run backwards: the menu lives BEHIND the run, so returning
@@ -1752,8 +1751,7 @@ function drawPostChain(rawDt, worldFx, g) {
       const q = clamp(menuFx.t / menuFx.dur, 0, 1), e2 = (1 - q) * (1 - q);
       ctx.save();
       ctx.translate(g.cx, g.cy); ctx.scale(1 + e2 * 1.7, 1 + e2 * 1.7); ctx.translate(-g.cx, -g.cy);
-      ctx.globalAlpha = 1 - e2;
-      drawMenu(g);
+      withAlpha(1 - e2, () => drawMenu(g));
       ctx.restore();
     } else drawMenu(g);
   }

@@ -2427,6 +2427,10 @@ const ENL_IN = 0.9;               // …opening on this, and closing on ENL_FADE
 const ENL_FADE = 1.2;
 const ENL_TRAVEL = 1.60;          // one body's trip, this bore's horizon → the ring
 const ENL_LEAD = 0.12;            // the emitter is ON the lane this long before impact
+// The emitters' band on this disc, as a share of the run's own. 1 is the run's emitters
+// exactly: the plasma, the halo and both bus-bars scale together. A knob for Gil, who
+// judges the weight on the disc (2026-10-10, when the disc got its bus-bars back).
+const ENL_EMITTER_BAND = 1;
 // THE LANE ITSELF MOVES. Depth rings flow outward at this many bore-lengths a
 // second — faster than the traffic closes, so the picture reads as the ship running
 // the lane with contacts coming up on it, rather than as a target board with things
@@ -2596,7 +2600,10 @@ function enlistArtRun(x, y, w, h, covered) {
   // ---- the emitters, painted by the game's own arc renderer ----
   // bh is the monolith band's half-width. In a run it is min(W,H)·0.055·bandW against
   // a nodeR of 0.44·min(W,H) — so it is 0.125·bandW of the ring, whatever the ring is.
-  const bandH = nodeR * 0.125 * ARCFX.bandW;
+  // It is drawArcNode's FIFTH argument. From 2026-08-25 (3a09988 dropped `fused` from
+  // the signature) to 2026-10-10 this call still sent `false` there, so the band was
+  // 0: no bus-bars, and plasma at whatever line width the last stroke left.
+  const bandH = nodeR * 0.125 * ARCFX.bandW * ENL_EMITTER_BAND;
   for (let i = 0; i < 2; i++) {
     const n = ENL_NODES[i];
     const na = enlistNodeAngle(i, show);
@@ -2611,7 +2618,7 @@ function enlistArtRun(x, y, w, h, covered) {
       if (since >= 0) { rec = Math.max(0, 1 - since * 4); dip = Math.max(0, 1 - since * 2.2); }
     }
     n.recoil = rec; n.dip = dip; n.held = false;
-    drawArcNode(n, g2, i, 0, false, bandH);
+    drawArcNode(n, g2, i, 0, bandH);
   }
   // ---- the bolts, leaping from both bus-bars onto what they just took ----
   // drawArcNode leaves each bar's tip on the node, so this runs after it, exactly as

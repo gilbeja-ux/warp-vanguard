@@ -2506,13 +2506,17 @@ function drawLiveCampArt(im2, pk, x, y, r, mh) {
   // brightened, which crosses from "the scene has light in it" into "the screen is
   // pulsing". The thruster cores carry the presence; this only has to keep the frame
   // from sitting perfectly dead.
+  // Every layer here rides the disc's own fade (a0): the carousel's spin in and out and
+  // the zoom into a contract set it before this runs. Absolute alphas here once left
+  // the bloom, the dust and the thrusters lit on a disc that had faded (2026-10-10).
+  const a0 = ctx.globalAlpha;
   const bl = 0.035 + 0.030 * Math.sin(time * 0.41 + 0.6);
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = bl;
+  ctx.globalAlpha = a0 * bl;
   ctx.drawImage(im2.img, ox, oy, sw, sh, x - r, y - r, r * 2, mh);
   ctx.globalCompositeOperation = 'source-over';
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = a0;
   // ---- the counter-drifting sky ----
   const key = (pk && pk.art) || 'x';
   const sky = discSky(key), lum = discLuma(im2, key);

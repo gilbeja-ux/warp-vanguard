@@ -209,6 +209,7 @@ code = code.replace("'use strict';", '') + `
   getMapSel: () => mapSel, getPadHold: () => padHold,
   getCampScroll: () => campScrollTgt, setCampScroll: v => { campScroll = campScrollTgt = v; }, CAMPS_SOON,
   getMenuFx: () => menuFx, setMenuFx: v => { menuFx = v; }, getBackRect: () => menuBackRect,
+  withAlpha, drawLiveCampArt, DISC_GLOW,
   startEndless, menuBtns: () => menuButtons, getEndWin: () => endWin,
   setLevelT: v => { levelT = v; }, setIntegrity: v => { integrity = v; }, setScore: v => { score = v; },
   tolVis: () => tolVis, musicRate: () => musicRate, dialCenter,
@@ -5522,6 +5523,86 @@ await tick();
   check('a mid-life bark paints at full alpha', mid !== null && mid > 0.95);
   check('a bark nearing retirement has already faded out', late !== null && late < 0.2);
   G.setState(G.S.MENU);
+}
+
+// ================= THE MENU FADES AS ONE =================
+// The launch zoom and the return set a fade before drawMenu, and drawMenu threw it
+// away on its first `ctx.globalAlpha = x`: the wheel grew at full strength while the
+// badge faded (2026-10-10). withAlpha multiplies every alpha a painter writes. The
+// contract-disc art rides its disc's fade the same way, and the enlistment's emitters
+// get their band height back.
+{
+  const spy = () => {
+    const box = { alpha: 1, sets: [] };
+    Object.defineProperty(ctxStub, 'globalAlpha', { configurable: true,
+      get: () => box.alpha, set: v => { if (typeof v === 'number') { box.alpha = v; box.sets.push(v); } } });
+    return box;
+  };
+  const unspy = () => Object.defineProperty(ctxStub, 'globalAlpha', { get: () => noop, set: noop, configurable: true });
+  // the scope itself: writes scale, reads give back what was written, *= works, nests,
+  // ignores what the canvas ignores, and hands the context back as it found it
+  {
+    const box = spy();
+    let read = null, nested = null, afterBad = null;
+    G.withAlpha(0.5, () => {
+      ctxStub.globalAlpha = 0.8; read = ctxStub.globalAlpha;
+      ctxStub.globalAlpha *= 0.5;
+      G.withAlpha(0.5, () => { ctxStub.globalAlpha = 1; nested = box.alpha; });
+      ctxStub.globalAlpha = 2; afterBad = box.alpha;
+    });
+    const same = Object.getOwnPropertyDescriptor(ctxStub, 'globalAlpha').get() === box.alpha;
+    unspy();
+    check('withAlpha scales a write and reads it back as written', Math.abs(read - 0.8) < 1e-9 && box.sets.includes(0.4));
+    check('withAlpha keeps `*=` relative to the scope', box.sets.some(v => Math.abs(v - 0.2) < 1e-9));
+    check('withAlpha nests: a scope inside a scope multiplies both', Math.abs(nested - 0.25) < 1e-9);
+    check('withAlpha ignores an alpha the canvas would ignore', Math.abs(afterBad - 0.2) < 1e-9);
+    check('withAlpha hands the context back with its own accessor', same);
+  }
+  // the build stamp is painted at a plain `globalAlpha = 1` inside drawMenu, so its
+  // alpha is the transition's alpha
+  const stampAlpha = fx => {
+    const box = spy();
+    let seen = null;
+    const rawFT = ctxStub.fillText;
+    ctxStub.fillText = txt => { if (typeof txt === 'string' && txt.startsWith('BLD ') && seen === null) seen = box.alpha; };
+    // drawMenu reads navigator.standalone, and an earlier block removes the global:
+    // put it back for the frame, the way the settings-disc block does
+    const hadNav = 'navigator' in global;
+    if (!hadNav) global.navigator = {};
+    G.setState(G.S.MENU); G.setMenuScreen('home'); G.setMenuFx(fx);
+    G.frame(16);
+    if (!hadNav) delete global.navigator;
+    ctxStub.fillText = rawFT; unspy(); G.setMenuFx(null);
+    if (G.crash().on) { seen = null; G.resetCrash(); }
+    return seen;
+  };
+  const rest = stampAlpha(null);
+  const launch = stampAlpha({ kind: 'launch', t: 800, dur: 1000, action: () => {} });   // e2 = 0.64
+  const back = stampAlpha({ kind: 'spinIn', t: 200, dur: 1000, dir: 1, zoom: true });     // e2 = 0.64
+  check('the menu paints at full alpha at rest', rest !== null && rest > 0.99);
+  check('the launch zoom fades the whole menu, not only the badge', launch !== null && Math.abs(launch - 0.36) < 0.01);
+  check('the return zoom fades the whole menu in', back !== null && Math.abs(back - 0.36) < 0.01);
+  // a contract's live art: nothing in it outshines the disc it sits on
+  {
+    const key = Object.keys(G.DISC_GLOW)[0];
+    const box = spy();
+    box.alpha = 0.5;
+    G.drawLiveCampArt({ img: {}, w: 1152, h: 576 }, { art: key }, 400, 225, 180, 180);
+    unspy();
+    check('a contract disc\'s bloom, dust and thrusters ride the disc\'s fade',
+      box.sets.length > 0 && Math.max(...box.sets) <= 0.5 + 1e-9);
+  }
+  // the enlistment: drawArcNode takes five arguments, and every caller sends five
+  {
+    const GS = gameSource(ROOT);
+    const sig = /function drawArcNode\(([^)]*)\)/.exec(GS);
+    const want = sig ? sig[1].split(',').length : -1;
+    const calls = [...GS.matchAll(/(?<!function )drawArcNode\(([^)]*)\)/g)].map(m => m[1].split(',').length);
+    check('every drawArcNode call sends the band height where the signature wants it',
+      want === 5 && calls.length >= 2 && calls.every(n => n === want));
+    check('the enlistment emitters scale through the ENL_EMITTER_BAND knob', /const ENL_EMITTER_BAND = [\d.]+;/.test(GS)
+      && /bandH = nodeR \* 0\.125 \* ARCFX\.bandW \* ENL_EMITTER_BAND/.test(GS));
+  }
 }
 
 // ================= H-16: the board is no longer a dead end =================
