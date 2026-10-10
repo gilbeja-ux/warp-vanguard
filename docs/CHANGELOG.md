@@ -40,6 +40,10 @@ tablet or a desktop.
 - **The barrier net's two arrows** each lead one emitter to its own end.
 - **The enlistment's emitters have their bus-bars again.** On its second disc
   they had been thin arcs since August; they are the emitters you fly now.
+- **The first run is preloaded.** On a first launch the splash finishes every
+  bake before the enlistment opens, and each disc is drawn once before you see
+  it. The freeze when the course takes over is gone: 110 ms on a Mac, about
+  0.4 s on a slow phone. That one splash runs about 1.7 s longer on a Mac.
 
 ### On every screen
 - **One tap or click skips the boot splash**, on every device.
