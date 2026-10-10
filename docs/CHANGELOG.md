@@ -50,6 +50,24 @@ tablet or a desktop.
   tablet.
 - **The star map's stage numbers read on a phone.** Plate numbers and the
   DESTINATION caption never draw smaller than 9 pixels.
+- **A text field's hint fits its box.** On a phone the HIGH SCORE disc read
+  "ENTER YOUR HAN"; the handle, MY DATA's rename and the passcode field now fit
+  their type to the box, and the text no longer jumps when the field goes live.
+
+### On a phone: the path ahead reads
+A threat two seconds out is a third of its Mac size on a phone, and testers
+lost it in the lane. On a small screen only (a Mac or an iPad is unchanged):
+- **The white warp lines are narrower**, in step with the smaller bore.
+- **Far threats keep three-quarter ink** instead of half.
+- **The deep lane clears:** warp lines and the far end of the lane's glow give
+  up light with depth, so the middle of the screen, where threats appear, is
+  calmer. The range rings and the lines at the rim are untouched.
+- Measured on an OPPO phone, stage 15: about 2 fps more and 3% less frame work.
+
+### Controllers
+- **The pad goes quiet on the report.** The motors are stopped the moment the
+  report opens, and the stop repeats there as it does on the menus, so a pad
+  no longer buzzes on after a busy fight.
 
 ### The leaderboard
 - **A run steered with pad taps or a stick files its score.** The game
@@ -61,11 +79,11 @@ tablet or a desktop.
 ### Play Console "What's new" (paste-ready, under 500 chars)
 
 > A new first run: an instructor shows each move as a ghost on the live ring,
-> then you fly it. A miss rewinds the lane instead of failing you, and
-> LESSON 1/8 to 8/8 shows your progress. One tap skips the boot splash. Text on
-> the leaderboard, the END report and the contract list stays a readable size
-> on tablets and big screens, and star map numbers read on a phone. Runs
-> steered with pad taps or a stick now post their scores.
+> then you fly it. A miss rewinds the lane instead of failing you. On phones the
+> lane ahead is clearer: thinner warp lines and brighter distant threats. Text
+> fits its box on every screen, one tap skips the boot splash, a controller no
+> longer buzzes after a fight, and runs steered with pad taps or a stick now
+> post their scores.
 
 ### Under the hood
 - Scoring and the stage boards are unchanged by the course and the screens:
