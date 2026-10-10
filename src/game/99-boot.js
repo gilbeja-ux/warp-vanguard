@@ -504,8 +504,13 @@ function splashAudioTry() { // start (or join) the score the moment audio is all
     SPLASH.startAC = AC.currentTime; SPLASH.startOff = SPLASH.t; // audio-clock anchor
   } catch (e) { SPLASH.src = null; SPLASH.gain = null; }
 }
-// The one question both the sequence and the skip ask: may the curtain open?
-const splashGateOpen = () => s3BreachReady() || SPLASH.holdT >= SPLASH.holdMax;
+// The one question both the sequence and the skip ask: may the curtain open? On a
+// first launch it waits for EVERY bake, not only the hulls (s3AllReady, 2026-10-10):
+// the enlistment opens behind the curtain, and its first disc stuttered under the
+// stations left over. It costs that one splash about 1.7 s on a Mac. A returning
+// player's splash keeps the hulls-only gate, and the stations bake on the menu as
+// they always have.
+const splashGateOpen = () => (s3BreachReady() && (!enlist || s3AllReady())) || SPLASH.holdT >= SPLASH.holdMax;
 function splashEnd(skip) {
   if (!SPLASH.on) return;
   // THE GATE OUTRANKS THE SKIP. A tap during the load is remembered, not obeyed:
@@ -607,7 +612,7 @@ function splashHoldPump() {
 // away from the picture. The floor keeps it above the bottom safe inset.
 const SPLASH_HOLD = { gap: 0.055, floorY: 0.80, capPad: 0.036, fontPx: 0.026 }; // shares of u / H
 function drawSplashHold(u) {
-  const keys = s3BreachKeys();
+  const keys = s3Order.length ? s3Order : s3BreachKeys(); // the gate waits for every bake
   const done = keys.filter(k => s3Sprites[k] !== undefined).length;
   const q = keys.length ? done / keys.length : 1;
   const bw = u * 0.30, bh = Math.max(2, u * 0.006);
@@ -1881,6 +1886,14 @@ setTimeout(() => {
 // headless harness is excluded by the same test the splash uses: no Image, no
 // bake worth spending seconds on.
 if (!SPLASH.on && typeof Image !== 'undefined') s3BreachDrain(20000);
+// THE STAR MAP'S GALAXY IS PAINTED BEFORE THE FIRST FRAME. buildCity() paints the
+// whole chart pixel by pixel, about 100 ms on a Mac and 400 ms on a phone-speed CPU,
+// and it used to run on the first frame that needed a route name or the chart: the
+// course's intro card froze the hand-off from the enlistment, and a returning
+// player's first star map froze the same way. Nothing is on screen yet here.
+// Gil, 2026-10-10: "can we pre load / render them?" Its own seeded rng, so no run's
+// random stream moves. A real browser only, like the drain above.
+if (typeof Image !== 'undefined' && !CITY_CHAINS.length) { try { buildCity(); } catch (e) {} }
 
 // A NEW PLAYER NEVER SEES THE MENU. This is claimed HERE, at the end of boot and
 // before the first frame, rather than when the splash ends — the splash reveals
@@ -1891,3 +1904,6 @@ if (!SPLASH.on && typeof Image !== 'undefined') s3BreachDrain(20000);
 // Nobody who has qualified sees this again. Someone who met him but never
 // finished the course gets the short re-entry instead of the full script.
 if (!progress.tutorialDone) startEnlistment(progress.enlisted, true);
+// …and its discs are painted once now, under the splash, so the first time a player
+// sees each one is not the first time it is drawn (enlistWarm, 91-briefing.js).
+if (typeof Image !== 'undefined' && enlist) { try { enlistWarm(); } catch (e) {} }

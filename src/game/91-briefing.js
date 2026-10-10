@@ -2949,6 +2949,22 @@ function enlistArtRelease() {
     if (e.img) { e.img.onload = e.img.onerror = null; e.img.src = ''; }
   }
 }
+// PAINT EVERY DISC ONCE, BEFORE ANYONE SEES ONE. Each disc's first frame paid for
+// what its painters build on first use (the two full-screen scan buffers, the run's
+// bodies, the shine, the legend's specimens): on a phone-speed CPU the first disc
+// dropped three frames and the last one two (Gil, 2026-10-10: "can we pre load /
+// render them?"). Boot calls this under the splash, with nothing on screen. Each disc
+// is painted settled into the outgoing-disc buffer, which the first real hand-over
+// paints again before it reads it (enlPrevFor stays -1), and the print buffer is sized.
+function enlistWarm() {
+  if (!enlist || !W || !H) return;
+  const g = geo(), R = g.nodeR * 0.9;
+  const script = enlistScript();
+  for (let b = 0; b < script.length; b++)
+    enlistKeepPrev(g, R, () => enlistDiscBody(g, R, script[b] || [], 999, b));
+  if (!enlBuf) enlBuf = document.createElement('canvas');
+  enlistToBuf(enlBuf, 0, 0, 1, 1, () => {});
+}
 function drawEnlistment() {
   if (!enlist) return;
   // The splash owns the screen until it is done — the state is claimed before the

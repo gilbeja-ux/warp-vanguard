@@ -24,7 +24,15 @@ function discArtImg(L) {
   if (e2) { DISCIMG.delete(url); DISCIMG.set(url, e2); } // touch: move to most-recent
   else {
     e2 = { img: new Image(), w: 0, h: 0, err: false };
-    e2.img.onload = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; };
+    // READY MEANS DECODED, not loaded. A loaded image is decoded on the frame that first
+    // draws it, on the main thread: the enlistment's first disc paid that for its
+    // 1280x760 keyframe as a dropped frame (2026-10-10). decode() does it off the frame;
+    // a browser without it, or a decode that fails, falls back to the old answer.
+    const ready = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; };
+    e2.img.onload = () => {
+      if (typeof e2.img.decode === 'function') e2.img.decode().then(ready, ready);
+      else ready();
+    };
     e2.img.onerror = () => { e2.err = true; }; // not on disk — the glam shot stands,
     e2.img.src = url;                          // and the Designer reports the miss
     DISCIMG.set(url, e2);
@@ -53,7 +61,11 @@ function campArtImg(pk) {
   let e2 = CAMPART[pk.id];
   if (!e2) {
     e2 = CAMPART[pk.id] = { img: new Image(), w: 0, h: 0 };
-    e2.img.onload = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; };
+    const ready = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; };
+    e2.img.onload = () => { // ready means decoded, as discArtImg above
+      if (typeof e2.img.decode === 'function') e2.img.decode().then(ready, ready);
+      else ready();
+    };
     e2.img.src = /^data:image\//.test(pk.art) ? pk.art : 'art/camp/' + pk.art;
   }
   return e2.w ? e2 : null; // null until decoded — the chart crop stands in

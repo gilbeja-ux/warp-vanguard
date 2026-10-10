@@ -191,6 +191,8 @@ code = code.replace("'use strict';", '') + `
   s3BreachKeys,
   // the boot gate: the queue it drains, the question it asks, and the beat it holds on
   getS3Order: () => s3Order, s3BreachReady, getS3Sprites: () => s3Sprites, SPLASH, SPL, S3D_LIGHT,
+  s3AllReady, splashGateOpen, getS3Queue: () => s3Queue, setS3Queue: q => { s3Queue = q; }, getS3Job: () => s3Job,
+  setEnlist: v => { enlist = v; }, enlistWarm,
   // the ring the whole game is mounted on: the accessor, and the two facts it keeps
   ringFx, getRingFxCv: () => ringFxCv, getRingFxSig: () => ringFxSig,
   clearRingFx: tried => { ringFxCv = null; ringFxSig = ''; ringFxTried = tried || ''; },
@@ -3460,6 +3462,50 @@ G.keys['ArrowUp'] = false;
     keys.forEach((k, i) => { if (prev[i] === undefined) delete sp[k]; else sp[k] = prev[i]; });
     check('the gate opens on every hull RESOLVED, not on every hull succeeding',
       closedOnEmpty && closedOnOneShort && openOnSkipAndFail);
+  }
+  // FOURTH (2026-10-10, Gil: "can we pre load / render them?"): on a FIRST LAUNCH the
+  // gate also waits for every station, because the enlistment opens behind the
+  // curtain and its first disc stuttered under the leftover bakes. A returning
+  // player's gate stays hulls-only. Driven with every hull resolved and one station
+  // still queued, then put back exactly as it was found.
+  {
+    const sp = G.getS3Sprites();
+    const keys = G.s3BreachKeys();
+    const prevHull = keys.map(k => sp[k]);
+    const q0 = G.getS3Queue(), en0 = G.enlist(), hold0 = G.SPLASH.holdT;
+    for (const k of keys) if (sp[k] === undefined) sp[k] = 'skip';
+    G.SPLASH.holdT = 0;
+    G.setS3Queue(['station-left-over']);
+    G.setEnlist({ beat: 0, t: 0, short: false, out: 0 });
+    const firstHolds = !G.splashGateOpen();
+    G.setEnlist(null);
+    const returningOpens = G.splashGateOpen();
+    G.setS3Queue([]);
+    G.setEnlist({ beat: 0, t: 0, short: false, out: 0 });
+    const firstOpensWhenDone = G.getS3Job() !== null || G.splashGateOpen();
+    G.setS3Queue(q0); G.setEnlist(en0); G.SPLASH.holdT = hold0;
+    keys.forEach((k, i) => { if (prevHull[i] === undefined) delete sp[k]; else sp[k] = prevHull[i]; });
+    check('a first launch holds the curtain for every station, not only the hulls', firstHolds && firstOpensWhenDone);
+    check('a returning player\'s curtain still opens on the hulls alone', returningOpens);
+  }
+  // …and the two things a first frame used to build are built before the first frame:
+  // the star map's galaxy (the course's intro card froze on it) and every enlistment
+  // disc (each one dropped frames the first time it was drawn). A real browser only:
+  // the harness and the verifier have no Image and skip both.
+  {
+    const boot = fs.readFileSync(path.join(ROOT, 'src', 'game', '99-boot.js'), 'utf8');
+    const iResize = boot.indexOf('try { resize(); }');
+    const iCity = boot.indexOf("if (typeof Image !== 'undefined' && !CITY_CHAINS.length) { try { buildCity(); }");
+    const iEnl = boot.indexOf('if (!progress.tutorialDone) startEnlistment(progress.enlisted, true);');
+    const iWarm = boot.indexOf("if (typeof Image !== 'undefined' && enlist) { try { enlistWarm(); }");
+    check('boot paints the star map\'s galaxy before the first frame, in a real browser only', iResize >= 0 && iCity > iResize);
+    check('boot paints every enlistment disc once, right after the enlistment is claimed', iEnl >= 0 && iWarm > iEnl);
+    let threw = null;
+    try { G.startEnlistment(false); G.enlistWarm(); G.setEnlist(null); } catch (e) { threw = e; }
+    check('warming the enlistment discs runs clean', threw === null);
+    const menu = fs.readFileSync(path.join(ROOT, 'src', 'game', '95-menu.js'), 'utf8');
+    check('a mission or contract picture is ready when it is DECODED, not when it is loaded',
+      (menu.match(/e2\.img\.decode\(\)\.then\(ready, ready\)/g) || []).length === 2);
   }
 
   // ---- THE RING IS NEVER ABSENT ----

@@ -2171,6 +2171,13 @@ function s3Enqueue() {
 // hulls", never "did they all succeed": a device that cannot bake at all must
 // reach the menu, not hold on a splash forever.
 const s3BreachReady = () => s3Blocked || s3BreachKeys().every(k => s3Sprites[k] !== undefined);
+// EVERY BAKE RESOLVED: the hulls and every station queued behind them. The boot gate
+// asks this too since 2026-10-10 (Gil: "can we pre load"). A station that finished
+// behind the curtain used to bake under the enlistment's first disc instead, and a
+// station's mesh build is one unsliced call: on a phone-speed CPU that disc ran 18 ms
+// of bake a frame for a second and a half, with hitches up to 90 ms. A blocked
+// renderer answers yes, as above.
+const s3AllReady = () => s3Blocked || (s3Started && !s3Job && s3Queue.length === 0);
 // Bake the hulls on THIS call, for the contexts that have no splash to hide the
 // wait behind: the Lane Designer, the store-shot pages, any harness driving the
 // game's clock itself. Capped so a broken environment cannot hang the page.
