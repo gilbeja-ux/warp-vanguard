@@ -5,6 +5,7 @@
 // the traffic speed. leaks sit in its cells and ride its hoops — structural
 // proof that they are holes in a surface, not sprites in the bore
 const SEAMS = 14, SEAM_OFF = 0.12, HOOP_SPACING = 0.28;
+let seamGr = null, seamKey = '', seamCtx = null; // the seams' gradients, cached in drawLattice
 function drawLattice(g) {
   if (parkedSky()) return;
   // the reach carries drawWarpField, the lift ON the bore, with it
@@ -19,17 +20,31 @@ function drawLattice(g) {
   const zFar = Math.min(SPAWN_Z, reach);
   const rFar = ring(Math.max(Z_FLOOR + 0.01, zFar - exitZ), g).r;
   const rNear = ring(Math.max(Z_FLOOR + 0.004, g.hitZ * 0.4 - exitZ), g).r;
+  // the seams draw brighter and flatter as a blueprint — a survey line runs the whole
+  // length at one weight, where a powered seam falls off toward the viewer
+  // (laneLit is a pure read of the run's state, so it is read once, not once a seam)
+  const sl = laneLit(), sk = 1 + (1 - sl) * 1.3;
+  const sa1 = (0.26 * exitK * sk).toFixed(3), sa2 = ((0.08 + 0.14 * (1 - sl)) * exitK).toFixed(3);
+  // THE FOURTEEN SEAM GRADIENTS ARE CACHED (2026-10-10). They were rebuilt every frame
+  // though nothing in them moves in steady flight: they are rebuilt now only when the
+  // context, the centre, either end's radius or a stop's alpha string changes — so a
+  // kept one is stop for stop the one the old code built. (A gradient is laid out
+  // under the transform at fill time, so shake and the replay zoom stay out of it.)
+  const sKey = g.cx + ',' + g.cy + ':' + rFar + ',' + rNear + ':' + sa1 + ',' + sa2;
+  const sFresh = !(seamGr && seamKey === sKey && seamCtx === ctx);
+  if (sFresh) { seamGr = []; seamKey = sKey; seamCtx = ctx; }
   for (let i = 0; i < SEAMS && zFar > g.hitZ * 0.4 + 0.03; i++) {
     const a = i / SEAMS * TAU + SEAM_OFF;
     const fx2 = g.cx + Math.cos(a) * rFar, fy2 = g.cy + Math.sin(a) * rFar;
     const nx2 = g.cx + Math.cos(a) * rNear, ny2 = g.cy + Math.sin(a) * rNear;
-    // the seams draw brighter and flatter as a blueprint — a survey line runs the whole
-    // length at one weight, where a powered seam falls off toward the viewer
-    const sl = laneLit(), sk = 1 + (1 - sl) * 1.3;
-    const grd = ctx.createLinearGradient(fx2, fy2, nx2, ny2);
-    grd.addColorStop(0, 'rgba(90,170,235,0)');
-    grd.addColorStop(0.3, `rgba(90,170,235,${(0.26 * exitK * sk).toFixed(3)})`);
-    grd.addColorStop(1, `rgba(90,170,235,${((0.08 + 0.14 * (1 - sl)) * exitK).toFixed(3)})`);
+    let grd = seamGr[i];
+    if (!grd) {
+      grd = ctx.createLinearGradient(fx2, fy2, nx2, ny2);
+      grd.addColorStop(0, 'rgba(90,170,235,0)');
+      grd.addColorStop(0.3, `rgba(90,170,235,${sa1})`);
+      grd.addColorStop(1, `rgba(90,170,235,${sa2})`);
+      seamGr[i] = grd;
+    }
     ctx.strokeStyle = grd;
     ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(fx2, fy2); ctx.lineTo(nx2, ny2); ctx.stroke();
@@ -120,9 +135,10 @@ function buildFieldGlow() {
   c.fillStyle = gr;
   c.fillRect(0, 0, S, S);
 }
+// (its one caller, drawLattice, always hands it the reach; the boreReach() fallback
+// for a missing one went 2026-10-10)
 function drawWarpField(g, reach) {
   if (parkedSky()) return;
-  if (reach === undefined) reach = boreReach();
   // THE GRADIENT THAT LIGHTS THE BORE. A blueprint is lines; this is the glow, and it is the
   // single clearest statement that the lane is powered — so it waits for the warp.
   const lit = laneLit();
@@ -163,10 +179,10 @@ function drawWarpField(g, reach) {
   ctx.restore();
 }
 
-// range rings: a projected instrument, not wall geometry — three dashed
-// hairlines marking 1s / 2s / 3s from the rim at the CURRENT traffic speed.
-// On wave levels they breathe apart and together as the stream surges.
-// shared gate for the per-enemy depth instrumentation (rings + countdown tags)
+// (The range rings — three dashed hairlines at 1s / 2s / 3s from the rim — are
+// gone; what is left of them is the per-hostile depth line, drawRangeRings below.
+// This note described the hairlines until 2026-10-10.)
+// urgency: the shared gate for the per-enemy depth instrumentation —
 // 0→1 as a hostile closes its last ~1.5s to the rim; 1 inside the zap zone.
 // The body itself carries the urgency — LED, glow, sparks all key off this.
 function urgency(en, g) {
@@ -192,7 +208,7 @@ function rangeInfo(en, g) {
     : en.lock === 0 ? '80,170,255'
     : en.lock === 1 ? '225,240,255'
     : '255,60,90';
-  return { t, al, glow, rr: ring(en.z, g) };
+  return { al, glow }; // (2026-10-10: `t` and a ring() nobody read are no longer handed back)
 }
 
 // the surge announcement made visible: an amber wavefront rolling OUT of the
@@ -418,6 +434,7 @@ function drawTunnel(g) {
 // resolved yet. Before calibration completes there is no bore, no lattice and no field
 // lift — but the destination is the whole point of the parked moment, and the pool is what
 // separates it from the starfield rather than being corridor dressing.
+let poolGr = null, poolKey = '', poolCtx = null; // the far pool's gradient, cached in drawFarEnd
 function drawFarEnd(g, exitK) {
   // the far end is a VOID, not a lamp: the bore runs off into unlit distance.
   // A dark pool swallows the wall bands so nothing reads as "wall" out there —
@@ -428,11 +445,19 @@ function drawFarEnd(g, exitK) {
   // the pool is the unlit END of a corridor. Once the corridor has gone there is
   // no far end to be dark, so it drains off with it and the sky reaches the world.
   if (exitK > 0.004) {
-    const dark = ctx.createRadialGradient(far.x, far.y, 0, far.x, far.y, vr);
-    dark.addColorStop(0, `rgba(1,2,7,${(0.97 * exitK).toFixed(3)})`);
-    dark.addColorStop(0.4, `rgba(2,4,11,${(0.78 * exitK).toFixed(3)})`);
-    dark.addColorStop(0.72, `rgba(3,6,15,${(0.34 * exitK).toFixed(3)})`);
-    dark.addColorStop(1, 'rgba(4,8,18,0)');
+    // cached like the seams (2026-10-10): rebuilt only when the context, the pool's
+    // centre or radius, or one of its alpha strings changes
+    const d0 = (0.97 * exitK).toFixed(3), d1 = (0.78 * exitK).toFixed(3), d2 = (0.34 * exitK).toFixed(3);
+    const k = far.x + ',' + far.y + ',' + vr + ':' + d0 + ',' + d1 + ',' + d2;
+    if (!(poolGr && poolKey === k && poolCtx === ctx)) {
+      poolGr = ctx.createRadialGradient(far.x, far.y, 0, far.x, far.y, vr);
+      poolGr.addColorStop(0, `rgba(1,2,7,${d0})`);
+      poolGr.addColorStop(0.4, `rgba(2,4,11,${d1})`);
+      poolGr.addColorStop(0.72, `rgba(3,6,15,${d2})`);
+      poolGr.addColorStop(1, 'rgba(4,8,18,0)');
+      poolKey = k; poolCtx = ctx;
+    }
+    const dark = poolGr;
     ctx.fillStyle = dark;
     ctx.beginPath(); ctx.arc(far.x, far.y, vr, 0, TAU); ctx.fill();
   }
@@ -1050,6 +1075,13 @@ function discWorld(V) {
   return discWorlds[V.n];
 }
 let planetSprite = null, planetSpriteKey = '';
+// the destination's two resolutions, one slot each (drawFarGlow, 82-destinations, 2026-10-10)
+const planetSlots = { lo: null, hi: null }; // { key, spr }
+function planetSlotDrop(slot) {
+  const s = planetSlots[slot];
+  if (s && s.spr && s.spr.cv) s.spr.cv.width = s.spr.cv.height = 0;
+  planetSlots[slot] = null;
+}
 // >>> DEST-SPRITE
 // The lab lifts this function verbatim and runs it against the live tables, so a
 // dial moved in the lab is shaded by the game's own pixel loop. It may reach only

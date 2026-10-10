@@ -4226,6 +4226,12 @@ async function runMusicUp() {
   for (let i = 0; i < 6 && !G.music().src; i++) { G.updateMusic(1.1); await tick(); }
 }
 (async () => {
+// LET THE SYNC SECTIONS FINISH FIRST (2026-10-10). Everything below this block in the
+// file is synchronous and runs at this block's first await; it starts runs, and a run
+// moves endSerial. Since a submission's answer is dropped once its run is no longer
+// current, a submit awaited while those sections ran was answered for a stale run and
+// its check passed on another submission's line. One turn here and they are done.
+await tick();
 // ---- WHAT A FAILED SUBMISSION SAYS OUT LOUD ----
 // The END screen prints lbStatus verbatim. It used to print the raw failure —
 // "REJECTED 400: verification failed [0 vs 38660, ig0 st2368/2368]" — which is
@@ -4248,6 +4254,7 @@ async function runMusicUp() {
   check('...while the diagnostic still reaches the console for a log grab',
     seen.some(m => /\[leaderboard\]/.test(m)));
   check('and it tells the player their score is not lost', /SAVED ON THIS DEVICE/.test(s));
+  check('...and the submission was not dropped as a stale run', !seen.some(m => /\(stale run\)/.test(m)));
 }
 
   G.settings.music = true; G.settings.musicVol = 0.5;
@@ -7096,4 +7103,250 @@ async function runMusicUp() {
   check('trace: the holds and fires are still taken before update()', /const rec = [\s\S]{0,200}padHold\[0\][\s\S]{0,200}traceFireQ/.test(step.slice(0, upd)));
   check('trace: a replay ignores the desktop keys', /const kSpd = tracePlay \? 0 :/.test(src('src/game/72-tick.js')));
   check('trace: the bundle cross-test flies a slewing run', /recordSlewRun\(/.test(src('scripts/test-verifier-bundle.mjs')));
+}
+
+// ================= THE SIM DRAWS NO RENDER RANDOMNESS, AND THE 2026-10-10 FIXES STAY FIXED =================
+// The renderer drains Math.random hundreds of times a frame and the verifier renders
+// nothing, so a sim decision read off Math.random — or rand(), which is Math.random
+// with a range (00-core) — re-simulates to another score. The spawner, the linter, the
+// replay and the tick draw only from their seeded streams (spawnRng, srand, schance,
+// beatStream). 52-bosses keeps cosmetic particle scatter on Math.random: burst() itself,
+// the arguments of its calls, and the angle a torn plate flies off at in the death
+// throes (it places a burst and pans a sound, nothing else). Anything new fails here.
+// SOURCE PINS AND NO RUN STARTS: this section runs while the async block above is
+// parked on a submission, and starting a run here would orphan that submission's answer.
+{
+  const src = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const noComments = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+  const RND = /Math\.random\s*\(|(?:^|[^\w.$])rand\s*\(/g;
+  const draws = s => (s.match(RND) || []).length;
+  // drop a function's body, or every call of a name with its whole argument list
+  const cutBody = (s, head) => {
+    const at = s.indexOf(head); if (at < 0) return s;
+    const open = s.indexOf('{', at); let d = 0, j = open;
+    for (; j < s.length; j++) { if (s[j] === '{') d++; else if (s[j] === '}' && --d === 0) break; }
+    return s.slice(0, at) + s.slice(j + 1);
+  };
+  const cutCalls = (s, name) => {
+    const re = new RegExp('(?:^|[^\\w.$])' + name + '\\s*\\(', 'g');
+    let out = '', from = 0, m;
+    while ((m = re.exec(s))) {
+      const open = m.index + m[0].length - 1; let d = 0, j = open;
+      for (; j < s.length; j++) { if (s[j] === '(') d++; else if (s[j] === ')' && --d === 0) break; }
+      out += s.slice(from, open); from = j + 1; re.lastIndex = j + 1;
+    }
+    return out + s.slice(from);
+  };
+  check('render randomness: the pin can see a draw (and not srand)',
+    draws(noComments('a = Math.random() * 2; b = rand(1, 2); c = srand(1, 2); // Math.random()')) === 2);
+  for (const f of ['50-enemies.js', '51-linter.js', '61-replay.js', '72-tick.js'])
+    check('render randomness: ' + f + ' never calls Math.random() or rand() — seeded streams only',
+      draws(noComments(src('src/game/' + f))) === 0);
+  const boss = cutCalls(cutBody(noComments(src('src/game/52-bosses.js')), 'function burst('), 'burst');
+  const left = boss.match(/[^\n]*(?:Math\.random\s*\(|(?:^|[^\w.$])rand\s*\()[^\n]*/g) || [];
+  check('render randomness: 52-bosses draws Math.random only for particles — burst() and the torn plate\'s angle',
+    left.length === 1 && /const pa = Math\.random\(\) \* TAU;/.test(left[0]));
+
+  // ---- the small fixes of the same pass ----
+  const lb = src('src/game/31-leaderboard.js');
+  check('session: concurrent callers share ONE refresh/signup attempt, cleared when it settles',
+    /if \(!lbSessionP\) lbSessionP = lbSessionMint\(\)\.finally\(\(\) => \{ lbSessionP = null; \}\);\s*return lbSessionP;/.test(lb));
+  const sub = lb.slice(lb.indexOf('async function lbSubmit('), lb.indexOf('async function lbMyData('));
+  const afterLive = noComments(sub.slice(sub.indexOf('const live = ')));
+  const writes = afterLive.match(/[^\n]{0,14}lbStatus = /g) || [];
+  check('submit: the answer is checked against the run it was sent for (endSerial, like the rank lookup)',
+    /const serial = endSerial;\s*const live = \(\) => serial === endSerial;/.test(sub));
+  check('submit: every status written after the wait is gated on that run still being current',
+    writes.length >= 2 && writes.every(w => /if \(live\(\)\) lbStatus = $/.test(w))
+    && (afterLive.match(/lbFail\(/g) || []).length === 1 && /if \(live\(\)\) lbFail\(detail, human\)/.test(afterLive));
+  const rp = src('src/game/61-replay.js');
+  const el = rp.slice(rp.indexOf('function endLevel(win)'));
+  check('submit: endLevel takes the report\'s serial BEFORE it submits',
+    el.indexOf('++endSerial') > 0 && el.indexOf('++endSerial') < el.indexOf('lbSubmit(lastRun)'));
+  const inp = src('src/game/60-input.js');
+  const r0 = inp.indexOf('function resetRun()');
+  const rr = inp.slice(r0, inp.indexOf('\n}\n', r0));
+  check('run start: a new run orphans the last report\'s answers still in flight', /endSerial\+\+/.test(rr));
+  check('run start: the motion clock starts at THIS lane\'s speed, never the last lane\'s',
+    /seedTrafficSpeed\(\)/.test(rr)
+    && /function seedTrafficSpeed\(\) \{ if \(LV\) trafficSpeed = LV\.speed \* \(mutLive\('fast'\) \? 1\.35 : 1\); \}/.test(inp)
+    && /if \(assist\) seedTrafficSpeed\(\)/.test(inp));
+  check('run start: …which is the same product the tick computes',
+    /const waveMul = mutLive\('fast'\) \? 1\.35 : 1;[^\n]*\n\s*trafficSpeed = L\.speed \* waveMul;/.test(src('src/game/72-tick.js')));
+  check('run start: the hit arc starts unwidened', /\btolVis = 1;/.test(rr));
+  // a held key lets go when the page loses the window or the screen
+  {
+    const st0 = G.getState();
+    G.setState(G.S.MENU);
+    G.keys.d = true; G.keys.ArrowLeft = true;
+    global.document.hidden = true; docHandlers.visibilitychange();
+    const held = !!(G.keys.d || G.keys.ArrowLeft);
+    global.document.hidden = false; docHandlers.visibilitychange();
+    G.setState(st0);
+    check('keys: hiding the app lets go of every held key', !held);
+    check('keys: so does losing the window focus', /window\.addEventListener\('blur', keysRelease\)/.test(inp));
+  }
+  const bt = inp.slice(inp.indexOf('function startBossTest()'), inp.indexOf('function startBossRetry()'));
+  check('boss drill: it flies the lane marked boss: true, not whichever lane is last',
+    /\.boss\)\)\.lastIndexOf\(true\)/.test(bt) && !/startLevel\(LEVELS\.length - 1\)/.test(bt));
+  check('install: the fairness lint is a dev flag, off in the game and the verifier',
+    /let lintOnInstall = false;/.test(src('src/game/33-loader.js'))
+    && /if \(lintOnInstall && lintReady\)/.test(src('src/game/33-loader.js')));
+  const tk = src('src/game/72-tick.js');
+  const vol = tk.slice(tk.indexOf('function updateVolley('), tk.indexOf('function updatePickups('));
+  check('volley: the bolt takes exactly what the blast takes — one filter', /if \(!blastTakes\(en\)\) continue;/.test(vol));
+  check('rewind: the lane runs backwards only on a frame that winds the tape (never through a pause)',
+    /if \(!\(tut && tut\.rewind\) \|\| state !== S\.PLAY \|\| resumeHold > 0\) laneVel = 1;/.test(tk));
+  check('build: the staleness warning compares the bundle\'s SIM_ID, not mtimes',
+    /lastIndexOf\('export const SIM_ID'\)/.test(src('scripts/build.js'))
+    && /require\('\.\/lib\/sim-id\.js'\)\.simId\(repo\)/.test(src('scripts/build.js')));
+  check('dead state stays dead: no write-only globals come back',
+    !/\b(lastSubmit|commNext|mapListSelLast|nameEntryFx|litPanels)\b/.test(gameSource(ROOT)));
+}
+
+// ================= RENDER CLEANUP: CACHES THAT MOVE NO PIXEL, BUFFERS HANDED BACK (2026-10-10) =================
+// Render-side cleanups in src/game/80–99. Each cache is keyed on every value that
+// enters what it caches, so a hit is the object the old code would have rebuilt;
+// these pins hold the keys, the releases and the dead code where they were left.
+{
+  const gs = gameSource(ROOT);
+  const gf = f => fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8');
+  const codeOnly = s => s.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+  const st0 = G.getState(), tut0 = G.tut(), lf0 = G.laneFlow();
+  const cr0 = ctxStub.createRadialGradient, cl0 = ctxStub.createLinearGradient;
+  let nR = 0, nL = 0;
+  ctxStub.createRadialGradient = (...a) => { nR++; return cr0(...a); };
+  ctxStub.createLinearGradient = (...a) => { nL++; return cl0(...a); };
+  try {
+    // ---- the call's buffers go back with the course ----
+    check('call buffers: one release zeroes both, and qualFinish calls it',
+      /function tutCallRelease\(\) \{\s*for \(const cv of \[holoCv, dimCv\]\) if \(cv\) cv\.width = cv\.height = 0;/.test(gs)
+      && /function qualFinish\(\) \{[^}]*tutCallRelease\(\);/.test(gs));
+    check('call buffers: frame() hands them back when the course is left early',
+      /drawPostChain\(rawDt, worldFx, g\);\s*\n\s*tutCallReleaseIdle\(\);/.test(gs));
+    const c = { kind: 'heavy', key: 'heavy', t: 1.2, dur: G.callDur('heavy'), a: 0.9 };
+    G.setTut({ call: c });
+    G.setState(G.S.PLAY);
+    G.drawTutCall(c, 1);
+    const made = !!G.getHoloCv();
+    tutCallReleaseIdle();
+    const keptInPlay = !!G.getHoloCv();
+    G.setState(G.S.MENU);
+    tutCallReleaseIdle();
+    check('call buffers: kept while the course flies, released once it is left for the menu',
+      made && keptInPlay && !G.getHoloCv());
+    // ---- the dim is painted once per look ----
+    tutCallRelease();
+    nR = 0; drawCallDim(c, 1); const first = nR;
+    nR = 0; drawCallDim(c, 0.4); const again = nR;
+    c.a = 1.4; nR = 0; drawCallDim(c, 1); const moved = nR;
+    tutCallRelease(); nR = 0; drawCallDim(c, 1); const released = nR;
+    check(`call dim: a second frame of the same call repaints nothing (${first} then ${again})`, first > 0 && again === 0);
+    check('call dim: a moved focus, or a released buffer, repaints it', moved > 0 && released > 0);
+    check('call dim: the key carries every input the paint reads',
+      /let key = bw \+ 'x' \+ bh \+ ':' \+ W \+ 'x' \+ H \+ ':' \+ g\.cx \+ ',' \+ g\.cy \+ ',' \+ g\.nodeR \+ ':' \+ band \+ ',' \+ fe \+\s*':' \+ inner \+ ':' \+ CALL_DIM_OUT \+ ':' \+ c\.kind \+ ':' \+ c\.key \+ ':' \+ c\.a \+\s*':' \+ CALL_FOCUS\[c\.key\] \+ ',' \+ CALL_FOCUS_AT\[c\.key\] \+ ',' \+ CALL_FOCUS_FEATHER;\s*for \(const d of pads\) key \+= '\|' \+ d\.x \+ ',' \+ d\.y \+ ',' \+ d\.r;/.test(gf('90-hud.js')));
+    check('call hologram: the edge fade is built once per buffer size',
+      /if \(!holoFade \|\| holoFadeKey !== fk \|\| holoFadeCtx !== ctx\)/.test(gf('90-hud.js')));
+    tutCallRelease();
+    // ---- the lane's full-screen gradients ----
+    const g = G.geo();
+    G.setLaneFlow(0.3);
+    nR = 0; convoyGlowGrad(g); convoyGlowGrad(g); const glow2 = nR;
+    G.setLaneFlow(0.9);
+    nR = 0; convoyGlowGrad(g); const glowMoved = nR;
+    check(`convoy glow: built once per look (${glow2} for two frames), rebuilt when the flow moves`, glow2 <= 1 && glowMoved === 1);
+    nR = 0; depthFogGrad(g, 0.5); depthFogGrad(g, 0.5); const fog2 = nR;
+    nR = 0; depthFogGrad(g, 0.7); const fogMoved = nR;
+    check('depth fog: built once per look, rebuilt when the fog moves', fog2 === 1 && fogMoved === 1);
+    G.setState(G.S.PAUSE);
+    const g2 = Object.assign({}, g, { cx: g.cx + 1 });
+    nL = 0; drawLattice(g2); const seams1 = nL;
+    nL = 0; drawLattice(g2); const seams2 = nL;
+    check(`seams: fourteen gradients the first frame, none the next (${seams1}, ${seams2})`, seams1 === 14 && seams2 === 0);
+    nR = 0; drawFarEnd(g2, 1); nR = 0; drawFarEnd(g2, 1); const pool2 = nR;
+    nR = 0; drawFarEnd(g2, 0.5); const pool3 = nR;
+    check('far pool: cached, and rebuilt only when its alpha moves', pool3 === pool2 + 1);
+    // ---- the plate every disc wears ----
+    nR = 0; nL = 0; discPlate(400, 300, 200, 'T'); nR = 0; nL = 0; discPlate(400, 300, 200, 'T');
+    const plate2 = nR + nL;
+    nR = 0; nL = 0; discPlate(401, 300, 200, 'T');
+    check('disc plate: its two gradients are kept for the disc they were built for', plate2 === 0 && nR === 1 && nL === 1);
+  } finally {
+    ctxStub.createRadialGradient = cr0; ctxStub.createLinearGradient = cl0;
+    tutCallRelease();
+    G.setTut(tut0); G.setState(st0); G.setLaneFlow(lf0);
+  }
+  // ---- a specimen throws nothing into the run ----
+  {
+    const mr = Math.random, fake = () => 0.5;
+    Math.random = fake;
+    let inside = null, after = null;
+    try { specimenSandbox(() => { inside = Math.random; }); } finally { after = Math.random; Math.random = mr; }
+    check('specimens: drawn on the system random, the run\'s stream handed back after', inside !== fake && after === fake);
+    check('specimens: the field guide and the enlistment run draw inside the sandbox, sparks handed back',
+      /specimenSandbox\(\(\) => it\.draw\(cx, cyS, cellR\)\)/.test(gf('92-guide.js'))
+      && /specimenSandbox\(\(\) => \{\s*for \(let ci = 0; ci < ENL_SCRIPT\.length; ci\+\+\)/.test(gf('91-briefing.js'))
+      && /if \(particles\.length > pn\) particles\.length = pn;/.test(gf('92-guide.js')));
+  }
+  // ---- buffers handed back ----
+  {
+    G.buildMenuCache();
+    const old = G.getMenuCache();
+    G.buildMenuCache();
+    check('menu sheet: a rebuild zeroes the sheet it replaces', !!old && old.width === 0 && G.getMenuCache() !== old);
+    const mm = gf('95-menu.js'), gx = gf('94-galaxy.js');
+    check('menu sheet: only the art it paints rebuilds it (the small logo), and that one releases',
+      /LOGOSM\.img\.onload = \(\) => \{[^}]*menuArtRelease\(\); \};/.test(gx)
+      && !/LOGOIMG\.img\.onload[^\n]*menuCache = null/.test(gx)
+      && !/menuCache = null/.test(codeOnly(mm)));
+    check('key glow: a full bake map zeroes its canvases before it starts over',
+      /for \(const old of keyGlowCv\.values\(\)\) if \(old\) old\.width = old\.height = 0;\s*keyGlowCv\.clear\(\);/.test(gf('92-guide.js')));
+    const bt = gf('99-boot.js');
+    check('splash: the GB-IL layers are zeroed when the card ends, and a late decode keeps nothing',
+      /for \(const c of \[GBIMG\.mark, GBIMG\.flag\]\) if \(c\) c\.width = c\.height = 0;/.test(bt)
+      && /if \(!SPLASH\.on \|\| GBIMG\.img !== im\) return;/.test(bt));
+    check('destination: each resolution keeps its own slot, a replaced one is zeroed',
+      /planetSlotDrop\(slot\);/.test(gf('82-destinations.js'))
+      && /function planetSlotDrop\(slot\) \{[^}]*cv\.width = s\.spr\.cv\.height = 0;/.test(gf('80-tunnel.js')));
+    check('bake: one refused sprite fails alone; only an environment with no ImageData stops the queue',
+      typeof s3ImageDataOk === 'function' && s3ImageDataOk() === true
+      && /if \(!s3ImageDataOk\(\)\) \{ s3Blocked = true;/.test(gf('81-station3d.js'))
+      && !/s3Sprites\[s3Job\.id\] = 'fail'; s3Blocked = true;/.test(gf('81-station3d.js')));
+  }
+  // ---- the frame's stack and the rewind's sky ----
+  {
+    const bt = gf('99-boot.js');
+    const pc = bt.slice(bt.indexOf('function drawPostChain('), bt.indexOf('\n}\n', bt.indexOf('function drawPostChain(')) + 3);
+    check('replay fly-in: its save() is restored exactly once in every state',
+      /let worldOpen = worldFx;/.test(pc) && /if \(worldOpen\) \{ ctx\.restore\(\); worldOpen = false; \}/.test(pc)
+      && /if \(worldOpen\) ctx\.restore\(\);[^\n]*\n\}\n$/.test(pc) && !/if \(worldFx\) ctx\.restore\(\)/.test(pc));
+    const df = gf('83-deepfield.js');
+    check('rewind: a warp line past the horizon is skipped, not blitted at a stale alpha',
+      /if \(!st\.gold && al <= 0\) continue;\s*\n\s*if \(FX && !st\.gold\) \{/.test(df));
+  }
+  // ---- small fixes ----
+  {
+    check('week caption: formatted once per week, the same words every frame',
+      weekCloseCap() === weekCloseCap() && /^CLOSES /.test(weekCloseCap()));
+    const bd = gf('93-board.js');
+    check('board replay: a late trace flies only if it is the latest request and the board is still up',
+      /if \(req !== replayReq\) return;/.test(bd)
+      && /if \(state !== S\.MENU \|\| menuScreen !== 'board' \|\| replayBoardKey\(\) !== from\) return;/.test(bd));
+    check('radii: the board ring and the map lens can no longer hand arc() a negative radius',
+      (bd.match(/ctx\.arc\(cx, cy, Math\.max\(0, R\), 0, TAU\)/g) || []).length === 2
+      && (gf('95-menu.js').match(/ctx\.arc\(ccx, ccy, Math\.max\(0, R - 5\), 0, TAU\)/g) || []).length === 2);
+    check('home side key: the destination world reads the lane\'s own boss flag, not "the last one"',
+      !/tgt\.li === pk\.levels\.length - 1/.test(gf('92-guide.js')));
+    check('thumb ghost: no lowFX test inside its own lowFX guard', !/lowFX \? 0 : 9/.test(gf('90-hud.js')));
+    check('range info: hands back only what drawRangeRings reads', /return \{ al, glow \};/.test(gf('80-tunnel.js')));
+    check('burned draws: no comment still says the boss reads Math.random',
+      !/Math\.random IS the seeded stream the boss reads/.test(gs) && !/startWeekly points spawnRng AT Math\.random/.test(gs));
+  }
+  // ---- dead code stays dead ----
+  {
+    const code = codeOnly(gs);
+    check('dead code stays gone: techPanel, cornerBrackets, discChromeKey, relayDestPos, V3dot, SIDEARC_A',
+      !/\b(techPanel|cornerBrackets|discChromeKey|relayDestPos|V3dot|SIDEARC_A)\b/.test(code));
+    check('…so no star-map plate can be placed by a destination\'s position again', !/relayDestPos\(/.test(code));
+  }
 }

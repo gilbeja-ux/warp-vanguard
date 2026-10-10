@@ -11,16 +11,6 @@ function techRect(x, y, w, h, cut) {
   ctx.lineTo(x, y + cut);
   ctx.closePath();
 }
-// floating bracket corners, like a target lock
-function cornerBrackets(x, y, w, h, len, col) {
-  ctx.strokeStyle = col; ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(x, y + len); ctx.lineTo(x, y); ctx.lineTo(x + len, y);
-  ctx.moveTo(x + w - len, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + len);
-  ctx.moveTo(x + w, y + h - len); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w - len, y + h);
-  ctx.moveTo(x + len, y + h); ctx.lineTo(x, y + h); ctx.lineTo(x, y + h - len);
-  ctx.stroke();
-}
 // cluster of small + marks — HUD garnish
 function plusCluster(x, y, col) {
   ctx.strokeStyle = col; ctx.lineWidth = 1.5;
@@ -34,35 +24,9 @@ function plusCluster(x, y, col) {
     ctx.stroke();
   }
 }
-// glass console panel with a luminous header band; returns the header height
-function techPanel(x, y, w, h, title) {
-  const cut = 16;
-  techRect(x, y, w, h, cut);
-  ctx.fillStyle = 'rgba(4,14,30,0.92)'; ctx.fill();
-  ctx.shadowColor = 'rgba(95,215,255,0.55)'; ctx.shadowBlur = lowFX ? 0 : 16;
-  ctx.strokeStyle = 'rgba(110,210,255,0.65)'; ctx.lineWidth = 1.5;
-  techRect(x, y, w, h, cut); ctx.stroke();
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = 'rgba(110,210,255,0.16)'; ctx.lineWidth = 1;
-  techRect(x + 4, y + 4, w - 8, h - 8, cut - 3); ctx.stroke();
-  const hh = 32;
-  ctx.save();
-  techRect(x, y, w, h, cut); ctx.clip();
-  const hg = ctx.createLinearGradient(x, y, x + w * 0.85, y);
-  hg.addColorStop(0, 'rgba(80,190,255,0.35)');
-  hg.addColorStop(1, 'rgba(80,190,255,0.02)');
-  ctx.fillStyle = hg; ctx.fillRect(x, y, w, hh);
-  ctx.strokeStyle = 'rgba(120,220,255,0.5)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(x, y + hh); ctx.lineTo(x + w, y + hh); ctx.stroke();
-  ctx.restore();
-  ctx.fillStyle = '#cfeeff';
-  try { ctx.letterSpacing = '3px'; } catch (e) {}
-  ctx.font = '700 13px Audiowide, system-ui'; ctx.textAlign = 'left';
-  ctx.fillText(title, x + 20, y + 21);
-  try { ctx.letterSpacing = '0px'; } catch (e) {}
-  cornerBrackets(x - 7, y - 7, w + 14, h + 14, 14, 'rgba(120,220,255,0.55)');
-  return hh;
-}
+// (2026-10-10: techPanel, the glass console box with a header band, and the
+// cornerBrackets it wore went — nothing had drawn either since every panel
+// became a disc the ring casts; 91-briefing.js holds the disc kit.)
 
 // THE PAUSE KEY, AND THE RESUME KEY: one key, two glyphs. Paused, the same slab
 // in the same corner carries a play triangle, and that is where RESUME lives now
@@ -345,7 +309,7 @@ function drawThumbGhost(x, y, side, down, alpha, rad) {
   ctx.restore();
   ctx.strokeStyle = fade((0.85 + down * 0.15) * alpha);
   ctx.lineWidth = 3;
-  if (!lowFX) { ctx.shadowColor = `rgba(${GHOST_COL},0.5)`; ctx.shadowBlur = lowFX ? 0 : 9; }
+  if (!lowFX) { ctx.shadowColor = `rgba(${GHOST_COL},0.5)`; ctx.shadowBlur = 9; } // (2026-10-10: the inner lowFX test could never be true here)
   ctx.stroke();
   ctx.shadowBlur = 0;
   // THE NAIL: a broad plate at the tip, covering most of the digit's width and
@@ -1628,8 +1592,23 @@ const GLITCH_SPLIT = 3;        // px of the colour fringe a burst throws, either
 // where each diorama stages its bearing, off DISC_BOT, so the turn lands it on the call's
 const CALL_DEMO_OFF = { normal: 0.18, pickup: 0.30, line: -0.75, wall: 1.4 - Math.PI / 2 };
 let holoCv = null;             // the simulation buffer: the ring's bounding square, released with the course
+let holoFade = null, holoFadeKey = '', holoFadeCtx = null; // its edge fade, cached per size (drawTutCall)
 const CALL_BUF_R = 1.3;        // the buffer's half-size, × nodeR: room past the ring for a wave's glow
 const CALL_BUF_FADE = 1.08;    // …and where its content starts fading out, × nodeR, so no edge ever shows
+// THE CALL'S BUFFERS GO BACK WITH THE COURSE (2026-10-10). holoCv and dimCv (below)
+// are only ever drawn by a course call, so they are zeroed and let go the way
+// menuArtRelease and enlistArtRelease hand theirs back — by qualFinish when the course
+// is passed, and by tutCallReleaseIdle (frame(), 99-boot) when it is LEFT: a QUIT, a
+// back press or a lost run lands in S.MENU or S.END, and a new stage clears `tut`.
+// Both are rebuilt on the next call that needs them, and repainted before use.
+function tutCallRelease() {
+  for (const cv of [holoCv, dimCv]) if (cv) cv.width = cv.height = 0;
+  holoCv = null; dimCv = null;
+  dimKey = ''; holoFade = null; holoFadeKey = ''; holoFadeCtx = null; // their caches go with them
+}
+function tutCallReleaseIdle() {
+  if ((holoCv || dimCv) && (!tut || state === S.MENU || state === S.END)) tutCallRelease();
+}
 // THE GLITCH: one short burst per GLITCH_EVERY, at a moment hashed off the clock
 // (render-side, never Math.random), so the beat is irregular but never twice the same
 const glitchHash = n => { const s = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return s - Math.floor(s); };
@@ -1662,15 +1641,29 @@ function drawTutCallLayer() {
 const CALL_DIM_RES = 0.25;     // the dim buffer's scale against the screen
 const CALL_DIM_FEATHER = 0.025; // how far each rim fades over, × min(W, H): a short fade, starting at the ring's edge
 const CALL_FOCUS_FEATHER = 0.35; // how far the focus wedge's sides fade over, radians
+// THE MASK IS PAINTED ONCE PER LOOK, NOT ONCE PER FRAME (2026-10-10). Nothing in it
+// moves while a call holds still — the env fade is applied at the composite, not in
+// the paint — so it is repainted only when one of its inputs changes. dimKey is every
+// number the paint reads, at full precision, so an unchanged key is an unchanged
+// mask; the buffer just goes on being laid over the frame at the call's env.
 let dimCv = null;
+let dimKey = '';               // what dimCv holds; '' = nothing worth keeping
 function drawCallDim(c, env) {
   const g = geo(), u = Math.min(W, H), band = u * 0.055 * ARCFX.bandW * CALL_RING_BAND, fe = u * CALL_DIM_FEATHER;
   const rOut = g.nodeR + band, rIn = g.nodeR - band;
   const bw = Math.max(2, Math.ceil(W * CALL_DIM_RES)), bh = Math.max(2, Math.ceil(H * CALL_DIM_RES));
   if (!dimCv) dimCv = document.createElement('canvas');
-  if (dimCv.width !== bw || dimCv.height !== bh) { dimCv.width = bw; dimCv.height = bh; }
+  if (dimCv.width !== bw || dimCv.height !== bh) { dimCv.width = bw; dimCv.height = bh; dimKey = ''; }
   const inner = c.key === 'pulse' ? 0 : CALL_DIM_IN; // the purge column fills the bore: no dim inside
-  const ok = withCanvas(dimCv, () => {
+  // SLIDE's pads, read once: the key needs them, and so does step 4 when it paints
+  const pads = [];
+  if (c.kind === 'move' && tut.aim && tut.aim.targets)
+    for (const t of tut.aim.targets) pads.push(dialCenter(t.node === 0 ? 'L' : 'R'));
+  let key = bw + 'x' + bh + ':' + W + 'x' + H + ':' + g.cx + ',' + g.cy + ',' + g.nodeR + ':' + band + ',' + fe +
+    ':' + inner + ':' + CALL_DIM_OUT + ':' + c.kind + ':' + c.key + ':' + c.a +
+    ':' + CALL_FOCUS[c.key] + ',' + CALL_FOCUS_AT[c.key] + ',' + CALL_FOCUS_FEATHER;
+  for (const d of pads) key += '|' + d.x + ',' + d.y + ',' + d.r;
+  const paint = () => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     ctx.clearRect(0, 0, bw, bh);
@@ -1708,19 +1701,21 @@ function drawCallDim(c, env) {
       }
     }
     // 4. SLIDE's pads, lifted with a soft round edge
-    if (c.kind === 'move' && tut.aim && tut.aim.targets)
-      for (const t of tut.aim.targets) {
-        const d = dialCenter(t.node === 0 ? 'L' : 'R'), r = d.r * 1.45;
-        const pg = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, r + fe);
-        pg.addColorStop(0, 'rgba(0,0,0,1)');
-        pg.addColorStop(r / (r + fe), 'rgba(0,0,0,1)');
-        pg.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = pg;
-        ctx.beginPath(); ctx.arc(d.x, d.y, r + fe, 0, TAU); ctx.fill();
-      }
+    for (const d of pads) {
+      const r = d.r * 1.45;
+      const pg = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, r + fe);
+      pg.addColorStop(0, 'rgba(0,0,0,1)');
+      pg.addColorStop(r / (r + fe), 'rgba(0,0,0,1)');
+      pg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = pg;
+      ctx.beginPath(); ctx.arc(d.x, d.y, r + fe, 0, TAU); ctx.fill();
+    }
     ctx.globalCompositeOperation = 'source-over';
-  });
-  if (!ok) return;
+  };
+  if (key !== dimKey) {
+    if (!withCanvas(dimCv, paint)) { dimKey = ''; return; }
+    dimKey = key;
+  }
   ctx.save();
   ctx.globalAlpha = env;
   ctx.imageSmoothingEnabled = true;
@@ -1776,11 +1771,17 @@ function drawTutCall(c, env) {
     // the purge wave's glow did — was cut along the square's side: a straight line in
     // the dim between the ring and the pad (Gil, 2026-10-09). Everything fades out over
     // the last stretch before the edge instead, so the square can never show.
-    const fade = ctx.createRadialGradient(S / 2, S / 2, S / 2 * (CALL_BUF_FADE / CALL_BUF_R), S / 2, S / 2, S / 2);
-    fade.addColorStop(0, 'rgba(0,0,0,1)');
-    fade.addColorStop(1, 'rgba(0,0,0,0)');
+    // The fade reads nothing but the buffer's size, so it is built once per size on the
+    // buffer's own context and reused (2026-10-10), not rebuilt every call frame.
+    const fk = S + ':' + CALL_BUF_FADE + '/' + CALL_BUF_R;
+    if (!holoFade || holoFadeKey !== fk || holoFadeCtx !== ctx) {
+      holoFade = ctx.createRadialGradient(S / 2, S / 2, S / 2 * (CALL_BUF_FADE / CALL_BUF_R), S / 2, S / 2, S / 2);
+      holoFade.addColorStop(0, 'rgba(0,0,0,1)');
+      holoFade.addColorStop(1, 'rgba(0,0,0,0)');
+      holoFadeKey = fk; holoFadeCtx = ctx;
+    }
     ctx.globalCompositeOperation = 'destination-in';
-    ctx.fillStyle = fade;
+    ctx.fillStyle = holoFade;
     ctx.fillRect(0, 0, S, S);
     ctx.globalCompositeOperation = 'source-over';
   });

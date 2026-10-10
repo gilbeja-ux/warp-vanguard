@@ -44,6 +44,22 @@ function archTapSpec(key, type, lock, cx, cy, r, k) {
 }
 // (the dashed containment ring is gone — it cost every specimen the room it
 // enclosed, and the bodies read better at full size with their label beneath)
+// A SPECIMEN THROWS NOTHING INTO THE RUN (2026-10-10). The bodies are drawn with the
+// lane's own drawEnemy / drawLineBeam / drawGhost, and those spray sparks into the
+// run's `particles` and pull Math.random — which inside a paused run is the run's
+// seeded stream. The sparks then flew in the run's ephemera layer at the specimen's
+// UNSCALED coordinates: under the page's mask while it was up, in the open as it
+// lifted (and outside the disc during the enlistment). So a specimen draws on
+// sysRandom, and whatever it pushed is handed back before anything else reads it.
+// The page itself paints exactly as before; no spark of its was ever drawn on it.
+function specimenSandbox(draw) {
+  const mr = Math.random, pn = particles.length;
+  Math.random = sysRandom;
+  try { draw(); } finally {
+    Math.random = mr;
+    if (particles.length > pn) particles.length = pn;
+  }
+}
 // THE BARRIER, which needs both its ends at once and so cannot be one specimen.
 // Two anchors on one private bore with the running crack strung between them —
 // the same drawLineBeam the lane uses, so the page teaches the shape the lane
@@ -376,7 +392,7 @@ function drawGuideLineup(box, u, opts) {
     const nDrop = (nameLines - it.name.length) * nameLead;
     it.name.forEach((ln, li) => ctx.fillText(ln, cx, nameY + nDrop + li * nameLead));
     try { ctx.letterSpacing = '0px'; } catch (e) {}
-    it.draw(cx, cyS, cellR);
+    specimenSandbox(() => it.draw(cx, cyS, cellR));
     if (o.chip !== false) emitterChip(cx, chipY, chipR, it.pips, it.join);
     // …and the guidance answers it, a size down and a shade back
     ctx.textAlign = 'center';
@@ -532,7 +548,10 @@ function keyGlowStroke(x, y, w, h, cut, stroke, glow, blur) {
       });
       if (ok) cv = c;
     } catch (e) { cv = null; }
-    if (keyGlowCv.size >= KEY_GLOW_MAX) keyGlowCv.clear();
+    if (keyGlowCv.size >= KEY_GLOW_MAX) { // a full map starts over — its bakes zeroed first (2026-10-10)
+      for (const old of keyGlowCv.values()) if (old) old.width = old.height = 0;
+      keyGlowCv.clear();
+    }
     keyGlowCv.set(sig, cv);
   }
   if (!cv) return false;
@@ -768,6 +787,10 @@ function menuArtRelease() {
 }
 function buildMenuCache() {
   if (!W || !H) return;
+  // …and a rebuild hands the old sheet back before it makes a new one (2026-10-10):
+  // a screen change or a resize used to leave the full-screen canvas it replaced to
+  // the collector, still holding its pixels.
+  if (menuCache) menuCache.width = menuCache.height = 0;
   menuCacheScreen = menuScreen;
   menuCache = document.createElement('canvas');
   menuCache.width = W * DPR; menuCache.height = H * DPR;
@@ -1899,8 +1922,9 @@ const SIDEARC_GAP = 0.10;   // clear air between the key's end and the arc, in r
 const SIDEARC_MAX = 1.05;   // the longest sweep, in radians — the cap on a screen the arc cannot leave
 const SIDEARC_OVER = 0.07;  // how far past the frame edge the far end runs, in radians
 const SIDEARC_W = 0.070;    // stroke weight, as a fraction of R
-const SIDEARC_A = 0.85;     // the arc's FULL weight — what the charge reaches
 const SIDEARC_SPIN = 0.55;  // share of the wheel's spin the arcs take
+// (SIDEARC_A, an unread 0.85 "full weight", was deleted 2026-10-10: the charge's
+// full brightness is SIDEARC_CHG_A below)
 // ---- the CHARGE (Gil's call, 2026-08-31: option C off the arc bench) -------
 // The screen breathes light OUTWARD. Each key sits at mid-height, so an arc's
 // key end is at the CENTRE of the frame and its far end runs off the top or the
@@ -2118,6 +2142,23 @@ function sideKeyCover(e2, x, y, w, h) { // cover-fit: fill the window, crop the 
   const s = Math.max(w / e2.w, h / e2.h), dw = e2.w * s, dh = e2.h * s;
   ctx.drawImage(e2.img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
+// The CLAIM key's "CLOSES <day>" caption, formatted once per week instead of once per
+// frame (2026-10-10: toLocaleDateString is an ICU call, and the home screen paid it 60
+// times a second). Keyed on the week and on the zone offset at its close, so a device
+// that changes time zone mid-session still re-reads its own calendar.
+let wkCapKey = '', wkCapStr = '', wkCapDate = null;
+function weekCloseCap() {
+  const ms = weekEndMs(weekNow());
+  if (!wkCapDate || wkCapDate.getTime() !== ms) wkCapDate = new Date(ms);
+  const k = ms + ':' + wkCapDate.getTimezoneOffset();
+  if (k !== wkCapKey) {
+    wkCapStr = 'CLOSES ' + wkCapDate
+      .toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+      .replace(/,/g, '').toUpperCase();
+    wkCapKey = k;
+  }
+  return wkCapStr;
+}
 function drawHomeSideKeys(ccx, ccy, R, wheelAl, rot) {
   const r0k = R * SIDEKEY_R0, r1k = R * SIDEKEY_R1;
   const vert = r1k * Math.sin(SIDEKEY_HALF);
@@ -2129,9 +2170,7 @@ function drawHomeSideKeys(ccx, ccy, R, wheelAl, rot) {
   // one live number this screen carries. weekEndMs is the last millisecond of
   // the Mon–Sun UTC week, so the formatted day is when the board truly freezes
   // for THIS player, even where that lands after their local midnight.
-  const wkCap = 'CLOSES ' + new Date(weekEndMs(weekNow()))
-    .toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
-    .replace(/,/g, '').toUpperCase();
+  const wkCap = weekCloseCap();
   // the VERB fills the middle band in two bold rows, with the small detail
   // rows under it — all horizontal, the slab is wide enough now
   const KEYS = [
@@ -2178,7 +2217,11 @@ function drawHomeSideKeys(ccx, ccy, R, wheelAl, rot) {
         ctx.fillStyle = 'rgba(214,236,255,' + (0.12 + rnd() * 0.55).toFixed(2) + ')';
         ctx.beginPath(); ctx.arc(bx + rnd() * bw2, ccy + rnd() * vert, 0.4 + rnd() * 0.9, 0, TAU); ctx.fill();
       }
-      const V = planetVariantFor(pk.id, tgt.li, tgt.li === pk.levels.length - 1);
+      // a boss lane is one with `boss: true`, not the last one (CLAUDE.md, append-only
+      // content) — the same flag the chart and the lane pass. Same answer on every
+      // shipped contract, whose boss is its last stage (checked 2026-10-10).
+      const tl = pk.levels[tgt.li];
+      const V = planetVariantFor(pk.id, tgt.li, !!(tl && tl.boss));
       const px2 = cxk + k.side * (r0k + (r1k - r0k) * 0.5), py2 = ccy + vert * 0.64, pr = R * 0.13;
       const hz = ctx.createRadialGradient(px2, py2, pr * 0.9, px2, py2, pr * 2.2);
       hz.addColorStop(0, 'rgba(' + V.atmo + ',0.30)'); hz.addColorStop(1, 'rgba(' + V.atmo + ',0)');

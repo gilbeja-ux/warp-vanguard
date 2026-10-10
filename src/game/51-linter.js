@@ -4,8 +4,9 @@
 // seeded procedural filler — and reports violations of the 100%-completable
 // law as [{ t, code, msg }]. PURE: it runs on its own mulberry32 built from
 // the same seed the level would get, so the live spawnRng never advances and
-// no game state is touched. Geometry uses a nominal hitZ (the real one moves
-// ±0.02 with viewport aspect and never flips a verdict). Codes:
+// no game state is touched. Geometry uses hitZ 0.25, which is the real one on
+// every screen: geo() pins it regardless of aspect (CANONICAL CORE, 41-geometry).
+// Codes:
 //   dual-conflict     two simultaneous demands both nodes can't cover
 //   wall-conflict     an arrival left UNREACHABLE inside a dead zone (the
 //                     reachability law: half-span + node tolerance; landed
@@ -45,7 +46,7 @@ function lintWalk(level, idx) {
   const dr = () => R();
   const drr = (a2, b2) => a2 + R() * (b2 - a2);
   const dch = p => R() < p;
-  const hitZ = 0.25; // nominal viewport
+  const hitZ = 0.25; // geo()'s canonical hitZ — the same on every viewport
   const lead = mul => (SPAWN_Z - hitZ) / (level.speed * (mul || 1));
   const trav = lead(1);
   const GAP = 0.55;

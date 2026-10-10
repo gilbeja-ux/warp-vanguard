@@ -256,10 +256,8 @@ function sysName(seed) {
 // the planets on an orbit or the star at the centre — and if it is the star, the
 // star is what a star looks like, never a planet wearing a sun's job.
 function relayDest(i) { const p2 = relayW(i); return p2 && p2.sys ? p2 : null; }
-function relayDestPos(i) {
-  const p2 = relayW(i);
-  return (p2 && p2.dx !== undefined) ? { x: p2.dx, y: p2.dy } : p2;
-}
+// (2026-10-10: relayDestPos, a destination's map position, was deleted with no caller
+// left. A star-map plate rides its level's DEPARTURE, SEGS[i][0] — never a destination.)
 // Named for ANY relay, not just the one on screen, so the campaign list and the
 // briefing disc can both ask.
 function destNameAt(ci, li) {
@@ -1007,7 +1005,9 @@ function brandLogoSmall() {
   if (typeof Image === 'undefined') return null;
   if (!LOGOSM) {
     LOGOSM = { img: new Image(), w: 0, h: 0 };
-    LOGOSM.img.onload = () => { LOGOSM.w = LOGOSM.img.naturalWidth || 1; LOGOSM.h = LOGOSM.img.naturalHeight || 1; menuCache = null; };
+    // paintMenuStatic draws THIS one into the menu sheet, so its load rebuilds the sheet —
+    // released, not just dropped (2026-10-10), so the pre-logo sheet's pixels go back
+    LOGOSM.img.onload = () => { LOGOSM.w = LOGOSM.img.naturalWidth || 1; LOGOSM.h = LOGOSM.img.naturalHeight || 1; menuArtRelease(); };
     LOGOSM.img.onerror = () => {};
     LOGOSM.img.src = 'logo-small.webp';
   }
@@ -1017,7 +1017,9 @@ function brandLogo() {
   if (typeof Image === 'undefined') return null;
   if (!LOGOIMG) {
     LOGOIMG = { img: new Image(), w: 0, h: 0 };
-    LOGOIMG.img.onload = () => { LOGOIMG.w = LOGOIMG.img.naturalWidth || 1; LOGOIMG.h = LOGOIMG.img.naturalHeight || 1; menuCache = null; };
+    // the big badge is drawn live (the hub, the splash) and never into the menu sheet,
+    // so its load no longer drops menuCache (2026-10-10: that rebuilt an identical sheet)
+    LOGOIMG.img.onload = () => { LOGOIMG.w = LOGOIMG.img.naturalWidth || 1; LOGOIMG.h = LOGOIMG.img.naturalHeight || 1; };
     LOGOIMG.img.onerror = () => {}; // no badge on disk — the drawn brand stands
     LOGOIMG.img.src = 'logo.webp';
   }

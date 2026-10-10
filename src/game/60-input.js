@@ -382,6 +382,13 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') pauseToggle();
 });
 window.addEventListener('keyup', e => { keys[e.key] = false; });
+// A HELD KEY DOES NOT OUTLIVE THE FOCUS (2026-10-10). A keyup that happens in
+// another window — alt-tab with D held, a click into devtools — never reaches this
+// page, so the key stayed down in `keys` and the carriage kept turning on its own
+// when the player came back. Losing the window, or the screen (visibilitychange
+// below), lets go of every key.
+function keysRelease() { for (const k in keys) keys[k] = false; }
+window.addEventListener('blur', keysRelease);
 
 // THE PAUSE KEY'S VERB, in one place: Escape and P on a keyboard, and the Android
 // back button below, all speak it. Returns true when it did something.
@@ -468,6 +475,7 @@ function keepAwakeApply(on) {
 // auto-pause when the app loses the screen (phone lock, app switch, tab change)
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
+    keysRelease(); // the keyup for anything held happens where this page cannot hear it
     if (state === S.PLAY) state = S.PAUSE;
     if (AC && AC.state === 'running') AC.suspend().catch(() => {});
   } else {
@@ -763,15 +771,17 @@ function resetRun() {
   // the first post-boot tick at full horizon depth, so traffic is visibly
   // inbound from second zero (natural speed — first CONTACT comes at travel time)
   levelT = 0; spawnT = 0.01;
+  seedTrafficSpeed(); // this lane's motion clock from step one, never the last lane's
   laneEnd = laneEndShow = 0; // the lane clock re-measures itself on the first tick
   lanePlanetProg = 0; // the destination starts far away again
   resetBarks();
-  commNext = 0; commCur = null; commT = 0;
+  commCur = null; commT = 0;
   surgeLevel = 0; surgeCount = -1; surgeWaveZ = -1;
   integrity = mutLive('oneLife') ? 25 : 100; // flow loadout — a campaign hull is always whole
   score = 0; zaps = 0; misses = 0; combo = 0; maxCombo = 0; perfects = 0; comboHeal = 0;
   comboStartT = 0; maxComboStart = 0; maxComboSec = 0;
-  lbStatus = ''; lastSubmit = null; // clear last run's leaderboard status
+  lbStatus = ''; // clear last run's leaderboard status
+  endSerial++;   // …and orphan its answers still in flight: they belong to a report that is gone (lbSubmit, 2026-10-10)
   bossTestRun = false; // every real start clears the drill flag (startBossTest re-sets it)
   bossFailed = false; bossRetried = false; bossSnap = null; // continues don't outlive their level (startBossRetry re-marks)
   reliefFired = [];    // each level's hot bands get to send their patch again
@@ -789,6 +799,7 @@ function resetRun() {
   // pulling a carriage off its parked angle on the first tick of the fresh one
   for (const n of nodes) { n.formedFx = false; n.formAt = 0; n.recoil = 0; n.deadT = 0; n.slew = null; }
   fx.wide = fx.auto = fx.chain = 0; shieldCharge = 0; pickupT = srand(16, 24); pickupBag = [];
+  tolVis = 1; // the hit arc eases back over ~0.5s; a run never starts on the last one's WIDE ARC (2026-10-10)
   lastPickT = -1e9; // the spacing law starts every run with a clear lane
   ribbonT = srand(11, 15); // first golden ribbon EARLY — its pulse should serve the whole run
   sched = [];
@@ -806,6 +817,14 @@ function resetRun() {
   if (feedback) closeFeedback();
   state = S.PLAY;
 }
+// THE MOTION CLOCK STARTS AT THE LANE'S OWN SPEED (2026-10-10). The tick sets
+// trafficSpeed (72-tick: L.speed × the FAST modifier — this is the same product),
+// but only AFTER the spawner has run, and nothing reset it between runs. A run
+// entered past the boot — a replay, the boss drill, the verifier — spawned its
+// first step at whatever the PREVIOUS lane left there (an early beat's clamped
+// depth reads it), and a fresh verifier process at the 0.4 it is declared with.
+// resetRun seeds it; startLevel seeds it again once LANE ASSIST has eased LV.
+function seedTrafficSpeed() { if (LV) trafficSpeed = LV.speed * (mutLive('fast') ? 1.35 : 1); }
 // H-07: BACK off the pre-warp disc to the lane chart. The deploy is abandoned (the
 // run never armed) and the relay stays selected. Bound to the top-right arrow key
 // and to gamepad B. Mirrors the report's map-return transition.
@@ -838,6 +857,7 @@ function startLevel(i, brief, withAssist) {
   if (assist) LV = Object.assign({}, LEVELS[i], {
     spawnMin: LEVELS[i].spawnMin * 1.3, spawnMax: LEVELS[i].spawnMax * 1.3,
     speed: LEVELS[i].speed * 0.9 });
+  if (assist) seedTrafficSpeed(); // the eased lane's own clock (resetRun seeded the authored one)
   runTrack = pickTrack(); // the soundtrack is drawn fresh; the sim never reads it (campaign spawns are scripted)
   armRunMusic();
   if (brief && STORY[i]) showCard('story' + i); // the contract's next leg
@@ -947,8 +967,14 @@ function bossGateTry() {
   menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startBossTest };
 }
 function startBossTest() {
-  startLevel(LEVELS.length - 1);
-  levelT = LEVELS[LEVELS.length - 1].duration; // clock already expired — the leech spawns at once
+  // THE BOSS LANE IS THE ONE MARKED boss: true, not the last one (2026-10-10).
+  // Content is append-only, so a contract can grow a lane after its duel; the
+  // drill finds the duel by its flag, and only a contract with none falls back
+  // to its last lane.
+  const flagged = LEVELS.map(l => !!(l && l.boss)).lastIndexOf(true);
+  const bi = flagged >= 0 ? flagged : LEVELS.length - 1;
+  startLevel(bi);
+  levelT = LEVELS[bi].duration; // clock already expired — the leech spawns at once
   introT = 999; introCd = 0;                   // skip the countdown
   // A DRILL, NOT A RUN. The clock jump above is invisible to the trace, so the
   // verifier would replay these inputs against the level from second zero and

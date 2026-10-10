@@ -399,10 +399,12 @@ function resetCanonical() {
   for (const k in mutators) if (typeof mutators[k] === 'boolean') mutators[k] = false;
   markBriefingsSeen();
 }
-// the sim's geometry (geo()/travelTime, hence spawn timing) is a function of the
-// viewport aspect ratio, so a run is only reproducible at the SAME W/H it was
-// recorded at. captureRun records them; the verifier sets them before replaying.
-// (headless, resize() never runs, so W/H would otherwise be 0 → geo() NaN.)
+// The sim's depth geometry no longer depends on the viewport: geo() pins hitZ at
+// 0.25 on every aspect (CANONICAL CORE, 41-geometry), so travelTime and spawn
+// timing are the same on every screen. W/H still have to be real numbers —
+// headless, resize() never runs, and at 0 geo() divides 0 by 0 (hitZ NaN). So
+// captureRun still records them and the verifier still sets them before replaying.
+// (Comment corrected 2026-10-10: it said a run only reproduced at its own aspect.)
 function setViewport(w, h) { W = w > 0 ? w : 800; H = h > 0 ? h : 450; }
 // headless test hook: dismiss a briefing card (what a player tap does), so a
 // faithful client-flow test can exercise the briefing → PLAY-only-trace path.
@@ -426,6 +428,9 @@ function endLevel(win) {
   if (replaying) { endWin = win; endDropT = win ? 0 : -1; if (win) sfx.arrive(); else sfx.fail(); return; }
   // the END screen may offer RETRY DUEL when the fight itself is what ended us
   bossFailed = !win && !!boss && !endless && !qual && !tut;
+  // this report's serial, taken BEFORE the submit below so lbSubmit reads it too:
+  // both async answers (the submit, the rank lookup) check it on arrival (2026-10-10)
+  const mySerial = ++endSerial;
   // a boss-test drill never files: its clock jump is invisible to the trace,
   // so no verifier on earth could reproduce it. A CONTINUED run never files
   // either — that is the continue's price, stated on the button that took it.
@@ -434,7 +439,6 @@ function endLevel(win) {
   // name-entry card on the END screen — every qualifying run, pre-filled with the
   // player's last handle so returning players can keep it or type something new.
   endProvisional = null; nameEntry = null; nameEntryDraft = '';
-  const mySerial = ++endSerial;
   if (boardKey() && !qual && !bossTestRun && !bossRetried && score > 0) {
     const bk = boardKey();
     lbProvisional(bk, score, zaps, perfects).then(r => applyProvisional(bk, mySerial, r));

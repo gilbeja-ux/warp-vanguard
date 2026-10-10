@@ -168,7 +168,13 @@ function update(dt) {
     laneFlow = Math.max(flowTgt, laneFlow - dt / (state === S.END ? (endWin ? WARP_COLLAPSE.brake : 1.0) : 0.45));
   // the wall streams at EXACTLY the traffic speed — leaks stay glued to it
   // (the tutorial's TAP-TO-FIRE hold stops the whole bore, wall included)
-  if (!(tut && tut.rewind)) laneVel = 1; // forward, except while the course's tape winds back
+  // forward, except while the course's tape winds back — and only on a frame that
+  // actually winds it. qualRewindTick (below) writes laneVel each tick it slides, but
+  // a pause returns before it (the `state !== S.PLAY` return) and so does the resume
+  // count; both used to leave laneVel frozen at its last value — about -9 early in
+  // the slide — and the bore, the river and the deep field ran backwards through the
+  // whole pause (2026-10-10). Not winding this frame: the lane is not moving back.
+  if (!(tut && tut.rewind) || state !== S.PLAY || resumeHold > 0) laneVel = 1;
   const flowMul = (tut && tut.frozen ? 0 : 1) * laneFlow * laneVel;
   tunnelScroll = (tunnelScroll + dt * (state === S.PLAY ? trafficSpeed * 10 : 0.5) * (1 + warp2 * 4) * flowMul) % 10;
   wallDist += dt * (state === S.PLAY ? trafficSpeed : 0.05) * (1 + warp2 * 4) * flowMul;
@@ -324,7 +330,7 @@ function update(dt) {
   const g = geo();
 
   const waveMul = mutLive('fast') ? 1.35 : 1; // constant clock — surges live in endless L.speed
-  trafficSpeed = L.speed * waveMul; // tunnel bands, hoops, river and glyphs all ride this
+  trafficSpeed = L.speed * waveMul; // tunnel bands, hoops, river and glyphs all ride this (resetRun seeds the same product)
   const TOL = ARCFX.span * tolVis; // the arc IS the window — same span the node renders
   // a rebooting node (node-killer hit) covers nothing until it's back online
   const covers = (n, a) => !(n.deadT > 0) && Math.abs(angDiff(n.angle, a)) < TOL;
@@ -686,8 +692,8 @@ function updateLatches(dt, inIntro, ringXY, nodeXY) {
 const VOLLEY_BLAST_Z = 0.70;  // semi-axis along the bore
 const VOLLEY_BLAST_A = 2.00;  // semi-axis around the ring, radians
 const volleyFX = [];          // draw-only, see drawVolleyBlasts
-// Whether the blast may take this one. Kept beside the bolt's own filter above,
-// which must stay in step with it — one law, two callers.
+// Whether the blast — or the bolt itself (updateVolley) — may take this one.
+// One law, two callers, one definition.
 const blastTakes = en => !(en.dead || en.resolved || en.failed)
   && en.type !== 'strip' && en.type !== 'line' && !en.partner && en.lock === undefined;
 // inside the ellipse: the two reaches are semi-axes, so this is 1 on the boundary
@@ -782,10 +788,11 @@ function updateVolley(dt, docked, g) {
     sh.z += dt * 2.4;
     if (sh.z > (sh.reach || SPAWN_Z)) { sh.dead = true; continue; } // spent at the horizon
     for (const en of enemies) {
-      if (en.dead || en.resolved || en.failed || en.type === 'strip') continue;
       // the bolt only answers to SINGLE plain reds and heavy armor — barrier
-      // pairs and color-locked taps are keyed work for the nodes themselves
-      if (en.type === 'line' || en.partner || en.lock !== undefined) continue;
+      // pairs and color-locked taps are keyed work for the nodes themselves.
+      // The same law as the blast's, so it is the blast's own filter (2026-10-10:
+      // this was a hand-kept copy of blastTakes, term for term).
+      if (!blastTakes(en)) continue;
       if (Math.abs(angDiff(en.angle, sh.a)) > 0.30 || Math.abs(en.z - sh.z) > 0.09) continue;
       const rgV = ring(Math.max(en.z, 0.02), g);
       const vx = rgV.x + Math.cos(en.angle) * rgV.r, vy = rgV.y + Math.sin(en.angle) * rgV.r;

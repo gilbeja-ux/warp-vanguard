@@ -106,7 +106,7 @@ const SFX_SEARCH = {
     terms: ['machine startup', 'power lock', 'sci fi boot'] },
   bootDock: { len: '0.7s', want: 'FALLBACK ONLY — startup1.mp3 covers this. A thump with everything charging behind it.',
     terms: ['machine dock', 'power up thump', 'system charge'] },
-  bootSignoff: { len: '0.3s', want: 'FALLBACK ONLY — the reboot take (restart.wav) covers this. Flat sign-off clicks.',
+  bootSignoff: { len: '0.3s', want: 'FALLBACK ONLY — the reboot take (restarting.mp3) covers this. Flat sign-off clicks.',
     terms: ['relay click', 'switch click', 'terminal beep'] },
 
   // --------------------------------------------- transitions & the course

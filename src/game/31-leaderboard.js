@@ -215,19 +215,42 @@ function openStore() {
 }
 let lbStatus = ''; // human-readable submit status, shown on the END screen
 let lastRun = null; // snapshot of the run that just ended — the leaderboard submission payload (also resubmitted with a new name when the player sets a handle)
+// ONE SESSION ATTEMPT AT A TIME (2026-10-10). The board screen mints a session in
+// the background, a run's END submits, MY DATA and FEEDBACK each ask for one, and
+// they can all ask in the same second. Each used to run its own refresh/signup: on
+// a first run that minted TWO anonymous users (the second overwrote the first's
+// tokens, and whatever the first had filed belonged to nobody), and with a stored
+// refresh token two callers spent the same token, which Supabase rotates, so the
+// loser failed. Every caller now shares the one attempt in flight; it is cleared
+// when it settles, so the next call after a failure tries again.
+let lbSessionP = null;
+// WHY the last attempt failed, in the player's words. The attempt no longer writes
+// lbStatus itself: it serves every caller, and only a submission's own END screen
+// should ever print it — lbSubmit copies it across while its run is still current.
+let lbAuthWhy = '';
 async function lbSession() {
   if (typeof fetch === 'undefined') return null;
   if (identity.token && identity.tokenExp && Date.now() < identity.tokenExp - 60000) return identity.token;
+  if (!lbSessionP) lbSessionP = lbSessionMint().finally(() => { lbSessionP = null; });
+  return lbSessionP;
+}
+// the attempt itself: refresh the stored user, or mint a new one. Never throws.
+async function lbSessionMint() {
   const h = { apikey: LEADERBOARD.key, 'Content-Type': 'application/json' };
+  const fail = (detail, human) => {
+    lbAuthWhy = human;
+    try { console.warn('[leaderboard] ' + detail); } catch (e) {}
+    return null;
+  };
   try {
     let res = null;
     if (identity.refresh) // refresh the existing anonymous user — keeps the same player_id
       res = await lbFetch(LEADERBOARD.url + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: h, body: JSON.stringify({ refresh_token: identity.refresh }) });
     if (!res || !res.ok) // first run (or refresh expired): mint a fresh anonymous user
       res = await lbFetch(LEADERBOARD.url + '/auth/v1/signup', { method: 'POST', headers: h, body: JSON.stringify({}) });
-    if (!res.ok) { lbFail('AUTH HTTP ' + res.status, 'OFFLINE — SCORE SAVED ON THIS DEVICE'); return null; }
+    if (!res.ok) return fail('AUTH HTTP ' + res.status, 'OFFLINE — SCORE SAVED ON THIS DEVICE');
     const d = await res.json();
-    if (!d.access_token) { lbFail('AUTH: no token', 'OFFLINE — SCORE SAVED ON THIS DEVICE'); return null; }
+    if (!d.access_token) return fail('AUTH: no token', 'OFFLINE — SCORE SAVED ON THIS DEVICE');
     identity.token = d.access_token;
     identity.tokenExp = Date.now() + (d.expires_in ? d.expires_in * 1000 : 3600000);
     if (d.refresh_token) identity.refresh = d.refresh_token;
@@ -236,10 +259,9 @@ async function lbSession() {
     saveState();
     return identity.token;
   } catch (e) {
-    lbFail('AUTH ERR: ' + (e && e.message || e),
+    return fail('AUTH ERR: ' + (e && e.message || e),
       e && e.name === 'AbortError' ? 'NO ANSWER — SCORE SAVED ON THIS DEVICE'
         : 'OFFLINE — SCORE SAVED ON THIS DEVICE');
-    return null;
   }
 }
 // WHAT A PLAYER IS TOLD, AND WHAT A DEVELOPER NEEDS, ARE DIFFERENT STRINGS.
@@ -268,13 +290,25 @@ function lbUid() {
   }
   return identity.uid || identity.id;
 }
-let lastSubmit = null; // { ok, verified, score, rank } from the most recent submission — for the END screen
 async function lbSubmit(run) {
   if (!LEADERBOARD.enabled || typeof fetch === 'undefined' || !run || !run.board) { lbStatus = ''; return; }
   lbStatus = 'SYNCING…';
+  // A SLOW ANSWER BELONGS TO ITS OWN RUN (2026-10-10). A submit can take half a
+  // minute (the session, then a 25s upload), and by then the player may be a run
+  // further on: the answer used to print on whatever END screen was up when it
+  // landed — the next run's, which may be a LANE ASSIST or a drill that filed
+  // nothing. endSerial is the same serial the rank lookup carries
+  // (applyProvisional, 61-replay); endLevel takes it before this call and resetRun
+  // moves it, so an answer that lands after a new run began is logged and dropped.
+  const serial = endSerial;
+  const live = () => serial === endSerial;
+  const fail = (detail, human) => {
+    if (live()) lbFail(detail, human);
+    else { try { console.warn('[leaderboard] (stale run) ' + detail); } catch (e) {} }
+  };
   try {
     const token = await lbSession();
-    if (!token) return; // lbSession set lbStatus with the reason
+    if (!token) { if (live()) lbStatus = lbAuthWhy || 'OFFLINE — SCORE SAVED ON THIS DEVICE'; return; } // lbSession logged the reason
     // endless is trust-only and unreplayable — don't ship its (large, useless) trace
     const payload = run.mode === 'endless' ? { ...run, trace: undefined } : run;
     const res = await lbFetch(LEADERBOARD.url + '/functions/v1/submit-run', {
@@ -297,13 +331,13 @@ async function lbSubmit(run) {
     const txt = await res.text();
     let d = null; try { d = JSON.parse(txt); } catch (e) {}
     if (res.ok && d && d.ok) {
-      lastSubmit = d; lbStatus = d.rank ? 'RANK #' + d.rank.rank + ' / ' + d.rank.total : 'SUBMITTED';
+      if (live()) lbStatus = d.rank ? 'RANK #' + d.rank.rank + ' / ' + d.rank.total : 'SUBMITTED';
       // remember that I have a run on this board (for "Show my Run" even when the
-      // anon session id can't be matched to the row) — keyed by board key
+      // anon session id can't be matched to the row) — keyed by board key. A fact
+      // about the board, not about the screen: kept even when the answer is stale.
       if (d.rank && run.board) { progress.myBoards = progress.myBoards || {}; progress.myBoards[run.board] = d.rank.rank; saveState(); }
     }
     else {
-      lastSubmit = null;
       const raw = 'REJECTED ' + res.status + ': ' + (d && d.error ? d.error : txt.slice(0, 64))
         + (d && d.recomputed !== undefined ? ' [' + d.recomputed + ' vs ' + d.claimed + ', ig' + d.integrity + ' st' + d.steps + '/' + d.traceLen + ']' : '');
       // A FAILED VERIFY DURING TESTING IS ALMOST ALWAYS A VERSION SKEW: the
@@ -312,14 +346,13 @@ async function lbSubmit(run) {
       // likely cause turns a scary rejection into an action.
       const outdated = res.status === 409 || (d && d.error === 'client outdated');
       const verifyFail = d && (d.error === 'verification failed' || d.recomputed !== undefined);
-      lbFail(raw, outdated ? 'UPDATE AVAILABLE — THIS BUILD CAN NO LONGER POST SCORES'
+      fail(raw, outdated ? 'UPDATE AVAILABLE — THIS BUILD CAN NO LONGER POST SCORES'
         : verifyFail ? 'SCORE NOT VERIFIED — SAVED ON THIS DEVICE'
         : res.status === 429 ? 'TOO MANY SUBMISSIONS — TRY AGAIN SHORTLY'
         : 'NOT ACCEPTED — SCORE SAVED ON THIS DEVICE');
     }
   } catch (e) {
-    lastSubmit = null;
-    lbFail('NET ERR: ' + (e && e.message || e),
+    fail('NET ERR: ' + (e && e.message || e),
       e && e.name === 'AbortError' ? 'SYNC TIMED OUT — SCORE SAVED ON THIS DEVICE'
         : 'OFFLINE — SCORE SAVED ON THIS DEVICE');
   }
@@ -616,6 +649,6 @@ function lbForgetIdentity() {
   // this function just minted. The server has deleted their feedback; the device
   // must not hand it straight back.
   progress.fbOut = null;
-  lastRun = null; lastSubmit = null; lbStatus = '';
+  lastRun = null; lbStatus = '';
   saveState();
 }

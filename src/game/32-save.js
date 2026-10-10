@@ -30,7 +30,7 @@ function setHandle(name) {
 }
 // dismiss / commit the arcade high-score card (defined here so the END tap
 // handler can call them; the DOM overlay + sfx exist by the time they run)
-function closeNameEntry() { nameEntry = null; nameEntryDraft = ''; nameEntryFx = 0; clearField(); }
+function closeNameEntry() { nameEntry = null; nameEntryDraft = ''; clearField(); }
 function confirmNameEntry() {
   const raw = overlayValue() || nameEntryDraft;
   if (nameStatus(raw) !== 'ok') return; // the card shows the reason; the button is locked

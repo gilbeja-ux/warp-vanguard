@@ -480,12 +480,16 @@ function enemyPal(en) {
 // not a broken signal — it is something the lane takes back. `DECOMP.grid` keeps
 // the old pass for an A/B (0 = tear, 1 = reclaim).
 //
-// WHICHEVER RUNS, THE SAME Math.random() DRAWS ARE CONSUMED. Inside a run
-// Math.random IS the seeded stream the boss reads (60-input.js swaps it and only
-// restores sysRandom on QUIT), so a de-rez that draws a different number of times
-// moves every board a kill lands on. The reclaim takes NO draws of its own — its
-// noise is decFrac off the ghost's own wall position, which never advances — and
-// burns the tear's exact sequence instead. Do not "clean up" that loop.
+// WHICHEVER RUNS, THE SAME Math.random() DRAWS ARE CONSUMED. The reclaim takes NO
+// draws of its own — its noise is decFrac off the ghost's own wall position, which
+// never advances — and burns the tear's exact sequence instead. Whether that loop
+// stays is Gil's call. Corrected 2026-10-10: it was kept because "Math.random IS
+// the seeded stream the boss reads", and since H-02 it is not — the boss draws
+// bossRng and spawns draw spawnRng (52-bosses.js), and the headless verifier
+// renders nothing, so no board or score hears these pulls. Inside a run (where
+// 60-input.js seeds Math.random) it still feeds cosmetic scatter — burst,
+// particles — and the unranked course's drill placement (70-update.js), so
+// dropping the loop would move only where sparks fly.
 const decFrac = n => { const x = Math.sin(n * 78.233) * 43758.5453; return x - Math.floor(x); };
 function drawGhost(gh, g) {
   const k = gh.t / DECOMP.glitchT;

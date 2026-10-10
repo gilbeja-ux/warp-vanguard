@@ -43,15 +43,17 @@ function discArtImg(L) {
 // freight yard are nonsense. So a package can carry both, meaning different things.
 //
 // One entry per campaign and at most five packages, so this is bounded by construction and
-// needs no LRU — unlike the forty mission keyframes above. menuCache is dropped on load
-// because the carousel is cached and would otherwise hold the pre-image frame.
+// needs no LRU — unlike the forty mission keyframes above. (Its load no longer drops
+// menuCache, 2026-10-10: every surface that shows this art — the carousel strip, the home
+// wheel's side key — draws it live, and paintMenuStatic never reads it, so the rebuild
+// repainted an identical sheet.)
 const CAMPART = {}; // decoded per campaign id
 function campArtImg(pk) {
   if (!pk || !pk.art || typeof Image === 'undefined') return null;
   let e2 = CAMPART[pk.id];
   if (!e2) {
     e2 = CAMPART[pk.id] = { img: new Image(), w: 0, h: 0 };
-    e2.img.onload = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; menuCache = null; };
+    e2.img.onload = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; };
     e2.img.src = /^data:image\//.test(pk.art) ? pk.art : 'art/camp/' + pk.art;
   }
   return e2.w ? e2 : null; // null until decoded — the chart crop stands in
@@ -77,7 +79,7 @@ function campMapImg(pk) {
   let e2 = MAPIMG[pk.id];
   if (!e2) {
     e2 = MAPIMG[pk.id] = { img: new Image(), w: 0, h: 0 };
-    e2.img.onload = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; menuCache = null; };
+    e2.img.onload = () => { e2.w = e2.img.naturalWidth || 1; e2.h = e2.img.naturalHeight || 1; }; // drawn live — no menuCache drop (2026-10-10, see CAMPART)
     // a bundled name needs its folder — fed to src raw it would resolve at the site root.
     // Bounded by construction at one per campaign, so no LRU: five strips, not forty.
     e2.img.src = /^data:image\//.test(pk.map.image) ? pk.map.image : 'art/map/' + pk.map.image;
@@ -181,7 +183,7 @@ function drawMenuMap() {
     else mapRot = (menuFx.dir || -1) * 0.9 * q * q;
   }
   ctx.save();
-  ctx.beginPath(); ctx.arc(ccx, ccy, R - 5, 0, TAU); ctx.clip();
+  ctx.beginPath(); ctx.arc(ccx, ccy, Math.max(0, R - 5), 0, TAU); ctx.clip(); // R - 5 < 0 on a tiny screen made arc() throw (2026-10-10)
   if (mapRot !== 0 || mapAl < 1) {
     ctx.translate(ccx, ccy); ctx.rotate(mapRot); ctx.translate(-ccx, -ccy);
     ctx.globalAlpha = mapAl;
@@ -464,7 +466,7 @@ function drawMenuMap() {
   ctx.restore();
   // lens rim
   ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(ccx, ccy, R - 5, 0, TAU); ctx.stroke();
+  ctx.beginPath(); ctx.arc(ccx, ccy, Math.max(0, R - 5), 0, TAU); ctx.stroke(); // clamped like the clip above
   if (discRimAl > 0) { // the campaign disc's rim, mid-crossfade with the lens
     ctx.save();
     ctx.globalAlpha = discRimAl;
@@ -1167,7 +1169,6 @@ function drawEnd(g) {
   if (!nameEntry && overlayField === 'entry') clearField(); // card gone → drop the DOM field
   const nq = popFxQ('name', !!nameEntry && bA > 0.001);
   if (nq > 0.001) {
-    nameEntryFx = nq;                                 // closeNameEntry() still zeroes it
     // scrim pulls the ceremony + gated side keys back for focus. It leads the cast
     // — a projection cannot read against a lit end screen.
     ctx.globalAlpha = 1;

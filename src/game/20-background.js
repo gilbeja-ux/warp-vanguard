@@ -322,7 +322,6 @@ function starClass() {
     g1: rand(0.045, 0.105), g2: rand(0.058, 0.130), gp1: Math.random() * TAU, gp2: Math.random() * TAU
   };
 }
-let litPanels = [];
 // (randCode is retired with the fiber theme — there is no binary on a lane wall.
 // The wall's motion is carried by streaked starlight and the marker trains below.)
 function buildBackground() {
@@ -342,7 +341,6 @@ function buildBackgroundSeeded() {
   // live layer state
   liveStars = [];
   menuStars = [];
-  litPanels = [];
   // the viewport unit (see its comment at STAR_COLS). Recomputed here because
   // this build runs on every resize/rotation, so the sky refits with the frame.
   skyUnit = clamp(Math.min(W, H) / 820, 0.38, 1);

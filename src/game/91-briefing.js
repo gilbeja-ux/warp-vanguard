@@ -1603,26 +1603,36 @@ const discChord = (R, dy) => Math.sqrt(Math.max(1, R * DISC_RIM * R * DISC_RIM -
 //
 // THE PLATE IS THE CONSOLE'S BLUE, not the briefing disc's near-black. The cast
 // throws LIGHT at this circle; a black ground swallows it and the wavefront reads
-// as a ring floating over a hole. techPanel's glass blue takes the light instead,
-// so the disc looks lit by the projection that built it.
+// as a ring floating over a hole. The old console panel's glass blue (techPanel,
+// deleted unused 2026-10-10) takes the light instead, so the disc looks lit by the
+// projection that built it.
 // the title's clearance from the rim, measured at the top of its capitals. It is
 // narrower than the text margin on purpose: the title sits at the crown, where the
 // chord is short, and the text margin there would shrink a 14-letter title to a
 // caption. Still nearly twice a rail's, so its ends stand clear of the rim.
 const DISC_TITLE_PAD = 0.13;
+// the plate's two gradients read nothing but the disc's centre and radius, so they
+// are kept for the last disc drawn and rebuilt only when it (or the context) moves
+// (2026-10-10: a paused run or a briefing rebuilt both every frame)
+let platePair = null, plateKey = '', plateCtx = null;
 function discPlate(cx, cy, R, title, titleCol) {
-  const bg = ctx.createRadialGradient(cx, cy, R * 0.20, cx, cy, R);
-  bg.addColorStop(0, 'rgba(11,31,57,0.95)');
-  bg.addColorStop(0.72, 'rgba(7,22,44,0.94)');
-  bg.addColorStop(1, 'rgba(5,17,36,0.86)');
+  const pk = cx + ',' + cy + ',' + R;
+  if (!(platePair && plateKey === pk && plateCtx === ctx)) {
+    const bg0 = ctx.createRadialGradient(cx, cy, R * 0.20, cx, cy, R);
+    bg0.addColorStop(0, 'rgba(11,31,57,0.95)');
+    bg0.addColorStop(0.72, 'rgba(7,22,44,0.94)');
+    bg0.addColorStop(1, 'rgba(5,17,36,0.86)');
+    // the glass lift: one soft highlight off the top-left, the same read the old
+    // console panel's header band gave a slab
+    const gl0 = ctx.createLinearGradient(cx - R * 0.6, cy - R, cx + R * 0.3, cy + R * 0.4);
+    gl0.addColorStop(0, 'rgba(90,190,255,0.10)');
+    gl0.addColorStop(0.55, 'rgba(90,190,255,0.02)');
+    gl0.addColorStop(1, 'rgba(90,190,255,0)');
+    platePair = [bg0, gl0]; plateKey = pk; plateCtx = ctx;
+  }
+  const [bg, gl] = platePair;
   ctx.fillStyle = bg;
   ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fill();
-  // the glass lift: one soft highlight off the top-left, the same read techPanel's
-  // header band gives a slab
-  const gl = ctx.createLinearGradient(cx - R * 0.6, cy - R, cx + R * 0.3, cy + R * 0.4);
-  gl.addColorStop(0, 'rgba(90,190,255,0.10)');
-  gl.addColorStop(0.55, 'rgba(90,190,255,0.02)');
-  gl.addColorStop(1, 'rgba(90,190,255,0)');
   ctx.fillStyle = gl;
   ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fill();
   ctx.strokeStyle = 'rgba(120,200,255,0.34)'; ctx.lineWidth = 1.5;
@@ -1973,14 +1983,8 @@ function discSegKeys(cx, cy, R, keys, segK) {
 // the disc's radius — one formula, shared with drawInfoCard so the deploy keeps
 // one disc size from selection through briefing through pause
 const discR = () => Math.min(H * 0.47, W * 0.30) * 0.92;
-// a chrome key in the screen's corner cluster: the pause/resume slab and the
-// FIELD GUIDE badge beside it wear the same slab the HUD's own keys do
-function discChromeKey(r, fill) {
-  techRect(r.x, r.y, r.w, r.h, 8);
-  ctx.fillStyle = fill || 'rgba(6,20,40,0.6)'; ctx.fill();
-  ctx.strokeStyle = 'rgba(120,220,255,0.55)'; ctx.lineWidth = 1.5;
-  techRect(r.x, r.y, r.w, r.h, 8); ctx.stroke();
-}
+// (2026-10-10: discChromeKey, a corner-cluster slab, was deleted — nothing called
+// it; the corner keys draw their own slabs, e.g. drawPauseKey in 90-hud.js.)
 
 // THE PAUSE PANEL IS A DISC. It wears the mission disc's radius and the mission
 // disc's plate, and the ring casts it: the console box it used to be was the one
@@ -2557,6 +2561,9 @@ function enlistArtRun(x, y, w, h, covered) {
     ctx.restore();
   };
   // ---- the traffic, and what is left of it ----
+  // (sandboxed like the field guide's specimens, 2026-10-10: these bodies sprayed
+  // their sparks into the run's particles at this window's coordinates — 92-guide.js)
+  specimenSandbox(() => {
   for (let ci = 0; ci < ENL_SCRIPT.length; ci++) {
     const c = ENL_SCRIPT[ci];
     const p = show - c.at;
@@ -2585,6 +2592,7 @@ function enlistArtRun(x, y, w, h, covered) {
       scaledAt(wp.x, wp.y, () => drawGhost(gh, g2));
     }
   }
+  });
   // ---- the emitters, painted by the game's own arc renderer ----
   // bh is the monolith band's half-width. In a run it is min(W,H)·0.055·bandW against
   // a nodeR of 0.44·min(W,H) — so it is 0.125·bandW of the ring, whatever the ring is.

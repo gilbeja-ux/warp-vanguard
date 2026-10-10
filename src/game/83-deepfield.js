@@ -646,6 +646,15 @@ function drawStreaks(g, dt) {
     const al = st.gold
       ? Math.min(1 - zH, 1.05) * 0.75 * clamp(1 + zH / 0.1, 0, 1) * laneFlow * bank
       : Math.min(1 - zH, 1.05) * 0.46 * st.br; // translucent: you see stars THROUGH a warp line
+    // A LINE BEYOND THE HORIZON IS NOT DRAWN (2026-10-10). The course's rewind runs the
+    // river backwards (spd < 0), which carries warp lines up past z = 1, and there `al`
+    // goes negative. The fast path below refused them, the slow path then set a negative
+    // globalAlpha — which the canvas IGNORES — and blitted the sprite at the alpha
+    // already in force, additively: a bright starburst on every rewind. At al = 0 both
+    // paths painted nothing, and ?abl=nosprite (no sprites, its passes all under 0.008)
+    // painted nothing below it, so nothing is what they draw now. Gold lines keep their
+    // own path — every alpha it sets is clamped, so they never had the fault.
+    if (!st.gold && al <= 0) continue;
     if (FX && !st.gold) {
       const k = Math.min(9, lerp(0.6, 1.25, 1 - zH) * st.cal);
       const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
@@ -1003,15 +1012,19 @@ function drawLaneMedium(g, dt) {
 // channel stops carrying story and starts carrying REACTION: the handler comments
 // on what just happened, or says nothing at all.
 //
-// Two rules here are correctness, not taste, and both come from the same fact —
-// campaign levels reseed Math.random with mulberry32, so Math.random IS the sim
-// RNG and the replay verifier reruns it:
+// Two rules here are correctness, not taste. They were written when campaign levels'
+// reseeded Math.random WAS the sim RNG that the replay verifier reruns. (Corrected
+// 2026-10-10: it is not any more — spawns draw spawnRng, the boss bossRng, and the
+// verifier renders nothing, so inside a run Math.random feeds only cosmetics and the
+// unranked course, and a roll here would not move a board today.) The rules stand,
+// because they keep barks out of the sim whatever it draws from next:
 //
 //   1. DRAW-ONLY. Nothing in here may touch sim state or advance any RNG. Every
 //      trigger is a POLL of state that already exists; no spawner is hooked, so
 //      the sim cannot tell whether barks are on.
-//   2. VARIANT CHOICE IS A COUNTER, NOT A ROLL. BARKS[id][n++ % len]. A roll here
-//      would desync every replay and invalidate leaderboard submissions.
+//   2. VARIANT CHOICE IS A COUNTER, NOT A ROLL. BARKS[id][n++ % len]. When this was
+//      written a roll here desynced every replay and invalidated leaderboard
+//      submissions; a counter can never do either.
 //
 // Beyond that: never queue (a stale bark comments on something that stopped being
 // true), priority interrupts, and silence is fine — a quiet run is a clean run.

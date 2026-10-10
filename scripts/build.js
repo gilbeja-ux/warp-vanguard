@@ -162,10 +162,32 @@ console.log('✓ dist/ staged: ' + (bytes / 1048576).toFixed(1) + ' MB shippable
 // the server replays every submission against the old rules and rejects them
 // all — "verification failed [900 vs 26200]" — which looks like a scoring bug
 // and is not one. Nothing in the game surfaces the mismatch, so the build does.
+//
+// THE BUNDLE SAYS WHICH SIM IT WAS CUT FROM (2026-10-10). Its footer exports
+// SIM_ID, the same hash scripts/lib/sim-id.js computes over the same files, so
+// "is it stale?" is one string compare. Mtimes answered it badly both ways: a
+// checkout, a merge or a branch switch touches files without changing a byte and
+// cried STALE over an identical sim, and a sim edited and then put back stayed
+// STALE forever. The mtime test is kept only for a bundle whose id cannot be read.
 {
   const repo = path.join(__dirname, '..');
   const simPath = path.join(repo, 'supabase', 'functions', 'submit-run', '_sim.mjs');
+  let builtId = null;
   if (fs.existsSync(simPath)) {
+    try {
+      const bundle = fs.readFileSync(simPath, 'utf8');
+      const m = /export const SIM_ID = ("[^"\n]*");/.exec(bundle.slice(bundle.lastIndexOf('export const SIM_ID')));
+      builtId = m ? JSON.parse(m[1]) : null;
+    } catch (e) { builtId = null; }
+  }
+  if (builtId) {
+    const localId = require('./lib/sim-id.js').simId(repo);
+    if (builtId !== localId) {
+      console.warn('\n! VERIFIER IS STALE — the bundle was cut from sim ' + builtId + ', this source is ' + localId + '.');
+      console.warn('  Leaderboard submissions will be REJECTED until you run:');
+      console.warn('    npm run build:verifier && npm run deploy:verifier\n');
+    }
+  } else if (fs.existsSync(simPath)) {
     const built = fs.statSync(simPath).mtimeMs;
     const gameDir = path.join(repo, 'src', 'game');
     const watched = ['src/campaigns.js'].concat(

@@ -71,7 +71,7 @@ const INFO_CARDS = {
   // stamp is drawn in-world by drawQualCeremony, which owns this wording. Kept in step with
   // it on purpose: a second copy of user-facing copy is a trap, and this one already caught
   // me editing the wrong string once.
-  done:   { title: 'QUALIFIED', lines: ['Certification: PASSED. Cleared for warp.', 'Report to Meridian Haulage — your', 'first contract begins at relay 01.'] },
+  done:   { title: 'QUALIFIED', lines: ['Certification: PASSED. Cleared for warp.', 'Report to Meridian Haulage — your', 'first contract begins at stage 01.'] },
   // A FALLBACK ONLY — every package supplies its own (INFO_CARDS.verdict = CAMP.verdict in
   // 33-loader), so this shows for a package that forgot one. It used to carry the retired
   // investigation's epilogue, which would have been a story from another game.
@@ -405,7 +405,7 @@ function advanceQual() {
 // THE COURSE IS OVER: it files itself as done, and the report offers the first contract
 function qualFinish() {
   progress.tutorialDone = true;
-  holoCv = null; dimCv = null; // the call's buffers (90-hud) are not needed past the course
+  tutCallRelease(); // the call's buffers (90-hud) are not needed past the course: zeroed and let go
   saveState();
   tut = null;
   endLevel(true);

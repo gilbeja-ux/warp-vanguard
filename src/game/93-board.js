@@ -123,12 +123,22 @@ function boardScrollToRank(rank) {
   const { rowFullH, vH } = boardListGeom;
   boardListScroll = (rank - 1) * rowFullH - vH / 2 + rowFullH / 2; // clamped when the list draws
 }
+// A TRACE THAT LANDS LATE IS DROPPED, NOT FLOWN (2026-10-10). lbTrace can take ~40 s
+// (a session, then two 15 s fetches) and the player is free to leave meanwhile; the
+// reply used to launch the replay over whatever was on screen by then — a live run
+// included. It flies now only if it is the latest request AND the board it was asked
+// from is still the screen and still the selected board. The in-flight slot is handed
+// back either way. (replayLoading is never drawn, so no correct frame changes.)
+let replayReq = 0;
+const replayBoardKey = () => boardSel.mode + ':' + boardSel.camp + ':' + boardSel.level + ':' + boardSel.week;
 function boardReplayLaunch(r) {
   if (replayLoading || !r.trace_id) return;
+  const req = ++replayReq, from = replayBoardKey();
   replayLoading = r.trace_id; replayErr = ''; sfx.tick();
   lbTrace(r.trace_id).then(pkg => {
-    if (replayLoading !== r.trace_id) return;
+    if (req !== replayReq) return; // a newer request owns the slot
     replayLoading = null;
+    if (state !== S.MENU || menuScreen !== 'board' || replayBoardKey() !== from) return; // the player moved on
     if (!pkg) { replayErr = 'REPLAY UNAVAILABLE'; replayErrAt = time; return; }
     // launch PAUSED on frame 0, then run the enter transition (board flies out /
     // zooms into the ring, the player's chrome flies in)
@@ -478,7 +488,7 @@ function drawMenuBoard() {
   }
   // ---- the black circle-segment caps, OVER the rows (entries slide under them) ----
   const capSeg = (y0, y1) => { // solid black segment of the disc between two horizontal edges
-    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.clip();
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, Math.max(0, R), 0, TAU); ctx.clip(); // R < 0 on a tiny or inset-eaten screen made arc() throw (2026-10-10)
     ctx.fillStyle = '#04070d'; ctx.fillRect(cx - R, y0, R * 2, y1 - y0);
     ctx.restore();
   };
@@ -511,7 +521,7 @@ function drawMenuBoard() {
   // the thick matte-black ring band — drawn OVER the rows so they pass beneath
   // it, exactly like the in-game bore ring (no lit edges, per the design)
   ctx.strokeStyle = '#05090f'; ctx.lineWidth = bz;
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, Math.max(0, R), 0, TAU); ctx.stroke(); // clamped like capSeg's clip
 
   // the TITLE — topmost, over the ring, seated inside its perimeter
   ctx.font = '800 ' + fTitle + 'px Audiowide, system-ui';

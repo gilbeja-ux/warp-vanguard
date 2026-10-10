@@ -108,13 +108,32 @@ function drawFarGlow(far, vr, g) {
   // which matters once the lane carries the approach: a threshold on the live R
   // would rebuild mid-flight and hitch in the middle of play. Peak is known on
   // frame one, so the sprite is built once, at the resolution it will need. At
-  // the shipped full:0.21 the flight never gets near the threshold and this is
-  // the old arrival-only rebuild, masked by the victory flash, unchanged.
+  // the shipped DEST_APPROACH.full (0.5 since — this note said 0.21 until
+  // 2026-10-10) peakR is R1 × full, so whether the flight crosses the threshold
+  // is a matter of the screen's nodeR; where it does not, this is the old
+  // arrival-only rebuild, masked by the victory flash.
+  //
+  // THE TWO RESOLUTIONS ARE KEPT, NOT TRADED (2026-10-10). A win swapped the approach
+  // sprite for the double-resolution one, and leaving the report swapped it straight
+  // back with a second synchronous build of a world already built this run — while
+  // the canvas it replaced was left to the collector. Each resolution has a slot now,
+  // and a slot's canvas is zeroed when a new destination takes it. The builder is
+  // pure (R, V, PLANET_SHADE, LIGHT_A), so a kept sprite IS the sprite a rebuild
+  // would have made.
   const peakR = Math.max(R, R1 * DEST_APPROACH.full);
   const hiRes = arriving || peakR > PLANET_REF_R * 1.15;
   const spriteKey = V.n + (hiRes ? '@hi' : '');
   if (planetSpriteKey !== spriteKey) {
-    planetSprite = buildPlanetSprite(hiRes ? PLANET_REF_R * 2 : PLANET_REF_R, V);
+    const slot = hiRes ? 'hi' : 'lo', had = planetSlots[slot];
+    if (had && had.key === spriteKey) planetSprite = had.spr;
+    else {
+      planetSlotDrop(slot);
+      // …and a new destination hands back the other resolution of the old one too
+      const other = planetSlots[hiRes ? 'lo' : 'hi'];
+      if (other && other.key !== V.n && other.key !== V.n + '@hi') planetSlotDrop(hiRes ? 'lo' : 'hi');
+      planetSprite = buildPlanetSprite(hiRes ? PLANET_REF_R * 2 : PLANET_REF_R, V);
+      planetSlots[slot] = { key: spriteKey, spr: planetSprite };
+    }
     planetSpriteKey = spriteKey;
   }
   const la = V.emis ? LIGHT_A : destLightA(); // a star has no terminator to creep

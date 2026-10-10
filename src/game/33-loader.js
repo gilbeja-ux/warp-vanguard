@@ -121,7 +121,7 @@ function levelThreats(L, idx) {
 function installCampaign(p) {
   const errs = validateCampaign(p);
   if (errs.length) { console.error('campaign rejected:', errs); return false; }
-  if (lintReady) { // fairness findings are warnings only — the package still installs
+  if (lintOnInstall && lintReady) { // fairness findings are warnings only — the package still installs
     const lint = lintCampaign(p);
     if (lint.some(li => li.length)) console.warn('campaign lint (advisory):',
       lint.flatMap((li, i) => li.map(v => 'L' + (i + 1) + ' @' + v.t.toFixed(1) + 's ' + v.code + ': ' + v.msg)));
@@ -150,6 +150,15 @@ function installCampaign(p) {
 }
 let infoCardsReady = false;
 let lintReady = false; // lintLevel leans on consts declared below — first install runs before they exist
+// THE INSTALL-TIME LINT IS A DEV TOOL, OFF BY DEFAULT (2026-10-10). It walked every
+// level of the package on EVERY install — each contract switch on the menu, and
+// each verifier submission, which installs the run's campaign before replaying it —
+// only to print a console warning no player or server ever reads. The shipped
+// contracts are pinned lint-clean by npm test, the Lane Designer runs lintCampaign
+// through its own panel, and the mission disc's DETECTED THREATS count reads
+// lintWalk through levelThreats, not this. Set it true from a console (or a lab)
+// to have every install report its findings again.
+let lintOnInstall = false;
 function registerStoryCards() {
   for (const k of Object.keys(THREATN)) delete THREATN[k]; // the Designer edits levels in place
   for (const k of Object.keys(INFO_CARDS)) if (/^story\d+$/.test(k)) delete INFO_CARDS[k];

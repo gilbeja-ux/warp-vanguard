@@ -128,7 +128,7 @@ const SFX_ROSTER = [
       'crackle(0.3, 1100, 240, 1.4, 0.5);'] },
   { key: 'bootSignoff', label: 'boot · sign-off clicks', group: 'Menus & the boot',
     where: '72-tick.js:551', status: 'fallback', pinFile: '72-tick.js',
-    brief: 'plays only when the reboot take (restart.wav) is absent',
+    brief: 'plays only when the reboot take (restarting.mp3) is absent',
     code: ["tone(1500, 0.014, 'square', 0.05);",
       "tone(215, 0.07, 'square', 0.05); tone(260, 0.07, 'square', 0.04);",
       "tone(1250, 0.02, 'square', 0.06, null, null, 0.09);",

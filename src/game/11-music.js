@@ -1,6 +1,6 @@
 'use strict';
 // ---------- soundtrack (MUSIC_DATA is injected in a script at the end of this file) ----------
-// menu: Midnight Terminal Wait · runs: a shuffled draw from src/audio/music/
+// menu: Warp Lane Drift (MUSIC_DATA.menu, index.html) · runs: a shuffled draw from src/audio/music/
 // Web Audio looper: each track is decoded to a buffer and looped sample-accurately
 // (native <audio loop> always has an audible seam on mp3). Encoder padding is
 // trimmed via loopStart/loopEnd. One decoded track is held in memory at a time —

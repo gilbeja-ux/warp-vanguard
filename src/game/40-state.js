@@ -102,7 +102,7 @@ let weeklyIdx = -1;
 // detail back; perfTrips makes each successive relapse harder to recover from, so a
 // device that genuinely cannot carry the full look settles instead of oscillating.
 let lowFX = false, perfAcc = 0, perfN = 0, perfWin = 0, perfCalm = 0, perfTrips = 0;
-let hitStop = 0;              // brief slow-mo after a zap
+let hitStop = 0;              // brief slow-mo on a leech hit (52-bosses) and on LANE SECURED — not on a zap
 let rimFX = [];               // reactive rim lighting: {a, t, col, w?} — w scales width+alpha
 // the first-x10 beat: one golden sweep around the band the FIRST time a run's
 // combo reaches the score cap. Render-only — the sim never reads any of it.
@@ -184,7 +184,7 @@ let pickups = [], pickupT = 20;
 const PICKUP_GAP = 10;
 let lastPickT = -1e9; // levelT of the last orb released, whatever released it
 let ribbonT = 30; // bonus ribbon cadence — golden ribbons on levels 5+ / endless
-let tut = null;               // tutorial controller (level 1, first run)
+let tut = null;               // the qualification course's controller (newTut, 70-update) — null on every other run
 let boss = null;              // the warp leech (levels with boss: true)
 let bossTestRun = false;      // the boss drill — its runs never file to a board
 // ============================================================================
@@ -248,9 +248,8 @@ let boardFrom = 'flow'; // the screen to return to on back
 let replayLoading = null; // trace_id currently being fetched (spinner + de-dupe)
 let replayErr = '';       // transient message when a replay can't be fetched or can't be trusted
 let replayErrAt = 0;      // when it was raised (game clock) — the board fades it out itself
-let mapListSelLast = -1; // snap-to-selection only when the selection moves
 let mapSel = 0;          // selected relay on the campaign map
-let commNext = 0, commCur = null, commT = 0; // intercepted-transmission ticker
+let commCur = null, commT = 0; // intercepted-transmission ticker
 let surgeLevel = 0, surgeCount = -1, surgeWaveZ = -1; // free-run speed surges (announced)
 let endWin = false, endStars = 0, endT = 0, endNewBest = false;
 let endFxStars = 0, endTickT = 0; // ceremony bookkeeping (star chimes, count ticks)
@@ -432,7 +431,6 @@ let guide = null; // FIELD GUIDE (S.GUIDE): open-page state (from + in/out clock
 // rename). Nothing to visit, nothing to maintain.
 let nameEntry = null;         // { board } while the high-score card is up, else null
 let nameEntryDraft = '';      // current text in the high-score handle field
-let nameEntryFx = 0;          // 0..1 entrance ramp for the crescendo-takeover card
 // HOW LONG THE NEW BEST BADGE HAS BEEN HELD BACK. The high-score card is a takeover: a
 // 60% scrim over the whole frame plus a panel on the ring's centre, which on a short frame
 // sits right on top of the badge. So a badge that popped while the card was up played its

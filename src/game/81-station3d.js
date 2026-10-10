@@ -47,7 +47,7 @@ function s3lamp(kind, t, ph) {
   }
   return 1 - B.steadyK + B.steadyK * Math.sin(t * B.steadyP + ph * 6.2831853);
 }
-const V3dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+// (V3dot was deleted 2026-10-10: nothing called it)
 const V3cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const V3sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const V3scl = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
@@ -2106,6 +2106,18 @@ const s3Sprites = {};             // id -> { cv, S, R, lamps, mips } | 'fail'
 // look at the queue the head of it has already gone.
 let s3Job = null, s3Queue = [], s3Order = [], s3Started = false;
 let s3Blocked = false;            // set once if this environment has no ImageData
+// SUPPORT, NOT BUDGET: a 1px probe. A context refused right now (the browser at its
+// canvas budget) is not proof of anything, so it does not block; a context that has
+// no createImageData does. The probe is zeroed straight away. (2026-10-10)
+function s3ImageDataOk() {
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 1;
+    const x = c.getContext('2d');
+    const ok = !x || typeof x.createImageData === 'function';
+    c.width = c.height = 0;
+    return ok;
+  } catch (e) { return false; } // no canvas at all: nothing can bake here
+}
 // Mip chain: the chart draws these at three or four pixels, and downscaling a
 // 300px sprite that far in one step aliases into confetti. Halving repeatedly
 // costs almost nothing and is what a GPU would do anyway.
@@ -2255,7 +2267,15 @@ function s3Pump(budget) {
         if (s3Job.reach !== undefined) v.reach = s3Job.reach;
         s3Sprites[s3Job.id] = v;
       }
-      else { s3Sprites[s3Job.id] = 'fail'; s3Blocked = true; s3Job = null; return false; }
+      else {
+        // ONE REFUSED BAKE IS ONE FAILED SPRITE (2026-10-10). A null here used to block
+        // every later bake for the session — breach hulls included, so the gate opened
+        // on a splash with no hulls — and in a browser the null is almost always a
+        // context refused at its canvas budget, which says nothing about the next one.
+        // Only an environment with no ImageData support at all stops the queue now.
+        s3Sprites[s3Job.id] = 'fail';
+        if (!s3ImageDataOk()) { s3Blocked = true; s3Job = null; return false; }
+      }
       s3Job = null;
     }
   }

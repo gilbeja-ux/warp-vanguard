@@ -10,11 +10,13 @@
 // player who trips it while a boss is on screen should not still be looking at the
 // reduced game twenty minutes later.
 //
-// WHY RECOVERY IS MENU-ONLY, and it is not politeness. initStreaks and friends
-// consume Math.random, and startWeekly points spawnRng AT Math.random — so rebuilding
-// a field mid-run would deal a weekly player a different lane. Between runs endLevel
-// has already restored sysRandom, so a rebuild there cannot touch a seeded stream.
-// (The drop has always carried that hazard; recovery declines to add a second one.)
+// WHY RECOVERY IS MENU-ONLY. initStreaks and friends consume Math.random, and when
+// this was written startWeekly pointed spawnRng AT Math.random, so rebuilding a field
+// mid-run would have dealt a weekly player a different lane. (Corrected 2026-10-10:
+// startWeekly has seeded its own spawn stream since — see 60-input.js — and no board
+// hears Math.random now, so a mid-run rebuild would only shift the run's cosmetic
+// draws.) Between runs endLevel has already restored sysRandom, so a rebuild there
+// touches no seeded stream at all, and recovery still waits for the menu.
 //
 // And it does not need slicing: the five rebuilds together measure 0.9ms on a
 // desktop and about 4.5ms on a mid-tier phone — median of seven, 2026-08-03 — which
@@ -450,16 +452,25 @@ function gbSplit(img) {
     }
     const mark = document.createElement('canvas'); mark.width = w; mark.height = h; mark.getContext('2d').putImageData(mk, 0, 0);
     const flag = document.createElement('canvas'); flag.width = w; flag.height = h; flag.getContext('2d').putImageData(fl, 0, 0);
-    if (box.x1 <= box.x0) return; // nothing white — draw the PNG whole
+    src.width = src.height = 0; // the read-back canvas is spent (2026-10-10: zeroed, not left to the GC)
+    if (box.x1 <= box.x0) { mark.width = mark.height = flag.width = flag.height = 0; return; } // nothing white — draw the PNG whole
     GBIMG.mark = mark; GBIMG.flag = flag;
     GBIMG.box = { x0: box.x0 / w, y0: box.y0 / h, x1: (box.x1 + 1) / w, y1: (box.y1 + 1) / h }; // as shares of the image
   } catch (e) { GBIMG.mark = null; GBIMG.flag = null; GBIMG.box = null; } // a tainted or refused canvas — the PNG draws whole
 }
 if (SPLASH.on) {
-  GBIMG.img = new Image();
-  GBIMG.img.onload = () => { GBIMG.w = GBIMG.img.naturalWidth || 1; GBIMG.h = GBIMG.img.naturalHeight || 1; gbSplit(GBIMG.img); };
-  GBIMG.img.onerror = () => {}; // no mark on disk — the typed tag carries the card alone
-  GBIMG.img.src = 'icons/GB-IL.png';
+  // A LATE DECODE IS DROPPED (2026-10-10). splashEnd releases the card's layers, and
+  // nothing turns the splash back on — but an image that landed AFTER a skip used to
+  // split itself anyway (two canvases held for the session) and, with GBIMG.img
+  // already nulled, threw from this handler. The handler holds its own image now.
+  const im = new Image();
+  GBIMG.img = im;
+  im.onload = () => {
+    if (!SPLASH.on || GBIMG.img !== im) return; // the card is over: keep nothing
+    GBIMG.w = im.naturalWidth || 1; GBIMG.h = im.naturalHeight || 1; gbSplit(im);
+  };
+  im.onerror = () => {}; // no mark on disk — the typed tag carries the card alone
+  im.src = 'icons/GB-IL.png';
 }
 function splashBoot() { // once at load: decode the score and try to run it
   brandLogo(); // and kick the badge's lazy decode NOW — card two needs it by SPL.df
@@ -519,7 +530,11 @@ function splashEnd(skip) {
     } catch (e) { try { SPLASH.src.stop(); } catch (e2) {} }
   }
   SPLASH.src = null; SPLASH.gain = null; SPLASH.buf = null;
-  GBIMG.mark = null; GBIMG.flag = null; GBIMG.img = null; GBIMG.w = 0; // the card is done; drop its layers
+  // the card is done; drop its layers. Zeroed before they are let go (2026-10-10, the
+  // house practice — menuArtRelease, enlistArtRelease): only drawSplash draws them,
+  // and nothing sets SPLASH.on again.
+  for (const c of [GBIMG.mark, GBIMG.flag]) if (c) c.width = c.height = 0;
+  GBIMG.mark = null; GBIMG.flag = null; GBIMG.img = null; GBIMG.w = 0; GBIMG.box = null;
   if (skip) fadeT = 0.35;  // screen-stitch over the jump cut
   playTrack('menu');       // …and the menu music takes over, fading in as normal
 }
@@ -1017,7 +1032,7 @@ function drawCrash() {
     ctx.globalAlpha = pulse;
     y = discPara(cx, cy, R, 'TAP ANYWHERE TO RESTART', y + px * 0.5, '#ffe27a', px, '700');
     ctx.globalAlpha = 1;
-    discPara(cx, cy, R, 'The error is kept on this device. FEEDBACK in System Config can send it to the developer.', y + px * 0.3, 'rgba(150,190,225,0.72)', sm);
+    discPara(cx, cy, R, 'The error is kept on this device. FEEDBACK in SETTINGS can send it to the developer.', y + px * 0.3, 'rgba(150,190,225,0.72)', sm);
   } catch (e) {
     // the disc kit itself is what broke: plain text, nothing else to lean on
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1169,10 +1184,7 @@ function frameBody(now) {
   prof('ring');
   // warm glow rising off the golden river — no convoy, no glow
   if (laneFlow > 0.01) {
-    const rgl = ctx.createRadialGradient(g.cx, H * 0.95, 0, g.cx, H * 0.95, Math.min(W, H) * 0.75);
-    rgl.addColorStop(0, `rgba(255,180,70,${(0.12 * laneFlow).toFixed(3)})`);
-    rgl.addColorStop(1, 'rgba(255,180,70,0)');
-    ctx.fillStyle = rgl;
+    ctx.fillStyle = convoyGlowGrad(g); // cached on what enters it (see gradeGrad's neighbours)
     ctx.fillRect(0, 0, W, H);
   }
 
@@ -1180,11 +1192,7 @@ function frameBody(now) {
   // the tunnel does. Vacuum has no haze in it, and the arrival wants clean sky.
   const fogK = 1 - laneExit();
   if (fogK > 0.004) {
-    const fogG = ctx.createRadialGradient(g.cx, g.cy, g.nodeR * 0.1, g.cx, g.cy, g.nodeR * 1.4);
-    fogG.addColorStop(0, 'rgba(10,22,48,0)');
-    fogG.addColorStop(0.45, `rgba(10,22,48,${(0.12 * fogK).toFixed(3)})`);
-    fogG.addColorStop(1, 'rgba(10,22,48,0)');
-    ctx.fillStyle = fogG;
+    ctx.fillStyle = depthFogGrad(g, fogK); // cached the same way
     ctx.fillRect(0, 0, W, H);
   }
 
@@ -1250,6 +1258,7 @@ function frameBody(now) {
 
   prof('postChain');
   drawPostChain(rawDt, worldFx, g);
+  tutCallReleaseIdle(); // a course left early hands its call buffers back (90-hud, 2026-10-10)
 
   ctx.restore();
   // THE BAKE'S TIME IS EVERY SCREEN THAT IS NOT A RUN. Gil's call stands on the
@@ -1595,6 +1604,34 @@ function tintGrad(tint) {
   tintCv = gr; tintKey = k; tintCtx = ctx;
   return gr;
 }
+// THE CONVOY GLOW AND THE DEPTH FOG, cached the same way (2026-10-10). Both are
+// full-screen radial gradients frame() built from scratch on every lane frame. Each
+// is now rebuilt only when something that enters it moves — the context, the frame,
+// the ring's geometry, or the alpha string its stop is handed — so a cached one is
+// stop for stop the gradient the old code made fresh, and the picture is the same.
+// (A gradient is laid out under the transform at FILL time, not at creation, so the
+// shake and the replay zoom do not need to be in the key.)
+let glowGr = null, glowKey = '', glowCtx = null;
+function convoyGlowGrad(g) {
+  const a = (0.12 * laneFlow).toFixed(3), k = W + 'x' + H + ':' + g.cx + ':' + a;
+  if (glowGr && glowKey === k && glowCtx === ctx) return glowGr;
+  const gr = ctx.createRadialGradient(g.cx, H * 0.95, 0, g.cx, H * 0.95, Math.min(W, H) * 0.75);
+  gr.addColorStop(0, `rgba(255,180,70,${a})`);
+  gr.addColorStop(1, 'rgba(255,180,70,0)');
+  glowGr = gr; glowKey = k; glowCtx = ctx;
+  return gr;
+}
+let fogGr = null, fogKey = '', fogCtx = null;
+function depthFogGrad(g, fogK) {
+  const a = (0.12 * fogK).toFixed(3), k = g.cx + ':' + g.cy + ':' + g.nodeR + ':' + a;
+  if (fogGr && fogKey === k && fogCtx === ctx) return fogGr;
+  const gr = ctx.createRadialGradient(g.cx, g.cy, g.nodeR * 0.1, g.cx, g.cy, g.nodeR * 1.4);
+  gr.addColorStop(0, 'rgba(10,22,48,0)');
+  gr.addColorStop(0.45, `rgba(10,22,48,${a})`);
+  gr.addColorStop(1, 'rgba(10,22,48,0)');
+  fogGr = gr; fogKey = k; fogCtx = ctx;
+  return gr;
+}
 // The cinematic vignette: two stops, straight onto the frame. It used to be a
 // full-screen cached canvas, which is 19MB to describe a gradient — see the note
 // in buildBackgroundSeeded. The gradient object is what gets cached, and it is
@@ -1611,6 +1648,13 @@ function drawVignette() {
   ctx.fillRect(0, 0, W, H);
 }
 function drawPostChain(rawDt, worldFx, g) {
+  // THE REPLAY WORLD FLY-IN'S save() IS RESTORED EXACTLY ONCE (2026-10-10). frame()
+  // opens it whenever replayXfer is set; only the S.PLAY branch below closed it, so
+  // a transition caught in any other state (a phone lock mid fly-in pauses the run)
+  // left one save on the stack per frame, and frame()'s own restore popped the wrong
+  // one. A state that is not S.PLAY still paints the rest of the chain inside the
+  // zoom, as it always did — it is closed at the very end instead of never.
+  let worldOpen = worldFx;
   // cinematic vignette + color grade (under the HUD so controls stay crisp)
   drawVignette();
   // film-grain finish (ARCFX.grain) — skipped on struggling devices
@@ -1643,7 +1687,7 @@ function drawPostChain(rawDt, worldFx, g) {
   if (state === S.PLAY) {
     drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawNowPlaying();
     if (popLive('pause')) drawPause(); // resume: the panel erases behind its scan
-    if (worldFx) ctx.restore(); // end the replay world fly-in (board overlay is NOT zoomed)
+    if (worldOpen) { ctx.restore(); worldOpen = false; } // end the replay world fly-in (board overlay is NOT zoomed)
     // leaderboard<->player transition: the board rides ON TOP of the (paused)
     // replay — its cards fly out / the ring zooms into the lens, revealing the run
     if (replayXfer && replayPkg) { menuButtons = []; drawMenuBoard(); }
@@ -1725,12 +1769,16 @@ function drawPostChain(rawDt, worldFx, g) {
   // heartbeat vignette on top of it.
   if (state === S.PLAY && integrity <= 50) {
     const gi = (50 - integrity) / 50;
-    // BURNED DRAWS — DO NOT DELETE. The tear pass pulled Math.random() every frame
-    // it ran, and inside a run Math.random IS the seeded stream the boss reads
-    // (see the boss board RNG note). Dropping those pulls would move the sim on
-    // every board where the hull gets this low in a fight, and old replays would
-    // stop agreeing with the boards they set. The draws stay, exactly as many and
-    // in exactly the order the tear made them. Only the pixels are gone.
+    // BURNED DRAWS — kept until Gil rules on them. The tear pass pulled
+    // Math.random() every frame it ran, and these pulls stand in for it, exactly as
+    // many and in exactly the order the tear made them. Only the pixels are gone.
+    // WHAT THEY GUARD TODAY (corrected 2026-10-10): the reason first written here —
+    // "Math.random is the seeded stream the boss reads" — stopped being true with
+    // H-02. The boss draws bossRng and spawns draw spawnRng (52-bosses.js), and the
+    // headless verifier renders nothing, so no board and no score hears these
+    // pulls. Inside a run Math.random still feeds the cosmetic scatter (burst,
+    // particles) and the unranked course's drill placement (70-update.js), so
+    // removing them would shift where sparks fly — a look, not a board.
     if (Math.random() < 0.15 + gi * 0.35) {
       for (let i = 0; i < 1 + gi * 3; i++) { Math.random(); rand(2, 6 + gi * 10); rand(-30, 30); }
     }
@@ -1785,6 +1833,7 @@ function drawPostChain(rawDt, worldFx, g) {
   // curtain goes over it, and it no-ops when no page is open.
   drawGuide(g);
   drawSplash(rawDt); // …and the boot splash curtains the whole stage at launch
+  if (worldOpen) ctx.restore(); // the fly-in's save, in any state that is not S.PLAY (see the top)
 }
 
 // the first resize runs before the loop and before the guard: a throw there
