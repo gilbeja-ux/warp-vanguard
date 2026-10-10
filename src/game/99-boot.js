@@ -211,6 +211,9 @@ function tickUI(dt) {
       menuHold = null;
       buzz(20); tone(70, 0.45, 'sine', 0.12, 260);
       bossGate = true; bossGateDraft = '';
+      // eat the release, as the ↺ hold does: the finger is still down, and its lift
+      // landed as a tap on the disc it had just opened and closed it (Gil, 2026-10-10)
+      menuPtr = null;
     }
   }
   // the passcode disc lives on the map screen only — navigation away closes it

@@ -1338,6 +1338,27 @@ check('campaign completion recorded', G.getProg().stars[7] > 0);
     G.getBossGate() === false && !!fx && fx.kind === 'launch' && fx.action === G.startBossTest);
   G.setMenuFx(null);
 }
+// THE LIFT IS NOT A TAP. The long-press opens the disc while the finger is still down,
+// and the release that follows used to land as a tap on the disc it had just opened,
+// which closed it (Gil, 2026-10-10). The ↺ hold already ate its release; this one did not.
+{
+  G.setState(G.S.MENU); G.setMenuScreen('map'); G.setMenuFx(null); G.setBossGate(false);
+  G.frame(16); // place the stage list's hit rects
+  const last = G.getLevels().length - 1;
+  const nb = G.menuBtns().find(b => b.node === last);
+  let opened = false, kept = false;
+  if (nb) {
+    const cx = nb.x + nb.w / 2, cy = nb.y + nb.h / 2;
+    canvasHandlers.pointerdown({ pointerId: 21, clientX: cx, clientY: cy, pointerType: 'touch' });
+    for (let i = 0; i < 32; i++) G.update(0.1); // past HOLD_BOSS, finger still down
+    opened = G.getBossGate() === true;
+    canvasHandlers.pointerup({ pointerId: 21, clientX: cx, clientY: cy, pointerType: 'touch' });
+    kept = G.getBossGate() === true;
+  }
+  check('the long-press on the last stage opens the passcode disc', !!nb && opened);
+  check('lifting the finger after the long-press leaves the passcode disc up', kept);
+  G.closeBossGate(); G.setMenuFx(null);
+}
 G.startBossTest();
 G.update(0.05);
 if (G.getState() === G.S.INFO) { G.update(0.5); canvasHandlers.pointerdown({ pointerId: 8, clientX: 400, clientY: 300, pointerType: 'touch' }); G.update(0.15); G.update(0.15); G.update(0.15); }
