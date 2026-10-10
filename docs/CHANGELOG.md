@@ -88,9 +88,9 @@ lost it in the lane. On a small screen only (a Mac or an iPad is unchanged):
 ### Under the hood
 - Scoring and the stage boards are unchanged by the course and the screens:
   0 of 41 boards moved at every step, and the course itself is unranked.
-- The verifier carried sim `e45c2ac794b6` on 2026-10-10, compatible with the
-  ids before it. The trace fix above moves the sim id again; the final id is
-  stamped here at the cut, with the deploy, before the build.
+- The verifier is deployed for sim `b30f1ab540cc` (2026-10-10), compatible with
+  the ids before it: 0 of 41 boards moved. If anything under `src/game/` changes
+  before the store build, deploy again and stamp the new id here.
 - No migration. The database is the one 1.0.8 shipped with.
 - The course's knobs are named in `docs/USER-FEEDBACK.md`, F-017.
 
