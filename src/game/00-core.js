@@ -161,7 +161,7 @@ function overlayInput(rect, opts) {
     + (multi
       ? 'font:400 13px system-ui, -apple-system, Segoe UI, Roboto, sans-serif;line-height:1.42;'
         + 'letter-spacing:0.2px;padding:7px 10px;resize:none;'
-      : 'font:600 15px Audiowide, system-ui;letter-spacing:1px;padding:0 12px;');
+      : 'font:600 ' + (opts.fontPx || FIELD_TEXT_MAX) + 'px Audiowide, system-ui;letter-spacing:1px;padding:0 ' + FIELD_PAD_X + 'px;');
   el.addEventListener('input', () => { if (opts.onInput) opts.onInput(el.value); });
   if (!multi) el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (opts.onEnter) opts.onEnter(el.value); } });
   uiLayer.appendChild(el);
@@ -170,6 +170,20 @@ function overlayInput(rect, opts) {
   return el;
 }
 function hideOverlay() { if (overlayEl) { try { overlayEl.remove(); } catch (e) {} overlayEl = null; } }
+// A ONE-LINE FIELD'S TYPE FITS ITS BOX (Gil, 2026-10-10, a phone: the HIGH SCORE disc's
+// hint read "ENTER YOUR HAN"). The live input wore a fixed 15px whatever its box, and
+// the plate drawn under the cast wore R × 0.108 — so on a small disc the hint ran out
+// of the field, and on every disc the type jumped at the swap. Both now take one size:
+// FIELD_TEXT_MAX or the disc's own, whichever is smaller, brought down until the text
+// fits between the padding and the status pip. fitPx measures without the field's 1px
+// letter spacing, so that comes off the room first.
+const FIELD_TEXT_MAX = 15; // the field's type size where the box has room (the old fixed size)
+const FIELD_PAD_X = 12;    // the input's side padding, each side
+const FIELD_PIP_W = 22;    // room the status pip takes at the right end
+function fieldTextPx(w, discPx, text) {
+  const room = w - FIELD_PAD_X * 2 - FIELD_PIP_W - text.length;
+  return fitPx(text, '600', Math.min(FIELD_TEXT_MAX, discPx), room, 8);
+}
 const overlayValue = () => overlayEl ? overlayEl.value : '';
 
 // ---------- utils ----------

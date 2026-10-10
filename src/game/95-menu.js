@@ -740,6 +740,7 @@ function mountField(kind, rect, opts) {
   if (overlayField === kind && overlayEl) {
     overlayEl.style.left = rect.x + 'px'; overlayEl.style.top = rect.y + 'px';
     overlayEl.style.width = rect.w + 'px'; overlayEl.style.height = rect.h + 'px';
+    if (opts.fontPx) overlayEl.style.fontSize = opts.fontPx + 'px'; // a resize refits the type too
     return;
   }
   overlayField = kind; overlayInput(rect, opts);
@@ -1184,6 +1185,8 @@ function drawEnd(g) {
     const fh = R * 0.26, fy = g.cy - R * 0.08;
     const fHx = discFieldHx(R, fy, fh, g.cy);   // the disc law: a field keeps the text margin off the rim
     const fx = g.cx - fHx, fw = fHx * 2;
+    // the hint fits the field, and the plate and the live input share the size (00-core)
+    const fTxt = fieldTextPx(fw, Math.max(11, Math.round(R * 0.108)), 'ENTER YOUR HANDLE');
     const st = nameStatus(nameEntryDraft);
     popRender(nq, g.cx - R, g.cy - R, R * 2, R * 2, () => {
       ctx.save();
@@ -1223,9 +1226,9 @@ function drawEnd(g) {
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         const has = !!nameEntryDraft;
         ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
-        ctx.font = '600 ' + Math.max(11, Math.round(R * 0.108)) + 'px Audiowide, system-ui';
+        ctx.font = '600 ' + fTxt + 'px Audiowide, system-ui';
         try { ctx.letterSpacing = '1px'; } catch (e) {}
-        ctx.fillText((has ? nameEntryDraft : 'ENTER YOUR HANDLE').toUpperCase(), fx + 14, fy + fh / 2 + 1);
+        ctx.fillText((has ? nameEntryDraft : 'ENTER YOUR HANDLE').toUpperCase(), fx + FIELD_PAD_X + 2, fy + fh / 2 + 1);
         try { ctx.letterSpacing = '0px'; } catch (e) {}
         ctx.textBaseline = 'alphabetic';
       }
@@ -1247,7 +1250,7 @@ function drawEnd(g) {
     // the DOM field mounts OUTSIDE popRender: it is not canvas, so it cannot be
     // clipped by the cast — it waits for the cast to land instead
     if (settled) mountField('entry', { x: fx, y: fy, w: fw, h: fh },
-      { placeholder: 'ENTER YOUR HANDLE', value: nameEntryDraft, maxLength: NAME_MAX, onInput: onEntryInput, onEnter: () => confirmNameEntry() });
+      { placeholder: 'ENTER YOUR HANDLE', value: nameEntryDraft, maxLength: NAME_MAX, fontPx: fTxt, onInput: onEntryInput, onEnter: () => confirmNameEntry() });
   }
   ctx.restore();
   ctx.globalAlpha = 1;

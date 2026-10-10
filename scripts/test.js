@@ -7089,6 +7089,25 @@ await tick();
   check('update mark: the boot asks once, off the critical path, and cannot throw', /try \{ lbStaleInit\(\); \} catch \(e\) \{\}/.test(src('src/game/99-boot.js')));
 }
 
+// ================= A FIELD'S HINT FITS ITS BOX (Gil, 2026-10-10: "ENTER YOUR HAN" on a phone) =================
+// The live input wore a fixed 15px and overflowed the handle field on a phone. Every
+// one-line disc field now fits its type to its box, and the plate drawn under the cast
+// wears the same size, so nothing jumps when the live input takes over.
+{
+  const core = fs.readFileSync(path.join(ROOT, 'src', 'game', '00-core.js'), 'utf8');
+  const menu = fs.readFileSync(path.join(ROOT, 'src', 'game', '95-menu.js'), 'utf8');
+  const guide = fs.readFileSync(path.join(ROOT, 'src', 'game', '92-guide.js'), 'utf8');
+  check('field type: the live input takes its size from the caller, not a fixed 15px',
+    /'font:600 ' \+ \(opts\.fontPx \|\| FIELD_TEXT_MAX\) \+ 'px Audiowide/.test(core) && !/font:600 15px Audiowide/.test(core));
+  check('field type: one fit helper, padding and pip taken off the room', /function fieldTextPx\(w, discPx, text\) \{[\s\S]{0,200}FIELD_PAD_X \* 2 - FIELD_PIP_W/.test(core));
+  check('field type: the HIGH SCORE handle field fits and shares its size with the plate',
+    /const fTxt = fieldTextPx\(fw, [^\n]+'ENTER YOUR HANDLE'\)/.test(menu) && /placeholder: 'ENTER YOUR HANDLE'[^\n]*fontPx: fTxt/.test(menu)
+    && /ctx\.font = '600 ' \+ fTxt \+ 'px Audiowide/.test(menu));
+  check('field type: MY DATA and the passcode field do the same',
+    (guide.match(/const fTxt = fieldTextPx\(/g) || []).length === 2 && (guide.match(/fontPx: fTxt/g) || []).length === 2
+    && (guide.match(/ctx\.font = '600 ' \+ fTxt \+ 'px Audiowide/g) || []).length === 2);
+}
+
 // ================= THE PATH AHEAD READS ON A PHONE (Gil, 2026-10-10, options B and D) =================
 // One small-screen dial: 0 from a 700-point short side up (the Mac, the iPad: no change),
 // 1 on a landscape phone. Far bodies keep more ink on it; the white warp lines give up

@@ -1039,6 +1039,7 @@ function drawBossGate() {
   const fh = R * 0.26, fy = cy0 - R * 0.08;
   const fHx = discFieldHx(R, fy, fh, cy0);   // the disc law: a field keeps the text margin off the rim
   const fx = cx0 - fHx, fw = fHx * 2;
+  const fTxt = fieldTextPx(fw, Math.max(11, Math.round(R * 0.108)), 'PASSCODE'); // one size, plate and input (00-core)
   popRender(q, cx0 - R, cy0 - R, R * 2, R * 2, () => {
     ctx.save();
     discPlate(cx0, cy0, R, 'BOSS DUEL\nSHORTCUT');
@@ -1058,9 +1059,9 @@ function drawBossGate() {
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       const has = !!bossGateDraft;
       ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
-      ctx.font = '600 ' + Math.max(11, Math.round(R * 0.108)) + 'px Audiowide, system-ui';
+      ctx.font = '600 ' + fTxt + 'px Audiowide, system-ui';
       try { ctx.letterSpacing = '1px'; } catch (e) {}
-      ctx.fillText(has ? bossGateDraft : 'PASSCODE', fx + 14, fy + fh / 2 + 1);
+      ctx.fillText(has ? bossGateDraft : 'PASSCODE', fx + FIELD_PAD_X + 2, fy + fh / 2 + 1);
       try { ctx.letterSpacing = '0px'; } catch (e) {}
       ctx.textBaseline = 'alphabetic';
     }
@@ -1078,7 +1079,7 @@ function drawBossGate() {
   // the DOM field mounts OUTSIDE popRender — it is not canvas, so it waits for
   // the cast to land instead of getting clipped by it
   if (settled && bossGate) mountField('bossgate', { x: fx, y: fy, w: fw, h: fh },
-    { placeholder: 'PASSCODE', value: bossGateDraft, maxLength: 24,
+    { placeholder: 'PASSCODE', value: bossGateDraft, maxLength: 24, fontPx: fTxt,
       onInput: v => { bossGateDraft = v; }, onEnter: () => bossGateTry() });
   ctx.restore();
   ctx.textAlign = 'left';
@@ -1127,6 +1128,8 @@ function drawMyData() {
   const fh = R * 0.24, fy = cy - R * 0.13;
   const fHx = discFieldHx(R, fy, fh, cy);    // the disc law: a field keeps the text margin off the rim
   const fx = cx - fHx, fw = fHx * 2;
+  // the hint fits the field, and the plate and the live input share the size (00-core)
+  const fTxt = fieldTextPx(fw, Math.max(11, Math.round(R * 0.108)), 'ENTER YOUR HANDLE');
   // the DOM field belongs to the rename step alone — drop it the moment we leave,
   // or an invisible input keeps the keyboard up over the confirm screen
   if (!(myData && st === 'rename' && settled) && overlayField === 'mydata') clearField();
@@ -1185,9 +1188,9 @@ function drawMyData() {
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         const has = !!myDataDraft;
         ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
-        ctx.font = '600 ' + Math.max(11, Math.round(R * 0.108)) + 'px Audiowide, system-ui';
+        ctx.font = '600 ' + fTxt + 'px Audiowide, system-ui';
         try { ctx.letterSpacing = '1px'; } catch (e) {}
-        ctx.fillText((has ? myDataDraft : 'ENTER YOUR HANDLE').toUpperCase(), fx + 14, fy + fh / 2 + 1);
+        ctx.fillText((has ? myDataDraft : 'ENTER YOUR HANDLE').toUpperCase(), fx + FIELD_PAD_X + 2, fy + fh / 2 + 1);
         try { ctx.letterSpacing = '0px'; } catch (e) {}
         ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'center';
       }
@@ -1213,7 +1216,7 @@ function drawMyData() {
   // the DOM field mounts OUTSIDE popRender: it is not canvas, so the cast cannot
   // clip it — it waits for the cast to land instead
   if (myData && st === 'rename' && settled) mountField('mydata', { x: fx, y: fy, w: fw, h: fh },
-    { placeholder: 'ENTER YOUR HANDLE', value: myDataDraft, maxLength: NAME_MAX,
+    { placeholder: 'ENTER YOUR HANDLE', value: myDataDraft, maxLength: NAME_MAX, fontPx: fTxt,
       onInput: v => { myDataDraft = sanitizeName(v); }, onEnter: () => myDataAct('save') });
 }
 // ---------------------------------------------------------------------------
