@@ -568,8 +568,20 @@ const WARP_LINE_FULL_H = 700;  // short side, in screen points, from which a lin
 const WARP_LINE_MIN_K = 0.5;   // the thinnest gauge, on the smallest screen
 // ?abl=gauge draws the old fixed pen, for an A/B of the gauge on one page (bench.js)
 const warpLineGauge = () => abl('gauge') ? 1 : clamp(Math.min(W, H) / WARP_LINE_FULL_H, WARP_LINE_MIN_K, 1);
+// THE DEEP BORE CLEARS ON A SMALL SCREEN (Gil, 2026-10-10, option D). Far threats ride
+// the middle of the screen, and on a phone they are a few points across — exactly the
+// size of the warp lines' heads and tails crossing them. So on a small screen a white
+// line gives up ink with the depth of its head: nothing changes nearer than
+// WARP_CLEAR_FROM, and at the far end of the bore it keeps only 1 − WARP_CLEAR_DEEP.
+// The lines at the rim, which carry the speed, are untouched; the convoy's gold is not
+// on it. Scaled by the small-screen dial (41-geometry): the Mac and the iPad are at 0.
+const WARP_CLEAR_FROM = 0.45; // head depth (z) where the clearing starts; the node ring is 0.25
+const WARP_CLEAR_DEEP = 0.85; // share of a line's ink taken away at the far end (z = 1)
 function drawStreaks(g, dt) {
   const gauge = warpLineGauge(); // read once a frame — see WARP_LINE_FULL_H
+  // read once a frame — see WARP_CLEAR_FROM. × laneFlow: a lane's aid, so the parked
+  // stars of a menu keep their ink and the clearing arrives with the warp
+  const clearK = WARP_CLEAR_DEEP * smallScreenK() * laneFlow;
   // a wounded convoy is a thinner, dimmer river
   const riverK = state === S.PLAY ? 0.35 + 0.65 * clamp(integrity / 100, 0, 1) : 1;
   const spd = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow * laneVel; // signed: the course's rewind runs the river backwards
@@ -658,7 +670,8 @@ function drawStreaks(g, dt) {
     // here is exactly what made them dissolve in front of the viewer
     const al = st.gold
       ? Math.min(1 - zH, 1.05) * 0.75 * clamp(1 + zH / 0.1, 0, 1) * laneFlow * bank
-      : Math.min(1 - zH, 1.05) * 0.46 * st.br; // translucent: you see stars THROUGH a warp line
+      : Math.min(1 - zH, 1.05) * 0.46 * st.br // translucent: you see stars THROUGH a warp line
+        * (1 - clearK * clamp((zH - WARP_CLEAR_FROM) / (1 - WARP_CLEAR_FROM), 0, 1)); // the deep bore clears on a small screen
     // A LINE BEYOND THE HORIZON IS NOT DRAWN (2026-10-10). The course's rewind runs the
     // river backwards (spd < 0), which carries warp lines up past z = 1, and there `al`
     // goes negative. The fast path below refused them, the slow path then set a negative

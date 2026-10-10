@@ -7089,6 +7089,27 @@ await tick();
   check('update mark: the boot asks once, off the critical path, and cannot throw', /try \{ lbStaleInit\(\); \} catch \(e\) \{\}/.test(src('src/game/99-boot.js')));
 }
 
+// ================= THE PATH AHEAD READS ON A PHONE (Gil, 2026-10-10, options B and D) =================
+// One small-screen dial: 0 from a 700-point short side up (the Mac, the iPad: no change),
+// 1 on a landscape phone. Far bodies keep more ink on it; the white warp lines give up
+// ink in the deep bore on it, in a lane only.
+{
+  const geoSrc = fs.readFileSync(path.join(ROOT, 'src', 'game', '41-geometry.js'), 'utf8');
+  const art = fs.readFileSync(path.join(ROOT, 'src', 'game', '85-enemy-art.js'), 'utf8');
+  const df = fs.readFileSync(path.join(ROOT, 'src', 'game', '83-deepfield.js'), 'utf8');
+  const m = /const SMALL_SCREEN_FROM = (\d+);[\s\S]*?const SMALL_SCREEN_FULL = (\d+);/.exec(geoSrc);
+  check('small screen: the dial is two named knobs, off at a Mac-sized screen', !!m && +m[1] <= 800 && +m[1] > +m[2]
+    && /const smallScreenK = \(\) => clamp\(\(SMALL_SCREEN_FROM - Math\.min\(W, H\)\) \/ \(SMALL_SCREEN_FROM - SMALL_SCREEN_FULL\), 0, 1\);/.test(geoSrc));
+  const k = (w, h) => Math.min(1, Math.max(0, (+m[1] - Math.min(w, h)) / (+m[1] - +m[2])));
+  check('small screen: a MacBook window and an iPad are at 0, a landscape phone at 1', k(1470, 800) === 0 && k(1180, 820) === 0 && k(844, 390) === 1);
+  check('small screen (B): the haze floor lifts toward FAR_INK_SMALL by the dial',
+    /const FAR_INK_SMALL = [\d.]+;/.test(art) && /const floor = lerp\(BREACHFX\.haze, Math\.max\(BREACHFX\.haze, FAR_INK_SMALL\), smallScreenK\(\)\);/.test(art));
+  check('small screen (D): the warp lines clear the deep bore by the dial, in a lane only',
+    /const WARP_CLEAR_FROM = [\d.]+;/.test(df) && /const WARP_CLEAR_DEEP = [\d.]+;/.test(df)
+    && /const clearK = WARP_CLEAR_DEEP \* smallScreenK\(\) \* laneFlow;/.test(df)
+    && /\* \(1 - clearK \* clamp\(\(zH - WARP_CLEAR_FROM\) \/ \(1 - WARP_CLEAR_FROM\), 0, 1\)\)/.test(df));
+}
+
 // ================= THE PAD STOPS ON THE REPORT TOO (Gil, 2026-10-10) =================
 // A new pad kept pulsing on the END screen after a boss duel. The report was the one
 // screen of a run with no stop: it slammed only on the way out. It slams on arrival,

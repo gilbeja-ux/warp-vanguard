@@ -218,6 +218,17 @@ function ring(z, g) {
 }
 // <<< BORE-PROJ
 
+// THE SMALL-SCREEN DIAL (Gil, 2026-10-10). A body's size rides the screen's short side,
+// so on a phone a threat two seconds out is half its Mac size in points and about a
+// third of it in millimetres — "hard to see incoming enemies from far away and get
+// ready for them". The aids that answer it (far bodies keep more ink, the warp lines
+// clear out of the deep bore) are draw-only and scale by this one number: 0 at and
+// above SMALL_SCREEN_FROM, where the Mac and the iPad sit untouched, rising to 1 at
+// SMALL_SCREEN_FULL and below, where a landscape phone sits.
+const SMALL_SCREEN_FROM = 700; // short side, in screen points, from which nothing changes
+const SMALL_SCREEN_FULL = 430; // short side at and below which the aids are at full strength
+const smallScreenK = () => clamp((SMALL_SCREEN_FROM - Math.min(W, H)) / (SMALL_SCREEN_FROM - SMALL_SCREEN_FULL), 0, 1);
+
 // typography helpers: text lives INSIDE the bore — shrink to the clear chord
 function ringChord(y, margin) {
   const g2 = geo();

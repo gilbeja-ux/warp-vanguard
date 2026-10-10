@@ -404,9 +404,17 @@ const birthFade = o => clamp((o.age || 0) / 0.35, 0, 1);
 // The floor is BREACHFX.haze and it is a floor, not a strength. A far threat has
 // to stay readable — the colour rule is the gameplay language at every depth —
 // so this recedes a body, it never hides one.
+//
+// ON A SMALL SCREEN THE FLOOR RISES (Gil, 2026-10-10, option B). A far body on a phone
+// is already a third of its Mac size in millimetres; at half ink as well it was close
+// to invisible until about a second out. The floor lifts toward FAR_INK_SMALL by the
+// small-screen dial (41-geometry), so a phone keeps a far threat at three-quarter ink
+// and the Mac keeps BREACHFX.haze exactly.
+const FAR_INK_SMALL = 0.75; // the haze floor on the smallest screens
 const laneHaze = (z, g) => {
   const n = clamp(((1 - z) * 0.85 + 0.08) / ((1 - g.hitZ) * 0.85 + 0.08), 0, 1);
-  return BREACHFX.haze + (1 - BREACHFX.haze) * n;
+  const floor = lerp(BREACHFX.haze, Math.max(BREACHFX.haze, FAR_INK_SMALL), smallScreenK());
+  return floor + (1 - floor) * n;
 };
 // per-type palettes — the color IS the gameplay language: red = any node,
 // blue/white = matching node, purple = both nodes, orange = it moves.
