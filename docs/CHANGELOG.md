@@ -59,6 +59,9 @@ tablet or a desktop.
 - **A text field's hint fits its box.** On a phone the HIGH SCORE disc read
   "ENTER YOUR HAN"; the handle, MY DATA's rename and the passcode field now fit
   their type to the box, and the text no longer jumps when the field goes live.
+- **A text field is one box from start to finish.** It wears the game's own
+  panel and chrome colours, keeps its cut corners when you start typing, shows
+  its hint in the game's ice blue, and its type is larger on a Mac or an iPad.
 - **The menu fades as one.** When you deploy, the whole wheel fades with the
   badge as the menu zooms away, and on the way back the screen fades in instead
   of cutting in at full strength. A contract disc's engine glows and dust fade
@@ -100,8 +103,10 @@ lost it in the lane. On a small screen only (a Mac or an iPad is unchanged):
   0 of 41 boards moved at every step, and the course itself is unranked.
 - The boss-duel shortcut's passcode disc stays up when the finger lifts; the
   release of the long-press used to land on the disc and close it.
-- The verifier is deployed for sim `c109b3e3216f` (2026-10-10, the passcode disc
-  fix), compatible with the ids before it: 0 of 41 boards moved. If anything under
+- The verifier is deployed for sim `e25d563ae9fd` (2026-10-10, the text field),
+  compatible with the ids before it: 0 of 41 boards moved.
+- The design hook's copy of the design system (`.impeccable/design.json`) is
+  refreshed from today's DESIGN.md. If anything under
   `src/game/` changes before the store build, deploy again and stamp the new id here.
 - No migration. The database is the one 1.0.8 shipped with.
 - The course's knobs are named in `docs/USER-FEEDBACK.md`, F-017.
