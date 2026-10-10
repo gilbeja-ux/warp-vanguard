@@ -6,6 +6,78 @@ what a player meets. The commit trail between two versions is
 
 ---
 
+## 1.0.12 — unreleased (versionCode 10012)
+
+The first-run build. Testers on 1.0.11, on iOS and Android, called the ten-disc
+course too complex. The course is one lane now that shows each move before it
+asks for it, and the screens built for a phone stop blowing their text up on a
+tablet or a desktop.
+
+### The first run
+- **One continuous course, no stops.** Every lesson runs in one lane. No disc
+  halts the warp; the course ends on QUALIFIED and the report offers the first
+  contract.
+- **Shown, then asked.** Before each lesson, the instructor's emitters fly the
+  move as a ghost on the live ring, on the bearing the real traffic then takes.
+  The enemies in the demonstration keep their own colours, faded, with a short
+  glitch, so they read as a simulation. Then the same move is asked of you.
+- **A miss rewinds instead of failing.** The whole lane, the bore, the warp
+  lines and the traffic run back about two seconds to a moment the missed
+  enemy was still inbound, and a ghost emitter marks the spot. Nothing is
+  judged while the lane winds back.
+- **The lesson has the screen.** During a demonstration your own emitters
+  fade, and the screen dims softly outside the ring and outside the lesson's
+  area. The dim fades at its edges and ends on the ring itself.
+- **LESSON n/8** on the left bar says how far through the course you are.
+- **New lesson lines**: HIT WITH ANY EMITTER, BLUE / WHITE EMITTER ONLY,
+  COLLECT THE POWER-UP, RIDE THE GOLDEN STRIP, TAP THE GLOWING PAD — TO FIRE
+  PULSE, and the rest.
+- **The pulse lesson shows the tap.** When a pad is charged and nobody taps,
+  a ghost thumb taps it, the white pad just after the blue. Once a controller
+  has been seen, the pad also shows the trigger to pull, LT for blue and RT for
+  white, pressing on the same beat; the thumb steps aside only while the
+  controller is the hand flying the game.
+- **The barrier net's two arrows** each lead one emitter to its own end.
+
+### On every screen
+- **One tap or click skips the boot splash**, on every device.
+- **The leaderboard fits the ring.** Each box hugs the ring at its edge
+  nearest the centre, so the date, the stats and the cards no longer sit on
+  the ring on an iPad, and the board's text stops growing on screens taller
+  than 650 pixels.
+- **The same type cap** holds on the END report, on CHOOSE A CONTRACT and on
+  the field guide's title: no more text filling its box on a desktop or a
+  tablet.
+- **The star map's stage numbers read on a phone.** Plate numbers and the
+  DESTINATION caption never draw smaller than 9 pixels.
+
+### The leaderboard
+- **A run steered with pad taps or a stick files its score.** The game
+  recorded each step's emitter angles one step early, so the server's replay
+  of such a run came out a few points off and refused it (a stage 05 run
+  recorded 106807 and recomputed 106770). The angles are recorded after the
+  step now, and the two agree.
+
+### Play Console "What's new" (paste-ready, under 500 chars)
+
+> A new first run: an instructor shows each move as a ghost on the live ring,
+> then you fly it. A miss rewinds the lane instead of failing you, and
+> LESSON 1/8 to 8/8 shows your progress. One tap skips the boot splash. Text on
+> the leaderboard, the END report and the contract list stays a readable size
+> on tablets and big screens, and star map numbers read on a phone. Runs
+> steered with pad taps or a stick now post their scores.
+
+### Under the hood
+- Scoring and the stage boards are unchanged by the course and the screens:
+  0 of 41 boards moved at every step, and the course itself is unranked.
+- The verifier carried sim `e45c2ac794b6` on 2026-10-10, compatible with the
+  ids before it. The trace fix above moves the sim id again; the final id is
+  stamped here at the cut, with the deploy, before the build.
+- No migration. The database is the one 1.0.8 shipped with.
+- The course's knobs are named in `docs/USER-FEEDBACK.md`, F-017.
+
+---
+
 ## 1.0.11 — 2026-10-03 (versionCode 10011)
 
 The performance build. The game holds the display's frame rate on an iPad and

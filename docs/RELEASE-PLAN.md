@@ -1,57 +1,60 @@
 # Release Plan — WARP VANGUARD
 
-Target: **Google Play, v1.0.0.** iOS follows as a second phase.
+**Where it stands (2026-10-10).** The game is in **open testing on Google Play**
+(since 2026-09-18) and **live on the App Store**: 1.0.11, the performance build,
+went to both stores on 2026-10-05. **1.0.12 is next**: the called first-run
+course and the screen type cap (docs/CHANGELOG.md). **1.1** adds the paywall
+below. Every release ships to both platforms (CLAUDE.md, *Two platforms, one fix*).
 
-## Decisions (locked 2026-08-13)
+## Decisions (locked 2026-08-13, updated since)
 
 | | Decision | Why |
 |---|---|---|
-| **Store** | Google Play first | Android already builds and installs. iOS is **store-ready in the repo** (rebuilt 2026-09-04: `ios/App/`, `npm run ios:build` / `ios:archive`, pinned by `npm test`), but every build that leaves the Mac needs a $99/yr Apple Developer enrolment and a stricter review, all before any real feedback. |
-| **Money** | **Free, no IAP in v1** | Fastest route to live: no billing plugin, no entitlement store, no restore-purchase flow, no IAP review. The free-demo + one-time-unlock model (below) lands in 1.1, priced against real retention numbers instead of a guess. |
-| **Leaderboards** | Ship them | Built, verified, deployed; the weekly ladder is the retention hook. The price is real compliance work — §2 — and it is worth paying. |
+| **Store** | Google Play first, then the App Store | Done in that order. Play went to internal, closed and then open testing; the iOS shell was rebuilt 2026-09-04, the Apple Developer enrolment followed, and 1.0.11 passed App Review. `npm run ios:archive` is the upload path. |
+| **Money** | **Free, no IAP until 1.1** | Fastest route to live: no billing plugin, no entitlement store, no restore-purchase flow, no IAP review. Open testing ships everything free. The free-demo + one-time-unlock model (below) lands in 1.1. |
+| **Leaderboards** | Shipped | Built, verified, deployed: every campaign stage and the weekly lane have a board, and `submit-run` replays each trace before it accepts a score. Free flow (endless) is unranked since 1.0.10. The price was real compliance work — §2. |
 
-### Deferred to 1.1 — the monetization model (seam moved 2026-09-04)
+### 1.1 — the monetization model (seam moved 2026-09-04, re-affirmed since)
 
 Free demo + one-time unlock: **contract 1 rides free end to end — stages
 01–08, boss included** — and a single lifetime purchase ($2.99) unlocks
 contracts 2–5 at the **stage-09 seam**, plus filing a score on the WEEKLY
 ranked lane. FREE FLOW endless stays free — it opens at stage 05, inside the
-free contract, and an unverifiable trust board has nothing to protect. The
+free contract, and it has no board to protect. The
 offer lands after the contract 1 boss verdict, at peak satisfaction, never at
 a locked door mid-campaign. (The seam sat at stage 04 until 2026-09-04; Gil
 moved it to the end of contract 1.) **No** consumables,
-**no** forced ads, **no** pay-per-campaign — all three contradict the game's
-skill-fairness identity. Implementation: Play Billing via a Capacitor plugin
-plus an offline entitlement flag checked alongside `progress` — and the check
+**no** ads, **no** pay-per-campaign — all three contradict the game's
+skill-fairness identity. Implementation: Play Billing and StoreKit via a Capacitor
+plugin plus an offline entitlement flag checked alongside `progress` — and the check
 must live **inside `startLevel`**, not in menu navigation: the boss-duel
 passcode shortcut (and any future door) has to hit the same wall. Post-launch
 options: a cosmetic supporter pack (node skins via the `SPRITES` hook), and
 web-portal builds (Poki / CrazyGames / itch.io) as a funnel.
 
-**Sequencing note — see `docs/CLOUD-SAVE-PLAN.md`.** A Play entitlement is tied
-to the Google account and restores automatically on reinstall, but campaign
+**Sequencing note — see `docs/CLOUD-SAVE-PLAN.md`.** A store entitlement is tied
+to the store account and restores automatically on reinstall, but campaign
 progress is device-local and does not. Shipping billing first therefore ships a
 game where the player's *purchase* survives a new phone and their *progress*
-does not. Billing already forces an account rail onto the Android build, and
+does not. Billing already forces an account rail onto both builds, and
 cloud save wants the same one, so decide whether the two are one piece of work.
 
 ---
 
-## Verified starting state (2026-08-13)
+## Current state (2026-10-10)
 
-| Fact | Value | Consequence |
+| Fact | Value | Note |
 |---|---|---|
-| App id | `com.warpvanguard.game` | Permanent once published — **cannot be changed**. Confirm before first upload. |
-| Version | `1.0.4`, versionCode `10004`, versionName `1.0.4` | ✅ The discipline landed: `scripts/sync-version.js` writes both from `package.json`, so a hand-edited number cannot drift (§4). |
-| Signing | **Release keystore, with a debug fallback** | ✅ `signingConfigs.release` is used when the keystore is present, debug otherwise (`android/app/build.gradle:64`). The signed 1.0.4 bundle was cut. |
-| `targetSdk` | 36 | Play's floor moved to 36 on 31 August 2026; done. |
+| App id | `com.warpvanguard.game` | Permanent; published on both stores. App Store id `6818248157`. |
+| Version | `1.0.11`, versionCode `10011`; 1.0.12 next | `scripts/sync-version.js` writes Gradle and the Xcode project from `package.json`, so a hand-edited number cannot drift (§4). |
+| Signing | Release keystore + Play App Signing; Apple Developer team | `android/key.properties` (gitignored); `ios:archive` signs with the team. |
+| `targetSdk` | 36 | Play's floor moved to 36 on 31 August 2026; done 2026-08-14. |
 | `minSdk` | 24 | Capacitor 8's floor (2026-09-04). Android 5.1 and 6.0 drop; under one percent of devices. |
-| iOS project | **Built, verified in the simulator, archive path ready** | Rebuilt from scratch 2026-09-04 (see BUILD.md → iOS). `npm run ios:build` runs it in the simulator; `npm run ios:archive` produces the App Store .ipa and stops with the enrolment steps until a signing identity exists. Phase 2 is now enrolment + TestFlight, not code. |
-| Orientation | `sensorLandscape` in the manifest | ✅ Already correct — the `@capacitor/screen-orientation` item in the old plan is **not needed**. |
-| Icons | Launcher + adaptive + web manifest, regenerated from the new brand | ✅ Done 2026-08-12. |
-| Data collected | Anonymous Supabase id, self-chosen handle, scores/stats, input traces | Drives §2 entirely. No ads, no analytics, no tracking SDKs, no email/provider sign-in. |
-| CI | None | §4. |
-| Dev key | The boss-duel long-press ships behind a passcode disc | Settled 2026-09-04 — no longer a blocker (§1). |
+| R8 | `minifyEnabled true`, `shrinkResources true` | Device pass cleared at 1.0.2 on Capacitor 6 and at 1.0.6 on Capacitor 8.5.1; the next one is due at the next Capacitor major. |
+| Orientation | `sensorLandscape` in the manifest, landscape-only in the plist | No `@capacitor/screen-orientation` needed. |
+| Data collected | Anonymous Supabase id, self-chosen handle, scores/stats, input traces, optional feedback | Drives §2 entirely. No ads, no analytics, no tracking SDKs, no email/provider sign-in. |
+| CI | `.github/workflows/test.yml` | The pin suites and the verifier bundle on every push, plus the browser smoke in a real Chrome. |
+| Dev key | The boss-duel long-press ships behind a passcode disc | Settled 2026-09-04 (§1). |
 
 ---
 
@@ -66,20 +69,14 @@ cloud save wants the same one, so decide whether the two are one piece of work.
       launches, a drill files nothing). Residual: the passcode is plain text
       in the bundle — the only thing behind it is a spoiler. The 1.1 paywall
       must gate INSIDE `startLevel` so this door hits the same wall.
-- [ ] **Release signing.** Generate an upload keystore, wire a `release`
-      signingConfig reading from `key.properties`, enrol in **Play App Signing**.
-      **Add `*.jks`, `*.keystore`, `key.properties` to `.gitignore` FIRST** — they
-      are not ignored today, and a committed key is unrecoverable: lose or leak
-      the upload key and you cannot ship updates to the same listing.
-- [ ] **`targetSdk` bump** to Play's current minimum. Two known knock-ons to test,
-      not assume: **edge-to-edge enforcement** (Android 15+ draws under the system
-      bars — this game is fullscreen landscape, so verify the ring is not clipped
-      on gesture-nav devices) and the **16 KB page-size** requirement for native
-      libraries.
-- [ ] **`minifyEnabled`/R8** left `false` — decide deliberately. Off is safer for
-      a WebView game (no JS is minified by R8 anyway); the size win is negligible.
-- [ ] **Bundle format**: build an **AAB** (`bundleRelease`), not the APK. The
-      current `npm run apk` script is a sideload artefact and stays that way.
+- [x] **Release signing.** An upload keystore, a `release` signingConfig reading
+      `key.properties`, and **Play App Signing**. `*.jks`, `*.keystore` and
+      `key.properties` are gitignored: a committed key is unrecoverable.
+- [x] **`targetSdk` 36**, Play's floor since 31 August 2026 (done 2026-08-14).
+- [x] **R8 on** (`minifyEnabled true`, `shrinkResources true`), with a device pass
+      at 1.0.2 and again at 1.0.6 on Capacitor 8.5.1.
+- [x] **Bundle format**: `npm run aab` builds the signed **AAB**. `npm run apk`
+      stays a sideload artefact.
 
 ## §2 — Compliance (the cost of leaderboards)
 
@@ -90,7 +87,8 @@ player-chosen handle, and run data to a server.
       served by GitHub Pages at
       **https://gilbeja-ux.github.io/warp-vanguard/privacy.html**.
       Owner enables it once: *Settings → Pages → branch `master`, folder `/docs`*.
-- [ ] **Play Data Safety form.** Must match reality exactly, and mismatches are a
+- [x] **Play Data Safety form.** Filed; the answers are in
+      `docs/PLAY-CONSOLE-ANSWERS.md`. Must match reality exactly, and mismatches are a
       common rejection. Expected answers: collects *User IDs* (anonymous) and
       *App activity / in-game actions*; data **is** transmitted off-device; **not**
       used for tracking or advertising; encrypted in transit; deletion available.
@@ -109,7 +107,7 @@ player-chosen handle, and run data to a server.
       user-facing identity serving the user across apps and devices, which the
       Supabase anon uid is not. It was built because GDPR Art. 21 does apply, and
       because the control is the cheapest way to authenticate a request.
-- [ ] **Legitimate interest, not consent — keep it that way.** `privacy.html` now
+- [x] **Legitimate interest, not consent — keep it that way.** `privacy.html` now
       names Art. 6(1)(f) as the basis. This is deliberate and load-bearing: under
       *consent*, Art. 7(3) makes withdrawal trivial and Art. 17(1)(b) turns it into
       an automatic erasure trigger, so every request would have to be honoured in
@@ -147,12 +145,13 @@ player-chosen handle, and run data to a server.
       (offensive / real name or personal info / impersonation). No free text: it
       would be UGC needing its own moderation, and it is the field an angry player
       types abuse into. Cheating is deliberately absent — a verified run is
-      provably legitimate and endless is unadjudicable, so that traffic would only
-      bury the reports a human must read.
+      provably legitimate, so that traffic would only bury the reports a human
+      must read.
 
       **Acting on reports** is `report_run`: one report per person per row, and at
-      **three distinct reporters an UNVERIFIED row's name is redacted and locked**.
-      Verified campaign/weekly rows never auto-act — they are records someone
+      **three distinct reporters an UNVERIFIED row's name is redacted and locked**
+      (since 1.0.10 every row that can still be filed is verified, so in practice
+      reports queue). Verified campaign/weekly rows never auto-act — they are records someone
       earned, so an automatic action there is worth more to a brigade than to a
       moderator. Those queue; read them in the `reports` table.
 - [x] **A dedicated feedback address — DONE 2026-09-01.** `hello@gb-il.cloud`, in
@@ -160,49 +159,47 @@ player-chosen handle, and run data to a server.
   tap-to-copy address on the FEEDBACK disc), `docs/privacy.html`,
   `docs/delete-data.html`, `docs/PRIVACY-POLICY.md` and the Play Console contact
   field. `npm test` fails if the constant is ever set to something that only looks
-  like an address. **The published policy still shows the old address until this
-  branch merges to `master`** — GitHub Pages serves `/docs` from `master`.
+  like an address. Merged; GitHub Pages serves `/docs` from `master`.
 
 - [ ] **Watch the `reports` table.** Nothing notifies you. Verified rows above the
       threshold sit there until a human looks. Worth a weekly glance, or a Supabase
       scheduled digest if it ever gets traffic.
-- [ ] **Content rating questionnaire** (IARC, via Play Console). Expect ~E/PEGI 3
-      with an interactive-elements flag for **user interaction** (leaderboards +
-      handles). Answer honestly; the flag is normal.
+- [x] **Content rating questionnaire** (IARC, via Play Console). Filed; the answers
+      are in `docs/PLAY-CONSOLE-ANSWERS.md`, with the interactive-elements flag for
+      **user interaction** (leaderboards + handles).
 - [x] **CREDITS.md audio licensing — settled.** The pool takes are CC0 (Sonniss /
       Kenney / Freesound), which requires no attribution; the per-file origins were
       never recorded, and the file now says so instead of claiming a chain of title
       it could not show. The two boss takes are Pixabay Content License — recorded
       separately because Pixabay is *not* CC0 — and it permits commercial use with
       no attribution, so nothing is owed at launch or at the 1.1 paid unlock.
-- [ ] **Name clearance** on "Warp Vanguard" — Play/App Store search plus a
-      trademark check. Rebranding after launch costs the listing's whole history.
+- [x] **Name clearance** on "Warp Vanguard" — screened clear 2026-08-21
+      (`docs/NAME-CLEARANCE.md`). Never brand with a bare "Vanguard".
 
 ## §3 — Store listing assets
 
-- [ ] **Screenshots.** Play wants phone shots (min 2, up to 8) plus 7"/10" tablet
-      sets if you list tablet support. *I can generate these from the real game
-      headlessly at exact device resolutions — the harness already renders arrivals,
-      duels and the chart.* `docs/STORE-LISTING-BRIEF.md` already specifies 7 shots.
-- [ ] **Feature graphic**, 1024×500 — required, and it is the image at the top of
-      the listing. The new brand lockup on a lane backdrop.
-- [ ] **App icon**, 512×512 — from the new badge master.
-- [ ] **Short (80 char) + full (4000 char) description.** The brief has the copy
-      direction; needs writing against the final feature set.
-- [ ] **Optional but high-value: a 30s trailer.** Captured from real play.
+All shipped; `docs/STORE-MATERIALS.md` is the source of store copy and art, and
+`scripts/store-shoot.js` re-shoots the stills from the real game.
+
+- [x] **Screenshots**, phone and tablet sets, shot headlessly at exact device sizes.
+- [x] **Feature graphic**, 1024×500.
+- [x] **App icon**, 512×512 (`docs/store/wv-512-store.png`).
+- [x] **Short + full description.**
+- [ ] **Optional: a 30s trailer.** `scripts/store-shoot.js --video` records stage
+      play with a bot; the captions, the music take and the upload are open.
 
 ## §4 — Engineering hygiene
 
-- [ ] **CI**: run `npm test` (the headless harness) and `node scripts/test-board.js`
-      on push. The suite is the safety net for a codebase with no type system.
-- [ ] **Version discipline**: `package.json`, `versionName`, and `versionCode` move
-      together. versionCode must increase on **every** upload, forever.
-- [ ] **Verifier/sim-id gate**: any sim change requires rebuild + redeploy +
-      `verifier:status`. A shipped client whose sim id differs from the deployed
-      function fails every submission. **This becomes far more dangerous once real
-      players exist** — an update mid-rollout means two client versions in the wild
-      against one server. Decide the policy before launch (recommend: server
-      accepts the current and previous sim id).
+- [x] **CI**: `.github/workflows/test.yml` runs the pin suites and the verifier
+      bundle cross-test on every push, and the browser smoke in a real Chrome.
+- [x] **Version discipline**: `package.json` is the only source;
+      `scripts/sync-version.js` writes `versionName`/`versionCode` and the Xcode
+      project's two versions. versionCode rises on every upload, forever.
+- [x] **Verifier/sim-id policy**: every sim change deploys the verifier. When the
+      fingerprint says 0 boards moved, `--compatible` keeps the recent ids verifying,
+      so a player on the previous build is not told to update; when a board moved,
+      strict. A build whose board the server no longer knows marks that stage
+      `UPDATE GAME TO POST SCORES` before it is flown (the update mark, 2026-10-01).
 - [ ] **Low-end device pass**: verify the `lowFX` watchdog trips *and* releases —
       `scripts/bench.js --target=phone --pin=none` shows the latch live.
 - [ ] **Pre-ship tuning pass**: boss knobs (`BOSS_FEED`, `LEECH_WAVE_GAP`,
@@ -214,35 +211,30 @@ player-chosen handle, and run data to a server.
 > in this order, BEFORE `npm run aab`, or players on the new binary post into a
 > stale server / an unmigrated board:
 > 1. `npm run deploy:verifier` — required whenever ANYTHING under `src/game/` or
->    `src/campaigns.js` changed. NOT "whenever a sim id moved": that shortcut is
->    retired (Gil, 2026-08-27). The fingerprint is evidence, never permission to
->    skip — BATTERY_V 1 played only the first 4–14s of every lane and reported
->    late-lane sim changes as "nothing moved". See H-35 and `npm run test:coverage`,
->    which replays all 40 boards and fails if any does not play out.
-> 2. `supabase db push` — required whenever a migration is owed.
->
-> **1.0.4 specifically** carries H-02 (boss board integrity) and H-03 (replay-stealing
-> fix). `deploy:verifier` ships the new sim bundle AND the changed submit-run function;
-> `db push` applies two migrations — `20260821000000_boss_board_time_tiebreak.sql` (H-02)
-> and `20260821000001_trace_owner_binding.sql` (H-03). Gil pre-authorized running both
-> commands automatically when he asks to create the 1.0.4 AAB.
-> ⚠ Two caveats: (1) neither migration was run against a live DB — review against
-> staging first if one exists; (2) H-03's migration takes the `traces` bucket PRIVATE,
-> which breaks replay playback on any client still fetching the public URL — so it must
-> ship WITH the 1.0.4 client (which fetches signed URLs), never ahead of it.
+>    `src/campaigns.js` changed, a comment included: any byte moves the sim id, and the
+>    pre-push hook refuses a sim the deployed verifier does not know. The change only
+>    decides the flag: `-- --compatible` when the fingerprint says 0 boards moved,
+>    strict when a board moved or boss code changed (the battery barely reaches a
+>    boss fight; see H-35 and `npm run test:coverage`). The fingerprint is evidence
+>    for the flag, never permission to skip the deploy (Gil, 2026-08-27).
+> 2. `supabase db push` — required whenever a migration is owed. A migration that
+>    changes what an older client can read ships WITH the client that needs it,
+>    never ahead of it (the 1.0.4 private-traces lesson).
 
-1. Play Console account ($25, one-time). Identity verification can take days — **start this first**, it is the longest pole that involves waiting on someone else.
-2. Create the app; reserve `com.warpvanguard.game`.
-3. Upload the first AAB to **internal testing** (fastest track, no review wait) — proves signing, install, and the leaderboard path on real devices.
-4. Complete the compliance forms (§2). They gate promotion out of testing.
-5. **Closed testing** with real testers. Play requires a sustained closed test with a minimum tester count before a personal developer account can go to production — **verify the current threshold and duration**, as it materially sets the launch date.
-6. Open testing (optional) → **Production**, staged rollout (start ~10-20%).
+1. [x] Play Console account.
+2. [x] Create the app; `com.warpvanguard.game` reserved.
+3. [x] **Internal testing** — signing, install and the leaderboard path proven on real devices.
+4. [x] The compliance forms (§2).
+5. [x] **Closed testing** with real testers.
+6. [x] **Open testing**, live since 2026-09-18 (`docs/OPEN-TESTING-PLAN.md`).
+7. [x] **App Store**: enrolment, TestFlight, App Review; 1.0.11 approved.
+8. [ ] **Play production**, staged rollout (start ~10-20%).
+9. [ ] **1.1**: the paywall (above), on both stores at once.
 
 ---
 
-## Sequencing note
+## What is still open
 
-§1 and §4 are mine and can start immediately. §2's forms and §5's account
-depend on you. The critical path is almost certainly **the Play account +
-closed-testing requirement**, not the code — which is why §5.1 should happen
-today even though nothing is ready to upload.
+- §2: the Art. 30 record of processing, and a weekly look at the `reports` table.
+- §4: the low-end `lowFX` pass and the pre-ship boss tuning pass.
+- §5: Play production, then 1.1 and its paywall.

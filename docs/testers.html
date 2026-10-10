@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tester Guide — Warp Vanguard</title>
-<meta name="description" content="You're playing Warp Vanguard before anyone else. Here's how to get it and what to tell me.">
+<meta name="description" content="Warp Vanguard is in open testing. Here's how to get it on Android or iPhone, and what to tell me.">
 <meta name="theme-color" content="#06040d">
 <style>
   /* Audiowide is the game's own face, served from this repo rather than a font
@@ -91,7 +91,9 @@
   }
 
   /* The install steps are numbered because they are genuinely sequential —
-     the account has to be right before the link will work at all. */
+     the right store first, then the install, then the one question. (Until
+     2026-09-18 step one was a Gmail address for the closed test's list; the
+     open test needs no address, so that step is gone, 2026-10-10.) */
   ol.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
   ol.steps li {
     counter-increment: s; position: relative;
@@ -124,9 +126,11 @@
   .ask p + p { margin-top: 10px; }
 
   /* ---------- call to action ----------
-     Two buttons on one page, so they must not compete. Install is the solid
-     one because it is the only thing a tester can do on arrival; feedback is
-     outlined because it matters later, after they have played. */
+     The buttons on this page must not compete. Install is solid because it is
+     the only thing a tester can do on arrival; feedback is outlined because it
+     matters later, after they have played. The two install buttons (Google
+     Play, App Store, 2026-10-10) are both solid and do not compete either: a
+     reader holds one phone and taps the one store it has. */
   .cta {
     display: block; text-align: center; text-decoration: none;
     background: var(--grn); color: #06040d;
@@ -198,61 +202,67 @@
     <img src="img/icon.webp" alt="" width="52" height="52">
     <div>
       <h1>Warp Vanguard</h1>
-      <div class="sub">Closed test · v1.0.0</div>
+      <div class="sub">Open test · Android &amp; iPhone</div>
     </div>
   </div>
 
-  <p class="lede">You're playing it <b>before anyone else</b>. Two thumbs, one
-  lane, and everything that wants your convoy has to come through you.</p>
+  <p class="lede">You're playing it <b>while it's still being tuned</b>. Two
+  thumbs, one lane, and everything that wants your convoy has to come through
+  you.</p>
 
   <img class="shot" src="img/hero.webp" alt="Gameplay: two emitters on a ring guarding a warp lane" width="1000" height="563" loading="eager">
   <div class="strip">
     <img src="img/boss.webp" alt="A boss duel" width="560" height="315" loading="lazy">
-    <img src="img/arrival.webp" alt="Completing a relay" width="560" height="315" loading="lazy">
-    <img src="img/chart.webp" alt="The campaign route map" width="560" height="315" loading="lazy">
+    <img src="img/arrival.webp" alt="Clearing a stage" width="560" height="315" loading="lazy">
+    <img src="img/chart.webp" alt="A contract's star map" width="560" height="315" loading="lazy">
   </div>
 </header>
 
 <h2>Getting it</h2>
 <ol class="steps">
-  <li>Send me the <b>Gmail address your phone uses for Google Play</b>. It has to
-  be that exact one, and I have to add it before the button below will work for you.</li>
-  <li>Once I say you're added, open <b>this page on your phone</b> and tap
-  <b>Install the game</b>.</li>
-  <li>Join the test when Google Play asks, then install as normal.</li>
+  <li>Open <b>this page on your phone</b>. The test is open to anyone: there
+  is nothing to sign up for and no address to send me.</li>
+  <li>Tap <b>Get it on Google Play</b> on Android, or <b>Get it on the App
+  Store</b> on an iPhone or iPad.</li>
+  <li>If Google Play offers to join the test, accept, then install as normal.</li>
 </ol>
 
-<a class="cta" href="https://play.google.com/store/apps/details?id=com.warpvanguard.game" target="_blank" rel="noopener">Install the game</a>
-<p class="cta-note">Only works once I've added your address — otherwise Play
-just says the app isn't available. Not on a phone, or nothing happens?
-<a href="https://play.google.com/apps/testing/com.warpvanguard.game" target="_blank" rel="noopener">Join on the web instead</a>.</p>
+<a class="cta" href="https://play.google.com/store/apps/details?id=com.warpvanguard.game&amp;referrer=utm_source%3Dtesters-page%26utm_medium%3Dweb%26utm_campaign%3Dopentest" target="_blank" rel="noopener">Get it on Google Play</a>
+<a class="cta" href="https://apps.apple.com/app/id6818248157" target="_blank" rel="noopener">Get it on the App Store</a>
+<p class="cta-note">Free, no ads, nothing to buy. Not on a phone, or the Play
+button does nothing?
+<a href="https://play.google.com/apps/testing/com.warpvanguard.game" target="_blank" rel="noopener">Join the Android test on the web</a>.</p>
 
 <div class="ask">
   <h3>One real favour</h3>
-  <p><b>Please leave it installed for two weeks.</b> Google won't let the game
-  launch until enough testers have stayed opted in that long.</p>
-  <p>You don't have to play every day — just don't tidy it off your phone.
-  Uninstalling early sets the release date back for everyone.</p>
+  <p><b>Tell me where you stopped playing, and why.</b> Bored, stuck or
+  broken: the honest one.</p>
+  <p>This is the window where what you tell me still changes the game, and
+  nobody else can tell me where you got bored.</p>
 </div>
 
 <h2>Telling me things</h2>
 <a class="cta ghost" href="https://docs.google.com/forms/d/e/1FAIpQLScL4TIOddqWKJopoZ-Xc_yAwOTTV7JX0Jg2ID7CZXDGy9fq0g/viewform" target="_blank" rel="noopener">Send feedback</a>
-<p class="cta-note">Or just message me. Honest reactions beat bug reports.</p>
+<p class="cta-note">Or from inside the game: the settings key at the top right
+of the home screen, then <b>FEEDBACK</b>. A note sent from there tells me your phone
+and where you were. Or just message me. Honest reactions beat bug reports.</p>
 
 <h2>Worth knowing</h2>
 
 <details>
   <summary>See all five bosses in five minutes</summary>
   <div class="inner">
-    <p>Each campaign ends in a duel with a <b>warp leech</b> — a machine clamped
-    across the lane, drinking it. They're the best part of the game and they're
-    normally hours away.</p>
-    <p>So: on a campaign's route map, <b>press and hold the final relay for
-    three seconds</b>. A ring charges around your finger and you drop straight
-    into that fight. All five are different puzzles.</p>
+    <p>Each of the five contracts ends in a duel with a <b>warp leech</b> — a
+    machine clamped across the lane, drinking it. They're the best part of the
+    game and they're normally hours away.</p>
+    <p>So: on a contract's star map, <b>press and hold its last stage for
+    three seconds</b> (stage 08 on the first contract, 16 on the second, and
+    so on). A ring charges around your finger and the game asks for a tester
+    passcode. <b>Message me for it</b>, enter it, and you drop straight into
+    that fight. All five are different puzzles.</p>
     <p class="hint">These runs never reach the leaderboards, so you can't
-    accidentally cheat your way onto a board. The shortcut is removed before
-    public release — it exists for you.</p>
+    accidentally cheat your way onto a board. The passcode only keeps the
+    bosses from spoiling themselves for everyone else; it exists for you.</p>
   </div>
 </details>
 
@@ -266,7 +276,7 @@ just says the app isn't available. Not on a phone, or nothing happens?
       <li><b>Did it stutter, overheat, or drain the battery?</b></li>
       <li><b>Did anything look wrong</b> — cut off at the edges, overlapping, hidden behind the notch?</li>
     </ul>
-    <p class="hint">"I got bored on relay 6" is worth more to me than a typo.</p>
+    <p class="hint">"I got bored on stage 06" is worth more to me than a typo.</p>
   </div>
 </details>
 
@@ -276,7 +286,7 @@ just says the app isn't available. Not on a phone, or nothing happens?
     <ul>
       <li>Leaderboards need a connection. The game itself plays fully offline.</li>
       <li>No tablet layout yet — it works, but it's built for phones.</li>
-      <li>The boss shortcut above. That one's deliberate.</li>
+      <li>The boss shortcut above and its passcode. Both are deliberate.</li>
     </ul>
   </div>
 </details>
@@ -284,30 +294,33 @@ just says the app isn't available. Not on a phone, or nothing happens?
 <details>
   <summary>If it crashes</summary>
   <div class="inner">
-    <p>Crashes are reported to me automatically — but a crash with no story is
-    just a stack trace. Tell me roughly what you were doing and it becomes
-    fixable.</p>
+    <p>If the game stops on a <b>SYSTEM FAULT</b> screen, tap to restart;
+    your progress is saved. The error is kept on your phone, and the next
+    note you send from <b>FEEDBACK</b> in settings carries it to me.</p>
+    <p>A crash with no story is just a stack trace. Tell me roughly what you
+    were doing and it becomes fixable.</p>
   </div>
 </details>
 
 <details>
   <summary>Your data</summary>
   <div class="inner">
-    <p>No advertising, no analytics, no tracking. If you submit a score it
+    <p>No advertising, no analytics, no tracking. When a score posts it
     sends an anonymous id, the display name you type, and how the run went —
-    nothing else.</p>
+    nothing else. A FEEDBACK note also carries the game's version, your phone
+    model, your screen size and where in the game you were.</p>
     <p>You can delete all of it from inside the game under <b>MY DATA</b>.
     Full detail in the <a href="privacy.html">privacy policy</a>.</p>
   </div>
 </details>
 
 <div style="height:34px"></div>
-<p class="cta-note">If the link says the app isn't available, wait fifteen
-minutes and try again. If it still fails, it's almost always the wrong Google
-account.</p>
+<p class="cta-note">If a store says the app isn't available, tell me which
+country and which phone. The test should be open everywhere; if it isn't,
+that's on my side.</p>
 
 <footer>
-  Warp Vanguard · closed test · thank you
+  Warp Vanguard · open test · thank you
 </footer>
 
 </div>

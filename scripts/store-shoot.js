@@ -12,7 +12,7 @@
 //   node scripts/store-shoot.js --list
 //
 // WHAT IS REAL AND WHAT IS STAGED is unchanged from the first set and is written
-// up in docs/STORE-LISTING.md: every pixel is shipped code; only the ROSTER of a
+// up in docs/archive/STORE-LISTING.md: every pixel is shipped code; only the ROSTER of a
 // still is placed, by the game's own spawners, and the frame is FOUND by a
 // predicate, never counted to. src/ is not modified for marketing. The one patch
 // is served, not written: the DPR cap in 00-core.js is lifted for the 3x iPhone

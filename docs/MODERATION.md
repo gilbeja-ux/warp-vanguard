@@ -87,7 +87,7 @@ Reading it:
 |---|---|
 | `run_id` | The row uuid. Every action below takes this. |
 | `reports` | How many *different* people flagged it. A unique index makes stacking impossible, so 3 means three people. |
-| `verified` | `true` → a replayed, provably legitimate run. These never auto-redact; they are yours to judge. `false` → endless, trust-only. |
+| `verified` | `true` → a replayed, provably legitimate run. These never auto-redact; they are yours to judge. `false` → an old endless row from before 1.0.10, trust-only. Endless has had no board since 1.0.10 (`boardKey()` returns null and `submit-run` refuses an endless run with a 400), so no new `false` row is filed. |
 | `name_locked` | `true` → already redacted, automatically or by you. The player cannot rename it back. |
 | `reasons` | `offensive`, `personal`, `impersonation`, `other`. Closed set — there is no free text to read. |
 
@@ -195,8 +195,11 @@ an unverified row**. Verified campaign and weekly rows never auto-act.
 
 The reasoning: a verified run is a record somebody earned and the board's whole
 promise is that it stands, so an automatic action there is worth more to a brigade
-than it is to you. An endless row is trust-only and unreplayable, so resetting its
-name costs nothing that cannot be undone.
+than it is to you. An unverified row was an endless run, trust-only and
+unreplayable, so resetting its name costs nothing that cannot be undone. Since
+1.0.10 endless has no board and every new row is verified, so in practice a report
+now always queues for you; the automatic half only ever touches pre-1.0.10 endless
+rows.
 
 You can watch it fire in **Edge Functions → report-run → Logs**; each report logs
 its row, reason, running count, and whether it tripped the threshold.

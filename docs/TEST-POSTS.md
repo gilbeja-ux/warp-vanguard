@@ -19,10 +19,10 @@ interdictor (any emitter), purple armored interdictor (both docked together),
 blue / white phase-locked (the matching emitter), linked interdictors / barrier
 net (one emitter on each end), the pulse-charger ribbon, dead zones, power-ups,
 and the UNITE VOLLEY (dock both and hold; a bolt fires and detonates). There is
-no black enemy. `docs/STORE-LISTING.md` line 61 still describes one and its
-captions still say RELAYS; `docs/testers.html` still says *Closed test*, asks
-for a Gmail, and says *relay* twice. All of that is read by the people these
-posts send, so it is owed before the first post goes up.
+no black enemy. `docs/STORE-LISTING.md` (archived 2026-10-10 to `docs/archive/`;
+`docs/STORE-MATERIALS.md` owns the store copy now) still described one and its
+captions said RELAYS; `docs/testers.html` said *Closed test*, asked for a Gmail
+and said *relay* twice, until it was rewritten for open testing on 2026-10-10.
 
 ---
 

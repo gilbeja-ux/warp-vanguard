@@ -1,7 +1,7 @@
 # Store materials — Google Play and the App Store
 
 **Built 2026-09-21, from scratch, on the 1.0.9 build.** This document supersedes the
-assets and the copy in [STORE-LISTING.md](STORE-LISTING.md) (2026-08-15). That document
+assets and the copy in [STORE-LISTING.md](archive/STORE-LISTING.md) (2026-08-15, archived in `docs/archive/` on 2026-10-10; this document owns the store copy now). That document
 stays in the repo because its sections 3 to 5 record decisions and two harness traps that
 are still true. Its screenshots show hulls, a HUD and nouns the game no longer has.
 
@@ -114,7 +114,7 @@ are in `docs/store/captioned/<size>/` (gitignored, like the masters).
 | 01 | TWO THUMBS. ONE LANE. | Improve and test your coordination on each stage... |
 | 02 | ONE BOSS. FOUR MECHANICS. | Find the way to neutralize it to finish the campaign... |
 | 03 | FIVE CONTRACTS. FORTY STAGES. | Make your way through the galaxy, Protecting your clients... |
-| 04 | READ THE LANE. THEN FLY IT. | Each level raises the difficulty and speed, Bring your A-game... |
+| 04 | READ THE LANE. THEN FLY IT. | Each stage raises the difficulty and speed, Bring your A-game... |
 | 05 | DOCK TO FIRE! | Align both emitters to charge a shot... |
 | 06 | NO ADS. NO ENERGY TIMERS. | Just your instincts VS everyone else's, on the leaderboard! |
 

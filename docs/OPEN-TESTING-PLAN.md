@@ -1,9 +1,13 @@
 # Open testing plan — recruit, listen, ship
 
-> **Status 2026-09-18 (Gil): the game is in OPEN testing.** Phase 1 and the
-> production-access step below are behind us. The calendar starts at Phase 2;
-> the posts are in `TEST-POSTS.md`. The closed-phase rows are kept for the
-> record only.
+> **Status 2026-10-10.** The game has been in **OPEN testing** on Google Play since
+> 2026-09-18 (Gil); Phase 1 and the production-access step below are behind us.
+> 1.0.10 went to the open track on 2026-09-24, and **1.0.11** (the performance
+> build) went to Play and, after App Review, to the **App Store** on 2026-10-05:
+> iOS is no longer waiting on an enrolment. **1.0.12** is next: the called
+> first-run course (F-017) and the screen type cap. **1.1** adds the paywall at
+> the stage-09 seam. The posts are in `TEST-POSTS.md`. The closed-phase rows and
+> the 2026-09-13 starting position are kept for the record only.
 
 Written 2026-09-13, on the day 1.0.8 was cut. This is the plan for the test
 period between now and production. It covers four questions: who tests and where
@@ -16,14 +20,14 @@ launch pitch and the 1.1 price.
 
 ---
 
-## 0. Starting position (verified 2026-09-13)
+## 0. Starting position (verified 2026-09-13; kept for the record)
 
 | Fact | Value | Source |
 |---|---|---|
 | Build | 1.0.8, versionCode 10008 | `package.json`, CHANGELOG |
 | Store URL | `play.google.com/store/apps/details?id=com.warpvanguard.game` answers 404 from outside Play | fetched 2026-09-13; consistent with a closed test, which has no public listing |
 | Opt-in URL | `play.google.com/apps/testing/com.warpvanguard.game` | `docs/testers.html` |
-| Tester guide | `https://gilbeja-ux.github.io/warp-vanguard/testers.html` — says *Closed test*, asks for the 14-day hold | live, 200 |
+| Tester guide | `https://gilbeja-ux.github.io/warp-vanguard/testers.html` — said *Closed test* and asked for the 14-day hold; rewritten for open testing 2026-10-10 | live, 200 |
 | Feedback form | Google Form, 7 questions, none required: *Is it fun?* (YES! / yes? / Not really), phone, where you stopped, what confused you, what felt unfair, stutter/overheat/wrong, anything else | linked from the tester guide |
 | In-game feedback | SETTINGS → FEEDBACK disc: A BUG / AN IDEA / TOO HARD OR TOO EASY / SOMETHING ELSE, 600 chars, carries build + device model + place + screen, and the last SYSTEM FAULT with its ten-step trail. Lands in Supabase, counted on the portal's *new feedback* tile. One-way; the flank prints `hello@gb-il.cloud` | `docs/FEEDBACK-PLAN.md`, `92-guide.js` |
 | Server telemetry | `runs` rows (a loss files too since 1.0.8), `ladder_reach`, `player_growth`, `board_occupancy` views | `docs/MODERATION.md` |
@@ -39,16 +43,17 @@ Console's *Testing* page).
 
 ## 1. Calendar
 
-Three phases, about nine weeks, go-live in mid-November.
+Three phases, about nine weeks, go-live in mid-November. The table below is the
+plan as written on 2026-09-13; the *Actual* column is what happened.
 
-| Phase | Dates | Track | Purpose | Builds |
-|---|---|---|---|---|
-| **1 · Closed test** | 2026-09-14 → 2026-10-04 (3 weeks) | Closed | Satisfy the 12 / 14 rule with people who will actually stay. Find the crashes and the first-two-minutes confusion. | 1.0.8 now; 1.0.9 on 2026-09-28 |
-| **Apply** | 2026-10-05 | — | Production-access application, answered from the feedback log. | — |
-| **2 · Open test** | 2026-10-12 → 2026-11-08 (4 weeks) | Open | Public listing, strangers, volume. Measure the funnel, the pitch, the channels. Ask the price question. | 1.0.10 on 2026-10-12 (the open-test build), 1.0.11 on 2026-10-26 |
-| **Freeze** | 2026-11-02 | Open | Release candidate = 1.0.11 + hotfixes only. One quiet week. | 1.0.12 only if a crash forces it |
-| **3 · Go live** | 2026-11-10 (Tuesday) | Production | Staged rollout 20 % → 50 % → 100 % over ten days. | the frozen RC, unchanged |
-| **1.1** | January 2027 | Production | Paywall at the stage-09 seam, priced from the open-test answers and December's retention. | 1.1.0 |
+| Phase | Planned | Actual | Track | Purpose | Builds |
+|---|---|---|---|---|---|
+| **1 · Closed test** | 2026-09-14 → 2026-10-04 (3 weeks) | ended by 2026-09-18 | Closed | Satisfy the 12 / 14 rule with people who will actually stay. Find the crashes and the first-two-minutes confusion. | 1.0.8, 1.0.9 (2026-09-13) |
+| **Apply** | 2026-10-05 | behind us by 2026-09-18 | — | Production-access application, answered from the feedback log. | — |
+| **2 · Open test** | 2026-10-12 → 2026-11-08 (4 weeks) | since 2026-09-18 | Open | Public listing, strangers, volume. Measure the funnel, the pitch, the channels. Ask the price question. | 1.0.10 (2026-09-24); 1.0.11 (2026-10-05, Play and the App Store); 1.0.12 next (the called course, the type cap) |
+| **Freeze** | 2026-11-02 | — | Open | Release candidate = the last open-test build + hotfixes only. One quiet week. | 1.0.12 or later |
+| **3 · Go live** | 2026-11-10 (Tuesday) | — | Production | Staged rollout 20 % → 50 % → 100 % over ten days. | the frozen RC, unchanged |
+| **1.1** | January 2027 | — | Production, both stores | Paywall at the stage-09 seam, priced from the open-test answers and December's retention. | 1.1.0 |
 
 Why these lengths:
 
@@ -143,7 +148,7 @@ that *shows* the game gets installs. So:
 | **TouchArcade forums → Upcoming Games / beta threads** | the one forum where mobile arcade players still gather and *write* | slow, long-lived; a thread keeps producing for weeks |
 | **Discord: r/AndroidGaming's server, indie mobile dev servers** | fast conversation; testers who will answer a follow-up question | ask before posting a link |
 | **itch.io** | a web page for the game with the Play link; the dev-log community tests things | an HTML5 build could live here too — §2.5 |
-| **r/iosgaming** | not now; no iOS build can leave the Mac until the Apple enrolment exists | Phase 2 of the release plan |
+| **r/iosgaming** | the game is on the App Store since 1.0.11 (App Store id `6818248157`) | post with the App Store link, not the Play one |
 | **Israeli dev communities (GameIS and the like)** | the warm circle's second ring; good for Phase 1 count | Hebrew post, same clip |
 | **r/AndroidClosedTesting and swap subs** | count only, Phase 1 only, last resort | see Tier C |
 
@@ -259,7 +264,7 @@ it by one build, not by a month.
 
 ### 4.1 During the test
 
-- **Cadence: one scheduled build every two weeks**, dated in §1. Testers
+- **Cadence: one scheduled build every two weeks**, dated in §1, to both stores. Testers
   update silently through Play; a build does not reset any tester's 14-day
   clock.
 - **Hotfix rule: a crash gets a build within 48 hours**, out of cadence. A
@@ -268,13 +273,14 @@ it by one build, not by a month.
 - **Nothing else out of cadence.** A balance change waits for the scheduled
   build so that the build has a changelog worth a Reddit reply.
 - **Before every build, in this order** (the standing rules, no exceptions):
-  `supabase functions deploy` for the verifier and `supabase db push`;
+  `npm run deploy:verifier` (with `-- --compatible` when 0 boards moved) and
+  `supabase db push`;
   `npm test`; `npm run test:smoke`; `npm run aab`, which also compiles the iOS
   shell. Bump the version only through `scripts/sync-version.js`.
 - **Changelog per build in `docs/CHANGELOG.md`**, in player words, and a
   three-line version of it as the Play release note. The release note is read
   by testers who never read Reddit; write it for them.
-- **Freeze from 2026-11-02.** The RC takes hotfixes only. A hotfix on the RC
+- **Freeze from 2026-11-02** (the plan's date). The RC takes hotfixes only. A hotfix on the RC
   restarts the seven-day fault-free clock in §3.4.
 
 ### 4.2 After go-live
@@ -284,7 +290,7 @@ it by one build, not by a month.
 | Weeks 1–4 | every two weeks, hotfix in 48 h | what the first strangers report; the rollout goes 20 → 50 → 100 across weeks 1–2 |
 | Months 2–3 | monthly | tuning, the tablet layout if the data asks for it, small content |
 | January 2027 | 1.1 | the paywall at the stage-09 seam, priced from the open-test answers and the December reach numbers, gated inside `startLevel` |
-| After 1.1 | monthly, then as needed | cloud save per `CLOUD-SAVE-PLAN.md`, iOS when the enrolment exists |
+| After 1.1 | monthly, then as needed | cloud save per `CLOUD-SAVE-PLAN.md`; every build ships to both stores |
 
 ---
 
@@ -299,7 +305,7 @@ All of these, or the date moves one build:
 - [ ] The Data Safety form matches the RC byte for byte (`PLAY-CONSOLE-ANSWERS.md`), including the *Other user-generated content* row for feedback notes.
 - [ ] The privacy policy and delete-data page are live at their stable URLs (both answer 200 today).
 - [ ] The verifier deployed for the RC's sim id, and the migration pushed.
-- [ ] The tester guide's *Closed test* heading and the boss-shortcut paragraph are updated: the shortcut ships behind a passcode, the page said it would be removed.
+- [x] The tester guide's *Closed test* heading is gone: `testers.html` was rewritten for open testing on 2026-10-10.
 - [ ] The store listing's screenshots show the RC's art (the boss, the volley, the disc), and the short description is the one that won the UTM comparison.
 - [ ] The Reddit and forum threads each have a final reply with the fix list.
 
@@ -318,8 +324,8 @@ All of these, or the date moves one build:
 
 ### 5.3 What go-live does not wait for
 
-- iOS. The enrolment is a separate decision; the shell is one archive from
-  upload whenever it lands.
+- iOS. Already live: 1.0.11 is on the App Store, and every build ships to both
+  stores through `npm run ios:archive`.
 - The paywall. Production ships all-free; 1.1 prices it.
 - Cloud save. Scoped, not built, per its own plan.
 - A tablet layout. The guide already lists it as known.

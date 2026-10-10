@@ -1,14 +1,14 @@
 # Briefing disc art — production spec
 
 The contract for the images that sit inside the mission discs
-([index.html:8821](../src/index.html#L8821)). Read this **before** generating art —
+(`drawStoryDisc` in [src/game/91-briefing.js](../src/game/91-briefing.js)). Read this **before** generating art —
 the frame and delivery rules are what make 40 disparate images read as one show.
 
 ## The frame
 
 **There is no rectangular frame.** The keyframe fills the disc wall to wall and
 is **masked by the disc itself** — the same treatment the contract carousel
-gives a campaign's map image ([index.html:10259](../src/index.html#L10259)). The
+gives a campaign's map image (`drawCampDisc` in [src/game/92-guide.js](../src/game/92-guide.js)). The
 plot line rides a caption bar across the art's lower edge, spanning the full disc
 width, and the mask gives that bar curved ends. Nothing sits above the art: no
 kicker, no LOG title, no border but the disc's own ring.
@@ -73,7 +73,8 @@ The art box on screen, at DPR 2 (the cap):
 ## Delivery
 
 Two paths, mirroring how map images already work
-([index.html:11359](../src/index.html#L11359)):
+(`campMapImg` beside `discArtImg` in [src/game/95-menu.js](../src/game/95-menu.js);
+both fields are checked by `validateCampaign` in [src/game/33-loader.js](../src/game/33-loader.js)):
 
 **Bundled campaigns → file reference.** `art: 'cargo-run-04.webp'` in the
 level, file at `src/art/disc/cargo-run-04.webp`. Lazy-decoded when the disc

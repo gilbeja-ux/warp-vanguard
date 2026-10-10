@@ -1,10 +1,22 @@
 # Refactor plan — codebase audit, 2026-07-28
 
-Status: **plan only, nothing executed.** Written after a read-through of `src/`,
-`scripts/`, and `supabase/`. Gil's steer: no specific day-to-day pain, no felt
-performance problem — so this is aimed at *structural readiness for future
-development* and *preventative* performance work, not at relieving a current
-ache. Steps are ranked accordingly, and the low-value ones say so.
+Status, 2026-10-10: **Steps 0, 2 and 3 are done; Step 1 is open; Step 4 was
+mostly dropped or done elsewhere.** Step 0 (repo hygiene) landed 2026-07-28.
+Step 2, the file split, landed 2026-07-31: the game is ordered classic script
+tags in `src/game/`, 32 files today (`src/game/manifest.json` is the list), not
+the single `src/index.html` the audit below describes. Step 3 was resolved by
+deleting the old labs, 2026-07-28. Step 1, the tuning surface, is still open.
+Of Step 4, the verifier-bundle trim was measured and dropped (2026-07-31), the
+splash PNGs became WebP with the split, and the per-frame gradients were baked
+or cached in the 1.0.11 performance pass (2026-10-03). The plan's sections
+below stay as written, with each step's outcome marked on it; sections 1 and 2
+describe the code as it was on 2026-07-28.
+
+Written after a read-through of `src/`, `scripts/`, and `supabase/`. Gil's
+steer: no specific day-to-day pain, no felt performance problem — so this is
+aimed at *structural readiness for future development* and *preventative*
+performance work, not at relieving a current ache. Steps are ranked
+accordingly, and the low-value ones say so.
 
 ---
 
@@ -97,9 +109,11 @@ byte-identical to what it saw before.
   `phase3-bosses`) were confirmed fully merged with 0 commits ahead and clean
   working trees before removal via `git worktree remove`. Branches kept.
 - 10 stray `.DS_Store` files deleted.
-- **Still open:** `src/logo.png` is 504KB and `src/Logo - Small.png` is 228KB.
+- ~~**Still open:** `src/logo.png` is 504KB and `src/Logo - Small.png` is 228KB.
   Both are referenced (`index.html`, `scripts/shot-splash.html`), so neither is
-  dead — but 732KB of PNG for a boot splash is worth a WebP pass (§4).
+  dead — but 732KB of PNG for a boot splash is worth a WebP pass (§4).~~
+  **Done 2026-07-31:** the split commit replaced both with `src/logo.webp` and
+  `src/logo-small.webp`.
 
 ---
 
@@ -139,7 +153,10 @@ Shipped, but **not the way this section proposed.** The plan below assumed the
 game had to stay one inline `<script>` emitted by a build step. It doesn't.
 
 **What actually shipped:** `index.html` is an 83-line shell that loads 31 ordered
-`<script src="game/*.js">` tags. There is no build step and no generated
+`<script src="game/*.js">` tags. *(2026-10-10: 32 files today. The split
+committed 32, `81-asteroids.js` folded back into `80-tunnel.js` the same day,
+and `81-station3d.js` arrived on 2026-08-02. `src/game/manifest.json` is the
+list, and the shell is about 120 lines.)* There is no build step and no generated
 artifact — the files on disk are the files the browser runs. `scripts/lib/game-source.js`
 concatenates them from `src/game/manifest.json` for the three consumers that need
 one string (`test.js`, `build-verifier.js`, `verify-run.js`).
@@ -281,6 +298,12 @@ value-per-risk:
 **Verify:** profile *before* changing anything, so the wins are measured rather
 than assumed. Visual A/B on the real device for anything touching draw.
 
+*(Outcome: the verifier trim was measured and dropped, 2026-07-31, see the
+correction in §6. The splash PNGs became WebP in the split commit, 2026-07-31.
+Gradient caching was done in the 1.0.11 performance pass, 2026-10-03, measured
+on an iPad and an Android phone: per-frame gradients, glows and the warp lines
+are baked images or cached tapers now (docs/CHANGELOG.md, 1.0.11).)*
+
 ---
 
 ## 5. Explicitly not doing
@@ -308,7 +331,7 @@ than assumed. Visual A/B on the real device for anything touching draw.
 | 1 · Tuning surface | **High** | Low | — | open |
 | 2 · File split | **High** | Low (byte-identity guard) | — | **done** 2026-07-31 (as script tags) |
 | 3 · Labs | Medium | Low | — | **resolved by deletion** 2026-07-28 |
-| 4 · Perf | Low today, preventative | Medium (verifier trim) | Step 2 | see note below |
+| 4 · Perf | Low today, preventative | Medium (verifier trim) | Step 2 | trim **dropped** 2026-07-31; WebP **done** 2026-07-31; gradients **done** 2026-10-03 (1.0.11) |
 
 **Step 4 correction, 2026-07-31.** The verifier-bundle trim was measured and is
 **not worth doing**. Its premise was that ~7,000 lines of render code in the
@@ -328,3 +351,9 @@ with no current payoff — worth queueing, not worth rushing.
 Since the labs are gone, the `*FX` blocks in `index.html` are now the **only**
 record of those visual designs. That raises the value of Step 1 (tuning surface):
 those constants are no longer one copy of two, they're the original.
+
+*(2026-10-10: the `*FX` blocks live in `src/game/*.js` since the split. New labs
+were built after this, as Step 3 foresaw — the desktop labs on ports 8010–8016
+in CLAUDE.md's PORT MAP. The art labs read the game's own files out of
+`src/` (the destinations, breach and leech labs do) rather than copying its
+painters, and none of the labs ships.)*

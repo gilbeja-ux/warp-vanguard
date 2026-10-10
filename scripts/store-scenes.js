@@ -64,7 +64,7 @@ const SCENES = {
   },
 
   // ── 2 · THE BOSS: a machine the GAME spawned, with its rays lit ──────────
-  // THE DUEL IS PLAYED, NOT ASSEMBLED (docs/STORE-LISTING.md, section 4). The scene
+  // THE DUEL IS PLAYED, NOT ASSEMBLED (docs/archive/STORE-LISTING.md, section 4). The scene
   // moves the level clock to the stage's end and nothing else; 72-tick spawns the
   // machine, the arrival ceremony runs, and the autopilot fights it. The PRISM is
   // stage 24's own boss and the only fight that births two rays at once.

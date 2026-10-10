@@ -47,5 +47,13 @@ No payment processor, no advertising network, no analytics SDK, no AI service an
 None. The app has the same features and content in every region. The one leaderboard is global.
 
 6. REGULATED INDUSTRY / PROTECTED MATERIAL
-Not applicable. The app is not in a regulated industry. All artwork, music, sound and code are original and owned by the developer.
+Not applicable. The app is not in a regulated industry. The code, artwork and music are original and owned by the developer. The recorded sound effects come from royalty-free sound libraries and are used under CC0 or the Pixabay Content License, and the two fonts (Audiowide and Rajdhani) are used under the SIL Open Font License 1.1. Each licence permits use in a commercial app, and CC0 and the Pixabay licence require no attribution. The sources and licences are recorded in the project's credits file.
 ```
+
+Item 6 was corrected on 2026-10-10. It used to say all sound was original, and it
+is not: `CREDITS.md` records the CC0 sound effects (Sonniss GameAudioGDC, Kenney,
+Freesound), the Pixabay takes and the two OFL fonts. There is no in-app credits
+screen, so the reply points at the credits file and claims nothing more. Before
+pasting it, confirm the three takes `CREDITS.md` lists as *source not recorded*
+(`rayCharge`, `bossPlate`, `sonar`) are CC0 or Pixabay; if one is not, name its
+licence here.

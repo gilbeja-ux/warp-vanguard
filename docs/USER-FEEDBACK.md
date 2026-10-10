@@ -9,10 +9,10 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
 
 ---
 
-## BUILT — awaiting release
+## BUILT — awaiting release (1.0.12)
 
 ### F-017 · The course is too complex and unintuitive
-- **Date:** 2026-10-08 · **Source:** several testers, iOS and Android, 1.0.11 · **Status:** BUILT (2026-10-08, branch `worktree-onboarding-trials`)
+- **Date:** 2026-10-08 · **Source:** several testers, iOS and Android, 1.0.11 · **Status:** BUILT (2026-10-08 to 2026-10-10, on master; ships in 1.0.12)
 - **Feedback:** the tutorial is "too complex" and "unintuitive".
 - **Measured before:** nine stages, thirteen reps, ten disc stops, ten new nouns; 68.7 s of
   game time for a perfect bot (`scripts/course-fly.js`), several minutes for a person, and
@@ -24,7 +24,7 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   running back, the first run should not be split into chapters, and the hangar menu did not
   work and fit the fewest situations. The hangar was removed; the home wheel taps as before.
 - **Solution:**
-  - **One course, no chapters** (`COURSE`, 70-update): every lesson in one lane at the old
+  - **One course, no chapters** (`QUAL`, 70-update): every lesson in one lane at the old
     curriculum's rep counts, each one called before it is asked for. No trial names and no
     medal stamps inside it; it ends on QUALIFIED and the report offers FIRST CONTRACT.
   - **Call and response:** no drill disc stops the lane. Each lesson's diorama (the DEMO table
@@ -44,17 +44,38 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
     was cut in round four) while the instructor's carriages
     stay plain. The licence trials screen was removed in the same round; the training disc
     replays the course, as on master.
+  - **Later rounds (Gil, 2026-10-08 to 2026-10-10, all on master):**
+    - The bottom lines are Gil's own wording (round five): HIT WITH ANY EMITTER, BLUE / WHITE
+      EMITTER ONLY, COLLECT THE POWER-UP, RIDE THE GOLDEN STRIP, TAP THE GLOWING PAD — TO
+      FIRE PULSE, and the rest.
+    - Progress reads `LESSON n/8` on the left bar (round six; `courseLessons()`, 90-hud). The
+      step dots that first rode the ring's top arc are gone, and so is the WATCH prefix on a
+      call's line. The instructor's docked emitters meet.
+    - On the pulse lesson, a ghost thumb taps every charged pad once the hold has gone
+      `PULSE_TAP_DELAY` (1.6 s) with no tap, the white one staggered behind the blue. Once a
+      controller has been detected, the pad also shows its trigger (LT blue, RT white),
+      pressing on the ghost's beat; the thumb hides only while the controller is driving
+      (`gpDriving`), so a touch player with a pad attached sees both.
+    - The call's dim fades at every edge instead of cutting (2026-10-09, "the ends are too
+      harsh and steal the focus"), and ends on the ring itself rather than overshooting it
+      (`CALL_DIM_FEATHER`, `CALL_FOCUS_FEATHER`, `CALL_RING_BAND`).
+    - The barrier net's two arrows each lead one emitter to its own end, and a call's glow no
+      longer ends in a straight cut.
+    - One tap or click skips the boot splash, on every machine.
+    - The first written tutorial plan of 2026-10-08 is parked as rejected in
+      `docs/parked/TUTORIAL-PLAN.md`; this called course is what shipped instead.
 - **Measured after:** the course in 99.4 s of game time for the bot, 0 disc stops, 0 retries.
   That is longer than the old 68.7 s, because each of the ten lessons now has a call of 2.4
   to 5.2 s; the old figure did not count a person reading ten discs. 0 of 41 ranked boards
   moved (per-board fingerprint against master), so the verifier deploy can be `--compatible`.
 - **Knobs:** `CALLS_ON`, `CALL_MOVE_DUR`, `CALL_NODE_ALPHA`, `CALL_GHOST_NODES`,
-  `CALL_HOLO_ALPHA`, `CALL_DIM_OUT`, `CALL_DIM_IN`, `CALL_FOCUS`, `HOLO_FLICKER`, `GLITCH_EVERY`,
+  `CALL_HOLO_ALPHA`, `CALL_DIM_OUT`, `CALL_DIM_IN`, `CALL_FOCUS`, `CALL_DIM_FEATHER`,
+  `CALL_FOCUS_FEATHER`, `PULSE_TAP_DELAY`, `HOLO_FLICKER`, `GLITCH_EVERY`,
   `GLITCH_LEN`, `GLITCH_SLICES`, `GLITCH_SHIFT`, `GLITCH_SPLIT`, `REWIND_ON`, `REWIND_BACK`, `REWIND_DUR`, `REWIND_SLIDE`,
   `REWIND_GHOST`.
 
 ### F-016 · The tutorial's arrows did not show on a first run
-- **Date:** 2026-10-08 · **Source:** one tester, 1.0.11 · **Status:** not reproduced; addressed by F-017
+- **Date:** 2026-10-08 · **Source:** one tester, 1.0.11 · **Status:** not reproduced; addressed by F-017, ships in 1.0.12
 - **Checked:** the real game in headless Chrome, fresh save, both first-run paths: the guide
   arcs draw every frame of the align drill. The tutorial's drawing files did not change
   between 1.0.10 and 1.0.11. Also found: the smoke suite's two-thumb step called
@@ -64,18 +85,37 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   SLIDE call now drags a ghost thumb on the pad with a ghost carriage on the ring before the
   first rep is asked for.
 
+---
+
+## OPEN
+
+### O-001 · The sim fingerprint is blind to every boss fight
+- **Found:** 2026-08-27, while checking F-013's blast radius.
+- The battery plays each lane for `duration * 60 + 240` steps. On the five lanes that carry
+  a boss (the eighth stage of each contract) the machine surfaces at about step 3000 against a
+  3240-step budget, so the fight
+  is 240 steps of an encounter that runs 3000. `BEAM_BURST` moved 0.30s → 1.05s, which
+  re-scores two of those lanes outright, and `simDigest` still reported 0 of 41 boards
+  moved. Every "nothing moved" answer about boss code is currently worthless.
+- The fix is a bigger step budget on boss lanes, or a boss-aware signature. Neither is in
+  F-013's scope. Until then, treat `--compatible` as unavailable for any boss change.
+
+---
+
+## DONE
+
 ### F-001 · Learning curve too steep on lane 2
-- **Date:** 2026-08-19 · **Source:** multiple players · **Status:** BUILT (2026-08-19)
+- **Date:** 2026-08-19 · **Source:** multiple players · **Status:** DONE, shipped in 1.0.3 (built 2026-08-19)
 - **Feedback:** the difficulty jump from lane 1 to lane 2 (THE CARGO RUN) loses new players.
 - **Decision (Gil):** lane 2 introduces doubles ONLY; heavies (purples) move later; add a
   first-contact dock cue on the campaign's first heavy.
 - **Solution:** cargo-run re-staged to one new threat per lane — 2: doubles, 3: heavies,
-  4: bursts+killers, 5: barriers, 6: dead zones, 7: phase locks + max traffic. Slot traffic
+  4: bursts+killers (the killer was deleted 2026-08-27), 5: barriers, 6: dead zones, 7: phase locks + max traffic. Slot traffic
   ramps unchanged. The lane that introduces heavies shows the qualification dock guides on
   the run's first heavy while the lane is unsecured (draw-only). Moves cargo-run board sim ids.
 
 ### F-002 · Player request: difficulty levels per lane
-- **Date:** 2026-08-19 · **Source:** one player suggestion · **Status:** BUILT (2026-08-19)
+- **Date:** 2026-08-19 · **Source:** one player suggestion · **Status:** DONE, shipped in 1.0.3 (built 2026-08-19)
 - **Feedback:** let players pick a difficulty per lane.
 - **Decision (Gil):** no tier system. LANE ASSIST on retry instead: no scoring at all,
   unranked, no shields (stars) on the end; progress unlocks.
@@ -89,7 +129,7 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   campaign-cleared checks) — intentional, revisit if players report it.
 
 ### F-003 · The volley is useless and costs points
-- **Date:** 2026-08-19 · **Source:** player feedback · **Status:** BUILT (2026-08-19)
+- **Date:** 2026-08-19 · **Source:** player feedback · **Status:** DONE, shipped in 1.0.3 (built 2026-08-19)
 - **Feedback:** no enemy requires the volley, and it pays a flat bounty with no combo
   credit — so it deducts potential points.
 - **Decision (Gil):** C2 + C3 — pay it into the combo economy AND add a depth bonus, so
@@ -100,7 +140,7 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   campaign/weekly board sim ids.
 
 ### F-004 · The costed offers were hard to find
-- **Date:** 2026-08-19 · **Source:** Gil, reviewing the assist build · **Status:** BUILT (2026-08-19)
+- **Date:** 2026-08-19 · **Source:** Gil, reviewing the assist build · **Status:** DONE, shipped in 1.0.3 (built 2026-08-19)
 - **Feedback:** LANE ASSIST was buried in the left stack, its price line ran into the next
   key, and RETRY DUEL wore navigation's colour like every other button.
 - **Solution:** one shared amber OFFER SLOT at centre-bottom of the report, anchored upward
@@ -110,7 +150,7 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   MENU left. `button()` gained a `tone` argument; amber means "a costed way forward".
 
 ### F-005 · The controller focus ring did not drive A
-- **Date:** 2026-08-19 · **Source:** Gil · **Status:** BUILT (2026-08-19)
+- **Date:** 2026-08-19 · **Source:** Gil · **Status:** DONE, shipped in 1.0.3 (built 2026-08-19)
 - **Feedback:** walking the focus ring onto a key and pressing A fired the report's
   hard-mapped FORWARD instead of the key under the ring.
 - **Solution:** while the ring is up, A presses the focused key everywhere. The per-key
@@ -119,7 +159,7 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   its own verb with the badges. The wheel glow and mutator highlight follow the same clock.
 
 ### F-006 · The high-score card opened on a LANE ASSIST report
-- **Date:** 2026-08-19 · **Source:** Gil, testing the assist · **Status:** BUILT (2026-08-19)
+- **Date:** 2026-08-19 · **Source:** Gil, testing the assist · **Status:** DONE, shipped in 1.0.3 (built 2026-08-19)
 - **Feedback:** finished a LANE ASSIST run and got the leaderboard name-entry popup, on a
   run that files no score.
 - **Cause:** the provisional-rank lookup fired at endLevel and its callback asked only
@@ -132,7 +172,7 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   lookup landing off the report.
 
 ### F-007 · A restart after an assisted clear stayed assisted
-- **Date:** 2026-08-19 · **Source:** Gil · **Status:** BUILT (2026-08-19)
+- **Date:** 2026-08-19 · **Source:** Gil · **Status:** DONE, shipped in 1.0.3 (built 2026-08-19)
 - **Feedback:** after clearing a lane on LANE ASSIST, RESTART flew it eased again. A player
   who has just cleared it wants to fly it for real and set a record.
 - **Solution:** the ease sticks until the lane is CLEARED, then it is spent. A retry off a
@@ -142,7 +182,7 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   would not say that this one counts.
 
 ### F-008 · The mission disc was a redundant click-through
-- **Date:** 2026-08-20 · **Source:** Gil · **Status:** BUILT (2026-08-21)
+- **Date:** 2026-08-20 · **Source:** Gil · **Status:** DONE, shipped in 1.0.4 (built 2026-08-21)
 - **Feedback:** a briefed deploy was two screens — read the disc, tap it away, and only
   then meet the pads and the wait for hands. Merge the disc into the pre-warp screen; the
   only thing lost is the WARP LANE READY plate, and the thumb ghosts make it intuitive.
@@ -164,7 +204,7 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   integrity bar was. The PAUSE key stays: it is chrome, not console hardware.
 
 ### F-009 · The pre-run disc undersold its screen
-- **Date:** 2026-08-20 · **Source:** Gil · **Status:** BUILT (2026-08-21)
+- **Date:** 2026-08-20 · **Source:** Gil · **Status:** DONE, shipped in 1.0.4 (built 2026-08-21)
 - **Feedback:** the disc was visibly smaller than the map lens the player just left, and
   was not using the space.
 - **Solution:** story-layout discs (missions + the closure verdict) now share the map
@@ -173,7 +213,7 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   the live ring they interrupt.
 
 ### F-010 · The parked sky flew too fast
-- **Date:** 2026-08-20 · **Source:** Gil · **Status:** BUILT (2026-08-21)
+- **Date:** 2026-08-20 · **Source:** Gil · **Status:** DONE, shipped in 1.0.4 (built 2026-08-21)
 - **Feedback:** on the pre-level screen the stars rush, but the ship has not launched —
   they should move at menu speed until the warp engages.
 - **Cause:** warpT (the entry dive) is HELD at full while parked so the shove lands on the
@@ -185,7 +225,7 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   lands with the dock.
 
 ### F-011 · The menu starfield "reset itself" ~5s after load
-- **Date:** 2026-08-20 · **Source:** Gil · **Status:** BUILT (2026-08-21)
+- **Date:** 2026-08-20 · **Source:** Gil · **Status:** DONE, shipped in 1.0.4 (built 2026-08-21)
 - **Feedback:** about five seconds after the app loads, the menu's starfield pops — it
   resets and flies on as a different sky.
 - **Cause:** the perf watchdog's grace ends at time 5 and its first 2s window closes ~7s in
@@ -200,7 +240,7 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   layers (streaks, medium, traffic) still rebuild outright; they are invisible on menus.
 
 ### F-012 · In-run barks are cramped, small, and glued to the speaker title
-- **Date:** 2026-08-25 · **Source:** Gil · **Status:** BUILT (2026-08-25)
+- **Date:** 2026-08-25 · **Source:** Gil · **Status:** DONE, shipped in 1.0.4 (built 2026-08-25)
 - **Feedback:** the barks during a run miss a space after the speaker title, and the line
   reads cramped and small — a better, easier-to-read design is wanted.
 - **Cause:** chip + message shared ONE chord high in the bore. The fitter shrank the whole
@@ -212,7 +252,7 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
   kept, its stagger running through the wrap. Draw-only — board ids unchanged.
 
 ### F-013 · Three sourced takes; the sonar cut, then restored as weather
-- **Date:** 2026-08-27 · **Source:** Gil · **Status:** BUILT (2026-08-27)
+- **Date:** 2026-08-27 · **Source:** Gil · **Status:** DONE, shipped in 1.0.5 (built 2026-08-27)
 - **Feedback:** three downloaded sfx, mapped by Gil. The sonar beep "needs to be cut so it
   doesn't overload the soundstage". The sci-fi charge-up is the boss ray's wind-up, and
   "the ray should start when this ends". The space explosion is the mini explosion before
@@ -251,78 +291,16 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
 - **THIS IS A FIGHT CHANGE, NOT ONLY A SOUND ONE.** The telegraph before a light may turn
   or fry went 0.30s → 1.05s. Every sweep round is 0.75s longer per light and reads easier.
 - **THE RANKED FINGERPRINT DID NOT SEE IT.** The battery reported 0 of 41 boards moved, and
-  that is wrong here: on the boss lanes of THE SURVEY and THE COLLECTOR (level 08 of each,
+  that is wrong here: on the boss lanes of THE SURVEY and THE COLLECTOR (stages 16 and 24, the eighth of each,
   board keys `survey:7` and `collector:7` — a board key holds a zero-based INDEX, never a
-  level's name) the boss surfaces at step 3000 and
+  stage's name) the boss surfaces at step 3000 and
   the first ray at step 3206, against a 3240-step budget — the ray never finishes its birth
   inside the battery. Driven to 6000 steps the same lanes score 1342→1322 and 1235→935.
   Deploy the verifier STRICT. See OPEN below.
 
-### F-015 · No way to know how long a stage still has to run
-- **Asked:** 2026-08-28. Gil: "add a nice countdown timer next to the lane progress bar,
-  that will countdown the seconds to lane out.. so players can know how long they have to
-  survive to finish."
-- **The trap, and Gil's ruling on it.** `L.duration` is where the lane stops RELEASING
-  traffic, not where it ends. `endLevel(true)` fires only once the bore is empty, so a
-  stage runs three to five seconds past its authored duration. A countdown to `duration`
-  would read `0:00` with the last wave still inbound. Gil settled it: "it should represent
-  the exact time the level will take, meaning after the last enemy has passed the ring…
-  it'll be identical on the counter and level timer."
-- **THE LANE CLOCK.** `laneEnd` (40-state, stepped by `laneClock` in 72-tick) is the sim
-  time the lane will actually close. It has two regimes:
-  - spawning open → an honest UPPER BOUND: a release at the last legal instant, its burst
-    queue behind it, and the slowest body then flying the whole bore.
-  - spawning closed → the EXACT answer, walked off the live bodies plus `burstQ`/`patternQ`.
-  It only ever moves DOWN, so a countdown can never rewind. `laneEndShow` is the display
-  follower that absorbs the handover step; it eases in the REMAINING domain, which is what
-  makes it land on zero at the exact frame the lane closes however hard the tail is
-  cleared. The last second is never smoothed.
-- **ONE NUMBER, TWO READINGS.** The progress arc divides by `laneEndShow` now, not by
-  `L.duration` — the old bar sat pinned at 100% while the player was still under fire.
-  The digits and the picture cannot disagree because they are the same value.
-- **The readout rides the head.** Gil: "attached to the progress location, top of the
-  filling bar.. and moving with it". It sits outboard of the fill's leading edge and
-  travels with it. Where the screen edge would clip it, it trades height for width and
-  slides further outboard rather than dropping onto the bar.
-- **What it says, one thing at a time:**
-  | Case | Reads |
-  | --- | --- |
-  | a lane | `LANE OUT` + seconds to the lane closing |
-  | a boss lane, before the duel | `LANE OUT` + seconds to the machine |
-  | the duel | `PULSES` + landed / needed (Gil's ask: "1/6 pulses etc") |
-  | a replay | `REMAINING` + the trace's own seconds, on the scrub knob |
-  | free flow, the drill course | nothing — neither has an end to count to |
-- **THE SIM DID NOT MOVE.** The clock reads sim state and writes only its own two values.
-  It draws no randomness, spawning still gates on `L.duration`, and every stage's measured
-  end time is byte-identical before and after. No board id moves; no replay is invalidated.
-- **Pinned by** `npm test`, section **THE LANE CLOCK: ZERO MEANS THE LANE IS OUT** —
-  the three promises flown end to end on stages 01, 02 and 04, plus the arc's divisor, the
-  boss and replay handovers, and the placement.
-- **Settled — ONE CAPTION.** A second word for a boss lane's timed half (`CONTACT`) was
-  drafted and cut by Gil the same day: `LANE OUT` stands on stage 08 too. The five machines
-  carry five names, so no second word covers them all, and a caption a player meets once
-  per contract buys less than a countdown that means one thing everywhere. What arrives at
-  zero is said by the arrival itself, and the readout hands over to `PULSES` on the next
-  frame. `npm test` fails if `CONTACT` comes back.
-
-
----
-
-## OPEN
-
-### O-001 · The sim fingerprint is blind to every boss fight
-- **Found:** 2026-08-27, while checking F-013's blast radius.
-- The battery plays each lane for `duration * 60 + 240` steps. On the five lanes that carry
-  a boss (level 08 of each contract) the machine surfaces at about step 3000 against a
-  3240-step budget, so the fight
-  is 240 steps of an encounter that runs 3000. `BEAM_BURST` moved 0.30s → 1.05s, which
-  re-scores two of those lanes outright, and `simDigest` still reported 0 of 41 boards
-  moved. Every "nothing moved" answer about boss code is currently worthless.
-- The fix is a bigger step budget on boss lanes, or a boss-aware signature. Neither is in
-  F-013's scope. Until then, treat `--compatible` as unavailable for any boss change.
-
 ### F-014 · The streamlined course does not teach players
-- **Date:** 2026-08-28 · **Source:** Gil, from player reports · **Status:** BUILT (2026-08-28)
+- **Date:** 2026-08-28 · **Source:** Gil, from player reports · **Status:** DONE, shipped in 1.0.5 (built 2026-08-28); SUPERSEDED by F-017 in 1.0.12, which
+  replaced the ten drill discs with calls on the live ring
 - **Feedback:** "we need to reinstate the tutorial explanation discs, the current
   streamlined run doesn't work for players." A disc per lesson, and the disc must show
   what to do **in animation**: emitter movement, interception, the three special
@@ -376,17 +354,50 @@ BUILT (on master, awaiting a release) → DONE (shipped, version noted).
     `stripAngle` verbatim.
 - **Bench:** the ten discs, live, at the Drill Disc Bench artifact.
 
-
----
-
-## DONE
-
-(none yet — F-001..F-003 move here with the release version)
-
----
-
-## Release checklist for the batch above
-1. Bump the version, build, and test on device.
-2. `npm run build:verifier && npm run deploy:verifier` — MUST ship together with the
-   app update (strict sim ids; do not use `--compatible`, the sim genuinely changed).
-3. Move F-001..F-003 to DONE with the version.
+### F-015 · No way to know how long a stage still has to run
+- **Status:** DONE, shipped in 1.0.5 (built 2026-08-28)
+- **Asked:** 2026-08-28. Gil: "add a nice countdown timer next to the lane progress bar,
+  that will countdown the seconds to lane out.. so players can know how long they have to
+  survive to finish."
+- **The trap, and Gil's ruling on it.** `L.duration` is where the lane stops RELEASING
+  traffic, not where it ends. `endLevel(true)` fires only once the bore is empty, so a
+  stage runs three to five seconds past its authored duration. A countdown to `duration`
+  would read `0:00` with the last wave still inbound. Gil settled it: "it should represent
+  the exact time the level will take, meaning after the last enemy has passed the ring…
+  it'll be identical on the counter and level timer."
+- **THE LANE CLOCK.** `laneEnd` (40-state, stepped by `laneClock` in 72-tick) is the sim
+  time the lane will actually close. It has two regimes:
+  - spawning open → an honest UPPER BOUND: a release at the last legal instant, its burst
+    queue behind it, and the slowest body then flying the whole bore.
+  - spawning closed → the EXACT answer, walked off the live bodies plus `burstQ`/`patternQ`.
+  It only ever moves DOWN, so a countdown can never rewind. `laneEndShow` is the display
+  follower that absorbs the handover step; it eases in the REMAINING domain, which is what
+  makes it land on zero at the exact frame the lane closes however hard the tail is
+  cleared. The last second is never smoothed.
+- **ONE NUMBER, TWO READINGS.** The progress arc divides by `laneEndShow` now, not by
+  `L.duration` — the old bar sat pinned at 100% while the player was still under fire.
+  The digits and the picture cannot disagree because they are the same value.
+- **The readout rides the head.** Gil: "attached to the progress location, top of the
+  filling bar.. and moving with it". It sits outboard of the fill's leading edge and
+  travels with it. Where the screen edge would clip it, it trades height for width and
+  slides further outboard rather than dropping onto the bar.
+- **What it says, one thing at a time:**
+  | Case | Reads |
+  | --- | --- |
+  | a lane | `LANE OUT` + seconds to the lane closing |
+  | a boss lane, before the duel | `LANE OUT` + seconds to the machine |
+  | the duel | `PULSES` + landed / needed (Gil's ask: "1/6 pulses etc") |
+  | a replay | `REMAINING` + the trace's own seconds, on the scrub knob |
+  | free flow, the drill course | nothing — neither has an end to count to |
+- **THE SIM DID NOT MOVE.** The clock reads sim state and writes only its own two values.
+  It draws no randomness, spawning still gates on `L.duration`, and every stage's measured
+  end time is byte-identical before and after. No board id moves; no replay is invalidated.
+- **Pinned by** `npm test`, section **THE LANE CLOCK: ZERO MEANS THE LANE IS OUT** —
+  the three promises flown end to end on stages 01, 02 and 04, plus the arc's divisor, the
+  boss and replay handovers, and the placement.
+- **Settled — ONE CAPTION.** A second word for a boss lane's timed half (`CONTACT`) was
+  drafted and cut by Gil the same day: `LANE OUT` stands on stage 08 too. The five machines
+  carry five names, so no second word covers them all, and a caption a player meets once
+  per contract buys less than a countdown that means one thing everywhere. What arrives at
+  zero is said by the arrival itself, and the readout hands over to `PULSES` on the next
+  frame. `npm test` fails if `CONTACT` comes back.

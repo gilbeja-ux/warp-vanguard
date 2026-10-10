@@ -26,11 +26,24 @@ npm run hooks:install       # sets core.hooksPath to .githooks/
 
 `git push --no-verify` bypasses it when the deploy is deliberately coming later.
 
+**Every edit under `src/game/` or `src/campaigns.js` deploys**, even a comment or a
+pure rendering change: the sim id hashes every byte, so the hook refuses the push
+until the deployed verifier knows the new id. The change only decides the flag:
+
+```bash
+npm run deploy:verifier -- --compatible   # the fingerprint says 0 boards moved:
+                                          # the new id AND the recent ones verify
+npm run deploy:verifier                   # a board moved, or boss code changed: strict
+```
+
+The per-board fingerprint barely reaches a boss fight, so "0 boards moved" after
+boss code proves nothing; deploy strict.
+
 ---
 
 # Building the Android app (offline APK)
 
-Warp Lane ships as a [Capacitor](https://capacitorjs.com) app: the web game is
+Warp Vanguard ships as a [Capacitor](https://capacitorjs.com) app: the web game is
 bundled into a native Android project so it runs fully offline — no browser, no
 dev server, no wifi. This is done **without Android Studio or sudo**.
 
@@ -56,7 +69,7 @@ brew install openjdk@21 android-commandlinetools
 # Android SDK packages + license acceptance
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 yes | sdkmanager --sdk_root=$ANDROID_HOME --licenses
-sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
 # npm deps + native Android project
 npm install
@@ -158,11 +171,11 @@ Every target first runs `sync-version.js` (both versions from package.json —
 --no-install` builds for the simulator without launching it.
 
 `ios:device` and `ios:archive` preflight for a code-signing identity and stop
-with the steps if there is none. That is the current state of this Mac: **zero
-identities, no enrolment**. Enrol ($99/yr), sign Xcode into the team, tick
-"Automatically manage signing" on the App target once, and both targets work.
-Set `IOS_TEAM_ID` if Xcode knows more than one team. A free personal team can
-sign a device build, but its profile dies after 7 days.
+with the steps if there is none. This Mac is enrolled in the Apple Developer
+Program and signed in to the team, and `ios:archive` is the App Store upload path:
+1.0.11 went to the App Store that way in October 2026. On a new Mac: sign Xcode
+into the team, tick "Automatically manage signing" on the App target once, and
+both targets work. Set `IOS_TEAM_ID` if Xcode knows more than one team.
 
 ## What the shell does not do
 

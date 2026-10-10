@@ -31,13 +31,28 @@ Everything loads through one validated, fairness-linted path — the same path
 future community-made campaigns will use. "Admin only" = the editor simply
 does not ship in the store build.
 
+That block is the shape as planned on 2026-07-16. The shipped packages differ in
+a few fields (2026-10-10): `map` is `{ theme: 'chart' }`, the procedural lane
+chart; a level may carry `art`, its mission-disc keyframe; and the bundled
+packages carry no `seed` and no `comms`. `validateCampaign()` in
+`src/game/33-loader.js` is the schema of record.
+
 ## Phases
 
-- **Phase 0 — data-driven game** (in progress)
+- **Phase 0 — data-driven game** (done)
   Extract the schema; convert the shipped 8 levels + story + comms + map pins
   into package #1 (`THE INVESTIGATION`, procedural city map). Game must play
   identically afterward. Progress/stars become per-campaign (with save
   migration).
+
+  Status, 2026-10-10: done. Every campaign is a package in `src/campaigns.js`,
+  and the game reads one only through `validateCampaign()` + `installCampaign()`
+  in `src/game/33-loader.js`. Package #1 is THE CARGO RUN now (the ids were
+  renamed on 2026-08-05: `investigation` → `cargo-run`), and five packages ship.
+  Progress lives per campaign under `progress.camp[id]`; the flat pre-CMS save
+  fields migrate into `camp['cargo-run']` (`migrateSaveShape` in
+  `src/game/32-save.js`). The `comms` that package #1 carried were cut for
+  reactive barks on 2026-07-30 ([IN-RUN-VOICE.md](IN-RUN-VOICE.md)).
 
 - **Phase 1 — beats, bands, linter** (done)
   Timeline compiler (beats + seeded band filler → one deterministic spawn
@@ -53,8 +68,9 @@ does not ship in the store build.
   leaves the horizon earlier than a normal to land on the same cue):
 
   ```
-  { t, kind: 'enemy', type: 'normal'|'heavy'|'line'|'lock0'|'lock1'|'frag', angle?, force? }
-  { t, kind: 'wall', angle?, force? } // rim wall; its latch BITES at t
+  { t, kind: 'enemy', type: 'normal'|'heavy'|'line'|'lock0'|'lock1', angle?, force? }
+                                   //   ('frag', the node killer, was deleted 2026-08-27)
+  { t, kind: 'wall', angle?, force? } // dead zone; its latch BITES at t
   { t, kind: 'strip' }             // golden bonus ribbon, head arrives at t
   { t, kind: 'pickup', type? }     // power-up (shield|wide|auto|inject|chain|health)
                                    //   health = STABILITY +25, integrity-blue; never in the
@@ -76,7 +92,7 @@ does not ship in the store build.
     beat firing, wall clash hops, the linter): a spawn may coexist with a
     live wall window as long as the node position it demands stays out of
     the carpet's occupied arc — wall half-span + node zap tolerance
-    (`wallBlocks` in index.html), plus the demand's own extra (a ribbon's
+    (`wallBlocks` in `src/game/51-linter.js`), plus the demand's own extra (a ribbon's
     meander amplitude, a barrier's half-gap, a second wall's half-span).
   - An early beat (`t` < its travel lead) cannot back-time before the level
     start: its release clamps at t≈0 and the entity materializes partway
@@ -104,8 +120,8 @@ does not ship in the store build.
   While `t0 <= levelT < t1` the spawner runs on `bandCfg(level, t)`:
   `{ ...level, ...mix }` with `spawnMin/spawnMax` divided by `intensity`
   (1 = the level's base cadence, 2 = twice as dense, max 4). `mix` may only
-  override the rate knobs (`doubles, heavies, lines, colors, frags, walls,
-  bursts`) — never speed/duration. Outside every band the level's
+  override the rate knobs (`doubles, heavies, lines, colors, walls, bursts`;
+  `frags` left with the node killer, 2026-08-27) — never speed/duration. Outside every band the level's
   flat knobs apply unchanged; a level without bands is untouched
   (`bandCfg` returns the level object itself).
 
@@ -120,8 +136,8 @@ does not ship in the store build.
   reject). Since filler is gate-protected by construction, every finding
   involves a beat. Codes:
   - `dual-conflict` — two simultaneous demands both nodes can't cover
-    (heavy/line windows, same-color lock double-booking, node killer parked
-    on a mandatory dock)
+    (heavy/line windows, same-color lock double-booking; until 2026-08-27 also a
+    node killer parked on a mandatory dock)
   - `wall-conflict` — an arrival left UNREACHABLE inside a wall carpet: its
     demanded dock arc falls within half-span + node tolerance of the LANDED
     wall. Unforced spawns relocate to safety on their own, so the usual
@@ -135,9 +151,11 @@ does not ship in the store build.
 
 - **Phase 2 — the Tunnel Designer (editor.html)** (done)
   Desktop-only page driving the real engine: `src/editor.html` provides the
-  layout + `#game` canvas, and `src/editor.js` fetches `index.html`, lifts its
-  inline script out (same regex trick as scripts/test.js) and injects it, so
-  the ACTUAL game runs inside the editor. The preview pane poses as the game's
+  layout + `#game` canvas, and `src/editor.js` fetches the game's files in
+  `src/game/manifest.json` order (plus whatever inline blocks `index.html` still
+  carries) and injects them, so the ACTUAL game runs inside the editor. (Until
+  the 2026-07-31 file split it lifted the one inline script out of `index.html`.)
+  The preview pane poses as the game's
   window (`innerWidth`/`innerHeight` getters), and one guarded hook inside the
   game loop (`EDITOR_DRIVE` in `frame()` — inert when the global is absent)
   lets the editor feed the sim clock: 0 freezes the world, real dt plays it.
@@ -181,7 +199,10 @@ does not ship in the store build.
 
   NOTE — store builds: `src/editor.html` and `src/editor.js` are dev-only and
   MUST be excluded from store packages ("admin only" = the editor simply does
-  not ship). Actual build exclusion is release-phase work (scripts/build.js).
+  not ship). **Done 2026-08-03:** both are on the `NEVER_SHIP` list in
+  `scripts/build.js`, so `npm run build` never stages them into `dist/` (and
+  prunes them if a stale copy is there), and the native shells package only
+  `dist/`.
 
 - **Phase 3 — campaign UX in game** (mostly done)
   DONE: contract disc carousel (sync-zoom, swipe, teaser slots), per-campaign
@@ -189,9 +210,11 @@ does not ship in the store build.
   a package's `map.image` (data:image URI) + per-level `mapPos {x,y in 0..1}`
   now render in the relay-map lens (camera, routes, hexes, chevrons all ride
   the image) and in the disc previews; the procedural city remains the
-  fallback. REMAINING: custom speaker portrait rendering, per-campaign boss
-  config, the player-facing community import entry, editor exclusion from
-  store builds.
+  fallback. REMAINING: the player-facing community import entry. (Closed since
+  this was written, 2026-10-10: per-campaign boss config is `bossKind` on a
+  boss stage, one of five leeches; editor exclusion from store builds is the
+  `NEVER_SHIP` list, 2026-08-03; custom speaker portraits were dropped when the
+  portrait tile was removed, 2026-08-05.)
   Campaign picker (CAMPAIGN wheel sector → list when >1), per-campaign
   progress, difficulty tiers on the picker, dormant import path for
   community packages.

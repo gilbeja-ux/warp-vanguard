@@ -1,55 +1,39 @@
 # Warp Vanguard
 
-A mobile game for iOS and Android featuring dual-node controls in a fiber-optic tunnel defense gameplay.
+A landscape, dual-thumb rhythm-action game for Android and iOS. Each thumb drives
+one emitter around the ring at the end of a warp lane; the traffic arrives on the
+beat, and a Vanguard escorts the convoy from the core outward by meeting it with
+the right emitter at the right moment.
 
-## About
+- **Five contracts of eight stages**, named 01 to 40 end to end. Each contract ends
+  on a Warp Leech boss duel at its eighth stage (stage 08 in the first contract):
+  five bosses, the leech, the siphon, the prism, the mimic and the blockade.
+- **A called first-run course**: each lesson is shown as a ghost on the live ring,
+  then asked of you; a miss rewinds the lane instead of failing.
+- **Verified leaderboards**: every campaign stage and the weekly lane have a board on
+  Supabase, and the server replays each run's input trace before it accepts a score.
+  Free flow (endless) is unranked practice.
+- Touch, keyboard and gamepad. Offline play; the boards need a connection.
 
-Pilot a payload through a data tunnel by commanding two radial nodes to intercept incoming data traps. Features:
-- Dual-thumb radial dial controls with a guided first-run tutorial
-- 5 campaigns of 8 relays: heavy traps, barrier lines, burst volleys, speed
-  waves, color-locked traps, and three boss duels — the warden core, the
-  private warden ×3, and the beacon
-- Endless mode with time-ramped difficulty and best-score tracking
-- Power-ups riding the stream: deflector shield, wide arc, auto-zap, pulse
-  injection, chain overdrive
-- Custom soundtrack with seamless Web Audio looping
-- Haptics, auto-pause on app switch, safe-area aware UI, perf watchdog
-- Offline-capable gameplay
-- Cross-platform (iOS & Android)
+It is one full-bleed `<canvas>` in plain JavaScript, with no framework, no bundler
+and no runtime dependency. The game lives in `src/game/` as ordered topic files
+(`00-core.js` to `99-boot.js`), the campaigns in `src/campaigns.js`, and
+`src/index.html` opens straight from `file://`. Capacitor wraps the same web bundle
+for Android and iOS.
 
-Run the test suite with `npm test` (headless DOM-stubbed harness that drives
-the real game code).
+## Getting started
 
-## Development
-
-### Prerequisites
-- Node.js 16+
-- npm
-- Xcode (for iOS builds)
-- Android Studio (for Android builds)
-
-### Quick Start
+Node 20 (CI also runs 22). Xcode for iOS, a JDK and the Android SDK for Android
+(`npm run apk` needs no Android Studio; see BUILD.md).
 
 ```bash
 npm install
-npm run build       # Build the web game
-npm run sync        # Sync with native platforms
-npm run ios         # Open iOS project in Xcode
-npm run android     # Open Android project in Android Studio
-```
-
-### Project Structure
-
-```
-warp-vanguard/
-├── src/                    # Web game source
-│   └── index.html         # Main game file
-├── assets/
-│   └── audio/             # Game soundtrack (MP3s)
-├── scripts/
-│   └── build.js           # Build script
-├── docs/                  # Project documentation
-└── capacitor.config.json  # Capacitor configuration
+npm test            # the whole pin suite, headless, in seconds
+npm run dev         # build, then serve the game on http://localhost:8000
+npm run apk         # debug APK to ~/Desktop
+npm run aab         # signed Play bundle (runs npm test, then compiles the iOS shell)
+npm run ios:build   # iOS simulator build
+npm run ios:archive # App Store .ipa
 ```
 
 ### Local tools
@@ -69,29 +53,14 @@ warp-vanguard/
 | 8100 | `npm run portal` | portal: every tool above, live or dead |
 | 8200 | `npm run admin` | admin console (holds the service key) |
 
-## Game Mechanics
+## Where to read more
 
-- **Menu**: View From The Dashboard (background music)
-- **Levels 1-3**: Randomized soundtrack from available tracks
-- **Controls**:
-  - Mobile: Touch the bottom corner dials to steer nodes
-  - Keyboard: A/D for left node, arrows for right node
-
-## Building for App Stores
-
-### iOS (App Store)
-```bash
-npm run sync
-npm run ios
-# In Xcode: Product > Archive, then distribute via App Store Connect
-```
-
-### Android (Google Play)
-```bash
-npm run sync
-npm run android
-# In Android Studio: Build > Generate Signed Bundle/APK
-```
+- `CLAUDE.md`: how the source is organised, every command, the determinism and
+  verifier rules, and the house laws (STAGE numbering, the disc law, the port map).
+- `BUILD.md`: building, signing and shipping both shells.
+- `PRODUCT.md`, `BRAND.md`, `DESIGN.md`: the product, the story and the visual language.
+- `docs/CHANGELOG.md`: what each release changed, in a player's words.
+- `CREDITS.md`: music, fonts and sound effects, with their licences.
 
 ## License
 

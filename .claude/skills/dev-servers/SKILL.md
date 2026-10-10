@@ -1,11 +1,11 @@
 ---
 name: dev-servers
-description: Run, check, and keep alive this repo's long-lived local servers — the game (8000), the labs (8010–8016), the browser watch (8017), the portal (8100) and the admin console (8200); the full port map is in CLAUDE.md. Use before or after editing src/index.html, src/campaigns.js or docs/lab/story.json, whenever a server may have been stopped, and any time the user says a lab or the game "is gone", "is down", or "not available".
+description: Run, check, and keep alive this repo's long-lived local servers — the game (8000), the labs (8010–8016), the browser watch (8017), the portal (8100) and the admin console (8200); the full port map is in CLAUDE.md. Use before or after editing src/game/*.js, src/campaigns.js or docs/lab/story.json, whenever a server may have been stopped, and any time the user says a lab or the game "is gone", "is down", or "not available".
 ---
 
 # Dev servers
 
-Three long-lived servers. Gil keeps them open in browser tabs across whole
+Long-lived servers, one port each. Gil keeps them open in browser tabs across whole
 sessions, so **if one goes down he sees a dead tab, not an error message** — he
 has to notice and ask. That's the failure this skill exists to prevent.
 
@@ -31,10 +31,11 @@ all day; `lab:dest` reads *and writes* the `DEST-*` regions of the game source, 
 
 ## The one rule
 
-**A source edit never requires a server restart.** All three re-read from disk on
-every request — `serve.js` streams out of `src/` per request, and both labs call
-`readGame()` / `readStory()` inside the request handler. Editing
-`src/index.html` and hitting refresh is the entire loop.
+**A source edit never requires a server restart.** They re-read from disk on
+every request — `serve.js` streams out of `src/` per request, and the labs call
+`readGame()` / `readStory()` inside the request handler (`readGame()` concatenates
+the `src/game/` topic files through `scripts/lib/game-source.js`). Editing a file in
+`src/game/` and hitting refresh is the entire loop.
 
 So the *only* reason a server is ever down is that it was killed. In practice
 that means killed by me: a stray `pkill -f`, a `kill %1`, or a foreground
@@ -43,9 +44,12 @@ that means killed by me: a stray `pkill -f`, a `kill %1`, or a foreground
 Corollaries worth holding:
 
 - **Never `pkill -f node`** or anything that pattern-matches broadly. It takes
-  out all three plus whatever else Gil is running.
-- **Always launch with `run_in_background: true`.** A foreground launch dies with
-  the tool call and looks like it worked.
+  out every server plus whatever else Gil is running.
+- **Launch DETACHED, never with `run_in_background`.** Gil, 2026-10-08: a
+  `run_in_background` job dies at the two-hour background limit and takes his tab
+  with it, and a foreground launch dies with the tool call and looks like it
+  worked. Start every server he tests on with `nohup … & disown` (below). It
+  survives the session's job limits. Never hand him the restart.
 - **To inspect a lab, `curl` it — don't restart it.** `curl -s
   http://localhost:8011/api/dest-src` returns the lifted `DEST-*` regions as
   JSON; nothing needs to be stopped to read it.
@@ -67,27 +71,39 @@ for spec in "8000:dev" "8010:lab" "8011:lab:dest"; do   # the always-on three; t
 done
 ```
 
-Start anything reported DOWN with `npm run <script>` and
-`run_in_background: true`, one Bash call each, then re-run the loop to confirm.
+Start anything reported DOWN detached, one Bash call each, then re-run the loop to
+confirm:
+
+```bash
+cd /Users/gilbeja/vsCode/warp-vanguard
+nohup npm run lab:dest > /tmp/wv-lab-dest.log 2>&1 & disown
+```
 
 ## When a rebuild *is* needed
 
-`npm run build` regenerates exactly one thing: `src/audio/music/tracks.js`, the
-run-pool track list, from the filenames in `src/audio/music/`. Run it after
-adding, removing or renaming a music file — the server does not need restarting,
-only the file regenerating. `npm run icons` is the same story for `src/icons/`.
+`npm run build` does three things: it regenerates `src/audio/music/tracks.js`, the
+run-pool track list, from the filenames in `src/audio/music/`; it stages `dist/`
+(a copy of `src/` minus the `NEVER_SHIP` list in `scripts/build.js`), which is what
+`cap sync` copies into both shells; and it stamps the sim id and the app version
+into `dist/index.html`. The dev server serves `src/`, not `dist/`, so the only
+build that matters to a tab is the track list: run it after adding, removing or
+renaming a music file. `npm run icons` is the same story for `src/icons/`.
 
 Neither has anything to do with a server being down.
 
-## After editing src/index.html or src/campaigns.js
+## After editing src/game/ or src/campaigns.js
 
 Separate standing rule, unrelated to the servers but triggered by the same
-edits: rebuild the replay verifier or leaderboard submissions get rejected.
+edits: rebuild the replay verifier and deploy it, or leaderboard submissions get
+rejected.
 
 ```bash
 npm run build:verifier && node scripts/test-verifier-bundle.mjs
 ```
 
-If the bundle still reproduces every campaign score, the change was
-rendering-only and **no deploy is needed**. Only a change that moves a score
-needs `npm run deploy:verifier`.
+**Every such edit deploys**, even a comment: any byte moves the sim id, and the
+pre-push hook refuses to push a sim the deployed verifier does not know. The
+change decides only the flag. If the fingerprint says 0 boards moved,
+`npm run deploy:verifier -- --compatible`; if a board moved, or the edit touched
+boss code (the fingerprint barely reaches a boss fight), `npm run deploy:verifier`
+strict.

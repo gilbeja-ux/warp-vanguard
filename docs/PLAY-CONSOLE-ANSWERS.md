@@ -199,15 +199,16 @@ one can be traced:
 |---|---|
 | App icon | Badge art drawn by hand in a design tool, resized and reframed by `scripts/icons.py` — that script never draws the badge, it only reframes whatever is in `src/` |
 | Feature graphic | An HTML/CSS composition of engine renders, that same badge, and type, rendered headlessly |
-| Screenshots | Frames captured from the game's own renderer at 1920×1080 |
+| Screenshots | Frames captured from the game's own renderer (`scripts/store-shoot.js`, 2160×1080 for Play), with Gil's typed captions laid on by `scripts/store-caption.js` — see [STORE-MATERIALS.md](STORE-MATERIALS.md) |
+| Promo video | One run of stage 23 in the real game, played by the store bot's two simulated thumbs and rendered frame by frame by the game's own renderer (`store-shoot.js --video`) |
 
 The declaration covers **generative AI creating or editing the listing
 graphics** — a synthetic image standing in for a real one. A capture of the
 running game is not that however it was captured, and resizing a hand-drawn logo
 is not editing it with AI. Apple asks an equivalent question; same answer.
 
-**Revisit if** any generated art ever reaches the icon, the feature graphic or a
-screenshot. The answer is per-asset, not per-app.
+**Revisit if** any generated art ever reaches the icon, the feature graphic, a
+screenshot or the video. The answer is per-asset, not per-app.
 
 ## App content → Content ratings (IARC questionnaire)
 
@@ -245,64 +246,25 @@ All **No**.
 
 - App category: **Game → Arcade** (secondary: Action)
 - Contains ads: **No**
-- In-app purchases: **No** (v1)
+- In-app purchases: **No** (v1; the $2.99 unlock at the stage-09 seam lands in
+  1.1 — [RELEASE-PLAN.md](RELEASE-PLAN.md))
 - Free / Paid: **Free**
+- **Tags:** lead with rhythm, then arcade, action, offline. The genre is
+  rhythm-action on a ring (Gil, 2026-09-18), never "shooter". The Console offers
+  tags from its own fixed list, so pick the nearest matches there.
 
 ---
 
-## Store listing copy — drafts
+## Store listing copy and graphics — see STORE-MATERIALS.md
 
-**App name (30 chars max)**
-```
-Warp Vanguard
-```
+The store copy and the graphic assets are not kept here.
+[STORE-MATERIALS.md](STORE-MATERIALS.md) is the one source: the Play title, short
+and full description (§3), the App Store fields (§4), the stills, feature
+graphic, icon and video with their sizes (§1, §2), and what is still owed (§5).
+The *What's new* text for each release is in [CHANGELOG.md](CHANGELOG.md), under
+that version's heading.
 
-**Short description (80 chars max)**
-```
-Two thumbs, one lane. Guard the convoy through a tunnel that never lets up.
-```
-*(74 characters.)*
-
-**Full description (4000 chars max)** — draft, tighten before submitting:
-```
-You are the escort. Two emitters ride a ring at the mouth of a warp lane, one
-under each thumb, and everything that wants your convoy has to come through
-you.
-
-Sweep a thumb to bring an emitter onto a threat and it burns. Dock both and
-they fire as one. Bank enough charge and you can unleash a pulse that clears
-the whole bore. It takes a minute to understand and a long time to be good at.
-
-FIVE CONTRACTS
-Forty relays across five escort contracts, each ending in a duel with a warp
-leech — an outlaw engine clamped across the lane, drinking it. Every one of
-them has to be read differently.
-
-WEEKLY LADDER
-One seeded lane per week, the same for every player on earth, frozen when the
-week closes. This is where the scores are. Every score is re-simulated on our
-server from your own inputs before it is allowed on a board — no cheated run
-has ever stood, and none will.
-
-FREE FLOW
-An endless lane that never stops getting faster, different every time. Your own
-best, chased alone.
-
-BUILT FOR THUMBS
-Landscape, two-thumb controls, no virtual stick, nothing to buy that makes you
-better. Plays offline; leaderboards need a connection.
-```
-
-**Tags:** arcade, action, reflex, endless, leaderboard, offline
-
----
-
-## Graphic assets — required sizes
-
-| Asset | Size | Status |
-|---|---|---|
-| App icon | 512×512 PNG (32-bit, no alpha) | from `src/icons/wv-512.png` |
-| Feature graphic | 1024×500 PNG/JPG | **owed** — brand lockup on a lane backdrop |
-| Phone screenshots | 2–8, 16:9 landscape, min 1080px on the short side | generated from the real game |
-| 7" tablet | only if tablet support is claimed | optional |
-| 10" tablet | only if tablet support is claimed | optional |
+This file used to carry its own drafts of the copy and an asset table. They had
+drifted (a description that still counted stages under a retired noun, a 16:9
+screenshot spec, a feature graphic marked owed after it was built), so they were
+removed on 2026-10-10 rather than kept as a second copy.

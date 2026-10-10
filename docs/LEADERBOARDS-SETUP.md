@@ -6,7 +6,16 @@
 > `submit-run` Edge Function (no `profiles`, no uniqueness, no Google/Apple/email).
 > Boards **show the top 50** and the DB **keeps the top 100** per board. Apply
 > **`supabase/migrate-anonymous.sql`** to move a live project onto this model.
-> Ignore the Auth-provider / account sections below.
+> Ignore the Auth-provider / account sections below: Google, Apple and email
+> sign-in were never shipped, and the Apple provider setup in Step 2 is cancelled
+> with them.
+
+> ## ⚠️ UPDATE (1.0.10, 2026-09-24) — endless has no board
+> The endless lane is procedural per player, so no server can replay it.
+> `boardKey()` returns null for it and `submit-run` refuses an endless run with a
+> 400; it stays as practice against the player's own best. Every board that
+> remains (each campaign stage and the weekly lane) is verified. The
+> "trust-only" endless lines below are history.
 
 > ## ⚠️ UPDATE (2026-07-26) — one row per RUN, not per player
 > A player can now hold **several rows on the same board** — every run that makes
@@ -17,7 +26,7 @@
 > row. The top-100 cap now counts **rows**, not players. Apply
 > **`supabase/migrate-multi-entry.sql`** and redeploy `submit-run`.
 
-_Companion to [LEADERBOARDS-RESEARCH.md](LEADERBOARDS-RESEARCH.md). Decisions: **one backend on Supabase** (Auth + Postgres + Edge Functions + Storage), **replay validation** for anti-cheat, per campaign level + per free-flow mode, plus a **replay player** to watch other players' runs. This guide is what **you** set up in Supabase so we can wire the client._
+_Companion to [LEADERBOARDS-RESEARCH.md](archive/LEADERBOARDS-RESEARCH.md) (archived). Decisions: **one backend on Supabase** (Auth + Postgres + Edge Functions + Storage), **replay validation** for anti-cheat, per campaign level + per free-flow mode, plus a **replay player** to watch other players' runs. This guide is what **you** set up in Supabase so we can wire the client._
 
 > **History:** we briefly planned LootLocker (boards) + Cloudflare (verifier/traces). We consolidated onto Supabase so the whole backend lives in one account. Nothing game-side was wasted — see "Where the code already is."
 
@@ -27,7 +36,7 @@ _Companion to [LEADERBOARDS-RESEARCH.md](LEADERBOARDS-RESEARCH.md). Decisions: *
 
 | Need | Supabase piece |
 |---|---|
-| Player identity | **Auth** — anonymous sessions now, Google/Apple later |
+| Player identity | **Auth** — anonymous sessions only (sign-in cancelled 2026-07-25) |
 | Leaderboards | **Postgres** — one `runs` table; a "board" is just a value, nothing to pre-create; exact `rank()` ranking |
 | Verifier (replays a run to validate its score) | **Edge Function** (Deno) |
 | Replay trace storage | **Storage** bucket |
@@ -37,15 +46,15 @@ _Companion to [LEADERBOARDS-RESEARCH.md](LEADERBOARDS-RESEARCH.md). Decisions: *
 
 ## Where the code already is
 
-On the `tutorial-streamline` branch, all covered by `npm test` — and all **provider-agnostic**, so the Supabase switch changed none of it:
+On master, all covered by `npm test` — and all **provider-agnostic**, so the Supabase switch changed none of it (the game now lives in `src/game/`, not `src/index.html`):
 
 - **Fixed-timestep sim** — a run's outcome is a pure function of seed + inputs, proven frame-rate-independent by a regression test. The prerequisite for both replay *validation* and the replay *player*.
 - **Player identity** — `identity = { id, autoName, name, provider, email, token, refresh, uid }` in the save blob; a stable `id` + `Vanguard-<random>` label are minted on first boot (`ensureIdentity()`). Anonymous session + Google/Apple/email sign-in, unique-name claim, sign-out, and delete are all wired (see Step 2).
 - **Run capture** — `captureRun()` builds `lastRun`, the submission payload: `{ board, mode, seed, score, timeSec, maxCombo, integrity, misses, perfects, zaps, mutators, verifiable, playerId, playerName, at }`. Called automatically in `endLevel()`.
-- **Board keys** — `boardKey()`: `<campId>:<levelIdx>` (e.g. `cargo-run:2`), `endless`, or `weekly:<weekIndex>` — one board per Mon–Sun ranked week, so a closed week keeps its field for good. These are the `board` values in the `runs` table.
+- **Board keys** — `boardKey()` in `61-replay.js`: `<campId>:<levelIdx>` (e.g. `cargo-run:2`) or `weekly:<weekIndex>` — one board per Mon–Sun ranked week, so a closed week keeps its field for good — and `null` for endless (since 1.0.10), the course, LANE ASSIST and a closed week flown as practice. These are the `board` values in the `runs` table; old `endless` rows remain from before 1.0.10.
 - **The schema** — [supabase/schema.sql](../supabase/schema.sql): the `runs` table, RLS write-lockdown, `leaderboard_top` / `leaderboard_rank` / `leaderboard_provisional_rank` reads (all listing-gated by the `profiles` join), the `profiles` table + `check_name_available` / `claim_name` / `delete_my_data` identity RPCs, and the `submit_verified_run` write path.
 
-**Not built yet (next):** input-trace recording (phase 3), the Edge Function verifier + `delete-account` function (phase 4), the board UI (phase 5), the replay player (phase 6), and — optional — supabase-js `linkIdentity` so OAuth keeps the same uid (see Step 2 caveat).
+**Since built:** input-trace recording, the `submit-run` verifier, the `my-data` function (rename and delete, which replaced `delete-account`), the board UI and the replay player. OAuth and `linkIdentity` were dropped with sign-in.
 
 ---
 
@@ -81,7 +90,7 @@ The "sign in to claim rank #N" prompt on the END screen is the conversion hook; 
 1. **Anonymous** — enable. (Zero-friction play + the verifier's write identity.)
 2. **Email** — enable; set the OTP template to send a **6-digit code** (the client uses `verify` with `type: 'email'`, not magic-link click-through).
 3. **Google** — enable; paste the OAuth client ID/secret from Google Cloud Console.
-4. **Apple** — enable; add the Services ID + key (needs a paid Apple Developer account; required once you ship on iOS, and the App Store *requires* it wherever you offer Google/email).
+4. ~~**Apple**~~ — CANCELLED with sign-in. The App Store requires Sign in with Apple only where a third-party sign-in is offered, and the game offers none: identity is an anonymous session.
 5. **Redirect URLs** — add every return target: your web origin(s), and the native scheme `warpvanguard://auth`.
 
 **Native deep link (for the APK/IPA OAuth return)** — register the custom scheme + add the `@capacitor/app` plugin:
@@ -115,14 +124,14 @@ client run ends
   → client calls the `submit-run` Edge Function with { run, trace } (authed)
   → function replays the headless sim at run.seed + trace, recomputes the score
   → if it matches (campaign/weekly):  upload trace to Storage → submit_verified_run(..., verified=true, trace_id)
-     if endless (unseeded):          apply sanity caps only    → submit_verified_run(..., verified=false, trace_id)
+     if endless (unseeded):          REFUSED with a 400 since 1.0.10 (it was trust-only, verified=false, before)
      else: reject (cheating / desync)
   → returns the accepted rank
 ```
 
 What you provide: nothing extra — Edge Functions ship with Supabase. I'll set the **service_role key** as a function secret (`supabase secrets set`), never in code. I build the function + a **headless sim entry point** that reuses the exact `update()` we made deterministic (imported into the function — no re-implementation, so the replay can't drift from the game). All score writes flow through here; the client never writes directly.
 
-> **Endless = trust-only, labeled.** Unseeded → unverifiable, so its rows are `verified=false` and the UI tags them "unverified." Campaign + weekly are `verified=true`.
+> **Endless has no board (since 1.0.10).** Unseeded → unverifiable. Its rows used to be `verified=false`, tagged "unverified"; now `submit-run` refuses an endless run outright, and every row it files is `verified=true` (campaign + weekly).
 
 ---
 

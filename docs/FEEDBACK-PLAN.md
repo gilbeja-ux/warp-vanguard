@@ -1,6 +1,6 @@
 # FEEDBACK — the plan
 
-> ## BUILT — 2026-09-01, branch `feedback-channel`
+> ## BUILT — 2026-09-01 on branch `feedback-channel`, merged to master and shipped in 1.0.5
 >
 > **Option A** was chosen and built: the segment carries **MY DATA · FEEDBACK**,
 > and the gear is the CLOSE. `npm test` passes, with 27 new pins. 0 of 41 board
@@ -416,7 +416,7 @@ law.
 
 ## 4. The build
 
-### 4.1 Database — `supabase/migrations/2026090100000_feedback.sql`
+### 4.1 Database — `supabase/migrations/20260901000000_feedback.sql`
 
 ```
 public.feedback

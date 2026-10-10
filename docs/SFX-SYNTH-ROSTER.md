@@ -76,13 +76,13 @@ go through one order file.
 > re-recorded. Three carry a cut, and in each case the cut length **is a game
 > constant**: the volley dock (0.50s) and the emitter reboot (2.0s). Gil listened
 > to the remaining nine oscillators and kept them; they now carry a `verdict` in
-> the roster and are settled. Archived at `docs/sfx-order.2026-08-29b.done.json`.
+> the roster and are settled. Archived at `docs/archive/sfx-order.2026-08-29b.done.json`.
 >
 > **2026-08-29 — the first order shipped.** Nineteen oscillators became recordings:
 > `shieldUp` `heal` `shieldHit` `padPress1` `padPress2` `x10` `chain` `volleyBlast`
 > `armorThump` `railLatched` `leechHit` `wrongKey` `lampCall` `lastStand`
 > `shedLayer` `sweepReversed` `bossCalm` `laneSecured` `bossDown`.
-> The order is archived at `docs/sfx-order.2026-08-29.done.json`. Every one keeps
+> The order is archived at `docs/archive/sfx-order.2026-08-29.done.json`. Every one keeps
 > its synth body as the failed-decode fallback.
 
 The machine-readable copy is `scripts/sfx-roster.js`. It is the single source: the

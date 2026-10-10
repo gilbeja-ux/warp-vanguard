@@ -34,6 +34,12 @@ itself rather than hard-cutting.
 ## Fonts
 - **Audiowide** — SIL Open Font License 1.1, bundled as a latin subset at
   `src/fonts/audiowide.woff2`. © The Audiowide Project Authors.
+- **Rajdhani Regular** — SIL Open Font License 1.1, bundled as a latin subset at
+  `src/fonts/rajdhani-400.woff2` (9 KB, added 2026-09-05 in `f794a1c`).
+  © 2014 Indian Type Foundry; the font's own name table carries that notice and
+  the OFL link. Declared in `src/index.html` and used for one thing only: the
+  studio tag that types itself out under the mark on the boot splash
+  (`99-boot.js`).
 
 ## Sound effects
 Hybrid. Reactive sounds — zaps, sonar ticks, UI tones, boot pips — are
@@ -60,11 +66,11 @@ from as a class.
 | `pulse` | `pulse.mp3` | Pulse purge | CC0 / royalty-free |
 | `pulseArm` | `pulse_charge.mp3` | An orb reaching full | CC0 / royalty-free |
 | `volley` | `volley2.mp3` | Unite-volley fire | CC0 / royalty-free |
-| `shutdown` | `shutdown.mp3` | Node fried by a killer or wall | CC0 / royalty-free |
+| `shutdown` | `shutdown.mp3` | An emitter fried (a dead zone's clamp, a leech's beam) | CC0 / royalty-free |
 | `restart` | `restarting.mp3` | That node rebooting back online | CC0 / royalty-free |
 | `startup` | `startup1.mp3` | Boot sequence as the ring locks in (cut at 2s) | CC0 / royalty-free |
 | `fail` | `failed.mp3` | Run lost | CC0 / royalty-free |
-| `win` | `win.mp3` | Level secured | CC0 / royalty-free |
+| `win` | `win.mp3` | Stage secured | CC0 / royalty-free |
 | `warpIn` | `warp-in.mp3` | Spooling into the lane | CC0 / royalty-free |
 | `inWarp` | `in-warp.mp3` | The lane, looped under a run | CC0 / royalty-free |
 | `exitWarp` | `exit-warp.mp3` | Dropping out of warp on a win | CC0 / royalty-free |
@@ -91,6 +97,28 @@ In practice it is permissive in every way this project needs:
 Nothing to do before launch. If the download pages are ever recoverable from a
 Pixabay account's history, adding the two URLs here would make the record
 complete — but the licence class is what actually matters, and it is recorded.
+
+### Takes added 2026-08-27 → 2026-09-01
+
+The table above predates the takes added from 2026-08-27 on, which turned thirty
+more cues into recordings. Each soundboard order is kept, with the source filename
+of every pick, in `docs/archive/sfx-order.2026-08-29*.done.json` and
+`docs/archive/sfx-order.2026-08-31.done.json`; `SFX_FILES` in `12-sfx.js` is the shipped
+list. Recorded here 2026-10-10, by class, from those files:
+
+- **Kenney CC0 packs** (`sci-fi-sounds`, `interface-sounds`, `ui-audio`,
+  `digital-audio`, `impact-sounds`; see `docs/SFX-SYNTH-ROSTER.md`):
+  `shieldUp`, `heal`, `shieldHit`, `x10`, `chain`, `armorThump`, `railLatched`,
+  `leechHit`, `wrongKey`, `lampCall`, `lastStand`, `shedLayer`, `sweepReversed`,
+  `bossCalm`, `laneSecured`, `bossDown`, `traced`, `transCut`.
+- **Gil's own downloads, Pixabay by their filenames** (Pixabay names a download
+  `user-title-id`): `speedUp`, `latchWarn`, `bootGodspeed`, `volleyCharge`,
+  `volleyFizzle`, `transWarp`, `volleyBlast`, `padPress1`, `padPress2`. The
+  Pixabay terms above apply to them as they do to the two boss takes. The
+  filename is the evidence; the download pages were not recorded.
+- **Source not recorded:** `rayCharge` and `bossPlate` (the H-33 takes,
+  2026-08-27) and `sonar`. Find and record these three before a store listing
+  claims a licence for every sound.
 
 <!-- historical note, kept deliberately: this table used to carry a per-file
      "Source" column of _TBC_ placeholders under a sentence claiming the chain

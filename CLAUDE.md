@@ -33,9 +33,11 @@ release digest is `docs/CHANGELOG.md`; the audit backlog is `docs/HOUSEKEEPING.m
 | `npm run admin` / `npm run portal` | Local moderation and tester pages against Supabase. |
 
 The local servers sit in Gil's browser tabs for whole sessions. They re-read source on
-every request, so a source edit never needs a restart. Never stop them, never
-`pkill -f node`, and always launch them with `run_in_background: true`. The `dev-servers`
-skill in `.claude/skills/` holds the check loop. Their ports are house law, below.
+every request, so a source edit never needs a restart. Never stop them and never
+`pkill -f node`. Start one Gil tests on DETACHED, `nohup npm run <script> > /tmp/<name>.log
+2>&1 & disown`, never with `run_in_background`: a background task dies at two hours and
+takes the tab with it (Gil, 2026-10-08). The `dev-servers` skill in `.claude/skills/`
+holds the check loop. Their ports are house law, below.
 
 ## How the game source is organised
 
@@ -79,12 +81,14 @@ Two ids describe a build:
 - **per-board fingerprint** (`scripts/lib/sim-fingerprint.js`): every ranked board played headless under a fixed input trace and hashed. Art, HUD and comments do not move it; spawn, speed and scoring do. Cached in `.sim-fingerprint.json`.
 
 After any edit under `src/game/` or `src/campaigns.js`: `npm run build:verifier &&
-node scripts/test-verifier-bundle.mjs`. If the bundle still reproduces every campaign
-score the change was rendering-only and needs no deploy; otherwise
-`npm run deploy:verifier` before the next store build, or every real score comes back
-`REJECTED 400: verification failed [a vs b]`, which reads as a scoring bug and is not one.
-The fingerprint battery sees only what it plays, and it barely reaches boss fights, so
-after boss code deploy strict, not `--compatible`.
+node scripts/test-verifier-bundle.mjs`, then deploy. EVERY such edit deploys, even a
+comment: any byte moves the sim id, and the pre-push hook refuses to push a sim the
+deployed verifier does not know. What the change decides is the FLAG. If the fingerprint
+says 0 boards moved, `npm run deploy:verifier -- --compatible` (the new id and the recent
+ones both verify); if a board moved, `npm run deploy:verifier` strict. Skip it and every
+real score comes back `REJECTED 400: verification failed [a vs b]`, which reads as a
+scoring bug and is not one. The fingerprint battery sees only what it plays, and it
+barely reaches boss fights, so after boss code deploy strict, not `--compatible`.
 
 ## The test harness
 
@@ -158,14 +162,18 @@ one of them is a name.
 | a board key, `boardKey()` | `cargo-run:6` | zero | the leaderboard database |
 | a stage's NAME | `07` | one | the player, Gil, every doc |
 
-`lvNum(levelNo(ci, li))` is the ONE renderer for a name. It is `li + 1`, zero-padded.
+`lvNum(levelNo(ci, li))` is the ONE renderer for a name. `levelNo` is `campBase(ci) + li + 1`
+(`33-loader.js`): the stage's place in the whole run of contracts, so names run on from
+one contract to the next (`01`–`08` for the first, `09`–`16` for the second), and `lvNum`
+zero-pads it.
 Never build a stage name any other way — including from a bare constant such as
 `FLOW_UNLOCK_LEVEL`, which printed an unpadded `5` until 2026-08-27.
 
 ### The rules
 
-1. **Speak in display numbers.** The boss lane of a contract is **stage 08**. Never
-   call it 07, and never call it `survey:07`.
+1. **Speak in display numbers.** The boss lane of the first contract is **stage 08**.
+   Never call it 07, and never call its key `cargo-run:07`. (The second contract's boss,
+   key `survey:7`, is stage 16.)
 2. **A board key is an id, not a name.** Write `survey:7` when you mean the key.
    Never zero-pad a key — `survey:07` is an index wearing a name's clothes, and that
    is the exact mistake that keeps happening.
@@ -202,9 +210,10 @@ reads it. A pin fails the build if any drawn string says `LEVEL` again.
 ## Two platforms, one fix. iOS is always upload-ready.
 
 Gil's standing order, 2026-09-04: **every fix lands on both platforms, every time.** The
-iOS shell must stay in step with Android so that the day an Apple Developer ID exists,
-the upload is `npm run ios:archive` and nothing else — no catch-up, no "let me check
-whether iOS still builds".
+game is on both stores (Play open testing, and the App Store since 1.0.11, October 2026),
+and every release ships to both. The iOS shell stays in step with Android so that an
+App Store upload is `npm run ios:archive` and nothing else — no catch-up, no "let me
+check whether iOS still builds".
 
 What that means in practice:
 

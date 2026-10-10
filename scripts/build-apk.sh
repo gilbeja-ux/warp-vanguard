@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build a self-contained, offline Android APK for Warp Lane.
-# No Android Studio or sudo required — uses the Homebrew JDK 17 formula
+# Build a self-contained, offline Android APK for Warp Vanguard.
+# No Android Studio or sudo required — uses the Homebrew JDK 21 formula
 # and the android-commandlinetools SDK. See BUILD.md for one-time setup.
 set -euo pipefail
 

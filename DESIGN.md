@@ -10,7 +10,6 @@ colors:
   payload-gold: "#ffd24a"
   secure-green: "#7ee262"
   ember-amber: "#ff9a3c"
-  null-graphite: "#2b3242"
   bore-void: "#020510"
   hull-black: "#03060e"
   panel-glass: "#040e1e"
@@ -180,21 +179,20 @@ A void-dark field carrying six saturated signal colors, each of which means some
 ### Secondary
 
 - **Chrome Cyan** (`#6fe3ff`): The interface's own light — panel strokes, header bands, corner brackets, briefing-disc rims, callout type. Distinct from Signal Blue: cyan is the *console talking to you*, blue is *your equipment in the world*. Never use Chrome Cyan on anything the player can control or must match.
-- **Breach Red** (`#ff3c5a`): Unphased interdictors, alarms, hazard bars, and the warden's entire livery. The most common threat color and therefore the baseline the player reads everything else against.
+- **Breach Red** (`#ff3c5a`): Unphased interdictors, alarms and hazard bars. The most common threat color and therefore the baseline the player reads everything else against. (It also dressed the warden, a boss retired with the old fights; the five bosses are Warp Leeches now: leech, siphon, prism, mimic, blockade.)
 
 ### Tertiary
 
 - **Armor Violet** (`#d465ff`): Heavies and boss cores — the "both nodes required" class. Violet appears only where the answer is dual-node coordination.
 - **Payload Gold** (`#ffd24a`): Reward, and only reward. See The Gold Rule.
-- **Secure Green** (`#7ee262`): Secured runs, cleared relay lines on the route map, wins, and the TRACE speaker. Green never appears on a live threat.
-- **Ember Amber** (`#ff9a3c`): Damage and recovery — the fry/reboot language. A killed node's seam sputters amber, its progress ring burns amber, and boss grapple clamps arrive molten. Amber means *this is broken and coming back*.
+- **Secure Green** (`#7ee262`): Secured runs, cleared lanes on the star map, wins, and the CONTRACTS slice of the mode wheel. Green never appears on a live threat.
+- **Ember Amber** (`#ff9a3c`): Damage and recovery — the fry/reboot language. A fried emitter's seam sputters amber, its progress ring burns amber, and boss grapple clamps arrive molten. Amber means *this is broken and coming back*.
 
 ### Neutral
 
 - **Bore Void** (`#020510`): The deep navy-black behind the tunnel wall circuitry. The true base of the world.
 - **Hull Black** (`#03060e`): Document and shell background, and the native theme color. A half-step lighter than Bore Void so the canvas reads as a lit object sitting on a darker frame.
 - **Panel Glass** (`#040e1e` at 92% opacity): Console panel fill. Always translucent — the lane must remain faintly visible through interface chrome.
-- **Null Graphite** (`#2b3242`): Node-killer traps and fragments. Deliberately the calmest, least saturated body in the game — it looks harmless, and touching it fries a node for two seconds. The calm is the trap.
 - **Readout Ice** (`#cfeeff`): Panel titles and stamped callouts.
 - **Body Ice** (`#bee1ff` at 88%): Reading copy on discs and cards.
 - **Strike Ice** (`#bfeaff`): Impact light — the flash a landed hit throws off. Score popups, the kill burst, ignition sparks, and the emitter's own discharge. In a world where everything is emitted light, the moment a strike connects is its own event and gets its own ink; it is not text colour that happens to be used on effects.
@@ -207,26 +205,27 @@ A void-dark field carrying six saturated signal colors, each of which means some
 
 **The Match Rule.** Signal Blue and Arc White are reserved for the player's two nodes and the enemies keyed to them. No interface element, no marketing surface, and no effect may use a node color on something that is not a node or its matching lock. Ambiguity here is a gameplay bug, not a visual preference.
 
-**The Calm Bait Rule.** The most dangerous body in the game is the least saturated one. Threat level is not communicated through visual loudness — it is communicated through learned color meaning. Never brighten Null Graphite to "warn" the player.
+**Null Graphite is retired.** It was the node killer's colour (`#2b3242`), and the killer was deleted on 2026-08-27: the volley bolt detonates now, and the dead zone is the game's one avoid object. Its token and its Calm Bait Rule went with it.
 
 ## Typography
 
 **Display / UI Font:** Audiowide (bundled woff2, OFL) with `Segoe UI, system-ui, sans-serif` fallback
 **Readout Font:** `ui-monospace, SFMono-Regular, Menlo, monospace`
+**Studio Tag Font:** Rajdhani Regular (bundled latin-subset woff2, `src/fonts/rajdhani-400.woff2`, OFL, © Indian Type Foundry), with Audiowide as its fallback. It sets one line only: the studio tag that types itself out under the mark on the boot splash (`99-boot.js`, sized by `SPLPRINT.tagPx`). It is the studio's voice, not the game's, so it appears nowhere else. Added 2026-09-05.
 
-**Character:** One voice for everything a human says, one voice for everything a machine reports. Audiowide is wide, geometric, and unmistakably a display face — it carries the whole product because there is no long-form reading anywhere in it. Monospace is texture and telemetry only: binary rain, hex codes, range readouts, `DOCK CONFIRMED / NODE 01 — ONLINE` status lines. Monospace is never used for a sentence the player must comprehend.
+**Character:** One voice for everything a human says, one voice for everything a machine reports. Audiowide is wide, geometric, and unmistakably a display face — it carries the whole product because there is no long-form reading anywhere in it. Monospace is texture and telemetry only: binary rain, hex codes, `DOCK CONFIRMED / ALL SYSTEMS — ONLINE` status lines. Monospace is never used for a sentence the player must comprehend.
 
 Audiowide ships at weight 400 only; the heavier weights below are canvas-synthesized emboldening. They are consistent across the product and are treated as real steps in the scale.
 
 ### Hierarchy
 
-- **Display** (800, `clamp(22px, 3.6vmin, 44px)`, 2px tracking): Brand wordmark, level titles, boss title stamps. Always shrink-to-fit rather than wrap where the bore is narrow.
+- **Display** (800, `clamp(22px, 3.6vmin, 44px)`, 2px tracking): Brand wordmark, stage titles, boss title stamps. Always shrink-to-fit rather than wrap where the bore is narrow.
 - **Headline** (800, 22px, 2px tracking): Briefing disc titles, victory report headings.
 - **Title** (700, 13px, 3px tracking, uppercase): Console panel header bands. The widest tracking in the system — these read as engraved labels on hardware.
 - **Body** (500, 15px, ~1.2 line-height): Briefing lines and card copy. Set on 3px extra leading (`fontSize + 3`), which is tight by web standards and correct here: the copy is two-to-four short lines inside a circle, and generous leading pushes it against the rim.
 - **Label** (700, 12px, 3px tracking): Actions, `TAP TO CONTINUE`, mode names, stamped callouts.
 - **Caption** (500, 9px): Sub-captions under mode keys, pad states like `OFFLINE`.
-- **Readout** (monospace, 10px): Live telemetry — `RANGE 0xx.x M`, boot status lines, hex garnish.
+- **Readout** (monospace, 10px): Live telemetry — boot status lines, hex garnish.
 
 ### The web ramp (2026-10-01)
 The GitHub Pages documents (`docs/index.html`, the policy and the tester guide) are the
@@ -243,7 +242,9 @@ recorded as components above. Settled with Gil, 2026-10-01.
 
 ### Named Rules
 
-**The Chord Rule.** All in-bore text is clamped to the ring's clear chord at its own vertical position (`ringChord(y)`), then shrunk to fit (`fitPx`). Text never overlaps the ring band, and never wraps to a width the circle can't hold. Copy is authored short so the clamp rarely has to fight it — briefing lines are two lines of roughly forty characters.
+**The Chord Rule.** All in-bore text is clamped to the ring's clear chord at its own vertical position (`ringChord(y)`), then shrunk to fit (`fitPx`). Text never overlaps the ring band, and never wraps to a width the circle can't hold. Copy is authored short so the clamp rarely has to fight it — briefing lines are two lines of roughly forty characters. On a disc the same rule is the disc law in CLAUDE.md: `discPara` wraps every line to the disc's chord at that line's own height (`discChord`) minus `DISC_TEXT_PAD`, and nothing touches the rim.
+
+**The Type Cap Rule.** Text sized to the screen stops growing at a 650px-tall screen. On an iPad or a desktop the keys, rows and boxes beside it had already stopped growing, so screen-sized type came out bigger than the keys it sat next to. The leaderboard got the cap first (`BOARD_TYPE_CAP = 650` in `93-board.js`, Gil, 2026-10-09); the END report, CHOOSE A CONTRACT and the field guide title followed (`SCREEN_TYPE_CAP = 650` in `92-guide.js`, Gil, 2026-10-10). Below the cap nothing changes, so a phone reads as it did. Text sized to the ring or to a disc is exempt, because the ring keeps growing. The other way round, star-map plate numbers and the `DESTINATION` caption have a 9px floor (`MAP_NUM_MIN` in `95-menu.js`, 2026-10-10), and a plate grows to hold a number that size.
 
 **The Last Pass Rule.** Overlay text draws as the final pass of the frame. Audiowide is wide and earlier layers used to cover it. Nothing renders on top of copy the player must read.
 
@@ -258,9 +259,10 @@ There is no page. There is one full-bleed canvas and one circle, and every measu
 **The canonical geometry:**
 - Node ring radius: `0.44 × min(W, H)` — the ring nearly touches top and bottom
 - Far ring: `2.5 × nodeR`, which pins the ring's depth to `hitZ = 0.25` **exactly, on every aspect ratio**
-- Dial pad gauge width: `0.055 × min(W, H)`, bottom corners, safe-area aware
+- Dial pad radius: `0.21 × min(H, 560)` at full size, seated low beside the ring by `dialSeat()` under the pad law, safe-area aware; the law may move a pad and, last of all, shrink it (down to 35%)
+- Dial pad gauge width: `padGauge()`, the pad's own radius × `0.055 / 0.21` — so `0.055 × min(H, 560)` at full size, and it shrinks with the pad. It used to be `0.055 × min(W, H)`, the ring's measure, which kept growing on an iPad after the pad had stopped (Gil, 2026-09-21)
 - Progress and integrity arcs: `nodeR + 0.125 × min(W, H)`, so they never touch the rim
-- Briefing disc: `0.9 × nodeR` radius, with copy clamped to `60%` of the ring's diameter
+- Disc (briefing, pause, settings): `discR()` = `min(0.47 × H, 0.30 × W) × 0.92`, the same size as the map lens, so a deploy keeps one disc size from selection through briefing; a mini disc (the passcode, the name entry) takes `0.86 × discR()`; copy wraps under the disc law (see The Chord Rule)
 - Mode wheel: sectors span `0.38 → 0.92 × R`, brand mark in the hub
 
 The `2.5×` pin is the most important number in the file. It exists so that the reaction window — the time a threat takes to travel from spawn to the ring — is identical on every device. A previous formula derived the far ring from the screen diagonal and drifted the hit depth between 0.12 and 0.25 across aspect ratios, which would have made leaderboard scores incomparable between phones. Layout here is a fairness constraint before it is an aesthetic one.
@@ -341,34 +343,30 @@ Cold, luminous, machined: glass over dark metal with a lit label band. The syste
 
 The signature component. Story and instruction arrive as a disc that flies up to the operator and back away — the product's one moment of theater.
 
-- **Shape:** Circle at `0.9 × nodeR`, radial fill from `rgba(6,11,24,0.93)` at center to fully transparent at the rim, so it dissolves into the bore rather than ending
+- **Shape:** Circle at `min(0.47 × H, 0.30 × W) × 0.92` (the map lens's size; it was `0.9 × nodeR` until the lens and the disc were made one size), radial fill from `rgba(6,11,24,0.93)` at center to fully transparent at the rim, so it dissolves into the bore rather than ending
 - **Rim:** 1.5px ring at 97% radius in `rgba(120,200,255,0.3)`, overlaid with four 2.5px accent arcs at 75% that drift slowly around it
 - **Content order:** kicker → glyph → title → body → `TAP TO CONTINUE`
 - **Kicker:** Payload Gold at 80% for a contract's briefing, Chrome Cyan at 70% for field instruction — gold marks the story, cyan marks the lesson. (The `CASE FILE // LC-2209` form this once specified is not drawn; the disc leads with the client and tier.)
-- **Body:** Body Ice at 88%, shrink-to-fit against a 60%-of-diameter width budget, 3px extra leading
+- **Body:** Body Ice at 88%, no wider than about two thirds of the disc (`maxW = R × 1.33`) and kept off the rim by the disc law, 3px extra leading
 - **Story typing:** Briefing lines type themselves in at 46 characters per second with a block cursor and a teletype tick every other character
 - **Motion:** Zoom in over 0.28s with an ease-out-back overshoot (`1.70158`), out over 0.18s; the field dims to `rgba(3,6,14,0.45)` unscaled beneath so the dim stays even while the disc flies
 - **Prompt:** `TAP TO CONTINUE` pulses between 20% and 80% cyan at 4rad/s
 
-### The Lane Chart (the lens on the network)
+### The Star Map (the lens on the galaxy)
 
-The campaign map is a circular LENS over one continuous isometric lane chart, sized so no campaign ever sees all of it.
+A contract's map is a circular LENS over one galaxy chart (`94-galaxy.js`), sized so no contract ever sees all of it. The stage list rides the left column and the dossier the right; selecting a stage glides the lens along the route. The isometric city chart this section used to describe (skyline, harbor, avenues) was replaced by the galaxy on 2026-07-30 (`a0ab922`); the code still names a few things `CITY_*` from that era.
 
-- **Plane:** deep navy sheet, a 1.4px iso survey lattice at 7% cyan, and lanes in three traffic tiers — a minor lane is one 24% line, trunk lanes get a dark corridor between two lit markers, grand trunks get a wide corridor with a dashed centreline. Dashed teal warp-net carrier runs beneath the corridors with diamond junctions where they cross
-- **Water:** a harbor across the south and a river bending down through the districts to meet it, cut as ONE path so a single clipped re-stroke of the avenues turns every crossing into a bridge. Lit banks and quays are what make water read at all — a fill this close to the ground colour is invisible on its own
-- **Skyline:** pure wireframe — no opaque faces, a 10% roof tint only. Lots vary by kind, not just size: setback towers (podium → shaft → crown), two-lot office slabs, courtyard blocks, and terraced rows of three small houses. Density and height fall off from the core (spires downtown → slabs → sprawl → clumps in the dark); about 1% of towers burn magenta against the cyan
-- **Cluster noise:** a second, much tighter noise field scales every height in a cluster together. Without it each site rolls its own dice and the skyline comes out as one flat carpet of near-identical boxes — the single biggest difference between "grid of cubes" and "inhabited system"
-- **Clearance:** a lot is 32px wide, so blocks are held back 1.7–3.4 street-units from a road. At the old 1-unit clearance downtown swallowed its own streets and the grid stopped reading
-- **Bloom:** each baked layer is composited back over itself blurred (`lighter`), so the whole sheet glows without per-shape shadow work
-- **Falloff:** light dies with distance from the core systems — the plane is wiped out by ~95%, the structures only thinned, so the outer volume reads as settled space gone dark rather than as empty paper
-- **Perimeters:** one dashed ellipse per campaign band (a ground circle in iso is a 2:1 ellipse), green inside → amber → red at the edge, studded with gate ticks and labelled with the cover it still holds
-- **Runs:** buried — every cable run draws UNDER the skyline and ghosts up through it; the selected run is then repeated OVER the towers so a dense downtown can never swallow the line about to be defended
+- **Bands:** THE INNER WORLDS sit at the centre inside five dashed cordon bands, LOW ORBIT → MONITORED SECTORS → DEEP SPACE → OUTLAW TERRITORY → NO MANS LAND. A band is a tier, and a contract flies the tiers its brief states: the cargo run starts in safe space and ends in tier 3, the delegation crosses all five. Each stage's world sits at a random bearing inside its span, so the run reads outward without becoming a parade
+- **Lanes:** polar arcs, radius and bearing eased together, so every run curves the way an orbit does. Stars have no street corners. A cleared lane is solid Secure Green with chevrons marching toward the delivery
+- **Plates:** a hexagon plate rides the world its stage DEPARTS from; the chain's last world carries the `DESTINATION` caption, never a hexagon (house law, 2026-08-27). The stage list still names a stage by its destination, on purpose
+- **Bake:** only what has no edge (arms, bulge, dust) is baked, at quarter resolution; stars, systems, cordon dashes and type are drawn live and culled to the lens. 123 MB became 4 MB, and the edges got sharper
+- **Scale:** the patrolled region spans about a fifth of the chart, the lens closes in on one hop, and a run shows roughly 7% of the galaxy. Vastness comes from that ratio, not from a bigger bitmap
 
-**The Cover Ladder.** A relay's ring is its CONTRACT's band, not its exact pixel radius. Forty relays over ~1,000px of radius means junction-lattice noise is larger than one hop's worth of outward progress, so per-relay cover would jitter — the dossier would claim level 5 is safer than level 4. Bands are fitted to the relays that actually landed in them, and cover ramps monotonically across each case and hands off to the next: 93% at the first relay of case 01, 2% at the last of case 05.
+The dossier no longer prints a cover readout or a cordon bar (removed 2026-08-30, `60ee0e9`: it said nothing a player acts on). The bands still carry the fiction of cover falling as the convoy works outward; the map says it, a number does not.
 
 ### Dial Pad
 
-The player's only control, and the clearest expression of the gauge grammar.
+The player's only control, and the clearest expression of the gauge grammar. Every width below is a share of `bz = padGauge()` (`60-input.js`), the gauge width that is capped and shrunk with the pad itself (see Layout).
 
 - **Backing:** Radar fill, `rgba(10,20,45,0.35)`
 - **Track:** Full-circle stroke at `0.85 × bz` in the node's own color, 16% at rest and 30% while held
@@ -381,8 +379,8 @@ The player's only control, and the clearest expression of the gauge grammar.
 
 The home screen: the ring's whole interior cut into color-coded sectors with the brand mark in the hub. Nothing overlaps the ring.
 
-- **Geometry:** Sectors from `0.38 R` to `0.92 R`; three sectors, leaderboard at top, story and free flow at the bottom corners
-- **Color:** Each sector carries its mode's color — Payload Gold (leaderboard), Secure Green (story), Chrome Cyan (free flow)
+- **Geometry:** Sectors from `0.38 R` to `0.92 R`; three sectors, LEADERBOARD at top, CONTRACTS and FREE FLOW at the bottom corners
+- **Color:** Each sector carries its mode's color — Payload Gold (LEADERBOARD), Secure Green (CONTRACTS), Chrome Cyan (FREE FLOW)
 - **Primary:** Whatever moves the player forward pulses; locked sectors dim to `rgba(160,200,240,0.35)`
 - **Labels:** Curved along their own slice, upright on both halves, one shared size across all sectors, shrink-to-fit
 - **Motion:** The wheel spins out clockwise and crossfades on screen change; back reverses it
@@ -391,29 +389,21 @@ The home screen: the ring's whole interior cut into color-coded sectors with the
 
 The system's biggest unification: the player's node is not an object on the ring, it *is* a lit sector of the ring, bounded by two machined bus-bars. **Its angular span is literally the zap tolerance** (`ARCFX.span = 0.314`) — the visual and the mechanic are the same number. Seven live filaments, each with its own waveform frequency, crawl bar to bar; the energy breathes with threat and dips after a discharge; bolts leap from both bars onto the target inside the arc.
 
-Its damage state is choreographed: on a node-killer strike the arc **snaps shut** — bars slide together into a near-zero sliver with an amber ember sputtering in the seam — then regrows cold with a slight overshoot, and only reignites at full width, sputtering.
+Its damage state is choreographed: when the emitter is fried (crossing a dead zone's live clamp, or a leech's beam) the arc **snaps shut** — bars slide together into a near-zero sliver with an amber ember sputtering in the seam — then regrows cold with a slight overshoot, and only reignites at full width, sputtering.
 
 ### Enemy Body (Nail Breach)
 
 Interdictors are harpoons fired into the lane from *outside* — a machined plate seated flush on the lane wall with a graphite auger driving inward. Every one carries: a siphon beam, impact cracks, a soft grounding pool, a two-wave ripple train drawn in angle×radius wall space so it bows along the lane's hoops, a key-lit plate with bevel and vents, a type ring that telegraphs its class from spawn, and discrete drain packets flowing tip-to-plate — lane energy visibly bleeding away. That bleed is the interdiction: enough of it and the convoy drops out of transit.
 
-### Enemy Body (Void Packet — the node killer)
-
-The one threat that does not cling to the wall: a void-black rounded diamond floating in the bore, with a *negative* halo that swallows light rather than casting it, and a slow glint crawling its rim. It renders as a **failing video signal** — the body tears along horizontal scanline bands that displace sideways and drop out entirely (the tunnel shows through the hole), while the rim splits into red/cyan chromatic fringes. Corruption events fire roughly twice a second, but each one's severity is rolled off the static seed, so most are a one-band nudge and only a few are a full tear.
-
-Two constraints define it, and both are load-bearing:
-
-**It never escalates with proximity.** Every other body ramps its urgency as it closes; this one is identical at the horizon and at the ring. Escalation reads as "hostile, shoot it," and this enemy's whole design is bait you must let pass. It is not angrier up close — it is just wrong, the whole way in.
-
-**Frequency without a fixed intensity.** A fast cadence at one severity reads as a blinking light. The per-event strength roll is what makes it read as a bad signal instead.
+The Void Packet, the node killer that floated in the bore in Null Graphite, was deleted on 2026-08-27 (`50-enemies.js`): the volley bolt detonates now, and the dead zone is the game's one avoid object.
 
 ### Named Rules
 
-**The Aberration Exception.** The killer's chromatic fringe is the one colored rim in the game, and it is not an outline — it is a sub-pixel-to-2px additive artifact that sums back into the old pale hairline while the two fringes overlap. It exists because a black body in a dark bore had no findable silhouette, which is why the split carries a hard pixel floor and may never reach zero. Anything wider or more opaque becomes the rejected cartoon outline.
+**The Aberration Exception.** A chromatic split is the one colored rim allowed on a body, and it is not an outline — it is a thin additive artifact of damage. The node killer's fringe was the first; it went with the killer. The one left is a wounded or dying leech's ghost rims (`85-enemy-art.js`): a red and a cyan 1.5px rim offset sideways, drawn only past half damage or as it dies. Anything wider or more opaque becomes the rejected cartoon outline.
 
 **The Accumulating Phase Rule.** Effect phases only ever accumulate (`fxPh += dt * rate`). Never multiply raw time by an urgency- or state-dependent rate, and never seed an effect from a value that advances. Both mistakes cause visible phase jumps — they shipped once as a strobing "doubled lines" artifact near the ring.
 
-**The Determinism Rule.** No visual effect may consume a draw from the campaign's seeded spawn RNG. An extra draw shifts the entire level sequence and breaks replay equality. Derive effect seeds from static properties like spawn angle.
+**The Determinism Rule.** No visual effect may consume a draw from the seeded spawn RNG (`spawnRng()`). An extra draw shifts every spawn after it on the board and breaks replay equality. Derive effect seeds from static properties like spawn angle.
 
 ## Do's and Don'ts
 
@@ -431,11 +421,10 @@ Two constraints define it, and both are load-bearing:
 
 ### Don't:
 
-- **Don't** add a colored rim outline to define a shape. This is the fastest route back to "too cartoony," which has been rejected twice. The killer's chromatic fringe is the sole exception and only under **The Aberration Exception** — the first attempt at it was too wide and too strong, and read exactly like the rejected outlines.
+- **Don't** add a colored rim outline to define a shape. This is the fastest route back to "too cartoony," which has been rejected twice. A damage artifact under **The Aberration Exception** is the sole exception — the first one, the retired node killer's fringe, was too wide and too strong at first and read exactly like the rejected outlines.
 - **Don't** light a circular object uniformly all the way around.
 - **Don't** use flat fills plus saturated glow arcs as a material.
 - **Don't** put gold on a hazard. Amber hazard bars shipped, read as an invitation, and were recolored to Breach Red the same day.
-- **Don't** brighten Null Graphite. The node-killer's calm appearance is the trap. Its only emitted light is the blown-out sliver left behind a dropped-out band, and that fires with an event, never as a state.
 - **Don't** use a node color (Signal Blue, Arc White) on anything that is not a node or its matching lock.
 - **Don't** add drawn-line electricity to convey energy — use glow plus texture (both zigzag and harmonic-ribbon filaments were rejected).
 - **Don't** add hit-stop or screen shake to routine kills. World flinch reads as bad; kill feedback is burst, rim flash, node recoil, and haptics.
