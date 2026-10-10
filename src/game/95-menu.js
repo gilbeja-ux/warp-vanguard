@@ -1233,8 +1233,8 @@ function drawEnd(g) {
       // the handle field. During the cast it's a static plate; once settled the
       // live DOM input mounts in the same spot (seamless, native caret).
       if (!settled) {
-        techRect(fx, fy, fw, fh, 6); ctx.fillStyle = 'rgba(4,12,22,0.85)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 6); ctx.stroke();
+        techRect(fx, fy, fw, fh, 8); ctx.fillStyle = 'rgba(4,14,30,0.85)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 8); ctx.stroke();
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         const has = !!nameEntryDraft;
         ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';

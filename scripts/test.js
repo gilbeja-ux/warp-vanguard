@@ -7265,6 +7265,19 @@ await tick();
   check('field type: MY DATA and the passcode field do the same',
     (guide.match(/const fTxt = fieldTextPx\(/g) || []).length === 2 && (guide.match(/fontPx: fTxt/g) || []).length === 2
     && (guide.match(/ctx\.font = '600 ' \+ fTxt \+ 'px Audiowide/g) || []).length === 2);
+  // THE FIELD WEARS DESIGN.md TOKENS (Gil, 2026-10-10, the design hook's notes, 2B):
+  // panel-glass under chrome-cyan with the cut-sm corner, on all four canvas plates
+  // (handle, rename, passcode, feedback) and on the live input that replaces them.
+  const plate = "techRect(fx, fy, fw, fh, 8); ctx.fillStyle = 'rgba(4,14,30,0.85)'; ctx.fill();";
+  const edge = "ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 8); ctx.stroke();";
+  const count = (s, x) => s.split(x).length - 1;
+  check('field tokens: all four canvas field plates are panel-glass, chrome-cyan and cut-sm',
+    count(guide, plate) === 3 && count(menu, plate) === 1 && count(guide, edge) === 3 && count(menu, edge) === 1
+    && !/rgba\(4,12,22,0\.85\)/.test(guide + menu));
+  check('field tokens: the live input wears the same values, quiet and lit',
+    core.includes("'background:rgba(4,14,30,0.85);border:1.5px solid rgba(111,227,255,0.35);border-radius:8px;'")
+    && core.includes("'background:rgba(4,14,30,0.92);border:1.5px solid rgba(111,227,255,0.8);border-radius:8px;'")
+    && !/border-radius:6px/.test(core));
 }
 
 // ================= THE PATH AHEAD READS ON A PHONE (Gil, 2026-10-10, options B and D) =================

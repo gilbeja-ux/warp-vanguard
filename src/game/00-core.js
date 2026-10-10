@@ -182,8 +182,11 @@ function overlayInput(rect, opts) {
       // two values are COPIED from that plate (95-menu.js) and from the feedback
       // disc's own (92-guide.js), byte for byte, so the live input and the static
       // plate under the cast are literally the same box. Nothing moves on the swap.
-      ? 'background:rgba(4,12,22,0.85);border:1.5px solid rgba(120,180,255,0.35);border-radius:6px;'
-      : 'background:rgba(6,20,40,0.92);border:1.5px solid rgba(140,230,255,0.8);border-radius:6px;')
+      // DESIGN.md tokens since 2026-10-10 (Gil, the design hook's notes, 2B): panel-glass
+      // under chrome-cyan, at the alphas the box always had, with the cut-sm corner. The
+      // four canvas plates carry the same three values.
+      ? 'background:rgba(4,14,30,0.85);border:1.5px solid rgba(111,227,255,0.35);border-radius:8px;'
+      : 'background:rgba(4,14,30,0.92);border:1.5px solid rgba(111,227,255,0.8);border-radius:8px;')
     + 'color:#eafaff;outline:none;'
     + (multi
       ? 'font:400 13px system-ui, -apple-system, Segoe UI, Roboto, sans-serif;line-height:1.42;'

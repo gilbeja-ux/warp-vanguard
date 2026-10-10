@@ -1054,8 +1054,8 @@ function drawBossGate() {
     try { ctx.letterSpacing = '0px'; } catch (e) {}
     // the passcode field: a static plate during the cast, the DOM input after
     if (!settled) {
-      techRect(fx, fy, fw, fh, 6); ctx.fillStyle = 'rgba(4,12,22,0.85)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 6); ctx.stroke();
+      techRect(fx, fy, fw, fh, 8); ctx.fillStyle = 'rgba(4,14,30,0.85)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 8); ctx.stroke();
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       const has = !!bossGateDraft;
       ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
@@ -1183,8 +1183,8 @@ function drawMyData() {
       // the field. During the cast it is a static plate carrying the draft; once
       // settled the live DOM input mounts in the same box
       if (!settled) {
-        techRect(fx, fy, fw, fh, 6); ctx.fillStyle = 'rgba(4,12,22,0.85)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 6); ctx.stroke();
+        techRect(fx, fy, fw, fh, 8); ctx.fillStyle = 'rgba(4,14,30,0.85)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 8); ctx.stroke();
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         const has = !!myDataDraft;
         ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
@@ -1643,8 +1643,8 @@ function drawFeedback() {
       // the field. During the cast it is a static plate carrying whatever is
       // already typed; once settled the live textarea mounts in the same box.
       if (!settled) {
-        techRect(fx, fy, fw, fh, 6); ctx.fillStyle = 'rgba(4,12,22,0.85)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(120,180,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 6); ctx.stroke();
+        techRect(fx, fy, fw, fh, 8); ctx.fillStyle = 'rgba(4,14,30,0.85)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(111,227,255,0.35)'; ctx.lineWidth = 1.5; techRect(fx, fy, fw, fh, 8); ctx.stroke();
         ctx.textAlign = 'left';
         const has = !!feedbackDraft;
         ctx.fillStyle = has ? '#eafaff' : 'rgba(150,200,235,0.5)';
