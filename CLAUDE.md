@@ -171,12 +171,18 @@ Never build a stage name any other way — including from a bare constant such a
 
 ### The rules
 
-1. **Speak in display numbers.** The boss lane of the first contract is **stage 08**.
-   Never call it 07, and never call its key `cargo-run:07`. (The second contract's boss,
-   key `survey:7`, is stage 16.)
-2. **A board key is an id, not a name.** Write `survey:7` when you mean the key.
-   Never zero-pad a key — `survey:07` is an index wearing a name's clothes, and that
-   is the exact mistake that keeps happening.
+1. **Speak in display numbers, 01 to 40, and nothing else.** Gil, 2026-10-10, after
+   being handed `survey:6` for the stage the nameplate calls 15: "there is only 1 and
+   above, as the number says on the nameplate". Every reply, report, question, commit
+   message and doc a person reads names a stage by its number across the whole game,
+   01 to 40, plus its destination where that helps: **stage 15, ALTOR WATCH I**. The
+   first contract's boss is **stage 08**, the second's **stage 16**. Never a board key,
+   never a zero-based index, never "the 7th level of THE SURVEY".
+2. **A board key is an id, not a name, and it stays in the code.** `survey:6` is what
+   a Supabase row, a test or a log line holds; translate it before a person reads it
+   (`lvNum(levelNo(ci, li))`). When a key truly has to be quoted — a SQL query, a
+   failing check's output — put the stage number next to it. Never zero-pad a key —
+   `survey:07` is an index wearing a name's clothes.
 3. **Code keeps `levelIdx`.** Do not renumber the internal index, and do not rename a
    board key. Board keys are persisted rows in Supabase; renaming one orphans every
    score on it.
