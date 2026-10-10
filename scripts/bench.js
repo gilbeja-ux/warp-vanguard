@@ -50,6 +50,11 @@ const DUR      = parseFloat(ARG.dur || '30') * 1000;
 const REPS     = parseInt(ARG.reps || '3', 10);
 const THROTTLE = parseFloat(ARG.throttle || '1');
 const LEVEL    = parseInt(ARG.level || '1', 10);      // level 2 is index 1
+// --camp=N flies a stage of the Nth contract (0-based, as CAMPAIGNS is) — --camp=1
+// --level=6 is stage 15. --alive holds the hull at 100 every sample, so a dense lane
+// with nobody steering runs the whole duration instead of ending on the report.
+const CAMP     = ARG.camp === undefined ? null : parseInt(ARG.camp, 10);
+const ALIVE    = !!ARG.alive;
 const SAMPLE   = parseInt(ARG.sample || '250', 10);
 const HEADLESS = ARG.headless === undefined ? false : ARG.headless !== 'false';
 // 'full' = never let lowFX trip (measure full detail), 'low' = force lowFX on,
@@ -155,8 +160,20 @@ const PROBE = `(() => { const g = n => { try { return eval(n); } catch (e) { ret
 })()`;
 
 async function runConfig(cdp, suffix, rep) {
-  const q = '?prof=1' + (suffix ? '&' + suffix : '');
-  const url = `${ORIGIN}/index.html${q}`;
+  // A CONFIG MAY NAME ITS OWN SERVER: '@8300' or '@8301&abl=gauge' loads the page from
+  // that port on the same host, so two builds (master and a worktree) interleave in one
+  // run the way two query suffixes do. 2026-10-10.
+  let origin = ORIGIN, rest = suffix;
+  const at = /^@(\d+)&?(.*)$/.exec(suffix || '');
+  if (at) { origin = ORIGIN.replace(/:\d+$/, '') + ':' + at[1]; rest = at[2]; }
+  const q = '?prof=1' + (rest ? '&' + rest : '');
+  const url = `${origin}/index.html${q}`;
+  // NO SAVED COPY MAY ANSWER FOR THE SERVER (2026-10-10). The game's service worker is
+  // network-first, so a lost tunnel (the phone's USB dropped mid-run) did not fail: it
+  // served the copy that address had cached in some earlier session — Gil saw a
+  // months-old star map and took it for the build under test. Each run starts with
+  // that origin's worker and cache cleared, so a dead server reads as a dead server.
+  await cdp.send('Storage.clearDataForOrigin', { origin, storageTypes: 'service_workers,cache_storage' }).catch(() => {});
   await cdp.send('Page.navigate', { url });
 
   // wait for the game to exist
@@ -173,7 +190,7 @@ async function runConfig(cdp, suffix, rep) {
   // nothing about steady-state cost — it only removes dead wall time from the run.
   await cdp.eval(`(() => { try { splashEnd(true); } catch (e) {} return 1; })()`);
   await sleep(600);
-  await cdp.eval(`(() => { startLevel(${LEVEL}, false); introT = 999; introCd = 0; return 1; })()`);
+  await cdp.eval(`(() => { ${CAMP !== null ? `installCampaign(CAMPAIGNS[${CAMP}]); ` : ''}startLevel(${LEVEL}, false); introT = 999; introCd = 0; return 1; })()`);
 
   // ---------- PIN THE QUALITY TIER ----------
   // Without this, an ablation that lightens the frame stops `lowFX` from tripping,
@@ -207,6 +224,7 @@ async function runConfig(cdp, suffix, rep) {
 
   while (Date.now() - t0 < DUR) {
     await sleep(SAMPLE);
+    if (ALIVE) await cdp.eval(`(() => { try { integrity = 100; } catch (e) {} return 1; })()`).catch(() => {});
     let s;
     try { s = JSON.parse(await cdp.eval(PROBE)); } catch (e) { continue; }
     s.wall = Date.now() - t0;
