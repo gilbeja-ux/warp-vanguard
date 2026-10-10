@@ -88,7 +88,7 @@ iOS twin, because a native decision is made twice.
 
 | File | Decision | iOS twin |
 | --- | --- | --- |
-| `AndroidManifest.xml` | `sensorLandscape`, `appCategory="game"` (the tablet orientation exemption), immersive cutout mode | `Info.plist` orientation list |
+| `AndroidManifest.xml` | `sensorLandscape`, `appCategory="game"` (the tablet orientation exemption), immersive cutout mode | `Info.plist` orientation list, plus the iPad window guard: the 1032 pt minimum width (`SceneDelegate.swift`) and the orientation lock (`GameViewController.swift`) — iOS has no games exemption |
 | `MainActivity.java` | hides the system bars and re-hides them on focus | `GameViewController.swift` |
 | `MainActivity.java` | a dead web renderer (out of memory) recreates the activity instead of ending the app (`onRenderProcessGone` → `recreate()`) | Capacitor's own `webViewWebContentProcessDidTerminate` reload |
 | `res/values/styles.xml` | the launch window is the game's navy — icon zoom, window and first web frame on one ground; no placeholder drawable | `LaunchScreen.storyboard` |
@@ -133,8 +133,8 @@ generated and untracked; the files that carry **decisions** are tracked and
 | --- | --- |
 | `ios/App/App/Info.plist` | landscape only on iPhone and iPad, status bar hidden, full screen, games category, export compliance answered |
 | `ios/App/App/AppDelegate.swift` | audio session `.playback` + `.mixWithOthers` — the mute switch cannot silence the game |
-| `ios/App/App/GameViewController.swift` | defers the top/bottom edge swipes, restates the landscape mask, kills the bounce |
-| `ios/App/App/SceneDelegate.swift` | the UIScene lifecycle (Capacitor 8.5); leaves the storyboard's window alone so `GameViewController` stays the root |
+| `ios/App/App/GameViewController.swift` | defers the top/bottom edge swipes, restates the landscape mask, kills the bounce; asks iPadOS 26+ to hold the orientation (`prefersInterfaceOrientationLocked`) |
+| `ios/App/App/SceneDelegate.swift` | the UIScene lifecycle (Capacitor 8.5); leaves the storyboard's window alone so `GameViewController` stays the root; asks for a window at least **1032 pt** wide, the largest iPad's short side, so an iPad window is never taller than wide (the iOS 27 SDK ignores `UIRequiresFullScreen` for resizing). Android's twin is `appCategory="game"` + `sensorLandscape` |
 | `ios/App/App/Base.lproj/Main.storyboard` | boots `GameViewController`, not the stock bridge controller |
 | `ios/App/App/Base.lproj/LaunchScreen.storyboard` | navy background, fitted centred badge — nothing white, nothing cropped |
 | `ios/App/App.xcodeproj/project.pbxproj` | bundle id, deployment target 15.0, both versions **generated** by `scripts/sync-version.js` |

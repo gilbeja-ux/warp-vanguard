@@ -62,9 +62,12 @@
 	<true/>
 	<!-- Opts the iPad out of Split View and Slide Over. It is also what lets an
 	     iPad honour a landscape-only orientation list at all — without it the
-	     App Store requires all four orientations on iPad. Apple has said this
-	     key will be ignored in a future iPadOS; the games category above is the
-	     exemption that outlives it, as appCategory="game" is on Android. -->
+	     App Store requires all four orientations on iPad. Built with the iOS 27
+	     SDK it no longer stops iPadOS from resizing the window (Apple TN3192), and
+	     unlike appCategory="game" on Android, the games category is NO exemption
+	     on iOS. The guard that does the work (2026-10-10): SceneDelegate's minimum
+	     window width (1032 pt) and GameViewController's
+	     prefersInterfaceOrientationLocked. -->
 	<key>UIRequiresFullScreen</key>
 	<true/>
 	<!-- The game talks HTTPS to Supabase and nothing else; it ships no

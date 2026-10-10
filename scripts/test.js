@@ -6370,6 +6370,17 @@ await tick();
   check('iOS: SceneDelegate forwards to SceneDelegateProxy and never builds its own window',
     /SceneDelegateProxy\.shared\.scene\(scene, willConnectTo/.test(sceneDel)
     && /openURLContexts/.test(sceneDel) && !/UIWindow\(windowScene/.test(sceneDel) && !/CAPBridgeViewController\(\)/.test(sceneDel));
+  // THE IPAD WINDOW (2026-10-10). Built with the iOS 27 SDK, UIRequiresFullScreen no
+  // longer stops iPadOS resizing the scene, and a window taller than wide paints the
+  // game sideways. Two preferences guard it: a minimum window width of the largest
+  // iPad's short side, and an orientation lock while the game is in front.
+  check('iOS: the scene asks for a window at least 1032 pt wide (the largest iPad\'s short side)',
+    /static let minimumWindowWidth: CGFloat = 1032\b/.test(sceneDel)
+    && /\(scene as\? UIWindowScene\)\?\.sizeRestrictions[\s\S]{0,120}minimumSize = CGSize\(width: SceneDelegate\.minimumWindowWidth/.test(sceneDel));
+  check('iOS: the controller asks iPadOS 26+ to hold the interface orientation',
+    /@available\(iOS 26\.0, \*\)\s*override var prefersInterfaceOrientationLocked: Bool \{ true \}/.test(vc));
+  check('iOS: the plist no longer claims the games category is an iPad exemption',
+    !/games category above is the\s+exemption/.test(plist) && /NO exemption/.test(plist));
   check('iOS: AppDelegate hands the scene to SceneDelegate and keeps no dead app-level URL handler',
     /config\.delegateClass = SceneDelegate\.self/.test(delegate) && !/open url: URL/.test(delegate));
   const main = readIos('App/Base.lproj/Main.storyboard');

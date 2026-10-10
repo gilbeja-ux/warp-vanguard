@@ -34,6 +34,16 @@ class GameViewController: CAPBridgeViewController {
     /// presentation from this controller can inherit a portrait mask.
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
 
+    /// THE IPAD DOES NOT TURN UNDER THE GAME (2026-10-10). Built with the iOS 27
+    /// SDK, `UIRequiresFullScreen` no longer stops iPadOS from resizing the scene,
+    /// and the game paints a window that is taller than wide through its 90°
+    /// portrait transform: sideways. This asks the system to hold the interface
+    /// orientation while the game is in front; SceneDelegate's minimum window
+    /// width is the other half of the guard. A preference, not a rule — iPadOS 26
+    /// and later read it, earlier systems never resize the window at all.
+    @available(iOS 26.0, *)
+    override var prefersInterfaceOrientationLocked: Bool { true }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         // capacitor.config.json turns scrolling, zoom and the content inset off;
