@@ -7,7 +7,7 @@ items in priority order, then walks the chosen one to a solution.
 
 **Item IDs are stable. Never renumber them.** For H-01 to H-30, priority equals
 the ID order: H-01 is the most important, H-30 the least. Items added later
-(H-31 to H-41, the last today) carry their own severity in the Sev column.
+(H-31 to H-42, the last today) carry their own severity in the Sev column.
 Reorder by moving the priority note, not the ID.
 
 Status values: `TODO` → `IN PROGRESS` → `BLOCKED` → `DONE`.
@@ -65,6 +65,7 @@ and, for H-37 to H-41, [docs/archive/AUDIT-2026-09-06.md](archive/AUDIT-2026-09-
 | H-39 | TODO | Access | MED | Comfort knobs: a MOTION row (FULL / REDUCED) for shake, red flash and the warp spool, `prefers-reduced-motion` read, one colour-blind check (audit 2026-09-06, P-2) |
 | H-40 | TODO | Stack | LOW | Minify the shipped JavaScript in `dist/` only, measured on the phone before and after (audit 2026-09-06, T-2) |
 | H-41 | TODO | Stack | LOW | CI builds neither shell: add a debug-signed `bundleRelease` job, the iOS twin optional (audit 2026-09-06, T-3) |
+| H-42 | TODO | Tooling | LOW | The fairness linter's walk drifts from the real lane after the first random pickup; a correct walk flags stage 15 at LANE OUT 0:37–0:36, which Gil ruled fine (2026-10-10) |
 
 ---
 
@@ -550,3 +551,8 @@ The whole ray therefore reads as a silent visual with one blip on reversal, and 
 ## H-41 · CI builds neither shell
 - **Status:** TODO · **Area:** Stack · **Sev:** LOW
 - **Finding (audit 2026-09-06, T-3):** `.github/workflows/test.yml` runs the pin suites, the verifier bundle and the browser smoke, but no native build. A debug-signed `./gradlew bundleRelease` job would catch Gradle and AGP rot between store cuts. The iOS twin needs a macOS runner and is optional.
+
+## H-42 · The linter's walk drifts from the real lane after the first random pickup
+- **Status:** TODO · **Area:** Tooling · **Sev:** LOW
+- **Finding (1.0.12 sweep, 2026-10-10):** the live `spawnPickup` deals from a shuffled bag of five kinds (four `spawnRng` draws on a refill, none on a pop), while `lintWalk`'s `simPickup` (`51-linter.js`) spends one draw per pickup. From the first random pickup on (16–24 s into a lane) the walk and the real lane diverge, so the lint verdicts, the "no power-up lands in a dead zone" test, DETECTED THREATS on the mission disc and the Lane Designer's preview describe a lane nobody flies. Against the live sim a corrected walk hits 81% of enemy angles (41.5% today) and 66% of pickup angles (5% today). A second drift: a beat pickup refused by the spacing law `continue`s after drawing from the beat stream (`51-linter.js` ~235), and relief pickups are not modelled.
+- **Why it is parked:** the corrected walk flags one moment as a fairness breach — **stage 15, ALTOR WATCH I, LANE OUT 0:37–0:36**: two normals, one per emitter, then a heavy at 7 o'clock 0.63 s later, inside the 0.825 s both-emitters window. The live game confirms it. **Gil, 2026-10-10: "leave it as is. it is fine."** So the stage stays (its board does not move), and the walk fix must land with an accepted exception for that moment, or with the window rule retuned, never by editing the lane.

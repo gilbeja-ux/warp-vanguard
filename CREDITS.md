@@ -116,9 +116,11 @@ list. Recorded here 2026-10-10, by class, from those files:
   `volleyFizzle`, `transWarp`, `volleyBlast`, `padPress1`, `padPress2`. The
   Pixabay terms above apply to them as they do to the two boss takes. The
   filename is the evidence; the download pages were not recorded.
-- **Source not recorded:** `rayCharge` and `bossPlate` (the H-33 takes,
-  2026-08-27) and `sonar`. Find and record these three before a store listing
-  claims a licence for every sound.
+- **Pixabay, on Gil's word (2026-10-10):** `rayCharge` and `bossPlate` (the H-33
+  takes, 2026-08-27, `ray-charge.mp3` and `boss-plate.mp3`) and `sonar`
+  (`sonar-ping.mp3`). Their files were renamed on the way in, so no filename
+  carries the evidence; Gil confirmed the source. The Pixabay terms above apply.
+  Every shipped sound now has a recorded licence.
 
 <!-- historical note, kept deliberately: this table used to carry a per-file
      "Source" column of _TBC_ placeholders under a sentence claiming the chain

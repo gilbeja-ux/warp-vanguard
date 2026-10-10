@@ -53,7 +53,7 @@ Not applicable. The app is not in a regulated industry. The code, artwork and mu
 Item 6 was corrected on 2026-10-10. It used to say all sound was original, and it
 is not: `CREDITS.md` records the CC0 sound effects (Sonniss GameAudioGDC, Kenney,
 Freesound), the Pixabay takes and the two OFL fonts. There is no in-app credits
-screen, so the reply points at the credits file and claims nothing more. Before
-pasting it, confirm the three takes `CREDITS.md` lists as *source not recorded*
-(`rayCharge`, `bossPlate`, `sonar`) are CC0 or Pixabay; if one is not, name its
-licence here.
+screen, so the reply points at the credits file and claims nothing more. The
+three takes that once had no recorded source (`rayCharge`, `bossPlate`, `sonar`)
+are Pixabay, confirmed by Gil on 2026-10-10, so the reply is ready to paste as it
+stands.
