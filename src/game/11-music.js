@@ -665,19 +665,29 @@ function padRumbleStop() {
   try { const act = padDev && padDev.vibrationActuator; if (act && act.reset) act.reset(); } catch (e) {}
   padFxUntil = 0; padFxMag = 0;
 }
-let padWasRun = false, padIdleAt = -999;
+let padWasRun = false, padIdleAt = -999, padWasEnd = false;
 function tickPadRumble() {
   const inRun = state === S.PLAY || state === S.PAUSE || state === S.INFO || state === S.END;
   if (padWasRun && !inRun) padRumbleStop(); // the door slams on the way out, every path
   padWasRun = inRun;
+  // …AND ON THE WAY INTO THE REPORT (2026-10-10). Gil, a new pad after a boss duel:
+  // it "keeps randomly vibrating even after the level ended". Nothing the game sends
+  // rumbles on the END screen — a logging pad counted zero commands there, after a
+  // lane and after the duel — but a busy fight lays effects down faster than some
+  // drivers play them, and the report was the one screen of a run with no stop at
+  // all: the door only slammed on LEAVING it. It slams on arrival now too.
+  const isEnd = state === S.END;
+  if (isEnd && !padWasEnd) padRumbleStop();
+  padWasEnd = isEnd;
   // THE MENU WATCHDOG. One stop can be missed; a stop repeated every two
   // seconds cannot. Set-and-hold motors have no other way to be *sure* they
   // are idle, and the report costs a handful of bytes on a screen doing
   // nothing else. It also settles the question for good: with an all-stop
   // landing every two seconds, any pulse that still survives is the hardware
   // generating it on its own, because nothing we sent could still be alive.
-  // Runs regardless of the haptics setting — silence is not an effect.
-  if (!inRun) {
+  // Runs regardless of the haptics setting — silence is not an effect. The report
+  // gets it too (2026-10-10): it is part of a run, but nothing on it rumbles.
+  if (!inRun || isEnd) {
     if (time - padIdleAt > 2) { padIdleAt = time; hidSendStop(1); }
     return;
   }

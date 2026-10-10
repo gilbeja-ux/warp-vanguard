@@ -7089,6 +7089,18 @@ await tick();
   check('update mark: the boot asks once, off the critical path, and cannot throw', /try \{ lbStaleInit\(\); \} catch \(e\) \{\}/.test(src('src/game/99-boot.js')));
 }
 
+// ================= THE PAD STOPS ON THE REPORT TOO (Gil, 2026-10-10) =================
+// A new pad kept pulsing on the END screen after a boss duel. The report was the one
+// screen of a run with no stop: it slammed only on the way out. It slams on arrival,
+// and the set-and-hold watchdog repeats there as it does on the menus.
+{
+  const mu = fs.readFileSync(path.join(ROOT, 'src', 'game', '11-music.js'), 'utf8');
+  const tick = mu.slice(mu.indexOf('function tickPadRumble()'), mu.indexOf('let buzzMonN'));
+  check('pad: arriving on the report stops the motors', /const isEnd = state === S\.END;\s*if \(isEnd && !padWasEnd\) padRumbleStop\(\);/.test(tick));
+  check('pad: the 2-second stop also runs on the report', /if \(!inRun \|\| isEnd\) \{\s*if \(time - padIdleAt > 2\)/.test(tick));
+  check('pad: leaving a run still stops the motors', /if \(padWasRun && !inRun\) padRumbleStop\(\);/.test(tick));
+}
+
 // ================= A WARP LINE NARROWS ON A SMALL SCREEN (Gil, 2026-10-10) =================
 // The pen was fixed screen points while the bore shrinks with the phone, so the white
 // lines filled twice the lane on a phone that they fill on a Mac. Both paths scale the
