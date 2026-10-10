@@ -556,7 +556,19 @@ function headSprite(tint) {
   headSprites[key] = sp;
   return sp;
 }
+// THE WARP LINE'S GAUGE FOLLOWS A SMALL SCREEN (Gil, 2026-10-10: "on the mac it looks
+// perfect", and on the phone the lines "take up too much space and confuse the users").
+// A line's LENGTH rides the bore's projection, but its pen was a fixed number of
+// screen points — so on a phone, whose bore is under half a Mac window's across, every
+// line kept its full width and the white field filled twice the share of the lane the
+// enemies fly in. Below WARP_LINE_FULL_H the pen narrows with the screen's short side,
+// down to WARP_LINE_MIN_K; at and above it (the Mac, an iPad) nothing changes. The
+// convoy's gold lines and the stars' heads are not on it.
+const WARP_LINE_FULL_H = 700;  // short side, in screen points, from which a line draws at full gauge
+const WARP_LINE_MIN_K = 0.5;   // the thinnest gauge, on the smallest screen
+const warpLineGauge = () => clamp(Math.min(W, H) / WARP_LINE_FULL_H, WARP_LINE_MIN_K, 1);
 function drawStreaks(g, dt) {
+  const gauge = warpLineGauge(); // read once a frame — see WARP_LINE_FULL_H
   // a wounded convoy is a thinner, dimmer river
   const riverK = state === S.PLAY ? 0.35 + 0.65 * clamp(integrity / 100, 0, 1) : 1;
   const spd = (state === S.PLAY ? trafficSpeed : 0.4) * laneFlow * laneVel; // signed: the course's rewind runs the river backwards
@@ -656,7 +668,7 @@ function drawStreaks(g, dt) {
     // own path — every alpha it sets is clamped, so they never had the fault.
     if (!st.gold && al <= 0) continue;
     if (FX && !st.gold) {
-      const k = Math.min(9, lerp(0.6, 1.25, 1 - zH) * st.cal);
+      const k = Math.min(9, lerp(0.6, 1.25, 1 - zH) * st.cal) * gauge;
       const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
       // the head, worked out exactly as the slow path does below
       const headZ = 0.55 + 0.45 * (1 - laneFlow);
@@ -722,7 +734,8 @@ function drawStreaks(g, dt) {
       // alpha and turned into a capsule. With eight passes and the widest at 0.010
       // alpha, a broad stroke is a breath of glow rather than a surface, so shafts
       // are allowed to get genuinely wide. Still capped, just far higher.
-      const k = Math.min(9, lerp(0.6, 1.25, 1 - zH) * st.cal);
+      // (× gauge: the same narrowing on a small screen as the fast path above)
+      const k = Math.min(9, lerp(0.6, 1.25, 1 - zH) * st.cal) * gauge;
       // THE TAPER — this is what makes a smear a smear.
       //
       // Every pass used to be a flat rgba() stroke: uniform alpha from head to

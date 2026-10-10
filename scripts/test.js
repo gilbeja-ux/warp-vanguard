@@ -7089,6 +7089,19 @@ await tick();
   check('update mark: the boot asks once, off the critical path, and cannot throw', /try \{ lbStaleInit\(\); \} catch \(e\) \{\}/.test(src('src/game/99-boot.js')));
 }
 
+// ================= A WARP LINE NARROWS ON A SMALL SCREEN (Gil, 2026-10-10) =================
+// The pen was fixed screen points while the bore shrinks with the phone, so the white
+// lines filled twice the lane on a phone that they fill on a Mac. Both paths scale the
+// pen by one gauge; a Mac-sized screen keeps the exact look Gil signed off.
+{
+  const df = fs.readFileSync(path.join(ROOT, 'src', 'game', '83-deepfield.js'), 'utf8');
+  const kLines = df.match(/const k = Math\.min\(9, lerp\(0\.6, 1\.25, 1 - zH\) \* st\.cal\)( \* gauge)?;/g) || [];
+  check('warp lines: both pen paths take the gauge', kLines.length === 2 && kLines.every(l => / \* gauge;$/.test(l)));
+  check('warp lines: the gauge is named knobs, full at a Mac-sized screen',
+    /const WARP_LINE_FULL_H = \d+;/.test(df) && /const WARP_LINE_MIN_K = [\d.]+;/.test(df)
+    && /const warpLineGauge = \(\) => clamp\(Math\.min\(W, H\) \/ WARP_LINE_FULL_H, WARP_LINE_MIN_K, 1\);/.test(df));
+}
+
 // ================= THE TRACE RECORDS THE ANGLE THE STEP JUDGED (2026-10-10) =================
 // update() moves a carriage itself (slewNodes, the desktop keys) before anything judges
 // it, and a replay skips that move. A trace that took its angles BEFORE the step was one
