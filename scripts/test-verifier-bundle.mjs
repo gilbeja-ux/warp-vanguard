@@ -4,7 +4,8 @@
 //   node scripts/build-verifier.js && node scripts/test-verifier-bundle.mjs
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { recordDemoRun, recordCampaignRun, campaignIds } = require('./verify-run.js');
+const { recordDemoRun, recordCampaignRun, recordSlewRun, campaignIds } = require('./verify-run.js');
+const slewRun = recordSlewRun(4); // recorded BEFORE the bundle loads its own sim
 const { verifyRun } = await import('../supabase/functions/submit-run/_sim.mjs');
 
 const run = recordDemoRun(4);
@@ -38,6 +39,13 @@ for (const id of campaignIds()) {
     `bundle returns the run's clock for ${r.board} (${v.timeSec} ~ ${r.timeSec})`);
 }
 line(!verifyRun({ ...run, campId: 'no-such-campaign' }).ok, 'bundle REJECTS an unknown campId');
+// THE CARRIAGES TRAVEL. A pad tap or a stick names a bearing and the sim slews to
+// it; a run like that was refused for two months (fixed 2026-10-10, 61-replay.js).
+{
+  const v = verifyRun(slewRun);
+  line(slewRun.score > 0 && v.ok && v.recomputed === slewRun.score,
+    `bundle verifies a run whose carriages slew (${v.recomputed} === ${slewRun.score})`);
+}
 
 console.log(pass ? '\nBUNDLE OK' : '\nBUNDLE FAILED');
 process.exit(pass ? 0 : 1);

@@ -7081,3 +7081,19 @@ async function runMusicUp() {
   check('update mark: the client reads sim-ids, never a version row', /\/functions\/v1\/sim-ids/.test(src('src/game/31-leaderboard.js')) && !/min_version|minVersion/i.test(src('src/game/31-leaderboard.js')));
   check('update mark: the boot asks once, off the critical path, and cannot throw', /try \{ lbStaleInit\(\); \} catch \(e\) \{\}/.test(src('src/game/99-boot.js')));
 }
+
+// ================= THE TRACE RECORDS THE ANGLE THE STEP JUDGED (2026-10-10) =================
+// update() moves a carriage itself (slewNodes, the desktop keys) before anything judges
+// it, and a replay skips that move. A trace that took its angles BEFORE the step was one
+// step behind, so every pad-tap and stick run recomputed to another score and the
+// verifier refused it. The behavioural proof is a slewing run in test-verifier-bundle.mjs.
+{
+  const src = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const rp = src('src/game/61-replay.js');
+  const step = rp.slice(rp.indexOf('function simStep()'), rp.indexOf('function startTrace()'));
+  const upd = step.lastIndexOf('update(SIM_DT)');
+  check('trace: a recorded step takes its angles AFTER update()', upd > 0 && step.indexOf('rec.a0 = nodes[0].angle', upd) > upd);
+  check('trace: the holds and fires are still taken before update()', /const rec = [\s\S]{0,200}padHold\[0\][\s\S]{0,200}traceFireQ/.test(step.slice(0, upd)));
+  check('trace: a replay ignores the desktop keys', /const kSpd = tracePlay \? 0 :/.test(src('src/game/72-tick.js')));
+  check('trace: the bundle cross-test flies a slewing run', /recordSlewRun\(/.test(src('scripts/test-verifier-bundle.mjs')));
+}

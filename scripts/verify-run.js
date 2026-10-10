@@ -292,6 +292,20 @@ function recordCampaignRun(campId, levelIdx = 3) {
 }
 const campaignIds = () => V.CAMPAIGNS.map(c => c.id);
 
+// record a run whose carriages TRAVEL: every step names a bearing (the nearest two
+// arrivals) and the sim slews to it, the way a pad tap or a stick does. Every other
+// recorder here sets angles directly, which is why the off-by-one-step trace (angles
+// taken before the slew moved them, 2026-10-10) verified for two months while real
+// pad and stick runs were refused. Uses this module's own sim instance.
+function recordSlewRun(levelIdx = 4) {
+  V.resetCanonical(); V.setViewport(1280, 720);
+  return recordClientRun(levelIdx, 1280, 720, (i, nodes) => {
+    const live = V.enemies().filter(e => !e.dead && !e.resolved).sort((a, b) => a.z - b.z);
+    nodes[0].slew = live[0] ? live[0].angle : 0;
+    nodes[1].slew = live[1] ? live[1].angle : (live[0] ? live[0].angle + Math.PI : Math.PI);
+  });
+}
+
 // record a genuine run on the LIVE ranked week — the payload scripts/test-weekly-freeze.mjs
 // then tries to file onto other weeks.
 //
@@ -312,5 +326,5 @@ function recordWeeklyRun(w = 1280, h = 720) {
   return V.getLastRun();
 }
 
-module.exports = { verifyRun, recordDemoRun, recordClientRun, recordCampaignRun, recordWeeklyRun, campaignIds };
+module.exports = { verifyRun, recordDemoRun, recordClientRun, recordCampaignRun, recordWeeklyRun, recordSlewRun, campaignIds };
 if (require.main === module && process.argv.includes('--selftest')) selfTest();

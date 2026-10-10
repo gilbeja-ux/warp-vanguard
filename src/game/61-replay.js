@@ -110,13 +110,25 @@ function simStep() {
   // briefings the player hit. The verifier replays with the intro skipped and
   // briefings suppressed, so it only ever produces advancing steps — both sides
   // then step the sim the same number of times.
+  //
+  // THE ANGLES ARE TAKEN AFTER THE STEP, the holds and fires before it (found
+  // 2026-10-10). update() moves a carriage itself (slewNodes, the desktop keys)
+  // before anything judges it, and a replay skips that move and judges at the
+  // recorded angle. Taken before the step, the record was the angle one step
+  // BEHIND the one the run was judged at, so any run with a carriage in flight (a
+  // pad tap, a stick) recomputed to a different score and the verifier refused it.
+  // Nothing after slewNodes writes an angle, so the post-step angle is the one the
+  // step judged with.
   const rec = (traceRec && state === S.PLAY)
-    ? { a0: nodes[0].angle, a1: nodes[1].angle, h: (padHold[0] ? 1 : 0) | (padHold[1] ? 2 : 0), f: traceFireQ.length ? traceFireQ.slice() : 0 }
+    ? { a0: 0, a1: 0, h: (padHold[0] ? 1 : 0) | (padHold[1] ? 2 : 0), f: traceFireQ.length ? traceFireQ.slice() : 0 }
     : null;
   const buf = traceRec;   // hold the array ref — endLevel's stopTrace() may null traceRec mid-update, yet this final advancing frame still belongs in the run
   const lt0 = levelT;
   update(SIM_DT);
-  if (rec && levelT !== lt0) { buf.push(rec); traceFireQ.length = 0; } // committed → fires consumed
+  if (rec && levelT !== lt0) { // committed → fires consumed
+    rec.a0 = nodes[0].angle; rec.a1 = nodes[1].angle;
+    buf.push(rec); traceFireQ.length = 0;
+  }
   return true;
 }
 // record and replay are mutually exclusive — one control scheme owns the sim

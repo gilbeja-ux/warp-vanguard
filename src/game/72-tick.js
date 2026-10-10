@@ -260,8 +260,9 @@ function update(dt) {
   // keyboard control (desktop testing) — controls always run at full speed.
   // A key drives its carriage by hand and so SUPERSEDES any pending bearing, or
   // the slew would haul the node back the moment the key pushed it out.
-  const kSpd = 4.5 * dt;
-  if (keys['a'] || keys['A'] || keys['d'] || keys['D']) nodes[0].slew = null;
+  // A replay owns every angle (see slewNodes), so a key held while one plays is ignored.
+  const kSpd = tracePlay ? 0 : 4.5 * dt;
+  if (!tracePlay && (keys['a'] || keys['A'] || keys['d'] || keys['D'])) nodes[0].slew = null;
   if (keys['a'] || keys['A']) nodes[0].angle -= kSpd;
   if (keys['d'] || keys['D']) nodes[0].angle += kSpd;
   if (!boss) {
