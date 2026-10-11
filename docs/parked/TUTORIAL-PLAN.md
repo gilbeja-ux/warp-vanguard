@@ -5,8 +5,8 @@
 
 # The course, made short — a plan
 
-Written 2026-10-08, the day Apple approved 1.0.11 and the first testers on both
-platforms reported back. Two reports concern the qualification course: one tester
+Written 2026-10-08, the day the first testers of 1.0.11 on both platforms
+reported back. Two reports concern the qualification course: one tester
 saw no arrows on the first run (F-016), and several, on Android as well as iOS,
 called the course too complex or unintuitive (F-017). This is the plan for the
 second report, with the first folded in.

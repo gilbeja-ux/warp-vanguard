@@ -57,3 +57,58 @@ screen, so the reply points at the credits file and claims nothing more. The
 three takes that once had no recorded source (`rayCharge`, `bossPlate`, `sonar`)
 are Pixabay, confirmed by Gil on 2026-10-10, so the reply is ready to paste as it
 stands.
+
+## 1.0.11 in the queue: the Notes and the correction (2026-10-11)
+
+1.0.11 was resubmitted on 2026-10-05 and was still "Waiting for Review" on
+2026-10-11. The reply of 2026-10-03 went in with the OLD item 6 (all sound
+original), so Apple holds a wrong statement. Two moves correct it and keep the
+place in the queue. Do NOT remove 1.0.11 from review for either: a new
+submission starts again at the back.
+
+1. **Notes.** App Store Connect → Distribution → the 1.0.11 version → App Review
+   Information → Notes. Replace the old text with the block below, then Save.
+   It is the reply above without its first sentence, and it points at the
+   recording already in the thread. It is about
+   3,400 characters; the field takes 4,000. Fill `[VERSION]` with the iOS version
+   the recording was made on, as in the reply.
+2. **A message in the thread.** App Review → the submission → Messages → reply.
+   Send it after the Notes save; if Notes will not save while the version waits,
+   send it without its last paragraph.
+
+### For the Notes field
+
+```
+1. SCREEN RECORDING
+The screen recording attached to our App Review reply of October 3 was captured on an iPhone running iOS [VERSION], starting from the app launch on the Home Screen. It shows the splash and enrolment, one full stage, the automatic score submission, the leaderboard, the REPORT link on a leaderboard row, the MY DATA panel (rename my runs, delete my runs), the pause menu, the field guide and the feedback form.
+- Account registration, login and account deletion: the app has no account creation and no login. Each device opens an anonymous session, which is used only to post scores. There is therefore no registration, login or account-deletion flow. A player can still delete everything the app holds about their device from the MY DATA panel (shown in the recording).
+- User-generated content: the only user-generated content is the leaderboard handle, a short name typed by the player. Handles are filtered by a word list at submission, every player can report another player's row from the leaderboard with a closed set of reasons (offensive, personal information, impersonation, other), a reported handle is redacted automatically after reports from three different players, and the contact address hello@gb-il.cloud is published in the privacy policy. There is no chat, messaging, profile or other communication between players.
+- Paid content: there are no in-app purchases and no paid features in this version. All content is free.
+
+2. PURPOSE AND AUDIENCE
+Warp Vanguard is a rhythm-action arcade game. The player steers two nodes on a ring with both thumbs, in landscape, to escort a convoy through a warp lane and clear the enemies on the beat. It is a single-player game for a general audience (rated 4+), with an optional online leaderboard. It solves no problem beyond play: the value is a short, skill-based session that is easy to pick up and hard to master.
+
+3. SETUP AND ACCESS
+No setup, no credentials and no sample files are needed. Launch the app, follow the short enrolment, and play. Everything in the app is reachable from the main menu. Scores are posted automatically at the end of a ranked stage; the leaderboard is behind the LEADERBOARD key on the menu. The app plays fully offline; only the leaderboard needs a network connection.
+
+4. EXTERNAL SERVICES
+- Supabase (supabase.com): hosted Postgres database, anonymous authentication and serverless functions for the leaderboard, score verification, player reports, data rename/deletion and the feedback form. Data in transit is HTTPS.
+- GitHub Pages: hosts the privacy policy and the support page (https://gilbeja-ux.github.io/warp-vanguard/privacy.html).
+No payment processor, no advertising network, no analytics SDK, no AI service and no third-party sign-in are used.
+
+5. REGIONAL DIFFERENCES
+None. The app has the same features and content in every region. The one leaderboard is global.
+
+6. REGULATED INDUSTRY / PROTECTED MATERIAL
+Not applicable. The app is not in a regulated industry. The code, artwork and music are original and owned by the developer. The recorded sound effects come from royalty-free sound libraries and are used under CC0 or the Pixabay Content License, and the two fonts (Audiowide and Rajdhani) are used under the SIL Open Font License 1.1. Each licence permits use in a commercial app, and CC0 and the Pixabay licence require no attribution. The sources and licences are recorded in the project's credits file.
+```
+
+### The correction message
+
+```
+Hello. This is a correction to item 6 of our reply of October 3, 2026.
+
+That reply said all the sound in the app is original. That is not complete. The code, artwork and music are original and owned by the developer. Some recorded sound effects come from royalty-free sound libraries and are used under CC0 or the Pixabay Content License, and the two fonts (Audiowide and Rajdhani) are used under the SIL Open Font License 1.1. Each licence permits use in a commercial app, and CC0 and the Pixabay licence require no attribution. The sources and licences are recorded in the project's credits file.
+
+The App Review Notes of version 1.0.11 carry the corrected text. Nothing else in the answers has changed.
+```

@@ -1,16 +1,19 @@
 # Release Plan — WARP VANGUARD
 
-**Where it stands (2026-10-10).** The game is in **open testing on Google Play**
-(since 2026-09-18) and **live on the App Store**: 1.0.11, the performance build,
-went to both stores on 2026-10-05. **1.0.12 is next**: the called first-run
-course and the screen type cap (docs/CHANGELOG.md). **1.1** adds the paywall
+**Where it stands (2026-10-11).** The game is in **open testing on Google Play**
+(since 2026-09-18) and **in App Review for the App Store**: 1.0.11, the performance
+build, went to both stores on 2026-10-05, and Apple still lists it as "Waiting for
+Review". It is not on the App Store yet; the approval reported on 2026-10-08 was not
+the App Store release. **1.0.12 is next**: the called first-run course and the screen
+type cap (docs/CHANGELOG.md). On iOS it goes in as an update after 1.0.11 is approved:
+pulling 1.0.11 out of review to swap the build would give up its place in the queue. **1.1** adds the paywall
 below. Every release ships to both platforms (CLAUDE.md, *Two platforms, one fix*).
 
 ## Decisions (locked 2026-08-13, updated since)
 
 | | Decision | Why |
 |---|---|---|
-| **Store** | Google Play first, then the App Store | Done in that order. Play went to internal, closed and then open testing; the iOS shell was rebuilt 2026-09-04, the Apple Developer enrolment followed, and 1.0.11 passed App Review. `npm run ios:archive` is the upload path. |
+| **Store** | Google Play first, then the App Store | Done in that order. Play went to internal, closed and then open testing; the iOS shell was rebuilt 2026-09-04, the Apple Developer enrolment followed, and 1.0.11 is in App Review (submitted 2026-10-05, still waiting on 2026-10-11). `npm run ios:archive` is the upload path. |
 | **Money** | **Free, no IAP until 1.1** | Fastest route to live: no billing plugin, no entitlement store, no restore-purchase flow, no IAP review. Open testing ships everything free. The free-demo + one-time-unlock model (below) lands in 1.1. |
 | **Leaderboards** | Shipped | Built, verified, deployed: every campaign stage and the weekly lane have a board, and `submit-run` replays each trace before it accepts a score. Free flow (endless) is unranked since 1.0.10. The price was real compliance work — §2. |
 
@@ -227,7 +230,7 @@ All shipped; `docs/STORE-MATERIALS.md` is the source of store copy and art, and
 4. [x] The compliance forms (§2).
 5. [x] **Closed testing** with real testers.
 6. [x] **Open testing**, live since 2026-09-18 (`docs/OPEN-TESTING-PLAN.md`).
-7. [x] **App Store**: enrolment, TestFlight, App Review; 1.0.11 approved.
+7. [ ] **App Store**: enrolment and TestFlight done; App Review for 1.0.11 still waiting (submitted 2026-10-05).
 8. [ ] **Play production**, staged rollout (start ~10-20%).
 9. [ ] **1.1**: the paywall (above), on both stores at once.
 
