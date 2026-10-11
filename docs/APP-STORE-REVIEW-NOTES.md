@@ -62,9 +62,9 @@ stands.
 
 1.0.11 was resubmitted on 2026-10-05 and was still "Waiting for Review" on
 2026-10-11. The reply of 2026-10-03 went in with the OLD item 6 (all sound
-original), so Apple holds a wrong statement. Two moves correct it and keep the
-place in the queue. Do NOT remove 1.0.11 from review for either: a new
-submission starts again at the back.
+original), so Apple holds a wrong statement. The Notes field corrects it and
+keeps the place in the queue. Do NOT remove 1.0.11 from review to correct it: a
+new submission starts again at the back.
 
 1. **Notes.** App Store Connect → Distribution → the 1.0.11 version → App Review
    Information → Notes. Replace the old text with the block below, then Save.
@@ -72,9 +72,10 @@ submission starts again at the back.
    recording already in the thread. It is about
    3,400 characters; the field takes 4,000. Fill `[VERSION]` with the iOS version
    the recording was made on, as in the reply.
-2. **A message in the thread.** App Review → the submission → Messages → reply.
-   Send it after the Notes save; if Notes will not save while the version waits,
-   send it without its last paragraph.
+2. **A message in the thread, only when Apple opens one.** While the version
+   waits, the submission page has no Reply button (Gil, 2026-10-11), so the
+   Notes change is the whole correction. If Apple writes during the review,
+   put the message below into the reply.
 
 ### For the Notes field
 
