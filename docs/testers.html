@@ -130,7 +130,9 @@
      the only thing a tester can do on arrival; feedback is outlined because it
      matters later, after they have played. The two install buttons (Google
      Play, App Store, 2026-10-10) are both solid and do not compete either: a
-     reader holds one phone and taps the one store it has. */
+     reader holds one phone and taps the one store it has. The iPhone button is
+     TestFlight's public link until 1.0.11 clears App Review: the App Store
+     listing was a 404 on 2026-10-11. */
   .cta {
     display: block; text-align: center; text-decoration: none;
     background: var(--grn); color: #06040d;
@@ -222,13 +224,17 @@
 <ol class="steps">
   <li>Open <b>this page on your phone</b>. The test is open to anyone: there
   is nothing to sign up for and no address to send me.</li>
-  <li>Tap <b>Get it on Google Play</b> on Android, or <b>Get it on the App
-  Store</b> on an iPhone or iPad.</li>
+  <li>Tap <b>Get it on Google Play</b> on Android, or <b>Get it on
+  TestFlight</b> on an iPhone or iPad.</li>
   <li>If Google Play offers to join the test, accept, then install as normal.</li>
+  <li>On an iPhone, the link first asks for Apple's free <b>TestFlight</b> app.
+  Install it, open the link again, then tap <b>Accept</b> and <b>Install</b>.</li>
 </ol>
 
 <a class="cta" href="https://play.google.com/store/apps/details?id=com.warpvanguard.game&amp;referrer=utm_source%3Dtesters-page%26utm_medium%3Dweb%26utm_campaign%3Dopentest" target="_blank" rel="noopener">Get it on Google Play</a>
-<a class="cta" href="https://apps.apple.com/app/id6818248157" target="_blank" rel="noopener">Get it on the App Store</a>
+<!-- TestFlight until 1.0.11 clears App Review, then back to the App Store:
+     https://apps.apple.com/app/id6818248157 (2026-10-11) -->
+<a class="cta" href="https://testflight.apple.com/join/sp1w7R7M" target="_blank" rel="noopener">Get it on TestFlight</a>
 <p class="cta-note">Free, no ads, nothing to buy. Not on a phone, or the Play
 button does nothing?
 <a href="https://play.google.com/apps/testing/com.warpvanguard.game" target="_blank" rel="noopener">Join the Android test on the web</a>.</p>

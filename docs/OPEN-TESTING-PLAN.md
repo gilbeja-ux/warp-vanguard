@@ -148,7 +148,7 @@ that *shows* the game gets installs. So:
 | **TouchArcade forums → Upcoming Games / beta threads** | the one forum where mobile arcade players still gather and *write* | slow, long-lived; a thread keeps producing for weeks |
 | **Discord: r/AndroidGaming's server, indie mobile dev servers** | fast conversation; testers who will answer a follow-up question | ask before posting a link |
 | **itch.io** | a web page for the game with the Play link; the dev-log community tests things | an HTML5 build could live here too — §2.5 |
-| **r/iosgaming** | the App Store listing (id `6818248157`) goes live when 1.0.11 clears App Review; until then its link is a 404 (checked 2026-10-11) | post only after the release, with the App Store link, not the Play one |
+| **r/iosgaming** | iPhone testers join through TestFlight (https://testflight.apple.com/join/sp1w7R7M) until 1.0.11 clears App Review; the App Store listing (id `6818248157`) is a 404 until then (checked 2026-10-11) | post the TestFlight link now and the App Store link after the release, never the Play one |
 | **Israeli dev communities (GameIS and the like)** | the warm circle's second ring; good for Phase 1 count | Hebrew post, same clip |
 | **r/AndroidClosedTesting and swap subs** | count only, Phase 1 only, last resort | see Tier C |
 

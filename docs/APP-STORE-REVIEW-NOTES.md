@@ -69,8 +69,8 @@ new submission starts again at the back.
 1. **Notes.** App Store Connect → Distribution → the 1.0.11 version → App Review
    Information → Notes. Replace the old text with the block below, then Save.
    It is the reply above without its first sentence, and it points at the
-   recording already in the thread. It is about
-   3,400 characters; the field takes 4,000. Fill `[VERSION]` with the iOS version
+   recording already in the thread. It is 3,447
+   bytes; the field takes 4,000 bytes. Fill `[VERSION]` with the iOS version
    the recording was made on, as in the reply.
 2. **A message in the thread, only when Apple opens one.** While the version
    waits, the submission page has no Reply button (Gil, 2026-10-11), so the
