@@ -50,6 +50,9 @@ const SIZES = {
   play169: { w: 960,  h: 540,  dpr: 2, note: 'Google Play 16:9, 1920x1080 — the pad law shrinks the pads to 86% here' },
   iphone:  { w: 956,  h: 440,  dpr: 3, safe: IPHONE_SAFE, note: 'App Store iPhone 6.9 in, 2868x1320' },
   ipad:    { w: 1376, h: 1032, dpr: 2, safe: { l: 0, r: 0, t: 0, b: 20 }, note: 'App Store iPad 13 in, 2752x2064' },
+  // the product page's optional header (App Store Connect, "Header and Search Results", 2026-10-14):
+  // a 2.33:1 frame, wider than any phone, so the pad law seats the pads in from the glass
+  header:  { w: 1920, h: 823,  dpr: 2, note: 'App Store product-page header, 3840x1646' },
   // video sizes
   yt:      { w: 1080, h: 540, dpr: 2, note: 'YouTube / Play promo video, 2160x1080 (2:1)' },
   preview: { w: 960,  h: 443, dpr: 2, safe: IPHONE_SAFE, note: 'App Store preview, iPhone, 1920x886' },
