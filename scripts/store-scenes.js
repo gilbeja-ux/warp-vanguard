@@ -152,6 +152,22 @@ const SCENES = {
     hold: 12, auto: 'off',
     finish: CLEAR + ' ghosts = [];'
   },
+  // THE PRODUCT-PAGE HEADER (App Store Connect, "Header and Search Results",
+  // 2026-10-14): a 3840x1646 frame across the top of the App Store page, with
+  // Apple's own title and button laid over it. So it is the feature plate's bare
+  // bore — no HUD, no pads, no score — and the bodies sit on the ring around its
+  // centre, because the header is shown whole rather than cropped to the right.
+  header: {
+    n: '07', what: 'the bare bore for the App Store product-page header (header size only)', only: 'header',
+    setup: () => PLAY(2, 6),
+    warm: 300,
+    stage: () => READY(0.34) + `
+      drawHUD = () => {}; drawDials = () => {}; drawWarpCal = () => {}; drawIntroCard = () => {}; drawNowPlaying = () => {}; drawPulseOrbs = () => {};` + PLACE([
+        ['normal', 0.72, 0.30, null], ['heavy', 0.78, 2.55, null], ['normal', 1.05, 4.20, 0], ['normal', 1.35, 1.40, 1], ['normal', 0.95, 5.40, 1] ]) + `
+      nodes[0].angle = Math.PI * 1.18; nodes[1].angle = Math.PI * 0.16;`,
+    hold: 12, auto: 'off',
+    finish: CLEAR + ' ghosts = [];'
+  },
 };
 
 module.exports = { SCENES };
