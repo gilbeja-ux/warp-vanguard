@@ -216,8 +216,8 @@ reads it. A pin fails the build if any drawn string says `LEVEL` again.
 ## Two platforms, one fix. iOS is always upload-ready.
 
 Gil's standing order, 2026-09-04: **every fix lands on both platforms, every time.** The
-game goes to both stores (Play open testing; on the App Store, 1.0.11 was still in App Review
-on 2026-10-11, so it is not live there yet), and every release ships to both. The iOS shell stays in step with Android so that an
+game goes to both stores (Play open testing; on the App Store since 2026-10-14, when Apple
+approved 1.0.11), and every release ships to both. The iOS shell stays in step with Android so that an
 App Store upload is `npm run ios:archive` and nothing else — no catch-up, no "let me
 check whether iOS still builds".
 

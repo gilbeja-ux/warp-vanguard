@@ -6,7 +6,7 @@ what a player meets. The commit trail between two versions is
 
 ---
 
-## 1.0.12 — unreleased (versionCode 10012)
+## 1.0.12 — 2026-10-14 (versionCode 10012)
 
 The first-run build. Testers on 1.0.11, on iOS and Android, called the ten-disc
 course too complex. The course is one lane now that shows each move before it
