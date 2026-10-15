@@ -10,7 +10,7 @@ enforcement, and it is checked against the binary.
 ## App content → Privacy policy
 
 ```
-https://gilbeja-ux.github.io/warp-vanguard/privacy.html
+https://warp.gb-il.cloud/privacy.html
 ```
 
 Served by GitHub Pages from this repo. **One-time setup by the account owner:**
@@ -18,6 +18,10 @@ repo → *Settings* → *Pages* → Source: *Deploy from a branch* → branch `m
 folder `/docs` → Save. The URL is live a minute or two later. Contact address is
 `hello@gb-il.cloud`; both the address and the policy text can be changed at
 any time by editing `docs/privacy.html` and pushing.
+
+Since 2026-10-15 the site is `warp.gb-il.cloud` (see `docs/PRIVACY-POLICY.md`).
+The fields filed before then hold `gilbeja-ux.github.io/warp-vanguard/…`, which
+redirects here; swap in the new address at the next release.
 
 ## App content → Ads
 
@@ -32,7 +36,7 @@ any time by editing `docs/privacy.html` and pushing.
 Answer **Yes**, and give this as the **Delete data URL**:
 
 ```
-https://gilbeja-ux.github.io/warp-vanguard/delete-data.html
+https://warp.gb-il.cloud/delete-data.html
 ```
 
 **A `mailto:` is rejected** — the field validates as a URL, and Play publishes

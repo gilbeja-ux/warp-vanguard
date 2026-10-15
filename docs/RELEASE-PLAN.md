@@ -88,7 +88,7 @@ player-chosen handle, and run data to a server.
 
 - [x] **Privacy policy, publicly hosted at a stable URL.** `docs/privacy.html`,
       served by GitHub Pages at
-      **https://gilbeja-ux.github.io/warp-vanguard/privacy.html**.
+      **https://warp.gb-il.cloud/privacy.html**.
       Owner enables it once: *Settings → Pages → branch `master`, folder `/docs`*.
 - [x] **Play Data Safety form.** Filed; the answers are in
       `docs/PLAY-CONSOLE-ANSWERS.md`. Must match reality exactly, and mismatches are a

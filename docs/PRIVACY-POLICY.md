@@ -5,7 +5,15 @@ one published to the web and the one the store points at.
 
 Published URL (GitHub Pages, source = `master` branch `/docs` folder):
 
-> **https://gilbeja-ux.github.io/warp-vanguard/privacy.html**
+> **https://warp.gb-il.cloud/privacy.html**
+
+The site moved to `warp.gb-il.cloud` on 2026-10-15, so its address no longer
+carries Gil's full name: `docs/CNAME` names the domain, and a `CNAME` record
+`warp` → `gilbeja-ux.github.io.` at Namecheap points it at Pages. The old
+`gilbeja-ux.github.io/warp-vanguard/` addresses redirect here, so a store field
+that still holds one keeps working. Delete `docs/CNAME` before the DNS record,
+never after: with the file and no record, the old address redirects to a name
+that does not resolve.
 
 ## Why there is no copy here
 

@@ -27,7 +27,7 @@ launch pitch and the 1.1 price.
 | Build | 1.0.8, versionCode 10008 | `package.json`, CHANGELOG |
 | Store URL | `play.google.com/store/apps/details?id=com.warpvanguard.game` answers 404 from outside Play | fetched 2026-09-13; consistent with a closed test, which has no public listing |
 | Opt-in URL | `play.google.com/apps/testing/com.warpvanguard.game` | `docs/testers.html` |
-| Tester guide | `https://gilbeja-ux.github.io/warp-vanguard/testers.html` — said *Closed test* and asked for the 14-day hold; rewritten for open testing 2026-10-10 | live, 200 |
+| Tester guide | `https://warp.gb-il.cloud/testers.html` — said *Closed test* and asked for the 14-day hold; rewritten for open testing 2026-10-10 | live, 200 |
 | Feedback form | Google Form, 7 questions, none required: *Is it fun?* (YES! / yes? / Not really), phone, where you stopped, what confused you, what felt unfair, stutter/overheat/wrong, anything else | linked from the tester guide |
 | In-game feedback | SETTINGS → FEEDBACK disc: A BUG / AN IDEA / TOO HARD OR TOO EASY / SOMETHING ELSE, 600 chars, carries build + device model + place + screen, and the last SYSTEM FAULT with its ten-step trail. Lands in Supabase, counted on the portal's *new feedback* tile. One-way; the flank prints `hello@gb-il.cloud` | `docs/FEEDBACK-PLAN.md`, `92-guide.js` |
 | Server telemetry | `runs` rows (a loss files too since 1.0.8), `ladder_reach`, `player_growth`, `board_occupancy` views | `docs/MODERATION.md` |
