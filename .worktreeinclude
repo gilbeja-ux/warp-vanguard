@@ -1,0 +1,20 @@
+# Gitignored files a NEW worktree copies from the main checkout (.gitignore syntax; a
+# file is copied only if it matches here AND git ignores it). Read by the Claude desktop
+# app's worktree option and by the CLI worktree tool alike (2026-10-19).
+#
+# The fingerprint cache: keyed by the sim's own hash, so a stale copy is simply
+# recomputed, and a fresh one spares the first `npm run build` the whole battery.
+.sim-fingerprint.json
+# The sfx order the soundboard saves, and the takes it names: "implement the sfx order"
+# in a worktree needs both, and git carries neither.
+docs/sfx-order.json
+src/audio/sfx/incoming/**/*.wav
+src/audio/sfx/incoming/**/*.mp3
+src/audio/sfx/incoming/**/*.m4a
+src/audio/sfx/incoming/**/*.ogg
+#
+# Deliberately NOT copied: node_modules (npm test and the build need none of it; only
+# `cap sync` does, and a store build needs the generated android/ and ios/ projects,
+# which only the main checkout has), android/key.properties
+# (a signing key stays in one place), and the labs' saved state (the labs serve the main
+# checkout, so a copy here would be read by nothing).

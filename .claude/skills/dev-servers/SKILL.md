@@ -79,6 +79,20 @@ cd /Users/gilbeja/vsCode/warp-vanguard
 nohup npm run lab:dest > /tmp/wv-lab-dest.log 2>&1 & disown
 ```
 
+## In the Claude desktop app
+
+Since 2026-10-19 Gil works in the desktop app's Code tab. Its Browser pane (Cmd+Shift+B)
+reads `.claude/launch.json`, which lists the map as **attach-only** entries: a `url`, no
+command. Previewing a map server shows the one Gil already runs; it never starts one.
+
+- A preview that will not load means the server is down. Start it with the `nohup` line
+  above, then preview again. Never add a command to a `launch.json` entry to "fix" it: a
+  server the app starts lives and dies with the app.
+- Never stop a map server from the Browser pane's **Dev servers** menu.
+- The pane, like Gil's tabs, serves the MAIN checkout. A change made in a worktree shows
+  there only after the merge.
+- `autoVerify` is off on purpose. Look at the pane only to answer a question of fact.
+
 ## When a rebuild *is* needed
 
 `npm run build` does three things: it regenerates `src/audio/music/tracks.js`, the

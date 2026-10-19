@@ -137,6 +137,26 @@ decisions and are pinned by `npm test`; `BUILD.md` lists each Android file with 
 twin. `capacitor.config.json` points `webDir` at `dist/`, so `cap sync` copies whatever
 the last `npm run build` staged. The pre-push hook and `npm run aab` are the gates.
 
+## Working from the Claude desktop app
+
+From 2026-10-19 Gil works in the Code tab of the Claude desktop app, not the VS Code
+extension. It is the same engine and reads the same files: this one, the auto memory in
+`~/.claude/projects/-Users-gilbeja-vsCode-warp-vanguard/memory/`, the skills, the hooks
+and both settings files. Three things carry the house law into the app:
+
+- `.claude/launch.json` gives the Browser pane (Cmd+Shift+B) THE PORT MAP as attach-only
+  entries: a `url` and no command, so the app shows a server Gil already runs and never
+  starts or stops one. `autoVerify` is off: a screenshot after every edit fills a session's
+  context, and Gil judges the look himself. `npm test` pins the file to the map.
+- `.worktreeinclude` names the gitignored files a new worktree copies from the main
+  checkout: the fingerprint cache, and the sfx order with its incoming takes.
+- A session starts with the **worktree** option on (rule 1 of **Several agents, one
+  checkout**). The Browser pane and Gil's tabs serve the MAIN checkout, so a worktree's
+  change shows there only after the merge.
+
+The auto memory is keyed to the repo's path. Never move this checkout out of
+`/Users/gilbeja/vsCode/warp-vanguard` unless that memory directory moves with it.
+
 ## Conventions the repo already follows
 
 - Commit subjects are full sentences that say what changed and why, often naming the ruling or date. Stage by path.
@@ -297,12 +317,16 @@ of them sweeps the others' work: `git stash`, `git reset --hard`, `git checkout 
 `git add -A` have each cost a day's edits. Written down 2026-09-08.
 
 1. **An agent works in a worktree.** `.claude/worktrees/<task>`, through the native
-   worktree tool; git ignores the folder. The main checkout is Gil's own, and no agent
-   runs a destructive git command there.
+   worktree tool, or the desktop app's **worktree** option when a session starts; git
+   ignores the folder. The main checkout is Gil's own, and no agent runs a destructive
+   git command there.
 2. **Stage by path, never by sweep.** `git add <file>` for the files you edited. Never
    `git add -A`, `git add .`, `git stash`, `git reset --hard`, `git checkout .` or
    `git clean` — in any checkout.
 3. **Finish means merge and remove.** Merge the branch into master, then
    `git worktree remove <path>` and `git branch -d worktree-<task>`. Never push a
-   `worktree-*` branch; the branch is scaffolding, not history.
+   `worktree-*` branch; the branch is scaffolding, not history. In the desktop app the
+   branch name starts with the **Branch prefix** set in Settings > Claude Code, which
+   Gil sets to `worktree-` so this rule reads the same; archiving the session removes
+   the worktree, so merge first.
 4. **`npm test` runs in the worktree before the merge.** The pre-push hook runs it again.

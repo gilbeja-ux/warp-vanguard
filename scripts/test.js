@@ -7113,6 +7113,21 @@ await tick();
     check('ports: ' + doc + ' carries the whole map', MAP.every(([, p, cmd]) => new RegExp('\\| ' + p + ' \\| `' + cmd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '`').test(d)) && /\| 8020 \| `npm run test:smoke`/.test(d));
   }
   check('ports: CLAUDE.md states the law', /## THE PORT MAP: one port per web interface/.test(rd('CLAUDE.md')));
+  // The desktop app's Browser pane reads .claude/launch.json (2026-10-19). Every entry is
+  // ATTACH-ONLY — a url, no command — so the app never starts or stops a map server, and
+  // the file names every port on the map, on the map's own port, and never the smoke 8020.
+  {
+    let lj = null;
+    try { lj = JSON.parse(rd('.claude/launch.json').replace(/^\s*\/\/.*$/gm, '')); } catch (e) {}
+    const cf = (lj && lj.configurations) || [];
+    check('ports: .claude/launch.json parses', !!lj && Array.isArray(lj.configurations));
+    check('ports: launch.json lists the whole map and nothing else', cf.length === MAP.length &&
+      MAP.every(([, p]) => cf.filter(c => c.port === p && c.url === 'http://localhost:' + p).length === 1));
+    check('ports: launch.json only attaches, never starts or stops a server', cf.every(c => !c.runtimeExecutable && !c.program));
+    check('ports: launch.json keeps the smoke suite\'s 8020 out', cf.every(c => c.port !== 8020 && !/:8020/.test(c.url || '')));
+    check('ports: launch.json names each server once', new Set(cf.map(c => c.name)).size === cf.length);
+    check('ports: launch.json turns autoVerify off', !!lj && lj.autoVerify === false);
+  }
   // no stray port in a tool's comments: a script that names another tool's old port misleads
   for (const [f, p] of MAP) {
     const others = (rd('scripts/' + f).match(/localhost:80\d\d|127\.0\.0\.1:80\d\d/g) || []).map(x => +x.slice(-4)).filter(x => x !== p);

@@ -1,0 +1,25 @@
+// The Claude desktop app's Browser pane (Cmd+Shift+B) reads this file. Every entry is
+// THE PORT MAP in CLAUDE.md, ATTACH-ONLY: a `url` and no command, so the app opens a
+// server Gil already runs and never starts or stops one. A server the app starts lives
+// and dies with the app; the map's servers run detached (`dev-servers` skill), because
+// a dead tab is the failure that skill exists to prevent. 8020 is absent: the smoke
+// suite's server is never a tab. `autoVerify` is off: a screenshot after every edit
+// fills a session's context, and Gil judges the look himself (2026-10-19).
+// `npm test`, section THE PORT MAP, pins this file to the map.
+{
+  "version": "0.0.1",
+  "autoVerify": false,
+  "configurations": [
+    { "name": "game", "port": 8000, "url": "http://localhost:8000" },
+    { "name": "story lab", "port": 8010, "url": "http://localhost:8010" },
+    { "name": "destinations lab", "port": 8011, "url": "http://localhost:8011" },
+    { "name": "tuning board", "port": 8012, "url": "http://localhost:8012" },
+    { "name": "disc lab", "port": 8013, "url": "http://localhost:8013" },
+    { "name": "sfx soundboard", "port": 8014, "url": "http://localhost:8014" },
+    { "name": "breach lab", "port": 8015, "url": "http://localhost:8015" },
+    { "name": "leech lab", "port": 8016, "url": "http://localhost:8016" },
+    { "name": "browser watch", "port": 8017, "url": "http://localhost:8017" },
+    { "name": "portal", "port": 8100, "url": "http://localhost:8100" },
+    { "name": "admin console", "port": 8200, "url": "http://localhost:8200" }
+  ]
+}
