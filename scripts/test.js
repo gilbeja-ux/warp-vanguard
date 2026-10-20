@@ -4923,8 +4923,9 @@ await tick();
       // the function — and the newest definition of it is the one that runs.
       {
         const dir = path.join(ROOT, 'supabase', 'migrations');
+        // the newest CREATE, not the newest mention: a grant or revoke names the function too (2026-10-20)
         const latest = fs.readdirSync(dir).sort()
-          .filter(f => fs.readFileSync(path.join(dir, f), 'utf8').includes('function public.delete_my_runs')).pop();
+          .filter(f => /create\s+(or\s+replace\s+)?function\s+public\.delete_my_runs\b/.test(fs.readFileSync(path.join(dir, f), 'utf8'))).pop();
         const sql = latest ? fs.readFileSync(path.join(dir, latest), 'utf8') : '';
         check('the newest delete_my_runs also withdraws the reports the player filed',
           /delete\s+from\s+public\.reports\s+where\s+reporter_id\s*=\s*p_player/.test(sql));
@@ -5311,7 +5312,7 @@ await tick();
   {
     const dir = path.join(ROOT, 'supabase', 'migrations');
     const latest = fs.readdirSync(dir).sort()
-      .filter(f => fs.readFileSync(path.join(dir, f), 'utf8').includes('function public.delete_my_runs')).pop();
+      .filter(f => /create\s+(or\s+replace\s+)?function\s+public\.delete_my_runs\b/.test(fs.readFileSync(path.join(dir, f), 'utf8'))).pop();
     const sql = fs.readFileSync(path.join(dir, latest), 'utf8');
     check('the newest delete_my_runs also erases the feedback the player sent',
       /delete\s+from\s+public\.feedback\s+where\s+player_id\s*=\s*p_player/.test(sql));
@@ -6990,6 +6991,66 @@ await tick();
     && /onRenderProcessGone/.test(read('BUILD.md')) && /webViewWebContentProcessDidTerminate/.test(read('BUILD.md')));
   check('both platforms: CLAUDE.md carries the several-agents rule',
     /## Several agents, one checkout/.test(read('CLAUDE.md')) && /git worktree remove/.test(read('CLAUDE.md')));
+}
+
+// ================= SERVICE_ROLE GRANTS ARE WRITTEN (Supabase, 2026-10-30) =================
+//
+// From 2026-10-30 Supabase grants nothing on a new public table, view or function,
+// service_role included, and a function the chain drops and creates again is a new
+// one. Every service-only function revokes EXECUTE from public, so until
+// 20261020000000_service_role_grants.sql service_role held its rights only through
+// the platform default, and the next re-created submit_verified_run would have
+// answered every score "permission denied for function". This walks schema.sql and
+// the migrations in order and fails if the LAST create of an object still alive at
+// the end has no service_role grant after it, in the same file or a later one.
+{
+  const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const noComments = s => s.replace(/--[^\n]*/g, '');
+  // the objects a chain leaves alive, and those of them with no service_role grant after their last create
+  const walkChain = sqls => {
+    const last = new Map();
+    sqls.forEach((sql, i) => {
+      for (const m of sql.matchAll(/\b(create\s+(?:or\s+replace\s+)?|drop\s+)(table|view|function)\s+(?:if\s+(?:not\s+)?exists\s+)?public\.(\w+)/gi)) {
+        const key = m[2].toLowerCase() + ' ' + m[3];
+        if (/^drop/i.test(m[1])) last.delete(key); else last.set(key, [i, m.index]);
+      }
+    });
+    const grants = sqls.map(sql => [...sql.matchAll(/\bgrant\s[^;]*?\bon\s+(?:table\s+|function\s+)?public\.(\w+)\b[^;]*?\bto\s[^;]*?\bservice_role\b[^;]*;/gi)]);
+    const bare = [...last].filter(([key, [i, at]]) => !grants.some((gs, j) => j >= i
+      && gs.some(g => g[1] === key.split(' ')[1] && (j > i || g.index > at)))).map(([key]) => key);
+    return { live: [...last.keys()], bare };
+  };
+  const bareObjects = sqls => walkChain(sqls).bare;
+  const files = ['supabase/schema.sql', ...fs.readdirSync(path.join(ROOT, 'supabase', 'migrations'))
+    .filter(f => f.endsWith('.sql')).sort().map(f => 'supabase/migrations/' + f)];
+  const sqls = files.map(f => noComments(read(f)));
+  const { live, bare } = walkChain(sqls);
+  check('service_role grants: the detector catches a function dropped and re-created without a grant, and passes it with one',
+    bareObjects(['create table public.t (id int); grant select on public.t to service_role;',
+      'create function public.f(a int) returns int as $$ select 1 $$ language sql; grant execute on function public.f(int) to service_role;',
+      'drop function if exists public.f(int); create function public.f(a int, b int) returns int as $$ select 1 $$ language sql;'])
+      .join() === 'function f'
+    && bareObjects(['create function public.f(a int) returns int as $$ select 1 $$ language sql;',
+      'drop function public.f(int); create or replace function public.f(a int, b int) returns int as $$ select 1 $$ language sql;\n'
+      + 'revoke execute on function public.f(int, int) from public;\ngrant execute on function public.f(int, int) to service_role;']).length === 0);
+  check('service_role grants: the chain still makes the objects the Edge Functions and the admin console reach',
+    ['table runs', 'table reports', 'table feedback', 'table player_limits', 'view report_queue', 'view feedback_queue',
+      'view admin_overview', 'function submit_verified_run', 'function take_submit_slot', 'function delete_my_runs', 'function file_feedback']
+      .every(k => live.includes(k)) && live.length >= 28);
+  check('service_role grants: every table, view and function is granted to service_role after its last create'
+    + (bare.length ? ' — no grant after: ' + bare.join(', ') : ''), bare.length === 0);
+  check('service_role grants: no file grants a write right to anon or authenticated',
+    sqls.every(s => ![...s.matchAll(/\bgrant\s[^;]*;/gi)].some(g => /\b(insert|update|delete|truncate|all)\b/i.test(g[0].split(/\bon\b/i)[0])
+      && /\bto\s[^;]*\b(anon|authenticated)\b/i.test(g[0]))));
+  const sg = read('supabase/migrations/20261020000000_service_role_grants.sql');
+  check('service_role grants: the closing migration keeps the public board readable and the three reads callable',
+    /grant select on public\.runs to anon, authenticated;/.test(sg)
+    && ['leaderboard_top', 'leaderboard_rank', 'leaderboard_provisional_rank']
+      .every(f => new RegExp('grant execute on function public\\.' + f + '\\([^)]*\\)\\s+to anon, authenticated, service_role;').test(sg)));
+  check('service_role grants: schema.sql and CLAUDE.md carry the rule, functions included',
+    /GRANTS ARE WRITTEN, NEVER INHERITED/.test(read('supabase/schema.sql'))
+    && /grant execute on function public\.<fn>\(<arg types>\) to service_role;/.test(read('supabase/schema.sql'))
+    && /SERVICE_ROLE GRANTS ARE WRITTEN/.test(read('CLAUDE.md')));
 }
 
 // ================= THE SMOKE: the real game boots in a real browser before a cut =================

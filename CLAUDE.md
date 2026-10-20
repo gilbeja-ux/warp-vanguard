@@ -129,6 +129,12 @@ ids as the verifier bundle and deployed by `deploy:verifier` in the same run. Th
 `supabase db push` and `supabase functions deploy <fn> --use-api` work without Docker.
 Board keys (`cargo-run:6`) are persisted rows: never rename or zero-pad one. Identity is
 an anonymous Supabase session per device; handles are free-typed and moderated at submit.
+Grants are written, never inherited: from 2026-10-30 Supabase grants nothing on a new
+public table, view or function, `service_role` included, and a function a migration drops
+and creates again is a new one. A migration that creates or re-creates an object grants it
+to `service_role` in the same file, after the create (the note in `schema.sql`; `npm test`
+section **SERVICE_ROLE GRANTS ARE WRITTEN**). Skip it and submit-run answers
+`permission denied for function`, which reads as a verifier fault and is not one.
 
 ## Native shells
 
