@@ -9,7 +9,11 @@
 -- live in the migrations. Read the newest migration for the current shape of any
 -- function; never hand-edit a function here to "keep it in sync" (audit
 -- 2026-09-08, A5: the copies had drifted three migrations behind, and a
--- `supabase db dump` needs Docker, which this Mac does not have).
+-- `supabase db dump` needs Docker, which this Mac does not have). A copy that
+-- runs AHEAD of the chain is worse than one behind it: a migration's `create or
+-- replace` cannot change the result type of a function this file already made,
+-- and the replay stops there (2026-10-20, submit_verified_run; `npm test`,
+-- section THE FRESH PATH REPLAYS).
 --
 -- Model: ONE table. A "board" is just a `board` value — there is nothing to
 -- pre-create (unlike LootLocker's 42 boards). Campaign boards are
@@ -171,76 +175,21 @@ language sql stable as $$
 $$;
 
 -- ---------------------------------------------------------------------------
--- The ONLY write path — called from the Edge Function with the service role key
--- AFTER it has verified the run (replay for campaign/daily; sanity caps for
--- endless). Each verified run lands as its OWN row, so a player can hold several
--- records on one board; nothing they set earlier is overwritten by a later run.
+-- THE ONLY WRITE PATH, submit_verified_run, is NOT REPEATED HERE. The Edge
+-- Function calls it with the service role key AFTER it has verified the run, and
+-- each verified run lands as its own row. It lives in migrations/ alone:
+--   20260726000000  one row per RUN: p_run_id joins the signature
+--   20260813000900  it hands back the trace keys it evicts, for submit-run to purge
+--   20260821000000  a boss board's eviction breaks a tie on the faster clear
+--   20260908000100  p_trace_hash, written with the row: one owner per trace
+-- This file used to carry a copy, and the copy was the 2026-08-13 shape: the same
+-- seventeen arguments the first migration creates, with a different result type.
+-- `create or replace` cannot change a result type, so the fresh path stopped at
+-- the first migration with "cannot change return type of existing function"
+-- (found 2026-10-20, replaying this file and the whole chain on a scratch
+-- database). With no copy, that migration's `drop function if exists` finds
+-- nothing and its create is the first one.
 -- ---------------------------------------------------------------------------
--- The signature gained p_run_id, and `create or replace` with a DIFFERENT
--- parameter list would add an overload rather than replace — leaving the old
--- one-row-per-player function callable (and the RPC ambiguous). Drop it first.
--- Returns the trace keys of the rows it EVICTED, so the caller can purge them
--- from Storage. Postgres cannot reach Storage, so without this the object outlives
--- its row for ever — see migrations/20260813000900_evict_returns_traces.sql.
-drop function if exists public.submit_verified_run(
-  text, int, text, text, int, int, real, int, int, int, text[], int, boolean, text, int, real
-);
-drop function if exists public.submit_verified_run(
-  text, int, text, text, int, int, real, int, int, int, text[], int, boolean, text, int, real, text
-);
-create or replace function public.submit_verified_run(
-  p_board text, p_day int, p_player text, p_name text, p_score int,
-  p_max_combo int, p_time_sec real, p_integrity int, p_misses int, p_perfects int,
-  p_mutators text[], p_seed int, p_verified boolean, p_trace_id text,
-  p_zaps int default 0, p_combo_sec real default 0, p_run_id text default ''
-) returns table (evicted_trace text)
-language sql as $$
-  -- Insert this run. It only ever collides with ITSELF — same (board, day,
-  -- player, run_id) — which is the rename re-submit, not a different run. On that
-  -- collision the NAME adopts the latest submission (the freshly-typed handle),
-  -- while the score/stats/trace only move when the resubmission is genuinely
-  -- better under the SAME tie-break the board ranks by: a lexicographic
-  -- (score, zaps, perfects) improvement (CASE-gated, so a rename can never
-  -- downgrade the stored run). created_at is left untouched, so the row keeps
-  -- its original timestamp — which is what ranks it against equal-tuple rivals.
-  insert into public.runs as r
-    (board, day, player_id, run_id, player_name, score, max_combo, combo_sec, time_sec,
-     integrity, zaps, misses, perfects, mutators, seed, verified, trace_id)
-  values
-    (p_board, p_day, p_player, coalesce(p_run_id,''), coalesce(p_name,''), p_score, p_max_combo, p_combo_sec, p_time_sec,
-     p_integrity, p_zaps, p_misses, p_perfects, coalesce(p_mutators,'{}'), p_seed, p_verified, p_trace_id)
-  on conflict (board, (coalesce(day, -1)), player_id, run_id) do update set
-    player_name = excluded.player_name,
-    score     = case when (excluded.score, excluded.zaps, excluded.perfects) > (r.score, r.zaps, r.perfects) then excluded.score     else r.score     end,
-    max_combo = case when (excluded.score, excluded.zaps, excluded.perfects) > (r.score, r.zaps, r.perfects) then excluded.max_combo else r.max_combo end,
-    combo_sec = case when (excluded.score, excluded.zaps, excluded.perfects) > (r.score, r.zaps, r.perfects) then excluded.combo_sec else r.combo_sec end,
-    time_sec  = case when (excluded.score, excluded.zaps, excluded.perfects) > (r.score, r.zaps, r.perfects) then excluded.time_sec  else r.time_sec  end,
-    integrity = case when (excluded.score, excluded.zaps, excluded.perfects) > (r.score, r.zaps, r.perfects) then excluded.integrity else r.integrity end,
-    zaps      = case when (excluded.score, excluded.zaps, excluded.perfects) > (r.score, r.zaps, r.perfects) then excluded.zaps      else r.zaps      end,
-    misses    = case when (excluded.score, excluded.zaps, excluded.perfects) > (r.score, r.zaps, r.perfects) then excluded.misses    else r.misses    end,
-    perfects  = case when (excluded.score, excluded.zaps, excluded.perfects) > (r.score, r.zaps, r.perfects) then excluded.perfects  else r.perfects  end,
-    mutators  = case when (excluded.score, excluded.zaps, excluded.perfects) > (r.score, r.zaps, r.perfects) then excluded.mutators  else r.mutators  end,
-    seed      = case when (excluded.score, excluded.zaps, excluded.perfects) > (r.score, r.zaps, r.perfects) then excluded.seed      else r.seed      end,
-    verified  = case when (excluded.score, excluded.zaps, excluded.perfects) > (r.score, r.zaps, r.perfects) then excluded.verified  else r.verified  end,
-    trace_id  = case when (excluded.score, excluded.zaps, excluded.perfects) > (r.score, r.zaps, r.perfects) then excluded.trace_id  else r.trace_id  end,
-    updated_at = now();
-
-  -- Evict past the top 100 of this (board, day). Deterministic tie-break (score,
-  -- hits, perfects, then oldest-first, then id) gives a HARD 100-row cap — the
-  -- client shows 50, and rows 51-100 are the retained-but-hidden buffer that
-  -- backfills a removal. Matches leaderboard_top's order exactly. The cap counts
-  -- ROWS, not players: a player's own weaker run is evicted like anyone else's.
-  delete from public.runs d
-   where d.board = p_board
-     and coalesce(d.day, -1) = coalesce(p_day, -1)
-     and d.id not in (
-       select r2.id from public.runs r2
-        where r2.board = p_board and coalesce(r2.day, -1) = coalesce(p_day, -1)
-        order by r2.score desc, r2.zaps desc, r2.perfects desc, r2.created_at asc, r2.id asc
-        limit 100
-     )
-  returning d.trace_id;
-$$;
 
 -- leaderboard_top / leaderboard_rank are safe for the anon role to execute;
 -- submit_verified_run is NOT granted to anon (service role calls it directly).
@@ -436,8 +385,9 @@ revoke execute on function public.report_run(uuid, text, text)    from public, a
 --   20260813000800  the auto handle loses its dash
 -- and the ADMIN views (admin_overview, board_occupancy, ladder_reach,
 -- player_growth) in 20260813000400/000500/000600. `supabase db push` installs the
--- lot; a fresh project built from THIS file alone comes up able to run the game
--- and take scores, which is what it is for. What they all mean is in
+-- lot. THIS file alone is not a working backend: the write path and the
+-- submission bar submit-run calls first are migrations too, so a fresh project is
+-- this file THEN the chain, never this file alone. What they all mean is in
 -- docs/MODERATION.md.
 
 -- The ADMIN views (admin_overview, board_occupancy, ladder_reach, player_growth)

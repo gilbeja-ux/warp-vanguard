@@ -7053,6 +7053,59 @@ await tick();
     && /SERVICE_ROLE GRANTS ARE WRITTEN/.test(read('CLAUDE.md')));
 }
 
+// ================= THE FRESH PATH REPLAYS (2026-10-20) =================
+//
+// A fresh project is schema.sql, then every migration in name order. schema.sql
+// held a copy of submit_verified_run in its 2026-08-13 shape, and the first
+// migration's `create or replace` of the same seventeen arguments returns void:
+// Postgres cannot change a result type in place, so the replay stopped there.
+// Found on a scratch Postgres 16; this is the same rule without a database. It
+// carries each function's (name, input types) from file to file and fails a
+// create that meets a live signature with another result type.
+{
+  const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const noComments = s => s.replace(/--[^\n]*/g, '');
+  // the text inside the parenthesis that opens at `at`, and the index after it
+  const inParens = (s, at) => {
+    let d = 0;
+    for (let i = at; i < s.length; i++) { if (s[i] === '(') d++; else if (s[i] === ')' && --d === 0) return [s.slice(at + 1, i), i + 1]; }
+    return ['', s.length];
+  };
+  const topSplit = s => { const out = []; let d = 0, cur = ''; for (const c of s) { if (c === '(') d++; if (c === ')') d--; if (c === ',' && !d) { out.push(cur); cur = ''; } else cur += c; } return cur.trim() ? [...out, cur] : out; };
+  const canon = t => t.toLowerCase().replace(/\s+/g, ' ').trim().replace(/\b(integer|int4)\b/g, 'int').replace(/\bfloat4\b/g, 'real')
+    .replace(/\bbool\b/g, 'boolean').replace(/\btimestamptz\b/g, 'timestamp with time zone').replace(/\s*([(),])\s*/g, '$1');
+  const replay = (sqls, names = []) => {
+    const fns = new Map(), faults = [];
+    sqls.forEach((sql, i) => {
+      for (const m of sql.matchAll(/\b(create\s+(?:or\s+replace\s+)?|drop\s+)function\s+(?:if\s+exists\s+)?public\.(\w+)\s*\(/gi)) {
+        const [args, end] = inParens(sql, m.index + m[0].length - 1);
+        if (/^drop/i.test(m[1])) { fns.delete(m[2] + '(' + topSplit(args).map(canon).join(',') + ')'); continue; }
+        const ins = topSplit(args).map(a => a.replace(/\s+default\s[\s\S]*$|\s*=[\s\S]*$/i, '').trim().split(/\s+/))
+          .filter(w => !/^out$/i.test(w[0])).map(w => /^(in|inout|variadic)$/i.test(w[0]) ? w.slice(1) : w);
+        const key = m[2] + '(' + ins.map(w => canon(w.slice(1).join(' '))).join(',') + ')';
+        const r = sql.slice(end).match(/^\s*returns\s+(table\s*\(|setof\s+[\w.]+(?:\[\])?|[\w.]+(?:\[\])?)/i);
+        const ret = !r ? '?' : /^table/i.test(r[1]) ? canon('table(' + inParens(sql, end + r.index + r[0].length - 1)[0] + ')') : canon(r[1]);
+        const was = fns.get(key);
+        if (was !== undefined && ret !== was) faults.push(`${names[i] || i}: ${key} returns ${ret}, was ${was}`);
+        if (was !== undefined && /^create\s+function/i.test(m[1])) faults.push(`${names[i] || i}: ${key} created again without "or replace"`);
+        fns.set(key, ret);
+      }
+    });
+    return { faults, live: [...fns.keys()] };
+  };
+  const files = ['supabase/schema.sql', ...fs.readdirSync(path.join(ROOT, 'supabase', 'migrations'))
+    .filter(f => f.endsWith('.sql')).sort().map(f => 'supabase/migrations/' + f)];
+  check('fresh path: the replay detector catches a result type changed in place, and passes it after a drop or under another name for the type',
+    replay(['create or replace function public.f(p_a int, p_b real default 0) returns table (x int) language sql as $$ select 1 $$;',
+      'create or replace function public.f(p_a integer, p_b float4) returns void language sql as $$ select 1 $$;']).faults.length === 1
+    && replay(['create or replace function public.f(p_a int, p_b real default 0) returns table (x int) language sql as $$ select 1 $$;',
+      'drop function if exists public.f(int, real);\ncreate or replace function public.f(p_a int, p_b real) returns void language sql as $$ select 1 $$;',
+      'create or replace function public.f(p_a integer, p_b float4 default 1) returns void language sql as $$ select 1 $$;']).faults.length === 0);
+  const { faults, live } = replay(files.map(f => noComments(read(f))), files);
+  check('fresh path: schema.sql then every migration replays, and no create changes a live function\'s result type'
+    + (faults.length ? ' — ' + faults.join('; ') : ''), faults.length === 0 && live.length >= 18);
+}
+
 // ================= THE SMOKE: the real game boots in a real browser before a cut =================
 //
 // `npm test` cannot see a missing font, a renamed sound file or a screen stuck
