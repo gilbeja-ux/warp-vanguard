@@ -463,6 +463,39 @@ function drawLicensePass(cx, cy, R, q, o) {
 //   freePx      the free line's type size
 //   restoreGap  from the last line's baseline down to the restore key's top
 const LICENSE_OFFER = { titleDrop: 0.06, textTop: 0.33, freePx: 0.046, restoreGap: 0.05 };
+// THE CLEARED DISC (Gil, 2026-11-05): the news sits close under the title, and
+// GOOD HUNTING, VANGUARD is the big line, with a shine that sweeps it left to right
+// on a loop. Named knobs, shares of R unless said:
+//   newsTop    the news line's baseline, above the disc's centre
+//   huntY      GOOD HUNTING's first baseline, off the centre (negative is above)
+//   huntPx     its type size
+//   shine      seconds per loop; the sweep takes shineRun of it, then the line rests
+//   shineBand  the gleam's half-width
+const LICENSE_DONE = { newsTop: 0.53, huntY: -0.2, huntPx: 0.1, shine: 2.4, shineRun: 0.7, shineBand: 0.22 };
+let shineGrad = null, shineKey = '', shineCtx = null;
+function drawHuntLine(cx, cy, R) {
+  const D = LICENSE_DONE, px = Math.max(12, Math.round(R * D.huntPx)), y0 = cy + R * D.huntY;
+  const text = 'GOOD HUNTING,\nVANGUARD';
+  // the base is a deeper cyan than the ice copy: a white gleam over ice does not show
+  discPara(cx, cy, R, text, y0, 'rgba(84,186,250,0.96)', px, '700');
+  // THE SHINE: the same words again, filled with a slanted white band. A canvas
+  // gradient lives in user space, so the band is built once around the origin and
+  // moved by translating the context; the words are drawn back by the same amount.
+  const band = R * D.shineBand, k = band.toFixed(1);
+  if (!(shineGrad && shineKey === k && shineCtx === ctx)) {
+    shineGrad = ctx.createLinearGradient(-band, -band * 0.4, band, band * 0.4);
+    shineGrad.addColorStop(0, 'rgba(255,255,255,0)');
+    shineGrad.addColorStop(0.5, 'rgba(255,255,255,0.95)');
+    shineGrad.addColorStop(1, 'rgba(255,255,255,0)');
+    shineKey = k; shineCtx = ctx;
+  }
+  const ph = (time / D.shine) % 1;
+  if (ph >= D.shineRun) return;
+  const sx = cx - R * 0.8 + ph / D.shineRun * R * 1.6, sy = y0 + px * 0.5;
+  ctx.save(); ctx.translate(sx, sy);
+  discPara(cx - sx, cy - sy, R, text, y0 - sy, shineGrad, px, '700');
+  ctx.restore();
+}
 function licOfferCopy(o) {
   const bosses = CAMPAIGNS.slice(FREE_CONTRACTS).filter(p => p.levels.some(l => l && l.boss)).length;
   // the break is set by hand: at the small size the wrap left FREE alone on a line
@@ -494,10 +527,10 @@ function drawLicOffer() {
     const [p1, p2, p3] = licOfferCopy(o);
     const px1 = Math.max(9, Math.round(R * 0.064)), px2 = Math.max(8, Math.round(R * 0.056));
     const px3 = Math.max(7, Math.round(R * LICENSE_OFFER.freePx));
-    let y = cy - R * (o.done ? 0.16 : LICENSE_OFFER.textTop); // the cleared disc says two lines: they sit in the middle of the band
+    let y = cy - R * (o.done ? LICENSE_DONE.newsTop : LICENSE_OFFER.textTop);
     if (o.done) {
-      y = discPara(cx, cy, R, o.msg, y, 'rgba(126,226,98,0.96)', px1, '700');
-      discPara(cx, cy, R, 'GOOD HUNTING, VANGUARD', y + px1 * 0.4, 'rgba(150,210,255,0.72)', px2, '500');
+      discPara(cx, cy, R, o.msg, y, 'rgba(126,226,98,0.96)', px1, '700');
+      drawHuntLine(cx, cy, R);
     } else {
       // only the weekly door has a lead line over the cyan one
       if (p1) y = discPara(cx, cy, R, p1, y, 'rgba(220,235,255,0.94)', px1, '600') + px1 * 0.25;
