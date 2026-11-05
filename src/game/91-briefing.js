@@ -1730,8 +1730,11 @@ function discQualRow(y, lx, tx, rx, R, cx, cy) {
 // (SETTINGS' RESTORE PURCHASE, 2026-11-05). It holds words, so it keeps the TEXT
 // margin off the rim and is fitted at its widest corner, as a field is (the disc
 // law). `row` is { key: label, action, sink }: the key lands in `sink`.
+// A KEY ROW'S KEY HEIGHT, shared with the offer disc's restore key (34-license.js), so
+// both RESTORE keys are one size. Gil, 2026-11-05: taller, so it is easy to press.
+const DISC_KEY_H = 0.135, DISC_KEY_MIN = 20;
 function discKeyRow(row, y, cx, cy, R) {
-  const kh = Math.max(15, R * 0.112), ky = y - kh / 2;
+  const kh = Math.max(DISC_KEY_MIN, R * DISC_KEY_H), ky = y - kh / 2;
   const hx = Math.max(R * 0.3, Math.min(discChord(R, ky - cy), discChord(R, ky + kh - cy)) - R * DISC_TEXT_PAD);
   const label = String(row.key);
   ctx.font = '700 ' + fitPx(label, '700', Math.max(8, Math.round(R * 0.062)), hx * 2 - R * 0.08, 7) + 'px Audiowide, system-ui';

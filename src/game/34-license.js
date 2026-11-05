@@ -399,7 +399,9 @@ function drawLicensePass(cx, cy, R, q, o) {
     passGrads = [body, holo]; passKey = pk; passCtx = ctx;
   }
   const [body, holo] = passGrads;
-  const edge = o.done ? 'rgba(126,226,98,0.95)' : 'rgba(140,230,255,0.92)';
+  // the ticket's lines are ember orange (Gil, 2026-11-05); CLEARED turns its edge green
+  const ORANGE = 'rgba(255,154,60,';
+  const edge = o.done ? 'rgba(126,226,98,0.95)' : ORANGE + '0.95)';
   ctx.save();
   // the segment's keys are glass, so the chord CLIPS the card rather than covering it
   ctx.beginPath(); ctx.rect(cx - R, cy - R, R * 2, chordY - (cy - R)); ctx.clip();
@@ -418,21 +420,26 @@ function drawLicensePass(cx, cy, R, q, o) {
   }
   // a soft glow under the edge: a wide faint stroke, never shadowBlur (WebKit pays for it)
   techRect(-w / 2, -h / 2, w, h, cut);
-  ctx.strokeStyle = o.done ? 'rgba(126,226,98,0.16)' : 'rgba(140,230,255,0.16)'; ctx.lineWidth = Math.max(4, R * 0.024); ctx.stroke();
+  ctx.strokeStyle = o.done ? 'rgba(126,226,98,0.16)' : ORANGE + '0.18)'; ctx.lineWidth = Math.max(4, R * 0.024); ctx.stroke();
   ctx.strokeStyle = edge; ctx.lineWidth = Math.max(1.2, R * 0.006); ctx.stroke();
-  ctx.strokeStyle = 'rgba(140,230,255,0.22)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = ORANGE + '0.3)'; ctx.lineWidth = 1;
   const ins = h * 0.06;
   techRect(-w / 2 + ins, -h / 2 + ins, w - ins * 2, h - ins * 2, cut * 0.7); ctx.stroke();
   // the stub: a row of perforations, and the ring the thumbs fly, as the emblem
   const perfX = w / 2 - w * 0.3;
-  ctx.fillStyle = 'rgba(140,230,255,0.45)';
+  ctx.fillStyle = ORANGE + '0.6)';
   for (let yy = -h / 2 + h * 0.1; yy < h / 2; yy += h * 0.08) { ctx.beginPath(); ctx.arc(perfX, yy, Math.max(0.8, h * 0.012), 0, TAU); ctx.fill(); }
   const ex = w / 2 - w * 0.15, ey = -h / 2 + h * 0.3, er = h * 0.15;
   ctx.strokeStyle = 'rgba(186,231,255,0.5)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(ex, ey, er, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = edge; ctx.lineWidth = Math.max(1.5, h * 0.03); ctx.lineCap = 'round';
-  for (let k = 0; k < 4; k++) { const a = k / 4 * TAU + time * 0.6; ctx.beginPath(); ctx.arc(ex, ey, er, a - 0.35, a + 0.35); ctx.stroke(); }
-  ctx.fillStyle = edge; ctx.beginPath(); ctx.arc(ex, ey, er * 0.2, 0, TAU); ctx.fill();
+  // two of the emblem's four arcs wear the ticket's orange, two stay ice
+  ctx.lineWidth = Math.max(1.5, h * 0.03); ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    const a = k / 4 * TAU + time * 0.6;
+    ctx.strokeStyle = k % 2 ? 'rgba(186,231,255,0.92)' : edge;
+    ctx.beginPath(); ctx.arc(ex, ey, er, a - 0.35, a + 0.35); ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(186,231,255,0.92)'; ctx.beginPath(); ctx.arc(ex, ey, er * 0.2, 0, TAU); ctx.fill();
   // the face: what the pass is for, fitted to the space left of the perforations
   const lx = -w / 2 + w * 0.08, lw = perfX - lx - w * 0.05;
   ctx.textAlign = 'left';
@@ -447,20 +454,26 @@ function drawLicensePass(cx, cy, R, q, o) {
 }
 
 // ---- the disc ----
-// THE OFFER DISC'S LAYOUT, as shares of R off the disc's centre. Gil, 2026-11-05:
-// the title stands lower off the crown, and the restore key clears the segment
-// and the pass. Named knobs, for Gil to tune by eye.
-const LICENSE_OFFER = { titleDrop: 0.06, textTop: 0.38, restoreY: 0.175 };
+// THE OFFER DISC'S LAYOUT, as shares of R. Gil, 2026-11-05: the title stands lower
+// off the crown and says the whole demand; the cyan line follows it, the free line
+// is smaller, and the restore key sits close under the words. Named knobs, for Gil
+// to tune by eye:
+//   titleDrop   how far the title sits below where other discs put theirs
+//   textTop     the cyan line's first baseline, above the disc's centre
+//   freePx      the free line's type size
+//   restoreGap  from the last line's baseline down to the restore key's top
+const LICENSE_OFFER = { titleDrop: 0.06, textTop: 0.33, freePx: 0.046, restoreGap: 0.05 };
 function licOfferCopy(o) {
   const bosses = CAMPAIGNS.slice(FREE_CONTRACTS).filter(p => p.levels.some(l => l && l.boss)).length;
-  const free = 'STAGES ' + freeRange() + ' AND THE ENDLESS LANE STAY FREE';
+  // the break is set by hand: at the small size the wrap left FREE alone on a line
+  const free = 'STAGES ' + freeRange() + ' AND THE ENDLESS LANE\nSTAY FREE';
   if (o.from === 'weekly') return [
     'THE WEEKLY BOARD FILES CLEARED VANGUARDS ONLY',
     'CLEARANCE ALSO OPENS STAGES ' + paidRange(),
     free];
+  // the words are Gil's, 2026-11-05. The title says the demand, so there is no lead line.
   return [
-    // the words are Gil's, 2026-11-05
-    'FURTHER PROGRESS REQUIRES DEEP SPACE CLEARANCE',
+    null,
     'GET ACCESS TO: STAGES ' + paidRange() + ', INCLUDING ' + bosses + ' BOSSES.',
     free];
 }
@@ -476,22 +489,24 @@ function drawLicOffer() {
   ctx.fillRect(0, 0, W, H);
   popRender(q, cx - R, cy - R, R * 2, R * 2, () => {
     ctx.save();
-    discPlate(cx, cy, R, o.done ? 'CLEARED' : 'DEEP SPACE\nCLEARANCE', null, LICENSE_OFFER.titleDrop);
+    discPlate(cx, cy, R, o.done ? 'CLEARED' : 'DEEP SPACE\nCLEARANCE\nREQUIRED', null, LICENSE_OFFER.titleDrop);
     drawLicensePass(cx, cy, R, q, o);
     const [p1, p2, p3] = licOfferCopy(o);
     const px1 = Math.max(9, Math.round(R * 0.064)), px2 = Math.max(8, Math.round(R * 0.056));
+    const px3 = Math.max(7, Math.round(R * LICENSE_OFFER.freePx));
     let y = cy - R * (o.done ? 0.16 : LICENSE_OFFER.textTop); // the cleared disc says two lines: they sit in the middle of the band
     if (o.done) {
       y = discPara(cx, cy, R, o.msg, y, 'rgba(126,226,98,0.96)', px1, '700');
       discPara(cx, cy, R, 'GOOD HUNTING, VANGUARD', y + px1 * 0.4, 'rgba(150,210,255,0.72)', px2, '500');
     } else {
-      y = discPara(cx, cy, R, p1, y, 'rgba(220,235,255,0.94)', px1, '600');
-      y = discPara(cx, cy, R, p2, y + px1 * 0.25, 'rgba(140,230,255,0.92)', px2, '700');
-      discPara(cx, cy, R, p3, y + px2 * 0.2, 'rgba(150,185,220,0.62)', px2, '500');
-      // THE BAND ABOVE THE SEGMENT: the restore key, or what the store just said.
-      // The key holds words, so it keeps the TEXT margin off the rim, fitted at
-      // its widest corner (the disc law).
-      const kh = Math.max(16, R * 0.105), ky = cy + R * LICENSE_OFFER.restoreY;
+      // only the weekly door has a lead line over the cyan one
+      if (p1) y = discPara(cx, cy, R, p1, y, 'rgba(220,235,255,0.94)', px1, '600') + px1 * 0.25;
+      y = discPara(cx, cy, R, p2, y, 'rgba(140,230,255,0.92)', px2, '700');
+      y = discPara(cx, cy, R, p3, y + px2 * 0.2, 'rgba(150,185,220,0.62)', px3, '500');
+      // UNDER THE WORDS: the restore key, or what the store just said. The key holds
+      // words, so it keeps the TEXT margin off the rim, fitted at its widest corner
+      // (the disc law). Its height is the settings disc's restore key's (DISC_KEY_H).
+      const kh = Math.max(DISC_KEY_MIN, R * DISC_KEY_H), ky = y - px3 * 1.55 + R * LICENSE_OFFER.restoreGap;
       if (o.msg) {
         discPara(cx, cy, R, o.msg, ky + kh * 0.62, o.busy ? 'rgba(150,210,255,0.85)' : 'rgba(255,214,140,0.95)', px2, '700');
       } else {
