@@ -341,3 +341,73 @@ subtitle 23 of 30, promotional text 164 of 170, keywords 98 of 100.
    2868 x 1320 and 2752 x 2064 stills; preview 1920 x 886, 15 s to 30 s, 30 fps.
 4. **The masters are not in git** (95 MB of stills, 600 MB of video). They are in
    `docs/store/raw/`, `docs/store/captioned/` and `docs/store/video/` on Gil's Mac, and one command makes them again.
+
+---
+
+## 6. Copy for 1.1: free to try, one unlock (2026-11-05)
+
+From 1.1, stages 17–40 cost one purchase, so the listing must say which content is free and
+which is not. Both stores require it: Play's metadata policy, and App Review guideline 2.3.2
+(a description must say when featured content needs a purchase). Both stores add their own
+*In-app purchases* label; the copy never names a price, because the price lives in the
+consoles and changes by country.
+
+Paste these over the 1.0.x text **with the 1.1 build, not before**: until 1.1 is live,
+everything is free and this copy would be wrong.
+
+### Short description (80 max)
+
+Unchanged. It names no content and no price.
+
+### Full description: the two blocks that change
+
+`── WHAT'S IN IT ──` becomes:
+
+```
+── WHAT'S IN IT ──
+
+· Free to play: contracts 1 and 2 — stages 01 to 16, two bosses — and the endless lane
+· One purchase unlocks contracts 3, 4 and 5 — stages 17 to 40, three more bosses — for good
+· Five bosses waiting at the end of a contract — the Leech, the Siphon, the Prism, the Mimic, the Blockade — each with its own mechanic for you to tackle.
+· FREE FLOW — endless, with the stream stepping up the longer you last
+· THE WEEKLY LANE — one seeded lane, identical for every player, open Monday to Sunday. When the week closes its board freezes for good, so a name that lands on it stays there.
+· A leaderboard on every stage. Every run on it was replayed and verified by the server, and you can watch any of them.
+· LANE ASSIST — an eased (unranked) retry for the stage that will not give
+```
+
+`── WHAT THIS GAME WILL NOT DO ──` becomes:
+
+```
+── WHAT THIS GAME WILL NOT DO ──
+
+No ads.
+No consumables.
+No energy timers.
+No subscription: one purchase, once, and it is yours on every device your store account is on.
+Nothing you can buy will move your score.
+```
+
+The weekly line stays as it is: Gil kept the weekly board free (2026-11-05). Only if
+`WEEKLY_NEEDS_LICENSE` ever becomes `true` does it gain: *Filing a score on the
+weekly board comes with the unlock.*
+
+### App Store
+
+| Field | Limit | Text |
+|---|---|---|
+| Promotional text | 170 | `Two emitters, one ring, a warp lane full of interdictors. Sixteen stages and two bosses free; one purchase opens all forty stages and five bosses.` |
+| Description | 4,000 | The Play full description above, verbatim. |
+
+Promotional text: 146 of 170. It can change without a review, so it can also change on
+launch day.
+
+### The purchase's own names (both consoles)
+
+| Field | Text |
+|---|---|
+| Product id (both stores, exact) | `com.warpvanguard.game.license` |
+| Display name | `Deep Range Clearance` |
+| Description | `Unlocks contracts 3, 4 and 5: stages 17 to 40, for good.` |
+
+The display name is the offer disc's own title, so the store's sheet and the game agree. The
+setup steps are in [PAYWALL-CHECKLIST.md](PAYWALL-CHECKLIST.md).

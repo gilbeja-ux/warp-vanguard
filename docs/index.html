@@ -445,7 +445,7 @@
       <div class="plate"><div class="in">
         <div class="band"><span class="title">Two controls, both in the game</span><span class="readout">MY DATA</span></div>
         <div class="body">
-          <p class="where">Nothing about you leaves your device unless you post a score or send feedback. The game's own start-up version check carries nothing about you. What does leave is tied to an anonymous id your device holds, not to a name, an email or an account. Both controls live under <b>MY DATA</b>: on the leaderboard screen, and in SYSTEM CONFIG. Neither asks you to prove who you are.</p>
+          <p class="where">What leaves your device — a posted score, a feedback note, and the game's play statistics (how long it is open, how stages go, and which device and version it runs on) — is tied to an anonymous id your device holds, not to a name, an email or an account. No advertising, no tracking, and no third-party analytics. Both controls live under <b>MY DATA</b>: on the leaderboard screen, and in SYSTEM CONFIG. Neither asks you to prove who you are.</p>
           <div class="controls">
             <div>
               <h3>Rename my runs</h3>
@@ -480,17 +480,35 @@ survived.</p>
 <h3>The short version</h3>
 <div class="short">
 <ul>
-  <li>There is <strong>no advertising, no analytics, and no tracking</strong> of any kind.</li>
+  <li>There is <strong>no advertising and no tracking</strong>. Nothing about you is matched with other apps or websites, and no third-party analytics or advertising code is in the game.</li>
   <li>Nothing is ever sold, or shared with third parties for marketing.</li>
   <li>You are <strong>never asked for your name, email address, phone number or location</strong>.</li>
-  <li>The only data that leaves your device is what a leaderboard needs — an anonymous player id, the display name you type, and how a run went — plus any feedback you choose to send us.</li>
-  <li>If you never submit a score and never send feedback, <strong>no data about you leaves your device at all</strong>. The one request the game makes on its own is a version check at start-up, and it carries nothing about you — see <em>Who processes it</em>.</li>
+  <li>What leaves your device is tied to an <strong>anonymous player id</strong>: what a leaderboard needs when a score is posted, any feedback you choose to send, and <strong>play statistics</strong> — how long the game is open, which stages are played and how they go, and which device model, system version, game version and language it runs on. We read those statistics only as totals, to fix the game and to make it better.</li>
+  <li><strong>Delete my runs</strong>, in the game, erases all of it — see <em>Your controls</em>.</li>
+  <li>From version 1.1, one in-app purchase unlocks contracts 3, 4 and 5. It is paid for in Google Play or the App Store; we never see your payment details or your store account — see <em>Purchases</em>.</li>
 </ul>
 </div>
 
 <h3>What is stored on your device</h3>
 <p>Your progress, settings, best scores and preferences are saved locally on
 your device. Uninstalling the game removes them.</p>
+
+<h3>Purchases</h3>
+<p>From version 1.1, the first two contracts and the endless lane are free, and
+one in-app purchase unlocks contracts 3, 4 and 5. The purchase is made and paid
+for entirely in <strong>Google Play</strong> or the <strong>App Store</strong>,
+under their own terms and privacy policies. We never see your payment details,
+your name, your email address or your store account.</p>
+<p>The game asks the store one question, at start-up, each time the game comes
+back to the screen, and when you open the offer: <em>does this store account own the unlock?</em> It keeps the answer on
+your device, beside your progress. On a new phone the store hands it back by
+itself, and <strong>Restore purchase</strong> in System Config asks again.</p>
+<p>The play statistics below record that the offer was shown and how a purchase
+or a restore ended — bought, cancelled, pending or failed — so we can see whether
+the offer works. That is all they say about it: never a price, a payment detail,
+a receipt or anything about your store account. <strong>Delete my runs</strong>
+erases those statistics but not the purchase itself: a purchase belongs to your
+store account, not to the game.</p>
 
 <h3>What is sent to our server, and why</h3>
 <p>Warp Vanguard has online leaderboards. When a score is submitted, this is
@@ -520,6 +538,57 @@ sent:</p>
 
 <p>We do <strong>not</strong> collect your name, email address, contacts,
 photos, location, advertising identifier, or any device identifier.</p>
+
+<h4>Play statistics</h4>
+<p>While the game is online it sends us a few facts about how it is played. They
+go only to our own server, never to an analytics or advertising company, and we
+read them only as totals and averages — how many people reached stage 08, how
+long a typical session lasts, which phones the game must run well on. This is
+what they are:</p>
+<div class="tablewrap">
+<table>
+  <tr><th>Data</th><th>Why</th></tr>
+  <tr>
+    <td><strong>Each time you play</strong>: when the session started and how long
+    the game was on screen</td>
+    <td>To know whether people come back, and how long a session usually lasts.</td>
+  </tr>
+  <tr>
+    <td><strong>Each stage you start</strong>: which stage or mode, whether you
+    cleared it, failed it or left it, how long you flew, the score, and whether
+    LANE ASSIST was on</td>
+    <td>To find the stages that are too hard, too easy or too long, and to see how
+    far players get.</td>
+  </tr>
+  <tr>
+    <td><strong>Your device model, system version, the game's version and your
+    language setting</strong> — for example “Pixel 9a”, “Android 16”, “1.1.0” and
+    “en-GB”</td>
+    <td>To know which devices and versions to test and support. The model is a name
+    <strong>millions of devices share</strong>; it is not a device identifier and is
+    never used to recognise you.</td>
+  </tr>
+  <tr>
+    <td><strong>Named moments in the game</strong>, with a few facts about each — for
+    example that the game stopped on an error (where and in which version, never
+    the message), that a score was or was not accepted, that a part of the
+    training course was finished, or that the offer to unlock contracts 3–5 was
+    shown and how a purchase or a restore ended</td>
+    <td>To find faults, and to see whether the training course, the menus and the
+    offer work. These never carry anything you type, and never a price, a payment
+    detail or anything about your store account.</td>
+  </tr>
+  <tr>
+    <td><strong>Your anonymous player id</strong></td>
+    <td>The same one the leaderboard uses. It ties one player's sessions together,
+    so that “came back the next day” can be counted, and it is how <em>Delete my
+    runs</em> finds and erases your statistics.</td>
+  </tr>
+</table>
+</div>
+<p>Statistics written while you are offline wait on your device and are sent the
+next time the game is online; anything older than 30 days is dropped unsent.
+Test builds and automated test browsers send nothing.</p>
 
 <h4>Feedback you send us</h4>
 <p>Under <em>System Config</em> there is a <strong>Feedback</strong> button. It is
@@ -551,7 +620,7 @@ sees it, and it is never shown in the game or on a leaderboard.</p>
     devices share</strong>, read once from your browser. It is <em>not</em> a
     device identifier, nothing is derived from it, and it is never used to
     recognise you or anyone else. <strong>No advertising ID, device ID or serial
-    is read at any point</strong>, and we do not read your language either.</td>
+    is read at any point</strong>, and the note does not carry your language.</td>
   </tr>
   <tr>
     <td><strong>Your anonymous player id</strong></td>
@@ -585,23 +654,33 @@ competitive leaderboard. A board only works if it is public and if entries stay
 put, and that is what a player is doing when they submit a score. We do not ask
 you to consent to anything, because there is nothing here you would be consenting
 to beyond the leaderboard itself.</p>
-<p>You can object to this at any time, and you do not need a reason. The two
+<p><strong>Play statistics rest on the same basis</strong>: our legitimate interest
+in understanding how the game is played, so that we can fix it and make it better.
+We use them only as totals, keep them for thirteen months, share them with nobody,
+and never use them for advertising or to make decisions about you.</p>
+<p>You can object to any of this at any time, and you do not need a reason. The
 controls below are how — see <em>Your controls</em>.</p>
 
 <h3>Who processes it</h3>
-<p>Leaderboard data is stored with <strong>Supabase</strong>, our hosting
-provider, acting on our instructions under a data processing agreement. It is
-transmitted over an encrypted connection (HTTPS).</p>
+<p>Leaderboard data, feedback and play statistics are stored with
+<strong>Supabase</strong>, our hosting provider, acting on our instructions under
+a data processing agreement. They are transmitted over an encrypted connection
+(HTTPS).</p>
 <p>Like any web service, Supabase records technical request logs that include
 <strong>IP addresses</strong>, for security and abuse prevention. We do not use
 those logs to build any profile of you, they are not joined to your leaderboard
 entries, and they age out on the provider's own schedule.</p>
-<p>One request happens without you doing anything: when the game starts, it asks
-our server which versions of each board the server currently verifies, so it can
-tell you before you play a stage that your build needs an update to post scores.
-That request carries <strong>no player id, no name and no score</strong> — nothing
-about you — and nothing is stored from it. It is an ordinary web request, so it
-appears in the provider's technical logs like any other, as described above.</p>
+<p>When your anonymous id signs in, the provider also stores the browser
+identification string your device sends (its <em>user agent</em>, which names the
+system and, on Android, the phone model). We use it only to count how many
+players use each platform and system version.</p>
+<p>Two kinds of request happen without you doing anything. When the game starts,
+it asks our server which versions of each board the server currently verifies, so
+it can tell you before you play a stage that your build needs an update to post
+scores; that request carries <strong>no player id, no name and no score</strong>,
+and nothing is stored from it. And while the game is online it sends the play
+statistics described above, every few minutes while you play and once more
+when you put it away.</p>
 
 <h3>How long it is kept</h3>
 <p>Leaderboard entries are kept <strong>indefinitely</strong> — that is the point
@@ -611,6 +690,9 @@ there is instead is a way for you to remove your own entries whenever you like.<
 <p><strong>Feedback is different.</strong> A message is kept until we have dealt
 with it, then for 90 days, and nothing is kept beyond 12 months. You can also
 delete yours at any time with the control below.</p>
+<p><strong>Play statistics are kept for thirteen months</strong> — long enough to
+compare a month with the same month a year earlier — and then deleted. You can
+delete yours sooner with the control below.</p>
 
 <h3>Your controls</h3>
 <p>Both of these live in the game, under <strong>MY DATA</strong> — on the
@@ -629,8 +711,9 @@ you are, because your device already holds the only identity involved.</p>
   <tr>
     <td><strong>Delete my runs</strong></td>
     <td>Removes every entry you hold from every board, deletes the replay traces
-    that went with them, deletes any feedback you have sent us, and deletes the
-    anonymous id itself. It cannot be undone.</td>
+    that went with them, deletes any feedback you have sent us, deletes every play
+    statistic recorded under your id, and deletes the anonymous id itself. It cannot
+    be undone.</td>
   </tr>
 </table>
 </div>
@@ -640,6 +723,16 @@ you are, because your device already holds the only identity involved.</p>
 second change within the same day has to wait. And a name that has been
 <strong>reset by moderation</strong> stays reset; renaming skips those entries.
 Deleting them is never blocked.</p>
+
+<!-- OPEN (2026-11-05): the objection switch. telSetOff() in src/game/34-telemetry.js
+     stops play statistics on a device, but no screen calls it yet. If a PLAY STATISTICS
+     switch ships in System Config, replace the next paragraph with one that names it.
+     docs/PLAY-STATISTICS-PRIVACY.md has both versions of every answer. -->
+<p>After a delete, the game makes a new anonymous id the next time it is online,
+and play statistics start again under that new id. If you object to play
+statistics being recorded at all, write to us at the address below; we will
+explain your options, and you can also keep the game offline, which sends
+nothing.</p>
 
 <p>Deleting your leaderboard data does not affect your local progress or your
 personal bests — those never left your device. Deleting the app does not delete

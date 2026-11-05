@@ -181,7 +181,7 @@ canvas.addEventListener('pointerdown', e => {
   if (state === S.MENU) {
     // overlay + gear act immediately; the level list uses tap-vs-drag on release
     const hitRect = (r, m) => r && P.x > r.x - m && P.x < r.x + r.w + m && P.y > r.y - m && P.y < r.y + r.h + m;
-    if (report || myData || feedback || menuSettings || menuConfirm || bossGate || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6) || hitRect(menuGuideRect, 8) || hitRect(menuUpdateRect, 8)) {
+    if (licOffer || report || myData || feedback || menuSettings || menuConfirm || bossGate || hitRect(menuGearRect, 8) || hitRect(menuFsRect, 6) || hitRect(menuGuideRect, 8) || hitRect(menuUpdateRect, 8)) {
       menuTap(P.x, P.y, e.pointerId);
       return;
     }
@@ -425,6 +425,7 @@ function pauseToggle() {
 // the app — the platform's own convention. Returns false for exactly that case.
 // iOS has no back button; the listener is inert there and the file is the same.
 function hardwareBack() {
+  if (licOffer) { if (!licOffer.busy) { closeLicOffer(); sfx.tick(); } return true; } // a purchase in flight holds the disc
   if (replaying || state === S.PLAY || state === S.PAUSE) return pauseToggle();
   if (state === S.INFO || state === S.GUIDE || state === S.END) { gpBackAction(); return true; }
   if (state === S.ENLIST) return true; // the first minute has no "back"; a stray press must not close the app
@@ -488,12 +489,16 @@ document.addEventListener('visibilitychange', () => {
     if (AC && AC.state === 'running') AC.suspend().catch(() => {});
   } else {
     audioWake(); // 'suspended' from the hide, or 'interrupted' from a call that ended while hidden
+    licenseResume(); // a gift code or a purchase made outside the game lands here (34-license.js)
   }
 });
 
 // ---------- menu / end screens hit areas ----------
 let menuButtons = [];
 function menuTap(x, y, pid) {
+  // THE CLEARANCE OFFER sits over every menu screen and every panel, so it is
+  // tested before all of them (34-license.js)
+  if (licOffer) { licOfferTap(x, y); return; }
   // FEEDBACK owns every tap while it is up. It is tested FIRST because it is the
   // topmost panel on the menu, and because the tap it must not lose is the one
   // beside a half-typed note: there is no tap-outside dismiss here for exactly
@@ -576,6 +581,7 @@ function menuTap(x, y, pid) {
         // panel stays mounted underneath, so closing either one returns to it.
         // Nothing on this disc dismisses it any more; the gear does that.
         if (b.action === 'mydata') { pressUI(b, () => openMyData()); return; }
+        if (b.action === 'restore') { pressUI(b, () => restorePurchase()); return; } // 34-license.js
         if (b.action === 'feedback') { pressUI(b, () => openFeedback()); return; }
         if (b.qualPart) { pressUI(b, () => replayQualPart(b.qualPart)); return; } // TRAINING 1 · 2 · 3
         pressUI(b); menuSettings = false; return;
@@ -655,6 +661,7 @@ function menuTap(x, y, pid) {
       }
       else if (b.mode === 'flow') pressUI(b, () => { menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'flow' }; });
       else if (b.mode === 'board') pressUI(b, () => openBoard('home'));
+      else if (b.goMap && contractLocked(b.goMap.ci)) pressUI(b, () => openLicOffer('locked', b.goMap.ci)); // the next contract is behind the wall
       else if (b.goMap) pressUI(b, () => { // CONTINUE CONTRACT: straight to the relay map, target selected
         switchCampaign(b.goMap.ci);
         mapSel = Math.min(b.goMap.li, PROG.unlocked - 1);
@@ -662,8 +669,9 @@ function menuTap(x, y, pid) {
         menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'map' };
       });
       else if (b.node !== undefined) { mapSel = b.node; sfx.tick(); }
+      else if (b.deploy !== undefined && CAMP && contractLocked(CAMPAIGNS.indexOf(CAMP))) pressUI(b, () => openLicOffer('locked', CAMPAIGNS.indexOf(CAMP)));
       else if (b.deploy !== undefined) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: () => deployStage(b.deploy) }; tone(70, 0.45, 'sine', 0.12, 260); });
-      else if (b.weekly) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startWeekly }; tone(70, 0.45, 'sine', 0.12, 260); });
+      else if (b.weekly) pressUI(b, () => weeklyDoor(undefined, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startWeekly }; tone(70, 0.45, 'sine', 0.12, 260); }));
       else if (b.endless) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startEndless }; tone(70, 0.45, 'sine', 0.12, 260); });
       // leaderboard screen controls
       else if (b.boardLeft) pressUI(b, () => { // left list: pick a board or fold a campaign
@@ -688,6 +696,7 @@ function menuTap(x, y, pid) {
 }
 let endButtons = [];
 function endTap(x, y) {
+  if (licOffer) { licOfferTap(x, y); return; } // the clearance offer sits over the report (34-license.js)
   if (trans || menuFx) return; // a departure is already in motion — keys are spent
   // SKIP MEANS ALL OF IT. This landed on endBtnAt + 0.15, which is before the telemetry
   // and the NEW BEST badge reveal — so the first tap fast-forwarded to the buttons and the
@@ -731,7 +740,9 @@ function endTap(x, y) {
       // resolves BEFORE the warp starts, so the transition can never strand.
       else if (b.action === 'nextCon') {
         const nci = CAMPAIGNS.findIndex(p => !campaignCleared(p.id));
-        if (nci >= 0) pressUI(b, () => startTrans('warp', () => {
+        // the next client is behind the wall: NEXT CONTRACT is the offer's door
+        if (nci >= 0 && contractLocked(nci)) pressUI(b, () => openLicOffer('next', nci));
+        else if (nci >= 0) pressUI(b, () => startTrans('warp', () => {
           switchCampaign(nci);
           const nc = progress.camp[CAMPAIGNS[nci].id];
           deployStage(Math.min(((nc && nc.unlocked) || 1) - 1, CAMPAIGNS[nci].levels.length - 1));
@@ -763,6 +774,7 @@ function endTap(x, y) {
 }
 
 function resetRun() {
+  telAttemptOpen(); // play statistics (34-telemetry.js): closes the run this one replaces, opens this one — reads, never writes
   // A RUN THAT BEGINS HERE IS THE PLAYER'S. `replaying` is cleared unconditionally,
   // and reseedReplay re-asserts it right after its own start call — so a stuck flag
   // cannot outlive the menu. It could: leaving the replay viewer through any door
@@ -848,6 +860,13 @@ function discBack() {
 }
 function startLevel(i, brief, withAssist) {
   evLog(brief ? 'brief' : 'start');
+  // THE WALL (34-license.js). Every door into a stage ends here, so every door
+  // meets it: the stage list, NEXT CONTRACT, the board's FLY THIS LANE, the
+  // passcode boss drill. A locked contract opens the offer and starts nothing;
+  // callers that do more after this call read the false. A replay is not a door:
+  // watching a run on a paid stage is free, and the boards are how a player
+  // sees what the clearance opens.
+  if (!replaying && CAMP && contractLocked(CAMPAIGNS.indexOf(CAMP))) { evLog('wall'); openLicOffer('locked', CAMPAIGNS.indexOf(CAMP)); return false; }
   // seed BOTH random streams so a campaign run is FULLY reproducible — the
   // prerequisite for server-side replay verification. spawnRng drives the spawn
   // script; Math.random drives everything else the sim touches (e.g. wall-avoid
@@ -870,6 +889,7 @@ function startLevel(i, brief, withAssist) {
   runTrack = pickTrack(); // the soundtrack is drawn fresh; the sim never reads it (campaign spawns are scripted)
   armRunMusic();
   if (brief && STORY[i]) showCard('story' + i); // the contract's next leg
+  return true;
 }
 // QUALIFICATION: the training run — movement, every enemy type, one power-up
 // THE ENLISTMENT, and the two ways in.
@@ -985,7 +1005,7 @@ function startBossTest() {
   // to its last lane.
   const flagged = LEVELS.map(l => !!(l && l.boss)).lastIndexOf(true);
   const bi = flagged >= 0 ? flagged : LEVELS.length - 1;
-  startLevel(bi);
+  if (startLevel(bi) === false) return; // the wall turned the drill back: the offer is up
   levelT = LEVELS[bi].duration; // clock already expired — the leech spawns at once
   introT = 999; introCd = 0;                   // skip the countdown
   // A DRILL, NOT A RUN. The clock jump above is invisible to the trace, so the
@@ -1005,7 +1025,7 @@ function startBossRetry() {
   // stays out of the record book), a standard one stays standard. The global
   // still holds the ended run's value here — resetRun clears it only inside
   // startLevel, after this argument is read.
-  startLevel(levelIdx, false, assist);
+  if (startLevel(levelIdx, false, assist) === false) return;
   if (snap) {
     score = snap.score; zaps = snap.zaps; misses = snap.misses; perfects = snap.perfects;
     maxCombo = snap.maxCombo; maxComboSec = snap.maxComboSec;

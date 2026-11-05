@@ -65,10 +65,12 @@
   .t-bug { color:var(--red); } .t-idea { color:var(--gold); }
   .t-balance { color:var(--vio); } .t-other { color:var(--dim); }
 
-  button { font:600 10px/1 system-ui,sans-serif; letter-spacing:.06em; text-transform:uppercase;
+  button, a.navkey { font:600 10px/1 system-ui,sans-serif; letter-spacing:.06em; text-transform:uppercase;
     padding:7px 10px; border-radius:4px; cursor:pointer; background:#16233a;
     border:1px solid #35547e; color:#cfe4ff; white-space:nowrap; }
-  button:hover { background:#1d2e4a; }
+  button:hover, a.navkey:hover { background:#1d2e4a; }
+  /* the other page this server holds (2026-11-05): a link dressed as a key */
+  a.navkey { display:inline-block; text-decoration:none; }
   button.danger { background:#3a1618; border-color:#7e3535; color:#ffd0d0; }
   button.danger:hover { background:#4a1c1e; }
   button.ghost { background:transparent; border-color:var(--line); color:var(--dim); }
@@ -103,7 +105,7 @@
 <div class="wrap">
   <header>
     <div><div class="eyebrow">Warp Vanguard</div><h1>Admin console</h1></div>
-    <div style="margin-left:auto"><button class="ghost" id="refresh">Refresh</button></div>
+    <div style="margin-left:auto; display:flex; gap:6px"><a class="navkey" href="/traction">Traction</a><button class="ghost" id="refresh">Refresh</button></div>
   </header>
 
   <details class="sec" id="s-open" open>

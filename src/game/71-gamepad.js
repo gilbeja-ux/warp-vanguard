@@ -50,6 +50,7 @@ function gpSyncFocus(list) { // → true when focus just snapped to a fresh scre
   return true;
 }
 function gpBackAction() { // B: CANCEL (modal, panel, card) / LEAVE (pause + report)
+  if (licOffer) { if (!licOffer.busy) { closeLicOffer(); sfx.tick(); } return; } // NOT NOW, on the menu and the report alike
   if (state === S.MENU) {
     if (report) { closeReport(); sfx.tick(); return; }            // the report panel sits above MY DATA
     if (feedback) { closeFeedback(); sfx.tick(); return; }        // FEEDBACK sits above the settings panel too
@@ -93,6 +94,7 @@ function gpMenuBack() { // one step back through the menu screens
     : { kind: 'spinOut', t: 0, dur: 0.35, to: 'home', dir: -1 };
 }
 function gpQuitAction() { // Y: BACK a screen in the menus, QUIT the run elsewhere
+  if (licOffer) { if (!licOffer.busy) { closeLicOffer(); sfx.tick(); } return; }
   if (state === S.MENU) {
     if (report) { closeReport(); sfx.tick(); return; }
     if (feedback) { closeFeedback(); sfx.tick(); return; }
@@ -129,6 +131,7 @@ function gpList() {
   // settings rows (toggles) ride the focus ring too — pause and menu panel alike
   // ORDER IS DEPTH. Each panel that draws over another is tested before it, so the
   // focus ring is always on the topmost thing on screen rather than the one behind it.
+  if (licOffer && (state === S.MENU || state === S.END)) return licOfferBtns; // the clearance offer sits over both
   if (state === S.MENU) return report ? reportBtns : feedback ? feedbackBtns : myData ? myDataBtns
     : menuSettings ? menuSetButtons.concat(pauseTogglesList) : menuButtons;
   if (state === S.PAUSE) return pauseButtonsList.concat(pauseTogglesList);

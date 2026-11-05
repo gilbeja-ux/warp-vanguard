@@ -7,8 +7,9 @@ with **as little friction as possible** — the target is *zero sign-in UI*. The
 in-game reset stays the escape hatch, which imposes a specific requirement on
 the merge (see §5, and read it before building anything).
 
-**Monetization context (decided 2026-08-17, REVERSING 2026-08-15):** a free demo
-and one **$2.99** unlock, through Play Billing / StoreKit. **No ads, ever.** The
+**Monetization context (decided 2026-08-17, REVERSING 2026-08-15; the seam moved
+2026-11-05):** a free demo (stages 01–16) and one unlock for stages 17–40, through
+Play Billing / StoreKit, built 2026-11-05 (`docs/RELEASE-PLAN.md`). **No ads, ever.** The
 earlier free-with-ads model held for two days and is dead; this restores the
 free-demo + relay-04 unlock shape of `docs/RELEASE-PLAN.md` rather than
 superseding it.

@@ -40,6 +40,7 @@ const ARM = `(function () {
   // place on a live board anyway. With the submit stubbed IN THE PAGE the end card
   // shows the honest local result and not an OFFLINE notice about a network we cut.
   lbSubmit = () => {}; lbProvisional = async () => null;
+  licenseWall = false; // the video flies a paid stage on purpose: a tool, not a door (34-license.js)
   switchCampaign(${CAMP}); startLevel(${LEVEL}, false);
   return lvNum(levelNo(${CAMP}, ${LEVEL}));
 })()`;

@@ -246,9 +246,12 @@ async function lbSessionMint() {
     let res = null;
     if (identity.refresh) // refresh the existing anonymous user — keeps the same player_id
       res = await lbFetch(LEADERBOARD.url + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: h, body: JSON.stringify({ refresh_token: identity.refresh }) });
-    if (!res || !res.ok) // first run (or refresh expired): mint a fresh anonymous user
+    // A NEW IDENTITY ONLY WHEN THE OLD ONE IS TRULY DEAD (audit 2026-11-05): a refresh the server
+    // answers 400/401 is an expired token; a 429, a 5xx or no answer is a bad moment, and a signup
+    // there would cut the player off from every row they own. Those fall to the offline message below.
+    if (!identity.refresh || (res && (res.status === 400 || res.status === 401))) // first run, or the refresh is dead
       res = await lbFetch(LEADERBOARD.url + '/auth/v1/signup', { method: 'POST', headers: h, body: JSON.stringify({}) });
-    if (!res.ok) return fail('AUTH HTTP ' + res.status, 'OFFLINE — SCORE SAVED ON THIS DEVICE');
+    if (!res || !res.ok) return fail('AUTH HTTP ' + (res && res.status), 'OFFLINE — SCORE SAVED ON THIS DEVICE');
     const d = await res.json();
     if (!d.access_token) return fail('AUTH: no token', 'OFFLINE — SCORE SAVED ON THIS DEVICE');
     identity.token = d.access_token;
@@ -308,7 +311,7 @@ async function lbSubmit(run) {
   };
   try {
     const token = await lbSession();
-    if (!token) { if (live()) lbStatus = lbAuthWhy || 'OFFLINE — SCORE SAVED ON THIS DEVICE'; return; } // lbSession logged the reason
+    if (!token) { if (live()) lbStatus = lbAuthWhy || 'OFFLINE — SCORE SAVED ON THIS DEVICE'; telSubmit(run, 0, 'offline'); return; } // lbSession logged the reason
     // endless is trust-only and unreplayable — don't ship its (large, useless) trace
     const payload = run.mode === 'endless' ? { ...run, trace: undefined } : run;
     const res = await lbFetch(LEADERBOARD.url + '/functions/v1/submit-run', {
@@ -331,6 +334,7 @@ async function lbSubmit(run) {
     const txt = await res.text();
     let d = null; try { d = JSON.parse(txt); } catch (e) {}
     if (res.ok && d && d.ok) {
+      telSubmit(run, res.status, 'ok');
       if (live()) lbStatus = d.rank ? 'RANK #' + d.rank.rank + ' / ' + d.rank.total : 'SUBMITTED';
       // remember that I have a run on this board (for "Show my Run" even when the
       // anon session id can't be matched to the row) — keyed by board key. A fact
@@ -346,12 +350,14 @@ async function lbSubmit(run) {
       // likely cause turns a scary rejection into an action.
       const outdated = res.status === 409 || (d && d.error === 'client outdated');
       const verifyFail = d && (d.error === 'verification failed' || d.recomputed !== undefined);
+      telSubmit(run, res.status, outdated ? 'outdated' : verifyFail ? 'verify' : res.status === 429 ? 'rate' : 'refused');
       fail(raw, outdated ? 'UPDATE AVAILABLE — THIS BUILD CAN NO LONGER POST SCORES'
         : verifyFail ? 'SCORE NOT VERIFIED — SAVED ON THIS DEVICE'
         : res.status === 429 ? 'TOO MANY SUBMISSIONS — TRY AGAIN SHORTLY'
         : 'NOT ACCEPTED — SCORE SAVED ON THIS DEVICE');
     }
   } catch (e) {
+    telSubmit(run, 0, e && e.name === 'AbortError' ? 'timeout' : 'offline');
     fail('NET ERR: ' + (e && e.message || e),
       e && e.name === 'AbortError' ? 'SYNC TIMED OUT — SCORE SAVED ON THIS DEVICE'
         : 'OFFLINE — SCORE SAVED ON THIS DEVICE');
@@ -649,6 +655,8 @@ function lbForgetIdentity() {
   // this function just minted. The server has deleted their feedback; the device
   // must not hand it straight back.
   progress.fbOut = null;
+  // …AND SO DO QUEUED PLAY STATISTICS, for the same reason (34-telemetry.js)
+  if (typeof telForget === 'function') telForget();
   lastRun = null; lbStatus = '';
   saveState();
 }

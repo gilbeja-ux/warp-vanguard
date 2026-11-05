@@ -5,8 +5,8 @@
 > 1.0.10 went to the open track on 2026-09-24, and **1.0.11** (the performance
 > build) went to Play and, after App Review, to the **App Store** on 2026-10-05:
 > iOS is no longer waiting on an enrolment. **1.0.12** is next: the called
-> first-run course (F-017) and the screen type cap. **1.1** adds the paywall at
-> the stage-09 seam. The posts are in `TEST-POSTS.md`. The closed-phase rows and
+> first-run course (F-017) and the screen type cap. **1.1** adds the paid unlock
+> for contracts 3–5, stages 17–40 (the seam moved from stage 09 on 2026-11-05). The posts are in `TEST-POSTS.md`. The closed-phase rows and
 > the 2026-09-13 starting position are kept for the record only.
 
 Written 2026-09-13, on the day 1.0.8 was cut. This is the plan for the test
@@ -53,7 +53,7 @@ plan as written on 2026-09-13; the *Actual* column is what happened.
 | **2 · Open test** | 2026-10-12 → 2026-11-08 (4 weeks) | since 2026-09-18 | Open | Public listing, strangers, volume. Measure the funnel, the pitch, the channels. Ask the price question. | 1.0.10 (2026-09-24); 1.0.11 (2026-10-05, Play and the App Store); 1.0.12 next (the called course, the type cap) |
 | **Freeze** | 2026-11-02 | — | Open | Release candidate = the last open-test build + hotfixes only. One quiet week. | 1.0.12 or later |
 | **3 · Go live** | 2026-11-10 (Tuesday) | — | Production | Staged rollout 20 % → 50 % → 100 % over ten days. | the frozen RC, unchanged |
-| **1.1** | January 2027 | — | Production, both stores | Paywall at the stage-09 seam, priced from the open-test answers and December's retention. | 1.1.0 |
+| **1.1** | January 2027 | — | Production, both stores | The paid unlock for contracts 3–5 (stages 17–40; seam moved 2026-11-05), about $1.99, set in the consoles. | 1.1.0 |
 
 Why these lengths:
 
@@ -289,7 +289,7 @@ it by one build, not by a month.
 |---|---|---|
 | Weeks 1–4 | every two weeks, hotfix in 48 h | what the first strangers report; the rollout goes 20 → 50 → 100 across weeks 1–2 |
 | Months 2–3 | monthly | tuning, the tablet layout if the data asks for it, small content |
-| January 2027 | 1.1 | the paywall at the stage-09 seam, priced from the open-test answers and the December reach numbers, gated inside `startLevel` |
+| January 2027 | 1.1 | the paid unlock for contracts 3–5 (stages 17–40; the seam moved from stage 09 on 2026-11-05), gated inside `startLevel`, built 2026-11-05 |
 | After 1.1 | monthly, then as needed | cloud save per `CLOUD-SAVE-PLAN.md`; every build ships to both stores |
 
 ---

@@ -6,7 +6,8 @@ answers, and Apple asks that the same text sit in App Store Connect → App Revi
 Information → Notes on every future submission. Paste the block below; keep it true
 (see docs/PLAY-CONSOLE-ANSWERS.md for the Play side, which says the same things).
 
-Revisit items 1 and 4 when 1.1 adds the in-app unlock.
+1.1 adds the in-app unlock: its Notes text and the review screenshot are at the end,
+under *1.1: the in-app purchase*.
 
 ## The recording (item 1)
 
@@ -113,3 +114,22 @@ That reply said all the sound in the app is original. That is not complete. The 
 
 The App Review Notes of version 1.0.11 carry the corrected text. Nothing else in the answers has changed.
 ```
+
+## 1.1: the in-app purchase (written 2026-11-05)
+
+From 1.1 the app sells one non-consumable, `com.warpvanguard.game.license`. In the Notes
+block above, replace the *Paid content* line of item 1 with the first paragraph below, and
+add the second paragraph to item 3. Add the product to the 1.1 version page before you
+submit: a first in-app purchase is reviewed with a build.
+
+```
+- Paid content: the app sells one non-consumable in-app purchase, "Deep Range Clearance" (com.warpvanguard.game.license). Contracts 1 and 2 (stages 01-16) and the endless lane are free; the purchase unlocks contracts 3, 4 and 5 (stages 17-40). It is offered on an in-game panel titled DEEP RANGE CLEARANCE, which shows the price StoreKit returns. A purchase is restored automatically at launch, and with RESTORE PURCHASE in SETTINGS (the gear key, top right of the main menu). There are no subscriptions, consumables or ads.
+```
+
+```
+To reach the purchase: from the main menu tap CONTRACTS, then swipe the contract carousel to THE COLLECTOR (the third contract). Its disc shows a lock and the key GET CLEARANCE; tap it to open the purchase panel, and tap UNLOCK. RESTORE PURCHASE is the fourth row of SETTINGS.
+```
+
+**The review screenshot** (App Store Connect asks one per in-app purchase): the purchase
+panel open over the carousel, as in the steps above. It is for the reviewer only.
+

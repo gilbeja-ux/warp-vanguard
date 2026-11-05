@@ -1765,6 +1765,9 @@ function drawPostChain(rawDt, worldFx, g) {
     } else drawMenu(g);
   }
   else drawEnd(g);
+  // THE CLEARANCE OFFER rides over the menu and the report alike, under the press
+  // feedback so its own keys still flash (34-license.js); it no-ops when closed
+  drawLicOffer();
   drawGpHints();
 
   // SYSTEM CRITICAL — the RING warns, not the screen. This pass used to tear

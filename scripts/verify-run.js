@@ -122,7 +122,7 @@ function verifyRun(run) {
   let steps = 0;
   const cap = run.trace.length + 8;      // simStep() returns false when the trace runs out
   while (V.simStep() && steps < cap) steps++;
-  V.stopReplay();
+  if (V.stopReplay()) return { ok: false, reason: 'trace breaks an input rule' };
 
   const s = V.stats();
   return {

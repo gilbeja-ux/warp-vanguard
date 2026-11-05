@@ -25,6 +25,13 @@ const { execFileSync } = require('child_process');
 
 const root = path.join(__dirname, '..');
 const page = path.join(__dirname, 'admin.html');
+// THE TRACTION PAGE (2026-11-05): downloads, players, playtime, progress, platforms
+// and health, on its own page beside the moderation queue. Same server, same token,
+// same localhost-only bind: it reads the same project with the same login, so a
+// second server would only be a second port to keep alive (THE PORT MAP).
+const tractionPage = path.join(__dirname, 'traction.html');
+const traction = require('./lib/traction.js');
+const storeReports = require('./lib/store-reports.js');
 // 8200: the tool ports are one map (CLAUDE.md, THE PORT MAP) — 8000 the game,
 // 8010–8016 the labs, 8100 the portal. They all live in open browser tabs — never take one.
 const port = process.env.PORT || 8200;
@@ -161,6 +168,48 @@ function authed(req) {
   return HOST_OK.test(req.headers.host || '') && tokenOk(req.headers['x-admin-token']);
 }
 
+// ---------------------------------------------------------------------------
+// THE TRACTION READ. Two SQL documents through the linked CLI (scripts/lib/
+// traction.js says why the CLI and not PostgREST): the first phase, from what the
+// project already holds, and the play statistics once their tables exist. Each is
+// one aggregate JSON document, ~3 s. Held for a minute, and one read in flight is
+// shared by every tab that asks, so a reload storm costs one query.
+let tractionCache = null, tractionFlight = null, purgedOn = '';
+async function readTraction(fresh) {
+  if (!fresh && tractionCache && Date.now() - tractionCache.t < 60e3) return tractionCache.doc;
+  if (tractionFlight) return tractionFlight;
+  tractionFlight = (async () => {
+    const contracts = traction.loadContracts(root);
+    const base = await traction.cliQuery(root, traction.baseSql(contracts));
+    let tel = null, telError = null, purge = null;
+    // A FIXTURE, to see the play-statistics sections before the live tables hold
+    // anything: WV_TRACTION_FIXTURE names a JSON file shaped like telemetrySql()'s
+    // answer (run that SQL on a scratch database). The page says FIXTURE when it is on.
+    const fixture = process.env.WV_TRACTION_FIXTURE || '';
+    if (fixture) tel = JSON.parse(fs.readFileSync(fixture, 'utf8'));
+    else if (base && base.telemetry) {
+      // the retention promise privacy.html makes: thirteen months, checked once a day
+      const today = new Date().toISOString().slice(0, 10);
+      if (purgedOn !== today) {
+        purgedOn = today;
+        purge = await traction.cliQuery(root, traction.PURGE_SQL).catch(e => ({ error: e.message }));
+      }
+      tel = await traction.cliQuery(root, traction.telemetrySql()).catch(e => { telError = e.message; return null; });
+    }
+    const doc = { at: new Date().toISOString(), project: PROJECT_REF, windows: traction.WINDOWS, segs: traction.SEGS,
+      contracts: contracts.map(c => ({ id: c.id, title: c.title, base: c.base, n: c.n, boss: c.boss })),
+      base, tel, telError, purge, fixture: !!fixture, store: storeReports.status() };
+    tractionCache = { t: Date.now(), doc };
+    return doc;
+  })().finally(() => { tractionFlight = null; });
+  return tractionFlight;
+}
+async function readBody(req, max) {
+  let n = 0; const parts = [];
+  for await (const c of req) { n += c.length; if (n > max) throw new Error('too large'); parts.push(c); }
+  return Buffer.concat(parts).toString('utf8');
+}
+
 // Two statements, not `writeHead(...) || end(...)`. writeHead RETURNS the response
 // object, which is truthy, so the `||` short-circuits and end() never runs: the
 // socket connects, the request is accepted, and nothing is ever sent back. It
@@ -181,7 +230,32 @@ http.createServer(async (req, res) => {
       return send(res, 200, 'text/html; charset=utf-8',
         fs.readFileSync(page, 'utf8').replace('__ADMIN_TOKEN__', TOKEN));
     }
+    if (url === '/traction') {
+      if (!HOST_OK.test(req.headers.host || '')) return send(res, 403, 'text/plain', 'forbidden');
+      return send(res, 200, 'text/html; charset=utf-8',
+        fs.readFileSync(tractionPage, 'utf8').replace('__ADMIN_TOKEN__', TOKEN));
+    }
+    // the brand face, for the traction page's display roles (DESIGN.md, the web ramp)
+    if (url === '/fonts/audiowide.woff2') {
+      if (!HOST_OK.test(req.headers.host || '')) return send(res, 403, 'text/plain', 'forbidden');
+      return send(res, 200, 'font/woff2', fs.readFileSync(path.join(root, 'src', 'fonts', 'audiowide.woff2')));
+    }
     if (!authed(req)) return send(res, 403, 'application/json', JSON.stringify({ error: 'forbidden — reload http://localhost:' + port }));
+    if (url === '/api/traction') return send(res, 200, 'application/json', JSON.stringify(await readTraction(/[?&]fresh=1/.test(req.url))));
+    // a store report dropped on the page: { store: 'play' | 'ios' | 'auto', name, b64 }
+    if (url === '/api/store-upload' && req.method === 'POST') {
+      const { store, name, b64 } = JSON.parse((await readBody(req, 12 * 1024 * 1024)) || '{}');
+      const out = storeReports.importUpload(Buffer.from(String(b64 || ''), 'base64'), store, name);
+      if (tractionCache) tractionCache.doc.store = storeReports.status();
+      return send(res, 200, 'application/json', JSON.stringify({ ok: true, result: out, store: storeReports.status() }));
+    }
+    // pull from the store APIs: { which: 'play' | 'ios' | 'all' }
+    if (url === '/api/store-sync' && req.method === 'POST') {
+      const { which } = JSON.parse((await readBody(req, 4096)) || '{}');
+      const out = await storeReports.sync(['play', 'ios', 'all'].includes(which) ? which : 'all');
+      if (tractionCache) tractionCache.doc.store = storeReports.status();
+      return send(res, 200, 'application/json', JSON.stringify({ ok: true, result: out, store: storeReports.status() }));
+    }
     if (url === '/api/data') return send(res, 200, 'application/json', JSON.stringify(await readAll()));
     if (url === '/api/act' && req.method === 'POST') {
       let body = '';
@@ -195,6 +269,7 @@ http.createServer(async (req, res) => {
   }
 }).listen(port, '127.0.0.1', () => {
   console.log(`\n  Admin console  →  http://localhost:${port}`);
+  console.log(`  Traction       →  http://localhost:${port}/traction`);
   console.log(`  project ${PROJECT_REF} · service key held in this process only`);
   console.log(`  localhost only, token-gated — a reload is needed after any restart.\n`);
 });

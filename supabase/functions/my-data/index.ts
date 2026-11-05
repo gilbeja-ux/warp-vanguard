@@ -10,7 +10,12 @@
 //   client → POST { action: "delete" } with the player's auth JWT
 //          → verify JWT → player_id → delete_my_runs
 //          → purge the replay traces those rows pointed at
+//          → delete the play statistics (telemetry_* tables, 2026-11-05)
 //          → delete the anonymous auth user itself
+//
+//   client → POST { action: "export" } with the player's auth JWT
+//          → verify JWT → player_id → every row the project holds for that id:
+//            board entries, feedback, reports filed, play statistics (Art. 15)
 //
 // THE JWT IS THE PROOF OF OWNERSHIP, and it is the only proof available. These
 // are anonymous arcade identities: there is no email to mail a confirmation link
@@ -23,6 +28,7 @@
 // Deploy:  supabase functions deploy my-data --use-api
 // SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are auto-injected.
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { cleanName } from "../_shared/name.ts";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -90,29 +96,6 @@ async function purgeTraces(svc: any, keys: string[], playerId: string): Promise<
   }
 
   return { deleted, left: [...left] };
-}
-
-// ---------------------------------------------------------------------------
-// Name moderation. DUPLICATED from submit-run rather than shared, for the same
-// reason weekOf() is duplicated there: this file is a trust boundary and must be
-// able to answer "is this name allowed on a public board" on its own. A rename
-// that skipped the filter would be a hole straight through submit-run's gate —
-// post a clean name, then rename to whatever you liked.
-// Keep the two lists in step.
-// ---------------------------------------------------------------------------
-const BLOCKED = [
-  "nigger", "nigga", "faggot", "retard", "rape", "rapist", "cunt", "spic",
-  "chink", "kike", "wetback", "coon", "fuck", "shit", "bitch", "bastard",
-  "dick", "cock", "penis", "pussy", "vagina", "whore", "slut", "boner",
-  "cum", "jizz", "wank", "twat", "prick", "asshole", "anus", "sex", "porn",
-  "nazi", "hitler", "isis", "kkk", "pedo", "molest", "incest", "semen",
-];
-const LEET: Record<string, string> = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b", "@": "a", "$": "s", "!": "i" };
-function cleanName(n: unknown): string {
-  const clean = String(n ?? "").replace(/[^\w \-]/g, "").replace(/\s+/g, " ").trim().slice(0, 14);
-  if (!clean) return "";
-  const norm = clean.toLowerCase().replace(/[\s_\-]/g, "").replace(/[013457@$!]/g, (c) => LEET[c] ?? c);
-  return BLOCKED.some((w) => norm.includes(w)) ? "REDACTED" : clean;
 }
 
 // decode a JWT's `sub` claim (the user id). Signature is validated upstream by
@@ -196,6 +179,16 @@ Deno.serve(async (req) => {
     const tracesLeft = left.length;
     if (tracesLeft) console.warn("[my-data] " + tracesLeft + " trace(s) survived the purge for " + playerId + ": " + left.slice(0, 5).join(", "));
 
+    // THE PLAY STATISTICS (2026-11-05). Every telemetry row references the auth
+    // user ON DELETE CASCADE, so the user delete below takes them too; they are
+    // deleted here by name first, so a user delete that fails still leaves no
+    // statistics behind. Not fatal, for the same reason the trace purge is not.
+    let statsDeleted = true;
+    for (const t of ["telemetry_events", "telemetry_attempts", "telemetry_sessions", "telemetry_quota"]) {
+      const { error: tErr } = await svc.from(t).delete().eq("player_id", playerId);
+      if (tErr && !/does not exist|schema cache/i.test(tErr.message)) { statsDeleted = false; console.warn("[my-data] " + t + " delete failed for " + playerId + ": " + tErr.message); }
+    }
+
     // Finally the anonymous user itself. Without this the rows are gone but the
     // identifier that tied them together still exists in auth.users — which is
     // the one piece of this that is unambiguously personal data, so leaving it
@@ -212,7 +205,29 @@ Deno.serve(async (req) => {
     // `tracesLeft` is reported, not hidden. A player who asks what happened to their
     // data deserves the number that is still true, and a non-zero one is the signal
     // to re-run the delete — which is idempotent and will sweep the remainder.
-    return json({ ok: true, action, rows: rows?.length ?? 0, tracesDeleted, tracesLeft, identityDeleted });
+    return json({ ok: true, action, rows: rows?.length ?? 0, tracesDeleted, tracesLeft, statsDeleted, identityDeleted });
+  }
+
+  // ---- EXPORT: everything held under this id, as JSON (GDPR Art. 15) --------
+  // Read-only, and capped per table so one response stays a size a phone can
+  // hold. The trace objects are not inlined: each row names its trace_id, and a
+  // replay is control inputs, not something about the player.
+  if (action === "export") {
+    const cap = 5000;
+    const read = async (table: string, col: string, cols = "*") => {
+      const { data, error } = await svc.from(table).select(cols).eq(col, playerId).limit(cap);
+      return error ? { error: error.message } : data ?? [];
+    };
+    const [runs, feedback, reportsFiled, sessions, attempts, events] = await Promise.all([
+      read("runs", "player_id", "board, player_name, score, max_combo, time_sec, integrity, misses, perfects, zaps, combo_sec, mutators, seed, verified, trace_id, run_id, created_at, updated_at"),
+      read("feedback", "player_id", "topic, body, build, device, screen, place, error, created_at, handled_at"),
+      read("reports", "reporter_id", "run_id, reason, created_at, handled_at"),
+      read("telemetry_sessions", "player_id", "id, started_at, fg_sec, platform, channel, os, model, app_version, locale, received_at"),
+      read("telemetry_attempts", "player_id", "id, session_id, at, mode, camp_id, level_idx, week, result, dur_sec, score, assist"),
+      read("telemetry_events", "player_id", "id, session_id, at, name, props"),
+    ]);
+    return json({ ok: true, action, playerId, exportedAt: new Date().toISOString(),
+      runs, feedback, reportsFiled, playStatistics: { sessions, attempts, events } });
   }
 
   return json({ error: "bad action" }, 400);

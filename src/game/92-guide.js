@@ -970,8 +970,8 @@ function stampMenuBadge(g) { // the hub shield at its home spot
 }
 // with a popup up the badge doesn't vanish — it steps back INTO the scene
 // (stamped under the popup's dim by drawMenu) instead of riding on top
-const menuPopUp = () => menuSettings || menuConfirm || myData || report || feedback || bossGate
-  || popLive('set') || popLive('confirm') || popLive('mydata') || popLive('report') || popLive('feedback') || popLive('bossgate');
+const menuPopUp = () => menuSettings || menuConfirm || myData || report || feedback || bossGate || licOffer
+  || popLive('licoffer') || popLive('set') || popLive('confirm') || popLive('mydata') || popLive('report') || popLive('feedback') || popLive('bossgate');
 function drawMenuBadgeTop(g) {
   if (state !== S.MENU || menuScreen !== 'home' || !menuBadge || menuPopUp()) return;
   stampMenuBadge(g);
@@ -2580,6 +2580,7 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
   const title = train ? 'VANGUARD TRAINING' : real ? pk.title : CAMPS_SOON[d.si];
   const cp = real ? (progress.camp[pk.id] || { unlocked: 1, stars: [] }) : null;
   const done = train ? progress.tutorialDone : real && campaignCleared(pk.id);
+  const sealed = real && contractLocked(d.ci); // behind the wall (34-license.js): the picture veiled, the key asks for clearance
   const active = real && pk === CAMP;
   const contentAl = 1 - zq;
   ctx.save();
@@ -2671,6 +2672,7 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     for (let k = 0; k < 26; k++) ctx.fillRect(x - r + rng() * r * 2, y - r + rng() * (r * 0.6), 2, 2);
   }
   ctx.restore(); // end of the map strip's rect clip
+  if (sealed) drawLicenseSeal(x, y, r);
   ctx.strokeStyle = 'rgba(120,200,255,0.35)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(x - r, sepY); ctx.lineTo(x + r, sepY); ctx.stroke();
   // dossier: big title, then the data lines
@@ -2734,7 +2736,7 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     ctx.textAlign = 'center';
     ctx.fillStyle = done ? 'rgba(126,226,98,0.95)' : 'rgba(140,200,240,0.8)';
     // a COUNT, not a level id — level numbers run continuously across campaigns
-    ctx.fillText(done ? 'CONTRACT COMPLETE' : Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length + ' STAGES', x, sepY + r * 0.375);
+    ctx.fillText(done ? 'CONTRACT COMPLETE' : sealed ? 'DEEP RANGE \u00b7 CLEARANCE' : Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length + ' STAGES', x, sepY + r * 0.375);
     // THE TIER RANGE ONLY. A tagline reads 'HAULERS CONSORTIUM · TIER 1 → 3' — and the
     // client is already the disc's whole picture and its title, so printing it again
     // underneath was the line explaining what the disc had just shown. What is left is
@@ -2758,7 +2760,7 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     ctx.font = '700 ' + Math.max(10, Math.round(r * 0.085)) + 'px Audiowide, system-ui';
     ctx.fillStyle = '#dff4ff';
     ctx.textAlign = 'center';
-    ctx.fillText(train ? (done ? '\u25b6 RETRAIN' : '\u25b6 BEGIN TRAINING') : '\u25b6 TAKE CONTRACT', x, y + dSeg + (rr2 - dSeg) * 0.56);
+    ctx.fillText(train ? (done ? '\u25b6 RETRAIN' : '\u25b6 BEGIN TRAINING') : sealed ? '\u25b6 GET CLEARANCE' : '\u25b6 TAKE CONTRACT', x, y + dSeg + (rr2 - dSeg) * 0.56);
     if (zq === 0) { // mid-zoom the disc is scenery, not a control
       menuButtons.push({ x: x - chHalf, y: y + dSeg, w: chHalf * 2, h: rr2 - dSeg, sync: i,
         seg: { cx: x, cy: y, r: rr2, d: dSeg } }); // press flash wears the segment shape
@@ -2791,7 +2793,9 @@ function drawMenuFlow() {
   // glow. The endless lane is practice against your own best, and sits below.
   const HALVES = [
     { key: 'weekly', glyph: '◈', name: 'WEEKLY LANE', mid: -Math.PI / 2, locked: !weeklyOpen, col: '140,220,255',
-      cap: weeklyOpen ? 'one seeded lane all week' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : '') : 'complete stage ' + lvNum(FLOW_UNLOCK_LEVEL) + ' to unlock',
+      cap: !weeklyOpen ? 'complete stage ' + lvNum(FLOW_UNLOCK_LEVEL) + ' to unlock'
+        : weeklyLocked() ? 'unranked without deep range clearance' // WEEKLY_NEEDS_LICENSE (34-license.js)
+        : 'one seeded lane all week' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : ''),
       streak: weeklyOpen ? weeklyStreak() : null },
     { key: 'endless', glyph: '∞', name: 'ENDLESS LANE', mid: Math.PI / 2, locked: !endlessOpen, col: '255,210,74',
       cap: endlessOpen ? 'procedural · no mercy' + (progress.best > 0 ? ' · BEST ' + progress.best.toLocaleString() : '') : 'complete stage ' + lvNum(FLOW_UNLOCK_LEVEL) + ' to unlock' }

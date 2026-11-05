@@ -6,34 +6,94 @@ build, went to both stores on 2026-10-05, and Apple still lists it as "Waiting f
 Review". It is not on the App Store yet; the approval reported on 2026-10-08 was not
 the App Store release. **1.0.12 is next**: the called first-run course and the screen
 type cap (docs/CHANGELOG.md). On iOS it goes in as an update after 1.0.11 is approved:
-pulling 1.0.11 out of review to swap the build would give up its place in the queue. **1.1** adds the paywall
-below. Every release ships to both platforms (CLAUDE.md, *Two platforms, one fix*).
+pulling 1.0.11 out of review to swap the build would give up its place in the queue. **1.1** adds the paid
+unlock below (contracts 3–5, built 2026-11-05). Every release ships to both platforms (CLAUDE.md, *Two platforms, one fix*).
 
 ## Decisions (locked 2026-08-13, updated since)
 
 | | Decision | Why |
 |---|---|---|
 | **Store** | Google Play first, then the App Store | Done in that order. Play went to internal, closed and then open testing; the iOS shell was rebuilt 2026-09-04, the Apple Developer enrolment followed, and 1.0.11 is in App Review (submitted 2026-10-05, still waiting on 2026-10-11). `npm run ios:archive` is the upload path. |
-| **Money** | **Free, no IAP until 1.1** | Fastest route to live: no billing plugin, no entitlement store, no restore-purchase flow, no IAP review. Open testing ships everything free. The free-demo + one-time-unlock model (below) lands in 1.1. |
+| **Money** | **Free until 1.1, then contracts 3–5 behind one unlock** | 1.0.x ships everything free, open testing included. 1.1 sells one non-consumable that opens contracts 3, 4 and 5 (stages 17–40); stages 01–16 and the endless lane stay free. Built 2026-11-05, waiting on the store side ([PAYWALL-CHECKLIST.md](PAYWALL-CHECKLIST.md)). |
 | **Leaderboards** | Shipped | Built, verified, deployed: every campaign stage and the weekly lane have a board, and `submit-run` replays each trace before it accepts a score. Free flow (endless) is unranked since 1.0.10. The price was real compliance work — §2. |
 
-### 1.1 — the monetization model (seam moved 2026-09-04, re-affirmed since)
+### 1.1: the paid unlock (Gil, 2026-11-05; built the same day)
 
-Free demo + one-time unlock: **contract 1 rides free end to end — stages
-01–08, boss included** — and a single lifetime purchase ($2.99) unlocks
-contracts 2–5 at the **stage-09 seam**, plus filing a score on the WEEKLY
-ranked lane. FREE FLOW endless stays free — it opens at stage 05, inside the
-free contract, and it has no board to protect. The
-offer lands after the contract 1 boss verdict, at peak satisfaction, never at
-a locked door mid-campaign. (The seam sat at stage 04 until 2026-09-04; Gil
-moved it to the end of contract 1.) **No** consumables,
-**no** ads, **no** pay-per-campaign — all three contradict the game's
-skill-fairness identity. Implementation: Play Billing and StoreKit via a Capacitor
-plugin plus an offline entitlement flag checked alongside `progress` — and the check
-must live **inside `startLevel`**, not in menu navigation: the boss-duel
-passcode shortcut (and any future door) has to hit the same wall. Post-launch
-options: a cosmetic supporter pack (node skins via the `SPRITES` hook), and
-web-portal builds (Poki / CrazyGames / itch.io) as a funnel.
+**The model.** Free to try, one purchase, no ads. **Contracts 1 and 2 are free end to
+end: stages 01–16, both bosses**, plus the ENDLESS lane. One non-consumable purchase,
+about **$1.99**, unlocks **contracts 3, 4 and 5: stages 17–40**, for good. The price
+lives in the two store consoles; the game prints the store's own localized string and
+never a number of its own. **No** consumables, **no** ads, **no** pay-per-contract: all
+three contradict the game's skill-fairness identity.
+
+This replaces the plan of 2026-08-17 (one $2.99 unlock at the stage-09 seam, contracts
+2–5 and the weekly board behind it). The structure and the principles carry over; the
+seam moves to the end of contract 2.
+
+| | Free | Unlocked |
+|---|---|---|
+| Qualification, contracts 1 and 2 (stages 01–16, two bosses) | yes | yes |
+| FREE FLOW: the ENDLESS lane | yes | yes |
+| FREE FLOW: filing a WEEKLY score | yes (Gil: "Weekly stays free") | yes |
+| Contracts 3, 4 and 5 (stages 17–40, three bosses) | no | yes |
+| Watching any run on any board | yes | yes |
+
+**The principles.**
+
+1. **A license is not progress.** It rides its own key in the save, beside `progress`,
+   `settings` and `identity`. RESET CONTRACT and the MY DATA erase never revoke it.
+2. **No DRM.** A plain client gate. The boards are guarded by the server's replay
+   verifier, not by the flag: a forged flag still cannot forge a run.
+3. **The store can grant, never take away.** The game asks the store at start-up, each
+   time it comes back to the screen (so a gift code redeemed in the store's own app, or
+   a pending payment that cleared, lands without a restart), and when the offer opens.
+   It caches the yes. A "no" from a flaky store, or a device signed out of its store, never
+   walls a player who paid. Play is never gated on the network.
+4. **The wall is inside `startLevel`.** Every door into a stage meets it: the stage
+   list, NEXT CONTRACT, the board's FLY THIS LANE, the passcode boss drill. The doors
+   also check first, so they open the offer instead of starting a transition.
+
+**The offer** is an in-fiction disc the ring casts, DEEP RANGE CLEARANCE, under the
+disc law. It opens after the stage 16 boss verdict (on the report, once its keys land),
+on a tap of a locked contract (the disc wears a lock and says GET CLEARANCE), on NEXT
+CONTRACT off stage 16, and on a locked door anywhere else. Its keys: NOT NOW, UNLOCK
+with the store's price, and ALREADY CLEARED? RESTORE. SETTINGS has a **RESTORE
+PURCHASE** row, because App Review rejects an unlock with no restore.
+
+**Two decisions, settled by Gil on 2026-11-05.** Each stays one named constant in
+`src/game/34-license.js`, so a change of mind is a one-line change, and `npm test` flies
+both values of each:
+
+- `WEEKLY_NEEDS_LICENSE = false` (Gil: "Weekly stays free"): a free player files weekly
+  ranked scores. With `true`, a free player would fly the weekly lane unranked, and the
+  weekly door would offer FLY UNRANKED beside UNLOCK.
+- `GRANDFATHER = 'progress'` (Gil: "Keep their progress"): the game was live and all
+  free, so a player who already flew past stage 16 must not meet a paywall over their own
+  progress; a player who never got that far sees the offer. The first
+  boot of the paywall build stamps the save once: did it exist, and did it hold a star,
+  a best or a second opened stage in contracts 3–5. `'progress'` gifts the second kind;
+  `'every-save'` gifts every save made before the paywall build; `'none'` gifts nobody.
+
+**The native layer.** One product id on both stores, `com.warpvanguard.game.license`.
+Direct store APIs behind a thin plugin in each shell, so there is no third-party data
+processor: `LicensePlugin.java` (Play Billing 8) and `LicensePlugin.swift` (StoreKit 2).
+The page sends the id; the shells answer `{ owned, price, state }`. A stub adapter plays
+the whole flow on the web and in the tests. On the web, `index.html?paywall=fresh` flies
+the free tier on a save that has the unlock.
+
+**Analytics.** `licenseTrack()` in `34-license.js` is the one door for offer views,
+purchases and restores. It sends nothing until a `track()` exists.
+
+**Gift codes** for Gil, family and friends are store codes, never a code typed into the
+game (App Store guideline 3.1.1): Play promo codes and App Store offer codes, plus
+Family Sharing on iOS. See [PAYWALL-CHECKLIST.md](PAYWALL-CHECKLIST.md) §4.
+
+**The store side** is Gil's: [PAYWALL-CHECKLIST.md](PAYWALL-CHECKLIST.md) (the Play
+payments profile and one-time product, the Paid Apps agreement and the in-app purchase
+with its review screenshot, license testers and sandbox accounts).
+
+Post-launch options, unchanged: a cosmetic supporter pack (node skins via the `SPRITES`
+hook), and web-portal builds (Poki / CrazyGames / itch.io) as a funnel.
 
 **Sequencing note — see `docs/CLOUD-SAVE-PLAN.md`.** A store entitlement is tied
 to the store account and restores automatically on reinstall, but campaign
@@ -71,7 +131,7 @@ cloud save wants the same one, so decide whether the two are one piece of work.
       jumped trace. `npm test` pins the gate (wrong passcode holds, right one
       launches, a drill files nothing). Residual: the passcode is plain text
       in the bundle — the only thing behind it is a spoiler. The 1.1 paywall
-      must gate INSIDE `startLevel` so this door hits the same wall.
+      gates INSIDE `startLevel` (built 2026-11-05), so this door hits the same wall.
 - [x] **Release signing.** An upload keystore, a `release` signingConfig reading
       `key.properties`, and **Play App Signing**. `*.jks`, `*.keystore` and
       `key.properties` are gitignored: a committed key is unrecoverable.
@@ -232,7 +292,7 @@ All shipped; `docs/STORE-MATERIALS.md` is the source of store copy and art, and
 6. [x] **Open testing**, live since 2026-09-18 (`docs/OPEN-TESTING-PLAN.md`).
 7. [ ] **App Store**: enrolment and TestFlight done; App Review for 1.0.11 still waiting (submitted 2026-10-05).
 8. [ ] **Play production**, staged rollout (start ~10-20%).
-9. [ ] **1.1**: the paywall (above), on both stores at once.
+9. [ ] **1.1**: the paid unlock (above), on both stores at once. Code built 2026-11-05; the store side is [PAYWALL-CHECKLIST.md](PAYWALL-CHECKLIST.md).
 
 ---
 

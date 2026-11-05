@@ -147,10 +147,19 @@ global.performance = { now: () => 0 };
 global.requestAnimationFrame = () => {};
 global.screen = {};
 
+// THE PAYWALL'S TWO OPEN DECISIONS are `const` in the game (34-license.js): one
+// line each for Gil's answer. The harness makes them `let` so the suite can fly
+// BOTH answers end to end; a renamed constant fails here, loudly, not quietly.
+for (const k of ['WEEKLY_NEEDS_LICENSE', 'GRANDFATHER']) {
+  if (!code.includes('const ' + k + ' = ')) throw new Error('harness: const ' + k + ' is gone from 34-license.js');
+  code = code.replace('const ' + k + ' = ', 'let ' + k + ' = ');
+}
 // expose internals for the tests
 code = code.replace("'use strict';", '') + `
 ;globalThis.__g = {
   startLevel, spawnEnemy, spawnLine, nodes, geo, frame, menuTap,
+  // play statistics (34-telemetry.js): read only, to prove the harness sends none
+  telOn: () => TEL.on, telState: () => telState, track,
   // the harness drives the sim by calling update(dt) with explicit steps (it
   // stubs performance.now, so frame() can't advance time). tickUI + pollGamepad
   // now live frame-side, so mirror a full frame's per-frame work here.
@@ -328,7 +337,17 @@ code = code.replace("'use strict';", '') + `
   hardwareBack, pauseToggle, setReplaying: v => { replaying = v; }, getReplaying: () => replaying,
   setBossGate: v => { bossGate = v; }, getBossGate: () => bossGate,
   // the screen stays lit while the warp is active (60-input.js), 2026-09-24
-  keepAwakeSync, keepAwakeWanted, awakeHeld: () => awakeHeld, resetAwake: () => { awakeHeld = false; awakeLock = null; }
+  keepAwakeSync, keepAwakeWanted, awakeHeld: () => awakeHeld, resetAwake: () => { awakeHeld = false; awakeLock = null; },
+  // THE PAYWALL (34-license.js, 2026-11-05): the wall, the gift, the store stub and the offer
+  license, FREE_CONTRACTS, LICENSE_PRODUCT, licensed, contractLocked, weeklyLocked, grandfathered, savePast16,
+  saveState, loadState, STORE_KEY, STUB, stubOwned, stubSetOwned, Billing, licenseApply,
+  setLicenseWall: v => { licenseWall = v; }, getLicenseWall: () => licenseWall,
+  setWeeklyNeedsLicense: v => { WEEKLY_NEEDS_LICENSE = v; }, setGrandfather: v => { GRANDFATHER = v; },
+  openLicOffer, closeLicOffer, getLicOffer: () => licOffer, licOfferAct, licOfferTap, drawLicOffer,
+  getLicOfferBtns: () => licOfferBtns, getLicOfferDue: () => licOfferDue, setLicOfferDue: v => { licOfferDue = v; }, licOfferCheck,
+  restorePurchase, restoreLabel, paidRange, freeRange, licOfferCopy, weeklyDoor, getLicensePrice: () => licensePrice,
+  syncDisc, discOfCamp, switchCampaign, menuSetButtonsNow: () => menuSetButtons,
+  licenseResume, setLicenseAskedAt: v => { licenseAskedAt = v; } // the re-check on return to the screen
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -341,6 +360,9 @@ const rawStartQual = G.startQualification;
 G.startQualification = (h, part, then) => { rawStartQual(h, part, then); G.setIntro(999); };
 
 let failures = 0;
+// checks that settle on promises from a top-level section: the async block below
+// waits for every one of them before it prints the verdict and exits
+const LATE = [];
 function check(name, cond) {
   console.log((cond ? 'PASS' : 'FAIL') + '  ' + name);
   if (!cond) failures++;
@@ -3116,6 +3138,16 @@ G.progress.tutorialDone = true;
       .every(([x, y]) => Math.abs(x - g.cx) <= G.discChord(R, y - g.cy) - R * G.DISC_PAD + 0.5));
     check(`the settings disc carries one TRAINING key per part, clear of the rim (${cw}x${ch})`,
       qk.length === 3 && qk.map(b => b.qualPart).join() === '1,2,3' && inside);
+    // FIVE ROWS (2026-11-05, with the paywall's RESTORE PURCHASE): the block tightens so
+    // every row stands between the title and the segment, TRAINING above RESTORE, and the
+    // restore key — a key that holds words — keeps the TEXT margin off the rim
+    const rk = G.menuSetBtns().find(b => b.action === 'restore');
+    const sg = (G.menuSetBtns().find(b => b.seg) || {}).seg, tg = G.toggles();
+    const corners = b => [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]];
+    check(`the five-row settings disc fits between its title and its segment (${cw}x${ch})`,
+      !!rk && !!sg && tg.length === 3 && rk.y + rk.h < sg.cy + sg.d - 2
+      && Math.min(...tg.map(t => t.y)) > g.cy - R * 0.755 + 4 && qk.every(b => b.y + b.h < rk.y)
+      && corners(rk).every(([x, y]) => Math.abs(x - g.cx) <= G.discChord(R, y - g.cy) - R * G.DISC_TEXT_PAD + 0.5));
   }
   const kit = fs.readFileSync(path.join(ROOT, 'src', 'game', '91-briefing.js'), 'utf8');
   const row = kit.split('function discQualRow(')[1].split('\n}')[0];
@@ -5143,11 +5175,18 @@ await tick();
       // handle the list eats. Same trick as weekOf above: slice the source, drop
       // the type annotations, run it in Node.
       {
-        const from = ts.indexOf('const BLOCKED_SUB');
-        const to = ts.indexOf('\n}', ts.indexOf('function cleanName'));
-        check('the Edge Function still defines cleanName', from >= 0 && to > from);
+        // ONE FILTER (audit 2026-11-05): submit-run and my-data both import it from _shared,
+        // because my-data once kept an older copy and a rename was a weaker gate than a submit
+        const nts = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', '_shared', 'name.ts'), 'utf8');
+        const mdts = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'my-data', 'index.ts'), 'utf8');
+        check('submit-run and my-data both import the one name filter and neither keeps a copy',
+          /import \{ cleanName \} from "\.\.\/_shared\/name\.ts"/.test(ts) && /import \{ cleanName \} from "\.\.\/_shared\/name\.ts"/.test(mdts)
+          && !/function cleanName|BLOCKED/.test(ts) && !/function cleanName|BLOCKED/.test(mdts));
+        const from = nts.indexOf('const BLOCKED_SUB');
+        const to = nts.indexOf('\n}', nts.indexOf('function cleanName'));
+        check('the shared module still defines cleanName', from >= 0 && to > from);
         if (from >= 0 && to > from) {
-          const js = ts.slice(from, to + 2)
+          const js = nts.slice(from, to + 2).replace('export function', 'function')
             .replace(/: Record<string, string>/g, '')
             .replace(/: unknown/g, '').replace(/: string/g, '').replace(/\): \w+ \{/g, ') {');
           const cleanName = new Function(js + '; return cleanName;')();
@@ -5222,6 +5261,16 @@ await tick();
         const md = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'my-data', 'index.ts'), 'utf8');
         check('the trace purge retries, sweeps by player prefix, and reports what is left',
           /async function purgeTraces/.test(md) && /\.list\(folder/.test(md) && /tracesLeft/.test(md));
+        // AUDIT 2026-11-05 findings 3, 6, 7: shapes of three fixes that run only against a live backend or a damaged save
+        const sr = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'submit-run', 'index.ts'), 'utf8');
+        check('submit-run deletes the uploaded trace on ANY failed write, and the file a replaced row no longer holds',
+          /if \(wErr\) \{\s*\/\/[^\n]*\n[^\n]*\n\s*if \(traceId\) \{[^\n]*remove\(\[traceId\]\)/.test(sr) && /const keptTrace/.test(sr) && /t !== keptTrace/.test(sr));
+        const lb = fs.readFileSync(path.join(ROOT, 'src', 'game', '31-leaderboard.js'), 'utf8');
+        check('a refresh that is not 400 or 401 never mints a new identity',
+          /!identity\.refresh \|\| \(res && \(res\.status === 400 \|\| res\.status === 401\)\)/.test(lb));
+        const sv = fs.readFileSync(path.join(ROOT, 'src', 'game', '32-save.js'), 'utf8');
+        check('a save that will not parse is parked under STORE_KEY.bad and its login is read back before anything saves',
+          /STORE_KEY \+ '\.bad'/.test(sv) && /pick\('refresh'\)/.test(sv) && sv.indexOf("'.bad'") < sv.indexOf('ensureIdentity(); //'));
       }
     }
 
@@ -5642,6 +5691,273 @@ await tick();
     hit = null; delete global.window.__SIM_LEVELS;
     check('update mark: a build with no stamp never asks', (await G.lbStaleInit()) === null && hit === null);
     global.fetch = realFetch; G.setStale(null);
+  }
+
+  for (const p of LATE) await p; // the sections above that answer late, settled before the paywall swaps localStorage
+
+  // ================= THE PAYWALL: contracts 3 to 5 behind one purchase (Gil, 2026-11-05) =================
+  // Contracts 1 and 2 (stages 01-16) and the ENDLESS lane are free; one purchase
+  // opens stages 17-40. The wall lives INSIDE startLevel, the license is not
+  // progress, the store can grant and never take away, and the two open
+  // decisions (WEEKLY_NEEDS_LICENSE, GRANDFATHER) are flown both ways here.
+  {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const L = G.license;
+    const licBak = JSON.parse(JSON.stringify(L));
+    const progBak = JSON.parse(JSON.stringify(G.progress));
+    const campBak = G.getCamp() ? G.getCamp().id : null;
+    const stubBak = Object.assign({}, G.STUB);
+    const realLS = global.localStorage;
+    const mem = new Map();
+    global.localStorage = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k) };
+    const ci = id => G.CAMPAIGNS.findIndex(p => p.id === id);
+    const freeAll = () => { L.owned = false; L.legacy = { save: false, past16: false }; G.stubSetOwned(false); };
+    const clearAll = () => { for (const p of G.CAMPAIGNS) G.progress.camp[p.id] = { unlocked: 1, stars: p.levels.map(() => 0), bests: p.levels.map(() => 0) }; };
+    const deliver = id => { const p = G.CAMPAIGNS[ci(id)]; G.progress.camp[id] = { unlocked: p.levels.length, stars: p.levels.map(() => 1), bests: p.levels.map(() => 1) }; };
+    const toMenu = () => { G.closeLicOffer(); G.setState(G.S.MENU); G.setMenuScreen('home'); G.setMenuFx(null); };
+    G.STUB.delay = 0; G.STUB.answer = 'owned';
+    G.setLicenseWall(true); freeAll(); clearAll(); toMenu();
+
+    // ---- the free tier: exactly stages 01-16, plus the endless lane ----
+    check('paywall: two contracts are free, by one constant', G.FREE_CONTRACTS === 2);
+    const open = G.CAMPAIGNS.map((p, i) => !G.contractLocked(i));
+    check('paywall: contracts 1 and 2 are open and 3, 4 and 5 are locked for a free player',
+      open.join() === 'true,true,false,false,false');
+    const freeNames = [];
+    G.CAMPAIGNS.forEach((p, c) => { if (open[c]) p.levels.forEach((_, li) => freeNames.push(G.lvNum(G.levelNo(c, li)))); });
+    check('paywall: the free tier is exactly stages 01 to 16', freeNames.length === 16 && freeNames[0] === '01' && freeNames[15] === '16');
+    check('paywall: the first locked stage is 17 and the last is 40', G.paidRange() === '17–40' && G.freeRange() === '01–16');
+    G.switchCampaign(ci('cargo-run'));
+    check('paywall: stage 01 starts for a free player', rawStartLevel(0, false) === true && G.getState() === G.S.PLAY);
+    toMenu(); G.switchCampaign(ci('survey'));
+    check('paywall: stage 16, the second boss, starts for a free player', rawStartLevel(G.CAMPAIGNS[ci('survey')].levels.length - 1, false) === true && G.getState() === G.S.PLAY);
+    toMenu();
+    G.startEndless();
+    check('paywall: the endless lane is free', G.isEndless() && G.getState() === G.S.PLAY && !G.getLicOffer());
+    toMenu();
+
+    // ---- a locked contract refuses to start, by every door ----
+    G.switchCampaign(ci('collector'));
+    const li0 = G.getLevelIdx();
+    check('paywall: startLevel on stage 17 refuses, starts nothing and opens the offer',
+      rawStartLevel(0, true) === false && G.getState() === G.S.MENU && G.getLevelIdx() === li0
+      && !!G.getLicOffer() && G.getLicOffer().from === 'locked' && G.getLicOffer().ci === ci('collector'));
+    toMenu();
+    G.startBossTest();
+    check('paywall: the passcode boss drill meets the same wall', G.getState() === G.S.MENU && !!G.getLicOffer());
+    toMenu();
+    G.setReplaying(true);
+    check('paywall: a replay is not a door: a paid stage\'s run can be watched for free', rawStartLevel(0, false) === true);
+    G.setReplaying(false); toMenu();
+    G.switchCampaign(ci('cargo-run'));
+    G.syncDisc(G.discOfCamp(ci('patrol')));
+    check('paywall: a tap on a locked contract disc opens the offer and leaves the contract in hand',
+      !!G.getLicOffer() && G.getLicOffer().ci === ci('patrol') && G.getCamp().id === 'cargo-run');
+    toMenu();
+    // NEXT CONTRACT off a delivered stage 16 is the offer's door
+    deliver('cargo-run'); deliver('survey');
+    G.setState(G.S.END); G.setEndT(99); G.setNameEntry(null);
+    G.setEndButtons([{ x: 0, y: 0, w: 40, h: 40, action: 'nextCon' }]);
+    G.endTap(20, 20); for (let i = 0; i < 4; i++) G.update(0.05);
+    check('paywall: NEXT CONTRACT off stage 16 opens the offer, not contract 3',
+      G.getState() === G.S.END && !!G.getLicOffer() && G.getLicOffer().from === 'next' && G.getCamp().id === 'cargo-run');
+    toMenu(); clearAll();
+    // the verdict: THIS run delivers contract 2, so the report opens the offer
+    deliver('cargo-run'); G.switchCampaign(ci('survey'));
+    rawStartLevel(G.CAMPAIGNS[ci('survey')].levels.length - 1, false);
+    G.setLicOfferDue(false); G.endLevel(true); G.setNameEntry(null);
+    check('paywall: a first delivery of contract 2 makes the offer due on the report', G.getLicOfferDue() === true);
+    G.licOfferCheck();
+    check('paywall: the report opens the offer once its keys land', !!G.getLicOffer() && G.getLicOffer().from === 'verdict');
+    toMenu(); G.setLicOfferDue(false);
+    G.switchCampaign(ci('survey')); rawStartLevel(G.CAMPAIGNS[ci('survey')].levels.length - 1, false); G.endLevel(true);
+    check('paywall: a second delivery of the same contract does not ask again', G.getLicOfferDue() === false);
+    toMenu(); clearAll();
+
+    // ---- the weekly decision, both ways ----
+    G.startWeekly();
+    check('paywall: WEEKLY_NEEDS_LICENSE false (the default): a free player files the live week',
+      /const WEEKLY_NEEDS_LICENSE = false;/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '34-license.js'), 'utf8'))
+      && !G.weeklyLocked() && G.boardKey() === 'weekly:' + G.weekNow());
+    G.setWeeklyNeedsLicense(true);
+    check('paywall: WEEKLY_NEEDS_LICENSE true: a free player\'s live week files nothing', G.weeklyLocked() && G.boardKey() === null);
+    L.owned = true;
+    check('paywall: …and a licensed player\'s week files again', !G.weeklyLocked() && G.boardKey() === 'weekly:' + G.weekNow());
+    L.owned = false; toMenu();
+    let flew = false;
+    check('paywall: with the weekly locked, the weekly door opens the offer and flies nothing',
+      G.weeklyDoor(undefined, () => { flew = true; }) === false && !flew && !!G.getLicOffer() && G.getLicOffer().from === 'weekly');
+    G.licOfferAct('unranked'); for (let i = 0; i < 12; i++) G.update(0.05);
+    check('paywall: FLY UNRANKED closes the offer and launches the weekly lane', !G.getLicOffer() && G.isWeekly() && G.boardKey() === null);
+    toMenu(); G.setWeeklyNeedsLicense(false);
+    check('paywall: with the weekly free, the weekly door flies straight away', G.weeklyDoor(undefined, () => { flew = true; }) === true && flew && !G.getLicOffer());
+
+    // ---- the grandfather rule ----
+    check('paywall: GRANDFATHER defaults to progress past stage 16',
+      /const GRANDFATHER = 'progress';/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '34-license.js'), 'utf8')));
+    clearAll();
+    check('paywall: a contract only browsed is not progress past 16', G.savePast16() === false);
+    G.progress.camp.collector.unlocked = 2;
+    check('paywall: a second stage opened in contract 3 is progress past 16', G.savePast16() === true);
+    clearAll(); G.progress.camp.delegation.stars[3] = 1;
+    check('paywall: a star in contract 5 is progress past 16', G.savePast16() === true);
+    clearAll(); G.progress.camp.patrol.bests[0] = 900;
+    check('paywall: a best in contract 4 is progress past 16', G.savePast16() === true);
+    clearAll(); deliver('cargo-run'); deliver('survey');
+    check('paywall: all of contracts 1 and 2 is not progress past 16', G.savePast16() === false);
+    clearAll();
+    L.legacy = { save: true, past16: true };
+    check('paywall: a save that held progress past 16 keeps contracts 3 to 5', G.grandfathered() && G.licensed() && !G.contractLocked(ci('collector')));
+    G.progress.camp = {}; G.saveState(); G.loadState();
+    check('paywall: the gift is stamped, so a progress wipe cannot take it back', G.grandfathered() && !G.contractLocked(ci('collector')));
+    clearAll();
+    L.legacy = { save: true, past16: false };
+    check('paywall: an old save with nothing past 16 meets the wall (progress rule)', !G.grandfathered() && G.contractLocked(ci('collector')));
+    G.setGrandfather('every-save');
+    check('paywall: GRANDFATHER every-save: every save made before the paywall keeps contracts 3 to 5', G.grandfathered() && !G.contractLocked(ci('collector')));
+    L.legacy = { save: false, past16: false };
+    check('paywall: …but a fresh install does not', !G.grandfathered() && G.contractLocked(ci('collector')));
+    G.setGrandfather('none'); L.legacy = { save: true, past16: true };
+    check('paywall: GRANDFATHER none: nobody is gifted', !G.grandfathered() && G.contractLocked(ci('collector')));
+    G.setGrandfather('progress'); freeAll();
+    check('paywall: the boot stamped this harness as a fresh install', typeof licBak.legacy === 'object' && licBak.legacy && licBak.legacy.save === false);
+
+    // ---- a license is not progress ----
+    L.owned = true; G.saveState();
+    const saved = JSON.parse(mem.get(G.STORE_KEY));
+    check('paywall: the license rides its own key beside progress, settings and identity',
+      !!saved.license && saved.license.owned === true && !!saved.progress && !!saved.settings && !!saved.identity && !('license' in saved.progress));
+    L.owned = false; G.loadState();
+    check('paywall: the license survives a save round-trip', L.owned === true);
+    G.progress.camp = {}; G.progress.enlisted = false; G.saveState(); L.owned = false; G.loadState();
+    check('paywall: the license survives a progress wipe', L.owned === true && G.licensed());
+    const gsrc = f => fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8');
+    const myd = gsrc('92-guide.js').split('function myDataAct(tag)')[1].split('\nfunction ')[0];
+    const wipe = gsrc('60-input.js').split("if (b.confirm === 'wipe') {")[1].split('menuConfirm = false;')[0];
+    check('paywall: neither the MY DATA erase nor RESET CONTRACT touches the license', !/license/.test(myd) && !/license/.test(wipe) && /PROG\.unlocked = 1/.test(wipe));
+    G.licenseApply({ owned: false, price: G.STUB.price, state: 'none' });
+    check('paywall: the store can grant, never take away', L.owned === true);
+    // a gift code redeemed in the store's own app, while the game sat in the background
+    freeAll(); G.stubSetOwned(true); G.setLicenseAskedAt(0);
+    global.document.hidden = false; docHandlers.visibilitychange();
+    await sleep(10);
+    check('paywall: coming back to the screen asks the store again, so a code redeemed outside the game unlocks',
+      L.owned === true && !G.contractLocked(ci('collector')));
+    check('paywall: …once per LICENSE_RECHECK_GAP, so two return events cost the store one call', G.licenseResume() === false);
+    check("paywall: Capacitor's App resume asks too, and the page's own return does",
+      /app\.addListener\('resume', \(\) => licenseResume\(\)\)/.test(gsrc('34-license.js'))
+      && /\} else \{\s*audioWake\(\);[^\n]*\n\s*licenseResume\(\);/.test(gsrc('60-input.js')));
+    freeAll(); clearAll(); G.saveState();
+
+    // ---- the stub flow, end to end ----
+    G.openLicOffer('locked', ci('collector'));
+    await sleep(5);
+    check('paywall: the offer prints the store\'s own price string', G.getLicensePrice() === G.STUB.price);
+    G.STUB.answer = 'cancelled'; G.licOfferAct('buy'); await sleep(10);
+    check('paywall: a cancelled sheet leaves the player free and the offer up, quiet', !L.owned && !!G.getLicOffer() && !G.getLicOffer().busy && G.getLicOffer().msg === '');
+    G.STUB.answer = 'pending'; G.licOfferAct('buy'); await sleep(10);
+    check('paywall: a pending payment says so and opens nothing yet', !L.owned && /PENDING/.test(G.getLicOffer().msg) && G.contractLocked(ci('collector')));
+    G.STUB.answer = 'error'; G.licOfferAct('buy'); await sleep(10);
+    check('paywall: a store with no answer asks for another try', !L.owned && /TRY AGAIN/.test(G.getLicOffer().msg));
+    G.licOfferAct('restore'); await sleep(10);
+    check('paywall: a restore on an account with nothing says so', !L.owned && /NO CLEARANCE/.test(G.getLicOffer().msg));
+    G.STUB.answer = 'owned'; G.licOfferAct('buy');
+    check('paywall: a purchase in flight owns the disc', G.getLicOffer().busy === true && (G.licOfferAct('later'), !!G.getLicOffer()));
+    await sleep(10);
+    check('paywall: a clearance opens stages 17 to 40 and remembers it in the store\'s own account',
+      L.owned && G.stubOwned() && G.getLicOffer().done && /17–40/.test(G.getLicOffer().msg) && !G.contractLocked(ci('collector')));
+    G.licOfferAct('go');
+    check('paywall: CONTINUE closes the offer', !G.getLicOffer());
+    G.switchCampaign(ci('delegation'));
+    check('paywall: a licensed player starts stage 40', rawStartLevel(G.CAMPAIGNS[ci('delegation')].levels.length - 1, false) === true && G.getState() === G.S.PLAY);
+    toMenu();
+    // a new device: the save is gone, the store account is not
+    L.owned = false; L.legacy = { save: false, past16: false };
+    G.setFrameDt(0.05); G.setMenuSettings(true); G.drawMenuSettings();
+    const rb = G.menuSetButtonsNow().find(b => b.action === 'restore');
+    check('paywall: settings carries a RESTORE PURCHASE row', !!rb && G.restoreLabel() === 'RESTORE PURCHASE');
+    G.menuTap(rb.x + rb.w / 2, rb.y + rb.h / 2, 1); for (let i = 0; i < 4; i++) G.update(0.05);
+    await sleep(10);
+    check('paywall: RESTORE PURCHASE brings the license back and says so', L.owned === true && G.restoreLabel() === 'PURCHASE RESTORED');
+    G.setMenuSettings(false);
+    for (let i = 0; i < 80; i++) G.update(0.05);
+    check('paywall: the restore answer gives the row its name back after a few seconds', G.restoreLabel() === 'RESTORE PURCHASE');
+    freeAll(); toMenu();
+
+    // ---- the offer disc: its words, its keys, the disc law ----
+    const seen = [];
+    const ft = ctxStub.fillText;
+    G.openLicOffer('locked', ci('collector'));
+    for (let i = 0; i < 12; i++) { if (i === 11) ctxStub.fillText = t => seen.push(String(t)); G.drawLicOffer(); }
+    ctxStub.fillText = ft;
+    const acts = G.getLicOfferBtns().map(b => b.action).sort().join();
+    check('paywall: the settled offer has NOT NOW, UNLOCK and RESTORE keys', acts === 'buy,later,restore');
+    check('paywall: the UNLOCK key carries the store\'s price string', seen.some(t => t === 'UNLOCK  ' + G.STUB.price) && seen.includes('NOT NOW'));
+    check('paywall: the offer names the stages through lvNum and says STAGE',
+      seen.some(t => /STAGES 17–40/.test(t)) && seen.some(t => /STAGES 01–16/.test(t)) && !seen.some(t => /\bLEVEL\b/.test(t)));
+    check('paywall: the fiction never names the store',
+      !seen.some(t => /APP STORE|GOOGLE|PLAY STORE|IN-APP|PURCHASE|BUY\b/i.test(t)));
+    G.closeLicOffer(); for (let i = 0; i < 12; i++) G.drawLicOffer();
+    check('paywall: a closed offer has no live keys', G.getLicOfferBtns().length === 0);
+    const lic = gsrc('34-license.js');
+    const drawSrc = lic.split('function drawLicOffer()')[1];
+    check('paywall: the offer disc obeys the disc law: prose through discPara, the key fitted with the text margin',
+      /discPlate\(cx, cy, R, /.test(drawSrc) && (drawSrc.match(/discPara\(cx, cy, R, /g) || []).length >= 4
+      && /- R \* DISC_TEXT_PAD\)/.test(drawSrc) && /discSegKeys\(cx, cy, R, keys\)/.test(drawSrc) && !/wrapCanvas\(/.test(drawSrc));
+    check('paywall: the settings key row fits its key with the text margin',
+      /function discKeyRow\(row, y, cx, cy, R\)[\s\S]{0,400}- R \* DISC_TEXT_PAD\)/.test(gsrc('91-briefing.js')));
+
+    // ---- the source keeps the rules it states ----
+    const inp = gsrc('60-input.js');
+    check('paywall: the wall sits inside startLevel, before the run is touched',
+      /function startLevel\(i, brief, withAssist\) \{\s*evLog\([^)]*\);[\s\S]{0,700}if \(!replaying && CAMP && contractLocked\(CAMPAIGNS\.indexOf\(CAMP\)\)\) \{[^}]*return false; \}\s*\n[\s\S]{0,700}weekly = false; Math\.random = mulberry32/.test(inp));
+    check('paywall: the drill and the continue read the wall\'s refusal',
+      /if \(startLevel\(bi\) === false\) return;/.test(inp) && /if \(startLevel\(levelIdx, false, assist\) === false\) return;/.test(inp));
+    const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'game', 'manifest.json'), 'utf8')).files.map(f => f.file);
+    const html = fs.readFileSync(path.join(ROOT, 'src', 'index.html'), 'utf8');
+    check('paywall: 34-license.js loads after the loader (and the play statistics) and before the run state, in the manifest and the page',
+      man.indexOf('34-license.js') > man.indexOf('33-loader.js') && man.indexOf('40-state.js') > man.indexOf('34-license.js')
+      && html.indexOf('game/33-loader.js') < html.indexOf('game/34-license.js') && html.indexOf('game/34-license.js') < html.indexOf('game/40-state.js'));
+    check('paywall: the analytics door names its events the way track() takes them',
+      ['paywall.offer', 'paywall.buy', 'paywall.restore'].every(n => lic.includes("'" + n + "'") && /^[a-z][a-z0-9_.]{1,39}$/.test(n)));
+    check('paywall: the save tuple carries the license', /JSON\.stringify\(\{ progress, settings, mutators, identity, license \}\)/.test(gsrc('32-save.js')));
+    const gameAll = gameSource(ROOT).split('\n').filter(l => !/const STUB = /.test(l) && !/^\s*\/\//.test(l)).join('\n');
+    check('paywall: the game never hard-codes a price (the stub\'s TEST answer aside)',
+      !/[$€£]\s?\d+[.,]\d\d|\d+[.,]\d\d\s?[$€£]|['"`][^'"`\n]*\b[12]\.99\b/.test(gameAll));
+    check('paywall: the product id lives in the game once, the same string both stores sell',
+      (gameAll.match(/com\.warpvanguard\.game\.license/g) || []).length === 1 && G.LICENSE_PRODUCT === 'com.warpvanguard.game.license');
+    check('paywall: the headless sim keeps the wall down (no Image), so the verifier replays every board',
+      /let licenseWall = typeof Image !== 'undefined';/.test(lic) && /const wallUp = \(\) => licenseWall && !globalThis\.EDITOR_DRIVE;/.test(lic));
+    check('paywall: one analytics door, inert until a track() exists', /function licenseTrack\(ev, data\) \{\s*if \(typeof track === 'function'\)/.test(lic));
+
+    // ---- the native twins (Two platforms, one fix) ----
+    const rd = p => { try { return fs.readFileSync(path.join(ROOT, p), 'utf8'); } catch (e) { return ''; } };
+    const jv = rd('android/app/src/main/java/com/warpvanguard/game/LicensePlugin.java');
+    const sw = rd('ios/App/App/LicensePlugin.swift');
+    check('paywall: Android: the License plugin asks Play Billing directly',
+      /@CapacitorPlugin\(name = "License"\)/.test(jv) && /queryPurchasesAsync/.test(jv) && /acknowledgePurchase/.test(jv)
+      && /launchBillingFlow/.test(jv) && /enablePendingPurchases/.test(jv) && /notifyListeners\("licenseChanged"/.test(jv));
+    check('paywall: Android: MainActivity registers the plugin before the bridge starts',
+      /registerPlugin\(LicensePlugin\.class\);\s*super\.onCreate\(savedInstanceState\);/.test(rd('android/app/src/main/java/com/warpvanguard/game/MainActivity.java')));
+    check('paywall: Android: Play Billing 8 is a pinned dependency', /implementation "com\.android\.billingclient:billing:8\.\d+\.\d+"/.test(rd('android/app/build.gradle')));
+    check('paywall: iOS: the License plugin asks StoreKit 2 directly',
+      /jsName = "License"/.test(sw) && /Transaction\.currentEntitlements/.test(sw) && /AppStore\.sync\(\)/.test(sw)
+      && /\.purchase\(\)/.test(sw) && /Transaction\.updates/.test(sw) && /notifyListeners\("licenseChanged"/.test(sw));
+    check('paywall: iOS: the view controller registers the plugin, and the project compiles it',
+      /bridge\?\.registerPluginInstance\(LicensePlugin\(\)\)/.test(rd('ios/App/App/GameViewController.swift'))
+      && (rd('ios/App/App.xcodeproj/project.pbxproj').match(/LicensePlugin\.swift/g) || []).length >= 4);
+    check('paywall: neither shell hard-codes the product id: the page sends it', !/com\.warpvanguard\.game\.license/.test(jv + sw));
+
+    // tidy: the harness's own state, as the rest of the suite left it
+    G.closeLicOffer(); G.setLicOfferDue(false);
+    G.setLicenseWall(false); G.setWeeklyNeedsLicense(false); G.setGrandfather('progress');
+    Object.assign(G.STUB, stubBak); G.stubSetOwned(false);
+    L.owned = licBak.owned; L.legacy = licBak.legacy;
+    for (const k of Object.keys(G.progress)) delete G.progress[k];
+    Object.assign(G.progress, progBak);
+    global.localStorage = realLS;
+    G.installCampaign(G.CAMPAIGNS.find(p => p.id === campBak) || G.CAMPAIGNS[0]);
+    toMenu();
   }
 
   console.log(failures === 0 ? '\nALL TESTS PASSED' : '\n' + failures + ' FAILURES');
@@ -6442,7 +6758,7 @@ await tick();
 // for what a player calls level 08. A bare `:7` is at least honestly an id. These
 // pins guard the renderer and every call site; the humans are on their own.
 {
-  const files = ['90-hud.js', '91-briefing.js', '92-guide.js', '93-board.js', '94-galaxy.js', '95-menu.js', '61-replay.js'];
+  const files = ['90-hud.js', '91-briefing.js', '92-guide.js', '93-board.js', '94-galaxy.js', '95-menu.js', '61-replay.js', '34-license.js'];
   const codeOf = f => fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8')
     .split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
 
@@ -7230,7 +7546,7 @@ await tick();
       check('backend: live — a lane on the live week is live', G.weeklyLive() === true);
     } finally { Date.now = realNow; if (wasWeekly) G.setWeeklyRun(wasIdx, 0); else G.clearWeeklyRun(); }
   }
-  check('backend: the refused-duplicate path removes the object it just uploaded', /code === "23505"\) \{[\s\S]*?\.remove\(\[traceId\]\)/.test(ts));
+  check('backend: the refused-duplicate path removes the object it just uploaded', /if \(wErr\) \{[\s\S]*?\.remove\(\[traceId\]\)[\s\S]*?code === "23505"/.test(ts));
   check('backend: the submission bar sits after the cheap refusals and right before the replay',
     ts.indexOf('client outdated') < ts.indexOf('svc.rpc("take_submit_slot"'));
   const m1 = read('supabase/migrations/20260908000000_grants_closed.sql');
@@ -8016,4 +8332,219 @@ await tick();
       !/\b(techPanel|cornerBrackets|discChromeKey|relayDestPos|V3dot|SIDEARC_A)\b/.test(code));
     check('…so no star-map plate can be placed by a destination\'s position again', !/relayDestPos\(/.test(code));
   }
+}
+
+// ================= PLAY STATISTICS: FIRST-PARTY, SMALL, AND NEVER IN THE SIM (2026-11-05) =================
+// The traction portal asked for playtimes, progress and platforms, which the
+// leaderboard never saw. src/game/34-telemetry.js sends three kinds of row to the
+// game's own project; supabase/migrations/20261105000000_telemetry.sql is the one
+// door they enter by. These pins hold the four rules the file states: it never
+// touches the sim, it never blocks the game, it runs only in a real build, and it
+// carries no identifier of its own. And they hold the promises around it: the
+// delete erases it, the policy names it, the portal names a stage 01 to 40.
+{
+  const vm = require('vm');
+  const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const tel = read('src/game/34-telemetry.js');
+  const telCode = tel.replace(/\/\/[^\n]*/g, '');
+  // ---- rule 1: the sim's stream is never touched ----
+  check('play stats: the file never draws Math.random, and mints ids from crypto.randomUUID',
+    !/Math\.random/.test(telCode) && /crypto\.randomUUID|c\.randomUUID/.test(telCode) && /getRandomValues/.test(telCode));
+  check('play stats: it loads right after the loader, in the manifest and in index.html alike',
+    (() => { const m = JSON.parse(read('src/game/manifest.json')).files.map(f => f.file); return m.indexOf('34-telemetry.js') === m.indexOf('33-loader.js') + 1; })()
+    && /game\/33-loader\.js"><\/script>\n<script src="game\/34-telemetry\.js"><\/script>/.test(read('src/index.html')));
+  check('play stats: the harness and the verifier run it inert — off, nothing queued, track() refused',
+    G.telOn() === false && G.telState() === null && G.track('fault', { where: 'x' }) === false
+    && !fetchLog.some(u => /telemetry_ingest/.test(String(u))));
+  // ---- the hooks, one line each in the shared files ----
+  const inp = read('src/game/60-input.js'), rpl = read('src/game/61-replay.js'), brf = read('src/game/91-briefing.js'), lb = read('src/game/31-leaderboard.js');
+  check('play stats: resetRun opens an attempt FIRST, while the last run\'s numbers still stand',
+    /function resetRun\(\) \{\n  telAttemptOpen\(\);/.test(inp));
+  check('play stats: endLevel closes it after the replay return, a replay re-assert drops it, and QUIT closes it first',
+    /if \(replaying\) \{ endWin = win;[^\n]*return; \}\n  telAttemptClose\(win \? 'clear' : 'fail'\);/.test(rpl)
+    && /replaying = true;\n  telAttemptDrop\(\);/.test(rpl)
+    && /else \{ \/\/ QUIT rides the same drive-back[^\n]*\n        telAttemptClose\('quit'\);/.test(brf));
+  check('play stats: MY DATA\'s forget empties the queue, and every submit outcome is counted',
+    /progress\.fbOut = null;\n[^\n]*\n  if \(typeof telForget === 'function'\) telForget\(\);/.test(lb)
+    && (lb.match(/telSubmit\(run, /g) || []).length === 4);
+
+  // ---- the file itself, alone, in a sandbox that looks like a shipped Android shell ----
+  const LS = () => { const m = new Map(); return { getItem: k => m.has(k) ? m.get(k) : null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), _m: m }; };
+  const boot = (over = {}) => {
+    const sent = [];
+    const ctx = {
+      Math: Object.create(Math, { random: { value: () => { throw new Error('Math.random drawn'); } } }),
+      JSON, Date, Object, Array, Number, String, Set, Map, Promise, Uint8Array, Boolean, RegExp, Error,
+      setTimeout: (fn, ms) => { const t = setTimeout(fn, ms); t.unref(); return t; }, clearTimeout,
+      crypto: require('crypto').webcrypto, fetch: () => Promise.reject(new Error('the sandbox sends through lbFetch')),
+      localStorage: over.localStorage || LS(),
+      navigator: over.navigator || { userAgent: 'Mozilla/5.0 (Linux; Android 16; Pixel 9a Build/CP1A.260405.005; wv) AppleWebKit/537.36', language: 'en-GB' },
+      document: { hidden: false, addEventListener() {} },
+      window: over.window || { location: { protocol: 'https:', hostname: 'localhost', search: '' }, __APP_VERSION: '1.1.0', addEventListener() {},
+        Capacitor: { isNativePlatform: () => true, getPlatform: () => 'android' } },
+      LEADERBOARD: { url: 'https://x.supabase.co', key: 'k', enabled: true },
+      lbSession: async () => 'tok',
+      lbFetch: over.lbFetch || (async (url, opts) => { sent.push({ url, body: JSON.parse(opts.body), keepalive: opts.keepalive }); return { ok: true, status: 200, json: async () => ({ ok: true }) }; }),
+      storePlatform: () => 'android', FB_ERROR_KEY: 'warpVanguard.lastError',
+      qual: false, weekly: false, endless: false, CAMP: { id: 'cargo-run' }, levelIdx: 6, weeklyIdx: -1,
+      score: 0, levelT: 0, assist: false, bossTestRun: false, replaying: false,
+    };
+    ctx.globalThis = ctx;
+    vm.createContext(ctx);
+    vm.runInContext(tel + '\n;globalThis.__t = { TEL, get state() { return telState; }, get open() { return telOpen; }, telAttemptOpen, telAttemptClose, telAttemptDrop, track, telFlush, telForget, telHide, telShow, telSetOff };', ctx);
+    return { ctx, t: ctx.__t, sent };
+  };
+  {
+    const lsF = LS();
+    lsF.setItem('warpVanguard.lastError', JSON.stringify({ at: '2026-11-05T10:00:00.000Z', where: 'frame', ver: '1.1.0', msg: 'TypeError: secret words' }));
+    const { ctx, t } = boot({ localStorage: lsF });
+    const c = t.state.cur;
+    check('play stats: a shipped shell boots on, with one session row that names the device coarsely',
+      t.TEL.on === true && !!c && /^[0-9a-f-]{36}$/.test(c.id) && c.p === 'android' && c.ch === 'store'
+      && c.os === 'Android 16' && c.m === 'Pixel 9a' && c.v === '1.1.0' && c.l === 'en-GB');
+    const f = t.state.q.e.find(e => e.n === 'fault');
+    check('play stats: a fault the error net kept is COUNTED — its site and version, never its message',
+      !!f && f.pr.where === 'frame' && f.pr.ver === '1.1.0' && !JSON.stringify(t.state.q.e).includes('secret'));
+    // a stage, cleared
+    t.telAttemptOpen(); ctx.score = 41230; ctx.levelT = 93.456; t.telAttemptClose('clear');
+    const a = t.state.q.a[t.state.q.a.length - 1];
+    check('play stats: a cleared stage files one row: mode, contract, zero-based index, result, time, score',
+      t.state.q.a.length === 1 && a.mo === 'campaign' && a.c === 'cargo-run' && a.li === 6 && a.r === 'clear' && a.d === 93.5 && a.sc === 41230 && a.as === false && a.sid === c.id);
+    // a restart over an open attempt closes it as a quit, with the old run's numbers
+    t.telAttemptOpen(); ctx.score = 500; ctx.levelT = 12; ctx.weekly = true; ctx.endless = true; ctx.weeklyIdx = 2970; t.telAttemptOpen();
+    const q = t.state.q.a[t.state.q.a.length - 1];
+    check('play stats: a restart files the run it replaces as a QUIT, and the next one opens in its own mode',
+      t.state.q.a.length === 2 && q.r === 'quit' && q.sc === 500 && q.mo === 'campaign' && t.open.mo === 'weekly' && t.open.w === 2970 && t.open.li === null);
+    // a replay is not an attempt
+    ctx.replaying = true; t.telAttemptClose('fail'); ctx.replaying = false;
+    t.telAttemptOpen(); t.telAttemptDrop(); t.telAttemptClose('fail');
+    check('play stats: watching a replay files nothing', t.state.q.a.length === 2 && t.open === null);
+    // the boss drill is a tester's tool
+    ctx.weekly = ctx.endless = false; t.telAttemptOpen(); ctx.bossTestRun = true; t.telAttemptClose('fail'); ctx.bossTestRun = false;
+    check('play stats: the passcode boss drill files as a drill, never as a campaign attempt', t.state.q.a[t.state.q.a.length - 1].mo === 'drill');
+    // track(): a slug and a flat object, trimmed here
+    check('play stats: track() takes a slug and keeps only short flat values',
+      t.track('submit', { why: 'ok', st: 200, deep: { a: 1 }, 'bad key': 1, long: 'x'.repeat(200), n: NaN }) === true
+      && JSON.stringify(t.state.q.e[t.state.q.e.length - 1].pr) === JSON.stringify({ why: 'ok', st: 200, long: 'x'.repeat(64) })
+      && t.track('Bad Name') === false && t.track('x') === false);
+    for (let i = 0; i < 400; i++) t.track('tutorial.step', { i });
+    check('play stats: a queue never grows past its cap — the oldest row goes first', t.state.q.e.length === t.TEL.cap && t.state.q.e[t.state.q.e.length - 1].pr.i === 399);
+  }
+  LATE.push((async () => {
+    const { t, sent } = boot();
+    t.telAttemptOpen(); t.telAttemptClose('fail'); t.track('submit', { why: 'verify', st: 400 });
+    const ok = await t.telFlush(false);
+    const b = sent[0] && sent[0].body.p_batch;
+    check('play stats: a flush is ONE call to the narrow RPC, carrying the live session, the attempt and the event',
+      ok === true && sent.length === 1 && /\/rest\/v1\/rpc\/telemetry_ingest$/.test(sent[0].url) && b.s.length === 1 && b.a.length === 1 && b.e.length === 1
+      && !('player' in b) && !b.s.concat(b.a, b.e).some(r => 'player_id' in r || 'pid' in r));
+    check('play stats: a landed batch empties the queues, and the live session stays to be re-sent longer',
+      t.state.q.a.length === 0 && t.state.q.e.length === 0 && t.state.q.s.length === 0 && !!t.state.cur);
+    const off = boot({ lbFetch: async () => { throw new Error('offline'); } });
+    off.t.telAttemptOpen(); off.t.telAttemptClose('quit');
+    check('play stats: offline, the rows wait in the queue', (await off.t.telFlush(false)) === false && off.t.state.q.a.length === 1);
+    off.t.telHide();
+    check('play stats: putting the app away banks the time on screen and persists the stage in flight', off.t.state.cur.fg >= 0 && 'open' in off.t.state);
+    off.t.telForget();
+    check('play stats: MY DATA\'s delete empties the queue and starts a fresh session id', off.t.state.q.a.length === 0 && off.t.state.q.e.length === 0);
+    off.t.telSetOff(true);
+    check('play stats: the objection switch stops it and empties the queue', off.t.TEL.on === false && off.t.track('submit', {}) === false && off.t.state.q.s.length === 0);
+  })());
+  // rule 3: only a real build
+  {
+    const dev = boot({ window: { location: { protocol: 'http:', hostname: 'localhost', search: '' }, __APP_VERSION: null, addEventListener() {} } });
+    const lan = boot({ window: { location: { protocol: 'http:', hostname: '192.168.1.20', search: '' }, __APP_VERSION: '1.1.0', addEventListener() {} } });
+    const opt = boot({ window: { location: { protocol: 'http:', hostname: 'localhost', search: '?tel=1' }, addEventListener() {} } });
+    const bot = boot({ navigator: { webdriver: true, userAgent: 'HeadlessChrome' } });
+    check('play stats: a dev page, a LAN test and an automated browser send nothing; ?tel=1 opts a dev page in, marked dev',
+      dev.t.TEL.on === false && lan.t.TEL.on === false && bot.t.TEL.on === false && opt.t.TEL.on === true && opt.t.state.cur.ch === 'dev');
+    const ios = boot({ navigator: { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', language: 'de-DE' } });
+    check('play stats: an iPhone reads as iOS 18.7, model iPhone — the coarse name, never more', ios.t.state.cur.os === 'iOS 18.7' && ios.t.state.cur.m === 'iPhone');
+  }
+
+  // ---- the door: the migration ----
+  const mig = read('supabase/migrations/20261105000000_telemetry.sql'), migCode = mig.replace(/--[^\n]*/g, '');
+  const T4 = ['telemetry_sessions', 'telemetry_attempts', 'telemetry_events', 'telemetry_quota'];
+  check('play stats: every table cascades from the auth user, so a deleted identity takes its statistics',
+    (migCode.match(/player_id\s+uuid( primary key| not null) references auth\.users \(id\) on delete cascade/g) || []).length === 4);
+  check('play stats: every table has RLS on and is closed to the client roles, open to service_role',
+    T4.every(t => new RegExp('alter table public\\.' + t + '\\s+enable row level security;').test(migCode)
+      && new RegExp('revoke all on public\\.' + t + '\\s+from public, anon, authenticated;').test(migCode)
+      && new RegExp('grant all on table public\\.' + t + '\\s+to service_role;').test(migCode)));
+  check('play stats: the ingest takes the identity from the JWT, never the body, and is the one door the client reaches',
+    /v_player uuid := auth\.uid\(\);/.test(migCode) && !/p_batch->>'(player|pid|player_id)'|x->>'(player|pid|player_id)'/.test(migCode)
+    && /security definer\s*\nset search_path = public, extensions/.test(migCode)
+    && /revoke execute on function public\.telemetry_ingest\(jsonb\) from public, anon;/.test(migCode)
+    && /grant execute on function public\.telemetry_ingest\(jsonb\) to authenticated;/.test(migCode));
+  check('play stats: the rate bar — 300 rows a call, 60 calls and 3000 rows an hour, under a per-identity lock',
+    /if v_rows > 300 then/.test(migCode) && /if v_calls >= 60 or v_in \+ v_rows > 3000 then/.test(migCode)
+    && /perform pg_advisory_xact_lock\(hashtext\('telemetry:' \|\| v_player::text\)\);/.test(migCode));
+  check('play stats: a session upsert can never write into another player\'s row',
+    /on conflict \(id\) do update\s*\n\s*set fg_sec = greatest\(t\.fg_sec, excluded\.fg_sec\), updated_at = now\(\)\s*\n\s*where t\.player_id = excluded\.player_id/.test(migCode));
+  check('play stats: thirteen months, by a service-only purge',
+    /create or replace function public\.purge_old_telemetry\(p_days int default 400\)/.test(migCode)
+    && /revoke execute on function public\.purge_old_telemetry\(int\) from public, anon, authenticated;/.test(migCode));
+  // ---- the delete and the export ----
+  const md = read('supabase/functions/my-data/index.ts');
+  check('play stats: MY DATA\'s delete removes every statistics table by name BEFORE it deletes the auth user, and export reads them',
+    md.indexOf('"telemetry_events", "telemetry_attempts", "telemetry_sessions", "telemetry_quota"') > 0
+    && md.indexOf('"telemetry_events", "telemetry_attempts"') < md.indexOf('svc.auth.admin.deleteUser(playerId)')
+    && /if \(action === "export"\)/.test(md) && ['telemetry_sessions', 'telemetry_attempts', 'telemetry_events'].every(t => md.includes('read("' + t + '"')));
+  // ---- the documents say it ----
+  const pol = read('docs/privacy.html'), idx = read('docs/index.html');
+  check('play stats: the policy names play statistics, their basis, thirteen months and the delete — and no longer says "no analytics"',
+    /<h3>Play statistics<\/h3>/.test(pol) && /Play statistics rest on the same basis/.test(pol) && /thirteen months/.test(pol)
+    && /deletes every play\s*\n?\s*statistic recorded under your id/.test(pol) && !/no analytics/i.test(pol) && !/no analytics/i.test(read('docs/delete-data.html')));
+  {
+    const body = pol.slice(pol.indexOf('<p>Warp Vanguard is a game. This policy explains'), pol.indexOf('<h2>Contact</h2>'))
+      .replace(/<h3>/g, '<h4>').replace(/<\/h3>/g, '</h4>').replace(/<h2>/g, '<h3>').replace(/<\/h2>/g, '</h3>');
+    check('play stats: the support page carries the same policy, one heading level down', idx.includes(body));
+  }
+  check('play stats: the store-form drafts and the credential steps are written',
+    /\| App info and performance \| \*\*Crash logs\*\*/.test(read('docs/PLAY-STATISTICS-PRIVACY.md'))
+    && /Diagnostics → \*\*Other Diagnostic Data\*\*/.test(read('docs/PLAY-STATISTICS-PRIVACY.md'))
+    && /View app information and\s+download bulk reports/.test(read('docs/STORE-REPORTS-SETUP.md')) && /Access: \*\*Sales\*\*/.test(read('docs/STORE-REPORTS-SETUP.md')));
+
+  // ---- the portal: a page on the admin console, a stage named 01 to 40 ----
+  const tr = require(path.join(ROOT, 'scripts', 'lib', 'traction.js'));
+  const cs = tr.loadContracts(ROOT);
+  check('traction: a stage is named by the game\'s own arithmetic — 07, 09, and the last one ' + tr.lvNum(cs.reduce((n, c) => n + c.n, 0)),
+    tr.stageName(cs, 'cargo-run', 6) === '07' && tr.stageName(cs, 'survey', 0) === '09' && tr.stageName(cs, 'cargo-run', -1) === null
+    && tr.stageName(cs, cs[cs.length - 1].id, cs[cs.length - 1].n - 1) === tr.lvNum(cs.reduce((n, c) => n + c.n, 0)));
+  const page = read('scripts/traction.html');
+  check('traction: the page script parses, and it names stages only through lvNum(base + li + 1)',
+    (() => { try { new vm.Script(page.slice(page.indexOf('<script>') + 8, page.lastIndexOf('</script>'))); return true; } catch (e) { return false; } })()
+    && /return \{ no: c\.base \+ li \+ 1, name: lvNum\(c\.base \+ li \+ 1\)/.test(page) && !/\.board\b[^;]*textContent/.test(page));
+  const adm = read('scripts/admin.js');
+  check('traction: it is a page on the admin console — no new port, the same token, the same localhost bind',
+    /if \(url === '\/traction'\)/.test(adm) && /if \(url === '\/api\/traction'\)/.test(adm)
+    && adm.indexOf("if (url === '/api/traction')") > adm.indexOf("if (!authed(req))") && /\.listen\(port, '127\.0\.0\.1'/.test(adm)
+    && /port: 8200, name: 'Traction',\s+cmd: 'npm run admin',\s+path: 'traction'/.test(read('scripts/portal.js'))
+    && /<a class="navkey" href="\/traction">Traction<\/a>/.test(read('scripts/admin.html')));
+  check('traction: the auth reads group before they return — no query hands the page an id',
+    !/json_build_array\([^)]*\b(id|player_id|uid)\b/.test(tr.baseSql(cs) + tr.telemetrySql()));
+  // ---- the store files ----
+  const sr = require(path.join(ROOT, 'scripts', 'lib', 'store-reports.js'));
+  const play = 'Date,Package Name,Daily Device Installs,Daily Device Uninstalls,Daily Device Upgrades,Total User Installs,Daily User Installs,Daily User Uninstalls,Active Device Installs\n2026-11-01,com.warpvanguard.game,3,1,0,40,2,1,30\n';
+  const p16 = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(play, 'utf16le')]);
+  const ap = 'Provider\tSKU\tProduct Type Identifier\tUnits\tBegin Date\nAPPLE\twv\t1F\t4\t11/03/2026\nAPPLE\twv\t7F\t9\t11/03/2026\nAPPLE\twv\t3F\t1\t11/03/2026\n';
+  const asc = 'Warp Vanguard\nTotal Downloads\n\nDate,Total Downloads\n"Nov 1, 2026","1,204"\n';
+  let refused = false; try { sr.parseUpload(Buffer.from('a,b\n1,2\n'), 'auto'); } catch (e) { refused = true; }
+  const pp = sr.parseUpload(p16, 'auto'), aa = sr.parseUpload(require('zlib').gzipSync(Buffer.from(ap)), 'auto'), gg = sr.parseUpload(Buffer.from(asc), 'ios');
+  check('traction: the store files parse — a UTF-16 Play overview, a gzipped Apple sales report, an App Store Connect export — and a stranger is refused',
+    pp.store === 'play' && pp.days['2026-11-01'].installs === 2 && pp.days['2026-11-01'].uninstalls === 1
+    && aa.store === 'ios' && aa.days['2026-11-03'].downloads === 4 && aa.days['2026-11-03'].updates === 9 && aa.days['2026-11-03'].redownloads === 1
+    && gg.days['2026-11-01'].downloads === 1204 && refused);
+  {
+    const { privateKey, publicKey } = require('crypto').generateKeyPairSync('ec', { namedCurve: 'P-256' });
+    const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'wv-asc-'));
+    fs.writeFileSync(path.join(dir, 'k.p8'), privateKey.export({ type: 'pkcs8', format: 'pem' }));
+    const jwt = sr.appleToken({ issuerId: 'iss', keyId: 'KID', keyFile: path.join(dir, 'k.p8') }).split('.');
+    const okSig = require('crypto').verify('sha256', Buffer.from(jwt[0] + '.' + jwt[1]), { key: publicKey, dsaEncoding: 'ieee-p1363' }, Buffer.from(jwt[2], 'base64url'));
+    const head = JSON.parse(Buffer.from(jwt[0], 'base64url')), body = JSON.parse(Buffer.from(jwt[1], 'base64url'));
+    fs.rmSync(dir, { recursive: true, force: true });
+    check('traction: the App Store Connect token is an ES256 JWT Apple can verify — kid, issuer, audience, under twenty minutes',
+      okSig && head.alg === 'ES256' && head.kid === 'KID' && body.iss === 'iss' && body.aud === 'appstoreconnect-v1' && body.exp - body.iat <= 1200);
+  }
+  check('traction: the store keys live outside every checkout', !sr.DIR.startsWith(ROOT) && /\.warp-vanguard/.test(sr.DIR + (process.env.WV_TRACTION_DIR ? '.warp-vanguard' : '')));
 }

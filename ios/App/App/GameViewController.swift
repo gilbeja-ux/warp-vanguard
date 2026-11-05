@@ -44,6 +44,14 @@ class GameViewController: CAPBridgeViewController {
     @available(iOS 26.0, *)
     override var prefersInterfaceOrientationLocked: Bool { true }
 
+    /// THE LICENSE PLUGIN IS THE APP'S OWN (2026-11-05), not an npm package, so
+    /// Capacitor cannot find it by itself: it is registered here, as the bridge
+    /// comes up and before the page loads. Its Android twin registers in
+    /// MainActivity.onCreate, before super.onCreate starts that bridge.
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(LicensePlugin())
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         // capacitor.config.json turns scrolling, zoom and the content inset off;

@@ -29,6 +29,12 @@ redirects here; swap in the new address at the next release.
 
 ## App content → Data safety
 
+> **Play statistics change this section (2026-11-05).** The first build carrying
+> `src/game/34-telemetry.js` adds *Analytics* to two purposes and two new types
+> (*Crash logs*, *Diagnostics*). The answers below stay true until that build
+> ships; the new ones, and the reasoning, are in `PLAY-STATISTICS-PRIVACY.md`.
+> File them the day the build goes up for review, and rewrite this section then.
+
 **Does your app collect or share any required user data types?** → **Yes**
 **Is all data encrypted in transit?** → **Yes** (HTTPS to Supabase)
 **Do you provide a way for users to request data deletion?** → **Yes**
@@ -223,8 +229,9 @@ screenshot or the video. The answer is per-asset, not per-app.
 - **Does the app allow users to interact or exchange content?** → **Yes** —
   players see other players' chosen display names on leaderboards.
 - **Does it share the user's current location?** → **No.**
-- **Does it allow purchases?** → **No** (v1 is free with no IAP; this answer
-  changes in 1.1).
+- **Does it allow purchases?** → **No** through 1.0.x. **Yes from 1.1**, which
+  sells one unlock for contracts 3–5 (stages 17–40). Change the answer with the 1.1
+  upload ([PAYWALL-CHECKLIST.md](PAYWALL-CHECKLIST.md)).
 - Expected outcome: roughly **PEGI 3 / ESRB Everyone**, with a *Users Interact*
   interactive-elements notice. That notice is normal and expected for anything
   with a leaderboard.
@@ -250,8 +257,10 @@ All **No**.
 
 - App category: **Game → Arcade** (secondary: Action)
 - Contains ads: **No**
-- In-app purchases: **No** (v1; the $2.99 unlock at the stage-09 seam lands in
-  1.1 — [RELEASE-PLAN.md](RELEASE-PLAN.md))
+- In-app purchases: **No** through 1.0.x. **Yes from 1.1**: one non-consumable,
+  `com.warpvanguard.game.license`, unlocks contracts 3–5 (stages 17–40); stages 01–16
+  and the endless lane stay free ([RELEASE-PLAN.md](RELEASE-PLAN.md),
+  [PAYWALL-CHECKLIST.md](PAYWALL-CHECKLIST.md))
 - Free / Paid: **Free**
 - **Tags:** lead with rhythm, then arcade, action, offline. The genre is
   rhythm-action on a ring (Gil, 2026-09-18), never "shooter". The Console offers

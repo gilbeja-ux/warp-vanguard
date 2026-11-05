@@ -43,6 +43,7 @@
     hits = 0;
     applyLadder();
     installCampaign(CAMPAIGN_PACKAGES[ki]);
+    licenseWall = false; // a tool, not a door: it flies paid stages on purpose (34-license.js)
     startLevel(7);
     spawnBoss();
     if (pin) clearInterval(pin);

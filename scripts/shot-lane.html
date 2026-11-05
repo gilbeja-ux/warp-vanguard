@@ -89,7 +89,7 @@
   }
   const screen = Q.get('screen');
   if (screen) {
-    poke(`SPLASH.on = false;
+    poke(`SPLASH.on = false; licenseWall = false; /* a tool, not a door (34-license.js) */
           try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
           state = S.MENU; menuScreen = '${screen}'; menuCache = null;`);
     crank(120);                                 // menuSkyVis eases over ~0.5s — let it arrive
@@ -102,7 +102,7 @@
     document.title = 'READY screen=' + screen + ' err=' + (window.__err || 'none');
     return;
   }
-  poke(`SPLASH.on = false;
+  poke(`SPLASH.on = false; licenseWall = false; /* a tool, not a door (34-license.js) */
         try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
         startLevel(Math.min(${lvl}, (LEVELS || []).length - 1));
         introT = 999; introCd = 0;

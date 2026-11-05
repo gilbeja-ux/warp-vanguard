@@ -82,16 +82,29 @@ function migrateQualParts(dp) {
   dp.qualPart3Done = old || open >= 8;
   return dp;
 }
+// A LICENSE IS NOT PROGRESS (Gil, 2026-08-17, kept 2026-11-05). It rides its own
+// key in the save, beside progress / settings / identity, so RESET CONTRACT and
+// the MY DATA erase, which touch progress and the boards, cannot revoke it.
+// Declared here because loadState fills it; 34-license.js owns what it means.
+//   owned  — the store said this account holds the unlock (cached; boot re-asks)
+//   legacy — what the save held the first time a licence-aware build booted,
+//            written ONCE: { save, past16 }. GRANDFATHER reads it.
+const license = { owned: false, legacy: null };
+let saveFoundAtBoot = false; // did loadState find a save at all? (the legacy stamp reads it)
 function saveState() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify({ progress, settings, mutators, identity })); } catch (e) {}
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ progress, settings, mutators, identity, license })); } catch (e) {}
 }
-(function loadState() {
+// a named declaration, called once below, so a test can read a written save back
+function loadState() {
   try {
     let raw = localStorage.getItem(STORE_KEY);
     if (raw === null) {
       raw = localStorage.getItem(LEGACY_STORE_KEY);
       if (raw !== null) localStorage.removeItem(LEGACY_STORE_KEY);
     }
+    // a save was FOUND even when it will not parse: the paywall's legacy stamp
+    // (34-license.js) counts a damaged pre-paywall save as a save that existed
+    saveFoundAtBoot = raw !== null;
     const d = JSON.parse(raw);
     if (d) {
       if (d.progress) {
@@ -116,7 +129,21 @@ function saveState() {
       if (d.settings && Math.abs(d.settings.musicVol - 0.5) < 1e-9) settings.musicVol = 0.32;
       if (d.mutators) Object.assign(mutators, d.mutators);
       if (d.identity) Object.assign(identity, d.identity);
+      if (d.license && typeof d.license === 'object') Object.assign(license, d.license);
     }
-  } catch (e) {}
+  } catch (e) {
+    // A DAMAGED BLOB MUST NOT BE OVERWRITTEN BLIND (audit 2026-11-05). The next saveState() writes
+    // defaults over STORE_KEY, which cost a player their stars, bests and login for good. Park the
+    // raw text under a second key first (never over an earlier parked copy), and read the login
+    // back out of it by hand so the player keeps their leaderboard rows. Progress is not guessed.
+    try {
+      const bad = localStorage.getItem(STORE_KEY);
+      if (bad && localStorage.getItem(STORE_KEY + '.bad') === null) localStorage.setItem(STORE_KEY + '.bad', bad);
+      const pick = k => { const m = new RegExp('"' + k + '":"([^"]+)"').exec(bad || ''); return m && m[1]; };
+      if (pick('refresh')) identity.refresh = pick('refresh');
+      if (pick('uid')) identity.uid = pick('uid');
+    } catch (e2) {}
+  }
   ensureIdentity(); // mint a device handle + auto label on first boot; persisted on next save
-})();
+}
+loadState();
