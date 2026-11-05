@@ -172,7 +172,30 @@ function licenseApply(r) {
     if (licOffer && !licOffer.busy && !licOffer.done) { licOffer.done = true; licOffer.msg = 'STAGES ' + paidRange() + ' ARE OPEN'; }
   }
 }
-function licenseQuery() { Billing.query().then(licenseApply, () => {}); }
+function licenseQuery() { licenseAskedAt = Date.now(); Billing.query().then(licenseApply, () => {}); }
+
+// THE STORE IS ASKED AGAIN EVERY TIME THE GAME COMES BACK (Gil, 2026-11-05). A gift
+// code is redeemed in the store's own app, and a pending payment clears while the
+// game is in the background; neither reaches a game that asks only at start-up. So
+// the game asks again whenever it returns to the screen: the page's own
+// visibilitychange (60-input.js) and Capacitor's App 'resume' (below), whichever
+// fires first. On Android this is also what ACKNOWLEDGES such a purchase in time:
+// Play refunds a one-time product left unacknowledged for three days, and the
+// shell acknowledges on every query. One ask per LICENSE_RECHECK_GAP ms, so the two
+// events, or a quick flick out and back, cost the store one call.
+const LICENSE_RECHECK_GAP = 2000;
+let licenseAskedAt = -1e15;
+function licenseResume() {
+  if (Date.now() - licenseAskedAt < LICENSE_RECHECK_GAP) return false;
+  licenseQuery();
+  return true;
+}
+(function wireLicenseResume() {
+  try {
+    const app = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+    if (app && typeof app.addListener === 'function') app.addListener('resume', () => licenseResume());
+  } catch (e) {}
+})();
 
 // ---- boot ----
 // ?paywall=fresh (web only) flies the free tier in a browser that holds a

@@ -44,8 +44,10 @@ seam moves to the end of contract 2.
    `settings` and `identity`. RESET CONTRACT and the MY DATA erase never revoke it.
 2. **No DRM.** A plain client gate. The boards are guarded by the server's replay
    verifier, not by the flag: a forged flag still cannot forge a run.
-3. **The store can grant, never take away.** The game asks the store at start-up and
-   caches the yes. A "no" from a flaky store, or a device signed out of its store, never
+3. **The store can grant, never take away.** The game asks the store at start-up, each
+   time it comes back to the screen (so a gift code redeemed in the store's own app, or
+   a pending payment that cleared, lands without a restart), and when the offer opens.
+   It caches the yes. A "no" from a flaky store, or a device signed out of its store, never
    walls a player who paid. Play is never gated on the network.
 4. **The wall is inside `startLevel`.** Every door into a stage meets it: the stage
    list, NEXT CONTRACT, the board's FLY THIS LANE, the passcode boss drill. The doors
@@ -81,6 +83,10 @@ the free tier on a save that has the unlock.
 
 **Analytics.** `licenseTrack()` in `34-license.js` is the one door for offer views,
 purchases and restores. It sends nothing until a `track()` exists.
+
+**Gift codes** for Gil, family and friends are store codes, never a code typed into the
+game (App Store guideline 3.1.1): Play promo codes and App Store offer codes, plus
+Family Sharing on iOS. See [PAYWALL-CHECKLIST.md](PAYWALL-CHECKLIST.md) §4.
 
 **The store side** is Gil's: [PAYWALL-CHECKLIST.md](PAYWALL-CHECKLIST.md) (the Play
 payments profile and one-time product, the Paid Apps agreement and the in-app purchase

@@ -481,6 +481,7 @@ document.addEventListener('visibilitychange', () => {
     if (AC && AC.state === 'running') AC.suspend().catch(() => {});
   } else {
     audioWake(); // 'suspended' from the hide, or 'interrupted' from a call that ended while hidden
+    licenseResume(); // a gift code or a purchase made outside the game lands here (34-license.js)
   }
 });
 

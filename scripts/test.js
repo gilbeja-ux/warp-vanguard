@@ -337,7 +337,8 @@ code = code.replace("'use strict';", '') + `
   openLicOffer, closeLicOffer, getLicOffer: () => licOffer, licOfferAct, licOfferTap, drawLicOffer,
   getLicOfferBtns: () => licOfferBtns, getLicOfferDue: () => licOfferDue, setLicOfferDue: v => { licOfferDue = v; }, licOfferCheck,
   restorePurchase, restoreLabel, paidRange, freeRange, licOfferCopy, weeklyDoor, getLicensePrice: () => licensePrice,
-  syncDisc, discOfCamp, switchCampaign, menuSetButtonsNow: () => menuSetButtons
+  syncDisc, discOfCamp, switchCampaign, menuSetButtonsNow: () => menuSetButtons,
+  licenseResume, setLicenseAskedAt: v => { licenseAskedAt = v; } // the re-check on return to the screen
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -5532,6 +5533,16 @@ await tick();
     check('paywall: neither the MY DATA erase nor RESET CONTRACT touches the license', !/license/.test(myd) && !/license/.test(wipe) && /PROG\.unlocked = 1/.test(wipe));
     G.licenseApply({ owned: false, price: G.STUB.price, state: 'none' });
     check('paywall: the store can grant, never take away', L.owned === true);
+    // a gift code redeemed in the store's own app, while the game sat in the background
+    freeAll(); G.stubSetOwned(true); G.setLicenseAskedAt(0);
+    global.document.hidden = false; docHandlers.visibilitychange();
+    await sleep(10);
+    check('paywall: coming back to the screen asks the store again, so a code redeemed outside the game unlocks',
+      L.owned === true && !G.contractLocked(ci('collector')));
+    check('paywall: …once per LICENSE_RECHECK_GAP, so two return events cost the store one call', G.licenseResume() === false);
+    check("paywall: Capacitor's App resume asks too, and the page's own return does",
+      /app\.addListener\('resume', \(\) => licenseResume\(\)\)/.test(gsrc('34-license.js'))
+      && /\} else \{\s*audioWake\(\);[^\n]*\n\s*licenseResume\(\);/.test(gsrc('60-input.js')));
     freeAll(); clearAll(); G.saveState();
 
     // ---- the stub flow, end to end ----

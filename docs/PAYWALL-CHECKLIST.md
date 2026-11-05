@@ -97,12 +97,62 @@ Do these in order. Steps 1 and 2 can take a few days to clear.
    sandbox account on iOS: buy, kill the app, start it again (still unlocked), delete
    the app and install it again (unlocked again, at start-up, with no tap), and RESTORE
    PURCHASE in settings.
-3. [ ] **One cancelled purchase and one slow card.** Play's test cards include *slow
+3. [ ] **One gift code on each platform** (§4): leave the game open on the contract
+   carousel, switch to the store app, redeem the code, switch back. Contracts 3–5 open
+   without a restart. On iOS, test with a sandbox offer code first.
+4. [ ] **One cancelled purchase and one slow card.** Play's test cards include *slow
    card, approves after a few minutes*: the disc says CLEARANCE PENDING, and the stages
    open by themselves when it clears.
-4. [ ] **The R8 device pass** on the sideload build (`npm run aab` makes it): the new
+5. [ ] **The R8 device pass** on the sideload build (`npm run aab` makes it): the new
    plugin is found by reflection, like every Capacitor plugin.
-5. [ ] **The privacy page** (`docs/privacy.html`) has a *Purchases* section. Push it
+6. [ ] **The privacy page** (`docs/privacy.html`) has a *Purchases* section. Push it
    with 1.1, not before you want it public.
-6. [ ] **The verifier.** The paywall moves the sim id (any byte does), so the verifier
+7. [ ] **The verifier.** The paywall moves the sim id (any byte does), so the verifier
    deploys before the build ships, as for every change under `src/game/`.
+
+## 4. Gift codes: for you, family and friends
+
+A gift is a **store code**, made in the console and redeemed in the store's own app.
+The game needs nothing typed into it: it asks the store at start-up, each time it comes
+back to the screen, when the offer opens, and on RESTORE PURCHASE, and the unlock is
+there. The person needs the 1.1 build (the first one with the unlock) on their phone.
+
+**Never an unlock code typed into the game.** App Store guideline 3.1.1 forbids an app's
+own mechanism to unlock content (license keys, codes), and a code in the game would be
+plain text in the bundle for anyone to read.
+
+### Android: promo codes
+
+1. [ ] Play Console → the app → *Monetize with Play → Promotions* → create a promotion
+   for the one-time product `com.warpvanguard.game.license`.
+2. [ ] Pick one-time codes (one per person) and the start and end dates.
+3. [ ] Send each person one code. They redeem it in the Play Store app (the profile menu,
+   *Redeem code*), or with the link the console gives.
+
+Limit: **500 codes a quarter**, shared by every non-subscription promotion of the app.
+Unused codes do not carry over to the next quarter.
+
+### iOS: offer codes
+
+1. [ ] App Store Connect → the app → the in-app purchase → *Offer Codes* → create an
+   offer of **one-time use codes**. The in-app purchase must be live on the store first.
+2. [ ] Redeem one yourself before you send a batch: a developer forum post reports
+   "offer not available" for a production code.
+3. [ ] Send each person one code. They redeem it in the App Store app (the account
+   picture, *Redeem Gift Card or Code*), or with the link App Store Connect gives.
+
+Apple stopped new **promo codes** for in-app purchases on 26 March 2026; offer codes
+replace them and now cover a non-consumable. Promo codes for the app itself still exist,
+but the app is free, so they unlock nothing here.
+
+### iOS: Family Sharing
+
+Turn on *Family Sharing* on the in-app purchase, and one purchase covers everyone in the
+buyer's Apple family group. **Once on, it cannot be turned off.** Google Play has no
+equivalent: its Family Library does not share in-app purchases.
+
+### You
+
+Your own save from before the paywall keeps contracts 3–5 on every device that holds it
+(`GRANDFATHER`). A new phone with no save needs a code like anyone else.
+
