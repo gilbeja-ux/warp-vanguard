@@ -272,7 +272,9 @@ canvas.addEventListener('pointerdown', e => {
   const onPad = Math.hypot(P.x - dc.x, P.y - dc.y) <= dc.r * 1.15;
   const takes = onPad || Math.abs(angDiff(a0, nodes[ni].angle)) < 0.6;
   nodes[ni].slew = (takes && Math.abs(angDiff(a0, nodes[ni].angle)) > 1e-6) ? a0 : null;
-  pointers[e.pointerId] = { side, lastA: a0, px: P.x, py: P.y };
+  // t0/x0/y0: where and when the touch began, so a short still tap on a full pad's
+  // side can fire it on release (pulseSideTap, 90-hud) — a touch that steers never does
+  pointers[e.pointerId] = { side, lastA: a0, px: P.x, py: P.y, t0: time, x0: P.x, y0: P.y };
   canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener('pointermove', e => {
@@ -356,6 +358,7 @@ canvas.addEventListener('pointerup', e => {
   }
   menuHold = null; // lift ends the charge (the boss already fired if it completed)
   resetHold = null;
+  if (pointers[e.pointerId]) pulseSideTap(pointers[e.pointerId], evPos(e)); // a tap on a full pad's side
   releasePointer(e);
 });
 canvas.addEventListener('pointercancel', e => {

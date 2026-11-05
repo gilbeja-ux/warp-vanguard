@@ -184,7 +184,7 @@ code = code.replace("'use strict';", '') + `
   migrateQualParts, getQualPart: () => qualPart, getQualThen: () => qualThen, qualSkipRect: () => qualSkipRect,
   DEMO, DEMO_LOOP, getTrans: () => trans, DISC_PAD, DISC_TEXT_PAD, discChord,
   // THE CHARGED SIDE (90-hud, 2026-11-05): a full pad lights its side of the screen
-  pulseSide: () => pulseSide.slice(), pulseFirable, drawPulseSide,
+  pulseSide: () => pulseSide.slice(), pulseFirable, drawPulseSide, pulseSideTap, PULSE_TAP_S, PULSE_TAP_MOVE, PULSE_CTA_TEXT,
   drawTutCallLayer, tutCallNodeK, CALL_NODE_ALPHA, getHoloCv: () => holoCv, getDemoNodeSink: () => demoNodeSink,
   callGlitch, GLITCH_EVERY, GLITCH_LEN, netAssign, // the barrier net's one-end-per-emitter plan
   getGpDriving: () => gpDriving, setGpDriving: v => { gpDriving = v; }, // who is flying right now (71-gamepad)
@@ -3138,11 +3138,11 @@ G.progress.tutorialDone = true;
 }
 
 // ================= THE CHARGED SIDE: a full pad lights its side of the screen =================
-// Gil, 2026-11-05: make the pulse charge so visible that it needs no lesson. A full pad
-// lights its whole side of the screen in its emitter's colour, a head runs down the edge
-// to the pad, and the ready ring rolls round the core the tap has to land on. It shows
-// exactly while a tap there would fire, in every stage and in the duel, and never under
-// a replay. Draw-only: the sim reads none of it.
+// Gil, 2026-11-05: make the pulse charge so visible that it needs no lesson — then "not
+// enough": a clear TAP TO FIRE, a tap ANYWHERE on that side fires it, and the whole side
+// coloured with energy thrown off the pad (rays, a solar storm, sparks). It shows exactly
+// while a tap there would fire, in every stage and in the duel, never under a replay.
+// The art is draw-only; the side tap is input, recorded like any pulse fire.
 {
   const P = G.progress;
   P.tutorialDone = P.qualPart2Done = P.qualPart3Done = true;
@@ -3159,6 +3159,14 @@ G.progress.tutorialDone = true;
   G.setPulse([G.PULSE_MAX(), G.PULSE_MAX()]); side();
   check('both full: both sides lit', G.pulseSide()[0] === 1 && G.pulseSide()[1] === 1);
   drawOk('the charged side: both pads full', () => { G.setState(G.S.PLAY); });
+  G.setLowFX(true);
+  drawOk('the charged side under lowFX: the wash, the corona and half the rays', () => { G.setState(G.S.PLAY); });
+  G.setLowFX(false);
+  for (const [cw, ch] of [[1600, 900], [844, 390]]) {
+    G.setViewport(cw, ch);
+    drawOk(`the charged side, both pads full, at ${cw}x${ch}`, () => { G.setState(G.S.PLAY); });
+  }
+  G.setViewport(800, 450);
   G.setGpSeen(true);
   drawOk('the charged side with a controller seen: LT and RT on the pads', () => { G.setState(G.S.PLAY); });
   G.setGpSeen(false);
@@ -3185,6 +3193,35 @@ G.progress.tutorialDone = true;
   side();
   check('a tap on the lit pad\'s core fires the pulse, and the light goes with it',
     G.pulseWavesN() > 0 && G.getPulse()[0] === 0 && G.pulseSide()[0] === 0);
+  // A TAP ANYWHERE ON THE SIDE FIRES IT — a tap, not a steer: short and still. Off the pad
+  // here, on the empty glass of the left half, the place a thumb is never resting.
+  {
+    const gx = W2 => Math.round(W2), tapAt = (id, x, y, holdSteps, move) => {
+      canvasHandlers.pointerdown({ pointerId: id, clientX: x, clientY: y, pointerType: 'touch' });
+      for (let n = 0; n < holdSteps; n++) G.update(0.05);
+      const mx = x + (move || 0);
+      if (move) canvasHandlers.pointermove({ pointerId: id, clientX: mx, clientY: y, pointerType: 'touch' });
+      canvasHandlers.pointerup({ pointerId: id, clientX: mx, clientY: y, pointerType: 'touch' });
+    };
+    const dl = G.dialCenter('L'), ex = gx(dl.x + dl.r * 1.6), ey = gx(dl.y - dl.r * 2.2);
+    const offPad = Math.hypot(ex - dl.x, ey - dl.y) > dl.r * 1.15 && ex < G.geo().cx;
+    const fired = () => G.getPulse()[0] === 0;
+    G.setPulse([G.PULSE_MAX(), 0]); tapAt(51, ex, ey, 1);
+    check('a short still tap on the glass of the full side fires its pulse', offPad && fired());
+    G.setPulse([G.PULSE_MAX(), 0]); tapAt(52, ex, ey, Math.ceil(G.PULSE_TAP_S / 0.05) + 2);
+    check('a long press there does not: it is a thumb resting, not a tap', !fired());
+    G.setPulse([G.PULSE_MAX(), 0]); tapAt(53, ex, ey, 1, Math.round(Math.min(G.geo().cx * 2, G.geo().cy * 2) * G.PULSE_TAP_MOVE * 3));
+    check('a moving touch does not: it is a steer', !fired());
+    G.setPulse([G.PULSE_MAX(), 0]); tapAt(54, Math.round(G.geo().cx * 2 - (ex)), ey, 1);
+    check('a tap on the other side never fires this side\'s pulse', !fired());
+    G.setPulse([0, 0]); tapAt(55, ex, ey, 1);
+    check('a tap on a side whose pad is not full fires nothing', G.getPulse()[0] === 0 && G.getPulse()[1] === 0);
+    G.setPulse([G.PULSE_MAX(), 0]);
+    canvasHandlers.pointerdown({ pointerId: 56, clientX: ex, clientY: ey, pointerType: 'touch' });
+    canvasHandlers.pointercancel({ pointerId: 56, clientX: ex, clientY: ey, pointerType: 'touch' });
+    check('a cancelled touch never fires', !fired());
+    G.setPulse([0, 0]);
+  }
   // in the duel: dark while the ceremony or the death holds the verb, lit when it would fire
   G.startBossTest(); G.setIntro(999); G.update(0.05); // the clock is already out: the leech arrives
   G.setPulse([G.PULSE_MAX(), 0]);
@@ -3206,9 +3243,17 @@ G.progress.tutorialDone = true;
     && /if \(!boss \|\| \(boss\.introT >= BOSS_CER && boss\.dying === undefined\)\)/.test(inp));
   check('the ready ring stands just outside the tap\'s reach, so it frames the target',
     /const pr = d\.r \* 0\.5 \+ 10;/.test(cue) && /Math\.hypot\(P\.x - d\.x, P\.y - d\.y\) < d\.r \* 0\.5/.test(inp));
-  check('the cue draws no randomness and builds its gradients once per screen size, not per frame',
-    !/Math\.random|srand|spawnRng/.test(cue) && (cue.match(/create(Linear|Radial)Gradient/g) || []).length === 2
-    && /pulseSideKey === key && pulseSideCtx === ctx/.test(cue));
+  const fnBody = name => cue.split('function ' + name + '(')[1].split('\n}\n')[0];
+  check('the cue draws no randomness, and no frame builds a gradient: the screen-size cache, and the call\'s per-size one',
+    !/Math\.random|srand|spawnRng/.test(cue) && /pulseSideKey === key && pulseSideCtx === ctx/.test(cue)
+    && ['drawPulseSide', 'drawPulseStorm', 'drawPulseReadyRing'].every(f => !/create(Linear|Radial)Gradient/.test(fnBody(f)))
+    && /if \(!gS\) \{\s*gS = ctx\.createLinearGradient/.test(fnBody('drawPulseCta'))
+    && (fnBody('drawPulseCta').match(/create(Linear|Radial)Gradient/g) || []).length === 1);
+  check('the call says TAP TO FIRE, and names the trigger while a controller flies the game',
+    G.PULSE_CTA_TEXT === 'TAP TO FIRE' && /\(i === 0 \? 'LT' : 'RT'\) \+ ' TO FIRE'/.test(cue));
+  check('the storm and the sparks stay home under lowFX, and half the rays do',
+    /if \(!lowFX\) \{[\s\S]*THE SOLAR STORM|if \(!lowFX\) \{[\s\S]*PULSE_STORM/.test(fnBody('drawPulseStorm'))
+    && /lowFX \? Math\.ceil\(PULSE_RAYS \/ 2\)/.test(fnBody('drawPulseStorm')));
   check('the light sits under every gauge: the HUD draws it first', /function drawHUD\(g\) \{[^}]*?drawPulseSide\(\);/.test(hud));
   G.setFrameDt(0); G.setPulse([0, 0]);
   G.setState(G.S.MENU);

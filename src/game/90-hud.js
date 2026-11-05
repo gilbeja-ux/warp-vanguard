@@ -1463,55 +1463,98 @@ function drawPulseTrigger(i, d, down, alpha) {
   ctx.restore();
 }
 // ---------- THE CHARGED SIDE (Gil, 2026-11-05) ----------
-// A FULL PAD LIGHTS ITS WHOLE SIDE OF THE SCREEN, and that is the whole pulse lesson now.
-// The course's pulse drill went the day the course was cut into parts: a pad fills from
-// stage 01, six stages before a stage-07 lesson could explain it. So the charge explains
-// itself. The side whose pad is full carries a soft edge light in that emitter's colour,
-// a bright head runs down the edge to the pad and rests, and the ready ring rolls round
-// the core the tap must land on (inside half the pad's radius, 60-input). A pad player
-// sees LT or RT on it too. No words: the light says where, the ring says what.
+// A FULL PAD TAKES OVER ITS WHOLE SIDE OF THE SCREEN, and that is the whole pulse lesson
+// now. The course's pulse drill went the day the course was cut into parts: a pad fills
+// from stage 01, six stages before a stage-07 lesson could explain it. So the charge
+// explains itself, in three layers:
+//
+//   the side    the half of the screen whose pad is full is washed in that emitter's
+//               colour, and the pad throws energy across it: a corona, light rays
+//               turning slowly round the pad, a solar storm of looping filaments off its
+//               rim, sparks running outward, and a bright head down the screen's edge
+//   the call    TAP TO FIRE above the pad, a shine running through the letters
+//               (LT / RT TO FIRE while a controller is the hand flying the game)
+//   the tap     ANY short tap on that side fires it (pulseSideTap, from 60-input's
+//               pointerup), not only the core. A touch that steers is long or moves, so
+//               it never fires; the core keeps its instant fire on touch-down.
 //
 // It shows only while a tap there WOULD fire: the input's own test (pulseFirable) — the
 // pad full, the emitter not fried, no boss ceremony or death holding the verb — in a
-// live lane, never under a replay. Draw-only: the sim reads none of it, and nothing here
-// draws Math.random. The gradients are built once per screen size and moved with the
-// transform, because a gradient built every frame is what WebKit pays for outside rAF
-// (2026-10-03). Gil tunes the look; these are the knobs.
+// live lane, never under a replay or the pause disc. Draw-only: the sim reads none of it
+// and nothing here draws randomness; every motion is a sine or a modulo of `time`. Each
+// gradient is built once per screen and pad size and moved with the transform, because
+// a gradient built every frame is what WebKit pays for outside rAF (2026-10-03). Under
+// lowFX the storm and the sparks stay home and half the rays do. Gil tunes the look;
+// these are the knobs.
 const PULSE_SIDE_ON = true;     // false: the pad's own corona is the only sign of a charge
-const PULSE_SIDE_W = 0.5;       // the light's reach in from the screen edge, as a share of the screen's half
-const PULSE_SIDE_A = 0.18;      // the steady edge light's strength
-const PULSE_SIDE_HEAD = 0.45;   // the travelling head's strength
+const PULSE_SIDE_W = 1.0;       // the wash's reach in from the screen edge, as a share of the screen's half
+const PULSE_SIDE_A = 0.16;      // the wash's strength at the edge
+const PULSE_SIDE_HEAD = 0.30;   // the head running down the edge (0 = none)
 const PULSE_SIDE_SWEEP = 1.6;   // seconds per run of the head, its rest included
 const PULSE_SIDE_REST = 0.3;    // share of each run the edge rests with no head: a sweep, not a shimmer
-const PULSE_SIDE_IN = 0.35;     // seconds the light takes to come up when a pad fills
+const PULSE_SIDE_IN = 0.35;     // seconds the side takes to come up when a pad fills
 const PULSE_SIDE_OUT = 0.18;    // …and to go when the pad fires or fries
+const PULSE_CORONA_R = 0.42;    // the corona round the pad, × min(W, H)
+const PULSE_CORONA_A = 0.30;    // …and its strength
+const PULSE_RAYS = 11;          // light rays round the pad
+const PULSE_RAY_LEN = 0.95;     // their longest reach, × min(W, H)
+const PULSE_RAY_W = 0.075;      // each ray's half-width at the pad, radians
+const PULSE_RAY_SPIN = 0.22;    // the fan's turn, radians per second
+const PULSE_RAY_A = 0.34;       // the rays' strength
+const PULSE_STORM = 7;          // looping filaments off the pad's rim (a solar storm)
+const PULSE_STORM_A = 0.55;     // …and their strength
+const PULSE_SPARKS = 14;        // sparks running outward from the pad
 const PULSE_SIDE_RING = true;   // the rolling ready ring round the core
+const PULSE_CTA_TEXT = 'TAP TO FIRE';
+const PULSE_CTA_PX = 0.042;     // the call's size, × min(W, H)
+const PULSE_CTA_SWEEP = 1.7;    // seconds per pass of the shine through the letters
+const PULSE_CTA_INK = '#eafaff';
+const PULSE_SIDE_TAP = true;    // false: only the core fires, as before 2026-11-05
+const PULSE_TAP_S = 0.25;       // a tap lifts within this many seconds…
+const PULSE_TAP_MOVE = 0.035;   // …having moved less than this, × min(W, H); anything else steers
 const pulseSide = [0, 0];       // each side's eased presence, 0..1 — render-side only
 let pulseSideG = null, pulseSideKey = '', pulseSideCtx = null;
 // would a tap on pad i fire it right now? The same test the pointer handler makes (60-input)
 const pulseFirable = i => pulseCharge[i] >= PULSE_MAX && nodes[i].deadT <= 0
   && (!boss || (boss.introT >= BOSS_CER && boss.dying === undefined));
+// a short, still tap anywhere on a full pad's side fires it. Called by 60-input's pointerup
+// with the touch's own record (t0, x0, y0 from its pointerdown); a cancel never gets here.
+function pulseSideTap(p, P) {
+  if (!PULSE_SIDE_TAP || !p || p.t0 === undefined) return false;
+  if (state !== S.PLAY || replaying || introT < INTRO_DUR) return false;
+  const i = p.side === 'L' ? 0 : 1;
+  if (!pulseFirable(i)) return false;
+  if (time - p.t0 > PULSE_TAP_S) return false;
+  if (Math.hypot(P.x - p.x0, P.y - p.y0) > Math.min(W, H) * PULSE_TAP_MOVE) return false;
+  firePulse(i);
+  return true;
+}
 function pulseSideGrads() {
-  const bw = Math.max(1, W / 2 * PULSE_SIDE_W), rh = Math.min(bw, H * 0.32);
-  const key = W + 'x' + H + '/' + bw.toFixed(1);
+  const u = Math.min(W, H), bw = Math.max(1, W / 2 * PULSE_SIDE_W), rh = Math.min(bw, H * 0.32);
+  const cr = u * PULSE_CORONA_R, rl = u * PULSE_RAY_LEN;
+  const key = W + 'x' + H + '/' + bw.toFixed(1) + '/' + cr.toFixed(1) + '/' + rl.toFixed(1);
   if (pulseSideG && pulseSideKey === key && pulseSideCtx === ctx) return pulseSideG;
   const mk = i => {
-    // both run INWARD from x = 0; the right side is drawn through a mirror
+    const c = NODE_COLS[i];
+    // the wash runs INWARD from x = 0; the right side is drawn through a mirror
     const edge = ctx.createLinearGradient(0, 0, bw, 0);
-    edge.addColorStop(0, `rgba(${NODE_COLS[i]},1)`);
-    edge.addColorStop(0.35, `rgba(${NODE_COLS[i]},0.38)`);
-    edge.addColorStop(1, `rgba(${NODE_COLS[i]},0)`);
+    edge.addColorStop(0, `rgba(${c},1)`); edge.addColorStop(0.35, `rgba(${c},0.42)`); edge.addColorStop(1, `rgba(${c},0)`);
     const head = ctx.createRadialGradient(0, 0, 0, 0, 0, rh);
-    head.addColorStop(0, `rgba(${NODE_COLS[i]},1)`);
-    head.addColorStop(0.5, `rgba(${NODE_COLS[i]},0.35)`);
-    head.addColorStop(1, `rgba(${NODE_COLS[i]},0)`);
-    return { edge, head };
+    head.addColorStop(0, `rgba(${c},1)`); head.addColorStop(0.5, `rgba(${c},0.35)`); head.addColorStop(1, `rgba(${c},0)`);
+    // the corona and the rays are centred on (0, 0) and translated onto the pad
+    const corona = ctx.createRadialGradient(0, 0, 0, 0, 0, cr);
+    corona.addColorStop(0, 'rgba(255,255,255,0.9)'); corona.addColorStop(0.18, `rgba(${c},0.75)`);
+    corona.addColorStop(0.55, `rgba(${c},0.22)`); corona.addColorStop(1, `rgba(${c},0)`);
+    const rays = ctx.createRadialGradient(0, 0, 0, 0, 0, rl);
+    rays.addColorStop(0, 'rgba(255,255,255,0.95)'); rays.addColorStop(0.12, `rgba(${c},0.85)`);
+    rays.addColorStop(0.5, `rgba(${c},0.28)`); rays.addColorStop(1, `rgba(${c},0)`);
+    return { edge, head, corona, rays };
   };
-  pulseSideG = { bw, rh, side: [mk(0), mk(1)] };
+  pulseSideG = { bw, rh, cr, rl, side: [mk(0), mk(1)], cta: {} };
   pulseSideKey = key; pulseSideCtx = ctx;
   return pulseSideG;
 }
-// the ready ring: a still circle just outside the tap's reach, a bright head rolling round it
+// the ready ring: a still circle just outside the core's reach, a bright head rolling round it
 function drawPulseReadyRing(i, d, k) {
   const pr = d.r * 0.5 + 10;
   ctx.save();
@@ -1528,6 +1571,93 @@ function drawPulseReadyRing(i, d, k) {
   }
   ctx.restore();
 }
+// the side's energy, all of it thrown off the pad and kept on the pad's own half
+function drawPulseStorm(i, d, k, G2) {
+  const S2 = G2.side[i], c = NODE_COLS[i], seed = i * 1.7;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(i === 0 ? 0 : W / 2, 0, W / 2, H); ctx.clip();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.translate(d.x, d.y);
+  // the corona
+  ctx.globalAlpha = k * PULSE_CORONA_A;
+  ctx.fillStyle = S2.corona;
+  ctx.fillRect(-G2.cr, -G2.cr, G2.cr * 2, G2.cr * 2);
+  // the rays: one path of slim wedges, each breathing its own length, the fan turning
+  const nR = lowFX ? Math.ceil(PULSE_RAYS / 2) : PULSE_RAYS, r0 = d.r * 0.55;
+  ctx.beginPath();
+  for (let j = 0; j < nR; j++) {
+    const th = time * PULSE_RAY_SPIN + j / nR * TAU + 0.35 * Math.sin(time * 0.6 + j * 2.3 + seed);
+    const hw = PULSE_RAY_W * (0.6 + 0.4 * Math.sin(time * 1.1 + j * 1.7));
+    const len = G2.rl * (0.5 + 0.5 * (0.5 + 0.5 * Math.sin(time * 1.7 + j * 3.1 + seed)));
+    ctx.moveTo(Math.cos(th - hw) * r0, Math.sin(th - hw) * r0);
+    ctx.lineTo(Math.cos(th) * len, Math.sin(th) * len);
+    ctx.lineTo(Math.cos(th + hw) * r0, Math.sin(th + hw) * r0);
+    ctx.closePath();
+  }
+  ctx.globalAlpha = k * PULSE_RAY_A;
+  ctx.fillStyle = S2.rays;
+  ctx.fill();
+  if (!lowFX) {
+    // THE SOLAR STORM: filaments that leave the rim, loop out and fall back, each on its
+    // own clock, so the pad reads as a star under pressure rather than a lamp
+    ctx.beginPath();
+    for (let f = 0; f < PULSE_STORM; f++) {
+      const base = f / PULSE_STORM * TAU + time * 0.25 + 0.8 * Math.sin(time * 0.37 + f * 1.9 + seed);
+      const spread = 0.30 + 0.18 * Math.sin(time * 0.9 + f);
+      const h = d.r * (1.45 + 1.2 * (0.5 + 0.5 * Math.sin(time * 1.3 + f * 2.7 + seed)));
+      const sway = 0.25 * Math.sin(time * 1.9 + f * 1.3);
+      const rr = d.r * 0.92;
+      ctx.moveTo(Math.cos(base - spread) * rr, Math.sin(base - spread) * rr);
+      ctx.quadraticCurveTo(Math.cos(base + sway) * h, Math.sin(base + sway) * h,
+        Math.cos(base + spread) * rr, Math.sin(base + spread) * rr);
+    }
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = k * PULSE_STORM_A;
+    ctx.strokeStyle = `rgba(${c},0.9)`; ctx.lineWidth = Math.max(2, d.r * 0.07); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = Math.max(1, d.r * 0.025); ctx.stroke();
+    // sparks running outward on golden-angle bearings, each fading as it leaves
+    for (let n = 0; n < PULSE_SPARKS; n++) {
+      const u = (time * 0.55 + n * 0.137 + seed) % 1;
+      const th = n * 2.399963 + time * 0.2;
+      const dist = d.r * 0.8 + u * G2.rl * 0.75;
+      ctx.globalAlpha = k * (1 - u) * 0.85;
+      ctx.fillStyle = n % 3 ? `rgb(${c})` : '#ffffff';
+      ctx.beginPath(); ctx.arc(Math.cos(th) * dist, Math.sin(th) * dist, 1.2 + 2.2 * (1 - u), 0, TAU); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+// TAP TO FIRE, with a shine running through it. The shine's gradient is built once per
+// size and slid by a translate the text undoes, so no frame builds one.
+function drawPulseCta(i, d, k, G2) {
+  const u = Math.min(W, H), px = Math.round(u * PULSE_CTA_PX);
+  const pad = typeof gpDriving !== 'undefined' && gpDriving;
+  const txt = pad ? (i === 0 ? 'LT' : 'RT') + ' TO FIRE' : PULSE_CTA_TEXT;
+  ctx.save();
+  ctx.font = '700 ' + px + 'px Audiowide, system-ui';
+  try { ctx.letterSpacing = '3px'; } catch (e) {}
+  const wT = ctx.measureText(txt).width, halfT = wT / 2 + 10;
+  const ck = txt + '/' + px + '/' + Math.round(wT);
+  let gS = G2.cta[ck];
+  if (!gS) {
+    gS = ctx.createLinearGradient(-wT, 0, wT, 0);
+    gS.addColorStop(0, PULSE_CTA_INK); gS.addColorStop(0.42, PULSE_CTA_INK);
+    gS.addColorStop(0.5, '#ffffff'); gS.addColorStop(0.58, PULSE_CTA_INK); gS.addColorStop(1, PULSE_CTA_INK);
+    G2.cta[ck] = gS;
+  }
+  ctx.globalAlpha = k;
+  ctx.translate(clamp(d.x, halfT + SAFE.l, W - halfT - SAFE.r), d.y - d.r - u * 0.085);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(2,4,12,0.85)'; ctx.lineWidth = 4;
+  ctx.strokeText(txt, 0, 0);
+  // the shine runs -0.35 → 1.55 of the word; past its last letter the word rests in ink
+  const q = (time / PULSE_CTA_SWEEP % 1) * 1.9 - 0.35, dx = -wT / 2 + q * wT;
+  ctx.translate(dx, 0);
+  ctx.fillStyle = gS;
+  ctx.fillText(txt, -dx, 0);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.restore();
+}
 function drawPulseSide() {
   const step = clamp(typeof frameDt === 'number' ? frameDt : 0, 0, 0.05);
   const live = PULSE_SIDE_ON && state === S.PLAY && !replaying && introT >= INTRO_DUR;
@@ -1539,24 +1669,26 @@ function drawPulseSide() {
     if (k <= 0.004) continue;
     const G2 = pulseSideGrads(), S2 = G2.side[i];
     const d = dialCenter(i === 0 ? 'L' : 'R');
+    // the wash, and the head running down the edge to the pad
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     if (i === 1) { ctx.translate(W, 0); ctx.scale(-1, 1); } // the right edge, mirrored
     ctx.globalAlpha = k * PULSE_SIDE_A;
     ctx.fillStyle = S2.edge;
     ctx.fillRect(0, 0, G2.bw, H);
-    // the head: down the edge from above the screen to the pad's own height, then a rest
-    const u = (time / PULSE_SIDE_SWEEP) % 1, run = 1 - PULSE_SIDE_REST;
-    if (u < run) {
-      const e = smoothT(u / run);
+    const uu = (time / PULSE_SIDE_SWEEP) % 1, run = 1 - PULSE_SIDE_REST;
+    if (PULSE_SIDE_HEAD > 0 && uu < run) {
+      const e = smoothT(uu / run);
       ctx.globalAlpha = k * PULSE_SIDE_HEAD * (1 - 0.5 * e); // it softens as it lands on the pad
       ctx.translate(0, lerp(-G2.rh * 0.5, d.y, e));
       ctx.fillStyle = S2.head;
       ctx.fillRect(0, -G2.rh, G2.rh, G2.rh * 2);
     }
     ctx.restore();
+    drawPulseStorm(i, d, k, G2);
     if (PULSE_SIDE_RING) drawPulseReadyRing(i, d, k);
     if (typeof gpSeen !== 'undefined' && gpSeen) drawPulseTrigger(i, d, 0, k);
+    drawPulseCta(i, d, k, G2);
   }
 }
 // ---------- the course, on the HUD (2026-10-08) ----------
