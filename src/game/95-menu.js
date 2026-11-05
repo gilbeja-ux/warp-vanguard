@@ -722,8 +722,9 @@ function drawMenuSettings() {
   popRender(q, g.cx - R, g.cy - R, R * 2, R * 2, () => {
     ctx.save();
     discPlate(g.cx, g.cy, R, 'SETTINGS'); // short enough to wear the same size PAUSED does
-    // no TRACK row: nothing is playing a run's soundtrack out here
-    discRows(g.cx, g.cy, R, [['SFX', 'sound', 'soundVol'], ['MUSIC', 'music', 'musicVol'], ['HAPTICS', 'haptics', null]]);
+    // no TRACK row: nothing is playing a run's soundtrack out here. Its slot holds
+    // TRAINING instead, the three parts of the course on demand (discQualRow, 2026-11-05)
+    const trn = discRows(g.cx, g.cy, R, [['SFX', 'sound', 'soundVol'], ['MUSIC', 'music', 'musicVol'], ['HAPTICS', 'haptics', null], ['TRAINING', null, null, discQualRow]]);
     // TWO DOORS, AND NO CLOSE KEY. MY DATA is the second door to the rename/erase
     // panel (the board screen has the first); it lives here because a player who
     // wants their name off the boards looks for it in settings, and the board
@@ -740,6 +741,7 @@ function drawMenuSettings() {
     // the gear, a tap outside the disc (the radius test in 60-input.js), and
     // gamepad B.
     for (const b of discSegKeys(g.cx, g.cy, R, [['MY DATA', 'mydata'], ['FEEDBACK', 'feedback']])) menuSetButtons.push(b);
+    if (trn) for (const b of trn) menuSetButtons.push(b);
     ctx.restore();
   }, g.nodeR * 1.02);
   ctx.textAlign = 'left';
@@ -1085,7 +1087,8 @@ function drawEnd(g) {
     // back to a carousel to work out what to do with that. It now reads exactly
     // like clearing a relay: forward into the first contract, with restart and
     // menu behind it.
-    const qualDone = endWin && qual;
+    // (part 1 only: parts 2 and 3 reach this report only as replays, 2026-11-05)
+    const qualDone = endWin && qual && qualPart === 1;
     // A DELIVERED CONTRACT HANDS OVER TO THE NEXT CLIENT, right here on the
     // report — the same law as the home slab (homeContractTarget): the first
     // undelivered contract takes the key. campaignCleared is truthful by now

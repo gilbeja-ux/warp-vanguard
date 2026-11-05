@@ -226,6 +226,11 @@ canvas.addEventListener('pointerdown', e => {
       P.y > pauseBtnRect.y - 8 && P.y < pauseBtnRect.y + pauseBtnRect.h + 8) {
     pressUI(pauseBtnRect); state = S.PAUSE; return;
   }
+  // the course's SKIP key, left of PAUSE (qualSkip, 70-update)
+  if (qualSkipRect && P.x > qualSkipRect.x - 6 && P.x < qualSkipRect.x + qualSkipRect.w + 6 &&
+      P.y > qualSkipRect.y - 8 && P.y < qualSkipRect.y + qualSkipRect.h + 8) {
+    pressUI(qualSkipRect, qualSkip); return;
+  }
   // boot gate: any grip during the intro registers as a placed thumb.
   // (S.INFO reaches here only for a pre-run disc — see the fall-through above)
   if ((state === S.PLAY || state === S.INFO) && introT < INTRO_DUR) {
@@ -569,6 +574,7 @@ function menuTap(x, y, pid) {
         // Nothing on this disc dismisses it any more; the gear does that.
         if (b.action === 'mydata') { pressUI(b, () => openMyData()); return; }
         if (b.action === 'feedback') { pressUI(b, () => openFeedback()); return; }
+        if (b.qualPart) { pressUI(b, () => replayQualPart(b.qualPart)); return; } // TRAINING 1 · 2 · 3
         pressUI(b); menuSettings = false; return;
       }
     }
@@ -653,7 +659,7 @@ function menuTap(x, y, pid) {
         menuFx = { kind: 'spinOut', t: 0, dur: 0.35, to: 'map' };
       });
       else if (b.node !== undefined) { mapSel = b.node; sfx.tick(); }
-      else if (b.deploy !== undefined) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: () => startLevel(b.deploy, true) }; tone(70, 0.45, 'sine', 0.12, 260); });
+      else if (b.deploy !== undefined) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: () => deployStage(b.deploy) }; tone(70, 0.45, 'sine', 0.12, 260); });
       else if (b.weekly) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startWeekly }; tone(70, 0.45, 'sine', 0.12, 260); });
       else if (b.endless) pressUI(b, () => { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startEndless }; tone(70, 0.45, 'sine', 0.12, 260); });
       // leaderboard screen controls
@@ -710,12 +716,12 @@ function endTap(x, y) {
       else if (b.action === 'duel') pressUI(b, () => startTrans('warp', () => {
         startBossRetry(); // the continue: the duel replays, the run stops ranking
       }));
-      else if (b.action === 'next') pressUI(b, () => startTrans('warp', () => startLevel(levelIdx + 1, true)));
+      else if (b.action === 'next') pressUI(b, () => startTrans('warp', () => deployStage(levelIdx + 1)));
       // straight out of the course and into the first contract — the same warp
       // transition a relay-to-relay hand-off uses, because that is what it is
       else if (b.action === 'contract') pressUI(b, () => startTrans('warp', () => {
         switchCampaign(0);
-        startLevel(0, true);
+        deployStage(0);
       }));
       // a delivered contract hands over: warp straight into the next client's
       // frontier lane, briefed — the same door FIRST CONTRACT opens. The target
@@ -725,7 +731,7 @@ function endTap(x, y) {
         if (nci >= 0) pressUI(b, () => startTrans('warp', () => {
           switchCampaign(nci);
           const nc = progress.camp[CAMPAIGNS[nci].id];
-          startLevel(Math.min(((nc && nc.unlocked) || 1) - 1, CAMPAIGNS[nci].levels.length - 1), true);
+          deployStage(Math.min(((nc && nc.unlocked) || 1) - 1, CAMPAIGNS[nci].levels.length - 1));
         }));
       }
       else pressUI(b, () => { // home in style: the menu drives into view, no glitch
@@ -889,7 +895,7 @@ function startEnlistment(short, quiet) {
   // course is being set up MINUTES of talking before anyone plays it, and arming it
   // now would kill the menu piece under the first disc. The hand-off is armed when
   // the last disc lifts instead; see tickEnlist.
-  startQualification(true);
+  startQualification(true, 1);
   enlist = { beat: 0, t: 0, short: !!short, out: 0 };
   state = S.ENLIST;
   // and the first disc's keyframe starts decoding NOW rather than on the frame it
@@ -943,7 +949,10 @@ function enlistTap() {
 }
 // `holdMusic` keeps the menu piece on the bus: the enlistment sets the course up
 // long before it is played and does its own deploy fade when the discs clear.
-function startQualification(holdMusic) {
+// `part` (1–3) picks the part and `then` the stage index it hands over to (-1: none,
+// it ends on the report). Left out, the part last played runs again — RESTART.
+function startQualification(holdMusic, part, then) {
+  if (part) { qualPart = part; qualThen = then === undefined ? -1 : then; }
   weekly = false; Math.random = sysRandom;
   levelIdx = -1; endless = false; qual = true; spawnRng = Math.random;
   LV = { name: 'QUALIFICATION', duration: Infinity, spawnMin: 9, spawnMax: 9, speed: 0.40,

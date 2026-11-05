@@ -166,7 +166,7 @@ function boardLane() {
   if (m === 'campaign') {
     const ci = boardSel.camp, li = boardSel.level, c = CAMPAIGNS[ci], pc = c && progress.camp[c.id];
     const open = !!c && li < ((pc && pc.unlocked) || 1) && li < c.levels.length;
-    return { label: 'FLY THIS LANE', locked: !open, go: () => { switchCampaign(ci); startLevel(li, true); } };
+    return { label: 'FLY THIS LANE', locked: !open, go: () => { switchCampaign(ci); deployStage(li); } };
   }
   return null;
 }

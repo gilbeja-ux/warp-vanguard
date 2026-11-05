@@ -168,7 +168,7 @@ code = code.replace("'use strict';", '') + `
   WARP_LAUNCH: () => WARP_LAUNCH, BOOT_LOCK: () => BOOT_LOCK, INTRO_DUR: () => INTRO_DUR,
   music: () => ({ src: musicSrc, gain: musicGain, key: currentTrackKey, ac: AC, warm: warmKey }),
   bolts: () => bolts, hitStop: () => hitStop, fx, pickups: () => pickups, spawnPickup,
-  // the volley blast's two semi-axes — the volley drill's trio is pinned against them
+  // the volley blast's two semi-axes (the volley itself; its lesson is gone, 2026-11-05)
   VOLLEY_BLAST_A, VOLLEY_BLAST_Z,
   boss: () => boss, endlessCfg, tut: () => tut, isEndless: () => endless, getLV: () => LV,
   BEAM_BURST: () => BEAM_BURST, // the ray's birth window — it is ray-charge.mp3's length, so it moves when the take is re-cut
@@ -177,7 +177,12 @@ code = code.replace("'use strict';", '') + `
   qualStage: () => tutStage(),
   // the called course (70-update, 90-hud): the curriculum, the rewind tape, and the call's look
   getLaneVel: () => laneVel, getWallDist: () => wallDist, // the rewind runs the whole lane back
-  QUAL, REWIND_BACK, REWIND_DUR, CALL_MOVE_DUR, callDur, drawTutCall, setTut: v => { tut = v; },
+  REWIND_BACK, REWIND_DUR, CALL_MOVE_DUR, callDur, drawTutCall, setTut: v => { tut = v; },
+  // the course in three parts (70-update, 2026-11-05): the table, the stage-tap door, the
+  // skip, the settings row, the old-save migration, and the dioramas the parts call
+  QUAL_PARTS, QUAL_PART_N, qualPartDue, deployStage, qualSkip, qualSkipShown, replayQualPart,
+  migrateQualParts, getQualPart: () => qualPart, getQualThen: () => qualThen, qualSkipRect: () => qualSkipRect,
+  DEMO, DEMO_LOOP, getTrans: () => trans, DISC_PAD, DISC_TEXT_PAD, discChord,
   drawTutCallLayer, tutCallNodeK, CALL_NODE_ALPHA, getHoloCv: () => holoCv, getDemoNodeSink: () => demoNodeSink,
   callGlitch, GLITCH_EVERY, GLITCH_LEN, netAssign, // the barrier net's one-end-per-emitter plan
   getGpDriving: () => gpDriving, setGpDriving: v => { gpDriving = v; }, // who is flying right now (71-gamepad)
@@ -331,7 +336,7 @@ G.startLevel = (i, brief, withAssist) => { rawStartLevel(i, brief, withAssist); 
 const rawStartEndless = G.startEndless;
 G.startEndless = () => { rawStartEndless(); G.setIntro(999); };
 const rawStartQual = G.startQualification;
-G.startQualification = () => { rawStartQual(); G.setIntro(999); };
+G.startQualification = (h, part, then) => { rawStartQual(h, part, then); G.setIntro(999); };
 
 let failures = 0;
 function check(name, cond) {
@@ -2495,6 +2500,9 @@ G.menuTap(n2.x + 22, n2.y + 22, 1);
 G.frame(16);
 const dep = G.menuBtns().find(b => b.deploy !== undefined);
 check('selecting a relay arms its deploy key', dep && dep.deploy === 2);
+// stage 03 owes part 2 of the course to a fresh save (pinned in the qualification
+// section); this block is about the deploy itself, so the part is filed first
+G.progress.qualPart2Done = true;
 G.menuTap(dep.x + 5, dep.y + 5, 1);
 flushUI(); // press beat -> warp -> deploy
 check('deploying opens the story log', G.getState() === G.S.INFO && G.getInfoCard() === 'story2');
@@ -2616,26 +2624,78 @@ check('weekly defeat records the weekly best and streak', G.getState() === G.S.E
   G.progress.weekly.best === 777 && G.progress.weekly.streak >= 1 && Math.random !== undefined);
 
 // ================= qualification =================
-// THE FIRST-RUN COURSE, CALLED (2026-10-08). The ten-disc course became one continuous
-// run of every lesson (QUAL, 70-update), with no chapters: no drill stops the lane any
-// more. CALL AND RESPONSE plays each lesson's diorama on the live ring, then sends the
-// same pattern for real, and a miss REWINDS the lane — the whole lane runs back to where
-// the tape has it — instead of starting the drill over. The pulse drill still freezes
-// the run for the FIRE-PULSE moment.
+// THE FIRST-RUN COURSE, CALLED (2026-10-08), IN THREE PARTS (2026-11-05). The ten-disc
+// course became one continuous run of every lesson, with no chapters: no drill stops the
+// lane any more. CALL AND RESPONSE plays each lesson's diorama on the live ring, then
+// sends the same pattern for real, and a miss REWINDS the lane — the whole lane runs back
+// to where the tape has it — instead of starting the drill over. The pulse drill still
+// freezes the run for the FIRE-PULSE moment.
+//
+// Gil, 2026-11-05: "less to learn at once". The run is cut into three short parts
+// (QUAL_PARTS, 70-update): part 1 before stage 01, part 2 the first time stage 03 is
+// started, part 3 the first time stage 07 is. Each lesson sits in the part before the
+// stage that first sends it, and the volley lesson is gone.
 G.progress.tutorialDone = false;
-G.startQualification();
+G.progress.qualPart2Done = G.progress.qualPart3Done = false;
+G.startQualification(false, 1, -1);
 G.update(0.05);
-check('the first-run course is one run, opening on the controls, in the lane, with no disc',
-  G.getState() === G.S.PLAY && G.isQual() && G.qualStage().card === 'move');
+check('part 1 is one run, opening on the controls, in the lane, with no disc',
+  G.getState() === G.S.PLAY && G.isQual() && G.getQualPart() === 1 && G.qualStage().card === 'move');
 {
-  const kinds = G.QUAL.reduce((a, s) => a.concat(s.queue || [s.card]), []);
-  check('the course carries every lesson, in one list, with one QUALIFIED at its end and no chapters',
-    G.QUAL.filter(s => s.card === 'done').length === 1 && G.QUAL[G.QUAL.length - 1].card === 'done'
-    && ['move', 'normal', 'wall', 'heavy', 'volley', 'line', 'lock0', 'lock1', 'pickup', 'strip', 'pulse'].every(k => kinds.includes(k)));
+  const P = G.QUAL_PARTS;
+  const kindsOf = n => P[n].list.reduce((a, s2) => a.concat(s2.queue || [s2.card]), []);
+  const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  check('the course is three parts, each closing on one QUALIFIED of its own',
+    G.QUAL_PART_N === 3 && [1, 2, 3].every(n => P[n].list.filter(s2 => s2.card === 'done').length === 1
+      && P[n].list[P[n].list.length - 1].card === 'done' && Array.isArray(P[n].stamp) && P[n].stamp.length === 2));
+  check(`part 1 is the controls, the basic enemy and the power-up, and no dead zone (${kindsOf(1)})`,
+    same(kindsOf(1), ['move', 'normal', 'normal', 'pickup', 'done']));
+  check(`part 2 is armor, the barrier net, the dead zone and the ribbon (${kindsOf(2)})`,
+    same(kindsOf(2), ['heavy', 'line', 'wall', 'strip', 'done']));
+  check(`part 3 is the phase locks and the pulse (${kindsOf(3)})`,
+    same(kindsOf(3), ['lock0', 'lock1', 'pulse', 'done']));
+  check('each part plays before stage 01, 03 and 07, named as the nameplate names them',
+    P[1].stage === 1 && P[2].stage === 3 && P[3].stage === 7 && G.lvNum(P[2].stage) === '03');
+  check('each part files its own flag, and part 1 keeps the flag the boot claim reads',
+    P[1].flag === 'tutorialDone' && P[2].flag === 'qualPart2Done' && P[3].flag === 'qualPart3Done'
+    && G.progress.qualPart2Done === false && G.progress.qualPart3Done === false);
+  // EACH LESSON IN THE PART BEFORE ITS DEBUT, read off the first contract and the sim:
+  // the first stage whose knobs send it, and the LAST part that plays at or before that
+  // stage must be the one that teaches it — so stages 03 to 06 meet nothing untaught,
+  // and nothing is taught a part early.
+  const c1 = G.CAMPAIGNS[0].levels;
+  const firstWith = f => c1.findIndex(f) + 1;
+  const tick = fs.readFileSync(path.join(ROOT, 'src', 'game', '72-tick.js'), 'utf8');
+  const ribbonGate = /\(endless \|\| levelIdx >= (\d+)\)\) \{\s*ribbonT -= sdt;/.exec(tick);
+  const debut = {
+    move: 1, normal: 1, pickup: 1,  // the filler drop runs from the first stage (asserted below)
+    heavy: firstWith(l => (l.heavies || 0) > 0), line: firstWith(l => (l.lines || 0) > 0),
+    wall: firstWith(l => (l.walls || 0) > 0), lock0: firstWith(l => (l.colors || 0) > 0),
+    lock1: firstWith(l => (l.colors || 0) > 0), pulse: firstWith(l => !!l.boss),
+    strip: ribbonGate ? +ribbonGate[1] + 1 : 0
+  };
+  check(`the debuts read off the first contract: armor 03, nets 05, ribbons 05, dead zones 06, locks 07, boss 08 (${JSON.stringify(debut)})`,
+    debut.heavy === 3 && debut.line === 5 && debut.strip === 5 && debut.wall === 6 && debut.lock0 === 7 && debut.pulse === 8);
+  const taughtIn = k => [1, 2, 3].find(n => kindsOf(n).includes(k));
+  const owedBy = k => [3, 2, 1].find(n => P[n].stage <= debut[k]);
+  const off = Object.keys(debut).filter(k => taughtIn(k) !== owedBy(k));
+  check('every lesson is taught in the last part before the stage that first sends it', off.length === 0);
+  if (off.length) console.log('   misplaced: ' + off.map(k => `${k} in part ${taughtIn(k)}, owed by ${owedBy(k)}`).join(', '));
+  const all = [1, 2, 3].flatMap(kindsOf).filter(k => k !== 'done');
+  check('no lesson is taught twice across the parts', new Set(all).size === all.length - 1); // two reds in part 1
+  // THE VOLLEY LESSON IS GONE (Gil, 2026-11-05: players find the volley on their own),
+  // and every trace of its drill with it: the queue entry, the card, the diorama, the
+  // call's bearing, the spawn, the HUD line and its accent. The volley itself stays.
+  const src70 = fs.readFileSync(path.join(ROOT, 'src', 'game', '70-update.js'), 'utf8');
+  const hud = fs.readFileSync(path.join(ROOT, 'src', 'game', '90-hud.js'), 'utf8');
+  check('the volley lesson is gone: no part, no card, no diorama, no call, no drill spawn, no HUD line',
+    !all.includes('volley') && !G.getInfoCards().volley && !G.DEMO.volley && !('volley' in G.DEMO_LOOP)
+    && !/kind === 'volley'/.test(src70) && !/tut === 'volley'|volley: 'DOCK BOTH AND HOLD/.test(hud));
+  check('…and the volley mechanic itself is untouched', typeof G.volley() === 'object' && G.VOLLEY_BLAST_A > 0);
 }
 // EVERY DISC IS STILL DRAWN: the dioramas are the calls' source now, and the disc
 // renderer still carries them for the bench
-for (const k of ['move', 'normal', 'wall', 'heavy', 'volley', 'line', 'lock', 'pickup', 'strip', 'pulse'])
+for (const k of ['move', 'normal', 'wall', 'heavy', 'line', 'lock', 'pickup', 'strip', 'pulse'])
   drawOk('field briefing disc: ' + k, () => { G.setState(G.S.INFO); G.showInfoCard(k); });
 G.setState(G.S.PLAY);
 check('the first SLIDE rep opens on a CALL, and the lane never parks on a disc',
@@ -2774,44 +2834,38 @@ check('practice trap 1 arrives on the bearing it was called on', waitLive(4) && 
   drawOk('the ghost carriage after a rewind', () => { G.setState(G.S.PLAY); });
   check('…and this time the red is taken', zapPractice());
 }
-// the dead zone rides the red stage, as in the old curriculum: steer clear until it burns off
+// PART 1 CLOSES ON THE POWER-UP: the filler drops a relay from stage 01, so it is
+// taught before it. The dead zone that used to ride the red stage is part 2's now.
+settle();
+check('part 1: the power-up follows the reds, and no practice wall lands', G.qualStage().card === 'pickup' && !G.latches().length);
+passCall('pickup');
+waitLive(4);
 {
-  passCall('wall');
-  let wg0 = 200;
-  while (wg0-- > 0 && !G.latches().length) G.update(0.05);
-  check('the practice wall lands', G.latches().length === 1);
-  aim(0, G.latches()[0].a + Math.PI); aim(1, G.latches()[0].a + Math.PI + 0.5);
-  let wg = 260;
-  while (wg-- > 0 && G.latches().length) G.update(0.05);
-  check('routing around the practice wall completes the lesson', !G.latches().length && G.tut() && !G.tut().retry);
+  const pp = G.pickups().find(p2 => p2.tut && !p2.done);
+  pp.z = G.geo().hitZ; aim(0, pp.angle);
+  G.update(0.01);
+  check('catching the practice relay works', G.fx.wide > 0);
+  G.fx.wide = 0;
 }
 settle();
-check('armor drill begins', G.qualStage().card === 'heavy');
+check('part 1 closes on its own QUALIFIED, in-world, no info disc', G.getState() === G.S.PLAY && G.tut() && G.qualStage().card === 'done');
+drawOk('part 1 ceremony', () => { G.setState(G.S.PLAY); });
+for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05); // the ceremony runs, then the report
+check('QUALIFIED: part 1 ends on the report and files only its own flag',
+  G.getState() === G.S.END && G.getEndWin() === true && G.progress.tutorialDone === true
+  && G.progress.qualPart2Done === false && G.progress.qualPart3Done === false && G.tut() === null);
+drawOk('qualification end screen', () => {});
+G.setEndT(99); G.frame(16); // past the reveal: the keys are live
+check('part 1\'s report still leads into the first contract',
+  G.getEndButtons().some(b => b.action === 'contract' && b.primary));
+
+// ---- PART 2: armor, the barrier net, the dead zone, the ribbon ----
+G.startQualification(false, 2, -1);
+G.update(0.05);
+check('part 2 opens on the armor, in the lane, with no disc',
+  G.getState() === G.S.PLAY && G.isQual() && G.getQualPart() === 2 && G.qualStage().card === 'heavy');
 passCall('heavy');
 check('heavy practice: dock together breaks it at the rim', waitLive(4) && zapPractice());
-// THE VOLLEY RIDES THE ARMOR STAGE: one call, one rep, no stage of its own
-{
-  passCall('volley');
-  check('the volley rep still belongs to the armor stage', G.qualStage().card === 'heavy');
-  check('the volley trio spawns', waitLive(5));
-  const vol = G.enemies().filter(e => e.tut === 'volley' && !e.dead);
-  const armor = vol.filter(e => e.type === 'heavy');
-  check(`the trio is one armor plus two reds (${vol.length} bodies, ${armor.length} armored)`,
-    vol.length === 3 && armor.length === 1);
-  const reach = armor.length === 1 && vol.every(e =>
-    Math.abs(angDiff(e.angle, armor[0].angle)) <= G.VOLLEY_BLAST_A
-    && Math.abs(e.z - armor[0].z) <= G.VOLLEY_BLAST_Z);
-  check('and every body sits inside the blast the bolt will make', reach);
-  let vg = 400;
-  while (vg-- > 0 && G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved)) {
-    const live = G.enemies().find(e => e.tut === 'volley' && e.type === 'heavy' && !e.dead) ||
-                 G.enemies().find(e => e.tut === 'volley' && !e.dead);
-    if (live) { aim(0, live.angle); aim(1, live.angle); }
-    G.update(0.05);
-  }
-  check('the held dock clears the whole trio',
-    !G.enemies().some(e => e.tut === 'volley' && !e.dead && !e.resolved));
-}
 settle();
 check('barrier drill begins', G.qualStage().card === 'line');
 passCall('line');
@@ -2834,20 +2888,17 @@ passCall('line');
 }
 check('barrier practice: node per end', waitLive(4) && zapPractice());
 settle();
-check('color-lock drill begins', G.qualStage().card === 'lock');
-passCall('lock');
-check('blue-lock practice', waitLive(4) && zapPractice());
-check('white-lock practice', waitLive(6) && zapPractice());
-settle();
-check('the power-up follows the colour locks', G.qualStage().card === 'pickup');
-passCall('pickup');
-waitLive(4);
+// the dead zone has a lesson of its own now: steer clear until it burns off
+check('the dead zone is its own lesson in part 2', G.qualStage().card === 'wall');
 {
-  const pp = G.pickups().find(p2 => p2.tut && !p2.done);
-  pp.z = G.geo().hitZ; aim(0, pp.angle);
-  G.update(0.01);
-  check('catching the practice relay works', G.fx.wide > 0);
-  G.fx.wide = 0;
+  passCall('wall');
+  let wg0 = 200;
+  while (wg0-- > 0 && !G.latches().length) G.update(0.05);
+  check('the practice wall lands', G.latches().length === 1);
+  aim(0, G.latches()[0].a + Math.PI); aim(1, G.latches()[0].a + Math.PI + 0.5);
+  let wg = 260;
+  while (wg-- > 0 && G.latches().length) G.update(0.05);
+  check('routing around the practice wall completes the lesson', !G.latches().length && G.tut() && !G.tut().retry);
 }
 settle();
 check('bonus-stream drill begins', G.qualStage().card === 'strip');
@@ -2863,6 +2914,24 @@ check('bonus-stream drill begins', G.qualStage().card === 'strip');
   check('tracing the practice stream end-to-end succeeds',
     spawned && !G.enemies().some(e => e.type === 'strip' && !e.dead) && G.tut() && !G.tut().retry);
 }
+settle();
+check('part 2 closes on its own QUALIFIED', G.getState() === G.S.PLAY && G.tut() && G.qualStage().card === 'done');
+drawOk('part 2 ceremony', () => { G.setState(G.S.PLAY); });
+for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05);
+check('part 2, replayed, ends on the report and files its own flag',
+  G.getState() === G.S.END && G.progress.qualPart2Done === true && G.progress.qualPart3Done === false);
+G.setEndT(99); G.frame(16);
+check('a replayed part 2 offers RESTART, not the first contract',
+  !G.getEndButtons().some(b => b.action === 'contract') && G.getEndButtons().some(b => b.action === 'retry'));
+
+// ---- PART 3: the phase locks and the pulse ----
+G.startQualification(false, 3, -1);
+G.update(0.05);
+check('part 3 opens on the phase locks', G.getState() === G.S.PLAY && G.getQualPart() === 3 && G.qualStage().card === 'lock');
+passCall('lock');
+check('blue-lock practice', waitLive(4) && zapPractice());
+check('white-lock practice', waitLive(6) && zapPractice());
+settle();
 // THE PULSE DRILL. The purge column is pre-spawned when the stage opens, so as the
 // response begins four traps are already inbound and still short of the ring.
 {
@@ -2927,18 +2996,14 @@ check('bonus-stream drill begins', G.qualStage().card === 'strip');
   check('the purge wave clears the practice volley', !G.enemies().some(e => e.tut && !e.dead));
 }
 settle();
-check('the QUALIFIED ceremony plays in-world, no info disc', G.getState() === G.S.PLAY && G.tut() && G.qualStage().card === 'done');
-for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05); // the ceremony runs, then the report
-check('QUALIFIED: victory screen + progress persisted', G.getState() === G.S.END && G.getEndWin() === true && G.progress.tutorialDone === true && G.tut() === null);
-drawOk('qualification end screen', () => {});
-G.setEndT(99); G.frame(16); // past the reveal: the keys are live
-check('the course\'s report still leads into the first contract',
-  G.getEndButtons().some(b => b.action === 'contract' && b.primary));
+check('part 3 closes on its own QUALIFIED', G.getState() === G.S.PLAY && G.tut() && G.qualStage().card === 'done');
+for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05);
+check('part 3 files its own flag', G.getState() === G.S.END && G.progress.qualPart3Done === true);
 
 // ---- THE CALL MUST READ AS "NOT YOU" (Gil, 2026-10-08) ----
 // The pupil's emitters step back, everything but the ring and the lesson's focus dims,
 // and the lesson's traffic is a hologram while the instructor's carriages stay plain.
-G.startQualification();
+G.startQualification(false, 1, -1);
 G.setIntro(999); G.update(0.05);
 check('a fresh course: the pupil\'s emitters are at full strength before any call',
   G.tut().call && G.tut().call.kind === 'move' ? true : G.tutCallNodeK() === 1);
@@ -2965,7 +3030,7 @@ check('a fresh course: the pupil\'s emitters are at full strength before any cal
     drawOk('a call frame mid-glitch', () => { G.setState(G.S.PLAY); G.setTime(burstT); });
     G.setTime(t0);
   }
-  for (const k of ['normal', 'volley', 'line', 'lock', 'pickup', 'strip', 'pulse', 'wall'])
+  for (const k of ['normal', 'line', 'lock', 'pickup', 'strip', 'pulse', 'wall'])
     drawOk('call layer: ' + k, () => {
       G.setState(G.S.PLAY);
       G.tut().call = { kind: k === 'lock' ? 'lock0' : k, key: k, t: 1.0, dur: G.callDur(k), a: 0.7 };
@@ -2979,6 +3044,151 @@ G.progress.tutorialDone = true;
 drawOk('briefing card frame (zoom-in)', () => { G.startBossTest(); G.update(0.05); });
 G.setState(G.S.MENU);
 G.progress.tutorialDone = true;
+
+// ================= THE COURSE IN THREE PARTS: each part plays once, before its stage =================
+// Gil, 2026-11-05. Part 2 plays the first time stage 03 is started, part 3 the first
+// time stage 07 is, between the stage tap and the stage; the part ends by starting the
+// stage, and a SKIP key goes straight there. Every key a player starts a stage with
+// goes through deployStage; startLevel itself never plays a part, so the verifier, the
+// fingerprint battery and a replay cannot meet one.
+{
+  const P = G.progress;
+  const owe = () => { P.tutorialDone = true; P.qualPart2Done = false; P.qualPart3Done = false; };
+  G.installCampaign(G.CAMPAIGNS[0]);
+  owe();
+  const owed = G.CAMPAIGNS[0].levels.map((_, i) => G.qualPartDue(i));
+  check(`a save that owes parts 2 and 3 meets them at stage 03 and stage 07 and nowhere else (${owed})`,
+    owed.join() === '0,0,2,0,0,0,3,0');
+  P.qualPart2Done = true;
+  check('a filed part 2 is owed nowhere', G.qualPartDue(2) === 0);
+  P.qualPart3Done = true;
+  check('a filed part 3 is owed nowhere', G.qualPartDue(6) === 0);
+  P.tutorialDone = false;
+  check('a save that never finished part 1 is owed it at stage 01', G.qualPartDue(0) === 1);
+  owe();
+  G.installCampaign(G.CAMPAIGNS[1]);
+  check('the parts belong to the first contract: the second contract\'s third lane is stage 11 and owes nothing',
+    G.lvNum(G.levelNo(1, 2)) === '11' && G.qualPartDue(2) === 0 && G.qualPartDue(6) === 0);
+  G.installCampaign(G.CAMPAIGNS[0]);
+  check('startLevel never plays a part: the verifier and the battery start stage 03 as stage 03',
+    (G.startLevel(2), !G.isQual() && G.getLevelIdx() === 2 && G.boardKey() === 'cargo-run:2'));
+
+  // THE FIRST START OF STAGE 03: part 2 between the tap and the stage
+  G.setState(G.S.MENU);
+  G.deployStage(2);
+  G.setIntro(999);
+  check('the first start of stage 03 plays part 2 first',
+    G.getState() === G.S.PLAY && G.isQual() && G.getQualPart() === 2 && G.getQualThen() === 2 && G.qualStage().card === 'heavy');
+  check('a part a stage tap starts never ranks: no board key while it runs', G.getLevelIdx() === -1 && G.boardKey() === null);
+  check('part 2 offers its SKIP key', G.qualSkipShown());
+  { // fly it to its close: the done card, past the stamp
+    const T = G.tut(), L = G.QUAL_PARTS[2].list;
+    G.enemies().length = 0; G.pickups().length = 0; G.setLatches([]);
+    T.call = null; T.queue = []; T.retry = null; T.stage = L.length - 1; T.t = 3.5;
+  }
+  G.update(0.05);
+  check('the close files part 2 and leaves on the warp, with the drill held', P.qualPart2Done === true && !!G.getTrans() && G.tut().leaving === true);
+  flushUI();
+  check('after part 2, stage 03 starts: briefed, ranked, its own run',
+    !G.isQual() && G.tut() === null && G.getLevelIdx() === 2 && G.boardKey() === 'cargo-run:2'
+    && G.getState() === G.S.INFO && G.getInfoCard() === 'story2');
+  G.setState(G.S.MENU);
+  G.deployStage(2);
+  check('the second start of stage 03 is just stage 03', !G.isQual() && G.getLevelIdx() === 2);
+
+  // THE FIRST START OF STAGE 07, and the SKIP key, pressed the way a thumb presses it
+  G.setState(G.S.MENU);
+  G.deployStage(6);
+  G.setIntro(999); G.update(0.05);
+  check('the first start of stage 07 plays part 3 first',
+    G.isQual() && G.getQualPart() === 3 && G.getQualThen() === 6 && G.boardKey() === null);
+  G.frame(16);
+  const sk = G.qualSkipRect();
+  check('the SKIP key is drawn left of PAUSE while the part runs', !!sk && sk.x + sk.w < G.geo().cx * 2 && sk.y < 80);
+  drawOk('part 3 with the SKIP key up', () => { G.setState(G.S.PLAY); });
+  canvasHandlers.pointerdown({ pointerId: 41, clientX: sk.x + sk.w / 2, clientY: sk.y + sk.h / 2, pointerType: 'touch' });
+  canvasHandlers.pointerup({ pointerId: 41, clientX: sk.x + sk.w / 2, clientY: sk.y + sk.h / 2, pointerType: 'touch' });
+  flushUI();
+  check('SKIP files part 3 and starts stage 07', P.qualPart3Done === true && !G.isQual() && G.getLevelIdx() === 6
+    && G.boardKey() === 'cargo-run:6');
+  G.frame(16);
+  check('…and the stage itself carries no SKIP key', G.qualSkipRect() === null);
+
+  // a first-ever part 1 IS the controls lesson, so it has no way past it; a replay does
+  P.tutorialDone = false;
+  G.startQualification(false, 1, -1); G.update(0.05); G.frame(16);
+  check('a first-ever part 1 shows no SKIP key', !G.qualSkipShown() && G.qualSkipRect() === null);
+  P.tutorialDone = true;
+  check('a replayed part 1 does', G.qualSkipShown());
+  // a SKIP on a replay goes back where the replay was opened, and still files the part
+  P.qualPart2Done = false;
+  G.startQualification(false, 2, -1); G.update(0.05);
+  G.qualSkip(); flushUI();
+  check('SKIP on a replayed part goes back to the menu, filed', G.getState() === G.S.MENU && P.qualPart2Done === true && G.tut() === null);
+  G.setMenuFx(null);
+
+  // NO PART EVER FORMS A BOARD KEY, by any door
+  const keys = [1, 2, 3].map(n => { G.startQualification(false, n, -1); return G.boardKey(); });
+  check('no part forms a board key, replayed or owed', keys.every(k => k === null));
+
+  // OLD SAVES: nobody who flew the old course, or got past the stage, is sent through a part
+  const m1 = G.migrateQualParts({ tutorialDone: true, camp: {} });
+  check('a save that finished the old full course owes no part', m1.qualPart2Done === true && m1.qualPart3Done === true);
+  const m2 = G.migrateQualParts({ tutorialDone: false, camp: { 'cargo-run': { unlocked: 4 } } });
+  check('a save past stage 03 (stage 04 open) owes part 3 only', m2.qualPart2Done === true && m2.qualPart3Done === false);
+  const m3 = G.migrateQualParts({ tutorialDone: false, camp: { 'cargo-run': { unlocked: 8 } } });
+  check('a save past stage 07 owes neither', m3.qualPart2Done === true && m3.qualPart3Done === true);
+  const m4 = G.migrateQualParts({ tutorialDone: false, camp: { 'cargo-run': { unlocked: 3 } } });
+  check('a save that has not cleared stage 03 still meets part 2 there', m4.qualPart2Done === false && m4.qualPart3Done === false);
+  Object.assign(P, G.migrateQualParts({ tutorialDone: true, camp: P.camp }));
+  check('a migrated old save is owed nothing at stage 03 or 07', G.qualPartDue(2) === 0 && G.qualPartDue(6) === 0);
+  const save = fs.readFileSync(path.join(ROOT, 'src', 'game', '32-save.js'), 'utf8');
+  check('the load migrates a save written before the split, once, after the campaign ids move',
+    /const preParts = !\('qualPart2Done' in d\.progress\);/.test(save)
+    && save.indexOf('if (preParts) migrateQualParts(progress);') > save.indexOf("['shutdown', 'delegation']"));
+
+  // EVERY STAGE-START KEY GOES THROUGH deployStage
+  const inp = fs.readFileSync(path.join(ROOT, 'src', 'game', '60-input.js'), 'utf8');
+  const brd = fs.readFileSync(path.join(ROOT, 'src', 'game', '93-board.js'), 'utf8');
+  check('the deploy key, NEXT STAGE, FIRST CONTRACT, NEXT CONTRACT and FLY THIS LANE all start through deployStage',
+    /action: \(\) => deployStage\(b\.deploy\)/.test(inp) && /startTrans\('warp', \(\) => deployStage\(levelIdx \+ 1\)\)/.test(inp)
+    && /switchCampaign\(0\);\s*deployStage\(0\);/.test(inp) && /deployStage\(Math\.min\(\(\(nc && nc\.unlocked\)/.test(inp)
+    && /switchCampaign\(ci\); deployStage\(li\);/.test(brd)
+    && !/startLevel\([^,()]+(?:\([^()]*\))?[^,()]*, true\)/.test(inp) && !/startLevel\([^,()]+, true\)/.test(brd)); // no briefed start bypasses it
+
+  // THE TRAINING ROW: each part on demand, from the settings disc, inside the disc law
+  const navW = global.navigator;
+  if (!global.navigator) global.navigator = {};
+  for (const [cw, ch] of [[1600, 900], [844, 390], [800, 450]]) {
+    G.setViewport(cw, ch);
+    G.setState(G.S.MENU); G.setMenuScreen('home'); G.setMenuSettings(true); G.setFrameDt(1);
+    G.drawMenuSettings();
+    const qk = G.menuSetBtns().filter(b => b.qualPart);
+    const g = G.geo(), R = G.discR();
+    const inside = qk.every(b => [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]]
+      .every(([x, y]) => Math.abs(x - g.cx) <= G.discChord(R, y - g.cy) - R * G.DISC_PAD + 0.5));
+    check(`the settings disc carries one TRAINING key per part, clear of the rim (${cw}x${ch})`,
+      qk.length === 3 && qk.map(b => b.qualPart).join() === '1,2,3' && inside);
+  }
+  const kit = fs.readFileSync(path.join(ROOT, 'src', 'game', '91-briefing.js'), 'utf8');
+  const row = kit.split('function discQualRow(')[1].split('\n}')[0];
+  check('the TRAINING label keeps the text margin at its own height, the keys the rail margin at their far corner',
+    /discChord\(R, far\) \+ R \* DISC_TEXT_PAD/.test(row) && /discChord\(R, kFar\) - R \* DISC_PAD/.test(row));
+  drawOk('the settings disc with its TRAINING row', () => { G.setState(G.S.MENU); G.setMenuSettings(true); });
+  {
+    const k2 = G.menuSetBtns().find(b => b.qualPart === 2);
+    P.qualPart2Done = true;
+    G.menuTap(k2.x + k2.w / 2, k2.y + k2.h / 2, 1);
+    flushUI();
+    check('TRAINING 2 replays part 2 on demand, ending on the report', G.isQual() && G.getQualPart() === 2 && G.getQualThen() === -1
+      && G.qualStage().card === 'heavy' && G.getMenuSettings() === false);
+  }
+  global.navigator = navW;
+  G.setViewport(800, 450);
+  G.setMenuSettings(false); G.setMenuFx(null);
+  P.tutorialDone = P.qualPart2Done = P.qualPart3Done = true; // the rest of the battery flies a veteran's save
+  G.setState(G.S.MENU);
+}
 
 // ================= level intro =================
 // The wait for hands comes FIRST now: a parked drift with the destination dead ahead,

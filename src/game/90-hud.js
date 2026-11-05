@@ -112,6 +112,32 @@ function pauseGuideKeyRect() {
   const rk = pauseBtnRect || { x: W - 12 - SAFE.r - 38, y: 12 + SAFE.t, w: 38, h: 38 };
   return { x: rk.x - 8 - rk.w, y: rk.y, w: rk.w, h: rk.h, action: 'guide', cut: 8 };
 }
+// THE COURSE'S SKIP KEY (2026-11-05). A part that plays between a stage tap and the
+// stage has a way past it: the pause key's own slab, left of PAUSE, in the spot the
+// pause screen gives its '?' — so it is drawn only while the lane runs, never under
+// the pause disc. qualSkipShown (70-update) says when; qualSkip what it does.
+const QUAL_SKIP_LABEL = 'SKIP ▸';
+const QUAL_SKIP_PX = 12;    // the label's size; the slab grows around it
+let qualSkipRect = null;
+function drawQualSkipKey() {
+  qualSkipRect = null;
+  if (state !== S.PLAY || replaying || !pauseBtnRect || !qualSkipShown()) return;
+  ctx.save();
+  ctx.font = '700 ' + QUAL_SKIP_PX + 'px Audiowide, system-ui';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  const w = Math.ceil(ctx.measureText(QUAL_SKIP_LABEL).width) + 24, h = pauseBtnRect.h;
+  const r = { x: pauseBtnRect.x - 8 - w, y: pauseBtnRect.y, w, h, cut: 8 };
+  qualSkipRect = r;
+  techRect(r.x, r.y, w, h, 8);
+  ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(120,220,255,0.55)'; ctx.lineWidth = 1.5;
+  techRect(r.x, r.y, w, h, 8); ctx.stroke();
+  ctx.fillStyle = 'rgba(220,245,255,0.92)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(QUAL_SKIP_LABEL, r.x + w / 2 + 1, r.y + h / 2 + 1);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.restore();
+}
 
 // level intro: title card + 3-2-1 countdown in the center while the ring forms
 // — drawn as the frame's last pass so no rim/HUD layer can obscure the text
@@ -546,7 +572,7 @@ function drawIntroCard() {
       try { ctx.letterSpacing = '6px'; } catch (e) {}
       const titleMaxW = ringChord(H * 0.30) / scale;
       ctx.fillStyle = 'rgba(200,235,255,0.85)'; ctx.font = '600 13px Audiowide, system-ui';
-      ctx.fillText(endless ? 'SURVIVE' : qual ? 'TRAINING' : 'STAGE ' + lvNum(curLevelNo(levelIdx)), 0, -34);
+      ctx.fillText(endless ? 'SURVIVE' : qual ? 'TRAINING \u00b7 PART ' + qualPart : 'STAGE ' + lvNum(curLevelNo(levelIdx)), 0, -34);
       // the level IS its route: where the convoy forms up, and where it delivers
       const lname = curRouteName();
       const tpx = fitPx(lname, '800', Math.min(W * 0.055, 32), titleMaxW, 15);
@@ -671,7 +697,6 @@ const TUT_LESSON = {
   normal: 'HIT WITH ANY EMITTER',
   wall:   'DEAD ZONE \u2014 GO AROUND!',
   heavy:  'DOCK BOTH EMITTERS TOGETHER',
-  volley: 'DOCK BOTH AND HOLD \u2014 TO FIRE VOLLEY',
   line:   'COVER BOTH ENDS \u2014 ONE EACH',
   lock0:  'BLUE EMITTER ONLY',
   lock1:  'WHITE EMITTER ONLY',
@@ -681,7 +706,7 @@ const TUT_LESSON = {
 };
 const TUT_ACCENT = {
   move: '143,224,255', normal: '255,96,120', wall: '255,154,60',
-  heavy: '143,224,255', volley: '191,234,255', line: '111,227,255', lock0: '95,150,255', lock1: '235,244,255',
+  heavy: '143,224,255', line: '111,227,255', lock0: '95,150,255', lock1: '235,244,255',
   pickup: '255,210,74', strip: '255,210,74', pulse: '255,210,74'
 };
 // THE BARRIER NET'S PLAN: which end each emitter takes. The emitter nearest EITHER end
@@ -729,13 +754,8 @@ function tutFocusDesc(st, ten) {
       const i = nodes[0] === (Math.abs(angDiff(nodes[0].angle, ten.angle)) <
         Math.abs(angDiff(nodes[1].angle, ten.angle)) ? nodes[0] : nodes[1]) ? 0 : 1;
       ghosts.push({ i, a: ten.angle, col: NODE_COLS[i] });
-    } else if (kind === 'heavy' || kind === 'volley') {
-      // the volley's mark is the ARMOR's bearing, not a neighbour's: that is where
-      // the dock has to sit for the bolt to hit the one body worth detonating on
-      const bod = kind === 'volley'
-        ? (enemies.find(e => e.tut === 'volley' && e.type === 'heavy' && !e.dead && !e.resolved) || ten)
-        : ten;
-      ghosts.push({ i: 0, a: bod.angle, col: NODE_COLS[0] }, { i: 1, a: bod.angle, col: NODE_COLS[1] });
+    } else if (kind === 'heavy') {
+      ghosts.push({ i: 0, a: ten.angle, col: NODE_COLS[0] }, { i: 1, a: ten.angle, col: NODE_COLS[1] });
     } else if (kind === 'line' && ten.partner) {
       // each pad takes the end the NET PLAN gives its emitter — the same plan, and the
       // same colours, the ring's arrows and parking spots use (netAssign)
@@ -1078,6 +1098,7 @@ function drawHUD(g) {
     pauseBtnRect = { x: W - 12 - SAFE.r - 38, y: 12 + SAFE.t, w: 38, h: 38 };
     drawPauseKey(pauseBtnRect, state === S.PAUSE);
   }
+  drawQualSkipKey();
 
   // H-07: BACK off the pre-warp disc — a left-arrow, TOP-LEFT, bound to B. Only on
   // the briefed pre-warp screen; every other S.INFO card is dismissed, not exited.
@@ -1546,7 +1567,7 @@ function drawPulseTrigger(i, d, down, alpha) {
 // progress"). The fill is lessons done over lessons in the course; the controls lesson
 // fills by its reps as well, and the fill eases rather than steps. The readout at the
 // head says which lesson of how many (drawHUD's clk).
-const courseLessons = () => QUAL.length - 1;   // 'done' is the ceremony, not a lesson
+const courseLessons = () => qualList().length - 1;   // the PART's lessons; 'done' is the ceremony, not a lesson
 let courseProgShow = 0, courseProgRef = null;  // the eased fill, and the pupil it belongs to
 function courseProg() {
   if (courseProgRef !== tut) { courseProgRef = tut; courseProgShow = 0; }
@@ -1581,7 +1602,7 @@ const CALL_DIM_IN = 0.38;      // the dim inside the bore, outside the lesson's 
 // not overshoot it" — it was 0.075 × min(W, H), more than three times the ring.
 const CALL_RING_BAND = 1.0;
 // the lit wedge around the call's bearing, half-width in radians; pulse lights the bore
-const CALL_FOCUS = { normal: 0.55, heavy: 0.6, volley: 0.85, line: 1.2, lock: 0.6, pickup: 0.6, strip: 0.8, wall: 0.8 };
+const CALL_FOCUS = { normal: 0.55, heavy: 0.6, line: 1.2, lock: 0.6, pickup: 0.6, strip: 0.8, wall: 0.8 };
 const CALL_FOCUS_AT = { line: 0.75 }; // the wedge's centre, off the call bearing (a net straddles it)
 const HOLO_FLICKER = 0.10;     // the opacity's flicker depth
 const GLITCH_EVERY = 0.9;      // seconds: about one glitch burst per this, at a hashed moment
