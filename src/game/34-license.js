@@ -115,9 +115,11 @@ function licenseTrack(ev, data) {
 // third-party processor in between. STUB: web and tests, the whole flow with no
 // store, so the paywall plays end to end before any native code runs.
 const STUB_STORE_KEY = 'warpVanguard.stubStore'; // the stub's "store account": survives a save wipe, like a real one
-// The stub's answers. A test double, not the game's price: the real string comes
-// from the store console, and this one says TEST so it can never pass for it.
-const STUB = { price: '$1.99 TEST', answer: 'owned', delay: 450 };
+// The stub's answers. A DEMO price, not the game's: the real string comes from the
+// store console, and the shells always ask the store, so only the browser build and
+// the tests ever show this one. It reads like a store's answer so the disc can be
+// judged as a player sees it (Gil, 2026-11-05; it said '$1.99 TEST' before).
+const STUB = { price: '$1.99', answer: 'owned', delay: 450 };
 function stubOwned() { try { return localStorage.getItem(STUB_STORE_KEY) === 'owned'; } catch (e) { return false; } }
 function stubSetOwned(v) {
   try { if (v) localStorage.setItem(STUB_STORE_KEY, 'owned'); else if (localStorage.removeItem) localStorage.removeItem(STUB_STORE_KEY); } catch (e) {}
@@ -561,11 +563,13 @@ function drawLicOffer() {
       }
     }
     // the positive verb rides the RIGHT half (Gil's rule for every disc segment)
-    const buy = 'UNLOCK' + (licensePrice ? '  ' + licensePrice : '');
+    // UNLOCK sits small over the price, and the price is the key's big word (Gil,
+    // 2026-11-05); until the store has answered, the key says UNLOCK alone
+    const buy = licensePrice || 'UNLOCK';
     const keys = o.done
       ? [['CONTINUE ▸', 'go', { primary: true }]]
       : [[o.from === 'weekly' ? 'FLY UNRANKED' : 'NOT NOW', o.from === 'weekly' ? 'unranked' : 'later', { locked: o.busy }],
-         [buy, 'buy', { primary: true, locked: o.busy }]];
+         [buy, 'buy', { primary: true, locked: o.busy, over: licensePrice ? 'UNLOCK' : null }]];
     // the keys go live once the cast has landed, never on the frame it begins
     for (const b of discSegKeys(cx, cy, R, keys)) if (q > 0.92 && licOffer) licOfferBtns.push(b);
     if (q <= 0.92 || !licOffer) licOfferBtns.length = 0;

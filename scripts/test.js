@@ -5892,7 +5892,7 @@ await tick();
     ctxStub.fillText = ft;
     const acts = G.getLicOfferBtns().map(b => b.action).sort().join();
     check('paywall: the settled offer has NOT NOW, UNLOCK and RESTORE keys', acts === 'buy,later,restore');
-    check('paywall: the UNLOCK key carries the store\'s price string', seen.some(t => t === 'UNLOCK  ' + G.STUB.price) && seen.includes('NOT NOW'));
+    check('paywall: the UNLOCK key carries the store\'s price string, UNLOCK small over it', seen.includes('UNLOCK') && seen.includes(G.STUB.price) && seen.includes('NOT NOW'));
     check('paywall: the offer names the stages through lvNum and says STAGE',
       seen.some(t => /STAGES 17–40/.test(t)) && seen.some(t => /STAGES 01–16/.test(t)) && !seen.some(t => /\bLEVEL\b/.test(t)));
     check('paywall: the fiction never names the store',
@@ -5922,7 +5922,7 @@ await tick();
       ['paywall.offer', 'paywall.buy', 'paywall.restore'].every(n => lic.includes("'" + n + "'") && /^[a-z][a-z0-9_.]{1,39}$/.test(n)));
     check('paywall: the save tuple carries the license', /JSON\.stringify\(\{ progress, settings, mutators, identity, license \}\)/.test(gsrc('32-save.js')));
     const gameAll = gameSource(ROOT).split('\n').filter(l => !/const STUB = /.test(l) && !/^\s*\/\//.test(l)).join('\n');
-    check('paywall: the game never hard-codes a price (the stub\'s TEST answer aside)',
+    check('paywall: the game never hard-codes a price (the stub\'s demo answer aside)',
       !/[$€£]\s?\d+[.,]\d\d|\d+[.,]\d\d\s?[$€£]|['"`][^'"`\n]*\b[12]\.99\b/.test(gameAll));
     check('paywall: the product id lives in the game once, the same string both stores sell',
       (gameAll.match(/com\.warpvanguard\.game\.license/g) || []).length === 1 && G.LICENSE_PRODUCT === 'com.warpvanguard.game.license');

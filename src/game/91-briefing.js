@@ -1851,6 +1851,7 @@ function discSegHit(sg, x, y) {
 // segment, undivided — the shape the contract disc's TAKE CONTRACT key used to
 // hand-roll, and the shape a disc whose only verb is CLOSE needs. A one-key
 // descriptor carries `half: 0`, and discSegHit reads that as "no seam".
+const DISC_KEY_OVER = 0.042; // a segment key's small over-line (opt.over), as a share of R
 function discSegKeys(cx, cy, R, keys, segK) {
   const rr = R * DISC_RIM, d = R * (segK || DISC_SEG);
   const aSeg = Math.asin(clamp(d / rr, 0, 1)), chHalf = rr * Math.cos(aSeg);
@@ -1880,9 +1881,21 @@ function discSegKeys(cx, cy, R, keys, segK) {
     ctx.fillStyle = kg; ctx.fill();
     ctx.textAlign = 'center';
     // a solo key owns the whole line, so it may be twice as wide before it shrinks
-    ctx.font = '700 ' + fitPx(label, '700', Math.round(R * 0.082), wAt * (solo ? 1.7 : 0.82), 8) + 'px Audiowide, system-ui';
+    const mPx = fitPx(label, '700', Math.round(R * 0.082), wAt * (solo ? 1.7 : 0.82), 8), lx = cx + side * wAt / 2;
     ctx.fillStyle = o.locked ? 'rgba(150,185,220,0.34)' : o.danger ? '#ffd9d9' : '#e6f6ff';
-    ctx.fillText(label, cx + side * wAt / 2, ly);
+    if (o.over) {
+      // A SMALL LINE OVER THE LABEL (the offer's UNLOCK over its price, Gil 2026-11-05):
+      // the pair is centred where a one-line label's capitals would sit
+      const sPx = Math.max(7, Math.round(R * DISC_KEY_OVER));
+      const hh = 0.72 * sPx + 0.4 * sPx + 0.72 * mPx, top = ly - 0.36 * mPx - hh / 2;
+      ctx.font = '700 ' + sPx + 'px Audiowide, system-ui';
+      ctx.fillText(o.over, lx, top + 0.72 * sPx);
+      ctx.font = '700 ' + mPx + 'px Audiowide, system-ui';
+      ctx.fillText(label, lx, top + hh);
+    } else {
+      ctx.font = '700 ' + mPx + 'px Audiowide, system-ui';
+      ctx.fillText(label, lx, ly);
+    }
     ctx.textAlign = 'left';
     if (o.locked) return;   // drawn, never pressable — the gate is the key's own look
     out.push({ x: solo || side < 0 ? cx - chHalf : cx, y: cy + d, w: solo ? chHalf * 2 : chHalf, h: rr - d, action,
