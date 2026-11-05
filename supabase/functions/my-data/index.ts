@@ -10,7 +10,12 @@
 //   client → POST { action: "delete" } with the player's auth JWT
 //          → verify JWT → player_id → delete_my_runs
 //          → purge the replay traces those rows pointed at
+//          → delete the play statistics (telemetry_* tables, 2026-11-05)
 //          → delete the anonymous auth user itself
+//
+//   client → POST { action: "export" } with the player's auth JWT
+//          → verify JWT → player_id → every row the project holds for that id:
+//            board entries, feedback, reports filed, play statistics (Art. 15)
 //
 // THE JWT IS THE PROOF OF OWNERSHIP, and it is the only proof available. These
 // are anonymous arcade identities: there is no email to mail a confirmation link
@@ -196,6 +201,16 @@ Deno.serve(async (req) => {
     const tracesLeft = left.length;
     if (tracesLeft) console.warn("[my-data] " + tracesLeft + " trace(s) survived the purge for " + playerId + ": " + left.slice(0, 5).join(", "));
 
+    // THE PLAY STATISTICS (2026-11-05). Every telemetry row references the auth
+    // user ON DELETE CASCADE, so the user delete below takes them too; they are
+    // deleted here by name first, so a user delete that fails still leaves no
+    // statistics behind. Not fatal, for the same reason the trace purge is not.
+    let statsDeleted = true;
+    for (const t of ["telemetry_events", "telemetry_attempts", "telemetry_sessions", "telemetry_quota"]) {
+      const { error: tErr } = await svc.from(t).delete().eq("player_id", playerId);
+      if (tErr && !/does not exist|schema cache/i.test(tErr.message)) { statsDeleted = false; console.warn("[my-data] " + t + " delete failed for " + playerId + ": " + tErr.message); }
+    }
+
     // Finally the anonymous user itself. Without this the rows are gone but the
     // identifier that tied them together still exists in auth.users — which is
     // the one piece of this that is unambiguously personal data, so leaving it
@@ -212,7 +227,29 @@ Deno.serve(async (req) => {
     // `tracesLeft` is reported, not hidden. A player who asks what happened to their
     // data deserves the number that is still true, and a non-zero one is the signal
     // to re-run the delete — which is idempotent and will sweep the remainder.
-    return json({ ok: true, action, rows: rows?.length ?? 0, tracesDeleted, tracesLeft, identityDeleted });
+    return json({ ok: true, action, rows: rows?.length ?? 0, tracesDeleted, tracesLeft, statsDeleted, identityDeleted });
+  }
+
+  // ---- EXPORT: everything held under this id, as JSON (GDPR Art. 15) --------
+  // Read-only, and capped per table so one response stays a size a phone can
+  // hold. The trace objects are not inlined: each row names its trace_id, and a
+  // replay is control inputs, not something about the player.
+  if (action === "export") {
+    const cap = 5000;
+    const read = async (table: string, col: string, cols = "*") => {
+      const { data, error } = await svc.from(table).select(cols).eq(col, playerId).limit(cap);
+      return error ? { error: error.message } : data ?? [];
+    };
+    const [runs, feedback, reportsFiled, sessions, attempts, events] = await Promise.all([
+      read("runs", "player_id", "board, player_name, score, max_combo, time_sec, integrity, misses, perfects, zaps, combo_sec, mutators, seed, verified, trace_id, run_id, created_at, updated_at"),
+      read("feedback", "player_id", "topic, body, build, device, screen, place, error, created_at, handled_at"),
+      read("reports", "reporter_id", "run_id, reason, created_at, handled_at"),
+      read("telemetry_sessions", "player_id", "id, started_at, fg_sec, platform, channel, os, model, app_version, locale, received_at"),
+      read("telemetry_attempts", "player_id", "id, session_id, at, mode, camp_id, level_idx, week, result, dur_sec, score, assist"),
+      read("telemetry_events", "player_id", "id, session_id, at, name, props"),
+    ]);
+    return json({ ok: true, action, playerId, exportedAt: new Date().toISOString(),
+      runs, feedback, reportsFiled, playStatistics: { sessions, attempts, events } });
   }
 
   return json({ error: "bad action" }, 400);

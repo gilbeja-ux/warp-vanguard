@@ -30,7 +30,7 @@ release digest is `docs/CHANGELOG.md`; the audit backlog is `docs/HOUSEKEEPING.m
 | `npm run ios:build` / `ios:device` / `ios:archive` | Simulator, plugged-in iPhone, App Store `.ipa`. Every target runs `sync-version.js` first. |
 | `npm run version:sync` / `node scripts/sync-version.js --bump patch` | `package.json` is the only version source; `versionCode` is derived (`major*10000 + minor*100 + patch`) and written into Gradle and the Xcode project. Never edit a version by hand. |
 | `npm run hooks:install` | Sets `core.hooksPath` to `.githooks/`. The pre-push hook runs `npm test` on any change under `src`, `scripts`, `android`, `ios`, `supabase`, and refuses to push a sim the deployed verifier does not know. `SKIP_TESTS=1` and `--no-verify` bypass. |
-| `npm run admin` / `npm run portal` | Local moderation and tester pages against Supabase. |
+| `npm run admin` / `npm run portal` | Local moderation and tester pages against Supabase. The admin console also serves the traction page at `/traction` (downloads, players, playtime, progress, platforms, health); its store credentials live in `~/.warp-vanguard/`, steps in `docs/STORE-REPORTS-SETUP.md`. |
 
 The local servers sit in Gil's browser tabs for whole sessions. They re-read source on
 every request, so a source edit never needs a restart. Never stop them and never
@@ -54,7 +54,7 @@ deliberately not being done: no ES modules, no namespacing, no bundler, no TypeS
 Rough map, by prefix:
 
 - `0x`–`1x`: canvas, resize and the 90° portrait transform (`ROT`), Web Audio, music pool, decoded sfx.
-- `2x`–`3x`: the deep background, the campaign package registry, Supabase identity and submission, the save blob, `installCampaign()`.
+- `2x`–`3x`: the deep background, the campaign package registry, Supabase identity and submission, the save blob, `installCampaign()`, and the play statistics (`34-telemetry.js`: sessions, stage attempts and `track(name, props)`, inert outside a real build).
 - `4x`–`5x`: run state and the run trace, geometry, enemy kinds and spawn fairness, the fairness linter, bosses.
 - `6x`–`7x`: pointer/key/gamepad input, replay, the qualification curriculum, `update(dt)` in `72-tick.js`.
 - `8x`: the tunnel, baked 3D stations, destinations, deep field, the glitch enemy bodies. `fireVolley()` lives in `85-enemy-art.js`, so an "art" file can still change scoring.

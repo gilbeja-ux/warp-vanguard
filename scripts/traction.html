@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Warp Vanguard — Traction</title>
+<!--
+  The traction page (2026-11-05). Served by scripts/admin.js at /traction, behind
+  the same per-process token as the moderation queue; every number on it comes from
+  /api/traction, which holds counts and never a player.
+
+  Styled from DESIGN.md's web roles: web-display, web-question and web-tag in
+  Audiowide, web-body in the system face, sizes from the ramp, corners from the cut
+  scale (16 panels, 12 tiles, 8 keys, cut top-left and bottom-right), palette colours
+  only. Charts follow the dataviz method: one accent hue (Chrome Cyan, the console's
+  own light) with filters instead of a categorical palette, because the game's lights
+  are too bright for the dark band; a second series is the de-emphasis grey; status
+  colours carry an icon and a word; every chart has a table.
+-->
+<style>
+  @font-face { font-family: Audiowide; src: url('/fonts/audiowide.woff2') format('woff2'); font-display: swap; }
+  :root {
+    color-scheme: dark;
+    --bg: #03060e;             /* hull-black */
+    --panel: #040e1e;          /* panel-glass */
+    --panel2: rgba(111, 227, 255, 0.05);
+    --line: rgba(111, 227, 255, 0.14);
+    --grid: rgba(111, 227, 255, 0.09);
+    --ink: #cfeeff;            /* readout-ice: titles, values */
+    --body: #bee1ff;           /* body-ice: reading copy */
+    --dim: rgba(190, 225, 255, 0.66);
+    --mute: rgba(190, 225, 255, 0.46);
+    --accent: #6fe3ff;         /* chrome-cyan: the one data hue */
+    --accent-wash: rgba(111, 227, 255, 0.10);
+    --accent-track: rgba(111, 227, 255, 0.16);
+    --grey: rgba(190, 225, 255, 0.32);  /* de-emphasis series */
+    --good: #7ee262; --warn: #ff9a3c; --bad: #ff3c5a; --gold: #ffd24a;
+    --key: #142c48; --key-hi: #1d3d61; --key-ink: #dff2ff;
+    --display: Audiowide, 'Segoe UI', system-ui, sans-serif;
+    --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; background: var(--bg); color: var(--body); font: 16px/1.6 var(--sans); padding: 0 16px 80px; }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+
+  /* the web ramp */
+  .tag { font: 11px/1 var(--display); letter-spacing: 3px; text-transform: uppercase; color: var(--dim); }
+  h1 { font: clamp(28px, 4.6vw, 46px)/1.1 var(--display); letter-spacing: 1px; color: var(--ink); margin: 10px 0 6px; font-weight: 400; }
+  h2 { font: 22px/1.1 var(--display); letter-spacing: 2px; color: var(--ink); margin: 0; font-weight: 400; text-transform: uppercase; }
+  h3 { font: 14px/1.4 var(--display); letter-spacing: 0.5px; color: var(--ink); margin: 0 0 4px; font-weight: 400; }
+  p { margin: 0 0 12px; }
+  .note { font-size: 13px; line-height: 1.55; color: var(--dim); }
+  .note b, .note code { color: var(--body); }
+  code { font: 12px var(--mono); background: var(--panel2); padding: 1px 5px; border-radius: 3px; }
+
+  header { padding: 34px 0 16px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; }
+  header .grow { flex: 1 1 320px; }
+  header .meta { font-size: 13px; color: var(--mute); }
+  a { color: var(--accent); }
+  .keys { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* keys: a cut plate, 38px, the label role */
+  button, .key, select {
+    font: 12px/1 var(--display); letter-spacing: 2px; text-transform: uppercase; color: var(--key-ink);
+    background: var(--key); border: 0; height: 38px; padding: 0 14px; cursor: pointer;
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+    display: inline-flex; align-items: center; text-decoration: none;
+  }
+  button:hover, .key:hover, select:hover { background: var(--key-hi); }
+  button[aria-pressed="true"] { background: var(--good); color: var(--bg); }
+  button:disabled { background: rgba(14, 28, 46, 0.9); color: rgba(223, 242, 255, 0.38); cursor: default; }
+  select { appearance: none; padding-right: 30px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--key-ink) 50%), linear-gradient(135deg, var(--key-ink) 50%, transparent 50%);
+    background-position: calc(100% - 17px) 16px, calc(100% - 12px) 16px; background-size: 5px 5px; background-repeat: no-repeat; }
+  button:focus-visible, select:focus-visible, .key:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .filters { position: sticky; top: 0; z-index: 5; background: var(--bg); display: flex; flex-wrap: wrap; align-items: center;
+    gap: 8px 14px; padding: 10px 0 12px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+  .filters .group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .filters .seg button { padding: 0 11px; }
+  .status { font-size: 13px; color: var(--dim); min-height: 20px; margin: 0 0 12px; }
+  .status.err { color: var(--bad); }
+  .loading .panel, .loading .kpis { opacity: 0.55; transition: opacity 0.2s; }
+
+  /* panels: a cut plate, 16px */
+  .panel { background: var(--panel); padding: 20px; margin: 0 0 18px;
+    clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px); }
+  .panel > .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 14px; }
+  .panel > .head .tag { margin-left: auto; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+  .grid.three { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); }
+  .card { background: var(--panel2); padding: 14px 16px 12px; min-width: 0;
+    clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); }
+  .card .sub { font-size: 12px; color: var(--mute); margin: -2px 0 8px; }
+
+  /* stat tiles */
+  .kpis { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); margin-bottom: 18px; }
+  .tile { background: var(--panel); padding: 12px 14px;
+    clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); }
+  .tile .lab { font-size: 12px; color: var(--dim); line-height: 1.3; }
+  .tile .val { font: 600 22px/1.25 var(--sans); color: var(--ink); margin-top: 4px; }
+  .tile .val.gold { color: var(--gold); }
+  .tile .val.none { color: var(--mute); font-weight: 400; }
+  .tile .foot { font-size: 12px; color: var(--mute); margin-top: 2px; line-height: 1.35; }
+  .st { font-size: 12px; margin-top: 3px; }
+  .st.good { color: var(--good); } .st.warn { color: var(--warn); } .st.bad { color: var(--bad); }
+
+  /* charts */
+  .chart { position: relative; width: 100%; }
+  .chart svg { display: block; width: 100%; overflow: visible; }
+  .chart text { font: 10px var(--sans); fill: var(--mute); font-variant-numeric: tabular-nums; }
+  .chart .vl { fill: var(--body); font-size: 11px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--dim); margin: 0 0 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
+  .legend i.line { height: 2px; vertical-align: 3px; }
+  .empty { font-size: 14px; color: var(--mute); padding: 18px 0 8px; line-height: 1.55; }
+
+  /* ranked bars, in HTML */
+  .hb { display: grid; grid-template-columns: minmax(70px, 34%) 1fr; gap: 5px 10px; align-items: center; font-size: 13px; }
+  .hb .l { color: var(--body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hb .b { position: relative; height: 14px; display: flex; align-items: center; gap: 8px; }
+  .hb .b span.bar { display: block; height: 12px; background: var(--accent); min-width: 2px; }
+  .hb .b em { font-style: normal; color: var(--body); font-variant-numeric: tabular-nums; font-size: 12px; white-space: nowrap; }
+  .hb .row:hover .l, .hb .hov { color: var(--ink); }
+
+  .meter { height: 12px; background: var(--accent-track); overflow: hidden; margin: 8px 0 6px; }
+  .meter span { display: block; height: 100%; background: var(--accent); }
+
+  /* tables */
+  details.tv { margin-top: 8px; }
+  details.tv > summary { cursor: pointer; font-size: 12px; color: var(--mute); list-style: none; }
+  details.tv > summary::before { content: '▸ '; }
+  details.tv[open] > summary::before { content: '▾ '; }
+  .tw { overflow-x: auto; margin-top: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  th { font: 11px/1.2 var(--display); letter-spacing: 1px; text-transform: uppercase; color: var(--dim); font-weight: 400; }
+  td { color: var(--body); }
+  td.dim { color: var(--mute); }
+  td.heat { color: var(--ink); }
+  td.heat.dark { color: var(--bg); }
+  .boss { font: 10px var(--display); letter-spacing: 1px; color: var(--bad); margin-left: 6px; }
+
+  /* the import strip */
+  .imp { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+  .imp input[type=file] { font-size: 13px; color: var(--dim); max-width: 100%; }
+  .log { font: 11px/1.5 var(--mono); color: var(--mute); margin-top: 8px; white-space: pre-wrap; }
+
+  .tip { position: fixed; z-index: 20; pointer-events: none; background: var(--panel); padding: 8px 10px; font-size: 12px;
+    color: var(--body); max-width: 280px; box-shadow: 0 0 0 1px var(--line);
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+  .tip b { display: block; color: var(--ink); font-size: 14px; font-weight: 600; }
+  .tip .k { display: inline-block; width: 12px; height: 2px; vertical-align: 3px; margin-right: 6px; }
+  .tip .r { display: flex; justify-content: space-between; gap: 14px; }
+  .tip .r strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+  footer { margin-top: 26px; }
+  footer li { margin: 0 0 8px; }
+  @media (max-width: 560px) { .panel { padding: 16px 14px; } header { padding-top: 22px; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <header>
+    <div class="grow">
+      <div class="tag" style="color: var(--accent)">Warp Vanguard · admin console</div>
+      <h1>Traction</h1>
+      <div class="meta" id="meta">Reading the live project…</div>
+    </div>
+    <div class="keys">
+      <a class="key" href="/">Moderation queue</a>
+      <button id="refresh" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <div class="filters" role="toolbar" aria-label="Filters for every chart below">
+    <div class="group" role="group" aria-label="Date range">
+      <span class="tag">Range</span>
+      <span class="seg" id="range"></span>
+    </div>
+    <div class="group">
+      <label class="tag" for="segsel">Players</label>
+      <select id="segsel">
+        <option value="phones">All phones</option>
+        <option value="android">Android app</option>
+        <option value="ios">iOS app</option>
+        <option value="web">Phone browser</option>
+        <option value="test">Test and dev</option>
+        <option value="all">Everything</option>
+      </select>
+    </div>
+  </div>
+  <div class="status" id="status" role="status" aria-live="polite"></div>
+
+  <section class="kpis" id="kpis" aria-label="Headline numbers"></section>
+
+  <section class="panel" id="sec-dl" aria-labelledby="h-dl">
+    <div class="head"><h2 id="h-dl">Downloads</h2><span class="tag">Source · the stores</span></div>
+    <div class="grid" id="dl-charts"></div>
+    <div class="card" style="margin-top:16px">
+      <h3>Bring the store numbers in</h3>
+      <p class="note" id="dl-setup"></p>
+      <div class="imp">
+        <select id="up-store" aria-label="Which store the file is from">
+          <option value="auto">Detect the store</option>
+          <option value="play">Google Play</option>
+          <option value="ios">App Store</option>
+        </select>
+        <input type="file" id="up-file" accept=".csv,.tsv,.txt,.gz" aria-label="A store report file">
+        <button type="button" id="up-go">Upload</button>
+        <button type="button" id="sync-play">Sync Play</button>
+        <button type="button" id="sync-ios">Sync App Store</button>
+      </div>
+      <div class="log" id="dl-log"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="sec-pl" aria-labelledby="h-pl">
+    <div class="head"><h2 id="h-pl">Players</h2><span class="tag" id="pl-src"></span></div>
+    <div id="pl-body"></div>
+  </section>
+
+  <section class="panel" id="sec-pt" aria-labelledby="h-pt">
+    <div class="head"><h2 id="h-pt">Playtime</h2><span class="tag">Source · play statistics</span></div>
+    <div id="pt-body"></div>
+  </section>
+
+  <section class="panel" id="sec-pg" aria-labelledby="h-pg">
+    <div class="head"><h2 id="h-pg">Progress</h2><span class="tag" id="pg-src"></span></div>
+    <div id="pg-body"></div>
+  </section>
+
+  <section class="panel" id="sec-pf" aria-labelledby="h-pf">
+    <div class="head"><h2 id="h-pf">Platform</h2><span class="tag" id="pf-src"></span></div>
+    <div id="pf-body"></div>
+  </section>
+
+  <section class="panel" id="sec-hl" aria-labelledby="h-hl">
+    <div class="head"><h2 id="h-hl">Health</h2><span class="tag">Source · the project and play statistics</span></div>
+    <div id="hl-body"></div>
+  </section>
+
+  <section class="panel" id="sec-pu" aria-labelledby="h-pu">
+    <div class="head"><h2 id="h-pu">Purchases</h2><span class="tag">Waiting for the paywall</span></div>
+    <div id="pu-body"></div>
+  </section>
+
+  <footer class="panel" aria-labelledby="h-src">
+    <div class="head"><h2 id="h-src">Sources and limits</h2></div>
+    <ul class="note" id="limits"></ul>
+  </footer>
+</div>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+
+<script>
+'use strict';
+const TOKEN = '__ADMIN_TOKEN__';
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const NS = 'http://www.w3.org/2000/svg';
+const sv = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+// ---------------------------------------------------------------- state
+const RANGES = [[7, '7 D'], [30, '30 D'], [90, '90 D'], [365, '1 Y'], [3650, 'All']];
+const SEGSETS = { phones: ['android', 'ios', 'web'], android: ['android'], ios: ['ios'], web: ['web'], test: ['test'], all: ['android', 'ios', 'web', 'test'] };
+const SEGNAME = { android: 'Android app', ios: 'iOS app', web: 'Phone browser', test: 'Test and dev' };
+const pref = (() => { try { return JSON.parse(localStorage.getItem('wvTraction') || '{}'); } catch (e) { return {}; } })();
+let RANGE = RANGES.some(r => r[0] === pref.range) ? pref.range : 30;
+let SEL = SEGSETS[pref.seg] ? pref.seg : 'phones';
+let DOC = null;
+const savePref = () => { try { localStorage.setItem('wvTraction', JSON.stringify({ range: RANGE, seg: SEL })); } catch (e) {} };
+
+// ---------------------------------------------------------------- formatting
+const fmt = n => { n = +n || 0; const a = Math.abs(n);
+  if (a >= 1e6) return (n / 1e6).toFixed(a >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
+  if (a >= 1e4) return (n / 1e3).toFixed(a >= 1e5 ? 0 : 1).replace(/\.0$/, '') + 'K';
+  return Math.round(n).toLocaleString('en-GB'); };
+const pct = (a, b) => b > 0 ? Math.round(100 * a / b) + '%' : '—';
+const dur = s => { s = Math.round(+s || 0); if (s < 60) return s + ' s'; const m = Math.floor(s / 60);
+  if (m < 60) return m + ' m ' + String(s % 60).padStart(2, '0') + ' s'; return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0') + ' m'; };
+const hours = s => { const h = (+s || 0) / 3600; return h >= 100 ? fmt(h) + ' h' : h.toFixed(h >= 10 ? 0 : 1) + ' h'; };
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const dShort = d => { const [y, m, dd] = d.split('-'); return +dd + ' ' + MON[+m - 1]; };
+const dLong = d => { const [y, m, dd] = d.split('-'); return +dd + ' ' + MON[+m - 1] + ' ' + y; };
+const today = () => new Date().toISOString().slice(0, 10);
+const addDays = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+const lvNum = n => (n < 10 ? '0' : '') + n;
+
+// THE ONE STAGE NAMER: lvNum(levelNo(ci, li)), from the contracts the server read
+// out of src/campaigns.js. A board key never reaches the screen (CLAUDE.md, house law).
+function stage(campId, li) {
+  const c = DOC && DOC.contracts.find(k => k.id === campId);
+  if (!c || !Number.isInteger(li) || li < 0) return null;
+  return { no: c.base + li + 1, name: lvNum(c.base + li + 1), title: c.title, boss: li === c.boss };
+}
+const stageCount = () => DOC ? DOC.contracts.reduce((n, c) => n + c.n, 0) : 0;
+const stageByNo = no => { for (const c of DOC.contracts) if (no > c.base && no <= c.base + c.n) return stage(c.id, no - c.base - 1); return null; };
+
+// ---------------------------------------------------------------- the data, cut by the filters
+const segs = () => SEGSETS[SEL];
+const inSeg = s => segs().includes(s);
+const medKey = () => segs().length === 1 ? segs()[0] : (SEL === 'all' ? 'all' : 'phones');
+function dayList(first) {
+  const end = today();
+  let start = RANGE >= 3650 ? (first || addDays(end, -29)) : addDays(end, -(RANGE - 1));
+  if (first && start < first && RANGE >= 3650) start = first;
+  const out = []; for (let d = start; d <= end; d = addDays(d, 1)) out.push(d);
+  return out;
+}
+// rows [d, seg, ...vals] → { d: [sum of each val] } over the selected segments
+function byDay(rows, nvals, segIdx = 1, from = 2) {
+  const m = {};
+  for (const r of rows || []) {
+    if (!inSeg(r[segIdx])) continue;
+    const v = m[r[0]] || (m[r[0]] = new Array(nvals).fill(0));
+    for (let i = 0; i < nvals; i++) v[i] += +r[from + i] || 0;
+  }
+  return m;
+}
+const inRange = d => d >= dayList()[0];
+const winRows = rows => (rows || []).filter(r => r[0] === RANGE);
+
+// ---------------------------------------------------------------- tooltip
+const tip = $('tip');
+function showTip(ev, title, rows) {
+  tip.textContent = '';
+  const b = el('b', null, title); tip.appendChild(b);
+  for (const [k, v, color] of rows) {
+    const r = el('div', 'r'); const l = el('span');
+    if (color) { const i = el('i', 'k'); i.style.background = color; l.appendChild(i); }
+    l.appendChild(document.createTextNode(k)); r.appendChild(l); r.appendChild(el('strong', null, v)); tip.appendChild(r);
+  }
+  tip.hidden = false;
+  const x = Math.min(window.innerWidth - tip.offsetWidth - 8, ev.clientX + 14), y = Math.max(8, ev.clientY - tip.offsetHeight - 10);
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+const hideTip = () => { tip.hidden = true; };
+
+// ---------------------------------------------------------------- chart kit
+function ticks(max) {
+  if (!(max > 0)) return [0, 1];
+  const raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  let step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw) || raw;
+  if (step < 1) step = 1;
+  const top = Math.ceil(max / step) * step, out = [];
+  for (let v = 0; v <= top + 1e-9; v += step) out.push(Math.round(v * 100) / 100);
+  return out;
+}
+// a bar from the baseline. Square at both ends: DESIGN.md cuts or squares a corner
+// and never rounds one, and that house rule wins over the dataviz default here.
+function barPath(x, y, w, h) {
+  if (h <= 0) return '';
+  return `M${x},${y + h}V${y}H${x + w}V${y + h}Z`;
+}
+// Columns over a category axis (days, stages, buckets). series: [{ name, values, color }],
+// stacked bottom-up. One series: the title names it, no legend.
+function columns(host, { labels, series, height = 190, tipTitle, xLabel, valFmt = fmt, every }) {
+  const box = el('div', 'chart'); host.appendChild(box);
+  if (series.length > 1) {
+    const lg = el('div', 'legend');
+    for (const s of series) { const it = el('span'); const i = el('i'); i.style.background = s.color; it.appendChild(i); it.appendChild(document.createTextNode(s.name)); lg.appendChild(it); }
+    box.appendChild(lg);
+  }
+  box.style.minHeight = height + 'px';
+  // drawn after the section is built: a grid lays its siblings out first, so the width read
+  // then is the final one (a timeout, not a frame: a hidden tab runs no frames)
+  setTimeout(() => {
+  const W = Math.max(260, box.clientWidth || host.clientWidth || 600), H = height;
+  const L = 34, R = 6, T = 10, B = 22, pw = W - L - R, ph = H - T - B;
+  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': (tipTitle ? '' : '') + series.map(s => s.name).join(', ') }, box);
+  const n = labels.length, tot = labels.map((_, i) => series.reduce((a, s) => a + (+s.values[i] || 0), 0));
+  const tk = ticks(Math.max(1, ...tot)), top = tk[tk.length - 1];
+  const y = v => T + ph - (v / top) * ph;
+  for (const t of tk) {
+    sv('line', { x1: L, x2: W - R, y1: y(t), y2: y(t), stroke: css('--grid'), 'stroke-width': 1 }, svg);
+    const tx = sv('text', { x: L - 6, y: y(t) + 3, 'text-anchor': 'end' }, svg); tx.textContent = fmt(t);
+  }
+  const bw = pw / Math.max(1, n), w = Math.max(1, Math.min(24, bw - 2));
+  const step = every || Math.max(1, Math.ceil(n / Math.max(2, Math.floor(pw / 64))));
+  labels.forEach((lab, i) => {
+    const cx = L + bw * i + bw / 2;
+    let base = 0;
+    series.forEach((s, si) => {
+      const v = +s.values[i] || 0; if (v <= 0) return;
+      const isTop = series.slice(si + 1).every(s2 => !(+s2.values[i] > 0));
+      const y0 = y(base + v), hh = y(base) - y0 - (base > 0 ? 2 : 0);
+      if (isTop) sv('path', { d: barPath(cx - w / 2, y0, w, Math.max(1, hh)), fill: s.color }, svg);
+      else sv('rect', { x: cx - w / 2, y: y0, width: w, height: Math.max(1, hh), fill: s.color }, svg);
+      base += v;
+    });
+    if (i % step === 0 || i === n - 1 && n <= 12) { const tx = sv('text', { x: cx, y: H - 6, 'text-anchor': 'middle' }, svg); tx.textContent = xLabel ? xLabel(lab, i) : lab; }
+    const hit = sv('rect', { x: L + bw * i, y: T, width: bw, height: ph, fill: 'transparent', tabindex: 0 }, svg);
+    const wash = () => { hit.setAttribute('fill', css('--accent-wash')); };
+    const go = ev => { wash(); showTip(ev.clientX ? ev : { clientX: hit.getBoundingClientRect().x, clientY: hit.getBoundingClientRect().y },
+      tipTitle ? tipTitle(lab, i) : String(lab), series.map(s => [s.name, valFmt(+s.values[i] || 0), s.color])); };
+    hit.addEventListener('pointermove', go); hit.addEventListener('focus', go);
+    hit.addEventListener('pointerleave', () => { hit.setAttribute('fill', 'transparent'); hideTip(); });
+    hit.addEventListener('blur', () => { hit.setAttribute('fill', 'transparent'); hideTip(); });
+  });
+  sv('line', { x1: L, x2: W - R, y1: T + ph, y2: T + ph, stroke: css('--line'), 'stroke-width': 1 }, svg);
+  }, 0);
+  return box;
+}
+// One series over days: a 2px line, a 10% wash, the end value labelled, a crosshair.
+function line(host, { labels, values, height = 120, valFmt = fmt, axisFmt = fmt, name }) {
+  const box = el('div', 'chart'); host.appendChild(box);
+  box.style.minHeight = height + 'px';
+  setTimeout(() => {
+  const W = Math.max(220, box.clientWidth || host.clientWidth || 320), H = height;
+  const L = 30, R = 34, T = 10, B = 20, pw = W - L - R, ph = H - T - B;
+  const svg = sv('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': name }, box);
+  const n = labels.length, tk = ticks(Math.max(1, ...values)), top = tk[tk.length - 1];
+  const x = i => L + (n <= 1 ? pw / 2 : (pw * i) / (n - 1)), y = v => T + ph - (v / top) * ph;
+  for (const t of [tk[0], tk[tk.length - 1]]) {
+    sv('line', { x1: L, x2: W - R, y1: y(t), y2: y(t), stroke: css('--grid'), 'stroke-width': 1 }, svg);
+    const tx = sv('text', { x: L - 6, y: y(t) + 3, 'text-anchor': 'end' }, svg); tx.textContent = axisFmt(t);
+  }
+  const pts = values.map((v, i) => [x(i), y(+v || 0)]);
+  if (pts.length) {
+    sv('path', { d: 'M' + pts.map(p => p.join(',')).join('L') + `L${x(n - 1)},${y(0)}L${x(0)},${y(0)}Z`, fill: css('--accent-wash') }, svg);
+    sv('path', { d: 'M' + pts.map(p => p.join(',')).join('L'), fill: 'none', stroke: css('--accent'), 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+    const e = pts[pts.length - 1];
+    sv('circle', { cx: e[0], cy: e[1], r: 4, fill: css('--accent'), stroke: css('--panel'), 'stroke-width': 2 }, svg);
+    const vl = sv('text', { x: e[0] + 7, y: e[1] + 4, class: 'vl' }, svg); vl.textContent = valFmt(values[n - 1]);
+    for (const i of [0, n - 1]) { if (n < 2 && i) continue; const tx = sv('text', { x: x(i), y: H - 5, 'text-anchor': i ? 'end' : 'start' }, svg); tx.textContent = dShort(labels[i]); }
+  }
+  const cross = sv('line', { y1: T, y2: T + ph, stroke: css('--line'), 'stroke-width': 1, visibility: 'hidden' }, svg);
+  const dot = sv('circle', { r: 4, fill: css('--accent'), stroke: css('--panel'), 'stroke-width': 2, visibility: 'hidden' }, svg);
+  const hit = sv('rect', { x: L, y: T, width: pw, height: ph, fill: 'transparent', tabindex: 0 }, svg);
+  const at = i => { if (!pts[i]) return; cross.setAttribute('x1', pts[i][0]); cross.setAttribute('x2', pts[i][0]); cross.setAttribute('visibility', 'visible');
+    dot.setAttribute('cx', pts[i][0]); dot.setAttribute('cy', pts[i][1]); dot.setAttribute('visibility', 'visible'); };
+  hit.addEventListener('pointermove', ev => { const r = svg.getBoundingClientRect(); const px = (ev.clientX - r.left) * (W / r.width);
+    const i = Math.max(0, Math.min(n - 1, Math.round(((px - L) / pw) * (n - 1)))); at(i); showTip(ev, dLong(labels[i]), [[name, valFmt(values[i]), css('--accent')]]); });
+  hit.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); hideTip(); });
+  }, 0);
+  return box;
+}
+// ranked horizontal bars in HTML: the name, the bar, the value at its tip
+function hbars(host, rows, { valFmt = fmt, total } = {}) {
+  if (!rows.length) { host.appendChild(el('div', 'empty', 'Nothing in this range.')); return; }
+  const max = Math.max(1, ...rows.map(r => r.value)), sum = total || rows.reduce((a, r) => a + r.value, 0);
+  const g = el('div', 'hb');
+  for (const r of rows) {
+    const l = el('div', 'l', r.label); l.title = r.label;
+    const b = el('div', 'b'); const bar = el('span', 'bar'); bar.style.width = (88 * r.value / max) + '%';
+    b.appendChild(bar); b.appendChild(el('em', null, valFmt(r.value) + (sum ? ' · ' + pct(r.value, sum) : '')));
+    const on = ev => { l.classList.add('hov'); showTip(ev, r.label, [['players', valFmt(r.value)], ['share', pct(r.value, sum)]]); };
+    for (const x of [l, b]) { x.addEventListener('pointermove', on); x.addEventListener('pointerleave', () => { l.classList.remove('hov'); hideTip(); }); }
+    g.appendChild(l); g.appendChild(b);
+  }
+  host.appendChild(g);
+}
+function tableView(host, head, rows, open) {
+  const d = el('details', 'tv'); if (open) d.open = true;
+  d.appendChild(el('summary', null, open ? 'Table' : 'Table view'));
+  const w = el('div', 'tw'), t = el('table'), tr = el('tr');
+  for (const h of head) tr.appendChild(el('th', null, h));
+  const th = el('thead'); th.appendChild(tr); t.appendChild(th);
+  const tb = el('tbody');
+  // a column of words reads from the left, a column of numbers from the right
+  const words = head.map((_, i) => rows.some(r => typeof r[i] === 'string' && !/^[\d—<.%+\-]/.test(r[i])));
+  head.forEach((_, i) => { if (words[i]) tr.children[i].style.textAlign = 'left'; });
+  for (const r of rows) { const row = el('tr'); r.forEach((c, i) => { const td = el('td'); if (c instanceof Node) td.appendChild(c); else td.textContent = c == null ? '—' : String(c); if (words[i]) td.style.textAlign = 'left'; row.appendChild(td); }); tb.appendChild(row); }
+  t.appendChild(tb); w.appendChild(t); d.appendChild(w); host.appendChild(d);
+  return d;
+}
+function card(host, title, sub) {
+  const c = el('div', 'card'); c.appendChild(el('h3', null, title));
+  if (sub) c.appendChild(el('div', 'sub', sub));
+  host.appendChild(c); return c;
+}
+function tile(host, label, value, foot, cls) {
+  const t = el('div', 'tile'); t.appendChild(el('div', 'lab', label));
+  t.appendChild(el('div', 'val' + (cls ? ' ' + cls : '') + (value === '—' ? ' none' : ''), value));
+  if (foot) { if (foot instanceof Node) t.appendChild(foot); else t.appendChild(el('div', 'foot', foot)); }
+  host.appendChild(t); return t;
+}
+function status(kind, text) { const s = el('div', 'st ' + kind); s.textContent = (kind === 'good' ? '✓ ' : kind === 'warn' ? '! ' : '✕ ') + text; return s; }
+const empty = (host, text) => host.appendChild(el('div', 'empty', text));
+const WAIT_TEL = 'No play statistics yet. They start when the migration 20261105000000_telemetry.sql is pushed and a build carrying src/game/34-telemetry.js reaches players.';
+
+// ---------------------------------------------------------------- shared reads
+const telOn = () => !!(DOC && DOC.tel && DOC.tel.first);
+const players = () => (telOn() ? DOC.tel : DOC.base);   // the better source for player counts
+function activeInWindow(src) {  // distinct players active in the range, from the per-window platform rows
+  const rows = src === DOC.tel ? winRows(DOC.tel.device).map(r => [r[1], r[6]]) : winRows(DOC.base.platform).map(r => [r[1], r[4]]);
+  return rows.filter(r => inSeg(r[0])).reduce((a, r) => a + (+r[1] || 0), 0);
+}
+function storeDays() {
+  const s = DOC.store || { play: { days: {} }, ios: { days: {} } }, days = dayList();
+  return { days, play: days.map(d => (s.play.days[d] || {}).installs || 0), ios: days.map(d => (s.ios.days[d] || {}).downloads || 0),
+    playAny: Object.keys(s.play.days).length > 0, iosAny: Object.keys(s.ios.days).length > 0 };
+}
+function cohortRows(src) {
+  const m = {};
+  for (const r of src.cohorts || []) {
+    if (!inSeg(r[1])) continue;
+    const v = m[r[0]] || (m[r[0]] = new Array(10).fill(0));
+    for (let i = 0; i < 10; i++) v[i] += +r[2 + i] || 0;
+  }
+  const first = dayList()[0];
+  return Object.entries(m).filter(([wk]) => addDays(wk, 6) >= first).sort((a, b) => a[0] < b[0] ? 1 : -1);
+}
+
+// ---------------------------------------------------------------- the sections
+function renderKpis() {
+  const h = $('kpis'); h.textContent = '';
+  const sd = storeDays(), P = players(), days = dayList();
+  const inst = sd.play.reduce((a, b) => a + b, 0) + sd.ios.reduce((a, b) => a + b, 0);
+  tile(h, 'Installs, both stores', sd.playAny || sd.iosAny ? fmt(inst) : '—',
+    sd.playAny || sd.iosAny ? 'Play ' + fmt(sd.play.reduce((a, b) => a + b, 0)) + ' · App Store ' + fmt(sd.ios.reduce((a, b) => a + b, 0)) : 'No store data yet — see Downloads');
+  tile(h, 'Active players', fmt(activeInWindow(P)), telOn() ? 'played in the range' : 'reached the backend in the range');
+  const nd = byDay(P.new, 1); const nNew = days.reduce((a, d) => a + ((nd[d] || [0])[0]), 0);
+  tile(h, 'New players', fmt(nNew), inst ? pct(nNew, inst) + ' of installs' : 'first seen in the range');
+  const dd = byDay(P.daily, 4); const last7 = days.slice(-7).map(d => (dd[d] || [0])[0]);
+  tile(h, 'Daily players, 7-day mean', (last7.reduce((a, b) => a + b, 0) / Math.max(1, last7.length)).toFixed(1), 'today ' + fmt((dd[today()] || [0])[0]));
+  const co = cohortRows(P); const e7 = co.reduce((a, [, v]) => a + v[2], 0), r7 = co.reduce((a, [, v]) => a + v[8], 0);
+  tile(h, 'Came back after day 7', e7 ? pct(r7, e7) : '—', e7 ? fmt(r7) + ' of ' + fmt(e7) + ' new players' : 'no cohort old enough');
+  if (telOn()) {
+    const pm = winRows(DOC.tel.pum).find(r => r[1] === medKey());
+    tile(h, 'Median time per player', pm ? dur(pm[5]) : '—', pm ? fmt(pm[2]) + ' players, ' + hours(pm[4]) + ' in all' : 'in the range');
+  } else tile(h, 'Median time per player', '—', 'needs play statistics');
+}
+
+function renderDownloads() {
+  const host = $('dl-charts'); host.textContent = '';
+  const sd = storeDays(), st = DOC.store || {};
+  const c1 = card(host, 'Google Play: installs per day', sd.playAny ? 'Daily user installs, from the Play reports' : '');
+  if (sd.playAny) {
+    columns(c1, { labels: sd.days, series: [{ name: 'installs', values: sd.play, color: css('--accent') }], tipTitle: dLong, xLabel: dShort });
+    const pd = st.play.days;
+    tableView(c1, ['Day', 'Installs', 'Uninstalls', 'Updates', 'Active devices'], sd.days.filter(d => pd[d]).reverse().map(d => [dLong(d), fmt(pd[d].installs), fmt(pd[d].uninstalls), fmt(pd[d].updates), pd[d].active != null ? fmt(pd[d].active) : '—']));
+  } else empty(c1, 'No Play numbers yet. Sync with a service account, or upload the installs overview CSV.');
+  const c2 = card(host, 'App Store: first-time downloads per day', sd.iosAny ? 'Units of product type 1, from Sales and Trends' : '');
+  if (sd.iosAny) {
+    columns(c2, { labels: sd.days, series: [{ name: 'downloads', values: sd.ios, color: css('--accent') }], tipTitle: dLong, xLabel: dShort });
+    const id = st.ios.days;
+    tableView(c2, ['Day', 'Downloads', 'Re-downloads', 'Updates', 'In-app purchases'], sd.days.filter(d => id[d]).reverse().map(d => [dLong(d), fmt(id[d].downloads), fmt(id[d].redownloads), fmt(id[d].updates), fmt(id[d].iap)]));
+  } else empty(c2, 'No App Store numbers yet. Sync with an App Store Connect API key, or upload a daily sales report.');
+  const s = $('dl-setup'); s.textContent = '';
+  const p = st.play || {}, i = st.ios || {};
+  s.appendChild(document.createTextNode('Credentials live in ' + (st.dir || '~/.warp-vanguard') + ', outside every checkout. The steps are in docs/STORE-REPORTS-SETUP.md. '));
+  s.appendChild(document.createTextNode('Google Play: ' + (p.ready ? 'ready' + (p.syncedAt ? ', last sync ' + dLong(p.syncedAt.slice(0, 10)) : '') : (p.bucket ? 'bucket set, ' : 'no bucket, ') + (p.key ? 'key present' : 'no key')) + '. '));
+  s.appendChild(document.createTextNode('App Store: ' + (i.ready ? 'ready' + (i.syncedAt ? ', last sync ' + dLong(i.syncedAt.slice(0, 10)) : '') : (i.ids ? 'ids set, ' : 'no ids, ') + (i.key ? 'key present' : 'no key')) + '. '));
+  s.appendChild(document.createTextNode('Until then, upload a file: a Play installs overview CSV, an Apple daily sales report (.txt or .gz), an App Store Connect analytics export, or any CSV with a date column and a count.'));
+  $('sync-play').disabled = !p.ready; $('sync-ios').disabled = !i.ready;
+  $('dl-log').textContent = (st.log || []).slice(0, 6).map(l => l.at.slice(0, 16).replace('T', ' ') + '  ' + (l.store === 'ios' ? 'App Store' : 'Play') + '  ' + l.source + '  ' + (l.days || 0) + ' days' + (l.from ? ' ' + l.from + ' → ' + l.to : '')).join('\n');
+}
+
+function renderPlayers() {
+  const host = $('pl-body'); host.textContent = '';
+  const P = players(), days = dayList(P.first);
+  $('pl-src').textContent = telOn() ? 'Source · play statistics' : 'Source · leaderboard identities';
+  if (!telOn()) host.appendChild(el('p', 'note', 'Before play statistics ship, a player exists here only once their device reached the backend: the first time they opened a board or posted a score. A day "seen" is a day a session token was refreshed.'));
+  const g = el('div', 'grid'); host.appendChild(g);
+  const nd = byDay(P.new, 1), dd = byDay(P.daily, 4);
+  const c = card(g, 'New and returning players per day', telOn() ? 'A returning player played on an earlier day' : 'A returning identity was first seen on an earlier day');
+  columns(c, { labels: days, series: [
+    { name: 'Returning', values: days.map(d => (dd[d] || [0, 0])[1]), color: css('--accent') },
+    { name: 'New', values: days.map(d => (nd[d] || [0])[0]), color: css('--grey') }], tipTitle: dLong, xLabel: dShort });
+  tableView(c, ['Day', 'New', 'Returning', 'Daily', 'Weekly', 'Monthly'], days.slice().reverse().map(d => { const v = dd[d] || [0, 0, 0, 0]; return [dLong(d), fmt((nd[d] || [0])[0]), fmt(v[1]), fmt(v[0]), fmt(v[2]), fmt(v[3])]; }));
+  const c2 = card(g, 'How often each player came back', telOn() ? 'Sessions per player in the range' : 'Separate days each identity was seen, all time');
+  if (telOn()) {
+    const B = ['1', '2', '3–5', '6–10', '11–20', '21+'], v = new Array(6).fill(0);
+    for (const r of winRows(DOC.tel.spu)) if (inSeg(r[1])) v[r[2]] += +r[3] || 0;
+    columns(c2, { labels: B, series: [{ name: 'players', values: v, color: css('--accent') }], tipTitle: l => l + ' sessions', every: 1 });
+    tableView(c2, ['Sessions', 'Players'], B.map((b, i) => [b, fmt(v[i])]));
+  } else {
+    const B = ['1', '2', '3', '4', '5', '6', '7', '8+'], v = new Array(8).fill(0);
+    for (const r of DOC.base.seen) if (inSeg(r[0])) v[Math.min(8, r[1]) - 1] += +r[2] || 0;
+    columns(c2, { labels: B, series: [{ name: 'players', values: v, color: css('--accent') }], tipTitle: l => l + (l === '1' ? ' day' : ' days'), every: 1 });
+    tableView(c2, ['Days seen', 'Players'], B.map((b, i) => [b, fmt(v[i])]));
+  }
+  const g3 = el('div', 'grid three'); g3.style.marginTop = '16px'; host.appendChild(g3);
+  for (const [i, name, sub] of [[0, 'Daily players', 'DAU'], [2, 'Weekly players', 'WAU, the 7 days to each day'], [3, 'Monthly players', 'MAU, the 30 days to each day']]) {
+    const k = card(g3, name, sub);
+    line(k, { labels: days, values: days.map(d => (dd[d] || [0, 0, 0, 0])[i]), name });
+  }
+  const c4 = card(host, 'Retention by weekly cohort', 'Share of each week\'s new players who came back on or after day 1, 7 and 30. Hover a cell for the share active on exactly that day.');
+  c4.style.marginTop = '16px';
+  const rows = cohortRows(P);
+  if (!rows.length) empty(c4, 'No cohort in this range.');
+  else {
+    const w = el('div', 'tw'), t = el('table'), hr = el('tr');
+    for (const hh of ['Week of', 'New players', 'Day 1', 'Day 7', 'Day 30']) hr.appendChild(el('th', null, hh));
+    const th = el('thead'); th.appendChild(hr); t.appendChild(th); const tb = el('tbody');
+    for (const [wk, v] of rows) {
+      const tr = el('tr'); tr.appendChild(el('td', null, dLong(wk))); tr.appendChild(el('td', null, fmt(v[0])));
+      for (const [e, a, r, dn] of [[v[1], v[4], v[7], 1], [v[2], v[5], v[8], 7], [v[3], v[6], v[9], 30]]) {
+        const td = el('td', 'heat');
+        if (!e) { td.textContent = '—'; td.className = 'dim'; }
+        else {
+          const share = r / e; td.textContent = pct(r, e);
+          td.style.background = `rgba(111, 227, 255, ${(0.08 + 0.62 * share).toFixed(3)})`;
+          if (share > 0.55) td.classList.add('dark');
+          td.addEventListener('pointermove', ev => showTip(ev, 'Week of ' + dLong(wk) + ', day ' + dn, [['came back on or after', fmt(r) + ' of ' + fmt(e)], ['active on exactly day ' + dn, fmt(a) + ' of ' + fmt(e)]]));
+          td.addEventListener('pointerleave', hideTip);
+        }
+        tr.appendChild(td);
+      }
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb); w.appendChild(t); c4.appendChild(w);
+  }
+}
+
+function renderPlaytime() {
+  const host = $('pt-body'); host.textContent = '';
+  if (!telOn()) { empty(host, WAIT_TEL); return; }
+  const T = DOC.tel, days = dayList(T.first), key = medKey();
+  const k = el('div', 'kpis'); host.appendChild(k);
+  const pm = winRows(T.pum).find(r => r[1] === key);
+  const sx = {}; for (const r of T.sessions) if (r[1] === key) sx[r[0]] = r;
+  const inR = days.map(d => sx[d]).filter(Boolean);
+  const nS = inR.reduce((a, r) => a + r[2], 0), fg = inR.reduce((a, r) => a + r[3], 0);
+  tile(k, 'Sessions', fmt(nS), 'in the range');
+  tile(k, 'Mean session', nS ? dur(fg / nS) : '—', 'time on screen');
+  tile(k, 'Sessions per player', pm && pm[2] ? (pm[3] / pm[2]).toFixed(1) : '—', pm ? fmt(pm[2]) + ' players' : '');
+  tile(k, 'Time per player, median', pm ? dur(pm[5]) : '—', pm && pm[2] ? 'mean ' + dur(pm[4] / pm[2]) : '');
+  tile(k, 'Time played, all players', hours(fg), 'in the range');
+  const g = el('div', 'grid'); host.appendChild(g);
+  const c1 = card(g, 'Median session length per day', 'Seconds the game was on screen, half of sessions longer');
+  line(c1, { labels: days, values: days.map(d => (sx[d] || [])[4] || 0), name: 'median session', valFmt: dur, axisFmt: v => Math.round(v / 60) + ' m', height: 150 });
+  tableView(c1, ['Day', 'Sessions', 'Median', '90th percentile', 'Total'], days.filter(d => sx[d]).reverse().map(d => [dLong(d), fmt(sx[d][2]), dur(sx[d][4]), dur(sx[d][5]), hours(sx[d][3])]));
+  const c2 = card(g, 'Total time per player', 'In the range');
+  const B = ['< 5 m', '5–15 m', '15–30 m', '30–60 m', '1–2 h', '2–5 h', '5 h +'], v = new Array(7).fill(0);
+  for (const r of winRows(T.tpu)) if (inSeg(r[1])) v[r[2]] += +r[3] || 0;
+  columns(c2, { labels: B, series: [{ name: 'players', values: v, color: css('--accent') }], tipTitle: l => l, every: 1 });
+  tableView(c2, ['Time', 'Players'], B.map((b, i) => [b, fmt(v[i])]));
+}
+
+function stageTable() { // telemetry, campaign mode, the range and the segments
+  const m = {};
+  for (const r of winRows(DOC.tel.stages)) {
+    if (!inSeg(r[1]) || r[2] !== 'campaign') continue;
+    const s = stage(r[3], r[4]); if (!s) continue;
+    const v = m[s.no] || (m[s.no] = { s, n: 0, clears: 0, fails: 0, quits: 0, assisted: 0, users: 0, uc: 0, dur: 0 });
+    v.n += r[5]; v.clears += r[6]; v.fails += r[7]; v.quits += r[8]; v.assisted += r[9]; v.users += r[10]; v.uc += r[11]; v.dur += r[12];
+  }
+  return m;
+}
+function renderProgress() {
+  const host = $('pg-body'); host.textContent = '';
+  const N = stageCount(), labels = []; for (let i = 1; i <= N; i++) labels.push(lvNum(i));
+  const tipStage = (l, i) => { const s = stageByNo(i + 1); return s ? 'Stage ' + s.name + ' · ' + s.title + (s.boss ? ' · boss' : '') : 'Stage ' + l; };
+  if (telOn()) {
+    $('pg-src').textContent = 'Source · play statistics';
+    const m = stageTable();
+    const c = card(host, 'Players who reached each stage', 'Players with at least one attempt on the stage, in the range. The bright part of a bar cleared it.');
+    columns(c, { labels, series: [
+      { name: 'Cleared it', values: labels.map((_, i) => (m[i + 1] || {}).uc || 0), color: css('--accent') },
+      { name: 'Reached, not cleared', values: labels.map((_, i) => Math.max(0, ((m[i + 1] || {}).users || 0) - ((m[i + 1] || {}).uc || 0))), color: css('--grey') }],
+      tipTitle: tipStage, height: 210 });
+    const rows = Object.values(m).sort((a, b) => a.s.no - b.s.no).map(v => {
+      const nm = el('span', null, v.s.name); if (v.s.boss) nm.appendChild(el('span', 'boss', 'BOSS'));
+      return [nm, v.s.title, fmt(v.n), fmt(v.clears), fmt(v.fails), fmt(v.quits), pct(v.clears, v.n), fmt(v.users), fmt(v.uc), dur(v.dur / Math.max(1, v.n)), fmt(v.assisted)];
+    });
+    if (rows.length) tableView(c, ['Stage', 'Contract', 'Attempts', 'Clears', 'Fails', 'Quits', 'Clear rate', 'Players', 'Cleared by', 'Mean time', 'Assisted'], rows, true);
+    else empty(c, 'No stage attempts in this range.');
+    const g = el('div', 'grid'); g.style.marginTop = '16px'; host.appendChild(g);
+    // the qualification course: who started it, who finished it
+    const q = winRows(DOC.tel.stages).filter(r => r[2] === 'qual' && inSeg(r[1]));
+    const qu = q.reduce((a, r) => a + r[10], 0), qc = q.reduce((a, r) => a + r[11], 0);
+    const ct = card(g, 'Qualification course completion', 'Players who started the course, and the share who finished it');
+    if (qu) {
+      const mt = el('div', 'meter'); const sp = el('span'); sp.style.width = Math.round(100 * qc / qu) + '%'; mt.appendChild(sp); ct.appendChild(mt);
+      ct.appendChild(el('div', 'note', fmt(qc) + ' of ' + fmt(qu) + ' players finished it (' + pct(qc, qu) + ').'));
+    } else empty(ct, 'No course runs in this range.');
+    const tk = winRows(DOC.tel.eventKeys).filter(r => inSeg(r[1]) && /^tutorial\./.test(r[2]));
+    if (tk.length) {
+      const agg = {}; for (const r of tk) { const k2 = r[2] + (r[3] ? ' · ' + r[3] : ''); agg[k2] = (agg[k2] || 0) + r[5]; }
+      tableView(ct, ['Tutorial event', 'Players'], Object.entries(agg).sort().map(([k2, n]) => [k2, fmt(n)]), true);
+    } else ct.appendChild(el('div', 'note', 'The tutorial session adds tutorial.* events; they appear here when it ships.'));
+    const days = dayList(DOC.tel.first);
+    const md = {}; for (const r of DOC.tel.modes) if (inSeg(r[1])) { const v = md[r[0]] || (md[r[0]] = { endless: 0, weekly: 0 }); if (r[2] in v) v[r[2]] += r[3]; }
+    const cm = card(g, 'Free flow and the weekly lane', 'Attempts per day');
+    columns(cm, { labels: days, series: [
+      { name: 'Weekly lane', values: days.map(d => (md[d] || {}).weekly || 0), color: css('--accent') },
+      { name: 'Free flow', values: days.map(d => (md[d] || {}).endless || 0), color: css('--grey') }], tipTitle: dLong, xLabel: dShort });
+    const mw = winRows(DOC.tel.stages).filter(r => inSeg(r[1]) && (r[2] === 'endless' || r[2] === 'weekly'));
+    const by = mo => mw.filter(r => r[2] === mo).reduce((a, r) => [a[0] + r[5], a[1] + r[10], a[2] + r[12]], [0, 0, 0]);
+    tableView(cm, ['Mode', 'Attempts', 'Players', 'Time flown'], [['Weekly lane', ...by('weekly').map((x, i) => i === 2 ? hours(x) : fmt(x))], ['Free flow', ...by('endless').map((x, i) => i === 2 ? hours(x) : fmt(x))]]);
+  } else {
+    $('pg-src').textContent = 'Source · the leaderboards';
+    host.appendChild(el('p', 'note', 'Until play statistics ship, progress is read off the boards: a player counts on a stage only if a run of theirs placed there. Every run that makes a board\'s top 100 is a row, so this is a floor on reach and never traffic. Attempts, clears, fails and the course need play statistics.'));
+    const reach = new Array(N + 1).fill(0);
+    for (const r of DOC.base.reach) if (inSeg(r[0])) for (let k = 1; k <= Math.min(N, r[1]); k++) reach[k] += r[2];
+    const c = card(host, 'Players who posted a score on a stage or beyond', 'All time. A player who posted on stage 12 also counts on 01 to 11.');
+    columns(c, { labels, series: [{ name: 'players', values: labels.map((_, i) => reach[i + 1]), color: css('--accent') }], tipTitle: tipStage, height: 200 });
+    const bs = {};
+    for (const r of DOC.base.boards) {
+      if (!inSeg(r[1])) continue;
+      const m2 = /^([a-z0-9-]+):(\d+)$/.exec(r[0]); const s = m2 && stage(m2[1], +m2[2]);
+      const k2 = s ? 'S' + s.no : r[0].startsWith('weekly:') ? 'weekly' : 'other';
+      const v = bs[k2] || (bs[k2] = { s, entries: 0, players: 0, verified: 0, last: '' });
+      v.entries += r[2]; v.players += r[3]; v.verified += r[4]; if (r[5] > v.last) v.last = r[5];
+    }
+    const rows = Object.values(bs).filter(v => v.s).sort((a, b) => a.s.no - b.s.no).map(v => {
+      const nm = el('span', null, v.s.name); if (v.s.boss) nm.appendChild(el('span', 'boss', 'BOSS'));
+      return [nm, v.s.title, fmt(v.players), fmt(v.verified), dLong(String(v.last).slice(0, 10))];
+    });
+    if (bs.weekly) rows.push(['Weekly lane', 'every week', fmt(bs.weekly.players), fmt(bs.weekly.verified), dLong(String(bs.weekly.last).slice(0, 10))]);
+    tableView(c, ['Stage', 'Contract', 'Players on the board', 'Verified runs', 'Last entry'], rows, true);
+  }
+}
+
+function renderPlatform() {
+  const host = $('pf-body'); host.textContent = '';
+  const T = telOn();
+  $('pf-src').textContent = T ? 'Source · play statistics' : 'Source · the user agent of each identity\'s last session';
+  const rows = T ? winRows(DOC.tel.device).filter(r => inSeg(r[1])).map(r => ({ seg: r[1], os: r[2], model: r[3], v: r[4], loc: r[5], n: +r[6] || 0 }))
+                 : winRows(DOC.base.platform).filter(r => inSeg(r[1])).map(r => ({ seg: r[1], os: r[2], model: r[3], n: +r[4] || 0 }));
+  const sumBy = f => { const m = {}; for (const r of rows) { const k = f(r) || 'unknown'; m[k] = (m[k] || 0) + r.n; } return Object.entries(m).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value })); };
+  if (!T) host.appendChild(el('p', 'note', 'Players active in the range. Test and dev is every desktop, automated or scripted browser: the game ships as phone apps, so a desktop is a developer. A phone browser is almost always a LAN test.'));
+  const g = el('div', 'grid'); host.appendChild(g);
+  const c1 = card(g, 'Platform'); hbars(c1, sumBy(r => SEGNAME[r.seg]));
+  const c2 = card(g, 'OS version'); const os = sumBy(r => r.os); hbars(c2, os.slice(0, 12)); if (os.length > 12) tableView(c2, ['OS', 'Players'], os.map(r => [r.label, fmt(r.value)]));
+  const c3 = card(g, 'Device model', 'A model is a name millions of devices share'); const md = sumBy(r => r.model); hbars(c3, md.slice(0, 15)); if (md.length > 15) tableView(c3, ['Model', 'Players'], md.map(r => [r.label, fmt(r.value)]));
+  const c4 = card(g, 'App version');
+  if (T) {
+    const v = sumBy(r => r.v); hbars(c4, v.slice(0, 10));
+    const c5 = card(g, 'Locale'); hbars(c5, sumBy(r => r.loc).slice(0, 12));
+  } else empty(c4, 'The app version rides play statistics. The user agent does not carry it.');
+}
+
+function renderHealth() {
+  const host = $('hl-body'); host.textContent = '';
+  const k = el('div', 'kpis'); host.appendChild(k);
+  const days = dayList(), first = days[0];
+  const fbRows = DOC.base.feedback.filter(r => r[0] >= first && inSeg(r[2]));
+  const fbN = fbRows.reduce((a, r) => a + r[3], 0), fbOpen = DOC.base.feedback.filter(r => inSeg(r[2])).reduce((a, r) => a + r[4], 0), fbErr = fbRows.reduce((a, r) => a + r[5], 0);
+  const rp = DOC.base.reports.filter(r => r[0] >= first), rpN = rp.reduce((a, r) => a + r[2], 0), rpOpen = DOC.base.reports.reduce((a, r) => a + r[3], 0);
+  const ev = n => winRows(DOC.tel && DOC.tel.eventsWin).filter(r => inSeg(r[1]) && r[2] === n).reduce((a, r) => [a[0] + r[3], a[1] + r[4]], [0, 0]);
+  const evk = (n, kk) => winRows(DOC.tel && DOC.tel.eventKeys).filter(r => inSeg(r[1]) && r[2] === n && r[3] === kk).reduce((a, r) => a + r[4], 0);
+  if (telOn()) {
+    const f = ev('fault');
+    tile(k, 'System faults', fmt(f[0]), f[0] ? status(f[1] > 2 ? 'bad' : 'warn', fmt(f[1]) + ' players hit one') : status('good', 'none in the range'));
+  } else tile(k, 'System faults', fbErr ? fmt(fbErr) : '—', 'counted from play statistics; until then only notes that carried one');
+  tile(k, 'Feedback notes', fmt(fbN), fbOpen ? status('warn', fmt(fbOpen) + ' open') : status('good', 'none open'));
+  tile(k, 'Reports filed', fmt(rpN), rpOpen ? status('warn', fmt(rpOpen) + ' open') : status('good', 'none open'));
+  const posts = byDay(DOC.base.posts, 1);
+  const pN = days.reduce((a, d) => a + ((posts[d] || [0])[0]), 0);
+  if (telOn()) {
+    const sOk = evk('submit', 'ok'), sVer = evk('submit', 'verify'), sOut = evk('submit', 'outdated'), sAll = ev('submit')[0];
+    tile(k, 'Ranked submissions', fmt(sAll), fmt(sOk) + ' accepted', 'gold');
+    tile(k, 'Verifier rejects', fmt(sVer), sVer ? status(sAll && sVer / sAll > 0.05 ? 'bad' : 'warn', pct(sVer, sAll) + ' of submissions') : status('good', 'none'));
+    tile(k, 'Stale-build refusals', fmt(sOut), sOut ? status('warn', 'players on an old build') : status('good', 'none'));
+  } else {
+    tile(k, 'Scores placed on a board', fmt(pN), 'a floor: a refused score writes nothing', 'gold');
+    tile(k, 'Verifier rejects', '—', 'counted from play statistics; today only the submit-run logs hold them');
+  }
+  const g = el('div', 'grid'); host.appendChild(g);
+  const c1 = card(g, 'Feedback notes per day', 'Open notes are answered in the moderation queue');
+  const fd = {}; for (const r of DOC.base.feedback) if (inSeg(r[2])) fd[r[0]] = (fd[r[0]] || 0) + r[3];
+  if (fbN) columns(c1, { labels: days, series: [{ name: 'notes', values: days.map(d => fd[d] || 0), color: css('--accent') }], tipTitle: dLong, xLabel: dShort });
+  else empty(c1, 'No notes in this range.');
+  const topics = {}; for (const r of fbRows) topics[r[1]] = (topics[r[1]] || 0) + r[3];
+  if (fbN) tableView(c1, ['Topic', 'Notes'], Object.entries(topics).map(([t, n]) => [t, fmt(n)]));
+  if (telOn()) {
+    const c2 = card(g, 'Where faults happened', 'The error net\'s site, never the message');
+    const fw = {}; for (const r of winRows(DOC.tel.eventKeys)) if (inSeg(r[1]) && r[2] === 'fault') fw[r[3] || 'unknown'] = (fw[r[3] || 'unknown'] || 0) + r[4];
+    hbars(c2, Object.entries(fw).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value })), { total: 0 });
+    const c3 = card(g, 'Every event in the range');
+    const agg = {}; for (const r of winRows(DOC.tel.eventsWin)) if (inSeg(r[1])) { const v = agg[r[2]] || (agg[r[2]] = [0, 0]); v[0] += r[3]; v[1] += r[4]; }
+    const er = Object.entries(agg).sort((a, b) => b[1][0] - a[1][0]);
+    if (er.length) tableView(c3, ['Event', 'Count', 'Players'], er.map(([n, v]) => [n, fmt(v[0]), fmt(v[1])]), true);
+    else empty(c3, 'No events in this range.');
+  } else { const c2 = card(g, 'Faults and verifier rejects'); empty(c2, WAIT_TEL); }
+}
+
+// THE PAYWALL SLOT. The paywall session names its events; anything starting
+// paywall., offer. or purchase. lands here on its own. Conversion is buyers over viewers.
+function renderPurchases() {
+  const host = $('pu-body'); host.textContent = '';
+  const rows = telOn() ? winRows(DOC.tel.eventsWin).filter(r => inSeg(r[1]) && /^(paywall|offer|purchase)\./.test(r[2])) : [];
+  const iap = storeDays(), sIos = DOC.store && DOC.store.ios ? iap.days.reduce((a, d) => a + ((DOC.store.ios.days[d] || {}).iap || 0), 0) : 0;
+  if (!rows.length) {
+    empty(host, 'The paywall has not shipped. When it does, its offer views, purchases and restores appear here as events named paywall.*, offer.* or purchase.*, with conversion as buyers over viewers. App Store in-app purchase units from Sales and Trends: ' + fmt(sIos) + ' in the range.');
+    return;
+  }
+  const agg = {}; for (const r of rows) { const v = agg[r[2]] || (agg[r[2]] = [0, 0]); v[0] += r[3]; v[1] += r[4]; }
+  const k = el('div', 'kpis'); host.appendChild(k);
+  const viewers = Object.entries(agg).filter(([n]) => /view|show|open/.test(n)).reduce((a, [, v]) => a + v[1], 0);
+  const buyers = Object.entries(agg).filter(([n]) => /buy|purchase\.(ok|done|complete)|paid/.test(n)).reduce((a, [, v]) => a + v[1], 0);
+  tile(k, 'Players who saw the offer', fmt(viewers));
+  tile(k, 'Players who bought', fmt(buyers), null, 'gold');
+  tile(k, 'Conversion', viewers ? pct(buyers, viewers) : '—', 'buyers over viewers');
+  tile(k, 'App Store in-app units', fmt(sIos), 'Sales and Trends');
+  tableView(host, ['Event', 'Count', 'Players'], Object.entries(agg).sort().map(([n, v]) => [n, fmt(v[0]), fmt(v[1])]), true);
+}
+
+function renderLimits() {
+  const u = $('limits'); u.textContent = '';
+  const items = [
+    'Installs come from the stores and nowhere else. Play writes its install reports to a Cloud Storage bucket once a day, a few days behind; Apple publishes the day before, at about 5 am Pacific.',
+    'A player is an anonymous Supabase identity, one per device. Reinstalling the game, clearing its data or using MY DATA → Delete makes a new one, so a player can count twice.',
+    'Before play statistics ship, an identity exists only once a device reached the backend, and a day "seen" is a day its session token was refreshed. A session lasts an hour, so two visits an hour apart count once.',
+    'Every run that places in a board\'s top 100 is a row of its own, and a board stops at 100, so every number read off the boards is a floor.',
+    'Test and dev is a guess from the user agent: a desktop, an automated browser or a script. The developer\'s own phones running a store build count as players.',
+    'A stage is named as the game names it, 01 to ' + lvNum(stageCount()) + ' across every contract, from src/campaigns.js as it is today.',
+    'Play statistics are kept for thirteen months. This page runs public.purge_old_telemetry() once a day while it is open.',
+  ];
+  if (DOC.telError) items.unshift('The play-statistics query failed: ' + DOC.telError);
+  if (DOC.purge && DOC.purge.purged) items.push('Last purge today: ' + JSON.stringify(DOC.purge.purged) + '.');
+  for (const t of items) u.appendChild(el('li', null, t));
+}
+
+function render() {
+  if (!DOC || !DOC.base) return;
+  hideTip();
+  const r = $('range'); r.textContent = '';
+  for (const [d, label] of RANGES) {
+    const b = el('button', null, label); b.type = 'button'; b.setAttribute('aria-pressed', String(d === RANGE));
+    b.addEventListener('click', () => { RANGE = d; savePref(); render(); }); r.appendChild(b);
+  }
+  $('segsel').value = SEL;
+  $('meta').textContent = (DOC.fixture ? 'FIXTURE play statistics, not the live project · ' : '') + 'Project ' + DOC.project + ' · read ' + new Date(DOC.at).toLocaleString('en-GB') + ' · ' + (telOn() ? 'play statistics since ' + dLong(DOC.tel.first) : (DOC.base.telemetry ? 'play statistics tables exist, no rows yet' : 'play statistics not deployed'));
+  for (const f of [renderKpis, renderDownloads, renderPlayers, renderPlaytime, renderProgress, renderPlatform, renderHealth, renderPurchases, renderLimits]) {
+    try { f(); } catch (e) { console.error(e); $('status').textContent = 'A section failed to draw: ' + e.message; $('status').className = 'status err'; }
+  }
+}
+
+// ---------------------------------------------------------------- the wire
+async function api(p, body) {
+  const r = await fetch(p, body ? { method: 'POST', headers: { 'X-Admin-Token': TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { headers: { 'X-Admin-Token': TOKEN } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+async function load(fresh) {
+  document.body.classList.add('loading');
+  $('status').className = 'status'; $('status').textContent = fresh ? 'Reading the live project again…' : (DOC ? '' : 'Reading the live project… about five seconds.');
+  try { DOC = await api('/api/traction' + (fresh ? '?fresh=1' : '')); $('status').textContent = ''; render(); }
+  catch (e) { $('status').className = 'status err'; $('status').textContent = 'Could not read the project: ' + e.message; }
+  finally { document.body.classList.remove('loading'); }
+}
+$('refresh').addEventListener('click', () => load(true));
+$('segsel').addEventListener('change', e => { SEL = e.target.value; savePref(); render(); });
+$('up-go').addEventListener('click', async () => {
+  const f = $('up-file').files[0]; if (!f) { $('status').textContent = 'Choose a file first.'; return; }
+  const buf = new Uint8Array(await f.arrayBuffer()); let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  try { const r = await api('/api/store-upload', { store: $('up-store').value, name: f.name, b64: btoa(bin) });
+    DOC.store = r.store; $('status').className = 'status'; $('status').textContent = 'Imported ' + r.result.days + ' days of ' + (r.result.store === 'ios' ? 'App Store' : 'Play') + ' data (' + r.result.kind + ').'; render(); }
+  catch (e) { $('status').className = 'status err'; $('status').textContent = 'Upload refused: ' + e.message; }
+});
+for (const [id, which] of [['sync-play', 'play'], ['sync-ios', 'ios']]) $(id).addEventListener('click', async () => {
+  $(id).disabled = true; $('status').className = 'status'; $('status').textContent = 'Syncing ' + (which === 'ios' ? 'the App Store' : 'Google Play') + '…';
+  try { const r = await api('/api/store-sync', { which }); DOC.store = r.store; const x = r.result[0] || {};
+    $('status').className = x.error ? 'status err' : 'status'; $('status').textContent = x.error ? 'Sync failed: ' + x.error : 'Synced ' + (x.days || 0) + ' days.'; render(); }
+  catch (e) { $('status').className = 'status err'; $('status').textContent = 'Sync failed: ' + e.message; }
+});
+let rz = 0; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 160); });
+load(false);
+</script>
+</body>
+</html>

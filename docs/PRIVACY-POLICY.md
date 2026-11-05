@@ -25,11 +25,25 @@ file. Edit `privacy.html`; the change is live when it is pushed.
 
 Worth knowing, because the code has to keep these true:
 
-- No advertising, analytics or tracking — **must stay true**; adding any SDK
-  that phones home means updating both the policy and the Play Data Safety form.
-- Collected: an anonymous player id, the chosen display name, run results, and
-  a replay trace. Nothing else — **unless the player sends feedback**, which is
-  the one optional pipe, added 2026-09-01.
+- No advertising, no tracking and no third-party analytics — **must stay
+  true**; adding any SDK that phones home means updating the policy, the Play Data
+  Safety form and the App Store privacy label.
+- **First-party play statistics, from 2026-11-05** (`src/game/34-telemetry.js`,
+  `supabase/migrations/20261105000000_telemetry.sql`): one row per app session
+  (start, seconds on screen, platform, OS version, device model, app version,
+  locale), one per stage attempt (mode, contract, stage, result, seconds flown,
+  score, LANE ASSIST), and named events from `track()` (a fault's site and
+  version, never its message; a submit's outcome; the tutorial's and the
+  paywall's own events). Same anonymous id, same legitimate-interest basis, read
+  only in aggregate (the traction page on the admin console), kept **thirteen
+  months** (`purge_old_telemetry()`), erased by *Delete my runs* (the rows cascade
+  from the auth user, and `my-data` deletes them by name first). The store-form
+  answers that change with it are in `docs/PLAY-STATISTICS-PRIVACY.md`.
+- **Open before it ships:** the objection switch. `telSetOff()` exists and no
+  screen calls it; `privacy.html` says so in a marked comment.
+- Collected: an anonymous player id, the chosen display name, run results, a
+  replay trace, and the play statistics above — plus feedback, the one optional
+  pipe, added 2026-09-01.
 - **Feedback is free text, and it is the second such field in the game.** What
   it carries is listed in `privacy.html` under *Feedback you send us*: the
   message, the subject, the build and sim id, the platform, the screen size, the

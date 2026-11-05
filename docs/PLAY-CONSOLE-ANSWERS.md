@@ -29,6 +29,12 @@ redirects here; swap in the new address at the next release.
 
 ## App content → Data safety
 
+> **Play statistics change this section (2026-11-05).** The first build carrying
+> `src/game/34-telemetry.js` adds *Analytics* to two purposes and two new types
+> (*Crash logs*, *Diagnostics*). The answers below stay true until that build
+> ships; the new ones, and the reasoning, are in `PLAY-STATISTICS-PRIVACY.md`.
+> File them the day the build goes up for review, and rewrite this section then.
+
 **Does your app collect or share any required user data types?** → **Yes**
 **Is all data encrypted in transit?** → **Yes** (HTTPS to Supabase)
 **Do you provide a way for users to request data deletion?** → **Yes**

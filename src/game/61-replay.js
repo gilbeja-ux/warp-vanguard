@@ -167,6 +167,7 @@ function reseedReplay(seeking) {
   // resetRun (inside the start call above) clears `replaying` on principle — this is
   // the one caller entitled to it, so it re-asserts. Order matters: after the start.
   replaying = true;
+  telAttemptDrop(); // the start call above opened a stage attempt; watching a run is not flying one
   // THE RUN'S OWN TAKE, HELD ACROSS EVERY REWIND. The start call just drew a fresh
   // random track — that is the live game's job, not the viewer's: a scrub back was
   // changing the song on every drag of the knob. A package that carries the take
@@ -426,6 +427,7 @@ function endLevel(win) {
   // sound) so the replay ends like the real level. The frame loop then holds on
   // the final frame (play button becomes restart); the viewer leaves via BACK.
   if (replaying) { endWin = win; endDropT = win ? 0 : -1; if (win) sfx.arrive(); else sfx.fail(); return; }
+  telAttemptClose(win ? 'clear' : 'fail'); // play statistics: the stage's row (34-telemetry.js)
   // the END screen may offer RETRY DUEL when the fight itself is what ended us
   bossFailed = !win && !!boss && !endless && !qual && !tut;
   // this report's serial, taken BEFORE the submit below so lbSubmit reads it too:

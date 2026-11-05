@@ -39,6 +39,8 @@ const SERVERS = [
   { port: 8016, name: 'Leech lab',         cmd: 'npm run lab:leech', what: 'the five boss machines, pinned in the bore' },
   { port: 8017, name: 'Browser watch',     cmd: 'npm run browsers', what: 'every test browser an agent is running, live, with its screen' },
   { port: 8200, name: 'Admin console',     cmd: 'npm run admin',    what: 'leaderboard moderation queue and the numbers' },
+  { port: 8200, name: 'Traction',          cmd: 'npm run admin',    path: 'traction',
+    what: 'downloads, players, playtime, progress, platforms and health — a page on the admin console' },
 ];
 
 // A server is UP if it answers at all. Not "answers 200": the tuning board and the

@@ -2053,6 +2053,7 @@ function pauseTap(x, y, pid) {
       // STAGE key runs. This used to be a hard cut with no transition at all.
       else if (b.action === 'restart') startTrans('warp', () => { pausedFromInfo = false; if (qual) startQualification(); else if (weekly) startWeekly(weeklyIdx); else if (endless) startEndless(); else startLevel(levelIdx); }); // the week just flown, not weekNow() — see the END retry
       else { // QUIT rides the same drive-back the end-screen MENU key uses
+        telAttemptClose('quit'); // play statistics: first, while weekly and the run's numbers still stand
         pausedFromInfo = false;
         weekly = false; Math.random = sysRandom;
         // training lives in Story Mode now → zoom back out onto its disc

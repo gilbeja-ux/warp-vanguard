@@ -38,6 +38,10 @@
       "describes": "installCampaign — builds LEVELS from a package"
     },
     {
+      "file": "34-telemetry.js",
+      "describes": "play statistics: sessions, stage attempts, track() — inert outside a real build"
+    },
+    {
       "file": "40-state.js",
       "describes": "run state and the run trace (record/replay)"
     },

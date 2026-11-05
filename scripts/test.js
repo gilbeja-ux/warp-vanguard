@@ -151,6 +151,8 @@ global.screen = {};
 code = code.replace("'use strict';", '') + `
 ;globalThis.__g = {
   startLevel, spawnEnemy, spawnLine, nodes, geo, frame, menuTap,
+  // play statistics (34-telemetry.js): read only, to prove the harness sends none
+  telOn: () => TEL.on, telState: () => telState, track,
   // the harness drives the sim by calling update(dt) with explicit steps (it
   // stubs performance.now, so frame() can't advance time). tickUI + pollGamepad
   // now live frame-side, so mirror a full frame's per-frame work here.
@@ -334,6 +336,9 @@ const rawStartQual = G.startQualification;
 G.startQualification = () => { rawStartQual(); G.setIntro(999); };
 
 let failures = 0;
+// checks that settle on promises from a top-level section: the async block below
+// waits for every one of them before it prints the verdict and exits
+const LATE = [];
 function check(name, cond) {
   console.log((cond ? 'PASS' : 'FAIL') + '  ' + name);
   if (!cond) failures++;
@@ -5357,6 +5362,7 @@ await tick();
     global.fetch = realFetch; G.setStale(null);
   }
 
+  for (const p of LATE) await p;
   console.log(failures === 0 ? '\nALL TESTS PASSED' : '\n' + failures + ' FAILURES');
   process.exit(failures === 0 ? 0 : 1);
 })();
@@ -7729,4 +7735,218 @@ await tick();
       !/\b(techPanel|cornerBrackets|discChromeKey|relayDestPos|V3dot|SIDEARC_A)\b/.test(code));
     check('…so no star-map plate can be placed by a destination\'s position again', !/relayDestPos\(/.test(code));
   }
+}
+
+// ================= PLAY STATISTICS: FIRST-PARTY, SMALL, AND NEVER IN THE SIM (2026-11-05) =================
+// The traction portal asked for playtimes, progress and platforms, which the
+// leaderboard never saw. src/game/34-telemetry.js sends three kinds of row to the
+// game's own project; supabase/migrations/20261105000000_telemetry.sql is the one
+// door they enter by. These pins hold the four rules the file states: it never
+// touches the sim, it never blocks the game, it runs only in a real build, and it
+// carries no identifier of its own. And they hold the promises around it: the
+// delete erases it, the policy names it, the portal names a stage 01 to 40.
+{
+  const vm = require('vm');
+  const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const tel = read('src/game/34-telemetry.js');
+  const telCode = tel.replace(/\/\/[^\n]*/g, '');
+  // ---- rule 1: the sim's stream is never touched ----
+  check('play stats: the file never draws Math.random, and mints ids from crypto.randomUUID',
+    !/Math\.random/.test(telCode) && /crypto\.randomUUID|c\.randomUUID/.test(telCode) && /getRandomValues/.test(telCode));
+  check('play stats: it loads right after the loader, in the manifest and in index.html alike',
+    (() => { const m = JSON.parse(read('src/game/manifest.json')).files.map(f => f.file); return m.indexOf('34-telemetry.js') === m.indexOf('33-loader.js') + 1; })()
+    && /game\/33-loader\.js"><\/script>\n<script src="game\/34-telemetry\.js"><\/script>/.test(read('src/index.html')));
+  check('play stats: the harness and the verifier run it inert — off, nothing queued, track() refused',
+    G.telOn() === false && G.telState() === null && G.track('fault', { where: 'x' }) === false
+    && !fetchLog.some(u => /telemetry_ingest/.test(String(u))));
+  // ---- the hooks, one line each in the shared files ----
+  const inp = read('src/game/60-input.js'), rpl = read('src/game/61-replay.js'), brf = read('src/game/91-briefing.js'), lb = read('src/game/31-leaderboard.js');
+  check('play stats: resetRun opens an attempt FIRST, while the last run\'s numbers still stand',
+    /function resetRun\(\) \{\n  telAttemptOpen\(\);/.test(inp));
+  check('play stats: endLevel closes it after the replay return, a replay re-assert drops it, and QUIT closes it first',
+    /if \(replaying\) \{ endWin = win;[^\n]*return; \}\n  telAttemptClose\(win \? 'clear' : 'fail'\);/.test(rpl)
+    && /replaying = true;\n  telAttemptDrop\(\);/.test(rpl)
+    && /else \{ \/\/ QUIT rides the same drive-back[^\n]*\n        telAttemptClose\('quit'\);/.test(brf));
+  check('play stats: MY DATA\'s forget empties the queue, and every submit outcome is counted',
+    /progress\.fbOut = null;\n[^\n]*\n  if \(typeof telForget === 'function'\) telForget\(\);/.test(lb)
+    && (lb.match(/telSubmit\(run, /g) || []).length === 4);
+
+  // ---- the file itself, alone, in a sandbox that looks like a shipped Android shell ----
+  const LS = () => { const m = new Map(); return { getItem: k => m.has(k) ? m.get(k) : null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), _m: m }; };
+  const boot = (over = {}) => {
+    const sent = [];
+    const ctx = {
+      Math: Object.create(Math, { random: { value: () => { throw new Error('Math.random drawn'); } } }),
+      JSON, Date, Object, Array, Number, String, Set, Map, Promise, Uint8Array, Boolean, RegExp, Error,
+      setTimeout: (fn, ms) => { const t = setTimeout(fn, ms); t.unref(); return t; }, clearTimeout,
+      crypto: require('crypto').webcrypto, fetch: () => Promise.reject(new Error('the sandbox sends through lbFetch')),
+      localStorage: over.localStorage || LS(),
+      navigator: over.navigator || { userAgent: 'Mozilla/5.0 (Linux; Android 16; Pixel 9a Build/CP1A.260405.005; wv) AppleWebKit/537.36', language: 'en-GB' },
+      document: { hidden: false, addEventListener() {} },
+      window: over.window || { location: { protocol: 'https:', hostname: 'localhost', search: '' }, __APP_VERSION: '1.1.0', addEventListener() {},
+        Capacitor: { isNativePlatform: () => true, getPlatform: () => 'android' } },
+      LEADERBOARD: { url: 'https://x.supabase.co', key: 'k', enabled: true },
+      lbSession: async () => 'tok',
+      lbFetch: over.lbFetch || (async (url, opts) => { sent.push({ url, body: JSON.parse(opts.body), keepalive: opts.keepalive }); return { ok: true, status: 200, json: async () => ({ ok: true }) }; }),
+      storePlatform: () => 'android', FB_ERROR_KEY: 'warpVanguard.lastError',
+      qual: false, weekly: false, endless: false, CAMP: { id: 'cargo-run' }, levelIdx: 6, weeklyIdx: -1,
+      score: 0, levelT: 0, assist: false, bossTestRun: false, replaying: false,
+    };
+    ctx.globalThis = ctx;
+    vm.createContext(ctx);
+    vm.runInContext(tel + '\n;globalThis.__t = { TEL, get state() { return telState; }, get open() { return telOpen; }, telAttemptOpen, telAttemptClose, telAttemptDrop, track, telFlush, telForget, telHide, telShow, telSetOff };', ctx);
+    return { ctx, t: ctx.__t, sent };
+  };
+  {
+    const lsF = LS();
+    lsF.setItem('warpVanguard.lastError', JSON.stringify({ at: '2026-11-05T10:00:00.000Z', where: 'frame', ver: '1.1.0', msg: 'TypeError: secret words' }));
+    const { ctx, t } = boot({ localStorage: lsF });
+    const c = t.state.cur;
+    check('play stats: a shipped shell boots on, with one session row that names the device coarsely',
+      t.TEL.on === true && !!c && /^[0-9a-f-]{36}$/.test(c.id) && c.p === 'android' && c.ch === 'store'
+      && c.os === 'Android 16' && c.m === 'Pixel 9a' && c.v === '1.1.0' && c.l === 'en-GB');
+    const f = t.state.q.e.find(e => e.n === 'fault');
+    check('play stats: a fault the error net kept is COUNTED — its site and version, never its message',
+      !!f && f.pr.where === 'frame' && f.pr.ver === '1.1.0' && !JSON.stringify(t.state.q.e).includes('secret'));
+    // a stage, cleared
+    t.telAttemptOpen(); ctx.score = 41230; ctx.levelT = 93.456; t.telAttemptClose('clear');
+    const a = t.state.q.a[t.state.q.a.length - 1];
+    check('play stats: a cleared stage files one row: mode, contract, zero-based index, result, time, score',
+      t.state.q.a.length === 1 && a.mo === 'campaign' && a.c === 'cargo-run' && a.li === 6 && a.r === 'clear' && a.d === 93.5 && a.sc === 41230 && a.as === false && a.sid === c.id);
+    // a restart over an open attempt closes it as a quit, with the old run's numbers
+    t.telAttemptOpen(); ctx.score = 500; ctx.levelT = 12; ctx.weekly = true; ctx.endless = true; ctx.weeklyIdx = 2970; t.telAttemptOpen();
+    const q = t.state.q.a[t.state.q.a.length - 1];
+    check('play stats: a restart files the run it replaces as a QUIT, and the next one opens in its own mode',
+      t.state.q.a.length === 2 && q.r === 'quit' && q.sc === 500 && q.mo === 'campaign' && t.open.mo === 'weekly' && t.open.w === 2970 && t.open.li === null);
+    // a replay is not an attempt
+    ctx.replaying = true; t.telAttemptClose('fail'); ctx.replaying = false;
+    t.telAttemptOpen(); t.telAttemptDrop(); t.telAttemptClose('fail');
+    check('play stats: watching a replay files nothing', t.state.q.a.length === 2 && t.open === null);
+    // the boss drill is a tester's tool
+    ctx.weekly = ctx.endless = false; t.telAttemptOpen(); ctx.bossTestRun = true; t.telAttemptClose('fail'); ctx.bossTestRun = false;
+    check('play stats: the passcode boss drill files as a drill, never as a campaign attempt', t.state.q.a[t.state.q.a.length - 1].mo === 'drill');
+    // track(): a slug and a flat object, trimmed here
+    check('play stats: track() takes a slug and keeps only short flat values',
+      t.track('submit', { why: 'ok', st: 200, deep: { a: 1 }, 'bad key': 1, long: 'x'.repeat(200), n: NaN }) === true
+      && JSON.stringify(t.state.q.e[t.state.q.e.length - 1].pr) === JSON.stringify({ why: 'ok', st: 200, long: 'x'.repeat(64) })
+      && t.track('Bad Name') === false && t.track('x') === false);
+    for (let i = 0; i < 400; i++) t.track('tutorial.step', { i });
+    check('play stats: a queue never grows past its cap — the oldest row goes first', t.state.q.e.length === t.TEL.cap && t.state.q.e[t.state.q.e.length - 1].pr.i === 399);
+  }
+  LATE.push((async () => {
+    const { t, sent } = boot();
+    t.telAttemptOpen(); t.telAttemptClose('fail'); t.track('submit', { why: 'verify', st: 400 });
+    const ok = await t.telFlush(false);
+    const b = sent[0] && sent[0].body.p_batch;
+    check('play stats: a flush is ONE call to the narrow RPC, carrying the live session, the attempt and the event',
+      ok === true && sent.length === 1 && /\/rest\/v1\/rpc\/telemetry_ingest$/.test(sent[0].url) && b.s.length === 1 && b.a.length === 1 && b.e.length === 1
+      && !('player' in b) && !b.s.concat(b.a, b.e).some(r => 'player_id' in r || 'pid' in r));
+    check('play stats: a landed batch empties the queues, and the live session stays to be re-sent longer',
+      t.state.q.a.length === 0 && t.state.q.e.length === 0 && t.state.q.s.length === 0 && !!t.state.cur);
+    const off = boot({ lbFetch: async () => { throw new Error('offline'); } });
+    off.t.telAttemptOpen(); off.t.telAttemptClose('quit');
+    check('play stats: offline, the rows wait in the queue', (await off.t.telFlush(false)) === false && off.t.state.q.a.length === 1);
+    off.t.telHide();
+    check('play stats: putting the app away banks the time on screen and persists the stage in flight', off.t.state.cur.fg >= 0 && 'open' in off.t.state);
+    off.t.telForget();
+    check('play stats: MY DATA\'s delete empties the queue and starts a fresh session id', off.t.state.q.a.length === 0 && off.t.state.q.e.length === 0);
+    off.t.telSetOff(true);
+    check('play stats: the objection switch stops it and empties the queue', off.t.TEL.on === false && off.t.track('submit', {}) === false && off.t.state.q.s.length === 0);
+  })());
+  // rule 3: only a real build
+  {
+    const dev = boot({ window: { location: { protocol: 'http:', hostname: 'localhost', search: '' }, __APP_VERSION: null, addEventListener() {} } });
+    const lan = boot({ window: { location: { protocol: 'http:', hostname: '192.168.1.20', search: '' }, __APP_VERSION: '1.1.0', addEventListener() {} } });
+    const opt = boot({ window: { location: { protocol: 'http:', hostname: 'localhost', search: '?tel=1' }, addEventListener() {} } });
+    const bot = boot({ navigator: { webdriver: true, userAgent: 'HeadlessChrome' } });
+    check('play stats: a dev page, a LAN test and an automated browser send nothing; ?tel=1 opts a dev page in, marked dev',
+      dev.t.TEL.on === false && lan.t.TEL.on === false && bot.t.TEL.on === false && opt.t.TEL.on === true && opt.t.state.cur.ch === 'dev');
+    const ios = boot({ navigator: { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', language: 'de-DE' } });
+    check('play stats: an iPhone reads as iOS 18.7, model iPhone — the coarse name, never more', ios.t.state.cur.os === 'iOS 18.7' && ios.t.state.cur.m === 'iPhone');
+  }
+
+  // ---- the door: the migration ----
+  const mig = read('supabase/migrations/20261105000000_telemetry.sql'), migCode = mig.replace(/--[^\n]*/g, '');
+  const T4 = ['telemetry_sessions', 'telemetry_attempts', 'telemetry_events', 'telemetry_quota'];
+  check('play stats: every table cascades from the auth user, so a deleted identity takes its statistics',
+    (migCode.match(/player_id\s+uuid( primary key| not null) references auth\.users \(id\) on delete cascade/g) || []).length === 4);
+  check('play stats: every table has RLS on and is closed to the client roles, open to service_role',
+    T4.every(t => new RegExp('alter table public\\.' + t + '\\s+enable row level security;').test(migCode)
+      && new RegExp('revoke all on public\\.' + t + '\\s+from public, anon, authenticated;').test(migCode)
+      && new RegExp('grant all on table public\\.' + t + '\\s+to service_role;').test(migCode)));
+  check('play stats: the ingest takes the identity from the JWT, never the body, and is the one door the client reaches',
+    /v_player uuid := auth\.uid\(\);/.test(migCode) && !/p_batch->>'(player|pid|player_id)'|x->>'(player|pid|player_id)'/.test(migCode)
+    && /security definer\s*\nset search_path = public, extensions/.test(migCode)
+    && /revoke execute on function public\.telemetry_ingest\(jsonb\) from public, anon;/.test(migCode)
+    && /grant execute on function public\.telemetry_ingest\(jsonb\) to authenticated;/.test(migCode));
+  check('play stats: the rate bar — 300 rows a call, 60 calls and 3000 rows an hour, under a per-identity lock',
+    /if v_rows > 300 then/.test(migCode) && /if v_calls >= 60 or v_in \+ v_rows > 3000 then/.test(migCode)
+    && /perform pg_advisory_xact_lock\(hashtext\('telemetry:' \|\| v_player::text\)\);/.test(migCode));
+  check('play stats: a session upsert can never write into another player\'s row',
+    /on conflict \(id\) do update\s*\n\s*set fg_sec = greatest\(t\.fg_sec, excluded\.fg_sec\), updated_at = now\(\)\s*\n\s*where t\.player_id = excluded\.player_id/.test(migCode));
+  check('play stats: thirteen months, by a service-only purge',
+    /create or replace function public\.purge_old_telemetry\(p_days int default 400\)/.test(migCode)
+    && /revoke execute on function public\.purge_old_telemetry\(int\) from public, anon, authenticated;/.test(migCode));
+  // ---- the delete and the export ----
+  const md = read('supabase/functions/my-data/index.ts');
+  check('play stats: MY DATA\'s delete removes every statistics table by name BEFORE it deletes the auth user, and export reads them',
+    md.indexOf('"telemetry_events", "telemetry_attempts", "telemetry_sessions", "telemetry_quota"') > 0
+    && md.indexOf('"telemetry_events", "telemetry_attempts"') < md.indexOf('svc.auth.admin.deleteUser(playerId)')
+    && /if \(action === "export"\)/.test(md) && ['telemetry_sessions', 'telemetry_attempts', 'telemetry_events'].every(t => md.includes('read("' + t + '"')));
+  // ---- the documents say it ----
+  const pol = read('docs/privacy.html'), idx = read('docs/index.html');
+  check('play stats: the policy names play statistics, their basis, thirteen months and the delete — and no longer says "no analytics"',
+    /<h3>Play statistics<\/h3>/.test(pol) && /Play statistics rest on the same basis/.test(pol) && /thirteen months/.test(pol)
+    && /deletes every play\s*\n?\s*statistic recorded under your id/.test(pol) && !/no analytics/i.test(pol) && !/no analytics/i.test(read('docs/delete-data.html')));
+  {
+    const body = pol.slice(pol.indexOf('<p>Warp Vanguard is a game. This policy explains'), pol.indexOf('<h2>Contact</h2>'))
+      .replace(/<h3>/g, '<h4>').replace(/<\/h3>/g, '</h4>').replace(/<h2>/g, '<h3>').replace(/<\/h2>/g, '</h3>');
+    check('play stats: the support page carries the same policy, one heading level down', idx.includes(body));
+  }
+  check('play stats: the store-form drafts and the credential steps are written',
+    /\| App info and performance \| \*\*Crash logs\*\*/.test(read('docs/PLAY-STATISTICS-PRIVACY.md'))
+    && /Diagnostics → \*\*Other Diagnostic Data\*\*/.test(read('docs/PLAY-STATISTICS-PRIVACY.md'))
+    && /View app information and\s+download bulk reports/.test(read('docs/STORE-REPORTS-SETUP.md')) && /Access: \*\*Sales\*\*/.test(read('docs/STORE-REPORTS-SETUP.md')));
+
+  // ---- the portal: a page on the admin console, a stage named 01 to 40 ----
+  const tr = require(path.join(ROOT, 'scripts', 'lib', 'traction.js'));
+  const cs = tr.loadContracts(ROOT);
+  check('traction: a stage is named by the game\'s own arithmetic — 07, 09, and the last one ' + tr.lvNum(cs.reduce((n, c) => n + c.n, 0)),
+    tr.stageName(cs, 'cargo-run', 6) === '07' && tr.stageName(cs, 'survey', 0) === '09' && tr.stageName(cs, 'cargo-run', -1) === null
+    && tr.stageName(cs, cs[cs.length - 1].id, cs[cs.length - 1].n - 1) === tr.lvNum(cs.reduce((n, c) => n + c.n, 0)));
+  const page = read('scripts/traction.html');
+  check('traction: the page script parses, and it names stages only through lvNum(base + li + 1)',
+    (() => { try { new vm.Script(page.slice(page.indexOf('<script>') + 8, page.lastIndexOf('</script>'))); return true; } catch (e) { return false; } })()
+    && /return \{ no: c\.base \+ li \+ 1, name: lvNum\(c\.base \+ li \+ 1\)/.test(page) && !/\.board\b[^;]*textContent/.test(page));
+  const adm = read('scripts/admin.js');
+  check('traction: it is a page on the admin console — no new port, the same token, the same localhost bind',
+    /if \(url === '\/traction'\)/.test(adm) && /if \(url === '\/api\/traction'\)/.test(adm)
+    && adm.indexOf("if (url === '/api/traction')") > adm.indexOf("if (!authed(req))") && /\.listen\(port, '127\.0\.0\.1'/.test(adm)
+    && /port: 8200, name: 'Traction',\s+cmd: 'npm run admin',\s+path: 'traction'/.test(read('scripts/portal.js')));
+  check('traction: the auth reads group before they return — no query hands the page an id',
+    !/json_build_array\([^)]*\b(id|player_id|uid)\b/.test(tr.baseSql(cs) + tr.telemetrySql()));
+  // ---- the store files ----
+  const sr = require(path.join(ROOT, 'scripts', 'lib', 'store-reports.js'));
+  const play = 'Date,Package Name,Daily Device Installs,Daily Device Uninstalls,Daily Device Upgrades,Total User Installs,Daily User Installs,Daily User Uninstalls,Active Device Installs\n2026-11-01,com.warpvanguard.game,3,1,0,40,2,1,30\n';
+  const p16 = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(play, 'utf16le')]);
+  const ap = 'Provider\tSKU\tProduct Type Identifier\tUnits\tBegin Date\nAPPLE\twv\t1F\t4\t11/03/2026\nAPPLE\twv\t7F\t9\t11/03/2026\nAPPLE\twv\t3F\t1\t11/03/2026\n';
+  const asc = 'Warp Vanguard\nTotal Downloads\n\nDate,Total Downloads\n"Nov 1, 2026","1,204"\n';
+  let refused = false; try { sr.parseUpload(Buffer.from('a,b\n1,2\n'), 'auto'); } catch (e) { refused = true; }
+  const pp = sr.parseUpload(p16, 'auto'), aa = sr.parseUpload(require('zlib').gzipSync(Buffer.from(ap)), 'auto'), gg = sr.parseUpload(Buffer.from(asc), 'ios');
+  check('traction: the store files parse — a UTF-16 Play overview, a gzipped Apple sales report, an App Store Connect export — and a stranger is refused',
+    pp.store === 'play' && pp.days['2026-11-01'].installs === 2 && pp.days['2026-11-01'].uninstalls === 1
+    && aa.store === 'ios' && aa.days['2026-11-03'].downloads === 4 && aa.days['2026-11-03'].updates === 9 && aa.days['2026-11-03'].redownloads === 1
+    && gg.days['2026-11-01'].downloads === 1204 && refused);
+  {
+    const { privateKey, publicKey } = require('crypto').generateKeyPairSync('ec', { namedCurve: 'P-256' });
+    const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'wv-asc-'));
+    fs.writeFileSync(path.join(dir, 'k.p8'), privateKey.export({ type: 'pkcs8', format: 'pem' }));
+    const jwt = sr.appleToken({ issuerId: 'iss', keyId: 'KID', keyFile: path.join(dir, 'k.p8') }).split('.');
+    const okSig = require('crypto').verify('sha256', Buffer.from(jwt[0] + '.' + jwt[1]), { key: publicKey, dsaEncoding: 'ieee-p1363' }, Buffer.from(jwt[2], 'base64url'));
+    const head = JSON.parse(Buffer.from(jwt[0], 'base64url')), body = JSON.parse(Buffer.from(jwt[1], 'base64url'));
+    fs.rmSync(dir, { recursive: true, force: true });
+    check('traction: the App Store Connect token is an ES256 JWT Apple can verify — kid, issuer, audience, under twenty minutes',
+      okSig && head.alg === 'ES256' && head.kid === 'KID' && body.iss === 'iss' && body.aud === 'appstoreconnect-v1' && body.exp - body.iat <= 1200);
+  }
+  check('traction: the store keys live outside every checkout', !sr.DIR.startsWith(ROOT) && /\.warp-vanguard/.test(sr.DIR + (process.env.WV_TRACTION_DIR ? '.warp-vanguard' : '')));
 }
