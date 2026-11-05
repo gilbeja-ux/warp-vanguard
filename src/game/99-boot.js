@@ -1694,6 +1694,7 @@ function drawPostChain(rawDt, worldFx, g) {
 
   if (state === S.PLAY) {
     drawHUD(g); drawDials(); drawWarpCal(); drawIntroCard(); drawNowPlaying();
+    drawPulseCall(); // TAP TO FIRE: words over every layer of the lane (THE CHARGED SIDE, 90-hud)
     if (popLive('pause')) drawPause(); // resume: the panel erases behind its scan
     if (worldOpen) { ctx.restore(); worldOpen = false; } // end the replay world fly-in (board overlay is NOT zoomed)
     // leaderboard<->player transition: the board rides ON TOP of the (paused)

@@ -184,7 +184,7 @@ code = code.replace("'use strict';", '') + `
   migrateQualParts, getQualPart: () => qualPart, getQualThen: () => qualThen, qualSkipRect: () => qualSkipRect,
   DEMO, DEMO_LOOP, getTrans: () => trans, DISC_PAD, DISC_TEXT_PAD, discChord,
   // THE CHARGED SIDE (90-hud, 2026-11-05): a full pad lights its side of the screen
-  pulseSide: () => pulseSide.slice(), pulseFirable, drawPulseSide, pulseSideTap, PULSE_TAP_S, PULSE_TAP_MOVE, PULSE_CTA_TEXT,
+  pulseSide: () => pulseSide.slice(), pulseFirable, drawPulseSide, drawPulseCall, pulseSideTap, PULSE_TAP_S, PULSE_TAP_MOVE, PULSE_CTA_TEXT,
   drawTutCallLayer, tutCallNodeK, CALL_NODE_ALPHA, getHoloCv: () => holoCv, getDemoNodeSink: () => demoNodeSink,
   callGlitch, GLITCH_EVERY, GLITCH_LEN, netAssign, // the barrier net's one-end-per-emitter plan
   getGpDriving: () => gpDriving, setGpDriving: v => { gpDriving = v; }, // who is flying right now (71-gamepad)
@@ -3246,7 +3246,7 @@ G.progress.tutorialDone = true;
   const fnBody = name => cue.split('function ' + name + '(')[1].split('\n}\n')[0];
   check('the cue draws no randomness, and no frame builds a gradient: the screen-size cache, and the call\'s per-size one',
     !/Math\.random|srand|spawnRng/.test(cue) && /pulseSideKey === key && pulseSideCtx === ctx/.test(cue)
-    && ['drawPulseSide', 'drawPulseStorm', 'drawPulseReadyRing'].every(f => !/create(Linear|Radial)Gradient/.test(fnBody(f)))
+    && ['drawPulseSide', 'drawPulseStorm', 'drawPulseReadyRing', 'drawPulseCall'].every(f => !/create(Linear|Radial)Gradient/.test(fnBody(f)))
     && /if \(!gS\) \{\s*gS = ctx\.createLinearGradient/.test(fnBody('drawPulseCta'))
     && (fnBody('drawPulseCta').match(/create(Linear|Radial)Gradient/g) || []).length === 1);
   check('the call says TAP TO FIRE, and names the trigger while a controller flies the game',
@@ -3255,6 +3255,14 @@ G.progress.tutorialDone = true;
     /if \(!lowFX\) \{[\s\S]*THE SOLAR STORM|if \(!lowFX\) \{[\s\S]*PULSE_STORM/.test(fnBody('drawPulseStorm'))
     && /lowFX \? Math\.ceil\(PULSE_RAYS \/ 2\)/.test(fnBody('drawPulseStorm')));
   check('the light sits under every gauge: the HUD draws it first', /function drawHUD\(g\) \{[^}]*?drawPulseSide\(\);/.test(hud));
+  // TEXT ON TOP (Gil, 2026-11-05: the progress arc and the stability bar covered the call).
+  // The art pass draws no words; the words are the lane's last pass, after every layer.
+  const boot = fs.readFileSync(path.join(ROOT, 'src', 'game', '99-boot.js'), 'utf8');
+  const playPass = (/if \(state === S\.PLAY\) \{\s*([^\n]*)\n\s*([^\n]*)/.exec(boot) || []).slice(1).join('\n');
+  check('the call and the LT / RT badge draw in the lane\'s last pass, over the gauges, the pads and the strip',
+    /drawHUD\(g\); drawDials\(\); drawWarpCal\(\); drawIntroCard\(\); drawNowPlaying\(\);\s*drawPulseCall\(\);/.test(playPass)
+    && !/drawPulseCta|drawPulseTrigger/.test(fnBody('drawPulseSide'))
+    && /drawPulseTrigger\(i, d, 0, k\)/.test(fnBody('drawPulseCall')) && /drawPulseCta\(i, d, k, G2\)/.test(fnBody('drawPulseCall')));
   G.setFrameDt(0); G.setPulse([0, 0]);
   G.setState(G.S.MENU);
 }

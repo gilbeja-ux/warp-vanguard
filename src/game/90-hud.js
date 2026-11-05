@@ -1473,7 +1473,11 @@ function drawPulseTrigger(i, d, down, alpha) {
 //               turning slowly round the pad, a solar storm of looping filaments off its
 //               rim, sparks running outward, and a bright head down the screen's edge
 //   the call    TAP TO FIRE above the pad, a shine running through the letters
-//               (LT / RT TO FIRE while a controller is the hand flying the game)
+//               (LT / RT TO FIRE while a controller is the hand flying the game).
+//               TEXT GOES ON TOP (Gil, 2026-11-05: the progress arc and the stability
+//               bar were painting over it): the art rides under the gauges, at the
+//               head of drawHUD, and the words — the call and the LT / RT badge — are
+//               drawn by drawPulseCall, the lane's LAST pass in 99-boot.
 //   the tap     ANY short tap on that side fires it (pulseSideTap, from 60-input's
 //               pointerup), not only the core. A touch that steers is long or moves, so
 //               it never fires; the core keeps its instant fire on touch-down.
@@ -1687,6 +1691,17 @@ function drawPulseSide() {
     ctx.restore();
     drawPulseStorm(i, d, k, G2);
     if (PULSE_SIDE_RING) drawPulseReadyRing(i, d, k);
+  }
+}
+// THE WORDS, OVER EVERYTHING: the lane's last pass (99-boot), after the gauges, the pads,
+// the intro card and the NOW PLAYING strip, so no layer of the frame can cover them. It
+// reads the presence drawPulseSide eased this frame, so the two never disagree.
+function drawPulseCall() {
+  if (!PULSE_SIDE_ON) return;
+  for (let i = 0; i < 2; i++) {
+    const k = pulseSide[i];
+    if (k <= 0.004) continue;
+    const G2 = pulseSideGrads(), d = dialCenter(i === 0 ? 'L' : 'R');
     if (typeof gpSeen !== 'undefined' && gpSeen) drawPulseTrigger(i, d, 0, k);
     drawPulseCta(i, d, k, G2);
   }
