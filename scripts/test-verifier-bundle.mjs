@@ -47,5 +47,27 @@ line(!verifyRun({ ...run, campId: 'no-such-campaign' }).ok, 'bundle REJECTS an u
     `bundle verifies a run whose carriages slew (${v.recomputed} === ${slewRun.score})`);
 }
 
+// FORGED INPUTS (audit 2026-11-05, findings 1 and 8). The replay used to fire any pad
+// on any frame and agreed with its own inflated score; the claimed score stays the
+// honest one here, so only the input rules can refuse these.
+// NOT forged here: a teleport. No angle bound separates a flick from one (see simStep).
+{
+  const base = recordCampaignRun(campaignIds()[0], 3);
+  const forge = fn => ({ ...base, trace: base.trace.map((f, i) => fn({ ...f }, i)) });
+  const refused = (name, r) => { const v = verifyRun(r); line(v.ok === false, `bundle REFUSES ${name} (${v.reason || 'score differs'})`); };
+  line(verifyRun(base).ok, 'forgery baseline: the honest run verifies');
+  refused('a pulse fired every frame', forge(f => { f.f = [0, 1]; return f; }));
+  refused('a pad index that does not exist', forge((f, i) => { if (i === 5) f.f = [7]; return f; }));
+  refused('a non-finite angle', forge((f, i) => { if (i === 5) f.a1 = NaN; return f; }));
+  line(verifyRun({ ...base, w: 1e9, h: -5 }).ok === true, 'bundle clamps a hostile run width and height and still verifies');
+}
+// the Edge Function is TypeScript for Deno; pin its gate by shape
+{
+  const ts = (await import('fs')).readFileSync(new URL('../supabase/functions/submit-run/index.ts', import.meta.url), 'utf8');
+  const cap = +/const MAX_TRACE = ([\d_]+)/.exec(ts)[1].replace(/_/g, '');
+  line(cap >= 4787 && cap <= 6000, `MAX_TRACE ${cap} covers the longest campaign lane (4787 frames, stage 31) and no more than 100 s`);
+  line(/every\(goodFrame\)/.test(ts), 'submit-run checks every trace frame before verifyRun');
+}
+
 console.log(pass ? '\nBUNDLE OK' : '\nBUNDLE FAILED');
 process.exit(pass ? 0 : 1);

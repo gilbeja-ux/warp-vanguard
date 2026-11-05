@@ -246,9 +246,12 @@ async function lbSessionMint() {
     let res = null;
     if (identity.refresh) // refresh the existing anonymous user — keeps the same player_id
       res = await lbFetch(LEADERBOARD.url + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: h, body: JSON.stringify({ refresh_token: identity.refresh }) });
-    if (!res || !res.ok) // first run (or refresh expired): mint a fresh anonymous user
+    // A NEW IDENTITY ONLY WHEN THE OLD ONE IS TRULY DEAD (audit 2026-11-05): a refresh the server
+    // answers 400/401 is an expired token; a 429, a 5xx or no answer is a bad moment, and a signup
+    // there would cut the player off from every row they own. Those fall to the offline message below.
+    if (!identity.refresh || (res && (res.status === 400 || res.status === 401))) // first run, or the refresh is dead
       res = await lbFetch(LEADERBOARD.url + '/auth/v1/signup', { method: 'POST', headers: h, body: JSON.stringify({}) });
-    if (!res.ok) return fail('AUTH HTTP ' + res.status, 'OFFLINE — SCORE SAVED ON THIS DEVICE');
+    if (!res || !res.ok) return fail('AUTH HTTP ' + (res && res.status), 'OFFLINE — SCORE SAVED ON THIS DEVICE');
     const d = await res.json();
     if (!d.access_token) return fail('AUTH: no token', 'OFFLINE — SCORE SAVED ON THIS DEVICE');
     identity.token = d.access_token;

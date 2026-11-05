@@ -4856,11 +4856,18 @@ await tick();
       // handle the list eats. Same trick as weekOf above: slice the source, drop
       // the type annotations, run it in Node.
       {
-        const from = ts.indexOf('const BLOCKED_SUB');
-        const to = ts.indexOf('\n}', ts.indexOf('function cleanName'));
-        check('the Edge Function still defines cleanName', from >= 0 && to > from);
+        // ONE FILTER (audit 2026-11-05): submit-run and my-data both import it from _shared,
+        // because my-data once kept an older copy and a rename was a weaker gate than a submit
+        const nts = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', '_shared', 'name.ts'), 'utf8');
+        const mdts = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'my-data', 'index.ts'), 'utf8');
+        check('submit-run and my-data both import the one name filter and neither keeps a copy',
+          /import \{ cleanName \} from "\.\.\/_shared\/name\.ts"/.test(ts) && /import \{ cleanName \} from "\.\.\/_shared\/name\.ts"/.test(mdts)
+          && !/function cleanName|BLOCKED/.test(ts) && !/function cleanName|BLOCKED/.test(mdts));
+        const from = nts.indexOf('const BLOCKED_SUB');
+        const to = nts.indexOf('\n}', nts.indexOf('function cleanName'));
+        check('the shared module still defines cleanName', from >= 0 && to > from);
         if (from >= 0 && to > from) {
-          const js = ts.slice(from, to + 2)
+          const js = nts.slice(from, to + 2).replace('export function', 'function')
             .replace(/: Record<string, string>/g, '')
             .replace(/: unknown/g, '').replace(/: string/g, '').replace(/\): \w+ \{/g, ') {');
           const cleanName = new Function(js + '; return cleanName;')();
@@ -4935,6 +4942,16 @@ await tick();
         const md = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'my-data', 'index.ts'), 'utf8');
         check('the trace purge retries, sweeps by player prefix, and reports what is left',
           /async function purgeTraces/.test(md) && /\.list\(folder/.test(md) && /tracesLeft/.test(md));
+        // AUDIT 2026-11-05 findings 3, 6, 7: shapes of three fixes that run only against a live backend or a damaged save
+        const sr = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'submit-run', 'index.ts'), 'utf8');
+        check('submit-run deletes the uploaded trace on ANY failed write, and the file a replaced row no longer holds',
+          /if \(wErr\) \{\s*\/\/[^\n]*\n[^\n]*\n\s*if \(traceId\) \{[^\n]*remove\(\[traceId\]\)/.test(sr) && /const keptTrace/.test(sr) && /t !== keptTrace/.test(sr));
+        const lb = fs.readFileSync(path.join(ROOT, 'src', 'game', '31-leaderboard.js'), 'utf8');
+        check('a refresh that is not 400 or 401 never mints a new identity',
+          /!identity\.refresh \|\| \(res && \(res\.status === 400 \|\| res\.status === 401\)\)/.test(lb));
+        const sv = fs.readFileSync(path.join(ROOT, 'src', 'game', '32-save.js'), 'utf8');
+        check('a save that will not parse is parked under STORE_KEY.bad and its login is read back before anything saves',
+          /STORE_KEY \+ '\.bad'/.test(sv) && /pick\('refresh'\)/.test(sv) && sv.indexOf("'.bad'") < sv.indexOf('ensureIdentity(); //'));
       }
     }
 
@@ -6943,7 +6960,7 @@ await tick();
       check('backend: live — a lane on the live week is live', G.weeklyLive() === true);
     } finally { Date.now = realNow; if (wasWeekly) G.setWeeklyRun(wasIdx, 0); else G.clearWeeklyRun(); }
   }
-  check('backend: the refused-duplicate path removes the object it just uploaded', /code === "23505"\) \{[\s\S]*?\.remove\(\[traceId\]\)/.test(ts));
+  check('backend: the refused-duplicate path removes the object it just uploaded', /if \(wErr\) \{[\s\S]*?\.remove\(\[traceId\]\)[\s\S]*?code === "23505"/.test(ts));
   check('backend: the submission bar sits after the cheap refusals and right before the replay',
     ts.indexOf('client outdated') < ts.indexOf('svc.rpc("take_submit_slot"'));
   const m1 = read('supabase/migrations/20260908000000_grants_closed.sql');

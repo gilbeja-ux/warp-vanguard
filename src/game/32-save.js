@@ -100,6 +100,18 @@ function saveState() {
       if (d.mutators) Object.assign(mutators, d.mutators);
       if (d.identity) Object.assign(identity, d.identity);
     }
-  } catch (e) {}
+  } catch (e) {
+    // A DAMAGED BLOB MUST NOT BE OVERWRITTEN BLIND (audit 2026-11-05). The next saveState() writes
+    // defaults over STORE_KEY, which cost a player their stars, bests and login for good. Park the
+    // raw text under a second key first (never over an earlier parked copy), and read the login
+    // back out of it by hand so the player keeps their leaderboard rows. Progress is not guessed.
+    try {
+      const bad = localStorage.getItem(STORE_KEY);
+      if (bad && localStorage.getItem(STORE_KEY + '.bad') === null) localStorage.setItem(STORE_KEY + '.bad', bad);
+      const pick = k => { const m = new RegExp('"' + k + '":"([^"]+)"').exec(bad || ''); return m && m[1]; };
+      if (pick('refresh')) identity.refresh = pick('refresh');
+      if (pick('uid')) identity.uid = pick('uid');
+    } catch (e2) {}
+  }
   ensureIdentity(); // mint a device handle + auto label on first boot; persisted on next save
 })();
