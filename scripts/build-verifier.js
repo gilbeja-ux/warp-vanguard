@@ -118,7 +118,9 @@ export function verifyRun(run) {
   if (!run || !Array.isArray(run.trace)) return { ok: false, reason: 'no trace' };
   if (run.mode === 'endless') return { ok: false, reason: 'endless is unseeded — unverifiable' };
   __VG.resetCanonical(); // save-state-independent baseline (mutators off, briefings seen)
-  __VG.setViewport(run.w | 0, run.h | 0); // reproduce the run's geometry (headless W/H default to 0 → geo() NaN)
+  // geometry is canonical (hitZ is 0.25 at any aspect), so the run's own size is clamped, never trusted: 2026-11-05 audit
+  const clampDim = (v, d) => (Number.isFinite(v) ? Math.min(4096, Math.max(100, v | 0)) : d);
+  __VG.setViewport(clampDim(run.w, 800), clampDim(run.h, 450)); // reproduce the run's geometry (headless W/H default to 0 → geo() NaN)
   if (Array.isArray(run.mutators)) for (const k of run.mutators) if (k in __VG.mutators) __VG.mutators[k] = true; // re-apply the run's OWN mutators
   // INSTALL THE RUN'S CAMPAIGN FIRST — levelIdx is an index INTO a campaign, so
   // without this every board outside campaign 1 was replayed against campaign 1's
@@ -144,7 +146,7 @@ export function verifyRun(run) {
   let steps = 0;
   const cap = run.trace.length + 8;
   while (__VG.simStep() && steps < cap) steps++;
-  __VG.stopReplay();
+  if (__VG.stopReplay()) return { ok: false, reason: 'trace breaks an input rule (fire without charge, or an angle that is not a number)', steps };
   const s = __VG.stats();
   return { ok: s.score === run.score, recomputed: s.score, expected: run.score, integrity: s.integrity, steps,
     zaps: s.zaps, misses: s.misses, perfects: s.perfects, maxCombo: s.maxCombo, comboSec: s.comboSec,

@@ -15,6 +15,7 @@
 // Deploy:  supabase functions deploy submit-run
 // SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY are auto-injected.
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { cleanName } from "../_shared/name.ts";
 
 // load the sim bundle lazily + defensively so a load failure is REPORTED, not a
 // blank 500 (the edge runtime hides top-level import crashes).
@@ -43,97 +44,20 @@ const CORS = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
-const MAX_TRACE = 200_000;       // ~55 min at 60Hz — a hard ceiling to bound work
+// A hard ceiling on replay work, by mode (audit 2026-11-05; it was one 200_000 frames, ~55 min).
+// CAMPAIGN: the longest lane is stage 31, 75 s + 0.70 s burst drain + (2.10 - 0.03) / (0.62 * 0.82)
+// = 79.77 s, 4787 frames; 6000 (100 s) leaves 20 s for the 3-5 s tail and a slow device.
+// WEEKLY has no end by design (duration Infinity), but the lane stops escalating at surge 15,
+// t = 1500 s; 108_000 frames (30 min) sits past that, so only a run past the last wall is refused.
+const MAX_TRACE = 6_000;
+const MAX_TRACE_WEEKLY = 108_000;
+// One frame of a trace as the client records it: {a0, a1, h, f}. Anything else would
+// crash the replay (a 500 that reads as a verifier fault) or buy CPU for nothing.
+const goodFrame = (f: any) =>
+  f && typeof f === "object" && Number.isFinite(f.a0) && Number.isFinite(f.a1)
+  && Number.isInteger(f.h) && f.h >= 0 && f.h <= 3
+  && (f.f === undefined || f.f === 0 || (Array.isArray(f.f) && f.f.length <= 2 && f.f.every((i: any) => i === 0 || i === 1)));
 
-// ---------------------------------------------------------------------------
-// Name moderation — the SERVER-side backstop for the arcade handle. The client
-// live-filters as the player types (UX), but that's bypassable, so every name is
-// re-checked here before it can land on a public board. A run's SCORE is legit
-// even if its name is filthy, so we don't reject the submit — we neutralise the
-// name (→ "REDACTED") and keep the score.
-//
-// H-26 rebuilt the matching in three ways:
-//
-//   1. FOLD BEFORE STRIP. The old filter deleted every non-ASCII character and
-//      then matched, so "FUСK" with a Cyrillic С became the displayed "FUK" —
-//      not blocked, and still legible as the word. Confusables are now mapped to
-//      their Latin twins FIRST, so that name normalises to "fuck" and is caught.
-//      NFKC handles the width/ligature families (ｎ, ﬁ, ①); NFD-plus-mark-strip
-//      handles the accents (é → e); the FOLD table handles the rest, which is
-//      the Cyrillic and Greek lookalikes Unicode will never merge for us.
-//
-//   2. TWO LISTS, TWO TESTS. Matching every word as a substring is what redacts
-//      SCUNTHORPE, ESSEX, RACCOON, TORPEDO and CRISIS. Words that embed innocently
-//      live in BLOCKED_WORD and must appear as a whole word; the unambiguous slurs
-//      stay in BLOCKED_SUB and match anywhere, including through spacing tricks.
-//      The cost is real and accepted: "CUMLORD" passes. The report pipe (three
-//      reporters → auto-redact) is the second line for exactly that case, and a
-//      false redaction of an innocent handle has no such appeal route.
-//
-//   3. A SERVER MIN-LENGTH. The client refuses a 1-character handle; nothing did
-//      on this side, so a hand-rolled POST could take a single letter — or a lone
-//      "I" — onto a public board. Under two characters now degrades to "", which
-//      the boards already render as ANON.
-const BLOCKED_SUB = [
-  "nigger", "nigga", "faggot", "retard", "rapist", "kike", "wetback",
-  "fuck", "bitch", "bastard", "asshole", "pussy", "vagina", "whore", "slut",
-  "porn", "hitler", "kkk", "molest", "incest", "penis",
-];
-const BLOCKED_WORD = [
-  "rape", "spic", "chink", "coon", "shit", "dick", "cock", "boner", "cum",
-  "cunt", "jizz", "wank", "twat", "prick", "anus", "sex", "nazi", "isis",
-  "pedo", "semen",
-];
-const LEET: Record<string, string> = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b", "@": "a", "$": "s", "!": "i" };
-
-// Confusables Unicode does NOT normalise away, because they are genuinely
-// different letters — they only LOOK the same. Cyrillic first, then Greek, then
-// the odd Latin letter with a stroke that NFD cannot decompose.
-const FOLD: Record<string, string> = {
-  // Cyrillic. Looked up lowercased, which is what catches the uppercase pairs —
-  // А Е О Р С Т У Х В К М Н are pixel-identical to their Latin twins.
-  "а": "a", "в": "b", "е": "e", "ё": "e", "з": "3", "к": "k", "м": "m", "н": "h",
-  "о": "o", "р": "p", "с": "c", "т": "t", "у": "y", "х": "x", "ѕ": "s", "і": "i",
-  "ї": "i", "ј": "j", "ԁ": "d", "һ": "h", "ԛ": "q", "ԝ": "w", "ӏ": "l",
-  // Greek.
-  "α": "a", "β": "b", "γ": "y", "ε": "e", "ζ": "z", "η": "n", "ι": "i", "κ": "k",
-  "μ": "u", "ν": "v", "ο": "o", "ρ": "p", "τ": "t", "υ": "u", "χ": "x",
-  // Latin letters whose stroke or ligature NFD cannot take apart.
-  "ł": "l", "ø": "o", "đ": "d", "ð": "d", "þ": "p", "ı": "i", "ſ": "s", "œ": "oe",
-  "æ": "ae", "ß": "ss",
-};
-
-// One canonical form, used for BOTH the display name and the match. Everything
-// that follows reads ASCII, which is what the rest of this pipeline expects.
-function foldName(raw: string): string {
-  let s = raw.normalize("NFKC").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  s = s.replace(/[^\x00-\x7f]/g, (c) => FOLD[c.toLowerCase()] ?? FOLD[c] ?? c);
-  return s;
-}
-
-function cleanName(n: unknown): string {
-  const src = foldName(String(n ?? ""));
-  const clean = src.replace(/[^\w \-]/g, "").replace(/\s+/g, " ").trim().slice(0, 14);
-  // Under two characters is not a handle. Empty is the honest answer, and the
-  // boards already print ANON for it.
-  if (clean.length < 2) return "";
-  // LEET RUNS BEFORE THE PUNCTUATION STRIP, and that ordering is the fix. The old
-  // filter stripped "@", "$" and "!" as non-word characters and only then consulted
-  // the LEET table, so those three entries could never fire and "$h!t" sailed
-  // through. Read the symbol while it is still there, then strip.
-  const leet = src.toLowerCase().replace(/[013457@$!]/g, (c) => LEET[c] ?? c)
-    .replace(/[^\w \-]/g, "").replace(/\s+/g, " ").trim().slice(0, 14);
-  // TIGHT drops every separator, so "n i g g e r" collapses to the word. LOOSE
-  // keeps one space per separator run, so a word test has boundaries to anchor to.
-  // The two forms exist because the two lists need opposite things.
-  const tight = leet.replace(/[\s_\-]/g, "");
-  const loose = leet.replace(/[_\-]+/g, " ").replace(/\s+/g, " ").trim();
-  if (BLOCKED_SUB.some((w) => tight.includes(w))) return "REDACTED";
-  // A word match, or the whole handle being nothing but that word — so a bare
-  // "SEX" and a spaced "S E X" are both caught while ESSEX is not.
-  if (BLOCKED_WORD.some((w) => new RegExp(`(^| )${w}(s|z|ed|er|ing)?( |$)`).test(loose) || tight === w)) return "REDACTED";
-  return clean;
-}
 
 // The client's per-run id — the leaderboard row key WITHIN this player's rows.
 // A fresh run mints a fresh id (→ a new row, so earlier records survive); the
@@ -242,7 +166,8 @@ Deno.serve(async (req) => {
   if (!run || typeof run !== "object") return json({ error: "no run" }, 400);
   if (!Number.isInteger(run.score) || run.score < 0) return json({ error: "bad score" }, 400);
   // a trace is required — every board is a verified board now
-  if (!Array.isArray(run.trace) || run.trace.length === 0 || run.trace.length > MAX_TRACE)
+  if (!Array.isArray(run.trace) || run.trace.length === 0
+    || run.trace.length > (run.mode === "weekly" ? MAX_TRACE_WEEKLY : MAX_TRACE) || !run.trace.every(goodFrame))
     return json({ error: "bad trace" }, 400);
 
   const board = boardKeyFor(run);
@@ -364,9 +289,15 @@ Deno.serve(async (req) => {
   //    carrying the trace pointer. run_id is the row key, scoped by player_id, so
   //    it can only ever address this player's own row: worst case they overwrite
   //    a run of their own, which is exactly what the rename flow wants.
+  // ORPHAN BOOKKEEPING (audit 2026-11-05). The write may keep the old row's trace (a resubmit that
+  // does not beat it) or swap to the new one; either way one file ends up referenced by nothing.
+  // Read the row's pointer before and after, and delete whichever file the row no longer holds.
+  const runId = cleanRunId(run.runId);
+  const rowTrace = async () => (await svc.from("runs").select("trace_id").eq("board", board).eq("player_id", playerId).eq("run_id", runId).maybeSingle()).data?.trace_id ?? null;
+  const prevTrace = await rowTrace();
   const { data: evicted, error: wErr } = await svc.rpc("submit_verified_run", {
     p_board: board, p_day: day, p_player: playerId, p_name: cleanName(body.name ?? run.playerName),
-    p_run_id: cleanRunId(run.runId),
+    p_run_id: runId,
     p_score: score, p_max_combo: stat.maxCombo, p_combo_sec: stat.comboSec, p_time_sec: stat.timeSec,
     p_integrity: stat.integrity, p_zaps: stat.zaps, p_misses: stat.misses, p_perfects: stat.perfects,
     p_mutators: Array.isArray(run.mutators) ? run.mutators.filter((m: unknown) => typeof m === "string").slice(0, 8) : [], p_seed: run.seed ?? null,
@@ -377,15 +308,13 @@ Deno.serve(async (req) => {
     p_trace_hash: traceHash,
   });
   if (wErr) {
-    // 23505 is that index: these exact frames are already on the board. The
-    // object uploaded a moment ago belongs to no row now, so it goes too — the
-    // review found that a refused write would otherwise leave an orphan per race.
-    if ((wErr as any).code === "23505") {
-      if (traceId) { const { error: dErr } = await svc.storage.from("traces").remove([traceId]); if (dErr) console.warn(`[submit-run] orphan ${traceId} not removed: ${dErr.message}`); }
-      return json({ error: "replay already submitted" }, 403);
-    }
+    // ANY failed write leaves the object uploaded a moment ago pointing at no row. 23505 is the
+    // trace_hash index: these exact frames are already on the board.
+    if (traceId) { const { error: dErr } = await svc.storage.from("traces").remove([traceId]); if (dErr) console.warn(`[submit-run] orphan ${traceId} not removed: ${dErr.message}`); }
+    if ((wErr as any).code === "23505") return json({ error: "replay already submitted" }, 403);
     return json({ error: "write failed", detail: wErr.message }, 500);
   }
+  const keptTrace = traceId ? await rowTrace() : null;
 
   // ---- PURGE THE REPLAYS THAT JUST FELL OFF THE BOARD ----
   // The write above evicts everything past the top 100 and hands back the trace
@@ -402,6 +331,8 @@ Deno.serve(async (req) => {
   const dead = (evicted ?? [])
     .map((r: any) => r?.evicted_trace)
     .filter((t: unknown): t is string => typeof t === "string" && !!t);
+  // a failed read (keptTrace null) deletes nothing: better an orphan than the live replay
+  if (keptTrace) for (const t of [traceId, prevTrace]) if (t && t !== keptTrace && !dead.includes(t)) dead.push(t); // the file the row no longer holds
   if (dead.length) {
     const { error: sErr } = await svc.storage.from("traces").remove(dead);
     if (sErr) console.warn(`[submit-run] evicted ${dead.length} trace(s), purge failed: ${sErr.message}`);
