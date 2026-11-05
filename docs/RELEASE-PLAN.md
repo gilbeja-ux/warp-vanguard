@@ -34,7 +34,7 @@ seam moves to the end of contract 2.
 |---|---|---|
 | Qualification, contracts 1 and 2 (stages 01–16, two bosses) | yes | yes |
 | FREE FLOW: the ENDLESS lane | yes | yes |
-| FREE FLOW: filing a WEEKLY score | yes, until Gil answers (below) | yes |
+| FREE FLOW: filing a WEEKLY score | yes (Gil: "Weekly stays free") | yes |
 | Contracts 3, 4 and 5 (stages 17–40, three bosses) | no | yes |
 | Watching any run on any board | yes | yes |
 
@@ -58,14 +58,16 @@ CONTRACT off stage 16, and on a locked door anywhere else. Its keys: NOT NOW, UN
 with the store's price, and ALREADY CLEARED? RESTORE. SETTINGS has a **RESTORE
 PURCHASE** row, because App Review rejects an unlock with no restore.
 
-**Two decisions are open.** Each is one constant in `src/game/34-license.js`, so the
-answer is a one-line change, and `npm test` flies both answers:
+**Two decisions, settled by Gil on 2026-11-05.** Each stays one named constant in
+`src/game/34-license.js`, so a change of mind is a one-line change, and `npm test` flies
+both values of each:
 
-- `WEEKLY_NEEDS_LICENSE` (today `false`): may a free player file a weekly ranked score?
-  With `true`, a free player still flies the weekly lane, unranked, and the weekly door
-  offers FLY UNRANKED beside UNLOCK.
-- `GRANDFATHER` (today `'progress'`): the game is live and all free, so a player who
-  already flew past stage 16 must not meet a paywall over their own progress. The first
+- `WEEKLY_NEEDS_LICENSE = false` (Gil: "Weekly stays free"): a free player files weekly
+  ranked scores. With `true`, a free player would fly the weekly lane unranked, and the
+  weekly door would offer FLY UNRANKED beside UNLOCK.
+- `GRANDFATHER = 'progress'` (Gil: "Keep their progress"): the game was live and all
+  free, so a player who already flew past stage 16 must not meet a paywall over their own
+  progress; a player who never got that far sees the offer. The first
   boot of the paywall build stamps the save once: did it exist, and did it hold a star,
   a best or a second opened stage in contracts 3–5. `'progress'` gifts the second kind;
   `'every-save'` gifts every save made before the paywall build; `'none'` gifts nobody.

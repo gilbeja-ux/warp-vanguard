@@ -90,10 +90,9 @@ Do these in order. Steps 1 and 2 can take a few days to clear.
 
 ## 3. Before the 1.1 cut
 
-1. [ ] **Answer the two open decisions** (each is one line in `src/game/34-license.js`):
-   `WEEKLY_NEEDS_LICENSE` (may a free player file a weekly score? today: yes) and
-   `GRANDFATHER` (who keeps stages 17–40 they had before the paywall? today: a save with
-   progress past stage 16).
+1. [x] **The two decisions** (answered 2026-11-05, one line each in `src/game/34-license.js`):
+   `WEEKLY_NEEDS_LICENSE = false` ("Weekly stays free") and `GRANDFATHER = 'progress'`
+   ("Keep their progress": a save with progress past stage 16 keeps stages 17–40).
 2. [ ] **One real purchase on each platform**, with a license tester on Android and a
    sandbox account on iOS: buy, kill the app, start it again (still unlocked), delete
    the app and install it again (unlocked again, at start-up, with no tap), and RESTORE

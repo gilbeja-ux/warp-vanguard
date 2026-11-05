@@ -27,16 +27,18 @@
 const FREE_CONTRACTS = 2;                              // contracts 1 and 2: stages 01-16
 const LICENSE_PRODUCT = 'com.warpvanguard.game.license'; // the same string in both store consoles
 
-// ---- THE TWO OPEN DECISIONS (Gil answers in the planning session) ----
-// Each is one constant, so either answer is a one-line change.
+// ---- THE TWO DECISIONS: SETTLED BY GIL, 2026-11-05 ----
+// Each stays one named constant, so a later change of mind is a one-line change,
+// and npm test (THE PAYWALL) flies both values of each.
 //
-// 1. May a free player FILE a weekly ranked score? false: yes, the weekly board
-//    is free (the default until Gil answers). true: a free player still flies the
-//    weekly lane, unranked, and boardKey() files nothing for it.
+// 1. May a free player FILE a weekly ranked score? Gil: "Weekly stays free" (false).
+//    true would let a free player fly the weekly lane, unranked, with boardKey()
+//    filing nothing for it.
 const WEEKLY_NEEDS_LICENSE = false;
-// 2. Who keeps the paid stages they had before the wall went up? The game is
-//    live and all free today, so a player who already flew past stage 16 must
-//    not meet a paywall over their own progress.
+// 2. Who keeps the paid stages they had before the wall went up? Gil: "Keep their
+//    progress" ('progress'). The game was live and all free, so a player who
+//    already flew past stage 16 must not meet a paywall over their own progress;
+//    a player who never got that far sees the offer.
 //      'progress'   — a save that held progress past stage 16 when this build
 //                     first booted: a star, a best, or a second stage opened in
 //                     contract 3, 4 or 5 (the default)

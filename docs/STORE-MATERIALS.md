@@ -387,7 +387,8 @@ No subscription: one purchase, once, and it is yours on every device your store 
 Nothing you can buy will move your score.
 ```
 
-If Gil sets `WEEKLY_NEEDS_LICENSE` to `true`, the weekly line gains: *Filing a score on the
+The weekly line stays as it is: Gil kept the weekly board free (2026-11-05). Only if
+`WEEKLY_NEEDS_LICENSE` ever becomes `true` does it gain: *Filing a score on the
 weekly board comes with the unlock.*
 
 ### App Store
