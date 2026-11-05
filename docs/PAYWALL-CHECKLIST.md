@@ -33,7 +33,7 @@ Do these in order. Steps 1 and 2 can take a few days to clear.
 3. [ ] **The one-time product.** Play Console → the app → *Monetize with Play → Products →
    One-time products → Create one-time product*.
    - Product ID: `com.warpvanguard.game.license`
-   - Name: what the purchase sheet shows, for example `Deep Range Clearance`
+   - Name: what the purchase sheet shows, for example `Deep Space Clearance`
    - Description: for example `Unlocks contracts 3, 4 and 5: stages 17 to 40, for good.`
    - Purchase option: **buy**, not rent. Price about $1.99. Let Play convert the price
      for the other countries, then check a few by eye.
@@ -64,7 +64,7 @@ Do these in order. Steps 1 and 2 can take a few days to clear.
    be sold, and before the sandbox can buy.
 2. [ ] **The in-app purchase.** The app → *Monetization → In-App Purchases → +*.
    - Type: **Non-Consumable**.
-   - Reference name: for example `Deep Range Clearance` (only you see it)
+   - Reference name: for example `Deep Space Clearance` (only you see it)
    - Product ID: `com.warpvanguard.game.license`
    - Price: the tier nearest $1.99. Check the other storefronts.
    - Localization: display name and description, the same words as on Play.

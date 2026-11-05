@@ -123,7 +123,7 @@ add the second paragraph to item 3. Add the product to the 1.1 version page befo
 submit: a first in-app purchase is reviewed with a build.
 
 ```
-- Paid content: the app sells one non-consumable in-app purchase, "Deep Range Clearance" (com.warpvanguard.game.license). Contracts 1 and 2 (stages 01-16) and the endless lane are free; the purchase unlocks contracts 3, 4 and 5 (stages 17-40). It is offered on an in-game panel titled DEEP RANGE CLEARANCE, which shows the price StoreKit returns. A purchase is restored automatically at launch, and with RESTORE PURCHASE in SETTINGS (the gear key, top right of the main menu). There are no subscriptions, consumables or ads.
+- Paid content: the app sells one non-consumable in-app purchase, "Deep Space Clearance" (com.warpvanguard.game.license). Contracts 1 and 2 (stages 01-16) and the endless lane are free; the purchase unlocks contracts 3, 4 and 5 (stages 17-40). It is offered on an in-game panel titled DEEP RANGE CLEARANCE, which shows the price StoreKit returns. A purchase is restored automatically at launch, and with RESTORE PURCHASE in SETTINGS (the gear key, top right of the main menu). There are no subscriptions, consumables or ads.
 ```
 
 ```

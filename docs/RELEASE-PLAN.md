@@ -53,7 +53,7 @@ seam moves to the end of contract 2.
    list, NEXT CONTRACT, the board's FLY THIS LANE, the passcode boss drill. The doors
    also check first, so they open the offer instead of starting a transition.
 
-**The offer** is an in-fiction disc the ring casts, DEEP RANGE CLEARANCE, under the
+**The offer** is an in-fiction disc the ring casts, DEEP SPACE CLEARANCE, under the
 disc law. It opens after the stage 16 boss verdict (on the report, once its keys land),
 on a tap of a locked contract (the disc wears a lock and says GET CLEARANCE), on NEXT
 CONTRACT off stage 16, and on a locked door anywhere else. Its keys: NOT NOW, UNLOCK

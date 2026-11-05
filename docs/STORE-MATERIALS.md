@@ -406,7 +406,7 @@ launch day.
 | Field | Text |
 |---|---|
 | Product id (both stores, exact) | `com.warpvanguard.game.license` |
-| Display name | `Deep Range Clearance` |
+| Display name | `Deep Space Clearance` |
 | Description | `Unlocks contracts 3, 4 and 5: stages 17 to 40, for good.` |
 
 The display name is the offer disc's own title, so the store's sheet and the game agree. The

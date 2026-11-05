@@ -360,10 +360,94 @@ function drawLicenseSeal(x, y, r) {
   ctx.restore();
 }
 
+// ---- THE CLEARANCE PASS (Gil, 2026-11-05: "a futuristic multipass/ticket ... above
+// the bottom buttons so it looks more inviting") ----
+// The pass rises out of the segment over the UNLOCK key, as if the key prints it:
+// the top of the card shows, the rest stays behind the chord. On CLEARED it rises
+// further and its edge turns green. Named knobs, for Gil to tune by eye, as shares of R:
+//   x     the card's centre, right of the disc's centre (0.32 sits it over UNLOCK)
+//   peek  how much of the card shows above the chord
+//   w     the card's width (its height is w * 0.62)
+//   tilt  radians; a negative tilt lifts the right end
+//   lift  the extra rise once CLEARED
+//   bob   the float's height; sheen is holo sweeps per second
+const LICENSE_PASS = { x: 0.32, peek: 0.21, w: 0.70, tilt: -0.07, lift: 0.14, bob: 0.006, sheen: 0.28 };
+// the card's two gradients are in its own frame, so they are built once per size
+let passGrads = null, passKey = '', passCtx = null;
+function drawLicensePass(cx, cy, R, q, o) {
+  const P = LICENSE_PASS, w = R * P.w, h = w * 0.62, chordY = cy + R * DISC_SEG;
+  if (o.done && o.doneAt == null) o.doneAt = time;
+  const ease = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
+  const up = R * (P.peek * ease((q - 0.55) / 0.45) + (o.done ? P.lift * ease((time - o.doneAt) / 0.7) : 0));
+  if (up <= 0.5) return;
+  const pk = w.toFixed(1);
+  if (!(passGrads && passKey === pk && passCtx === ctx)) {
+    const body = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+    body.addColorStop(0, 'rgba(24,64,112,0.97)');
+    body.addColorStop(0.55, 'rgba(9,28,58,0.97)');
+    body.addColorStop(1, 'rgba(30,24,78,0.97)');
+    const holo = ctx.createLinearGradient(-w * 0.2, 0, w * 0.2, 0);
+    holo.addColorStop(0, 'rgba(140,230,255,0)');
+    holo.addColorStop(0.35, 'rgba(140,230,255,0.22)');
+    holo.addColorStop(0.5, 'rgba(255,214,140,0.26)');
+    holo.addColorStop(0.65, 'rgba(190,140,255,0.2)');
+    holo.addColorStop(1, 'rgba(190,140,255,0)');
+    passGrads = [body, holo]; passKey = pk; passCtx = ctx;
+  }
+  const [body, holo] = passGrads;
+  const edge = o.done ? 'rgba(126,226,98,0.95)' : 'rgba(140,230,255,0.92)';
+  ctx.save();
+  // the segment's keys are glass, so the chord CLIPS the card rather than covering it
+  ctx.beginPath(); ctx.rect(cx - R, cy - R, R * 2, chordY - (cy - R)); ctx.clip();
+  ctx.translate(cx + R * P.x, chordY - up + h / 2 + Math.sin(time * 1.7) * R * P.bob);
+  ctx.rotate(P.tilt);
+  const cut = h * 0.16;
+  techRect(-w / 2, -h / 2, w, h, cut);
+  ctx.fillStyle = body; ctx.fill();
+  // the holo sheen crosses the card, then rests
+  const ph = (time * P.sheen) % 1;
+  if (ph < 0.5) {
+    ctx.save(); ctx.clip();
+    ctx.translate(-w * 0.8 + ph / 0.5 * w * 1.6, 0); ctx.rotate(0.45);
+    ctx.fillStyle = holo; ctx.fillRect(-w * 0.2, -h * 1.5, w * 0.4, h * 3);
+    ctx.restore();
+  }
+  // a soft glow under the edge: a wide faint stroke, never shadowBlur (WebKit pays for it)
+  techRect(-w / 2, -h / 2, w, h, cut);
+  ctx.strokeStyle = o.done ? 'rgba(126,226,98,0.16)' : 'rgba(140,230,255,0.16)'; ctx.lineWidth = Math.max(4, R * 0.024); ctx.stroke();
+  ctx.strokeStyle = edge; ctx.lineWidth = Math.max(1.2, R * 0.006); ctx.stroke();
+  ctx.strokeStyle = 'rgba(140,230,255,0.22)'; ctx.lineWidth = 1;
+  const ins = h * 0.06;
+  techRect(-w / 2 + ins, -h / 2 + ins, w - ins * 2, h - ins * 2, cut * 0.7); ctx.stroke();
+  // the stub: a row of perforations, and the ring the thumbs fly, as the emblem
+  const perfX = w / 2 - w * 0.3;
+  ctx.fillStyle = 'rgba(140,230,255,0.45)';
+  for (let yy = -h / 2 + h * 0.1; yy < h / 2; yy += h * 0.08) { ctx.beginPath(); ctx.arc(perfX, yy, Math.max(0.8, h * 0.012), 0, TAU); ctx.fill(); }
+  const ex = w / 2 - w * 0.15, ey = -h / 2 + h * 0.3, er = h * 0.15;
+  ctx.strokeStyle = 'rgba(186,231,255,0.5)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(ex, ey, er, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = edge; ctx.lineWidth = Math.max(1.5, h * 0.03); ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) { const a = k / 4 * TAU + time * 0.6; ctx.beginPath(); ctx.arc(ex, ey, er, a - 0.35, a + 0.35); ctx.stroke(); }
+  ctx.fillStyle = edge; ctx.beginPath(); ctx.arc(ex, ey, er * 0.2, 0, TAU); ctx.fill();
+  // the face: what the pass is for, fitted to the space left of the perforations
+  const lx = -w / 2 + w * 0.08, lw = perfX - lx - w * 0.05;
+  ctx.textAlign = 'left';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.font = '700 ' + fitPx('DEEP SPACE', '700', Math.round(h * 0.15), lw, 7) + 'px Audiowide, system-ui';
+  ctx.fillStyle = 'rgba(225,242,255,0.96)'; ctx.fillText('DEEP SPACE', lx, -h / 2 + h * 0.27);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  const sub = 'STAGES ' + paidRange();
+  ctx.font = '600 ' + fitPx(sub, '600', Math.round(h * 0.105), lw, 6) + 'px Audiowide, system-ui';
+  ctx.fillStyle = 'rgba(140,230,255,0.82)'; ctx.fillText(sub, lx, -h / 2 + h * 0.43);
+  ctx.restore();
+}
+
 // ---- the disc ----
+// THE OFFER DISC'S LAYOUT, as shares of R off the disc's centre. Gil, 2026-11-05:
+// the title stands lower off the crown, and the restore key clears the segment
+// and the pass. Named knobs, for Gil to tune by eye.
+const LICENSE_OFFER = { titleDrop: 0.06, textTop: 0.38, restoreY: 0.175 };
 function licOfferCopy(o) {
-  const names = CAMPAIGNS.slice(FREE_CONTRACTS).map(p => p.title);
-  const list = names.length > 1 ? names.slice(0, -1).join(', ') + ' AND ' + names[names.length - 1] : names.join('');
   const bosses = CAMPAIGNS.slice(FREE_CONTRACTS).filter(p => p.levels.some(l => l && l.boss)).length;
   const free = 'STAGES ' + freeRange() + ' AND THE ENDLESS LANE STAY FREE';
   if (o.from === 'weekly') return [
@@ -371,8 +455,9 @@ function licOfferCopy(o) {
     'CLEARANCE ALSO OPENS STAGES ' + paidRange(),
     free];
   return [
-    list + ' RUN PAST THE CHARTED LANES',
-    'STAGES ' + paidRange() + ' · ' + bosses + ' BOSSES · CLEARED FOR GOOD',
+    // the words are Gil's, 2026-11-05
+    'FURTHER PROGRESS REQUIRES DEEP SPACE CLEARANCE',
+    'GET ACCESS TO: STAGES ' + paidRange() + ', INCLUDING ' + bosses + ' BOSSES.',
     free];
 }
 function drawLicOffer() {
@@ -387,10 +472,11 @@ function drawLicOffer() {
   ctx.fillRect(0, 0, W, H);
   popRender(q, cx - R, cy - R, R * 2, R * 2, () => {
     ctx.save();
-    discPlate(cx, cy, R, o.done ? 'CLEARED' : 'DEEP RANGE\nCLEARANCE');
+    discPlate(cx, cy, R, o.done ? 'CLEARED' : 'DEEP SPACE\nCLEARANCE', null, LICENSE_OFFER.titleDrop);
+    drawLicensePass(cx, cy, R, q, o);
     const [p1, p2, p3] = licOfferCopy(o);
     const px1 = Math.max(9, Math.round(R * 0.064)), px2 = Math.max(8, Math.round(R * 0.056));
-    let y = cy - R * (o.done ? 0.16 : 0.42); // the cleared disc says two lines: they sit in the middle of the band
+    let y = cy - R * (o.done ? 0.16 : LICENSE_OFFER.textTop); // the cleared disc says two lines: they sit in the middle of the band
     if (o.done) {
       y = discPara(cx, cy, R, o.msg, y, 'rgba(126,226,98,0.96)', px1, '700');
       discPara(cx, cy, R, 'GOOD HUNTING, VANGUARD', y + px1 * 0.4, 'rgba(150,210,255,0.72)', px2, '500');
@@ -401,7 +487,7 @@ function drawLicOffer() {
       // THE BAND ABOVE THE SEGMENT: the restore key, or what the store just said.
       // The key holds words, so it keeps the TEXT margin off the rim, fitted at
       // its widest corner (the disc law).
-      const kh = Math.max(16, R * 0.105), ky = cy + R * 0.40;
+      const kh = Math.max(16, R * 0.105), ky = cy + R * LICENSE_OFFER.restoreY;
       if (o.msg) {
         discPara(cx, cy, R, o.msg, ky + kh * 0.62, o.busy ? 'rgba(150,210,255,0.85)' : 'rgba(255,214,140,0.95)', px2, '700');
       } else {

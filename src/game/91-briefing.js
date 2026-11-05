@@ -1615,7 +1615,7 @@ const DISC_TITLE_PAD = 0.13;
 // are kept for the last disc drawn and rebuilt only when it (or the context) moves
 // (2026-10-10: a paused run or a briefing rebuilt both every frame)
 let platePair = null, plateKey = '', plateCtx = null;
-function discPlate(cx, cy, R, title, titleCol) {
+function discPlate(cx, cy, R, title, titleCol, titleDrop) {
   const pk = cx + ',' + cy + ',' + R;
   if (!(platePair && plateKey === pk && plateCtx === ctx)) {
     const bg0 = ctx.createRadialGradient(cx, cy, R * 0.20, cx, cy, R);
@@ -1645,7 +1645,8 @@ function discPlate(cx, cy, R, title, titleCol) {
   // THE TITLE SITS DOWN OFF THE RIM AND CARRIES SOME SIZE. It used to be set at
   // R*0.052 hard against the crown, where the chord is barely wider than the word
   // — a caption on a disc that is not captioned by anything else on screen.
-  const ty = cy - R * 0.755;
+  // titleDrop (a share of R) lowers one disc's title off the crown; the offer disc uses it
+  const ty = cy - R * (0.755 - (titleDrop || 0));
   ctx.textAlign = 'center';
   ctx.fillStyle = titleCol || 'rgba(186,231,255,0.92)';
   try { ctx.letterSpacing = '4px'; } catch (e) {}
