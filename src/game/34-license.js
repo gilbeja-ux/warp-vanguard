@@ -95,8 +95,10 @@ function freeRange() {
 }
 
 // ---- ONE DOOR FOR ANALYTICS ----
-// The traction session adds a track() for offer views and purchases; it lands
-// here and nowhere else. Until a track() exists, nothing is sent anywhere.
+// The play statistics' track() (34-telemetry.js) gets three events from here and
+// nowhere else: paywall.offer { from }, paywall.buy and paywall.restore { from,
+// state, owned }. Never a price, a receipt, a token or a store account: privacy.html
+// promises that. track() is inert outside a real build, so tests and labs send nothing.
 function licenseTrack(ev, data) {
   if (typeof track === 'function') { try { track(ev, data || {}); } catch (e) {} }
 }
@@ -237,7 +239,7 @@ function openLicOffer(from, ci, w) {
   licOffer = { from: from || 'locked', ci: ci === undefined || ci < 0 ? FREE_CONTRACTS : ci, w, busy: false, msg: '', done: false };
   licOfferLast = licOffer;
   licOfferDue = false;
-  licenseTrack('offer_view', { from: licOffer.from });
+  licenseTrack('paywall.offer', { from: licOffer.from });
   licenseQuery(); // the price may have arrived since boot, or may never have
 }
 function closeLicOffer() { licOffer = null; }
@@ -272,7 +274,7 @@ function licOfferAct(tag) {
 }
 function licOfferResult(o, tag, r) {
   licenseApply(r);
-  licenseTrack(tag === 'buy' ? 'offer_buy' : 'offer_restore', { from: o.from, state: (r && r.state) || 'error', owned: !!(r && r.owned) });
+  licenseTrack(tag === 'buy' ? 'paywall.buy' : 'paywall.restore', { from: o.from, state: (r && r.state) || 'error', owned: !!(r && r.owned) });
   o.busy = false;
   if (licensed()) { o.done = true; o.msg = 'STAGES ' + paidRange() + ' ARE OPEN'; return; }
   const st = r && r.state;
@@ -330,7 +332,7 @@ function restorePurchase() {
   const done = (text) => { restoreBusy = false; restoreMsg = { text, at: time }; };
   Billing.restore().then(r => {
     licenseApply(r);
-    licenseTrack('restore', { from: 'settings', state: (r && r.state) || 'error', owned: !!(r && r.owned) });
+    licenseTrack('paywall.restore', { from: 'settings', state: (r && r.state) || 'error', owned: !!(r && r.owned) });
     done(license.owned ? 'PURCHASE RESTORED' : r && (r.state === 'error' || r.state === 'unavailable') ? 'NO ANSWER. TRY AGAIN' : 'NOTHING TO RESTORE');
   }, () => done('NO ANSWER. TRY AGAIN'));
 }

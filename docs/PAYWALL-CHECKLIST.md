@@ -47,9 +47,10 @@ Do these in order. Steps 1 and 2 can take a few days to clear.
    the build Play installs is the one that is sure to match. The **sideload** build is a
    different app to Play (`com.warpvanguard.game.sideload`): it cannot buy. Use it for the
    R8 pass, not for purchases.
-6. [ ] **Data safety form.** The game sends nothing about a purchase to our server: the
-   only new data is a yes/no that stays on the device. Check the current Play guidance for
-   apps that use Google Play Billing, and update the form only if Play asks for it.
+6. [ ] **Data safety form.** The play statistics now carry three paywall events (the offer
+   opened, how a purchase or restore ended). Tick **Financial info → Purchase history**:
+   collected, not shared, purpose *Analytics*. Nothing else changes: no price, receipt or
+   store account is ever sent. `PLAY-STATISTICS-PRIVACY.md` has the reasoning.
 7. [ ] **Store listing.** Paste the 1.1 copy from [STORE-MATERIALS.md](STORE-MATERIALS.md)
    §6. Play adds the *In-app purchases* label by itself.
 8. [ ] **The content questions.** In [PLAY-CONSOLE-ANSWERS.md](PLAY-CONSOLE-ANSWERS.md), the
@@ -77,14 +78,17 @@ Do these in order. Steps 1 and 2 can take a few days to clear.
 4. [ ] **Submit the product with the build.** The first in-app purchase must go to review
    with a new app version: on the 1.1 version page, add the product under *In-App
    Purchases and Subscriptions* before you submit.
-5. [ ] **Review notes.** Paste the 1.1 notes from
+5. [ ] **App Privacy (the privacy label).** Add **Purchases → Purchase History**: purpose
+   *Analytics*, *Linked to the user*, not used for tracking. It is the paywall's three
+   events in the play statistics, as on Play.
+6. [ ] **Review notes.** Paste the 1.1 notes from
    [APP-STORE-REVIEW-NOTES.md](APP-STORE-REVIEW-NOTES.md) (*1.1: the in-app purchase*).
-6. [ ] **Sandbox testers.** *Users and Access → Sandbox → Test accounts → +*. Use an email
+7. [ ] **Sandbox testers.** *Users and Access → Sandbox → Test accounts → +*. Use an email
    address that is not an Apple Account already (a `+sandbox` alias works). On the test
    iPhone: *Settings → Developer → Sandbox Apple Account* (on older iOS: *Settings → App
    Store → Sandbox Account*), then sign in there, never in the main Apple Account field.
    A TestFlight build buys in the sandbox by itself, with no tester account at all.
-7. [ ] **Store listing.** Paste the 1.1 promotional text and description from
+8. [ ] **Store listing.** Paste the 1.1 promotional text and description from
    [STORE-MATERIALS.md](STORE-MATERIALS.md) §6. The App Store shows *In-App Purchases*
    on the listing by itself.
 

@@ -765,6 +765,7 @@ function endTap(x, y) {
 }
 
 function resetRun() {
+  telAttemptOpen(); // play statistics (34-telemetry.js): closes the run this one replaces, opens this one — reads, never writes
   // A RUN THAT BEGINS HERE IS THE PLAYER'S. `replaying` is cleared unconditionally,
   // and reseedReplay re-asserts it right after its own start call — so a stuck flag
   // cannot outlive the menu. It could: leaving the replay viewer through any door
