@@ -183,6 +183,8 @@ code = code.replace("'use strict';", '') + `
   QUAL_PARTS, QUAL_PART_N, qualPartDue, deployStage, qualSkip, qualSkipShown, replayQualPart,
   migrateQualParts, getQualPart: () => qualPart, getQualThen: () => qualThen, qualSkipRect: () => qualSkipRect,
   DEMO, DEMO_LOOP, getTrans: () => trans, DISC_PAD, DISC_TEXT_PAD, discChord,
+  // THE CHARGED SIDE (90-hud, 2026-11-05): a full pad lights its side of the screen
+  pulseSide: () => pulseSide.slice(), pulseFirable, drawPulseSide,
   drawTutCallLayer, tutCallNodeK, CALL_NODE_ALPHA, getHoloCv: () => holoCv, getDemoNodeSink: () => demoNodeSink,
   callGlitch, GLITCH_EVERY, GLITCH_LEN, netAssign, // the barrier net's one-end-per-emitter plan
   getGpDriving: () => gpDriving, setGpDriving: v => { gpDriving = v; }, // who is flying right now (71-gamepad)
@@ -2628,13 +2630,13 @@ check('weekly defeat records the weekly best and streak', G.getState() === G.S.E
 // course became one continuous run of every lesson, with no chapters: no drill stops the
 // lane any more. CALL AND RESPONSE plays each lesson's diorama on the live ring, then
 // sends the same pattern for real, and a miss REWINDS the lane — the whole lane runs back
-// to where the tape has it — instead of starting the drill over. The pulse drill still
-// freezes the run for the FIRE-PULSE moment.
+// to where the tape has it — instead of starting the drill over.
 //
 // Gil, 2026-11-05: "less to learn at once". The run is cut into three short parts
 // (QUAL_PARTS, 70-update): part 1 before stage 01, part 2 the first time stage 03 is
 // started, part 3 the first time stage 07 is. Each lesson sits in the part before the
-// stage that first sends it, and the volley lesson is gone.
+// stage that first sends it. The volley lesson is gone, and so is the pulse lesson: a
+// full pad lights its own side of the screen instead (THE CHARGED SIDE, below).
 G.progress.tutorialDone = false;
 G.progress.qualPart2Done = G.progress.qualPart3Done = false;
 G.startQualification(false, 1, -1);
@@ -2652,8 +2654,8 @@ check('part 1 is one run, opening on the controls, in the lane, with no disc',
     same(kindsOf(1), ['move', 'normal', 'normal', 'pickup', 'done']));
   check(`part 2 is armor, the barrier net, the dead zone and the ribbon (${kindsOf(2)})`,
     same(kindsOf(2), ['heavy', 'line', 'wall', 'strip', 'done']));
-  check(`part 3 is the phase locks and the pulse (${kindsOf(3)})`,
-    same(kindsOf(3), ['lock0', 'lock1', 'pulse', 'done']));
+  check(`part 3 is the phase locks alone (${kindsOf(3)})`,
+    same(kindsOf(3), ['lock0', 'lock1', 'done']));
   check('each part plays before stage 01, 03 and 07, named as the nameplate names them',
     P[1].stage === 1 && P[2].stage === 3 && P[3].stage === 7 && G.lvNum(P[2].stage) === '03');
   check('each part files its own flag, and part 1 keeps the flag the boot claim reads',
@@ -2671,11 +2673,11 @@ check('part 1 is one run, opening on the controls, in the lane, with no disc',
     move: 1, normal: 1, pickup: 1,  // the filler drop runs from the first stage (asserted below)
     heavy: firstWith(l => (l.heavies || 0) > 0), line: firstWith(l => (l.lines || 0) > 0),
     wall: firstWith(l => (l.walls || 0) > 0), lock0: firstWith(l => (l.colors || 0) > 0),
-    lock1: firstWith(l => (l.colors || 0) > 0), pulse: firstWith(l => !!l.boss),
+    lock1: firstWith(l => (l.colors || 0) > 0),
     strip: ribbonGate ? +ribbonGate[1] + 1 : 0
   };
-  check(`the debuts read off the first contract: armor 03, nets 05, ribbons 05, dead zones 06, locks 07, boss 08 (${JSON.stringify(debut)})`,
-    debut.heavy === 3 && debut.line === 5 && debut.strip === 5 && debut.wall === 6 && debut.lock0 === 7 && debut.pulse === 8);
+  check(`the debuts read off the first contract: armor 03, nets 05, ribbons 05, dead zones 06, locks 07 (${JSON.stringify(debut)})`,
+    debut.heavy === 3 && debut.line === 5 && debut.strip === 5 && debut.wall === 6 && debut.lock0 === 7);
   const taughtIn = k => [1, 2, 3].find(n => kindsOf(n).includes(k));
   const owedBy = k => [3, 2, 1].find(n => P[n].stage <= debut[k]);
   const off = Object.keys(debut).filter(k => taughtIn(k) !== owedBy(k));
@@ -2692,10 +2694,19 @@ check('part 1 is one run, opening on the controls, in the lane, with no disc',
     !all.includes('volley') && !G.getInfoCards().volley && !G.DEMO.volley && !('volley' in G.DEMO_LOOP)
     && !/kind === 'volley'/.test(src70) && !/tut === 'volley'|volley: 'DOCK BOTH AND HOLD/.test(hud));
   check('…and the volley mechanic itself is untouched', typeof G.volley() === 'object' && G.VOLLEY_BLAST_A > 0);
+  // THE PULSE LESSON IS GONE TOO (Gil, 2026-11-05): a pad fills from stage 01, long before
+  // a stage-07 lesson could explain it. Its drill went whole — the purge column, the
+  // freeze that held the world for the tap, its call, card, diorama and HUD lines.
+  const lane = ['72-tick.js', '85-enemy-art.js', '11-music.js']
+    .map(f => fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8')).join('\n');
+  check('the pulse lesson is gone: no part, no card, no diorama, no hold, no drill spawn, no HUD line',
+    !all.includes('pulse') && !G.getInfoCards().pulse && !G.DEMO.pulse && !('pulse' in G.DEMO_LOOP)
+    && !/kind === 'pulse'|card: 'pulse'|PULSE_HOLD/.test(src70) && !/tut\.frozen|tut\.fired/.test(src70 + hud + lane)
+    && !/FIRE PULSE NOW|TO FIRE PULSE/.test(hud));
 }
 // EVERY DISC IS STILL DRAWN: the dioramas are the calls' source now, and the disc
 // renderer still carries them for the bench
-for (const k of ['move', 'normal', 'wall', 'heavy', 'line', 'lock', 'pickup', 'strip', 'pulse'])
+for (const k of ['move', 'normal', 'wall', 'heavy', 'line', 'lock', 'pickup', 'strip'])
   drawOk('field briefing disc: ' + k, () => { G.setState(G.S.INFO); G.showInfoCard(k); });
 G.setState(G.S.PLAY);
 check('the first SLIDE rep opens on a CALL, and the lane never parks on a disc',
@@ -2924,77 +2935,13 @@ G.setEndT(99); G.frame(16);
 check('a replayed part 2 offers RESTART, not the first contract',
   !G.getEndButtons().some(b => b.action === 'contract') && G.getEndButtons().some(b => b.action === 'retry'));
 
-// ---- PART 3: the phase locks and the pulse ----
+// ---- PART 3: the phase locks ----
 G.startQualification(false, 3, -1);
 G.update(0.05);
 check('part 3 opens on the phase locks', G.getState() === G.S.PLAY && G.getQualPart() === 3 && G.qualStage().card === 'lock');
 passCall('lock');
 check('blue-lock practice', waitLive(4) && zapPractice());
 check('white-lock practice', waitLive(6) && zapPractice());
-settle();
-// THE PULSE DRILL. The purge column is pre-spawned when the stage opens, so as the
-// response begins four traps are already inbound and still short of the ring.
-{
-  let oGuard = 200;
-  while (oGuard-- > 0 && G.qualStage().card !== 'pulse') G.update(0.05);
-  passCall('pulse');
-  const vol = G.enemies().filter(e => e.tut === 'pulse');
-  const live = vol.filter(e => !e.dead);
-  check(`pulse drill: the purge volley is already inbound (${live.length} traps, card ${G.qualStage().card})`,
-    G.qualStage().card === 'pulse' && live.length === 4);
-  check(`the volley is still short of the ring (nearest z ${Math.min(...vol.map(e => e.z)).toFixed(2)} vs hitZ ${G.geo().hitZ.toFixed(2)})`,
-    vol.length > 0 && Math.min(...vol.map(e => e.z)) > G.geo().hitZ);
-}
-{
-  let fGuard = 80;
-  while (fGuard-- > 0 && !(G.tut() && G.tut().frozen)) G.update(0.05);
-  check('the FIRE-PULSE hold freezes the run', G.tut() && G.tut().frozen === true);
-  // nobody taps: after PULSE_TAP_DELAY a ghost thumb taps the charged pad (Gil, 2026-10-08)
-  check('the hold remembers when it began, for the ghost tap', typeof G.tut().frozenAt === 'number');
-  // A CONNECTED CONTROLLER MUST NOT HIDE THE GHOST FROM A TOUCH PLAYER (Gil, 2026-10-08,
-  // on a Mac with a pad attached). The ghosts follow the LATEST input, and a pointer
-  // press takes the game back from the controller.
-  {
-    G.setGpDriving(true);
-    const dz = G.dialCenter('L');
-    canvasHandlers.pointerdown({ pointerId: 31, clientX: dz.x - dz.r * 3, clientY: 5, pointerType: 'mouse' });
-    canvasHandlers.pointerup({ pointerId: 31, clientX: dz.x - dz.r * 3, clientY: 5, pointerType: 'mouse' });
-    check('a pointer press hands the game back from the controller, so the thumb ghosts show', G.getGpDriving() === false);
-    // with a controller detected the charged pad shows its trigger (LT blue, RT white)
-    const was = G.tut().frozenAt;
-    G.setGpSeen(true);
-    drawOk('the trigger badge on the charged pad, controller detected, touch in hand', () => { G.setState(G.S.PLAY); G.tut().frozenAt = G.getTime() - 2.3; });
-    G.setGpDriving(true);
-    drawOk('the trigger badge alone, the controller flying', () => { G.setState(G.S.PLAY); G.tut().frozenAt = G.getTime() - 2.3; });
-    G.setGpDriving(false); G.setGpSeen(false);
-    G.tut().frozenAt = was;
-  }
-  {
-    const was = G.tut().frozenAt;
-    for (const back of [2.0, 2.4, 2.9]) // approach, press, lift
-      drawOk('the ghost thumb taps the charged pad (' + back + ' s into the hold)', () => { G.setState(G.S.PLAY); G.tut().frozenAt = G.getTime() - back; });
-    G.tut().frozenAt = was;
-  }
-  {
-    const zf = G.enemies().filter(e => e.tut === 'pulse' && !e.dead).map(e => e.z);
-    const near = Math.min(...zf), hz = G.geo().hitZ;
-    check(`the hold waits until the column is close (nearest z ${near.toFixed(2)}, hitZ ${hz.toFixed(2)})`,
-      zf.length === 4 && near > hz && near <= hz + 0.55);
-  }
-  const zBefore = G.enemies().filter(e => e.tut === 'pulse' && !e.dead).map(e => e.z);
-  for (let i = 0; i < 6; i++) G.update(0.05);
-  const zAfter = G.enemies().filter(e => e.tut === 'pulse' && !e.dead).map(e => e.z);
-  check(`the hold stops the traffic (${zAfter.length} traps held)`,
-    zBefore.length === 4 && zAfter.length === 4 && zAfter.every((z, i) => z === zBefore[i]));
-  const d2 = G.dialCenter('L');
-  canvasHandlers.pointerdown({ pointerId: 9, clientX: d2.x, clientY: d2.y, pointerType: 'touch' });
-  check('tapping the core releases the hold and fires the pulse',
-    G.pulseWavesN() > 0 && G.getPulse()[0] === 0 && G.tut().frozen === false && G.tut().fired === true);
-  canvasHandlers.pointerup({ pointerId: 9, clientX: d2.x, clientY: d2.y, pointerType: 'touch' });
-  let wGuard = 240;
-  while (wGuard-- > 0 && G.enemies().some(e => e.tut && !e.dead)) G.update(0.05);
-  check('the purge wave clears the practice volley', !G.enemies().some(e => e.tut && !e.dead));
-}
 settle();
 check('part 3 closes on its own QUALIFIED', G.getState() === G.S.PLAY && G.tut() && G.qualStage().card === 'done');
 for (let i = 0; i < 90 && G.getState() !== G.S.END; i++) G.update(0.05);
@@ -3030,7 +2977,7 @@ check('a fresh course: the pupil\'s emitters are at full strength before any cal
     drawOk('a call frame mid-glitch', () => { G.setState(G.S.PLAY); G.setTime(burstT); });
     G.setTime(t0);
   }
-  for (const k of ['normal', 'line', 'lock', 'pickup', 'strip', 'pulse', 'wall'])
+  for (const k of ['normal', 'line', 'lock', 'pickup', 'strip', 'wall'])
     drawOk('call layer: ' + k, () => {
       G.setState(G.S.PLAY);
       G.tut().call = { kind: k === 'lock' ? 'lock0' : k, key: k, t: 1.0, dur: G.callDur(k), a: 0.7 };
@@ -3187,6 +3134,83 @@ G.progress.tutorialDone = true;
   G.setViewport(800, 450);
   G.setMenuSettings(false); G.setMenuFx(null);
   P.tutorialDone = P.qualPart2Done = P.qualPart3Done = true; // the rest of the battery flies a veteran's save
+  G.setState(G.S.MENU);
+}
+
+// ================= THE CHARGED SIDE: a full pad lights its side of the screen =================
+// Gil, 2026-11-05: make the pulse charge so visible that it needs no lesson. A full pad
+// lights its whole side of the screen in its emitter's colour, a head runs down the edge
+// to the pad, and the ready ring rolls round the core the tap has to land on. It shows
+// exactly while a tap there would fire, in every stage and in the duel, and never under
+// a replay. Draw-only: the sim reads none of it.
+{
+  const P = G.progress;
+  P.tutorialDone = P.qualPart2Done = P.qualPart3Done = true;
+  G.installCampaign(G.CAMPAIGNS[0]);
+  G.startLevel(0); // stage 01: a pad can fill here, six stages before the old lesson
+  // a dozen HUD passes: the light eases over PULSE_SIDE_IN on steps capped at 0.05 s, so
+  // this lands it (frame() owns frameDt, so the cue is driven directly, as the discs are)
+  const side = () => { for (let n = 0; n < 12; n++) { G.setFrameDt(1); G.drawPulseSide(); } return G.pulseSide(); };
+  G.setPulse([0, 0]); side();
+  check('no light while neither pad is full', G.pulseSide().every(k => k === 0));
+  G.setPulse([G.PULSE_MAX(), 0]); side();
+  check('a full blue pad lights the left side only, in stage 01', G.pulseSide()[0] === 1 && G.pulseSide()[1] === 0);
+  drawOk('the charged side: blue full in stage 01', () => { G.setState(G.S.PLAY); });
+  G.setPulse([G.PULSE_MAX(), G.PULSE_MAX()]); side();
+  check('both full: both sides lit', G.pulseSide()[0] === 1 && G.pulseSide()[1] === 1);
+  drawOk('the charged side: both pads full', () => { G.setState(G.S.PLAY); });
+  G.setGpSeen(true);
+  drawOk('the charged side with a controller seen: LT and RT on the pads', () => { G.setState(G.S.PLAY); });
+  G.setGpSeen(false);
+  G.nodes[1].deadT = 2; side();
+  check('a fried emitter\'s side goes dark: its tap would not fire', G.pulseSide()[1] === 0 && !G.pulseFirable(1) && G.pulseSide()[0] === 1);
+  G.nodes[1].deadT = 0;
+  G.setReplaying(true); side();
+  check('never under a replay: the viewer is not the one who would tap', G.pulseSide().every(k => k === 0));
+  G.setReplaying(false);
+  G.setState(G.S.PAUSE); side(); G.setState(G.S.PLAY);
+  check('never under the pause disc', G.pulseSide().every(k => k === 0));
+  // A CONNECTED CONTROLLER MUST NOT HIDE THE CUE FROM A TOUCH PLAYER (Gil, 2026-10-08, on
+  // a Mac with a pad attached). The game follows the LATEST input: a pointer press takes
+  // it back from the controller.
+  G.setGpDriving(true);
+  const dz = G.dialCenter('L');
+  canvasHandlers.pointerdown({ pointerId: 31, clientX: dz.x - dz.r * 3, clientY: 5, pointerType: 'mouse' });
+  canvasHandlers.pointerup({ pointerId: 31, clientX: dz.x - dz.r * 3, clientY: 5, pointerType: 'mouse' });
+  check('a pointer press hands the game back from the controller', G.getGpDriving() === false);
+  // THE TAP THE LIGHT LEADS TO: the core, inside half the pad's radius
+  G.setPulse([G.PULSE_MAX(), 0]); side(); G.frame(16);
+  canvasHandlers.pointerdown({ pointerId: 9, clientX: dz.x, clientY: dz.y, pointerType: 'touch' });
+  canvasHandlers.pointerup({ pointerId: 9, clientX: dz.x, clientY: dz.y, pointerType: 'touch' });
+  side();
+  check('a tap on the lit pad\'s core fires the pulse, and the light goes with it',
+    G.pulseWavesN() > 0 && G.getPulse()[0] === 0 && G.pulseSide()[0] === 0);
+  // in the duel: dark while the ceremony or the death holds the verb, lit when it would fire
+  G.startBossTest(); G.setIntro(999); G.update(0.05); // the clock is already out: the leech arrives
+  G.setPulse([G.PULSE_MAX(), 0]);
+  const b = G.boss();
+  if (b) {
+    const cer = b.introT; b.introT = 0; side();
+    check('dark through the boss ceremony, when a tap could not fire', G.pulseSide()[0] === 0 && !G.pulseFirable(0));
+    b.introT = G.BOSS_CER(); side();
+    check('lit in the duel, where the pulse is the verb', G.pulseSide()[0] === 1);
+    drawOk('the charged side in the leech duel', () => { G.setState(G.S.PLAY); });
+    b.introT = cer;
+  } else check('the boss drill raised a duel for the charged-side check', false);
+  const hud = fs.readFileSync(path.join(ROOT, 'src', 'game', '90-hud.js'), 'utf8');
+  const inp = fs.readFileSync(path.join(ROOT, 'src', 'game', '60-input.js'), 'utf8');
+  const cue = hud.split('// ---------- THE CHARGED SIDE')[1].split('// ---------- the course, on the HUD')[0]
+    .split('\n').filter(l => !/^\s*\/\//.test(l)).map(l => l.replace(/\s\/\/ .*$/, '')).join('\n'); // code, not comments
+  check('the cue asks the input\'s own question: full, not fried, no ceremony or death holding the verb',
+    /pulseCharge\[i\] >= PULSE_MAX && nodes\[i\]\.deadT <= 0\s*&& \(!boss \|\| \(boss\.introT >= BOSS_CER && boss\.dying === undefined\)\)/.test(cue)
+    && /if \(!boss \|\| \(boss\.introT >= BOSS_CER && boss\.dying === undefined\)\)/.test(inp));
+  check('the ready ring stands just outside the tap\'s reach, so it frames the target',
+    /const pr = d\.r \* 0\.5 \+ 10;/.test(cue) && /Math\.hypot\(P\.x - d\.x, P\.y - d\.y\) < d\.r \* 0\.5/.test(inp));
+  check('the cue draws no randomness and builds its gradients once per screen size, not per frame',
+    !/Math\.random|srand|spawnRng/.test(cue) && (cue.match(/create(Linear|Radial)Gradient/g) || []).length === 2
+    && /pulseSideKey === key && pulseSideCtx === ctx/.test(cue));
+  check('the light sits under every gauge: the HUD draws it first', /function drawHUD\(g\) \{[^}]*?drawPulseSide\(\);/.test(hud));
+  G.setFrameDt(0); G.setPulse([0, 0]);
   G.setState(G.S.MENU);
 }
 

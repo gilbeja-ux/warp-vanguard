@@ -2881,10 +2881,6 @@ function firePulse(i) {
   shake = Math.min(shake + 0.7, 1);
   sfx.pulseFire();
   buzz([30, 30, 90], { side: i, strong: 0.9, weak: 0.6 }); // the firing hand's trigger
-  if (tut && tut.spawned === 'pulse' && !tut.fired) { // the hold releases
-    tut.fired = true; tut.frozen = false; tut.t = 0;
-    sfx.tutRelease(); // tape-warp back up: the run breathes again
-  }
 }
 // the wave: a white-hot front racing down the tunnel, dragging a glowing wake
 // that fills the whole cave behind it

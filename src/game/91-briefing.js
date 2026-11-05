@@ -309,7 +309,7 @@ const dSlide = (t, a, b, a0, a1) => a0 + angDiff(a1, a0) * dEase(dSeg(t, a, b));
 // payoff still landing while the envelope is closing reads as the loop cutting it off.
 const DEMO_LOOP = {
   move: 4.0, normal: 3.5, wall: 4.9, heavy: 4.0,
-  line: 4.2, lock: 4.5, pickup: 3.8, strip: 5.2, pulse: 4.4
+  line: 4.2, lock: 4.5, pickup: 3.8, strip: 5.2
 };
 // the colour coding is the game's, not the diorama's — a red here that is not the
 // lane's red teaches the wrong tell
@@ -660,109 +660,8 @@ const DEMO = {
     ctx.restore();
     if (t > RIDE1) demoPop(Rs, aCross, 0, dSeg(t, RIDE1, RIDE1 + 0.6), '255,210,74'); // banked
   },
-  // A GLOWING ORB: TAP TO FIRE. The crowd is held, the pad pings, and the wave
-  // leaves the ring and races AWAY down the bore.
-  //
-  // DIRECTION MATTERS AND IT WAS WRONG. `firePulse` pushes a wave at `hitZ` and its
-  // depth grows to the horizon (72-tick), so `drawPulseWave` draws a front whose
-  // radius is ring(wv.z) — starting wide at the rail and CLOSING toward the middle.
-  // The first pass here expanded outward from the centre, which is the picture of
-  // something arriving at you. Gil caught it on sight.
-  pulse(Rs, t) {
-    // A PULSE CLEARS THE WHOLE RING, SO THE CROWD IS THE WHOLE RING. Gil's call,
-    // 2026-08-29: not all down, and not all at one depth. Five bearings spread
-    // unevenly round the rail, each with its OWN depth, so the picture says "every
-    // bearing, every distance" — which is the whole claim the drill makes.
-    //
-    // This is the ONE lesson that overrides the bottom-of-the-rail rule above. Every
-    // other disc teaches a SILHOUETTE and needs its body upright. This one teaches a
-    // SWEEP, and a sweep that only clears the floor teaches half the power.
-    //
-    // Ordered FAR to NEAR, because that is the paint order: a near body has to
-    // overlap the deep one behind it, never the other way round.
-    //
-    // The depths are spread WIDE but not deep: perspective crushes everything past
-    // z~0.8 into the same few pixels at the middle, so three far bodies read as one
-    // knot. These five land on visibly different radii, the nearest sitting on the
-    // rail itself and the farthest at about a third of it.
-    const CROWD = [[-2.55, 0.86], [0.95, 0.68], [-0.45, 0.52], [2.30, 0.36], [1.50, 0.20]];
-    const rail = dRail(Rs);
-    const close = 0.16 * dEase(dSeg(t, 0, 1.6));   // the whole crowd closes, then holds
-    const fired = t >= 2.2;
-    const wz = fired ? lerp(0, 1.5, dEase(dSeg(t, 2.2, 3.3))) : 0;  // the front's own depth
-    demoNode(Rs, 1, -DISC_BOT);   // the idle thumb, parked opposite
-    demoNode(Rs, 0, 0.30);        // …and the charged one, just clear of the crowd
-    if (fired) {
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const k2 = dSeg(t, 2.2, 3.3);
-      // the wake: rings trailing BEHIND the front, so nearer you and therefore wider
-      for (let w = 4; w >= 1; w--) {
-        const zt = wz - w * 0.10;
-        if (zt < 0) continue;
-        ctx.strokeStyle = 'rgba(255,210,74,' + (0.30 * (1 - w / 5) * (1 - k2)).toFixed(2) + ')';
-        ctx.lineWidth = Math.max(1.5, Rs * 0.05 * dPersp(zt));
-        ctx.beginPath(); ctx.arc(0, 0, rail * dPersp(zt), 0, TAU); ctx.stroke();
-      }
-      // the front itself, hot and closing
-      for (const [w2, col] of [[0.075, '255,210,74'], [0.030, '255,244,200'], [0.010, '255,255,255']]) {
-        ctx.strokeStyle = 'rgba(' + col + ',' + (0.9 * (1 - k2 * 0.5)).toFixed(2) + ')';
-        ctx.lineWidth = Math.max(1, Rs * w2 * (0.4 + dPersp(wz)));
-        ctx.beginPath(); ctx.arc(0, 0, rail * dPersp(wz), 0, TAU); ctx.stroke();
-      }
-      ctx.restore();
-    }
-    // THE WAVE TAKES THEM IN DEPTH ORDER, NEAREST FIRST. With one shared depth the
-    // five went at once, which is a flash rather than a sweep. Now each body has its
-    // own z, so the front passes them one at a time and the ripple IS the lesson.
-    for (const [a, z0] of CROWD) {
-      const z = z0 - close;
-      if (fired && wz >= z) { demoPop(Rs, a, z, dSeg(t, 2.2 + z * 0.7, 2.2 + z * 0.7 + 0.5), '255,210,74'); continue; }
-      demoThreat(Rs, a, z, 'normal');
-    }
-    if (!fired) {
-      // THE CHARGED PAD, AND IT DOES NOT BOUNCE. It used to breathe its whole
-      // radius in and out on a sine, which read as a cartoon squash and made the
-      // orb's size — the one thing a size should mean — say nothing. Gil, 2026-08-29.
-      // The orb is now a FIXED body, and the "ready" signal is a shine that rolls
-      // once around its rim: same attention, no movement, no change of scale.
-      const x = Math.cos(0.30) * rail, y = Math.sin(0.30) * rail;
-      const R0 = Rs * 0.22;
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const og = ctx.createRadialGradient(x, y, 0, x, y, R0);
-      og.addColorStop(0, 'rgba(255,255,255,0.95)');
-      og.addColorStop(0.45, 'rgba(255,210,74,0.75)');
-      og.addColorStop(1, 'rgba(255,210,74,0)');
-      ctx.fillStyle = og;
-      ctx.beginPath(); ctx.arc(x, y, R0, 0, TAU); ctx.fill();
-      // the rim the shine runs on, and the shine itself: a short head of light
-      // travelling round it, drawn as a tail of segments falling off behind
-      const rr = R0 * 0.62;
-      ctx.strokeStyle = 'rgba(255,210,74,0.30)';
-      ctx.lineWidth = Math.max(1.2, Rs * 0.016);
-      ctx.beginPath(); ctx.arc(x, y, rr, 0, TAU); ctx.stroke();
-      ctx.lineCap = 'round';
-      const head = time * 2.1, TAIL = 14, SPAN = 1.5;
-      for (let i = 0; i < TAIL; i++) {
-        const q = i / TAIL;                       // 0 at the head, 1 at the tail's end
-        const a0 = head - SPAN * q, a1 = a0 - SPAN / TAIL - 0.01;
-        const k = Math.pow(1 - q, 2.2);
-        ctx.strokeStyle = 'rgba(255,252,232,' + (0.85 * k).toFixed(3) + ')';
-        ctx.lineWidth = Math.max(1, Rs * 0.020 * (0.45 + 0.55 * k));
-        ctx.beginPath(); ctx.arc(x, y, rr, a1, a0); ctx.stroke();
-      }
-      ctx.restore();
-      if (t > 1.7) { // the tap ripple that spends it
-        const k = dSeg(t, 1.7, 2.2);
-        ctx.save();
-        ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * (1 - k)).toFixed(2) + ')';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(x, y, Rs * (0.08 + k * 0.22), 0, TAU); ctx.stroke();
-        ctx.restore();
-      }
-    }
-  },
+  // (THE PULSE's diorama went with its lesson, 2026-11-05: a full pad lights its side
+  // of the screen instead — THE CHARGED SIDE, 90-hud.)
   // GO AROUND. The one drill whose answer is NOT to arrive: the emitter reaches the
   // clamp's edge, is refused, and takes the long way instead.
   wall(Rs, t) {

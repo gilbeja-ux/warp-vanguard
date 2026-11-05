@@ -3,12 +3,6 @@
 function spawnBolt(x1, y1, x2, y2) {
   bolts.push({ x1, y1, x2, y2, life: ARCFX.zapT, max: ARCFX.zapT });
 }
-// How close the purge column gets before the teaching hold stops the world. Measured
-// from the ring (hitZ), so it means the same thing at any lane speed: 0.50 lands the
-// nearest trap at z ~0.73 against a hitZ of 0.25, roughly halving the gap the old
-// one-second timer left. Lower it to let them bear down further.
-const PULSE_HOLD_LEAD = 0.50;
-const PULSE_HOLD_CAP = 4;   // backstop, for a pupil who zaps the column instead of waiting
 // ---------- qualification curriculum ----------
 // ONE COURSE, EVERY LESSON CALLED (Gil, 2026-10-08). The testers on 1.0.11 called the
 // ten-disc qualification too long and too hard to follow, on iOS and Android alike. No
@@ -28,10 +22,13 @@ const PULSE_HOLD_CAP = 4;   // backstop, for a pupil who zaps the column instead
 // sim (2026-11-05, contract 1 played headless): the relays drop from stage 01 (about
 // 20 s in), so the POWER-UP is part 1; the golden ribbons ride from stage 05 (72-tick,
 // `levelIdx >= 4`), so the RIBBON is part 2. Armor debuts at stage 03, nets at 05, dead
-// zones at 06, the phase locks at 07, and the boss at 08 asks for the PULSE.
+// zones at 06 and the phase locks at 07.
 //
 // THE VOLLEY LESSON IS GONE (Gil, 2026-11-05: players find the volley on their own).
-// The volley itself is untouched; only its drill, its call and its disc went.
+// THE PULSE LESSON IS GONE TOO (Gil, the same day): a pad fills from stage 01, long
+// before a stage-07 lesson could explain it, so a full pad now lights its whole side of
+// the screen and leads the eye to its core instead (THE CHARGED SIDE, 90-hud). Both
+// mechanics are untouched; only their drills, their calls and their discs went.
 //
 // `stamp` is the two lines under the closing stamp (drawQualCeremony) — a knob each.
 const QUAL_PARTS = {
@@ -44,11 +41,10 @@ const QUAL_PARTS = {
     { card: 'heavy',  queue: ['heavy'] },
     { card: 'line',   queue: ['line'] },
     { card: 'wall',   queue: ['wall'] },
-    { card: 'strip',  queue: ['strip'] },      // the ride banks a pulse; part 3 spends one
+    { card: 'strip',  queue: ['strip'] },      // the ride banks a pulse: the pad lights its side
     { card: 'done' }] },
   3: { stage: 7, flag: 'qualPart3Done', stamp: ['PART 3 OF 3: PASSED', 'CLEARED FOR STAGE 07'], list: [
     { card: 'lock',   queue: ['lock0', 'lock1'] },
-    { card: 'pulse' },                         // the column arrives with a charged pad
     { card: 'done' }] }
 };
 const QUAL_PART_N = 3;
@@ -130,8 +126,7 @@ const INFO_CARDS = {
   // 33-loader), so this shows for a package that forgot one. It used to carry the retired
   // investigation's epilogue, which would have been a story from another game.
   verdict: { title: 'CONTRACT — CLOSED', line: 'Delivered. The contract closes.',
-    lines: ['Delivered. The contract closes.'] },
-  pulse:  { title: 'PULSE CHARGE', lines: ['Zaps bank charge in your pads.', 'A glowing orb: TAP to fire.'] }
+    lines: ['Delivered. The contract closes.'] }
 };
 // ---------- the contracts ----------
 // campaign narrative lives in the campaign package (src/campaigns.js):
@@ -217,7 +212,7 @@ function callAngle(kind) {
 }
 function qualNext(kind) {
   const key = callKey(kind);
-  const a = kind === 'pulse' ? undefined : callAngle(kind);
+  const a = callAngle(kind);
   const gap = kind === 'line' ? rand(0.9, 1.3) : undefined;
   if (CALLS_ON && !tut.called[key]) {
     tut.called[key] = 1;
@@ -239,32 +234,6 @@ function qualSpawn(kind, a, gap) {
     en2.tut = 'strip';
     en2.len = 0.5; en2.amp = 0.22; en2.frq = 2.2; en2.ph = 0;
     if (a !== undefined) en2.angle = a;
-    return;
-  }
-  if (kind === 'pulse') {
-    // several traps at once, and a charged pad to clear them with. The ribbon that
-    // used to charge it went to part 2 (2026-11-05), and a run starts with empty pads,
-    // so this top-up is the charge in part 3; a pad already full is left alone.
-    if (pulseCharge[0] < PULSE_MAX && pulseCharge[1] < PULSE_MAX) pulseCharge[0] = PULSE_MAX;
-    // CLEAR OF BOTH EMITTERS. These used to land at Math.random() * TAU, which meant a
-    // trap could materialise directly on a parked carriage and die for free — the pupil
-    // is then shown a purge wave clearing three traps instead of four, and the drill
-    // teaches slightly the wrong thing. It also made the test assert a count that
-    // depended on where the thumbs happened to be resting: one failure in four runs.
-    // Same reachability discipline the wall drill and the linter already use.
-    let pa = nodes[0].angle + Math.PI;
-    for (let k = 0; k < 4; k++) {
-      for (let h = 0; h < 8; h++) { // nudge off a carriage, then off a wall
-        const onNode = nodes.some(n => Math.abs(angDiff(n.angle, pa)) < 0.45);
-        if (!onNode) break;
-        pa += 0.5;
-      }
-      pa = clearOfWalls(pa);
-      const e3 = spawnEnemy(pa, 'normal');
-      e3.lock = undefined; e3.tut = 'pulse';
-      e3.z = SPAWN_Z - 0.05 - k * 0.22; // staggered inside the purge wave's reach
-      pa += 2.399963; // golden hop, so the four are never bunched
-    }
     return;
   }
   if (kind === 'wall') {
@@ -302,8 +271,7 @@ function qualSpawn(kind, a, gap) {
 // fried carriage is mended, though: the fry belongs to the moment being undone.
 //
 // The course is unranked (boardKey is null while qual is set) and draws Math.random,
-// never spawnRng, so rewinding moves no board. The purge column is never rewound:
-// its freeze-and-tap hold has its own state, and a miss there replays the drill.
+// never spawnRng, so rewinding moves no board.
 const REWIND_ON = true;
 const REWIND_BACK = 2.0;   // seconds the tape winds back, at most
 const REWIND_DUR = 0.85;   // seconds the world holds under the scrub
@@ -354,7 +322,7 @@ function rewindFrame(kind) {
   return pick;
 }
 function qualRewind(kind) {
-  if (!REWIND_ON || kind === 'pulse') return false;
+  if (!REWIND_ON) return false;
   const s = rewindFrame(kind);
   if (!s) return false;
   // where every body stands NOW, by tape id: the start of its slide back
@@ -429,8 +397,6 @@ function advanceQual() {
   }
   tut.queue = (tutStage().queue || []).slice();
   sfx.tick();
-  // pre-spawned drills: the hazard is already inbound as the stage opens
-  if (c === 'pulse') { tut.queue = []; qualNext(c); }
 }
 // THE PART IS OVER: it files itself as done. A part a stage tap owed hands straight
 // over to that stage, on the same warp NEXT STAGE runs; a replay and the enlistment's
@@ -522,30 +488,6 @@ function updateTutorial(dt) {
   if (st.card === 'done') {
     // the QUALIFIED stamp runs its course, then the report — no hard cut
     if (tut.t > 3.4) qualFinish();
-    return;
-  }
-  if (st.card === 'pulse' && !tut.fired) {
-    // the teaching hold: the tunnel freezes and the music winds down to a stop —
-    // TAP TO FIRE points at the charged pad. firePulse() releases the hold and the
-    // wave clears the lane.
-    // Gated on PROXIMITY, not a stopwatch. It used to fire one second in, which
-    // froze the volley at z ~ 1.65 — four distant dots, no drama, and the purge
-    // wave's whole point is clearing a crowd that is nearly on top of you. Now the
-    // column bears down to just outside the ring before the world stops. The time
-    // cap is a backstop for the pupil who zaps the column instead of waiting.
-    const pulseNear = enemies.reduce((m, e) =>
-      e.tut === 'pulse' && !e.dead && !e.resolved && e.z < m ? e.z : m, 99);
-    if (!tut.frozen && (pulseNear <= geo().hitZ + PULSE_HOLD_LEAD || tut.t >= PULSE_HOLD_CAP)) {
-      tut.frozen = true;
-      tut.frozenAt = time; // the HUD's ghost tap waits on this (drawPulseTapGhost, 90-hud)
-      // the hold must always be releasable: guarantee a tappable charged pad
-      if (!(pulseCharge[0] >= PULSE_MAX && nodes[0].deadT <= 0)
-        && !(pulseCharge[1] >= PULSE_MAX && nodes[1].deadT <= 0)) {
-        pulseCharge[nodes[0].deadT <= 0 ? 0 : 1] = PULSE_MAX;
-      }
-      sfx.tutFreeze(); // tape-warp down: the run holds its breath
-      buzz([15, 40, 25]);
-    }
     return;
   }
   if (tut.spawned === 'wall') { // steer clear of the practice clamp
