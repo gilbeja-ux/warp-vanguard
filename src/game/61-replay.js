@@ -96,9 +96,23 @@ function simStep() {
   if (tracePlay) {
     const fr = tracePlay.frames[tracePlay.i++];
     if (!fr) return false;      // trace exhausted
+    // THE REPLAY OBEYS THE RULES THE LIVE INPUT OBEYS (audit 2026-11-05). A forged
+    // trace used to fire every frame and teleport the carriages, and the replay
+    // agreed with its own inflated score. A step the live game would not allow ends
+    // the replay and marks it bad; stopReplay() hands the mark to the verifier.
+    // No speed limit on the angle: a relative drag adds up to half a ring per pointer
+    // event and a slew lands on a target that is far in raw radians but the same bearing,
+    // so no step separates a flick from a teleport (measured 2026-11-05: an honest
+    // recorded run steps 12.4 rad). Only a number the sim cannot use is refused.
+    if (!Number.isFinite(fr.a0) || !Number.isFinite(fr.a1)) { tracePlay.bad = true; return false; }
     nodes[0].angle = fr.a0; nodes[1].angle = fr.a1;
     padHold[0] = !!(fr.h & 1); padHold[1] = !!(fr.h & 2);
-    if (fr.f) for (const i of fr.f) firePulse(i);
+    if (fr.f) for (const i of fr.f) {
+      // the gate of 60-input.js (tap) and 71-gamepad.js (duelOk): charged, not fried, duel open
+      const duelOk = !boss || (boss.introT >= BOSS_CER && boss.dying === undefined);
+      if ((i !== 0 && i !== 1) || !duelOk || !(pulseCharge[i] >= PULSE_MAX) || !(nodes[i].deadT <= 0)) { tracePlay.bad = true; return false; }
+      firePulse(i);
+    }
     update(SIM_DT);
     return true;
   }
@@ -137,7 +151,7 @@ function stopTrace() { const f = traceRec; traceRec = null; return f; }
 // the trace owns every angle from here on — drop any bearing the live run left
 // pending, so nothing can tug a carriage the moment the viewer is closed again
 function startReplay(frames) { evLog('replay'); tracePlay = { frames, i: 0 }; traceRec = null; for (const n of nodes) n.slew = null; }
-function stopReplay() { tracePlay = null; }
+function stopReplay() { const bad = !!(tracePlay && tracePlay.bad); tracePlay = null; return bad; } // true: the trace broke a live input rule
 // ---------- watch another player's run ----------
 let replaying = false, replayMeta = null, replayPkg = null, replayReturnCamp = null;
 let replayPaused = false, replaySpeed = 1, replaySeekTo = -1, replayScrub = null;

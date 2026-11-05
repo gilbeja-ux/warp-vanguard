@@ -28,6 +28,7 @@
 // Deploy:  supabase functions deploy my-data --use-api
 // SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are auto-injected.
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { cleanName } from "../_shared/name.ts";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -95,29 +96,6 @@ async function purgeTraces(svc: any, keys: string[], playerId: string): Promise<
   }
 
   return { deleted, left: [...left] };
-}
-
-// ---------------------------------------------------------------------------
-// Name moderation. DUPLICATED from submit-run rather than shared, for the same
-// reason weekOf() is duplicated there: this file is a trust boundary and must be
-// able to answer "is this name allowed on a public board" on its own. A rename
-// that skipped the filter would be a hole straight through submit-run's gate —
-// post a clean name, then rename to whatever you liked.
-// Keep the two lists in step.
-// ---------------------------------------------------------------------------
-const BLOCKED = [
-  "nigger", "nigga", "faggot", "retard", "rape", "rapist", "cunt", "spic",
-  "chink", "kike", "wetback", "coon", "fuck", "shit", "bitch", "bastard",
-  "dick", "cock", "penis", "pussy", "vagina", "whore", "slut", "boner",
-  "cum", "jizz", "wank", "twat", "prick", "asshole", "anus", "sex", "porn",
-  "nazi", "hitler", "isis", "kkk", "pedo", "molest", "incest", "semen",
-];
-const LEET: Record<string, string> = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b", "@": "a", "$": "s", "!": "i" };
-function cleanName(n: unknown): string {
-  const clean = String(n ?? "").replace(/[^\w \-]/g, "").replace(/\s+/g, " ").trim().slice(0, 14);
-  if (!clean) return "";
-  const norm = clean.toLowerCase().replace(/[\s_\-]/g, "").replace(/[013457@$!]/g, (c) => LEET[c] ?? c);
-  return BLOCKED.some((w) => norm.includes(w)) ? "REDACTED" : clean;
 }
 
 // decode a JWT's `sub` claim (the user id). Signature is validated upstream by
