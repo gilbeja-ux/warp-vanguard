@@ -87,8 +87,10 @@ function loadState() {
       raw = localStorage.getItem(LEGACY_STORE_KEY);
       if (raw !== null) localStorage.removeItem(LEGACY_STORE_KEY);
     }
+    // a save was FOUND even when it will not parse: the paywall's legacy stamp
+    // (34-license.js) counts a damaged pre-paywall save as a save that existed
+    saveFoundAtBoot = raw !== null;
     const d = JSON.parse(raw);
-    saveFoundAtBoot = !!d;
     if (d) {
       if (d.progress) {
         Object.assign(progress, migrateSaveShape(d.progress));
