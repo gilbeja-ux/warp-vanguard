@@ -340,16 +340,20 @@ const RESTORE_MSG_HOLD = 3.5; // seconds a restore answer holds the row's key
 const restoreLabel = () => (restoreMsg && (restoreBusy || time - restoreMsg.at < RESTORE_MSG_HOLD)) ? restoreMsg.text : 'RESTORE PURCHASE';
 
 // ---- THE LOCKED CONTRACT'S LOOK (92-guide.js drawCampDisc) ----
-// Named knobs, for Gil to tune by eye: the veil over the client's picture, and
-// the seal's size as a share of the disc's radius.
-const LICENSE_SEAL = { veil: 0.42, size: 0.15 };
+// Named knobs, for Gil to tune by eye: the veil over the client's picture, the
+// seal's size as a share of the disc's radius, and where the seal's middle sits, as
+// a share of r off the disc's centre. -0.5 is the middle of the picture, the same
+// spot the training reticle takes (Gil, 2026-11-05: up onto the image, and larger).
+const LICENSE_SEAL = { veil: 0.42, size: 0.19, y: -0.5 };
 function drawLicenseSeal(x, y, r) {
   ctx.save();
   // the veil covers the picture half only, so the dossier under the chord still reads
   ctx.fillStyle = 'rgba(3,8,18,' + LICENSE_SEAL.veil + ')';
   ctx.beginPath(); ctx.arc(x, y, r * 0.97, Math.PI, TAU); ctx.closePath(); ctx.fill();
   // a shackle over a plate: the one lock glyph the game draws
-  const s = r * LICENSE_SEAL.size, sy = y - r * 0.30;
+  // the glyph runs from the shackle's top (sy - 0.68s) to the plate's foot (sy + 0.94s),
+  // so its middle is sy + 0.13s
+  const s = r * LICENSE_SEAL.size, sy = y + r * LICENSE_SEAL.y - s * 0.13;
   ctx.strokeStyle = 'rgba(186,231,255,0.92)'; ctx.lineWidth = Math.max(2, s * 0.16); ctx.lineCap = 'round';
   ctx.beginPath(); ctx.arc(x, sy - s * 0.18, s * 0.42, Math.PI, 0); ctx.lineTo(x + s * 0.42, sy + s * 0.05); ctx.moveTo(x - s * 0.42, sy - s * 0.18); ctx.lineTo(x - s * 0.42, sy + s * 0.05); ctx.stroke();
   techRect(x - s * 0.66, sy + s * 0.02, s * 1.32, s * 0.92, Math.max(2, s * 0.18));
