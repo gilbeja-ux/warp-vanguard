@@ -167,7 +167,6 @@ function update(dt) {
   else if (laneFlow > flowTgt)
     laneFlow = Math.max(flowTgt, laneFlow - dt / (state === S.END ? (endWin ? WARP_COLLAPSE.brake : 1.0) : 0.45));
   // the wall streams at EXACTLY the traffic speed — leaks stay glued to it
-  // (the tutorial's TAP-TO-FIRE hold stops the whole bore, wall included)
   // forward, except while the course's tape winds back — and only on a frame that
   // actually winds it. qualRewindTick (below) writes laneVel each tick it slides, but
   // a pause returns before it (the `state !== S.PLAY` return) and so does the resume
@@ -175,7 +174,7 @@ function update(dt) {
   // the slide — and the bore, the river and the deep field ran backwards through the
   // whole pause (2026-10-10). Not winding this frame: the lane is not moving back.
   if (!(tut && tut.rewind) || state !== S.PLAY || resumeHold > 0) laneVel = 1;
-  const flowMul = (tut && tut.frozen ? 0 : 1) * laneFlow * laneVel;
+  const flowMul = laneFlow * laneVel;
   tunnelScroll = (tunnelScroll + dt * (state === S.PLAY ? trafficSpeed * 10 : 0.5) * (1 + warp2 * 4) * flowMul) % 10;
   wallDist += dt * (state === S.PLAY ? trafficSpeed : 0.05) * (1 + warp2 * 4) * flowMul;
   shake = Math.max(0, shake - dt * 3);
@@ -256,7 +255,6 @@ function update(dt) {
   if (commCur) { commT += dt; if (commT > barkHold) commCur = null; }
   let sdt = dt;
   if (hitStop > 0) { hitStop = Math.max(0, hitStop - dt); sdt *= 0.12; }
-  if (tut && tut.frozen) sdt = 0; // the TAP-TO-FIRE hold: the world stands still
   // the REWIND scrub (70-update, qualRewind): the world holds while the tape winds the
   // bodies back, on real time, so the hold cannot hold itself up
   if (tut && tut.rewind) { sdt = 0; qualRewindTick(dt); }

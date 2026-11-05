@@ -67,6 +67,21 @@ function migrateSaveShape(dp) {
   delete dp.stars; delete dp.bests; delete dp.unlocked;
   return dp;
 }
+// THE COURSE CAME IN THREE PARTS ON 2026-11-05 (QUAL_PARTS, 70-update), and a save
+// written before that has no flag for parts 2 and 3. Nobody who flew the old course is
+// sent through them by force: it taught every lesson, so a save that finished it
+// (tutorialDone, which then meant the whole course) has all three. Nor is anyone who
+// already got past the stage a part plays before: past stage 03 (stage 04 open, the
+// contract's `unlocked` count at 4 or more) files part 2, past stage 07 files part 3.
+// A delivered first contract reads 8, so every later contract is covered by the same
+// test. Run once, on a loaded save that has no part-2 flag, after the ids are moved.
+function migrateQualParts(dp) {
+  const c1 = dp.camp && dp.camp[CAMPAIGNS.length ? CAMPAIGNS[0].id : 'cargo-run'];
+  const open = (c1 && c1.unlocked) || 1, old = !!dp.tutorialDone;
+  dp.qualPart2Done = old || open >= 4;
+  dp.qualPart3Done = old || open >= 8;
+  return dp;
+}
 // A LICENSE IS NOT PROGRESS (Gil, 2026-08-17, kept 2026-11-05). It rides its own
 // key in the save, beside progress / settings / identity, so RESET CONTRACT and
 // the MY DATA erase, which touch progress and the boards, cannot revoke it.
@@ -93,6 +108,7 @@ function loadState() {
     const d = JSON.parse(raw);
     if (d) {
       if (d.progress) {
+        const preParts = !('qualPart2Done' in d.progress); // written before the course split
         Object.assign(progress, migrateSaveShape(d.progress));
         if (!progress.camp) progress.camp = {};
         // ONE-WAY MIGRATION, 2026-08-05. The campaign ids stopped speaking the retired Data
@@ -106,6 +122,7 @@ function loadState() {
           delete progress.camp[was];
           if (progress.lastCamp === was) progress.lastCamp = now;
         }
+        if (preParts) migrateQualParts(progress);
       }
       if (d.settings) Object.assign(settings, d.settings);
       // old default was 0.5 — migrate untouched saves to the new quieter bed

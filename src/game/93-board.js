@@ -167,7 +167,7 @@ function boardLane() {
     const ci = boardSel.camp, li = boardSel.level, c = CAMPAIGNS[ci], pc = c && progress.camp[c.id];
     const open = !!c && li < ((pc && pc.unlocked) || 1) && li < c.levels.length;
     // a stage behind the wall keeps its key: the tap is the clearance offer's door (34-license.js)
-    return { label: 'FLY THIS LANE', locked: !open, go: () => { if (contractLocked(ci)) { openLicOffer('locked', ci); return; } switchCampaign(ci); startLevel(li, true); } };
+    return { label: 'FLY THIS LANE', locked: !open, go: () => { if (contractLocked(ci)) { openLicOffer('locked', ci); return; } switchCampaign(ci); deployStage(li); } };
   }
   return null;
 }

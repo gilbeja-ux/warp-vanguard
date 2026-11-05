@@ -42,7 +42,6 @@ window.__botTick = function () {
   if (key !== B.lastKey) { B.lastKey = key; B.log.push([+time.toFixed(1), 'stage ' + key]); }
   if (tut.again && tut.again !== B.lastAgain) { B.lastAgain = tut.again; B.retries++; B.log.push([+time.toFixed(1), 'RETRY ' + tut.again]); }
   if (st.card === 'move') { if (tut.aim.targets) for (const t of tut.aim.targets) nodes[t.node].slew = t.a; return; }
-  if (tut.frozen) { const i = pulseCharge[0] >= PULSE_MAX ? 0 : 1; firePulse(i); return; }
   const live = enemies.filter(e => !e.dead && !e.resolved && !e.failed && e.type !== 'frag');
   const strip = live.find(e => e.type === 'strip');
   const ens = live.filter(e => e.type !== 'strip').sort((a, b) => a.z - b.z);

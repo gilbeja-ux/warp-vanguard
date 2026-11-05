@@ -3,12 +3,6 @@
 function spawnBolt(x1, y1, x2, y2) {
   bolts.push({ x1, y1, x2, y2, life: ARCFX.zapT, max: ARCFX.zapT });
 }
-// How close the purge column gets before the teaching hold stops the world. Measured
-// from the ring (hitZ), so it means the same thing at any lane speed: 0.50 lands the
-// nearest trap at z ~0.73 against a hitZ of 0.25, roughly halving the gap the old
-// one-second timer left. Lower it to let them bear down further.
-const PULSE_HOLD_LEAD = 0.50;
-const PULSE_HOLD_CAP = 4;   // backstop, for a pupil who zaps the column instead of waiting
 // ---------- qualification curriculum ----------
 // ONE COURSE, EVERY LESSON CALLED (Gil, 2026-10-08). The testers on 1.0.11 called the
 // ten-disc qualification too long and too hard to follow, on iOS and Android alike. No
@@ -17,25 +11,81 @@ const PULSE_HOLD_CAP = 4;   // backstop, for a pupil who zaps the column instead
 // (qualRewind). The run has no chapters — it was briefly cut into medal-scored licence
 // trials, and Gil took the chapters and then the trials screen out the same day.
 //
-// The dead zone rides the red stage. THE VOLLEY RIDES THE ARMOR STAGE (2026-08-28): it
-// is not a topic of its own; docking both emitters IS the armor's answer, and the volley
-// is that same dock held half a second longer.
-const QUAL = [
-  { card: 'move' },
-  { card: 'normal', queue: ['normal', 'normal', 'wall'] },
-  { card: 'heavy',  queue: ['heavy', 'volley'] },
-  { card: 'line',   queue: ['line'] },
-  { card: 'lock',   queue: ['lock0', 'lock1'] },
-  { card: 'pickup', queue: ['pickup'] },
-  { card: 'strip',  queue: ['strip'] },        // the ride charges a pulse...
-  { card: 'pulse' },                           // ...which this column spends
-  { card: 'done' }
-];
+//
+// THREE SHORT PARTS (Gil, 2026-11-05: "less to learn at once"). The one course is cut
+// into three, and each part plays the first time the player starts the stage it
+// prepares for, between the stage tap and the stage itself (deployStage). Part 1 is
+// still the enlistment's run. `stage` is the stage's NAME, 01–40 (lvNum), never an
+// index, and `flag` is the part's completion flag in the progress blob (30-campaigns).
+//
+// Each lesson sits in the part BEFORE the stage that first sends it, measured in the
+// sim (2026-11-05, contract 1 played headless): the relays drop from stage 01 (about
+// 20 s in), so the POWER-UP is part 1; the golden ribbons ride from stage 05 (72-tick,
+// `levelIdx >= 4`), so the RIBBON is part 2. Armor debuts at stage 03, nets at 05, dead
+// zones at 06 and the phase locks at 07.
+//
+// THE VOLLEY LESSON IS GONE (Gil, 2026-11-05: players find the volley on their own).
+// THE PULSE LESSON IS GONE TOO (Gil, the same day): a pad fills from stage 01, long
+// before a stage-07 lesson could explain it, so a full pad now lights its whole side of
+// the screen and leads the eye to its core instead (THE CHARGED SIDE, 90-hud). Both
+// mechanics are untouched; only their drills, their calls and their discs went.
+//
+// `stamp` is the two lines under the closing stamp (drawQualCeremony) — a knob each.
+const QUAL_PARTS = {
+  1: { stage: 1, flag: 'tutorialDone', stamp: ['CERTIFICATION: PASSED', 'CLEARED FOR WARP'], list: [
+    { card: 'move' },
+    { card: 'normal', queue: ['normal', 'normal'] },
+    { card: 'pickup', queue: ['pickup'] },
+    { card: 'done' }] },
+  2: { stage: 3, flag: 'qualPart2Done', stamp: ['PART 2 OF 3: PASSED', 'CLEARED FOR STAGE 03'], list: [
+    { card: 'heavy',  queue: ['heavy'] },
+    { card: 'line',   queue: ['line'] },
+    { card: 'wall',   queue: ['wall'] },
+    { card: 'strip',  queue: ['strip'] },      // the ride banks a pulse: the pad lights its side
+    { card: 'done' }] },
+  3: { stage: 7, flag: 'qualPart3Done', stamp: ['PART 3 OF 3: PASSED', 'CLEARED FOR STAGE 07'], list: [
+    { card: 'lock',   queue: ['lock0', 'lock1'] },
+    { card: 'done' }] }
+};
+const QUAL_PART_N = 3;
+// the part the course is running, and the stage (an index in the current contract) it
+// hands over to when it ends — -1 for a replay or the enlistment, which end on the
+// report. Both outlive the run, so RESTART replays the same part (startQualification).
+let qualPart = 1, qualThen = -1;
+// SKIP: shown on every part except a first-ever part 1 — that run IS the controls
+const QUAL_SKIP_FIRST_RUN = false;
+const qualList = () => QUAL_PARTS[qualPart].list;
+const qualPartDone = n => !!progress[QUAL_PARTS[n].flag];
 // the stage record the course is on
-const tutStage = () => (tut ? QUAL[tut.stage] : null);
+const tutStage = () => (tut ? qualList()[tut.stage] : null);
+// THE PART A STAGE TAP OWES, or 0. Read by deployStage only, so the verifier, the
+// fingerprint battery, a replay and every test that calls startLevel never meet it.
+function qualPartDue(i) {
+  const name = curLevelNo(i);
+  for (let n = 1; n <= QUAL_PART_N; n++)
+    if (QUAL_PARTS[n].stage === name && !qualPartDone(n)) return n;
+  return 0;
+}
+// THE PLAYER'S STAGE START: every key that flies a stage for the first time comes
+// through here (the deploy key, NEXT STAGE, FIRST CONTRACT, NEXT CONTRACT, the board's
+// FLY THIS LANE). A part that is due plays first and starts the stage when it ends.
+function deployStage(i) {
+  const n = qualPartDue(i);
+  if (n) startQualification(false, n, i);
+  else startLevel(i, true);
+}
+// a part on demand, from the TRAINING row of the settings disc: it ends on the report
+function replayQualPart(n) {
+  menuSettings = false;
+  menuFx = { kind: 'launch', t: 0, dur: 0.5, action: () => startQualification(false, n, -1) };
+  tone(70, 0.45, 'sine', 0.12, 260);
+}
+const qualSkipShown = () => !!tut && !tut.leaving && (qualPart !== 1 || QUAL_SKIP_FIRST_RUN || qualPartDone(1));
 function newTut() {
   return {
-    stage: 0, t: 0, queue: [], retry: null, spawned: null,
+    // a part may open on a queued lesson (part 2's armor, part 3's locks): load it here,
+    // because advanceQual only loads a queue on the way INTO a later stage
+    stage: 0, t: 0, queue: (qualList()[0].queue || []).slice(), retry: null, spawned: null,
     called: {}, call: null,                        // CALL AND RESPONSE: see qualNext
     misses: 0, missCounted: false,
     clock: 0, snaps: [], snapAt: -1e9, rewind: null, rewindAt: -1e9, rwSeq: 0, // REWIND: see qualRewind
@@ -61,23 +111,22 @@ const INFO_CARDS = {
   move:   { title: 'DUAL EMITTERS', lines: ['Left thumb — BLUE ⊕. Right — WHITE ⊖.', 'Slide the dials to ride the ring.'] },
   normal: { title: 'INTERDICTOR', lines: ['Align ANY emitter as it crosses.', 'Dead center pays ×2.'] },
   heavy:  { title: 'ARMORED INTERDICTOR', lines: ['Dock BOTH emitters together', 'to collapse it.'] },
-  volley: { title: 'UNITE VOLLEY', lines: ['Dock both and HOLD — a bolt fires.', 'It detonates on what it hits.'] },
   line:   { title: 'BARRIER NET', lines: ['Cover BOTH ends —', 'one emitter on each.'] },
   lock:   { title: 'PHASE-LOCKED', lines: ['Only the MATCHING phase', 'collapses it.'] },
   pickup: { title: 'POWER-UP', lines: ['Golden relays arm powers.', 'Catch one with any emitter.'] },
   strip:  { title: 'BONUS RIBBON', lines: ['Optional: ride its crossing point.', 'A full ride banks a full PULSE.'] },
   wall:   { title: 'DEAD ZONE', lines: ['It seizes part of your rail.', 'Crossing FRIES — go around.'] },
   // NOT SHOWN. 'done' has no disc — advanceQual returns before any card and the QUALIFIED
-  // stamp is drawn in-world by drawQualCeremony, which owns this wording. Kept in step with
-  // it on purpose: a second copy of user-facing copy is a trap, and this one already caught
-  // me editing the wrong string once.
+  // stamp is drawn in-world by drawQualCeremony, which reads each part's own two lines
+  // from QUAL_PARTS[n].stamp. This is part 1's, kept in step with it on purpose: a second
+  // copy of user-facing copy is a trap, and this one already caught me editing the wrong
+  // string once.
   done:   { title: 'QUALIFIED', lines: ['Certification: PASSED. Cleared for warp.', 'Report to Meridian Haulage — your', 'first contract begins at stage 01.'] },
   // A FALLBACK ONLY — every package supplies its own (INFO_CARDS.verdict = CAMP.verdict in
   // 33-loader), so this shows for a package that forgot one. It used to carry the retired
   // investigation's epilogue, which would have been a story from another game.
   verdict: { title: 'CONTRACT — CLOSED', line: 'Delivered. The contract closes.',
-    lines: ['Delivered. The contract closes.'] },
-  pulse:  { title: 'PULSE CHARGE', lines: ['Zaps bank charge in your pads.', 'A glowing orb: TAP to fire.'] }
+    lines: ['Delivered. The contract closes.'] }
 };
 // ---------- the contracts ----------
 // campaign narrative lives in the campaign package (src/campaigns.js):
@@ -155,7 +204,7 @@ function clearOfNodes(a, gap) {
 // played on it. A reachable move from where the carriages are, never on top of one.
 function callAngle(kind) {
   const side = () => (Math.random() < 0.5 ? 1 : -1);
-  if (kind === 'heavy' || kind === 'volley') return clearOfNodes(nodes[0].angle + Math.PI, 0.7);
+  if (kind === 'heavy') return clearOfNodes(nodes[0].angle + Math.PI, 0.7);
   if (kind === 'wall') return nodes[0].angle + Math.PI * 0.55 * side();
   if (kind === 'lock1') return clearOfNodes(nodes[1].angle + side() * rand(1.1, 1.8), 0.6);
   if (kind === 'normal' || kind === 'lock0') return clearOfNodes(nodes[0].angle + side() * rand(1.1, 1.8), 0.6);
@@ -163,7 +212,7 @@ function callAngle(kind) {
 }
 function qualNext(kind) {
   const key = callKey(kind);
-  const a = kind === 'pulse' ? undefined : callAngle(kind);
+  const a = callAngle(kind);
   const gap = kind === 'line' ? rand(0.9, 1.3) : undefined;
   if (CALLS_ON && !tut.called[key]) {
     tut.called[key] = 1;
@@ -185,56 +234,6 @@ function qualSpawn(kind, a, gap) {
     en2.tut = 'strip';
     en2.len = 0.5; en2.amp = 0.22; en2.frq = 2.2; en2.ph = 0;
     if (a !== undefined) en2.angle = a;
-    return;
-  }
-  if (kind === 'pulse') {
-    // several traps at once — spend the pulse the RIDE just charged
-    // (safety top-up only if the ribbon somehow didn't bank one)
-    if (pulseCharge[0] < PULSE_MAX && pulseCharge[1] < PULSE_MAX) pulseCharge[0] = PULSE_MAX;
-    // CLEAR OF BOTH EMITTERS. These used to land at Math.random() * TAU, which meant a
-    // trap could materialise directly on a parked carriage and die for free — the pupil
-    // is then shown a purge wave clearing three traps instead of four, and the drill
-    // teaches slightly the wrong thing. It also made the test assert a count that
-    // depended on where the thumbs happened to be resting: one failure in four runs.
-    // Same reachability discipline the wall drill and the linter already use.
-    let pa = nodes[0].angle + Math.PI;
-    for (let k = 0; k < 4; k++) {
-      for (let h = 0; h < 8; h++) { // nudge off a carriage, then off a wall
-        const onNode = nodes.some(n => Math.abs(angDiff(n.angle, pa)) < 0.45);
-        if (!onNode) break;
-        pa += 0.5;
-      }
-      pa = clearOfWalls(pa);
-      const e3 = spawnEnemy(pa, 'normal');
-      e3.lock = undefined; e3.tut = 'pulse';
-      e3.z = SPAWN_Z - 0.05 - k * 0.22; // staggered inside the purge wave's reach
-      pa += 2.399963; // golden hop, so the four are never bunched
-    }
-    return;
-  }
-  if (kind === 'volley') {
-    // THE DOCK, HELD. One armored tap with a plain red either side of it, all three
-    // on the same lane and all three slowed, so there is room to dock, hold half a
-    // second and watch the bolt take the trio. The offsets sit inside the blast's
-    // angular semi-axis (VOLLEY_BLAST_A, 72-tick) and share the armor's depth, so a
-    // hit on the armor reaches both neighbours — that is the whole lesson.
-    //
-    // CLEAR OF BOTH CARRIAGES, like the purge column: a trap that materialises on a
-    // parked emitter dies for free and demonstrates nothing.
-    let va = a;
-    if (va === undefined) {
-      va = nodes[0].angle + Math.PI;
-      for (let h = 0; h < 8; h++) {
-        if (!nodes.some(n => Math.abs(angDiff(n.angle, va)) < 0.7)) break;
-        va += 0.5;
-      }
-      va = clearOfWalls(va);
-    }
-    for (const [da, ty] of [[0, 'heavy'], [-0.5, 'normal'], [0.5, 'normal']]) {
-      const ev = spawnEnemy(va + da, ty);
-      ev.lock = undefined; ev.tut = 'volley';
-      ev.z = SPAWN_Z; ev.speedMul = 0.55; // the long approach is the room to hold
-    }
     return;
   }
   if (kind === 'wall') {
@@ -272,8 +271,7 @@ function qualSpawn(kind, a, gap) {
 // fried carriage is mended, though: the fry belongs to the moment being undone.
 //
 // The course is unranked (boardKey is null while qual is set) and draws Math.random,
-// never spawnRng, so rewinding moves no board. The purge column is never rewound:
-// its freeze-and-tap hold has its own state, and a miss there replays the drill.
+// never spawnRng, so rewinding moves no board.
 const REWIND_ON = true;
 const REWIND_BACK = 2.0;   // seconds the tape winds back, at most
 const REWIND_DUR = 0.85;   // seconds the world holds under the scrub
@@ -324,7 +322,7 @@ function rewindFrame(kind) {
   return pick;
 }
 function qualRewind(kind) {
-  if (!REWIND_ON || kind === 'pulse') return false;
+  if (!REWIND_ON) return false;
   const s = rewindFrame(kind);
   if (!s) return false;
   // where every body stands NOW, by tape id: the start of its slide back
@@ -388,7 +386,7 @@ function advanceQual() {
   tut.stage++;
   tut.t = 0;
   tut.again = null; // a fresh drill speaks in the present tense
-  if (tut.stage >= QUAL.length) { qualFinish(); return; } // safety: 'done' normally ends it
+  if (tut.stage >= qualList().length) { qualFinish(); return; } // safety: 'done' normally ends it
   const c = tutStage().card;
   if (c === 'done') { // no info disc: the QUALIFIED stamp plays in-world
     tut.queue = [];
@@ -399,19 +397,50 @@ function advanceQual() {
   }
   tut.queue = (tutStage().queue || []).slice();
   sfx.tick();
-  // pre-spawned drills: the hazard is already inbound as the stage opens
-  if (c === 'pulse') { tut.queue = []; qualNext(c); }
 }
-// THE COURSE IS OVER: it files itself as done, and the report offers the first contract
+// THE PART IS OVER: it files itself as done. A part a stage tap owed hands straight
+// over to that stage, on the same warp NEXT STAGE runs; a replay and the enlistment's
+// part 1 end on the report, which offers the first contract after part 1.
 function qualFinish() {
-  progress.tutorialDone = true;
+  progress[QUAL_PARTS[qualPart].flag] = true;
   tutCallRelease(); // the call's buffers (90-hud) are not needed past the course: zeroed and let go
   saveState();
+  if (qualThen >= 0) { qualHandOver(); return; }
   tut = null;
   endLevel(true);
 }
+// THE COURSE LEAVES FOR ITS STAGE. The pupil is kept (tut.leaving) so nothing in the
+// course runs again while the warp covers the lane, and startLevel takes it at the
+// warp's midpoint — a fresh trace, fresh seeds, the stage's own briefing disc, exactly
+// the run a stage tap would have started. A qualification run never ranks: boardKey is
+// null while `qual` is set, and the stage's own run starts its own trace.
+function qualHandOver() {
+  if (!tut || tut.leaving) return;
+  const i = qualThen;
+  tut.leaving = true;
+  tut.call = null; tut.rewind = null; laneVel = 1;
+  enemies = []; pickups = []; latches = []; // nothing of the drill resolves under the warp
+  startTrans('warp', () => startLevel(i, true));
+}
+// SKIP: the part files as done and the run goes where it was going — the stage it was
+// owed, or the menu it was opened from (the pause disc's QUIT, which a replay is).
+function qualSkip() {
+  if (!qualSkipShown()) return;
+  progress[QUAL_PARTS[qualPart].flag] = true;
+  saveState();
+  tutCallRelease();
+  if (qualThen >= 0) { qualHandOver(); return; }
+  tut.leaving = true;
+  startTrans('warp', () => {
+    tut = null; endRunMusic(); Math.random = sysRandom;
+    menuScreen = 'camps'; campScroll = campScrollTgt = 0; campPendingSync = null;
+    state = S.MENU; fadeT = 0.35;
+    menuFx = { kind: 'discOut', t: 0, dur: 0.55, disc: 0 };
+  });
+}
 const AIM_HOLD = 0.3; // seconds a node must sit on a target to lock it in
 function updateTutorial(dt) {
+  if (tut.leaving) return; // finished or skipped: the warp is carrying the run away
   // A MISS IS COUNTED ONCE, the moment it lands, and then the tape is tried. Only if
   // there is nothing to wind back to does the old do-over below take the miss.
   if (tut.retry && !tut.missCounted) {
@@ -459,30 +488,6 @@ function updateTutorial(dt) {
   if (st.card === 'done') {
     // the QUALIFIED stamp runs its course, then the report — no hard cut
     if (tut.t > 3.4) qualFinish();
-    return;
-  }
-  if (st.card === 'pulse' && !tut.fired) {
-    // the teaching hold: the tunnel freezes and the music winds down to a stop —
-    // TAP TO FIRE points at the charged pad. firePulse() releases the hold and the
-    // wave clears the lane.
-    // Gated on PROXIMITY, not a stopwatch. It used to fire one second in, which
-    // froze the volley at z ~ 1.65 — four distant dots, no drama, and the purge
-    // wave's whole point is clearing a crowd that is nearly on top of you. Now the
-    // column bears down to just outside the ring before the world stops. The time
-    // cap is a backstop for the pupil who zaps the column instead of waiting.
-    const pulseNear = enemies.reduce((m, e) =>
-      e.tut === 'pulse' && !e.dead && !e.resolved && e.z < m ? e.z : m, 99);
-    if (!tut.frozen && (pulseNear <= geo().hitZ + PULSE_HOLD_LEAD || tut.t >= PULSE_HOLD_CAP)) {
-      tut.frozen = true;
-      tut.frozenAt = time; // the HUD's ghost tap waits on this (drawPulseTapGhost, 90-hud)
-      // the hold must always be releasable: guarantee a tappable charged pad
-      if (!(pulseCharge[0] >= PULSE_MAX && nodes[0].deadT <= 0)
-        && !(pulseCharge[1] >= PULSE_MAX && nodes[1].deadT <= 0)) {
-        pulseCharge[nodes[0].deadT <= 0 ? 0 : 1] = PULSE_MAX;
-      }
-      sfx.tutFreeze(); // tape-warp down: the run holds its breath
-      buzz([15, 40, 25]);
-    }
     return;
   }
   if (tut.spawned === 'wall') { // steer clear of the practice clamp

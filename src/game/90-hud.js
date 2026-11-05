@@ -112,6 +112,32 @@ function pauseGuideKeyRect() {
   const rk = pauseBtnRect || { x: W - 12 - SAFE.r - 38, y: 12 + SAFE.t, w: 38, h: 38 };
   return { x: rk.x - 8 - rk.w, y: rk.y, w: rk.w, h: rk.h, action: 'guide', cut: 8 };
 }
+// THE COURSE'S SKIP KEY (2026-11-05). A part that plays between a stage tap and the
+// stage has a way past it: the pause key's own slab, left of PAUSE, in the spot the
+// pause screen gives its '?' — so it is drawn only while the lane runs, never under
+// the pause disc. qualSkipShown (70-update) says when; qualSkip what it does.
+const QUAL_SKIP_LABEL = 'SKIP ▸';
+const QUAL_SKIP_PX = 12;    // the label's size; the slab grows around it
+let qualSkipRect = null;
+function drawQualSkipKey() {
+  qualSkipRect = null;
+  if (state !== S.PLAY || replaying || !pauseBtnRect || !qualSkipShown()) return;
+  ctx.save();
+  ctx.font = '700 ' + QUAL_SKIP_PX + 'px Audiowide, system-ui';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  const w = Math.ceil(ctx.measureText(QUAL_SKIP_LABEL).width) + 24, h = pauseBtnRect.h;
+  const r = { x: pauseBtnRect.x - 8 - w, y: pauseBtnRect.y, w, h, cut: 8 };
+  qualSkipRect = r;
+  techRect(r.x, r.y, w, h, 8);
+  ctx.fillStyle = 'rgba(6,20,40,0.6)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(120,220,255,0.55)'; ctx.lineWidth = 1.5;
+  techRect(r.x, r.y, w, h, 8); ctx.stroke();
+  ctx.fillStyle = 'rgba(220,245,255,0.92)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(QUAL_SKIP_LABEL, r.x + w / 2 + 1, r.y + h / 2 + 1);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.restore();
+}
 
 // level intro: title card + 3-2-1 countdown in the center while the ring forms
 // — drawn as the frame's last pass so no rim/HUD layer can obscure the text
@@ -546,7 +572,7 @@ function drawIntroCard() {
       try { ctx.letterSpacing = '6px'; } catch (e) {}
       const titleMaxW = ringChord(H * 0.30) / scale;
       ctx.fillStyle = 'rgba(200,235,255,0.85)'; ctx.font = '600 13px Audiowide, system-ui';
-      ctx.fillText(endless ? 'SURVIVE' : qual ? 'TRAINING' : 'STAGE ' + lvNum(curLevelNo(levelIdx)), 0, -34);
+      ctx.fillText(endless ? 'SURVIVE' : qual ? 'TRAINING \u00b7 PART ' + qualPart : 'STAGE ' + lvNum(curLevelNo(levelIdx)), 0, -34);
       // the level IS its route: where the convoy forms up, and where it delivers
       const lname = curRouteName();
       const tpx = fitPx(lname, '800', Math.min(W * 0.055, 32), titleMaxW, 15);
@@ -651,15 +677,10 @@ function drawIntroCard() {
 }
 
 // ---------- tutorial focus layer ----------
-// THE ROLLING SHINE. One device, worn by both halves of the pulse call to action —
-// the ready ring on the dial and the FIRE PULSE NOW! label above it. Nothing moves
-// and nothing changes size; a bright head travels through a still shape instead.
-// It replaced a bob-and-zoom pair that read as a cartoon (Gil, 2026-08-29), and the
-// drill disc's charged orb wears the same device (DEMO.pulse, 91-briefing) so the
-// briefing and the lane say "ready" the same way.
-const PULSE_CTA = 'FIRE PULSE NOW!';
-const CTA_INK = '#8fe0ff';
-const CTA_SWEEP = 1.7;   // seconds per pass through the letters, tail included
+// THE ROLLING SHINE: the ready ring on a full pad. Nothing moves and nothing changes
+// size; a bright head travels through a still shape instead. It replaced a bob-and-zoom
+// pair that read as a cartoon (Gil, 2026-08-29). It rode the pulse lesson's hold until
+// that lesson went (2026-11-05); it rides every full pad now (THE CHARGED SIDE, below).
 const SHINE_TAIL = 12;   // segments the ring's head trails
 const SHINE_SPAN = 1.4;  // radians the tail covers
 // One descriptor of the live drill feeds both the pad ghosts and the lesson line, so
@@ -671,18 +692,16 @@ const TUT_LESSON = {
   normal: 'HIT WITH ANY EMITTER',
   wall:   'DEAD ZONE \u2014 GO AROUND!',
   heavy:  'DOCK BOTH EMITTERS TOGETHER',
-  volley: 'DOCK BOTH AND HOLD \u2014 TO FIRE VOLLEY',
   line:   'COVER BOTH ENDS \u2014 ONE EACH',
   lock0:  'BLUE EMITTER ONLY',
   lock1:  'WHITE EMITTER ONLY',
   pickup: 'COLLECT THE POWER-UP',
-  strip:  'RIDE THE GOLDEN STRIP',
-  pulse:  'TAP THE GLOWING PAD \u2014 TO FIRE PULSE'
+  strip:  'RIDE THE GOLDEN STRIP'
 };
 const TUT_ACCENT = {
   move: '143,224,255', normal: '255,96,120', wall: '255,154,60',
-  heavy: '143,224,255', volley: '191,234,255', line: '111,227,255', lock0: '95,150,255', lock1: '235,244,255',
-  pickup: '255,210,74', strip: '255,210,74', pulse: '255,210,74'
+  heavy: '143,224,255', line: '111,227,255', lock0: '95,150,255', lock1: '235,244,255',
+  pickup: '255,210,74', strip: '255,210,74'
 };
 // THE BARRIER NET'S PLAN: which end each emitter takes. The emitter nearest EITHER end
 // takes that end, and the other emitter takes the other one (Gil, 2026-10-09: "show each
@@ -729,13 +748,8 @@ function tutFocusDesc(st, ten) {
       const i = nodes[0] === (Math.abs(angDiff(nodes[0].angle, ten.angle)) <
         Math.abs(angDiff(nodes[1].angle, ten.angle)) ? nodes[0] : nodes[1]) ? 0 : 1;
       ghosts.push({ i, a: ten.angle, col: NODE_COLS[i] });
-    } else if (kind === 'heavy' || kind === 'volley') {
-      // the volley's mark is the ARMOR's bearing, not a neighbour's: that is where
-      // the dock has to sit for the bolt to hit the one body worth detonating on
-      const bod = kind === 'volley'
-        ? (enemies.find(e => e.tut === 'volley' && e.type === 'heavy' && !e.dead && !e.resolved) || ten)
-        : ten;
-      ghosts.push({ i: 0, a: bod.angle, col: NODE_COLS[0] }, { i: 1, a: bod.angle, col: NODE_COLS[1] });
+    } else if (kind === 'heavy') {
+      ghosts.push({ i: 0, a: ten.angle, col: NODE_COLS[0] }, { i: 1, a: ten.angle, col: NODE_COLS[1] });
     } else if (kind === 'line' && ten.partner) {
       // each pad takes the end the NET PLAN gives its emitter — the same plan, and the
       // same colours, the ring's arrows and parking spots use (netAssign)
@@ -820,6 +834,7 @@ function mmss(sec) {
 function drawHUD(g) {
   const L = LV || LEVELS[levelIdx];
   const pad = 14;
+  drawPulseSide(); // a full pad lights its side of the screen, under every gauge (THE CHARGED SIDE)
 
   // left curved bar: LEVEL PROGRESS (green, hugs the node ring like the mock)
   // radius is clamped so the arc tips + stroke casing always stay on screen —
@@ -1078,6 +1093,7 @@ function drawHUD(g) {
     pauseBtnRect = { x: W - 12 - SAFE.r - 38, y: 12 + SAFE.t, w: 38, h: 38 };
     drawPauseKey(pauseBtnRect, state === S.PAUSE);
   }
+  drawQualSkipKey();
 
   // H-07: BACK off the pre-warp disc — a left-arrow, TOP-LEFT, bound to B. Only on
   // the briefed pre-warp screen; every other S.INFO card is dismissed, not exited.
@@ -1416,107 +1432,13 @@ function drawHUD(g) {
         if (!tut.call && tgt && Math.abs(angDiff(nodes[i].angle, tgt.a)) > TOLm) drawTutDragGhost(i, tgt.a);
       }
     }
-    if (tut.spawned === 'pulse') { // a banked pulse waits on the dial — ring the ready core
-      for (let i = 0; i < 2; i++) {
-        if (pulseCharge[i] < PULSE_MAX || nodes[i].deadT > 0) continue;
-        const d = dialCenter(i === 0 ? 'L' : 'R');
-        // THE READY RING HOLDS ITS RADIUS. It used to breathe +/-4px, which is the
-        // same cartoon squash Gil pulled off the drill disc's charged orb
-        // (91-briefing, 2026-08-29). The ring is a fixed circle now and a bright
-        // head ROLLS around it — a moving highlight on a still shape.
-        const pr = d.r * 0.5 + 10;
-        ctx.save();
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = `rgba(${NODE_COLS[i]},0.28)`;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.arc(d.x, d.y, pr, 0, TAU); ctx.stroke();
-        for (let k = 0; k < SHINE_TAIL; k++) {          // the head, plus a tail falling off behind it
-          const q = k / SHINE_TAIL;
-          const a0 = time * 2.1 - SHINE_SPAN * q, a1 = a0 - SHINE_SPAN / SHINE_TAIL - 0.01;
-          ctx.strokeStyle = `rgba(${NODE_COLS[i]},${(0.95 * Math.pow(1 - q, 2.2)).toFixed(3)})`;
-          ctx.beginPath(); ctx.arc(d.x, d.y, pr, a1, a0); ctx.stroke();
-        }
-        ctx.restore();
-        if (tut.frozen) { // the hold: the whole run waits on this tap
-          // THE ONE INSTRUCTION ON A FROZEN SCREEN, AND IT HOLDS STILL. It used to
-          // bob on a sine AND breathe its scale at the same time. Two moving
-          // properties on one label fight each other — the eye tracks the movement
-          // instead of reading the words — and together they read as a cartoon.
-          // Gil, 2026-08-29, the same call he made on the drill disc's orb.
-          //
-          // The attention is a SHINE now: a bright head sweeping left to right
-          // through the letters, painted straight into the fill as a gradient, so
-          // nothing moves and nothing changes size. No offscreen canvas and no
-          // compositing mode — the gradient IS the fill style.
-          const u2 = Math.min(W, H);
-          const bpx = Math.round(u2 * 0.042);
-          ctx.save();
-          ctx.font = '700 ' + bpx + 'px Audiowide, system-ui';
-          const wT = ctx.measureText(PULSE_CTA).width, halfT = wT / 2 + 10;
-          ctx.translate(clamp(d.x, halfT, W - halfT), d.y - d.r - u2 * 0.085);
-          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-          ctx.strokeStyle = 'rgba(2,4,12,0.85)'; ctx.lineWidth = 4;
-          ctx.strokeText(PULSE_CTA, 0, 0);
-          // the head runs -0.35 -> 1.55 over CTA_SWEEP seconds. Past 1.2 it has left
-          // the last letter, so the tail of every cycle is a beat of plain colour —
-          // a shine that never rests reads as a shimmer, not a sweep.
-          const q = (time / CTA_SWEEP % 1) * 1.9 - 0.35;
-          const gT = ctx.createLinearGradient(-wT / 2, 0, wT / 2, 0);
-          const stop = (v, c) => gT.addColorStop(clamp(v, 0, 1), c);
-          stop(0, CTA_INK);
-          if (q > -0.2 && q < 1.2) { stop(q - 0.2, CTA_INK); stop(q, '#ffffff'); stop(q + 0.2, CTA_INK); }
-          stop(1, CTA_INK);
-          ctx.fillStyle = gT;
-          ctx.fillText(PULSE_CTA, 0, 0);
-          ctx.restore();
-          ctx.save();
-          ctx.translate(d.x, d.y - d.r * 0.62 - 12);
-          ctx.fillStyle = 'rgba(143,224,255,0.95)';
-          ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(-7, -6); ctx.lineTo(7, -6); ctx.closePath(); ctx.fill();
-          ctx.restore();
-          // nobody has tapped yet: a ghost thumb shows the tap, on EVERY charged pad (Gil:
-          // "didn't show on the white pad" — the ride can charge white while the zaps charge blue)
-          drawPulseTapGhost(i, d);
-        }
-      }
-    }
   }
 }
 
-// THE PULSE TAP, SHOWN (Gil, 2026-10-08). If the FIRE-PULSE hold has waited
-// PULSE_TAP_DELAY with no tap, a ghost thumb — the same one the launch gate shows —
-// taps the centre of the charged pad, on a loop, until the real thumb does it.
-const PULSE_TAP_DELAY = 1.6;  // seconds of hold before the ghost steps in
-const PULSE_TAP_CYCLE = 1.2;  // seconds per demonstrated tap
-function drawPulseTapGhost(i, d) {
-  // the right thumb trails the left, so two ghosts read as two hands, not a mirror
-  const since = time - (tut.frozenAt === undefined ? time : tut.frozenAt) - i * GHOST_STAGGER;
-  if (since < PULSE_TAP_DELAY) return;
-  const fadeIn = clamp((since - PULSE_TAP_DELAY) / 0.3, 0, 1);
-  const u = ((since - PULSE_TAP_DELAY) % PULSE_TAP_CYCLE) / PULSE_TAP_CYCLE;
-  // approach, press, hold, lift
-  const down = u < 0.25 ? 0 : u < 0.38 ? (u - 0.25) / 0.13 : u < 0.6 ? 1 : u < 0.72 ? 1 - (u - 0.6) / 0.12 : 0;
-  // A CONTROLLER FIRES WITH A TRIGGER (71-gamepad: LT → blue, RT → white). Whenever one
-  // has been detected, the pad shows its trigger, pressing on the same beat as the ghost
-  // thumb (Gil, 2026-10-08). The thumb still shows unless the controller is the hand on
-  // the game right now, so a touch player with a pad attached sees both.
-  if (typeof gpSeen !== 'undefined' && gpSeen) drawPulseTrigger(i, d, down, fadeIn);
-  if (typeof gpDriving !== 'undefined' && gpDriving) return;
-  // between taps the thumb rises off the pad, back toward the hand it belongs to
-  const lift = (1 - down) * d.r * 0.22, side = i === 0 ? 'L' : 'R';
-  const x = d.x + (side === 'L' ? -1 : 1) * lift * 0.7, y = d.y + lift * 0.7;
-  if (down > 0.5) { // the pad answers the press, as a real tap would light it
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,' + (0.6 * fadeIn * (down - 0.5) * 2).toFixed(2) + ')';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.42, 0, TAU); ctx.stroke();
-    ctx.restore();
-  }
-  drawThumbGhost(x, y, side, down, fadeIn, d.r * 0.55);
-}
 // THE TRIGGER, drawn as a trigger: a key rounded on its top edge like the shoulder of a
-// controller, its name on it, sunk and lit on each press. It sits on the pad's centre,
-// clear of the ready arrow above, and the ghost thumb (when it shows too) presses it.
+// controller, its name on it, sunk and lit on a press. It sits on the pad's centre. A
+// full pad wears it whenever a controller has been seen (THE CHARGED SIDE, below), so a
+// pad player learns LT and RT the way a touch player learns the tap.
 function drawPulseTrigger(i, d, down, alpha) {
   const label = i === 0 ? 'LT' : 'RT', col = NODE_COLS[i];
   const w = d.r * 0.62, h = d.r * 0.40, x = d.x - w / 2, y = d.y - h / 2 + down * h * 0.12;
@@ -1540,13 +1462,257 @@ function drawPulseTrigger(i, d, down, alpha) {
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
   ctx.restore();
 }
+// ---------- THE CHARGED SIDE (Gil, 2026-11-05) ----------
+// A FULL PAD TAKES OVER ITS WHOLE SIDE OF THE SCREEN, and that is the whole pulse lesson
+// now. The course's pulse drill went the day the course was cut into parts: a pad fills
+// from stage 01, six stages before a stage-07 lesson could explain it. So the charge
+// explains itself, in three layers:
+//
+//   the side    the half of the screen whose pad is full is washed in that emitter's
+//               colour, and the pad throws energy across it: a corona, light rays
+//               turning slowly round the pad, a solar storm of looping filaments off its
+//               rim, sparks running outward, and a bright head down the screen's edge
+//   the call    TAP TO FIRE above the pad, a shine running through the letters
+//               (LT / RT TO FIRE while a controller is the hand flying the game).
+//               TEXT GOES ON TOP (Gil, 2026-11-05: the progress arc and the stability
+//               bar were painting over it): the art rides under the gauges, at the
+//               head of drawHUD, and the words — the call and the LT / RT badge — are
+//               drawn by drawPulseCall, the lane's LAST pass in 99-boot.
+//   the tap     ANY short tap on that side fires it (pulseSideTap, from 60-input's
+//               pointerup), not only the core. A touch that steers is long or moves, so
+//               it never fires; the core keeps its instant fire on touch-down.
+//
+// It shows only while a tap there WOULD fire: the input's own test (pulseFirable) — the
+// pad full, the emitter not fried, no boss ceremony or death holding the verb — in a
+// live lane, never under a replay or the pause disc. Draw-only: the sim reads none of it
+// and nothing here draws randomness; every motion is a sine or a modulo of `time`. Each
+// gradient is built once per screen and pad size and moved with the transform, because
+// a gradient built every frame is what WebKit pays for outside rAF (2026-10-03). Under
+// lowFX the storm and the sparks stay home and half the rays do. Gil tunes the look;
+// these are the knobs.
+const PULSE_SIDE_ON = true;     // false: the pad's own corona is the only sign of a charge
+const PULSE_SIDE_W = 1.0;       // the wash's reach in from the screen edge, as a share of the screen's half
+const PULSE_SIDE_A = 0.16;      // the wash's strength at the edge
+const PULSE_SIDE_HEAD = 0.30;   // the head running down the edge (0 = none)
+const PULSE_SIDE_SWEEP = 1.6;   // seconds per run of the head, its rest included
+const PULSE_SIDE_REST = 0.3;    // share of each run the edge rests with no head: a sweep, not a shimmer
+const PULSE_SIDE_IN = 0.35;     // seconds the side takes to come up when a pad fills
+const PULSE_SIDE_OUT = 0.18;    // …and to go when the pad fires or fries
+const PULSE_CORONA_R = 0.42;    // the corona round the pad, × min(W, H)
+const PULSE_CORONA_A = 0.30;    // …and its strength
+const PULSE_RAYS = 11;          // light rays round the pad
+const PULSE_RAY_LEN = 0.95;     // their longest reach, × min(W, H)
+const PULSE_RAY_W = 0.075;      // each ray's half-width at the pad, radians
+const PULSE_RAY_SPIN = 0.22;    // the fan's turn, radians per second
+const PULSE_RAY_A = 0.34;       // the rays' strength
+const PULSE_STORM = 7;          // looping filaments off the pad's rim (a solar storm)
+const PULSE_STORM_A = 0.55;     // …and their strength
+const PULSE_SPARKS = 14;        // sparks running outward from the pad
+const PULSE_SIDE_RING = true;   // the rolling ready ring round the core
+const PULSE_CTA_TEXT = 'TAP TO FIRE';
+const PULSE_CTA_PX = 0.042;     // the call's size, × min(W, H)
+const PULSE_CTA_SWEEP = 1.7;    // seconds per pass of the shine through the letters
+const PULSE_CTA_INK = '#eafaff';
+const PULSE_SIDE_TAP = true;    // false: only the core fires, as before 2026-11-05
+const PULSE_TAP_S = 0.25;       // a tap lifts within this many seconds…
+const PULSE_TAP_MOVE = 0.035;   // …having moved less than this, × min(W, H); anything else steers
+const pulseSide = [0, 0];       // each side's eased presence, 0..1 — render-side only
+let pulseSideG = null, pulseSideKey = '', pulseSideCtx = null;
+// would a tap on pad i fire it right now? The same test the pointer handler makes (60-input)
+const pulseFirable = i => pulseCharge[i] >= PULSE_MAX && nodes[i].deadT <= 0
+  && (!boss || (boss.introT >= BOSS_CER && boss.dying === undefined));
+// a short, still tap anywhere on a full pad's side fires it. Called by 60-input's pointerup
+// with the touch's own record (t0, x0, y0 from its pointerdown); a cancel never gets here.
+function pulseSideTap(p, P) {
+  if (!PULSE_SIDE_TAP || !p || p.t0 === undefined) return false;
+  if (state !== S.PLAY || replaying || introT < INTRO_DUR) return false;
+  const i = p.side === 'L' ? 0 : 1;
+  if (!pulseFirable(i)) return false;
+  if (time - p.t0 > PULSE_TAP_S) return false;
+  if (Math.hypot(P.x - p.x0, P.y - p.y0) > Math.min(W, H) * PULSE_TAP_MOVE) return false;
+  firePulse(i);
+  return true;
+}
+function pulseSideGrads() {
+  const u = Math.min(W, H), bw = Math.max(1, W / 2 * PULSE_SIDE_W), rh = Math.min(bw, H * 0.32);
+  const cr = u * PULSE_CORONA_R, rl = u * PULSE_RAY_LEN;
+  const key = W + 'x' + H + '/' + bw.toFixed(1) + '/' + cr.toFixed(1) + '/' + rl.toFixed(1);
+  if (pulseSideG && pulseSideKey === key && pulseSideCtx === ctx) return pulseSideG;
+  const mk = i => {
+    const c = NODE_COLS[i];
+    // the wash runs INWARD from x = 0; the right side is drawn through a mirror
+    const edge = ctx.createLinearGradient(0, 0, bw, 0);
+    edge.addColorStop(0, `rgba(${c},1)`); edge.addColorStop(0.35, `rgba(${c},0.42)`); edge.addColorStop(1, `rgba(${c},0)`);
+    const head = ctx.createRadialGradient(0, 0, 0, 0, 0, rh);
+    head.addColorStop(0, `rgba(${c},1)`); head.addColorStop(0.5, `rgba(${c},0.35)`); head.addColorStop(1, `rgba(${c},0)`);
+    // the corona and the rays are centred on (0, 0) and translated onto the pad
+    const corona = ctx.createRadialGradient(0, 0, 0, 0, 0, cr);
+    corona.addColorStop(0, 'rgba(255,255,255,0.9)'); corona.addColorStop(0.18, `rgba(${c},0.75)`);
+    corona.addColorStop(0.55, `rgba(${c},0.22)`); corona.addColorStop(1, `rgba(${c},0)`);
+    const rays = ctx.createRadialGradient(0, 0, 0, 0, 0, rl);
+    rays.addColorStop(0, 'rgba(255,255,255,0.95)'); rays.addColorStop(0.12, `rgba(${c},0.85)`);
+    rays.addColorStop(0.5, `rgba(${c},0.28)`); rays.addColorStop(1, `rgba(${c},0)`);
+    return { edge, head, corona, rays };
+  };
+  pulseSideG = { bw, rh, cr, rl, side: [mk(0), mk(1)], cta: {} };
+  pulseSideKey = key; pulseSideCtx = ctx;
+  return pulseSideG;
+}
+// the ready ring: a still circle just outside the core's reach, a bright head rolling round it
+function drawPulseReadyRing(i, d, k) {
+  const pr = d.r * 0.5 + 10;
+  ctx.save();
+  ctx.globalAlpha = k;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = `rgba(${NODE_COLS[i]},0.28)`;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(d.x, d.y, pr, 0, TAU); ctx.stroke();
+  for (let n = 0; n < SHINE_TAIL; n++) {          // the head, plus a tail falling off behind it
+    const q = n / SHINE_TAIL;
+    const a0 = time * 2.1 - SHINE_SPAN * q, a1 = a0 - SHINE_SPAN / SHINE_TAIL - 0.01;
+    ctx.strokeStyle = `rgba(${NODE_COLS[i]},${(0.95 * Math.pow(1 - q, 2.2)).toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(d.x, d.y, pr, a1, a0); ctx.stroke();
+  }
+  ctx.restore();
+}
+// the side's energy, all of it thrown off the pad and kept on the pad's own half
+function drawPulseStorm(i, d, k, G2) {
+  const S2 = G2.side[i], c = NODE_COLS[i], seed = i * 1.7;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(i === 0 ? 0 : W / 2, 0, W / 2, H); ctx.clip();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.translate(d.x, d.y);
+  // the corona
+  ctx.globalAlpha = k * PULSE_CORONA_A;
+  ctx.fillStyle = S2.corona;
+  ctx.fillRect(-G2.cr, -G2.cr, G2.cr * 2, G2.cr * 2);
+  // the rays: one path of slim wedges, each breathing its own length, the fan turning
+  const nR = lowFX ? Math.ceil(PULSE_RAYS / 2) : PULSE_RAYS, r0 = d.r * 0.55;
+  ctx.beginPath();
+  for (let j = 0; j < nR; j++) {
+    const th = time * PULSE_RAY_SPIN + j / nR * TAU + 0.35 * Math.sin(time * 0.6 + j * 2.3 + seed);
+    const hw = PULSE_RAY_W * (0.6 + 0.4 * Math.sin(time * 1.1 + j * 1.7));
+    const len = G2.rl * (0.5 + 0.5 * (0.5 + 0.5 * Math.sin(time * 1.7 + j * 3.1 + seed)));
+    ctx.moveTo(Math.cos(th - hw) * r0, Math.sin(th - hw) * r0);
+    ctx.lineTo(Math.cos(th) * len, Math.sin(th) * len);
+    ctx.lineTo(Math.cos(th + hw) * r0, Math.sin(th + hw) * r0);
+    ctx.closePath();
+  }
+  ctx.globalAlpha = k * PULSE_RAY_A;
+  ctx.fillStyle = S2.rays;
+  ctx.fill();
+  if (!lowFX) {
+    // THE SOLAR STORM: filaments that leave the rim, loop out and fall back, each on its
+    // own clock, so the pad reads as a star under pressure rather than a lamp
+    ctx.beginPath();
+    for (let f = 0; f < PULSE_STORM; f++) {
+      const base = f / PULSE_STORM * TAU + time * 0.25 + 0.8 * Math.sin(time * 0.37 + f * 1.9 + seed);
+      const spread = 0.30 + 0.18 * Math.sin(time * 0.9 + f);
+      const h = d.r * (1.45 + 1.2 * (0.5 + 0.5 * Math.sin(time * 1.3 + f * 2.7 + seed)));
+      const sway = 0.25 * Math.sin(time * 1.9 + f * 1.3);
+      const rr = d.r * 0.92;
+      ctx.moveTo(Math.cos(base - spread) * rr, Math.sin(base - spread) * rr);
+      ctx.quadraticCurveTo(Math.cos(base + sway) * h, Math.sin(base + sway) * h,
+        Math.cos(base + spread) * rr, Math.sin(base + spread) * rr);
+    }
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = k * PULSE_STORM_A;
+    ctx.strokeStyle = `rgba(${c},0.9)`; ctx.lineWidth = Math.max(2, d.r * 0.07); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = Math.max(1, d.r * 0.025); ctx.stroke();
+    // sparks running outward on golden-angle bearings, each fading as it leaves
+    for (let n = 0; n < PULSE_SPARKS; n++) {
+      const u = (time * 0.55 + n * 0.137 + seed) % 1;
+      const th = n * 2.399963 + time * 0.2;
+      const dist = d.r * 0.8 + u * G2.rl * 0.75;
+      ctx.globalAlpha = k * (1 - u) * 0.85;
+      ctx.fillStyle = n % 3 ? `rgb(${c})` : '#ffffff';
+      ctx.beginPath(); ctx.arc(Math.cos(th) * dist, Math.sin(th) * dist, 1.2 + 2.2 * (1 - u), 0, TAU); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+// TAP TO FIRE, with a shine running through it. The shine's gradient is built once per
+// size and slid by a translate the text undoes, so no frame builds one.
+function drawPulseCta(i, d, k, G2) {
+  const u = Math.min(W, H), px = Math.round(u * PULSE_CTA_PX);
+  const pad = typeof gpDriving !== 'undefined' && gpDriving;
+  const txt = pad ? (i === 0 ? 'LT' : 'RT') + ' TO FIRE' : PULSE_CTA_TEXT;
+  ctx.save();
+  ctx.font = '700 ' + px + 'px Audiowide, system-ui';
+  try { ctx.letterSpacing = '3px'; } catch (e) {}
+  const wT = ctx.measureText(txt).width, halfT = wT / 2 + 10;
+  const ck = txt + '/' + px + '/' + Math.round(wT);
+  let gS = G2.cta[ck];
+  if (!gS) {
+    gS = ctx.createLinearGradient(-wT, 0, wT, 0);
+    gS.addColorStop(0, PULSE_CTA_INK); gS.addColorStop(0.42, PULSE_CTA_INK);
+    gS.addColorStop(0.5, '#ffffff'); gS.addColorStop(0.58, PULSE_CTA_INK); gS.addColorStop(1, PULSE_CTA_INK);
+    G2.cta[ck] = gS;
+  }
+  ctx.globalAlpha = k;
+  ctx.translate(clamp(d.x, halfT + SAFE.l, W - halfT - SAFE.r), d.y - d.r - u * 0.085);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(2,4,12,0.85)'; ctx.lineWidth = 4;
+  ctx.strokeText(txt, 0, 0);
+  // the shine runs -0.35 → 1.55 of the word; past its last letter the word rests in ink
+  const q = (time / PULSE_CTA_SWEEP % 1) * 1.9 - 0.35, dx = -wT / 2 + q * wT;
+  ctx.translate(dx, 0);
+  ctx.fillStyle = gS;
+  ctx.fillText(txt, -dx, 0);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.restore();
+}
+function drawPulseSide() {
+  const step = clamp(typeof frameDt === 'number' ? frameDt : 0, 0, 0.05);
+  const live = PULSE_SIDE_ON && state === S.PLAY && !replaying && introT >= INTRO_DUR;
+  for (let i = 0; i < 2; i++) {
+    const on = live && pulseFirable(i);
+    pulseSide[i] = on ? Math.min(1, pulseSide[i] + step / PULSE_SIDE_IN)
+      : Math.max(0, pulseSide[i] - step / PULSE_SIDE_OUT);
+    const k = pulseSide[i];
+    if (k <= 0.004) continue;
+    const G2 = pulseSideGrads(), S2 = G2.side[i];
+    const d = dialCenter(i === 0 ? 'L' : 'R');
+    // the wash, and the head running down the edge to the pad
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    if (i === 1) { ctx.translate(W, 0); ctx.scale(-1, 1); } // the right edge, mirrored
+    ctx.globalAlpha = k * PULSE_SIDE_A;
+    ctx.fillStyle = S2.edge;
+    ctx.fillRect(0, 0, G2.bw, H);
+    const uu = (time / PULSE_SIDE_SWEEP) % 1, run = 1 - PULSE_SIDE_REST;
+    if (PULSE_SIDE_HEAD > 0 && uu < run) {
+      const e = smoothT(uu / run);
+      ctx.globalAlpha = k * PULSE_SIDE_HEAD * (1 - 0.5 * e); // it softens as it lands on the pad
+      ctx.translate(0, lerp(-G2.rh * 0.5, d.y, e));
+      ctx.fillStyle = S2.head;
+      ctx.fillRect(0, -G2.rh, G2.rh, G2.rh * 2);
+    }
+    ctx.restore();
+    drawPulseStorm(i, d, k, G2);
+    if (PULSE_SIDE_RING) drawPulseReadyRing(i, d, k);
+  }
+}
+// THE WORDS, OVER EVERYTHING: the lane's last pass (99-boot), after the gauges, the pads,
+// the intro card and the NOW PLAYING strip, so no layer of the frame can cover them. It
+// reads the presence drawPulseSide eased this frame, so the two never disagree.
+function drawPulseCall() {
+  if (!PULSE_SIDE_ON) return;
+  for (let i = 0; i < 2; i++) {
+    const k = pulseSide[i];
+    if (k <= 0.004) continue;
+    const G2 = pulseSideGrads(), d = dialCenter(i === 0 ? 'L' : 'R');
+    if (typeof gpSeen !== 'undefined' && gpSeen) drawPulseTrigger(i, d, 0, k);
+    drawPulseCta(i, d, k, G2);
+  }
+}
 // ---------- the course, on the HUD (2026-10-08) ----------
 // THE COURSE'S PROGRESS RIDES THE LEFT BAR, the lane-progress gauge every stage uses
 // (Gil: the step dots were "just confusing… implement them on the left bar as actual lane
 // progress"). The fill is lessons done over lessons in the course; the controls lesson
 // fills by its reps as well, and the fill eases rather than steps. The readout at the
 // head says which lesson of how many (drawHUD's clk).
-const courseLessons = () => QUAL.length - 1;   // 'done' is the ceremony, not a lesson
+const courseLessons = () => qualList().length - 1;   // the PART's lessons; 'done' is the ceremony, not a lesson
 let courseProgShow = 0, courseProgRef = null;  // the eased fill, and the pupil it belongs to
 function courseProg() {
   if (courseProgRef !== tut) { courseProgRef = tut; courseProgShow = 0; }
@@ -1580,8 +1746,8 @@ const CALL_DIM_IN = 0.38;      // the dim inside the bore, outside the lesson's 
 // ARCFX.bandW), times this. Gil, 2026-10-09: the dim should "end on the actual ring, and
 // not overshoot it" — it was 0.075 × min(W, H), more than three times the ring.
 const CALL_RING_BAND = 1.0;
-// the lit wedge around the call's bearing, half-width in radians; pulse lights the bore
-const CALL_FOCUS = { normal: 0.55, heavy: 0.6, volley: 0.85, line: 1.2, lock: 0.6, pickup: 0.6, strip: 0.8, wall: 0.8 };
+// the lit wedge around the call's bearing, half-width in radians
+const CALL_FOCUS = { normal: 0.55, heavy: 0.6, line: 1.2, lock: 0.6, pickup: 0.6, strip: 0.8, wall: 0.8 };
 const CALL_FOCUS_AT = { line: 0.75 }; // the wedge's centre, off the call bearing (a net straddles it)
 const HOLO_FLICKER = 0.10;     // the opacity's flicker depth
 const GLITCH_EVERY = 0.9;      // seconds: about one glitch burst per this, at a hashed moment
@@ -1654,7 +1820,7 @@ function drawCallDim(c, env) {
   const bw = Math.max(2, Math.ceil(W * CALL_DIM_RES)), bh = Math.max(2, Math.ceil(H * CALL_DIM_RES));
   if (!dimCv) dimCv = document.createElement('canvas');
   if (dimCv.width !== bw || dimCv.height !== bh) { dimCv.width = bw; dimCv.height = bh; dimKey = ''; }
-  const inner = c.key === 'pulse' ? 0 : CALL_DIM_IN; // the purge column fills the bore: no dim inside
+  const inner = CALL_DIM_IN;
   // SLIDE's pads, read once: the key needs them, and so does step 4 when it paints
   const pads = [];
   if (c.kind === 'move' && tut.aim && tut.aim.targets)

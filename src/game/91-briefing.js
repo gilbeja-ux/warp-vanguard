@@ -308,8 +308,8 @@ const dSlide = (t, a, b, a0, a1) => a0 + angDiff(a1, a0) * dEase(dSeg(t, a, b));
 // Each is its own payoff, then a breath, then DEMO_FADE_OUT to dissolve in — a
 // payoff still landing while the envelope is closing reads as the loop cutting it off.
 const DEMO_LOOP = {
-  move: 4.0, normal: 3.5, wall: 4.9, heavy: 4.0, volley: 4.1,
-  line: 4.2, lock: 4.5, pickup: 3.8, strip: 5.2, pulse: 4.4
+  move: 4.0, normal: 3.5, wall: 4.9, heavy: 4.0,
+  line: 4.2, lock: 4.5, pickup: 3.8, strip: 5.2
 };
 // the colour coding is the game's, not the diorama's — a red here that is not the
 // lane's red teaches the wrong tell
@@ -520,59 +520,8 @@ const DEMO = {
       demoPop(Rs, A, 0, dSeg(t, hit, hit + 0.6), '200,70,255');
     }
   },
-  // DOCK AND HOLD. The same dock, kept — and the bolt takes the neighbours too.
-  volley(Rs, t) {
-    const A = DISC_BOT, zHold = 0.42, rail = dRail(Rs);
-    const z = 1 - dSeg(t, 0, 2.2) * (1 - zHold);
-    const dock = dSeg(t, 0.4, 1.6);
-    demoNode(Rs, 0, dSlide(t, 0.4, 1.6, A + 2.0, A - DOCK_GAP));
-    demoNode(Rs, 1, dSlide(t, 0.4, 1.6, A - 2.0, A + DOCK_GAP));
-    // the charge: a white coil winding tighter on the docked bearing
-    if (dock >= 1 && t < 2.2) {
-      const k = dSeg(t, 1.6, 2.2);
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.strokeStyle = 'rgba(220,242,255,' + (0.25 + 0.6 * k).toFixed(2) + ')';
-      ctx.lineWidth = Math.max(1.5, Rs * 0.030);
-      ctx.beginPath(); ctx.arc(Math.cos(A) * rail, Math.sin(A) * rail, Rs * (0.20 - 0.13 * k), 0, TAU);
-      ctx.stroke();
-      ctx.restore();
-    }
-    const gone = t >= 2.9;
-    if (!gone) {
-      // scaled down: at the trio's depth a full-size mark is wider than the 0.5 rad
-      // gap between them, and three bodies that overlap read as one. 0.90 since the
-      // base size came down — 0.68 on top of that left three specks.
-      for (const [da, ty] of [[0, 'heavy'], [-0.5, 'normal'], [0.5, 'normal']])
-        demoThreat(Rs, A + da, z, ty, { scale: 0.90 });
-      // the bolt, running down the bore on the docked bearing
-      if (t > 2.2) {
-        const bz = lerp(0, zHold, dSeg(t, 2.2, 2.9));
-        const p = dPersp(bz);
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = 'rgba(230,248,255,0.95)';
-        ctx.beginPath(); ctx.arc(Math.cos(A) * rail * p, Math.sin(A) * rail * p, Rs * 0.05, 0, TAU); ctx.fill();
-        ctx.restore();
-      }
-    } else { // THE DETONATION. One flash over the whole trio, then the three pops —
-      // three lone rings read as three separate kills, which is the opposite of the
-      // point: this is ONE shot taking three bodies.
-      const k = dSeg(t, 2.9, 3.5);
-      const p = dPersp(zHold);
-      const fx2 = Math.cos(A) * rail * p, fy2 = Math.sin(A) * rail * p;
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const fg = ctx.createRadialGradient(fx2, fy2, 0, fx2, fy2, Rs * (0.16 + k * 0.42));
-      fg.addColorStop(0, 'rgba(240,252,255,' + (0.85 * (1 - k)).toFixed(2) + ')');
-      fg.addColorStop(0.45, 'rgba(150,210,255,' + (0.35 * (1 - k)).toFixed(2) + ')');
-      fg.addColorStop(1, 'rgba(120,190,255,0)');
-      ctx.fillStyle = fg;
-      ctx.beginPath(); ctx.arc(fx2, fy2, Rs * (0.16 + k * 0.42), 0, TAU); ctx.fill();
-      ctx.restore();
-      for (const da of [0, -0.5, 0.5]) demoPop(Rs, A + da, zHold, k, '191,234,255');
-    }
-  },
+  // (THE VOLLEY's diorama went with its lesson, 2026-11-05: players find the volley
+  // on their own.)
   // COVER BOTH ENDS. One emitter per end, and the tether between them is the tell.
   line(Rs, t) {
     const A = DISC_BOT - 0.75, B = A + 1.5, hit = 3.0;  // the pair straddles the bottom
@@ -711,109 +660,8 @@ const DEMO = {
     ctx.restore();
     if (t > RIDE1) demoPop(Rs, aCross, 0, dSeg(t, RIDE1, RIDE1 + 0.6), '255,210,74'); // banked
   },
-  // A GLOWING ORB: TAP TO FIRE. The crowd is held, the pad pings, and the wave
-  // leaves the ring and races AWAY down the bore.
-  //
-  // DIRECTION MATTERS AND IT WAS WRONG. `firePulse` pushes a wave at `hitZ` and its
-  // depth grows to the horizon (72-tick), so `drawPulseWave` draws a front whose
-  // radius is ring(wv.z) — starting wide at the rail and CLOSING toward the middle.
-  // The first pass here expanded outward from the centre, which is the picture of
-  // something arriving at you. Gil caught it on sight.
-  pulse(Rs, t) {
-    // A PULSE CLEARS THE WHOLE RING, SO THE CROWD IS THE WHOLE RING. Gil's call,
-    // 2026-08-29: not all down, and not all at one depth. Five bearings spread
-    // unevenly round the rail, each with its OWN depth, so the picture says "every
-    // bearing, every distance" — which is the whole claim the drill makes.
-    //
-    // This is the ONE lesson that overrides the bottom-of-the-rail rule above. Every
-    // other disc teaches a SILHOUETTE and needs its body upright. This one teaches a
-    // SWEEP, and a sweep that only clears the floor teaches half the power.
-    //
-    // Ordered FAR to NEAR, because that is the paint order: a near body has to
-    // overlap the deep one behind it, never the other way round.
-    //
-    // The depths are spread WIDE but not deep: perspective crushes everything past
-    // z~0.8 into the same few pixels at the middle, so three far bodies read as one
-    // knot. These five land on visibly different radii, the nearest sitting on the
-    // rail itself and the farthest at about a third of it.
-    const CROWD = [[-2.55, 0.86], [0.95, 0.68], [-0.45, 0.52], [2.30, 0.36], [1.50, 0.20]];
-    const rail = dRail(Rs);
-    const close = 0.16 * dEase(dSeg(t, 0, 1.6));   // the whole crowd closes, then holds
-    const fired = t >= 2.2;
-    const wz = fired ? lerp(0, 1.5, dEase(dSeg(t, 2.2, 3.3))) : 0;  // the front's own depth
-    demoNode(Rs, 1, -DISC_BOT);   // the idle thumb, parked opposite
-    demoNode(Rs, 0, 0.30);        // …and the charged one, just clear of the crowd
-    if (fired) {
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const k2 = dSeg(t, 2.2, 3.3);
-      // the wake: rings trailing BEHIND the front, so nearer you and therefore wider
-      for (let w = 4; w >= 1; w--) {
-        const zt = wz - w * 0.10;
-        if (zt < 0) continue;
-        ctx.strokeStyle = 'rgba(255,210,74,' + (0.30 * (1 - w / 5) * (1 - k2)).toFixed(2) + ')';
-        ctx.lineWidth = Math.max(1.5, Rs * 0.05 * dPersp(zt));
-        ctx.beginPath(); ctx.arc(0, 0, rail * dPersp(zt), 0, TAU); ctx.stroke();
-      }
-      // the front itself, hot and closing
-      for (const [w2, col] of [[0.075, '255,210,74'], [0.030, '255,244,200'], [0.010, '255,255,255']]) {
-        ctx.strokeStyle = 'rgba(' + col + ',' + (0.9 * (1 - k2 * 0.5)).toFixed(2) + ')';
-        ctx.lineWidth = Math.max(1, Rs * w2 * (0.4 + dPersp(wz)));
-        ctx.beginPath(); ctx.arc(0, 0, rail * dPersp(wz), 0, TAU); ctx.stroke();
-      }
-      ctx.restore();
-    }
-    // THE WAVE TAKES THEM IN DEPTH ORDER, NEAREST FIRST. With one shared depth the
-    // five went at once, which is a flash rather than a sweep. Now each body has its
-    // own z, so the front passes them one at a time and the ripple IS the lesson.
-    for (const [a, z0] of CROWD) {
-      const z = z0 - close;
-      if (fired && wz >= z) { demoPop(Rs, a, z, dSeg(t, 2.2 + z * 0.7, 2.2 + z * 0.7 + 0.5), '255,210,74'); continue; }
-      demoThreat(Rs, a, z, 'normal');
-    }
-    if (!fired) {
-      // THE CHARGED PAD, AND IT DOES NOT BOUNCE. It used to breathe its whole
-      // radius in and out on a sine, which read as a cartoon squash and made the
-      // orb's size — the one thing a size should mean — say nothing. Gil, 2026-08-29.
-      // The orb is now a FIXED body, and the "ready" signal is a shine that rolls
-      // once around its rim: same attention, no movement, no change of scale.
-      const x = Math.cos(0.30) * rail, y = Math.sin(0.30) * rail;
-      const R0 = Rs * 0.22;
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const og = ctx.createRadialGradient(x, y, 0, x, y, R0);
-      og.addColorStop(0, 'rgba(255,255,255,0.95)');
-      og.addColorStop(0.45, 'rgba(255,210,74,0.75)');
-      og.addColorStop(1, 'rgba(255,210,74,0)');
-      ctx.fillStyle = og;
-      ctx.beginPath(); ctx.arc(x, y, R0, 0, TAU); ctx.fill();
-      // the rim the shine runs on, and the shine itself: a short head of light
-      // travelling round it, drawn as a tail of segments falling off behind
-      const rr = R0 * 0.62;
-      ctx.strokeStyle = 'rgba(255,210,74,0.30)';
-      ctx.lineWidth = Math.max(1.2, Rs * 0.016);
-      ctx.beginPath(); ctx.arc(x, y, rr, 0, TAU); ctx.stroke();
-      ctx.lineCap = 'round';
-      const head = time * 2.1, TAIL = 14, SPAN = 1.5;
-      for (let i = 0; i < TAIL; i++) {
-        const q = i / TAIL;                       // 0 at the head, 1 at the tail's end
-        const a0 = head - SPAN * q, a1 = a0 - SPAN / TAIL - 0.01;
-        const k = Math.pow(1 - q, 2.2);
-        ctx.strokeStyle = 'rgba(255,252,232,' + (0.85 * k).toFixed(3) + ')';
-        ctx.lineWidth = Math.max(1, Rs * 0.020 * (0.45 + 0.55 * k));
-        ctx.beginPath(); ctx.arc(x, y, rr, a1, a0); ctx.stroke();
-      }
-      ctx.restore();
-      if (t > 1.7) { // the tap ripple that spends it
-        const k = dSeg(t, 1.7, 2.2);
-        ctx.save();
-        ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * (1 - k)).toFixed(2) + ')';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(x, y, Rs * (0.08 + k * 0.22), 0, TAU); ctx.stroke();
-        ctx.restore();
-      }
-    }
-  },
+  // (THE PULSE's diorama went with its lesson, 2026-11-05: a full pad lights its side
+  // of the screen instead — THE CHARGED SIDE, 90-hud.)
   // GO AROUND. The one drill whose answer is NOT to arrive: the emitter reaches the
   // clamp's edge, is refused, and takes the long way instead.
   wall(Rs, t) {
@@ -1418,7 +1266,8 @@ function drawQualCeremony(t) {
   // fs * 0.32 with no fitPx — it held together only because 'THE LANE IS YOURS TO CLEAR'
   // happened to be short enough, so any longer replacement ran off the stamp. Split at the
   // colon clause it reads as a stamp rather than a sentence, which is what this moment is.
-  const sub = ['CERTIFICATION: PASSED', 'CLEARED FOR WARP'];
+  // each part closes on its own two lines (QUAL_PARTS[n].stamp, 70-update)
+  const sub = QUAL_PARTS[qualPart].stamp;
   const ss = Math.max(8, Math.min(...sub.map(l =>
     fitPx(l, 700, Math.round(fs * 0.32), g2.nodeR * 1.7, 8))));
   ctx.font = '700 ' + ss + 'px Audiowide, system-ui';
@@ -1845,6 +1694,38 @@ function discTrackRow(y, lx, tx, rx, R) {
   return [{ x: kx0, y: y - kh / 2, w: kw, h: kh, action: 'trkPrev', cut: kh * 0.34 },
           { x: kx1, y: y - kh / 2, w: kw, h: kh, action: 'trkNext', cut: kh * 0.34 }];
 }
+// TRAINING: the three parts of the course, on demand (2026-11-05). The menu's settings
+// disc has the free fourth row the pause disc gives TRACK, so the parts ride there: the
+// label, then one key per part. Fitted under the disc law at the row's OWN height — the
+// label keeps the TEXT margin at whichever edge of its glyphs sits nearer the rim, and
+// the keys keep the rail margin at their far corner. Returns the keys (replayQualPart).
+const QUAL_ROW_GAP = 0.035;  // between two part keys, as a share of R
+function discQualRow(y, lx, tx, rx, R, cx, cy) {
+  const fs = Math.max(8, Math.round(R * 0.072));
+  const far = Math.max(Math.abs(y - fs * 0.4 - cy), Math.abs(y + fs * 0.4 - cy));
+  const tl = Math.max(lx, cx - discChord(R, far) + R * DISC_TEXT_PAD);
+  ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(176,222,252,0.95)';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.font = '700 ' + fitPx('TRAINING', '700', fs, Math.max(20, tx - R * 0.03 - tl), 7) + 'px Audiowide, system-ui';
+  ctx.fillText('TRAINING', tl, y + fs * 0.36);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  const kh = Math.max(14, R * 0.105);
+  const kFar = Math.max(Math.abs(y - kh / 2 - cy), Math.abs(y + kh / 2 - cy));
+  const kx1 = Math.min(rx, cx + discChord(R, kFar) - R * DISC_PAD);
+  const gap = R * QUAL_ROW_GAP, kw = Math.max(14, (kx1 - tx - gap * (QUAL_PART_N - 1)) / QUAL_PART_N);
+  const keys = [];
+  for (let n = 1; n <= QUAL_PART_N; n++) {
+    const kx = tx + (n - 1) * (kw + gap);
+    discSlab(kx, y - kh / 2, kw, kh, false);
+    ctx.textAlign = 'center';
+    ctx.font = '700 ' + fitPx(String(n), '700', fs, kw * 0.7, 7) + 'px Audiowide, system-ui';
+    ctx.fillStyle = 'rgba(234,250,255,0.95)';
+    ctx.fillText(String(n), kx + kw / 2, y + fs * 0.36);
+    keys.push({ x: kx, y: y - kh / 2, w: kw, h: kh, action: 'qual' + n, qualPart: n, cut: kh * 0.34 });
+  }
+  ctx.textAlign = 'left';
+  return keys;
+}
 // a KEY ROW: one slab key across the row, a verb with no setting behind it
 // (SETTINGS' RESTORE PURCHASE, 2026-11-05). It holds words, so it keeps the TEXT
 // margin off the rim and is fitted at its widest corner, as a field is (the disc
@@ -1864,13 +1745,19 @@ function discKeyRow(row, y, cx, cy, R) {
   if (row.sink) row.sink.push({ x: cx - kw / 2, y: ky, w: kw, h: kh, action: row.action, cut: Math.max(3, kh * 0.34) });
 }
 // the row block: every label and every rail end rides its own chord, the switches
-// share one straight column. Returns the TRACK row's two keys, or null. A row that
-// is an object, not an array, is a KEY ROW (discKeyRow).
+// share one straight column. Returns the keys of its one keyed row — TRACK, or the
+// row drawer a row names as its fourth entry (TRAINING) — or null. A row that is an
+// object, not an array, is a KEY ROW (discKeyRow), whose key lands in its own sink.
+//
+// FIVE ROWS TIGHTEN (2026-11-05: SETTINGS carries TRAINING and RESTORE PURCHASE both).
+// Up to four rows keep the DISC_ROW pitch; a longer block spreads over DISC_ROWS_SPAN,
+// first row to last, so it stays clear of the title above and the segment below.
+const DISC_ROWS_SPAN = 0.84;
 function discRows(cx, cy, R, rows) {
   // the block is centred in the FREE BAND — under the title, over the segment —
   // rather than at a fixed offset, so a three-row disc (SYSTEM CONFIG) and a
   // four-row one (a run with a soundtrack) both sit square in their own space
-  const n = rows.length, gap = R * DISC_ROW, mid = cy - R * 0.0825;
+  const n = rows.length, gap = R * Math.min(DISC_ROW, DISC_ROWS_SPAN / Math.max(1, n - 1)), mid = cy - R * 0.0825;
   const rowY = i => mid + (i - (n - 1) / 2) * gap;
   // the column is set by the NARROWEST row in the block, so no switch can escape
   // the circle on the rows nearest the crown or the segment
@@ -1879,11 +1766,11 @@ function discRows(cx, cy, R, rows) {
   let trk = null;
   rows.forEach((row, i) => {
     if (!Array.isArray(row)) { discKeyRow(row, rowY(i), cx, cy, R); return; }
-    const [label, key, volKey] = row;
+    const [label, key, volKey, rowFn] = row;
     const y = rowY(i), hx = discChord(R, y - cy);
     const lx = cx - hx + R * DISC_PAD, rx = cx + hx - R * DISC_PAD;
     if (key) discSettingRow(label, key, volKey, y, lx, tx, rx, R);
-    else trk = discTrackRow(y, lx, tx, rx, R);
+    else trk = (rowFn || discTrackRow)(y, lx, tx, rx, R, cx, cy);
   });
   return trk;
 }
@@ -2078,12 +1965,15 @@ function pauseTap(x, y, pid) {
         telAttemptClose('quit'); // play statistics: first, while weekly and the run's numbers still stand
         pausedFromInfo = false;
         weekly = false; Math.random = sysRandom;
-        // training lives in Story Mode now → zoom back out onto its disc
-        if (qual) { menuScreen = 'camps'; campScroll = campScrollTgt = 0; campPendingSync = null; }
+        // training lives in Story Mode now → zoom back out onto its disc. A part a
+        // stage tap owed (qualThen, 70-update) quits to that stage's chart instead,
+        // unfiled, so the next tap on the stage plays it again.
+        const course = qual && qualThen < 0;
+        if (course) { menuScreen = 'camps'; campScroll = campScrollTgt = 0; campPendingSync = null; }
         else menuScreen = endless ? 'flow' : 'map';
-        if (!endless && !qual) mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
+        if (!endless && !course) mapSel = qual ? qualThen : Math.min(PROG.unlocked - 1, LEVELS.length - 1);
         state = S.MENU; fadeT = 0.35;
-        menuFx = qual ? { kind: 'discOut', t: 0, dur: 0.55, disc: 0 } // the training disc recedes into its slot (reverse of the dive-in)
+        menuFx = course ? { kind: 'discOut', t: 0, dur: 0.55, disc: 0 } // the training disc recedes into its slot (reverse of the dive-in)
           : menuScreen === 'map' ? { kind: 'panelsIn', t: 0, dur: 0.6, dir: 1, zoom: true }
           : { kind: 'spinIn', t: 0, dur: 0.5, dir: 1, zoom: true };
       }
