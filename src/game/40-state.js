@@ -200,9 +200,10 @@ let bossTestRun = false;      // the boss drill — its runs never file to a boa
 // trace anyway. The passcode sits in the bundle in plain text on purpose —
 // the only thing behind it is a spoiler, and a tester's phone needs no vault.
 //
-// 1.1 NOTE — when the demo paywall lands at the stage-09 seam, the shortcut
-// (like every startLevel caller) must respect the entitlement INSIDE
-// startLevel, not in menu navigation. RELEASE-PLAN.md carries the item.
+// THE PAYWALL (2026-11-05, contracts 3 to 5): the shortcut, like every other
+// startLevel caller, meets the entitlement INSIDE startLevel, not in menu
+// navigation. On a locked contract startBossTest reads startLevel's false and
+// stops; the clearance offer is up instead (34-license.js).
 const BOSS_GATE_PASS = 'ShokoLoc0';
 let bossGate = false;         // the passcode disc is up (menu map screen only)
 let bossGateDraft = '';       // live text in the passcode field

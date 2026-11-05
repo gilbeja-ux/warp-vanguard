@@ -98,6 +98,12 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    // THE LICENSE (2026-11-05): Play Billing, asked directly by LicensePlugin.java.
+    // Pinned, not a range: Play retires each major on a published date, and the
+    // plugin is written against 8's API (QueryProductDetailsResult, pending
+    // one-time purchases, auto-reconnection). Its twin on iOS is StoreKit 2,
+    // which ships with the OS and needs no line anywhere.
+    implementation "com.android.billingclient:billing:8.3.0"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

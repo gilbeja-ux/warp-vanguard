@@ -213,6 +213,9 @@ function syncDisc(di) {
   const d = discAt(di);
   if (d.kind === 'train') { menuFx = { kind: 'launch', t: 0, dur: 0.5, action: startQualification }; tone(70, 0.45, 'sine', 0.12, 260); return; }
   if (d.kind !== 'camp') return;
+  // a contract behind the wall opens the clearance offer instead (34-license.js,
+  // declared after this file but only ever reached from a tap)
+  if (contractLocked(d.ci)) { campScrollTgt = di; openLicOffer('locked', d.ci); tone(70, 0.45, 'sine', 0.12, 260); return; }
   switchCampaign(d.ci);
   mapSel = Math.min(PROG.unlocked - 1, LEVELS.length - 1);
   campScrollTgt = di;

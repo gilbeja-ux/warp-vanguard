@@ -21,6 +21,11 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // THE LICENSE PLUGIN IS THE APP'S OWN (2026-11-05), not an npm package, so
+        // Capacitor cannot find it by itself: it is registered here, BEFORE the
+        // bridge starts in super.onCreate, or the page meets no plugin by that name.
+        // Its iOS twin registers in GameViewController.capacitorDidLoad.
+        registerPlugin(LicensePlugin.class);
         super.onCreate(savedInstanceState);
         applyImmersive();
         // THE RENDERER CAN DIE WITHOUT THE APP DYING (2026-09-08). Android runs

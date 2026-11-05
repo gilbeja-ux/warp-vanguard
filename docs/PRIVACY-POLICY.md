@@ -43,6 +43,12 @@ Worth knowing, because the code has to keep these true:
   implementation: `purge_old_feedback()` in
   `supabase/migrations/20260901000000_feedback.sql`. Run it and the promise is
   kept; never run it and the policy is wrong.
+- **Purchases never reach our server** (1.1, 2026-11-05). The unlock for contracts
+  3–5 is bought in Google Play or the App Store; the game asks the store whether the
+  account owns it and keeps the yes on the device, in the save's own `license` key.
+  `privacy.html` says so under *Purchases*. **Must stay true:** sending a purchase,
+  a receipt or a store account to Supabase would change the policy and the Data
+  Safety form. Delete my runs does not touch the license; it is the store's.
 - **Deletion is in the game.** The MY DATA panel renames or erases every entry
   the player holds, and `privacy.html` documents it (see its *Your controls*
   table). Erasing takes the rows, their replay traces, the reports the player

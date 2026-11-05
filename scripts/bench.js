@@ -190,7 +190,8 @@ async function runConfig(cdp, suffix, rep) {
   // nothing about steady-state cost — it only removes dead wall time from the run.
   await cdp.eval(`(() => { try { splashEnd(true); } catch (e) {} return 1; })()`);
   await sleep(600);
-  await cdp.eval(`(() => { ${CAMP !== null ? `installCampaign(CAMPAIGNS[${CAMP}]); ` : ''}startLevel(${LEVEL}, false); introT = 999; introCd = 0; return 1; })()`);
+  // licenseWall: the bench flies any stage on purpose, paid ones too (34-license.js)
+  await cdp.eval(`(() => { licenseWall = false; ${CAMP !== null ? `installCampaign(CAMPAIGNS[${CAMP}]); ` : ''}startLevel(${LEVEL}, false); introT = 999; introCd = 0; return 1; })()`);
 
   // ---------- PIN THE QUALITY TIER ----------
   // Without this, an ablation that lightens the frame stops `lowFX` from tripping,

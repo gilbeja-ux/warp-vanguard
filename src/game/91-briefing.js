@@ -1844,8 +1844,27 @@ function discTrackRow(y, lx, tx, rx, R) {
   return [{ x: kx0, y: y - kh / 2, w: kw, h: kh, action: 'trkPrev', cut: kh * 0.34 },
           { x: kx1, y: y - kh / 2, w: kw, h: kh, action: 'trkNext', cut: kh * 0.34 }];
 }
+// a KEY ROW: one slab key across the row, a verb with no setting behind it
+// (SETTINGS' RESTORE PURCHASE, 2026-11-05). It holds words, so it keeps the TEXT
+// margin off the rim and is fitted at its widest corner, as a field is (the disc
+// law). `row` is { key: label, action, sink }: the key lands in `sink`.
+function discKeyRow(row, y, cx, cy, R) {
+  const kh = Math.max(15, R * 0.112), ky = y - kh / 2;
+  const hx = Math.max(R * 0.3, Math.min(discChord(R, ky - cy), discChord(R, ky + kh - cy)) - R * DISC_TEXT_PAD);
+  const label = String(row.key);
+  ctx.font = '700 ' + fitPx(label, '700', Math.max(8, Math.round(R * 0.062)), hx * 2 - R * 0.08, 7) + 'px Audiowide, system-ui';
+  const kw = Math.min(hx * 2, Math.max(R * 0.7, ctx.measureText(label).width + R * 0.16));
+  discSlab(cx - kw / 2, ky, kw, kh, false);
+  ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(214,242,255,0.92)';
+  try { ctx.letterSpacing = '1px'; } catch (e) {}
+  ctx.fillText(label, cx, y + kh * 0.17);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  ctx.textAlign = 'left';
+  if (row.sink) row.sink.push({ x: cx - kw / 2, y: ky, w: kw, h: kh, action: row.action, cut: Math.max(3, kh * 0.34) });
+}
 // the row block: every label and every rail end rides its own chord, the switches
-// share one straight column. Returns the TRACK row's two keys, or null.
+// share one straight column. Returns the TRACK row's two keys, or null. A row that
+// is an object, not an array, is a KEY ROW (discKeyRow).
 function discRows(cx, cy, R, rows) {
   // the block is centred in the FREE BAND — under the title, over the segment —
   // rather than at a fixed offset, so a three-row disc (SYSTEM CONFIG) and a
@@ -1857,7 +1876,9 @@ function discRows(cx, cy, R, rows) {
   const narrow = discChord(R, Math.max(Math.abs(rowY(0) - cy), Math.abs(rowY(n - 1) - cy)));
   const tx = cx - narrow + R * DISC_PAD + (narrow - R * DISC_PAD) * 2 * 0.40;
   let trk = null;
-  rows.forEach(([label, key, volKey], i) => {
+  rows.forEach((row, i) => {
+    if (!Array.isArray(row)) { discKeyRow(row, rowY(i), cx, cy, R); return; }
+    const [label, key, volKey] = row;
     const y = rowY(i), hx = discChord(R, y - cy);
     const lx = cx - hx + R * DISC_PAD, rx = cx + hx - R * DISC_PAD;
     if (key) discSettingRow(label, key, volKey, y, lx, tx, rx, R);

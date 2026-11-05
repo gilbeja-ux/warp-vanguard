@@ -570,7 +570,7 @@ const SCENES = {
   const camp = sc.camp || 0, level = sc.level || 0;
 
   if (screen === 'play') {
-    poke(`SPLASH.on = false;
+    poke(`SPLASH.on = false; licenseWall = false; /* the store shows every contract: a tool, not a door */
           ${sc.pre || ''}
           try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
           startLevel(Math.min(${level}, (LEVELS || []).length - 1));
@@ -619,7 +619,7 @@ const SCENES = {
     // scene settles first, and only then is the thing with a fuse on it lit.
     if (sc.arm) { poke(sc.arm); }
   } else if (screen === 'disc') {
-    poke(`SPLASH.on = false;
+    poke(`SPLASH.on = false; licenseWall = false; /* the store shows every contract: a tool, not a door */
           try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
           // the first story disc of the contract — the briefing a player actually
           // reads before relay 01, not a card invented for the store
@@ -627,7 +627,7 @@ const SCENES = {
           infoCard = k; infoShownAt = 0; state = S.INFO;`);
     crank(sc.hold || 120);
   } else {
-    poke(`SPLASH.on = false;
+    poke(`SPLASH.on = false; licenseWall = false; /* the store shows every contract: a tool, not a door */
           ${sc.pre || ''}
           try { installCampaign(CAMPAIGNS[${camp}]); } catch (e) {}
           state = S.MENU; menuScreen = '${screen}'; menuFx = null; menuCache = null;`);

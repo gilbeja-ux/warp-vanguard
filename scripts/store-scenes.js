@@ -24,7 +24,7 @@
 const CLEAR = 'popups = []; commCur = null; commT = 0;';
 // a run in live play with no launch ceremony, part way down its lane
 const PLAY = (ci, li, frac) => `
-  switchCampaign(${ci}); startLevel(${li}, false); introT = 999; introCd = 0; state = S.PLAY;`;
+  licenseWall = false; switchCampaign(${ci}); startLevel(${li}, false); introT = 999; introCd = 0; state = S.PLAY;`; // the store shoots every contract: a tool, not a door (34-license.js)
 // both carriages alive and the lane underway before a scene stages itself
 const READY = frac => `
   for (const n of nodes) { n.deadT = 0; n.recoil = 0; n.slew = null; }

@@ -723,7 +723,11 @@ function drawMenuSettings() {
     ctx.save();
     discPlate(g.cx, g.cy, R, 'SETTINGS'); // short enough to wear the same size PAUSED does
     // no TRACK row: nothing is playing a run's soundtrack out here
-    discRows(g.cx, g.cy, R, [['SFX', 'sound', 'soundVol'], ['MUSIC', 'music', 'musicVol'], ['HAPTICS', 'haptics', null]]);
+    // RESTORE PURCHASE, the fourth row (2026-11-05): Apple rejects an unlock with
+    // no restore, and settings is where a player looks for one. Its answer rides
+    // the key's own label for a few seconds (restoreLabel, 34-license.js).
+    discRows(g.cx, g.cy, R, [['SFX', 'sound', 'soundVol'], ['MUSIC', 'music', 'musicVol'], ['HAPTICS', 'haptics', null],
+      { key: restoreLabel(), action: 'restore', sink: menuSetButtons }]);
     // TWO DOORS, AND NO CLOSE KEY. MY DATA is the second door to the rename/erase
     // panel (the board screen has the first); it lives here because a player who
     // wants their name off the boards looks for it in settings, and the board
@@ -1065,6 +1069,7 @@ function drawEnd(g) {
   const bA = ph(btnAt, btnAt + 0.4);
   // the keys land once; when this run opened a new lane, the landing says so (H-20)
   if (bA > 0.001 && !endKeysFx) { endKeysFx = true; if (endUnlocked) sfx.unlock(); }
+  if (bA >= 1) licOfferCheck(); // a delivery that ends at a locked contract: the offer opens once the keys have landed (34-license.js)
   if (bA > 0.001) {
     ctx.globalAlpha = pA * bA;
     const gated = !!nameEntry;

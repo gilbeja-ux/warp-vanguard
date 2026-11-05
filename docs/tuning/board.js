@@ -117,6 +117,7 @@ function playScene(campIdx, levelIdx2) {
   if (!SCENE.booted) return;
   try {
     const camp = CAMPAIGNS[campIdx] || CAMPAIGNS[0];
+    licenseWall = false; // a tool, not a door: it flies paid stages on purpose (34-license.js)
     if (camp && (!CAMP || CAMP.id !== camp.id)) installCampaign(camp);
     SCENE.camp = campIdx;
     SCENE.level = Math.min(levelIdx2, (LEVELS || []).length - 1);

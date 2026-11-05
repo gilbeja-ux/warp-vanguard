@@ -54,7 +54,7 @@ deliberately not being done: no ES modules, no namespacing, no bundler, no TypeS
 Rough map, by prefix:
 
 - `0x`–`1x`: canvas, resize and the 90° portrait transform (`ROT`), Web Audio, music pool, decoded sfx.
-- `2x`–`3x`: the deep background, the campaign package registry, Supabase identity and submission, the save blob, `installCampaign()`.
+- `2x`–`3x`: the deep background, the campaign package registry, Supabase identity and submission, the save blob, `installCampaign()`, and `34-license.js`: the paid unlock (contracts 3–5), the wall `startLevel` asks, the store adapter and the offer disc.
 - `4x`–`5x`: run state and the run trace, geometry, enemy kinds and spawn fairness, the fairness linter, bosses.
 - `6x`–`7x`: pointer/key/gamepad input, replay, the qualification curriculum, `update(dt)` in `72-tick.js`.
 - `8x`: the tunnel, baked 3D stations, destinations, deep field, the glitch enemy bodies. `fireVolley()` lives in `85-enemy-art.js`, so an "art" file can still change scoring.

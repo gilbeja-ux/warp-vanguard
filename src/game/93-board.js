@@ -161,12 +161,13 @@ function boardLane() {
   const m = boardSel.mode;
   if (m === 'weekly') {
     const w = boardSel.week, live = w === weekNow();
-    return { label: live ? 'FLY THIS LANE' : 'PRACTICE THIS LANE', locked: !flowUnlocked(), go: () => startWeekly(w) };
+    return { label: live ? 'FLY THIS LANE' : 'PRACTICE THIS LANE', locked: !flowUnlocked(), go: () => weeklyDoor(w, () => startWeekly(w)) };
   }
   if (m === 'campaign') {
     const ci = boardSel.camp, li = boardSel.level, c = CAMPAIGNS[ci], pc = c && progress.camp[c.id];
     const open = !!c && li < ((pc && pc.unlocked) || 1) && li < c.levels.length;
-    return { label: 'FLY THIS LANE', locked: !open, go: () => { switchCampaign(ci); startLevel(li, true); } };
+    // a stage behind the wall keeps its key: the tap is the clearance offer's door (34-license.js)
+    return { label: 'FLY THIS LANE', locked: !open, go: () => { if (contractLocked(ci)) { openLicOffer('locked', ci); return; } switchCampaign(ci); startLevel(li, true); } };
   }
   return null;
 }

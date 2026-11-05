@@ -33,6 +33,7 @@ ios/App/App/*
 !ios/App/App/AppDelegate.swift
 !ios/App/App/GameViewController.swift
 !ios/App/App/SceneDelegate.swift
+!ios/App/App/LicensePlugin.swift
 !ios/App/App/Base.lproj/
 !ios/App/App/Assets.xcassets/
 ios/App/App/Assets.xcassets/**/*.png

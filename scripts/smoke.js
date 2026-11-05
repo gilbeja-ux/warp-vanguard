@@ -218,6 +218,8 @@ async function runViewport(vp) {
       ['feedback', "openFeedback()", "closeFeedback()"],
       ['guide', "enterGuide('menu')", "closeGuide()"],
       ['boss-gate', "menuScreen = 'map', bossGate = true", "bossGate = false, menuScreen = 'home'"],
+      // the clearance offer (34-license.js): the in-fiction disc over contracts 3 to 5
+      ['clearance', "openLicOffer('locked', 2)", "closeLicOffer()"],
     ];
     for (const [name, open, close] of discs) {
       await step(`disc ${name} opens, paints five frames, closes`, async () => {

@@ -147,6 +147,13 @@ global.performance = { now: () => 0 };
 global.requestAnimationFrame = () => {};
 global.screen = {};
 
+// THE PAYWALL'S TWO OPEN DECISIONS are `const` in the game (34-license.js): one
+// line each for Gil's answer. The harness makes them `let` so the suite can fly
+// BOTH answers end to end; a renamed constant fails here, loudly, not quietly.
+for (const k of ['WEEKLY_NEEDS_LICENSE', 'GRANDFATHER']) {
+  if (!code.includes('const ' + k + ' = ')) throw new Error('harness: const ' + k + ' is gone from 34-license.js');
+  code = code.replace('const ' + k + ' = ', 'let ' + k + ' = ');
+}
 // expose internals for the tests
 code = code.replace("'use strict';", '') + `
 ;globalThis.__g = {
@@ -321,7 +328,16 @@ code = code.replace("'use strict';", '') + `
   hardwareBack, pauseToggle, setReplaying: v => { replaying = v; }, getReplaying: () => replaying,
   setBossGate: v => { bossGate = v; }, getBossGate: () => bossGate,
   // the screen stays lit while the warp is active (60-input.js), 2026-09-24
-  keepAwakeSync, keepAwakeWanted, awakeHeld: () => awakeHeld, resetAwake: () => { awakeHeld = false; awakeLock = null; }
+  keepAwakeSync, keepAwakeWanted, awakeHeld: () => awakeHeld, resetAwake: () => { awakeHeld = false; awakeLock = null; },
+  // THE PAYWALL (34-license.js, 2026-11-05): the wall, the gift, the store stub and the offer
+  license, FREE_CONTRACTS, LICENSE_PRODUCT, licensed, contractLocked, weeklyLocked, grandfathered, savePast16,
+  saveState, loadState, STORE_KEY, STUB, stubOwned, stubSetOwned, Billing, licenseApply,
+  setLicenseWall: v => { licenseWall = v; }, getLicenseWall: () => licenseWall,
+  setWeeklyNeedsLicense: v => { WEEKLY_NEEDS_LICENSE = v; }, setGrandfather: v => { GRANDFATHER = v; },
+  openLicOffer, closeLicOffer, getLicOffer: () => licOffer, licOfferAct, licOfferTap, drawLicOffer,
+  getLicOfferBtns: () => licOfferBtns, getLicOfferDue: () => licOfferDue, setLicOfferDue: v => { licOfferDue = v; }, licOfferCheck,
+  restorePurchase, restoreLabel, paidRange, freeRange, licOfferCopy, weeklyDoor, getLicensePrice: () => licensePrice,
+  syncDisc, discOfCamp, switchCampaign, menuSetButtonsNow: () => menuSetButtons
 };`;
 eval(code);
 const G = globalThis.__g;
@@ -5357,6 +5373,259 @@ await tick();
     global.fetch = realFetch; G.setStale(null);
   }
 
+  // ================= THE PAYWALL: contracts 3 to 5 behind one purchase (Gil, 2026-11-05) =================
+  // Contracts 1 and 2 (stages 01-16) and the ENDLESS lane are free; one purchase
+  // opens stages 17-40. The wall lives INSIDE startLevel, the license is not
+  // progress, the store can grant and never take away, and the two open
+  // decisions (WEEKLY_NEEDS_LICENSE, GRANDFATHER) are flown both ways here.
+  {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const L = G.license;
+    const licBak = JSON.parse(JSON.stringify(L));
+    const progBak = JSON.parse(JSON.stringify(G.progress));
+    const campBak = G.getCamp() ? G.getCamp().id : null;
+    const stubBak = Object.assign({}, G.STUB);
+    const realLS = global.localStorage;
+    const mem = new Map();
+    global.localStorage = { getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k) };
+    const ci = id => G.CAMPAIGNS.findIndex(p => p.id === id);
+    const freeAll = () => { L.owned = false; L.legacy = { save: false, past16: false }; G.stubSetOwned(false); };
+    const clearAll = () => { for (const p of G.CAMPAIGNS) G.progress.camp[p.id] = { unlocked: 1, stars: p.levels.map(() => 0), bests: p.levels.map(() => 0) }; };
+    const deliver = id => { const p = G.CAMPAIGNS[ci(id)]; G.progress.camp[id] = { unlocked: p.levels.length, stars: p.levels.map(() => 1), bests: p.levels.map(() => 1) }; };
+    const toMenu = () => { G.closeLicOffer(); G.setState(G.S.MENU); G.setMenuScreen('home'); G.setMenuFx(null); };
+    G.STUB.delay = 0; G.STUB.answer = 'owned';
+    G.setLicenseWall(true); freeAll(); clearAll(); toMenu();
+
+    // ---- the free tier: exactly stages 01-16, plus the endless lane ----
+    check('paywall: two contracts are free, by one constant', G.FREE_CONTRACTS === 2);
+    const open = G.CAMPAIGNS.map((p, i) => !G.contractLocked(i));
+    check('paywall: contracts 1 and 2 are open and 3, 4 and 5 are locked for a free player',
+      open.join() === 'true,true,false,false,false');
+    const freeNames = [];
+    G.CAMPAIGNS.forEach((p, c) => { if (open[c]) p.levels.forEach((_, li) => freeNames.push(G.lvNum(G.levelNo(c, li)))); });
+    check('paywall: the free tier is exactly stages 01 to 16', freeNames.length === 16 && freeNames[0] === '01' && freeNames[15] === '16');
+    check('paywall: the first locked stage is 17 and the last is 40', G.paidRange() === '17–40' && G.freeRange() === '01–16');
+    G.switchCampaign(ci('cargo-run'));
+    check('paywall: stage 01 starts for a free player', rawStartLevel(0, false) === true && G.getState() === G.S.PLAY);
+    toMenu(); G.switchCampaign(ci('survey'));
+    check('paywall: stage 16, the second boss, starts for a free player', rawStartLevel(G.CAMPAIGNS[ci('survey')].levels.length - 1, false) === true && G.getState() === G.S.PLAY);
+    toMenu();
+    G.startEndless();
+    check('paywall: the endless lane is free', G.isEndless() && G.getState() === G.S.PLAY && !G.getLicOffer());
+    toMenu();
+
+    // ---- a locked contract refuses to start, by every door ----
+    G.switchCampaign(ci('collector'));
+    const li0 = G.getLevelIdx();
+    check('paywall: startLevel on stage 17 refuses, starts nothing and opens the offer',
+      rawStartLevel(0, true) === false && G.getState() === G.S.MENU && G.getLevelIdx() === li0
+      && !!G.getLicOffer() && G.getLicOffer().from === 'locked' && G.getLicOffer().ci === ci('collector'));
+    toMenu();
+    G.startBossTest();
+    check('paywall: the passcode boss drill meets the same wall', G.getState() === G.S.MENU && !!G.getLicOffer());
+    toMenu();
+    G.setReplaying(true);
+    check('paywall: a replay is not a door: a paid stage\'s run can be watched for free', rawStartLevel(0, false) === true);
+    G.setReplaying(false); toMenu();
+    G.switchCampaign(ci('cargo-run'));
+    G.syncDisc(G.discOfCamp(ci('patrol')));
+    check('paywall: a tap on a locked contract disc opens the offer and leaves the contract in hand',
+      !!G.getLicOffer() && G.getLicOffer().ci === ci('patrol') && G.getCamp().id === 'cargo-run');
+    toMenu();
+    // NEXT CONTRACT off a delivered stage 16 is the offer's door
+    deliver('cargo-run'); deliver('survey');
+    G.setState(G.S.END); G.setEndT(99); G.setNameEntry(null);
+    G.setEndButtons([{ x: 0, y: 0, w: 40, h: 40, action: 'nextCon' }]);
+    G.endTap(20, 20); for (let i = 0; i < 4; i++) G.update(0.05);
+    check('paywall: NEXT CONTRACT off stage 16 opens the offer, not contract 3',
+      G.getState() === G.S.END && !!G.getLicOffer() && G.getLicOffer().from === 'next' && G.getCamp().id === 'cargo-run');
+    toMenu(); clearAll();
+    // the verdict: THIS run delivers contract 2, so the report opens the offer
+    deliver('cargo-run'); G.switchCampaign(ci('survey'));
+    rawStartLevel(G.CAMPAIGNS[ci('survey')].levels.length - 1, false);
+    G.setLicOfferDue(false); G.endLevel(true); G.setNameEntry(null);
+    check('paywall: a first delivery of contract 2 makes the offer due on the report', G.getLicOfferDue() === true);
+    G.licOfferCheck();
+    check('paywall: the report opens the offer once its keys land', !!G.getLicOffer() && G.getLicOffer().from === 'verdict');
+    toMenu(); G.setLicOfferDue(false);
+    G.switchCampaign(ci('survey')); rawStartLevel(G.CAMPAIGNS[ci('survey')].levels.length - 1, false); G.endLevel(true);
+    check('paywall: a second delivery of the same contract does not ask again', G.getLicOfferDue() === false);
+    toMenu(); clearAll();
+
+    // ---- the weekly decision, both ways ----
+    G.startWeekly();
+    check('paywall: WEEKLY_NEEDS_LICENSE false (the default): a free player files the live week',
+      /const WEEKLY_NEEDS_LICENSE = false;/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '34-license.js'), 'utf8'))
+      && !G.weeklyLocked() && G.boardKey() === 'weekly:' + G.weekNow());
+    G.setWeeklyNeedsLicense(true);
+    check('paywall: WEEKLY_NEEDS_LICENSE true: a free player\'s live week files nothing', G.weeklyLocked() && G.boardKey() === null);
+    L.owned = true;
+    check('paywall: …and a licensed player\'s week files again', !G.weeklyLocked() && G.boardKey() === 'weekly:' + G.weekNow());
+    L.owned = false; toMenu();
+    let flew = false;
+    check('paywall: with the weekly locked, the weekly door opens the offer and flies nothing',
+      G.weeklyDoor(undefined, () => { flew = true; }) === false && !flew && !!G.getLicOffer() && G.getLicOffer().from === 'weekly');
+    G.licOfferAct('unranked'); for (let i = 0; i < 12; i++) G.update(0.05);
+    check('paywall: FLY UNRANKED closes the offer and launches the weekly lane', !G.getLicOffer() && G.isWeekly() && G.boardKey() === null);
+    toMenu(); G.setWeeklyNeedsLicense(false);
+    check('paywall: with the weekly free, the weekly door flies straight away', G.weeklyDoor(undefined, () => { flew = true; }) === true && flew && !G.getLicOffer());
+
+    // ---- the grandfather rule ----
+    check('paywall: GRANDFATHER defaults to progress past stage 16',
+      /const GRANDFATHER = 'progress';/.test(fs.readFileSync(path.join(ROOT, 'src', 'game', '34-license.js'), 'utf8')));
+    clearAll();
+    check('paywall: a contract only browsed is not progress past 16', G.savePast16() === false);
+    G.progress.camp.collector.unlocked = 2;
+    check('paywall: a second stage opened in contract 3 is progress past 16', G.savePast16() === true);
+    clearAll(); G.progress.camp.delegation.stars[3] = 1;
+    check('paywall: a star in contract 5 is progress past 16', G.savePast16() === true);
+    clearAll(); G.progress.camp.patrol.bests[0] = 900;
+    check('paywall: a best in contract 4 is progress past 16', G.savePast16() === true);
+    clearAll(); deliver('cargo-run'); deliver('survey');
+    check('paywall: all of contracts 1 and 2 is not progress past 16', G.savePast16() === false);
+    clearAll();
+    L.legacy = { save: true, past16: true };
+    check('paywall: a save that held progress past 16 keeps contracts 3 to 5', G.grandfathered() && G.licensed() && !G.contractLocked(ci('collector')));
+    G.progress.camp = {}; G.saveState(); G.loadState();
+    check('paywall: the gift is stamped, so a progress wipe cannot take it back', G.grandfathered() && !G.contractLocked(ci('collector')));
+    clearAll();
+    L.legacy = { save: true, past16: false };
+    check('paywall: an old save with nothing past 16 meets the wall (progress rule)', !G.grandfathered() && G.contractLocked(ci('collector')));
+    G.setGrandfather('every-save');
+    check('paywall: GRANDFATHER every-save: every save made before the paywall keeps contracts 3 to 5', G.grandfathered() && !G.contractLocked(ci('collector')));
+    L.legacy = { save: false, past16: false };
+    check('paywall: …but a fresh install does not', !G.grandfathered() && G.contractLocked(ci('collector')));
+    G.setGrandfather('none'); L.legacy = { save: true, past16: true };
+    check('paywall: GRANDFATHER none: nobody is gifted', !G.grandfathered() && G.contractLocked(ci('collector')));
+    G.setGrandfather('progress'); freeAll();
+    check('paywall: the boot stamped this harness as a fresh install', typeof licBak.legacy === 'object' && licBak.legacy && licBak.legacy.save === false);
+
+    // ---- a license is not progress ----
+    L.owned = true; G.saveState();
+    const saved = JSON.parse(mem.get(G.STORE_KEY));
+    check('paywall: the license rides its own key beside progress, settings and identity',
+      !!saved.license && saved.license.owned === true && !!saved.progress && !!saved.settings && !!saved.identity && !('license' in saved.progress));
+    L.owned = false; G.loadState();
+    check('paywall: the license survives a save round-trip', L.owned === true);
+    G.progress.camp = {}; G.progress.enlisted = false; G.saveState(); L.owned = false; G.loadState();
+    check('paywall: the license survives a progress wipe', L.owned === true && G.licensed());
+    const gsrc = f => fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8');
+    const myd = gsrc('92-guide.js').split('function myDataAct(tag)')[1].split('\nfunction ')[0];
+    const wipe = gsrc('60-input.js').split("if (b.confirm === 'wipe') {")[1].split('menuConfirm = false;')[0];
+    check('paywall: neither the MY DATA erase nor RESET CONTRACT touches the license', !/license/.test(myd) && !/license/.test(wipe) && /PROG\.unlocked = 1/.test(wipe));
+    G.licenseApply({ owned: false, price: G.STUB.price, state: 'none' });
+    check('paywall: the store can grant, never take away', L.owned === true);
+    freeAll(); clearAll(); G.saveState();
+
+    // ---- the stub flow, end to end ----
+    G.openLicOffer('locked', ci('collector'));
+    await sleep(5);
+    check('paywall: the offer prints the store\'s own price string', G.getLicensePrice() === G.STUB.price);
+    G.STUB.answer = 'cancelled'; G.licOfferAct('buy'); await sleep(10);
+    check('paywall: a cancelled sheet leaves the player free and the offer up, quiet', !L.owned && !!G.getLicOffer() && !G.getLicOffer().busy && G.getLicOffer().msg === '');
+    G.STUB.answer = 'pending'; G.licOfferAct('buy'); await sleep(10);
+    check('paywall: a pending payment says so and opens nothing yet', !L.owned && /PENDING/.test(G.getLicOffer().msg) && G.contractLocked(ci('collector')));
+    G.STUB.answer = 'error'; G.licOfferAct('buy'); await sleep(10);
+    check('paywall: a store with no answer asks for another try', !L.owned && /TRY AGAIN/.test(G.getLicOffer().msg));
+    G.licOfferAct('restore'); await sleep(10);
+    check('paywall: a restore on an account with nothing says so', !L.owned && /NO CLEARANCE/.test(G.getLicOffer().msg));
+    G.STUB.answer = 'owned'; G.licOfferAct('buy');
+    check('paywall: a purchase in flight owns the disc', G.getLicOffer().busy === true && (G.licOfferAct('later'), !!G.getLicOffer()));
+    await sleep(10);
+    check('paywall: a clearance opens stages 17 to 40 and remembers it in the store\'s own account',
+      L.owned && G.stubOwned() && G.getLicOffer().done && /17–40/.test(G.getLicOffer().msg) && !G.contractLocked(ci('collector')));
+    G.licOfferAct('go');
+    check('paywall: CONTINUE closes the offer', !G.getLicOffer());
+    G.switchCampaign(ci('delegation'));
+    check('paywall: a licensed player starts stage 40', rawStartLevel(G.CAMPAIGNS[ci('delegation')].levels.length - 1, false) === true && G.getState() === G.S.PLAY);
+    toMenu();
+    // a new device: the save is gone, the store account is not
+    L.owned = false; L.legacy = { save: false, past16: false };
+    G.setFrameDt(0.05); G.setMenuSettings(true); G.drawMenuSettings();
+    const rb = G.menuSetButtonsNow().find(b => b.action === 'restore');
+    check('paywall: settings carries a RESTORE PURCHASE row', !!rb && G.restoreLabel() === 'RESTORE PURCHASE');
+    G.menuTap(rb.x + rb.w / 2, rb.y + rb.h / 2, 1); for (let i = 0; i < 4; i++) G.update(0.05);
+    await sleep(10);
+    check('paywall: RESTORE PURCHASE brings the license back and says so', L.owned === true && G.restoreLabel() === 'PURCHASE RESTORED');
+    G.setMenuSettings(false);
+    for (let i = 0; i < 80; i++) G.update(0.05);
+    check('paywall: the restore answer gives the row its name back after a few seconds', G.restoreLabel() === 'RESTORE PURCHASE');
+    freeAll(); toMenu();
+
+    // ---- the offer disc: its words, its keys, the disc law ----
+    const seen = [];
+    const ft = ctxStub.fillText;
+    G.openLicOffer('locked', ci('collector'));
+    for (let i = 0; i < 12; i++) { if (i === 11) ctxStub.fillText = t => seen.push(String(t)); G.drawLicOffer(); }
+    ctxStub.fillText = ft;
+    const acts = G.getLicOfferBtns().map(b => b.action).sort().join();
+    check('paywall: the settled offer has NOT NOW, UNLOCK and RESTORE keys', acts === 'buy,later,restore');
+    check('paywall: the UNLOCK key carries the store\'s price string', seen.some(t => t === 'UNLOCK  ' + G.STUB.price) && seen.includes('NOT NOW'));
+    check('paywall: the offer names the stages through lvNum and says STAGE',
+      seen.some(t => /STAGES 17–40/.test(t)) && seen.some(t => /STAGES 01–16/.test(t)) && !seen.some(t => /\bLEVEL\b/.test(t)));
+    check('paywall: the fiction never names the store',
+      !seen.some(t => /APP STORE|GOOGLE|PLAY STORE|IN-APP|PURCHASE|BUY\b/i.test(t)));
+    G.closeLicOffer(); for (let i = 0; i < 12; i++) G.drawLicOffer();
+    check('paywall: a closed offer has no live keys', G.getLicOfferBtns().length === 0);
+    const lic = gsrc('34-license.js');
+    const drawSrc = lic.split('function drawLicOffer()')[1];
+    check('paywall: the offer disc obeys the disc law: prose through discPara, the key fitted with the text margin',
+      /discPlate\(cx, cy, R, /.test(drawSrc) && (drawSrc.match(/discPara\(cx, cy, R, /g) || []).length >= 4
+      && /- R \* DISC_TEXT_PAD\)/.test(drawSrc) && /discSegKeys\(cx, cy, R, keys\)/.test(drawSrc) && !/wrapCanvas\(/.test(drawSrc));
+    check('paywall: the settings key row fits its key with the text margin',
+      /function discKeyRow\(row, y, cx, cy, R\)[\s\S]{0,400}- R \* DISC_TEXT_PAD\)/.test(gsrc('91-briefing.js')));
+
+    // ---- the source keeps the rules it states ----
+    const inp = gsrc('60-input.js');
+    check('paywall: the wall sits inside startLevel, before the run is touched',
+      /function startLevel\(i, brief, withAssist\) \{\s*evLog\([^)]*\);[\s\S]{0,700}if \(!replaying && CAMP && contractLocked\(CAMPAIGNS\.indexOf\(CAMP\)\)\) \{[^}]*return false; \}\s*\n[\s\S]{0,700}weekly = false; Math\.random = mulberry32/.test(inp));
+    check('paywall: the drill and the continue read the wall\'s refusal',
+      /if \(startLevel\(bi\) === false\) return;/.test(inp) && /if \(startLevel\(levelIdx, false, assist\) === false\) return;/.test(inp));
+    const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'game', 'manifest.json'), 'utf8')).files.map(f => f.file);
+    const html = fs.readFileSync(path.join(ROOT, 'src', 'index.html'), 'utf8');
+    check('paywall: 34-license.js loads between the loader and the run state, in the manifest and the page',
+      man.indexOf('34-license.js') === man.indexOf('33-loader.js') + 1 && man.indexOf('40-state.js') === man.indexOf('34-license.js') + 1
+      && /game\/33-loader\.js"><\/script>\s*<script src="game\/34-license\.js"><\/script>\s*<script src="game\/40-state\.js">/.test(html));
+    check('paywall: the save tuple carries the license', /JSON\.stringify\(\{ progress, settings, mutators, identity, license \}\)/.test(gsrc('32-save.js')));
+    const gameAll = gameSource(ROOT).split('\n').filter(l => !/const STUB = /.test(l) && !/^\s*\/\//.test(l)).join('\n');
+    check('paywall: the game never hard-codes a price (the stub\'s TEST answer aside)',
+      !/[$€£]\s?\d+[.,]\d\d|\d+[.,]\d\d\s?[$€£]|['"`][^'"`\n]*\b[12]\.99\b/.test(gameAll));
+    check('paywall: the product id lives in the game once, the same string both stores sell',
+      (gameAll.match(/com\.warpvanguard\.game\.license/g) || []).length === 1 && G.LICENSE_PRODUCT === 'com.warpvanguard.game.license');
+    check('paywall: the headless sim keeps the wall down (no Image), so the verifier replays every board',
+      /let licenseWall = typeof Image !== 'undefined';/.test(lic) && /const wallUp = \(\) => licenseWall && !globalThis\.EDITOR_DRIVE;/.test(lic));
+    check('paywall: one analytics door, inert until a track() exists', /function licenseTrack\(ev, data\) \{\s*if \(typeof track === 'function'\)/.test(lic));
+
+    // ---- the native twins (Two platforms, one fix) ----
+    const rd = p => { try { return fs.readFileSync(path.join(ROOT, p), 'utf8'); } catch (e) { return ''; } };
+    const jv = rd('android/app/src/main/java/com/warpvanguard/game/LicensePlugin.java');
+    const sw = rd('ios/App/App/LicensePlugin.swift');
+    check('paywall: Android: the License plugin asks Play Billing directly',
+      /@CapacitorPlugin\(name = "License"\)/.test(jv) && /queryPurchasesAsync/.test(jv) && /acknowledgePurchase/.test(jv)
+      && /launchBillingFlow/.test(jv) && /enablePendingPurchases/.test(jv) && /notifyListeners\("licenseChanged"/.test(jv));
+    check('paywall: Android: MainActivity registers the plugin before the bridge starts',
+      /registerPlugin\(LicensePlugin\.class\);\s*super\.onCreate\(savedInstanceState\);/.test(rd('android/app/src/main/java/com/warpvanguard/game/MainActivity.java')));
+    check('paywall: Android: Play Billing 8 is a pinned dependency', /implementation "com\.android\.billingclient:billing:8\.\d+\.\d+"/.test(rd('android/app/build.gradle')));
+    check('paywall: iOS: the License plugin asks StoreKit 2 directly',
+      /jsName = "License"/.test(sw) && /Transaction\.currentEntitlements/.test(sw) && /AppStore\.sync\(\)/.test(sw)
+      && /\.purchase\(\)/.test(sw) && /Transaction\.updates/.test(sw) && /notifyListeners\("licenseChanged"/.test(sw));
+    check('paywall: iOS: the view controller registers the plugin, and the project compiles it',
+      /bridge\?\.registerPluginInstance\(LicensePlugin\(\)\)/.test(rd('ios/App/App/GameViewController.swift'))
+      && (rd('ios/App/App.xcodeproj/project.pbxproj').match(/LicensePlugin\.swift/g) || []).length >= 4);
+    check('paywall: neither shell hard-codes the product id: the page sends it', !/com\.warpvanguard\.game\.license/.test(jv + sw));
+
+    // tidy: the harness's own state, as the rest of the suite left it
+    G.closeLicOffer(); G.setLicOfferDue(false);
+    G.setLicenseWall(false); G.setWeeklyNeedsLicense(false); G.setGrandfather('progress');
+    Object.assign(G.STUB, stubBak); G.stubSetOwned(false);
+    L.owned = licBak.owned; L.legacy = licBak.legacy;
+    for (const k of Object.keys(G.progress)) delete G.progress[k];
+    Object.assign(G.progress, progBak);
+    global.localStorage = realLS;
+    G.installCampaign(G.CAMPAIGNS.find(p => p.id === campBak) || G.CAMPAIGNS[0]);
+    toMenu();
+  }
+
   console.log(failures === 0 ? '\nALL TESTS PASSED' : '\n' + failures + ' FAILURES');
   process.exit(failures === 0 ? 0 : 1);
 })();
@@ -6155,7 +6424,7 @@ await tick();
 // for what a player calls level 08. A bare `:7` is at least honestly an id. These
 // pins guard the renderer and every call site; the humans are on their own.
 {
-  const files = ['90-hud.js', '91-briefing.js', '92-guide.js', '93-board.js', '94-galaxy.js', '95-menu.js', '61-replay.js'];
+  const files = ['90-hud.js', '91-briefing.js', '92-guide.js', '93-board.js', '94-galaxy.js', '95-menu.js', '61-replay.js', '34-license.js'];
   const codeOf = f => fs.readFileSync(path.join(ROOT, 'src', 'game', f), 'utf8')
     .split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
 

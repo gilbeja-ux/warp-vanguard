@@ -67,10 +67,20 @@ function migrateSaveShape(dp) {
   delete dp.stars; delete dp.bests; delete dp.unlocked;
   return dp;
 }
+// A LICENSE IS NOT PROGRESS (Gil, 2026-08-17, kept 2026-11-05). It rides its own
+// key in the save, beside progress / settings / identity, so RESET CONTRACT and
+// the MY DATA erase, which touch progress and the boards, cannot revoke it.
+// Declared here because loadState fills it; 34-license.js owns what it means.
+//   owned  — the store said this account holds the unlock (cached; boot re-asks)
+//   legacy — what the save held the first time a licence-aware build booted,
+//            written ONCE: { save, past16 }. GRANDFATHER reads it.
+const license = { owned: false, legacy: null };
+let saveFoundAtBoot = false; // did loadState find a save at all? (the legacy stamp reads it)
 function saveState() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify({ progress, settings, mutators, identity })); } catch (e) {}
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ progress, settings, mutators, identity, license })); } catch (e) {}
 }
-(function loadState() {
+// a named declaration, called once below, so a test can read a written save back
+function loadState() {
   try {
     let raw = localStorage.getItem(STORE_KEY);
     if (raw === null) {
@@ -78,6 +88,7 @@ function saveState() {
       if (raw !== null) localStorage.removeItem(LEGACY_STORE_KEY);
     }
     const d = JSON.parse(raw);
+    saveFoundAtBoot = !!d;
     if (d) {
       if (d.progress) {
         Object.assign(progress, migrateSaveShape(d.progress));
@@ -99,7 +110,9 @@ function saveState() {
       if (d.settings && Math.abs(d.settings.musicVol - 0.5) < 1e-9) settings.musicVol = 0.32;
       if (d.mutators) Object.assign(mutators, d.mutators);
       if (d.identity) Object.assign(identity, d.identity);
+      if (d.license && typeof d.license === 'object') Object.assign(license, d.license);
     }
   } catch (e) {}
   ensureIdentity(); // mint a device handle + auto label on first boot; persisted on next save
-})();
+}
+loadState();

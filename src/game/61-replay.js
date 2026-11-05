@@ -26,7 +26,10 @@ function boardKey() {
   // is what makes it airtight: every downstream path — the submit, the "you made the
   // top 50" name card, the rank lookup — already treats a null board as unranked, so
   // replaying last week for practice cannot file a score by any route.
-  if (weekly) return weeklyLive() ? 'weekly:' + weeklyIdx : null;
+  // …AND, while WEEKLY_NEEDS_LICENSE holds, a free player's week is unranked too
+  // (34-license.js): one line here, and the submit, the name card and the rank
+  // lookup all follow, exactly as they do for a closed week.
+  if (weekly) return weeklyLive() && !weeklyLocked() ? 'weekly:' + weeklyIdx : null;
   if (endless) return null; // procedural per player — a personal best, never a board
   return (CAMP ? CAMP.id : 'campaign') + ':' + levelIdx;
 }
@@ -473,6 +476,8 @@ function endLevel(win) {
     saveState();
     sfx.fail();
   } else if (win) {
+    // read BEFORE the stars land: did this run deliver the contract for the first time?
+    const wasCleared = !!CAMP && campaignCleared(CAMP.id);
     // a CONTINUED win still completes — stars and the route are the point of
     // the continue — but the record book stays closed to it: no local best,
     // no NEW BEST badge, exactly as the RETRY DUEL button said.
@@ -486,6 +491,7 @@ function endLevel(win) {
     endNewBest = !assist && !bossRetried && score > (PROG.bests[levelIdx] || 0);
     if (!bossRetried && !assist) PROG.bests[levelIdx] = Math.max(PROG.bests[levelIdx] || 0, score);
     saveState();
+    licOfferAfterDelivery(wasCleared); // a first delivery that ends at a locked contract: the report opens the offer
     sfx.arrive();   // dropping out of warp, the sting rising through its tail
   } else { endNewBest = false; sfx.fail(); }
   Math.random = sysRandom; // run over — hand real randomness back to the END screen + menus

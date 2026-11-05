@@ -140,17 +140,19 @@ picks up at 09.
   flow-line chains, and priority numbers were all built and reverted as
   clutter. Urgency lives on the enemy body plus panned sonar ticks.
 
-**Business model (decided 2026-07-14; seam moved and re-affirmed 2026-09-04)**
+**Business model (decided 2026-07-14; the seam moved to stage 16 on 2026-11-05)**
 
-Free demo + one-time unlock. Contract 1 is free end to end — stages 01–08,
-its boss included — and a single lifetime purchase of **$2.99** unlocks
-contracts 2–5 at the **stage-09 seam**, plus filing a score on the WEEKLY LANE.
-The offer comes after the contract 1 boss, never at a locked door mid-contract.
-**No ads**, no consumables, no pay-per-campaign. (The seam sat at stage 04 until
-2026-09-04, when Gil moved it to the end of contract 1.) The paywall lands in
-**1.1**: Google Play Billing via a Capacitor plugin plus an offline entitlement
-flag, checked inside `startLevel`. Until then — and through open testing — every
-contract ships free. Full plan in [docs/RELEASE-PLAN.md](docs/RELEASE-PLAN.md).
+Free to try + one-time unlock. Contracts 1 and 2 are free end to end — stages
+01–16, both bosses included — and so is the ENDLESS lane. A single lifetime
+purchase (about $1.99; the price lives in the store consoles, and the game shows
+the store's own string) unlocks contracts 3, 4 and 5: **stages 17–40**. The offer
+comes after the stage 16 boss verdict, on a locked contract, and on NEXT CONTRACT
+off stage 16, never at a door mid-contract. **No ads**, no consumables, no
+pay-per-contract. The entitlement is checked inside `startLevel`
+(`src/game/34-license.js`), so every door meets the same wall. (The plan of
+2026-09-04 put a $2.99 unlock at the stage-09 seam; Gil moved the seam to the end of
+contract 2 on 2026-11-05.) It lands in **1.1**; until then every contract ships
+free. Full plan in [docs/RELEASE-PLAN.md](docs/RELEASE-PLAN.md).
 
 **Store name (cleared 2026-08-21)**
 
