@@ -1464,7 +1464,7 @@ const DISC_TITLE_PAD = 0.13;
 // are kept for the last disc drawn and rebuilt only when it (or the context) moves
 // (2026-10-10: a paused run or a briefing rebuilt both every frame)
 let platePair = null, plateKey = '', plateCtx = null;
-function discPlate(cx, cy, R, title, titleCol, titleDrop) {
+function discPlate(cx, cy, R, title, titleCol, titleDrop, titleK) {
   const pk = cx + ',' + cy + ',' + R;
   if (!(platePair && plateKey === pk && plateCtx === ctx)) {
     const bg0 = ctx.createRadialGradient(cx, cy, R * 0.20, cx, cy, R);
@@ -1494,8 +1494,9 @@ function discPlate(cx, cy, R, title, titleCol, titleDrop) {
   // THE TITLE SITS DOWN OFF THE RIM AND CARRIES SOME SIZE. It used to be set at
   // R*0.052 hard against the crown, where the chord is barely wider than the word
   // — a caption on a disc that is not captioned by anything else on screen.
-  // titleDrop (a share of R) lowers one disc's title off the crown; the offer disc uses it
-  const ty = cy - R * (0.755 - (titleDrop || 0));
+  // titleDrop (a share of R) lowers one disc's title off the crown, and titleK scales
+  // its type and line pitch; the offer disc uses both
+  const ty = cy - R * (0.755 - (titleDrop || 0)), tk = titleK || 1;
   ctx.textAlign = 'center';
   ctx.fillStyle = titleCol || 'rgba(186,231,255,0.92)';
   try { ctx.letterSpacing = '4px'; } catch (e) {}
@@ -1503,14 +1504,14 @@ function discPlate(cx, cy, R, title, titleCol, titleDrop) {
   // line is fitted to the chord at ITS OWN height — the crown narrows fast up
   // there, so a second line lower down gets more room, not less.
   const tLines = String(title).split('\n');
-  const tLh = R * 0.118;
+  const tLh = R * 0.118 * tk;
   tLines.forEach((ln, i) => {
     const y = ty + i * tLh;
     // THE TITLE KEEPS ITS MARGIN AT THE TOP OF ITS CAPITALS, where the crown is
     // narrowest. It used to keep 0.05R off the chord at its baseline, and at a
     // desktop size its ends stood on the rim.
-    const capTop = Math.abs(cy - y) + R * 0.095 * 0.75;
-    ctx.font = '700 ' + fitPx(ln, '700', Math.max(11, Math.round(R * 0.095)),
+    const capTop = Math.abs(cy - y) + R * 0.095 * tk * 0.75;
+    ctx.font = '700 ' + fitPx(ln, '700', Math.max(11, Math.round(R * 0.095 * tk)),
       (discChord(R, capTop) - R * DISC_TITLE_PAD) * 2, 9) + 'px Audiowide, system-ui';
     ctx.fillText(ln, cx, y);
   });
@@ -1853,11 +1854,14 @@ function discSegHit(sg, x, y) {
 function discSegKeys(cx, cy, R, keys, segK) {
   const rr = R * DISC_RIM, d = R * (segK || DISC_SEG);
   const aSeg = Math.asin(clamp(d / rr, 0, 1)), chHalf = rr * Math.cos(aSeg);
-  const ly = cy + d + (rr - d) * 0.44;
+  const solo = keys.length === 1;
+  // A SOLO KEY'S LABEL SITS AT THE MIDDLE OF ITS CAP'S HEIGHT (Gil, 2026-11-05:
+  // CONTINUE rode high), as the carousel's TAKE CONTRACT already did. A split pair
+  // keeps its labels nearer the chord, where each half is wider.
+  const ly = cy + d + (rr - d) * (solo ? 0.56 : 0.44);
   // the key's width ON THE TEXT'S OWN LINE. Centring on half the CHORD put both
   // labels out toward the rim, because the segment narrows under the chord.
   const wAt = Math.sqrt(Math.max(1, rr * rr - (ly - cy) * (ly - cy)));
-  const solo = keys.length === 1;
   const out = [];
   keys.forEach(([label, action, opt], i) => {
     const o = opt || {}, side = solo ? 0 : (i === 0 ? -1 : 1);

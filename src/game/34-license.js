@@ -459,10 +459,12 @@ function drawLicensePass(cx, cy, R, q, o) {
 // is smaller, and the restore key sits close under the words. Named knobs, for Gil
 // to tune by eye:
 //   titleDrop   how far the title sits below where other discs put theirs
+//   titleK      the title's size against other discs' titles; CLEARANCE REQUIRED
+//               and CLEARANCE GRANTED are one pair, one size (Gil, 2026-11-05)
 //   textTop     the cyan line's first baseline, above the disc's centre
 //   freePx      the free line's type size
 //   restoreGap  from the last line's baseline down to the restore key's top
-const LICENSE_OFFER = { titleDrop: 0.06, textTop: 0.33, freePx: 0.046, restoreGap: 0.05 };
+const LICENSE_OFFER = { titleDrop: 0.1, titleK: 1.25, textTop: 0.37, freePx: 0.046, restoreGap: 0.05 };
 // THE CLEARED DISC (Gil, 2026-11-05): the news sits close under the title, and
 // GOOD HUNTING, VANGUARD is the big line, with a shine that sweeps it left to right
 // on a loop. Named knobs, shares of R unless said:
@@ -471,7 +473,7 @@ const LICENSE_OFFER = { titleDrop: 0.06, textTop: 0.33, freePx: 0.046, restoreGa
 //   huntPx     its type size
 //   shine      seconds per loop; the sweep takes shineRun of it, then the line rests
 //   shineBand  the gleam's half-width
-const LICENSE_DONE = { newsTop: 0.53, huntY: -0.2, huntPx: 0.1, shine: 2.4, shineRun: 0.7, shineBand: 0.22 };
+const LICENSE_DONE = { newsTop: 0.37, huntY: -0.16, huntPx: 0.1, shine: 2.4, shineRun: 0.7, shineBand: 0.22 };
 let shineGrad = null, shineKey = '', shineCtx = null;
 function drawHuntLine(cx, cy, R) {
   const D = LICENSE_DONE, px = Math.max(12, Math.round(R * D.huntPx)), y0 = cy + R * D.huntY;
@@ -507,7 +509,7 @@ function licOfferCopy(o) {
   // the words are Gil's, 2026-11-05. The title says the demand, so there is no lead line.
   return [
     null,
-    'GET ACCESS TO: STAGES ' + paidRange() + ', INCLUDING ' + bosses + ' BOSSES.',
+    'GET ACCESS TO:\nSTAGES ' + paidRange() + ', INCLUDING ' + bosses + ' BOSSES.',
     free];
 }
 function drawLicOffer() {
@@ -522,7 +524,7 @@ function drawLicOffer() {
   ctx.fillRect(0, 0, W, H);
   popRender(q, cx - R, cy - R, R * 2, R * 2, () => {
     ctx.save();
-    discPlate(cx, cy, R, o.done ? 'CLEARED' : 'DEEP SPACE\nCLEARANCE\nREQUIRED', null, LICENSE_OFFER.titleDrop);
+    discPlate(cx, cy, R, o.done ? 'CLEARANCE\nGRANTED' : 'CLEARANCE\nREQUIRED', null, LICENSE_OFFER.titleDrop, LICENSE_OFFER.titleK);
     drawLicensePass(cx, cy, R, q, o);
     const [p1, p2, p3] = licOfferCopy(o);
     const px1 = Math.max(9, Math.round(R * 0.064)), px2 = Math.max(8, Math.round(R * 0.056));
@@ -534,7 +536,11 @@ function drawLicOffer() {
     } else {
       // only the weekly door has a lead line over the cyan one
       if (p1) y = discPara(cx, cy, R, p1, y, 'rgba(220,235,255,0.94)', px1, '600') + px1 * 0.25;
-      y = discPara(cx, cy, R, p2, y, 'rgba(140,230,255,0.92)', px2, '700');
+      // the access line breaks after GET ACCESS TO (Gil, 2026-11-05), so each half is
+      // FITTED to the line's width rather than wrapped a second time
+      const wMax = Math.min(R * DISC_TEXT_MAX, (discChord(R, y - px2 - cy) - R * DISC_TEXT_PAD) * 2) * 0.97;
+      const pxA = Math.min(...p2.split('\n').map(l => fitPx(l, '700', px2, wMax, 7)));
+      y = discPara(cx, cy, R, p2, y, 'rgba(140,230,255,0.92)', pxA, '700');
       y = discPara(cx, cy, R, p3, y + px2 * 0.2, 'rgba(150,185,220,0.62)', px3, '500');
       // UNDER THE WORDS: the restore key, or what the store just said. The key holds
       // words, so it keeps the TEXT margin off the rim, fitted at its widest corner
