@@ -7922,7 +7922,8 @@ await tick();
   check('traction: it is a page on the admin console — no new port, the same token, the same localhost bind',
     /if \(url === '\/traction'\)/.test(adm) && /if \(url === '\/api\/traction'\)/.test(adm)
     && adm.indexOf("if (url === '/api/traction')") > adm.indexOf("if (!authed(req))") && /\.listen\(port, '127\.0\.0\.1'/.test(adm)
-    && /port: 8200, name: 'Traction',\s+cmd: 'npm run admin',\s+path: 'traction'/.test(read('scripts/portal.js')));
+    && /port: 8200, name: 'Traction',\s+cmd: 'npm run admin',\s+path: 'traction'/.test(read('scripts/portal.js'))
+    && /<a class="navkey" href="\/traction">Traction<\/a>/.test(read('scripts/admin.html')));
   check('traction: the auth reads group before they return — no query hands the page an id',
     !/json_build_array\([^)]*\b(id|player_id|uid)\b/.test(tr.baseSql(cs) + tr.telemetrySql()));
   // ---- the store files ----
