@@ -19,6 +19,8 @@ unlock below (contracts 3–5, built 2026-11-05). Every release ships to both pl
 
 ### 1.1: the paid unlock (Gil, 2026-11-05; built the same day)
 
+> **SHELVED (Gil, 2026-11-06).** Monetization waits for traction: a trader on Google Play and the EU App Store shows a phone number and an address to everyone, and a business address costs money the game may never earn. The paywall is built and switched off (`PAYWALL_ON = false` in `src/game/34-license.js`): every stage is free, nothing is sold, and settings has no RESTORE PURCHASE row. Nothing below goes live until the switch turns on.
+
 **The model.** Free to try, one purchase, no ads. **Contracts 1 and 2 are free end to
 end: stages 01–16, both bosses**, plus the ENDLESS lane. One non-consumable purchase,
 about **$1.99**, unlocks **contracts 3, 4 and 5: stages 17–40**, for good. The price
@@ -53,7 +55,7 @@ seam moves to the end of contract 2.
    list, NEXT CONTRACT, the board's FLY THIS LANE, the passcode boss drill. The doors
    also check first, so they open the offer instead of starting a transition.
 
-**The offer** is an in-fiction disc the ring casts, DEEP RANGE CLEARANCE, under the
+**The offer** is an in-fiction disc the ring casts, DEEP SPACE CLEARANCE, under the
 disc law. It opens after the stage 16 boss verdict (on the report, once its keys land),
 on a tap of a locked contract (the disc wears a lock and says GET CLEARANCE), on NEXT
 CONTRACT off stage 16, and on a locked door anywhere else. Its keys: NOT NOW, UNLOCK

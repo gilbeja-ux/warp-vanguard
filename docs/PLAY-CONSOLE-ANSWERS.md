@@ -229,7 +229,7 @@ screenshot or the video. The answer is per-asset, not per-app.
 - **Does the app allow users to interact or exchange content?** → **Yes** —
   players see other players' chosen display names on leaderboards.
 - **Does it share the user's current location?** → **No.**
-- **Does it allow purchases?** → **No** through 1.0.x. **Yes from 1.1**, which
+- **Does it allow purchases?** → **No** through 1.0.x. **Yes from the build that switches the paywall on (`PAYWALL_ON`, shelved since 2026-11-06)**, which
   sells one unlock for contracts 3–5 (stages 17–40). Change the answer with the 1.1
   upload ([PAYWALL-CHECKLIST.md](PAYWALL-CHECKLIST.md)).
 - Expected outcome: roughly **PEGI 3 / ESRB Everyone**, with a *Users Interact*
@@ -257,7 +257,7 @@ All **No**.
 
 - App category: **Game → Arcade** (secondary: Action)
 - Contains ads: **No**
-- In-app purchases: **No** through 1.0.x. **Yes from 1.1**: one non-consumable,
+- In-app purchases: **No** through 1.0.x. **Yes from the build that switches the paywall on (`PAYWALL_ON`, shelved since 2026-11-06)**: one non-consumable,
   `com.warpvanguard.game.license`, unlocks contracts 3–5 (stages 17–40); stages 01–16
   and the endless lane stay free ([RELEASE-PLAN.md](RELEASE-PLAN.md),
   [PAYWALL-CHECKLIST.md](PAYWALL-CHECKLIST.md))

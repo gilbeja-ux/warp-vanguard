@@ -2736,7 +2736,7 @@ function drawCampDisc(i, x, y, r, zq, tpx) {
     ctx.textAlign = 'center';
     ctx.fillStyle = done ? 'rgba(126,226,98,0.95)' : 'rgba(140,200,240,0.8)';
     // a COUNT, not a level id — level numbers run continuously across campaigns
-    ctx.fillText(done ? 'CONTRACT COMPLETE' : sealed ? 'DEEP RANGE \u00b7 CLEARANCE' : Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length + ' STAGES', x, sepY + r * 0.375);
+    ctx.fillText(done ? 'CONTRACT COMPLETE' : sealed ? 'DEEP SPACE \u00b7 CLEARANCE' : Math.min(cp.unlocked || 1, pk.levels.length) + ' / ' + pk.levels.length + ' STAGES', x, sepY + r * 0.375);
     // THE TIER RANGE ONLY. A tagline reads 'HAULERS CONSORTIUM · TIER 1 → 3' — and the
     // client is already the disc's whole picture and its title, so printing it again
     // underneath was the line explaining what the disc had just shown. What is left is
@@ -2794,7 +2794,7 @@ function drawMenuFlow() {
   const HALVES = [
     { key: 'weekly', glyph: '◈', name: 'WEEKLY LANE', mid: -Math.PI / 2, locked: !weeklyOpen, col: '140,220,255',
       cap: !weeklyOpen ? 'complete stage ' + lvNum(FLOW_UNLOCK_LEVEL) + ' to unlock'
-        : weeklyLocked() ? 'unranked without deep range clearance' // WEEKLY_NEEDS_LICENSE (34-license.js)
+        : weeklyLocked() ? 'unranked without deep space clearance' // WEEKLY_NEEDS_LICENSE (34-license.js)
         : 'one seeded lane all week' + (D && D.best ? ' · BEST ' + D.best.toLocaleString() : ''),
       streak: weeklyOpen ? weeklyStreak() : null },
     { key: 'endless', glyph: '∞', name: 'ENDLESS LANE', mid: Math.PI / 2, locked: !endlessOpen, col: '255,210,74',

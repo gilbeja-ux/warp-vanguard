@@ -154,6 +154,11 @@ for (const k of ['WEEKLY_NEEDS_LICENSE', 'GRANDFATHER']) {
   if (!code.includes('const ' + k + ' = ')) throw new Error('harness: const ' + k + ' is gone from 34-license.js');
   code = code.replace('const ' + k + ' = ', 'let ' + k + ' = ');
 }
+// THE SWITCH (PAYWALL_ON) ships off while the paywall is shelved (Gil, 2026-11-06). The
+// suite flies the built wall with it ON, so the work stays proven for the day it turns
+// on; THE PAYWALL section pins the shipped value and flies it OFF as well.
+if (!/const PAYWALL_ON = (true|false);/.test(code)) throw new Error('harness: const PAYWALL_ON is gone from 34-license.js');
+code = code.replace(/const PAYWALL_ON = (true|false);/, 'let PAYWALL_ON = true;');
 // expose internals for the tests
 code = code.replace("'use strict';", '') + `
 ;globalThis.__g = {
@@ -344,6 +349,7 @@ code = code.replace("'use strict';", '') + `
   saveState, loadState, STORE_KEY, STUB, stubOwned, stubSetOwned, Billing, licenseApply,
   setLicenseWall: v => { licenseWall = v; }, getLicenseWall: () => licenseWall,
   setWeeklyNeedsLicense: v => { WEEKLY_NEEDS_LICENSE = v; }, setGrandfather: v => { GRANDFATHER = v; },
+  setPaywallOn: v => { PAYWALL_ON = v; }, licenseResume,
   openLicOffer, closeLicOffer, getLicOffer: () => licOffer, licOfferAct, licOfferTap, drawLicOffer,
   getLicOfferBtns: () => licOfferBtns, getLicOfferDue: () => licOfferDue, setLicOfferDue: v => { licOfferDue = v; }, licOfferCheck,
   restorePurchase, restoreLabel, paidRange, freeRange, licOfferCopy, weeklyDoor, getLicensePrice: () => licensePrice,
@@ -5904,7 +5910,7 @@ await tick();
     ctxStub.fillText = ft;
     const acts = G.getLicOfferBtns().map(b => b.action).sort().join();
     check('paywall: the settled offer has NOT NOW, UNLOCK and RESTORE keys', acts === 'buy,later,restore');
-    check('paywall: the UNLOCK key carries the store\'s price string', seen.some(t => t === 'UNLOCK  ' + G.STUB.price) && seen.includes('NOT NOW'));
+    check('paywall: the UNLOCK key carries the store\'s price string, UNLOCK small over it', seen.includes('UNLOCK') && seen.includes(G.STUB.price) && seen.includes('NOT NOW'));
     check('paywall: the offer names the stages through lvNum and says STAGE',
       seen.some(t => /STAGES 17–40/.test(t)) && seen.some(t => /STAGES 01–16/.test(t)) && !seen.some(t => /\bLEVEL\b/.test(t)));
     check('paywall: the fiction never names the store',
@@ -5934,13 +5940,32 @@ await tick();
       ['paywall.offer', 'paywall.buy', 'paywall.restore'].every(n => lic.includes("'" + n + "'") && /^[a-z][a-z0-9_.]{1,39}$/.test(n)));
     check('paywall: the save tuple carries the license', /JSON\.stringify\(\{ progress, settings, mutators, identity, license \}\)/.test(gsrc('32-save.js')));
     const gameAll = gameSource(ROOT).split('\n').filter(l => !/const STUB = /.test(l) && !/^\s*\/\//.test(l)).join('\n');
-    check('paywall: the game never hard-codes a price (the stub\'s TEST answer aside)',
+    check('paywall: the game never hard-codes a price (the stub\'s demo answer aside)',
       !/[$€£]\s?\d+[.,]\d\d|\d+[.,]\d\d\s?[$€£]|['"`][^'"`\n]*\b[12]\.99\b/.test(gameAll));
     check('paywall: the product id lives in the game once, the same string both stores sell',
       (gameAll.match(/com\.warpvanguard\.game\.license/g) || []).length === 1 && G.LICENSE_PRODUCT === 'com.warpvanguard.game.license');
     check('paywall: the headless sim keeps the wall down (no Image), so the verifier replays every board',
-      /let licenseWall = typeof Image !== 'undefined';/.test(lic) && /const wallUp = \(\) => licenseWall && !globalThis\.EDITOR_DRIVE;/.test(lic));
+      /let licenseWall = typeof Image !== 'undefined';/.test(lic) && /const wallUp = \(\) => PAYWALL_ON && licenseWall && !globalThis\.EDITOR_DRIVE;/.test(lic));
     check('paywall: one analytics door, inert until a track() exists', /function licenseTrack\(ev, data\) \{\s*if \(typeof track === 'function'\)/.test(lic));
+
+    // ---- SHELVED (Gil, 2026-11-06): the switch ships OFF; the harness flies the built wall ON ----
+    check('paywall: SHELVED: the shipped switch is off (Gil, 2026-11-06: monetization waits for traction)', /const PAYWALL_ON = false;/.test(lic));
+    check('paywall: shelved, the boot writes no legacy stamp and asks no store, and a resume asks nothing',
+      /\(function licenseBoot\(\) \{\s*if \(!PAYWALL_ON\) return;/.test(lic) && /function licenseResume\(\) \{\s*if \(!PAYWALL_ON \|\|/.test(lic));
+    {
+      const Lc = G.license, keep = { owned: Lc.owned, legacy: Lc.legacy }, wall0 = G.getLicenseWall();
+      Lc.owned = false; Lc.legacy = { save: false, past16: false };
+      G.setLicenseWall(true); G.setWeeklyNeedsLicense(true);
+      check('paywall: (switch on) a free save meets the wall at contract 3 and the weekly gate', G.contractLocked(ci('collector')) && G.weeklyLocked());
+      G.setPaywallOn(false);
+      G.setFrameDt(0.05); G.setMenuSettings(true); G.drawMenuSettings();
+      check('paywall: shelved, every contract opens to a free save, the weekly files, settings has no RESTORE PURCHASE row, a resume asks nothing',
+        G.CAMPAIGNS.every((p, c) => !G.contractLocked(c)) && !G.weeklyLocked()
+        && !G.menuSetButtonsNow().some(b => b.action === 'restore') && G.licenseResume() === false);
+      G.setMenuSettings(false);
+      G.setPaywallOn(true); G.setWeeklyNeedsLicense(false); G.setLicenseWall(wall0);
+      Lc.owned = keep.owned; Lc.legacy = keep.legacy;
+    }
 
     // ---- the native twins (Two platforms, one fix) ----
     const rd = p => { try { return fs.readFileSync(path.join(ROOT, p), 'utf8'); } catch (e) { return ''; } };

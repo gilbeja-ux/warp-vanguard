@@ -346,6 +346,8 @@ subtitle 23 of 30, promotional text 164 of 170, keywords 98 of 100.
 
 ## 6. Copy for 1.1: free to try, one unlock (2026-11-05)
 
+> **SHELVED (Gil, 2026-11-06).** Monetization waits for traction: a trader on Google Play and the EU App Store shows a phone number and an address to everyone, and a business address costs money the game may never earn. The paywall is built and switched off (`PAYWALL_ON = false` in `src/game/34-license.js`): every stage is free, nothing is sold, and settings has no RESTORE PURCHASE row. Nothing below goes live until the switch turns on.
+
 From 1.1, stages 17–40 cost one purchase, so the listing must say which content is free and
 which is not. Both stores require it: Play's metadata policy, and App Review guideline 2.3.2
 (a description must say when featured content needs a purchase). Both stores add their own
@@ -406,7 +408,7 @@ launch day.
 | Field | Text |
 |---|---|
 | Product id (both stores, exact) | `com.warpvanguard.game.license` |
-| Display name | `Deep Range Clearance` |
+| Display name | `Deep Space Clearance` |
 | Description | `Unlocks contracts 3, 4 and 5: stages 17 to 40, for good.` |
 
 The display name is the offer disc's own title, so the store's sheet and the game agree. The

@@ -1,5 +1,7 @@
 # The paid unlock: Gil's checklist
 
+> **SHELVED (Gil, 2026-11-06).** Monetization waits for traction: a trader on Google Play and the EU App Store shows a phone number and an address to everyone, and a business address costs money the game may never earn. The paywall is built and switched off (`PAYWALL_ON = false` in `src/game/34-license.js`): every stage is free, nothing is sold, and settings has no RESTORE PURCHASE row. Nothing below goes live until the switch turns on.
+
 **The code is built (2026-11-05). The store side is yours.** Contracts 1 and 2 (stages
 01–16) and the endless lane are free. One non-consumable purchase unlocks contracts 3, 4
 and 5 (stages 17–40). The model and the code are in [RELEASE-PLAN.md](RELEASE-PLAN.md)
@@ -30,30 +32,45 @@ Do these in order. Steps 1 and 2 can take a few days to clear.
    product.
 2. [ ] **Tax and payout details.** In the same payments profile: the tax information Google
    asks for, the bank account, and the payout currency.
-3. [ ] **The one-time product.** Play Console → the app → *Monetize with Play → Products →
+3. [ ] **Trader status (due 2027-02-01; blocks the 1.1 launch).** Google's email of
+   2026-11-05: every developer declares trader or non-trader. The 1.1 in-app product makes
+   you a **trader** under EEA and UK law, because the game is sold in those countries.
+   Non-trader is true only if every EEA country and the UK are removed from the app's
+   countries. The other steps here do not wait for this one.
+   - First, find the business address and phone number to show (Gil, 2026-11-05: he gets
+     both before 1.1 goes live). Google shows a trader's phone and address on the store
+     page, and verifies the phone, so it must receive Google's code. Check which
+     addresses Google accepts before you pay for one.
+   - *Manage account → Account details → About you → Trader status*: choose **Trader**,
+     verify the phone, certify that you comply with local laws, save.
+   - The app → *Policy and programs → App content → Needs attention*: confirm that the
+     trader status applies to Warp Vanguard. A Terms of Service link is optional.
+   - Miss the date and Google blocks updates, then removes the developer profile and
+     every app, in every country.
+4. [ ] **The one-time product.** Play Console → the app → *Monetize with Play → Products →
    One-time products → Create one-time product*.
    - Product ID: `com.warpvanguard.game.license`
-   - Name: what the purchase sheet shows, for example `Deep Range Clearance`
+   - Name: what the purchase sheet shows, for example `Deep Space Clearance`
    - Description: for example `Unlocks contracts 3, 4 and 5: stages 17 to 40, for good.`
    - Purchase option: **buy**, not rent. Price about $1.99. Let Play convert the price
      for the other countries, then check a few by eye.
    - **Activate** the product. An inactive product does not come back from the query,
      and the game then shows UNLOCK with no price and answers NO ANSWER. TRY AGAIN.
-4. [ ] **License testers.** Play Console (the account, not the app) → *Settings → License
+5. [ ] **License testers.** Play Console (the account, not the app) → *Settings → License
    testing*. Add the Gmail address of each tester's phone. A license tester buys with a
    test card that is never charged, and the purchase sheet says so.
-5. [ ] **A build in a test track.** Upload 1.1 to internal testing and install it from
+6. [ ] **A build in a test track.** Upload 1.1 to internal testing and install it from
    Play: Play answers billing for an app id that has a build with billing on a track, and
    the build Play installs is the one that is sure to match. The **sideload** build is a
    different app to Play (`com.warpvanguard.game.sideload`): it cannot buy. Use it for the
    R8 pass, not for purchases.
-6. [ ] **Data safety form.** The play statistics now carry three paywall events (the offer
+7. [ ] **Data safety form.** The play statistics now carry three paywall events (the offer
    opened, how a purchase or restore ended). Tick **Financial info → Purchase history**:
    collected, not shared, purpose *Analytics*. Nothing else changes: no price, receipt or
    store account is ever sent. `PLAY-STATISTICS-PRIVACY.md` has the reasoning.
-7. [ ] **Store listing.** Paste the 1.1 copy from [STORE-MATERIALS.md](STORE-MATERIALS.md)
+8. [ ] **Store listing.** Paste the 1.1 copy from [STORE-MATERIALS.md](STORE-MATERIALS.md)
    §6. Play adds the *In-app purchases* label by itself.
-8. [ ] **The content questions.** In [PLAY-CONSOLE-ANSWERS.md](PLAY-CONSOLE-ANSWERS.md), the
+9. [ ] **The content questions.** In [PLAY-CONSOLE-ANSWERS.md](PLAY-CONSOLE-ANSWERS.md), the
    *Does it allow purchases?* answer changes to **Yes** with 1.1.
 
 ## 2. App Store Connect
@@ -62,33 +79,39 @@ Do these in order. Steps 1 and 2 can take a few days to clear.
    was called *Agreements, Tax, and Banking*). Accept the Paid Apps agreement, then add the bank
    account and the tax forms. The agreement must show **Active** before a product can
    be sold, and before the sandbox can buy.
-2. [ ] **The in-app purchase.** The app → *Monetization → In-App Purchases → +*.
+2. [ ] **EU trader status.** The EU Digital Services Act asks the same question on the App
+   Store. The free versions could say non-trader; the 1.1 purchase makes you a
+   **trader**. Apple shows a trader's address, phone number and email on the EU product
+   page, and verifies them, so use the same phone and address as on Play. Change it
+   before the 1.1 purchase goes live in the EU. Look in *Business*; the exact menu path
+   was not checked on 2026-11-05.
+3. [ ] **The in-app purchase.** The app → *Monetization → In-App Purchases → +*.
    - Type: **Non-Consumable**.
-   - Reference name: for example `Deep Range Clearance` (only you see it)
+   - Reference name: for example `Deep Space Clearance` (only you see it)
    - Product ID: `com.warpvanguard.game.license`
    - Price: the tier nearest $1.99. Check the other storefronts.
    - Localization: display name and description, the same words as on Play.
    - **Family Sharing**: your choice. On means one purchase covers the family. Once on,
      it cannot be turned off.
-3. [ ] **The review screenshot.** Every new in-app purchase needs one screenshot for the
+4. [ ] **The review screenshot.** Every new in-app purchase needs one screenshot for the
    reviewer, of the purchase in the app. Use the offer disc: open contract 3 on the
    carousel and tap GET CLEARANCE. On a web build, `index.html?paywall=fresh` shows the
    free tier even on a save that has the unlock. The screenshot is for review only; it is
    never shown on the store.
-4. [ ] **Submit the product with the build.** The first in-app purchase must go to review
+5. [ ] **Submit the product with the build.** The first in-app purchase must go to review
    with a new app version: on the 1.1 version page, add the product under *In-App
    Purchases and Subscriptions* before you submit.
-5. [ ] **App Privacy (the privacy label).** Add **Purchases → Purchase History**: purpose
+6. [ ] **App Privacy (the privacy label).** Add **Purchases → Purchase History**: purpose
    *Analytics*, *Linked to the user*, not used for tracking. It is the paywall's three
    events in the play statistics, as on Play.
-6. [ ] **Review notes.** Paste the 1.1 notes from
+7. [ ] **Review notes.** Paste the 1.1 notes from
    [APP-STORE-REVIEW-NOTES.md](APP-STORE-REVIEW-NOTES.md) (*1.1: the in-app purchase*).
-7. [ ] **Sandbox testers.** *Users and Access → Sandbox → Test accounts → +*. Use an email
+8. [ ] **Sandbox testers.** *Users and Access → Sandbox → Test accounts → +*. Use an email
    address that is not an Apple Account already (a `+sandbox` alias works). On the test
    iPhone: *Settings → Developer → Sandbox Apple Account* (on older iOS: *Settings → App
    Store → Sandbox Account*), then sign in there, never in the main Apple Account field.
    A TestFlight build buys in the sandbox by itself, with no tester account at all.
-8. [ ] **Store listing.** Paste the 1.1 promotional text and description from
+9. [ ] **Store listing.** Paste the 1.1 promotional text and description from
    [STORE-MATERIALS.md](STORE-MATERIALS.md) §6. The App Store shows *In-App Purchases*
    on the listing by itself.
 

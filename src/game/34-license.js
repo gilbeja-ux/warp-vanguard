@@ -48,6 +48,17 @@ const WEEKLY_NEEDS_LICENSE = false;
 //    widening this later still reaches every player who updated in between.
 const GRANDFATHER = 'progress';
 
+// ---- THE SWITCH: SHELVED BY GIL, 2026-11-06 ----
+// Monetization waits for traction. A seller on Google Play and on the EU App Store
+// is a "trader" and must show a phone number and an address to everyone, and an
+// address that is not home costs money the game may never earn back. So the wall is
+// built and OFF: every stage is free, the game never asks the store, no door opens
+// the offer, and settings has no RESTORE PURCHASE row. true turns all of it back on
+// in one update; docs/PAYWALL-CHECKLIST.md lists the store steps, the trader
+// declaration first. The legacy stamp (licenseBoot) waits for the first boot with
+// the switch ON, so a player who flew stages 17-40 while they were free keeps them.
+const PAYWALL_ON = false;
+
 // THE WALL STANDS ONLY WHERE A PLAYER CAN MEET IT. A headless sim (the server
 // verifier, the fingerprint battery, the test harness, the board linter) has no
 // screen to hang an offer on and replays every board by design; it has no
@@ -56,7 +67,7 @@ const GRANDFATHER = 'progress';
 // door. A browser tool that flies a paid stage on purpose (the store shoot, the
 // bench, the labs) sets `licenseWall = false` before it starts the stage.
 let licenseWall = typeof Image !== 'undefined';
-const wallUp = () => licenseWall && !globalThis.EDITOR_DRIVE;
+const wallUp = () => PAYWALL_ON && licenseWall && !globalThis.EDITOR_DRIVE;
 
 // ---- the gift ----
 // Does the save show progress past stage 16? Contracts are open side by side, so
@@ -115,9 +126,11 @@ function licenseTrack(ev, data) {
 // third-party processor in between. STUB: web and tests, the whole flow with no
 // store, so the paywall plays end to end before any native code runs.
 const STUB_STORE_KEY = 'warpVanguard.stubStore'; // the stub's "store account": survives a save wipe, like a real one
-// The stub's answers. A test double, not the game's price: the real string comes
-// from the store console, and this one says TEST so it can never pass for it.
-const STUB = { price: '$1.99 TEST', answer: 'owned', delay: 450 };
+// The stub's answers. A DEMO price, not the game's: the real string comes from the
+// store console, and the shells always ask the store, so only the browser build and
+// the tests ever show this one. It reads like a store's answer so the disc can be
+// judged as a player sees it (Gil, 2026-11-05; it said '$1.99 TEST' before).
+const STUB = { price: '$1.99', answer: 'owned', delay: 450 };
 function stubOwned() { try { return localStorage.getItem(STUB_STORE_KEY) === 'owned'; } catch (e) { return false; } }
 function stubSetOwned(v) {
   try { if (v) localStorage.setItem(STUB_STORE_KEY, 'owned'); else if (localStorage.removeItem) localStorage.removeItem(STUB_STORE_KEY); } catch (e) {}
@@ -188,7 +201,7 @@ function licenseQuery() { licenseAskedAt = Date.now(); Billing.query().then(lice
 const LICENSE_RECHECK_GAP = 2000;
 let licenseAskedAt = -1e15;
 function licenseResume() {
-  if (Date.now() - licenseAskedAt < LICENSE_RECHECK_GAP) return false;
+  if (!PAYWALL_ON || Date.now() - licenseAskedAt < LICENSE_RECHECK_GAP) return false;
   licenseQuery();
   return true;
 }
@@ -205,6 +218,7 @@ function licenseResume() {
 // the gift for this session only. The legacy stamp itself is never touched, so
 // the next plain load has the gift back.
 (function licenseBoot() {
+  if (!PAYWALL_ON) return; // shelved: no stamp yet, no store question, no listener
   // THE LEGACY STAMP, written once: what the save held the first time a
   // licence-aware build booted. A save that already has a stamp keeps it.
   if (!license.legacy || typeof license.legacy !== 'object') {
@@ -340,16 +354,20 @@ const RESTORE_MSG_HOLD = 3.5; // seconds a restore answer holds the row's key
 const restoreLabel = () => (restoreMsg && (restoreBusy || time - restoreMsg.at < RESTORE_MSG_HOLD)) ? restoreMsg.text : 'RESTORE PURCHASE';
 
 // ---- THE LOCKED CONTRACT'S LOOK (92-guide.js drawCampDisc) ----
-// Named knobs, for Gil to tune by eye: the veil over the client's picture, and
-// the seal's size as a share of the disc's radius.
-const LICENSE_SEAL = { veil: 0.42, size: 0.15 };
+// Named knobs, for Gil to tune by eye: the veil over the client's picture, the
+// seal's size as a share of the disc's radius, and where the seal's middle sits, as
+// a share of r off the disc's centre. -0.5 is the middle of the picture, the same
+// spot the training reticle takes (Gil, 2026-11-05: up onto the image, and larger).
+const LICENSE_SEAL = { veil: 0.42, size: 0.19, y: -0.5 };
 function drawLicenseSeal(x, y, r) {
   ctx.save();
   // the veil covers the picture half only, so the dossier under the chord still reads
   ctx.fillStyle = 'rgba(3,8,18,' + LICENSE_SEAL.veil + ')';
   ctx.beginPath(); ctx.arc(x, y, r * 0.97, Math.PI, TAU); ctx.closePath(); ctx.fill();
   // a shackle over a plate: the one lock glyph the game draws
-  const s = r * LICENSE_SEAL.size, sy = y - r * 0.30;
+  // the glyph runs from the shackle's top (sy - 0.68s) to the plate's foot (sy + 0.94s),
+  // so its middle is sy + 0.13s
+  const s = r * LICENSE_SEAL.size, sy = y + r * LICENSE_SEAL.y - s * 0.13;
   ctx.strokeStyle = 'rgba(186,231,255,0.92)'; ctx.lineWidth = Math.max(2, s * 0.16); ctx.lineCap = 'round';
   ctx.beginPath(); ctx.arc(x, sy - s * 0.18, s * 0.42, Math.PI, 0); ctx.lineTo(x + s * 0.42, sy + s * 0.05); ctx.moveTo(x - s * 0.42, sy - s * 0.18); ctx.lineTo(x - s * 0.42, sy + s * 0.05); ctx.stroke();
   techRect(x - s * 0.66, sy + s * 0.02, s * 1.32, s * 0.92, Math.max(2, s * 0.18));
@@ -360,19 +378,152 @@ function drawLicenseSeal(x, y, r) {
   ctx.restore();
 }
 
+// ---- THE CLEARANCE PASS (Gil, 2026-11-05: "a futuristic multipass/ticket ... above
+// the bottom buttons so it looks more inviting") ----
+// The pass rises out of the segment over the UNLOCK key, as if the key prints it:
+// the top of the card shows, the rest stays behind the chord. On CLEARED it rises
+// further and its edge turns green. Named knobs, for Gil to tune by eye, as shares of R:
+//   x     the card's centre, right of the disc's centre (0.32 sits it over UNLOCK)
+//   peek  how much of the card shows above the chord
+//   w     the card's width (its height is w * 0.62)
+//   tilt  radians; a negative tilt lifts the right end
+//   lift  the extra rise once CLEARED
+//   bob   the float's height; sheen is holo sweeps per second
+const LICENSE_PASS = { x: 0.32, peek: 0.21, w: 0.70, tilt: -0.07, lift: 0.14, bob: 0.006, sheen: 0.28 };
+// the card's two gradients are in its own frame, so they are built once per size
+let passGrads = null, passKey = '', passCtx = null;
+function drawLicensePass(cx, cy, R, q, o) {
+  const P = LICENSE_PASS, w = R * P.w, h = w * 0.62, chordY = cy + R * DISC_SEG;
+  if (o.done && o.doneAt == null) o.doneAt = time;
+  const ease = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
+  const up = R * (P.peek * ease((q - 0.55) / 0.45) + (o.done ? P.lift * ease((time - o.doneAt) / 0.7) : 0));
+  if (up <= 0.5) return;
+  const pk = w.toFixed(1);
+  if (!(passGrads && passKey === pk && passCtx === ctx)) {
+    const body = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+    body.addColorStop(0, 'rgba(24,64,112,0.97)');
+    body.addColorStop(0.55, 'rgba(9,28,58,0.97)');
+    body.addColorStop(1, 'rgba(30,24,78,0.97)');
+    const holo = ctx.createLinearGradient(-w * 0.2, 0, w * 0.2, 0);
+    holo.addColorStop(0, 'rgba(140,230,255,0)');
+    holo.addColorStop(0.35, 'rgba(140,230,255,0.22)');
+    holo.addColorStop(0.5, 'rgba(255,214,140,0.26)');
+    holo.addColorStop(0.65, 'rgba(190,140,255,0.2)');
+    holo.addColorStop(1, 'rgba(190,140,255,0)');
+    passGrads = [body, holo]; passKey = pk; passCtx = ctx;
+  }
+  const [body, holo] = passGrads;
+  // the ticket's lines are ember orange (Gil, 2026-11-05); CLEARED turns its edge green
+  const ORANGE = 'rgba(255,154,60,';
+  const edge = o.done ? 'rgba(126,226,98,0.95)' : ORANGE + '0.95)';
+  ctx.save();
+  // the segment's keys are glass, so the chord CLIPS the card rather than covering it
+  ctx.beginPath(); ctx.rect(cx - R, cy - R, R * 2, chordY - (cy - R)); ctx.clip();
+  ctx.translate(cx + R * P.x, chordY - up + h / 2 + Math.sin(time * 1.7) * R * P.bob);
+  ctx.rotate(P.tilt);
+  const cut = h * 0.16;
+  techRect(-w / 2, -h / 2, w, h, cut);
+  ctx.fillStyle = body; ctx.fill();
+  // the holo sheen crosses the card, then rests
+  const ph = (time * P.sheen) % 1;
+  if (ph < 0.5) {
+    ctx.save(); ctx.clip();
+    ctx.translate(-w * 0.8 + ph / 0.5 * w * 1.6, 0); ctx.rotate(0.45);
+    ctx.fillStyle = holo; ctx.fillRect(-w * 0.2, -h * 1.5, w * 0.4, h * 3);
+    ctx.restore();
+  }
+  // a soft glow under the edge: a wide faint stroke, never shadowBlur (WebKit pays for it)
+  techRect(-w / 2, -h / 2, w, h, cut);
+  ctx.strokeStyle = o.done ? 'rgba(126,226,98,0.16)' : ORANGE + '0.18)'; ctx.lineWidth = Math.max(4, R * 0.024); ctx.stroke();
+  ctx.strokeStyle = edge; ctx.lineWidth = Math.max(1.2, R * 0.006); ctx.stroke();
+  ctx.strokeStyle = ORANGE + '0.3)'; ctx.lineWidth = 1;
+  const ins = h * 0.06;
+  techRect(-w / 2 + ins, -h / 2 + ins, w - ins * 2, h - ins * 2, cut * 0.7); ctx.stroke();
+  // the stub: a row of perforations, and the ring the thumbs fly, as the emblem
+  const perfX = w / 2 - w * 0.3;
+  ctx.fillStyle = ORANGE + '0.6)';
+  for (let yy = -h / 2 + h * 0.1; yy < h / 2; yy += h * 0.08) { ctx.beginPath(); ctx.arc(perfX, yy, Math.max(0.8, h * 0.012), 0, TAU); ctx.fill(); }
+  const ex = w / 2 - w * 0.15, ey = -h / 2 + h * 0.3, er = h * 0.15;
+  ctx.strokeStyle = 'rgba(186,231,255,0.5)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(ex, ey, er, 0, TAU); ctx.stroke();
+  // two of the emblem's four arcs wear the ticket's orange, two stay ice
+  ctx.lineWidth = Math.max(1.5, h * 0.03); ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    const a = k / 4 * TAU + time * 0.6;
+    ctx.strokeStyle = k % 2 ? 'rgba(186,231,255,0.92)' : edge;
+    ctx.beginPath(); ctx.arc(ex, ey, er, a - 0.35, a + 0.35); ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(186,231,255,0.92)'; ctx.beginPath(); ctx.arc(ex, ey, er * 0.2, 0, TAU); ctx.fill();
+  // the face: what the pass is for, fitted to the space left of the perforations
+  const lx = -w / 2 + w * 0.08, lw = perfX - lx - w * 0.05;
+  ctx.textAlign = 'left';
+  try { ctx.letterSpacing = '2px'; } catch (e) {}
+  ctx.font = '700 ' + fitPx('DEEP SPACE', '700', Math.round(h * 0.15), lw, 7) + 'px Audiowide, system-ui';
+  ctx.fillStyle = 'rgba(225,242,255,0.96)'; ctx.fillText('DEEP SPACE', lx, -h / 2 + h * 0.27);
+  try { ctx.letterSpacing = '0px'; } catch (e) {}
+  const sub = 'STAGES ' + paidRange();
+  ctx.font = '600 ' + fitPx(sub, '600', Math.round(h * 0.105), lw, 6) + 'px Audiowide, system-ui';
+  ctx.fillStyle = 'rgba(140,230,255,0.82)'; ctx.fillText(sub, lx, -h / 2 + h * 0.43);
+  ctx.restore();
+}
+
 // ---- the disc ----
+// THE OFFER DISC'S LAYOUT, as shares of R. Gil, 2026-11-05: the title stands lower
+// off the crown and says the whole demand; the cyan line follows it, the free line
+// is smaller, and the restore key sits close under the words. Named knobs, for Gil
+// to tune by eye:
+//   titleDrop   how far the title sits below where other discs put theirs
+//   titleK      the title's size against other discs' titles; CLEARANCE REQUIRED
+//               and CLEARANCE GRANTED are one pair, one size (Gil, 2026-11-05)
+//   textTop     the cyan line's first baseline, above the disc's centre
+//   freePx      the free line's type size
+//   restoreGap  from the last line's baseline down to the restore key's top
+const LICENSE_OFFER = { titleDrop: 0.1, titleK: 1.25, textTop: 0.37, freePx: 0.046, restoreGap: 0.05 };
+// THE CLEARED DISC (Gil, 2026-11-05): the news sits close under the title, and
+// GOOD HUNTING, VANGUARD is the big line, with a shine that sweeps it left to right
+// on a loop. Named knobs, shares of R unless said:
+//   newsTop    the news line's baseline, above the disc's centre
+//   huntY      GOOD HUNTING's first baseline, off the centre (negative is above)
+//   huntPx     its type size
+//   shine      seconds per loop; the sweep takes shineRun of it, then the line rests
+//   shineBand  the gleam's half-width
+const LICENSE_DONE = { newsTop: 0.37, huntY: -0.16, huntPx: 0.1, shine: 2.4, shineRun: 0.7, shineBand: 0.22 };
+let shineGrad = null, shineKey = '', shineCtx = null;
+function drawHuntLine(cx, cy, R) {
+  const D = LICENSE_DONE, px = Math.max(12, Math.round(R * D.huntPx)), y0 = cy + R * D.huntY;
+  const text = 'GOOD HUNTING,\nVANGUARD';
+  // the base is a deeper cyan than the ice copy: a white gleam over ice does not show
+  discPara(cx, cy, R, text, y0, 'rgba(84,186,250,0.96)', px, '700');
+  // THE SHINE: the same words again, filled with a slanted white band. A canvas
+  // gradient lives in user space, so the band is built once around the origin and
+  // moved by translating the context; the words are drawn back by the same amount.
+  const band = R * D.shineBand, k = band.toFixed(1);
+  if (!(shineGrad && shineKey === k && shineCtx === ctx)) {
+    shineGrad = ctx.createLinearGradient(-band, -band * 0.4, band, band * 0.4);
+    shineGrad.addColorStop(0, 'rgba(255,255,255,0)');
+    shineGrad.addColorStop(0.5, 'rgba(255,255,255,0.95)');
+    shineGrad.addColorStop(1, 'rgba(255,255,255,0)');
+    shineKey = k; shineCtx = ctx;
+  }
+  const ph = (time / D.shine) % 1;
+  if (ph >= D.shineRun) return;
+  const sx = cx - R * 0.8 + ph / D.shineRun * R * 1.6, sy = y0 + px * 0.5;
+  ctx.save(); ctx.translate(sx, sy);
+  discPara(cx - sx, cy - sy, R, text, y0 - sy, shineGrad, px, '700');
+  ctx.restore();
+}
 function licOfferCopy(o) {
-  const names = CAMPAIGNS.slice(FREE_CONTRACTS).map(p => p.title);
-  const list = names.length > 1 ? names.slice(0, -1).join(', ') + ' AND ' + names[names.length - 1] : names.join('');
   const bosses = CAMPAIGNS.slice(FREE_CONTRACTS).filter(p => p.levels.some(l => l && l.boss)).length;
-  const free = 'STAGES ' + freeRange() + ' AND THE ENDLESS LANE STAY FREE';
+  // the break is set by hand: at the small size the wrap left FREE alone on a line
+  const free = 'STAGES ' + freeRange() + ' AND THE ENDLESS LANE\nSTAY FREE';
   if (o.from === 'weekly') return [
     'THE WEEKLY BOARD FILES CLEARED VANGUARDS ONLY',
     'CLEARANCE ALSO OPENS STAGES ' + paidRange(),
     free];
+  // the words are Gil's, 2026-11-05. The title says the demand, so there is no lead line.
   return [
-    list + ' RUN PAST THE CHARTED LANES',
-    'STAGES ' + paidRange() + ' · ' + bosses + ' BOSSES · CLEARED FOR GOOD',
+    null,
+    'GET ACCESS TO:\nSTAGES ' + paidRange() + ', INCLUDING ' + bosses + ' BOSSES.',
     free];
 }
 function drawLicOffer() {
@@ -387,21 +538,28 @@ function drawLicOffer() {
   ctx.fillRect(0, 0, W, H);
   popRender(q, cx - R, cy - R, R * 2, R * 2, () => {
     ctx.save();
-    discPlate(cx, cy, R, o.done ? 'CLEARED' : 'DEEP RANGE\nCLEARANCE');
+    discPlate(cx, cy, R, o.done ? 'CLEARANCE\nGRANTED' : 'CLEARANCE\nREQUIRED', null, LICENSE_OFFER.titleDrop, LICENSE_OFFER.titleK);
+    drawLicensePass(cx, cy, R, q, o);
     const [p1, p2, p3] = licOfferCopy(o);
     const px1 = Math.max(9, Math.round(R * 0.064)), px2 = Math.max(8, Math.round(R * 0.056));
-    let y = cy - R * (o.done ? 0.16 : 0.42); // the cleared disc says two lines: they sit in the middle of the band
+    const px3 = Math.max(7, Math.round(R * LICENSE_OFFER.freePx));
+    let y = cy - R * (o.done ? LICENSE_DONE.newsTop : LICENSE_OFFER.textTop);
     if (o.done) {
-      y = discPara(cx, cy, R, o.msg, y, 'rgba(126,226,98,0.96)', px1, '700');
-      discPara(cx, cy, R, 'GOOD HUNTING, VANGUARD', y + px1 * 0.4, 'rgba(150,210,255,0.72)', px2, '500');
+      discPara(cx, cy, R, o.msg, y, 'rgba(126,226,98,0.96)', px1, '700');
+      drawHuntLine(cx, cy, R);
     } else {
-      y = discPara(cx, cy, R, p1, y, 'rgba(220,235,255,0.94)', px1, '600');
-      y = discPara(cx, cy, R, p2, y + px1 * 0.25, 'rgba(140,230,255,0.92)', px2, '700');
-      discPara(cx, cy, R, p3, y + px2 * 0.2, 'rgba(150,185,220,0.62)', px2, '500');
-      // THE BAND ABOVE THE SEGMENT: the restore key, or what the store just said.
-      // The key holds words, so it keeps the TEXT margin off the rim, fitted at
-      // its widest corner (the disc law).
-      const kh = Math.max(16, R * 0.105), ky = cy + R * 0.40;
+      // only the weekly door has a lead line over the cyan one
+      if (p1) y = discPara(cx, cy, R, p1, y, 'rgba(220,235,255,0.94)', px1, '600') + px1 * 0.25;
+      // the access line breaks after GET ACCESS TO (Gil, 2026-11-05), so each half is
+      // FITTED to the line's width rather than wrapped a second time
+      const wMax = Math.min(R * DISC_TEXT_MAX, (discChord(R, y - px2 - cy) - R * DISC_TEXT_PAD) * 2) * 0.97;
+      const pxA = Math.min(...p2.split('\n').map(l => fitPx(l, '700', px2, wMax, 7)));
+      y = discPara(cx, cy, R, p2, y, 'rgba(140,230,255,0.92)', pxA, '700');
+      y = discPara(cx, cy, R, p3, y + px2 * 0.2, 'rgba(150,185,220,0.62)', px3, '500');
+      // UNDER THE WORDS: the restore key, or what the store just said. The key holds
+      // words, so it keeps the TEXT margin off the rim, fitted at its widest corner
+      // (the disc law). Its height is the settings disc's restore key's (DISC_KEY_H).
+      const kh = Math.max(DISC_KEY_MIN, R * DISC_KEY_H), ky = y - px3 * 1.55 + R * LICENSE_OFFER.restoreGap;
       if (o.msg) {
         discPara(cx, cy, R, o.msg, ky + kh * 0.62, o.busy ? 'rgba(150,210,255,0.85)' : 'rgba(255,214,140,0.95)', px2, '700');
       } else {
@@ -417,11 +575,13 @@ function drawLicOffer() {
       }
     }
     // the positive verb rides the RIGHT half (Gil's rule for every disc segment)
-    const buy = 'UNLOCK' + (licensePrice ? '  ' + licensePrice : '');
+    // UNLOCK sits small over the price, and the price is the key's big word (Gil,
+    // 2026-11-05); until the store has answered, the key says UNLOCK alone
+    const buy = licensePrice || 'UNLOCK';
     const keys = o.done
       ? [['CONTINUE ▸', 'go', { primary: true }]]
       : [[o.from === 'weekly' ? 'FLY UNRANKED' : 'NOT NOW', o.from === 'weekly' ? 'unranked' : 'later', { locked: o.busy }],
-         [buy, 'buy', { primary: true, locked: o.busy }]];
+         [buy, 'buy', { primary: true, locked: o.busy, over: licensePrice ? 'UNLOCK' : null }]];
     // the keys go live once the cast has landed, never on the frame it begins
     for (const b of discSegKeys(cx, cy, R, keys)) if (q > 0.92 && licOffer) licOfferBtns.push(b);
     if (q <= 0.92 || !licOffer) licOfferBtns.length = 0;
