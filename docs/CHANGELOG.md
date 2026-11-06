@@ -29,6 +29,9 @@ stays free. Upload steps: `docs/RELEASE-1.1.0.md`.
 ### Behind the game
 - **Fairer boards.** The score check now refuses every move the live game
   refuses, so a forged run cannot rank.
+- **Clean boards for the launch.** Every board is wiped on launch day (a backup
+  table keeps the old runs), and the weekly ladder starts at the launch week,
+  9–15 Nov, so the empty weeks since 28 Sep no longer show.
 - **Play statistics.** First-party, no SDK: sessions, stage attempts, device and
   OS, kept 13 months. MY DATA deletes and exports them; `docs/privacy.html` says
   what is sent.

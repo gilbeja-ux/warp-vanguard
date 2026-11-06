@@ -7060,10 +7060,11 @@ await tick();
 // Gil, 2026-09-04: the boards were wiped on 2026-09-02, so the weeks before that were
 // empty boards on the list. The ladder now begins at the wipe's week.
 // Gil, 2026-09-21: wiped again before 1.0.10, and testing starts the week after.
+// Gil, 2026-11-06: the full release (1.1.0) starts clean, so the ladder starts at its launch week.
 {
   const board = fs.readFileSync(path.join(ROOT, 'src', 'game', '93-board.js'), 'utf8');
-  check('the weekly ladder starts at week 2961 (28 SEP – 4 OCT 2026), the week testing starts',
-    /const WEEK_LADDER_FIRST = 2961;/.test(board));
+  check('the weekly ladder starts at week 2967 (9 – 15 NOV 2026), the launch week of 1.1.0',
+    /const WEEK_LADDER_FIRST = 2967;/.test(board));
 }
 
 // ================= the LOADING readout sits under the badge, and the word under the bar =================

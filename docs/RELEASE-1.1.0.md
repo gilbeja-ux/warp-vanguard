@@ -106,7 +106,20 @@ The code, artwork and music are original and owned by the developer. The recorde
 
 ## 5. Launch day
 
-1. Play: Publishing overview → **Publish**. App Store: **Release This Version**.
-2. Check the live game: `npm run verifier:status` says IN SYNC, and a test score posts.
-3. Watch the traction page (admin console, port 8200 → `/traction`) for the first players
+1. **Wipe the boards, right before you publish** (Gil, 2026-11-06). Tell Claude
+   "wipe the boards for launch", or run it yourself from the repo. It copies every run
+   into a backup table first, as the wipes of 2 Sep and 21 Sep did, then empties the
+   boards. Filed reports go with their runs; the trace files stay, and the backup rows
+   still point to them. Put the launch date in the table name:
+
+   ```bash
+   supabase db query --linked "begin; create table public.runs_backup_YYYYMMDD as select * from public.runs; delete from public.runs; commit; select (select count(*) from public.runs) as runs_left, (select count(*) from public.runs_backup_YYYYMMDD) as backed_up;"
+   ```
+
+   `runs_left` must be 0 and `backed_up` the old count. The weekly ladder already starts
+   at the launch week (`WEEK_LADDER_FIRST = 2967`, 9–15 Nov), so no empty past week shows.
+   If the launch slips past 15 Nov, that constant moves to the launch week first.
+2. Play: Publishing overview → **Publish**. App Store: **Release This Version**.
+3. Check the live game: `npm run verifier:status` says IN SYNC, and a test score posts.
+4. Watch the traction page (admin console, port 8200 → `/traction`) for the first players
    and for SYSTEM FAULT counts.
