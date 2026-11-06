@@ -205,6 +205,9 @@ let bossTestRun = false;      // the boss drill — its runs never file to a boa
 // navigation. On a locked contract startBossTest reads startLevel's false and
 // stops; the clearance offer is up instead (34-license.js).
 const BOSS_GATE_PASS = 'ShokoLoc0';
+// THE LAUNCH CUT (1.1.0, 2026-11-06): the long-press opens nothing in a store build,
+// because Apple 2.5.19 bans hidden features (Gil's plan, 2026-10-17). true = tester build.
+let BOSS_GATE_ON = false;
 let bossGate = false;         // the passcode disc is up (menu map screen only)
 let bossGateDraft = '';       // live text in the passcode field
 let bossGateWrongAt = -9;     // time of the last wrong entry — drives the shake

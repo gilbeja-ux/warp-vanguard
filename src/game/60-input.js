@@ -189,7 +189,7 @@ canvas.addEventListener('pointerdown', e => {
     if (menuScreen === 'map' && !menuFx) {
       const last = LEVELS.length - 1;
       const nb = menuButtons.find(b2 => b2.node === last && P.x > b2.x && P.x < b2.x + b2.w && P.y > b2.y && P.y < b2.y + b2.h);
-      if (nb) menuHold = { node: last, t: 0, x: P.x, y: P.y };
+      if (nb && BOSS_GATE_ON) menuHold = { node: last, t: 0, x: P.x, y: P.y };
       // the ↺ key: press-and-hold to open the reset-campaign confirm
       if (resetIconRect && P.x > resetIconRect.x && P.x < resetIconRect.x + resetIconRect.w
         && P.y > resetIconRect.y && P.y < resetIconRect.y + resetIconRect.h)
