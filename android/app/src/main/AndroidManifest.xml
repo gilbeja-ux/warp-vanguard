@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- appCategory is load-bearing, not metadata. From Android 16 the platform
          ignores screenOrientation on displays ≥600dp — EXCEPT for apps that
@@ -49,4 +50,12 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- THE PAYWALL IS SHELVED (1.1.1, Gil, 2026-11-06): the Play Billing library adds
+         this permission by itself, and Play then labels the listing "In-app purchases"
+         although nothing is sold (seen on 1.1.0). The game never asks the store while
+         PAYWALL_ON is false. Delete this line in the build that turns the switch on;
+         npm test pins the two together. iOS has no twin: the App Store shows the label
+         only for an approved product. -->
+    <uses-permission android:name="com.android.vending.BILLING" tools:node="remove" />
 </manifest>

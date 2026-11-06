@@ -1,13 +1,17 @@
 # Release 1.1.0 — upload and release guide
 
-The first full release, on Google Play (production) and the App Store. Build code
-**10100** on both. Written 2026-11-06.
+The first full release, on Google Play (production) and the App Store. Written 2026-11-06.
+
+- **Google Play ships 1.1.1 (10101).** It is the same game as 1.1.0, without the Play
+  Billing permission that made Play label the free game *In-app purchases*.
+- **The App Store keeps 1.1.0 (10100),** the build you already uploaded. Apple shows the
+  label only for an approved product, so iOS needs no new build.
 
 ## Already done for you
 
 - [x] The paywall is off: every contract is free. Its code stays built (`PAYWALL-CHECKLIST.md`).
 - [x] The boss long-press is off in a store build (Apple 2.5.19): `BOSS_GATE_ON = false`.
-- [x] Version 1.1.0 in `package.json`, Gradle and the Xcode project (`sync-version.js`).
+- [x] Version 1.1.1 in `package.json`, Gradle and the Xcode project (`sync-version.js`); the uploaded iOS build stays 1.1.0.
 - [x] `npm test`, the smoke suite and the coverage gate pass; the verifier is live for the release sim.
 - [x] The builds are on your Desktop: `WarpVanguard.aab` (Play) and `WarpVanguard.ipa` (App Store).
 - [ ] **Master is pushed**, so the new privacy policy is live at
@@ -34,8 +38,11 @@ Play Console → Warp Vanguard.
    country. A non-trader has no step per app. Before the paywall goes on, change it to
    **Trader** (`PAYWALL-CHECKLIST.md` §1 step 3).
 4. **The release.** Test and release → Production → Create new release.
-   - App bundle: upload `~/Desktop/WarpVanguard.aab`.
-   - Release name: `1.1.0 (10100)`.
+   - App bundle: upload `~/Desktop/WarpVanguard.aab` (1.1.1). If a release already holds
+     the 1.1.0 bundle, remove it there and add 1.1.1.
+   - First check the label: upload 1.1.1 to Internal testing too. Internal testing goes
+     live in minutes, and the *In-app purchases* line must be gone from the Play page.
+   - Release name: `1.1.1 (10101)`.
    - Release notes (en-US): paste the Play text in §3.
    - Countries / regions: if Play asks, add the same list as open testing.
 5. **Rollout: 100 %.** A first production release has no old users to protect, and a
@@ -43,7 +50,7 @@ Play Console → Warp Vanguard.
 6. Next → Save → Publishing overview → **Send changes for review**.
 7. When review passes (often 1–3 days), press **Publish** on the day you choose.
 
-Open testing can stay as it is: its users get 1.1.0 from production, because 10100 is higher than 10012.
+Open testing can stay as it is: its users get 1.1.1 from production, because 10101 is higher than 10012.
 
 ## 2. App Store
 

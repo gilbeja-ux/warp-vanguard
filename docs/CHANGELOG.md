@@ -6,6 +6,14 @@ what a player meets. The commit trail between two versions is
 
 ---
 
+## 1.1.1 — 2026-11-06 (versionCode 10101)
+
+Google Play only; the App Store keeps 1.1.0. The same game as 1.1.0. The Android
+build no longer asks for the Play Billing permission, which made Google Play label
+the free game *In-app purchases*. Everything is still free.
+
+---
+
 ## 1.1.0 — 2026-11-06 (versionCode 10100)
 
 The first full release, on Google Play production and the App Store. The course

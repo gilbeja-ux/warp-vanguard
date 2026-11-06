@@ -5950,6 +5950,10 @@ await tick();
 
     // ---- SHELVED (Gil, 2026-11-06): the switch ships OFF; the harness flies the built wall ON ----
     check('paywall: SHELVED: the shipped switch is off (Gil, 2026-11-06: monetization waits for traction)', /const PAYWALL_ON = false;/.test(lic));
+    // 1.1.1: Play labelled the 1.1.0 listing "In-app purchases" for the library's BILLING permission.
+    check('paywall: the Android manifest strips the BILLING permission exactly while the switch is off',
+      /const PAYWALL_ON = false;/.test(lic) === /<uses-permission android:name="com\.android\.vending\.BILLING" tools:node="remove" \/>/
+        .test(fs.readFileSync(path.join(ROOT, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'), 'utf8')));
     check('paywall: shelved, the boot writes no legacy stamp and asks no store, and a resume asks nothing',
       /\(function licenseBoot\(\) \{\s*if \(!PAYWALL_ON\) return;/.test(lic) && /function licenseResume\(\) \{\s*if \(!PAYWALL_ON \|\|/.test(lic));
     {

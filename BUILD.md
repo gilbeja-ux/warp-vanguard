@@ -97,6 +97,7 @@ iOS twin, because a native decision is made twice.
 | `@capacitor-community/keep-awake` (package.json) | the screen stays lit while the warp is active — a replay has no touch to reset the idle timer (`keepAwakeSync` in `60-input.js`, `FLAG_KEEP_SCREEN_ON`) | the same plugin, `isIdleTimerDisabled`; `cap sync` writes the pod line |
 | `build.gradle`, `proguard-rules.pro`, `variables.gradle` | signing, R8 keep rules, SDK levels, generated versions | `project.pbxproj` |
 | `LicensePlugin.java` + the Play Billing line in `build.gradle` | the paid unlock (2026-11-05): Play Billing 8 asked directly — query, buy, acknowledge, pending payments — behind a `License` plugin the page calls with the product id (`34-license.js`) | `LicensePlugin.swift`: StoreKit 2 (`Transaction.currentEntitlements`, `AppStore.sync()`), no package line — StoreKit ships with iOS |
+| `AndroidManifest.xml`, the BILLING `tools:node="remove"` line | while `PAYWALL_ON` is false (1.1.1, 2026-11-06), the Play Billing library's permission is stripped, so Play does not label the listing *In-app purchases*; delete the line when the switch turns on (`npm test` pins the two together) | none: the App Store shows the label only for an approved product |
 | `MainActivity.java` | registers `LicensePlugin` before `super.onCreate`: an app-owned plugin is not found by itself | `GameViewController.capacitorDidLoad` registers it; `.gitignore` re-includes the Swift file and `project.pbxproj` compiles it |
 
 ## Build the APK
