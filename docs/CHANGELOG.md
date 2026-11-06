@@ -6,6 +6,38 @@ what a player meets. The commit trail between two versions is
 
 ---
 
+## 1.1.0 — 2026-11-06 (versionCode 10100)
+
+The first full release, on Google Play production and the App Store. The course
+splits into three short parts, a charged pulse explains itself, and every contract
+stays free. Upload steps: `docs/RELEASE-1.1.0.md`.
+
+### The first run
+- **Training in three parts.** Part 1 (the controls, the basic enemy, the
+  power-up) plays before stage 01. Part 2 (armor, the barrier net, the dead zone,
+  the golden strip) plays the first time stage 03 starts. Part 3 (the phase
+  locks) plays the first time stage 07 starts. Each part ends on its own
+  QUALIFIED stamp, and TRAINING in SETTINGS replays any of them.
+- **The volley lesson and the pulse lesson are gone.** Players find the volley
+  on their own, and the pulse now shows itself (below).
+
+### In every stage
+- **A charged pulse takes its whole side of the screen.** The side washes in the
+  emitter's colour, says TAP TO FIRE (LT / RT TO FIRE on a controller), and a tap
+  anywhere on that side fires. A thumb that rests or slides never fires.
+
+### Behind the game
+- **Fairer boards.** The score check now refuses every move the live game
+  refuses, so a forged run cannot rank.
+- **Play statistics.** First-party, no SDK: sessions, stage attempts, device and
+  OS, kept 13 months. MY DATA deletes and exports them; `docs/privacy.html` says
+  what is sent.
+- **All contracts stay free.** The paywall is built and switched off until the
+  game has traction (`docs/PAYWALL-CHECKLIST.md`).
+- **The boss long-press is off** in a store build (Apple 2.5.19).
+
+---
+
 ## 1.0.12 — 2026-10-14 (versionCode 10012)
 
 The first-run build. Testers on 1.0.11, on iOS and Android, called the ten-disc
