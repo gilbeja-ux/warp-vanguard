@@ -1,5 +1,7 @@
 # The paid unlock: Gil's checklist
 
+> **SHELVED (Gil, 2026-11-06).** Monetization waits for traction: a trader on Google Play and the EU App Store shows a phone number and an address to everyone, and a business address costs money the game may never earn. The paywall is built and switched off (`PAYWALL_ON = false` in `src/game/34-license.js`): every stage is free, nothing is sold, and settings has no RESTORE PURCHASE row. Nothing below goes live until the switch turns on.
+
 **The code is built (2026-11-05). The store side is yours.** Contracts 1 and 2 (stages
 01–16) and the endless lane are free. One non-consumable purchase unlocks contracts 3, 4
 and 5 (stages 17–40). The model and the code are in [RELEASE-PLAN.md](RELEASE-PLAN.md)

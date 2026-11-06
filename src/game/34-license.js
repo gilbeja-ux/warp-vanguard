@@ -48,6 +48,17 @@ const WEEKLY_NEEDS_LICENSE = false;
 //    widening this later still reaches every player who updated in between.
 const GRANDFATHER = 'progress';
 
+// ---- THE SWITCH: SHELVED BY GIL, 2026-11-06 ----
+// Monetization waits for traction. A seller on Google Play and on the EU App Store
+// is a "trader" and must show a phone number and an address to everyone, and an
+// address that is not home costs money the game may never earn back. So the wall is
+// built and OFF: every stage is free, the game never asks the store, no door opens
+// the offer, and settings has no RESTORE PURCHASE row. true turns all of it back on
+// in one update; docs/PAYWALL-CHECKLIST.md lists the store steps, the trader
+// declaration first. The legacy stamp (licenseBoot) waits for the first boot with
+// the switch ON, so a player who flew stages 17-40 while they were free keeps them.
+const PAYWALL_ON = false;
+
 // THE WALL STANDS ONLY WHERE A PLAYER CAN MEET IT. A headless sim (the server
 // verifier, the fingerprint battery, the test harness, the board linter) has no
 // screen to hang an offer on and replays every board by design; it has no
@@ -56,7 +67,7 @@ const GRANDFATHER = 'progress';
 // door. A browser tool that flies a paid stage on purpose (the store shoot, the
 // bench, the labs) sets `licenseWall = false` before it starts the stage.
 let licenseWall = typeof Image !== 'undefined';
-const wallUp = () => licenseWall && !globalThis.EDITOR_DRIVE;
+const wallUp = () => PAYWALL_ON && licenseWall && !globalThis.EDITOR_DRIVE;
 
 // ---- the gift ----
 // Does the save show progress past stage 16? Contracts are open side by side, so
@@ -190,7 +201,7 @@ function licenseQuery() { licenseAskedAt = Date.now(); Billing.query().then(lice
 const LICENSE_RECHECK_GAP = 2000;
 let licenseAskedAt = -1e15;
 function licenseResume() {
-  if (Date.now() - licenseAskedAt < LICENSE_RECHECK_GAP) return false;
+  if (!PAYWALL_ON || Date.now() - licenseAskedAt < LICENSE_RECHECK_GAP) return false;
   licenseQuery();
   return true;
 }
@@ -207,6 +218,7 @@ function licenseResume() {
 // the gift for this session only. The legacy stamp itself is never touched, so
 // the next plain load has the gift back.
 (function licenseBoot() {
+  if (!PAYWALL_ON) return; // shelved: no stamp yet, no store question, no listener
   // THE LEGACY STAMP, written once: what the save held the first time a
   // licence-aware build booted. A save that already has a stamp keeps it.
   if (!license.legacy || typeof license.legacy !== 'object') {

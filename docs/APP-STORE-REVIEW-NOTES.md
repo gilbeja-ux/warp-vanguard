@@ -117,6 +117,8 @@ The App Review Notes of version 1.0.11 carry the corrected text. Nothing else in
 
 ## 1.1: the in-app purchase (written 2026-11-05)
 
+> **SHELVED (Gil, 2026-11-06).** Monetization waits for traction: a trader on Google Play and the EU App Store shows a phone number and an address to everyone, and a business address costs money the game may never earn. The paywall is built and switched off (`PAYWALL_ON = false` in `src/game/34-license.js`): every stage is free, nothing is sold, and settings has no RESTORE PURCHASE row. Nothing below goes live until the switch turns on.
+
 From 1.1 the app sells one non-consumable, `com.warpvanguard.game.license`. In the Notes
 block above, replace the *Paid content* line of item 1 with the first paragraph below, and
 add the second paragraph to item 3. Add the product to the 1.1 version page before you
