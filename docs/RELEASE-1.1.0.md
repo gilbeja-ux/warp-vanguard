@@ -27,15 +27,21 @@ Play Console → Warp Vanguard.
    - App info and performance → **Crash logs**: collected, not shared, Required, Analytics.
    - App info and performance → **Diagnostics**: collected, not shared, Required, Analytics.
    - Tracking or advertising: still **No**. Save.
-3. **The release.** Test and release → Production → Create new release.
+3. **Trader status: non-trader.** This is on the account, not the app. Play Console →
+   **Manage account → Account details → About you** → follow the prompts → **Non-trader**
+   → save. Due 2027-02-01; after that date Google blocks updates. 1.1.0 sells nothing and
+   shows no ads, so non-trader is true, and the store page shows only your email and
+   country. A non-trader has no step per app. Before the paywall goes on, change it to
+   **Trader** (`PAYWALL-CHECKLIST.md` §1 step 3).
+4. **The release.** Test and release → Production → Create new release.
    - App bundle: upload `~/Desktop/WarpVanguard.aab`.
    - Release name: `1.1.0 (10100)`.
    - Release notes (en-US): paste the Play text in §3.
    - Countries / regions: if Play asks, add the same list as open testing.
-4. **Rollout: 100 %.** A first production release has no old users to protect, and a
+5. **Rollout: 100 %.** A first production release has no old users to protect, and a
    partial rollout hides the game from part of the people your marketing sends.
-5. Next → Save → Publishing overview → **Send changes for review**.
-6. When review passes (often 1–3 days), press **Publish** on the day you choose.
+6. Next → Save → Publishing overview → **Send changes for review**.
+7. When review passes (often 1–3 days), press **Publish** on the day you choose.
 
 Open testing can stay as it is: its users get 1.1.0 from production, because 10100 is higher than 10012.
 
@@ -44,21 +50,30 @@ Open testing can stay as it is: its users get 1.1.0 from production, because 101
 1. **Upload the build.** Open the free **Transporter** app (Mac App Store), sign in with
    your Apple ID, drag `~/Desktop/WarpVanguard.ipa` in, press **Deliver**.
    Processing takes about 15–30 minutes; Apple emails you when the build is ready.
-2. App Store Connect → Apps → Warp Vanguard → **+** next to *iOS App* → version `1.1.0`.
-3. **Build:** pick 1.1.0 (10100). No export-compliance question: the Info.plist already
+2. **EU trader status: check that it says non-trader.** This is on the account, not the
+   app. App Store Connect → **Business** → *Agreements* tab → *Compliance* → next to
+   *Digital Services Act*, **Complete Compliance Requirements** (or **Edit**) → **This is
+   not a trader account** → Done. Account Holder or Admin only; no address or phone. The
+   game is already on the EU store, so a status is probably set: check which one. The
+   per-app setting is Apps → Warp Vanguard → App Information → App Store Regulations and
+   Permits → Digital Services Act. These labels come from Apple's help page (2026-11-06),
+   not from the console. Before the paywall goes on, change it to trader
+   (`PAYWALL-CHECKLIST.md` §2 step 2).
+3. App Store Connect → Apps → Warp Vanguard → **+** next to *iOS App* → version `1.1.0`.
+4. **Build:** pick 1.1.0 (10100). No export-compliance question: the Info.plist already
    answers it.
-4. **What's New in This Version:** paste the App Store text in §3.
-5. **App Privacy** (left menu) → Edit, then **Publish** the change. From
+5. **What's New in This Version:** paste the App Store text in §3.
+6. **App Privacy** (left menu) → Edit, then **Publish** the change. From
    `PLAY-STATISTICS-PRIVACY.md`:
    - Identifiers → User ID: add the purpose **Analytics**.
    - Add Usage Data → **Product Interaction**: App Functionality + Analytics, linked, no tracking.
    - Add Diagnostics → **Crash Data**: App Functionality + Analytics, linked, no tracking.
    - Add Diagnostics → **Other Diagnostic Data**: Analytics, linked, no tracking.
    - Purchases: leave unticked (the paywall is off).
-6. **App Review Information → Notes:** paste the Notes text in §4.
-7. **Version Release:** choose **Manually release this version**, so you pick the day.
-8. **Add for Review → Submit.** Review is often under 48 hours.
-9. When it says *Pending Developer Release*, press **Release This Version** on launch day.
+7. **App Review Information → Notes:** paste the Notes text in §4.
+8. **Version Release:** choose **Manually release this version**, so you pick the day.
+9. **Add for Review → Submit.** Review is often under 48 hours.
+10. When it says *Pending Developer Release*, press **Release This Version** on launch day.
 
 ## 3. Release notes (paste as is)
 

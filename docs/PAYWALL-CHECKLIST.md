@@ -83,8 +83,9 @@ Do these in order. Steps 1 and 2 can take a few days to clear.
    Store. The free versions could say non-trader; the 1.1 purchase makes you a
    **trader**. Apple shows a trader's address, phone number and email on the EU product
    page, and verifies them, so use the same phone and address as on Play. Change it
-   before the 1.1 purchase goes live in the EU. Look in *Business*; the exact menu path
-   was not checked on 2026-11-05.
+   before the 1.1 purchase goes live in the EU. *Business* → *Agreements* tab →
+   *Compliance* → *Digital Services Act* → **Edit** → **This is a trader account**
+   (from Apple's help page, 2026-11-06; not yet seen in the console).
 3. [ ] **The in-app purchase.** The app → *Monetization → In-App Purchases → +*.
    - Type: **Non-Consumable**.
    - Reference name: for example `Deep Space Clearance` (only you see it)
