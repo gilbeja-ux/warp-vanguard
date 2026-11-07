@@ -8545,7 +8545,7 @@ await tick();
   check('play stats: the store-form drafts and the credential steps are written',
     /\| App info and performance \| \*\*Crash logs\*\*/.test(read('docs/PLAY-STATISTICS-PRIVACY.md'))
     && /Diagnostics → \*\*Other Diagnostic Data\*\*/.test(read('docs/PLAY-STATISTICS-PRIVACY.md'))
-    && /View app information and\s+download bulk reports/.test(read('docs/STORE-REPORTS-SETUP.md')) && /Access: \*\*Sales\*\*/.test(read('docs/STORE-REPORTS-SETUP.md')));
+    && /View app information and\s+download bulk reports/.test(read('docs/STORE-REPORTS-SETUP.md')) && /Access: \*\*Sales and Reports\*\*/.test(read('docs/STORE-REPORTS-SETUP.md')));
 
   // ---- the portal: a page on the admin console, a stage named 01 to 40 ----
   const tr = require(path.join(ROOT, 'scripts', 'lib', 'traction.js'));

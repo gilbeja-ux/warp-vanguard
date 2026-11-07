@@ -21,10 +21,14 @@ Storage bucket that belongs to the developer account. A service account with
 read access to that bucket is all the importer needs. (The Play Developer
 Reporting API covers crash and ANR rates, not installs, so it is not used here.)
 
-1. **Find the bucket.** Play Console → **Download reports** → **Statistics**.
-   Press **Copy Cloud Storage URI**. It looks like
-   `gs://pubsite_prod_rev_01234567890123456789/stats/installs/`. Keep the
-   `pubsite_prod_rev_…` part.
+1. **Find the bucket.** It is on the developer account's pages, not on the
+   app's own: Play Console → **Download reports** → **Statistics**
+   (`play.google.com/console/developers/<developer id>/download-reports/statistics`).
+   Press **Copy Cloud Storage URI** beside *Installs*. The button only fills the
+   clipboard; the page never prints the URI. On this account it is
+   `gs://pubsite_prod_<developer id>/stats/installs/` (some accounts have
+   `pubsite_prod_rev_<number>`). Paste it whole or keep the `pubsite_prod_…`
+   part; the importer drops the rest (2026-11-07, when Gil could not find it).
 2. **Make a Google Cloud project**, or use one you have:
    https://console.cloud.google.com → project picker → **New project** →
    `warp-vanguard-reports`. No billing account is needed.
@@ -50,7 +54,7 @@ Reporting API covers crash and ANR rates, not installs, so it is not used here.)
    ```json
    {
      "play": {
-       "bucket": "pubsite_prod_rev_01234567890123456789",
+       "bucket": "pubsite_prod_1234567890123456789",
        "package": "com.warpvanguard.game",
        "keyFile": "play-service-account.json"
      }
@@ -75,10 +79,12 @@ so the same key will count the paywall's purchases later.
 
 1. **Open the API keys.** App Store Connect → **Users and Access** →
    **Integrations** → **App Store Connect API** → **Team Keys**. The first time,
-   the Account Holder presses **Request Access** and accepts the terms.
-2. **Make the key.** Press **+** (*Generate API Key*). Name `traction-portal`.
-   Access: **Sales**. That is the narrowest role that can read Sales and Trends;
-   Finance and Admin also work and can do far more. **Generate**.
+   the Account Holder presses **Request Access**, ticks the terms box and presses
+   **Submit**. Apple approved it at once on 2026-11-07.
+2. **Make the key.** Press **Generate API Key**. Name `traction-portal`.
+   Access: **Sales and Reports** (Apple's name for the old *Sales* role). That is
+   the narrowest role that can read Sales and Trends; Finance and Admin also
+   work and can do far more. **Generate**.
 3. **Download it — once.** Press **Download API Key**. Apple offers the `.p8`
    file one time only. Move it:
    ```bash
@@ -90,7 +96,7 @@ so the same key will count the paywall's purchases later.
 4. **Copy two ids from the same page:** the **Key ID** (its column in the keys
    table) and the **Issuer ID** (above the table).
 5. **Find the vendor number.** App Store Connect → **Payments and Financial
-   Reports**: the number at the top left, eight digits starting with 8. (Sales
+   Reports**: the eight-digit **Vendor #** at the top left. (Sales
    and Trends → **Reports** shows it too.)
 6. **Write the config** — the same `~/.warp-vanguard/store.json`, beside the
    `play` block:
